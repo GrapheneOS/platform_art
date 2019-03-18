@@ -699,7 +699,7 @@ static void VMRuntime_setProcessPackageName(JNIEnv* env,
   Runtime::Current()->SetProcessPackageName(package_name.c_str());
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, clampGrowthLimit, "()V"),
