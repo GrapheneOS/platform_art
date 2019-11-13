@@ -321,6 +321,7 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
       case Intrinsics::kUnsafeFullFence:
         return 0u;
       case Intrinsics::kFP16Ceil:
+      case Intrinsics::kFP16Compare:
       case Intrinsics::kFP16Floor:
       case Intrinsics::kFP16Greater:
       case Intrinsics::kFP16GreaterEquals:
