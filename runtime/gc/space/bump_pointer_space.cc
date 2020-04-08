@@ -56,6 +56,8 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, uint8_t* begin, uint
       block_lock_("Block lock"),
       main_block_size_(0),
       num_blocks_(0) {
+  // This constructor gets called only from Heap::PreZygoteFork(), which
+  // doesn't require a mark_bitmap.
 }
 
 BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap&& mem_map)
@@ -70,6 +72,10 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap&& mem_map)
       block_lock_("Block lock", kBumpPointerSpaceBlockLock),
       main_block_size_(0),
       num_blocks_(0) {
+  mark_bitmap_ =
+      accounting::ContinuousSpaceBitmap::Create("bump-pointer space live bitmap",
+                                                Begin(),
+                                                Capacity());
 }
 
 void BumpPointerSpace::Clear() {
