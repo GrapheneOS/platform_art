@@ -18,6 +18,7 @@
  * Checker test for arm and arm64 simd optimizations.
  */
 public class Main {
+  static int[] arr;
 
   private static void expectEquals(int expected, int result) {
     if (expected != result) {
@@ -97,6 +98,33 @@ public class Main {
     }
   }
 
+  /// CHECK-START-ARM64: void Main.SVEIntermediateAddress(int) loop_optimization (after)
+  /// CHECK-DAG: VecLoad  loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: VecAdd   loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: VecStore loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START-ARM64: void Main.SVEIntermediateAddress(int) instruction_simplifier_arm64 (after)
+  /// CHECK-IF:     hasIsaFeature("sve")
+  ///     CHECK-DAG: <<IntAddr1:i\d+>> IntermediateAddress [{{l\d+}},{{i\d+}}]            loop:<<Loop:B\d+>>  outer_loop:none
+  ///     CHECK-DAG:                   VecLoad [<<IntAddr1>>,{{i\d+}},{{j\d+}}]           loop:<<Loop>>       outer_loop:none
+  ///     CHECK-DAG:                   VecAdd                                             loop:<<Loop>>       outer_loop:none
+  ///     CHECK-DAG: <<IntAddr2:i\d+>> IntermediateAddress [{{l\d+}},{{i\d+}}]            loop:<<Loop>>       outer_loop:none
+  ///     CHECK-DAG:                   VecStore [<<IntAddr2>>,{{i\d+}},{{d\d+}},{{j\d+}}] loop:<<Loop>>       outer_loop:none
+  /// CHECK-FI:
+  //
+  /// CHECK-START-ARM64: void Main.SVEIntermediateAddress(int) GVN$after_arch (after)
+  /// CHECK-IF:     hasIsaFeature("sve")
+  ///     CHECK-DAG: <<IntAddr:i\d+>>  IntermediateAddress [{{l\d+}},{{i\d+}}]            loop:<<Loop:B\d+>>  outer_loop:none
+  ///     CHECK-DAG:                   VecLoad [<<IntAddr>>,{{i\d+}},{{j\d+}}]            loop:<<Loop>>       outer_loop:none
+  ///     CHECK-DAG:                   VecAdd                                             loop:<<Loop>>       outer_loop:none
+  ///     CHECK-DAG:                   VecStore [<<IntAddr>>,{{i\d+}},{{d\d+}},{{j\d+}}]  loop:<<Loop>>       outer_loop:none
+  /// CHECK-FI:
+  static void SVEIntermediateAddress(int x) {
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+      arr[i] += x;
+    }
+  }
+
   private static int sumArray(byte[] b, short[] s, char[] c, int[] a, long[] l, float[] f, double[] d) {
     int sum = 0;
     for (int i = 0; i < ARRAY_SIZE; i++) {
@@ -107,7 +135,7 @@ public class Main {
 
   public static final int ARRAY_SIZE = 128;
 
-  public static void main(String[] args) {
+  public static void checkEncodableConstants() {
     byte[] b = new byte[ARRAY_SIZE];
     short[] s = new short[ARRAY_SIZE];
     char[] c = new char[ARRAY_SIZE];
@@ -119,6 +147,28 @@ public class Main {
     encodableConstants(b, s, c, a, l, f, d);
     expectEquals(32640, sumArray(b, s, c, a, l, f, d));
 
-    System.out.println("passed");
+    System.out.println("encodableConstants passed");
+  }
+
+  public static void checkSVEIntermediateAddress() {
+    arr = new int[ARRAY_SIZE];
+
+    // Setup.
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+      arr[i] = i;
+    }
+
+    // Arithmetic operations.
+    SVEIntermediateAddress(2);
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+      expectEquals(i + 2, arr[i]);
+    }
+
+    System.out.println("SVEIntermediateAddress passed");
+  }
+
+  public static void main(String[] args) {
+    checkEncodableConstants();
+    checkSVEIntermediateAddress();
   }
 }
