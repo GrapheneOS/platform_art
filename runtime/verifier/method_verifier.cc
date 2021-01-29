@@ -2253,7 +2253,8 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
                                               << reg_type;
           } else if (!return_type.IsAssignableFrom(reg_type, this)) {
             if (reg_type.IsUnresolvedTypes() || return_type.IsUnresolvedTypes()) {
-              Fail(api_level_ > 29u ? VERIFY_ERROR_BAD_CLASS_SOFT : VERIFY_ERROR_NO_CLASS)
+              Fail(api_level_ > 29u
+                      ? VERIFY_ERROR_BAD_CLASS_SOFT : VERIFY_ERROR_UNRESOLVED_TYPE_CHECK)
                   << " can't resolve returned type '" << return_type << "' or '" << reg_type << "'";
             } else {
               bool soft_error = false;
@@ -2603,7 +2604,8 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
         } else if (!res_type.IsReferenceTypes()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "thrown value of non-reference type " << res_type;
         } else {
-          Fail(res_type.IsUnresolvedTypes() ? VERIFY_ERROR_NO_CLASS : VERIFY_ERROR_BAD_CLASS_SOFT)
+          Fail(res_type.IsUnresolvedTypes()
+                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK : VERIFY_ERROR_BAD_CLASS_SOFT)
                 << "thrown class " << res_type << " not instanceof Throwable";
         }
       }
@@ -3870,7 +3872,8 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
           return std::make_pair(false, unresolved);
         }
         // Soft-fail, but do not handle this with a synthetic throw.
-        Fail(VERIFY_ERROR_NO_CLASS, /*pending_exc=*/ false) << "Unresolved catch handler";
+        Fail(VERIFY_ERROR_UNRESOLVED_TYPE_CHECK, /*pending_exc=*/ false)
+            << "Unresolved catch handler";
         if (common_super != nullptr) {
           unresolved = &unresolved->Merge(*common_super, &reg_types_, this);
         }
@@ -4100,7 +4103,7 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgsFromIterator(
       }
       if (!res_method_class->IsAssignableFrom(adjusted_type, this)) {
         Fail(adjusted_type.IsUnresolvedTypes()
-                 ? VERIFY_ERROR_NO_CLASS
+                 ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK
                  : VERIFY_ERROR_BAD_CLASS_SOFT)
             << "'this' argument '" << actual_arg_type << "' not instance of '"
             << *res_method_class << "'";
@@ -4772,7 +4775,7 @@ ArtField* MethodVerifier<kVerifierDebug>::GetInstanceField(const RegType& obj_ty
       bool is_aot = IsAotMode();
       if (is_aot && (field_klass.IsUnresolvedTypes() || obj_type.IsUnresolvedTypes())) {
         // Compiler & unresolved types involved, retry at runtime.
-        type = VerifyError::VERIFY_ERROR_NO_CLASS;
+        type = VerifyError::VERIFY_ERROR_UNRESOLVED_TYPE_CHECK;
       } else {
         // Classes known (resolved; and thus assignability check is precise), or we are at runtime
         // and still missing classes. This is a hard failure.
@@ -5173,6 +5176,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
 // The AOT/JIT compiled code is not affected.
 static inline bool CanRuntimeHandleVerificationFailure(uint32_t encountered_failure_types) {
   constexpr uint32_t unresolved_mask =
+      verifier::VerifyError::VERIFY_ERROR_NO_CLASS |
       verifier::VerifyError::VERIFY_ERROR_CLASS_CHANGE |
       verifier::VerifyError::VERIFY_ERROR_INSTANTIATION |
       verifier::VerifyError::VERIFY_ERROR_ACCESS_CLASS |
@@ -5527,33 +5531,13 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
   if (pending_exc) {
     switch (error) {
       case VERIFY_ERROR_NO_CLASS:
+      case VERIFY_ERROR_UNRESOLVED_TYPE_CHECK:
       case VERIFY_ERROR_NO_METHOD:
       case VERIFY_ERROR_ACCESS_CLASS:
       case VERIFY_ERROR_ACCESS_FIELD:
       case VERIFY_ERROR_ACCESS_METHOD:
       case VERIFY_ERROR_INSTANTIATION:
       case VERIFY_ERROR_CLASS_CHANGE:
-      case VERIFY_ERROR_FORCE_INTERPRETER:
-      case VERIFY_ERROR_LOCKING:
-        if (IsAotMode() || !can_load_classes_) {
-          if (error != VERIFY_ERROR_ACCESS_CLASS &&
-              error != VERIFY_ERROR_ACCESS_FIELD &&
-              error != VERIFY_ERROR_NO_METHOD &&
-              error != VERIFY_ERROR_ACCESS_METHOD) {
-            // If we're optimistically running verification at compile time, turn NO_xxx,
-            // class change and instantiation errors into soft verification errors so that we
-            // re-verify at runtime. We may fail to find or to agree on access because of not yet
-            // available class loaders, or class loaders that will differ at runtime. In these
-            // cases, we don't want to affect the soundness of the code being compiled. Instead, the
-            // generated code runs "slow paths" that dynamically perform the verification and cause
-            // the behavior to be that akin to an interpreter.
-            error = VERIFY_ERROR_BAD_CLASS_SOFT;
-          }
-        } else {
-          // If we fail again at runtime, mark that this instruction would throw and force this
-          // method to be executed using the interpreter with checks.
-          flags_.have_pending_runtime_throw_failure_ = true;
-        }
         // How to handle runtime failures for instructions that are not flagged kThrow.
         //
         // The verifier may fail before we touch any instruction, for the signature of a method. So
@@ -5576,6 +5560,11 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
         }
         break;
 
+      case VERIFY_ERROR_FORCE_INTERPRETER:
+      case VERIFY_ERROR_LOCKING:
+        // This will be reported to the runtime as a soft failure.
+        break;
+
         // Indication that verification should be retried at runtime.
       case VERIFY_ERROR_BAD_CLASS_SOFT:
         if (!allow_soft_failures_) {
@@ -5583,8 +5572,8 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
         }
         break;
 
-        // Hard verification failures at compile time will still fail at runtime, so the class is
-        // marked as rejected to prevent it from being compiled.
+      // Hard verification failures at compile time will still fail at runtime, so the class is
+      // marked as rejected to prevent it from being compiled.
       case VERIFY_ERROR_BAD_CLASS_HARD: {
         flags_.have_pending_hard_failure_ = true;
         break;
