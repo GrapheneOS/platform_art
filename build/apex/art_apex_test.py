@@ -540,6 +540,8 @@ class ReleaseChecker:
     self._checker.check_native_library('libart-disassembler')
     self._checker.check_native_library('libartbase')
     self._checker.check_native_library('libartpalette')
+    self._checker.check_native_library('libartservice')
+    self._checker.check_native_library('libarttools')
     self._checker.check_native_library('libdexfile')
     self._checker.check_native_library('libdexfile_support')
     self._checker.check_native_library('libdt_fd_forward')
@@ -547,6 +549,9 @@ class ReleaseChecker:
     self._checker.check_native_library('libopenjdkjvmti')
     self._checker.check_native_library('libprofile')
     self._checker.check_native_library('libsigchain')
+
+    # Check internal Java libraries
+    self._checker.check_java_library("artservice")
 
     # Check java libraries for Managed Core Library.
     self._checker.check_java_library('apache-xml')
@@ -742,6 +747,8 @@ class TestingTargetChecker:
     self._checker.check_art_test_executable('art_imgdiag_tests')
     self._checker.check_art_test_executable('art_libartbase_tests')
     self._checker.check_art_test_executable('art_libartpalette_tests')
+    self._checker.check_art_test_executable('art_libartservice_tests')
+    self._checker.check_art_test_executable('art_libarttools_tests')
     self._checker.check_art_test_executable('art_libdexfile_support_tests')
     self._checker.check_art_test_executable('art_libdexfile_tests')
     self._checker.check_art_test_executable('art_libprofile_tests')
