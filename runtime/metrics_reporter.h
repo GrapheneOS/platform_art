@@ -28,7 +28,7 @@ namespace metrics {
 
 // Defines the set of options for how metrics reporting happens.
 struct ReportingConfig {
-  static ReportingConfig FromRuntimeArguments(const RuntimeArgumentMap& args);
+  static ReportingConfig FromFlags();
 
   // Causes metrics to be written to the log, which makes them show up in logcat.
   bool dump_to_logcat{false};
