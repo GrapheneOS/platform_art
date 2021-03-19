@@ -59,6 +59,10 @@ class ElfFileImpl {
     return file_path_;
   }
 
+  uint8_t* GetBaseAddress() const {
+    return base_address_;
+  }
+
   uint8_t* Begin() const {
     return map_.Begin();
   }
@@ -118,17 +122,6 @@ class ElfFileImpl {
             bool low_4gb,
             /*inout*/MemMap* reservation,
             /*out*/std::string* error_msg);
-
-  bool Fixup(Elf_Addr base_address);
-  bool FixupDynamic(Elf_Addr base_address);
-  bool FixupSectionHeaders(Elf_Addr base_address);
-  bool FixupProgramHeaders(Elf_Addr base_address);
-  bool FixupSymbols(Elf_Addr base_address, bool dynamic);
-  bool FixupRelocations(Elf_Addr base_address);
-  bool FixupDebugSections(Elf_Addr base_address_delta);
-  bool ApplyOatPatchesTo(const char* target_section_name, Elf_Addr base_address_delta);
-  static void ApplyOatPatches(const uint8_t* patches, const uint8_t* patches_end, Elf_Addr delta,
-                              uint8_t* to_patch, const uint8_t* to_patch_end);
 
   bool Strip(File* file, std::string* error_msg);
 

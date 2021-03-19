@@ -140,6 +140,12 @@ static std::string Concatenate(std::initializer_list<std::string_view> args) {
   return ss.str();
 }
 
+static std::string GetEnvironmentVariableOrDie(const char* name) {
+  const char* value = getenv(name);
+  LOG_ALWAYS_FATAL_IF(value == nullptr, "%s is not defined.", name);
+  return value;
+}
+
 static std::string QuotePath(std::string_view path) {
   return Concatenate({"'", path, "'"});
 }
@@ -618,8 +624,10 @@ class OnDeviceRefresh final {
   static void AddDex2OatCommonOptions(/*inout*/ std::vector<std::string>& args) {
     args.emplace_back("--android-root=out/empty");
     args.emplace_back("--abort-on-hard-verifier-error");
+    args.emplace_back("--no-abort-on-soft-verifier-error");
     args.emplace_back("--compilation-reason=boot");
-    args.emplace_back("--image-format=lz4hc");
+    args.emplace_back("--image-format=lz4");
+    args.emplace_back("--force-determinism");
     args.emplace_back("--resolve-startup-const-strings=true");
   }
 
@@ -638,7 +646,6 @@ class OnDeviceRefresh final {
   }
 
   static void AddDex2OatDebugInfo(/*inout*/ std::vector<std::string>& args) {
-    args.emplace_back("--generate-debug-info");
     args.emplace_back("--generate-mini-debug-info");
     args.emplace_back("--strip");
   }
@@ -1355,8 +1362,8 @@ class OnDeviceRefresh final {
   static int InitializeTargetConfig(int argc, const char** argv, OdrConfig* config) {
     config->SetApexInfoListFile("/apex/apex-info-list.xml");
     config->SetArtBinDir(GetArtBinDir());
-    config->SetDex2oatBootclasspath(getenv("DEX2OATBOOTCLASSPATH"));
-    config->SetSystemServerClasspath(getenv("SYSTEMSERVERCLASSPATH"));
+    config->SetDex2oatBootclasspath(GetEnvironmentVariableOrDie("DEX2OATBOOTCLASSPATH"));
+    config->SetSystemServerClasspath(GetEnvironmentVariableOrDie("SYSTEMSERVERCLASSPATH"));
     config->SetIsa(kRuntimeISA);
 
     const std::string zygote = android::base::GetProperty("ro.zygote", {});

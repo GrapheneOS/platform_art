@@ -140,17 +140,6 @@
 .endm
 
 /*
- * Fetch the next instruction from an offset specified by "reg" and advance xPC.
- * xPC to point to the next instruction.  "reg" must specify the distance
- * in bytes, *not* 16-bit code units, and may be a signed value.
- *
- */
-.macro FETCH_ADVANCE_INST_RB reg
-    add     xPC, xPC, \reg, sxtw
-    ldrh    wINST, [xPC]
-.endm
-
-/*
  * Fetch a half-word code unit from an offset past the current PC.  The
  * "count" value is in 16-bit code units.  Does not advance xPC.
  *
@@ -304,8 +293,8 @@ END \name
     // Update method counter and do a suspend check if the branch is negative.
     tbnz wINST, #31, 2f
 1:
-    add w2, wINST, wINST                // w2<- byte offset
-    FETCH_ADVANCE_INST_RB w2            // update xPC, load wINST
+    add     xPC, xPC, wINST, sxtw #1    // update xPC
+    FETCH wINST, 0                      // load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
 2:
@@ -1550,6 +1539,9 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
     .text
     .align  2
 
+// Enclose all code below in a symbol (which gets printed in backtraces).
+NAME_START nterp_helper
+
 // Note: mterp also uses the common_* names below for helpers, but that's OK
 // as the assembler compiled each interpreter separately.
 common_errDivideByZero:
@@ -1634,8 +1626,8 @@ NterpHandleHotnessOverflow:
     mov x2, xFP
     bl nterp_hot_method
     cbnz x0, 1f
-    add w2, wINST, wINST                // w2<- byte offset
-    FETCH_ADVANCE_INST_RB w2            // update xPC, load wINST
+    add     xPC, xPC, wINST, sxtw #1    // update xPC
+    FETCH wINST, 0                      // load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
 1:
@@ -1733,6 +1725,8 @@ nterp_to_nterp_string_init_range:
     SETUP_STACK_FOR_INVOKE
     SETUP_RANGE_ARGUMENTS_AND_EXECUTE is_static=0, is_string_init=1
     .cfi_endproc
+
+NAME_END nterp_helper
 
 // This is the end of PCs contained by the OatQuickMethodHeader created for the interpreter
 // entry point.
