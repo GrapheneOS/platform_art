@@ -60,27 +60,15 @@ extern void ReadBarrierJni(mirror::CompressedReference<mirror::Class>* declaring
 }
 
 // Called on entry to fast JNI, push a new local reference table only.
-extern uint32_t JniMethodFastStart(Thread* self) {
-  JNIEnvExt* env = self->GetJniEnv();
-  DCHECK(env != nullptr);
-  uint32_t saved_local_ref_cookie = bit_cast<uint32_t>(env->GetLocalRefCookie());
-  env->SetLocalRefCookie(env->GetLocalsSegmentState());
-
+extern void JniMethodFastStart(Thread* self) {
   if (kIsDebugBuild) {
     ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
     CHECK(native_method->IsFastNative()) << native_method->PrettyMethod();
   }
-
-  return saved_local_ref_cookie;
 }
 
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
-extern uint32_t JniMethodStart(Thread* self) {
-  JNIEnvExt* env = self->GetJniEnv();
-  DCHECK(env != nullptr);
-  uint32_t saved_local_ref_cookie = bit_cast<uint32_t>(env->GetLocalRefCookie());
-  env->SetLocalRefCookie(env->GetLocalsSegmentState());
-
+extern void JniMethodStart(Thread* self) {
   if (kIsDebugBuild) {
     ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
     CHECK(!native_method->IsFastNative()) << native_method->PrettyMethod();
@@ -88,12 +76,11 @@ extern uint32_t JniMethodStart(Thread* self) {
 
   // Transition out of runnable.
   self->TransitionFromRunnableToSuspended(kNative);
-  return saved_local_ref_cookie;
 }
 
-extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self) {
+extern void JniMethodStartSynchronized(jobject to_lock, Thread* self) {
   self->DecodeJObject(to_lock)->MonitorEnter(self);
-  return JniMethodStart(self);
+  JniMethodStart(self);
 }
 
 // TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
@@ -159,35 +146,27 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
 // TODO: These should probably be templatized or macro-ized.
 // Otherwise there's just too much repetitive boilerplate.
 
-extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self) {
+extern void JniMethodEnd(Thread* self) {
   GoToRunnable(self);
-  PopLocalReferences(saved_local_ref_cookie, self);
 }
 
-extern void JniMethodFastEnd(uint32_t saved_local_ref_cookie, Thread* self) {
+extern void JniMethodFastEnd(Thread* self) {
   GoToRunnableFast(self);
-  PopLocalReferences(saved_local_ref_cookie, self);
 }
 
-extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie,
-                                     jobject locked,
-                                     Thread* self) {
+extern void JniMethodEndSynchronized(jobject locked, Thread* self) {
   GoToRunnable(self);
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
-  PopLocalReferences(saved_local_ref_cookie, self);
 }
 
 // Common result handling for EndWithReference.
-static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
-                                                             uint32_t saved_local_ref_cookie,
-                                                             Thread* self)
+static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS {
   // Must decode before pop. The 'result' may not be valid in case of an exception, though.
   ObjPtr<mirror::Object> o;
   if (!self->IsExceptionPending()) {
     o = self->DecodeJObject(result);
   }
-  PopLocalReferences(saved_local_ref_cookie, self);
   // Process result.
   if (UNLIKELY(self->GetJniEnv()->IsCheckJniEnabled())) {
     // CheckReferenceResult can resolve types.
@@ -199,27 +178,22 @@ static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
   return o.Ptr();
 }
 
-extern mirror::Object* JniMethodFastEndWithReference(jobject result,
-                                                     uint32_t saved_local_ref_cookie,
-                                                     Thread* self) {
+extern mirror::Object* JniMethodFastEndWithReference(jobject result, Thread* self) {
   GoToRunnableFast(self);
-  return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
+  return JniMethodEndWithReferenceHandleResult(result, self);
 }
 
-extern mirror::Object* JniMethodEndWithReference(jobject result,
-                                                 uint32_t saved_local_ref_cookie,
-                                                 Thread* self) {
+extern mirror::Object* JniMethodEndWithReference(jobject result, Thread* self) {
   GoToRunnable(self);
-  return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
+  return JniMethodEndWithReferenceHandleResult(result, self);
 }
 
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
-                                                             uint32_t saved_local_ref_cookie,
                                                              jobject locked,
                                                              Thread* self) {
   GoToRunnable(self);
   UnlockJniSynchronizedMethod(locked, self);
-  return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
+  return JniMethodEndWithReferenceHandleResult(result, self);
 }
 
 extern uint64_t GenericJniMethodEnd(Thread* self,
@@ -251,8 +225,10 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
   }
   char return_shorty_char = called->GetShorty()[0];
   if (return_shorty_char == 'L') {
-    return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceHandleResult(
-        result.l, saved_local_ref_cookie, self));
+    uint64_t ret =
+        reinterpret_cast<uint64_t>(JniMethodEndWithReferenceHandleResult(result.l, self));
+    PopLocalReferences(saved_local_ref_cookie, self);
+    return ret;
   } else {
     if (LIKELY(!critical_native)) {
       PopLocalReferences(saved_local_ref_cookie, self);
@@ -290,44 +266,37 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
   }
 }
 
-extern uint32_t JniMonitoredMethodStart(Thread* self) {
-  uint32_t result = JniMethodStart(self);
+extern void JniMonitoredMethodStart(Thread* self) {
+  JniMethodStart(self);
   MONITOR_JNI(PaletteNotifyBeginJniInvocation);
-  return result;
 }
 
-extern uint32_t JniMonitoredMethodStartSynchronized(jobject to_lock, Thread* self) {
-  uint32_t result = JniMethodStartSynchronized(to_lock, self);
+extern void JniMonitoredMethodStartSynchronized(jobject to_lock, Thread* self) {
+  JniMethodStartSynchronized(to_lock, self);
   MONITOR_JNI(PaletteNotifyBeginJniInvocation);
-  return result;
 }
 
-extern void JniMonitoredMethodEnd(uint32_t saved_local_ref_cookie, Thread* self) {
+extern void JniMonitoredMethodEnd(Thread* self) {
   MONITOR_JNI(PaletteNotifyEndJniInvocation);
-  return JniMethodEnd(saved_local_ref_cookie, self);
+  JniMethodEnd(self);
 }
 
-extern void JniMonitoredMethodEndSynchronized(uint32_t saved_local_ref_cookie,
-                                             jobject locked,
-                                             Thread* self) {
+extern void JniMonitoredMethodEndSynchronized(jobject locked, Thread* self) {
   MONITOR_JNI(PaletteNotifyEndJniInvocation);
-  return JniMethodEndSynchronized(saved_local_ref_cookie, locked, self);
+  JniMethodEndSynchronized(locked, self);
 }
 
-extern mirror::Object* JniMonitoredMethodEndWithReference(jobject result,
-                                                          uint32_t saved_local_ref_cookie,
-                                                          Thread* self) {
+extern mirror::Object* JniMonitoredMethodEndWithReference(jobject result, Thread* self) {
   MONITOR_JNI(PaletteNotifyEndJniInvocation);
-  return JniMethodEndWithReference(result, saved_local_ref_cookie, self);
+  return JniMethodEndWithReference(result, self);
 }
 
 extern mirror::Object* JniMonitoredMethodEndWithReferenceSynchronized(
     jobject result,
-    uint32_t saved_local_ref_cookie,
     jobject locked,
     Thread* self) {
   MONITOR_JNI(PaletteNotifyEndJniInvocation);
-  return JniMethodEndWithReferenceSynchronized(result, saved_local_ref_cookie, locked, self);
+  return JniMethodEndWithReferenceSynchronized(result, locked, self);
 }
 
 }  // namespace art

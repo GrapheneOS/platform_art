@@ -72,15 +72,15 @@
 \
   V(AputObject, void, mirror::Array*, int32_t, mirror::Object*) \
 \
-  V(JniMethodStart, uint32_t, Thread*) \
-  V(JniMethodFastStart, uint32_t, Thread*) \
-  V(JniMethodStartSynchronized, uint32_t, jobject, Thread*) \
-  V(JniMethodEnd, void, uint32_t, Thread*) \
-  V(JniMethodFastEnd, void, uint32_t, Thread*) \
-  V(JniMethodEndSynchronized, void, uint32_t, jobject, Thread*) \
-  V(JniMethodEndWithReference, mirror::Object*, jobject, uint32_t, Thread*) \
-  V(JniMethodFastEndWithReference, mirror::Object*, jobject, uint32_t, Thread*) \
-  V(JniMethodEndWithReferenceSynchronized, mirror::Object*, jobject, uint32_t, jobject, Thread*) \
+  V(JniMethodStart, void, Thread*) \
+  V(JniMethodFastStart, void, Thread*) \
+  V(JniMethodStartSynchronized, void, jobject, Thread*) \
+  V(JniMethodEnd, void, Thread*) \
+  V(JniMethodFastEnd, void, Thread*) \
+  V(JniMethodEndSynchronized, void, jobject, Thread*) \
+  V(JniMethodEndWithReference, mirror::Object*, jobject, Thread*) \
+  V(JniMethodFastEndWithReference, mirror::Object*, jobject, Thread*) \
+  V(JniMethodEndWithReferenceSynchronized, mirror::Object*, jobject, jobject, Thread*) \
   V(QuickGenericJniTrampoline, void, ArtMethod*) \
 \
   V(LockObject, void, mirror::Object*) \

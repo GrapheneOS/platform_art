@@ -54,50 +54,38 @@ struct PACKED(4) QuickEntryPoints {
 
 // JNI entrypoints.
 // TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
-extern uint32_t JniMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern uint32_t JniMethodFastStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
+extern void JniMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+extern void JniMethodFastStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+extern void JniMethodStartSynchronized(jobject to_lock, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
+extern void JniMethodEnd(Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodFastEnd(uint32_t saved_local_ref_cookie, Thread* self)
+extern void JniMethodFastEnd(Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
-                                     Thread* self)
+extern void JniMethodEndSynchronized(jobject locked, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
-                                                 Thread* self)
+extern mirror::Object* JniMethodEndWithReference(jobject result, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMethodFastEndWithReference(jobject result,
-                                                     uint32_t saved_local_ref_cookie,
-                                                     Thread* self)
+extern mirror::Object* JniMethodFastEndWithReference(jobject result, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-
-
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
-                                                             uint32_t saved_local_ref_cookie,
-                                                             jobject locked, Thread* self)
+                                                             jobject locked,
+                                                             Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 // JNI entrypoints when monitoring entry/exit.
-extern uint32_t JniMonitoredMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern uint32_t JniMonitoredMethodStartSynchronized(jobject to_lock, Thread* self)
+extern void JniMonitoredMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+extern void JniMonitoredMethodStartSynchronized(jobject to_lock, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMonitoredMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
+extern void JniMonitoredMethodEnd(Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMonitoredMethodEndSynchronized(uint32_t saved_local_ref_cookie,
-                                              jobject locked,
-                                              Thread* self)
+extern void JniMonitoredMethodEndSynchronized(jobject locked, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMonitoredMethodEndWithReference(jobject result,
-                                                          uint32_t saved_local_ref_cookie,
-                                                          Thread* self)
+extern mirror::Object* JniMonitoredMethodEndWithReference(jobject result, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-
-extern mirror::Object* JniMonitoredMethodEndWithReferenceSynchronized(
-    jobject result,
-    uint32_t saved_local_ref_cookie,
-    jobject locked, Thread* self)
+extern mirror::Object* JniMonitoredMethodEndWithReferenceSynchronized(jobject result,
+                                                                      jobject locked,
+                                                                      Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 
