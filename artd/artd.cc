@@ -14,40 +14,64 @@
 ** limitations under the License.
 */
 
+#include <string>
 #define LOG_TAG "artd"
 
+#include <android/binder_manager.h>
+#include <android/binder_process.h>
 #include <unistd.h>
+#include <utils/Errors.h>
 
+#include "aidl/android/os/BnArtd.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "tools/tools.h"
 
-namespace {
+using ::ndk::ScopedAStatus;
 
-class Artd {
+namespace android {
+namespace artd {
+
+class ArtD : public aidl::android::os::BnArtd {
+  constexpr static const char* const SERVICE_NAME = "artd";
+
  public:
-  Artd(ATTRIBUTE_UNUSED const int argc, ATTRIBUTE_UNUSED char* argv[]) {}
 
-  NO_RETURN
-  void Run() {
-    LOG(DEBUG) << "Starting artd";
+  /*
+   * Server API
+   */
 
-    while (true) {
-      // This is a scaffolding CL.  This sleep is intended to keep the process
-      // alive for testing without it using too many system resources.  This
-      // will be removed and replaced with a server loop in a followup CL.
-      sleep(5);
+  ScopedAStatus Start() {
+    LOG(INFO) << "Starting artd";
+
+    status_t ret = AServiceManager_addService(this->asBinder().get(), SERVICE_NAME);
+    if (ret != android::OK) {
+      return ScopedAStatus::fromStatus(ret);
     }
+
+    ABinderProcess_startThreadPool();
+
+    return ScopedAStatus::ok();
   }
 };
 
-}  // namespace
+}  // namespace artd
+}  // namespace android
 
-int main(const int argc, char* argv[]) {
+int main(const int argc __attribute__((unused)), char* argv[]) {
   setenv("ANDROID_LOG_TAGS", "*:v", 1);
   android::base::InitLogging(argv);
 
-  Artd artd(argc, argv);
+  android::artd::ArtD artd;
 
-  artd.Run();
+  if (auto ret = artd.Start(); !ret.isOk()) {
+    LOG(ERROR) << "Unable to start artd: " << ret.getMessage();
+    exit(1);
+  }
+
+  ABinderProcess_joinThreadPool();
+
+  LOG(INFO) << "artd shutting down";
+
+  return 0;
 }
