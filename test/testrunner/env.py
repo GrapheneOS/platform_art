@@ -71,6 +71,9 @@ ANDROID_BUILD_TOP = _get_android_build_top()
 # Directory used for temporary test files on the host.
 ART_HOST_TEST_DIR = tempfile.mkdtemp(prefix = 'test-art-')
 
+# Directory used to store files build by the run-test script.
+ART_TEST_RUN_TEST_BUILD_PATH = _env.get('ART_TEST_RUN_TEST_BUILD_PATH')
+
 # Keep going after encountering a test failure?
 ART_TEST_KEEP_GOING = _getEnvBoolean('ART_TEST_KEEP_GOING', True)
 
