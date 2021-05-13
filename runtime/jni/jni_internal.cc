@@ -1950,6 +1950,7 @@ class JNI {
     return InvokeWithJValues(soa, nullptr, mid, args).GetD();
   }
 
+  NO_STACK_PROTECTOR
   static void CallStaticVoidMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     va_list ap;
     va_start(ap, mid);
@@ -1959,6 +1960,7 @@ class JNI {
     InvokeWithVarArgs(soa, nullptr, mid, ap);
   }
 
+  NO_STACK_PROTECTOR
   static void CallStaticVoidMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(mid);
     ScopedObjectAccess soa(env);

@@ -523,6 +523,7 @@ bool InvokeMethodImpl(const ScopedObjectAccessAlreadyRunnable& soa,
 }  // anonymous namespace
 
 template <>
+NO_STACK_PROTECTOR
 JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
                          jobject obj,
                          ArtMethod* method,
@@ -555,6 +556,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
 }
 
 template <>
+NO_STACK_PROTECTOR
 JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
                          jobject obj,
                          jmethodID mid,
