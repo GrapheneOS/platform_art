@@ -375,6 +375,28 @@ struct CmdlineType<std::vector<std::string>> : CmdlineTypeParser<std::vector<std
   static const char* DescribeType() { return "string value"; }
 };
 
+template <>
+struct CmdlineType<std::vector<int>> : CmdlineTypeParser<std::vector<int>> {
+  Result Parse(const std::string& args) {
+    assert(false && "Use AppendValues() for a int vector type");
+    return Result::Failure("Unconditional failure: string vector must be appended: " + args);
+  }
+
+  Result ParseAndAppend(const std::string& args,
+                        std::vector<int>& existing_value) {
+    auto result = ParseNumeric<int>(args);
+    if (result.IsSuccess()) {
+      existing_value.push_back(result.GetValue());
+    } else {
+      return Result::CastError(result);
+    }
+    return Result::SuccessNoValue();
+  }
+
+  static const char* Name() { return "std::vector<int>"; }
+  static const char* DescribeType() { return "int values"; }
+};
+
 template <typename ArgType, char Separator>
 struct ParseList {
   explicit ParseList(std::vector<ArgType>&& list) : list_(list) {}
