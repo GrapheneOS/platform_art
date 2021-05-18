@@ -574,11 +574,13 @@ TEST_F(CmdlineParserTest, MultipleArguments) {
 }  //  TEST_F
 
 TEST_F(CmdlineParserTest, TypesNotInRuntime) {
-  CmdlineType<std::vector<int32_t>> ct;
+  using ParseCommaSeparatedIntList = ParseIntList<','>;
+  CmdlineType<ParseCommaSeparatedIntList> ct;
   auto success0 =
-      CmdlineParseResult<std::vector<int32_t>>::Success(std::vector<int32_t>({1, 2, 3, 4}));
+      CmdlineParseResult<ParseCommaSeparatedIntList>::Success(ParseCommaSeparatedIntList({1, 2, 3, 4}));
   EXPECT_EQ(success0, ct.Parse("1,2,3,4"));
-  auto success1 = CmdlineParseResult<std::vector<int32_t>>::Success(std::vector<int32_t>({0}));
+  auto success1 =
+      CmdlineParseResult<ParseCommaSeparatedIntList>::Success(ParseCommaSeparatedIntList({0}));
   EXPECT_EQ(success1, ct.Parse("1"));
 
   EXPECT_FALSE(ct.Parse("").IsSuccess());
