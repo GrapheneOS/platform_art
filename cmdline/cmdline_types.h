@@ -375,15 +375,15 @@ struct CmdlineType<std::vector<std::string>> : CmdlineTypeParser<std::vector<std
   static const char* DescribeType() { return "string value"; }
 };
 
-template <char Separator>
-struct ParseStringList {
-  explicit ParseStringList(std::vector<std::string>&& list) : list_(list) {}
+template <typename ArgType, char Separator>
+struct ParseList {
+  explicit ParseList(std::vector<ArgType>&& list) : list_(list) {}
 
-  operator std::vector<std::string>() const {
+  operator std::vector<ArgType>() const {
     return list_;
   }
 
-  operator std::vector<std::string>&&() && {
+  operator std::vector<ArgType>&&() && {
     return std::move(list_);
   }
 
@@ -395,6 +395,21 @@ struct ParseStringList {
     return android::base::Join(list_, Separator);
   }
 
+  ParseList() = default;
+  ParseList(const ParseList&) = default;
+  ParseList(ParseList&&) = default;
+
+ private:
+  std::vector<ArgType> list_;
+};
+
+template <char Separator>
+using ParseIntList = ParseList<int, Separator>;
+
+template <char Separator>
+struct ParseStringList : public ParseList<std::string, Separator> {
+  explicit ParseStringList(std::vector<std::string>&& list) : ParseList<std::string, Separator>(std::move(list)) {}
+
   static ParseStringList<Separator> Split(const std::string& str) {
     std::vector<std::string> list;
     art::Split(str, Separator, &list);
@@ -404,9 +419,6 @@ struct ParseStringList {
   ParseStringList() = default;
   ParseStringList(const ParseStringList&) = default;
   ParseStringList(ParseStringList&&) = default;
-
- private:
-  std::vector<std::string> list_;
 };
 
 template <char Separator>
@@ -427,12 +439,12 @@ struct CmdlineType<ParseStringList<Separator>> : CmdlineTypeParser<ParseStringLi
   }
 };
 
-template <>
-struct CmdlineType<std::vector<int32_t>> : CmdlineTypeParser<std::vector<int32_t>> {
-  using Result = CmdlineParseResult<std::vector<int32_t>>;
+template <char Separator>
+struct CmdlineType<ParseIntList<Separator>> : CmdlineTypeParser<ParseIntList<Separator>> {
+  using Result = CmdlineParseResult<ParseIntList<Separator>>;
 
   Result Parse(const std::string& args) {
-    std::vector<int32_t> list;
+    std::vector<int> list;
     const char* pos = args.c_str();
     errno = 0;
 
@@ -442,11 +454,11 @@ struct CmdlineType<std::vector<int32_t>> : CmdlineTypeParser<std::vector<int32_t
       if (pos == end ||  errno == EINVAL) {
         return Result::Failure("Failed to parse integer from " + args);
       } else if ((errno == ERANGE) ||  // NOLINT [runtime/int] [4]
-                 value < std::numeric_limits<int32_t>::min() ||
-                 value > std::numeric_limits<int32_t>::max()) {
+                 value < std::numeric_limits<int>::min() ||
+                 value > std::numeric_limits<int>::max()) {
         return Result::OutOfRange("Failed to parse integer from " + args + "; out of range");
       }
-      list.push_back(static_cast<int32_t>(value));
+      list.push_back(static_cast<int>(value));
       if (*end == '\0') {
         break;
       } else if (*end != ',') {
@@ -454,11 +466,17 @@ struct CmdlineType<std::vector<int32_t>> : CmdlineTypeParser<std::vector<int32_t
       }
       pos = end + 1;
     }
-    return Result::Success(std::move(list));
+    return Result::Success(ParseIntList<Separator>(std::move(list)));
   }
 
-  static const char* Name() { return "std::vector<int32_t>"; }
-  static const char* DescribeType() { return "unsigned integer value"; }
+  static const char* Name() { return "ParseIntList<Separator>"; }
+  static const char* DescribeType() {
+    static std::string str;
+    if (str.empty()) {
+      str = android::base::StringPrintf("integer list separated by '%c'", Separator);
+    }
+    return str.c_str();
+  }
 };
 
 static gc::CollectorType ParseCollectorType(const std::string& option) {
