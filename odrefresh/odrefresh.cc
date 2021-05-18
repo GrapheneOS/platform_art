@@ -1019,8 +1019,12 @@ class OnDeviceRefresh final {
     }
 
     // Add boot extensions to compile.
+    std::vector<std::unique_ptr<File>> readonly_files_raii;
     for (const std::string& component : boot_extension_compilable_jars_) {
       args.emplace_back("--dex-file=" + component);
+      std::unique_ptr<File> file(OS::OpenFileForReading(component.c_str()));
+      args.emplace_back(android::base::StringPrintf("--dex-fd=%d", file->Fd()));
+      readonly_files_raii.push_back(std::move(file));
     }
 
     args.emplace_back("--runtime-arg");
@@ -1108,10 +1112,15 @@ class OnDeviceRefresh final {
 
     const std::string dex2oat = config_.GetDex2Oat();
     const InstructionSet isa = config_.GetSystemServerIsa();
+    std::vector<std::unique_ptr<File>> readonly_files_raii;
     for (const std::string& jar : systemserver_compilable_jars_) {
       std::vector<std::string> args;
       args.emplace_back(dex2oat);
       args.emplace_back("--dex-file=" + jar);
+
+      std::unique_ptr<File> dex_file(OS::OpenFileForReading(jar.c_str()));
+      args.emplace_back(android::base::StringPrintf("--dex-fd=%d", dex_file->Fd()));
+      readonly_files_raii.push_back(std::move(dex_file));
 
       AddDex2OatCommonOptions(args);
       AddDex2OatConcurrencyArguments(args);
