@@ -2563,22 +2563,19 @@ class Dex2Oat final {
                                              zip_location_.c_str())) {
         return false;
       }
-    } else if (oat_writers_.size() > 1u) {
-      // Multi-image.
-      DCHECK_EQ(oat_writers_.size(), dex_filenames_.size());
-      DCHECK_EQ(oat_writers_.size(), dex_locations_.size());
-      for (size_t i = 0, size = oat_writers_.size(); i != size; ++i) {
-        if (!oat_writers_[i]->AddDexFileSource(dex_filenames_[i].c_str(),
-                                               dex_locations_[i].c_str())) {
-          return false;
-        }
-      }
     } else {
-      DCHECK_EQ(oat_writers_.size(), 1u);
       DCHECK_EQ(dex_filenames_.size(), dex_locations_.size());
+      DCHECK_GE(oat_writers_.size(), 1u);
+
+      bool is_multi_image = oat_writers_.size() > 1u;
+      if (is_multi_image) {
+        DCHECK_EQ(oat_writers_.size(), dex_filenames_.size());
+      }
+
       for (size_t i = 0; i != dex_filenames_.size(); ++i) {
-        if (!oat_writers_[0]->AddDexFileSource(dex_filenames_[i].c_str(),
-                                               dex_locations_[i].c_str())) {
+        int oat_index = is_multi_image ? i : 0;
+        if (!oat_writers_[oat_index]->AddDexFileSource(dex_filenames_[i].c_str(),
+                                                       dex_locations_[i].c_str())) {
           return false;
         }
       }
