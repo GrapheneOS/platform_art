@@ -293,7 +293,7 @@ Parser CreateDex2oatArgumentParser() {
                     "of detected hardware threads available on the host system.")
           .IntoKey(M::Threads)
       .Define("--cpu-set=_")
-          .WithType<std::vector<int32_t>>()
+          .WithType<ParseIntList<','>>()
           .WithHelp("sets the cpu affinitiy to the given <set>. The <set> is a comma separated\n"
                     "list of cpus. Eg: --cpu-set=0,1,2,3")
           .WithMetavar("<set>")
