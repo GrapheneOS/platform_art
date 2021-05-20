@@ -212,8 +212,8 @@ class Runtime {
     return image_compiler_options_;
   }
 
-  const std::string& GetImageLocation() const {
-    return image_location_;
+  const std::vector<std::string>& GetImageLocations() const {
+    return image_locations_;
   }
 
   // Starts a runtime, which may cause threads to be started and code to run.
@@ -1089,7 +1089,7 @@ class Runtime {
   std::string compiler_executable_;
   std::vector<std::string> compiler_options_;
   std::vector<std::string> image_compiler_options_;
-  std::string image_location_;
+  std::vector<std::string> image_locations_;
 
   std::vector<std::string> boot_class_path_;
   std::vector<std::string> boot_class_path_locations_;

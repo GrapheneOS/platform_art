@@ -368,10 +368,11 @@ class DexoptAnalyzer final {
     std::string error_msg;
     const std::vector<std::string>& bcp = runtime->GetBootClassPath();
     const std::vector<std::string>& bcp_locations = runtime->GetBootClassPathLocations();
+    const std::vector<std::string>& image_locations = runtime->GetImageLocations();
     const std::string bcp_locations_path = android::base::Join(bcp_locations, ':');
     if (!ImageSpace::VerifyBootClassPathChecksums(checksums,
                                                   bcp_locations_path,
-                                                  runtime->GetImageLocation(),
+                                                  ArrayRef<const std::string>(image_locations),
                                                   ArrayRef<const std::string>(bcp_locations),
                                                   ArrayRef<const std::string>(bcp),
                                                   runtime->GetInstructionSet(),
