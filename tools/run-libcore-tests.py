@@ -123,7 +123,7 @@ def get_jar_filename(classpath):
 
 def get_timeout_secs():
   default_timeout_secs = 600
-  if args.mode == "device" and args.gcstress:
+  if args.gcstress:
     default_timeout_secs = 1200
     if args.debug:
       default_timeout_secs = 1800
