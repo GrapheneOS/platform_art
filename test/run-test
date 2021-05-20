@@ -39,6 +39,7 @@ if [ -z "$TMPDIR" ]; then
 else
   tmp_dir="${TMPDIR}/${test_dir}"
 fi
+build_path="${tmp_dir}-build"
 checker="${progdir}/../tools/checker/checker.py"
 export JAVA="java"
 export JAVAC="javac -g -Xlint:-options -source 1.8 -target 1.8"
@@ -148,6 +149,7 @@ relocate="no"
 runtime="art"
 usage="no"
 build_only="no"
+skip_build="no"
 suffix64=""
 trace="false"
 trace_stream="false"
@@ -381,11 +383,23 @@ while true; do
     elif [ "x$1" = "x--build-only" ]; then
         build_only="yes"
         shift
-    elif [ "x$1" = "x--output-path" ]; then
+    elif [ "x$1" = "x--skip-build" ]; then
+        skip_build="yes"
+        shift
+    elif [ "x$1" = "x--build-path" ]; then
+        shift
+        build_path=$1
+        if [ "x$build_path" = "x" ]; then
+            echo "$0 missing argument to --build-path" 1>&2
+            usage="yes"
+            break
+        fi
+        shift
+    elif [ "x$1" = "x--temp-path" ]; then
         shift
         tmp_dir=$1
         if [ "x$tmp_dir" = "x" ]; then
-            echo "$0 missing argument to --output-path" 1>&2
+            echo "$0 missing argument to --temp-path" 1>&2
             usage="yes"
             break
         fi
@@ -796,6 +810,9 @@ if [ "$usage" = "yes" ]; then
         echo "                          Use the given binary as gdbserver."
         echo "    --gdb-arg             Pass an option to gdb or gdbserver."
         echo "    --build-only          Build test files only (off by default)."
+        echo "    --skip-build          Assume that test files are already built (off by default)."
+        echo "    --build-path [path]   Location where to store or expect the build files."
+        echo "    --temp-path [path]    Location where to execute the tests."
         echo "    --interpreter         Enable interpreter only mode (off by default)."
         echo "    --jit                 Enable jit (off by default)."
         echo "    --optimizing          Enable optimizing compiler (default)."
@@ -825,8 +842,6 @@ if [ "$usage" = "yes" ]; then
         echo "    --use-java-home       Use the JAVA_HOME environment variable"
         echo "                          to find the java compiler and runtime"
         echo "                          (if applicable) to run the test with."
-        echo "    --output-path [path]  Location where to store the build" \
-             "files."
         echo "    --64                  Run the test in 64-bit mode"
         echo "    --bionic              Use the (host, 64-bit only) linux_bionic libc runtime"
         echo "    --runtime-zipapex [file]"
@@ -885,35 +900,36 @@ for td_file in "$td_info" "$td_expected_stdout" "$td_expected_stderr"; do
     fi
 done
 
-# copy the test to a temp dir and run it
+if [ "$skip_build" = "no" ]; then
+  echo "${test_dir}: building..." 1>&2
 
-echo "${test_dir}: building..." 1>&2
+  rm -rf "$build_path"
+  cp -LRp "$test_dir" "$build_path"
+  cd "$build_path"
 
-rm -rf "$tmp_dir"
-cp -LRp "$test_dir" "$tmp_dir"
-cd "$tmp_dir"
+  if [ '!' -r "$build" ]; then
+      cp "${progdir}/etc/default-build" build
+  else
+      cp "${progdir}/etc/default-build" .
+  fi
 
-if [ '!' -r "$build" ]; then
-    cp "${progdir}/etc/default-build" build
-else
-    cp "${progdir}/etc/default-build" .
+  if [ '!' -r "$run" ]; then
+      cp "${progdir}/etc/default-run" run
+  else
+      cp "${progdir}/etc/default-run" .
+  fi
+
+  if [ '!' -r "$check_cmd" ]; then
+      cp "${progdir}/etc/default-check" check
+  else
+      cp "${progdir}/etc/default-check" .
+  fi
+
+  chmod 755 "$build"
+  chmod 755 "$run"
+  chmod 755 "$check_cmd"
 fi
-
-if [ '!' -r "$run" ]; then
-    cp "${progdir}/etc/default-run" run
-else
-    cp "${progdir}/etc/default-run" .
-fi
-
-if [ '!' -r "$check_cmd" ]; then
-    cp "${progdir}/etc/default-check" check
-else
-    cp "${progdir}/etc/default-check" .
-fi
-
-chmod 755 "$build"
-chmod 755 "$run"
-chmod 755 "$check_cmd"
+cd "$build_path"
 
 export TEST_NAME=`basename ${test_dir}`
 
@@ -965,14 +981,30 @@ if [[ "$dev_mode" == "yes" ]]; then
   build_args="$build_args --dev"
 fi
 
+# Build needed files, and copy them to the directory that will run the tests.
+if [ "$skip_build" = "yes" ]; then
+  # Assume the directory already contains all the needed files.
+  # Load the exit code, since builds can intentionally fail.
+  build_exit=`cat ./build_exit_code`
+elif [ "$dev_mode" = "yes" ]; then
+  "./${build}" $build_args
+  build_exit="$?"
+  echo "build exit status: $build_exit" 1>&2
+  echo "$build_exit" > ./build_exit_code
+else
+  "./${build}" $build_args >"$build_stdout" 2>"$build_stderr"
+  build_exit="$?"
+  echo "$build_exit" > ./build_exit_code
+fi
+rm -rf "$tmp_dir"
+cp -LRp "$build_path" "$tmp_dir"
+cd "$tmp_dir"
+
 good="no"
 good_build="yes"
 good_run="yes"
 export TEST_RUNTIME="${runtime}"
 if [ "$dev_mode" = "yes" ]; then
-    "./${build}" $build_args
-    build_exit="$?"
-    echo "build exit status: $build_exit" 1>&2
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" "${run_args[@]}" "$@"
@@ -996,8 +1028,6 @@ if [ "$dev_mode" = "yes" ]; then
         echo "run exit status: $run_exit" 1>&2
     fi
 elif [ "$update_mode" = "yes" ]; then
-    "./${build}" $build_args >"$build_stdout" 2>"$build_stderr"
-    build_exit="$?"
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
@@ -1021,8 +1051,6 @@ elif [ "$update_mode" = "yes" ]; then
     fi
 elif [ "$build_only" = "yes" ]; then
     good="yes"
-    "./${build}" $build_args >"$build_stdout" 2>"$build_stderr"
-    build_exit="$?"
     if [ "$build_exit" '!=' '0' ]; then
         cp "$build_stdout" "$test_stdout"
         diff --strip-trailing-cr -q "$expected_stdout" "$test_stdout" >/dev/null
@@ -1046,8 +1074,6 @@ elif [ "$build_only" = "yes" ]; then
       | xargs rm -rf
     exit 0
 else
-    "./${build}" $build_args >"$build_stdout" 2>"$build_stderr"
-    build_exit="$?"
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
@@ -1165,6 +1191,10 @@ fi
 # Clean up test files.
 if [ "$always_clean" = "yes" -o "$good" = "yes" ] && [ "$never_clean" = "no" ]; then
     cd "$oldwd"
+    # Clean up build files only if we created them.
+    if [ "$skip_build" = "no" ]; then
+      rm -rf "$build_path"
+    fi
     rm -rf "$tmp_dir"
     if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
         adb shell rm -rf $chroot_dex_location
