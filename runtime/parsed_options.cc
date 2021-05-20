@@ -743,6 +743,13 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     args.Set(M::HeapGrowthLimit, args.GetOrDefault(M::MemoryMaximumSize));
   }
 
+  // Increase log thresholds for GC stress mode to avoid excessive log spam.
+  if (args.GetOrDefault(M::GcOption).gcstress_) {
+    args.SetIfMissing(M::AlwaysLogExplicitGcs, false);
+    args.SetIfMissing(M::LongPauseLogThreshold, gc::Heap::kDefaultLongPauseLogThresholdGcStress);
+    args.SetIfMissing(M::LongGCLogThreshold, gc::Heap::kDefaultLongGCLogThresholdGcStress);
+  }
+
   *runtime_options = std::move(args);
   return true;
 }
