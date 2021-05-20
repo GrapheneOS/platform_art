@@ -203,6 +203,12 @@ uint8_t* const Heap::kPreferredAllocSpaceBegin = reinterpret_cast<uint8_t*>(0x40
 #endif
 #endif
 
+// Log GC on regular (but fairly large) intervals during GC stress mode.
+// It is expected that the other runtime options will be used to reduce the usual logging.
+// This allows us to make the logging much less verbose while still reporting some
+// progress (biased towards expensive GCs), and while still reporting pathological cases.
+static constexpr int64_t kGcStressModeGcLogSampleFrequencyNs = MsToNs(10000);
+
 static inline bool CareAboutPauseTimes() {
   return Runtime::Current()->InJankPerceptibleProcessState();
 }
@@ -2730,6 +2736,16 @@ void Heap::LogGC(GcCause gc_cause, collector::GarbageCollector* collector) {
       log_gc = log_gc || pause >= long_pause_log_threshold_;
     }
   }
+  bool is_sampled = false;
+  if (UNLIKELY(gc_stress_mode_)) {
+    static std::atomic_int64_t accumulated_duration_ns = 0;
+    accumulated_duration_ns += duration;
+    if (accumulated_duration_ns >= kGcStressModeGcLogSampleFrequencyNs) {
+      accumulated_duration_ns -= kGcStressModeGcLogSampleFrequencyNs;
+      log_gc = true;
+      is_sampled = true;
+    }
+  }
   if (log_gc) {
     const size_t percent_free = GetPercentFree();
     const size_t current_heap_size = GetBytesAllocated();
@@ -2740,6 +2756,7 @@ void Heap::LogGC(GcCause gc_cause, collector::GarbageCollector* collector) {
                    << ((i != pause_times.size() - 1) ? "," : "");
     }
     LOG(INFO) << gc_cause << " " << collector->GetName()
+              << (is_sampled ? " (sampled)" : "")
               << " GC freed "  << current_gc_iteration_.GetFreedObjects() << "("
               << PrettySize(current_gc_iteration_.GetFreedBytes()) << ") AllocSpace objects, "
               << current_gc_iteration_.GetFreedLargeObjects() << "("
