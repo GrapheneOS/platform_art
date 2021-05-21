@@ -71,6 +71,11 @@ static void AddInputMappings(Builder& builder) {
                     "Eg: --dex-file=/home/build/out/system/framework/core.jar\n"
                     "    --dex-location=/system/framework/core.jar")
           .IntoKey(M::DexLocations)
+      .Define("--dex-fd=_")
+          .WithType<std::vector<int>>().AppendValues()
+          .WithHelp("Specifies a file descriptor of a dex file. It can be specified for multiple\n"
+                    "times, but the number must match the number of --dex-file. Eg: --dex-fd=5")
+          .IntoKey(M::DexFds)
       .Define("--zip-fd=_")
           .WithType<int>()
           .WithHelp("specifies a file descriptor of a zip file containing a classes.dex file to\n"
@@ -293,7 +298,7 @@ Parser CreateDex2oatArgumentParser() {
                     "of detected hardware threads available on the host system.")
           .IntoKey(M::Threads)
       .Define("--cpu-set=_")
-          .WithType<std::vector<int32_t>>()
+          .WithType<ParseIntList<','>>()
           .WithHelp("sets the cpu affinitiy to the given <set>. The <set> is a comma separated\n"
                     "list of cpus. Eg: --cpu-set=0,1,2,3")
           .WithMetavar("<set>")

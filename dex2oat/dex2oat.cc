@@ -743,6 +743,10 @@ class Dex2Oat final {
       }
     }
 
+    if (!dex_fds_.empty() && dex_fds_.size() != dex_filenames_.size()) {
+      Usage("--dex-fd arguments do not match --dex-file arguments");
+    }
+
     if (zip_fd_ != -1 && zip_location_.empty()) {
       Usage("--zip-location should be supplied with --zip-fd");
     }
@@ -1032,6 +1036,7 @@ class Dex2Oat final {
     AssignIfExists(args, M::CompactDexLevel, &compact_dex_level_);
     AssignIfExists(args, M::DexFiles, &dex_filenames_);
     AssignIfExists(args, M::DexLocations, &dex_locations_);
+    AssignIfExists(args, M::DexFds, &dex_fds_);
     AssignIfExists(args, M::OatFile, &oat_filenames_);
     AssignIfExists(args, M::OatSymbols, &parser_options->oat_symbols);
     AssignTrueIfExists(args, M::Strip, &strip_);
@@ -2563,23 +2568,34 @@ class Dex2Oat final {
                                              zip_location_.c_str())) {
         return false;
       }
-    } else if (oat_writers_.size() > 1u) {
-      // Multi-image.
-      DCHECK_EQ(oat_writers_.size(), dex_filenames_.size());
-      DCHECK_EQ(oat_writers_.size(), dex_locations_.size());
-      for (size_t i = 0, size = oat_writers_.size(); i != size; ++i) {
-        if (!oat_writers_[i]->AddDexFileSource(dex_filenames_[i].c_str(),
-                                               dex_locations_[i].c_str())) {
-          return false;
-        }
-      }
     } else {
-      DCHECK_EQ(oat_writers_.size(), 1u);
       DCHECK_EQ(dex_filenames_.size(), dex_locations_.size());
+      DCHECK_GE(oat_writers_.size(), 1u);
+
+      bool use_dex_fds = !dex_fds_.empty();
+      if (use_dex_fds) {
+        DCHECK_EQ(dex_fds_.size(), dex_filenames_.size());
+      }
+
+      bool is_multi_image = oat_writers_.size() > 1u;
+      if (is_multi_image) {
+        DCHECK_EQ(oat_writers_.size(), dex_filenames_.size());
+      }
+
       for (size_t i = 0; i != dex_filenames_.size(); ++i) {
-        if (!oat_writers_[0]->AddDexFileSource(dex_filenames_[i].c_str(),
-                                               dex_locations_[i].c_str())) {
-          return false;
+        int oat_index = is_multi_image ? i : 0;
+        auto oat_writer = oat_writers_[oat_index].get();
+
+        if (use_dex_fds) {
+          if (!oat_writer->AddDexFileSource(File(dex_fds_[i], /* check_usage */ false),
+                                            dex_locations_[i].c_str())) {
+            return false;
+          }
+        } else {
+          if (!oat_writer->AddDexFileSource(dex_filenames_[i].c_str(),
+                                            dex_locations_[i].c_str())) {
+            return false;
+          }
         }
       }
     }
@@ -2884,6 +2900,7 @@ class Dex2Oat final {
   std::unique_ptr<ZipArchive> dm_file_;
   std::vector<std::string> dex_filenames_;
   std::vector<std::string> dex_locations_;
+  std::vector<int> dex_fds_;
   int zip_fd_;
   std::string zip_location_;
   std::string boot_image_filename_;
