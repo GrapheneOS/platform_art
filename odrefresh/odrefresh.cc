@@ -671,14 +671,17 @@ class OnDeviceRefresh final {
     args.emplace_back(Concatenate({"--instruction-set=", isa_str}));
   }
 
-  static void AddDex2OatProfileAndCompilerFilter(/*inout*/ std::vector<std::string>& args,
-                                                 const std::string& profile_file) {
-    if (OS::FileExists(profile_file.c_str(), /*check_file_type=*/true)) {
-      args.emplace_back(Concatenate({"--profile-file=", profile_file}));
+  static std::unique_ptr<File> AddDex2OatProfileAndCompilerFilter(
+      /*inout*/ std::vector<std::string>& args,
+      const std::string& profile_path) {
+    std::unique_ptr<File> profile_file(OS::OpenFileForReading(profile_path.c_str()));
+    if (profile_file && profile_file->IsOpened()) {
+      args.emplace_back(android::base::StringPrintf("--profile-file-fd=%d", profile_file->Fd()));
       args.emplace_back("--compiler-filter=speed-profile");
     } else {
       args.emplace_back("--compiler-filter=speed");
     }
+    return profile_file;
   }
 
   WARN_UNUSED bool VerifySystemServerArtifactsAreUpToDate(bool on_system) const {
@@ -1002,8 +1005,10 @@ class OnDeviceRefresh final {
     AddDex2OatConcurrencyArguments(args);
     AddDex2OatDebugInfo(args);
     AddDex2OatInstructionSet(args, isa);
+
+    std::vector<std::unique_ptr<File>> readonly_files_raii;
     const std::string boot_profile_file(GetAndroidRoot() + "/etc/boot-image.prof");
-    AddDex2OatProfileAndCompilerFilter(args, boot_profile_file);
+    readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(args, boot_profile_file));
 
     // Compile as a single image for fewer files and slightly less memory overhead.
     args.emplace_back("--single-image");
@@ -1019,7 +1024,6 @@ class OnDeviceRefresh final {
     }
 
     // Add boot extensions to compile.
-    std::vector<std::unique_ptr<File>> readonly_files_raii;
     for (const std::string& component : boot_extension_compilable_jars_) {
       args.emplace_back("--dex-file=" + component);
       std::unique_ptr<File> file(OS::OpenFileForReading(component.c_str()));
@@ -1128,7 +1132,7 @@ class OnDeviceRefresh final {
       AddDex2OatInstructionSet(args, isa);
       const std::string jar_name(android::base::Basename(jar));
       const std::string profile = Concatenate({GetAndroidRoot(), "/framework/", jar_name, ".prof"});
-      AddDex2OatProfileAndCompilerFilter(args, profile);
+      readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(args, profile));
 
       const std::string image_location = GetSystemServerImagePath(/*on_system=*/false, jar);
       const std::string install_location = android::base::Dirname(image_location);
