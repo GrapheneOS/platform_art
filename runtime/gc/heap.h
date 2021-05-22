@@ -140,7 +140,9 @@ class Heap {
   static constexpr size_t kDefaultMaxFree = 2 * MB;
   static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
   static constexpr size_t kDefaultLongPauseLogThreshold = MsToNs(5);
+  static constexpr size_t kDefaultLongPauseLogThresholdGcStress = MsToNs(50);
   static constexpr size_t kDefaultLongGCLogThreshold = MsToNs(100);
+  static constexpr size_t kDefaultLongGCLogThresholdGcStress = MsToNs(1000);
   static constexpr size_t kDefaultTLABSize = 32 * KB;
   static constexpr double kDefaultTargetUtilization = 0.75;
   static constexpr double kDefaultHeapGrowthMultiplier = 2.0;
