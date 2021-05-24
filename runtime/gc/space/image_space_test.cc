@@ -128,7 +128,7 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
     ASSERT_TRUE(success) << error_msg;
   }
 
-  std::string full_image_locations;
+  std::vector<std::string> full_image_locations;
   std::vector<std::unique_ptr<gc::space::ImageSpace>> boot_image_spaces;
   MemMap extra_reservation;
   auto load_boot_image = [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -165,9 +165,9 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
   // Load extensions and test for the presence of the test string.
   ScopedObjectAccess soa(Thread::Current());
   ASSERT_EQ(2u, extension_image_locations.size());
-  full_image_locations = base_image_location +
-                             ImageSpace::kComponentSeparator + extension_image_locations[0] +
-                             ImageSpace::kComponentSeparator + extension_image_locations[1];
+  full_image_locations = {
+    base_image_location, extension_image_locations[0], extension_image_locations[1]
+  };
   bool success = load_boot_image();
   ASSERT_TRUE(success);
   ASSERT_EQ(bcp.size(), boot_image_spaces.size());
@@ -178,9 +178,9 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
   // Reload extensions in reverse order and test for the presence of the test string.
   std::swap(bcp[bcp.size() - 2u], bcp[bcp.size() - 1u]);
   std::swap(bcp_locations[bcp_locations.size() - 2u], bcp_locations[bcp_locations.size() - 1u]);
-  full_image_locations = base_image_location +
-                             ImageSpace::kComponentSeparator + extension_image_locations[1] +
-                             ImageSpace::kComponentSeparator + extension_image_locations[0];
+  full_image_locations = {
+    base_image_location, extension_image_locations[1], extension_image_locations[0]
+  };
   success = load_boot_image();
   ASSERT_TRUE(success);
   ASSERT_EQ(bcp.size(), boot_image_spaces.size());
@@ -191,8 +191,7 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
   // Reload the image without the second extension.
   bcp.erase(bcp.end() - 2u);
   bcp_locations.erase(bcp_locations.end() - 2u);
-  full_image_locations =
-      base_image_location + ImageSpace::kComponentSeparator + extension_image_locations[0];
+  full_image_locations = {base_image_location, extension_image_locations[0]};
   success = load_boot_image();
   ASSERT_TRUE(success);
   ASSERT_EQ(bcp.size(), boot_image_spaces.size());
@@ -334,7 +333,7 @@ TEST_F(DexoptTest, Checksums) {
     return gc::space::ImageSpace::VerifyBootClassPathChecksums(
         checksums,
         android::base::Join(bcp_locations, ':'),
-        runtime->GetImageLocation(),
+        ArrayRef<const std::string>(runtime->GetImageLocations()),
         ArrayRef<const std::string>(bcp_locations),
         ArrayRef<const std::string>(bcp),
         kRuntimeISA,
