@@ -126,6 +126,7 @@ art_cc_defaults {
         "libartbased",
 
         "libbase",
+        "liblog",
         "libnativehelper",
         "libz",
     ],
@@ -150,11 +151,6 @@ art_cc_defaults {
         host: {
             shared_libs: [
                 "libziparchive",
-            ],
-        },
-        android: {
-            shared_libs: [
-                "liblog",
             ],
         },
     },
