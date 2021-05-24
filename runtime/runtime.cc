@@ -1342,7 +1342,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   Monitor::Init(runtime_options.GetOrDefault(Opt::LockProfThreshold),
                 runtime_options.GetOrDefault(Opt::StackDumpLockProfThreshold));
 
-  image_location_ = runtime_options.GetOrDefault(Opt::Image);
+  image_locations_ = runtime_options.ReleaseOrDefault(Opt::Image);
 
   SetInstructionSet(runtime_options.GetOrDefault(Opt::ImageInstructionSet));
   boot_class_path_ = runtime_options.ReleaseOrDefault(Opt::BootClassPath);
@@ -1351,13 +1351,14 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
          boot_class_path_locations_.size() == boot_class_path_.size());
   if (boot_class_path_.empty()) {
     // Try to extract the boot class path from the system boot image.
-    if (image_location_.empty()) {
+    if (image_locations_.empty()) {
       LOG(ERROR) << "Empty boot class path, cannot continue without image.";
       return false;
     }
     std::string system_oat_filename = ImageHeader::GetOatLocationFromImageLocation(
-        GetSystemImageFilename(image_location_.c_str(), instruction_set_));
-    std::string system_oat_location = ImageHeader::GetOatLocationFromImageLocation(image_location_);
+        GetSystemImageFilename(image_locations_[0].c_str(), instruction_set_));
+    std::string system_oat_location = ImageHeader::GetOatLocationFromImageLocation(
+        image_locations_[0]);
     std::string error_msg;
     std::unique_ptr<OatFile> oat_file(OatFile::Open(/*zip_fd=*/ -1,
                                                     system_oat_filename,
@@ -1503,7 +1504,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                        runtime_options.GetOrDefault(Opt::NonMovingSpaceCapacity),
                        GetBootClassPath(),
                        GetBootClassPathLocations(),
-                       image_location_,
+                       image_locations_,
                        instruction_set_,
                        // Override the collector type to CC if the read barrier config.
                        kUseReadBarrier ? gc::kCollectorTypeCC : xgc_option.collector_type_,
