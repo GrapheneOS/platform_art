@@ -649,7 +649,7 @@ bool OatFileAssistant::ValidateBootClassPathChecksums(const OatFile& oat_file) {
   bool result = gc::space::ImageSpace::VerifyBootClassPathChecksums(
       oat_boot_class_path_checksums_view,
       oat_boot_class_path_view,
-      runtime->GetImageLocation(),
+      ArrayRef<const std::string>(runtime->GetImageLocations()),
       ArrayRef<const std::string>(runtime->GetBootClassPathLocations()),
       ArrayRef<const std::string>(runtime->GetBootClassPath()),
       isa_,
