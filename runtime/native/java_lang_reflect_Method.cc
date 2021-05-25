@@ -80,6 +80,7 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
   }
 }
 
+NO_STACK_PROTECTOR
 static jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiver,
                              jobjectArray javaArgs) {
   ScopedFastNativeObjectAccess soa(env);
