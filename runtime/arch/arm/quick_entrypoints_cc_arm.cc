@@ -25,6 +25,7 @@ extern "C" void art_quick_invoke_stub_internal(ArtMethod*, uint32_t*, uint32_t,
                                                uint32_t*);
 
 template <bool kIsStatic>
+NO_STACK_PROTECTOR
 static void quick_invoke_reg_setup(ArtMethod* method, uint32_t* args, uint32_t args_size,
                                    Thread* self, JValue* result, const char* shorty) {
   // Note: We do not follow aapcs ABI in quick code for both softfp and hardfp.
@@ -96,6 +97,7 @@ static void quick_invoke_reg_setup(ArtMethod* method, uint32_t* args, uint32_t a
 
 // Called by art::ArtMethod::Invoke to do entry into a non-static method.
 // TODO: migrate into an assembly implementation as with ARM64.
+NO_STACK_PROTECTOR
 extern "C" void art_quick_invoke_stub(ArtMethod* method, uint32_t* args, uint32_t args_size,
                                       Thread* self, JValue* result, const char* shorty) {
   quick_invoke_reg_setup<false>(method, args, args_size, self, result, shorty);
@@ -103,6 +105,7 @@ extern "C" void art_quick_invoke_stub(ArtMethod* method, uint32_t* args, uint32_
 
 // Called by art::ArtMethod::Invoke to do entry into a static method.
 // TODO: migrate into an assembly implementation as with ARM64.
+NO_STACK_PROTECTOR
 extern "C" void art_quick_invoke_static_stub(ArtMethod* method, uint32_t* args,
                                              uint32_t args_size, Thread* self, JValue* result,
                                              const char* shorty) {

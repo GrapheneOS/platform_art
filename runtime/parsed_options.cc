@@ -166,7 +166,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::JITCompileThreshold)
       .SetCategory("ART")
       .Define("-Ximage:_")
-          .WithType<std::string>()
+          .WithType<ParseStringList<':'>>()
           .IntoKey(M::Image)
       .Define("-Xprimaryzygote")
           .IntoKey(M::PrimaryZygote)
@@ -288,6 +288,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       // TODO This should be redone.
       .Define({"-Xps-_",
                "-Xps-min-save-period-ms:_",
+               "-Xps-min-first-save-ms:_",
                "-Xps-save-resolved-classes-delayed-ms:_",
                "-Xps-hot-startup-method-samples:_",
                "-Xps-min-methods-to-save:_",
@@ -733,8 +734,8 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
   }
 
   if (!args.Exists(M::CompilerCallbacksPtr) && !args.Exists(M::Image)) {
-    std::string image = GetDefaultBootImageLocation(GetAndroidRoot());
-    args.Set(M::Image, image);
+    std::string image_locations = GetDefaultBootImageLocation(GetAndroidRoot());
+    args.Set(M::Image, ParseStringList<':'>::Split(image_locations));
   }
 
   // 0 means no growth limit, and growth limit should be always <= heap size
