@@ -478,7 +478,6 @@ class ReleaseChecker:
     self._checker.check_native_library('libartpalette')
     self._checker.check_native_library('libartservice')
     self._checker.check_native_library('libarttools')
-    self._checker.check_native_library('libdexfile_support')
     self._checker.check_native_library('libdt_fd_forward')
     self._checker.check_native_library('libopenjdkjvm')
     self._checker.check_native_library('libopenjdkjvmti')
