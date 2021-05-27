@@ -25,7 +25,7 @@
 #include "runtime_globals.h"
 
 // Always inline ObjPtr methods even in debug builds.
-#define OBJPTR_INLINE __attribute__ ((always_inline, no_stack_protector))
+#define OBJPTR_INLINE __attribute__ ((always_inline))
 
 namespace art {
 
