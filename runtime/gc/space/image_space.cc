@@ -2809,6 +2809,7 @@ class ImageSpace::BootImageLoader {
                    android::base::unique_fd vdex_fd,
                    android::base::unique_fd oat_fd,
                    ArrayRef<const std::string> dex_filenames,
+                   ArrayRef<const int> dex_fds,
                    bool validate_oat_file,
                    ArrayRef<const std::unique_ptr<ImageSpace>> dependencies,
                    TimingLogger* logger,
@@ -2836,6 +2837,7 @@ class ImageSpace::BootImageLoader {
                                      executable_,
                                      /*low_4gb=*/ false,
                                      dex_filenames,
+                                     dex_fds,
                                      image_reservation,
                                      error_msg));
       } else {
@@ -3037,10 +3039,14 @@ class ImageSpace::BootImageLoader {
     for (size_t i = 0u, size = locations.size(); i != size; ++i) {
       ImageSpace* space = (*spaces)[spaces->size() - chunk.image_space_count + i].get();
       size_t bcp_chunk_size = (chunk.image_space_count == 1u) ? chunk.component_count : 1u;
+
+      auto boot_class_path_fds = boot_class_path_fds_.empty() ? ArrayRef<const int>()
+          : boot_class_path_fds_.SubArray(/*pos=*/ chunk.start_index + i, bcp_chunk_size);
       if (!OpenOatFile(space,
                        std::move(chunk.vdex_fd),
                        std::move(chunk.oat_fd),
                        boot_class_path_.SubArray(/*pos=*/ chunk.start_index + i, bcp_chunk_size),
+                       boot_class_path_fds,
                        validate_oat_file,
                        dependencies,
                        logger,
