@@ -99,7 +99,6 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
 
 // num_frames is number of frames we look up for access check.
 template<PointerSize pointer_size>
-NO_STACK_PROTECTOR
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                      jobject method,
                      jobject receiver,
