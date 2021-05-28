@@ -71,11 +71,9 @@ template<typename T> ART_FRIEND_TEST(test_set_name, individual_test)
 #define ALWAYS_INLINE
 #define FLATTEN
 #else
-#define ALWAYS_INLINE  __attribute__ ((always_inline, no_stack_protector))
+#define ALWAYS_INLINE  __attribute__ ((always_inline))
 #define FLATTEN  __attribute__ ((flatten))
 #endif
-
-#define NO_STACK_PROTECTOR __attribute__ ((no_stack_protector))
 
 // clang doesn't like attributes on lambda functions. It would be nice to say:
 //   #define ALWAYS_INLINE_LAMBDA ALWAYS_INLINE
