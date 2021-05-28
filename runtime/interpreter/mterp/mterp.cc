@@ -160,7 +160,6 @@ bool CanUseMterp()
 }
 
 #define MTERP_INVOKE(Name)                                                                         \
-NO_STACK_PROTECTOR                                                                                 \
 extern "C" size_t MterpInvoke##Name(Thread* self,                                                  \
                                     ShadowFrame* shadow_frame,                                     \
                                     uint16_t* dex_pc_ptr,                                          \
@@ -176,7 +175,6 @@ extern "C" size_t MterpInvoke##Name(Thread* self,                               
         self, *shadow_frame, inst, inst_data, result_register) ? 1u : 0u;                          \
   }                                                                                                \
 }                                                                                                  \
-NO_STACK_PROTECTOR                                                                                 \
 extern "C" size_t MterpInvoke##Name##Range(Thread* self,                                           \
                                            ShadowFrame* shadow_frame,                              \
                                            uint16_t* dex_pc_ptr,                                   \
