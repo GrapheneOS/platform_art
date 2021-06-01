@@ -424,6 +424,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
+  // Helper method to load a value of non-reference type from memory.
+  void LoadFromMemoryNoReference(DataType::Type type, Location dst, Address src);
 
   Label* GetLabelOf(HBasicBlock* block) const {
     return CommonGetLabelOf<Label>(block_labels_, block);
