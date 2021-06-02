@@ -32,7 +32,8 @@
   description: "Timeouts on host with gcstress and debug.",
   result: EXEC_FAILED,
   modes: [host],
-  names: ["jsr166.StampedLockTest#testWriteAfterReadLock",
+  names: ["jsr166.ForkJoinPoolTest#testIsQuiescent",
+          "jsr166.StampedLockTest#testWriteAfterReadLock",
           "jsr166.StampedLockTest#testReadTryLock_Interruptible",
           "jsr166.StampedLockTest#testReadLockInterruptibly_Interruptible",
           "jsr166.StampedLockTest#testReadLockInterruptibly",
@@ -43,6 +44,7 @@
           "libcore.java.math.BigIntegerTest#test_probablePrime",
           "libcore.java.util.stream.CollectorsTest#counting_largeStream",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest#testUsingProxy",
+          "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest#testUsingProxySelector",
           "org.apache.harmony.tests.java.lang.ProcessManagerTest#testSleep",
           "org.apache.harmony.tests.java.math.BigIntegerConstructorsTest#testConstructorPrime"
   ]
