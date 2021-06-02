@@ -324,8 +324,9 @@ libart_cc_defaults {
         x86: {
             srcs: [
                 "interpreter/mterp/mterp.cc",
-                "interpreter/mterp/nterp_stub.cc",
+                "interpreter/mterp/nterp.cc",
                 ":libart_mterp.x86",
+                ":libart_mterp.x86ng",
                 "arch/x86/context_x86.cc",
                 "arch/x86/entrypoints_init_x86.cc",
                 "arch/x86/jni_entrypoints_x86.S",
@@ -838,6 +839,22 @@ genrule {
     name: "libart_mterp.x86_64",
     out: ["mterp_x86_64.S"],
     srcs: ["interpreter/mterp/x86_64/*.S"],
+    tool_files: [
+        "interpreter/mterp/gen_mterp.py",
+        "interpreter/mterp/common/gen_setup.py",
+        ":art_libdexfile_dex_instruction_list_header",
+    ],
+    cmd: "$(location interpreter/mterp/gen_mterp.py) $(out) $(in)",
+}
+
+genrule {
+    name: "libart_mterp.x86ng",
+    out: ["mterp_x86ng.S"],
+    srcs: [
+        "interpreter/mterp/x86ng/*.S",
+        "interpreter/mterp/x86/arithmetic.S",
+        "interpreter/mterp/x86/floating_point.S",
+    ],
     tool_files: [
         "interpreter/mterp/gen_mterp.py",
         "interpreter/mterp/common/gen_setup.py",

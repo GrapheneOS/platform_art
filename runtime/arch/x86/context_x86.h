@@ -45,6 +45,10 @@ class X86Context final : public Context {
     eip_ = new_pc;
   }
 
+  void SetNterpDexPC(uintptr_t dex_pc_ptr) override {
+    SetGPR(ESI, dex_pc_ptr);
+  }
+
   void SetArg0(uintptr_t new_arg0_value) override {
     SetGPR(EAX, new_arg0_value);
   }
