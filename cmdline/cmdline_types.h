@@ -483,7 +483,7 @@ struct CmdlineType<ParseIntList<Separator>> : CmdlineTypeParser<ParseIntList<Sep
       list.push_back(static_cast<int>(value));
       if (*end == '\0') {
         break;
-      } else if (*end != ',') {
+      } else if (*end != Separator) {
         return Result::Failure(std::string("Unexpected character: ") + *end);
       }
       pos = end + 1;
