@@ -64,24 +64,24 @@ class AssemblerX86Test : public AssemblerTest<x86::X86Assembler,
   void SetUpHelpers() override {
     if (addresses_singleton_.size() == 0) {
       // One addressing mode to test the repeat drivers.
-      addresses_singleton_.push_back(x86::Address(x86::EAX, x86::EBX, x86::TIMES_1, 2));
+      addresses_singleton_.push_back(x86::Address(x86::EAX, x86::EBX, TIMES_1, 2));
     }
 
     if (addresses_.size() == 0) {
       // Several addressing modes.
-      addresses_.push_back(x86::Address(x86::EDI, x86::EAX, x86::TIMES_1, 15));
-      addresses_.push_back(x86::Address(x86::EDI, x86::EBX, x86::TIMES_2, 16));
-      addresses_.push_back(x86::Address(x86::EDI, x86::ECX, x86::TIMES_4, 17));
-      addresses_.push_back(x86::Address(x86::EDI, x86::EDX, x86::TIMES_8, 18));
+      addresses_.push_back(x86::Address(x86::EDI, x86::EAX, TIMES_1, 15));
+      addresses_.push_back(x86::Address(x86::EDI, x86::EBX, TIMES_2, 16));
+      addresses_.push_back(x86::Address(x86::EDI, x86::ECX, TIMES_4, 17));
+      addresses_.push_back(x86::Address(x86::EDI, x86::EDX, TIMES_8, 18));
       addresses_.push_back(x86::Address(x86::EAX, -1));
       addresses_.push_back(x86::Address(x86::EBX, 0));
       addresses_.push_back(x86::Address(x86::ESI, 1));
       addresses_.push_back(x86::Address(x86::EDI, 987654321));
       // Several addressing modes with the special ESP.
-      addresses_.push_back(x86::Address(x86::ESP, x86::EAX, x86::TIMES_1, 15));
-      addresses_.push_back(x86::Address(x86::ESP, x86::EBX, x86::TIMES_2, 16));
-      addresses_.push_back(x86::Address(x86::ESP, x86::ECX, x86::TIMES_4, 17));
-      addresses_.push_back(x86::Address(x86::ESP, x86::EDX, x86::TIMES_8, 18));
+      addresses_.push_back(x86::Address(x86::ESP, x86::EAX, TIMES_1, 15));
+      addresses_.push_back(x86::Address(x86::ESP, x86::EBX, TIMES_2, 16));
+      addresses_.push_back(x86::Address(x86::ESP, x86::ECX, TIMES_4, 17));
+      addresses_.push_back(x86::Address(x86::ESP, x86::EDX, TIMES_8, 18));
       addresses_.push_back(x86::Address(x86::ESP, -1));
       addresses_.push_back(x86::Address(x86::ESP, 0));
       addresses_.push_back(x86::Address(x86::ESP, 1));
@@ -278,16 +278,16 @@ TEST_F(AssemblerX86Test, PoplAllAddresses) {
         continue;
       } else if (*base == *index) {
        // Index only.
-       all_addresses.push_back(x86::Address(*index, x86::TIMES_1, -1));
-       all_addresses.push_back(x86::Address(*index, x86::TIMES_2, 0));
-       all_addresses.push_back(x86::Address(*index, x86::TIMES_4, 1));
-       all_addresses.push_back(x86::Address(*index, x86::TIMES_8, 123456789));
+       all_addresses.push_back(x86::Address(*index, TIMES_1, -1));
+       all_addresses.push_back(x86::Address(*index, TIMES_2, 0));
+       all_addresses.push_back(x86::Address(*index, TIMES_4, 1));
+       all_addresses.push_back(x86::Address(*index, TIMES_8, 123456789));
       }
       // Base and index.
-      all_addresses.push_back(x86::Address(*base, *index, x86::TIMES_1, -1));
-      all_addresses.push_back(x86::Address(*base, *index, x86::TIMES_2, 0));
-      all_addresses.push_back(x86::Address(*base, *index, x86::TIMES_4, 1));
-      all_addresses.push_back(x86::Address(*base, *index, x86::TIMES_8, 123456789));
+      all_addresses.push_back(x86::Address(*base, *index, TIMES_1, -1));
+      all_addresses.push_back(x86::Address(*base, *index, TIMES_2, 0));
+      all_addresses.push_back(x86::Address(*base, *index, TIMES_4, 1));
+      all_addresses.push_back(x86::Address(*base, *index, TIMES_8, 123456789));
     }
   }
   DriverStr(RepeatA(&x86::X86Assembler::popl, all_addresses, "popl {mem}"), "popq");
@@ -551,11 +551,11 @@ TEST_F(AssemblerX86Test, RoundSD) {
 
 TEST_F(AssemblerX86Test, CmovlAddress) {
   GetAssembler()->cmovl(x86::kEqual, x86::Register(x86::EAX), x86::Address(
-      x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+      x86::Register(x86::EDI), x86::Register(x86::EBX), TIMES_4, 12));
   GetAssembler()->cmovl(x86::kNotEqual, x86::Register(x86::EDI), x86::Address(
-      x86::Register(x86::ESI), x86::Register(x86::EBX), x86::TIMES_4, 12));
+      x86::Register(x86::ESI), x86::Register(x86::EBX), TIMES_4, 12));
   GetAssembler()->cmovl(x86::kEqual, x86::Register(x86::EDI), x86::Address(
-      x86::Register(x86::EDI), x86::Register(x86::EAX), x86::TIMES_4, 12));
+      x86::Register(x86::EDI), x86::Register(x86::EAX), TIMES_4, 12));
   const char* expected =
     "cmovzl 0xc(%EDI,%EBX,4), %eax\n"
     "cmovnzl 0xc(%ESI,%EBX,4), %edi\n"
