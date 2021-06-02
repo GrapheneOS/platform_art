@@ -46,5 +46,14 @@
           "org.apache.harmony.tests.java.lang.ProcessManagerTest#testSleep",
           "org.apache.harmony.tests.java.math.BigIntegerConstructorsTest#testConstructorPrime"
   ]
+},
+{
+  description: "Stack unwinding failures on LUCI hosts with gcstress and debug.",
+  bug: 189826569,
+  result: ERROR,
+  modes: [host],
+  names: ["libcore.java.lang.ThreadTest#nativeThreadNames",
+          "jsr166.ThreadLocalTest#testGenericITL"
+  ]
 }
 ]
