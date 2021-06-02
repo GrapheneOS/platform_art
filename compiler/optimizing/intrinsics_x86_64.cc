@@ -3155,47 +3155,17 @@ static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86_64* codegen) 
   Address src(CpuRegister(target.object), CpuRegister(target.offset), TIMES_1, 0);
   Location out = locations->Out();
 
-  if (type == DataType::Type::kReference && kEmitCompilerReadBarrier) {
-    DCHECK(kUseBakerReadBarrier);
-    codegen->GenerateReferenceLoadWithBakerReadBarrier(
-        invoke, out, CpuRegister(target.object), src, /* needs_null_check= */ false);
-  } else {
-    switch (type) {
-      case DataType::Type::kBool:
-      case DataType::Type::kUint8:
-        __ movzxb(out.AsRegister<CpuRegister>(), src);
-        break;
-      case DataType::Type::kInt8:
-        __ movsxb(out.AsRegister<CpuRegister>(), src);
-        break;
-      case DataType::Type::kInt16:
-        __ movsxw(out.AsRegister<CpuRegister>(), src);
-        break;
-      case DataType::Type::kUint16:
-        __ movzxw(out.AsRegister<CpuRegister>(), src);
-        break;
-      case DataType::Type::kInt32:
-      case DataType::Type::kUint32:
-        __ movl(out.AsRegister<CpuRegister>(), src);
-        break;
-      case DataType::Type::kInt64:
-      case DataType::Type::kUint64: {
-        __ movq(out.AsRegister<CpuRegister>(), src);
-        break;
-      }
-      case DataType::Type::kFloat32:
-        __ movss(out.AsFpuRegister<XmmRegister>(), src);
-        break;
-      case DataType::Type::kFloat64:
-        __ movsd(out.AsFpuRegister<XmmRegister>(), src);
-        break;
-      case DataType::Type::kReference:
-        __ movl(out.AsRegister<CpuRegister>(), src);
-        __ MaybeUnpoisonHeapReference(out.AsRegister<CpuRegister>());
-        break;
-      case DataType::Type::kVoid:
-        LOG(FATAL) << "Unreachable type " << type;
+  if (type == DataType::Type::kReference) {
+    if (kEmitCompilerReadBarrier) {
+      DCHECK(kUseBakerReadBarrier);
+      codegen->GenerateReferenceLoadWithBakerReadBarrier(
+          invoke, out, CpuRegister(target.object), src, /* needs_null_check= */ false);
+    } else {
+      __ movl(out.AsRegister<CpuRegister>(), src);
+      __ MaybeUnpoisonHeapReference(out.AsRegister<CpuRegister>());
     }
+  } else {
+    codegen->LoadFromMemoryNoReference(type, out, src);
   }
 
   __ Bind(slow_path->GetExitLabel());
