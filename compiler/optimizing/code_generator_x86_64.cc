@@ -1689,6 +1689,44 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
   }
 }
 
+void CodeGeneratorX86_64::LoadFromMemoryNoReference(DataType::Type type,
+                                                    Location dst,
+                                                    Address src) {
+  switch (type) {
+    case DataType::Type::kBool:
+    case DataType::Type::kUint8:
+      __ movzxb(dst.AsRegister<CpuRegister>(), src);
+      break;
+    case DataType::Type::kInt8:
+      __ movsxb(dst.AsRegister<CpuRegister>(), src);
+      break;
+    case DataType::Type::kUint16:
+      __ movzxw(dst.AsRegister<CpuRegister>(), src);
+      break;
+    case DataType::Type::kInt16:
+      __ movsxw(dst.AsRegister<CpuRegister>(), src);
+      break;
+    case DataType::Type::kInt32:
+    case DataType::Type::kUint32:
+      __ movl(dst.AsRegister<CpuRegister>(), src);
+      break;
+    case DataType::Type::kInt64:
+    case DataType::Type::kUint64:
+      __ movq(dst.AsRegister<CpuRegister>(), src);
+      break;
+    case DataType::Type::kFloat32:
+      __ movss(dst.AsFpuRegister<XmmRegister>(), src);
+      break;
+    case DataType::Type::kFloat64:
+      __ movsd(dst.AsFpuRegister<XmmRegister>(), src);
+      break;
+    case DataType::Type::kVoid:
+    case DataType::Type::kReference:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
 void CodeGeneratorX86_64::MoveConstant(Location location, int32_t value) {
   DCHECK(location.IsRegister());
   Load64BitValue(location.AsRegister<CpuRegister>(), static_cast<int64_t>(value));
@@ -4912,91 +4950,31 @@ void InstructionCodeGeneratorX86_64::HandleFieldGet(HInstruction* instruction,
   DataType::Type load_type = instruction->GetType();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
 
-  switch (load_type) {
-    case DataType::Type::kBool:
-    case DataType::Type::kUint8: {
-      __ movzxb(out.AsRegister<CpuRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kInt8: {
-      __ movsxb(out.AsRegister<CpuRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kUint16: {
-      __ movzxw(out.AsRegister<CpuRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kInt16: {
-      __ movsxw(out.AsRegister<CpuRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kInt32: {
-      __ movl(out.AsRegister<CpuRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kReference: {
-      // /* HeapReference<Object> */ out = *(base + offset)
-      if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-        // Note that a potential implicit null check is handled in this
-        // CodeGeneratorX86_64::GenerateFieldLoadWithBakerReadBarrier call.
-        codegen_->GenerateFieldLoadWithBakerReadBarrier(
-            instruction, out, base, offset, /* needs_null_check= */ true);
-        if (is_volatile) {
-          codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
-        }
-      } else {
-        __ movl(out.AsRegister<CpuRegister>(), Address(base, offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        if (is_volatile) {
-          codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
-        }
-        // If read barriers are enabled, emit read barriers other than
-        // Baker's using a slow path (and also unpoison the loaded
-        // reference, if heap poisoning is enabled).
-        codegen_->MaybeGenerateReadBarrierSlow(instruction, out, out, base_loc, offset);
-      }
-      break;
-    }
-
-    case DataType::Type::kInt64: {
-      __ movq(out.AsRegister<CpuRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kFloat32: {
-      __ movss(out.AsFpuRegister<XmmRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kFloat64: {
-      __ movsd(out.AsFpuRegister<XmmRegister>(), Address(base, offset));
-      break;
-    }
-
-    case DataType::Type::kUint32:
-    case DataType::Type::kUint64:
-    case DataType::Type::kVoid:
-      LOG(FATAL) << "Unreachable type " << load_type;
-      UNREACHABLE();
-  }
-
   if (load_type == DataType::Type::kReference) {
-    // Potential implicit null checks, in the case of reference
-    // fields, are handled in the previous switch statement.
-  } else {
-    codegen_->MaybeRecordImplicitNullCheck(instruction);
-  }
-
-  if (is_volatile) {
-    if (load_type == DataType::Type::kReference) {
-      // Memory barriers, in the case of references, are also handled
-      // in the previous switch statement.
+    // /* HeapReference<Object> */ out = *(base + offset)
+    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      // Note that a potential implicit null check is handled in this
+      // CodeGeneratorX86_64::GenerateFieldLoadWithBakerReadBarrier call.
+      codegen_->GenerateFieldLoadWithBakerReadBarrier(
+          instruction, out, base, offset, /* needs_null_check= */ true);
+      if (is_volatile) {
+        codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
+      }
     } else {
+      __ movl(out.AsRegister<CpuRegister>(), Address(base, offset));
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      if (is_volatile) {
+        codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
+      }
+      // If read barriers are enabled, emit read barriers other than
+      // Baker's using a slow path (and also unpoison the loaded
+      // reference, if heap poisoning is enabled).
+      codegen_->MaybeGenerateReadBarrierSlow(instruction, out, out, base_loc, offset);
+    }
+  } else {
+    codegen_->LoadFromMemoryNoReference(load_type, out, Address(base, offset));
+    codegen_->MaybeRecordImplicitNullCheck(instruction);
+    if (is_volatile) {
       codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
     }
   }
@@ -5370,6 +5348,30 @@ void LocationsBuilderX86_64::VisitArrayGet(HArrayGet* instruction) {
   }
 }
 
+static ScaleFactor ScaleFactorForType(DataType::Type type) {
+  switch (type) {
+    case DataType::Type::kBool:
+    case DataType::Type::kUint8:
+    case DataType::Type::kInt8:
+      return TIMES_1;
+    case DataType::Type::kUint16:
+    case DataType::Type::kInt16:
+      return TIMES_2;
+    case DataType::Type::kInt32:
+    case DataType::Type::kUint32:
+    case DataType::Type::kFloat32:
+    case DataType::Type::kReference:
+      return TIMES_4;
+    case DataType::Type::kInt64:
+    case DataType::Type::kUint64:
+    case DataType::Type::kFloat64:
+      return TIMES_8;
+    case DataType::Type::kVoid:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
 void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Location obj_loc = locations->InAt(0);
@@ -5379,113 +5381,56 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
   uint32_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
 
   DataType::Type type = instruction->GetType();
-  switch (type) {
-    case DataType::Type::kBool:
-    case DataType::Type::kUint8: {
-      CpuRegister out = out_loc.AsRegister<CpuRegister>();
-      __ movzxb(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_1, data_offset));
-      break;
-    }
-
-    case DataType::Type::kInt8: {
-      CpuRegister out = out_loc.AsRegister<CpuRegister>();
-      __ movsxb(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_1, data_offset));
-      break;
-    }
-
-    case DataType::Type::kUint16: {
-      CpuRegister out = out_loc.AsRegister<CpuRegister>();
-      if (mirror::kUseStringCompression && instruction->IsStringCharAt()) {
-        // Branch cases into compressed and uncompressed for each index's type.
-        uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
-        NearLabel done, not_compressed;
-        __ testb(Address(obj, count_offset), Immediate(1));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
-                      "Expecting 0=compressed, 1=uncompressed");
-        __ j(kNotZero, &not_compressed);
-        __ movzxb(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_1, data_offset));
-        __ jmp(&done);
-        __ Bind(&not_compressed);
-        __ movzxw(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_2, data_offset));
-        __ Bind(&done);
-      } else {
-        __ movzxw(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_2, data_offset));
-      }
-      break;
-    }
-
-    case DataType::Type::kInt16: {
-      CpuRegister out = out_loc.AsRegister<CpuRegister>();
-      __ movsxw(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_2, data_offset));
-      break;
-    }
-
-    case DataType::Type::kInt32: {
+  if (type == DataType::Type::kReference) {
+    static_assert(
+        sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+        "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
+    // /* HeapReference<Object> */ out =
+    //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
+    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      // Note that a potential implicit null check is handled in this
+      // CodeGeneratorX86_64::GenerateArrayLoadWithBakerReadBarrier call.
+      codegen_->GenerateArrayLoadWithBakerReadBarrier(
+          instruction, out_loc, obj, data_offset, index, /* needs_null_check= */ true);
+    } else {
       CpuRegister out = out_loc.AsRegister<CpuRegister>();
       __ movl(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_4, data_offset));
-      break;
-    }
-
-    case DataType::Type::kReference: {
-      static_assert(
-          sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
-          "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
-      // /* HeapReference<Object> */ out =
-      //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
-      if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-        // Note that a potential implicit null check is handled in this
-        // CodeGeneratorX86_64::GenerateArrayLoadWithBakerReadBarrier call.
-        codegen_->GenerateArrayLoadWithBakerReadBarrier(
-            instruction, out_loc, obj, data_offset, index, /* needs_null_check= */ true);
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      // If read barriers are enabled, emit read barriers other than
+      // Baker's using a slow path (and also unpoison the loaded
+      // reference, if heap poisoning is enabled).
+      if (index.IsConstant()) {
+        uint32_t offset =
+            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+        codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
       } else {
-        CpuRegister out = out_loc.AsRegister<CpuRegister>();
-        __ movl(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_4, data_offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        // If read barriers are enabled, emit read barriers other than
-        // Baker's using a slow path (and also unpoison the loaded
-        // reference, if heap poisoning is enabled).
-        if (index.IsConstant()) {
-          uint32_t offset =
-              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-          codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
-        } else {
-          codegen_->MaybeGenerateReadBarrierSlow(
-              instruction, out_loc, out_loc, obj_loc, data_offset, index);
-        }
+        codegen_->MaybeGenerateReadBarrierSlow(
+            instruction, out_loc, out_loc, obj_loc, data_offset, index);
       }
-      break;
     }
-
-    case DataType::Type::kInt64: {
-      CpuRegister out = out_loc.AsRegister<CpuRegister>();
-      __ movq(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_8, data_offset));
-      break;
-    }
-
-    case DataType::Type::kFloat32: {
-      XmmRegister out = out_loc.AsFpuRegister<XmmRegister>();
-      __ movss(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_4, data_offset));
-      break;
-    }
-
-    case DataType::Type::kFloat64: {
-      XmmRegister out = out_loc.AsFpuRegister<XmmRegister>();
-      __ movsd(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_8, data_offset));
-      break;
-    }
-
-    case DataType::Type::kUint32:
-    case DataType::Type::kUint64:
-    case DataType::Type::kVoid:
-      LOG(FATAL) << "Unreachable type " << type;
-      UNREACHABLE();
-  }
-
-  if (type == DataType::Type::kReference) {
-    // Potential implicit null checks, in the case of reference
-    // arrays, are handled in the previous switch statement.
   } else {
+    if (type == DataType::Type::kUint16
+        && mirror::kUseStringCompression
+        && instruction->IsStringCharAt()) {
+      // Branch cases into compressed and uncompressed for each index's type.
+      CpuRegister out = out_loc.AsRegister<CpuRegister>();
+      uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+      NearLabel done, not_compressed;
+      __ testb(Address(obj, count_offset), Immediate(1));
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                    "Expecting 0=compressed, 1=uncompressed");
+      __ j(kNotZero, &not_compressed);
+      __ movzxb(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_1, data_offset));
+      __ jmp(&done);
+      __ Bind(&not_compressed);
+      __ movzxw(out, CodeGeneratorX86_64::ArrayAddress(obj, index, TIMES_2, data_offset));
+      __ Bind(&done);
+    } else {
+      ScaleFactor scale = ScaleFactorForType(type);
+      Address src = CodeGeneratorX86_64::ArrayAddress(obj, index, scale, data_offset);
+      codegen_->LoadFromMemoryNoReference(type, out_loc, src);
+    }
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 }
