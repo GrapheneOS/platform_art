@@ -446,6 +446,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   void LoadFromMemoryNoBarrier(DataType::Type dst_type,
                                Location dst,
                                Address src,
+                               HInstruction* instr = nullptr,
                                XmmRegister temp = kNoXmmRegister,
                                bool is_atomic_load = false);
   // Helper method to move a primitive value from a location to an address.
