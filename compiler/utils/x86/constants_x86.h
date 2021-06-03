@@ -54,13 +54,6 @@ enum X87Register {
 };
 std::ostream& operator<<(std::ostream& os, const X87Register& reg);
 
-enum ScaleFactor {
-  TIMES_1 = 0,
-  TIMES_2 = 1,
-  TIMES_4 = 2,
-  TIMES_8 = 3
-};
-
 enum Condition {
   kOverflow     =  0,
   kNoOverflow   =  1,
