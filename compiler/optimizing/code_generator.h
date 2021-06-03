@@ -36,6 +36,7 @@
 #include "optimizing_compiler_stats.h"
 #include "read_barrier_option.h"
 #include "stack.h"
+#include "utils/assembler.h"
 #include "utils/label.h"
 
 namespace art {
@@ -701,6 +702,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   virtual void GenerateNop() = 0;
 
   static QuickEntrypointEnum GetArrayAllocationEntrypoint(HNewArray* new_array);
+  static ScaleFactor ScaleFactorForType(DataType::Type type);
 
  protected:
   // Patch info used for recording locations of required linker patches and their targets,

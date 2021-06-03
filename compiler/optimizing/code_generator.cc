@@ -1830,4 +1830,28 @@ QuickEntrypointEnum CodeGenerator::GetArrayAllocationEntrypoint(HNewArray* new_a
   UNREACHABLE();
 }
 
+ScaleFactor CodeGenerator::ScaleFactorForType(DataType::Type type) {
+  switch (type) {
+    case DataType::Type::kBool:
+    case DataType::Type::kUint8:
+    case DataType::Type::kInt8:
+      return TIMES_1;
+    case DataType::Type::kUint16:
+    case DataType::Type::kInt16:
+      return TIMES_2;
+    case DataType::Type::kInt32:
+    case DataType::Type::kUint32:
+    case DataType::Type::kFloat32:
+    case DataType::Type::kReference:
+      return TIMES_4;
+    case DataType::Type::kInt64:
+    case DataType::Type::kUint64:
+    case DataType::Type::kFloat64:
+      return TIMES_8;
+    case DataType::Type::kVoid:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
 }  // namespace art
