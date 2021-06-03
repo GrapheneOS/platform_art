@@ -4003,16 +4003,26 @@ inline void Heap::CheckGCForNative(Thread* self) {
     if (is_gc_concurrent) {
       bool requested =
           RequestConcurrentGC(self, kGcCauseForNativeAlloc, /*force_full=*/true, starting_gc_num);
-      if (gc_urgency > kStopForNativeFactor
+      if (requested && gc_urgency > kStopForNativeFactor
           && current_native_bytes > stop_for_native_allocs_) {
         // We're in danger of running out of memory due to rampant native allocation.
         if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
           LOG(INFO) << "Stopping for native allocation, urgency: " << gc_urgency;
         }
-        if (WaitForGcToComplete(kGcCauseForNativeAlloc, self) == collector::kGcTypeNone) {
-          DCHECK(!requested
-                 || GCNumberLt(starting_gc_num, max_gc_requested_.load(std::memory_order_relaxed)));
-          // TODO: Eventually sleep here again.
+        // Count how many times we do this, so we can warn if this becomes excessive.
+        // Stop after a while, out of excessive caution.
+        static constexpr int kGcWaitIters = 20;
+        for (int i = 1; i <= kGcWaitIters; ++i) {
+          if (!GCNumberLt(GetCurrentGcNum(), max_gc_requested_.load(std::memory_order_relaxed))
+              || WaitForGcToComplete(kGcCauseForNativeAlloc, self) != collector::kGcTypeNone) {
+            break;
+          }
+          CHECK(GCNumberLt(starting_gc_num, max_gc_requested_.load(std::memory_order_relaxed)));
+          if (i % 10 == 0) {
+            LOG(WARNING) << "Slept " << i << " times in native allocation, waiting for GC";
+          }
+          static constexpr int kGcWaitSleepMicros = 2000;
+          usleep(kGcWaitSleepMicros);  // Encourage our requested GC to start.
         }
       }
     } else {
