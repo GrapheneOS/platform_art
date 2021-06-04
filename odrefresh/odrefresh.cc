@@ -1116,8 +1116,8 @@ class OnDeviceRefresh final {
 
     const std::string dex2oat = config_.GetDex2Oat();
     const InstructionSet isa = config_.GetSystemServerIsa();
-    std::vector<std::unique_ptr<File>> readonly_files_raii;
     for (const std::string& jar : systemserver_compilable_jars_) {
+      std::vector<std::unique_ptr<File>> readonly_files_raii;
       std::vector<std::string> args;
       args.emplace_back(dex2oat);
       args.emplace_back("--dex-file=" + jar);
@@ -1184,6 +1184,21 @@ class OnDeviceRefresh final {
       args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetDex2oatBootClasspath()}));
       const std::string context_path = android::base::Join(classloader_context, ':');
       args.emplace_back(Concatenate({"--class-loader-context=PCL[", context_path, "]"}));
+      if (!classloader_context.empty()) {
+        std::vector<int> fds;
+        for (const std::string& path : classloader_context) {
+          std::unique_ptr<File> file(OS::OpenFileForReading(path.c_str()));
+          if (!file->IsValid()) {
+            PLOG(ERROR) << "Failed to open classloader context " << path;
+            metrics.SetStatus(OdrMetrics::Status::kIoError);
+            return false;
+          }
+          fds.emplace_back(file->Fd());
+          readonly_files_raii.emplace_back(std::move(file));
+        }
+        const std::string context_fds = android::base::Join(fds, ':');
+        args.emplace_back(Concatenate({"--class-loader-context-fds=", context_fds}));
+      }
       const std::string extension_image = GetBootImageExtensionImage(/*on_system=*/false);
       args.emplace_back(Concatenate({"--boot-image=", GetBootImage(), ":", extension_image}));
 
