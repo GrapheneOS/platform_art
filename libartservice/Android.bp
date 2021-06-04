@@ -96,6 +96,7 @@ java_sdk_library {
     ],
 
     plugins: ["java_api_finder"],
+    dist_group: "android",
 }
 
 art_cc_test {

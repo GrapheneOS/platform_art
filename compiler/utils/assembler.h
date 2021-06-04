@@ -409,6 +409,13 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
   DebugFrameOpCodeWriterForAssembler cfi_;
 };
 
+enum ScaleFactor {
+  TIMES_1 = 0,
+  TIMES_2 = 1,
+  TIMES_4 = 2,
+  TIMES_8 = 3
+};
+
 }  // namespace art
 
 #endif  // ART_COMPILER_UTILS_ASSEMBLER_H_

@@ -3671,7 +3671,8 @@ static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86* codegen) {
   } else if (type == DataType::Type::kInt64 &&
              invoke->GetIntrinsic() != Intrinsics::kVarHandleGet) {
     XmmRegister xmm_temp = locations->GetTemp(2).AsFpuRegister<XmmRegister>();
-    codegen->LoadFromMemoryNoBarrier(type, out, field_addr, xmm_temp, /* is_atomic_load= */ true);
+    codegen->LoadFromMemoryNoBarrier(
+        type, out, field_addr, /* instr= */ nullptr, xmm_temp, /* is_atomic_load= */ true);
   } else {
     codegen->LoadFromMemoryNoBarrier(type, out, field_addr);
   }
