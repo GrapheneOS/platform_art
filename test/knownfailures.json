@@ -714,6 +714,17 @@
         "variant": "gcstress & target & debug"
     },
     {
+        "tests": ["2040-huge-native-alloc"],
+        "variant": "debuggable | gcstress",
+        "bug": "b/190148586",
+        "description": [ "Checks exact GC timing; fails for debuggable and gcstress variants" ]
+    },
+    {
+        "tests": ["2040-huge-native-alloc"],
+        "env_vars": {"SANITIZE_HOST": "address"},
+        "description": [ "Depends on other native allocated memory, probably confused by shadow memory." ]
+    },
+    {
         "tests": ["905-object-free"],
         "description": [ "Flake on gcstress" ],
         "bug": "b/62562923",
