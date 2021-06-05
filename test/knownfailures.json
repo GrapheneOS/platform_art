@@ -715,9 +715,9 @@
     },
     {
         "tests": ["2040-huge-native-alloc"],
-        "variant": "debuggable | gcstress",
+        "variant": "debuggable | gcstress | interpreter | interp-ac",
         "bug": "b/190148586",
-        "description": [ "Checks exact GC timing; fails for debuggable and gcstress variants" ]
+        "description": [ "Checks exact GC timing; fails for debuggable, gcstress, and interpreter variants" ]
     },
     {
         "tests": ["2040-huge-native-alloc"],
