@@ -714,6 +714,17 @@
         "variant": "gcstress & target & debug"
     },
     {
+        "tests": ["2040-huge-native-alloc"],
+        "variant": "debuggable | gcstress",
+        "bug": "b/190148586",
+        "description": [ "Checks exact GC timing; fails for debuggable and gcstress variants" ]
+    },
+    {
+        "tests": ["2040-huge-native-alloc"],
+        "env_vars": {"SANITIZE_HOST": "address"},
+        "description": [ "Depends on other native allocated memory, probably confused by shadow memory." ]
+    },
+    {
         "tests": ["905-object-free"],
         "description": [ "Flake on gcstress" ],
         "bug": "b/62562923",
@@ -1190,7 +1201,8 @@
                   "2033-shutdown-mechanics",
                   "2035-structural-native-method",
                   "2036-structural-subclass-shadow",
-                  "2038-hiddenapi-jvmti-ext"],
+                  "2038-hiddenapi-jvmti-ext",
+                  "2040-huge-native-alloc"],
         "variant": "jvm",
         "description": ["Doesn't run on RI."]
     },
