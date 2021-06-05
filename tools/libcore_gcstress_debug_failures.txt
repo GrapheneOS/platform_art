@@ -45,6 +45,7 @@
           "libcore.java.util.stream.CollectorsTest#counting_largeStream",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest#testUsingProxy",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest#testUsingProxySelector",
+          "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnectionTest#testConsequentProxyConnection",
           "org.apache.harmony.tests.java.lang.ProcessManagerTest#testSleep",
           "org.apache.harmony.tests.java.math.BigIntegerConstructorsTest#testConstructorPrime"
   ]
