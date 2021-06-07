@@ -221,22 +221,26 @@ VAR(name):
     SIZE(\name)
 END_MACRO
 
-MACRO1(SETUP_GOT_NOSAVE, got_reg)
-#ifndef __APPLE__
-    .ifc VAR(got_reg), ebx
-      call __x86.get_pc_thunk.bx
-      addl $_GLOBAL_OFFSET_TABLE_, %ebx
-    .else
-      .error "Unknown GOT register \got_reg"
-    .endif
-#endif
+MACRO3(SETUP_PC_REL_BASE_IMPL, reg, label, call_label)
+    call RAW_VAR(call_label)
+    CFI_ADJUST_CFA_OFFSET(4)
+RAW_VAR(label):
+    popl REG_VAR(reg)
+    CFI_ADJUST_CFA_OFFSET(-4)
 END_MACRO
 
-MACRO2(LOAD_RUNTIME_INSTANCE, reg, got_reg)
-    SETUP_GOT_NOSAVE \got_reg
-    // Load Runtime::instance_ from GOT.
-    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg)), REG_VAR(reg)
-    movl (REG_VAR(reg)), REG_VAR(reg)
+MACRO1(SETUP_PC_REL_BASE_0, reg)
+    SETUP_PC_REL_BASE_IMPL \reg, 0, 0f
+END_MACRO
+
+MACRO2(SETUP_PC_REL_BASE, reg, label)
+    SETUP_PC_REL_BASE_IMPL \reg, \label, \label
+END_MACRO
+
+MACRO1(LOAD_RUNTIME_INSTANCE, reg)
+    SETUP_PC_REL_BASE_0 \reg
+    // Load Runtime::instance_.
+    movl SYMBOL(_ZN3art7Runtime9instance_E) - 0b(REG_VAR(reg)), REG_VAR(reg)
 END_MACRO
 
 // Macros to poison (negate) the reference for heap poisoning.

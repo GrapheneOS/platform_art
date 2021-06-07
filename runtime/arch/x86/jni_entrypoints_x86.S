@@ -108,8 +108,8 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
     movl %edx, FRAME_SIZE_SAVE_REFS_AND_ARGS - __SIZEOF_POINTER__(%eax)
 
     // Replace the target method with the SaveRefsAndArgs runtime method.
-    LOAD_RUNTIME_INSTANCE ecx, ebx
-    movl RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET(%ecx), %ebx
+    LOAD_RUNTIME_INSTANCE ebx
+    movl RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET(%ebx), %ebx
 
     movl %eax, %ecx               // Prepare untagged managed SP for the runtime method.
 
