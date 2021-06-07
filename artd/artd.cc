@@ -32,10 +32,20 @@ using ::ndk::ScopedAStatus;
 namespace android {
 namespace artd {
 
-class ArtD : public aidl::android::os::BnArtd {
+class Artd : public aidl::android::os::BnArtd {
   constexpr static const char* const SERVICE_NAME = "artd";
 
  public:
+  Artd() {}
+
+  /*
+   * Binder API
+   */
+
+  ScopedAStatus isAlive(bool* _aidl_return) {
+    *_aidl_return = true;
+    return ScopedAStatus::ok();
+  }
 
   /*
    * Server API
@@ -62,7 +72,7 @@ int main(const int argc __attribute__((unused)), char* argv[]) {
   setenv("ANDROID_LOG_TAGS", "*:v", 1);
   android::base::InitLogging(argv);
 
-  android::artd::ArtD artd;
+  android::artd::Artd artd;
 
   if (auto ret = artd.Start(); !ret.isOk()) {
     LOG(ERROR) << "Unable to start artd: " << ret.getMessage();

@@ -12,42 +12,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
 
 package {
     // See: http://go/android-license-faq
     // A large-scale-change added 'default_applicable_licenses' to import
-    // all of the 'license_kinds' from "art_license"
+    // all of the 'license_kinds' from "frameworks_base_license"
     // to get the below license kinds:
     //   SPDX-license-identifier-Apache-2.0
     default_applicable_licenses: ["art_license"],
 }
 
-aidl_interface {
-    name: "artd-aidl",
-    srcs: [
-        "android/os/IArtd.aidl",
+android_test {
+    name: "ArtdIntegrationTests",
+    srcs: ["src/**/*.java"],
+    static_libs: [
+        "androidx.test.rules",
+        "artd-aidl-java",
     ],
-    host_supported: true,
-    backend: {
-        java: {
-            enabled: true,
-        },
-        cpp: {
-            enabled: false,
-        },
-        ndk: {
-            enabled: true,
-            apex_available: [
-                "com.android.art",
-                "com.android.art.debug",
-            ],
-            // TODO(b/177273468): Increment to next version when possible
-            min_sdk_version: "S",
-        },
-    },
-    unstable: true,
-    visibility: [
-        "//system/tools/aidl/build",
-        "//art:__subpackages__",
-    ],
+    platform_apis: true,
+    test_suites: ["device-tests"],
+    certificate: "platform",
 }
