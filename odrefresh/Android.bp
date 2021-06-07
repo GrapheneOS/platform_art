@@ -36,7 +36,7 @@ cc_defaults {
     local_include_dirs: ["include"],
     header_libs: ["dexoptanalyzer_headers"],
     generated_sources: [
-        "apex-info-list",
+        "apex-info-list-tinyxml",
         "art-apex-cache-info",
         "art-odrefresh-operator-srcs",
     ],
@@ -46,18 +46,11 @@ cc_defaults {
         "libdexfile",
         "liblog",
     ],
-    static_libs: ["libxml2"],
+    static_libs: ["libtinyxml2"],
     target: {
         android: {
             // Use the 32-bit version of odrefresh on devices.
             compile_multilib: "prefer32",
-        },
-        host: {
-            shared_libs: [
-                // Both these libraries for libxml2 on host for code derived from apex-info-list.
-                "libicui18n",
-                "libicuuc",
-            ],
         },
     },
     tidy: true,
@@ -203,4 +196,5 @@ xsd_config {
     package_name: "com.android.art",
     api_dir: "schema",
     gen_writer: true,
+    tinyxml: true,
 }
