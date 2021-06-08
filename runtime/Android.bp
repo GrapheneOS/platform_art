@@ -326,7 +326,6 @@ libart_cc_defaults {
                 "interpreter/mterp/mterp.cc",
                 "interpreter/mterp/nterp_stub.cc",
                 ":libart_mterp.x86",
-                "arch/x86/__x86.get_pc_thunk.S",
                 "arch/x86/context_x86.cc",
                 "arch/x86/entrypoints_init_x86.cc",
                 "arch/x86/jni_entrypoints_x86.S",
@@ -387,10 +386,10 @@ libart_cc_defaults {
             ],
             static_libs: [
                 "libstatslog_art",
-                "libxml2",
+                "libtinyxml2",
             ],
             generated_sources: [
-                "apex-info-list",
+                "apex-info-list-tinyxml",
             ],
         },
         android_arm: {
