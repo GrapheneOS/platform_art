@@ -86,6 +86,7 @@
     // `objdump -Wf libart.so | egrep "_cfa|_state"` is useful to audit the opcodes.
     #define CFI_RESTORE_STATE_AND_DEF_CFA(reg,off) .cfi_restore_state .cfi_def_cfa reg,off
     #define CFI_ESCAPE(...) .cfi_escape __VA_ARGS__
+    #define CFI_RESTORE_STATE .cfi_restore_state
 #else
     // Mac OS' doesn't like cfi_* directives.
     #define CFI_STARTPROC
@@ -99,6 +100,7 @@
     #define CFI_REMEMBER_STATE
     #define CFI_RESTORE_STATE_AND_DEF_CFA(reg,off)
     #define CFI_ESCAPE(...)
+    #define CFI_RESTORE_STATE
 #endif
 
 #define CFI_REG_eax 0
@@ -120,6 +122,22 @@ MACRO3(CFI_EXPRESSION_BREG, n, b, offset)
         CFI_EXPRESSION_BREG_2(\n, \b, \offset)
     .else
         .error "Unsupported offset"
+    .endif
+END_MACRO
+
+MACRO3(CFI_DEF_CFA_BREG_PLUS_UCONST, reg, offset, size)
+    .if ((\size) < 0)
+        .error "Size should be positive"
+    .endif
+    .if (((\offset) < -0x40) || ((\offset) >= 0x40))
+        .error "Unsupported offset"
+    .endif
+    .if ((\size) < 0x80)
+        CFI_DEF_CFA_BREG_PLUS_UCONST_1_1(\reg, \offset, \size)
+    .elseif ((\size) < 0x4000)
+        CFI_DEF_CFA_BREG_PLUS_UCONST_1_2(\reg, \offset, \size)
+    .else
+        .error "Unsupported size"
     .endif
 END_MACRO
 
@@ -259,6 +277,61 @@ END_MACRO
 
     /*
      * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveRefsOnly)
+     */
+MACRO1(SETUP_SAVE_REFS_ONLY_FRAME, temp_reg)
+    PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
+    PUSH esi
+    PUSH ebp
+    subl MACRO_LITERAL(12), %esp  // Grow stack by 3 words.
+    CFI_ADJUST_CFA_OFFSET(12)
+    LOAD_RUNTIME_INSTANCE \temp_reg
+    // Push save all callee-save method.
+    pushl RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET(REG_VAR(temp_reg))
+    CFI_ADJUST_CFA_OFFSET(4)
+    // Store esp as the top quick frame.
+    movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +4: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_SAVE_REFS_ONLY != 3*4 + 16 + 4)
+#error "FRAME_SIZE_SAVE_REFS_ONLY(X86) size not as expected."
+#endif
+END_MACRO
+
+MACRO0(RESTORE_SAVE_REFS_ONLY_FRAME)
+    addl MACRO_LITERAL(16), %esp  // Unwind stack up to saved values
+    CFI_ADJUST_CFA_OFFSET(-16)
+    POP ebp  // Restore callee saves (ebx is saved/restored by the upcall)
+    POP esi
+    POP edi
+END_MACRO
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveAllCalleeSaves)
+     */
+MACRO1(SETUP_SAVE_ALL_CALLEE_SAVES_FRAME, temp_reg)
+    PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
+    PUSH esi
+    PUSH ebp
+    subl MACRO_LITERAL(12), %esp  // Grow stack by 3 words.
+    CFI_ADJUST_CFA_OFFSET(12)
+    LOAD_RUNTIME_INSTANCE \temp_reg
+    // Push save all callee-save method.
+    pushl RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET(REG_VAR(temp_reg))
+    CFI_ADJUST_CFA_OFFSET(4)
+    // Store esp as the top quick frame.
+    movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +4: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVES != 3*4 + 16 + 4)
+#error "FRAME_SIZE_SAVE_ALL_CALLEE_SAVES(X86) size not as expected."
+#endif
+END_MACRO
+
+    /*
+     * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveRefsAndArgs), except for pushing the method
      */
 MACRO0(SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY)
@@ -313,6 +386,23 @@ MACRO0(DELIVER_PENDING_EXCEPTION_FRAME_READY)
     call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*)
     UNREACHABLE
     CFI_ADJUST_CFA_OFFSET(-16)                 // Reset CFA in case there is more code afterwards.
+END_MACRO
+
+    /*
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_.
+     */
+MACRO0(DELIVER_PENDING_EXCEPTION)
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx      // save callee saves for throw
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
+END_MACRO
+
+MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
+    cmpl MACRO_LITERAL(0),%fs:THREAD_EXCEPTION_OFFSET // exception field == 0 ?
+    jne 1f                                            // if exception field != 0 goto 1
+    ret                                               // return
+1:                                                    // deliver exception on current thread
+    DELIVER_PENDING_EXCEPTION
 END_MACRO
 
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_
