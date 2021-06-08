@@ -20,7 +20,6 @@ for arg; do
   shift
 done
 
-MAINLINE_MODULES=()
 if [ -z "$skip_apex" ]; then
   # Take the list of modules from MAINLINE_MODULES.
   if [ -n "${MAINLINE_MODULES}" ]; then
@@ -31,6 +30,8 @@ if [ -z "$skip_apex" ]; then
       com.android.art.debug
     )
   fi
+else
+  MAINLINE_MODULES=()
 fi
 
 # Take the list of products to build the modules for from
