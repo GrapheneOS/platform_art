@@ -278,7 +278,7 @@ TEST_F(VarHandleTest, InstanceFieldVarHandle) {
   ScopedObjectAccess soa(self);
 
   ObjPtr<Object> i = BoxPrimitive(Primitive::kPrimInt, JValue::FromPrimitive<int32_t>(37));
-  ArtField* value = mirror::Class::FindField(self, i->GetClass(), "value", "I");
+  ArtField* value = i->GetClass()->FindDeclaredInstanceField("value", "I");
   int32_t mask = AccessModesBitMask(VarHandle::AccessMode::kGet,
                                     VarHandle::AccessMode::kGetAndSet,
                                     VarHandle::AccessMode::kGetAndBitwiseXor);
@@ -481,7 +481,7 @@ TEST_F(VarHandleTest, StaticFieldVarHandle) {
   ScopedObjectAccess soa(self);
 
   ObjPtr<Object> i = BoxPrimitive(Primitive::kPrimInt, JValue::FromPrimitive<int32_t>(37));
-  ArtField* value = mirror::Class::FindField(self, i->GetClass(), "MIN_VALUE", "I");
+  ArtField* value = i->GetClass()->FindDeclaredStaticField("MIN_VALUE", "I");
   int32_t mask = AccessModesBitMask(VarHandle::AccessMode::kSet,
                                     VarHandle::AccessMode::kGetOpaque,
                                     VarHandle::AccessMode::kGetAndBitwiseAndRelease);

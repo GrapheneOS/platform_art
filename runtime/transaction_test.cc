@@ -627,15 +627,13 @@ TEST_F(TransactionTest, Constraints) {
       class_linker_->FindClass(soa.Self(), "Ljava/lang/Boolean;", class_loader));
   ASSERT_TRUE(boolean_class != nullptr);
   ASSERT_TRUE(heap->ObjectIsInBootImageSpace(boolean_class.Get()));
-  ArtField* true_field =
-      mirror::Class::FindField(soa.Self(), boolean_class.Get(), "TRUE", "Ljava/lang/Boolean;");
+  ArtField* true_field = boolean_class->FindDeclaredStaticField("TRUE", "Ljava/lang/Boolean;");
   ASSERT_TRUE(true_field != nullptr);
   ASSERT_TRUE(true_field->IsStatic());
   Handle<mirror::Object> true_value = hs.NewHandle(true_field->GetObject(boolean_class.Get()));
   ASSERT_TRUE(true_value != nullptr);
   ASSERT_TRUE(heap->ObjectIsInBootImageSpace(true_value.Get()));
-  ArtField* value_field =
-      mirror::Class::FindField(soa.Self(), boolean_class.Get(), "value", "Z");
+  ArtField* value_field = boolean_class->FindDeclaredInstanceField("value", "Z");
   ASSERT_TRUE(value_field != nullptr);
   ASSERT_FALSE(value_field->IsStatic());
 
@@ -643,8 +641,7 @@ TEST_F(TransactionTest, Constraints) {
       class_linker_->FindClass(soa.Self(), "LTransaction$StaticFieldClass;", class_loader)));
   ASSERT_TRUE(static_field_class != nullptr);
   ASSERT_FALSE(heap->ObjectIsInBootImageSpace(static_field_class.Get()));
-  ArtField* int_field =
-      mirror::Class::FindField(soa.Self(), static_field_class.Get(), "intField", "I");
+  ArtField* int_field = static_field_class->FindDeclaredStaticField("intField", "I");
   ASSERT_TRUE(int_field != nullptr);
 
   Handle<mirror::Class> static_fields_test_class(hs.NewHandle(
@@ -652,7 +649,7 @@ TEST_F(TransactionTest, Constraints) {
   ASSERT_TRUE(static_fields_test_class != nullptr);
   ASSERT_FALSE(heap->ObjectIsInBootImageSpace(static_fields_test_class.Get()));
   ArtField* static_fields_test_int_field =
-      mirror::Class::FindField(soa.Self(), static_fields_test_class.Get(), "intField", "I");
+      static_fields_test_class->FindDeclaredStaticField("intField", "I");
   ASSERT_TRUE(static_fields_test_int_field != nullptr);
 
   Handle<mirror::Class> instance_fields_test_class(hs.NewHandle(
@@ -660,7 +657,7 @@ TEST_F(TransactionTest, Constraints) {
   ASSERT_TRUE(instance_fields_test_class != nullptr);
   ASSERT_FALSE(heap->ObjectIsInBootImageSpace(instance_fields_test_class.Get()));
   ArtField* instance_fields_test_int_field =
-      mirror::Class::FindField(soa.Self(), instance_fields_test_class.Get(), "intField", "I");
+      instance_fields_test_class->FindDeclaredInstanceField("intField", "I");
   ASSERT_TRUE(instance_fields_test_int_field != nullptr);
   Handle<mirror::Object> instance_fields_test_object = hs.NewHandle(
       instance_fields_test_class->Alloc(soa.Self(), heap->GetCurrentAllocator()));
