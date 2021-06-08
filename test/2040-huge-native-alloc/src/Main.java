@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 
 public class Main {
 
-  static final int HOW_MANY_HUGE = 110;  // > 1GB to trigger blocking in default config.
+  static final int HOW_MANY_HUGE = 120;  // > 1GB to trigger blocking in default config.
   int allocated = 0;
   int deallocated = 0;
   static Object lock = new Object();
@@ -43,8 +43,8 @@ public class Main {
 
   // Repeatedly inform the GC of native allocations. Return the time (in nsecs) this takes.
   private static long timeNotifications() {
-    VMRuntime vmr = VMRuntime.getRuntime();
-    long startNanos = System.nanoTime();
+    final VMRuntime vmr = VMRuntime.getRuntime();
+    final long startNanos = System.nanoTime();
     // Iteration count must be >= Heap::kNotifyNativeInterval.
     for (int i = 0; i < 400; ++i) {
       vmr.notifyNativeAllocation();
@@ -55,15 +55,17 @@ public class Main {
   public static void main(String[] args) {
     System.loadLibrary(args[0]);
     System.out.println("Main Started");
+    Runtime.getRuntime().gc();
     new Main().run();
     System.out.println("Main Finished");
   }
 
   void run() {
     timeNotifications();  // warm up.
-    long referenceTime1 = timeNotifications();
-    long referenceTime2 = timeNotifications();
-    long referenceTime = Math.min(referenceTime1, referenceTime2);
+    final long referenceTime1 = timeNotifications();
+    final long referenceTime2 = timeNotifications();
+    final long referenceTime3 = timeNotifications();
+    final long referenceTime = Math.min(referenceTime1, Math.min(referenceTime2, referenceTime3));
 
     // Allocate half a GB of native memory without informing the GC.
     for (int i = 0; i < HOW_MANY_HUGE; ++i) {
@@ -72,13 +74,18 @@ public class Main {
 
     // One of the notifications should block for GC to catch up.
     long actualTime = timeNotifications();
+    final long minBlockingTime = 2 * referenceTime + 2_000_000;
 
     if (actualTime > 500_000_000) {
       System.out.println("Notifications ran too slowly; excessive blocking? msec = "
           + (actualTime / 1_000_000));
-    } else if (actualTime < 3 * referenceTime + 2_000_000) {
-      System.out.println("Notifications ran too quickly; no blocking GC? msec = "
-          + (actualTime / 1_000_000));
+    } else if (actualTime < minBlockingTime) {
+      // Try again before reporting.
+      actualTime = timeNotifications();
+      if (actualTime < minBlockingTime) {
+        System.out.println("Notifications ran too quickly; no blocking GC? msec = "
+            + (actualTime / 1_000_000) + " reference(msec) = " + (referenceTime / 1_000_000));
+      }
     }
 
     // Let finalizers run.
