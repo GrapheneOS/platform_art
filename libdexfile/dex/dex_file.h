@@ -404,6 +404,8 @@ class DexFile {
   const char* GetMethodName(const dex::MethodId& method_id, uint32_t* utf_length) const;
   const char* GetMethodName(uint32_t idx) const;
   const char* GetMethodName(uint32_t idx, uint32_t* utf_length) const;
+  std::string_view GetMethodNameView(const dex::MethodId& method_id) const;
+  std::string_view GetMethodNameView(uint32_t idx) const;
 
   // Returns the shorty of a method by its index.
   const char* GetMethodShorty(uint32_t idx) const;

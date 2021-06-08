@@ -44,6 +44,7 @@ inline int32_t DexFile::GetStringLength(const dex::StringId& string_id) const {
   return DecodeUnsignedLeb128(&ptr);
 }
 
+ALWAYS_INLINE
 inline const char* DexFile::GetStringDataAndUtf16Length(const dex::StringId& string_id,
                                                         uint32_t* utf16_length) const {
   DCHECK(utf16_length != nullptr) << GetLocation();
@@ -52,11 +53,13 @@ inline const char* DexFile::GetStringDataAndUtf16Length(const dex::StringId& str
   return reinterpret_cast<const char*>(ptr);
 }
 
+ALWAYS_INLINE
 inline const char* DexFile::GetStringData(const dex::StringId& string_id) const {
   uint32_t ignored;
   return GetStringDataAndUtf16Length(string_id, &ignored);
 }
 
+ALWAYS_INLINE
 inline const char* DexFile::StringDataAndUtf16LengthByIdx(dex::StringIndex idx,
                                                           uint32_t* utf16_length) const {
   if (!idx.IsValid()) {
@@ -67,11 +70,13 @@ inline const char* DexFile::StringDataAndUtf16LengthByIdx(dex::StringIndex idx,
   return GetStringDataAndUtf16Length(string_id, utf16_length);
 }
 
+ALWAYS_INLINE
 inline const char* DexFile::StringDataByIdx(dex::StringIndex idx) const {
   uint32_t unicode_length;
   return StringDataAndUtf16LengthByIdx(idx, &unicode_length);
 }
 
+ALWAYS_INLINE
 inline std::string_view DexFile::StringViewByIdx(dex::StringIndex idx) const {
   uint32_t unicode_length;
   const char* data = StringDataAndUtf16LengthByIdx(idx, &unicode_length);
@@ -136,6 +141,16 @@ inline const char* DexFile::GetMethodName(uint32_t idx) const {
 
 inline const char* DexFile::GetMethodName(uint32_t idx, uint32_t* utf_length) const {
   return StringDataAndUtf16LengthByIdx(GetMethodId(idx).name_idx_, utf_length);
+}
+
+ALWAYS_INLINE
+inline std::string_view DexFile::GetMethodNameView(const dex::MethodId& method_id) const {
+  return StringViewByIdx(method_id.name_idx_);
+}
+
+ALWAYS_INLINE
+inline std::string_view DexFile::GetMethodNameView(uint32_t idx) const {
+  return GetMethodNameView(GetMethodId(idx));
 }
 
 inline const char* DexFile::GetMethodShorty(uint32_t idx) const {
