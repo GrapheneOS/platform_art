@@ -101,21 +101,21 @@ luci.notifier(
 )
 
 luci.gitiles_poller(
-    name = "master-gitiles-trigger",
+    name = "art",
     bucket = "ci",
     repo = "https://android.googlesource.com/platform/art",
     refs = ["refs/heads/master"],
 )
 
 luci.gitiles_poller(
-    name = "master-libcore-gitiles-trigger",
+    name = "libcore",
     bucket = "ci",
     repo = "https://android.googlesource.com/platform/libcore",
     refs = ["refs/heads/master"],
 )
 
 luci.gitiles_poller(
-    name = "master-art-manifest-gitiles-trigger",
+    name = "manifest",
     bucket = "ci",
     repo = "https://android.googlesource.com/platform/manifest",
     refs = ["refs/heads/master-art"],
@@ -153,9 +153,9 @@ def ci_builder(name, category, short_name):
         ],
         notifies = ["art-team+chromium-buildbot"],
         triggered_by = [
-            "master-gitiles-trigger",
-            "master-libcore-gitiles-trigger",
-            "master-art-manifest-gitiles-trigger",
+            "art",
+            "libcore",
+            "manifest",
         ],
     )
     luci.console_view_entry(
