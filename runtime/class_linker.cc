@@ -9346,14 +9346,8 @@ ArtField* ClassLinker::FindResolvedFieldJLS(ObjPtr<mirror::Class> klass,
                                             ObjPtr<mirror::DexCache> dex_cache,
                                             ObjPtr<mirror::ClassLoader> class_loader,
                                             uint32_t field_idx) {
-  ArtField* resolved = nullptr;
   Thread* self = Thread::Current();
-  const DexFile& dex_file = *dex_cache->GetDexFile();
-  const dex::FieldId& field_id = dex_file.GetFieldId(field_idx);
-
-  const char* name = dex_file.GetFieldName(field_id);
-  const char* type = dex_file.GetFieldTypeDescriptor(field_id);
-  resolved = mirror::Class::FindField(self, klass, name, type);
+  ArtField* resolved = mirror::Class::FindField(self, klass, dex_cache, field_idx);
 
   if (resolved != nullptr &&
       hiddenapi::ShouldDenyAccessToMember(resolved,
@@ -10030,10 +10024,7 @@ ObjPtr<mirror::ClassLoader> ClassLinker::CreateWellKnownClassLoader(
   // Make a pretend boot-classpath.
   // TODO: Should we scan the image?
   ArtField* const parent_field =
-      mirror::Class::FindField(self,
-                               h_class_loader->GetClass(),
-                               "parent",
-                               "Ljava/lang/ClassLoader;");
+      jni::DecodeArtField(WellKnownClasses::java_lang_ClassLoader_parent);
   DCHECK(parent_field != nullptr);
   if (parent_loader.Get() == nullptr) {
     ScopedObjectAccessUnchecked soa(self);
