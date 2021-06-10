@@ -1094,8 +1094,8 @@ class MANAGED Class final : public Object {
   // Find a static or instance field using the JLS resolution order
   static ArtField* FindField(Thread* self,
                              ObjPtr<Class> klass,
-                             std::string_view name,
-                             std::string_view type)
+                             ObjPtr<mirror::DexCache> dex_cache,
+                             uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Finds the given instance field in this class or a superclass.
