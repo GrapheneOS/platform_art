@@ -40,6 +40,7 @@ RUNTIME_OPTIONS_KEY (Unit,                Help)
 RUNTIME_OPTIONS_KEY (Unit,                ShowVersion)
 RUNTIME_OPTIONS_KEY (ParseStringList<':'>,BootClassPath)           // std::vector<std::string>
 RUNTIME_OPTIONS_KEY (ParseStringList<':'>,BootClassPathLocations)  // std::vector<std::string>
+RUNTIME_OPTIONS_KEY (ParseIntList<':'>,   BootClassPathFds)        // std::vector<int>
 RUNTIME_OPTIONS_KEY (std::string,         ClassPath)
 RUNTIME_OPTIONS_KEY (ParseStringList<':'>,Image)
 RUNTIME_OPTIONS_KEY (Unit,                CheckJni)

@@ -112,6 +112,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xbootclasspath:_")
           .WithType<ParseStringList<':'>>()  // std::vector<std::string>, split by :
           .IntoKey(M::BootClassPath)
+      .Define("-Xbootclasspathfds:_")
+          .WithType<ParseIntList<':'>>()
+          .IntoKey(M::BootClassPathFds)
       .Define("-Xcheck:jni")
           .IntoKey(M::CheckJni)
       .Define("-Xms_")
