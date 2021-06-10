@@ -94,6 +94,13 @@ class Operand : public ValueObject {
         && ((encoding_[0] & 0x07) == reg);  // Register codes match.
   }
 
+  inline bool operator==(const Operand &op) const {
+    return length_ == op.length_ &&
+        memcmp(encoding_, op.encoding_, length_) == 0 &&
+        disp_ == op.disp_ &&
+        fixup_ == op.fixup_;
+  }
+
  protected:
   // Operand can be sub classed (e.g: Address).
   Operand() : length_(0), disp_(0), fixup_(nullptr) { }
@@ -198,13 +205,43 @@ class Address : public Operand {
     SetFixup(fixup);
   }
 
-  Address displaceBy(int offset) {
-    if (rm() == ESP) {
-      // SIB addressing mode
-      return Address(base(), index(), scale(), disp() + offset, GetFixup());
+  // Break the address into pieces and reassemble it again with a new displacement.
+  // Note that it may require a new addressing mode if displacement size is changed.
+  static Address displace(const Address &addr, int32_t disp) {
+    const int32_t new_disp = addr.disp() + disp;
+    const bool sib = addr.rm() == ESP;
+    const bool ebp = EBP == (sib ? addr.base() : addr.rm());
+    Address new_addr;
+    if (addr.mod() == 0 && ebp) {
+      // Special case: mod 00b and EBP in r/m or SIB base => 32-bit displacement.
+      new_addr.SetModRM(0, addr.rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.index(), addr.base());
+      }
+      new_addr.SetDisp32(new_disp);
+    } else if (new_disp == 0 && !ebp) {
+      // Mod 00b (excluding a special case for EBP) => no displacement.
+      new_addr.SetModRM(0, addr.rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.index(), addr.base());
+      }
+    } else if (new_disp >= -128 && new_disp <= 127) {
+      // Mod 01b => 8-bit displacement.
+      new_addr.SetModRM(1, addr.rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.index(), addr.base());
+      }
+      new_addr.SetDisp8(new_disp);
     } else {
-      return Address(rm(), disp() + offset, GetFixup());
+      // Mod 10b => 32-bit displacement.
+      new_addr.SetModRM(2, addr.rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.index(), addr.base());
+      }
+      new_addr.SetDisp32(new_disp);
     }
+    new_addr.SetFixup(addr.GetFixup());
+    return new_addr;
   }
 
   Register GetBaseRegister() {
@@ -224,6 +261,10 @@ class Address : public Operand {
 
   static Address Absolute(ThreadOffset32 addr) {
     return Absolute(addr.Int32Value());
+  }
+
+  inline bool operator==(const Address& addr) const {
+    return static_cast<const Operand&>(*this) == static_cast<const Operand&>(addr);
   }
 
  private:
