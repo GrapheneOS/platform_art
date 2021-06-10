@@ -908,27 +908,28 @@ ArtMethod* Class::FindClassInitializer(PointerSize pointer_size) {
 }
 
 // Custom binary search to avoid double comparisons from std::binary_search.
-static ArtField* FindFieldByNameAndType(LengthPrefixedArray<ArtField>* fields,
+static ArtField* FindFieldByNameAndType(const DexFile& dex_file,
+                                        LengthPrefixedArray<ArtField>* fields,
                                         std::string_view name,
                                         std::string_view type)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (fields == nullptr) {
-    return nullptr;
-  }
+  DCHECK(fields != nullptr);
   size_t low = 0;
   size_t high = fields->size();
   ArtField* ret = nullptr;
   while (low < high) {
     size_t mid = (low + high) / 2;
     ArtField& field = fields->At(mid);
+    DCHECK(field.GetDexFile() == &dex_file);
+    const dex::FieldId& field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
     // Fields are sorted by class, then name, then type descriptor. This is verified in dex file
     // verifier. There can be multiple fields with the same in the same class name due to proguard.
     // Note: std::string_view::compare() uses lexicographical comparison and treats the `char` as
     // unsigned; for modified-UTF-8 without embedded nulls this is consistent with the
     // CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues() ordering.
-    int result = std::string_view(field.GetName()).compare(name);
+    int result = dex_file.GetFieldNameView(field_id).compare(name);
     if (result == 0) {
-      result = std::string_view(field.GetTypeDescriptor()).compare(type);
+      result = dex_file.GetFieldTypeDescriptorView(field_id).compare(type);
     }
     if (result < 0) {
       low = mid + 1;
@@ -954,7 +955,12 @@ static ArtField* FindFieldByNameAndType(LengthPrefixedArray<ArtField>* fields,
 
 ArtField* Class::FindDeclaredInstanceField(std::string_view name, std::string_view type) {
   // Binary search by name. Interfaces are not relevant because they can't contain instance fields.
-  return FindFieldByNameAndType(GetIFieldsPtr(), name, type);
+  LengthPrefixedArray<ArtField>* ifields = GetIFieldsPtr();
+  if (ifields == nullptr) {
+    return nullptr;
+  }
+  DCHECK(!IsProxyClass());
+  return FindFieldByNameAndType(GetDexFile(), ifields, name, type);
 }
 
 ArtField* Class::FindDeclaredInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
@@ -994,7 +1000,28 @@ ArtField* Class::FindInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_fiel
 
 ArtField* Class::FindDeclaredStaticField(std::string_view name, std::string_view type) {
   DCHECK(!type.empty());
-  return FindFieldByNameAndType(GetSFieldsPtr(), name, type);
+  LengthPrefixedArray<ArtField>* sfields = GetSFieldsPtr();
+  if (sfields == nullptr) {
+    return nullptr;
+  }
+  if (UNLIKELY(IsProxyClass())) {
+    // Proxy fields do not have appropriate dex field indexes required by
+    // `FindFieldByNameAndType()`. However, each proxy class has exactly
+    // the same artificial fields created by the `ClassLinker`.
+    DCHECK_EQ(sfields->size(), 2u);
+    DCHECK_EQ(strcmp(sfields->At(0).GetName(), "interfaces"), 0);
+    DCHECK_EQ(strcmp(sfields->At(0).GetTypeDescriptor(), "[Ljava/lang/Class;"), 0);
+    DCHECK_EQ(strcmp(sfields->At(1).GetName(), "throws"), 0);
+    DCHECK_EQ(strcmp(sfields->At(1).GetTypeDescriptor(), "[[Ljava/lang/Class;"), 0);
+    if (name == "interfaces") {
+      return (type == "[Ljava/lang/Class;") ? &sfields->At(0) : nullptr;
+    } else if (name == "throws") {
+      return (type == "[[Ljava/lang/Class;") ? &sfields->At(1) : nullptr;
+    } else {
+      return nullptr;
+    }
+  }
+  return FindFieldByNameAndType(GetDexFile(), sfields, name, type);
 }
 
 ArtField* Class::FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
@@ -1059,29 +1086,123 @@ ArtField* Class::FindStaticField(Thread* self,
   return nullptr;
 }
 
+// Find a field using the JLS field resolution order
+FLATTEN
 ArtField* Class::FindField(Thread* self,
                            ObjPtr<Class> klass,
-                           std::string_view name,
-                           std::string_view type) {
-  // Find a field using the JLS field resolution order
-  for (ObjPtr<Class> k = klass; k != nullptr; k = k->GetSuperClass()) {
+                           ObjPtr<mirror::DexCache> dex_cache,
+                           uint32_t field_idx) {
+  // FIXME: Hijacking a proxy class by a custom class loader can break this assumption.
+  DCHECK(!klass->IsProxyClass());
+
+  // First try to find a declared field by `field_idx` if we have a `dex_cache` match.
+  ObjPtr<DexCache> klass_dex_cache = klass->GetDexCache();
+  if (klass_dex_cache == dex_cache) {
+    // Lookup is always performed in the class referenced by the FieldId.
+    DCHECK_EQ(klass->dex_type_idx_,
+              klass_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_.index_);
+    ArtField* f = klass->FindDeclaredInstanceField(klass_dex_cache, field_idx);
+    if (f == nullptr) {
+      f = klass->FindDeclaredStaticField(klass_dex_cache, field_idx);
+    }
+    if (f != nullptr) {
+      return f;
+    }
+  }
+
+  const DexFile& dex_file = *dex_cache->GetDexFile();
+  const dex::FieldId& field_id = dex_file.GetFieldId(field_idx);
+
+  std::string_view name;  // Do not touch the dex file string data until actually needed.
+  std::string_view type;
+  auto ensure_name_and_type_initialized = [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (name.empty()) {
+      name = dex_file.GetFieldNameView(field_id);
+      type = dex_file.GetFieldTypeDescriptorView(field_id);
+    }
+  };
+
+  auto search_direct_interfaces = [&](ObjPtr<mirror::Class> k)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    // TODO: The `FindStaticField()` performs a recursive search and it's possible to
+    // construct interface hierarchies that make the time complexity exponential in depth.
+    // Rewrite this with a `HashSet<mirror::Class*>` to mark classes we have already
+    // searched for the field, so that we call `FindDeclaredStaticField()` only once
+    // on each interface. And use a work queue to avoid unlimited recursion depth.
+    // TODO: Once we call `FindDeclaredStaticField()` directly, use search by indexes
+    // instead of strings if the interface's dex cache matches `dex_cache`. This shall
+    // allow delaying the `ensure_name_and_type_initialized()` call further.
+    uint32_t num_interfaces = k->NumDirectInterfaces();
+    if (num_interfaces != 0u) {
+      ensure_name_and_type_initialized();
+      for (uint32_t i = 0; i != num_interfaces; ++i) {
+        ObjPtr<Class> interface = GetDirectInterface(self, k, i);
+        DCHECK(interface != nullptr);
+        ArtField* f = FindStaticField(self, interface, name, type);
+        if (f != nullptr) {
+          return f;
+        }
+      }
+    }
+    return static_cast<ArtField*>(nullptr);
+  };
+
+  // If we had a dex cache mismatch, search declared fields by name and type.
+  if (klass_dex_cache != dex_cache &&
+      (klass->GetIFieldsPtr() != nullptr || klass->GetSFieldsPtr() != nullptr)) {
+    ensure_name_and_type_initialized();
+    ArtField* f = klass->FindDeclaredInstanceField(name, type);
+    if (f == nullptr) {
+      f = klass->FindDeclaredStaticField(name, type);
+    }
+    if (f != nullptr) {
+      return f;
+    }
+  }
+
+  // Search direct interfaces.
+  {
+    ArtField* f = search_direct_interfaces(klass);
+    if (f != nullptr) {
+      return f;
+    }
+  }
+
+  // Continue searching in superclasses.
+  for (ObjPtr<Class> k = klass->GetSuperClass(); k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
-    ArtField* f = k->FindDeclaredInstanceField(name, type);
-    if (f != nullptr) {
-      return f;
-    }
-    f = k->FindDeclaredStaticField(name, type);
-    if (f != nullptr) {
-      return f;
-    }
-    // Is this field in any of this class' interfaces?
-    for (uint32_t i = 0, num_interfaces = k->NumDirectInterfaces(); i != num_interfaces; ++i) {
-      ObjPtr<Class> interface = GetDirectInterface(self, k, i);
-      DCHECK(interface != nullptr);
-      f = FindStaticField(self, interface, name, type);
+    ObjPtr<DexCache> k_dex_cache = k->GetDexCache();
+    if (k_dex_cache == dex_cache) {
+      // Matching dex_cache. We cannot compare the `field_idx` anymore because
+      // the type index differs, so compare the name index and type index.
+      for (ArtField& field : k->GetIFields()) {
+        const dex::FieldId& other_field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
+        if (other_field_id.name_idx_ == field_id.name_idx_ &&
+            other_field_id.type_idx_ == field_id.type_idx_) {
+          return &field;
+        }
+      }
+      for (ArtField& field : k->GetSFields()) {
+        const dex::FieldId& other_field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
+        if (other_field_id.name_idx_ == field_id.name_idx_ &&
+            other_field_id.type_idx_ == field_id.type_idx_) {
+          return &field;
+        }
+      }
+    } else if (k->GetIFieldsPtr() != nullptr || k->GetSFieldsPtr() != nullptr) {
+      ensure_name_and_type_initialized();
+      ArtField* f = k->FindDeclaredInstanceField(name, type);
+      if (f == nullptr) {
+        f = k->FindDeclaredStaticField(name, type);
+      }
       if (f != nullptr) {
         return f;
       }
+    }
+    // Is this field in any of this class' interfaces?
+    ArtField* f = search_direct_interfaces(k);
+    if (f != nullptr) {
+      return f;
     }
   }
   return nullptr;
