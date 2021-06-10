@@ -286,6 +286,10 @@ class Runtime {
     return boot_class_path_locations_.empty() ? boot_class_path_ : boot_class_path_locations_;
   }
 
+  const std::vector<int>& GetBootClassPathFds() const {
+    return boot_class_path_fds_;
+  }
+
   const std::string& GetClassPathString() const {
     return class_path_string_;
   }
@@ -1105,6 +1109,7 @@ class Runtime {
 
   std::vector<std::string> boot_class_path_;
   std::vector<std::string> boot_class_path_locations_;
+  std::vector<int> boot_class_path_fds_;
   std::string class_path_string_;
   std::vector<std::string> properties_;
 

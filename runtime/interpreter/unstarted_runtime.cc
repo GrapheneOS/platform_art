@@ -485,12 +485,18 @@ void UnstartedRuntime::UnstartedClassIsAnonymousClass(
 }
 
 static MemMap FindAndExtractEntry(const std::string& jar_file,
+                                  int jar_fd,
                                   const char* entry_name,
                                   size_t* size,
                                   std::string* error_msg) {
   CHECK(size != nullptr);
 
-  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(jar_file.c_str(), error_msg));
+  std::unique_ptr<ZipArchive> zip_archive;
+  if (jar_fd >= 0) {
+    zip_archive.reset(ZipArchive::OpenFromFd(jar_fd, jar_file.c_str(), error_msg));
+  } else {
+    zip_archive.reset(ZipArchive::Open(jar_file.c_str(), error_msg));
+  }
   if (zip_archive == nullptr) {
     return MemMap::Invalid();
   }
@@ -540,12 +546,18 @@ static void GetResourceAsStream(Thread* self,
     return;
   }
 
+  const std::vector<int>& boot_class_path_fds = Runtime::Current()->GetBootClassPathFds();
+  DCHECK(boot_class_path_fds.empty() || boot_class_path_fds.size() == boot_class_path.size());
+
   MemMap mem_map;
   size_t map_size;
   std::string last_error_msg;  // Only store the last message (we could concatenate).
 
-  for (const std::string& jar_file : boot_class_path) {
-    mem_map = FindAndExtractEntry(jar_file, resource_cstr, &map_size, &last_error_msg);
+  bool has_bcp_fds = !boot_class_path_fds.empty();
+  for (size_t i = 0; i < boot_class_path.size(); ++i) {
+    const std::string& jar_file = boot_class_path[i];
+    const int jar_fd = has_bcp_fds ? boot_class_path_fds[i] : -1;
+    mem_map = FindAndExtractEntry(jar_file, jar_fd, resource_cstr, &map_size, &last_error_msg);
     if (mem_map.IsValid()) {
       break;
     }

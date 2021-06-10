@@ -422,6 +422,7 @@ TEST_F(Dex2oatImageTest, TestExtension) {
     ScopedObjectAccess soa(Thread::Current());
     return gc::space::ImageSpace::LoadBootImage(/*boot_class_path=*/ boot_class_path,
                                                 /*boot_class_path_locations=*/ libcore_dex_files,
+                                                /*boot_class_path_fds=*/ std::vector<int>(),
                                                 android::base::Split(image_location, ":"),
                                                 kRuntimeISA,
                                                 relocate,
