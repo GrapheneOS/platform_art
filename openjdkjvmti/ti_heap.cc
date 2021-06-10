@@ -415,8 +415,7 @@ class FieldVisitor {
         Visit(self, klass->GetSuperClass(), visitor);
       }
       for (uint32_t i = 0; i != klass->NumDirectInterfaces(); ++i) {
-        art::ObjPtr<art::mirror::Class> inf_klass =
-            art::mirror::Class::GetDirectInterface(self, klass, i);
+        art::ObjPtr<art::mirror::Class> inf_klass = klass->GetDirectInterface(i);
         DCHECK(inf_klass != nullptr);
         VisitInterface(self, inf_klass, visitor);
       }
@@ -436,8 +435,7 @@ class FieldVisitor {
 
       // Now visit the superinterfaces.
       for (uint32_t i = 0; i != inf_klass->NumDirectInterfaces(); ++i) {
-        art::ObjPtr<art::mirror::Class> super_inf_klass =
-            art::mirror::Class::GetDirectInterface(self, inf_klass, i);
+        art::ObjPtr<art::mirror::Class> super_inf_klass = inf_klass->GetDirectInterface(i);
         DCHECK(super_inf_klass != nullptr);
         VisitInterface(self, super_inf_klass, visitor);
       }
