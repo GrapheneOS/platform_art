@@ -136,6 +136,7 @@ jfieldID WellKnownClasses::dalvik_system_DexPathList_dexElements;
 jfieldID WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
 jfieldID WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
 jfieldID WellKnownClasses::java_io_FileDescriptor_descriptor;
+jfieldID WellKnownClasses::java_lang_ClassLoader_parent;
 jfieldID WellKnownClasses::java_lang_Thread_parkBlocker;
 jfieldID WellKnownClasses::java_lang_Thread_daemon;
 jfieldID WellKnownClasses::java_lang_Thread_group;
@@ -429,30 +430,46 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   ScopedLocalRef<jclass> java_io_FileDescriptor(env, env->FindClass("java/io/FileDescriptor"));
   java_io_FileDescriptor_descriptor = CacheField(env, java_io_FileDescriptor.get(), false, "descriptor", "I");
 
-  java_lang_Thread_parkBlocker = CacheField(env, java_lang_Thread, false, "parkBlocker", "Ljava/lang/Object;");
+  java_lang_ClassLoader_parent =
+      CacheField(env, java_lang_ClassLoader, false, "parent", "Ljava/lang/ClassLoader;");
+  java_lang_Thread_parkBlocker =
+      CacheField(env, java_lang_Thread, false, "parkBlocker", "Ljava/lang/Object;");
   java_lang_Thread_daemon = CacheField(env, java_lang_Thread, false, "daemon", "Z");
-  java_lang_Thread_group = CacheField(env, java_lang_Thread, false, "group", "Ljava/lang/ThreadGroup;");
+  java_lang_Thread_group =
+      CacheField(env, java_lang_Thread, false, "group", "Ljava/lang/ThreadGroup;");
   java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/Object;");
   java_lang_Thread_name = CacheField(env, java_lang_Thread, false, "name", "Ljava/lang/String;");
   java_lang_Thread_priority = CacheField(env, java_lang_Thread, false, "priority", "I");
   java_lang_Thread_nativePeer = CacheField(env, java_lang_Thread, false, "nativePeer", "J");
   java_lang_Thread_systemDaemon = CacheField(env, java_lang_Thread, false, "systemDaemon", "Z");
-  java_lang_Thread_unparkedBeforeStart = CacheField(env, java_lang_Thread, false, "unparkedBeforeStart", "Z");
-  java_lang_ThreadGroup_groups = CacheField(env, java_lang_ThreadGroup, false, "groups", "[Ljava/lang/ThreadGroup;");
+  java_lang_Thread_unparkedBeforeStart =
+      CacheField(env, java_lang_Thread, false, "unparkedBeforeStart", "Z");
+  java_lang_ThreadGroup_groups =
+      CacheField(env, java_lang_ThreadGroup, false, "groups", "[Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_ngroups = CacheField(env, java_lang_ThreadGroup, false, "ngroups", "I");
-  java_lang_ThreadGroup_mainThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
-  java_lang_ThreadGroup_name = CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
-  java_lang_ThreadGroup_parent = CacheField(env, java_lang_ThreadGroup, false, "parent", "Ljava/lang/ThreadGroup;");
-  java_lang_ThreadGroup_systemThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
-  java_lang_Throwable_cause = CacheField(env, java_lang_Throwable, false, "cause", "Ljava/lang/Throwable;");
-  java_lang_Throwable_detailMessage = CacheField(env, java_lang_Throwable, false, "detailMessage", "Ljava/lang/String;");
-  java_lang_Throwable_stackTrace = CacheField(env, java_lang_Throwable, false, "stackTrace", "[Ljava/lang/StackTraceElement;");
-  java_lang_Throwable_stackState = CacheField(env, java_lang_Throwable, false, "backtrace", "Ljava/lang/Object;");
-  java_lang_Throwable_suppressedExceptions = CacheField(env, java_lang_Throwable, false, "suppressedExceptions", "Ljava/util/List;");
+  java_lang_ThreadGroup_mainThreadGroup =
+      CacheField(env, java_lang_ThreadGroup, true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
+  java_lang_ThreadGroup_name =
+      CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
+  java_lang_ThreadGroup_parent =
+      CacheField(env, java_lang_ThreadGroup, false, "parent", "Ljava/lang/ThreadGroup;");
+  java_lang_ThreadGroup_systemThreadGroup =
+      CacheField(env, java_lang_ThreadGroup, true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
+  java_lang_Throwable_cause =
+      CacheField(env, java_lang_Throwable, false, "cause", "Ljava/lang/Throwable;");
+  java_lang_Throwable_detailMessage =
+      CacheField(env, java_lang_Throwable, false, "detailMessage", "Ljava/lang/String;");
+  java_lang_Throwable_stackTrace =
+      CacheField(env, java_lang_Throwable, false, "stackTrace", "[Ljava/lang/StackTraceElement;");
+  java_lang_Throwable_stackState =
+      CacheField(env, java_lang_Throwable, false, "backtrace", "Ljava/lang/Object;");
+  java_lang_Throwable_suppressedExceptions =
+      CacheField(env, java_lang_Throwable, false, "suppressedExceptions", "Ljava/util/List;");
 
   java_nio_Buffer_address = CacheField(env, java_nio_Buffer, false, "address", "J");
   java_nio_Buffer_capacity = CacheField(env, java_nio_Buffer, false, "capacity", "I");
-  java_nio_Buffer_elementSizeShift = CacheField(env, java_nio_Buffer, false, "_elementSizeShift", "I");
+  java_nio_Buffer_elementSizeShift =
+      CacheField(env, java_nio_Buffer, false, "_elementSizeShift", "I");
   java_nio_Buffer_limit = CacheField(env, java_nio_Buffer, false, "limit", "I");
   java_nio_Buffer_position = CacheField(env, java_nio_Buffer, false, "position", "I");
 
@@ -461,12 +478,18 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_nio_ByteBuffer_isReadOnly = CacheField(env, java_nio_ByteBuffer, false, "isReadOnly", "Z");
   java_nio_ByteBuffer_limit = CacheField(env, java_nio_ByteBuffer, false, "limit", "I");
   java_nio_ByteBuffer_offset = CacheField(env, java_nio_ByteBuffer, false, "offset", "I");
-  java_util_Collections_EMPTY_LIST = CacheField(env, java_util_Collections, true, "EMPTY_LIST", "Ljava/util/List;");
-  libcore_util_EmptyArray_STACK_TRACE_ELEMENT = CacheField(env, libcore_util_EmptyArray, true, "STACK_TRACE_ELEMENT", "[Ljava/lang/StackTraceElement;");
-  org_apache_harmony_dalvik_ddmc_Chunk_data = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "data", "[B");
-  org_apache_harmony_dalvik_ddmc_Chunk_length = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "length", "I");
-  org_apache_harmony_dalvik_ddmc_Chunk_offset = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "offset", "I");
-  org_apache_harmony_dalvik_ddmc_Chunk_type = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "type", "I");
+  java_util_Collections_EMPTY_LIST =
+      CacheField(env, java_util_Collections, true, "EMPTY_LIST", "Ljava/util/List;");
+  libcore_util_EmptyArray_STACK_TRACE_ELEMENT = CacheField(
+      env, libcore_util_EmptyArray, true, "STACK_TRACE_ELEMENT", "[Ljava/lang/StackTraceElement;");
+  org_apache_harmony_dalvik_ddmc_Chunk_data =
+      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "data", "[B");
+  org_apache_harmony_dalvik_ddmc_Chunk_length =
+      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "length", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_offset =
+      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "offset", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_type =
+      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "type", "I");
 
   java_lang_Boolean_valueOf = CachePrimitiveBoxingMethod(env, 'Z', "java/lang/Boolean");
   java_lang_Byte_valueOf = CachePrimitiveBoxingMethod(env, 'B', "java/lang/Byte");
@@ -602,6 +625,7 @@ void WellKnownClasses::Clear() {
   dalvik_system_DexPathList_dexElements = nullptr;
   dalvik_system_DexPathList__Element_dexFile = nullptr;
   dalvik_system_VMRuntime_nonSdkApiUsageConsumer = nullptr;
+  java_lang_ClassLoader_parent = nullptr;
   java_lang_Thread_parkBlocker = nullptr;
   java_lang_Thread_daemon = nullptr;
   java_lang_Thread_group = nullptr;
