@@ -5009,8 +5009,8 @@ void LocationsBuilderX86_64::HandleFieldSet(HInstruction* instruction,
   }
   if (needs_write_barrier) {
     // Temporary registers for the write barrier.
-    locations->AddTemp(Location::RequiresRegister());  // Possibly used for reference poisoning too.
     locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());  // Possibly used for reference poisoning too.
   } else if (kPoisonHeapReferences && field_type == DataType::Type::kReference) {
     // Temporary register for the reference poisoning.
     locations->AddTemp(Location::RequiresRegister());
@@ -5018,18 +5018,15 @@ void LocationsBuilderX86_64::HandleFieldSet(HInstruction* instruction,
 }
 
 void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
-                                                    const FieldInfo& field_info,
+                                                    uint32_t value_index,
+                                                    uint32_t extra_temp_index,
+                                                    DataType::Type field_type,
+                                                    Address field_addr,
+                                                    CpuRegister base,
+                                                    bool is_volatile,
                                                     bool value_can_be_null) {
-  DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
-
   LocationSummary* locations = instruction->GetLocations();
-  CpuRegister base = locations->InAt(0).AsRegister<CpuRegister>();
-  Location value = locations->InAt(1);
-  bool is_volatile = field_info.IsVolatile();
-  DataType::Type field_type = field_info.GetFieldType();
-  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
-  bool is_predicated =
-      instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->GetIsPredicatedSet();
+  Location value = locations->InAt(value_index);
 
   if (is_volatile) {
     codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
@@ -5037,21 +5034,14 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
 
   bool maybe_record_implicit_null_check_done = false;
 
-  NearLabel pred_is_null;
-  if (is_predicated) {
-    __ testl(base, base);
-    __ j(kZero, &pred_is_null);
-  }
-
   switch (field_type) {
     case DataType::Type::kBool:
     case DataType::Type::kUint8:
     case DataType::Type::kInt8: {
       if (value.IsConstant()) {
-        __ movb(Address(base, offset),
-                Immediate(CodeGenerator::GetInt8ValueOf(value.GetConstant())));
+        __ movb(field_addr, Immediate(CodeGenerator::GetInt8ValueOf(value.GetConstant())));
       } else {
-        __ movb(Address(base, offset), value.AsRegister<CpuRegister>());
+        __ movb(field_addr, value.AsRegister<CpuRegister>());
       }
       break;
     }
@@ -5059,10 +5049,9 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     case DataType::Type::kUint16:
     case DataType::Type::kInt16: {
       if (value.IsConstant()) {
-        __ movw(Address(base, offset),
-                Immediate(CodeGenerator::GetInt16ValueOf(value.GetConstant())));
+        __ movw(field_addr, Immediate(CodeGenerator::GetInt16ValueOf(value.GetConstant())));
       } else {
-        __ movw(Address(base, offset), value.AsRegister<CpuRegister>());
+        __ movw(field_addr, value.AsRegister<CpuRegister>());
       }
       break;
     }
@@ -5075,15 +5064,15 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
         DCHECK((field_type != DataType::Type::kReference) || (v == 0));
         // Note: if heap poisoning is enabled, no need to poison
         // (negate) `v` if it is a reference, as it would be null.
-        __ movl(Address(base, offset), Immediate(v));
+        __ movl(field_addr, Immediate(v));
       } else {
         if (kPoisonHeapReferences && field_type == DataType::Type::kReference) {
-          CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
+          CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
           __ movl(temp, value.AsRegister<CpuRegister>());
           __ PoisonHeapReference(temp);
-          __ movl(Address(base, offset), temp);
+          __ movl(field_addr, temp);
         } else {
-          __ movl(Address(base, offset), value.AsRegister<CpuRegister>());
+          __ movl(field_addr, value.AsRegister<CpuRegister>());
         }
       }
       break;
@@ -5092,39 +5081,37 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     case DataType::Type::kInt64: {
       if (value.IsConstant()) {
         int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
-        codegen_->MoveInt64ToAddress(Address(base, offset),
-                                     Address(base, offset + sizeof(int32_t)),
+        codegen_->MoveInt64ToAddress(field_addr,
+                                     Address::displace(field_addr, sizeof(int32_t)),
                                      v,
                                      instruction);
         maybe_record_implicit_null_check_done = true;
       } else {
-        __ movq(Address(base, offset), value.AsRegister<CpuRegister>());
+        __ movq(field_addr, value.AsRegister<CpuRegister>());
       }
       break;
     }
 
     case DataType::Type::kFloat32: {
       if (value.IsConstant()) {
-        int32_t v =
-            bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
-        __ movl(Address(base, offset), Immediate(v));
+        int32_t v = bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
+        __ movl(field_addr, Immediate(v));
       } else {
-        __ movss(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+        __ movss(field_addr, value.AsFpuRegister<XmmRegister>());
       }
       break;
     }
 
     case DataType::Type::kFloat64: {
       if (value.IsConstant()) {
-        int64_t v =
-            bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
-        codegen_->MoveInt64ToAddress(Address(base, offset),
-                                     Address(base, offset + sizeof(int32_t)),
+        int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
+        codegen_->MoveInt64ToAddress(field_addr,
+                                     Address::displace(field_addr, sizeof(int32_t)),
                                      v,
                                      instruction);
         maybe_record_implicit_null_check_done = true;
       } else {
-        __ movsd(Address(base, offset), value.AsFpuRegister<XmmRegister>());
+        __ movsd(field_addr, value.AsFpuRegister<XmmRegister>());
       }
       break;
     }
@@ -5140,15 +5127,44 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 
-  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
+  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(value_index))) {
     CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-    CpuRegister card = locations->GetTemp(1).AsRegister<CpuRegister>();
+    CpuRegister card = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
     codegen_->MarkGCCard(temp, card, base, value.AsRegister<CpuRegister>(), value_can_be_null);
   }
 
   if (is_volatile) {
     codegen_->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
   }
+}
+
+void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
+                                                    const FieldInfo& field_info,
+                                                    bool value_can_be_null) {
+  DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
+
+  LocationSummary* locations = instruction->GetLocations();
+  CpuRegister base = locations->InAt(0).AsRegister<CpuRegister>();
+  bool is_volatile = field_info.IsVolatile();
+  DataType::Type field_type = field_info.GetFieldType();
+  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
+  bool is_predicated =
+      instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->GetIsPredicatedSet();
+
+  NearLabel pred_is_null;
+  if (is_predicated) {
+    __ testl(base, base);
+    __ j(kZero, &pred_is_null);
+  }
+
+  HandleFieldSet(instruction,
+                 /*value_index=*/ 1,
+                 /*extra_temp_index=*/ 1,
+                 field_type,
+                 Address(base, offset),
+                 base,
+                 is_volatile,
+                 value_can_be_null);
 
   if (is_predicated) {
     __ Bind(&pred_is_null);
