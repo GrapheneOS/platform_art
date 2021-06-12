@@ -124,6 +124,7 @@ class ImageSpace : public MemMapSpace {
   static bool LoadBootImage(
       const std::vector<std::string>& boot_class_path,
       const std::vector<std::string>& boot_class_path_locations,
+      const std::vector<int>& boot_class_path_fds,
       const std::vector<std::string>& image_locations,
       const InstructionSet image_isa,
       bool relocate,
@@ -236,6 +237,7 @@ class ImageSpace : public MemMapSpace {
                                            ArrayRef<const std::string> image_locations,
                                            ArrayRef<const std::string> boot_class_path_locations,
                                            ArrayRef<const std::string> boot_class_path,
+                                           ArrayRef<const int> boot_class_path_fds,
                                            InstructionSet image_isa,
                                            /*out*/std::string* error_msg);
 

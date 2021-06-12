@@ -1394,6 +1394,13 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     }
   }
 
+  boot_class_path_fds_ = runtime_options.ReleaseOrDefault(Opt::BootClassPathFds);
+  if (!boot_class_path_fds_.empty() && boot_class_path_fds_.size() != boot_class_path_.size()) {
+    LOG(ERROR) << "Number of FDs specified in -Xbootclasspathfds must match the number of JARs in "
+               << "-Xbootclasspath.";
+    return false;
+  }
+
   class_path_string_ = runtime_options.ReleaseOrDefault(Opt::ClassPath);
   properties_ = runtime_options.ReleaseOrDefault(Opt::PropertiesList);
 
@@ -1517,6 +1524,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                        runtime_options.GetOrDefault(Opt::NonMovingSpaceCapacity),
                        GetBootClassPath(),
                        GetBootClassPathLocations(),
+                       GetBootClassPathFds(),
                        image_locations_,
                        instruction_set_,
                        // Override the collector type to CC if the read barrier config.

@@ -652,6 +652,7 @@ bool OatFileAssistant::ValidateBootClassPathChecksums(const OatFile& oat_file) {
       ArrayRef<const std::string>(runtime->GetImageLocations()),
       ArrayRef<const std::string>(runtime->GetBootClassPathLocations()),
       ArrayRef<const std::string>(runtime->GetBootClassPath()),
+      ArrayRef<const int>(runtime->GetBootClassPathFds()),
       isa_,
       &error_msg);
   if (!result) {

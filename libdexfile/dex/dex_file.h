@@ -307,6 +307,7 @@ class DexFile {
 
   // Returns the type descriptor string of a type id.
   const char* GetTypeDescriptor(const dex::TypeId& type_id) const;
+  std::string_view GetTypeDescriptorView(const dex::TypeId& type_id) const;
 
   // Looks up a type for the given string index
   const dex::TypeId* FindTypeId(dex::StringIndex string_idx) const;
@@ -354,9 +355,11 @@ class DexFile {
 
   // Returns the class descriptor string of a field id.
   const char* GetFieldTypeDescriptor(const dex::FieldId& field_id) const;
+  std::string_view GetFieldTypeDescriptorView(const dex::FieldId& field_id) const;
 
   // Returns the name of a field id.
   const char* GetFieldName(const dex::FieldId& field_id) const;
+  std::string_view GetFieldNameView(const dex::FieldId& field_id) const;
 
   // Returns the number of method identifiers in the .dex file.
   size_t NumMethodIds() const {

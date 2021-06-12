@@ -103,13 +103,26 @@ inline const char* DexFile::GetTypeDescriptor(const dex::TypeId& type_id) const 
   return StringDataByIdx(type_id.descriptor_idx_);
 }
 
+inline std::string_view DexFile::GetTypeDescriptorView(const dex::TypeId& type_id) const {
+  return StringViewByIdx(type_id.descriptor_idx_);
+}
+
 inline const char* DexFile::GetFieldTypeDescriptor(const dex::FieldId& field_id) const {
   const dex::TypeId& type_id = GetTypeId(field_id.type_idx_);
   return GetTypeDescriptor(type_id);
 }
 
+inline std::string_view DexFile::GetFieldTypeDescriptorView(const dex::FieldId& field_id) const {
+  const dex::TypeId& type_id = GetTypeId(field_id.type_idx_);
+  return GetTypeDescriptorView(type_id);
+}
+
 inline const char* DexFile::GetFieldName(const dex::FieldId& field_id) const {
   return StringDataByIdx(field_id.name_idx_);
+}
+
+inline std::string_view DexFile::GetFieldNameView(const dex::FieldId& field_id) const {
+  return StringViewByIdx(field_id.name_idx_);
 }
 
 inline const char* DexFile::GetMethodDeclaringClassDescriptor(const dex::MethodId& method_id)
