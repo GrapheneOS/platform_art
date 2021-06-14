@@ -231,12 +231,10 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(array->ShouldHaveEmbeddedVTable());
     EXPECT_EQ(2, array->GetIfTableCount());
     ASSERT_TRUE(array->GetIfTable() != nullptr);
-    ObjPtr<mirror::Class> direct_interface0 =
-        mirror::Class::GetDirectInterface(self, array.Get(), 0);
+    ObjPtr<mirror::Class> direct_interface0 = array->GetDirectInterface(0);
     EXPECT_TRUE(direct_interface0 != nullptr);
     EXPECT_STREQ(direct_interface0->GetDescriptor(&temp), "Ljava/lang/Cloneable;");
-    ObjPtr<mirror::Class> direct_interface1 =
-        mirror::Class::GetDirectInterface(self, array.Get(), 1);
+    ObjPtr<mirror::Class> direct_interface1 = array->GetDirectInterface(1);
     EXPECT_STREQ(direct_interface1->GetDescriptor(&temp), "Ljava/io/Serializable;");
     EXPECT_OBJ_PTR_EQ(class_linker_->FindArrayClass(self, array->GetComponentType()), array.Get());
 
@@ -1182,48 +1180,47 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   EXPECT_EQ(9U, statics->NumStaticFields());
 
-  ArtField* s0 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s0", "Z");
+  ArtField* s0 = statics->FindStaticField("s0", "Z");
   EXPECT_EQ(s0->GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
   EXPECT_EQ(true, s0->GetBoolean(statics.Get()));
   s0->SetBoolean<false>(statics.Get(), false);
 
-  ArtField* s1 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s1", "B");
+  ArtField* s1 = statics->FindStaticField("s1", "B");
   EXPECT_EQ(s1->GetTypeAsPrimitiveType(), Primitive::kPrimByte);
   EXPECT_EQ(5, s1->GetByte(statics.Get()));
   s1->SetByte<false>(statics.Get(), 6);
 
-  ArtField* s2 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s2", "C");
+  ArtField* s2 = statics->FindStaticField("s2", "C");
   EXPECT_EQ(s2->GetTypeAsPrimitiveType(), Primitive::kPrimChar);
   EXPECT_EQ('a', s2->GetChar(statics.Get()));
   s2->SetChar<false>(statics.Get(), 'b');
 
-  ArtField* s3 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s3", "S");
+  ArtField* s3 = statics->FindStaticField("s3", "S");
   EXPECT_EQ(s3->GetTypeAsPrimitiveType(), Primitive::kPrimShort);
   EXPECT_EQ(-536, s3->GetShort(statics.Get()));
   s3->SetShort<false>(statics.Get(), -535);
 
-  ArtField* s4 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s4", "I");
+  ArtField* s4 = statics->FindStaticField("s4", "I");
   EXPECT_EQ(s4->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   EXPECT_EQ(2000000000, s4->GetInt(statics.Get()));
   s4->SetInt<false>(statics.Get(), 2000000001);
 
-  ArtField* s5 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s5", "J");
+  ArtField* s5 = statics->FindStaticField("s5", "J");
   EXPECT_EQ(s5->GetTypeAsPrimitiveType(), Primitive::kPrimLong);
   EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(statics.Get()));
   s5->SetLong<false>(statics.Get(), INT64_C(0x34567890abcdef12));
 
-  ArtField* s6 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s6", "F");
+  ArtField* s6 = statics->FindStaticField("s6", "F");
   EXPECT_EQ(s6->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
   EXPECT_DOUBLE_EQ(0.5, s6->GetFloat(statics.Get()));
   s6->SetFloat<false>(statics.Get(), 0.75);
 
-  ArtField* s7 = mirror::Class::FindStaticField(soa.Self(), statics.Get(), "s7", "D");
+  ArtField* s7 = statics->FindStaticField("s7", "D");
   EXPECT_EQ(s7->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   EXPECT_DOUBLE_EQ(16777217.0, s7->GetDouble(statics.Get()));
   s7->SetDouble<false>(statics.Get(), 16777219);
 
-  ArtField* s8 = mirror::Class::FindStaticField(
-      soa.Self(), statics.Get(), "s8", "Ljava/lang/String;");
+  ArtField* s8 = statics->FindStaticField("s8", "Ljava/lang/String;");
   EXPECT_EQ(s8->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
   EXPECT_TRUE(s8->GetObject(statics.Get())->AsString()->Equals("android"));
   ObjPtr<mirror::String> str_value = mirror::String::AllocFromModifiedUtf8(soa.Self(), "robot");
@@ -1300,14 +1297,10 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1, kRuntimePointerSize));
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2, kRuntimePointerSize));
 
-  ArtField* Afoo =
-      mirror::Class::FindStaticField(soa.Self(), A.Get(), "foo", "Ljava/lang/String;");
-  ArtField* Bfoo =
-      mirror::Class::FindStaticField(soa.Self(), B.Get(), "foo", "Ljava/lang/String;");
-  ArtField* Jfoo =
-      mirror::Class::FindStaticField(soa.Self(), J.Get(), "foo", "Ljava/lang/String;");
-  ArtField* Kfoo =
-      mirror::Class::FindStaticField(soa.Self(), K.Get(), "foo", "Ljava/lang/String;");
+  ArtField* Afoo = A->FindStaticField("foo", "Ljava/lang/String;");
+  ArtField* Bfoo = B->FindStaticField("foo", "Ljava/lang/String;");
+  ArtField* Jfoo = J->FindStaticField("foo", "Ljava/lang/String;");
+  ArtField* Kfoo = K->FindStaticField("foo", "Ljava/lang/String;");
   ASSERT_TRUE(Afoo != nullptr);
   EXPECT_EQ(Afoo, Bfoo);
   EXPECT_EQ(Afoo, Jfoo);

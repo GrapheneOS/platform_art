@@ -1124,7 +1124,7 @@ static void MaybeAddToImageClasses(Thread* self,
     image_classes->insert(descriptor);
     VLOG(compiler) << "Adding " << descriptor << " to image classes";
     for (size_t i = 0, num_interfaces = klass->NumDirectInterfaces(); i != num_interfaces; ++i) {
-      ObjPtr<mirror::Class> interface = mirror::Class::GetDirectInterface(self, klass, i);
+      ObjPtr<mirror::Class> interface = klass->GetDirectInterface(i);
       DCHECK(interface != nullptr);
       MaybeAddToImageClasses(self, interface, image_classes);
     }
@@ -2468,7 +2468,7 @@ class InitializeClassVisitor : public CompilationVisitor {
   }
 
   // In this phase the classes containing class initializers are ignored. Make sure no
-  // clinit appears in kalss's super class chain and interfaces.
+  // clinit appears in klass's super class chain and interfaces.
   bool NoClinitInDependency(const Handle<mirror::Class>& klass,
                             Thread* self,
                             Handle<mirror::ClassLoader>* class_loader)
@@ -2490,8 +2490,8 @@ class InitializeClassVisitor : public CompilationVisitor {
 
     uint32_t num_if = klass->NumDirectInterfaces();
     for (size_t i = 0; i < num_if; i++) {
-      ObjPtr<mirror::Class>
-          interface = mirror::Class::GetDirectInterface(self, klass.Get(), i);
+      ObjPtr<mirror::Class> interface = klass->GetDirectInterface(i);
+      DCHECK(interface != nullptr);
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> handle_interface(hs.NewHandle(interface));
       if (!NoClinitInDependency(handle_interface, self, class_loader)) {
