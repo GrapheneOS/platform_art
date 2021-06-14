@@ -9307,16 +9307,6 @@ ArtField* ClassLinker::FindResolvedField(ObjPtr<mirror::Class> klass,
                                          bool is_static) {
   ArtField* resolved = is_static ? klass->FindStaticField(dex_cache, field_idx)
                                  : klass->FindInstanceField(dex_cache, field_idx);
-
-  if (resolved == nullptr) {
-    const DexFile& dex_file = *dex_cache->GetDexFile();
-    const dex::FieldId& field_id = dex_file.GetFieldId(field_idx);
-    const char* name = dex_file.GetFieldName(field_id);
-    const char* type = dex_file.GetFieldTypeDescriptor(field_id);
-    resolved = is_static ? klass->FindStaticField(name, type)
-                         : klass->FindInstanceField(name, type);
-  }
-
   if (resolved != nullptr &&
       hiddenapi::ShouldDenyAccessToMember(resolved,
                                           hiddenapi::AccessContext(class_loader, dex_cache),
