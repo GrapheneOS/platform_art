@@ -112,6 +112,22 @@ class Operand : public ValueObject {
     return value;
   }
 
+  int32_t disp() const {
+    switch (mod()) {
+      case 0:
+        // With mod 00b RBP is special and means disp32 (either in r/m or in SIB base).
+        return (rm() == RBP || (rm() == RSP && base() == RBP)) ? disp32() : 0;
+      case 1:
+        return disp8();
+      case 2:
+        return disp32();
+      default:
+        // Mod 11b means reg/reg, so there is no address and consequently no displacement.
+        DCHECK(false) << "there is no displacement in x86_64 reg/reg operand";
+        UNREACHABLE();
+    }
+  }
+
   bool IsRegister(CpuRegister reg) const {
     return ((encoding_[0] & 0xF8) == 0xC0)  // Addressing mode is register only.
         && ((encoding_[0] & 0x07) == reg.LowBits())  // Register codes match.
@@ -120,6 +136,13 @@ class Operand : public ValueObject {
 
   AssemblerFixup* GetFixup() const {
     return fixup_;
+  }
+
+  inline bool operator==(const Operand &op) const {
+    return rex_ == op.rex_ &&
+        length_ == op.length_ &&
+        memcmp(encoding_, op.encoding_, length_) == 0 &&
+        fixup_ == op.fixup_;
   }
 
  protected:
@@ -224,7 +247,6 @@ class Address : public Operand {
     }
   }
 
-
   Address(CpuRegister index_in, ScaleFactor scale_in, int32_t disp) {
     CHECK_NE(index_in.AsRegister(), RSP);  // Illegal addressing mode.
     SetModRM(0, CpuRegister(RSP));
@@ -278,6 +300,50 @@ class Address : public Operand {
   // If no_rip is true then the Absolute address isn't RIP relative.
   static Address Absolute(ThreadOffset64 addr, bool no_rip = false) {
     return Absolute(addr.Int32Value(), no_rip);
+  }
+
+  // Break the address into pieces and reassemble it again with a new displacement.
+  // Note that it may require a new addressing mode if displacement size is changed.
+  static Address displace(const Address &addr, int32_t disp) {
+    const int32_t new_disp = addr.disp() + disp;
+    const bool sib = addr.rm() == RSP;
+    const bool rbp = RBP == (sib ? addr.base() : addr.rm());
+    Address new_addr;
+    if (addr.mod() == 0 && rbp) {
+      // Special case: mod 00b and RBP in r/m or SIB base => 32-bit displacement.
+      // This case includes RIP-relative addressing.
+      new_addr.SetModRM(0, addr.cpu_rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.cpu_index(), addr.cpu_base());
+      }
+      new_addr.SetDisp32(new_disp);
+    } else if (new_disp == 0 && !rbp) {
+      // Mod 00b (excluding a special case for RBP) => no displacement.
+      new_addr.SetModRM(0, addr.cpu_rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.cpu_index(), addr.cpu_base());
+      }
+    } else if (new_disp >= -128 && new_disp <= 127) {
+      // Mod 01b => 8-bit displacement.
+      new_addr.SetModRM(1, addr.cpu_rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.cpu_index(), addr.cpu_base());
+      }
+      new_addr.SetDisp8(new_disp);
+    } else {
+      // Mod 10b => 32-bit displacement.
+      new_addr.SetModRM(2, addr.cpu_rm());
+      if (sib) {
+        new_addr.SetSIB(addr.scale(), addr.cpu_index(), addr.cpu_base());
+      }
+      new_addr.SetDisp32(new_disp);
+    }
+    new_addr.SetFixup(addr.GetFixup());
+    return new_addr;
+  }
+
+  inline bool operator==(const Address& addr) const {
+    return static_cast<const Operand&>(*this) == static_cast<const Operand&>(addr);
   }
 
  private:

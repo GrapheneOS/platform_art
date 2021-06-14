@@ -2314,6 +2314,51 @@ TEST_F(AssemblerX86_64Test, TestlAddressImmediate) {
                      "testl ${imm}, {mem}"), "testli");
 }
 
+// Test that displacing an existing address is the same as constructing a new one with the same
+// initial displacement.
+TEST_F(AssemblerX86_64Test, AddressDisplaceBy) {
+  // Test different displacements, including some 8-bit and 32-bit ones, so that changing
+  // displacement may require a different addressing mode.
+  static const std::vector<int32_t> displacements = {0, 42, -42, 140, -140};
+  // Test with all scale factors.
+  static const std::vector<ScaleFactor> scales = {TIMES_1, TIMES_2, TIMES_4, TIMES_8};
+
+  for (int32_t disp0 : displacements) {  // initial displacement
+    for (int32_t disp : displacements) {  // extra displacement
+      for (const x86_64::CpuRegister* reg : GetRegisters()) {
+        // Test non-SIB addressing.
+        EXPECT_EQ(x86_64::Address::displace(x86_64::Address(*reg, disp0), disp),
+                  x86_64::Address(*reg, disp0 + disp));
+
+        // Test SIB addressing with RBP base.
+        if (reg->AsRegister() != x86_64::RSP) {
+          for (ScaleFactor scale : scales) {
+            EXPECT_EQ(x86_64::Address::displace(x86_64::Address(*reg, scale, disp0), disp),
+                      x86_64::Address(*reg, scale, disp0 + disp));
+          }
+        }
+
+        // Test SIB addressing with different base.
+        for (const x86_64::CpuRegister* index : GetRegisters()) {
+          if (index->AsRegister() == x86_64::RSP) {
+            continue;  // Skip RSP as it cannot be used with this address constructor.
+          }
+          for (ScaleFactor scale : scales) {
+            EXPECT_EQ(x86_64::Address::displace(x86_64::Address(*reg, *index, scale, disp0), disp),
+                      x86_64::Address(*reg, *index, scale, disp0 + disp));
+          }
+        }
+
+        // Test absolute and RIP-relative addressing.
+        EXPECT_EQ(x86_64::Address::displace(x86_64::Address::Absolute(disp0, false), disp),
+                  x86_64::Address::Absolute(disp0 + disp, false));
+        EXPECT_EQ(x86_64::Address::displace(x86_64::Address::Absolute(disp0, true), disp),
+                  x86_64::Address::Absolute(disp0 + disp, true));
+      }
+    }
+  }
+}
+
 class JNIMacroAssemblerX86_64Test : public JNIMacroAssemblerTest<x86_64::X86_64JNIMacroAssembler> {
  public:
   using Base = JNIMacroAssemblerTest<x86_64::X86_64JNIMacroAssembler>;
