@@ -2131,8 +2131,9 @@ void ImageWriter::LayoutHelper::VerifyImageBinSlotsAssigned() {
         // Ignore finalizer references for the dalvik.system.DexFile objects referenced by
         // the app class loader.
         if (obj->IsFinalizerReferenceInstance()) {
-          ArtField* ref_field =
-              obj->GetClass()->FindInstanceField("referent", "Ljava/lang/Object;");
+          DCHECK(obj->GetClass()->GetSuperClass()->DescriptorEquals("Ljava/lang/ref/Reference;"));
+          ArtField* ref_field = obj->GetClass()->GetSuperClass()->FindDeclaredInstanceField(
+              "referent", "Ljava/lang/Object;");
           CHECK(ref_field != nullptr);
           ObjPtr<mirror::Object> ref = ref_field->GetObject(obj);
           CHECK(ref != nullptr);
