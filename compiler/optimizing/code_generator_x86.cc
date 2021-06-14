@@ -1510,7 +1510,7 @@ void CodeGeneratorX86::LoadFromMemoryNoBarrier(DataType::Type dst_type,
         __ movd(dst.AsRegisterPairHigh<Register>(), temp);
       } else {
         DCHECK_NE(src.GetBaseRegister(), dst.AsRegisterPairLow<Register>());
-        Address src_high = src.displaceBy(kX86WordSize);
+        Address src_high = Address::displace(src, kX86WordSize);
         __ movl(dst.AsRegisterPairLow<Register>(), src);
         if (instr != nullptr) {
           MaybeRecordImplicitNullCheck(instr);
@@ -5873,11 +5873,11 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
         int64_t v = CodeGenerator::GetInt64ValueOf(value.GetConstant());
         __ movl(field_addr, Immediate(Low32Bits(v)));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
-        __ movl(field_addr.displaceBy(kX86WordSize), Immediate(High32Bits(v)));
+        __ movl(Address::displace(field_addr, kX86WordSize), Immediate(High32Bits(v)));
       } else {
         __ movl(field_addr, value.AsRegisterPairLow<Register>());
         codegen_->MaybeRecordImplicitNullCheck(instruction);
-        __ movl(field_addr.displaceBy(kX86WordSize), value.AsRegisterPairHigh<Register>());
+        __ movl(Address::displace(field_addr, kX86WordSize), value.AsRegisterPairHigh<Register>());
       }
       maybe_record_implicit_null_check_done = true;
       break;
@@ -5899,7 +5899,7 @@ void InstructionCodeGeneratorX86::HandleFieldSet(HInstruction* instruction,
         int64_t v = CodeGenerator::GetInt64ValueOf(value.GetConstant());
         __ movl(field_addr, Immediate(Low32Bits(v)));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
-        __ movl(field_addr.displaceBy(kX86WordSize), Immediate(High32Bits(v)));
+        __ movl(Address::displace(field_addr, kX86WordSize), Immediate(High32Bits(v)));
         maybe_record_implicit_null_check_done = true;
       } else {
         __ movsd(field_addr, value.AsFpuRegister<XmmRegister>());
