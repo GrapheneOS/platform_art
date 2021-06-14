@@ -526,7 +526,9 @@ class Dex2Oat final {
       image_storage_mode_(ImageHeader::kStorageModeUncompressed),
       passes_to_run_filename_(nullptr),
       dirty_image_objects_filename_(nullptr),
+      dirty_image_objects_fd_(-1),
       updatable_bcp_packages_filename_(nullptr),
+      updatable_bcp_packages_fd_(-1),
       is_host_(false),
       elf_writers_(),
       oat_writers_(),
@@ -813,8 +815,17 @@ class Dex2Oat final {
       }
     }
 
-    if ((IsBootImage() || IsBootImageExtension()) && updatable_bcp_packages_filename_ != nullptr) {
-      Usage("Do not specify --updatable-bcp-packages-file for boot image compilation.");
+    if (dirty_image_objects_filename_ != nullptr && dirty_image_objects_fd_ != -1) {
+      Usage("--dirty-image-objects and --dirty-image-objects-fd should not be both specified");
+    }
+
+    if ((IsBootImage() || IsBootImageExtension()) && (updatable_bcp_packages_filename_ != nullptr ||
+                                                      updatable_bcp_packages_fd_ != -1)) {
+      Usage("Do not specify --updatable-bcp-packages-file[-fd] for boot image compilation.");
+    }
+    if (updatable_bcp_packages_filename_ != nullptr && updatable_bcp_packages_fd_ != -1) {
+      Usage("--updatable-bcp-packages-file and --updatable-bcp-packages-fd should not be "
+            "both specified");
     }
 
     if (!cpu_set_.empty()) {
@@ -1073,7 +1084,9 @@ class Dex2Oat final {
     AssignIfExists(args, M::NoInlineFrom, &no_inline_from_string_);
     AssignIfExists(args, M::ClasspathDir, &classpath_dir_);
     AssignIfExists(args, M::DirtyImageObjects, &dirty_image_objects_filename_);
+    AssignIfExists(args, M::DirtyImageObjectsFd, &dirty_image_objects_fd_);
     AssignIfExists(args, M::UpdatableBcpPackagesFile, &updatable_bcp_packages_filename_);
+    AssignIfExists(args, M::UpdatableBcpPackagesFd, &updatable_bcp_packages_fd_);
     AssignIfExists(args, M::ImageFormat, &image_storage_mode_);
     AssignIfExists(args, M::CompilationReason, &compilation_reason_);
     AssignTrueIfExists(args, M::CheckLinkageConditions, &check_linkage_conditions_);
@@ -2512,7 +2525,18 @@ class Dex2Oat final {
   }
 
   bool PrepareDirtyObjects() {
-    if (dirty_image_objects_filename_ != nullptr) {
+    if (dirty_image_objects_fd_ != -1) {
+      dirty_image_objects_ = ReadCommentedInputFromFd<HashSet<std::string>>(
+          dirty_image_objects_fd_,
+          nullptr);
+      // Close since we won't need it again.
+      close(dirty_image_objects_fd_);
+      dirty_image_objects_fd_ = -1;
+      if (dirty_image_objects_ == nullptr) {
+        LOG(ERROR) << "Failed to create list of dirty objects from fd " << dirty_image_objects_fd_;
+        return false;
+      }
+    } else if (dirty_image_objects_filename_ != nullptr) {
       dirty_image_objects_ = ReadCommentedInputFromFile<HashSet<std::string>>(
           dirty_image_objects_filename_,
           nullptr);
@@ -2521,8 +2545,6 @@ class Dex2Oat final {
             << dirty_image_objects_filename_ << "'";
         return false;
       }
-    } else {
-      dirty_image_objects_.reset(nullptr);
     }
     return true;
   }
@@ -2530,16 +2552,28 @@ class Dex2Oat final {
   bool PrepareUpdatableBcpPackages() {
     DCHECK(!IsBootImage() && !IsBootImageExtension());
     AotClassLinker* aot_class_linker = down_cast<AotClassLinker*>(runtime_->GetClassLinker());
-    if (updatable_bcp_packages_filename_ != nullptr) {
-      std::unique_ptr<std::vector<std::string>> updatable_bcp_packages =
-          ReadCommentedInputFromFile<std::vector<std::string>>(updatable_bcp_packages_filename_,
-                                                               nullptr);  // No post-processing.
+    std::unique_ptr<std::vector<std::string>> updatable_bcp_packages;
+    if (updatable_bcp_packages_fd_ != -1) {
+      updatable_bcp_packages = ReadCommentedInputFromFd<std::vector<std::string>>(
+          updatable_bcp_packages_fd_,
+          nullptr);  // No post-processing.
+      // Close since we won't need it again.
+      close(updatable_bcp_packages_fd_);
+      updatable_bcp_packages_fd_ = -1;
+      if (updatable_bcp_packages == nullptr) {
+        LOG(ERROR) << "Failed to load updatable boot class path packages from fd "
+            << updatable_bcp_packages_fd_;
+        return false;
+      }
+    } else if (updatable_bcp_packages_filename_ != nullptr) {
+      updatable_bcp_packages = ReadCommentedInputFromFile<std::vector<std::string>>(
+          updatable_bcp_packages_filename_,
+          nullptr);  // No post-processing.
       if (updatable_bcp_packages == nullptr) {
         LOG(ERROR) << "Failed to load updatable boot class path packages from '"
             << updatable_bcp_packages_filename_ << "'";
         return false;
       }
-      return aot_class_linker->SetUpdatableBootClassPackages(*updatable_bcp_packages);
     } else {
       // Use the default list based on updatable packages for Android 11.
       return aot_class_linker->SetUpdatableBootClassPackages({
@@ -2568,6 +2602,7 @@ class Dex2Oat final {
           "android.net",
       });
     }
+    return aot_class_linker->SetUpdatableBootClassPackages(*updatable_bcp_packages);
   }
 
   void PruneNonExistentDexFiles() {
@@ -2805,33 +2840,19 @@ class Dex2Oat final {
     return result;
   }
 
-  // Read lines from the given file from the given zip file, dropping comments and empty lines.
-  // Post-process each line with the given function.
+  // Read lines from the given fd, dropping comments and empty lines. Post-process each line with
+  // the given function.
   template <typename T>
-  static std::unique_ptr<T> ReadCommentedInputFromZip(
-      const char* zip_filename,
-      const char* input_filename,
-      std::function<std::string(const char*)>* process,
-      std::string* error_msg) {
-    std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
-    if (zip_archive.get() == nullptr) {
+  static std::unique_ptr<T> ReadCommentedInputFromFd(
+      int input_fd, std::function<std::string(const char*)>* process) {
+    std::ifstream input_file(StringPrintf("/proc/self/fd/%d", input_fd), std::ifstream::in);
+    if (!input_file.good()) {
+      LOG(ERROR) << "Failed to re-open input fd from /prof/self/fd/" << input_fd;
       return nullptr;
     }
-    std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(input_filename, error_msg));
-    if (zip_entry.get() == nullptr) {
-      *error_msg = StringPrintf("Failed to find '%s' within '%s': %s", input_filename,
-                                zip_filename, error_msg->c_str());
-      return nullptr;
-    }
-    MemMap input_file = zip_entry->ExtractToMemMap(zip_filename, input_filename, error_msg);
-    if (!input_file.IsValid()) {
-      *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", input_filename,
-                                zip_filename, error_msg->c_str());
-      return nullptr;
-    }
-    const std::string input_string(reinterpret_cast<char*>(input_file.Begin()), input_file.Size());
-    std::istringstream input_stream(input_string);
-    return ReadCommentedInputStream<T>(input_stream, process);
+    std::unique_ptr<T> result = ReadCommentedInputStream<T>(input_file, process);
+    input_file.close();
+    return result;
   }
 
   // Read lines from the given stream, dropping comments and empty lines. Post-process each line
@@ -2945,8 +2966,10 @@ class Dex2Oat final {
   ImageHeader::StorageMode image_storage_mode_;
   const char* passes_to_run_filename_;
   const char* dirty_image_objects_filename_;
-  const char* updatable_bcp_packages_filename_;
+  int dirty_image_objects_fd_;
   std::unique_ptr<HashSet<std::string>> dirty_image_objects_;
+  const char* updatable_bcp_packages_filename_;
+  int updatable_bcp_packages_fd_;
   std::unique_ptr<std::vector<std::string>> passes_to_run_;
   bool is_host_;
   std::string android_root_;
