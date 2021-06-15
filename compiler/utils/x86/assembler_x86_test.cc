@@ -1324,4 +1324,47 @@ TEST_F(AssemblerX86Test, Notl) {
   DriverStr(RepeatR(&x86::X86Assembler::notl, "notl %{reg}"), "notl");
 }
 
+// Test that displacing an existing address is the same as constructing a new one with the same
+// initial displacement.
+TEST_F(AssemblerX86Test, AddressDisplaceBy) {
+  // Test different displacements, including some 8-bit and 32-bit ones, so that changing
+  // displacement may require a different addressing mode.
+  static const std::vector<int32_t> displacements = {0, 42, -42, 140, -140};
+  // Test with all scale factors.
+  static const std::vector<ScaleFactor> scales = {TIMES_1, TIMES_2, TIMES_4, TIMES_8};
+
+  for (int32_t disp0 : displacements) {  // initial displacement
+    for (int32_t disp : displacements) {  // extra displacement
+      for (const x86::Register *reg : GetRegisters()) {
+        // Test non-SIB addressing.
+        EXPECT_EQ(x86::Address::displace(x86::Address(*reg, disp0), disp),
+                  x86::Address(*reg, disp0 + disp));
+
+        // Test SIB addressing with EBP base.
+        if (*reg != x86::ESP) {
+          for (ScaleFactor scale : scales) {
+            EXPECT_EQ(x86::Address::displace(x86::Address(*reg, scale, disp0), disp),
+                      x86::Address(*reg, scale, disp0 + disp));
+          }
+        }
+
+        // Test SIB addressing with different base.
+        for (const x86::Register *index : GetRegisters()) {
+          if (*index == x86::ESP) {
+            continue;  // Skip ESP as it cannot be used with this address constructor.
+          }
+          for (ScaleFactor scale : scales) {
+            EXPECT_EQ(x86::Address::displace(x86::Address(*reg, *index, scale, disp0), disp),
+                      x86::Address(*reg, *index, scale, disp0 + disp));
+          }
+        }
+
+        // Test absolute addressing.
+        EXPECT_EQ(x86::Address::displace(x86::Address::Absolute(disp0), disp),
+                  x86::Address::Absolute(disp0 + disp));
+      }
+    }
+  }
+}
+
 }  // namespace art
