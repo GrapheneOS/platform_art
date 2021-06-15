@@ -484,7 +484,7 @@ void UnstartedRuntime::UnstartedClassIsAnonymousClass(
   result->SetZ(class_name == nullptr);
 }
 
-static MemMap FindAndExtractEntry(const std::string& jar_file,
+static MemMap FindAndExtractEntry(const std::string& bcp_jar_file,
                                   int jar_fd,
                                   const char* entry_name,
                                   size_t* size,
@@ -493,9 +493,9 @@ static MemMap FindAndExtractEntry(const std::string& jar_file,
 
   std::unique_ptr<ZipArchive> zip_archive;
   if (jar_fd >= 0) {
-    zip_archive.reset(ZipArchive::OpenFromFd(jar_fd, jar_file.c_str(), error_msg));
+    zip_archive.reset(ZipArchive::OpenFromOwnedFd(jar_fd, bcp_jar_file.c_str(), error_msg));
   } else {
-    zip_archive.reset(ZipArchive::Open(jar_file.c_str(), error_msg));
+    zip_archive.reset(ZipArchive::Open(bcp_jar_file.c_str(), error_msg));
   }
   if (zip_archive == nullptr) {
     return MemMap::Invalid();
@@ -504,7 +504,7 @@ static MemMap FindAndExtractEntry(const std::string& jar_file,
   if (zip_entry == nullptr) {
     return MemMap::Invalid();
   }
-  MemMap tmp_map = zip_entry->ExtractToMemMap(jar_file.c_str(), entry_name, error_msg);
+  MemMap tmp_map = zip_entry->ExtractToMemMap(bcp_jar_file.c_str(), entry_name, error_msg);
   if (!tmp_map.IsValid()) {
     return MemMap::Invalid();
   }
