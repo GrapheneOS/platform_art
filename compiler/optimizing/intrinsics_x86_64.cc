@@ -2795,9 +2795,9 @@ void IntrinsicLocationsBuilderX86_64::VisitReachabilityFence(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorX86_64::VisitReachabilityFence(HInvoke* invoke ATTRIBUTE_UNUSED) { }
 
-void IntrinsicLocationsBuilderX86_64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
+static void CreateDivideUnsignedLocations(HInvoke* invoke, ArenaAllocator* allocator) {
   LocationSummary* locations =
-      new (allocator_) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+      new (allocator) LocationSummary(invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
   locations->SetInAt(0, Location::RegisterLocation(RAX));
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetOut(Location::SameAsFirstInput());
@@ -2805,8 +2805,9 @@ void IntrinsicLocationsBuilderX86_64::VisitIntegerDivideUnsigned(HInvoke* invoke
   locations->AddTemp(Location::RegisterLocation(RDX));
 }
 
-void IntrinsicCodeGeneratorX86_64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
-  X86_64Assembler* assembler = GetAssembler();
+static void GenerateDivideUnsigned(HInvoke* invoke,
+                                   CodeGeneratorX86_64* codegen,
+                                   DataType::Type data_type) {
   LocationSummary* locations = invoke->GetLocations();
   Location out = locations->Out();
   Location first = locations->InAt(0);
@@ -2818,16 +2819,40 @@ void IntrinsicCodeGeneratorX86_64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
   DCHECK_EQ(RAX, out.AsRegister<Register>());
   DCHECK_EQ(RDX, rdx.AsRegister());
 
-  // Check if divisor is zero, bail to managed implementation to handle.
-  __ testl(second_reg, second_reg);
-  SlowPathCode* slow_path = new (codegen_->GetScopedAllocator()) IntrinsicSlowPathX86_64(invoke);
-  codegen_->AddSlowPath(slow_path);
-  __ j(kEqual, slow_path->GetEntryLabel());
+  // We check if the divisor is zero and bail to the slow path to handle if so.
+  auto* slow_path = new (codegen->GetScopedAllocator()) IntrinsicSlowPathX86_64(invoke);
+  codegen->AddSlowPath(slow_path);
 
-  __ xorl(rdx, rdx);
-  __ divl(second_reg);
-
+  X86_64Assembler* assembler = codegen->GetAssembler();
+  if (data_type == DataType::Type::kInt32) {
+    __ testl(second_reg, second_reg);
+    __ j(kEqual, slow_path->GetEntryLabel());
+    __ xorl(rdx, rdx);
+    __ divl(second_reg);
+  } else {
+    DCHECK(data_type == DataType::Type::kInt64);
+    __ testq(second_reg, second_reg);
+    __ j(kEqual, slow_path->GetEntryLabel());
+    __ xorq(rdx, rdx);
+    __ divq(second_reg);
+  }
   __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
+  CreateDivideUnsignedLocations(invoke, allocator_);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitIntegerDivideUnsigned(HInvoke* invoke) {
+  GenerateDivideUnsigned(invoke, codegen_, DataType::Type::kInt32);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitLongDivideUnsigned(HInvoke* invoke) {
+  CreateDivideUnsignedLocations(invoke, allocator_);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitLongDivideUnsigned(HInvoke* invoke) {
+  GenerateDivideUnsigned(invoke, codegen_, DataType::Type::kInt64);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathMultiplyHigh(HInvoke* invoke) {
@@ -3220,7 +3245,6 @@ UNIMPLEMENTED_INTRINSIC(X86_64, FP16Greater)
 UNIMPLEMENTED_INTRINSIC(X86_64, FP16GreaterEquals)
 UNIMPLEMENTED_INTRINSIC(X86_64, FP16Less)
 UNIMPLEMENTED_INTRINSIC(X86_64, FP16LessEquals)
-UNIMPLEMENTED_INTRINSIC(X86_64, LongDivideUnsigned)
 
 UNIMPLEMENTED_INTRINSIC(X86_64, StringStringIndexOf);
 UNIMPLEMENTED_INTRINSIC(X86_64, StringStringIndexOfAfter);

@@ -378,6 +378,7 @@ ObjPtr<String> Class::ComputeName(Handle<Class> h_this) {
 }
 
 void Class::DumpClass(std::ostream& os, int flags) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   if ((flags & kDumpClassFullDetail) == 0) {
     os << PrettyClass();
     if ((flags & kDumpClassClassLoader) != 0) {
@@ -390,22 +391,19 @@ void Class::DumpClass(std::ostream& os, int flags) {
     return;
   }
 
-  Thread* const self = Thread::Current();
-  StackHandleScope<2> hs(self);
-  Handle<Class> h_this(hs.NewHandle(this));
-  Handle<Class> h_super(hs.NewHandle(GetSuperClass()));
+  ObjPtr<Class> super = GetSuperClass();
   auto image_pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
 
   std::string temp;
   os << "----- " << (IsInterface() ? "interface" : "class") << " "
-     << "'" << GetDescriptor(&temp) << "' cl=" << GetClassLoader() << " -----\n",
-  os << "  objectSize=" << SizeOf() << " "
-     << "(" << (h_super != nullptr ? h_super->SizeOf() : -1) << " from super)\n",
-  os << StringPrintf("  access=0x%04x.%04x\n",
-      GetAccessFlags() >> 16, GetAccessFlags() & kAccJavaFlagsMask);
-  if (h_super != nullptr) {
-    os << "  super='" << h_super->PrettyClass() << "' (cl=" << h_super->GetClassLoader()
-       << ")\n";
+     << "'" << GetDescriptor(&temp) << "' cl=" << GetClassLoader() << " -----\n"
+     << "  objectSize=" << SizeOf() << " "
+     << "(" << (super != nullptr ? super->SizeOf() : -1) << " from super)\n"
+     << StringPrintf("  access=0x%04x.%04x\n",
+                     GetAccessFlags() >> 16,
+                     GetAccessFlags() & kAccJavaFlagsMask);
+  if (super != nullptr) {
+    os << "  super='" << super->PrettyClass() << "' (cl=" << super->GetClassLoader() << ")\n";
   }
   if (IsArrayClass()) {
     os << "  componentType=" << PrettyClass(GetComponentType()) << "\n";
@@ -414,7 +412,7 @@ void Class::DumpClass(std::ostream& os, int flags) {
   if (num_direct_interfaces > 0) {
     os << "  interfaces (" << num_direct_interfaces << "):\n";
     for (size_t i = 0; i < num_direct_interfaces; ++i) {
-      ObjPtr<Class> interface = GetDirectInterface(self, h_this.Get(), i);
+      ObjPtr<Class> interface = GetDirectInterface(i);
       if (interface == nullptr) {
         os << StringPrintf("    %2zd: nullptr!\n", i);
       } else {
@@ -426,35 +424,33 @@ void Class::DumpClass(std::ostream& os, int flags) {
   if (!IsLoaded()) {
     os << "  class not yet loaded";
   } else {
-    // After this point, this may have moved due to GetDirectInterface.
-    os << "  vtable (" << h_this->NumVirtualMethods() << " entries, "
-        << (h_super != nullptr ? h_super->NumVirtualMethods() : 0) << " in super):\n";
+    os << "  vtable (" << NumVirtualMethods() << " entries, "
+        << (super != nullptr ? super->NumVirtualMethods() : 0) << " in super):\n";
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
       os << StringPrintf("    %2zd: %s\n", i, ArtMethod::PrettyMethod(
-          h_this->GetVirtualMethodDuringLinking(i, image_pointer_size)).c_str());
+          GetVirtualMethodDuringLinking(i, image_pointer_size)).c_str());
     }
-    os << "  direct methods (" << h_this->NumDirectMethods() << " entries):\n";
-    for (size_t i = 0; i < h_this->NumDirectMethods(); ++i) {
+    os << "  direct methods (" << NumDirectMethods() << " entries):\n";
+    for (size_t i = 0; i < NumDirectMethods(); ++i) {
       os << StringPrintf("    %2zd: %s\n", i, ArtMethod::PrettyMethod(
-          h_this->GetDirectMethod(i, image_pointer_size)).c_str());
+          GetDirectMethod(i, image_pointer_size)).c_str());
     }
-    if (h_this->NumStaticFields() > 0) {
-      os << "  static fields (" << h_this->NumStaticFields() << " entries):\n";
-      if (h_this->IsResolved()) {
-        for (size_t i = 0; i < h_this->NumStaticFields(); ++i) {
-          os << StringPrintf("    %2zd: %s\n", i,
-                             ArtField::PrettyField(h_this->GetStaticField(i)).c_str());
+    if (NumStaticFields() > 0) {
+      os << "  static fields (" << NumStaticFields() << " entries):\n";
+      if (IsResolved()) {
+        for (size_t i = 0; i < NumStaticFields(); ++i) {
+          os << StringPrintf("    %2zd: %s\n", i, ArtField::PrettyField(GetStaticField(i)).c_str());
         }
       } else {
         os << "    <not yet available>";
       }
     }
-    if (h_this->NumInstanceFields() > 0) {
-      os << "  instance fields (" << h_this->NumInstanceFields() << " entries):\n";
-      if (h_this->IsResolved()) {
-        for (size_t i = 0; i < h_this->NumInstanceFields(); ++i) {
+    if (NumInstanceFields() > 0) {
+      os << "  instance fields (" << NumInstanceFields() << " entries):\n";
+      if (IsResolved()) {
+        for (size_t i = 0; i < NumInstanceFields(); ++i) {
           os << StringPrintf("    %2zd: %s\n", i,
-                             ArtField::PrettyField(h_this->GetInstanceField(i)).c_str());
+                             ArtField::PrettyField(GetInstanceField(i)).c_str());
         }
       } else {
         os << "    <not yet available>";
@@ -986,18 +982,6 @@ ArtField* Class::FindInstanceField(std::string_view name, std::string_view type)
   return nullptr;
 }
 
-ArtField* Class::FindInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
-  // Is the field in this class, or any of its superclasses?
-  // Interfaces are not relevant because they can't contain instance fields.
-  for (ObjPtr<Class> c = this; c != nullptr; c = c->GetSuperClass()) {
-    ArtField* f = c->FindDeclaredInstanceField(dex_cache, dex_field_idx);
-    if (f != nullptr) {
-      return f;
-    }
-  }
-  return nullptr;
-}
-
 ArtField* Class::FindDeclaredStaticField(std::string_view name, std::string_view type) {
   DCHECK(!type.empty());
   LengthPrefixedArray<ArtField>* sfields = GetSFieldsPtr();
@@ -1035,13 +1019,11 @@ ArtField* Class::FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t de
   return nullptr;
 }
 
-ArtField* Class::FindStaticField(Thread* self,
-                                 ObjPtr<Class> klass,
-                                 std::string_view name,
-                                 std::string_view type) {
+ArtField* Class::FindStaticField(std::string_view name, std::string_view type) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
-  for (ObjPtr<Class> k = klass; k != nullptr; k = k->GetSuperClass()) {
+  for (ObjPtr<Class> k = this; k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(name, type);
     if (f != nullptr) {
@@ -1049,9 +1031,9 @@ ArtField* Class::FindStaticField(Thread* self,
     }
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0, num_interfaces = k->NumDirectInterfaces(); i != num_interfaces; ++i) {
-      ObjPtr<Class> interface = GetDirectInterface(self, k, i);
+      ObjPtr<Class> interface = k->GetDirectInterface(i);
       DCHECK(interface != nullptr);
-      f = FindStaticField(self, interface, name, type);
+      f = interface->FindStaticField(name, type);
       if (f != nullptr) {
         return f;
       }
@@ -1060,49 +1042,33 @@ ArtField* Class::FindStaticField(Thread* self,
   return nullptr;
 }
 
-ArtField* Class::FindStaticField(Thread* self,
-                                 ObjPtr<Class> klass,
-                                 ObjPtr<DexCache> dex_cache,
-                                 uint32_t dex_field_idx) {
-  for (ObjPtr<Class> k = klass; k != nullptr; k = k->GetSuperClass()) {
-    // Is the field in this class?
-    ArtField* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
-    if (f != nullptr) {
-      return f;
-    }
-    // Though GetDirectInterface() should not cause thread suspension when called
-    // from here, it takes a Handle as an argument, so we need to wrap `k`.
-    ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-    // Is this field in any of this class' interfaces?
-    for (uint32_t i = 0, num_interfaces = k->NumDirectInterfaces(); i != num_interfaces; ++i) {
-      ObjPtr<Class> interface = GetDirectInterface(self, k, i);
-      DCHECK(interface != nullptr);
-      f = FindStaticField(self, interface, dex_cache, dex_field_idx);
-      if (f != nullptr) {
-        return f;
-      }
-    }
-  }
-  return nullptr;
-}
+// Find a field using the JLS field resolution order.
+// Template arguments can be used to limit the search to either static or instance fields.
+// The search should be limited only if we know that a full search would yield a field of
+// the right type or no field at all. This can be known for field references in a method
+// if we have previously verified that method and did not find a field type mismatch.
+template <bool kSearchInstanceFields, bool kSearchStaticFields>
+ALWAYS_INLINE
+ArtField* FindFieldImpl(ObjPtr<mirror::Class> klass,
+                        ObjPtr<mirror::DexCache> dex_cache,
+                        uint32_t field_idx) REQUIRES_SHARED(Locks::mutator_lock_) {
+  static_assert(kSearchInstanceFields || kSearchStaticFields);
 
-// Find a field using the JLS field resolution order
-FLATTEN
-ArtField* Class::FindField(Thread* self,
-                           ObjPtr<Class> klass,
-                           ObjPtr<mirror::DexCache> dex_cache,
-                           uint32_t field_idx) {
   // FIXME: Hijacking a proxy class by a custom class loader can break this assumption.
   DCHECK(!klass->IsProxyClass());
+
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
 
   // First try to find a declared field by `field_idx` if we have a `dex_cache` match.
   ObjPtr<DexCache> klass_dex_cache = klass->GetDexCache();
   if (klass_dex_cache == dex_cache) {
     // Lookup is always performed in the class referenced by the FieldId.
-    DCHECK_EQ(klass->dex_type_idx_,
-              klass_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_.index_);
-    ArtField* f = klass->FindDeclaredInstanceField(klass_dex_cache, field_idx);
-    if (f == nullptr) {
+    DCHECK_EQ(klass->GetDexTypeIndex(),
+              klass_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_);
+    ArtField* f =  kSearchInstanceFields
+        ? klass->FindDeclaredInstanceField(klass_dex_cache, field_idx)
+        : nullptr;
+    if (kSearchStaticFields && f == nullptr) {
       f = klass->FindDeclaredStaticField(klass_dex_cache, field_idx);
     }
     if (f != nullptr) {
@@ -1136,9 +1102,9 @@ ArtField* Class::FindField(Thread* self,
     if (num_interfaces != 0u) {
       ensure_name_and_type_initialized();
       for (uint32_t i = 0; i != num_interfaces; ++i) {
-        ObjPtr<Class> interface = GetDirectInterface(self, k, i);
+        ObjPtr<Class> interface = k->GetDirectInterface(i);
         DCHECK(interface != nullptr);
-        ArtField* f = FindStaticField(self, interface, name, type);
+        ArtField* f = interface->FindStaticField(name, type);
         if (f != nullptr) {
           return f;
         }
@@ -1149,10 +1115,11 @@ ArtField* Class::FindField(Thread* self,
 
   // If we had a dex cache mismatch, search declared fields by name and type.
   if (klass_dex_cache != dex_cache &&
-      (klass->GetIFieldsPtr() != nullptr || klass->GetSFieldsPtr() != nullptr)) {
+      ((kSearchInstanceFields && klass->GetIFieldsPtr() != nullptr) ||
+       (kSearchStaticFields && klass->GetSFieldsPtr() != nullptr))) {
     ensure_name_and_type_initialized();
-    ArtField* f = klass->FindDeclaredInstanceField(name, type);
-    if (f == nullptr) {
+    ArtField* f = kSearchInstanceFields ? klass->FindDeclaredInstanceField(name, type) : nullptr;
+    if (kSearchStaticFields && f == nullptr) {
       f = klass->FindDeclaredStaticField(name, type);
     }
     if (f != nullptr) {
@@ -1160,8 +1127,8 @@ ArtField* Class::FindField(Thread* self,
     }
   }
 
-  // Search direct interfaces.
-  {
+  // Search direct interfaces for static fields.
+  if (kSearchStaticFields) {
     ArtField* f = search_direct_interfaces(klass);
     if (f != nullptr) {
       return f;
@@ -1175,37 +1142,62 @@ ArtField* Class::FindField(Thread* self,
     if (k_dex_cache == dex_cache) {
       // Matching dex_cache. We cannot compare the `field_idx` anymore because
       // the type index differs, so compare the name index and type index.
-      for (ArtField& field : k->GetIFields()) {
-        const dex::FieldId& other_field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
-        if (other_field_id.name_idx_ == field_id.name_idx_ &&
-            other_field_id.type_idx_ == field_id.type_idx_) {
-          return &field;
+      if (kSearchInstanceFields) {
+        for (ArtField& field : k->GetIFields()) {
+          const dex::FieldId& other_field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
+          if (other_field_id.name_idx_ == field_id.name_idx_ &&
+              other_field_id.type_idx_ == field_id.type_idx_) {
+            return &field;
+          }
         }
       }
-      for (ArtField& field : k->GetSFields()) {
-        const dex::FieldId& other_field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
-        if (other_field_id.name_idx_ == field_id.name_idx_ &&
-            other_field_id.type_idx_ == field_id.type_idx_) {
-          return &field;
+      if (kSearchStaticFields) {
+        for (ArtField& field : k->GetSFields()) {
+          const dex::FieldId& other_field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
+           if (other_field_id.name_idx_ == field_id.name_idx_ &&
+              other_field_id.type_idx_ == field_id.type_idx_) {
+            return &field;
+          }
         }
       }
-    } else if (k->GetIFieldsPtr() != nullptr || k->GetSFieldsPtr() != nullptr) {
+    } else if ((kSearchInstanceFields && k->GetIFieldsPtr() != nullptr) ||
+               (kSearchStaticFields && k->GetSFieldsPtr() != nullptr)) {
       ensure_name_and_type_initialized();
-      ArtField* f = k->FindDeclaredInstanceField(name, type);
-      if (f == nullptr) {
+      ArtField* f = kSearchInstanceFields ? k->FindDeclaredInstanceField(name, type) : nullptr;
+      if (kSearchStaticFields && f == nullptr) {
         f = k->FindDeclaredStaticField(name, type);
       }
       if (f != nullptr) {
         return f;
       }
     }
-    // Is this field in any of this class' interfaces?
-    ArtField* f = search_direct_interfaces(k);
-    if (f != nullptr) {
-      return f;
+    if (kSearchStaticFields) {
+      // Is this field in any of this class' interfaces?
+      ArtField* f = search_direct_interfaces(k);
+      if (f != nullptr) {
+        return f;
+      }
     }
   }
   return nullptr;
+}
+
+FLATTEN
+ArtField* Class::FindField(ObjPtr<mirror::DexCache> dex_cache, uint32_t field_idx) {
+  return FindFieldImpl</*kSearchInstanceFields=*/ true,
+                       /*kSearchStaticFields*/ true>(this, dex_cache, field_idx);
+}
+
+FLATTEN
+ArtField* Class::FindInstanceField(ObjPtr<mirror::DexCache> dex_cache, uint32_t field_idx) {
+  return FindFieldImpl</*kSearchInstanceFields=*/ true,
+                       /*kSearchStaticFields*/ false>(this, dex_cache, field_idx);
+}
+
+FLATTEN
+ArtField* Class::FindStaticField(ObjPtr<mirror::DexCache> dex_cache, uint32_t field_idx) {
+  return FindFieldImpl</*kSearchInstanceFields=*/ false,
+                       /*kSearchStaticFields*/ true>(this, dex_cache, field_idx);
 }
 
 void Class::ClearSkipAccessChecksFlagOnAllMethods(PointerSize pointer_size) {
@@ -1292,35 +1284,30 @@ dex::TypeIndex Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
   return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
 }
 
-ObjPtr<Class> Class::GetDirectInterface(Thread* self, ObjPtr<Class> klass, uint32_t idx) {
-  DCHECK(klass != nullptr);
-  DCHECK(!klass->IsPrimitive());
-  if (klass->IsArrayClass()) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    // Use ClassLinker::LookupClass(); avoid poisoning ObjPtr<>s by ClassLinker::FindSystemClass().
-    ObjPtr<Class> interface;
-    if (idx == 0) {
-      interface = class_linker->LookupClass(self, "Ljava/lang/Cloneable;", nullptr);
-    } else {
-      DCHECK_EQ(1U, idx);
-      interface = class_linker->LookupClass(self, "Ljava/io/Serializable;", nullptr);
-    }
+ObjPtr<Class> Class::GetDirectInterface(uint32_t idx) {
+  DCHECK(!IsPrimitive());
+  if (IsArrayClass()) {
+    ObjPtr<IfTable> iftable = GetIfTable();
+    DCHECK(iftable != nullptr);
+    DCHECK_EQ(iftable->Count(), 2u);
+    DCHECK_LT(idx, 2u);
+    ObjPtr<Class> interface = iftable->GetInterface(idx);
     DCHECK(interface != nullptr);
     return interface;
-  } else if (klass->IsProxyClass()) {
-    ObjPtr<ObjectArray<Class>> interfaces = klass->GetProxyInterfaces();
+  } else if (IsProxyClass()) {
+    ObjPtr<ObjectArray<Class>> interfaces = GetProxyInterfaces();
     DCHECK(interfaces != nullptr);
     return interfaces->Get(idx);
   } else {
-    dex::TypeIndex type_idx = klass->GetDirectInterfaceTypeIdx(idx);
+    dex::TypeIndex type_idx = GetDirectInterfaceTypeIdx(idx);
     ObjPtr<Class> interface = Runtime::Current()->GetClassLinker()->LookupResolvedType(
-        type_idx, klass->GetDexCache(), klass->GetClassLoader());
+        type_idx, GetDexCache(), GetClassLoader());
     return interface;
   }
 }
 
 ObjPtr<Class> Class::ResolveDirectInterface(Thread* self, Handle<Class> klass, uint32_t idx) {
-  ObjPtr<Class> interface = GetDirectInterface(self, klass.Get(), idx);
+  ObjPtr<Class> interface = klass->GetDirectInterface(idx);
   if (interface == nullptr) {
     DCHECK(!klass->IsArrayClass());
     DCHECK(!klass->IsProxyClass());

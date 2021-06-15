@@ -476,8 +476,7 @@ ArtField* FindFieldJNI(const ScopedObjectAccess& soa,
   }
   std::string temp;
   if (is_static) {
-    field = mirror::Class::FindStaticField(
-        soa.Self(), c.Get(), name, field_type->GetDescriptor(&temp));
+    field = c->FindStaticField(name, field_type->GetDescriptor(&temp));
   } else {
     field = c->FindInstanceField(name, field_type->GetDescriptor(&temp));
   }

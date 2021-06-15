@@ -1019,7 +1019,9 @@ class OnDeviceRefresh final {
 
     const std::string dirty_image_objects_file(GetAndroidRoot() + "/etc/dirty-image-objects");
     if (OS::FileExists(dirty_image_objects_file.c_str())) {
-      args.emplace_back(Concatenate({"--dirty-image-objects=", dirty_image_objects_file}));
+      std::unique_ptr<File> file(OS::OpenFileForReading(dirty_image_objects_file.c_str()));
+      args.emplace_back(android::base::StringPrintf("--dirty-image-objects-fd=%d", file->Fd()));
+      readonly_files_raii.push_back(std::move(file));
     } else {
       LOG(WARNING) << "Missing dirty objects file : " << QuotePath(dirty_image_objects_file);
     }
@@ -1178,7 +1180,9 @@ class OnDeviceRefresh final {
           EraseFiles(staging_files);
           return false;
         }
-        args.emplace_back("--updatable-bcp-packages-file=" + bcp_packages);
+        std::unique_ptr<File> file(OS::OpenFileForReading(bcp_packages.c_str()));
+        args.emplace_back(android::base::StringPrintf("--updatable-bcp-packages-fd=%d", file->Fd()));
+        readonly_files_raii.push_back(std::move(file));
       }
 
       args.emplace_back("--runtime-arg");

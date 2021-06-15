@@ -193,6 +193,11 @@ static void AddImageMappings(Builder& builder) {
           .WithHelp("list of known dirty objects in the image. The image writer will group them"
                     " together")
           .IntoKey(M::DirtyImageObjects)
+      .Define("--dirty-image-objects-fd=_")
+          .WithType<int>()
+          .WithHelp("Specify a file descriptor for reading the list of known dirty objects in\n"
+                    "the image. The image writer will group them together")
+          .IntoKey(M::DirtyImageObjectsFd)
       .Define("--updatable-bcp-packages-file=_")
           .WithType<std::string>()
           .WithHelp("file with a list of updatable boot class path packages. Classes in these\n"
@@ -201,6 +206,14 @@ static void AddImageMappings(Builder& builder) {
                     "components."
           )
           .IntoKey(M::UpdatableBcpPackagesFile)
+      .Define("--updatable-bcp-packages-fd=_")
+          .WithType<int>()
+          .WithHelp("File descriptor to read a list of updatable boot class path packages.\n"
+                    "Classes in these packages and sub-packages shall not be resolved during app\n"
+                    "compilation to avoid AOT assumptions being invalidated after applying\n"
+                    "updates to these components."
+          )
+          .IntoKey(M::UpdatableBcpPackagesFd)
       .Define("--image-format=_")
           .WithType<ImageHeader::StorageMode>()
           .WithValueMap({{"lz4", ImageHeader::kStorageModeLZ4},
