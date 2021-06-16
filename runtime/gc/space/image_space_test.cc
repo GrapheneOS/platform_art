@@ -256,6 +256,7 @@ TEST_F(DexoptTest, ValidateOatFile) {
                                                 /*executable=*/ false,
                                                 /*low_4gb=*/ false,
                                                 ArrayRef<const std::string>(dex_filenames),
+                                                /*dex_fds=*/ ArrayRef<const int>(),
                                                 /*reservation=*/ nullptr,
                                                 &error_msg));
     ASSERT_TRUE(oat2 != nullptr) << error_msg;
