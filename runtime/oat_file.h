@@ -105,6 +105,7 @@ class OatFile {
                        bool executable,
                        bool low_4gb,
                        ArrayRef<const std::string> dex_filenames,
+                       ArrayRef<const int> dex_fds,
                        /*inout*/MemMap* reservation,  // Where to load if not null.
                        /*out*/std::string* error_msg);
   // Helper overload that takes a single dex filename and no reservation.
@@ -121,6 +122,7 @@ class OatFile {
                 executable,
                 low_4gb,
                 ArrayRef<const std::string>(&dex_filename, /*size=*/ 1u),
+                /*dex_fds=*/ ArrayRef<const int>(),  // not currently supported
                 /*reservation=*/ nullptr,
                 error_msg);
   }
@@ -136,7 +138,8 @@ class OatFile {
                 location,
                 executable,
                 low_4gb,
-                ArrayRef<const std::string>(),
+                /*dex_filenames=*/ ArrayRef<const std::string>(),
+                /*dex_fds=*/ ArrayRef<const int>(),  // not currently supported
                 /*reservation=*/ nullptr,
                 error_msg);
   }
