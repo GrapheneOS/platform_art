@@ -54,6 +54,7 @@ class OdrConfig final {
   std::string system_server_classpath_;
   std::string updatable_bcp_packages_file_;
   ZygoteKind zygote_kind_;
+  std::string compilation_os_address_;
 
  public:
   explicit OdrConfig(const char* program_name)
@@ -117,6 +118,8 @@ class OdrConfig final {
   bool GetDryRun() const { return dry_run_; }
   const std::string& GetSystemServerClasspath() const { return system_server_classpath_; }
   const std::string& GetUpdatableBcpPackagesFile() const { return updatable_bcp_packages_file_; }
+  bool UseCompilationOs() const { return !compilation_os_address_.empty(); }
+  std::string GetCompilationOsAddress() const { return compilation_os_address_; }
 
   void SetApexInfoListFile(const std::string& file_path) { apex_info_list_file_ = file_path; }
   void SetArtBinDir(const std::string& art_bin_dir) { art_bin_dir_ = art_bin_dir; }
@@ -127,6 +130,7 @@ class OdrConfig final {
 
   void SetDryRun() { dry_run_ = true; }
   void SetIsa(const InstructionSet isa) { isa_ = isa; }
+  void SetCompilationOsAddress(const std::string& address) { compilation_os_address_ = address; }
 
   void SetSystemServerClasspath(const std::string& classpath) {
     system_server_classpath_ = classpath;
