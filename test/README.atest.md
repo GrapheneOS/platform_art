@@ -101,13 +101,13 @@ atest ArtGtestsTargetInstallApex -- \
 ### Running ART gtests on device using a `chroot` environment
 
 You can run ART gtests on device with the chroot-based strategy by using the
-following `atest` command:
+following commands:
 
 ```bash
-atest ArtGtestsTargetChroot
+m art_chroot && atest ArtGtestsTargetChroot
 ```
 
-This command:
+This sequence:
 1. builds the Testing ART APEX from the Android source tree (including the ART
    gtests) and all the necessary dependencies for the `chroot` environment;
 2. sets up a `chroot` environment on the device;
