@@ -2550,6 +2550,7 @@ static int DumpOat(Runtime* runtime,
                                                   /*executable=*/ false,
                                                   /*low_4gb=*/ false,
                                                   dex_filenames,
+                                                  /*dex_fds=*/ ArrayRef<const int>(),
                                                   /*reservation=*/ nullptr,
                                                   &error_msg));
   if (oat_file == nullptr) {
@@ -2578,6 +2579,7 @@ static int SymbolizeOat(const char* oat_filename,
                                                   /*executable=*/ false,
                                                   /*low_4gb=*/ false,
                                                   dex_filenames,
+                                                  /*dex_fds=*/ ArrayRef<const int>(),
                                                   /*reservation=*/ nullptr,
                                                   &error_msg));
   if (oat_file == nullptr) {
@@ -2628,6 +2630,7 @@ class IMTDumper {
                                                       /*executable=*/ false,
                                                       /*low_4gb=*/false,
                                                       dex_filenames,
+                                                      /*dex_fds=*/ArrayRef<const int>(),
                                                       /*reservation=*/ nullptr,
                                                       &error_msg));
       if (oat_file == nullptr) {
