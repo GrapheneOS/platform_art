@@ -103,6 +103,8 @@
   V(UnsafeGetIntVolatile, "Lsun/misc/Unsafe;", "getIntVolatile", "(Ljava/lang/Object;J)I") \
   V(UnsafePutObject, "Lsun/misc/Unsafe;", "putObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
   V(UnsafeGetArrayBaseOffsetForComponentType, "Lsun/misc/Unsafe;", "getArrayBaseOffsetForComponentType", "(Ljava/lang/Class;)I") \
-  V(UnsafeGetArrayIndexScaleForComponentType, "Lsun/misc/Unsafe;", "getArrayIndexScaleForComponentType", "(Ljava/lang/Class;)I")
+  V(UnsafeGetArrayIndexScaleForComponentType, "Lsun/misc/Unsafe;", "getArrayIndexScaleForComponentType", "(Ljava/lang/Class;)I") \
+  V(FieldGetArtField, "Ljava/lang/reflect/Field;", "getArtField", "()J") \
+  V(FieldGetNameInternal, "Ljava/lang/reflect/Field;", "getNameInternal", "()Ljava/lang/String;")
 
 #endif  // ART_RUNTIME_INTERPRETER_UNSTARTED_RUNTIME_LIST_H_

@@ -2002,6 +2002,28 @@ void UnstartedRuntime::UnstartedJNIUnsafeGetArrayIndexScaleForComponentType(
   result->SetI(Primitive::ComponentSize(primitive_type));
 }
 
+void UnstartedRuntime::UnstartedJNIFieldGetArtField(
+    Thread* self ATTRIBUTE_UNUSED,
+    ArtMethod* method ATTRIBUTE_UNUSED,
+    mirror::Object* receiver,
+    uint32_t* args ATTRIBUTE_UNUSED,
+    JValue* result) {
+  ObjPtr<mirror::Field> field = ObjPtr<mirror::Field>::DownCast(receiver);
+  ArtField* art_field = field->GetArtField();
+  result->SetJ(reinterpret_cast<int64_t>(art_field));
+}
+
+void UnstartedRuntime::UnstartedJNIFieldGetNameInternal(
+    Thread* self ATTRIBUTE_UNUSED,
+    ArtMethod* method ATTRIBUTE_UNUSED,
+    mirror::Object* receiver,
+    uint32_t* args ATTRIBUTE_UNUSED,
+    JValue* result) {
+  ObjPtr<mirror::Field> field = ObjPtr<mirror::Field>::DownCast(receiver);
+  ArtField* art_field = field->GetArtField();
+  result->SetL(art_field->ResolveNameString());
+}
+
 using InvokeHandler = void(*)(Thread* self,
                               ShadowFrame* shadow_frame,
                               JValue* result,
