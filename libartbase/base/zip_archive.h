@@ -92,12 +92,18 @@ class ZipArchive {
   // return new ZipArchive instance on success, null on error.
   static ZipArchive* Open(const char* filename, std::string* error_msg);
   static ZipArchive* OpenFromFd(int fd, const char* filename, std::string* error_msg);
+  static ZipArchive* OpenFromOwnedFd(int fd, const char* filename, std::string* error_msg);
 
   ZipEntry* Find(const char* name, std::string* error_msg) const;
 
   ~ZipArchive();
 
  private:
+  static ZipArchive* OpenFromFdInternal(int fd,
+                                        bool assume_ownership,
+                                        const char* filename,
+                                        std::string* error_msg);
+
   explicit ZipArchive(ZipArchiveHandle handle) : handle_(handle) {}
 
   friend class ZipEntry;
