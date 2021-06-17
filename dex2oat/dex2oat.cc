@@ -2609,7 +2609,8 @@ class Dex2Oat final {
     DCHECK_EQ(dex_filenames_.size(), dex_locations_.size());
     size_t kept = 0u;
     for (size_t i = 0, size = dex_filenames_.size(); i != size; ++i) {
-      if (!OS::FileExists(dex_filenames_[i].c_str())) {
+      // Keep if the file exist, or is passed as FD.
+      if (!OS::FileExists(dex_filenames_[i].c_str()) && i >= dex_fds_.size()) {
         LOG(WARNING) << "Skipping non-existent dex file '" << dex_filenames_[i] << "'";
       } else {
         if (kept != i) {
