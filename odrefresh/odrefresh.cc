@@ -1015,12 +1015,12 @@ class OnDeviceRefresh final {
       std::stringstream output;
       bool is_first = true;
       for (const auto& f : files) {
-        output << std::to_string(f->Fd());
         if (is_first) {
           is_first = false;
         } else {
           output << delimiter;
         }
+        output << std::to_string(f->Fd());
       }
       return output.str();
   }
