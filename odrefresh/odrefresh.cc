@@ -685,6 +685,24 @@ class OnDeviceRefresh final {
     return profile_file;
   }
 
+  static bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
+                                  /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
+                                  const std::vector<std::string>& bcp_jars) {
+    auto bcp_fds = std::vector<std::string>();
+    for (const std::string& jar : bcp_jars) {
+      std::unique_ptr<File> jar_file(OS::OpenFileForReading(jar.c_str()));
+      if (!jar_file->IsValid()) {
+        LOG(ERROR) << "Failed to open a BCP jar " << jar;
+        return false;
+      }
+      bcp_fds.push_back(std::to_string(jar_file->Fd()));
+      output_files.push_back(std::move(jar_file));
+    }
+    args.emplace_back("--runtime-arg");
+    args.emplace_back(Concatenate({"-Xbootclasspathfds:", android::base::Join(bcp_fds, ':')}));
+    return true;
+  }
+
   WARN_UNUSED bool VerifySystemServerArtifactsAreUpToDate(bool on_system) const {
     std::vector<std::string> classloader_context;
     for (const std::string& jar_path : systemserver_compilable_jars_) {
@@ -993,6 +1011,20 @@ class OnDeviceRefresh final {
     return Concatenate({staging_dir, "/", android::base::Basename(path)});
   }
 
+  std::string JoinFilesAsFDs(const std::vector<std::unique_ptr<File>>& files, char delimiter) const {
+      std::stringstream output;
+      bool is_first = true;
+      for (const auto& f : files) {
+        output << std::to_string(f->Fd());
+        if (is_first) {
+          is_first = false;
+        } else {
+          output << delimiter;
+        }
+      }
+      return output.str();
+  }
+
   WARN_UNUSED bool CompileBootExtensionArtifacts(const InstructionSet isa,
                                                  const std::string& staging_dir,
                                                  OdrMetrics& metrics,
@@ -1036,6 +1068,10 @@ class OnDeviceRefresh final {
 
     args.emplace_back("--runtime-arg");
     args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetDex2oatBootClasspath()}));
+    auto bcp_jars = android::base::Split(config_.GetDex2oatBootClasspath(), ":");
+    if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
+      return false;
+    }
 
     const std::string image_location = GetBootImageExtensionImagePath(isa);
     const OdrArtifacts artifacts = OdrArtifacts::ForBootImageExtension(image_location);
@@ -1076,6 +1112,17 @@ class OnDeviceRefresh final {
     if (!EnsureDirectoryExists(install_location)) {
       metrics.SetStatus(OdrMetrics::Status::kIoError);
       return false;
+    }
+
+    if (config_.UseCompilationOs()) {
+      std::vector<std::string> prefix_args = {
+        "/apex/com.android.compos/bin/pvm_exec",
+        "--cid=" + config_.GetCompilationOsAddress(),
+        "--in-fd=" + JoinFilesAsFDs(readonly_files_raii, ','),
+        "--out-fd=" + JoinFilesAsFDs(staging_files, ','),
+        "--",
+      };
+      args.insert(args.begin(), prefix_args.begin(), prefix_args.end());
     }
 
     const time_t timeout = GetSubprocessTimeout();
@@ -1187,6 +1234,11 @@ class OnDeviceRefresh final {
 
       args.emplace_back("--runtime-arg");
       args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetDex2oatBootClasspath()}));
+      auto bcp_jars = android::base::Split(config_.GetDex2oatBootClasspath(), ":");
+      if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
+        return false;
+      }
+
       const std::string context_path = android::base::Join(classloader_context, ':');
       args.emplace_back(Concatenate({"--class-loader-context=PCL[", context_path, "]"}));
       if (!classloader_context.empty()) {
@@ -1206,6 +1258,17 @@ class OnDeviceRefresh final {
       }
       const std::string extension_image = GetBootImageExtensionImage(/*on_system=*/false);
       args.emplace_back(Concatenate({"--boot-image=", GetBootImage(), ":", extension_image}));
+
+      if (config_.UseCompilationOs()) {
+        std::vector<std::string> prefix_args = {
+          "/apex/com.android.compos/bin/pvm_exec",
+          "--cid=" + config_.GetCompilationOsAddress(),
+          "--in-fd=" + JoinFilesAsFDs(readonly_files_raii, ','),
+          "--out-fd=" + JoinFilesAsFDs(staging_files, ','),
+          "--",
+        };
+        args.insert(args.begin(), prefix_args.begin(), prefix_args.end());
+      }
 
       const time_t timeout = GetSubprocessTimeout();
       const std::string cmd_line = android::base::Join(args, ' ');
@@ -1443,8 +1506,12 @@ class OnDeviceRefresh final {
 
     int n = 1;
     for (; n < argc - 1; ++n) {
-      if (!InitializeCommonConfig(argv[n], config)) {
-        UsageError("Unrecognized argument: '%s'", argv[n]);
+      const char* arg = argv[n];
+      std::string value;
+      if (ArgumentMatches(arg, "--use-compilation-os=", &value)) {
+        config->SetCompilationOsAddress(value);
+      } else if (!InitializeCommonConfig(arg, config)) {
+        UsageError("Unrecognized argument: '%s'", arg);
       }
     }
     return n;
