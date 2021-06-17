@@ -137,6 +137,7 @@ build = False
 dist = False
 gdb = False
 gdb_arg = ''
+dump_cfg = ''
 csv_result = None
 csv_writer = None
 runtime_option = ''
@@ -419,6 +420,9 @@ def run_tests(tests):
     options_all += ' --gdb'
     if gdb_arg:
       options_all += ' --gdb-arg ' + gdb_arg
+
+  if dump_cfg:
+    options_all += ' --dump-cfg ' + dump_cfg
 
   options_all += ' ' + ' '.join(run_test_option)
 
@@ -1102,6 +1106,7 @@ def parse_option():
   global dist
   global gdb
   global gdb_arg
+  global dump_cfg
   global runtime_option
   global run_test_option
   global timeout
@@ -1143,6 +1148,9 @@ def parse_option():
   global_group.set_defaults(build = env.ART_TEST_RUN_TEST_BUILD)
   global_group.add_argument('--gdb', action='store_true', dest='gdb')
   global_group.add_argument('--gdb-arg', dest='gdb_arg')
+  global_group.add_argument('--dump-cfg', dest='dump_cfg',
+                            help="""Dump the CFG to the specified host path.
+                            Example \"--dump-cfg <full-path>/graph.cfg\".""")
   global_group.add_argument('--run-test-option', action='append', dest='run_test_option',
                             default=[],
                             help="""Pass an option, unaltered, to the run-test script.
@@ -1216,6 +1224,8 @@ def parse_option():
     gdb = True
     if options['gdb_arg']:
       gdb_arg = options['gdb_arg']
+  if options['dump_cfg']:
+    dump_cfg = options['dump_cfg']
   runtime_option = options['runtime_option'];
   with_agent = options['with_agent'];
   run_test_option = sum(map(shlex.split, options['run_test_option']), [])
