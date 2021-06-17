@@ -637,17 +637,17 @@ class OnDeviceRefresh final {
     return ExitCode::kOkay;
   }
 
-  static void AddDex2OatCommonOptions(/*inout*/ std::vector<std::string>& args) {
-    args.emplace_back("--android-root=out/empty");
-    args.emplace_back("--abort-on-hard-verifier-error");
-    args.emplace_back("--no-abort-on-soft-verifier-error");
-    args.emplace_back("--compilation-reason=boot");
-    args.emplace_back("--image-format=lz4");
-    args.emplace_back("--force-determinism");
-    args.emplace_back("--resolve-startup-const-strings=true");
+  static void AddDex2OatCommonOptions(/*inout*/ std::vector<std::string>* args) {
+    args->emplace_back("--android-root=out/empty");
+    args->emplace_back("--abort-on-hard-verifier-error");
+    args->emplace_back("--no-abort-on-soft-verifier-error");
+    args->emplace_back("--compilation-reason=boot");
+    args->emplace_back("--image-format=lz4");
+    args->emplace_back("--force-determinism");
+    args->emplace_back("--resolve-startup-const-strings=true");
   }
 
-  static void AddDex2OatConcurrencyArguments(/*inout*/ std::vector<std::string>& args) {
+  static void AddDex2OatConcurrencyArguments(/*inout*/ std::vector<std::string>* args) {
     static constexpr std::pair<const char*, const char*> kPropertyArgPairs[] = {
         std::make_pair("dalvik.vm.boot-dex2oat-cpu-set", "--cpu-set="),
         std::make_pair("dalvik.vm.boot-dex2oat-threads", "-j"),
@@ -656,31 +656,31 @@ class OnDeviceRefresh final {
       auto [property, arg] = property_arg_pair;
       std::string value = android::base::GetProperty(property, {});
       if (!value.empty()) {
-        args.push_back(arg + value);
+        args->push_back(arg + value);
       }
     }
   }
 
-  static void AddDex2OatDebugInfo(/*inout*/ std::vector<std::string>& args) {
-    args.emplace_back("--generate-mini-debug-info");
-    args.emplace_back("--strip");
+  static void AddDex2OatDebugInfo(/*inout*/ std::vector<std::string>* args) {
+    args->emplace_back("--generate-mini-debug-info");
+    args->emplace_back("--strip");
   }
 
-  static void AddDex2OatInstructionSet(/*inout*/ std::vector<std::string> args,
+  static void AddDex2OatInstructionSet(/*inout*/ std::vector<std::string>* args,
                                        InstructionSet isa) {
     const char* isa_str = GetInstructionSetString(isa);
-    args.emplace_back(Concatenate({"--instruction-set=", isa_str}));
+    args->emplace_back(Concatenate({"--instruction-set=", isa_str}));
   }
 
   static std::unique_ptr<File> AddDex2OatProfileAndCompilerFilter(
-      /*inout*/ std::vector<std::string>& args,
+      /*inout*/ std::vector<std::string>* args,
       const std::string& profile_path) {
     std::unique_ptr<File> profile_file(OS::OpenFileForReading(profile_path.c_str()));
     if (profile_file && profile_file->IsOpened()) {
-      args.emplace_back(android::base::StringPrintf("--profile-file-fd=%d", profile_file->Fd()));
-      args.emplace_back("--compiler-filter=speed-profile");
+      args->emplace_back(android::base::StringPrintf("--profile-file-fd=%d", profile_file->Fd()));
+      args->emplace_back("--compiler-filter=speed-profile");
     } else {
-      args.emplace_back("--compiler-filter=speed");
+      args->emplace_back("--compiler-filter=speed");
     }
     return profile_file;
   }
@@ -1034,14 +1034,14 @@ class OnDeviceRefresh final {
     std::vector<std::string> args;
     args.push_back(config_.GetDex2Oat());
 
-    AddDex2OatCommonOptions(args);
-    AddDex2OatConcurrencyArguments(args);
-    AddDex2OatDebugInfo(args);
-    AddDex2OatInstructionSet(args, isa);
+    AddDex2OatCommonOptions(&args);
+    AddDex2OatConcurrencyArguments(&args);
+    AddDex2OatDebugInfo(&args);
+    AddDex2OatInstructionSet(&args, isa);
 
     std::vector<std::unique_ptr<File>> readonly_files_raii;
     const std::string boot_profile_file(GetAndroidRoot() + "/etc/boot-image.prof");
-    readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(args, boot_profile_file));
+    readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(&args, boot_profile_file));
 
     // Compile as a single image for fewer files and slightly less memory overhead.
     args.emplace_back("--single-image");
@@ -1176,13 +1176,13 @@ class OnDeviceRefresh final {
       args.emplace_back(android::base::StringPrintf("--dex-fd=%d", dex_file->Fd()));
       readonly_files_raii.push_back(std::move(dex_file));
 
-      AddDex2OatCommonOptions(args);
-      AddDex2OatConcurrencyArguments(args);
-      AddDex2OatDebugInfo(args);
-      AddDex2OatInstructionSet(args, isa);
+      AddDex2OatCommonOptions(&args);
+      AddDex2OatConcurrencyArguments(&args);
+      AddDex2OatDebugInfo(&args);
+      AddDex2OatInstructionSet(&args, isa);
       const std::string jar_name(android::base::Basename(jar));
       const std::string profile = Concatenate({GetAndroidRoot(), "/framework/", jar_name, ".prof"});
-      readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(args, profile));
+      readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(&args, profile));
 
       const std::string image_location = GetSystemServerImagePath(/*on_system=*/false, jar);
       const std::string install_location = android::base::Dirname(image_location);
