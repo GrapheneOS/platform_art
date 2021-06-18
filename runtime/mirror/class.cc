@@ -944,7 +944,12 @@ static ArtField* FindFieldByNameAndType(const DexFile& dex_file,
         break;
       }
     }
-    CHECK_EQ(found, ret) << "Found " << found->PrettyField() << " vs  " << ret->PrettyField();
+
+    auto pretty_field = [](ArtField* field) REQUIRES_SHARED(Locks::mutator_lock_) {
+      return field != nullptr ? field->PrettyField() : "(null)";
+    };
+
+    CHECK_EQ(found, ret) << "Found " << pretty_field(found) << " vs  " << pretty_field(ret);
   }
   return ret;
 }
