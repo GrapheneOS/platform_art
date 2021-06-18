@@ -1908,14 +1908,17 @@ bool HInstructionBuilder::BuildSimpleIntrinsic(ArtMethod* method,
           new (allocator_) HArrayLength(/*array=*/ nullptr, dex_pc, /* is_string_length= */ true);
       break;
     case Intrinsics::kUnsafeLoadFence:
+    case Intrinsics::kJdkUnsafeLoadFence:
       receiver_arg = ReceiverArg::kNullCheckedOnly;
       instruction = new (allocator_) HMemoryBarrier(MemBarrierKind::kLoadAny, dex_pc);
       break;
     case Intrinsics::kUnsafeStoreFence:
+    case Intrinsics::kJdkUnsafeStoreFence:
       receiver_arg = ReceiverArg::kNullCheckedOnly;
       instruction = new (allocator_) HMemoryBarrier(MemBarrierKind::kAnyStore, dex_pc);
       break;
     case Intrinsics::kUnsafeFullFence:
+    case Intrinsics::kJdkUnsafeFullFence:
       receiver_arg = ReceiverArg::kNullCheckedOnly;
       instruction = new (allocator_) HMemoryBarrier(MemBarrierKind::kAnyAny, dex_pc);
       break;

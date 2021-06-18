@@ -295,6 +295,9 @@ UNREACHABLE_INTRINSIC(Arch, StringLength)                       \
 UNREACHABLE_INTRINSIC(Arch, UnsafeLoadFence)                    \
 UNREACHABLE_INTRINSIC(Arch, UnsafeStoreFence)                   \
 UNREACHABLE_INTRINSIC(Arch, UnsafeFullFence)                    \
+UNREACHABLE_INTRINSIC(Arch, JdkUnsafeLoadFence)                 \
+UNREACHABLE_INTRINSIC(Arch, JdkUnsafeStoreFence)                \
+UNREACHABLE_INTRINSIC(Arch, JdkUnsafeFullFence)                 \
 UNREACHABLE_INTRINSIC(Arch, VarHandleFullFence)                 \
 UNREACHABLE_INTRINSIC(Arch, VarHandleAcquireFence)              \
 UNREACHABLE_INTRINSIC(Arch, VarHandleReleaseFence)              \
