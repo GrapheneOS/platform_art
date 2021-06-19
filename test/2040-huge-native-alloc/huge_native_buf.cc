@@ -15,10 +15,13 @@
  */
 
 #include "base/utils.h"
+#include "gc/heap.h"
 #include "jni.h"
+#include "runtime.h"
 #include <stddef.h>
 
 namespace art {
+namespace HugeNativeBuf {
 
 static constexpr size_t HUGE_SIZE = 10'000'000;
 
@@ -33,6 +36,10 @@ extern "C" JNIEXPORT void JNICALL Java_Main_deleteHugeNativeBuffer(
   delete [] static_cast<char*>(env->GetDirectBufferAddress(jbuffer));
 }
 
+extern "C" JNIEXPORT jint JNICALL Java_Main_getGcNum(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
+  return Runtime::Current()->GetHeap()->GetCurrentGcNum();
+}
+
+}  // namespace HugeNativeBuf
 }  // namespace art
-
-

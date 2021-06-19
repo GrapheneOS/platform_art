@@ -55,27 +55,42 @@ public class Main {
   public static void main(String[] args) {
     System.loadLibrary(args[0]);
     System.out.println("Main Started");
-    Runtime.getRuntime().gc();
-    new Main().run();
+    while (true) {
+      Runtime.getRuntime().gc();
+      if (new Main().tryToRun()) {
+        break;
+      }
+      // Clean up and try again.
+      Runtime.getRuntime().gc();
+      System.runFinalization();
+    }
     System.out.println("Main Finished");
   }
 
-  void run() {
+  boolean tryToRun() {
+    final int startingGcNum = getGcNum();
     timeNotifications();  // warm up.
     final long referenceTime1 = timeNotifications();
     final long referenceTime2 = timeNotifications();
     final long referenceTime3 = timeNotifications();
     final long referenceTime = Math.min(referenceTime1, Math.min(referenceTime2, referenceTime3));
 
-    // Allocate half a GB of native memory without informing the GC.
+    // Allocate a GB+ of native memory without informing the GC.
     for (int i = 0; i < HOW_MANY_HUGE; ++i) {
       new BufferHolder();
     }
 
+    if (startingGcNum != getGcNum()) {
+      // Happens rarely, fail and retry.
+      return false;
+    }
     // One of the notifications should block for GC to catch up.
     long actualTime = timeNotifications();
     final long minBlockingTime = 2 * referenceTime + 2_000_000;
 
+    if (startingGcNum == getGcNum()) {
+      System.out.println("No gc completed");
+    }
     if (actualTime > 500_000_000) {
       System.out.println("Notifications ran too slowly; excessive blocking? msec = "
           + (actualTime / 1_000_000));
@@ -99,8 +114,11 @@ public class Main {
       System.out.println("Unexpected number of deallocated objects:");
       System.out.println("Allocated = " + allocated + " deallocated = " + deallocated);
     }
+    System.out.println("Succeeded");
+    return true;
   }
 
   private static native ByteBuffer getHugeNativeBuffer();
   private static native void deleteHugeNativeBuffer(ByteBuffer buf);
+  private static native int getGcNum();
 }
