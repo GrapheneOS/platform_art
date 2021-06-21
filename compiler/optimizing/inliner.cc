@@ -46,6 +46,7 @@
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "thread.h"
+#include "verifier/verifier_compiler_binding.h"
 
 namespace art {
 
@@ -389,11 +390,21 @@ static bool IsMethodUnverified(const CompilerOptions& compiler_options, ArtMetho
       return true;
     }
     uint16_t class_def_idx = method->GetDeclaringClass()->GetDexClassDefIndex();
+
+    const VerifiedMethod* verified_method =
+        compiler_options.GetVerifiedMethod(method->GetDexFile(), method->GetDexMethodIndex());
+    if (verified_method != nullptr && verified_method->HasRuntimeThrow()) {
+      // Compiler doesn't handle dead code as nicely as verifier.
+      return true;
+    }
     if (!compiler_options.IsMethodVerifiedWithoutFailures(method->GetDexMethodIndex(),
                                                           class_def_idx,
                                                           *method->GetDexFile())) {
-      // Method has soft or hard failures, don't analyze.
-      return true;
+      if (verified_method == nullptr ||
+          !verifier::CanCompilerHandleVerificationFailure(
+              verified_method->GetEncounteredVerificationFailures())) {
+       return true;
+      }
     }
   }
   return false;
