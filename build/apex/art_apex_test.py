@@ -454,7 +454,6 @@ class ReleaseChecker:
     self._checker.check_file('apex_manifest.pb')
 
     # Check binaries for ART.
-    self._checker.check_executable('artd')
     self._checker.check_first_executable('dex2oat')
     self._checker.check_executable('dexdump')
     self._checker.check_executable('dexlist')
@@ -484,10 +483,7 @@ class ReleaseChecker:
     self._checker.check_native_library('libprofile')
     self._checker.check_native_library('libsigchain')
 
-    # Check internal Java libraries
-    self._checker.check_java_library("service-art")
-
-    # Check java libraries for Managed Core Library.
+    # Check Java libraries for Managed Core Library.
     self._checker.check_java_library('apache-xml')
     self._checker.check_java_library('bouncycastle')
     self._checker.check_java_library('core-libart')
@@ -552,12 +548,16 @@ class ReleaseTargetChecker:
     # removed in Android R.
 
     # Check binaries for ART.
+    self._checker.check_executable('artd')
     self._checker.check_multilib_executable('dex2oat')
     self._checker.check_executable('oatdump')
     self._checker.check_executable("odrefresh")
 
     # Check internal libraries for ART.
     self._checker.check_native_library('libperfetto_hprof')
+
+    # Check internal Java libraries
+    self._checker.check_java_library("service-art")
 
     # Check exported native libraries for Managed Core Library.
     self._checker.check_native_library('libandroidio')
@@ -911,7 +911,7 @@ def art_apex_test_main(test_args):
       for flavor in [ FLAVOR_DEBUG, FLAVOR_TESTING, FLAVOR_RELEASE ]:
         flavor_tag = flavor
         # Special handling for the release flavor, whose name is no longer part of the Release ART
-        # APEX file name (`com.android.art.apex` / `com.android.art`).
+        # APEX file name (`com.android.art.capex` / `com.android.art`).
         if flavor == FLAVOR_RELEASE:
           flavor_tag = ''
         flavor_pattern = '*.%s*' % flavor_tag
@@ -1033,15 +1033,16 @@ def art_apex_test_default(test_parser):
   # TODO: Add host support.
   # TODO: Add support for flattened APEX packages.
   configs = [
-    {'name': 'com.android.art',         'flavor': FLAVOR_RELEASE, 'host': False},
-    {'name': 'com.android.art.debug',   'flavor': FLAVOR_DEBUG,   'host': False},
-    {'name': 'com.android.art.testing', 'flavor': FLAVOR_TESTING, 'host': False},
+    {'name': 'com.android.art.capex',         'flavor': FLAVOR_RELEASE, 'host': False},
+    {'name': 'com.android.art.debug.capex',   'flavor': FLAVOR_DEBUG,   'host': False},
+    # Note: The Testing ART APEX is not a Compressed APEX.
+    {'name': 'com.android.art.testing.apex',  'flavor': FLAVOR_TESTING, 'host': False},
   ]
 
   for config in configs:
     logging.info(config['name'])
     # TODO: Host will need different path.
-    test_args.apex = '%s/system/apex/%s.apex' % (product_out, config['name'])
+    test_args.apex = '%s/system/apex/%s' % (product_out, config['name'])
     if not os.path.exists(test_args.apex):
       failed = True
       logging.error("Cannot find APEX %s. Please build it first.", test_args.apex)
