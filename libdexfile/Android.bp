@@ -162,6 +162,10 @@ gensrcs {
 
 art_cc_library {
     name: "libdexfile",
+    visibility: [
+        // Allow libunwindstack to list this as a runtime library.
+        "//system/unwinding/libunwindstack",
+    ],
     defaults: [
         "libdexfile_defaults",
         "libart_nativeunwind_defaults",
