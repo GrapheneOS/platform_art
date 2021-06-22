@@ -3531,8 +3531,19 @@ static void LinkCode(ClassLinker* class_linker,
   // stub only if we have compiled code and the method needs a class initialization
   // check.
   if (quick_code == nullptr) {
-    method->SetEntryPointFromQuickCompiledCode(
-        method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
+    if (method->IsNative()) {
+      method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniStub());
+    } else if (interpreter::CanRuntimeUseNterp() && CanMethodUseNterp(method)) {
+      // The nterp trampoline doesn't do initialization checks, so install the
+      // resolution stub if needed.
+      if (NeedsClinitCheckBeforeCall(method)) {
+        method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
+      } else {
+        method->SetEntryPointFromQuickCompiledCode(interpreter::GetNterpEntryPoint());
+      }
+    } else {
+      method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+    }
   } else if (enter_interpreter) {
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
   } else if (NeedsClinitCheckBeforeCall(method)) {
