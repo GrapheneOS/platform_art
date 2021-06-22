@@ -241,6 +241,14 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
                                const Address& address,
                                Label* fixup_label,
                                ReadBarrierOption read_barrier_option);
+  void HandleFieldSet(HInstruction* instruction,
+                      uint32_t value_index,
+                      uint32_t extra_temp_index,
+                      DataType::Type field_type,
+                      Address field_addr,
+                      CpuRegister base,
+                      bool is_volatile,
+                      bool value_can_be_null);
 
  private:
   // Generate code for the given suspend check. If not null, `successor`
