@@ -688,7 +688,7 @@ class MarkSweep::MarkStackTask : public Task {
     }
   }
 
-  static const size_t kMaxSize = 1 * KB;
+  static constexpr size_t kMaxSize = 1 * KB;
 
  protected:
   class MarkObjectParallelVisitor {
