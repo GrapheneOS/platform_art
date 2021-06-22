@@ -98,7 +98,7 @@ class ClassTable {
 
     // Data contains the class pointer GcRoot as well as the low bits of the descriptor hash.
     mutable Atomic<uint32_t> data_;
-    static const uint32_t kHashMask = kObjectAlignment - 1;
+    static constexpr uint32_t kHashMask = kObjectAlignment - 1;
   };
 
   using DescriptorHashPair = std::pair<const char*, uint32_t>;

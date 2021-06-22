@@ -74,7 +74,7 @@ class ManagedRegister : public ValueObject {
   explicit constexpr ManagedRegister(int reg_id) : id_(reg_id) { }
 
  protected:
-  static const int kNoRegister = -1;
+  static constexpr int kNoRegister = -1;
 
   constexpr ManagedRegister() : id_(kNoRegister) { }
 
