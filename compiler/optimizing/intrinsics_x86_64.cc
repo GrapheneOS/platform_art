@@ -3123,6 +3123,10 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
       }
       break;
     case mirror::VarHandle::AccessModeTemplate::kSet:
+      if (return_type != DataType::Type::kVoid) {
+        return false;
+      }
+      break;
     case mirror::VarHandle::AccessModeTemplate::kCompareAndSet:
     case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange:
     case mirror::VarHandle::AccessModeTemplate::kGetAndUpdate:
@@ -3133,11 +3137,7 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
   return true;
 }
 
-static void CreateVarHandleGetLocations(HInvoke* invoke) {
-  if (!HasVarHandleIntrinsicImplementation(invoke)) {
-    return;
-  }
-
+static void CreateVarHandleCommonLocations(HInvoke* invoke) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   DataType::Type return_type = invoke->GetType();
 
@@ -3150,19 +3150,46 @@ static void CreateVarHandleGetLocations(HInvoke* invoke) {
   for (size_t i = 0; i != expected_coordinates_count; ++i) {
     locations->SetInAt(/* VarHandle object */ 1u + i, Location::RequiresRegister());
   }
-  DCHECK(return_type != DataType::Type::kVoid);
-  if (DataType::IsFloatingPointType(return_type)) {
-    locations->SetOut(Location::RequiresFpuRegister());
-  } else {
-    locations->SetOut(Location::RequiresRegister());
+  if (return_type != DataType::Type::kVoid) {
+    if (DataType::IsFloatingPointType(return_type)) {
+      locations->SetOut(Location::RequiresFpuRegister());
+    } else {
+      locations->SetOut(Location::RequiresRegister());
+    }
+  }
+  uint32_t arguments_start = /* VarHandle object */ 1u + expected_coordinates_count;
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  for (size_t arg_index = arguments_start; arg_index != number_of_arguments; ++arg_index) {
+    HInstruction* arg = invoke->InputAt(arg_index);
+    if (DataType::IsFloatingPointType(arg->GetType())) {
+      locations->SetInAt(arg_index, Location::FpuRegisterOrConstant(arg));
+    } else {
+      locations->SetInAt(arg_index, Location::RegisterOrConstant(arg));
+    }
   }
 
   // Add a temporary for offset.
   locations->AddTemp(Location::RequiresRegister());
+
   if (expected_coordinates_count == 0u) {
     // Add a temporary to hold the declaring class.
     locations->AddTemp(Location::RequiresRegister());
   }
+
+  mirror::VarHandle::AccessModeTemplate access_mode_template =
+      mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
+  if (access_mode_template == mirror::VarHandle::AccessModeTemplate::kSet) {
+    // Add an extra temporary register for card in MarkGCCard.
+    locations->AddTemp(Location::RequiresRegister());
+  }
+}
+
+static void CreateVarHandleGetLocations(HInvoke* invoke) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
+    return;
+  }
+
+  CreateVarHandleCommonLocations(invoke);
 }
 
 static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86_64* codegen) {
@@ -3231,6 +3258,58 @@ void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetVolatile(HInvoke* invoke) {
   GenerateVarHandleGet(invoke, codegen_);
 }
 
+static void CreateVarHandleSetLocations(HInvoke* invoke) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
+    return;
+  }
+
+  CreateVarHandleCommonLocations(invoke);
+}
+
+static void GenerateVarHandleSet(HInvoke* invoke, CodeGeneratorX86_64* codegen) {
+  X86_64Assembler* assembler = codegen->GetAssembler();
+
+  uint32_t value_index = invoke->GetNumberOfArguments() - 1;
+  DataType::Type value_type = GetDataTypeFromShorty(invoke, value_index);
+
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, value_type);
+  VarHandleTarget target = GetVarHandleTarget(invoke);
+  GenerateVarHandleTarget(invoke, target, codegen);
+
+  switch (invoke->GetIntrinsic()) {
+    case Intrinsics::kVarHandleSet:
+      break;
+    default:
+      // TODO: implement setOpaque, setRelease, setVolatile.
+      LOG(FATAL) << "unsupported intrinsic " << invoke->GetIntrinsic();
+  }
+
+  const uint32_t last_temp_index = invoke->GetLocations()->GetTempCount() - 1;
+  Address dst(CpuRegister(target.object), CpuRegister(target.offset), TIMES_1, 0);
+
+  // Store the value to the field.
+  InstructionCodeGeneratorX86_64* instr_codegen =
+        down_cast<InstructionCodeGeneratorX86_64*>(codegen->GetInstructionVisitor());
+  instr_codegen->HandleFieldSet(invoke,
+                                value_index,
+                                last_temp_index,
+                                value_type,
+                                dst,
+                                CpuRegister(target.object),
+                                /*is_volatile=*/ false,
+                                /*value_can_be_null=*/ true);
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleSet(HInvoke* invoke) {
+  CreateVarHandleSetLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleSet(HInvoke* invoke) {
+  GenerateVarHandleSet(invoke, codegen_);
+}
+
 UNIMPLEMENTED_INTRINSIC(X86_64, FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86_64, DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32Update)
@@ -3292,7 +3371,6 @@ UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndBitwiseXorRelease)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndSet)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndSetAcquire)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndSetRelease)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleSet)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleSetOpaque)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleSetRelease)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleSetVolatile)
