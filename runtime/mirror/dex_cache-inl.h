@@ -202,8 +202,25 @@ inline void DexCache::SetResolvedMethodType(dex::ProtoIndex proto_idx, MethodTyp
   DCHECK(resolved != nullptr);
   GetResolvedMethodTypes()[MethodTypeSlotIndex(proto_idx)].store(
       MethodTypeDexCachePair(resolved, proto_idx.index_), std::memory_order_relaxed);
+  Runtime* const runtime = Runtime::Current();
+  if (UNLIKELY(runtime->IsActiveTransaction())) {
+    DCHECK(runtime->IsAotCompiler());
+    runtime->RecordResolveMethodType(this, proto_idx);
+  }
   // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
   WriteBarrier::ForEveryFieldWrite(this);
+}
+
+inline void DexCache::ClearMethodType(dex::ProtoIndex proto_idx) {
+  DCHECK(Runtime::Current()->IsAotCompiler());
+  uint32_t slot_idx = MethodTypeSlotIndex(proto_idx);
+  MethodTypeDexCacheType* slot = &GetResolvedMethodTypes()[slot_idx];
+  // This is racy but should only be called from the transactional interpreter.
+  if (slot->load(std::memory_order_relaxed).index == proto_idx.index_) {
+    MethodTypeDexCachePair cleared(nullptr,
+                                   MethodTypeDexCachePair::InvalidIndexForSlot(proto_idx.index_));
+    slot->store(cleared, std::memory_order_relaxed);
+  }
 }
 
 inline CallSite* DexCache::GetResolvedCallSite(uint32_t call_site_idx) {
