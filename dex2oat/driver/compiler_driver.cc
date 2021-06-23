@@ -1479,10 +1479,11 @@ static bool SkipClass(jobject class_loader, const DexFile& dex_file, ObjPtr<mirr
   return false;
 }
 
-static void CheckAndClearResolveException(Thread* self)
+static void DCheckResolveException(mirror::Throwable* exception)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  CHECK(self->IsExceptionPending());
-  mirror::Throwable* exception = self->GetException();
+  if (!kIsDebugBuild) {
+    return;
+  }
   std::string temp;
   const char* descriptor = exception->GetClass()->GetDescriptor(&temp);
   const char* expected_exceptions[] = {
@@ -1493,8 +1494,6 @@ static void CheckAndClearResolveException(Thread* self)
       "Ljava/lang/InstantiationError;",
       "Ljava/lang/LinkageError;",
       "Ljava/lang/NoClassDefFoundError;",
-      "Ljava/lang/NoSuchFieldError;",
-      "Ljava/lang/NoSuchMethodError;",
       "Ljava/lang/VerifyError;",
   };
   bool found = false;
@@ -1506,51 +1505,49 @@ static void CheckAndClearResolveException(Thread* self)
   if (!found) {
     LOG(FATAL) << "Unexpected exception " << exception->Dump();
   }
-  self->ClearException();
 }
 
-class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
+template <bool kApp>
+class ResolveTypeVisitor : public CompilationVisitor {
  public:
-  explicit ResolveClassFieldsAndMethodsVisitor(const ParallelCompilationManager* manager)
-      : manager_(manager) {}
-
-  void Visit(size_t class_def_index) override REQUIRES(!Locks::mutator_lock_) {
-    ScopedTrace trace(__FUNCTION__);
-    Thread* const self = Thread::Current();
-    jobject jclass_loader = manager_->GetClassLoader();
+  explicit ResolveTypeVisitor(const ParallelCompilationManager* manager) : manager_(manager) {
+  }
+  void Visit(size_t index) override REQUIRES(!Locks::mutator_lock_) {
     const DexFile& dex_file = *manager_->GetDexFile();
+    // For boot images we resolve all referenced types, such as arrays,
+    // whereas for applications just those with classdefs.
+    dex::TypeIndex type_idx = kApp ? dex_file.GetClassDef(index).class_idx_ : dex::TypeIndex(index);
     ClassLinker* class_linker = manager_->GetClassLinker();
-
-    // Method and Field are the worst. We can't resolve without either
-    // context from the code use (to disambiguate virtual vs direct
-    // method and instance vs static field) or from class
-    // definitions. While the compiler will resolve what it can as it
-    // needs it, here we try to resolve fields and methods used in class
-    // definitions, since many of them many never be referenced by
-    // generated code.
-    const dex::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-    ScopedObjectAccess soa(self);
-    StackHandleScope<5> hs(soa.Self());
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<kApp ? 4u : 2u> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
-        soa.Self(), dex_file)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(manager_->GetClassLoader())));
+    // TODO: Fix tests that require `RegisterDexFile()` and use `FindDexCache()` in all cases.
+    Handle<mirror::DexCache> dex_cache = hs.NewHandle(
+        kApp ? class_linker->FindDexCache(soa.Self(), dex_file)
+             : class_linker->RegisterDexFile(dex_file, class_loader.Get()));
+    DCHECK(dex_cache != nullptr);
+
     // Resolve the class.
-    ObjPtr<mirror::Class> klass =
-        class_linker->ResolveType(class_def.class_idx_, dex_cache, class_loader);
-    bool resolve_fields_and_methods;
+    ObjPtr<mirror::Class> klass = class_linker->ResolveType(type_idx, dex_cache, class_loader);
     if (klass == nullptr) {
-      // Class couldn't be resolved, for example, super-class is in a different dex file. Don't
-      // attempt to resolve methods and fields when there is no declaring class.
-      CheckAndClearResolveException(soa.Self());
-      resolve_fields_and_methods = false;
+      mirror::Throwable* exception = soa.Self()->GetException();
+      DCHECK(exception != nullptr);
+      VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
+      if (exception->GetClass() ==
+              soa.Decode<mirror::Class>(WellKnownClasses::java_lang_OutOfMemoryError)) {
+        // There's little point continuing compilation if the heap is exhausted.
+        // Trying to do so would also introduce non-deterministic compilation results.
+        LOG(FATAL) << "Out of memory during type resolution for compilation";
+      }
+      DCheckResolveException(exception);
+      soa.Self()->ClearException();
     } else {
-      Handle<mirror::Class> hklass(hs.NewHandle(klass));
-      if (manager_->GetCompiler()->GetCompilerOptions().IsCheckLinkageConditions() &&
-          !manager_->GetCompiler()->GetCompilerOptions().IsBootImage()) {
+      if (kApp && manager_->GetCompiler()->GetCompilerOptions().IsCheckLinkageConditions()) {
+        Handle<mirror::Class> hklass = hs.NewHandle(klass);
         bool is_fatal = manager_->GetCompiler()->GetCompilerOptions().IsCrashOnLinkageViolation();
-        ObjPtr<mirror::ClassLoader> resolving_class_loader = hklass->GetClassLoader();
-        if (resolving_class_loader != soa.Decode<mirror::ClassLoader>(jclass_loader)) {
+        Handle<mirror::ClassLoader> defining_class_loader = hs.NewHandle(hklass->GetClassLoader());
+        if (defining_class_loader.Get() != class_loader.Get()) {
           // Redefinition via different ClassLoaders.
           // This OptStat stuff is to enable logging from the APK scanner.
           if (is_fatal)
@@ -1563,99 +1560,22 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
         }
         // Check that the current class is not a subclass of java.lang.ClassLoader.
         if (!hklass->IsInterface() &&
-            hklass->IsSubClass(class_linker->FindClass(self,
+            hklass->IsSubClass(class_linker->FindClass(soa.Self(),
                                                        "Ljava/lang/ClassLoader;",
-                                                       hs.NewHandle(resolving_class_loader)))) {
+                                                       defining_class_loader))) {
           // Subclassing of java.lang.ClassLoader.
           // This OptStat stuff is to enable logging from the APK scanner.
-          if (is_fatal)
+          if (is_fatal) {
             LOG(FATAL) << "OptStat#" << hklass->PrettyClassAndClassLoader() << ": 1";
-          else
+          } else {
             LOG(ERROR)
                 << "LINKAGE VIOLATION: "
                 << hklass->PrettyClassAndClassLoader()
                 << " is a subclass of java.lang.ClassLoader";
+          }
         }
         CHECK(hklass->IsResolved()) << hklass->PrettyClass();
-        klass.Assign(hklass.Get());
       }
-      // We successfully resolved a class, should we skip it?
-      if (SkipClass(jclass_loader, dex_file, klass)) {
-        return;
-      }
-      // We want to resolve the methods and fields eagerly.
-      resolve_fields_and_methods = true;
-    }
-
-    if (resolve_fields_and_methods) {
-      ClassAccessor accessor(dex_file, class_def_index);
-      // Optionally resolve fields and methods and figure out if we need a constructor barrier.
-      auto method_visitor = [&](const ClassAccessor::Method& method)
-          REQUIRES_SHARED(Locks::mutator_lock_) {
-        ArtMethod* resolved = class_linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
-            method.GetIndex(),
-            dex_cache,
-            class_loader,
-            /*referrer=*/ nullptr,
-            method.GetInvokeType(class_def.access_flags_));
-        if (resolved == nullptr) {
-          CheckAndClearResolveException(soa.Self());
-        }
-      };
-      accessor.VisitFieldsAndMethods(
-          // static fields
-          [&](ClassAccessor::Field& field) REQUIRES_SHARED(Locks::mutator_lock_) {
-            ArtField* resolved = class_linker->ResolveField(
-                field.GetIndex(), dex_cache, class_loader, /*is_static=*/ true);
-            if (resolved == nullptr) {
-              CheckAndClearResolveException(soa.Self());
-            }
-          },
-          // instance fields
-          [&](ClassAccessor::Field& field) REQUIRES_SHARED(Locks::mutator_lock_) {
-            ArtField* resolved = class_linker->ResolveField(
-                field.GetIndex(), dex_cache, class_loader, /*is_static=*/ false);
-            if (resolved == nullptr) {
-              CheckAndClearResolveException(soa.Self());
-            }
-          },
-          /*direct_method_visitor=*/ method_visitor,
-          /*virtual_method_visitor=*/ method_visitor);
-    }
-  }
-
- private:
-  const ParallelCompilationManager* const manager_;
-};
-
-class ResolveTypeVisitor : public CompilationVisitor {
- public:
-  explicit ResolveTypeVisitor(const ParallelCompilationManager* manager) : manager_(manager) {
-  }
-  void Visit(size_t type_idx) override REQUIRES(!Locks::mutator_lock_) {
-  // Class derived values are more complicated, they require the linker and loader.
-    ScopedObjectAccess soa(Thread::Current());
-    ClassLinker* class_linker = manager_->GetClassLinker();
-    const DexFile& dex_file = *manager_->GetDexFile();
-    StackHandleScope<2> hs(soa.Self());
-    Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader>(manager_->GetClassLoader())));
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
-        dex_file,
-        class_loader.Get())));
-    ObjPtr<mirror::Class> klass = (dex_cache != nullptr)
-        ? class_linker->ResolveType(dex::TypeIndex(type_idx), dex_cache, class_loader)
-        : nullptr;
-
-    if (klass == nullptr) {
-      soa.Self()->AssertPendingException();
-      mirror::Throwable* exception = soa.Self()->GetException();
-      VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
-      if (exception->GetClass()->DescriptorEquals("Ljava/lang/OutOfMemoryError;")) {
-        // There's little point continuing compilation if the heap is exhausted.
-        LOG(FATAL) << "Out of memory during type resolution for compilation";
-      }
-      soa.Self()->ClearException();
     }
   }
 
@@ -1669,6 +1589,8 @@ void CompilerDriver::ResolveDexFile(jobject class_loader,
                                     ThreadPool* thread_pool,
                                     size_t thread_count,
                                     TimingLogger* timings) {
+  ScopedTrace trace(__FUNCTION__);
+  TimingLogger::ScopedTiming t("Resolve Types", timings);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
@@ -1676,17 +1598,15 @@ void CompilerDriver::ResolveDexFile(jobject class_loader,
 
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, dex_files,
                                      thread_pool);
+  // For boot images we resolve all referenced types, such as arrays,
+  // whereas for applications just those with classdefs.
   if (GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension()) {
-    // For images we resolve all types, such as array, whereas for applications just those with
-    // classdefs are resolved by ResolveClassFieldsAndMethods.
-    TimingLogger::ScopedTiming t("Resolve Types", timings);
-    ResolveTypeVisitor visitor(&context);
+    ResolveTypeVisitor</*kApp=*/ false> visitor(&context);
     context.ForAll(0, dex_file.NumTypeIds(), &visitor, thread_count);
+  } else {
+    ResolveTypeVisitor</*kApp=*/ true> visitor(&context);
+    context.ForAll(0, dex_file.NumClassDefs(), &visitor, thread_count);
   }
-
-  TimingLogger::ScopedTiming t("Resolve MethodsAndFields", timings);
-  ResolveClassFieldsAndMethodsVisitor visitor(&context);
-  context.ForAll(0, dex_file.NumClassDefs(), &visitor, thread_count);
 }
 
 void CompilerDriver::SetVerified(jobject class_loader,
