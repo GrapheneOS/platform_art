@@ -43,14 +43,18 @@ ObjPtr<MethodType> MethodType::Create(Thread* const self,
   Handle<MethodType> mt(
       hs.NewHandle(ObjPtr<MethodType>::DownCast(GetClassRoot<MethodType>()->AllocObject(self))));
 
-  // TODO: Do we ever create a MethodType during a transaction ? There doesn't
-  // seem like a good reason to do a polymorphic invoke that results in the
-  // resolution of a method type in an unstarted runtime.
-  mt->SetFieldObject<false>(FormOffset(), nullptr);
-  mt->SetFieldObject<false>(MethodDescriptorOffset(), nullptr);
-  mt->SetFieldObject<false>(RTypeOffset(), return_type.Get());
-  mt->SetFieldObject<false>(PTypesOffset(), parameter_types.Get());
-  mt->SetFieldObject<false>(WrapAltOffset(), nullptr);
+  // We're initializing a newly allocated object, so we do not need to record that under
+  // a transaction. If the transaction is aborted, the whole object shall be unreachable.
+  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
+      FormOffset(), nullptr);
+  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
+      MethodDescriptorOffset(), nullptr);
+  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
+      RTypeOffset(), return_type.Get());
+  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
+      PTypesOffset(), parameter_types.Get());
+  mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(
+      WrapAltOffset(), nullptr);
 
   return mt.Get();
 }
