@@ -672,17 +672,18 @@ class OnDeviceRefresh final {
     args->emplace_back(Concatenate({"--instruction-set=", isa_str}));
   }
 
-  static std::unique_ptr<File> AddDex2OatProfileAndCompilerFilter(
+  static void AddDex2OatProfileAndCompilerFilter(
       /*inout*/ std::vector<std::string>* args,
+      /*inout*/ std::vector<std::unique_ptr<File>>* output_files,
       const std::string& profile_path) {
     std::unique_ptr<File> profile_file(OS::OpenFileForReading(profile_path.c_str()));
     if (profile_file && profile_file->IsOpened()) {
       args->emplace_back(android::base::StringPrintf("--profile-file-fd=%d", profile_file->Fd()));
       args->emplace_back("--compiler-filter=speed-profile");
+      output_files->push_back(std::move(profile_file));
     } else {
       args->emplace_back("--compiler-filter=speed");
     }
-    return profile_file;
   }
 
   static bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
@@ -1041,7 +1042,7 @@ class OnDeviceRefresh final {
 
     std::vector<std::unique_ptr<File>> readonly_files_raii;
     const std::string boot_profile_file(GetAndroidRoot() + "/etc/boot-image.prof");
-    readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(&args, boot_profile_file));
+    AddDex2OatProfileAndCompilerFilter(&args, &readonly_files_raii, boot_profile_file);
 
     // Compile as a single image for fewer files and slightly less memory overhead.
     args.emplace_back("--single-image");
@@ -1182,7 +1183,7 @@ class OnDeviceRefresh final {
       AddDex2OatInstructionSet(&args, isa);
       const std::string jar_name(android::base::Basename(jar));
       const std::string profile = Concatenate({GetAndroidRoot(), "/framework/", jar_name, ".prof"});
-      readonly_files_raii.emplace_back(AddDex2OatProfileAndCompilerFilter(&args, profile));
+      AddDex2OatProfileAndCompilerFilter(&args, &readonly_files_raii, profile);
 
       const std::string image_location = GetSystemServerImagePath(/*on_system=*/false, jar);
       const std::string install_location = android::base::Dirname(image_location);
