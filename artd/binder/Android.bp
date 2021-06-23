@@ -22,32 +22,31 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-art_cc_binary {
-    name: "artd",
-    defaults: ["art_defaults"],
-    min_sdk_version: "S",
-
+aidl_interface {
+    name: "artd-aidl",
     srcs: [
-        "artd.cc",
+        "android/os/IArtd.aidl",
     ],
-
-    shared_libs: [
-        "artd-aidl-ndk",
-        "libartbase",
-        "libarttools",
-        "libbase",
-        "libbinder_ndk",
+    host_supported: true,
+    backend: {
+        java: {
+            enabled: false,
+        },
+        cpp: {
+            enabled: false,
+        },
+        ndk: {
+            enabled: true,
+            apex_available: [
+                "com.android.art",
+                "com.android.art.debug",
+            ],
+            // TODO(b/177273468): Increment to next version when possible
+            min_sdk_version: "S",
+        },
+    },
+    unstable: true,
+    visibility: [
+        "//system/tools/aidl/build",
     ],
-
-    apex_available: [
-        "com.android.art",
-        "com.android.art.debug",
-    ],
-}
-
-prebuilt_etc {
-    name: "com.android.art.artd.init.rc",
-    src: "artd.rc",
-    filename: "init.rc",
-    installable: false,
 }
