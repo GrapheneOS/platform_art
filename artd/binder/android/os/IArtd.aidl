@@ -18,4 +18,6 @@ package android.os;
 
 /** {@hide} */
 interface IArtd {
+    // Test to see if the artd service is available.
+    boolean isAlive();
 }
