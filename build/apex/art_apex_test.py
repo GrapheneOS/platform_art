@@ -468,6 +468,7 @@ class ReleaseChecker:
     self._checker.check_native_library('libnativeloader')
 
     # Check internal libraries for ART.
+    self._checker.check_prefer64_library('artd-aidl-ndk')
     self._checker.check_native_library('libadbconnection')
     self._checker.check_native_library('libart')
     self._checker.check_native_library('libart-compiler')
