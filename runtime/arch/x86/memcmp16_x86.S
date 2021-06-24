@@ -40,7 +40,11 @@
 #define BLK2        BLK1+4
 #define LEN        BLK2+4
 #define RETURN_END    POP (%edi); POP (%esi); POP (%ebx); ret
-#define RETURN        RETURN_END; CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16); CFI_REMEMBER_STATE
+MACRO0(RETURN)
+    RETURN_END
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
+    CFI_REMEMBER_STATE
+END_MACRO
 
 DEFINE_FUNCTION MEMCMP
     movl       LEN(%esp), %ecx
@@ -131,7 +135,7 @@ L(shr_0):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_0_gobble):
@@ -177,7 +181,7 @@ L(shr_0_gobble_loop_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_2):
@@ -207,7 +211,7 @@ L(shr_2):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_2_gobble):
@@ -260,7 +264,7 @@ L(shr_2_gobble_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_4):
@@ -290,7 +294,7 @@ L(shr_4):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_4_gobble):
@@ -343,7 +347,7 @@ L(shr_4_gobble_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_6):
@@ -373,7 +377,7 @@ L(shr_6):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_6_gobble):
@@ -426,7 +430,7 @@ L(shr_6_gobble_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_8):
@@ -456,7 +460,7 @@ L(shr_8):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_8_gobble):
@@ -509,7 +513,7 @@ L(shr_8_gobble_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_10):
@@ -539,7 +543,7 @@ L(shr_10):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_10_gobble):
@@ -592,7 +596,7 @@ L(shr_10_gobble_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_12):
@@ -622,7 +626,7 @@ L(shr_12):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_12_gobble):
@@ -675,7 +679,7 @@ L(shr_12_gobble_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_14):
@@ -705,7 +709,7 @@ L(shr_14):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(shr_14_gobble):
@@ -758,7 +762,7 @@ L(shr_14_gobble_next):
     POP        (%esi)
     jmp        L(less48bytes)
 
-    CFI_RESTORE_STATE_AND_DEF_CFA(esp, 16)
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 16
     CFI_REMEMBER_STATE
     .p2align 4
 L(exit):
