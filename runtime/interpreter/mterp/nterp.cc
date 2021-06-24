@@ -754,5 +754,9 @@ extern "C" ssize_t NterpDoSparseSwitch(const uint16_t* switchData, int32_t testV
   return MterpDoSparseSwitch(switchData, testVal);
 }
 
+extern "C" void NterpFree(void* val) {
+  free(val);
+}
+
 }  // namespace interpreter
 }  // namespace art
