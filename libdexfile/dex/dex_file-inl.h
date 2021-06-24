@@ -193,6 +193,15 @@ inline const char* DexFile::GetShorty(dex::ProtoIndex proto_idx) const {
   return StringDataByIdx(proto_id.shorty_idx_);
 }
 
+ALWAYS_INLINE
+inline std::string_view DexFile::GetShortyView(const dex::ProtoId& proto_id) const {
+  uint32_t lhs_shorty_len;
+  const char* lhs_shorty_data =
+      StringDataAndUtf16LengthByIdx(proto_id.shorty_idx_, &lhs_shorty_len);
+  DCHECK_EQ(lhs_shorty_data[lhs_shorty_len], '\0');  // For a shorty utf16 length == mutf8 length.
+  return std::string_view(lhs_shorty_data, lhs_shorty_len);
+}
+
 inline const dex::TryItem* DexFile::GetTryItems(const DexInstructionIterator& code_item_end,
                                                 uint32_t offset) {
   return reinterpret_cast<const dex::TryItem*>
