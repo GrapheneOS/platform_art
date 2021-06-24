@@ -28,7 +28,7 @@ public class Main {
     // Note that it's ART specific to emit the length.
     if (exceptionMessage.contains("length")) {
       if (!exceptionMessage.contains("length=1")) {
-        throw new Error("Wrong length in exception message");
+        throw new Error("Wrong length in exception message: " + exceptionMessage);
       }
     }
 

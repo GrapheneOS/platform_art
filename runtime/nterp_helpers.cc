@@ -43,6 +43,8 @@ namespace art {
  *    | registers    |      On x86 and x64 this includes the return address,
  *    |              |      already spilled on entry.
  *    ----------------
+ *    |   x86 args   |      x86 only: registers used for argument passing.
+ *    ----------------
  *    |  alignment   |      Stack aligment of kStackAlignment.
  *    ----------------
  *    |              |      Contains `registers_size` entries (of size 4) from
@@ -93,6 +95,8 @@ static constexpr size_t NterpGetFrameEntrySize(InstructionSet isa) {
     case InstructionSet::kX86:
       core_spills = x86::X86CalleeSaveFrame::GetCoreSpills(CalleeSaveType::kSaveAllCalleeSaves);
       fp_spills = x86::X86CalleeSaveFrame::GetFpSpills(CalleeSaveType::kSaveAllCalleeSaves);
+      // x86 also saves registers used for argument passing.
+      core_spills |= x86::kX86CalleeSaveEverythingSpills;
       break;
     case InstructionSet::kX86_64:
       core_spills =
@@ -116,10 +120,26 @@ static constexpr size_t NterpGetFrameEntrySize(InstructionSet isa) {
       static_cast<size_t>(InstructionSetPointerSize(isa));
 }
 
+static uint16_t GetNumberOfOutRegs(ArtMethod* method, InstructionSet isa)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  CodeItemDataAccessor accessor(method->DexInstructionData());
+  uint16_t out_regs = accessor.OutsSize();
+  switch (isa) {
+    case InstructionSet::kX86: {
+      // On x86, we use three slots for temporaries.
+      out_regs = std::max(out_regs, static_cast<uint16_t>(3u));
+      break;
+    }
+    default:
+      break;
+  }
+  return out_regs;
+}
+
 size_t NterpGetFrameSize(ArtMethod* method, InstructionSet isa) {
   CodeItemDataAccessor accessor(method->DexInstructionData());
   const uint16_t num_regs = accessor.RegistersSize();
-  const uint16_t out_regs = accessor.OutsSize();
+  const uint16_t out_regs = GetNumberOfOutRegs(method, isa);
   size_t pointer_size = static_cast<size_t>(InstructionSetPointerSize(isa));
 
   // Note: There may be two pieces of alignment but there is no need to align
@@ -153,8 +173,7 @@ uintptr_t NterpGetRegistersArray(ArtMethod** frame) {
 }
 
 uintptr_t NterpGetReferenceArray(ArtMethod** frame) {
-  CodeItemDataAccessor accessor((*frame)->DexInstructionData());
-  const uint16_t out_regs = accessor.OutsSize();
+  const uint16_t out_regs = GetNumberOfOutRegs(*frame, kRuntimeISA);
   // The references array is just above the saved frame pointer.
   return reinterpret_cast<uintptr_t>(frame) +
       kPointerSize +  // method
@@ -164,8 +183,7 @@ uintptr_t NterpGetReferenceArray(ArtMethod** frame) {
 }
 
 uint32_t NterpGetDexPC(ArtMethod** frame) {
-  CodeItemDataAccessor accessor((*frame)->DexInstructionData());
-  const uint16_t out_regs = accessor.OutsSize();
+  const uint16_t out_regs = GetNumberOfOutRegs(*frame, kRuntimeISA);
   uintptr_t dex_pc_ptr = reinterpret_cast<uintptr_t>(frame) +
       kPointerSize +  // method
       RoundUp(out_regs * kVRegSize, kPointerSize);  // out arguments and pointer alignment
