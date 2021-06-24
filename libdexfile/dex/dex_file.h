@@ -510,6 +510,7 @@ class DexFile {
 
   // Returns the short form method descriptor for the given prototype.
   const char* GetShorty(dex::ProtoIndex proto_idx) const;
+  std::string_view GetShortyView(const dex::ProtoId& proto_id) const;
 
   const dex::TypeList* GetProtoParameters(const dex::ProtoId& proto_id) const {
     return DataPointer<dex::TypeList>(proto_id.parameters_off_);
