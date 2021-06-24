@@ -13,14 +13,15 @@
 {
   description: "Timeouts.",
   result: EXEC_FAILED,
-  names: ["libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndNoTimeout"]
+  bug: 187140709
+  names: ["libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndNoTimeout",
+          "libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndTimeout"]
 },
 {
   description: "Timeouts.",
   result: EXEC_FAILED,
   modes: [host],
-  names: ["libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndTimeout",
-          "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest#testGetOutputStream",
+  names: ["org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest#testGetOutputStream",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest#testProxyAuthorization"]
 },
 {
