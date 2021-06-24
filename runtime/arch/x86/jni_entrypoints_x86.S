@@ -194,7 +194,7 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
 
     // Do the tail call.
     jmp *%eax
-    CFI_RESTORE_STATE_AND_DEF_CFA(%esp, FRAME_SIZE_SAVE_REFS_AND_ARGS)
+    CFI_RESTORE_STATE_AND_DEF_CFA %esp, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcritical_deliver_exception:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
