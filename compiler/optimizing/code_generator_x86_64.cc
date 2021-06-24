@@ -5024,6 +5024,7 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
                                                     Address field_addr,
                                                     CpuRegister base,
                                                     bool is_volatile,
+                                                    bool is_atomic,
                                                     bool value_can_be_null) {
   LocationSummary* locations = instruction->GetLocations();
   Location value = locations->InAt(value_index);
@@ -5081,10 +5082,17 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     case DataType::Type::kInt64: {
       if (value.IsConstant()) {
         int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
-        codegen_->MoveInt64ToAddress(field_addr,
-                                     Address::displace(field_addr, sizeof(int32_t)),
-                                     v,
-                                     instruction);
+        if (is_atomic) {
+          // Move constant into a register, then atomically store the register to memory.
+          CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
+          __ movq(temp, Immediate(v));
+          __ movq(field_addr, temp);
+        } else {
+          codegen_->MoveInt64ToAddress(field_addr,
+                                       Address::displace(field_addr, sizeof(int32_t)),
+                                       v,
+                                       instruction);
+        }
         maybe_record_implicit_null_check_done = true;
       } else {
         __ movq(field_addr, value.AsRegister<CpuRegister>());
@@ -5105,10 +5113,17 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
     case DataType::Type::kFloat64: {
       if (value.IsConstant()) {
         int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
-        codegen_->MoveInt64ToAddress(field_addr,
-                                     Address::displace(field_addr, sizeof(int32_t)),
-                                     v,
-                                     instruction);
+        if (is_atomic) {
+          // Move constant into a register, then atomically store the register to memory.
+          CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
+          __ movq(temp, Immediate(v));
+          __ movq(field_addr, temp);
+        } else {
+          codegen_->MoveInt64ToAddress(field_addr,
+                                       Address::displace(field_addr, sizeof(int32_t)),
+                                       v,
+                                       instruction);
+        }
         maybe_record_implicit_null_check_done = true;
       } else {
         __ movsd(field_addr, value.AsFpuRegister<XmmRegister>());
@@ -5164,6 +5179,7 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
                  Address(base, offset),
                  base,
                  is_volatile,
+                 /*is_atomic=*/ false,
                  value_can_be_null);
 
   if (is_predicated) {

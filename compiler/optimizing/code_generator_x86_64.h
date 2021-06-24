@@ -248,6 +248,7 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
                       Address field_addr,
                       CpuRegister base,
                       bool is_volatile,
+                      bool is_atomic,
                       bool value_can_be_null);
 
  private:
