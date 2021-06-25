@@ -1096,7 +1096,9 @@ void Runtime::InitNonZygoteOrPostFork(
     metrics_reporter_->ReloadConfig(metrics_config);
 
     metrics::SessionData session_data{metrics::SessionData::CreateDefault()};
-    session_data.session_id = GetRandomNumber<int64_t>(0, std::numeric_limits<int64_t>::max());
+    // Start the session id from 1 to avoid clashes with the default value.
+    // (better for debugability)
+    session_data.session_id = GetRandomNumber<int64_t>(1, std::numeric_limits<int64_t>::max());
     // TODO: set session_data.compilation_reason and session_data.compiler_filter
     metrics_reporter_->MaybeStartBackgroundThread(session_data);
   }
@@ -2044,6 +2046,10 @@ void Runtime::InitNativeMethods() {
   // a regular JNI libraries with a regular JNI_OnLoad. Most JNI libraries can
   // just use System.loadLibrary, but libcore can't because it's the library
   // that implements System.loadLibrary!
+  //
+  // By setting calling class to java.lang.Object, the caller location for these
+  // JNI libs is core-oj.jar in the ART APEX, and hence they are loaded from the
+  // com_android_art linker namespace.
 
   // libicu_jni has to be initialized before libopenjdk{d} due to runtime dependency from
   // libopenjdk{d} to Icu4cMetadata native methods in libicu_jni. See http://b/143888405

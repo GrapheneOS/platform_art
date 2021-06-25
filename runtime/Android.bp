@@ -324,8 +324,9 @@ libart_cc_defaults {
         x86: {
             srcs: [
                 "interpreter/mterp/mterp.cc",
-                "interpreter/mterp/nterp_stub.cc",
+                "interpreter/mterp/nterp.cc",
                 ":libart_mterp.x86",
+                ":libart_mterp.x86ng",
                 "arch/x86/context_x86.cc",
                 "arch/x86/entrypoints_init_x86.cc",
                 "arch/x86/jni_entrypoints_x86.S",
@@ -366,6 +367,7 @@ libart_cc_defaults {
             },
         },
     },
+
     target: {
         android: {
             srcs: [
@@ -418,6 +420,7 @@ libart_cc_defaults {
             ],
         },
     },
+
     generated_sources: [
         "art_operator_srcs",
     ],
@@ -425,6 +428,7 @@ libart_cc_defaults {
     generated_headers: ["cpp-define-generator-asm-support"],
     // export our headers so the libart-gtest targets can use it as well.
     export_generated_headers: ["cpp-define-generator-asm-support"],
+
     header_libs: [
         "art_cmdlineparser_headers",
         "cpp-define-generator-definitions",
@@ -447,6 +451,20 @@ libart_cc_defaults {
         "libunwindstack",
     ],
     static_libs: ["libodrstatslog"],
+
+    runtime_libs: [
+        // Libraries loaded at runtime. Exceptions:
+        // - libart(d)-compiler.so and libopenjdk(d).so cannot be listed here
+        //   due to cyclic dependency.
+        // - libicu_jni.so is only loaded to handle dependency order in VM
+        //   startup (see Runtime::InitNativeMethods), but its API is internal
+        //   to com.android.i18n and not used by ART/libcore. Therefore it's not
+        //   listed here to avoid visibility issues. Instead it's linked from
+        //   the ART module namespace through an entry in requireNativeLibs in
+        //   manifest-art.json.
+        "libjavacore",
+    ],
+
     export_include_dirs: ["."],
     // ART's macros.h depends on libbase's macros.h.
     // Note: runtime_options.h depends on cmdline. But we don't really want to export this
@@ -838,6 +856,22 @@ genrule {
     name: "libart_mterp.x86_64",
     out: ["mterp_x86_64.S"],
     srcs: ["interpreter/mterp/x86_64/*.S"],
+    tool_files: [
+        "interpreter/mterp/gen_mterp.py",
+        "interpreter/mterp/common/gen_setup.py",
+        ":art_libdexfile_dex_instruction_list_header",
+    ],
+    cmd: "$(location interpreter/mterp/gen_mterp.py) $(out) $(in)",
+}
+
+genrule {
+    name: "libart_mterp.x86ng",
+    out: ["mterp_x86ng.S"],
+    srcs: [
+        "interpreter/mterp/x86ng/*.S",
+        "interpreter/mterp/x86/arithmetic.S",
+        "interpreter/mterp/x86/floating_point.S",
+    ],
     tool_files: [
         "interpreter/mterp/gen_mterp.py",
         "interpreter/mterp/common/gen_setup.py",
