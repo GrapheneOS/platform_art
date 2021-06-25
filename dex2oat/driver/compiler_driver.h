@@ -194,10 +194,6 @@ class CompilerDriver {
     return compiled_method_storage_.DedupeEnabled();
   }
 
-  // Checks whether profile guided compilation is enabled and if the method should be compiled
-  // according to the profile file.
-  bool ShouldCompileBasedOnProfile(const MethodReference& method_ref) const;
-
   // Checks whether profile guided verification is enabled and if the method should be verified
   // according to the profile file.
   bool ShouldVerifyClassBasedOnProfile(const DexFile& dex_file, uint16_t class_idx) const;
