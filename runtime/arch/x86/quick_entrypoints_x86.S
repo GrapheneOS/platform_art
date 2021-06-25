@@ -1022,8 +1022,6 @@ MACRO1(ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED_WITH_SIZE, slowPathLabel)
 END_MACRO
 
 MACRO1(COMPUTE_ARRAY_SIZE_UNKNOWN, slow_path)
-    // We should never enter here. Code is provided for reference.
-    int3
     // Possibly a large object, go slow.
     // Also does negative array size check.
     cmpl LITERAL((MIN_LARGE_OBJECT_THRESHOLD - MIRROR_WIDE_ARRAY_DATA_OFFSET) / 8), %ecx
