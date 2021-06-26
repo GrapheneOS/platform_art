@@ -1041,39 +1041,43 @@ ArtMethod* Class::FindClassInitializer(PointerSize pointer_size) {
   return nullptr;
 }
 
-// Custom binary search to avoid double comparisons from std::binary_search.
-static ArtField* FindFieldByNameAndType(const DexFile& dex_file,
-                                        LengthPrefixedArray<ArtField>* fields,
-                                        std::string_view name,
-                                        std::string_view type)
+static std::tuple<bool, ArtField*> FindFieldByNameAndType(const DexFile& dex_file,
+                                                          LengthPrefixedArray<ArtField>* fields,
+                                                          std::string_view name,
+                                                          std::string_view type)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(fields != nullptr);
-  size_t low = 0;
-  size_t high = fields->size();
-  ArtField* ret = nullptr;
-  while (low < high) {
-    size_t mid = (low + high) / 2;
+  DCHECK(!name.empty());
+  DCHECK(!type.empty());
+
+  // Fields are sorted by class, then name, then type descriptor. This is verified in dex file
+  // verifier. There can be multiple fields with the same name in the same class due to proguard.
+  // Note: std::string_view::compare() uses lexicographical comparison and treats the `char` as
+  // unsigned; for Modified-UTF-8 without embedded nulls this is consistent with the
+  // CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues() ordering.
+  auto get_field_id = [&](uint32_t mid) REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE
+      -> const dex::FieldId& {
     ArtField& field = fields->At(mid);
     DCHECK(field.GetDexFile() == &dex_file);
-    const dex::FieldId& field_id = dex_file.GetFieldId(field.GetDexFieldIndex());
-    // Fields are sorted by class, then name, then type descriptor. This is verified in dex file
-    // verifier. There can be multiple fields with the same in the same class name due to proguard.
-    // Note: std::string_view::compare() uses lexicographical comparison and treats the `char` as
-    // unsigned; for modified-UTF-8 without embedded nulls this is consistent with the
-    // CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues() ordering.
-    int result = dex_file.GetFieldNameView(field_id).compare(name);
-    if (result == 0) {
-      result = dex_file.GetFieldTypeDescriptorView(field_id).compare(type);
-    }
-    if (result < 0) {
-      low = mid + 1;
-    } else if (result > 0) {
-      high = mid;
-    } else {
-      ret = &field;
-      break;
-    }
-  }
+    return dex_file.GetFieldId(field.GetDexFieldIndex());
+  };
+  auto name_cmp = [&](uint32_t mid) REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
+    const dex::FieldId& field_id = get_field_id(mid);
+    return name.compare(dex_file.GetFieldNameView(field_id));
+  };
+  auto type_cmp = [&](uint32_t mid) REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
+    const dex::FieldId& field_id = get_field_id(mid);
+    return type.compare(dex_file.GetTypeDescriptorView(dex_file.GetTypeId(field_id.type_idx_)));
+  };
+  auto get_name_idx = [&](uint32_t mid) REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
+    const dex::FieldId& field_id = get_field_id(mid);
+    return field_id.name_idx_;
+  };
+
+  // Use binary search in the sorted fields.
+  auto [success, mid] =
+      ClassMemberBinarySearch(/*begin=*/ 0u, fields->size(), name_cmp, type_cmp, get_name_idx);
+
   if (kIsDebugBuild) {
     ArtField* found = nullptr;
     for (ArtField& field : MakeIterationRangeFromLengthPrefixedArray(fields)) {
@@ -1083,13 +1087,16 @@ static ArtField* FindFieldByNameAndType(const DexFile& dex_file,
       }
     }
 
-    auto pretty_field = [](ArtField* field) REQUIRES_SHARED(Locks::mutator_lock_) {
-      return field != nullptr ? field->PrettyField() : "(null)";
-    };
-
-    CHECK_EQ(found, ret) << "Found " << pretty_field(found) << " vs  " << pretty_field(ret);
+    ArtField* ret = success ? &fields->At(mid) : nullptr;
+    CHECK_EQ(found, ret)
+        << "Found " << ArtField::PrettyField(found) << " vs " << ArtField::PrettyField(ret);
   }
-  return ret;
+
+  if (success) {
+    return {true, &fields->At(mid)};
+  }
+
+  return {false, nullptr};
 }
 
 ArtField* Class::FindDeclaredInstanceField(std::string_view name, std::string_view type) {
@@ -1099,7 +1106,9 @@ ArtField* Class::FindDeclaredInstanceField(std::string_view name, std::string_vi
     return nullptr;
   }
   DCHECK(!IsProxyClass());
-  return FindFieldByNameAndType(GetDexFile(), ifields, name, type);
+  auto [success, field] = FindFieldByNameAndType(GetDexFile(), ifields, name, type);
+  DCHECK_EQ(success, field != nullptr);
+  return field;
 }
 
 ArtField* Class::FindDeclaredInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
@@ -1148,7 +1157,9 @@ ArtField* Class::FindDeclaredStaticField(std::string_view name, std::string_view
       return nullptr;
     }
   }
-  return FindFieldByNameAndType(GetDexFile(), sfields, name, type);
+  auto [success, field] = FindFieldByNameAndType(GetDexFile(), sfields, name, type);
+  DCHECK_EQ(success, field != nullptr);
+  return field;
 }
 
 ArtField* Class::FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
@@ -1256,17 +1267,37 @@ ArtField* FindFieldImpl(ObjPtr<mirror::Class> klass,
     return static_cast<ArtField*>(nullptr);
   };
 
-  // If we had a dex cache mismatch, search declared fields by name and type.
-  if (klass_dex_cache != dex_cache &&
-      ((kSearchInstanceFields && klass->GetIFieldsPtr() != nullptr) ||
-       (kSearchStaticFields && klass->GetSFieldsPtr() != nullptr))) {
-    ensure_name_and_type_initialized();
-    ArtField* f = kSearchInstanceFields ? klass->FindDeclaredInstanceField(name, type) : nullptr;
-    if (kSearchStaticFields && f == nullptr) {
-      f = klass->FindDeclaredStaticField(name, type);
+  auto find_field_by_name_and_type = [&](ObjPtr<mirror::Class> k, ObjPtr<DexCache> k_dex_cache)
+      REQUIRES_SHARED(Locks::mutator_lock_) -> std::tuple<bool, ArtField*> {
+    if ((!kSearchInstanceFields || k->GetIFieldsPtr() == nullptr) &&
+        (!kSearchStaticFields || k->GetSFieldsPtr() == nullptr)) {
+      return {false, nullptr};
     }
-    if (f != nullptr) {
-      return f;
+    ensure_name_and_type_initialized();
+    const DexFile& k_dex_file = *k_dex_cache->GetDexFile();
+    if (kSearchInstanceFields && k->GetIFieldsPtr() != nullptr) {
+      auto [success, field] = FindFieldByNameAndType(k_dex_file, k->GetIFieldsPtr(), name, type);
+      DCHECK_EQ(success, field != nullptr);
+      if (success) {
+        return {true, field};
+      }
+    }
+    if (kSearchStaticFields && k->GetSFieldsPtr() != nullptr) {
+      auto [success, field] = FindFieldByNameAndType(k_dex_file, k->GetSFieldsPtr(), name, type);
+      DCHECK_EQ(success, field != nullptr);
+      if (success) {
+        return {true, field};
+      }
+    }
+    return {false, nullptr};
+  };
+
+  // If we had a dex cache mismatch, search declared fields by name and type.
+  if (klass_dex_cache != dex_cache) {
+    auto [success, field] = find_field_by_name_and_type(klass, klass_dex_cache);
+    DCHECK_EQ(success, field != nullptr);
+    if (success) {
+      return field;
     }
   }
 
@@ -1303,15 +1334,11 @@ ArtField* FindFieldImpl(ObjPtr<mirror::Class> klass,
           }
         }
       }
-    } else if ((kSearchInstanceFields && k->GetIFieldsPtr() != nullptr) ||
-               (kSearchStaticFields && k->GetSFieldsPtr() != nullptr)) {
-      ensure_name_and_type_initialized();
-      ArtField* f = kSearchInstanceFields ? k->FindDeclaredInstanceField(name, type) : nullptr;
-      if (kSearchStaticFields && f == nullptr) {
-        f = k->FindDeclaredStaticField(name, type);
-      }
-      if (f != nullptr) {
-        return f;
+    } else {
+      auto [success, field] = find_field_by_name_and_type(k, k_dex_cache);
+      DCHECK_EQ(success, field != nullptr);
+      if (success) {
+        return field;
       }
     }
     if (kSearchStaticFields) {
