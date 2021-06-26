@@ -109,7 +109,7 @@ if [[ $build_target == "yes" ]]; then
   fi
   make_command+=" build-art-target-tests"
   make_command+=" libnetd_client-target toybox sh libtombstoned_client"
-  make_command+=" debuggerd su gdbserver"
+  make_command+=" debuggerd su"
   # vogar requires the class files for conscrypt and ICU.
   make_command+=" conscrypt core-icu4j"
   make_command+=" ${ANDROID_PRODUCT_OUT#"${ANDROID_BUILD_TOP}/"}/system/etc/public.libraries.txt"
