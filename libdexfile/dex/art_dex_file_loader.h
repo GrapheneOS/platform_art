@@ -110,13 +110,23 @@ class ArtDexFileLoader : public DexFileLoader {
                                          bool mmap_shared,
                                          std::string* error_msg) const;
 
-  // Opens dex files from within a .jar, .zip, or .apk file
+  // Opens dex files from within a .jar, .zip, or .apk file using its file descriptor. The file
+  // descriptor ownership is taken over, i.e. will be closed by this class.
   bool OpenZip(int fd,
                const std::string& location,
                bool verify,
                bool verify_checksum,
                std::string* error_msg,
                std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
+
+  // Opens dex files from within a .jar, .zip, or .apk file using its file descriptor. The file
+  // descriptor is assumed owned by the caller.
+  bool OpenZipFromOwnedFd(int fd,
+                          const std::string& location,
+                          bool verify,
+                          bool verify_checksum,
+                          std::string* error_msg,
+                          std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 
  private:
   bool OpenWithMagic(uint32_t magic,
@@ -151,6 +161,13 @@ class ArtDexFileLoader : public DexFileLoader {
                                                        bool verify_checksum,
                                                        std::string* error_msg,
                                                        DexFileLoaderErrorCode* error_code) const;
+
+  bool OpenZipInternal(ZipArchive* raw_zip_archive,
+                       const std::string& location,
+                       bool verify,
+                       bool verify_checksum,
+                       std::string* error_msg,
+                       std::vector<std::unique_ptr<const DexFile>>* dex_files) const;
 
   static std::unique_ptr<DexFile> OpenCommon(const uint8_t* base,
                                              size_t size,
