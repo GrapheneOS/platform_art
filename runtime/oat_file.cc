@@ -734,15 +734,21 @@ bool OatFileBase::Setup(int zip_fd,
         const ArtDexFileLoader dex_file_loader;
         bool loaded = false;
         CHECK(zip_fd == -1 || dex_fds.empty());  // Allow only the supported combinations.
-        int fd = zip_fd >= 0 ?: dex_fd;
-        if (fd != -1) {
-          // Note that we assume dex_fds are backing by jars.
-          loaded = dex_file_loader.OpenZip(fd,
+        if (zip_fd != -1) {
+          loaded = dex_file_loader.OpenZip(zip_fd,
                                            dex_file_location,
                                            /*verify=*/ false,
                                            /*verify_checksum=*/ false,
                                            error_msg,
                                            &new_dex_files);
+        } else if (dex_fd != -1) {
+          // Note that we assume dex_fds are backing by jars.
+          loaded = dex_file_loader.OpenZipFromOwnedFd(dex_fd,
+                                                      dex_file_location,
+                                                      /*verify=*/ false,
+                                                      /*verify_checksum=*/ false,
+                                                      error_msg,
+                                                      &new_dex_files);
         } else {
           loaded = dex_file_loader.Open(dex_file_name.c_str(),
                                         dex_file_location,
