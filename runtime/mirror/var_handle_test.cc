@@ -285,7 +285,7 @@ TEST_F(VarHandleTest, InstanceFieldVarHandle) {
   StackHandleScope<6> hs(self);
   Handle<mirror::FieldVarHandle> fvh(hs.NewHandle(CreateFieldVarHandle(self, value, mask)));
   EXPECT_FALSE(fvh.IsNull());
-  EXPECT_EQ(value, fvh->GetField());
+  EXPECT_EQ(value, fvh->GetArtField());
 
   // Check access modes
   EXPECT_TRUE(fvh->IsAccessModeSupported(VarHandle::AccessMode::kGet));
@@ -488,7 +488,7 @@ TEST_F(VarHandleTest, StaticFieldVarHandle) {
   StackHandleScope<6> hs(self);
   Handle<mirror::FieldVarHandle> fvh(hs.NewHandle(CreateFieldVarHandle(self, value, mask)));
   EXPECT_FALSE(fvh.IsNull());
-  EXPECT_EQ(value, fvh->GetField());
+  EXPECT_EQ(value, fvh->GetArtField());
 
   // Check access modes
   EXPECT_FALSE(fvh->IsAccessModeSupported(VarHandle::AccessMode::kGet));
