@@ -909,6 +909,8 @@ class X86_64Assembler final : public Assembler {
   void jmp(NearLabel* label);
 
   X86_64Assembler* lock();
+  void cmpxchgb(const Address& address, CpuRegister reg);
+  void cmpxchgw(const Address& address, CpuRegister reg);
   void cmpxchgl(const Address& address, CpuRegister reg);
   void cmpxchgq(const Address& address, CpuRegister reg);
 
@@ -964,6 +966,22 @@ class X86_64Assembler final : public Assembler {
   void AddImmediate(CpuRegister reg, const Immediate& imm);
 
   void LoadDoubleConstant(XmmRegister dst, double value);
+
+  void LockCmpxchgb(const Address& address, CpuRegister reg) {
+    lock()->cmpxchgb(address, reg);
+  }
+
+  void LockCmpxchgw(const Address& address, CpuRegister reg) {
+    AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+    // We make sure that the operand size override bytecode is emited before the lock bytecode.
+    // We test against clang which enforces this bytecode order.
+    EmitOperandSizeOverride();
+    EmitUint8(0xF0);
+    EmitOptionalRex32(reg, address);
+    EmitUint8(0x0F);
+    EmitUint8(0xB1);
+    EmitOperand(reg.LowBits(), address);
+  }
 
   void LockCmpxchgl(const Address& address, CpuRegister reg) {
     lock()->cmpxchgl(address, reg);
