@@ -311,8 +311,39 @@ bool ArtDexFileLoader::OpenZip(int fd,
                                std::string* error_msg,
                                std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
   ScopedTrace trace("Dex file open Zip " + std::string(location));
+  return OpenZipInternal(ZipArchive::OpenFromFd(fd, location.c_str(), error_msg),
+                         location,
+                         verify,
+                         verify_checksum,
+                         error_msg,
+                         dex_files);
+}
+
+bool ArtDexFileLoader::OpenZipFromOwnedFd(
+    int fd,
+    const std::string& location,
+    bool verify,
+    bool verify_checksum,
+    std::string* error_msg,
+    std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
+  ScopedTrace trace("Dex file open Zip " + std::string(location) + " (owned fd)");
+  return OpenZipInternal(ZipArchive::OpenFromOwnedFd(fd, location.c_str(), error_msg),
+                         location,
+                         verify,
+                         verify_checksum,
+                         error_msg,
+                         dex_files);
+}
+
+bool ArtDexFileLoader::OpenZipInternal(
+    ZipArchive* raw_zip_archive,
+    const std::string& location,
+    bool verify,
+    bool verify_checksum,
+    std::string* error_msg,
+    std::vector<std::unique_ptr<const DexFile>>* dex_files) const {
   DCHECK(dex_files != nullptr) << "DexFile::OpenZip: out-param is nullptr";
-  std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, location.c_str(), error_msg));
+  std::unique_ptr<ZipArchive> zip_archive(raw_zip_archive);
   if (zip_archive.get() == nullptr) {
     DCHECK(!error_msg->empty());
     return false;
