@@ -961,6 +961,16 @@ TEST_F(AssemblerX86_64Test, Xchgl) {
   // DriverStr(Repeatrr(&x86_64::X86_64Assembler::xchgl, "xchgl %{reg2}, %{reg1}"), "xchgl");
 }
 
+TEST_F(AssemblerX86_64Test, LockCmpxchgb) {
+  DriverStr(RepeatAb(&x86_64::X86_64Assembler::LockCmpxchgb,
+                     "lock cmpxchgb %{reg}, {mem}"), "lock_cmpxchgb");
+}
+
+TEST_F(AssemblerX86_64Test, LockCmpxchgw) {
+  DriverStr(RepeatAw(&x86_64::X86_64Assembler::LockCmpxchgw,
+                     "lock cmpxchgw %{reg}, {mem}"), "lock_cmpxchgw");
+}
+
 TEST_F(AssemblerX86_64Test, LockCmpxchgl) {
   DriverStr(RepeatAr(&x86_64::X86_64Assembler::LockCmpxchgl,
                      "lock cmpxchgl %{reg}, {mem}"), "lock_cmpxchgl");
