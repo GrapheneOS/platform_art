@@ -4829,6 +4829,25 @@ X86_64Assembler* X86_64Assembler::lock() {
 }
 
 
+void X86_64Assembler::cmpxchgb(const Address& address, CpuRegister reg) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalByteRegNormalizingRex32(reg, address);
+  EmitUint8(0x0F);
+  EmitUint8(0xB0);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
+void X86_64Assembler::cmpxchgw(const Address& address, CpuRegister reg) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOperandSizeOverride();
+  EmitOptionalRex32(reg, address);
+  EmitUint8(0x0F);
+  EmitUint8(0xB1);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::cmpxchgl(const Address& address, CpuRegister reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg, address);
