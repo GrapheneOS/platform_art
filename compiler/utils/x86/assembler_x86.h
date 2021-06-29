@@ -888,9 +888,14 @@ class X86Assembler final : public Assembler {
   void LoadLongConstant(XmmRegister dst, int64_t value);
   void LoadDoubleConstant(XmmRegister dst, double value);
 
+  // For testing purpose (Repeat* functions expect Register rather than ByteRegister).
+  void cmpxchgb(const Address& address, Register reg) {
+    cmpxchgb(address, static_cast<ByteRegister>(reg));
+  }
+
+  // For testing purpose (Repeat* functions expect Register rather than ByteRegister).
   void LockCmpxchgb(const Address& address, Register reg) {
-    // For testing purpose
-    lock()->cmpxchgb(address, static_cast<ByteRegister>(reg));
+    LockCmpxchgb(address, static_cast<ByteRegister>(reg));
   }
 
   void LockCmpxchgb(const Address& address, ByteRegister reg) {
@@ -916,9 +921,9 @@ class X86Assembler final : public Assembler {
     lock()->cmpxchg8b(address);
   }
 
+  // For testing purpose (Repeat* functions expect Register rather than ByteRegister).
   void LockXaddb(const Address& address, Register reg) {
-    // For testing purpose
-    lock()->xaddb(address, static_cast<ByteRegister>(reg));
+    LockXaddb(address, static_cast<ByteRegister>(reg));
   }
 
   void LockXaddb(const Address& address, ByteRegister reg) {
