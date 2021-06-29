@@ -2759,6 +2759,13 @@ void Runtime::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache,
   GetTransaction()->RecordResolveString(dex_cache, string_idx);
 }
 
+void Runtime::RecordResolveMethodType(ObjPtr<mirror::DexCache> dex_cache,
+                                      dex::ProtoIndex proto_idx) const {
+  DCHECK(IsAotCompiler());
+  DCHECK(IsActiveTransaction());
+  GetTransaction()->RecordResolveMethodType(dex_cache, proto_idx);
+}
+
 void Runtime::SetFaultMessage(const std::string& message) {
   std::string* new_msg = new std::string(message);
   std::string* cur_msg = fault_message_.exchange(new_msg);
