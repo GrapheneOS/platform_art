@@ -268,6 +268,15 @@ void Transaction::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache,
   resolve_string_logs_.emplace_back(dex_cache, string_idx);
 }
 
+void Transaction::RecordResolveMethodType(ObjPtr<mirror::DexCache> dex_cache,
+                                          dex::ProtoIndex proto_idx) {
+  DCHECK(dex_cache != nullptr);
+  DCHECK_LT(proto_idx.index_, dex_cache->GetDexFile()->NumProtoIds());
+  MutexLock mu(Thread::Current(), log_lock_);
+  DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
+  resolve_method_type_logs_.emplace_back(dex_cache, proto_idx);
+}
+
 void Transaction::RecordStrongStringInsertion(ObjPtr<mirror::String> s) {
   InternStringLog log(s, InternStringLog::kStrongString, InternStringLog::kInsert);
   LogInternedString(std::move(log));
@@ -306,6 +315,7 @@ void Transaction::Rollback() {
   UndoArrayModifications();
   UndoInternStringTableModifications();
   UndoResolveStringModifications();
+  UndoResolveMethodTypeModifications();
   rolling_back_ = false;
 }
 
@@ -344,6 +354,13 @@ void Transaction::UndoResolveStringModifications() {
   resolve_string_logs_.clear();
 }
 
+void Transaction::UndoResolveMethodTypeModifications() {
+  for (ResolveMethodTypeLog& method_type_log : resolve_method_type_logs_) {
+    method_type_log.Undo();
+  }
+  resolve_method_type_logs_.clear();
+}
+
 void Transaction::VisitRoots(RootVisitor* visitor) {
   MutexLock mu(Thread::Current(), log_lock_);
   visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&root_), RootInfo(kRootUnknown));
@@ -351,6 +368,7 @@ void Transaction::VisitRoots(RootVisitor* visitor) {
   VisitArrayLogs(visitor);
   VisitInternStringLogs(visitor);
   VisitResolveStringLogs(visitor);
+  VisitResolveMethodTypeLogs(visitor);
 }
 
 void Transaction::VisitObjectLogs(RootVisitor* visitor) {
@@ -416,6 +434,12 @@ void Transaction::VisitInternStringLogs(RootVisitor* visitor) {
 
 void Transaction::VisitResolveStringLogs(RootVisitor* visitor) {
   for (ResolveStringLog& log : resolve_string_logs_) {
+    log.VisitRoots(visitor);
+  }
+}
+
+void Transaction::VisitResolveMethodTypeLogs(RootVisitor* visitor) {
+  for (ResolveMethodTypeLog& log : resolve_method_type_logs_) {
     log.VisitRoots(visitor);
   }
 }
@@ -633,6 +657,22 @@ Transaction::ResolveStringLog::ResolveStringLog(ObjPtr<mirror::DexCache> dex_cac
 }
 
 void Transaction::ResolveStringLog::VisitRoots(RootVisitor* visitor) {
+  dex_cache_.VisitRoot(visitor, RootInfo(kRootVMInternal));
+}
+
+void Transaction::ResolveMethodTypeLog::Undo() const {
+  dex_cache_.Read()->ClearMethodType(proto_idx_);
+}
+
+Transaction::ResolveMethodTypeLog::ResolveMethodTypeLog(ObjPtr<mirror::DexCache> dex_cache,
+                                                        dex::ProtoIndex proto_idx)
+    : dex_cache_(dex_cache),
+      proto_idx_(proto_idx) {
+  DCHECK(dex_cache != nullptr);
+  DCHECK_LT(proto_idx_.index_, dex_cache->GetDexFile()->NumProtoIds());
+}
+
+void Transaction::ResolveMethodTypeLog::VisitRoots(RootVisitor* visitor) {
   dex_cache_.VisitRoot(visitor, RootInfo(kRootVMInternal));
 }
 

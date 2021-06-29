@@ -316,6 +316,10 @@ class MANAGED DexCache final : public Object {
   void SetResolvedMethodType(dex::ProtoIndex proto_idx, MethodType* resolved)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Clear a method type for proto_idx, used to undo method type resolution
+  // in aborted transactions to make sure the method type isn't kept live.
+  void ClearMethodType(dex::ProtoIndex proto_idx) REQUIRES_SHARED(Locks::mutator_lock_);
+
   CallSite* GetResolvedCallSite(uint32_t call_site_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Attempts to bind |call_site_idx| to the call site |resolved|. The
