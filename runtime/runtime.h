@@ -578,6 +578,8 @@ class Runtime {
       REQUIRES(Locks::intern_table_lock_);
   void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx) const
       REQUIRES_SHARED(Locks::mutator_lock_);
+  void RecordResolveMethodType(ObjPtr<mirror::DexCache> dex_cache, dex::ProtoIndex proto_idx) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetFaultMessage(const std::string& message);
 

@@ -531,6 +531,39 @@ TEST_F(TransactionTest, ResolveString) {
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
 }
 
+// Tests rolling back resolved method types in dex cache.
+TEST_F(TransactionTest, ResolveMethodType) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Transaction"))));
+  ASSERT_TRUE(class_loader != nullptr);
+
+  Handle<mirror::Class> h_klass(
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), "LTransaction;", class_loader)));
+  ASSERT_TRUE(h_klass != nullptr);
+
+  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(h_klass->GetDexCache()));
+  ASSERT_TRUE(h_dex_cache != nullptr);
+  const DexFile* const dex_file = h_dex_cache->GetDexFile();
+  ASSERT_TRUE(dex_file != nullptr);
+
+  ASSERT_NE(dex_file->NumProtoIds(), 0u);
+  dex::ProtoIndex proto_index(0u);
+  ASSERT_TRUE(h_dex_cache->GetResolvedMethodType(proto_index) == nullptr);
+
+  // Do the transaction, then roll back.
+  EnterTransactionMode();
+  ObjPtr<mirror::MethodType> method_type =
+      class_linker_->ResolveMethodType(soa.Self(), proto_index, h_dex_cache, class_loader);
+  ASSERT_TRUE(method_type != nullptr);
+  // Make sure the method type was recorded in the dex cache.
+  ASSERT_TRUE(h_dex_cache->GetResolvedMethodType(proto_index) == method_type);
+  RollbackAndExitTransactionMode();
+  // Check that the method type was removed from the dex cache.
+  ASSERT_TRUE(h_dex_cache->GetResolvedMethodType(proto_index) == nullptr);
+}
+
 // Tests successful class initialization without class initializer.
 TEST_F(TransactionTest, EmptyClass) {
   ScopedObjectAccess soa(Thread::Current());
