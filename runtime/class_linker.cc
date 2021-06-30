@@ -4678,9 +4678,9 @@ verifier::FailureKind ClassLinker::VerifyClass(Thread* self,
                      << preverified
                      << "( " << oat_file_class_status << ")";
 
-  // If the oat file says the class had an error, re-run the verifier. That way we will get a
-  // precise error message. To ensure a rerun, test:
-  //     mirror::Class::IsErroneous(oat_file_class_status) => !preverified
+  // If the oat file says the class had an error, re-run the verifier. That way we will either:
+  // 1) Be successful at runtime, or
+  // 2) Get a precise error message.
   DCHECK(!mirror::Class::IsErroneous(oat_file_class_status) || !preverified);
 
   std::string error_msg;
@@ -4822,8 +4822,9 @@ bool ClassLinker::VerifyClassUsingOatFile(Thread* self,
   // Check the class status with the vdex file.
   const OatFile* oat_file = oat_dex_file->GetOatFile();
   if (oat_file != nullptr) {
-    oat_file_class_status = oat_file->GetVdexFile()->ComputeClassStatus(self, klass);
-    if (oat_file_class_status >= ClassStatus::kVerifiedNeedsAccessChecks) {
+    ClassStatus vdex_status = oat_file->GetVdexFile()->ComputeClassStatus(self, klass);
+    if (vdex_status >= ClassStatus::kVerifiedNeedsAccessChecks) {
+      oat_file_class_status = vdex_status;
       return true;
     }
   }
@@ -4838,8 +4839,8 @@ bool ClassLinker::VerifyClassUsingOatFile(Thread* self,
       << klass->PrettyClass() << " " << dex_file.GetLocation();
 
   if (mirror::Class::IsErroneous(oat_file_class_status)) {
-    // Compile time verification failed with a hard error. This is caused by invalid instructions
-    // in the class. These errors are unrecoverable.
+    // Compile time verification failed with a hard error. We'll re-run
+    // verification, which might be successful at runtime.
     return false;
   }
   if (oat_file_class_status == ClassStatus::kNotReady) {
