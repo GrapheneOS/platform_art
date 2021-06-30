@@ -324,6 +324,8 @@ class MethodVerifier {
                                         uint32_t api_level)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  virtual void PotentiallyMarkRuntimeThrow() = 0;
+
   // The thread we're verifying on.
   Thread* const self_;
 
