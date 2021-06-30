@@ -222,6 +222,10 @@ class JavaVMExt : public JavaVM {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::jni_weak_globals_lock_);
 
+  void WaitForWeakGlobalsAccess(Thread* self)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(Locks::jni_weak_globals_lock_);
+
   void CheckGlobalRefAllocationTracking();
 
   Runtime* const runtime_;
