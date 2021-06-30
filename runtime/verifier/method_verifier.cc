@@ -1194,17 +1194,6 @@ template <bool kVerifierDebug>
 template <bool kAllowRuntimeOnlyInstructions>
 bool MethodVerifier<kVerifierDebug>::VerifyInstruction(const Instruction* inst,
                                                        uint32_t code_offset) {
-  if (Instruction::kHaveExperimentalInstructions && UNLIKELY(inst->IsExperimental())) {
-    // Experimental instructions don't yet have verifier support implementation.
-    // While it is possible to use them by themselves, when we try to use stable instructions
-    // with a virtual register that was created by an experimental instruction,
-    // the data flow analysis will fail.
-    Fail(VERIFY_ERROR_FORCE_INTERPRETER)
-        << "experimental instruction is not supported by verifier; skipping verification";
-    flags_.have_pending_experimental_failure_ = true;
-    return false;
-  }
-
   bool result = true;
   switch (inst->GetVerifyTypeArgumentA()) {
     case Instruction::kVerifyRegA:
@@ -5014,7 +5003,7 @@ MethodVerifier::MethodVerifier(Thread* self,
       class_def_(class_def),
       code_item_accessor_(*dex_file, code_item),
       // TODO: make it designated initialization when we compile as C++20.
-      flags_({false, false, false, false, aot_mode}),
+      flags_({false, false, false, aot_mode}),
       encountered_failure_types_(0),
       can_load_classes_(can_load_classes),
       allow_soft_failures_(allow_soft_failures),
@@ -5199,48 +5188,41 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
   } else {
     // Bad method data.
     CHECK_NE(verifier.failures_.size(), 0U);
+    CHECK(verifier.flags_.have_pending_hard_failure_);
+    if (VLOG_IS_ON(verifier)) {
+      log_level = std::max(HardFailLogMode::kLogVerbose, log_level);
+    }
+    if (log_level >= HardFailLogMode::kLogVerbose) {
+      LogSeverity severity;
+      switch (log_level) {
+        case HardFailLogMode::kLogVerbose:
+          severity = LogSeverity::VERBOSE;
+          break;
+        case HardFailLogMode::kLogWarning:
+          severity = LogSeverity::WARNING;
+          break;
+        case HardFailLogMode::kLogInternalFatal:
+          severity = LogSeverity::FATAL_WITHOUT_ABORT;
+          break;
+        default:
+          LOG(FATAL) << "Unsupported log-level " << static_cast<uint32_t>(log_level);
+          UNREACHABLE();
+      }
+      verifier.DumpFailures(LOG_STREAM(severity) << "Verification error in "
+                                                 << dex_file->PrettyMethod(method_idx)
+                                                 << "\n");
+    }
+    if (hard_failure_msg != nullptr) {
+      CHECK(!verifier.failure_messages_.empty());
+      *hard_failure_msg =
+          verifier.failure_messages_[verifier.failure_messages_.size() - 1]->str();
+    }
+    result.kind = FailureKind::kHardFailure;
 
-    if (UNLIKELY(verifier.flags_.have_pending_experimental_failure_)) {
-      // Failed due to being forced into interpreter. This is ok because
-      // we just want to skip verification.
-      result.kind = FailureKind::kSoftFailure;
-    } else {
-      CHECK(verifier.flags_.have_pending_hard_failure_);
-      if (VLOG_IS_ON(verifier)) {
-        log_level = std::max(HardFailLogMode::kLogVerbose, log_level);
-      }
-      if (log_level >= HardFailLogMode::kLogVerbose) {
-        LogSeverity severity;
-        switch (log_level) {
-          case HardFailLogMode::kLogVerbose:
-            severity = LogSeverity::VERBOSE;
-            break;
-          case HardFailLogMode::kLogWarning:
-            severity = LogSeverity::WARNING;
-            break;
-          case HardFailLogMode::kLogInternalFatal:
-            severity = LogSeverity::FATAL_WITHOUT_ABORT;
-            break;
-          default:
-            LOG(FATAL) << "Unsupported log-level " << static_cast<uint32_t>(log_level);
-            UNREACHABLE();
-        }
-        verifier.DumpFailures(LOG_STREAM(severity) << "Verification error in "
-                                                   << dex_file->PrettyMethod(method_idx)
-                                                   << "\n");
-      }
-      if (hard_failure_msg != nullptr) {
-        CHECK(!verifier.failure_messages_.empty());
-        *hard_failure_msg =
-            verifier.failure_messages_[verifier.failure_messages_.size() - 1]->str();
-      }
-      result.kind = FailureKind::kHardFailure;
-
-      if (callbacks != nullptr) {
-        // Let the interested party know that we failed the class.
-        ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
-        callbacks->ClassRejected(ref);
-      }
+    if (callbacks != nullptr) {
+      // Let the interested party know that we failed the class.
+      ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
+      callbacks->ClassRejected(ref);
     }
     if (kVerifierDebug || VLOG_IS_ON(verifier)) {
       LOG(ERROR) << verifier.info_messages_.str();
@@ -5486,10 +5468,6 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
             saved_line_->CopyFromLine(work_line_.get());
           }
         }
-        break;
-
-      case VERIFY_ERROR_FORCE_INTERPRETER:
-        // This will be reported to the runtime as a soft failure.
         break;
 
       case VERIFY_ERROR_LOCKING:
