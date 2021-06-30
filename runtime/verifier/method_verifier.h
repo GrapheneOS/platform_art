@@ -369,9 +369,6 @@ class MethodVerifier {
     // Note: this flag is reset after processing each instruction.
     bool have_pending_runtime_throw_failure_ : 1;
 
-    // Is there a pending experimental failure?
-    bool have_pending_experimental_failure_ : 1;
-
     // A version of the above that is not reset and thus captures if there were *any* throw
     // failures.
     bool have_any_pending_runtime_throw_failure_ : 1;

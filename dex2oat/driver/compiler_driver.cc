@@ -465,7 +465,7 @@ static void CompileMethodQuick(
           // Do not have failures that should punt to the interpreter.
           !verified_method->HasRuntimeThrow() &&
           (verified_method->GetEncounteredVerificationFailures() &
-              (verifier::VERIFY_ERROR_FORCE_INTERPRETER | verifier::VERIFY_ERROR_LOCKING)) == 0 &&
+              verifier::VERIFY_ERROR_LOCKING) == 0 &&
               // Is eligable for compilation by methods-to-compile filter.
               driver->ShouldCompileBasedOnProfile(method_ref);
 
