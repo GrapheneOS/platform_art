@@ -87,14 +87,7 @@ enum VerifyError : uint32_t {
   VERIFY_ERROR_ACCESS_METHOD =     1 << 7,   // IllegalAccessError.
   VERIFY_ERROR_CLASS_CHANGE =      1 << 8,   // IncompatibleClassChangeError.
   VERIFY_ERROR_INSTANTIATION =     1 << 9,   // InstantiationError.
-  // For opcodes that don't have complete verifier support,  we need a way to continue
-  // execution at runtime without attempting to re-verify (since we know it will fail no
-  // matter what). Instead, run as the interpreter in a special "do access checks" mode
-  // which will perform verifier-like checking on the fly.
-  VERIFY_ERROR_FORCE_INTERPRETER = 1 << 10,  // Skip the verification phase at runtime;
-                                             // force the interpreter to do access checks.
-                                             // (sets a soft fail at compile time).
-  VERIFY_ERROR_LOCKING =           1 << 11,  // Could not guarantee balanced locking. This should be
+  VERIFY_ERROR_LOCKING =           1 << 10,  // Could not guarantee balanced locking. This should be
                                              // punted to the interpreter with access checks.
   VERIFY_ERROR_SKIP_COMPILER =    1u << 31,  // Flag to note that the failure should preclude
                                              // optimization. Meant as a signal from the verifier
