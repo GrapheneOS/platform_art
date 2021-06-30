@@ -14,20 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# TODO(b/187231324): remove this once the hard-code prebuilt path of
-# llvm-cxxfilt in development/scripts/symboly.py is fixed.
-cd $(dirname "${BASH_SOURCE[0]}")/../../prebuilts/clang/host/linux-x86
-
 # We push art and its dependencies to '/data/local/tmp', but the 'stack'
 # script expect things to be in '/'. So we just remove the
 # '/data/local/tmp' prefix.
-
 if [[ -n "$1" ]]; then
   cat $1
 else
   adb logcat -d
-fi | sed 's,/data/local/tmp,,g' | ../../../../development/scripts/stack
+fi | sed 's,/data/local/tmp,,g' | development/scripts/stack
 
 # Always return 0 to avoid having the buildbot complain about wrong stacks.
 exit 0
