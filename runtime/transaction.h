@@ -130,6 +130,11 @@ class Transaction final {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!log_lock_);
 
+  // Record resolve method type.
+  void RecordResolveMethodType(ObjPtr<mirror::DexCache> dex_cache, dex::ProtoIndex proto_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!log_lock_);
+
   // Abort transaction by undoing all recorded changes.
   void Rollback()
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -275,6 +280,21 @@ class Transaction final {
     DISALLOW_COPY_AND_ASSIGN(ResolveStringLog);
   };
 
+  class ResolveMethodTypeLog : public ValueObject {
+   public:
+    ResolveMethodTypeLog(ObjPtr<mirror::DexCache> dex_cache, dex::ProtoIndex proto_idx);
+
+    void Undo() const REQUIRES_SHARED(Locks::mutator_lock_);
+
+    void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+   private:
+    GcRoot<mirror::DexCache> dex_cache_;
+    const dex::ProtoIndex proto_idx_;
+
+    DISALLOW_COPY_AND_ASSIGN(ResolveMethodTypeLog);
+  };
+
   void LogInternedString(InternStringLog&& log)
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(!log_lock_);
@@ -292,6 +312,9 @@ class Transaction final {
   void UndoResolveStringModifications()
       REQUIRES(log_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  void UndoResolveMethodTypeModifications()
+      REQUIRES(log_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VisitObjectLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
@@ -305,6 +328,9 @@ class Transaction final {
   void VisitResolveStringLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  void VisitResolveMethodTypeLogs(RootVisitor* visitor)
+      REQUIRES(log_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const std::string& GetAbortMessage() REQUIRES(!log_lock_);
 
@@ -313,6 +339,7 @@ class Transaction final {
   std::map<mirror::Array*, ArrayLog> array_logs_  GUARDED_BY(log_lock_);
   std::list<InternStringLog> intern_string_logs_ GUARDED_BY(log_lock_);
   std::list<ResolveStringLog> resolve_string_logs_ GUARDED_BY(log_lock_);
+  std::list<ResolveMethodTypeLog> resolve_method_type_logs_ GUARDED_BY(log_lock_);
   bool aborted_ GUARDED_BY(log_lock_);
   bool rolling_back_;  // Single thread, no race.
   gc::Heap* const heap_;
