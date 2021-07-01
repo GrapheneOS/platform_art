@@ -2000,9 +2000,9 @@ void IntrinsicCodeGeneratorX86_64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
   GenUnsafePut(invoke->GetLocations(), DataType::Type::kInt64, /* is_volatile= */ true, codegen_);
 }
 
-static void CreateIntIntIntIntIntToInt(ArenaAllocator* allocator,
-                                       DataType::Type type,
-                                       HInvoke* invoke) {
+static void CreateUnsafeCASLocations(ArenaAllocator* allocator,
+                                     DataType::Type type,
+                                     HInvoke* invoke) {
   bool can_call = kEmitCompilerReadBarrier &&
       kUseBakerReadBarrier &&
       (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject);
@@ -2019,21 +2019,27 @@ static void CreateIntIntIntIntIntToInt(ArenaAllocator* allocator,
   locations->SetInAt(3, Location::RegisterLocation(RAX));
   locations->SetInAt(4, Location::RequiresRegister());
 
-  locations->SetOut(Location::RequiresRegister());
+  // RAX is clobbered in CMPXCHG, but we set it as out so no need to add it as temporary.
+  locations->SetOut(Location::RegisterLocation(RAX));
+
   if (type == DataType::Type::kReference) {
-    // Need temporary registers for card-marking, and possibly for
-    // (Baker) read barrier.
+    // Need two temporaries for MarkGCCard.
     locations->AddTemp(Location::RequiresRegister());  // Possibly used for reference poisoning too.
     locations->AddTemp(Location::RequiresRegister());
+    if (kEmitCompilerReadBarrier) {
+      // Need three temporaries for GenerateReferenceLoadWithBakerReadBarrier.
+      DCHECK(kUseBakerReadBarrier);
+      locations->AddTemp(Location::RequiresRegister());
+    }
   }
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASInt(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(allocator_, DataType::Type::kInt32, invoke);
+  CreateUnsafeCASLocations(allocator_, DataType::Type::kInt32, invoke);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASLong(HInvoke* invoke) {
-  CreateIntIntIntIntIntToInt(allocator_, DataType::Type::kInt64, invoke);
+  CreateUnsafeCASLocations(allocator_, DataType::Type::kInt64, invoke);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
@@ -2043,119 +2049,255 @@ void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
     return;
   }
 
-  CreateIntIntIntIntIntToInt(allocator_, DataType::Type::kReference, invoke);
+  CreateUnsafeCASLocations(allocator_, DataType::Type::kReference, invoke);
+}
+
+// Convert ZF into the Boolean result.
+static inline void GenZFlagToResult(X86_64Assembler* assembler, CpuRegister out) {
+  __ setcc(kZero, out);
+  __ movzxb(out, out);
+}
+
+// This function assumes that expected value for CMPXCHG and output are in RAX.
+static void GenCompareAndSetOrExchangeInt(CodeGeneratorX86_64* codegen,
+                                          DataType::Type type,
+                                          Address field_addr,
+                                          Location value,
+                                          bool is_cmpxchg) {
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
+
+  switch (type) {
+    case DataType::Type::kBool:
+    case DataType::Type::kInt8:
+      __ LockCmpxchgb(field_addr, value.AsRegister<CpuRegister>());
+      break;
+    case DataType::Type::kInt16:
+    case DataType::Type::kUint16:
+      __ LockCmpxchgw(field_addr, value.AsRegister<CpuRegister>());
+      break;
+    case DataType::Type::kInt32:
+    case DataType::Type::kUint32:
+      __ LockCmpxchgl(field_addr, value.AsRegister<CpuRegister>());
+      break;
+    case DataType::Type::kInt64:
+    case DataType::Type::kUint64:
+      __ LockCmpxchgq(field_addr, value.AsRegister<CpuRegister>());
+      break;
+    default:
+      LOG(FATAL) << "Unexpected non-integral CAS type " << type;
+  }
+  // LOCK CMPXCHG has full barrier semantics, so we don't need barriers here.
+
+  CpuRegister rax(RAX);
+  if (is_cmpxchg) {
+    // Sign-extend or zero-extend the result as necessary.
+    switch (type) {
+      case DataType::Type::kBool:
+        __ movzxb(rax, rax);
+        break;
+      case DataType::Type::kInt8:
+        __ movsxb(rax, rax);
+        break;
+      case DataType::Type::kInt16:
+        __ movsxw(rax, rax);
+        break;
+      case DataType::Type::kUint16:
+        __ movzxw(rax, rax);
+        break;
+      default:
+        break;  // No need to do anything.
+    }
+  } else {
+    GenZFlagToResult(assembler, rax);
+  }
+}
+
+static void GenCompareAndSetOrExchangeFP(CodeGeneratorX86_64* codegen,
+                                         Address field_addr,
+                                         CpuRegister temp,
+                                         Location value,
+                                         Location expected,
+                                         Location out,
+                                         bool is64bit,
+                                         bool is_cmpxchg) {
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
+
+  // Copy `expected` to RAX (required by the CMPXCHG instruction).
+  codegen->Move(Location::RegisterLocation(RAX), expected);
+
+  // Copy value to some other register (ensure it's not RAX).
+  DCHECK_NE(temp.AsRegister(), RAX);
+  codegen->Move(Location::RegisterLocation(temp.AsRegister()), value);
+
+  if (is64bit) {
+    __ LockCmpxchgq(field_addr, temp);
+  } else {
+    __ LockCmpxchgl(field_addr, temp);
+  }
+  // LOCK CMPXCHG has full barrier semantics, so we don't need barriers here.
+
+  if (is_cmpxchg) {
+    __ movd(out.AsFpuRegister<XmmRegister>(), CpuRegister(RAX), is64bit);
+  } else {
+    GenZFlagToResult(assembler, out.AsRegister<CpuRegister>());
+  }
+}
+
+// This function assumes that expected value for CMPXCHG and output are in RAX.
+static void GenCompareAndSetOrExchangeRef(CodeGeneratorX86_64* codegen,
+                                          HInvoke* invoke,
+                                          CpuRegister base,
+                                          CpuRegister offset,
+                                          CpuRegister value,
+                                          CpuRegister temp1,
+                                          CpuRegister temp2,
+                                          CpuRegister temp3,
+                                          bool is_cmpxchg) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
+
+  // Mark card for object assuming new value is stored.
+  bool value_can_be_null = true;  // TODO: Worth finding out this information?
+  codegen->MarkGCCard(temp1, temp2, base, value, value_can_be_null);
+
+  Address field_addr(base, offset, TIMES_1, 0);
+  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    // Need to make sure the reference stored in the field is a to-space
+    // one before attempting the CAS or the CAS could fail incorrectly.
+    codegen->GenerateReferenceLoadWithBakerReadBarrier(
+        invoke,
+        Location::RegisterLocation(temp3.AsRegister()),
+        base,
+        field_addr,
+        /* needs_null_check= */ false,
+        /* always_update_field= */ true,
+        &temp1,
+        &temp2);
+  } else {
+    // Nothing to do, the value will be loaded into the out register by CMPXCHG.
+  }
+
+  bool base_equals_value = (base.AsRegister() == value.AsRegister());
+  Register value_reg = value.AsRegister();
+  if (kPoisonHeapReferences) {
+    if (base_equals_value) {
+      // If `base` and `value` are the same register location, move `value_reg` to a temporary
+      // register.  This way, poisoning `value_reg` won't invalidate `base`.
+      value_reg = temp1.AsRegister();
+      __ movl(CpuRegister(value_reg), base);
+    }
+
+    // Check that the register allocator did not assign the location of expected value (RAX) to
+    // `value` nor to `base`, so that heap poisoning (when enabled) works as intended below.
+    // - If `value` were equal to RAX, both references would be poisoned twice, meaning they would
+    //   not be poisoned at all, as heap poisoning uses address negation.
+    // - If `base` were equal to RAX, poisoning RAX would invalidate `base`.
+    DCHECK_NE(RAX, value_reg);
+    DCHECK_NE(RAX, base.AsRegister());
+
+    __ PoisonHeapReference(CpuRegister(RAX));
+    __ PoisonHeapReference(CpuRegister(value_reg));
+  }
+
+  __ LockCmpxchgl(field_addr, CpuRegister(value_reg));
+  // LOCK CMPXCHG has full barrier semantics, so we don't need barriers.
+
+  if (is_cmpxchg) {
+    // Output is in RAX, so we can rely on CMPXCHG and do nothing.
+    __ MaybeUnpoisonHeapReference(CpuRegister(RAX));
+  } else {
+    GenZFlagToResult(assembler, CpuRegister(RAX));
+  }
+
+  // If heap poisoning is enabled, we need to unpoison the values that were poisoned earlier.
+  if (kPoisonHeapReferences) {
+    if (base_equals_value) {
+      // `value_reg` has been moved to a temporary register, no need to unpoison it.
+    } else {
+      // Ensure `value` is not RAX, so that unpoisoning the former does not invalidate the latter.
+      DCHECK_NE(RAX, value_reg);
+      __ UnpoisonHeapReference(CpuRegister(value_reg));
+    }
+  }
+}
+
+// In debug mode, return true if all registers are pairwise different. In release mode, do nothing
+// and always return true.
+static bool RegsAreAllDifferent(const std::vector<CpuRegister>& regs) {
+  if (kIsDebugBuild) {
+    for (size_t i = 0; i < regs.size(); ++i) {
+      for (size_t j = 0; j < i; ++j) {
+        if (regs[i].AsRegister() == regs[j].AsRegister()) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// GenCompareAndSetOrExchange handles all value types and therefore accepts generic locations and
+// temporary indices that may not correspond to real registers for code paths that do not use them.
+static void GenCompareAndSetOrExchange(CodeGeneratorX86_64* codegen,
+                                       HInvoke* invoke,
+                                       DataType::Type type,
+                                       CpuRegister base,
+                                       CpuRegister offset,
+                                       uint32_t temp1_index,
+                                       uint32_t temp2_index,
+                                       uint32_t temp3_index,
+                                       Location new_value,
+                                       Location expected,
+                                       Location out,
+                                       bool is_cmpxchg) {
+  LocationSummary* locations = invoke->GetLocations();
+  Address field_address(base, offset, TIMES_1, 0);
+
+  if (DataType::IsFloatingPointType(type)) {
+    bool is64bit = (type == DataType::Type::kFloat64);
+    CpuRegister temp = locations->GetTemp(temp1_index).AsRegister<CpuRegister>();
+    DCHECK(RegsAreAllDifferent({base, offset, temp, CpuRegister(RAX)}));
+
+    GenCompareAndSetOrExchangeFP(
+        codegen, field_address, temp, new_value, expected, out, is64bit, is_cmpxchg);
+  } else {
+    // Both the expected value for CMPXCHG and the output are in RAX.
+    DCHECK_EQ(RAX, expected.AsRegister<Register>());
+    DCHECK_EQ(RAX, out.AsRegister<Register>());
+
+    if (type == DataType::Type::kReference) {
+      CpuRegister new_value_reg = new_value.AsRegister<CpuRegister>();
+      CpuRegister temp1 = locations->GetTemp(temp1_index).AsRegister<CpuRegister>();
+      CpuRegister temp2 = locations->GetTemp(temp2_index).AsRegister<CpuRegister>();
+      CpuRegister temp3 = kEmitCompilerReadBarrier
+          ? locations->GetTemp(temp3_index).AsRegister<CpuRegister>()
+          : CpuRegister(kNoRegister);
+      DCHECK(RegsAreAllDifferent({base, offset, temp1, temp2, temp3}));
+
+      GenCompareAndSetOrExchangeRef(
+          codegen, invoke, base, offset, new_value_reg, temp1, temp2, temp3, is_cmpxchg);
+    } else {
+      GenCompareAndSetOrExchangeInt(codegen, type, field_address, new_value, is_cmpxchg);
+    }
+  }
 }
 
 static void GenCAS(DataType::Type type, HInvoke* invoke, CodeGeneratorX86_64* codegen) {
-  X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
   LocationSummary* locations = invoke->GetLocations();
-
-  CpuRegister base = locations->InAt(1).AsRegister<CpuRegister>();
-  CpuRegister offset = locations->InAt(2).AsRegister<CpuRegister>();
-  CpuRegister expected = locations->InAt(3).AsRegister<CpuRegister>();
-  // Ensure `expected` is in RAX (required by the CMPXCHG instruction).
-  DCHECK_EQ(expected.AsRegister(), RAX);
-  CpuRegister value = locations->InAt(4).AsRegister<CpuRegister>();
-  Location out_loc = locations->Out();
-  CpuRegister out = out_loc.AsRegister<CpuRegister>();
-
-  if (type == DataType::Type::kReference) {
-    // The only read barrier implementation supporting the
-    // UnsafeCASObject intrinsic is the Baker-style read barriers.
-    DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
-
-    CpuRegister temp1 = locations->GetTemp(0).AsRegister<CpuRegister>();
-    CpuRegister temp2 = locations->GetTemp(1).AsRegister<CpuRegister>();
-
-    // Mark card for object assuming new value is stored.
-    bool value_can_be_null = true;  // TODO: Worth finding out this information?
-    codegen->MarkGCCard(temp1, temp2, base, value, value_can_be_null);
-
-    // The address of the field within the holding object.
-    Address field_addr(base, offset, ScaleFactor::TIMES_1, 0);
-
-    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
-      // Need to make sure the reference stored in the field is a to-space
-      // one before attempting the CAS or the CAS could fail incorrectly.
-      codegen->GenerateReferenceLoadWithBakerReadBarrier(
-          invoke,
-          out_loc,  // Unused, used only as a "temporary" within the read barrier.
-          base,
-          field_addr,
-          /* needs_null_check= */ false,
-          /* always_update_field= */ true,
-          &temp1,
-          &temp2);
-    }
-
-    bool base_equals_value = (base.AsRegister() == value.AsRegister());
-    Register value_reg = value.AsRegister();
-    if (kPoisonHeapReferences) {
-      if (base_equals_value) {
-        // If `base` and `value` are the same register location, move
-        // `value_reg` to a temporary register.  This way, poisoning
-        // `value_reg` won't invalidate `base`.
-        value_reg = temp1.AsRegister();
-        __ movl(CpuRegister(value_reg), base);
-      }
-
-      // Check that the register allocator did not assign the location
-      // of `expected` (RAX) to `value` nor to `base`, so that heap
-      // poisoning (when enabled) works as intended below.
-      // - If `value` were equal to `expected`, both references would
-      //   be poisoned twice, meaning they would not be poisoned at
-      //   all, as heap poisoning uses address negation.
-      // - If `base` were equal to `expected`, poisoning `expected`
-      //   would invalidate `base`.
-      DCHECK_NE(value_reg, expected.AsRegister());
-      DCHECK_NE(base.AsRegister(), expected.AsRegister());
-
-      __ PoisonHeapReference(expected);
-      __ PoisonHeapReference(CpuRegister(value_reg));
-    }
-
-    __ LockCmpxchgl(field_addr, CpuRegister(value_reg));
-
-    // LOCK CMPXCHG has full barrier semantics, and we don't need
-    // scheduling barriers at this time.
-
-    // Convert ZF into the Boolean result.
-    __ setcc(kZero, out);
-    __ movzxb(out, out);
-
-    // If heap poisoning is enabled, we need to unpoison the values
-    // that were poisoned earlier.
-    if (kPoisonHeapReferences) {
-      if (base_equals_value) {
-        // `value_reg` has been moved to a temporary register, no need
-        // to unpoison it.
-      } else {
-        // Ensure `value` is different from `out`, so that unpoisoning
-        // the former does not invalidate the latter.
-        DCHECK_NE(value_reg, out.AsRegister());
-        __ UnpoisonHeapReference(CpuRegister(value_reg));
-      }
-      // Ensure `expected` is different from `out`, so that unpoisoning
-      // the former does not invalidate the latter.
-      DCHECK_NE(expected.AsRegister(), out.AsRegister());
-      __ UnpoisonHeapReference(expected);
-    }
-  } else {
-    if (type == DataType::Type::kInt32) {
-      __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);
-    } else if (type == DataType::Type::kInt64) {
-      __ LockCmpxchgq(Address(base, offset, TIMES_1, 0), value);
-    } else {
-      LOG(FATAL) << "Unexpected CAS type " << type;
-    }
-
-    // LOCK CMPXCHG has full barrier semantics, and we don't need
-    // scheduling barriers at this time.
-
-    // Convert ZF into the Boolean result.
-    __ setcc(kZero, out);
-    __ movzxb(out, out);
-  }
+  GenCompareAndSetOrExchange(codegen,
+                             invoke,
+                             type,
+                             /*base=*/ locations->InAt(1).AsRegister<CpuRegister>(),
+                             /*offset=*/ locations->InAt(2).AsRegister<CpuRegister>(),
+                             /*temp1_index=*/ 0,
+                             /*temp2_index=*/ 1,
+                             /*temp3_index=*/ 2,
+                             /*new_value=*/ locations->InAt(4),
+                             /*expected=*/ locations->InAt(3),
+                             locations->Out(),
+                             /*is_cmpxchg=*/ false);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASInt(HInvoke* invoke) {
@@ -3112,6 +3254,7 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
     return false;
   }
 
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
   DataType::Type return_type = invoke->GetType();
   mirror::VarHandle::AccessModeTemplate access_mode_template =
       mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
@@ -3127,8 +3270,25 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
         return false;
       }
       break;
-    case mirror::VarHandle::AccessModeTemplate::kCompareAndSet:
-    case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange:
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndSet: {
+      if (return_type != DataType::Type::kBool) {
+        return false;
+      }
+      DataType::Type expected_type = GetDataTypeFromShorty(invoke, number_of_arguments - 2);
+      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1);
+      if (expected_type != new_value_type) {
+        return false;
+      }
+      break;
+    }
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange: {
+      DataType::Type expected_type = GetDataTypeFromShorty(invoke, number_of_arguments - 2);
+      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1);
+      if (expected_type != new_value_type || return_type != expected_type) {
+        return false;
+      }
+      break;
+    }
     case mirror::VarHandle::AccessModeTemplate::kGetAndUpdate:
       // TODO: implement the remaining access modes.
       return false;
@@ -3137,26 +3297,19 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
   return true;
 }
 
-static void CreateVarHandleCommonLocations(HInvoke* invoke) {
+static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
-  DataType::Type return_type = invoke->GetType();
-
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetAllocator();
   LocationSummary* locations = new (allocator) LocationSummary(
       invoke, LocationSummary::kCallOnSlowPath, kIntrinsified);
+
   locations->SetInAt(0, Location::RequiresRegister());
   // Require coordinates in registers. These are the object holding the value
   // to operate on (except for static fields) and index (for arrays and views).
   for (size_t i = 0; i != expected_coordinates_count; ++i) {
     locations->SetInAt(/* VarHandle object */ 1u + i, Location::RequiresRegister());
   }
-  if (return_type != DataType::Type::kVoid) {
-    if (DataType::IsFloatingPointType(return_type)) {
-      locations->SetOut(Location::RequiresFpuRegister());
-    } else {
-      locations->SetOut(Location::RequiresRegister());
-    }
-  }
+
   uint32_t arguments_start = /* VarHandle object */ 1u + expected_coordinates_count;
   uint32_t number_of_arguments = invoke->GetNumberOfArguments();
   for (size_t arg_index = arguments_start; arg_index != number_of_arguments; ++arg_index) {
@@ -3176,12 +3329,7 @@ static void CreateVarHandleCommonLocations(HInvoke* invoke) {
     locations->AddTemp(Location::RequiresRegister());
   }
 
-  mirror::VarHandle::AccessModeTemplate access_mode_template =
-      mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
-  if (access_mode_template == mirror::VarHandle::AccessModeTemplate::kSet) {
-    // Add an extra temporary register for card in MarkGCCard.
-    locations->AddTemp(Location::RequiresRegister());
-  }
+  return locations;
 }
 
 static void CreateVarHandleGetLocations(HInvoke* invoke) {
@@ -3189,7 +3337,12 @@ static void CreateVarHandleGetLocations(HInvoke* invoke) {
     return;
   }
 
-  CreateVarHandleCommonLocations(invoke);
+  LocationSummary *locations = CreateVarHandleCommonLocations(invoke);
+  if (DataType::IsFloatingPointType(invoke->GetType())) {
+    locations->SetOut(Location::RequiresFpuRegister());
+  } else {
+    locations->SetOut(Location::RequiresRegister());
+  }
 }
 
 static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86_64* codegen) {
@@ -3263,7 +3416,10 @@ static void CreateVarHandleSetLocations(HInvoke* invoke) {
     return;
   }
 
-  CreateVarHandleCommonLocations(invoke);
+  LocationSummary* locations = CreateVarHandleCommonLocations(invoke);
+
+  // Extra temporary is used for card in MarkGCCard and to move 64-bit constants to memory.
+  locations->AddTemp(Location::RequiresRegister());
 }
 
 static void GenerateVarHandleSet(HInvoke* invoke,
@@ -3344,6 +3500,152 @@ void IntrinsicCodeGeneratorX86_64::VisitVarHandleSetVolatile(HInvoke* invoke) {
   GenerateVarHandleSet(invoke, codegen_, /*is_volatile=*/ true, /*is_atomic=*/ true);
 }
 
+static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
+    return;
+  }
+
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  uint32_t expected_value_index = number_of_arguments - 2;
+  uint32_t new_value_index = number_of_arguments - 1;
+  DataType::Type return_type = invoke->GetType();
+  DataType::Type expected_type = GetDataTypeFromShorty(invoke, expected_value_index);
+  DCHECK_EQ(expected_type, GetDataTypeFromShorty(invoke, new_value_index));
+
+  LocationSummary* locations = CreateVarHandleCommonLocations(invoke);
+
+  if (DataType::IsFloatingPointType(return_type)) {
+    locations->SetOut(Location::RequiresFpuRegister());
+  } else {
+    // Take advantage of the fact that CMPXCHG writes result to RAX.
+    locations->SetOut(Location::RegisterLocation(RAX));
+  }
+
+  if (DataType::IsFloatingPointType(expected_type)) {
+    // RAX is needed to load the expected floating-point value into a register for CMPXCHG.
+    locations->AddTemp(Location::RegisterLocation(RAX));
+    // Another temporary is needed to load the new floating-point value into a register for CMPXCHG.
+    locations->AddTemp(Location::RequiresRegister());
+  } else {
+    // Ensure that expected value is in RAX, as required by CMPXCHG.
+    locations->SetInAt(expected_value_index, Location::RegisterLocation(RAX));
+    locations->SetInAt(new_value_index, Location::RequiresRegister());
+    if (expected_type == DataType::Type::kReference) {
+      // Need two temporaries for MarkGCCard.
+      locations->AddTemp(Location::RequiresRegister());
+      locations->AddTemp(Location::RequiresRegister());
+      if (kEmitCompilerReadBarrier) {
+        // Need three temporaries for GenerateReferenceLoadWithBakerReadBarrier.
+        DCHECK(kUseBakerReadBarrier);
+        locations->AddTemp(Location::RequiresRegister());
+      }
+    }
+    // RAX is clobbered in CMPXCHG, but no need to mark it as temporary as it's the output register.
+    DCHECK_EQ(RAX, locations->Out().AsRegister<Register>());
+  }
+}
+
+static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
+                                                     CodeGeneratorX86_64* codegen,
+                                                     bool is_cmpxchg) {
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  X86_64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  uint32_t expected_value_index = number_of_arguments - 2;
+  uint32_t new_value_index = number_of_arguments - 1;
+  DataType::Type type = GetDataTypeFromShorty(invoke, expected_value_index);
+
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+  VarHandleTarget target = GetVarHandleTarget(invoke);
+  GenerateVarHandleTarget(invoke, target, codegen);
+
+  uint32_t temp_count = locations->GetTempCount();
+  GenCompareAndSetOrExchange(codegen,
+                             invoke,
+                             type,
+                             CpuRegister(target.object),
+                             CpuRegister(target.offset),
+                             /*temp1_index=*/ temp_count - 1,
+                             /*temp2_index=*/ temp_count - 2,
+                             /*temp3_index=*/ temp_count - 3,
+                             locations->InAt(new_value_index),
+                             locations->InAt(expected_value_index),
+                             locations->Out(),
+                             is_cmpxchg);
+
+  // We are using LOCK CMPXCHG in all cases because there is no CAS equivalent that has weak
+  // failure semantics. LOCK CMPXCHG has full barrier semantics, so we don't need barriers.
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleCompareAndSet(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleCompareAndSet(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleWeakCompareAndSet(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleWeakCompareAndSet(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleWeakCompareAndSetPlain(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleWeakCompareAndSetPlain(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleWeakCompareAndSetAcquire(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleWeakCompareAndSetAcquire(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleWeakCompareAndSetRelease(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleWeakCompareAndSetRelease(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleCompareAndExchange(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleCompareAndExchange(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ true);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleCompareAndExchangeAcquire(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleCompareAndExchangeAcquire(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ true);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleCompareAndExchangeRelease(HInvoke* invoke) {
+  CreateVarHandleCompareAndSetOrExchangeLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleCompareAndExchangeRelease(HInvoke* invoke) {
+  GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ true);
+}
+
 UNIMPLEMENTED_INTRINSIC(X86_64, FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86_64, DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32Update)
@@ -3386,10 +3688,6 @@ UNIMPLEMENTED_INTRINSIC(X86_64, UnsafeGetAndSetObject)
 
 UNIMPLEMENTED_INTRINSIC(X86_64, MethodHandleInvokeExact)
 UNIMPLEMENTED_INTRINSIC(X86_64, MethodHandleInvoke)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleCompareAndExchange)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleCompareAndExchangeAcquire)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleCompareAndExchangeRelease)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleCompareAndSet)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndAdd)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndAddAcquire)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndAddRelease)
@@ -3405,10 +3703,6 @@ UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndBitwiseXorRelease)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndSet)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndSetAcquire)
 UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleGetAndSetRelease)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleWeakCompareAndSet)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleWeakCompareAndSetAcquire)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleWeakCompareAndSetPlain)
-UNIMPLEMENTED_INTRINSIC(X86_64, VarHandleWeakCompareAndSetRelease)
 
 UNREACHABLE_INTRINSICS(X86_64)
 
