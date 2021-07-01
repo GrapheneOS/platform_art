@@ -49,6 +49,13 @@ class GarbageCollector;
 
 class Heap;
 
+struct FinalizerStats {
+  FinalizerStats(size_t num_refs, size_t num_enqueued)
+      : num_refs_(num_refs), num_enqueued_(num_enqueued) {}
+  const uint32_t num_refs_;
+  const uint32_t num_enqueued_;
+};
+
 // Used to temporarily store java.lang.ref.Reference(s) during GC and prior to queueing on the
 // appropriate java.lang.ref.ReferenceQueue. The linked list is maintained as an unordered,
 // circular, and singly-linked list using the pendingNext fields of the java.lang.ref.Reference
@@ -79,14 +86,15 @@ class ReferenceQueue {
 
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to
   // the zombie field, and the referent field is cleared.
-  void EnqueueFinalizerReferences(ReferenceQueue* cleared_references,
+  FinalizerStats EnqueueFinalizerReferences(ReferenceQueue* cleared_references,
                                   collector::GarbageCollector* collector)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Walks the reference list marking any references subject to the reference clearing policy.
   // References with a black referent are removed from the list.  References with white referents
   // biased toward saving are blackened and also removed from the list.
-  void ForwardSoftReferences(MarkObjectVisitor* visitor)
+  // Returns the number of non-null soft references.
+  uint32_t ForwardSoftReferences(MarkObjectVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Unlink the reference list clearing references objects with white referents. Cleared references

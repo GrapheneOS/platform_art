@@ -324,6 +324,8 @@ class MethodVerifier {
                                         uint32_t api_level)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  virtual void PotentiallyMarkRuntimeThrow() = 0;
+
   // The thread we're verifying on.
   Thread* const self_;
 
@@ -368,9 +370,6 @@ class MethodVerifier {
     // instructions that would hard fail the verification.
     // Note: this flag is reset after processing each instruction.
     bool have_pending_runtime_throw_failure_ : 1;
-
-    // Is there a pending experimental failure?
-    bool have_pending_experimental_failure_ : 1;
 
     // A version of the above that is not reset and thus captures if there were *any* throw
     // failures.
