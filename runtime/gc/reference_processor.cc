@@ -20,6 +20,7 @@
 #include "base/mutex.h"
 #include "base/time_utils.h"
 #include "base/utils.h"
+#include "base/systrace.h"
 #include "class_root-inl.h"
 #include "collector/garbage_collector.h"
 #include "jni/java_vm_ext.h"
@@ -99,6 +100,17 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
       return referent;
     }
   }
+  bool started_trace = false;
+  uint64_t start_millis;
+  auto finish_trace = [](uint64_t start_millis) {
+    ATraceEnd();
+    uint64_t millis = MilliTime() - start_millis;
+    static constexpr uint64_t kReportMillis = 10;  // Long enough to risk dropped frames.
+    if (millis > kReportMillis) {
+      LOG(WARNING) << "Weak pointer dereference blocked for " << millis << " milliseconds.";
+    }
+  };
+
   MutexLock mu(self, *Locks::reference_processor_lock_);
   while ((!kUseReadBarrier && SlowPathEnabled()) ||
          (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
@@ -106,6 +118,9 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
     // If the referent became cleared, return it. Don't need barrier since thread roots can't get
     // updated until after we leave the function due to holding the mutator lock.
     if (referent == nullptr) {
+      if (started_trace) {
+        finish_trace(start_millis);
+      }
       return nullptr;
     }
     // Try to see if the referent is already marked by using the is_marked_callback. We can return
@@ -125,6 +140,9 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
         // Non null means that it is marked.
         if (!preserving_references_ ||
            (LIKELY(!reference->IsFinalizerReferenceInstance()) && reference->IsUnprocessed())) {
+          if (started_trace) {
+            finish_trace(start_millis);
+          }
           return forwarded_ref;
         }
       }
@@ -132,7 +150,15 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
     self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);
+    if (!started_trace) {
+      ATraceBegin("GetReferent blocked");
+      started_trace = true;
+      start_millis = MilliTime();
+    }
     condition_.WaitHoldingLocks(self);
+  }
+  if (started_trace) {
+    finish_trace(start_millis);
   }
   return reference->GetReferent();
 }
@@ -183,8 +209,17 @@ void ReferenceProcessor::ProcessReferences(bool concurrent,
     }
     // TODO: Add smarter logic for preserving soft references. The behavior should be a conditional
     // mark if the SoftReference is supposed to be preserved.
-    soft_reference_queue_.ForwardSoftReferences(collector);
-    collector->ProcessMarkStack();
+    uint32_t non_null_refs = soft_reference_queue_.ForwardSoftReferences(collector);
+    if (ATraceEnabled()) {
+      static constexpr size_t kBufSize = 80;
+      char buf[kBufSize];
+      snprintf(buf, kBufSize, "Marking for %" PRIu32 " SoftReferences", non_null_refs);
+      ATraceBegin(buf);
+      collector->ProcessMarkStack();
+      ATraceEnd();
+    } else {
+      collector->ProcessMarkStack();
+    }
     if (concurrent) {
       StopPreservingReferences(self);
     }
@@ -199,8 +234,19 @@ void ReferenceProcessor::ProcessReferences(bool concurrent,
       StartPreservingReferences(self);
     }
     // Preserve all white objects with finalize methods and schedule them for finalization.
-    finalizer_reference_queue_.EnqueueFinalizerReferences(&cleared_references_, collector);
-    collector->ProcessMarkStack();
+    FinalizerStats finalizer_stats =
+        finalizer_reference_queue_.EnqueueFinalizerReferences(&cleared_references_, collector);
+    if (ATraceEnabled()) {
+      static constexpr size_t kBufSize = 80;
+      char buf[kBufSize];
+      snprintf(buf, kBufSize, "Marking from %" PRIu32 " / %" PRIu32 " finalizers",
+               finalizer_stats.num_enqueued_, finalizer_stats.num_refs_);
+      ATraceBegin(buf);
+      collector->ProcessMarkStack();
+      ATraceEnd();
+    } else {
+      collector->ProcessMarkStack();
+    }
     if (concurrent) {
       StopPreservingReferences(self);
     }

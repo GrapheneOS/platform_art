@@ -1613,7 +1613,7 @@ void ConcurrentCopying::CopyingPhase() {
   }
 
   {
-    TimingLogger::ScopedTiming split7("ProcessMarkStack", GetTimings());
+    TimingLogger::ScopedTiming split7("Process mark stacks and References", GetTimings());
     // We transition through three mark stack modes (thread-local, shared, GC-exclusive). The
     // primary reasons are the fact that we need to use a checkpoint to process thread-local mark
     // stacks, but after we disable weak refs accesses, we can't use a checkpoint due to a deadlock
@@ -3806,7 +3806,6 @@ void ConcurrentCopying::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
 }
 
 void ConcurrentCopying::ProcessReferences(Thread* self) {
-  TimingLogger::ScopedTiming split("ProcessReferences", GetTimings());
   // We don't really need to lock the heap bitmap lock as we use CAS to mark in bitmaps.
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetHeap()->GetReferenceProcessor()->ProcessReferences(

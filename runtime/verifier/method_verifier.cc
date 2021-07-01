@@ -750,6 +750,10 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
   // has an irrecoverable corruption.
   bool Verify() override REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // For app-compatibility, code after a runtime throw is treated as dead code
+  // for apps targeting <= S.
+  void PotentiallyMarkRuntimeThrow() override;
+
   // Dump the failures encountered by the verifier.
   std::ostream& DumpFailures(std::ostream& os) {
     DCHECK_EQ(failures_.size(), failure_messages_.size());
@@ -1194,17 +1198,6 @@ template <bool kVerifierDebug>
 template <bool kAllowRuntimeOnlyInstructions>
 bool MethodVerifier<kVerifierDebug>::VerifyInstruction(const Instruction* inst,
                                                        uint32_t code_offset) {
-  if (Instruction::kHaveExperimentalInstructions && UNLIKELY(inst->IsExperimental())) {
-    // Experimental instructions don't yet have verifier support implementation.
-    // While it is possible to use them by themselves, when we try to use stable instructions
-    // with a virtual register that was created by an experimental instruction,
-    // the data flow analysis will fail.
-    Fail(VERIFY_ERROR_FORCE_INTERPRETER)
-        << "experimental instruction is not supported by verifier; skipping verification";
-    flags_.have_pending_experimental_failure_ = true;
-    return false;
-  }
-
   bool result = true;
   switch (inst->GetVerifyTypeArgumentA()) {
     case Instruction::kVerifyRegA:
@@ -4988,6 +4981,34 @@ const RegType& MethodVerifier<kVerifierDebug>::DetermineCat1Constant(int32_t val
   }
 }
 
+template <bool kVerifierDebug>
+void MethodVerifier<kVerifierDebug>::PotentiallyMarkRuntimeThrow() {
+  if (IsAotMode() || IsSdkVersionSetAndAtLeast(api_level_, SdkVersion::kT)) {
+    return;
+  }
+  flags_.have_pending_runtime_throw_failure_ = true;
+  // How to handle runtime failures for instructions that are not flagged kThrow.
+  //
+  // The verifier may fail before we touch any instruction, for the signature of a method. So
+  // add a check.
+  if (work_insn_idx_ < dex::kDexNoIndex) {
+    const Instruction& inst = code_item_accessor_.InstructionAt(work_insn_idx_);
+    Instruction::Code opcode = inst.Opcode();
+    if ((Instruction::FlagsOf(opcode) & Instruction::kThrow) == 0 &&
+        !impl::IsCompatThrow(opcode) &&
+        GetInstructionFlags(work_insn_idx_).IsInTry()) {
+      if (Runtime::Current()->IsVerifierMissingKThrowFatal()) {
+        LOG(FATAL) << "Unexpected throw: " << std::hex << work_insn_idx_ << " " << opcode;
+        UNREACHABLE();
+      }
+      // We need to save the work_line if the instruction wasn't throwing before. Otherwise
+      // we'll try to merge garbage.
+      // Note: this assumes that Fail is called before we do any work_line modifications.
+      saved_line_->CopyFromLine(work_line_.get());
+    }
+  }
+}
+
 }  // namespace
 }  // namespace impl
 
@@ -5014,7 +5035,7 @@ MethodVerifier::MethodVerifier(Thread* self,
       class_def_(class_def),
       code_item_accessor_(*dex_file, code_item),
       // TODO: make it designated initialization when we compile as C++20.
-      flags_({false, false, false, false, aot_mode}),
+      flags_({false, false, false, aot_mode}),
       encountered_failure_types_(0),
       can_load_classes_(can_load_classes),
       allow_soft_failures_(allow_soft_failures),
@@ -5199,48 +5220,41 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
   } else {
     // Bad method data.
     CHECK_NE(verifier.failures_.size(), 0U);
+    CHECK(verifier.flags_.have_pending_hard_failure_);
+    if (VLOG_IS_ON(verifier)) {
+      log_level = std::max(HardFailLogMode::kLogVerbose, log_level);
+    }
+    if (log_level >= HardFailLogMode::kLogVerbose) {
+      LogSeverity severity;
+      switch (log_level) {
+        case HardFailLogMode::kLogVerbose:
+          severity = LogSeverity::VERBOSE;
+          break;
+        case HardFailLogMode::kLogWarning:
+          severity = LogSeverity::WARNING;
+          break;
+        case HardFailLogMode::kLogInternalFatal:
+          severity = LogSeverity::FATAL_WITHOUT_ABORT;
+          break;
+        default:
+          LOG(FATAL) << "Unsupported log-level " << static_cast<uint32_t>(log_level);
+          UNREACHABLE();
+      }
+      verifier.DumpFailures(LOG_STREAM(severity) << "Verification error in "
+                                                 << dex_file->PrettyMethod(method_idx)
+                                                 << "\n");
+    }
+    if (hard_failure_msg != nullptr) {
+      CHECK(!verifier.failure_messages_.empty());
+      *hard_failure_msg =
+          verifier.failure_messages_[verifier.failure_messages_.size() - 1]->str();
+    }
+    result.kind = FailureKind::kHardFailure;
 
-    if (UNLIKELY(verifier.flags_.have_pending_experimental_failure_)) {
-      // Failed due to being forced into interpreter. This is ok because
-      // we just want to skip verification.
-      result.kind = FailureKind::kSoftFailure;
-    } else {
-      CHECK(verifier.flags_.have_pending_hard_failure_);
-      if (VLOG_IS_ON(verifier)) {
-        log_level = std::max(HardFailLogMode::kLogVerbose, log_level);
-      }
-      if (log_level >= HardFailLogMode::kLogVerbose) {
-        LogSeverity severity;
-        switch (log_level) {
-          case HardFailLogMode::kLogVerbose:
-            severity = LogSeverity::VERBOSE;
-            break;
-          case HardFailLogMode::kLogWarning:
-            severity = LogSeverity::WARNING;
-            break;
-          case HardFailLogMode::kLogInternalFatal:
-            severity = LogSeverity::FATAL_WITHOUT_ABORT;
-            break;
-          default:
-            LOG(FATAL) << "Unsupported log-level " << static_cast<uint32_t>(log_level);
-            UNREACHABLE();
-        }
-        verifier.DumpFailures(LOG_STREAM(severity) << "Verification error in "
-                                                   << dex_file->PrettyMethod(method_idx)
-                                                   << "\n");
-      }
-      if (hard_failure_msg != nullptr) {
-        CHECK(!verifier.failure_messages_.empty());
-        *hard_failure_msg =
-            verifier.failure_messages_[verifier.failure_messages_.size() - 1]->str();
-      }
-      result.kind = FailureKind::kHardFailure;
-
-      if (callbacks != nullptr) {
-        // Let the interested party know that we failed the class.
-        ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
-        callbacks->ClassRejected(ref);
-      }
+    if (callbacks != nullptr) {
+      // Let the interested party know that we failed the class.
+      ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
+      callbacks->ClassRejected(ref);
     }
     if (kVerifierDebug || VLOG_IS_ON(verifier)) {
       LOG(ERROR) << verifier.info_messages_.str();
@@ -5461,42 +5475,13 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
       case VERIFY_ERROR_ACCESS_FIELD:
       case VERIFY_ERROR_ACCESS_METHOD:
       case VERIFY_ERROR_INSTANTIATION:
-      case VERIFY_ERROR_CLASS_CHANGE:
-        if (!IsAotMode()) {
-          // If we fail again at runtime, mark that this instruction would throw.
-          flags_.have_pending_runtime_throw_failure_ = true;
-        }
-        // How to handle runtime failures for instructions that are not flagged kThrow.
-        //
-        // The verifier may fail before we touch any instruction, for the signature of a method. So
-        // add a check.
-        if (work_insn_idx_ < dex::kDexNoIndex) {
-          const Instruction& inst = code_item_accessor_.InstructionAt(work_insn_idx_);
-          Instruction::Code opcode = inst.Opcode();
-          if ((Instruction::FlagsOf(opcode) & Instruction::kThrow) == 0 &&
-              !impl::IsCompatThrow(opcode) &&
-              GetInstructionFlags(work_insn_idx_).IsInTry()) {
-            if (Runtime::Current()->IsVerifierMissingKThrowFatal()) {
-              LOG(FATAL) << "Unexpected throw: " << std::hex << work_insn_idx_ << " " << opcode;
-              UNREACHABLE();
-            }
-            // We need to save the work_line if the instruction wasn't throwing before. Otherwise
-            // we'll try to merge garbage.
-            // Note: this assumes that Fail is called before we do any work_line modifications.
-            saved_line_->CopyFromLine(work_line_.get());
-          }
-        }
+      case VERIFY_ERROR_CLASS_CHANGE: {
+        PotentiallyMarkRuntimeThrow();
         break;
-
-      case VERIFY_ERROR_FORCE_INTERPRETER:
-        // This will be reported to the runtime as a soft failure.
-        break;
+      }
 
       case VERIFY_ERROR_LOCKING:
-        if (!IsAotMode()) {
-          // If we fail again at runtime, mark that this instruction would throw.
-          flags_.have_pending_runtime_throw_failure_ = true;
-        }
+        PotentiallyMarkRuntimeThrow();
         // This will be reported to the runtime as a soft failure.
         break;
 
