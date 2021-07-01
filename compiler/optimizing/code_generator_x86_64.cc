@@ -34,6 +34,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_reference.h"
+#include "mirror/var_handle.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "utils/assembler.h"
@@ -594,11 +595,17 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86_64 : public SlowPathCode {
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(ref_reg)) << ref_reg;
     // This slow path is only used by the UnsafeCASObject intrinsic.
-    DCHECK((instruction_->IsInvokeVirtual() && instruction_->GetLocations()->Intrinsified()))
+    DCHECK((instruction_->IsInvoke() && instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking and field updating slow path: "
         << instruction_->DebugName();
     DCHECK(instruction_->GetLocations()->Intrinsified());
-    DCHECK_EQ(instruction_->AsInvoke()->GetIntrinsic(), Intrinsics::kUnsafeCASObject);
+    Intrinsics intrinsic = instruction_->AsInvoke()->GetIntrinsic();
+    static constexpr auto kVarHandleCAS = mirror::VarHandle::AccessModeTemplate::kCompareAndSet;
+    static constexpr auto kVarHandleCAX =
+        mirror::VarHandle::AccessModeTemplate::kCompareAndExchange;
+    DCHECK(intrinsic == Intrinsics::kUnsafeCASObject ||
+           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAS ||
+           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAX);
 
     __ Bind(GetEntryLabel());
     if (unpoison_ref_before_marking_) {
@@ -1625,6 +1632,8 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
       HConstant* constant = source.GetConstant();
       if (constant->IsLongConstant()) {
         Load64BitValue(dest, constant->AsLongConstant()->GetValue());
+      } else if (constant->IsDoubleConstant()) {
+        Load64BitValue(dest, GetInt64ValueOf(constant));
       } else {
         Load32BitValue(dest, GetInt32ValueOf(constant));
       }
