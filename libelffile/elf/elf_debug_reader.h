@@ -43,11 +43,41 @@ class ElfDebugReader {
 
   // Call Frame Information.
   struct CFI {
-    uint32_t length;  // Length excluding the size of this field.
-    int32_t cie_pointer;  // Offset in the section or -1 for CIE.
-
     const uint8_t* data() const { return reinterpret_cast<const uint8_t*>(this); }
-    size_t size() const { return sizeof(uint32_t) + length; }
+    const uint32_t* data_u32() const { return reinterpret_cast<const uint32_t*>(this); }
+    uint32_t* data_u32() { return reinterpret_cast<uint32_t*>(this); }
+
+    bool is_64bit() const {
+      return data_u32()[0] == 0xFFFFFFFF;
+    }
+
+    size_t size() const {
+      const uint32_t* s = data_u32();
+      if (is_64bit()) {
+        return 12 + (static_cast<uint64_t>(s[2]) << 32) + s[1];
+      }
+      return 4 + s[0];
+    }
+
+    // Offset in the section or -1 for CIE.
+    int64_t cie_pointer() const {
+      const uint32_t* s = data_u32();
+      if (is_64bit()) {
+        return static_cast<int64_t>((static_cast<uint64_t>(s[4]) << 32) + s[3]);
+      }
+      return static_cast<int32_t>(s[1]);
+    }
+
+    void set_cie_pointer(uint64_t cie_pointer) {
+      uint32_t* s = data_u32();
+      if (is_64bit()) {
+        s[3] = cie_pointer & 0xFFFFFFFF;
+        s[4] = cie_pointer >> 32;
+      } else {
+        s[1] = static_cast<uint32_t>(cie_pointer);
+      }
+    }
+
   } PACKED(1);
 
   // Common Information Entry.
@@ -56,8 +86,21 @@ class ElfDebugReader {
 
   // Frame Description Entry.
   struct FDE : public CFI {
-    Elf_Addr sym_addr;
-    Elf_Addr sym_size;
+    Elf_Addr sym_addr() const {
+      const uint32_t* s = this->data_u32();
+      if (this->is_64bit()) {
+        return (static_cast<uint64_t>(s[6]) << 32) + s[5];
+      }
+      return s[2];
+    }
+
+    Elf_Addr sym_size() const {
+      const uint32_t* s = this->data_u32();
+      if (this->is_64bit()) {
+        return (static_cast<uint64_t>(s[8]) << 32) + s[7];
+      }
+      return s[3];
+    }
   } PACKED(1);
 
   explicit ElfDebugReader(ArrayRef<const uint8_t> file) : file_(file) {
@@ -157,11 +200,11 @@ class ElfDebugReader {
       for (size_t offset = 0; offset < debug_frame->sh_size;) {
         const CFI* entry = Read<CFI>(debug_frame->sh_offset + offset);
         DCHECK_LE(entry->size(), debug_frame->sh_size - offset);
-        if (entry->cie_pointer == -1) {
+        if (entry->cie_pointer() == -1) {
           visit_cie(Read<CIE>(debug_frame->sh_offset + offset));
         } else {
           const FDE* fde = Read<FDE>(debug_frame->sh_offset + offset);
-          visit_fde(fde, Read<CIE>(debug_frame->sh_offset + fde->cie_pointer));
+          visit_fde(fde, Read<CIE>(debug_frame->sh_offset + fde->cie_pointer()));
         }
         offset += entry->size();
       }
