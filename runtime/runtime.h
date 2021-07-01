@@ -291,6 +291,12 @@ class Runtime {
     return boot_class_path_fds_;
   }
 
+  // Returns the checksums for the boot image, extensions and extra boot class path dex files,
+  // based on the image spaces and boot class path dex files loaded in memory.
+  const std::string& GetBootClassPathChecksums() const {
+    return boot_class_path_checksums_;
+  }
+
   const std::string& GetClassPathString() const {
     return class_path_string_;
   }
@@ -1120,6 +1126,7 @@ class Runtime {
 
   std::vector<std::string> boot_class_path_;
   std::vector<std::string> boot_class_path_locations_;
+  std::string boot_class_path_checksums_;
   std::vector<int> boot_class_path_fds_;
   std::string class_path_string_;
   std::vector<std::string> properties_;
