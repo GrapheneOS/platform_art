@@ -752,7 +752,8 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
 
   // For app-compatibility, code after a runtime throw is treated as dead code
   // for apps targeting <= S.
-  void PotentiallyMarkRuntimeThrow() override;
+  // Returns whether the current instruction was marked as throwing.
+  bool PotentiallyMarkRuntimeThrow() override;
 
   // Dump the failures encountered by the verifier.
   std::ostream& DumpFailures(std::ostream& os) {
@@ -3773,23 +3774,16 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
         handlers_ptr = iterator.EndDataPointer();
       }
       if (unresolved != nullptr) {
-        if (!IsAotMode() && common_super == nullptr) {
-          // This is an unreachable handler.
-
-          // We need to post a failure. The compiler currently does not handle unreachable
-          // code correctly.
-          Fail(VERIFY_ERROR_SKIP_COMPILER, /*pending_exc=*/ false)
-              << "Unresolved catch handler, fail for compiler";
-
-          return std::make_pair(false, unresolved);
-        }
         // Soft-fail, but do not handle this with a synthetic throw.
         Fail(VERIFY_ERROR_UNRESOLVED_TYPE_CHECK, /*pending_exc=*/ false)
             << "Unresolved catch handler";
+        bool should_continue = true;
         if (common_super != nullptr) {
           unresolved = &unresolved->Merge(*common_super, &reg_types_, this);
+        } else {
+          should_continue = !PotentiallyMarkRuntimeThrow();
         }
-        return std::make_pair(true, unresolved);
+        return std::make_pair(should_continue, unresolved);
       }
     }
     if (common_super == nullptr) {
@@ -4982,18 +4976,25 @@ const RegType& MethodVerifier<kVerifierDebug>::DetermineCat1Constant(int32_t val
 }
 
 template <bool kVerifierDebug>
-void MethodVerifier<kVerifierDebug>::PotentiallyMarkRuntimeThrow() {
+bool MethodVerifier<kVerifierDebug>::PotentiallyMarkRuntimeThrow() {
   if (IsAotMode() || IsSdkVersionSetAndAtLeast(api_level_, SdkVersion::kT)) {
-    return;
+    return false;
   }
-  flags_.have_pending_runtime_throw_failure_ = true;
-  // How to handle runtime failures for instructions that are not flagged kThrow.
-  //
+  // Compatibility mode: we treat the following code unreachable and the verifier
+  // will not analyze it.
   // The verifier may fail before we touch any instruction, for the signature of a method. So
   // add a check.
   if (work_insn_idx_ < dex::kDexNoIndex) {
     const Instruction& inst = code_item_accessor_.InstructionAt(work_insn_idx_);
     Instruction::Code opcode = inst.Opcode();
+    if (opcode == Instruction::MOVE_EXCEPTION) {
+      // This is an unreachable handler. The instruction doesn't throw, but we
+      // mark the method as having a pending runtime throw failure so that
+      // the compiler does not try to compile it.
+      flags_.have_any_pending_runtime_throw_failure_ = true;
+      return true;
+    }
+    // How to handle runtime failures for instructions that are not flagged kThrow.
     if ((Instruction::FlagsOf(opcode) & Instruction::kThrow) == 0 &&
         !impl::IsCompatThrow(opcode) &&
         GetInstructionFlags(work_insn_idx_).IsInTry()) {
@@ -5007,6 +5008,8 @@ void MethodVerifier<kVerifierDebug>::PotentiallyMarkRuntimeThrow() {
       saved_line_->CopyFromLine(work_line_.get());
     }
   }
+  flags_.have_pending_runtime_throw_failure_ = true;
+  return true;
 }
 
 }  // namespace
@@ -5205,7 +5208,8 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
       } else {
         result.kind = FailureKind::kSoftFailure;
       }
-      if (!CanCompilerHandleVerificationFailure(verifier.encountered_failure_types_)) {
+      if (!CanCompilerHandleVerificationFailure(verifier.encountered_failure_types_) ||
+          verifier.HasInstructionThatWillThrow()) {
         set_dont_compile = true;
       }
       if ((verifier.encountered_failure_types_ & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
@@ -5498,10 +5502,6 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
         flags_.have_pending_hard_failure_ = true;
         break;
       }
-
-      case VERIFY_ERROR_SKIP_COMPILER:
-        // Nothing to do, just remember the failure type.
-        break;
     }
   } else if (kIsDebugBuild) {
     CHECK_NE(error, VERIFY_ERROR_BAD_CLASS_SOFT);
