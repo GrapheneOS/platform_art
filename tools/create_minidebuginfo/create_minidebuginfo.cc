@@ -122,7 +122,7 @@ static void WriteMinidebugInfo(const std::vector<uint8_t>& input, std::vector<ui
       const FDE* fde = entry.first;
       const CIE* cie = entry.second;
       FDE new_header = *fde;
-      new_header.cie_pointer = new_cie_offset[cie];
+      new_header.set_cie_pointer(new_cie_offset[cie]);
       debug_frame->WriteFully(&new_header, sizeof(FDE));
       debug_frame->WriteFully(fde->data() + sizeof(FDE), fde->size() - sizeof(FDE));
     }

@@ -215,8 +215,8 @@ std::vector<uint8_t> MakeElfFileForJIT(
     reader.VisitDebugFrame([&](const Reader::CIE* cie ATTRIBUTE_UNUSED) {
       num_cies++;
     }, [&](const Reader::FDE* fde, const Reader::CIE* cie ATTRIBUTE_UNUSED) {
-      DCHECK_EQ(fde->sym_addr, method_info.code_address);
-      DCHECK_EQ(fde->sym_size, method_info.code_size);
+      DCHECK_EQ(fde->sym_addr(), method_info.code_address);
+      DCHECK_EQ(fde->sym_size(), method_info.code_size);
       num_fdes++;
     });
     DCHECK_EQ(num_syms, 1u);
@@ -308,8 +308,8 @@ std::vector<uint8_t> PackElfFileForJIT(
         }
       }, [&](const Reader::FDE* fde, const Reader::CIE* cie ATTRIBUTE_UNUSED) {
         DCHECK(copied_cie);
-        DCHECK_EQ(fde->cie_pointer, 0);
-        if (!is_removed_symbol(fde->sym_addr)) {
+        DCHECK_EQ(fde->cie_pointer(), 0);
+        if (!is_removed_symbol(fde->sym_addr())) {
           debug_frame->WriteFully(fde->data(), fde->size());
         }
       });

@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "app_info.h"
 #include "base/locks.h"
 #include "base/macros.h"
 #include "base/mem_map.h"
@@ -290,6 +291,12 @@ class Runtime {
     return boot_class_path_fds_;
   }
 
+  // Returns the checksums for the boot image, extensions and extra boot class path dex files,
+  // based on the image spaces and boot class path dex files loaded in memory.
+  const std::string& GetBootClassPathChecksums() const {
+    return boot_class_path_checksums_;
+  }
+
   const std::string& GetClassPathString() const {
     return class_path_string_;
   }
@@ -528,9 +535,11 @@ class Runtime {
     return &instrumentation_;
   }
 
-  void RegisterAppInfo(const std::vector<std::string>& code_paths,
+  void RegisterAppInfo(const std::string& package_name,
+                       const std::vector<std::string>& code_paths,
                        const std::string& profile_output_filename,
-                       const std::string& ref_profile_filename);
+                       const std::string& ref_profile_filename,
+                       int32_t code_type);
 
   // Transaction support.
   bool IsActiveTransaction() const;
@@ -973,6 +982,10 @@ class Runtime {
   // first call.
   void NotifyStartupCompleted();
 
+  // Notify the runtime that the application finished loading some dex/odex files. This is
+  // called everytime we load a set of dex files in a class loader.
+  void NotifyDexFileLoaded();
+
   // Return true if startup is already completed.
   bool GetStartupCompleted() const;
 
@@ -999,6 +1012,8 @@ class Runtime {
   bool GetOatFilesExecutable() const;
 
   metrics::ArtMetrics* GetMetrics() { return &metrics_; }
+
+  AppInfo* GetAppInfo() { return &app_info_; }
 
   void RequestMetricsReport(bool synchronous = true);
 
@@ -1111,6 +1126,7 @@ class Runtime {
 
   std::vector<std::string> boot_class_path_;
   std::vector<std::string> boot_class_path_locations_;
+  std::string boot_class_path_checksums_;
   std::vector<int> boot_class_path_fds_;
   std::string class_path_string_;
   std::vector<std::string> properties_;
@@ -1410,6 +1426,9 @@ class Runtime {
   // When the apex is the factory version, we don't encode it (for example in
   // the third entry in the example above).
   std::string apex_versions_;
+
+  // The info about the application code paths.
+  AppInfo app_info_;
 
   // Note: See comments on GetFaultMessage.
   friend std::string GetFaultMessageForAbortLogging();
