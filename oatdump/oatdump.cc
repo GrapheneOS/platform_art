@@ -1494,8 +1494,16 @@ class OatDumper {
         return nullptr;
       }
       return verifier::MethodVerifier::VerifyMethodAndDump(
-          soa.Self(), vios, dex_method_idx, dex_file, dex_cache, *options_.class_loader_,
-          class_def, code_item, method, method_access_flags, /* api_level= */ 0);
+          soa.Self(),
+          vios,
+          dex_method_idx,
+          dex_file,
+          dex_cache,
+          *options_.class_loader_,
+          class_def,
+          code_item,
+          method_access_flags,
+          /* api_level= */ 0);
     }
 
     return nullptr;
