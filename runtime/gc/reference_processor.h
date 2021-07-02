@@ -46,19 +46,29 @@ class Heap;
 class ReferenceProcessor {
  public:
   ReferenceProcessor();
-  void ProcessReferences(bool concurrent,
-                         TimingLogger* timings,
-                         bool clear_soft_references,
-                         gc::collector::GarbageCollector* collector)
+
+  // Initialize for a reference processing pass. Called before suspending weak
+  // access.
+  void Setup(Thread* self,
+             collector::GarbageCollector* collector,
+             bool concurrent,
+             bool clear_soft_references)
+      REQUIRES(!Locks::reference_processor_lock_);
+  // Enqueue all types of java.lang.ref.References, and mark through finalizers.
+  // Assumes there is no concurrent mutator-driven marking, i.e. all potentially
+  // mutator-accessible objects should be marked before this.
+  void ProcessReferences(Thread* self, TimingLogger* timings)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES(!Locks::reference_processor_lock_);
+
   // The slow path bool is contained in the reference class object, can only be set once
   // Only allow setting this with mutators suspended so that we can avoid using a lock in the
   // GetReferent fast path as an optimization.
   void EnableSlowPath() REQUIRES_SHARED(Locks::mutator_lock_);
   void BroadcastForSlowPath(Thread* self);
-  // Decode the referent, may block if references are being processed.
+  // Decode the referent, may block if references are being processed. In the normal
+  // no-read-barrier or Baker-read-barrier cases, we assume reference is not a PhantomReference.
   ObjPtr<mirror::Object> GetReferent(Thread* self, ObjPtr<mirror::Reference> reference)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::reference_processor_lock_);
   // Collects the cleared references and returns a task, to be executed after FinishGC, that will
@@ -78,27 +88,30 @@ class ReferenceProcessor {
   void ClearReferent(ObjPtr<mirror::Reference> ref)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::reference_processor_lock_);
+  uint32_t ForwardSoftReferences(TimingLogger* timings)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   bool SlowPathEnabled() REQUIRES_SHARED(Locks::mutator_lock_);
   // Called by ProcessReferences.
   void DisableSlowPath(Thread* self) REQUIRES(Locks::reference_processor_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  // If we are preserving references it means that some dead objects may become live, we use start
-  // and stop preserving to block mutators using GetReferrent from getting access to these
-  // referents.
-  void StartPreservingReferences(Thread* self) REQUIRES(!Locks::reference_processor_lock_);
-  void StopPreservingReferences(Thread* self) REQUIRES(!Locks::reference_processor_lock_);
   // Wait until reference processing is done.
   void WaitUntilDoneProcessingReferences(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::reference_processor_lock_);
   // Collector which is clearing references, used by the GetReferent to return referents which are
-  // already marked.
-  collector::GarbageCollector* collector_ GUARDED_BY(Locks::reference_processor_lock_);
-  // Boolean for whether or not we are preserving references (either soft references or finalizers).
-  // If this is true, then we cannot return a referent (see comment in GetReferent).
-  bool preserving_references_ GUARDED_BY(Locks::reference_processor_lock_);
+  // already marked. Only updated by thread currently running GC.
+  // Guarded by reference_processor_lock_ when not read by collector. Only the collector changes
+  // it.
+  collector::GarbageCollector* collector_;
+  // Reference processor state. Only valid while weak reference processing is suspended.
+  // Used by GetReferent and friends to return early.
+  enum class RpState : uint8_t { kStarting, kInitMarkingDone, kInitClearingDone };
+  RpState rp_state_ GUARDED_BY(Locks::reference_processor_lock_);
+  bool concurrent_;  // Running concurrently with mutator? Only used by GC thread.
+  bool clear_soft_references_;  // Only used by GC thread.
+
   // Condition that people wait on if they attempt to get the referent of a reference while
   // processing is in progress. Broadcast when an empty checkpoint is requested, but not for other
   // checkpoints or thread suspensions. See mutator_gc_coord.md.
