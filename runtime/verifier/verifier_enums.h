@@ -89,11 +89,6 @@ enum VerifyError : uint32_t {
   VERIFY_ERROR_INSTANTIATION =     1 << 9,   // InstantiationError.
   VERIFY_ERROR_LOCKING =           1 << 10,  // Could not guarantee balanced locking. This should be
                                              // punted to the interpreter with access checks.
-  VERIFY_ERROR_SKIP_COMPILER =    1u << 31,  // Flag to note that the failure should preclude
-                                             // optimization. Meant as a signal from the verifier
-                                             // to the compiler that there is unreachable unverified
-                                             // code. May be removed once the compiler handles
-                                             // unreachable code correctly.
 };
 std::ostream& operator<<(std::ostream& os, VerifyError rhs);
 
