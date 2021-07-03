@@ -228,6 +228,9 @@ class JavaVMExt : public JavaVM {
 
   void CheckGlobalRefAllocationTracking();
 
+  inline void MaybeTraceGlobals() REQUIRES(Locks::jni_globals_lock_);
+  inline void MaybeTraceWeakGlobals() REQUIRES(Locks::jni_weak_globals_lock_);
+
   Runtime* const runtime_;
 
   // Used for testing. By default, we'll LOG(FATAL) the reason.
@@ -267,6 +270,14 @@ class JavaVMExt : public JavaVM {
   size_t enable_allocation_tracking_delta_;
   std::atomic<bool> allocation_tracking_enabled_;
   std::atomic<bool> old_allocation_tracking_state_;
+
+  // We report the number of global references after every kGlobalRefReportInterval changes.
+  static constexpr uint32_t kGlobalRefReportInterval = 17;
+  uint32_t weak_global_ref_report_counter_ GUARDED_BY(Locks::jni_weak_globals_lock_)
+      = kGlobalRefReportInterval;
+  uint32_t global_ref_report_counter_ GUARDED_BY(Locks::jni_globals_lock_)
+      = kGlobalRefReportInterval;
+
 
   friend IndirectReferenceTable* GetIndirectReferenceTable(ScopedObjectAccess& soa,
                                                            IndirectRefKind kind);
