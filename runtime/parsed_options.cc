@@ -417,6 +417,8 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::UseStderrLogger)
       .Define("-Xonly-use-system-oat-files")
           .IntoKey(M::OnlyUseTrustedOatFiles)
+      .Define("-Xdeny-art-apex-data-files")
+          .IntoKey(M::DenyArtApexDataFiles)
       .Define("-Xverifier-logging-threshold=_")
           .WithType<unsigned int>()
           .IntoKey(M::VerifierLoggingThreshold)
@@ -726,7 +728,9 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
   }
 
   if (!args.Exists(M::CompilerCallbacksPtr) && !args.Exists(M::Image)) {
-    std::string image_locations = GetDefaultBootImageLocation(GetAndroidRoot());
+    const bool deny_art_apex_data_files = args.Exists(M::DenyArtApexDataFiles);
+    std::string image_locations =
+        GetDefaultBootImageLocation(GetAndroidRoot(), deny_art_apex_data_files);
     args.Set(M::Image, ParseStringList<':'>::Split(image_locations));
   }
 
