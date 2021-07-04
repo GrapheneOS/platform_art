@@ -207,6 +207,12 @@ known_failing_tests = [
   "2005-pause-all-redefine-multithreaded",
   "2008-redefine-then-old-reflect-field",
   "2011-stack-walk-concurrent-instrument",
+  # 2040-huge-native-alloc: Fails with:
+  #
+  #   Test command execution failed with status FAILED: CommandResult: exit code=1, out=, err=Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: length=0; index=0
+  #           at Main.main(Main.java:56)
+  #
+  "2040-huge-native-alloc",
   "203-multi-checkpoint",
   "2031-zygote-compiled-frame-deopt",
   "2033-shutdown-mechanics",
