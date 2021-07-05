@@ -487,7 +487,7 @@ class OnDeviceRefresh final {
 
     // Clean-up helper used to simplify clean-ups and handling failures there.
     auto cleanup_return = [this](ExitCode exit_code) {
-      return CleanApexdataDirectory() ? exit_code : ExitCode::kCleanupFailed;
+      return RemoveArtifactsDirectory() ? exit_code : ExitCode::kCleanupFailed;
     };
 
     const auto apex_info = GetArtApexInfo();
@@ -943,13 +943,13 @@ class OnDeviceRefresh final {
     return exit_code;
   }
 
-  WARN_UNUSED bool CleanApexdataDirectory() const {
-    const std::string& apex_data_path = GetArtApexData();
+  WARN_UNUSED bool RemoveArtifactsDirectory() const {
     if (config_.GetDryRun()) {
-      LOG(INFO) << "Files under `" << QuotePath(apex_data_path) << " would be removed (dry-run).";
+      LOG(INFO) << "Directory " << QuotePath(kOdrefreshArtifactDirectory)
+                << " and contents would be removed (dry-run).";
       return true;
     }
-    return CleanDirectory(apex_data_path);
+    return RemoveDirectory(kOdrefreshArtifactDirectory);
   }
 
   WARN_UNUSED bool RemoveArtifacts(const OdrArtifacts& artifacts) const {
@@ -1343,7 +1343,7 @@ class OnDeviceRefresh final {
     const char* staging_dir = nullptr;
     metrics.SetStage(OdrMetrics::Stage::kPreparation);
     // Clean-up existing files.
-    if (force_compile && !CleanApexdataDirectory()) {
+    if (force_compile && !RemoveArtifactsDirectory()) {
       metrics.SetStatus(OdrMetrics::Status::kIoError);
       return ExitCode::kCleanupFailed;
     }
@@ -1385,7 +1385,7 @@ class OnDeviceRefresh final {
         if (!CompileBootExtensionArtifacts(
                 isa, staging_dir, metrics, &dex2oat_invocation_count, &error_msg)) {
           LOG(ERROR) << "Compilation of BCP failed: " << error_msg;
-          if (!config_.GetDryRun() && !CleanDirectory(staging_dir)) {
+          if (!config_.GetDryRun() && !RemoveDirectory(staging_dir)) {
             return ExitCode::kCleanupFailed;
           }
           return ExitCode::kCompilationFailed;
@@ -1405,7 +1405,7 @@ class OnDeviceRefresh final {
       if (!CompileSystemServerArtifacts(
               staging_dir, metrics, &dex2oat_invocation_count, &error_msg)) {
         LOG(ERROR) << "Compilation of system_server failed: " << error_msg;
-        if (!config_.GetDryRun() && !CleanDirectory(staging_dir)) {
+        if (!config_.GetDryRun() && !RemoveDirectory(staging_dir)) {
           return ExitCode::kCleanupFailed;
         }
         return ExitCode::kCompilationFailed;

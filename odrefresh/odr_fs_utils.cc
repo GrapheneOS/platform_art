@@ -56,7 +56,7 @@ static int NftwCleanUpCallback(const char* fpath,
   }
 }
 
-WARN_UNUSED bool CleanDirectory(const std::string& dir_path) {
+WARN_UNUSED bool RemoveDirectory(const std::string& dir_path) {
   if (!OS::DirectoryExists(dir_path.c_str())) {
     return true;
   }
@@ -64,6 +64,11 @@ WARN_UNUSED bool CleanDirectory(const std::string& dir_path) {
   static constexpr int kMaxDescriptors = 4;  // Limit the need for nftw() to re-open descriptors.
   if (nftw(dir_path.c_str(), NftwCleanUpCallback, kMaxDescriptors, FTW_DEPTH | FTW_MOUNT) != 0) {
     LOG(ERROR) << "Failed to clean-up '" << dir_path << "'";
+    return false;
+  }
+
+  if (rmdir(dir_path.c_str()) != 0) {
+    LOG(ERROR) << "Failed to delete '" << dir_path << "'";
     return false;
   }
   return true;

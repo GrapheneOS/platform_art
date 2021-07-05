@@ -25,9 +25,9 @@
 namespace art {
 namespace odrefresh {
 
-// Cleans directory by removing all files and sub-directories under `dir_path`.
+// Removes the directory at `dir_path`, first removing all files and sub-directories in it.
 // Returns true on success, false otherwise.
-WARN_UNUSED bool CleanDirectory(const std::string& dir_path);
+WARN_UNUSED bool RemoveDirectory(const std::string& dir_path);
 
 // Create all directories on `absolute_dir_path`.
 // Returns true on success, false otherwise.
