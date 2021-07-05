@@ -144,9 +144,8 @@ inline bool ClassExt::HasMethodPointerIdMarker() {
   return !arr.IsNull() && !arr->IsArrayInstance();
 }
 
-
-inline ObjPtr<Object> ClassExt::GetVerifyError() {
-  return GetFieldObject<ClassExt>(OFFSET_OF_OBJECT_MEMBER(ClassExt, verify_error_));
+inline ObjPtr<Throwable> ClassExt::GetErroneousStateError() {
+  return GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(ClassExt, erroneous_state_error_));
 }
 
 inline ObjPtr<ObjectArray<DexCache>> ClassExt::GetObsoleteDexCaches() {
