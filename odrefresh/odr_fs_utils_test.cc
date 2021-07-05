@@ -58,7 +58,7 @@ static bool CreateFile(const char* file_path, size_t bytes) {
 
 }  // namespace
 
-TEST_F(OdrFsUtilsTest, CleanDirectory) {
+TEST_F(OdrFsUtilsTest, RemoveDirectory) {
   ScratchDir scratch_dir(/*keep_files=*/false);
 
   // Create some sub-directories and files
@@ -83,8 +83,8 @@ TEST_F(OdrFsUtilsTest, CleanDirectory) {
     ASSERT_TRUE(CreateFile(file_path.c_str(), 4096));
   }
 
-  // Clean all files and sub-directories
-  ASSERT_TRUE(CleanDirectory(scratch_dir.GetPath()));
+  // Remove directory, all files and sub-directories
+  ASSERT_TRUE(RemoveDirectory(scratch_dir.GetPath()));
 
   // Check nothing we created remains.
   for (const auto& dir_path : dir_paths) {
@@ -94,6 +94,9 @@ TEST_F(OdrFsUtilsTest, CleanDirectory) {
   for (const auto& file_path : file_paths) {
     ASSERT_FALSE(OS::FileExists(file_path.c_str(), true));
   }
+
+  // And the original directory is also gone
+  ASSERT_FALSE(OS::DirectoryExists(scratch_dir.GetPath().c_str()));
 }
 
 TEST_F(OdrFsUtilsTest, EnsureDirectoryExistsBadPath) {
