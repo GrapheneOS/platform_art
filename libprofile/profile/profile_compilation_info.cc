@@ -2263,21 +2263,6 @@ bool ProfileCompilationInfo::DexFileData::AddMethod(MethodHotness::Flag flags, s
   return true;
 }
 
-template <typename Fn>
-ALWAYS_INLINE void ProfileCompilationInfo::DexFileData::ForMethodBitmapHotnessFlags(Fn fn) const {
-  uint32_t lastFlag = is_for_boot_image
-      ? MethodHotness::kFlagLastBoot
-      : MethodHotness::kFlagLastRegular;
-  for (uint32_t flag = MethodHotness::kFlagFirst; flag <= lastFlag; flag = flag << 1) {
-    if (flag == MethodHotness::kFlagHot) {
-      // There's no bit for hotness in the bitmap.
-      // We store the hotness by recording the method in the method list.
-      continue;
-    }
-    fn(enum_cast<MethodHotness::Flag>(flag));
-  }
-}
-
 void ProfileCompilationInfo::DexFileData::SetMethodHotness(size_t index,
                                                            MethodHotness::Flag flags) {
   DCHECK_LT(index, num_method_ids);
@@ -2286,6 +2271,7 @@ void ProfileCompilationInfo::DexFileData::SetMethodHotness(size_t index,
       method_bitmap.StoreBit(MethodFlagBitmapIndex(
           static_cast<MethodHotness::Flag>(flag), index), /*value=*/ true);
     }
+    return true;
   });
 }
 
@@ -2294,9 +2280,10 @@ ProfileCompilationInfo::MethodHotness ProfileCompilationInfo::DexFileData::GetHo
   MethodHotness ret;
   ForMethodBitmapHotnessFlags([&](MethodHotness::Flag flag) {
     if (method_bitmap.LoadBit(MethodFlagBitmapIndex(
-          static_cast<MethodHotness::Flag>(flag), dex_method_index))) {
+            static_cast<MethodHotness::Flag>(flag), dex_method_index))) {
       ret.AddFlag(static_cast<MethodHotness::Flag>(flag));
     }
+    return true;
   });
   auto it = method_map.find(dex_method_index);
   if (it != method_map.end()) {
@@ -2325,24 +2312,6 @@ static_assert(ProfileCompilationInfo::MethodHotness::kFlagStartupBin == 1 << 10)
 static_assert(ProfileCompilationInfo::MethodHotness::kFlagStartupMaxBin == 1 << 15);
 static_assert(ProfileCompilationInfo::MethodHotness::kFlagLastBoot == 1 << 15);
 
-size_t ProfileCompilationInfo::DexFileData::MethodFlagBitmapIndex(
-      MethodHotness::Flag flag, size_t method_index) const {
-  DCHECK_LT(method_index, num_method_ids);
-  // The format is [startup bitmap][post startup bitmap][AmStartup][...]
-  // This compresses better than ([startup bit][post startup bit])*
-  return method_index + FlagBitmapIndex(flag) * num_method_ids;
-}
-
-size_t ProfileCompilationInfo::DexFileData::FlagBitmapIndex(MethodHotness::Flag flag) {
-  DCHECK(flag != MethodHotness::kFlagHot);
-  DCHECK(IsPowerOfTwo(static_cast<uint32_t>(flag)));
-  // We arrange the method flags in order, starting with the startup flag.
-  // The kFlagHot is not encoded in the bitmap and thus not expected as an
-  // argument here. Since all the other flags start at 1 we have to subtract
-  // one for the power of 2.
-  return WhichPowerOf2(static_cast<uint32_t>(flag)) - 1;
-}
-
 uint16_t ProfileCompilationInfo::DexFileData::GetUsedBitmapFlags() const {
   uint32_t used_flags = 0u;
   ForMethodBitmapHotnessFlags([&](MethodHotness::Flag flag) {
@@ -2350,6 +2319,7 @@ uint16_t ProfileCompilationInfo::DexFileData::GetUsedBitmapFlags() const {
     if (method_bitmap.HasSomeBitSet(index * num_method_ids, num_method_ids)) {
       used_flags |= flag;
     }
+    return true;
   });
   return dchecked_integral_cast<uint16_t>(used_flags);
 }
@@ -2620,6 +2590,7 @@ void ProfileCompilationInfo::DexFileData::WriteMethods(SafeBuffer& buffer) const
       saved_bitmap.StoreBits(saved_bitmap_index * num_method_ids, src, num_method_ids);
       ++saved_bitmap_index;
     }
+    return true;
   });
   DCHECK_EQ(saved_bitmap_index * num_method_ids, saved_bitmap_bit_size);
   buffer.Advance(saved_bitmap_byte_size);
@@ -2723,6 +2694,7 @@ ProfileCompilationInfo::ProfileLoadStatus ProfileCompilationInfo::DexFileData::R
       method_bitmap.OrBits(index * num_method_ids, src, num_method_ids);
       ++saved_bitmap_index;
     }
+    return true;
   });
   buffer.Advance(saved_bitmap_byte_size);
 
