@@ -411,6 +411,40 @@ static void CompileMethodHarness(
   }
 }
 
+// Checks whether profile guided compilation is enabled and if the method should be compiled
+// according to the profile file.
+static bool ShouldCompileBasedOnProfile(const CompilerOptions& compiler_options,
+                                        ProfileCompilationInfo::ProfileIndexType profile_index,
+                                        MethodReference method_ref) {
+  if (profile_index == ProfileCompilationInfo::MaxProfileIndex()) {
+    // No profile for this dex file. Check if we're actually compiling based on a profile.
+    if (!CompilerFilter::DependsOnProfile(compiler_options.GetCompilerFilter())) {
+      return true;
+    }
+    // Profile-based compilation without profile for this dex file. Do not compile the method.
+    DCHECK(compiler_options.GetProfileCompilationInfo() == nullptr ||
+           compiler_options.GetProfileCompilationInfo()->FindDexFile(*method_ref.dex_file) ==
+               ProfileCompilationInfo::MaxProfileIndex());
+    return false;
+  } else {
+    DCHECK(CompilerFilter::DependsOnProfile(compiler_options.GetCompilerFilter()));
+    const ProfileCompilationInfo* profile_compilation_info =
+        compiler_options.GetProfileCompilationInfo();
+    DCHECK(profile_compilation_info != nullptr);
+
+    // Compile only hot methods, it is the profile saver's job to decide
+    // what startup methods to mark as hot.
+    bool result = profile_compilation_info->IsHotMethod(profile_index, method_ref.index);
+
+    if (kDebugProfileGuidedCompilation) {
+      LOG(INFO) << "[ProfileGuidedCompilation] "
+          << (result ? "Compiled" : "Skipped") << " method:" << method_ref.PrettyMethod(true);
+    }
+
+    return result;
+  }
+}
+
 static void CompileMethodQuick(
     Thread* self,
     CompilerDriver* driver,
@@ -421,8 +455,9 @@ static void CompileMethodQuick(
     uint32_t method_idx,
     Handle<mirror::ClassLoader> class_loader,
     const DexFile& dex_file,
-    Handle<mirror::DexCache> dex_cache) {
-  auto quick_fn = [](
+    Handle<mirror::DexCache> dex_cache,
+    ProfileCompilationInfo::ProfileIndexType profile_index) {
+  auto quick_fn = [profile_index](
       Thread* self ATTRIBUTE_UNUSED,
       CompilerDriver* driver,
       const dex::CodeItem* code_item,
@@ -435,12 +470,12 @@ static void CompileMethodQuick(
       Handle<mirror::DexCache> dex_cache) {
     DCHECK(driver != nullptr);
     CompiledMethod* compiled_method = nullptr;
-    MethodReference method_ref(&dex_file, method_idx);
 
     if ((access_flags & kAccNative) != 0) {
       // Are we extracting only and have support for generic JNI down calls?
-      if (!driver->GetCompilerOptions().IsJniCompilationEnabled() &&
-          InstructionSetHasGenericJniStub(driver->GetCompilerOptions().GetInstructionSet())) {
+      const CompilerOptions& compiler_options = driver->GetCompilerOptions();
+      if (!compiler_options.IsJniCompilationEnabled() &&
+          InstructionSetHasGenericJniStub(compiler_options.GetInstructionSet())) {
         // Leaving this empty will trigger the generic JNI version
       } else {
         // Query any JNI optimization annotations such as @FastNative or @CriticalNative.
@@ -454,8 +489,10 @@ static void CompileMethodQuick(
     } else if ((access_flags & kAccAbstract) != 0) {
       // Abstract methods don't have code.
     } else {
-      const VerificationResults* results = driver->GetCompilerOptions().GetVerificationResults();
+      const CompilerOptions& compiler_options = driver->GetCompilerOptions();
+      const VerificationResults* results = compiler_options.GetVerificationResults();
       DCHECK(results != nullptr);
+      MethodReference method_ref(&dex_file, method_idx);
       const VerifiedMethod* verified_method = results->GetVerifiedMethod(method_ref);
       bool compile =
           // Basic checks, e.g., not <clinit>.
@@ -466,8 +503,8 @@ static void CompileMethodQuick(
           !verified_method->HasRuntimeThrow() &&
           (verified_method->GetEncounteredVerificationFailures() &
               verifier::VERIFY_ERROR_LOCKING) == 0 &&
-              // Is eligable for compilation by methods-to-compile filter.
-              driver->ShouldCompileBasedOnProfile(method_ref);
+          // Is eligible for compilation by methods-to-compile filter.
+          ShouldCompileBasedOnProfile(compiler_options, profile_index, method_ref);
 
       if (compile) {
         // NOTE: if compiler declines to compile this method, it will return null.
@@ -479,11 +516,10 @@ static void CompileMethodQuick(
                                                          class_loader,
                                                          dex_file,
                                                          dex_cache);
-        ProfileMethodsCheck check_type =
-            driver->GetCompilerOptions().CheckProfiledMethodsCompiled();
+        ProfileMethodsCheck check_type = compiler_options.CheckProfiledMethodsCompiled();
         if (UNLIKELY(check_type != ProfileMethodsCheck::kNone)) {
-          bool violation = driver->ShouldCompileBasedOnProfile(method_ref) &&
-                               (compiled_method == nullptr);
+          DCHECK(ShouldCompileBasedOnProfile(compiler_options, profile_index, method_ref));
+          bool violation = (compiled_method == nullptr);
           if (violation) {
             std::ostringstream oss;
             oss << "Failed to compile "
@@ -544,7 +580,9 @@ void CompilerDriver::Resolve(jobject class_loader,
 void CompilerDriver::ResolveConstStrings(const std::vector<const DexFile*>& dex_files,
                                          bool only_startup_strings,
                                          TimingLogger* timings) {
-  if (only_startup_strings && GetCompilerOptions().GetProfileCompilationInfo() == nullptr) {
+  const ProfileCompilationInfo* profile_compilation_info =
+      GetCompilerOptions().GetProfileCompilationInfo();
+  if (only_startup_strings && profile_compilation_info == nullptr) {
     // If there is no profile, don't resolve any strings. Resolving all of the strings in the image
     // will cause a bloated app image and slow down startup.
     return;
@@ -559,15 +597,19 @@ void CompilerDriver::ResolveConstStrings(const std::vector<const DexFile*>& dex_
     dex_cache.Assign(class_linker->FindDexCache(soa.Self(), *dex_file));
     TimingLogger::ScopedTiming t("Resolve const-string Strings", timings);
 
+    ProfileCompilationInfo::ProfileIndexType profile_index =
+        ProfileCompilationInfo::MaxProfileIndex();
+    if (profile_compilation_info != nullptr) {
+      profile_index = profile_compilation_info->FindDexFile(*dex_file);
+      if (profile_index == ProfileCompilationInfo::MaxProfileIndex()) {
+        // We have a `ProfileCompilationInfo` but no data for this dex file.
+        // The code below would not find any method to process.
+        continue;
+      }
+    }
+
     // TODO: Implement a profile-based filter for the boot image. See b/76145463.
     for (ClassAccessor accessor : dex_file->GetClasses()) {
-      const ProfileCompilationInfo* profile_compilation_info =
-          GetCompilerOptions().GetProfileCompilationInfo();
-
-      const bool is_startup_class =
-          profile_compilation_info != nullptr &&
-          profile_compilation_info->ContainsClass(*dex_file, accessor.GetClassIdx());
-
       // Skip methods that failed to verify since they may contain invalid Dex code.
       if (GetClassStatus(ClassReference(dex_file, accessor.GetClassDefIndex())) <
           ClassStatus::kRetryVerificationAtRuntime) {
@@ -575,15 +617,23 @@ void CompilerDriver::ResolveConstStrings(const std::vector<const DexFile*>& dex_
       }
 
       for (const ClassAccessor::Method& method : accessor.GetMethods()) {
-        const bool is_clinit = (method.GetAccessFlags() & kAccConstructor) != 0 &&
-            (method.GetAccessFlags() & kAccStatic) != 0;
-        const bool is_startup_clinit = is_startup_class && is_clinit;
+        if (profile_compilation_info != nullptr) {
+          DCHECK_NE(profile_index, ProfileCompilationInfo::MaxProfileIndex());
+          // There can be at most one class initializer in a class, so we shall not
+          // call `ProfileCompilationInfo::ContainsClass()` more than once per class.
+          constexpr uint32_t kMask = kAccConstructor | kAccStatic;
+          const bool is_startup_clinit =
+              (method.GetAccessFlags() & kMask) == kMask &&
+              profile_compilation_info->ContainsClass(profile_index, accessor.GetClassIdx());
 
-        if (profile_compilation_info != nullptr && !is_startup_clinit) {
-          ProfileCompilationInfo::MethodHotness hotness =
-              profile_compilation_info->GetMethodHotness(method.GetReference());
-          if (only_startup_strings ? !hotness.IsStartup() : !hotness.IsInProfile()) {
-            continue;
+          if (!is_startup_clinit) {
+            uint32_t method_index = method.GetIndex();
+            bool process_method = only_startup_strings
+                ? profile_compilation_info->IsStartupMethod(profile_index, method_index)
+                : profile_compilation_info->IsMethodInProfile(profile_index, method_index);
+            if (!process_method) {
+              continue;
+            }
           }
         }
 
@@ -857,31 +907,6 @@ void CompilerDriver::PreCompile(jobject class_loader,
       InitializeTypeCheckBitstrings(this, dex_files, timings);
     }
   }
-}
-
-bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_ref) const {
-  // Profile compilation info may be null if no profile is passed.
-  if (!CompilerFilter::DependsOnProfile(compiler_options_->GetCompilerFilter())) {
-    // Use the compiler filter instead of the presence of profile_compilation_info_ since
-    // we may want to have full speed compilation along with profile based layout optimizations.
-    return true;
-  }
-  // If we are using a profile filter but do not have a profile compilation info, compile nothing.
-  const ProfileCompilationInfo* profile_compilation_info =
-      GetCompilerOptions().GetProfileCompilationInfo();
-  if (profile_compilation_info == nullptr) {
-    return false;
-  }
-  // Compile only hot methods, it is the profile saver's job to decide what startup methods to mark
-  // as hot.
-  bool result = profile_compilation_info->GetMethodHotness(method_ref).IsHot();
-
-  if (kDebugProfileGuidedCompilation) {
-    LOG(INFO) << "[ProfileGuidedCompilation] "
-        << (result ? "Compiled" : "Skipped") << " method:" << method_ref.PrettyMethod(true);
-  }
-
-  return result;
 }
 
 class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
@@ -2488,8 +2513,14 @@ static void CompileDexFile(CompilerDriver* driver,
                                      &dex_file,
                                      dex_files,
                                      thread_pool);
+  const CompilerOptions& compiler_options = driver->GetCompilerOptions();
+  bool have_profile = (compiler_options.GetProfileCompilationInfo() != nullptr);
+  bool use_profile = CompilerFilter::DependsOnProfile(compiler_options.GetCompilerFilter());
+  ProfileCompilationInfo::ProfileIndexType profile_index = (have_profile && use_profile)
+      ? compiler_options.GetProfileCompilationInfo()->FindDexFile(dex_file)
+      : ProfileCompilationInfo::MaxProfileIndex();
 
-  auto compile = [&context, &compile_fn](size_t class_def_index) {
+  auto compile = [&context, &compile_fn, profile_index](size_t class_def_index) {
     const DexFile& dex_file = *context.GetDexFile();
     SCOPED_TRACE << "compile " << dex_file.GetLocation() << "@" << class_def_index;
     ClassLinker* class_linker = context.GetClassLinker();
@@ -2550,7 +2581,8 @@ static void CompileDexFile(CompilerDriver* driver,
                  method_idx,
                  class_loader,
                  dex_file,
-                 dex_cache);
+                 dex_cache,
+                 profile_index);
     }
   };
   context.ForAllLambda(0, dex_file.NumClassDefs(), compile, thread_count);

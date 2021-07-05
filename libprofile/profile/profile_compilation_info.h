@@ -300,6 +300,15 @@ class ProfileCompilationInfo {
     return std::numeric_limits<ProfileIndexType>::max();
   }
 
+  // Find a tracked dex file. Returns `MaxProfileIndex()` on failure, whether due to no records
+  // for the dex location or profile key, or checksum/num_type_ids/num_method_ids mismatch.
+  ProfileIndexType FindDexFile(
+      const DexFile& dex_file,
+      const ProfileSampleAnnotation& annotation = ProfileSampleAnnotation::kNone) const {
+    const DexFileData* data = FindDexDataUsingAnnotations(&dex_file, annotation);
+    return (data != nullptr) ? data->profile_index : MaxProfileIndex();
+  }
+
   // Find or add a tracked dex file. Returns `MaxProfileIndex()` on failure, whether due to
   // checksum/num_type_ids/num_method_ids mismatch or reaching the maximum number of dex files.
   ProfileIndexType FindOrAddDexFile(
@@ -485,6 +494,28 @@ class ProfileCompilationInfo {
   // Return the number of resolved classes that were profiled.
   uint32_t GetNumberOfResolvedClasses() const;
 
+  // Returns whether the referenced method is a startup method.
+  bool IsStartupMethod(ProfileIndexType profile_index, uint32_t method_index) const {
+    return info_[profile_index]->IsStartupMethod(method_index);
+  }
+
+  // Returns whether the referenced method is a post-startup method.
+  bool IsPostStartupMethod(ProfileIndexType profile_index, uint32_t method_index) const {
+    return info_[profile_index]->IsPostStartupMethod(method_index);
+  }
+
+  // Returns whether the referenced method is hot.
+  bool IsHotMethod(ProfileIndexType profile_index, uint32_t method_index) const {
+    return info_[profile_index]->IsHotMethod(method_index);
+  }
+
+  // Returns whether the referenced method is in the profile (with any hotness flag).
+  bool IsMethodInProfile(ProfileIndexType profile_index, uint32_t method_index) const {
+    DCHECK_LT(profile_index, info_.size());
+    const DexFileData* const data = info_[profile_index].get();
+    return data->IsMethodInProfile(method_index);
+  }
+
   // Returns the profile method info for a given method reference.
   //
   // Note that if the profile was built with annotations, the same dex file may be
@@ -497,6 +528,16 @@ class ProfileCompilationInfo {
   MethodHotness GetMethodHotness(
       const MethodReference& method_ref,
       const ProfileSampleAnnotation& annotation = ProfileSampleAnnotation::kNone) const;
+
+  // Return true if the class's type is present in the profiling info.
+  bool ContainsClass(ProfileIndexType profile_index, dex::TypeIndex type_index) const {
+    DCHECK_LT(profile_index, info_.size());
+    const DexFileData* const data = info_[profile_index].get();
+    DCHECK(type_index.IsValid());
+    DCHECK(type_index.index_ <= data->num_type_ids ||
+           type_index.index_ - data->num_type_ids < extra_descriptors_.size());
+    return data->class_set.find(type_index) != data->class_set.end();
+  }
 
   // Return true if the class's type is present in the profiling info.
   //
@@ -782,6 +823,37 @@ class ProfileCompilationInfo {
     void SetMethodHotness(size_t index, MethodHotness::Flag flags);
     MethodHotness GetHotnessInfo(uint32_t dex_method_index) const;
 
+    bool IsStartupMethod(uint32_t method_index) const {
+      DCHECK_LT(method_index, num_method_ids);
+      return method_bitmap.LoadBit(
+          MethodFlagBitmapIndex(MethodHotness::Flag::kFlagStartup, method_index));
+    }
+
+    bool IsPostStartupMethod(uint32_t method_index) const {
+      DCHECK_LT(method_index, num_method_ids);
+      return method_bitmap.LoadBit(
+          MethodFlagBitmapIndex(MethodHotness::Flag::kFlagPostStartup, method_index));
+    }
+
+    bool IsHotMethod(uint32_t method_index) const {
+      DCHECK_LT(method_index, num_method_ids);
+      return method_map.find(method_index) != method_map.end();
+    }
+
+    bool IsMethodInProfile(uint32_t method_index) const {
+      DCHECK_LT(method_index, num_method_ids);
+      bool has_flag = false;
+      ForMethodBitmapHotnessFlags([&](MethodHotness::Flag flag) {
+        if (method_bitmap.LoadBit(MethodFlagBitmapIndex(
+                static_cast<MethodHotness::Flag>(flag), method_index))) {
+          has_flag = true;
+          return false;
+        }
+        return true;
+      });
+      return has_flag || IsHotMethod(method_index);
+    }
+
     bool ContainsClass(dex::TypeIndex type_index) const;
 
     uint32_t ClassesDataSize() const;
@@ -827,11 +899,41 @@ class ProfileCompilationInfo {
 
    private:
     template <typename Fn>
-    void ForMethodBitmapHotnessFlags(Fn fn) const;
+    void ForMethodBitmapHotnessFlags(Fn fn) const {
+      uint32_t lastFlag = is_for_boot_image
+          ? MethodHotness::kFlagLastBoot
+          : MethodHotness::kFlagLastRegular;
+      for (uint32_t flag = MethodHotness::kFlagFirst; flag <= lastFlag; flag = flag << 1) {
+        if (flag == MethodHotness::kFlagHot) {
+          // There's no bit for hotness in the bitmap.
+          // We store the hotness by recording the method in the method list.
+          continue;
+        }
+        bool cont = fn(enum_cast<MethodHotness::Flag>(flag));
+        if (!cont) {
+          break;
+        }
+      }
+    }
+
+    size_t MethodFlagBitmapIndex(MethodHotness::Flag flag, size_t method_index) const {
+      DCHECK_LT(method_index, num_method_ids);
+      // The format is [startup bitmap][post startup bitmap][AmStartup][...]
+      // This compresses better than ([startup bit][post startup bit])*
+      return method_index + FlagBitmapIndex(flag) * num_method_ids;
+    }
+
+    static size_t FlagBitmapIndex(MethodHotness::Flag flag) {
+      DCHECK(flag != MethodHotness::kFlagHot);
+      DCHECK(IsPowerOfTwo(static_cast<uint32_t>(flag)));
+      // We arrange the method flags in order, starting with the startup flag.
+      // The kFlagHot is not encoded in the bitmap and thus not expected as an
+      // argument here. Since all the other flags start at 1 we have to subtract
+      // one from the power of 2.
+      return WhichPowerOf2(static_cast<uint32_t>(flag)) - 1;
+    }
 
     static void WriteClassSet(SafeBuffer& buffer, const ArenaSet<dex::TypeIndex>& class_set);
-    size_t MethodFlagBitmapIndex(MethodHotness::Flag flag, size_t method_index) const;
-    static size_t FlagBitmapIndex(MethodHotness::Flag flag);
 
     uint16_t GetUsedBitmapFlags() const;
   };

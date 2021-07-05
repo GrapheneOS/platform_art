@@ -1047,7 +1047,7 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
 //
 // See also OrderedMethodVisitor.
 struct OatWriter::OrderedMethodData {
-  ProfileCompilationInfo::MethodHotness method_hotness;
+  uint32_t hotness_bits;
   OatClass* oat_class;
   CompiledMethod* compiled_method;
   MethodReference method_reference;
@@ -1089,48 +1089,12 @@ struct OatWriter::OrderedMethodData {
     }
 
     // Use the profile's method hotness to determine sort order.
-    if (GetMethodHotnessOrder() < other.GetMethodHotnessOrder()) {
+    if (hotness_bits < other.hotness_bits) {
       return true;
     }
 
     // Default: retain the original order.
     return false;
-  }
-
- private:
-  // Used to determine relative order for OAT code layout when determining
-  // binning.
-  size_t GetMethodHotnessOrder() const {
-    bool hotness[] = {
-      method_hotness.IsHot(),
-      method_hotness.IsStartup(),
-      method_hotness.IsPostStartup()
-    };
-
-
-    // Note: Bin-to-bin order does not matter. If the kernel does or does not read-ahead
-    // any memory, it only goes into the buffer cache and does not grow the PSS until the first
-    // time that memory is referenced in the process.
-
-    size_t hotness_bits = 0;
-    for (size_t i = 0; i < arraysize(hotness); ++i) {
-      if (hotness[i]) {
-        hotness_bits |= (1 << i);
-      }
-    }
-
-    if (kIsDebugBuild) {
-      // Check for bins that are always-empty given a real profile.
-      if (method_hotness.IsHot() &&
-              !method_hotness.IsStartup() && !method_hotness.IsPostStartup()) {
-        std::string name = method_reference.PrettyMethod();
-        LOG(FATAL) << "Method " << name << " had a Hot method that wasn't marked "
-                   << "either start-up or post-startup. Possible corrupted profile?";
-        // This is not fatal, so only warn.
-      }
-    }
-
-    return hotness_bits;
   }
 };
 
@@ -1190,7 +1154,23 @@ class OatWriter::OrderedMethodVisitor {
 class OatWriter::LayoutCodeMethodVisitor : public OatDexMethodVisitor {
  public:
   LayoutCodeMethodVisitor(OatWriter* writer, size_t offset)
-      : OatDexMethodVisitor(writer, offset) {
+      : OatDexMethodVisitor(writer, offset),
+        profile_index_(ProfileCompilationInfo::MaxProfileIndex()),
+        profile_index_dex_file_(nullptr) {
+  }
+
+  bool StartClass(const DexFile* dex_file, size_t class_def_index) override {
+    // Update the cached `profile_index_` if needed. This happens only once per dex file
+    // because we visit all classes in a dex file together, so mark that as `UNLIKELY`.
+    if (UNLIKELY(dex_file != profile_index_dex_file_)) {
+      if (writer_->profile_compilation_info_ != nullptr) {
+        profile_index_ = writer_->profile_compilation_info_->FindDexFile(*dex_file);
+      } else {
+        DCHECK_EQ(profile_index_, ProfileCompilationInfo::MaxProfileIndex());
+      }
+      profile_index_dex_file_ = dex_file;
+    }
+    return OatDexMethodVisitor::StartClass(dex_file, class_def_index);
   }
 
   bool EndClass() override {
@@ -1231,18 +1211,37 @@ class OatWriter::LayoutCodeMethodVisitor : public OatDexMethodVisitor {
         }
       }
 
-      MethodReference method_ref(dex_file_, method.GetIndex());
-
-      // Lookup method hotness from profile, if available.
-      // Otherwise assume a default of none-hotness.
-      ProfileCompilationInfo::MethodHotness method_hotness =
-          writer_->profile_compilation_info_ != nullptr
-              ? writer_->profile_compilation_info_->GetMethodHotness(method_ref)
-              : ProfileCompilationInfo::MethodHotness();
+      // Determine the `hotness_bits`, used to determine relative order
+      // for OAT code layout when determining binning.
+      uint32_t method_index = method.GetIndex();
+      MethodReference method_ref(dex_file_, method_index);
+      uint32_t hotness_bits = 0u;
+      if (profile_index_ != ProfileCompilationInfo::MaxProfileIndex()) {
+        ProfileCompilationInfo* pci = writer_->profile_compilation_info_;
+        DCHECK(pci != nullptr);
+        // Note: Bin-to-bin order does not matter. If the kernel does or does not read-ahead
+        // any memory, it only goes into the buffer cache and does not grow the PSS until the
+        // first time that memory is referenced in the process.
+        constexpr uint32_t kHotBit = 1u;
+        constexpr uint32_t kStartupBit = 2u;
+        constexpr uint32_t kPostStartupBit = 4u;
+        hotness_bits =
+            (pci->IsHotMethod(profile_index_, method_index) ? kHotBit : 0u) |
+            (pci->IsStartupMethod(profile_index_, method_index) ? kStartupBit : 0u) |
+            (pci->IsPostStartupMethod(profile_index_, method_index) ? kPostStartupBit : 0u);
+        if (kIsDebugBuild) {
+          // Check for bins that are always-empty given a real profile.
+          if (hotness_bits == kHotBit) {
+            // This is not fatal, so only warn.
+            LOG(WARNING) << "Method " << method_ref.PrettyMethod() << " was hot but wasn't marked "
+                         << "either start-up or post-startup. Possible corrupted profile?";
+          }
+        }
+      }
 
       // Handle duplicate methods by pushing them repeatedly.
       OrderedMethodData method_data = {
-          method_hotness,
+          hotness_bits,
           oat_class,
           compiled_method,
           method_ref,
@@ -1279,6 +1278,10 @@ class OatWriter::LayoutCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
  private:
+  // Cached profile index for the current dex file.
+  ProfileCompilationInfo::ProfileIndexType profile_index_;
+  const DexFile* profile_index_dex_file_;
+
   // List of compiled methods, later to be sorted by order defined in OrderedMethodData.
   // Methods can be inserted more than once in case of duplicated methods.
   OrderedMethodList ordered_methods_;
@@ -2358,7 +2361,7 @@ size_t OatWriter::InitOatCodeDexFiles(size_t offset) {
                   << "@ offset "
                   << relative_patcher_->GetOffset(ordered_method.method_reference)
                   << " X hotness "
-                  << reinterpret_cast<void*>(ordered_method.method_hotness.GetFlags());
+                  << ordered_method.hotness_bits;
       }
     }
   }
