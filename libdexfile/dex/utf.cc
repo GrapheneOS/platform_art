@@ -192,12 +192,16 @@ int32_t ComputeUtf16HashFromModifiedUtf8(const char* utf8, size_t utf16_length) 
 }
 
 uint32_t ComputeModifiedUtf8Hash(const char* chars) {
-  uint32_t hash = 0;
+  uint32_t hash = StartModifiedUtf8Hash();
   while (*chars != '\0') {
-    hash = hash * 31 + static_cast<uint8_t>(*chars);
+    hash = UpdateModifiedUtf8Hash(hash, *chars);
     ++chars;
   }
   return hash;
+}
+
+uint32_t ComputeModifiedUtf8Hash(std::string_view chars) {
+  return UpdateModifiedUtf8Hash(StartModifiedUtf8Hash(), chars);
 }
 
 int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t* utf16,
