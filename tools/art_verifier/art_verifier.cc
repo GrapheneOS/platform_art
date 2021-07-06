@@ -214,10 +214,11 @@ struct MethodVerifierMain : public CmdlineMain<MethodVerifierArgs> {
     jobject class_loader = Install(runtime, unique_dex_files, &dex_files);
     CHECK(class_loader != nullptr);
 
-    StackHandleScope<2> scope(soa.Self());
+    StackHandleScope<3> scope(soa.Self());
     Handle<mirror::ClassLoader> h_loader = scope.NewHandle(
         soa.Decode<mirror::ClassLoader>(class_loader));
     MutableHandle<mirror::Class> h_klass(scope.NewHandle<mirror::Class>(nullptr));
+    MutableHandle<mirror::DexCache> h_dex_cache(scope.NewHandle<mirror::DexCache>(nullptr));
 
     if (args_->method_verifier_verbose_) {
       gLogVerbosity.verifier = true;
@@ -244,11 +245,16 @@ struct MethodVerifierMain : public CmdlineMain<MethodVerifierArgs> {
             soa.Self()->ClearException();
             continue;
           }
+          h_dex_cache.Assign(h_klass->GetDexCache());
           std::string error_msg;
           verifier::FailureKind res =
             verifier::ClassVerifier::VerifyClass(soa.Self(),
                                                  /* verifier_deps= */ nullptr,
-                                                 h_klass.Get(),
+                                                 h_dex_cache->GetDexFile(),
+                                                 h_klass,
+                                                 h_dex_cache,
+                                                 h_loader,
+                                                 *h_klass->GetClassDef(),
                                                  runtime->GetCompilerCallbacks(),
                                                  true,
                                                  verifier::HardFailLogMode::kLogWarning,

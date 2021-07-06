@@ -1608,13 +1608,16 @@ RedefinitionDataIter RedefinitionDataHolder::end() {
 
 bool Redefiner::ClassRedefinition::CheckVerification(const RedefinitionDataIter& iter) {
   DCHECK_EQ(dex_file_->NumClassDefs(), 1u);
-  art::StackHandleScope<2> hs(driver_->self_);
+  art::StackHandleScope<3> hs(driver_->self_);
   std::string error;
   // TODO Make verification log level lower
   art::verifier::FailureKind failure =
       art::verifier::ClassVerifier::VerifyClass(driver_->self_,
                                                 /*verifier_deps=*/nullptr,
                                                 dex_file_.get(),
+                                                hs.NewHandle(iter.GetNewClassObject() != nullptr
+                                                                ? iter.GetNewClassObject()
+                                                                : iter.GetMirrorClass()),
                                                 hs.NewHandle(iter.GetNewDexCache()),
                                                 hs.NewHandle(GetClassLoader()),
                                                 /*class_def=*/ dex_file_->GetClassDef(0),
@@ -1624,24 +1627,11 @@ bool Redefiner::ClassRedefinition::CheckVerification(const RedefinitionDataIter&
                                                 art::verifier::HardFailLogMode::kLogWarning,
                                                 art::Runtime::Current()->GetTargetSdkVersion(),
                                                 &error);
-  switch (failure) {
-    case art::verifier::FailureKind::kNoFailure:
-      // TODO It is possible that by doing redefinition previous NO_COMPILE verification failures
-      // were fixed. It would be nice to reflect this in the new implementations.
-      return true;
-    case art::verifier::FailureKind::kSoftFailure:
-    case art::verifier::FailureKind::kAccessChecksFailure:
-    case art::verifier::FailureKind::kTypeChecksFailure:
-      // Soft failures might require interpreter on some methods. It won't prevent redefinition but
-      // it does mean we need to run the verifier again and potentially update method flags after
-      // performing the swap.
-      needs_reverify_ = true;
-      return true;
-    case art::verifier::FailureKind::kHardFailure: {
-      RecordFailure(ERR(FAILS_VERIFICATION), "Failed to verify class. Error was: " + error);
-      return false;
-    }
+  if (failure == art::verifier::FailureKind::kHardFailure) {
+    RecordFailure(ERR(FAILS_VERIFICATION), "Failed to verify class. Error was: " + error);
+    return false;
   }
+  return true;
 }
 
 // Looks through the previously allocated cookies to see if we need to update them with another new
@@ -2519,34 +2509,7 @@ jvmtiError Redefiner::Run() {
     // owns the DexFile and when ownership is transferred.
     ReleaseAllDexFiles();
   }
-  // By now the class-linker knows about all the classes so we can safetly retry verification and
-  // update method flags.
-  ReverifyClasses(holder);
   return OK;
-}
-
-void Redefiner::ReverifyClasses(RedefinitionDataHolder& holder) {
-  for (RedefinitionDataIter data = holder.begin(); data != holder.end(); ++data) {
-    data.GetRedefinition().ReverifyClass(data);
-  }
-}
-
-void Redefiner::ClassRedefinition::ReverifyClass(const RedefinitionDataIter &cur_data) {
-  if (!needs_reverify_) {
-    return;
-  }
-  VLOG(plugin) << "Reverifying " << class_sig_ << " due to soft failures";
-  std::string error;
-  // TODO Make verification log level lower
-  art::verifier::FailureKind failure =
-      art::verifier::ClassVerifier::ReverifyClass(driver_->self_,
-                                                  cur_data.GetMirrorClass(),
-                                                  /*log_level=*/
-                                                  art::verifier::HardFailLogMode::kLogWarning,
-                                                  /*api_level=*/
-                                                  art::Runtime::Current()->GetTargetSdkVersion(),
-                                                  &error);
-  CHECK_NE(failure, art::verifier::FailureKind::kHardFailure);
 }
 
 void Redefiner::ClassRedefinition::UpdateMethods(art::ObjPtr<art::mirror::Class> mclass,
@@ -3050,25 +3013,6 @@ void Redefiner::ClassRedefinition::UpdateClass(const RedefinitionDataIter& holde
   } else if (!holder.IsActuallyStructural()) {
     UpdateClassInPlace(holder);
   }
-  UpdateClassCommon(holder);
-}
-
-void Redefiner::ClassRedefinition::UpdateClassCommon(const RedefinitionDataIter &cur_data) {
-  // NB This is after we've already replaced all old-refs with new-refs in the structural case.
-  art::ObjPtr<art::mirror::Class> klass(cur_data.GetMirrorClass());
-  DCHECK(!IsStructuralRedefinition() || klass == cur_data.GetNewClassObject());
-  if (!needs_reverify_) {
-    return;
-  }
-  // Force the most restrictive interpreter environment. We don't know what the final verification
-  // will allow. We will clear these after retrying verification once we drop the mutator-lock.
-  klass->VisitMethods([](art::ArtMethod* m) REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    if (!m->IsNative() && m->IsInvokable() && !m->IsObsolete()) {
-      m->ClearSkipAccessChecks();
-      m->SetDontCompile();
-      m->SetMustCountLocks();
-    }
-  }, art::kRuntimePointerSize);
 }
 
 // Restores the old obsolete methods maps if it turns out they weren't needed (ie there were no new
