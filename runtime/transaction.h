@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_TRANSACTION_H_
 #define ART_RUNTIME_TRANSACTION_H_
 
+#include "base/scoped_arena_containers.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/safe_map.h"
@@ -47,8 +48,12 @@ class Transaction final {
  public:
   static constexpr const char* kAbortExceptionDescriptor = "Ldalvik/system/TransactionAbortError;";
 
-  Transaction(bool strict, mirror::Class* root);
+  Transaction(bool strict, mirror::Class* root, ArenaStack* arena_stack, ArenaPool* arena_pool);
   ~Transaction();
+
+  ArenaStack* GetArenaStack() {
+    return allocator_.GetArenaStack();
+  }
 
   void Abort(const std::string& abort_message)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -157,7 +162,8 @@ class Transaction final {
       return field_values_.size();
     }
 
-    ObjectLog() = default;
+    explicit ObjectLog(ScopedArenaAllocator* allocator)
+        : field_values_(std::less<uint32_t>(), allocator->Adapter(kArenaAllocTransaction)) {}
     ObjectLog(ObjectLog&& log) = default;
 
    private:
@@ -189,7 +195,7 @@ class Transaction final {
                         const FieldValue& field_value) const REQUIRES_SHARED(Locks::mutator_lock_);
 
     // Maps field's offset to its value.
-    std::map<uint32_t, FieldValue> field_values_;
+    ScopedArenaSafeMap<uint32_t, FieldValue> field_values_;
 
     DISALLOW_COPY_AND_ASSIGN(ObjectLog);
   };
@@ -204,7 +210,9 @@ class Transaction final {
       return array_values_.size();
     }
 
-    ArrayLog() = default;
+    explicit ArrayLog(ScopedArenaAllocator* allocator)
+        : array_values_(std::less<size_t>(), allocator->Adapter(kArenaAllocTransaction)) {}
+
     ArrayLog(ArrayLog&& log) = default;
 
    private:
@@ -215,7 +223,7 @@ class Transaction final {
 
     // Maps index to value.
     // TODO use JValue instead ?
-    std::map<size_t, uint64_t> array_values_;
+    ScopedArenaSafeMap<size_t, uint64_t> array_values_;
 
     DISALLOW_COPY_AND_ASSIGN(ArrayLog);
   };
@@ -293,9 +301,9 @@ class Transaction final {
   void UndoResolveMethodTypeModifications()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void VisitObjectLogs(RootVisitor* visitor)
+  void VisitObjectLogs(RootVisitor* visitor, ArenaStack* arena_stack)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void VisitArrayLogs(RootVisitor* visitor)
+  void VisitArrayLogs(RootVisitor* visitor, ArenaStack* arena_stack)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void VisitInternStringLogs(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -306,11 +314,19 @@ class Transaction final {
 
   const std::string& GetAbortMessage() const;
 
-  std::map<mirror::Object*, ObjectLog> object_logs_;
-  std::map<mirror::Array*, ArrayLog> array_logs_ ;
-  std::list<InternStringLog> intern_string_logs_;
-  std::list<ResolveStringLog> resolve_string_logs_;
-  std::list<ResolveMethodTypeLog> resolve_method_type_logs_;
+  ObjectLog& GetOrCreateObjectLog(mirror::Object* obj);
+
+  // The top-level transaction creates an `ArenaStack` which is then
+  // passed down to nested transactions.
+  std::optional<ArenaStack> arena_stack_;
+  // The allocator uses the `ArenaStack` from the top-level transaction.
+  ScopedArenaAllocator allocator_;
+
+  ScopedArenaSafeMap<mirror::Object*, ObjectLog> object_logs_;
+  ScopedArenaSafeMap<mirror::Array*, ArrayLog> array_logs_ ;
+  ScopedArenaForwardList<InternStringLog> intern_string_logs_;
+  ScopedArenaForwardList<ResolveStringLog> resolve_string_logs_;
+  ScopedArenaForwardList<ResolveMethodTypeLog> resolve_method_type_logs_;
   bool aborted_;
   bool rolling_back_;  // Single thread, no race.
   gc::Heap* const heap_;

@@ -105,6 +105,7 @@ enum ArenaAllocKind {
   kArenaAllocScheduler,
   kArenaAllocProfile,
   kArenaAllocSuperblockCloner,
+  kArenaAllocTransaction,
   kNumArenaAllocKinds
 };
 
