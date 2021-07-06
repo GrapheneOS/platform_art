@@ -99,16 +99,33 @@ java_sdk_library {
     dist_group: "android",
 }
 
-art_cc_test {
-    name: "art_libartservice_tests",
-    defaults: [
-        "art_gtest_defaults",
-    ],
+art_cc_defaults {
+    name: "art_libartservice_tests_defaults",
     srcs: [
         "service/native/service_test.cc",
     ],
     shared_libs: [
         "libbase",
         "libartservice",
+    ],
+}
+
+// Version of ART gtest `art_libartservice_tests` bundled with the ART APEX on target.
+// TODO(b/192274705): Remove this module when the migration to standalone ART gtests is complete.
+art_cc_test {
+    name: "art_libartservice_tests",
+    defaults: [
+        "art_gtest_defaults",
+        "art_libartservice_tests_defaults",
+    ],
+}
+
+// Standalone version of ART gtest `art_libartservice_tests`, not bundled with the ART APEX on
+// target.
+art_cc_test {
+    name: "art_standalone_libartservice_tests",
+    defaults: [
+        "art_standalone_gtest_defaults",
+        "art_libartservice_tests_defaults",
     ],
 }
