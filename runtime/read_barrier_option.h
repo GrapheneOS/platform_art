@@ -36,16 +36,21 @@ namespace art {
 //    (Similar to 2 above, given that null is "non-moving".)
 // 4. We're reading a reference to a holder from which we shall read
 //      - constant primitive field, or
+//      - mutable primitive field for testing an invariant, or
 //      - constant reference field known to point to an un-reclaimable immune space object, or
 //      - constant reference field for comparison involving a non-moving space reference, or
 //      - constant reference field for comparison with null, or
 //      - constant reference fields in a chain leading to one or more of the above purposes;
 //        the entire chain needs to be read without read barrier.
-//    The term "constant" refers to fields set to their final value between allocating
-//    the holder and the next opportunity for the holder to be moved by the GC, i.e.
-//    before the first suspend point after the allocation, or seen by another thread.
-//    This includes several fields in the Class object, such as the primitive type or
-//    component type but not the superclass.
+// The terms "constant" and "invariant" refer to values stored in holder fields before the
+// holder reference is stored in the location for which we want to avoid the read barrier.
+// Since the stored holder reference points to an object with the initialized constant or
+// invariant, when we start a new GC and that holder instance becomes a from-space object
+// both the from-space and to-space versions shall hold the same constant or invariant.
+//
+// While correct inter-thread memory visibility needs to be ensured for these constants and
+// invariants, it needs to be equally ensured for non-moving GC types, so read barriers or
+// their avoidance do not place any additional constraints on inter-thread synchronization.
 //
 // References read without a read barrier must not remain live at the next suspend point,
 // with the exception of references to un-reclaimable immune space objects.
@@ -55,6 +60,27 @@ namespace art {
 // for newly dirtied objects) and clean objects conceptually become black at that point
 // (marking them through is a no-op as all reference fields must also point to immune spaces),
 // so mutator threads can never miss a read barrier as they never see white immune space object.
+//
+// Examples:
+//
+// The j.l.Class contains many constant fields and invariants:
+//   - primitive type is constant (primitive classes are pre-initialized in the boot image,
+//     or created in early single-threaded stage when running without boot image; non-primitive
+//     classes keep the value 0 from the Class object allocation),
+//   - element type is constant (initialized during array class object allocation, null otherwise),
+//   - access flags are mutable but the proxy class bit is an invariant set during class creation,
+//   - once the class is resolved, the class status is still mutable but it shall remain resolved,
+//     being a resolved is an invariant from that point on,
+//   - once a class becomes erroneous, the class status shall be constant (and unresolved
+//     erroneous class shall not become resolved).
+// This allows reading a chain of element type references for any number of array dimensions
+// without read barrier to find the (non-array) element class and check whether it's primitive,
+// or proxy class. When creating an array class, the element type is already either resolved or
+// unresolved erroneous and neither shall change, so we can also check these invariants (but not
+// resolved erroneous because that is not an invariant from the creation of the array class).
+//
+// The superclass becomes constant during the ClassStatus::kIdx stage, so it's safe to treat it
+// as constant when reading from locations that can reference only resolved classes.
 enum ReadBarrierOption {
   kWithReadBarrier,     // Perform a read barrier.
   kWithoutReadBarrier,  // Don't perform a read barrier.
