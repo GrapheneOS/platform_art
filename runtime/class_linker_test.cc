@@ -815,6 +815,13 @@ struct FieldVarHandleOffsets : public CheckOffsets<mirror::FieldVarHandle> {
   }
 };
 
+struct StaticFieldVarHandleOffsets : public CheckOffsets<mirror::StaticFieldVarHandle> {
+  StaticFieldVarHandleOffsets() : CheckOffsets<mirror::StaticFieldVarHandle>(
+      false, "Ljava/lang/invoke/StaticFieldVarHandle;") {
+    addOffset(OFFSETOF_MEMBER(mirror::StaticFieldVarHandle, declaring_class_), "declaringClass");
+  }
+};
+
 struct ArrayElementVarHandleOffsets : public CheckOffsets<mirror::ArrayElementVarHandle> {
   ArrayElementVarHandleOffsets() : CheckOffsets<mirror::ArrayElementVarHandle>(
       false, "Ljava/lang/invoke/ArrayElementVarHandle;") {
