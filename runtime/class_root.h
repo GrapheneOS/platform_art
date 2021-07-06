@@ -50,6 +50,7 @@ class Proxy;
 template<typename T> class PrimitiveArray;
 class Reference;
 class StackTraceElement;
+class StaticFieldVarHandle;
 class String;
 class Throwable;
 class VarHandle;
@@ -78,6 +79,7 @@ class VarHandle;
   M(kJavaLangInvokeMethodType,              "Ljava/lang/invoke/MethodType;",              mirror::MethodType)                             \
   M(kJavaLangInvokeVarHandle,               "Ljava/lang/invoke/VarHandle;",               mirror::VarHandle)                              \
   M(kJavaLangInvokeFieldVarHandle,          "Ljava/lang/invoke/FieldVarHandle;",          mirror::FieldVarHandle)                         \
+  M(kJavaLangInvokeStaticFieldVarHandle,    "Ljava/lang/invoke/StaticFieldVarHandle;",    mirror::StaticFieldVarHandle)                   \
   M(kJavaLangInvokeArrayElementVarHandle,   "Ljava/lang/invoke/ArrayElementVarHandle;",   mirror::ArrayElementVarHandle)                  \
   M(kJavaLangInvokeByteArrayViewVarHandle,  "Ljava/lang/invoke/ByteArrayViewVarHandle;",  mirror::ByteArrayViewVarHandle)                 \
   M(kJavaLangInvokeByteBufferViewVarHandle, "Ljava/lang/invoke/ByteBufferViewVarHandle;", mirror::ByteBufferViewVarHandle)                \
