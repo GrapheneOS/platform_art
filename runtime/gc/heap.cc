@@ -4507,6 +4507,8 @@ void Heap::VisitReflectiveTargets(ReflectiveValueVisitor *visit) {
       down_cast<mirror::Field*>(ref)->VisitTarget(visit);
     } else if (art::GetClassRoot<art::mirror::MethodHandle>()->IsAssignableFrom(klass)) {
       down_cast<mirror::MethodHandle*>(ref)->VisitTarget(visit);
+    } else if (art::GetClassRoot<art::mirror::StaticFieldVarHandle>()->IsAssignableFrom(klass)) {
+      down_cast<mirror::StaticFieldVarHandle*>(ref)->VisitTarget(visit);
     } else if (art::GetClassRoot<art::mirror::FieldVarHandle>()->IsAssignableFrom(klass)) {
       down_cast<mirror::FieldVarHandle*>(ref)->VisitTarget(visit);
     } else if (art::GetClassRoot<art::mirror::DexCache>()->IsAssignableFrom(klass)) {

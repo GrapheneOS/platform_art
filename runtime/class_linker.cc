@@ -969,6 +969,11 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK(class_root != nullptr);
   SetClassRoot(ClassRoot::kJavaLangInvokeFieldVarHandle, class_root);
 
+  // Create java.lang.invoke.StaticFieldVarHandle.class root
+  class_root = FindSystemClass(self, "Ljava/lang/invoke/StaticFieldVarHandle;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(ClassRoot::kJavaLangInvokeStaticFieldVarHandle, class_root);
+
   // Create java.lang.invoke.ArrayElementVarHandle.class root
   class_root = FindSystemClass(self, "Ljava/lang/invoke/ArrayElementVarHandle;");
   CHECK(class_root != nullptr);
