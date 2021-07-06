@@ -23,6 +23,7 @@
 #include <stdint.h>
 
 #include <string>
+#include <string_view>
 
 /*
  * All UTF-8 in art is actually modified UTF-8. Mostly, this distinction
@@ -90,6 +91,27 @@ int32_t ComputeUtf16HashFromModifiedUtf8(const char* utf8, size_t utf16_length);
 // Compute a hash code of a modified UTF-8 string. Not the standard java hash since it returns a
 // uint32_t and hashes individual chars instead of codepoint words.
 uint32_t ComputeModifiedUtf8Hash(const char* chars);
+uint32_t ComputeModifiedUtf8Hash(std::string_view chars);
+
+// The starting value of a modified UTF-8 hash.
+constexpr uint32_t StartModifiedUtf8Hash() {
+  return 0u;
+}
+
+// Update a modified UTF-8 hash with one character.
+ALWAYS_INLINE
+inline uint32_t UpdateModifiedUtf8Hash(uint32_t hash, char c) {
+  return hash * 31u + static_cast<uint8_t>(c);
+}
+
+// Update a modified UTF-8 hash with characters of a `std::string_view`.
+ALWAYS_INLINE
+inline uint32_t UpdateModifiedUtf8Hash(uint32_t hash, std::string_view chars) {
+  for (char c : chars) {
+    hash = UpdateModifiedUtf8Hash(hash, c);
+  }
+  return hash;
+}
 
 /*
  * Retrieve the next UTF-16 character or surrogate pair from a UTF-8 string.
