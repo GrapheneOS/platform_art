@@ -499,7 +499,7 @@ ALWAYS_INLINE bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Ins
   if (is_static) {
     obj = f->GetDeclaringClass();
     if (transaction_active) {
-      if (Runtime::Current()->GetTransaction()->ReadConstraint(self, obj)) {
+      if (Runtime::Current()->GetTransaction()->ReadConstraint(obj)) {
         Runtime::Current()->AbortTransactionAndThrowAbortError(self, "Can't read static fields of "
             + obj->PrettyTypeOf() + " since it does not belong to clinit's class.");
         return false;
@@ -552,7 +552,7 @@ ALWAYS_INLINE bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Ins
 static inline bool CheckWriteConstraint(Thread* self, ObjPtr<mirror::Object> obj)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
-  if (runtime->GetTransaction()->WriteConstraint(self, obj)) {
+  if (runtime->GetTransaction()->WriteConstraint(obj)) {
     DCHECK(runtime->GetHeap()->ObjectIsInBootImageSpace(obj) || obj->IsClass());
     const char* base_msg = runtime->GetHeap()->ObjectIsInBootImageSpace(obj)
         ? "Can't set fields of boot image "
@@ -566,7 +566,7 @@ static inline bool CheckWriteConstraint(Thread* self, ObjPtr<mirror::Object> obj
 static inline bool CheckWriteValueConstraint(Thread* self, ObjPtr<mirror::Object> value)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
-  if (runtime->GetTransaction()->WriteValueConstraint(self, value)) {
+  if (runtime->GetTransaction()->WriteValueConstraint(value)) {
     DCHECK(value != nullptr);
     std::string msg = value->IsClass()
         ? "Can't store reference to class " + value->AsClass()->PrettyDescriptor()
