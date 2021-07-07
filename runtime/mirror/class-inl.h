@@ -937,9 +937,6 @@ inline void Class::SetAccessFlagsDuringLinking(uint32_t new_access_flags) {
 }
 
 inline void Class::SetAccessFlags(uint32_t new_access_flags) {
-  if (kIsDebugBuild) {
-    SetAccessFlagsDCheck(new_access_flags);
-  }
   // Called inside a transaction when setting pre-verified flag during boot image compilation.
   if (Runtime::Current()->IsActiveTransaction()) {
     SetField32<true>(AccessFlagsOffset(), new_access_flags);
