@@ -732,55 +732,54 @@ TEST_F(TransactionTest, Constraints) {
   // Test non-strict transaction.
   Transaction transaction(/*strict=*/ false, /*root=*/ nullptr);
   // Static field in boot image.
-  EXPECT_TRUE(transaction.WriteConstraint(soa.Self(), boolean_class.Get()));
-  EXPECT_FALSE(transaction.ReadConstraint(soa.Self(), boolean_class.Get()));
+  EXPECT_TRUE(transaction.WriteConstraint(boolean_class.Get()));
+  EXPECT_FALSE(transaction.ReadConstraint(boolean_class.Get()));
   // Instance field or array element in boot image.
   // Do not check ReadConstraint(), it expects only static fields (checks for class object).
-  EXPECT_TRUE(transaction.WriteConstraint(soa.Self(), true_value.Get()));
-  EXPECT_TRUE(transaction.WriteConstraint(soa.Self(), array_iftable.Get()));
+  EXPECT_TRUE(transaction.WriteConstraint(true_value.Get()));
+  EXPECT_TRUE(transaction.WriteConstraint(array_iftable.Get()));
   // Static field not in boot image.
-  EXPECT_FALSE(transaction.WriteConstraint(soa.Self(), static_fields_test_class.Get()));
-  EXPECT_FALSE(transaction.ReadConstraint(soa.Self(), static_fields_test_class.Get()));
+  EXPECT_FALSE(transaction.WriteConstraint(static_fields_test_class.Get()));
+  EXPECT_FALSE(transaction.ReadConstraint(static_fields_test_class.Get()));
   // Instance field or array element not in boot image.
   // Do not check ReadConstraint(), it expects only static fields (checks for class object).
-  EXPECT_FALSE(transaction.WriteConstraint(soa.Self(), instance_fields_test_object.Get()));
-  EXPECT_FALSE(transaction.WriteConstraint(soa.Self(), long_array_dim3.Get()));
+  EXPECT_FALSE(transaction.WriteConstraint(instance_fields_test_object.Get()));
+  EXPECT_FALSE(transaction.WriteConstraint(long_array_dim3.Get()));
   // Write value constraints.
-  EXPECT_FALSE(transaction.WriteValueConstraint(soa.Self(), static_fields_test_class.Get()));
-  EXPECT_FALSE(transaction.WriteValueConstraint(soa.Self(), instance_fields_test_object.Get()));
-  EXPECT_TRUE(transaction.WriteValueConstraint(soa.Self(), long_array_dim3->GetClass()));
-  EXPECT_TRUE(transaction.WriteValueConstraint(soa.Self(), long_array_dim3.Get()));
-  EXPECT_FALSE(transaction.WriteValueConstraint(soa.Self(), long_array->GetClass()));
-  EXPECT_FALSE(transaction.WriteValueConstraint(soa.Self(), long_array.Get()));
+  EXPECT_FALSE(transaction.WriteValueConstraint(static_fields_test_class.Get()));
+  EXPECT_FALSE(transaction.WriteValueConstraint(instance_fields_test_object.Get()));
+  EXPECT_TRUE(transaction.WriteValueConstraint(long_array_dim3->GetClass()));
+  EXPECT_TRUE(transaction.WriteValueConstraint(long_array_dim3.Get()));
+  EXPECT_FALSE(transaction.WriteValueConstraint(long_array->GetClass()));
+  EXPECT_FALSE(transaction.WriteValueConstraint(long_array.Get()));
 
   // Test strict transaction.
   Transaction strict_transaction(/*strict=*/ true, /*root=*/ static_field_class.Get());
   // Static field in boot image.
-  EXPECT_TRUE(strict_transaction.WriteConstraint(soa.Self(), boolean_class.Get()));
-  EXPECT_TRUE(strict_transaction.ReadConstraint(soa.Self(), boolean_class.Get()));
+  EXPECT_TRUE(strict_transaction.WriteConstraint(boolean_class.Get()));
+  EXPECT_TRUE(strict_transaction.ReadConstraint(boolean_class.Get()));
   // Instance field or array element in boot image.
   // Do not check ReadConstraint(), it expects only static fields (checks for class object).
-  EXPECT_TRUE(strict_transaction.WriteConstraint(soa.Self(), true_value.Get()));
-  EXPECT_TRUE(strict_transaction.WriteConstraint(soa.Self(), array_iftable.Get()));
+  EXPECT_TRUE(strict_transaction.WriteConstraint(true_value.Get()));
+  EXPECT_TRUE(strict_transaction.WriteConstraint(array_iftable.Get()));
   // Static field in another class not in boot image.
-  EXPECT_TRUE(strict_transaction.WriteConstraint(soa.Self(), static_fields_test_class.Get()));
-  EXPECT_TRUE(strict_transaction.ReadConstraint(soa.Self(), static_fields_test_class.Get()));
+  EXPECT_TRUE(strict_transaction.WriteConstraint(static_fields_test_class.Get()));
+  EXPECT_TRUE(strict_transaction.ReadConstraint(static_fields_test_class.Get()));
   // Instance field or array element not in boot image.
   // Do not check ReadConstraint(), it expects only static fields (checks for class object).
-  EXPECT_FALSE(strict_transaction.WriteConstraint(soa.Self(), instance_fields_test_object.Get()));
-  EXPECT_FALSE(strict_transaction.WriteConstraint(soa.Self(), long_array_dim3.Get()));
+  EXPECT_FALSE(strict_transaction.WriteConstraint(instance_fields_test_object.Get()));
+  EXPECT_FALSE(strict_transaction.WriteConstraint(long_array_dim3.Get()));
   // Static field in the same class.
-  EXPECT_FALSE(strict_transaction.WriteConstraint(soa.Self(), static_field_class.Get()));
-  EXPECT_FALSE(strict_transaction.ReadConstraint(soa.Self(), static_field_class.Get()));
+  EXPECT_FALSE(strict_transaction.WriteConstraint(static_field_class.Get()));
+  EXPECT_FALSE(strict_transaction.ReadConstraint(static_field_class.Get()));
   // Write value constraints.
-  EXPECT_FALSE(strict_transaction.WriteValueConstraint(soa.Self(), static_fields_test_class.Get()));
-  EXPECT_FALSE(
-      strict_transaction.WriteValueConstraint(soa.Self(), instance_fields_test_object.Get()));
+  EXPECT_FALSE(strict_transaction.WriteValueConstraint(static_fields_test_class.Get()));
+  EXPECT_FALSE(strict_transaction.WriteValueConstraint(instance_fields_test_object.Get()));
   // TODO: The following may be revised, see a TODO in Transaction::WriteValueConstraint().
-  EXPECT_FALSE(strict_transaction.WriteValueConstraint(soa.Self(), long_array_dim3->GetClass()));
-  EXPECT_FALSE(strict_transaction.WriteValueConstraint(soa.Self(), long_array_dim3.Get()));
-  EXPECT_FALSE(strict_transaction.WriteValueConstraint(soa.Self(), long_array->GetClass()));
-  EXPECT_FALSE(strict_transaction.WriteValueConstraint(soa.Self(), long_array.Get()));
+  EXPECT_FALSE(strict_transaction.WriteValueConstraint(long_array_dim3->GetClass()));
+  EXPECT_FALSE(strict_transaction.WriteValueConstraint(long_array_dim3.Get()));
+  EXPECT_FALSE(strict_transaction.WriteValueConstraint(long_array->GetClass()));
+  EXPECT_FALSE(strict_transaction.WriteValueConstraint(long_array.Get()));
 }
 
 }  // namespace art
