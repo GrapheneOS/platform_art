@@ -42,6 +42,8 @@ class SafeMap {
   typedef typename ::std::map<K, V, Comparator, Allocator>::size_type size_type;
   typedef typename ::std::map<K, V, Comparator, Allocator>::key_type key_type;
   typedef typename ::std::map<K, V, Comparator, Allocator>::value_type value_type;
+  typedef typename ::std::map<K, V, Comparator, Allocator>::node_type node_type;
+  typedef typename ::std::map<K, V, Comparator, Allocator>::insert_return_type insert_return_type;
 
   SafeMap() = default;
   SafeMap(const SafeMap&) = default;
@@ -69,8 +71,19 @@ class SafeMap {
 
   void swap(Self& other) { map_.swap(other.map_); }
   void clear() { map_.clear(); }
-  iterator erase(iterator it) { return map_.erase(it); }
-  template<typename Kv> size_type erase(const Kv& k) { return map_.erase(k); }
+
+  iterator erase(const_iterator pos) { return map_.erase(pos); }
+  iterator erase(iterator pos) { return map_.erase(pos); }
+  iterator erase(iterator first, iterator last) { return map_.erase(first, last); }
+  size_type erase(const key_type& k) { return map_.erase(k); }
+
+  node_type extract(const_iterator pos) { return map_.extract(pos); }
+  node_type extract(const key_type& k) { return map_.extract(k); }
+
+  insert_return_type insert(node_type&& node) { return map_.insert(std::move(node)); }
+  insert_return_type insert(const_iterator hint, node_type&& node) {
+    return map_.insert(hint, std::move(node));
+  }
 
   template<typename Kv> iterator find(const Kv& k) { return map_.find(k); }
   template<typename Kv> const_iterator find(const Kv& k) const { return map_.find(k); }
