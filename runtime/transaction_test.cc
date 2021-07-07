@@ -730,7 +730,9 @@ TEST_F(TransactionTest, Constraints) {
   ASSERT_TRUE(heap->ObjectIsInBootImageSpace(array_iftable.Get()));
 
   // Test non-strict transaction.
-  Transaction transaction(/*strict=*/ false, /*root=*/ nullptr);
+  ArenaPool* arena_pool = Runtime::Current()->GetArenaPool();
+  Transaction transaction(
+      /*strict=*/ false, /*root=*/ nullptr, /*arena_stack=*/ nullptr, arena_pool);
   // Static field in boot image.
   EXPECT_TRUE(transaction.WriteConstraint(boolean_class.Get()));
   EXPECT_FALSE(transaction.ReadConstraint(boolean_class.Get()));
@@ -754,7 +756,8 @@ TEST_F(TransactionTest, Constraints) {
   EXPECT_FALSE(transaction.WriteValueConstraint(long_array.Get()));
 
   // Test strict transaction.
-  Transaction strict_transaction(/*strict=*/ true, /*root=*/ static_field_class.Get());
+  Transaction strict_transaction(
+      /*strict=*/ true, /*root=*/ static_field_class.Get(), /*arena_stack=*/ nullptr, arena_pool);
   // Static field in boot image.
   EXPECT_TRUE(strict_transaction.WriteConstraint(boolean_class.Get()));
   EXPECT_TRUE(strict_transaction.ReadConstraint(boolean_class.Get()));

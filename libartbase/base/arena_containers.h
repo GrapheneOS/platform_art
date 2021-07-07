@@ -18,6 +18,7 @@
 #define ART_LIBARTBASE_BASE_ARENA_CONTAINERS_H_
 
 #include <deque>
+#include <forward_list>
 #include <queue>
 #include <set>
 #include <stack>
@@ -48,6 +49,9 @@ class ArenaAllocatorAdapter;
 
 template <typename T>
 using ArenaDeque = std::deque<T, ArenaAllocatorAdapter<T>>;
+
+template <typename T>
+using ArenaForwardList = std::forward_list<T, ArenaAllocatorAdapter<T>>;
 
 template <typename T>
 using ArenaQueue = std::queue<T, ArenaDeque<T>>;
