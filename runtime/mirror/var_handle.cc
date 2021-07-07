@@ -1646,16 +1646,12 @@ int32_t VarHandle::GetNumberOfVarTypeParameters(AccessModeTemplate access_mode_t
   UNREACHABLE();
 }
 
-ArtField* FieldVarHandle::GetField() {
-  return reinterpret_cast64<ArtField*>(GetField64(ArtFieldOffset()));
-}
-
 bool FieldVarHandle::Access(AccessMode access_mode,
                             ShadowFrame* shadow_frame,
                             const InstructionOperands* const operands,
                             JValue* result) {
   ShadowFrameGetter getter(*shadow_frame, operands);
-  ArtField* field = GetField();
+  ArtField* field = GetArtField();
   ObjPtr<Object> obj;
   if (field->IsStatic()) {
     DCHECK_LE(operands->GetNumberOfOperands(),
@@ -1998,22 +1994,20 @@ bool ByteBufferViewVarHandle::Access(AccessMode access_mode,
 }
 
 void FieldVarHandle::VisitTarget(ReflectiveValueVisitor* v) {
-  ArtField* orig = GetField();
+  ArtField* orig = GetArtField();
   ArtField* new_value =
       v->VisitField(orig, HeapReflectiveSourceInfo(kSourceJavaLangInvokeFieldVarHandle, this));
   if (orig != new_value) {
-    SetField64</*kTransactionActive*/ false>(ArtFieldOffset(),
-                                             reinterpret_cast<uintptr_t>(new_value));
+    SetArtField(new_value);
   }
 }
 
 void StaticFieldVarHandle::VisitTarget(ReflectiveValueVisitor* v) {
-  ArtField* orig = GetField();
+  ArtField* orig = GetArtField();
   ArtField* new_value =
       v->VisitField(orig, HeapReflectiveSourceInfo(kSourceJavaLangInvokeFieldVarHandle, this));
   if (orig != new_value) {
-    SetField64</*kTransactionActive*/ false>(ArtFieldOffset(),
-                                             reinterpret_cast<uintptr_t>(new_value));
+    SetArtField(new_value);
     SetFieldObject<false>(DeclaringClassOffset(), new_value->GetDeclaringClass());
   }
 }
