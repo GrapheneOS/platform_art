@@ -1139,7 +1139,7 @@ static void InitializeObjectVirtualMethodHashes(ObjPtr<mirror::Class> java_lang_
   ArraySlice<ArtMethod> virtual_methods = java_lang_Object->GetVirtualMethods(pointer_size);
   DCHECK_EQ(virtual_method_hashes.size(), virtual_methods.size());
   for (size_t i = 0; i != virtual_method_hashes.size(); ++i) {
-    const char* name = virtual_methods[i].GetName();
+    std::string_view name = virtual_methods[i].GetNameView();
     virtual_method_hashes[i] = ComputeModifiedUtf8Hash(name);
   }
 }
@@ -6344,15 +6344,15 @@ class MethodNameAndSignatureComparator final : public ValueObject {
   explicit MethodNameAndSignatureComparator(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_) :
       dex_file_(method->GetDexFile()), mid_(&dex_file_->GetMethodId(method->GetDexMethodIndex())),
-      name_(nullptr), name_len_(0) {
+      name_view_() {
     DCHECK(!method->IsProxyMethod()) << method->PrettyMethod();
   }
 
-  const char* GetName() {
-    if (name_ == nullptr) {
-      name_ = dex_file_->StringDataAndUtf16LengthByIdx(mid_->name_idx_, &name_len_);
+  ALWAYS_INLINE std::string_view GetNameView() {
+    if (name_view_.empty()) {
+      name_view_ = dex_file_->StringViewByIdx(mid_->name_idx_);
     }
-    return name_;
+    return name_view_;
   }
 
   bool HasSameNameAndSignature(ArtMethod* other)
@@ -6363,14 +6363,8 @@ class MethodNameAndSignatureComparator final : public ValueObject {
     if (dex_file_ == other_dex_file) {
       return mid_->name_idx_ == other_mid.name_idx_ && mid_->proto_idx_ == other_mid.proto_idx_;
     }
-    GetName();  // Only used to make sure its calculated.
-    uint32_t other_name_len;
-    const char* other_name = other_dex_file->StringDataAndUtf16LengthByIdx(other_mid.name_idx_,
-                                                                           &other_name_len);
-    if (name_len_ != other_name_len || strcmp(name_, other_name) != 0) {
-      return false;
-    }
-    return dex_file_->GetMethodSignature(*mid_) == other_dex_file->GetMethodSignature(other_mid);
+    return GetNameView() == other_dex_file->StringViewByIdx(other_mid.name_idx_) &&
+           dex_file_->GetMethodSignature(*mid_) == other_dex_file->GetMethodSignature(other_mid);
   }
 
  private:
@@ -6379,9 +6373,7 @@ class MethodNameAndSignatureComparator final : public ValueObject {
   // MethodId for the method to compare against.
   const dex::MethodId* const mid_;
   // Lazily computed name from the dex file's strings.
-  const char* name_;
-  // Lazily computed name length.
-  uint32_t name_len_;
+  std::string_view name_view_;
 };
 
 class LinkVirtualHashTable {
@@ -6400,8 +6392,9 @@ class LinkVirtualHashTable {
   void Add(uint32_t virtual_method_index) REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* local_method = klass_->GetVirtualMethodDuringLinking(
         virtual_method_index, image_pointer_size_);
-    const char* name = local_method->GetInterfaceMethodIfProxy(image_pointer_size_)->GetName();
-    uint32_t hash = ComputeModifiedUtf8Hash(name);
+    std::string_view name_view =
+        local_method->GetInterfaceMethodIfProxy(image_pointer_size_)->GetNameView();
+    uint32_t hash = ComputeModifiedUtf8Hash(name_view);
     uint32_t index = hash % hash_size_;
     // Linear probe until we have an empty slot.
     while (hash_table_[index] != invalid_index_) {
@@ -6414,7 +6407,7 @@ class LinkVirtualHashTable {
 
   uint32_t FindAndRemove(MethodNameAndSignatureComparator* comparator, uint32_t hash)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK_EQ(hash, ComputeModifiedUtf8Hash(comparator->GetName()));
+    DCHECK_EQ(hash, ComputeModifiedUtf8Hash(comparator->GetNameView()));
     size_t index = hash % hash_size_;
     while (true) {
       const uint32_t value = hash_table_[index];
@@ -6586,7 +6579,7 @@ bool ClassLinker::LinkVirtualMethods(
       // smaller as we go on.
       uint32_t hash = (j < mirror::Object::kVTableLength)
           ? object_virtual_method_hashes_[j]
-          : ComputeModifiedUtf8Hash(super_method_name_comparator.GetName());
+          : ComputeModifiedUtf8Hash(super_method_name_comparator.GetNameView());
       uint32_t hash_index = hash_table.FindAndRemove(&super_method_name_comparator, hash);
       if (hash_index != hash_table.GetNotFoundIndex()) {
         ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(
