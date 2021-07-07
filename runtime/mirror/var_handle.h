@@ -218,7 +218,17 @@ class MANAGED FieldVarHandle : public VarHandle {
               JValue* result)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtField* GetField() REQUIRES_SHARED(Locks::mutator_lock_);
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ArtField* GetArtField() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return reinterpret_cast64<ArtField*>(GetField64<kVerifyFlags>(ArtFieldOffset()));
+  }
+
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  void SetArtField(ArtField* art_field) REQUIRES_SHARED(Locks::mutator_lock_) {
+    SetField64</*kTransactionActive*/ false,
+               /*kCheckTransaction=*/ true,
+               kVerifyFlags>(ArtFieldOffset(), reinterpret_cast64<uint64_t>(art_field));
+  }
 
   // Used for updating var-handles to obsolete fields.
   void VisitTarget(ReflectiveValueVisitor* v) REQUIRES(Locks::mutator_lock_);
