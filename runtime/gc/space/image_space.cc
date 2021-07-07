@@ -55,6 +55,7 @@
 #include "mirror/executable-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object-refvisitor-inl.h"
+#include "mirror/var_handle.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "profile/profile_compilation_info.h"
@@ -1201,6 +1202,9 @@ class ImageSpace::Loader {
       return true;
     }
     ScopedDebugDisallowReadBarriers sddrb(Thread::Current());
+    // TODO: Assert that the app image does not contain any Method, Constructor,
+    // FieldVarHandle or StaticFieldVarHandle. These require extra relocation
+    // for the `ArtMethod*` and `ArtField*` pointers they contain.
 
     using ForwardObject = ForwardAddress<RelocationRange, RelocationRange>;
     ForwardObject forward_object(boot_image, app_image_objects);
@@ -2530,6 +2534,8 @@ class ImageSpace::BootImageLoader {
     ObjPtr<mirror::Class> class_class;
     ObjPtr<mirror::Class> method_class;
     ObjPtr<mirror::Class> constructor_class;
+    ObjPtr<mirror::Class> field_var_handle_class;
+    ObjPtr<mirror::Class> static_field_var_handle_class;
     {
       ObjPtr<mirror::ObjectArray<mirror::Object>> image_roots =
           simple_relocate_visitor(first_header.GetImageRoots<kWithoutReadBarrier>().Ptr());
@@ -2549,6 +2555,10 @@ class ImageSpace::BootImageLoader {
         class_class = GetClassRoot<mirror::Class, kWithoutReadBarrier>(class_roots);
         method_class = GetClassRoot<mirror::Method, kWithoutReadBarrier>(class_roots);
         constructor_class = GetClassRoot<mirror::Constructor, kWithoutReadBarrier>(class_roots);
+        field_var_handle_class =
+            GetClassRoot<mirror::FieldVarHandle, kWithoutReadBarrier>(class_roots);
+        static_field_var_handle_class =
+            GetClassRoot<mirror::StaticFieldVarHandle, kWithoutReadBarrier>(class_roots);
       } else {
         DCHECK(!patched_objects->Test(class_roots.Ptr()));
         class_class = simple_relocate_visitor(
@@ -2557,6 +2567,10 @@ class ImageSpace::BootImageLoader {
             GetClassRoot<mirror::Method, kWithoutReadBarrier>(class_roots).Ptr());
         constructor_class = simple_relocate_visitor(
             GetClassRoot<mirror::Constructor, kWithoutReadBarrier>(class_roots).Ptr());
+        field_var_handle_class = simple_relocate_visitor(
+            GetClassRoot<mirror::FieldVarHandle, kWithoutReadBarrier>(class_roots).Ptr());
+        static_field_var_handle_class = simple_relocate_visitor(
+            GetClassRoot<mirror::StaticFieldVarHandle, kWithoutReadBarrier>(class_roots).Ptr());
       }
     }
 
@@ -2667,6 +2681,13 @@ class ImageSpace::BootImageLoader {
             as_executable->SetArtMethod</*kTransactionActive=*/ false,
                                         /*kCheckTransaction=*/ true,
                                         kVerifyNone>(patched_method);
+          } else if (klass == field_var_handle_class || klass == static_field_var_handle_class) {
+            // Patch the ArtField* in the mirror::FieldVarHandle subobject.
+            ObjPtr<mirror::FieldVarHandle> as_field_var_handle =
+                ObjPtr<mirror::FieldVarHandle>::DownCast(object);
+            ArtField* unpatched_field = as_field_var_handle->GetArtField<kVerifyNone>();
+            ArtField* patched_field = main_relocate_visitor(unpatched_field);
+            as_field_var_handle->SetArtField<kVerifyNone>(patched_field);
           }
         }
         pos += RoundUp(object->SizeOf<kVerifyNone>(), kObjectAlignment);
