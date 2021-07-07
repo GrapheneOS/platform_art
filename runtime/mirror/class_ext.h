@@ -42,9 +42,9 @@ class MANAGED ClassExt : public Object {
     return sizeof(ClassExt);
   }
 
-  void SetVerifyError(ObjPtr<Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetErroneousStateError(ObjPtr<Throwable> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ObjPtr<Object> GetVerifyError() REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<Throwable> GetErroneousStateError() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ObjPtr<ObjectArray<DexCache>> GetObsoleteDexCaches() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -156,6 +156,9 @@ class MANAGED ClassExt : public Object {
   bool EnsureJniIdsArrayPresent(MemberOffset off, size_t count)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // The saved error for this class being erroneous.
+  HeapReference<Throwable> erroneous_state_error_;
+
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // An array containing the jfieldIDs assigned to each field in the corresponding position in the
   // classes ifields_ array or '0' if no id has been assigned to that field yet.
@@ -177,9 +180,6 @@ class MANAGED ClassExt : public Object {
   // An array containing the jfieldIDs assigned to each field in the corresponding position in the
   // classes sfields_ array or '0' if no id has been assigned to that field yet.
   HeapReference<PointerArray> static_jfield_ids_;
-
-  // The saved verification error of this class.
-  HeapReference<Object> verify_error_;
 
   // Native pointer to DexFile and ClassDef index of this class before it was JVMTI-redefined.
   int64_t pre_redefine_dex_file_ptr_;

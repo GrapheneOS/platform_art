@@ -955,7 +955,7 @@ bool ImageWriter::PruneImageClassInternal(
     result = true;
   } else {
     ObjPtr<mirror::ClassExt> ext(klass->GetExtData());
-    CHECK(ext.IsNull() || ext->GetVerifyError() == nullptr) << klass->PrettyClass();
+    CHECK(ext.IsNull() || ext->GetErroneousStateError() == nullptr) << klass->PrettyClass();
   }
   if (!result) {
     // Check interfaces since these wont be visited through VisitReferences.)
