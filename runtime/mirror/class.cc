@@ -232,7 +232,7 @@ void Class::SetStatus(Handle<Class> h_this, ClassStatus new_status, Thread* self
     ObjPtr<ClassExt> ext(EnsureExtDataPresent(h_this, self));
     if (!ext.IsNull()) {
       self->AssertPendingException();
-      ext->SetVerifyError(self->GetException());
+      ext->SetErroneousStateError(self->GetException());
     } else {
       self->AssertPendingOOMException();
     }
