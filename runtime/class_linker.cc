@@ -171,63 +171,35 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_end(args);
 }
 
-static bool HasInitWithString(Thread* self, ClassLinker* class_linker, const char* descriptor)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtMethod* method = self->GetCurrentMethod(nullptr);
-  StackHandleScope<1> hs(self);
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(method != nullptr ?
-      method->GetDeclaringClass()->GetClassLoader() : nullptr));
-  ObjPtr<mirror::Class> exception_class = class_linker->FindClass(self, descriptor, class_loader);
-
-  if (exception_class == nullptr) {
-    // No exc class ~ no <init>-with-string.
-    CHECK(self->IsExceptionPending());
-    self->ClearException();
-    return false;
-  }
-
-  ArtMethod* exception_init_method = exception_class->FindConstructor(
-      "(Ljava/lang/String;)V", class_linker->GetImagePointerSize());
-  return exception_init_method != nullptr;
-}
-
-static ObjPtr<mirror::Object> GetVerifyError(ObjPtr<mirror::Class> c)
+static ObjPtr<mirror::Object> GetErroneousStateError(ObjPtr<mirror::Class> c)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::ClassExt> ext(c->GetExtData());
   if (ext == nullptr) {
     return nullptr;
   } else {
-    return ext->GetVerifyError();
+    return ext->GetErroneousStateError();
   }
 }
 
-// Helper for ThrowEarlierClassFailure. Throws the stored error.
-static void HandleEarlierVerifyError(Thread* self,
-                                     ClassLinker* class_linker,
-                                     ObjPtr<mirror::Class> c)
+static bool IsVerifyError(ObjPtr<mirror::Object> obj)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::Object> obj = GetVerifyError(c);
+  // This is slow, but we only use it for rethrowing an error, and for DCHECK.
+  return obj->GetClass()->DescriptorEquals("Ljava/lang/VerifyError;");
+}
+
+// Helper for ThrowEarlierClassFailure. Throws the stored error.
+static void HandleEarlierErroneousStateError(Thread* self,
+                                             ClassLinker* class_linker,
+                                             ObjPtr<mirror::Class> c)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Object> obj = GetErroneousStateError(c);
   DCHECK(obj != nullptr);
   self->AssertNoPendingException();
-  if (obj->IsClass()) {
-    // Previous error has been stored as class. Create a new exception of that type.
-
-    // It's possible the exception doesn't have a <init>(String).
-    std::string temp;
-    const char* descriptor = obj->AsClass()->GetDescriptor(&temp);
-
-    if (HasInitWithString(self, class_linker, descriptor)) {
-      self->ThrowNewException(descriptor, c->PrettyDescriptor().c_str());
-    } else {
-      self->ThrowNewException(descriptor, nullptr);
-    }
-  } else {
-    // Previous error has been stored as an instance. Just rethrow.
-    ObjPtr<mirror::Class> throwable_class = GetClassRoot<mirror::Throwable>(class_linker);
-    ObjPtr<mirror::Class> error_class = obj->GetClass();
-    CHECK(throwable_class->IsAssignableFrom(error_class));
-    self->SetException(obj->AsThrowable());
-  }
+  DCHECK(!obj->IsClass());
+  ObjPtr<mirror::Class> throwable_class = GetClassRoot<mirror::Throwable>(class_linker);
+  ObjPtr<mirror::Class> error_class = obj->GetClass();
+  CHECK(throwable_class->IsAssignableFrom(error_class));
+  self->SetException(obj->AsThrowable());
   self->AssertPendingException();
 }
 
@@ -530,13 +502,10 @@ void ClassLinker::ThrowEarlierClassFailure(ObjPtr<mirror::Class> c,
   Runtime* const runtime = Runtime::Current();
   if (!runtime->IsAotCompiler()) {  // Give info if this occurs at runtime.
     std::string extra;
-    ObjPtr<mirror::Object> verify_error = GetVerifyError(c);
+    ObjPtr<mirror::Object> verify_error = GetErroneousStateError(c);
     if (verify_error != nullptr) {
-      if (verify_error->IsClass()) {
-        extra = mirror::Class::PrettyDescriptor(verify_error->AsClass());
-      } else {
-        extra = verify_error->AsThrowable()->Dump();
-      }
+      DCHECK(!verify_error->IsClass());
+      extra = verify_error->AsThrowable()->Dump();
     }
     if (log) {
       LOG(INFO) << "Rejecting re-init on previously-failed class " << c->PrettyClass()
@@ -551,15 +520,16 @@ void ClassLinker::ThrowEarlierClassFailure(ObjPtr<mirror::Class> c,
     ObjPtr<mirror::Throwable> pre_allocated = runtime->GetPreAllocatedNoClassDefFoundError();
     self->SetException(pre_allocated);
   } else {
-    ObjPtr<mirror::Object> verify_error = GetVerifyError(c);
-    if (verify_error != nullptr) {
+    ObjPtr<mirror::Object> erroneous_state_error = GetErroneousStateError(c);
+    if (erroneous_state_error != nullptr) {
       // Rethrow stored error.
-      HandleEarlierVerifyError(self, this, c);
+      HandleEarlierErroneousStateError(self, this, c);
     }
     // TODO This might be wrong if we hit an OOME while allocating the ClassExt. In that case we
     // might have meant to go down the earlier if statement with the original error but it got
     // swallowed by the OOM so we end up here.
-    if (verify_error == nullptr || wrap_in_no_class_def) {
+    if (erroneous_state_error == nullptr ||
+        (wrap_in_no_class_def && !IsVerifyError(erroneous_state_error))) {
       // If there isn't a recorded earlier error, or this is a repeat throw from initialization,
       // the top-level exception must be a NoClassDefFoundError. The potentially already pending
       // exception will be a cause.
@@ -5296,8 +5266,7 @@ bool ClassLinker::InitializeClass(Thread* self,
           // whether an exception is already pending.
           if (self->IsExceptionPending()) {
             // Check that it's a VerifyError.
-            DCHECK_EQ("java.lang.Class<java.lang.VerifyError>",
-                      mirror::Class::PrettyClass(self->GetException()->GetClass()));
+            DCHECK(IsVerifyError(self->GetException()));
           } else {
             // Check that another thread attempted initialization.
             DCHECK_NE(0, klass->GetClinitThreadId());

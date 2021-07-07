@@ -118,11 +118,11 @@ ObjPtr<ClassExt> ClassExt::Alloc(Thread* self) {
   return ObjPtr<ClassExt>::DownCast(GetClassRoot<ClassExt>()->AllocObject(self));
 }
 
-void ClassExt::SetVerifyError(ObjPtr<Object> err) {
+void ClassExt::SetErroneousStateError(ObjPtr<Throwable> err) {
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(ClassExt, verify_error_), err);
+    SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(ClassExt, erroneous_state_error_), err);
   } else {
-    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ClassExt, verify_error_), err);
+    SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ClassExt, erroneous_state_error_), err);
   }
 }
 
