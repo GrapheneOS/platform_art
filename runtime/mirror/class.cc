@@ -1731,9 +1731,14 @@ ObjPtr<Method> Class::GetDeclaredMethodInternal(
     if (m.IsMiranda()) {
       continue;
     }
-    auto* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
+    ArtMethod* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
     // May cause thread suspension.
     ObjPtr<String> np_name = np_method->ResolveNameString();
+    if (np_name == nullptr) {
+      // OOME
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
+    }
     if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
       if (UNLIKELY(self->IsExceptionPending())) {
         return nullptr;
