@@ -72,6 +72,7 @@
 #include "mirror/object_array-alloc-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
+#include "mirror/var_handle.h"
 #include "nterp_helpers.h"
 #include "oat.h"
 #include "oat_file.h"
@@ -3077,6 +3078,19 @@ T* ImageWriter::NativeLocationInImage(T* obj) {
   }
 }
 
+ArtField* ImageWriter::NativeLocationInImage(ArtField* src_field) {
+  // Fields are not individually stored in the native relocation map. Use the field array.
+  ObjPtr<mirror::Class> declaring_class = src_field->GetDeclaringClass();
+  LengthPrefixedArray<ArtField>* src_fields =
+      src_field->IsStatic() ? declaring_class->GetSFieldsPtr() : declaring_class->GetIFieldsPtr();
+  DCHECK(src_fields != nullptr);
+  LengthPrefixedArray<ArtField>* dst_fields = NativeLocationInImage(src_fields);
+  DCHECK(dst_fields != nullptr);
+  size_t field_offset =
+      reinterpret_cast<uint8_t*>(src_field) - reinterpret_cast<uint8_t*>(src_fields);
+  return reinterpret_cast<ArtField*>(reinterpret_cast<uint8_t*>(dst_fields) + field_offset);
+}
+
 class ImageWriter::NativeLocationVisitor {
  public:
   explicit NativeLocationVisitor(ImageWriter* image_writer)
@@ -3147,17 +3161,24 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
     ObjPtr<mirror::Class> klass = orig->GetClass();
     if (klass == GetClassRoot<mirror::Method>(class_roots) ||
         klass == GetClassRoot<mirror::Constructor>(class_roots)) {
-      // Need to go update the ArtMethod.
+      // Need to update the ArtMethod.
       auto* dest = down_cast<mirror::Executable*>(copy);
       auto* src = down_cast<mirror::Executable*>(orig);
       ArtMethod* src_method = src->GetArtMethod();
       CopyAndFixupPointer(dest, mirror::Executable::ArtMethodOffset(), src_method);
+    } else if (klass == GetClassRoot<mirror::FieldVarHandle>(class_roots) ||
+               klass == GetClassRoot<mirror::StaticFieldVarHandle>(class_roots)) {
+      // Need to update the ArtField.
+      auto* dest = down_cast<mirror::FieldVarHandle*>(copy);
+      auto* src = down_cast<mirror::FieldVarHandle*>(orig);
+      ArtField* src_field = src->GetArtField();
+      CopyAndFixupPointer(dest, mirror::FieldVarHandle::ArtFieldOffset(), src_field);
     } else if (klass == GetClassRoot<mirror::DexCache>(class_roots)) {
       down_cast<mirror::DexCache*>(copy)->ResetNativeFields();
     } else if (klass->IsClassLoaderClass()) {
       mirror::ClassLoader* copy_loader = down_cast<mirror::ClassLoader*>(copy);
       // If src is a ClassLoader, set the class table to null so that it gets recreated by the
-      // ClassLoader.
+      // ClassLinker.
       copy_loader->SetClassTable(nullptr);
       // Also set allocator to null to be safe. The allocator is created when we create the class
       // table. We also never expect to unload things in the image since they are held live as
@@ -3525,30 +3546,36 @@ void ImageWriter::CopyAndFixupReference(DestType* dest, ObjPtr<mirror::Object> s
   dest->Assign(GetImageAddress(src.Ptr()));
 }
 
-void ImageWriter::CopyAndFixupPointer(void** target, void* value, PointerSize pointer_size) {
-  void* new_value = NativeLocationInImage(value);
+template <typename ValueType>
+void ImageWriter::CopyAndFixupPointer(
+    void** target, ValueType src_value, PointerSize pointer_size) {
+  DCHECK(src_value != nullptr);
+  void* new_value = NativeLocationInImage(src_value);
+  DCHECK(new_value != nullptr);
   if (pointer_size == PointerSize::k32) {
     *reinterpret_cast<uint32_t*>(target) = reinterpret_cast32<uint32_t>(new_value);
   } else {
     *reinterpret_cast<uint64_t*>(target) = reinterpret_cast64<uint64_t>(new_value);
   }
-  DCHECK(value != nullptr);
 }
 
-void ImageWriter::CopyAndFixupPointer(void** target, void* value)
+template <typename ValueType>
+void ImageWriter::CopyAndFixupPointer(void** target, ValueType src_value)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  CopyAndFixupPointer(target, value, target_ptr_size_);
+  CopyAndFixupPointer(target, src_value, target_ptr_size_);
 }
 
+template <typename ValueType>
 void ImageWriter::CopyAndFixupPointer(
-    void* object, MemberOffset offset, void* value, PointerSize pointer_size) {
+    void* object, MemberOffset offset, ValueType src_value, PointerSize pointer_size) {
   void** target =
       reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(object) + offset.Uint32Value());
-  return CopyAndFixupPointer(target, value, pointer_size);
+  return CopyAndFixupPointer(target, src_value, pointer_size);
 }
 
-void ImageWriter::CopyAndFixupPointer(void* object, MemberOffset offset, void* value) {
-  return CopyAndFixupPointer(object, offset, value, target_ptr_size_);
+template <typename ValueType>
+void ImageWriter::CopyAndFixupPointer(void* object, MemberOffset offset, ValueType src_value) {
+  return CopyAndFixupPointer(object, offset, src_value, target_ptr_size_);
 }
 
 }  // namespace linker
