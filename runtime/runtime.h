@@ -20,6 +20,7 @@
 #include <jni.h>
 #include <stdio.h>
 
+#include <forward_list>
 #include <iosfwd>
 #include <memory>
 #include <set>
@@ -550,7 +551,8 @@ class Runtime {
   // do them in one function.
   void RollbackAndExitTransactionMode() REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsTransactionAborted() const;
-  const std::unique_ptr<Transaction>& GetTransaction() const;
+  const Transaction* GetTransaction() const;
+  Transaction* GetTransaction();
   bool IsActiveStrictTransactionMode() const;
 
   void AbortTransactionAndThrowAbortError(Thread* self, const std::string& abort_message)
@@ -558,36 +560,48 @@ class Runtime {
   void ThrowTransactionAbortError(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
-                               bool is_volatile) const;
-  void RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset, int8_t value,
-                            bool is_volatile) const;
-  void RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset, uint16_t value,
-                            bool is_volatile) const;
-  void RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset, int16_t value,
-                          bool is_volatile) const;
-  void RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
-                          bool is_volatile) const;
-  void RecordWriteField64(mirror::Object* obj, MemberOffset field_offset, uint64_t value,
-                          bool is_volatile) const;
+  void RecordWriteFieldBoolean(mirror::Object* obj,
+                               MemberOffset field_offset,
+                               uint8_t value,
+                               bool is_volatile);
+  void RecordWriteFieldByte(mirror::Object* obj,
+                            MemberOffset field_offset,
+                            int8_t value,
+                            bool is_volatile);
+  void RecordWriteFieldChar(mirror::Object* obj,
+                            MemberOffset field_offset,
+                            uint16_t value,
+                            bool is_volatile);
+  void RecordWriteFieldShort(mirror::Object* obj,
+                             MemberOffset field_offset,
+                             int16_t value,
+                             bool is_volatile);
+  void RecordWriteField32(mirror::Object* obj,
+                          MemberOffset field_offset,
+                          uint32_t value,
+                          bool is_volatile);
+  void RecordWriteField64(mirror::Object* obj,
+                          MemberOffset field_offset,
+                          uint64_t value,
+                          bool is_volatile);
   void RecordWriteFieldReference(mirror::Object* obj,
                                  MemberOffset field_offset,
                                  ObjPtr<mirror::Object> value,
-                                 bool is_volatile) const
+                                 bool is_volatile)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
+  void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void RecordStrongStringInsertion(ObjPtr<mirror::String> s) const
+  void RecordStrongStringInsertion(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_);
-  void RecordWeakStringInsertion(ObjPtr<mirror::String> s) const
+  void RecordWeakStringInsertion(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_);
-  void RecordStrongStringRemoval(ObjPtr<mirror::String> s) const
+  void RecordStrongStringRemoval(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_);
-  void RecordWeakStringRemoval(ObjPtr<mirror::String> s) const
+  void RecordWeakStringRemoval(ObjPtr<mirror::String> s)
       REQUIRES(Locks::intern_table_lock_);
-  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx) const
+  void RecordResolveString(ObjPtr<mirror::DexCache> dex_cache, dex::StringIndex string_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void RecordResolveMethodType(ObjPtr<mirror::DexCache> dex_cache, dex::ProtoIndex proto_idx) const
+  void RecordResolveMethodType(ObjPtr<mirror::DexCache> dex_cache, dex::ProtoIndex proto_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetFaultMessage(const std::string& message);
@@ -710,11 +724,11 @@ class Runtime {
   ArenaPool* GetArenaPool() {
     return arena_pool_.get();
   }
-  ArenaPool* GetJitArenaPool() {
-    return jit_arena_pool_.get();
-  }
   const ArenaPool* GetArenaPool() const {
     return arena_pool_.get();
+  }
+  ArenaPool* GetJitArenaPool() {
+    return jit_arena_pool_.get();
   }
 
   void ReclaimArenaPoolMemory();
@@ -1237,7 +1251,7 @@ class Runtime {
   // Support nested transactions, maintain a list containing all transactions. Transactions are
   // handled under a stack discipline. Because GC needs to go over all transactions, we choose list
   // as substantial data structure instead of stack.
-  std::list<std::unique_ptr<Transaction>> preinitialization_transactions_;
+  std::forward_list<Transaction> preinitialization_transactions_;
 
   // If kNone, verification is disabled. kEnable by default.
   verifier::VerifyMode verify_;
