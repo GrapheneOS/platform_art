@@ -3508,15 +3508,10 @@ static void LinkCode(ClassLinker* class_linker,
   if (quick_code == nullptr) {
     if (method->IsNative()) {
       method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniStub());
-    } else if (interpreter::CanRuntimeUseNterp() && CanMethodUseNterp(method)) {
-      // The nterp trampoline doesn't do initialization checks, so install the
-      // resolution stub if needed.
-      if (NeedsClinitCheckBeforeCall(method)) {
-        method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
-      } else {
-        method->SetEntryPointFromQuickCompiledCode(interpreter::GetNterpEntryPoint());
-      }
     } else {
+      // Note we cannot use the nterp entrypoint because we do not know if the
+      // method will need the slow interpreter for lock verification. This will
+      // be updated in EnsureSkipAccessChecksMethods.
       method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
     }
   } else if (enter_interpreter) {
