@@ -566,6 +566,7 @@ class ImageWriter final {
   // Location of where the object will be when the image is loaded at runtime.
   template <typename T>
   T* NativeLocationInImage(T* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  ArtField* NativeLocationInImage(ArtField* src_field) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return true if `dex_cache` belongs to the image we're writing.
   // For a boot image, this is true for all dex caches.
@@ -603,15 +604,19 @@ class ImageWriter final {
   void CopyAndFixupReference(DestType* dest, ObjPtr<mirror::Object> src)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Copy a native pointer and record image relocation.
-  void CopyAndFixupPointer(void** target, void* value, PointerSize pointer_size)
+  // Translate a native pointer to the destination value and store in the target location.
+  template <typename ValueType>
+  void CopyAndFixupPointer(void** target, ValueType src_value, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void CopyAndFixupPointer(void** target, void* value)
+  template <typename ValueType>
+  void CopyAndFixupPointer(void** target, ValueType src_value)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  template <typename ValueType>
   void CopyAndFixupPointer(
-      void* object, MemberOffset offset, void* value, PointerSize pointer_size)
+      void* object, MemberOffset offset, ValueType src_value, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void CopyAndFixupPointer(void* object, MemberOffset offset, void* value)
+  template <typename ValueType>
+  void CopyAndFixupPointer(void* object, MemberOffset offset, ValueType src_value)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*

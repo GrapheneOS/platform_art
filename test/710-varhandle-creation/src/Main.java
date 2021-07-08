@@ -17,6 +17,7 @@
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.invoke.VarHandle.AccessMode;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -2401,6 +2402,50 @@ public final class Main {
         }
     }
 
+    private static ClassLoader createExClassLoader() throws Exception {
+        String location = System.getenv("DEX_LOCATION");
+        try {
+            Class<?> class_loader_class = Class.forName("dalvik.system.PathClassLoader");
+            Constructor<?> ctor =
+                    class_loader_class.getConstructor(String.class, ClassLoader.class);
+
+            return (ClassLoader)ctor.newInstance(location + "/710-varhandle-creation-ex.jar",
+                                                 Main.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
+            // Running on RI. Use URLClassLoader.
+            return new java.net.URLClassLoader(
+                    new java.net.URL[] { new java.net.URL("file://" + location + "/classes-ex/") });
+        }
+    }
+
+    private static Class<?> loadUnloadTestClass() throws Exception {
+        ClassLoader loader = createExClassLoader();
+        return Class.forName("UnloadTest", true, loader);
+    }
+
+    private static VarHandle createUnloadTestVarHandle() throws Exception {
+        Class<?> klass = loadUnloadTestClass();
+        return MethodHandles.lookup().findStaticVarHandle(klass, "i", int.class);
+    }
+
+    // Regression test for static field VarHandle previously not keeping
+    // the target class alive, leading to a crash. Bug: 191980149
+    private static void checkStaticFieldVarHandleGc() {
+        try {
+            VarHandle vh = createUnloadTestVarHandle();
+            // Print the initial value.
+            System.out.println("Initial value of UnloadTest.i: " + (int) vh.get());
+            // Try to collect all garbage thoroughly.
+            for (int i = 0; i < 5; ++i) {
+               Runtime.getRuntime().gc();
+            }
+            // Print the value again.
+            System.out.println("Final value of UnloadTest.i: " + (int) vh.get());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static void main(String[] args) {
         checkAccessModes();
         checkInstantiatedVarHandles();
@@ -2408,6 +2453,7 @@ public final class Main {
         LookupCheckB.run();
         LookupCheckC.run();
         UnreflectCheck.run();
+        checkStaticFieldVarHandleGc();
     }
 }
 

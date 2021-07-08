@@ -77,7 +77,6 @@ class ElfDebugReader {
         s[1] = static_cast<uint32_t>(cie_pointer);
       }
     }
-
   } PACKED(1);
 
   // Common Information Entry.

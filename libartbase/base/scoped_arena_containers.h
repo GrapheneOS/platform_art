@@ -18,6 +18,7 @@
 #define ART_LIBARTBASE_BASE_SCOPED_ARENA_CONTAINERS_H_
 
 #include <deque>
+#include <forward_list>
 #include <queue>
 #include <set>
 #include <type_traits>
@@ -46,6 +47,9 @@ class ScopedArenaAllocatorAdapter;
 
 template <typename T>
 using ScopedArenaDeque = std::deque<T, ScopedArenaAllocatorAdapter<T>>;
+
+template <typename T>
+using ScopedArenaForwardList = std::forward_list<T, ScopedArenaAllocatorAdapter<T>>;
 
 template <typename T>
 using ScopedArenaQueue = std::queue<T, ScopedArenaDeque<T>>;
