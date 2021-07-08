@@ -100,7 +100,8 @@ enum class DatumId {
   V(kShared, "shared") \
   V(kInstallWithDexMetadata, "install-with-dex-metadata") \
   V(kPrebuilt, "prebuilt") \
-  V(kCmdLine, "cmdline")
+  V(kCmdLine, "cmdline") \
+  V(kVdex, "vdex")
 
 // We log compilation reasons as part of the metadata we report. Since elsewhere compilation reasons
 // are specified as a string, we define them as an enum here which indicates the reasons that we
