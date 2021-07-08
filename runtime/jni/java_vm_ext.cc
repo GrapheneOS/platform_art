@@ -660,6 +660,20 @@ void JavaVMExt::CheckGlobalRefAllocationTracking() {
   }
 }
 
+void JavaVMExt::MaybeTraceGlobals() {
+  if (global_ref_report_counter_++ == kGlobalRefReportInterval) {
+    global_ref_report_counter_ = 1;
+    ATraceIntegerValue("JNI Global Refs", globals_.NEntriesForGlobal());
+  }
+}
+
+void JavaVMExt::MaybeTraceWeakGlobals() {
+  if (weak_global_ref_report_counter_++ == kGlobalRefReportInterval) {
+    weak_global_ref_report_counter_ = 1;
+    ATraceIntegerValue("JNI Weak Global Refs", weak_globals_.NEntriesForGlobal());
+  }
+}
+
 jobject JavaVMExt::AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   // Check for null after decoding the object to handle cleared weak globals.
   if (obj == nullptr) {
@@ -670,6 +684,7 @@ jobject JavaVMExt::AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   {
     WriterMutexLock mu(self, *Locks::jni_globals_lock_);
     ref = globals_.Add(kIRTFirstSegment, obj, &error_msg);
+    MaybeTraceGlobals();
   }
   if (UNLIKELY(ref == nullptr)) {
     LOG(FATAL) << error_msg;
@@ -705,6 +720,7 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   }
   std::string error_msg;
   IndirectRef ref = weak_globals_.Add(kIRTFirstSegment, obj, &error_msg);
+  MaybeTraceWeakGlobals();
   if (UNLIKELY(ref == nullptr)) {
     LOG(FATAL) << error_msg;
     UNREACHABLE();
@@ -722,6 +738,7 @@ void JavaVMExt::DeleteGlobalRef(Thread* self, jobject obj) {
       LOG(WARNING) << "JNI WARNING: DeleteGlobalRef(" << obj << ") "
                    << "failed to find entry";
     }
+    MaybeTraceGlobals();
   }
   CheckGlobalRefAllocationTracking();
 }
@@ -735,6 +752,7 @@ void JavaVMExt::DeleteWeakGlobalRef(Thread* self, jweak obj) {
     LOG(WARNING) << "JNI WARNING: DeleteWeakGlobalRef(" << obj << ") "
                  << "failed to find entry";
   }
+  MaybeTraceWeakGlobals();
 }
 
 static void ThreadEnableCheckJni(Thread* thread, void* arg) {
