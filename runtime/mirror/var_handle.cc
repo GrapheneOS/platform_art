@@ -1454,16 +1454,19 @@ bool VarHandle::Access(AccessMode access_mode,
   ObjPtr<ObjectArray<Class>> class_roots = Runtime::Current()->GetClassLinker()->GetClassRoots();
   ObjPtr<Class> klass = GetClass();
   if (klass == GetClassRoot<FieldVarHandle>(class_roots)) {
-    auto vh = reinterpret_cast<FieldVarHandle*>(this);
+    auto vh = ObjPtr<FieldVarHandle>::DownCast(this);
+    return vh->Access(access_mode, shadow_frame, operands, result);
+  } else if (klass == GetClassRoot<StaticFieldVarHandle>(class_roots)) {
+    auto vh = ObjPtr<StaticFieldVarHandle>::DownCast(this);
     return vh->Access(access_mode, shadow_frame, operands, result);
   } else if (klass == GetClassRoot<ArrayElementVarHandle>(class_roots)) {
-    auto vh = reinterpret_cast<ArrayElementVarHandle*>(this);
+    auto vh = ObjPtr<ArrayElementVarHandle>::DownCast(this);
     return vh->Access(access_mode, shadow_frame, operands, result);
   } else if (klass == GetClassRoot<ByteArrayViewVarHandle>(class_roots)) {
-    auto vh = reinterpret_cast<ByteArrayViewVarHandle*>(this);
+    auto vh = ObjPtr<ByteArrayViewVarHandle>::DownCast(this);
     return vh->Access(access_mode, shadow_frame, operands, result);
   } else if (klass == GetClassRoot<ByteBufferViewVarHandle>(class_roots)) {
-    auto vh = reinterpret_cast<ByteBufferViewVarHandle*>(this);
+    auto vh = ObjPtr<ByteBufferViewVarHandle>::DownCast(this);
     return vh->Access(access_mode, shadow_frame, operands, result);
   } else {
     LOG(FATAL) << "Unknown varhandle kind";
@@ -1643,16 +1646,12 @@ int32_t VarHandle::GetNumberOfVarTypeParameters(AccessModeTemplate access_mode_t
   UNREACHABLE();
 }
 
-ArtField* FieldVarHandle::GetField() {
-  return reinterpret_cast64<ArtField*>(GetField64(ArtFieldOffset()));
-}
-
 bool FieldVarHandle::Access(AccessMode access_mode,
                             ShadowFrame* shadow_frame,
                             const InstructionOperands* const operands,
                             JValue* result) {
   ShadowFrameGetter getter(*shadow_frame, operands);
-  ArtField* field = GetField();
+  ArtField* field = GetArtField();
   ObjPtr<Object> obj;
   if (field->IsStatic()) {
     DCHECK_LE(operands->GetNumberOfOperands(),
@@ -1995,15 +1994,23 @@ bool ByteBufferViewVarHandle::Access(AccessMode access_mode,
 }
 
 void FieldVarHandle::VisitTarget(ReflectiveValueVisitor* v) {
-  ArtField* orig = GetField();
+  ArtField* orig = GetArtField();
   ArtField* new_value =
       v->VisitField(orig, HeapReflectiveSourceInfo(kSourceJavaLangInvokeFieldVarHandle, this));
   if (orig != new_value) {
-    SetField64</*kTransactionActive*/ false>(ArtFieldOffset(),
-                                             reinterpret_cast<uintptr_t>(new_value));
+    SetArtField(new_value);
   }
 }
 
+void StaticFieldVarHandle::VisitTarget(ReflectiveValueVisitor* v) {
+  ArtField* orig = GetArtField();
+  ArtField* new_value =
+      v->VisitField(orig, HeapReflectiveSourceInfo(kSourceJavaLangInvokeFieldVarHandle, this));
+  if (orig != new_value) {
+    SetArtField(new_value);
+    SetFieldObject<false>(DeclaringClassOffset(), new_value->GetDeclaringClass());
+  }
+}
 
 }  // namespace mirror
 }  // namespace art

@@ -40,8 +40,17 @@ namespace art {
 // TODO: remove (only used for debugging purpose).
 static constexpr bool kEnableTransactionStats = false;
 
-Transaction::Transaction(bool strict, mirror::Class* root)
-    : log_lock_("transaction log lock", kTransactionLogLock),
+Transaction::Transaction(bool strict,
+                         mirror::Class* root,
+                         ArenaStack* arena_stack,
+                         ArenaPool* arena_pool)
+    : arena_stack_(std::nullopt),
+      allocator_(arena_stack != nullptr ? arena_stack : &arena_stack_.emplace(arena_pool)),
+      object_logs_(std::less<mirror::Object*>(), allocator_.Adapter(kArenaAllocTransaction)),
+      array_logs_(std::less<mirror::Array*>(), allocator_.Adapter(kArenaAllocTransaction)),
+      intern_string_logs_(allocator_.Adapter(kArenaAllocTransaction)),
+      resolve_string_logs_(allocator_.Adapter(kArenaAllocTransaction)),
+      resolve_method_type_logs_(allocator_.Adapter(kArenaAllocTransaction)),
       aborted_(false),
       rolling_back_(false),
       heap_(Runtime::Current()->GetHeap()),
@@ -49,11 +58,11 @@ Transaction::Transaction(bool strict, mirror::Class* root)
       root_(root),
       assert_no_new_records_reason_(nullptr) {
   DCHECK(Runtime::Current()->IsAotCompiler());
+  DCHECK_NE(arena_stack != nullptr, arena_pool != nullptr);
 }
 
 Transaction::~Transaction() {
   if (kEnableTransactionStats) {
-    MutexLock mu(Thread::Current(), log_lock_);
     size_t objects_count = object_logs_.size();
     size_t field_values_count = 0;
     for (const auto& it : object_logs_) {
@@ -64,20 +73,24 @@ Transaction::~Transaction() {
     for (const auto& it : array_logs_) {
       array_values_count += it.second.Size();
     }
-    size_t intern_string_count = intern_string_logs_.size();
-    size_t resolve_string_count = resolve_string_logs_.size();
+    size_t intern_string_count =
+        std::distance(intern_string_logs_.begin(), intern_string_logs_.end());
+    size_t resolve_string_count =
+        std::distance(resolve_string_logs_.begin(), resolve_string_logs_.end());
+    size_t resolve_method_type_count =
+        std::distance(resolve_method_type_logs_.begin(), resolve_method_type_logs_.end());
     LOG(INFO) << "Transaction::~Transaction"
               << ": objects_count=" << objects_count
               << ", field_values_count=" << field_values_count
               << ", array_count=" << array_count
               << ", array_values_count=" << array_values_count
               << ", intern_string_count=" << intern_string_count
-              << ", resolve_string_count=" << resolve_string_count;
+              << ", resolve_string_count=" << resolve_string_count
+              << ", resolve_method_type_count=" << resolve_method_type_count;
   }
 }
 
 void Transaction::Abort(const std::string& abort_message) {
-  MutexLock mu(Thread::Current(), log_lock_);
   // We may abort more than once if the exception thrown at the time of the
   // previous abort has been caught during execution of a class initializer.
   // We just keep the message of the first abort because it will cause the
@@ -105,23 +118,12 @@ void Transaction::ThrowAbortError(Thread* self, const std::string* abort_message
   }
 }
 
-bool Transaction::IsAborted() {
-  MutexLock mu(Thread::Current(), log_lock_);
-  return aborted_;
-}
-
-bool Transaction::IsRollingBack() {
-  return rolling_back_;
-}
-
-const std::string& Transaction::GetAbortMessage() {
-  MutexLock mu(Thread::Current(), log_lock_);
+const std::string& Transaction::GetAbortMessage() const {
   return abort_message_;
 }
 
-bool Transaction::WriteConstraint(Thread* self, ObjPtr<mirror::Object> obj) {
+bool Transaction::WriteConstraint(ObjPtr<mirror::Object> obj) const {
   DCHECK(obj != nullptr);
-  MutexLock mu(self, log_lock_);
 
   // Prevent changes in boot image spaces for app or boot image extension.
   // For boot image there are no boot image spaces and this condition evaluates to false.
@@ -135,12 +137,11 @@ bool Transaction::WriteConstraint(Thread* self, ObjPtr<mirror::Object> obj) {
          obj != root_;  // modifying other classes' static field, fail
 }
 
-bool Transaction::WriteValueConstraint(Thread* self, ObjPtr<mirror::Object> value) {
+bool Transaction::WriteValueConstraint(ObjPtr<mirror::Object> value) const {
   if (value == nullptr) {
     return false;  // We can always store null values.
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
-  MutexLock mu(self, log_lock_);
   if (IsStrict()) {
     // TODO: Should we restrict writes the same way as for boot image extension?
     return false;
@@ -153,11 +154,10 @@ bool Transaction::WriteValueConstraint(Thread* self, ObjPtr<mirror::Object> valu
   }
 }
 
-bool Transaction::ReadConstraint(Thread* self, ObjPtr<mirror::Object> obj) {
+bool Transaction::ReadConstraint(ObjPtr<mirror::Object> obj) const {
   // Read constraints are checked only for static field reads as there are
   // no constraints on reading instance fields and array elements.
   DCHECK(obj->IsClass());
-  MutexLock mu(self, log_lock_);
   if (IsStrict()) {
     return obj != root_;  // fail if not self-updating
   } else {
@@ -166,14 +166,17 @@ bool Transaction::ReadConstraint(Thread* self, ObjPtr<mirror::Object> obj) {
   }
 }
 
+inline Transaction::ObjectLog& Transaction::GetOrCreateObjectLog(mirror::Object* obj) {
+  return object_logs_.GetOrCreate(obj, [&]() { return ObjectLog(&allocator_); });
+}
+
 void Transaction::RecordWriteFieldBoolean(mirror::Object* obj,
                                           MemberOffset field_offset,
                                           uint8_t value,
                                           bool is_volatile) {
   DCHECK(obj != nullptr);
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  ObjectLog& object_log = object_logs_[obj];
+  ObjectLog& object_log = GetOrCreateObjectLog(obj);
   object_log.LogBooleanValue(field_offset, value, is_volatile);
 }
 
@@ -182,9 +185,8 @@ void Transaction::RecordWriteFieldByte(mirror::Object* obj,
                                        int8_t value,
                                        bool is_volatile) {
   DCHECK(obj != nullptr);
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  ObjectLog& object_log = object_logs_[obj];
+  ObjectLog& object_log = GetOrCreateObjectLog(obj);
   object_log.LogByteValue(field_offset, value, is_volatile);
 }
 
@@ -193,9 +195,8 @@ void Transaction::RecordWriteFieldChar(mirror::Object* obj,
                                        uint16_t value,
                                        bool is_volatile) {
   DCHECK(obj != nullptr);
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  ObjectLog& object_log = object_logs_[obj];
+  ObjectLog& object_log = GetOrCreateObjectLog(obj);
   object_log.LogCharValue(field_offset, value, is_volatile);
 }
 
@@ -205,9 +206,8 @@ void Transaction::RecordWriteFieldShort(mirror::Object* obj,
                                         int16_t value,
                                         bool is_volatile) {
   DCHECK(obj != nullptr);
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  ObjectLog& object_log = object_logs_[obj];
+  ObjectLog& object_log = GetOrCreateObjectLog(obj);
   object_log.LogShortValue(field_offset, value, is_volatile);
 }
 
@@ -217,9 +217,8 @@ void Transaction::RecordWriteField32(mirror::Object* obj,
                                      uint32_t value,
                                      bool is_volatile) {
   DCHECK(obj != nullptr);
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  ObjectLog& object_log = object_logs_[obj];
+  ObjectLog& object_log = GetOrCreateObjectLog(obj);
   object_log.Log32BitsValue(field_offset, value, is_volatile);
 }
 
@@ -228,9 +227,8 @@ void Transaction::RecordWriteField64(mirror::Object* obj,
                                      uint64_t value,
                                      bool is_volatile) {
   DCHECK(obj != nullptr);
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  ObjectLog& object_log = object_logs_[obj];
+  ObjectLog& object_log = GetOrCreateObjectLog(obj);
   object_log.Log64BitsValue(field_offset, value, is_volatile);
 }
 
@@ -239,9 +237,8 @@ void Transaction::RecordWriteFieldReference(mirror::Object* obj,
                                             mirror::Object* value,
                                             bool is_volatile) {
   DCHECK(obj != nullptr);
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  ObjectLog& object_log = object_logs_[obj];
+  ObjectLog& object_log = GetOrCreateObjectLog(obj);
   object_log.LogReferenceValue(field_offset, value, is_volatile);
 }
 
@@ -249,32 +246,25 @@ void Transaction::RecordWriteArray(mirror::Array* array, size_t index, uint64_t 
   DCHECK(array != nullptr);
   DCHECK(array->IsArrayInstance());
   DCHECK(!array->IsObjectArray());
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  auto it = array_logs_.find(array);
-  if (it == array_logs_.end()) {
-    ArrayLog log;
-    it = array_logs_.emplace(array, std::move(log)).first;
-  }
-  it->second.LogValue(index, value);
+  ArrayLog& array_log = array_logs_.GetOrCreate(array, [&]() { return ArrayLog(&allocator_); });
+  array_log.LogValue(index, value);
 }
 
 void Transaction::RecordResolveString(ObjPtr<mirror::DexCache> dex_cache,
                                       dex::StringIndex string_idx) {
   DCHECK(dex_cache != nullptr);
   DCHECK_LT(string_idx.index_, dex_cache->GetDexFile()->NumStringIds());
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  resolve_string_logs_.emplace_back(dex_cache, string_idx);
+  resolve_string_logs_.emplace_front(dex_cache, string_idx);
 }
 
 void Transaction::RecordResolveMethodType(ObjPtr<mirror::DexCache> dex_cache,
                                           dex::ProtoIndex proto_idx) {
   DCHECK(dex_cache != nullptr);
   DCHECK_LT(proto_idx.index_, dex_cache->GetDexFile()->NumProtoIds());
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
-  resolve_method_type_logs_.emplace_back(dex_cache, proto_idx);
+  resolve_method_type_logs_.emplace_front(dex_cache, proto_idx);
 }
 
 void Transaction::RecordStrongStringInsertion(ObjPtr<mirror::String> s) {
@@ -299,7 +289,6 @@ void Transaction::RecordWeakStringRemoval(ObjPtr<mirror::String> s) {
 
 void Transaction::LogInternedString(InternStringLog&& log) {
   Locks::intern_table_lock_->AssertExclusiveHeld(Thread::Current());
-  MutexLock mu(Thread::Current(), log_lock_);
   DCHECK(assert_no_new_records_reason_ == nullptr) << assert_no_new_records_reason_;
   intern_string_logs_.push_front(std::move(log));
 }
@@ -307,8 +296,7 @@ void Transaction::LogInternedString(InternStringLog&& log) {
 void Transaction::Rollback() {
   Thread* self = Thread::Current();
   self->AssertNoPendingException();
-  MutexLock mu1(self, *Locks::intern_table_lock_);
-  MutexLock mu2(self, log_lock_);
+  MutexLock mu(self, *Locks::intern_table_lock_);
   rolling_back_ = true;
   CHECK(!Runtime::Current()->IsActiveTransaction());
   UndoObjectModifications();
@@ -362,19 +350,42 @@ void Transaction::UndoResolveMethodTypeModifications() {
 }
 
 void Transaction::VisitRoots(RootVisitor* visitor) {
-  MutexLock mu(Thread::Current(), log_lock_);
+  // Transactions are used for single-threaded initialization.
+  // This is the only function that should be called from a different thread,
+  // namely the GC thread, and it is called with the mutator lock held exclusively,
+  // so the data structures in the `Transaction` are protected from concurrent use.
+  DCHECK(Locks::mutator_lock_->IsExclusiveHeld(Thread::Current()));
+
   visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&root_), RootInfo(kRootUnknown));
-  VisitObjectLogs(visitor);
-  VisitArrayLogs(visitor);
+  {
+    // Create a separate `ArenaStack` for this thread.
+    ArenaStack arena_stack(Runtime::Current()->GetArenaPool());
+    VisitObjectLogs(visitor, &arena_stack);
+    VisitArrayLogs(visitor, &arena_stack);
+  }
   VisitInternStringLogs(visitor);
   VisitResolveStringLogs(visitor);
   VisitResolveMethodTypeLogs(visitor);
 }
 
-void Transaction::VisitObjectLogs(RootVisitor* visitor) {
+template <typename MovingRoots, typename Container>
+void UpdateKeys(const MovingRoots& moving_roots, Container& container) {
+  for (const auto& pair : moving_roots) {
+    auto* old_root = pair.first;
+    auto* new_root = pair.second;
+    auto node = container.extract(old_root);
+    CHECK(!node.empty());
+    node.key() = new_root;
+    bool inserted = container.insert(std::move(node)).inserted;
+    CHECK(inserted);
+  }
+}
+
+void Transaction::VisitObjectLogs(RootVisitor* visitor, ArenaStack* arena_stack) {
   // List of moving roots.
+  ScopedArenaAllocator allocator(arena_stack);
   using ObjectPair = std::pair<mirror::Object*, mirror::Object*>;
-  std::list<ObjectPair> moving_roots;
+  ScopedArenaForwardList<ObjectPair> moving_roots(allocator.Adapter(kArenaAllocTransaction));
 
   // Visit roots.
   for (auto& it : object_logs_) {
@@ -383,26 +394,19 @@ void Transaction::VisitObjectLogs(RootVisitor* visitor) {
     mirror::Object* new_root = old_root;
     visitor->VisitRoot(&new_root, RootInfo(kRootUnknown));
     if (new_root != old_root) {
-      moving_roots.push_back(std::make_pair(old_root, new_root));
+      moving_roots.push_front(std::make_pair(old_root, new_root));
     }
   }
 
   // Update object logs with moving roots.
-  for (const ObjectPair& pair : moving_roots) {
-    mirror::Object* old_root = pair.first;
-    mirror::Object* new_root = pair.second;
-    auto old_root_it = object_logs_.find(old_root);
-    CHECK(old_root_it != object_logs_.end());
-    CHECK(object_logs_.find(new_root) == object_logs_.end());
-    object_logs_.emplace(new_root, std::move(old_root_it->second));
-    object_logs_.erase(old_root_it);
-  }
+  UpdateKeys(moving_roots, object_logs_);
 }
 
-void Transaction::VisitArrayLogs(RootVisitor* visitor) {
+void Transaction::VisitArrayLogs(RootVisitor* visitor, ArenaStack* arena_stack) {
   // List of moving roots.
+  ScopedArenaAllocator allocator(arena_stack);
   using ArrayPair = std::pair<mirror::Array*, mirror::Array*>;
-  std::list<ArrayPair> moving_roots;
+  ScopedArenaForwardList<ArrayPair> moving_roots(allocator.Adapter(kArenaAllocTransaction));
 
   for (auto& it : array_logs_) {
     mirror::Array* old_root = it.first;
@@ -410,20 +414,12 @@ void Transaction::VisitArrayLogs(RootVisitor* visitor) {
     mirror::Array* new_root = old_root;
     visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&new_root), RootInfo(kRootUnknown));
     if (new_root != old_root) {
-      moving_roots.push_back(std::make_pair(old_root, new_root));
+      moving_roots.push_front(std::make_pair(old_root, new_root));
     }
   }
 
   // Update array logs with moving roots.
-  for (const ArrayPair& pair : moving_roots) {
-    mirror::Array* old_root = pair.first;
-    mirror::Array* new_root = pair.second;
-    auto old_root_it = array_logs_.find(old_root);
-    CHECK(old_root_it != array_logs_.end());
-    CHECK(array_logs_.find(new_root) == array_logs_.end());
-    array_logs_.emplace(new_root, std::move(old_root_it->second));
-    array_logs_.erase(old_root_it);
-  }
+  UpdateKeys(moving_roots, array_logs_);
 }
 
 void Transaction::VisitInternStringLogs(RootVisitor* visitor) {
@@ -686,10 +682,8 @@ Transaction::InternStringLog::InternStringLog(ObjPtr<mirror::String> s,
 }
 
 void Transaction::ArrayLog::LogValue(size_t index, uint64_t value) {
-  auto it = array_values_.find(index);
-  if (it == array_values_.end()) {
-    array_values_.insert(std::make_pair(index, value));
-  }
+  // Add a mapping if there is none yet.
+  array_values_.FindOrAdd(index, value);
 }
 
 void Transaction::ArrayLog::Undo(mirror::Array* array) const {
@@ -753,9 +747,8 @@ void Transaction::ArrayLog::UndoArrayWrite(mirror::Array* array,
 Transaction* ScopedAssertNoNewTransactionRecords::InstallAssertion(const char* reason) {
   Transaction* transaction = nullptr;
   if (kIsDebugBuild && Runtime::Current()->IsActiveTransaction()) {
-    transaction = Runtime::Current()->GetTransaction().get();
+    transaction = Runtime::Current()->GetTransaction();
     if (transaction != nullptr) {
-      MutexLock mu(Thread::Current(), transaction->log_lock_);
       CHECK(transaction->assert_no_new_records_reason_ == nullptr)
           << "old: " << transaction->assert_no_new_records_reason_ << " new: " << reason;
       transaction->assert_no_new_records_reason_ = reason;
@@ -766,8 +759,7 @@ Transaction* ScopedAssertNoNewTransactionRecords::InstallAssertion(const char* r
 
 void ScopedAssertNoNewTransactionRecords::RemoveAssertion(Transaction* transaction) {
   if (kIsDebugBuild) {
-    CHECK(Runtime::Current()->GetTransaction().get() == transaction);
-    MutexLock mu(Thread::Current(), transaction->log_lock_);
+    CHECK(Runtime::Current()->GetTransaction() == transaction);
     CHECK(transaction->assert_no_new_records_reason_ != nullptr);
     transaction->assert_no_new_records_reason_ = nullptr;
   }

@@ -32,6 +32,7 @@ enum class Intrinsics;
 
 struct VarHandleOffsets;
 struct FieldVarHandleOffsets;
+struct StaticFieldVarHandleOffsets;
 struct ArrayElementVarHandleOffsets;
 struct ByteArrayViewVarHandleOffsets;
 struct ByteBufferViewVarHandleOffsets;
@@ -217,7 +218,17 @@ class MANAGED FieldVarHandle : public VarHandle {
               JValue* result)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtField* GetField() REQUIRES_SHARED(Locks::mutator_lock_);
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ArtField* GetArtField() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return reinterpret_cast64<ArtField*>(GetField64<kVerifyFlags>(ArtFieldOffset()));
+  }
+
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  void SetArtField(ArtField* art_field) REQUIRES_SHARED(Locks::mutator_lock_) {
+    SetField64</*kTransactionActive*/ false,
+               /*kCheckTransaction=*/ true,
+               kVerifyFlags>(ArtFieldOffset(), reinterpret_cast64<uint64_t>(art_field));
+  }
 
   // Used for updating var-handles to obsolete fields.
   void VisitTarget(ReflectiveValueVisitor* v) REQUIRES(Locks::mutator_lock_);
@@ -234,6 +245,26 @@ class MANAGED FieldVarHandle : public VarHandle {
   friend struct art::FieldVarHandleOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(FieldVarHandle);
 };
+
+class MANAGED StaticFieldVarHandle : public FieldVarHandle {
+ public:
+  MIRROR_CLASS("Ljava/lang/invoke/StaticFieldVarHandle;");
+
+  // Used for updating var-handles to obsolete fields.
+  void VisitTarget(ReflectiveValueVisitor* v) REQUIRES(Locks::mutator_lock_);
+
+  static MemberOffset DeclaringClassOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(StaticFieldVarHandle, declaring_class_));
+  }
+
+ private:
+  HeapReference<mirror::Class> declaring_class_;
+
+  friend class VarHandleTest;  // for var_handle_test.
+  friend struct art::StaticFieldVarHandleOffsets;  // for verifying offset information
+  DISALLOW_IMPLICIT_CONSTRUCTORS(StaticFieldVarHandle);
+};
+
 
 // Represents a VarHandle providing accessors to an array.
 // The corresponding managed class in libart java.lang.invoke.ArrayElementVarHandle.
