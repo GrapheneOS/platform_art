@@ -39,7 +39,10 @@ import org.junit.runners.MethodSorters;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
@@ -54,6 +57,8 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     private static final String ODREFRESH_COMPILATION_LOG =
             "/data/misc/odrefresh/compilation-log.txt";
 
+    private static final String CACHE_INFO_FILE = ART_APEX_DALVIK_CACHE_DIRNAME + "/cache-info.xml";
+
     private final String[] APP_ARTIFACT_EXTENSIONS = new String[] {".art", ".odex", ".vdex"};
 
     private final String[] BCP_ARTIFACT_EXTENSIONS = new String[] {".art", ".oat", ".vdex"};
@@ -64,6 +69,8 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     private final InstallUtilsHost mInstallUtils = new InstallUtilsHost(this);
 
     private static final Duration BOOT_COMPLETE_TIMEOUT = Duration.ofMinutes(2);
+
+    private final String[] ZYGOTE_NAMES = new String[] {"zygote", "zygote64"};
 
     @Before
     public void setUp() throws Exception {
@@ -113,10 +120,36 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         return mappedFiles;
     }
 
+    /**
+     * Returns the mapped artifacts of the Zygote process, or {@code Optional.empty()} if the
+     * process does not exist.
+     */
+    private Optional<Set<String>> getZygoteLoadedArtifacts(String zygoteName) throws Exception {
+        final CommandResult pgrepResult = getDevice().executeShellV2Command("pgrep " + zygoteName);
+        if (pgrepResult.getExitCode() != 0) {
+            return Optional.empty();
+        }
+        final String zygotePid = pgrepResult.getStdout();
+
+        final String bootExtensionName = "boot-framework";
+        return Optional.of(getMappedArtifacts(zygotePid, bootExtensionName));
+    }
+
+    private Set<String> getSystemServerLoadedArtifacts() throws Exception {
+        String systemServerPid = getDevice().executeShellCommand("pgrep system_server");
+        assertTrue(systemServerPid != null);
+
+        // system_server artifacts are in the APEX data dalvik cache and names all contain
+        // the word "@classes". Look for mapped files that match this pattern in the proc map for
+        // system_server.
+        final String grepPattern = ART_APEX_DALVIK_CACHE_DIRNAME + ".*@classes";
+        return getMappedArtifacts(systemServerPid, grepPattern);
+    }
+
     private String[] getSystemServerClasspath() throws Exception {
         String systemServerClasspath =
                 getDevice().executeShellCommand("echo $SYSTEMSERVERCLASSPATH");
-        return systemServerClasspath.split(":");
+        return systemServerClasspath.trim().split(":");
     }
 
     private String getSystemServerIsa(String mappedArtifact) {
@@ -132,56 +165,34 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         String[] classpathElements = getSystemServerClasspath();
         assertTrue("SYSTEMSERVERCLASSPATH is empty", classpathElements.length > 0);
 
-        String systemServerPid = getDevice().executeShellCommand("pgrep system_server");
-        assertTrue(systemServerPid != null);
-
-        // system_server artifacts are in the APEX data dalvik cache and names all contain
-        // the word "@classes". Look for mapped files that match this pattern in the proc map for
-        // system_server.
-        final String grepPattern = ART_APEX_DALVIK_CACHE_DIRNAME + ".*@classes";
-        final Set<String> mappedArtifacts = getMappedArtifacts(systemServerPid, grepPattern);
+        final Set<String> mappedArtifacts = getSystemServerLoadedArtifacts();
         assertTrue(
                 "No mapped artifacts under " + ART_APEX_DALVIK_CACHE_DIRNAME,
                 mappedArtifacts.size() > 0);
         final String isa = getSystemServerIsa(mappedArtifacts.iterator().next());
         final String isaCacheDirectory = String.format("%s/%s", ART_APEX_DALVIK_CACHE_DIRNAME, isa);
 
-        // Check the non-APEX components in the system_server classpath have mapped artifacts.
+        // Check components in the system_server classpath have mapped artifacts.
         for (String element : classpathElements) {
-            // Skip system_server classpath elements from APEXes as these are not currently
-            // compiled.
-            if (element.startsWith("/apex")) {
-                continue;
-            }
-            String escapedPath = element.substring(1).replace('/', '@');
-            for (String extension : APP_ARTIFACT_EXTENSIONS) {
-                final String fullArtifactPath =
-                        String.format("%s/%s@classes%s", isaCacheDirectory, escapedPath, extension);
-                assertTrue(
-                        "Missing " + fullArtifactPath, mappedArtifacts.contains(fullArtifactPath));
-            }
+          String escapedPath = element.substring(1).replace('/', '@');
+          for (String extension : APP_ARTIFACT_EXTENSIONS) {
+            final String fullArtifactPath =
+                String.format("%s/%s@classes%s", isaCacheDirectory, escapedPath, extension);
+            assertTrue("Missing " + fullArtifactPath, mappedArtifacts.contains(fullArtifactPath));
+          }
         }
 
         for (String mappedArtifact : mappedArtifacts) {
-            // Check no APEX JAR artifacts are mapped for system_server since if there
-            // are, then the policy around not compiling APEX jars for system_server has
-            // changed and this test needs updating here and in the system_server classpath
-            // check above.
-            assertTrue(
-                    "Unexpected mapped artifact: " + mappedArtifact,
-                    mappedArtifact.contains("/apex"));
-
-            // Check the mapped artifact has a .art, .odex or .vdex extension.
-            final boolean knownArtifactKind =
-                    Arrays.stream(APP_ARTIFACT_EXTENSIONS)
-                            .anyMatch(e -> mappedArtifact.endsWith(e));
-            assertTrue("Unknown artifact kind: " + mappedArtifact, knownArtifactKind);
+          // Check the mapped artifact has a .art, .odex or .vdex extension.
+          final boolean knownArtifactKind =
+              Arrays.stream(APP_ARTIFACT_EXTENSIONS).anyMatch(e -> mappedArtifact.endsWith(e));
+          assertTrue("Unknown artifact kind: " + mappedArtifact, knownArtifactKind);
         }
     }
 
-    private void verifyZygoteLoadedArtifacts(String zygoteName, String zygotePid) throws Exception {
+    private void verifyZygoteLoadedArtifacts(String zygoteName, Set<String> mappedArtifacts)
+            throws Exception {
         final String bootExtensionName = "boot-framework";
-        final Set<String> mappedArtifacts = getMappedArtifacts(zygotePid, bootExtensionName);
 
         assertTrue("Expect 3 boot-framework artifacts", mappedArtifacts.size() == 3);
 
@@ -198,14 +209,12 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         // instances 32-bit and 64-bit unspecialized app_process processes.
         // (frameworks/base/cmds/app_process).
         int zygoteCount = 0;
-        for (String zygoteName : new String[] {"zygote", "zygote64"}) {
-            final CommandResult pgrepResult =
-                    getDevice().executeShellV2Command("pgrep " + zygoteName);
-            if (pgrepResult.getExitCode() != 0) {
+        for (String zygoteName : ZYGOTE_NAMES) {
+            final Optional<Set<String>> mappedArtifacts = getZygoteLoadedArtifacts(zygoteName);
+            if (mappedArtifacts.isEmpty()) {
                 continue;
             }
-            final String zygotePid = pgrepResult.getStdout();
-            verifyZygoteLoadedArtifacts(zygoteName, zygotePid);
+            verifyZygoteLoadedArtifacts(zygoteName, mappedArtifacts.get());
             zygoteCount += 1;
         }
         assertTrue("No zygote processes found", zygoteCount > 0);
@@ -282,6 +291,59 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         }
 
         verifyGeneratedArtifactsLoaded();
+    }
+
+    /**
+     * A workaround to simulate that an APEX has been upgraded. We could install a real APEX, but
+     * that would introduce an extra dependency to this test, which we want to avoid.
+     */
+    void mutateCacheInfo() throws Exception {
+        String cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
+        StringBuffer output = new StringBuffer();
+        // com.android.wifi is a module in $BOOTCLASSPATH, but not in $DEX2OATBOOTCLASSPATH.
+        Pattern p = Pattern.compile("(.*/apex/com\\.android\\.wifi.*checksums=\\\").*?(\\\".*)");
+        for (String line : cacheInfo.split("\n")) {
+            Matcher m = p.matcher(line);
+            if (m.matches()) {
+                m.appendReplacement(output, "$1aaaaaaaa$2");
+                output.append("\n");
+            } else {
+                output.append(line + "\n");
+            }
+        }
+        getDevice().pushString(output.toString(), CACHE_INFO_FILE);
+    }
+
+    long getModifiedTimeSec(String filename) throws Exception {
+        String timeStr = getDevice()
+                .executeShellCommand(String.format("stat -c '%%Y' '%s'", filename))
+                .trim();
+        return Long.parseLong(timeStr);
+    }
+
+    @Test
+    public void verifyApexUpgradeTriggersCompilation() throws Exception {
+        Set<String> zygoteArtifacts = new HashSet<>();
+        for (String zygoteName : ZYGOTE_NAMES) {
+            zygoteArtifacts.addAll(getZygoteLoadedArtifacts(zygoteName).orElse(new HashSet<>()));
+        }
+        Set<String> systemServerArtifacts = getSystemServerLoadedArtifacts();
+        long timeSec = Math.floorDiv(getDevice().getDeviceDate(), 1000);
+
+        mutateCacheInfo();
+        removeCompilationLogToAvoidBackoff();
+        CommandResult result =
+                getDevice().executeShellV2Command("odrefresh --compile");
+
+        for (String artifact : zygoteArtifacts) {
+            assertTrue("Boot classpath artifact " + artifact + " is re-compiled",
+                    getModifiedTimeSec(artifact) < timeSec);
+        }
+
+        for (String artifact : systemServerArtifacts) {
+            assertTrue("System server artifact " + artifact + " is not re-compiled",
+                    getModifiedTimeSec(artifact) >= timeSec);
+        }
     }
 
     private boolean haveCompilationLog() throws Exception {

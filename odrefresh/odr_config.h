@@ -55,6 +55,7 @@ class OdrConfig final {
   std::string updatable_bcp_packages_file_;
   ZygoteKind zygote_kind_;
   std::string compilation_os_address_;
+  std::string boot_classpath_;
 
  public:
   explicit OdrConfig(const char* program_name)
@@ -138,6 +139,10 @@ class OdrConfig final {
 
   void SetUpdatableBcpPackagesFile(const std::string& file) { updatable_bcp_packages_file_ = file; }
   void SetZygoteKind(ZygoteKind zygote_kind) { zygote_kind_ = zygote_kind; }
+
+  const std::string& GetBootClasspath() const { return boot_classpath_; }
+
+  void SetBootClasspath(const std::string& classpath) { boot_classpath_ = classpath; }
 
  private:
   // Returns a pair for the possible instruction sets for the configured instruction set
