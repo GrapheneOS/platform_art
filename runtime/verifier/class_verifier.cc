@@ -38,6 +38,7 @@
 #include "mirror/dex_cache.h"
 #include "runtime.h"
 #include "thread.h"
+#include "verifier_compiler_binding.h"
 #include "verifier/method_verifier.h"
 #include "verifier/reg_type_cache.h"
 
@@ -49,6 +50,16 @@ using android::base::StringPrintf;
 // We print a warning blurb about "dx --no-optimize" when we find monitor-locking issues. Make
 // sure we only print this once.
 static bool gPrintedDxMonitorText = false;
+
+// A class used by the verifier to tell users about what options need to be set for given methods.
+class VerifierCallback {
+ public:
+  virtual ~VerifierCallback() {}
+  virtual void SetDontCompile(ArtMethod* method, bool value)
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+  virtual void SetMustCountLocks(ArtMethod* method, bool value)
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+};
 
 class StandardVerifyCallback : public VerifierCallback {
  public:
@@ -266,16 +277,6 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
       continue;
     }
     *previous_idx = method_idx;
-    const InvokeType type = method.GetInvokeType(class_def.access_flags_);
-    ArtMethod* resolved_method = linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
-        method_idx, dex_cache, class_loader, /* referrer= */ nullptr, type);
-    if (resolved_method == nullptr) {
-      DCHECK(self->IsExceptionPending());
-      // We couldn't resolve the method, but continue regardless.
-      self->ClearException();
-    } else {
-      DCHECK(resolved_method->GetDeclaringClassUnchecked() != nullptr) << type;
-    }
     std::string hard_failure_msg;
     MethodVerifier::FailureData result =
         MethodVerifier::VerifyMethod(self,
@@ -288,10 +289,8 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
                                      class_loader,
                                      class_def,
                                      method.GetCodeItem(),
-                                     resolved_method,
                                      method.GetAccessFlags(),
                                      callbacks,
-                                     verifier_callback,
                                      allow_soft_failures,
                                      log_level,
                                      /*need_precise_constants=*/ false,
@@ -310,7 +309,38 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
       }
       *error += " ";
       *error += hard_failure_msg;
+    } else if (result.kind != FailureKind::kNoFailure) {
+      // Mark methods with DontCompile/MustCountLocks flags.
+      const InvokeType type = method.GetInvokeType(class_def.access_flags_);
+      ArtMethod* resolved_method = linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
+          method_idx, dex_cache, class_loader, /* referrer= */ nullptr, type);
+      if (resolved_method == nullptr) {
+        DCHECK(self->IsExceptionPending());
+        // We couldn't resolve the method, but continue regardless.
+        self->ClearException();
+      } else {
+        DCHECK(resolved_method->GetDeclaringClassUnchecked() != nullptr) << type;
+        if (!CanCompilerHandleVerificationFailure(result.types)) {
+          verifier_callback->SetDontCompile(resolved_method, true);
+        }
+        if ((result.types & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
+          verifier_callback->SetMustCountLocks(resolved_method, true);
+          // Print a warning about expected slow-down.
+          // Use a string temporary to print one contiguous warning.
+          std::string tmp =
+              StringPrintf("Method %s failed lock verification and will run slower.",
+                           resolved_method->PrettyMethod().c_str());
+          if (!gPrintedDxMonitorText) {
+            tmp = tmp + "\nCommon causes for lock verification issues are non-optimized dex code\n"
+                        "and incorrect proguard optimizations.";
+            gPrintedDxMonitorText = true;
+          }
+          LOG(WARNING) << tmp;
+        }
+      }
     }
+
+    // Merge the result for the method into the global state for the class.
     failure_data.Merge(result);
   }
   uint64_t elapsed_time_microseconds = timer.Stop();
@@ -318,25 +348,7 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
                  << ", class: " << PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
 
   GetMetrics()->ClassVerificationCount()->AddOne();
-
-  if (failure_data.kind == FailureKind::kNoFailure) {
-    return FailureKind::kNoFailure;
-  } else {
-    if ((failure_data.types & VERIFY_ERROR_LOCKING) != 0) {
-      // Print a warning about expected slow-down. Use a string temporary to print one contiguous
-      // warning.
-      std::string tmp =
-          StringPrintf("Class %s failed lock verification and will run slower.",
-                       PrettyDescriptor(accessor.GetDescriptor()).c_str());
-      if (!gPrintedDxMonitorText) {
-        tmp = tmp + "\nCommon causes for lock verification issues are non-optimized dex code\n"
-                    "and incorrect proguard optimizations.";
-        gPrintedDxMonitorText = true;
-      }
-      LOG(WARNING) << tmp;
-    }
-    return failure_data.kind;
-  }
+  return failure_data.kind;
 }
 
 void ClassVerifier::Init(ClassLinker* class_linker) {

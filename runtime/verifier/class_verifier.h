@@ -49,6 +49,7 @@ class ClassLoader;
 
 namespace verifier {
 
+class VerifierCallback;
 class VerifierDeps;
 
 // Verifier that ensures the complete class is OK.
