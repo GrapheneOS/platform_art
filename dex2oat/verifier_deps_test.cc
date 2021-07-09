@@ -172,7 +172,6 @@ class VerifierDepsTest : public CommonCompilerDriverTest {
                                            *class_def,
                                            method.GetCodeItem(),
                                            method.GetIndex(),
-                                           resolved_method,
                                            method.GetAccessFlags(),
                                            /* can_load_classes= */ true,
                                            /* allow_soft_failures= */ true,
