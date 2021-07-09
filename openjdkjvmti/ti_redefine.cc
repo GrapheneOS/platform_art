@@ -1873,11 +1873,6 @@ bool Redefiner::ClassRedefinition::FinishNewClassAllocations(RedefinitionDataHol
     }
 
     data->SetNewClassObject(nc.Get());
-    // We really want to be able to resolve to the new class-object using this dex-cache for
-    // verification work. Since we haven't put it in the class-table yet we wll just manually add it
-    // to the dex-cache.
-    // TODO: We should maybe do this in a better spot.
-    data->GetNewDexCache()->SetResolvedType(nc->GetDexTypeIndex(), nc.Get());
     data->SetInitialized();
     return nc.Get();
   };
