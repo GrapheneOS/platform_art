@@ -89,6 +89,8 @@ enum VerifyError : uint32_t {
   VERIFY_ERROR_INSTANTIATION =     1 << 9,   // InstantiationError.
   VERIFY_ERROR_LOCKING =           1 << 10,  // Could not guarantee balanced locking. This should be
                                              // punted to the interpreter with access checks.
+  VERIFY_ERROR_RUNTIME_THROW =     1 << 11,  // The interpreter found an instruction that will
+                                             // throw. Used for app compatibility for apps < T.
 };
 std::ostream& operator<<(std::ostream& os, VerifyError rhs);
 
