@@ -61,6 +61,7 @@ art_module_sdk {
                 "libartpalette-headers",
                 "libnativehelper_header_only",
                 "libopenjdkjvmti_headers",
+                "odrefresh_headers",
             ],
 
             native_shared_libs: [
