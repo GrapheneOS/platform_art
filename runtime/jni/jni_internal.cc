@@ -2022,7 +2022,7 @@ class JNI {
         buf[length] = '\0';
       } else {
         const jchar* chars = s->GetValue();
-        size_t bytes = CountUtf8Bytes(chars + start, length);
+        size_t bytes = CountModifiedUtf8Bytes(chars + start, length);
         ConvertUtf16ToModifiedUtf8(buf, bytes, chars + start, length);
         buf[bytes] = '\0';
       }
