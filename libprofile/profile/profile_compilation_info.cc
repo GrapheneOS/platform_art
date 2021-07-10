@@ -218,8 +218,12 @@ enum class ProfileCompilationInfo::FileSectionType : uint32_t {
   // Methods included in the profile, their hotness flags and inline caches.
   kMethods = 3,
 
+  // The aggregation counts of the profile, classes and methods. This section is
+  // an optional reserved section not implemented on client yet.
+  kAggregationCounts = 4,
+
   // The number of known sections.
-  kNumberOfSections = 4
+  kNumberOfSections = 5
 };
 
 class ProfileCompilationInfo::FileSectionInfo {
@@ -874,6 +878,7 @@ static bool WriteBuffer(int fd, const void* buffer, size_t byte_count) {
  *   ExtraDescriptors - optional, zipped
  *   Classes - optional, zipped
  *   Methods - optional, zipped
+ *   AggregationCounts - optional, zipped, server-side
  *
  * DexFiles:
  *    number_of_dex_files
@@ -1791,6 +1796,9 @@ ProfileCompilationInfo::ProfileLoadStatus ProfileCompilationInfo::LoadInternal(
           status = ReadMethodsSection(
               *source, section_info, dex_profile_index_remap, extra_descriptors_remap, error);
         }
+        break;
+      case FileSectionType::kAggregationCounts:
+        // This section is only used on server side.
         break;
       default:
         // Unknown section. Skip it. New versions of ART are allowed
