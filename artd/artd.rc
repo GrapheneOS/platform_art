@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This service is disabled until b/192042812 is resolved.
 service artd /apex/com.android.art/bin/artd
+    disabled
     class core
     user artd

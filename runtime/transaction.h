@@ -323,7 +323,7 @@ class Transaction final {
   ScopedArenaAllocator allocator_;
 
   ScopedArenaSafeMap<mirror::Object*, ObjectLog> object_logs_;
-  ScopedArenaSafeMap<mirror::Array*, ArrayLog> array_logs_ ;
+  ScopedArenaSafeMap<mirror::Array*, ArrayLog> array_logs_;
   ScopedArenaForwardList<InternStringLog> intern_string_logs_;
   ScopedArenaForwardList<ResolveStringLog> resolve_string_logs_;
   ScopedArenaForwardList<ResolveMethodTypeLog> resolve_method_type_logs_;

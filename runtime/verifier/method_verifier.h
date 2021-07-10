@@ -73,16 +73,6 @@ enum RegisterTrackingMode {
   kTrackRegsAll,
 };
 
-// A class used by the verifier to tell users about what options need to be set for given methods.
-class VerifierCallback {
- public:
-  virtual ~VerifierCallback() {}
-  virtual void SetDontCompile(ArtMethod* method, bool value)
-      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-  virtual void SetMustCountLocks(ArtMethod* method, bool value)
-      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-};
-
 // A mapping from a dex pc to the register line statuses as they are immediately prior to the
 // execution of that instruction.
 class PcToRegisterLineTable {
@@ -124,7 +114,7 @@ class MethodVerifier {
                                              Handle<mirror::DexCache> dex_cache,
                                              Handle<mirror::ClassLoader> class_loader,
                                              const dex::ClassDef& class_def,
-                                             const dex::CodeItem* code_item, ArtMethod* method,
+                                             const dex::CodeItem* code_item,
                                              uint32_t method_access_flags,
                                              uint32_t api_level)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -198,7 +188,7 @@ class MethodVerifier {
   MethodReference GetMethodReference() const;
   bool HasFailures() const;
   bool HasInstructionThatWillThrow() const {
-    return flags_.have_any_pending_runtime_throw_failure_;
+    return (encountered_failure_types_ & VERIFY_ERROR_RUNTIME_THROW) != 0;
   }
 
   virtual const RegType& ResolveCheckedClass(dex::TypeIndex class_idx)
@@ -266,10 +256,8 @@ class MethodVerifier {
                                   Handle<mirror::ClassLoader> class_loader,
                                   const dex::ClassDef& class_def_idx,
                                   const dex::CodeItem* code_item,
-                                  ArtMethod* method,
                                   uint32_t method_access_flags,
                                   CompilerCallbacks* callbacks,
-                                  VerifierCallback* verifier_callback,
                                   bool allow_soft_failures,
                                   HardFailLogMode log_level,
                                   bool need_precise_constants,
@@ -289,10 +277,8 @@ class MethodVerifier {
                                   Handle<mirror::ClassLoader> class_loader,
                                   const dex::ClassDef& class_def_idx,
                                   const dex::CodeItem* code_item,
-                                  ArtMethod* method,
                                   uint32_t method_access_flags,
                                   CompilerCallbacks* callbacks,
-                                  VerifierCallback* verifier_callback,
                                   bool allow_soft_failures,
                                   HardFailLogMode log_level,
                                   bool need_precise_constants,
@@ -314,7 +300,6 @@ class MethodVerifier {
                                         const dex::ClassDef& class_def,
                                         const dex::CodeItem* code_item,
                                         uint32_t method_idx,
-                                        ArtMethod* method,
                                         uint32_t access_flags,
                                         bool can_load_classes,
                                         bool allow_soft_failures,
@@ -370,10 +355,6 @@ class MethodVerifier {
     // instructions that would hard fail the verification.
     // Note: this flag is reset after processing each instruction.
     bool have_pending_runtime_throw_failure_ : 1;
-
-    // A version of the above that is not reset and thus captures if there were *any* throw
-    // failures.
-    bool have_any_pending_runtime_throw_failure_ : 1;
 
     // Verify in AoT mode?
     bool aot_mode_ : 1;
