@@ -3812,19 +3812,50 @@ void X86_64Assembler::fprem() {
 }
 
 
-void X86_64Assembler::xchgl(CpuRegister dst, CpuRegister src) {
+bool X86_64Assembler::try_xchg_rax(CpuRegister dst,
+                                   CpuRegister src,
+                                   void (X86_64Assembler::*prefix_fn)(CpuRegister)) {
+  Register src_reg = src.AsRegister();
+  Register dst_reg = dst.AsRegister();
+  if (src_reg != RAX && dst_reg != RAX) {
+    return false;
+  }
+  if (dst_reg == RAX) {
+    std::swap(src_reg, dst_reg);
+  }
+  if (dst_reg != RAX) {
+    // Prefix is needed only if one of the registers is not RAX, otherwise it's a pure NOP.
+    (this->*prefix_fn)(CpuRegister(dst_reg));
+  }
+  EmitUint8(0x90 + CpuRegister(dst_reg).LowBits());
+  return true;
+}
+
+
+void X86_64Assembler::xchgb(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  // There is a short version for rax.
-  // It's a bit awkward, as CpuRegister has a const field, so assignment and thus swapping doesn't
-  // work.
-  const bool src_rax = src.AsRegister() == RAX;
-  const bool dst_rax = dst.AsRegister() == RAX;
-  if (src_rax || dst_rax) {
-    EmitOptionalRex32(src_rax ? dst : src);
-    EmitUint8(0x90 + (src_rax ? dst.LowBits() : src.LowBits()));
+  // There is no short version for AL.
+  EmitOptionalByteRegNormalizingRex32(dst, src, /*normalize_both=*/ true);
+  EmitUint8(0x86);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+
+void X86_64Assembler::xchgb(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalByteRegNormalizingRex32(reg, address);
+  EmitUint8(0x86);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
+void X86_64Assembler::xchgw(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOperandSizeOverride();
+  if (try_xchg_rax(dst, src, &X86_64Assembler::EmitOptionalRex32)) {
+    // A short version for AX.
     return;
   }
-
   // General case.
   EmitOptionalRex32(dst, src);
   EmitUint8(0x87);
@@ -3832,26 +3863,23 @@ void X86_64Assembler::xchgl(CpuRegister dst, CpuRegister src) {
 }
 
 
-void X86_64Assembler::xchgq(CpuRegister dst, CpuRegister src) {
+void X86_64Assembler::xchgw(CpuRegister reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  // There is a short version for rax.
-  // It's a bit awkward, as CpuRegister has a const field, so assignment and thus swapping doesn't
-  // work.
-  const bool src_rax = src.AsRegister() == RAX;
-  const bool dst_rax = dst.AsRegister() == RAX;
-  if (src_rax || dst_rax) {
-    // If src == target, emit a nop instead.
-    if (src_rax && dst_rax) {
-      EmitUint8(0x90);
-    } else {
-      EmitRex64(src_rax ? dst : src);
-      EmitUint8(0x90 + (src_rax ? dst.LowBits() : src.LowBits()));
-    }
+  EmitOperandSizeOverride();
+  EmitOptionalRex32(reg, address);
+  EmitUint8(0x87);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
+void X86_64Assembler::xchgl(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  if (try_xchg_rax(dst, src, &X86_64Assembler::EmitOptionalRex32)) {
+    // A short version for EAX.
     return;
   }
-
   // General case.
-  EmitRex64(dst, src);
+  EmitOptionalRex32(dst, src);
   EmitUint8(0x87);
   EmitRegisterOperand(dst.LowBits(), src.LowBits());
 }
@@ -3860,6 +3888,27 @@ void X86_64Assembler::xchgq(CpuRegister dst, CpuRegister src) {
 void X86_64Assembler::xchgl(CpuRegister reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg, address);
+  EmitUint8(0x87);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
+void X86_64Assembler::xchgq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  if (try_xchg_rax(dst, src, &X86_64Assembler::EmitRex64)) {
+    // A short version for RAX.
+    return;
+  }
+  // General case.
+  EmitRex64(dst, src);
+  EmitUint8(0x87);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+
+void X86_64Assembler::xchgq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg, address);
   EmitUint8(0x87);
   EmitOperand(reg.LowBits(), address);
 }
@@ -5394,9 +5443,19 @@ void X86_64Assembler::EmitRex64(XmmRegister dst, const Operand& operand) {
   EmitUint8(rex);
 }
 
-void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src) {
-  // For src, SPL, BPL, SIL, DIL need the rex prefix.
+void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst,
+                                                          CpuRegister src,
+                                                          bool normalize_both) {
+  // SPL, BPL, SIL, DIL need the REX prefix.
   bool force = src.AsRegister() > 3;
+  if (normalize_both) {
+    // Some instructions take two byte registers, such as `xchg bpl, al`, so they need the REX
+    // prefix if either `src` or `dst` needs it.
+    force |= dst.AsRegister() > 3;
+  } else {
+    // Other instructions take one byte register and one full register, such as `movzxb rax, bpl`.
+    // They need REX prefix only if `src` needs it, but not `dst`.
+  }
   EmitOptionalRex(force, false, dst.NeedsRex(), false, src.NeedsRex());
 }
 
