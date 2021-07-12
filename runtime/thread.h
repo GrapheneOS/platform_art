@@ -704,13 +704,6 @@ class Thread {
   }
 
   template<PointerSize pointer_size>
-  static constexpr ThreadOffset<pointer_size> UseMterpOffset() {
-    return ThreadOffset<pointer_size>(
-        OFFSETOF_MEMBER(Thread, tls32_) +
-        OFFSETOF_MEMBER(tls_32bit_sized_values, use_mterp));
-  }
-
-  template<PointerSize pointer_size>
   static constexpr ThreadOffset<pointer_size> IsGcMarkingOffset() {
     return ThreadOffset<pointer_size>(
         OFFSETOF_MEMBER(Thread, tls32_) +
@@ -1147,10 +1140,6 @@ class Thread {
     tls32_.state_and_flags.as_atomic_int.fetch_and(-1 ^ flag, std::memory_order_seq_cst);
   }
 
-  bool UseMterp() const {
-    return tls32_.use_mterp.load();
-  }
-
   void ResetQuickAllocEntryPointsForThread();
 
   // Returns the remaining space in the TLAB.
@@ -1367,9 +1356,6 @@ class Thread {
   // observed to be set at the same time by instrumentation.
   void DeleteJPeer(JNIEnv* env);
 
-  void NotifyInTheadList()
-      REQUIRES_SHARED(Locks::thread_list_lock_);
-
   // Attaches the calling native thread to the runtime, returning the new native peer.
   // Used to implement JNI AttachCurrentThread and AttachCurrentThreadAsDaemon calls.
   template <typename PeerAction>
@@ -1571,7 +1557,6 @@ class Thread {
           disable_thread_flip_count(0),
           user_code_suspend_count(0),
           force_interpreter_count(0),
-          use_mterp(0),
           make_visibly_initialized_counter(0),
           define_class_counter(0) {}
 
@@ -1655,10 +1640,6 @@ class Thread {
     // Count of how many times this thread has been forced to interpreter. If this is not 0 the
     // thread must remain in interpreted code as much as possible.
     uint32_t force_interpreter_count;
-
-    // True if everything is in the ideal state for fast interpretation.
-    // False if we need to switch to the C++ interpreter to handle special cases.
-    std::atomic<bool32_t> use_mterp;
 
     // Counter for calls to initialize a class that's initialized but not visibly initialized.
     // When this reaches kMakeVisiblyInitializedCounterTriggerCount, we call the runtime to

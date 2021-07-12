@@ -291,9 +291,7 @@ libart_cc_defaults {
     arch: {
         arm: {
             srcs: [
-                "interpreter/mterp/mterp.cc",
                 "interpreter/mterp/nterp.cc",
-                ":libart_mterp.arm",
                 ":libart_mterp.armng",
                 "arch/arm/context_arm.cc",
                 "arch/arm/entrypoints_init_arm.cc",
@@ -308,9 +306,7 @@ libart_cc_defaults {
         },
         arm64: {
             srcs: [
-                "interpreter/mterp/mterp.cc",
                 "interpreter/mterp/nterp.cc",
-                ":libart_mterp.arm64",
                 ":libart_mterp.arm64ng",
                 "arch/arm64/context_arm64.cc",
                 "arch/arm64/entrypoints_init_arm64.cc",
@@ -324,9 +320,7 @@ libart_cc_defaults {
         },
         x86: {
             srcs: [
-                "interpreter/mterp/mterp.cc",
                 "interpreter/mterp/nterp.cc",
-                ":libart_mterp.x86",
                 ":libart_mterp.x86ng",
                 "arch/x86/context_x86.cc",
                 "arch/x86/entrypoints_init_x86.cc",
@@ -347,9 +341,7 @@ libart_cc_defaults {
             srcs: [
                 // Note that the fault_handler_x86.cc is not a mistake.  This file is
                 // shared between the x86 and x86_64 architectures.
-                "interpreter/mterp/mterp.cc",
                 "interpreter/mterp/nterp.cc",
-                ":libart_mterp.x86_64",
                 ":libart_mterp.x86_64ng",
                 "arch/x86_64/context_x86_64.cc",
                 "arch/x86_64/entrypoints_init_x86_64.cc",
@@ -892,60 +884,10 @@ cc_library_headers {
 }
 
 genrule {
-    name: "libart_mterp.arm",
-    out: ["mterp_arm.S"],
-    srcs: ["interpreter/mterp/arm/*.S"],
-    tool_files: [
-        "interpreter/mterp/gen_mterp.py",
-        "interpreter/mterp/common/gen_setup.py",
-        ":art_libdexfile_dex_instruction_list_header",
-    ],
-    cmd: "$(location interpreter/mterp/gen_mterp.py) $(out) $(in)",
-}
-
-genrule {
-    name: "libart_mterp.arm64",
-    out: ["mterp_arm64.S"],
-    srcs: ["interpreter/mterp/arm64/*.S"],
-    tool_files: [
-        "interpreter/mterp/gen_mterp.py",
-        "interpreter/mterp/common/gen_setup.py",
-        ":art_libdexfile_dex_instruction_list_header",
-    ],
-    cmd: "$(location interpreter/mterp/gen_mterp.py) $(out) $(in)",
-}
-
-genrule {
-    name: "libart_mterp.x86",
-    out: ["mterp_x86.S"],
-    srcs: ["interpreter/mterp/x86/*.S"],
-    tool_files: [
-        "interpreter/mterp/gen_mterp.py",
-        "interpreter/mterp/common/gen_setup.py",
-        ":art_libdexfile_dex_instruction_list_header",
-    ],
-    cmd: "$(location interpreter/mterp/gen_mterp.py) $(out) $(in)",
-}
-
-genrule {
-    name: "libart_mterp.x86_64",
-    out: ["mterp_x86_64.S"],
-    srcs: ["interpreter/mterp/x86_64/*.S"],
-    tool_files: [
-        "interpreter/mterp/gen_mterp.py",
-        "interpreter/mterp/common/gen_setup.py",
-        ":art_libdexfile_dex_instruction_list_header",
-    ],
-    cmd: "$(location interpreter/mterp/gen_mterp.py) $(out) $(in)",
-}
-
-genrule {
     name: "libart_mterp.x86ng",
     out: ["mterp_x86ng.S"],
     srcs: [
         "interpreter/mterp/x86ng/*.S",
-        "interpreter/mterp/x86/arithmetic.S",
-        "interpreter/mterp/x86/floating_point.S",
     ],
     tool_files: [
         "interpreter/mterp/gen_mterp.py",
@@ -960,8 +902,6 @@ genrule {
     out: ["mterp_x86_64ng.S"],
     srcs: [
         "interpreter/mterp/x86_64ng/*.S",
-        "interpreter/mterp/x86_64/arithmetic.S",
-        "interpreter/mterp/x86_64/floating_point.S",
     ],
     tool_files: [
         "interpreter/mterp/gen_mterp.py",
@@ -976,8 +916,6 @@ genrule {
     out: ["mterp_arm64ng.S"],
     srcs: [
         "interpreter/mterp/arm64ng/*.S",
-        "interpreter/mterp/arm64/arithmetic.S",
-        "interpreter/mterp/arm64/floating_point.S",
     ],
     tool_files: [
         "interpreter/mterp/gen_mterp.py",

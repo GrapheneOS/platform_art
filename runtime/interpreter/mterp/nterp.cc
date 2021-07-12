@@ -39,12 +39,25 @@ bool IsNterpSupported() {
 bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   instrumentation::Instrumentation* instr = runtime->GetInstrumentation();
-  // Nterp shares the same restrictions as Mterp.
   // If the runtime is interpreter only, we currently don't use nterp as some
   // parts of the runtime (like instrumentation) make assumption on an
   // interpreter-only runtime to always be in a switch-like interpreter.
-  return IsNterpSupported() && CanUseMterp() && !instr->InterpretOnly();
+  return IsNterpSupported() &&
+      !instr->InterpretOnly() &&
+      !runtime->IsAotCompiler() &&
+      !runtime->GetInstrumentation()->IsActive() &&
+      // nterp only knows how to deal with the normal exits. It cannot handle any of the
+      // non-standard force-returns.
+      !runtime->AreNonStandardExitsEnabled() &&
+      // An async exception has been thrown. We need to go to the switch interpreter. nterp doesn't
+      // know how to deal with these so we could end up never dealing with it if we are in an
+      // infinite loop.
+      !runtime->AreAsyncExceptionsThrown() &&
+      (runtime->GetJit() == nullptr || !runtime->GetJit()->JitAtFirstUse());
 }
+
+// The entrypoint for nterp, which ArtMethods can directly point to.
+extern "C" void ExecuteNterpImpl() REQUIRES_SHARED(Locks::mutator_lock_);
 
 const void* GetNterpEntryPoint() {
   return reinterpret_cast<const void*>(interpreter::ExecuteNterpImpl);
@@ -60,7 +73,7 @@ void CheckNterpAsmConstants() {
    * which one did, but if any one is too big the total size will
    * overflow.
    */
-  const int width = kMterpHandlerSize;
+  const int width = kNterpHandlerSize;
   ptrdiff_t interp_size = reinterpret_cast<uintptr_t>(artNterpAsmInstructionEnd) -
                           reinterpret_cast<uintptr_t>(artNterpAsmInstructionStart);
   if ((interp_size == 0) || (interp_size != (art::kNumPackedOpcodes * width))) {
@@ -740,18 +753,99 @@ extern "C" jit::OsrData* NterpHotMethod(ArtMethod* method, uint16_t* dex_pc_ptr,
   return nullptr;
 }
 
-extern "C" ssize_t MterpDoPackedSwitch(const uint16_t* switchData, int32_t testVal);
 extern "C" ssize_t NterpDoPackedSwitch(const uint16_t* switchData, int32_t testVal)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension sants("In nterp");
-  return MterpDoPackedSwitch(switchData, testVal);
+  const int kInstrLen = 3;
+
+  /*
+   * Packed switch data format:
+   *  ushort ident = 0x0100   magic value
+   *  ushort size             number of entries in the table
+   *  int first_key           first (and lowest) switch case value
+   *  int targets[size]       branch targets, relative to switch opcode
+   *
+   * Total size is (4+size*2) 16-bit code units.
+   */
+  uint16_t signature = *switchData++;
+  DCHECK_EQ(signature, static_cast<uint16_t>(art::Instruction::kPackedSwitchSignature));
+
+  uint16_t size = *switchData++;
+
+  int32_t firstKey = *switchData++;
+  firstKey |= (*switchData++) << 16;
+
+  int index = testVal - firstKey;
+  if (index < 0 || index >= size) {
+    return kInstrLen;
+  }
+
+  /*
+   * The entries are guaranteed to be aligned on a 32-bit boundary;
+   * we can treat them as a native int array.
+   */
+  const int32_t* entries = reinterpret_cast<const int32_t*>(switchData);
+  return entries[index];
 }
 
-extern "C" ssize_t MterpDoSparseSwitch(const uint16_t* switchData, int32_t testVal);
+/*
+ * Find the matching case.  Returns the offset to the handler instructions.
+ *
+ * Returns 3 if we don't find a match (it's the size of the sparse-switch
+ * instruction).
+ */
 extern "C" ssize_t NterpDoSparseSwitch(const uint16_t* switchData, int32_t testVal)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension sants("In nterp");
-  return MterpDoSparseSwitch(switchData, testVal);
+  const int kInstrLen = 3;
+  uint16_t size;
+  const int32_t* keys;
+  const int32_t* entries;
+
+  /*
+   * Sparse switch data format:
+   *  ushort ident = 0x0200   magic value
+   *  ushort size             number of entries in the table; > 0
+   *  int keys[size]          keys, sorted low-to-high; 32-bit aligned
+   *  int targets[size]       branch targets, relative to switch opcode
+   *
+   * Total size is (2+size*4) 16-bit code units.
+   */
+
+  uint16_t signature = *switchData++;
+  DCHECK_EQ(signature, static_cast<uint16_t>(art::Instruction::kSparseSwitchSignature));
+
+  size = *switchData++;
+
+  /* The keys are guaranteed to be aligned on a 32-bit boundary;
+   * we can treat them as a native int array.
+   */
+  keys = reinterpret_cast<const int32_t*>(switchData);
+
+  /* The entries are guaranteed to be aligned on a 32-bit boundary;
+   * we can treat them as a native int array.
+   */
+  entries = keys + size;
+
+  /*
+   * Binary-search through the array of keys, which are guaranteed to
+   * be sorted low-to-high.
+   */
+  int lo = 0;
+  int hi = size - 1;
+  while (lo <= hi) {
+    int mid = (lo + hi) >> 1;
+
+    int32_t foundVal = keys[mid];
+    if (testVal < foundVal) {
+      hi = mid - 1;
+    } else if (testVal > foundVal) {
+      lo = mid + 1;
+    } else {
+      return entries[mid];
+    }
+  }
+  return kInstrLen;
 }
 
 extern "C" void NterpFree(void* val) {
