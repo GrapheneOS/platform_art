@@ -88,7 +88,7 @@ inline int32_t String::GetUtfLength() {
   if (IsCompressed()) {
     return GetLength();
   } else {
-    return CountModifiedUtf8Bytes(GetValue(), GetLength());
+    return CountUtf8Bytes(GetValue(), GetLength());
   }
 }
 

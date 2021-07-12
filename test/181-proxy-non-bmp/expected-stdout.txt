@@ -1,1 +1,0 @@
-Invoke public abstract void pkg𐀀.PackageTestInterface.interfaceMethod()
