@@ -99,22 +99,13 @@ art_module_sdk {
                 // internally.
                 "core-lambda-stubs",
 
-                // Needed by any module that builds against any non-numeric
-                // sdk_version other than "none" or "core_platform".
-                //
-                // This is actually only used for compiling Java 8 and kotlin.
-                // Java 9 uses system modules which encapsulates this
-                // internally.
-                "core.current.stubs",
+                // A special form or "core-lambda-stubs" for use in
+                // java_system_modules.
+                "core-lambda-stubs-for-system-modules",
 
-                // Needed by any module that builds against an sdk_version of
-                // "core_platform".
-                //
-                // This is actually only used for compiling Java 8 and kotlin.
-                // Java 9 uses system modules which encapsulates this
-                // internally.
-                "legacy.core.platform.api.stubs",
-                "stable.core.platform.api.stubs",
+                // Needed when javac compiles code containing @Generated
+                // annotations produced by some code generation tools.
+                "core-generated-annotation-stubs",
             ],
 
             java_sdk_libs: [
@@ -125,10 +116,6 @@ art_module_sdk {
                 "art-module-public-api-stubs-system-modules",
                 "art-module-lib-api-stubs-system-modules",
                 "art-module-intra-core-api-stubs-system-modules",
-                "core-current-stubs-system-modules",
-                "core-module-lib-stubs-system-modules",
-                "legacy-core-platform-api-stubs-system-modules",
-                "stable-core-platform-api-stubs-system-modules",
             ],
             native_header_libs: [
                 "libnativeloader-headers",
