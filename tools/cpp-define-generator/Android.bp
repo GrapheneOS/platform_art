@@ -38,14 +38,6 @@ cc_object {
         "libart_runtime_headers_ndk",
         "libdexfile_all_headers", // For dex/modifiers.h
     ],
-    target: {
-        android: {
-            header_libs: ["libc_headers"], // TODO(b/153662223): Clean this up.
-        },
-        linux_bionic: {
-            header_libs: ["libc_headers"], // TODO(b/153662223): Clean this up.
-        },
-    },
     // Produce text file rather than binary.
     cflags: ["-S"],
     srcs: ["asm_defines.cc"],
