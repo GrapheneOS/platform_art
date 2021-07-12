@@ -16,6 +16,9 @@
 
 include art/build/Android.common_build.mk
 
+# We need to be in art directory to properly initialize ART_CPPLINT_SRC variable.
+LOCAL_PATH := $(art_path)
+
 # Use upstream cpplint (toolpath from .repo/manifests/GLOBAL-PREUPLOAD.cfg).
 ART_CPPLINT := external/google-styleguide/cpplint/cpplint.py
 
