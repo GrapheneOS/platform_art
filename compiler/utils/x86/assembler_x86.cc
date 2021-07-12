@@ -2887,9 +2887,22 @@ void X86Assembler::fprem() {
 }
 
 
-void X86Assembler::xchgb(Register reg, const Address& address) {
-  // For testing purpose
-  xchgb(static_cast<ByteRegister>(reg), address);
+bool X86Assembler::try_xchg_eax(Register dst, Register src) {
+  if (src != EAX && dst != EAX) {
+    return false;
+  }
+  if (dst == EAX) {
+    std::swap(src, dst);
+  }
+  EmitUint8(0x90 + dst);
+  return true;
+}
+
+
+void X86Assembler::xchgb(ByteRegister dst, ByteRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x86);
+  EmitRegisterOperand(dst, src);
 }
 
 
@@ -2897,6 +2910,29 @@ void X86Assembler::xchgb(ByteRegister reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x86);
   EmitOperand(reg, address);
+}
+
+
+void X86Assembler::xchgb(Register dst, Register src) {
+  xchgb(static_cast<ByteRegister>(dst), static_cast<ByteRegister>(src));
+}
+
+
+void X86Assembler::xchgb(Register reg, const Address& address) {
+  xchgb(static_cast<ByteRegister>(reg), address);
+}
+
+
+void X86Assembler::xchgw(Register dst, Register src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOperandSizeOverride();
+  if (try_xchg_eax(dst, src)) {
+    // A short version for AX.
+    return;
+  }
+  // General case.
+  EmitUint8(0x87);
+  EmitRegisterOperand(dst, src);
 }
 
 
@@ -2910,6 +2946,11 @@ void X86Assembler::xchgw(Register reg, const Address& address) {
 
 void X86Assembler::xchgl(Register dst, Register src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  if (try_xchg_eax(dst, src)) {
+    // A short version for EAX.
+    return;
+  }
+  // General case.
   EmitUint8(0x87);
   EmitRegisterOperand(dst, src);
 }
