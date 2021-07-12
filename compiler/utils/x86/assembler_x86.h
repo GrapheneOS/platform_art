@@ -736,8 +736,14 @@ class X86Assembler final : public Assembler {
   void fptan();
   void fprem();
 
+  void xchgb(ByteRegister dst, ByteRegister src);
   void xchgb(ByteRegister reg, const Address& address);
+
+  // Wrappers for `xchgb` that accept `Register` instead of `ByteRegister` (used for testing).
+  void xchgb(Register dst, Register src);
   void xchgb(Register reg, const Address& address);
+
+  void xchgw(Register dst, Register src);
   void xchgw(Register reg, const Address& address);
 
   void xchgl(Register dst, Register src);
@@ -1044,6 +1050,10 @@ class X86Assembler final : public Assembler {
   uint8_t EmitVexPrefixByteTwo(bool W,
                                int SET_VEX_L,
                                int SET_VEX_PP);
+
+  // Helper function to emit a shorter variant of XCHG for when at least one operand is EAX/AX.
+  bool try_xchg_eax(Register dst, Register src);
+
   ConstantArea constant_area_;
   bool has_AVX_;     // x86 256bit SIMD AVX.
   bool has_AVX2_;    // x86 256bit SIMD AVX 2.0.
