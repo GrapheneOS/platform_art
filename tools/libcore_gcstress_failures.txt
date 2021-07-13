@@ -13,7 +13,7 @@
 {
   description: "Timeouts.",
   result: EXEC_FAILED,
-  bug: 187140709
+  bug: 187140709,
   names: ["libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndNoTimeout",
           "libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndTimeout"]
 },
