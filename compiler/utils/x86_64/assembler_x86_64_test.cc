@@ -952,13 +952,16 @@ TEST_F(AssemblerX86_64Test, XorlImm) {
 }
 
 TEST_F(AssemblerX86_64Test, Xchgq) {
-  DriverStr(RepeatRR(&x86_64::X86_64Assembler::xchgq, "xchgq %{reg1}, %{reg2}"), "xchgq");
+  DriverStr(RepeatRR(&x86_64::X86_64Assembler::xchgq, "xchgq %{reg2}, %{reg1}"), "xchgq");
 }
 
 TEST_F(AssemblerX86_64Test, Xchgl) {
-  // TODO: Test is disabled because GCC generates 0x87 0xC0 for xchgl eax, eax. All other cases
-  // are the same. Anyone know why it doesn't emit a simple 0x90? It does so for xchgq rax, rax...
-  // DriverStr(Repeatrr(&x86_64::X86_64Assembler::xchgl, "xchgl %{reg2}, %{reg1}"), "xchgl");
+  // Exclude `xcghl eax, eax` because the reference implementation generates 0x87 0xC0 (contrary to
+  // the intel manual saying that this should be a `nop` 0x90). All other cases are the same.
+  static const std::vector<std::pair<x86_64::CpuRegister, x86_64::CpuRegister>> except = {
+    std::make_pair(x86_64::CpuRegister(x86_64::RAX), x86_64::CpuRegister(x86_64::RAX))
+  };
+  DriverStr(Repeatrr(&x86_64::X86_64Assembler::xchgl, "xchgl %{reg2}, %{reg1}", &except), "xchgl");
 }
 
 TEST_F(AssemblerX86_64Test, Cmpxchgb) {

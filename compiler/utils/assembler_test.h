@@ -88,13 +88,16 @@ class AssemblerTest : public AssemblerTestBase {
         fmt);
   }
 
-  std::string RepeatRR(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
+  std::string RepeatRR(void (Ass::*f)(Reg, Reg),
+                       const std::string& fmt,
+                       const std::vector<std::pair<Reg, Reg>>* except = nullptr) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
-        fmt);
+        fmt,
+        except);
   }
 
   std::string RepeatRRNoDupes(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
@@ -106,31 +109,40 @@ class AssemblerTest : public AssemblerTestBase {
         fmt);
   }
 
-  std::string Repeatrr(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
+  std::string Repeatrr(void (Ass::*f)(Reg, Reg),
+                       const std::string& fmt,
+                       const std::vector<std::pair<Reg, Reg>>* except = nullptr) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
         &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
-        fmt);
+        fmt,
+        except);
   }
 
-  std::string Repeatww(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
+  std::string Repeatww(void (Ass::*f)(Reg, Reg),
+                       const std::string& fmt,
+                       const std::vector<std::pair<Reg, Reg>>* except = nullptr) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUseTertiaryName>,
         &AssemblerTest::GetRegName<RegisterView::kUseTertiaryName>,
-        fmt);
+        fmt,
+        except);
   }
 
-  std::string Repeatbb(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
+  std::string Repeatbb(void (Ass::*f)(Reg, Reg),
+                       const std::string& fmt,
+                       const std::vector<std::pair<Reg, Reg>>* except = nullptr) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUseQuaternaryName>,
         &AssemblerTest::GetRegName<RegisterView::kUseQuaternaryName>,
-        fmt);
+        fmt,
+        except);
   }
 
   std::string RepeatRRR(void (Ass::*f)(Reg, Reg, Reg), const std::string& fmt) {
@@ -144,22 +156,28 @@ class AssemblerTest : public AssemblerTestBase {
         fmt);
   }
 
-  std::string Repeatrb(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
+  std::string Repeatrb(void (Ass::*f)(Reg, Reg),
+                       const std::string& fmt,
+                       const std::vector<std::pair<Reg, Reg>>* except = nullptr) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
         &AssemblerTest::GetRegName<RegisterView::kUseQuaternaryName>,
-        fmt);
+        fmt,
+        except);
   }
 
-  std::string RepeatRr(void (Ass::*f)(Reg, Reg), const std::string& fmt) {
+  std::string RepeatRr(void (Ass::*f)(Reg, Reg),
+                       const std::string& fmt,
+                       const std::vector<std::pair<Reg, Reg>>* except = nullptr) {
     return RepeatTemplatedRegisters<Reg, Reg>(f,
         GetRegisters(),
         GetRegisters(),
         &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
         &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
-        fmt);
+        fmt,
+        except);
   }
 
   std::string RepeatRI(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes, const std::string& fmt) {
@@ -1266,12 +1284,21 @@ class AssemblerTest : public AssemblerTestBase {
                                        const std::vector<Reg2*> reg2_registers,
                                        std::string (AssemblerTest::*GetName1)(const Reg1&),
                                        std::string (AssemblerTest::*GetName2)(const Reg2&),
-                                       const std::string& fmt) {
+                                       const std::string& fmt,
+                                       const std::vector<std::pair<Reg1, Reg2>>* except = nullptr) {
     WarnOnCombinations(reg1_registers.size() * reg2_registers.size());
 
     std::string str;
     for (auto reg1 : reg1_registers) {
       for (auto reg2 : reg2_registers) {
+        // Check if this register pair is on the exception list. If so, skip it.
+        if (except != nullptr) {
+          const auto& pair = std::make_pair(*reg1, *reg2);
+          if (std::find(except->begin(), except->end(), pair) != except->end()) {
+            continue;
+          }
+        }
+
         if (f != nullptr) {
           (assembler_.get()->*f)(*reg1, *reg2);
         }
