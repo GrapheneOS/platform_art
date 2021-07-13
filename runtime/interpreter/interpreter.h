@@ -67,8 +67,6 @@ void ArtInterpreterToInterpreterBridge(Thread* self,
 // One-time check of assembler constants.
 void CheckInterpreterAsmConstants();
 
-void InitInterpreterTls(Thread* self);
-
 // Returns true if the previous frame has the ForceRetryInstruction bit set. This is required for
 // ForPopFrame to work correctly since that will cause the java function return with null/0 which
 // might not be expected by the code being run.

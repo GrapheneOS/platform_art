@@ -882,7 +882,7 @@ bool Runtime::Start() {
 
   self->TransitionFromRunnableToSuspended(kNative);
 
-  DoAndMaybeSwitchInterpreter([=](){ started_ = true; });
+  started_ = true;
 
   if (!IsImageDex2OatEnabled() || !GetHeap()->HasBootImageSpace()) {
     ScopedObjectAccess soa(self);
@@ -2943,7 +2943,7 @@ void Runtime::CreateJit() {
   }
 
   jit::Jit* jit = jit::Jit::Create(jit_code_cache_.get(), jit_options_.get());
-  DoAndMaybeSwitchInterpreter([=](){ jit_.reset(jit); });
+  jit_.reset(jit);
   if (jit == nullptr) {
     LOG(WARNING) << "Failed to allocate JIT";
     // Release JIT code cache resources (several MB of memory).

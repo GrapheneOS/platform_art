@@ -577,7 +577,7 @@ static void PotentiallyAddListenerTo(Instrumentation::InstrumentationEvent event
   } else {
     list.push_back(listener);
   }
-  Runtime::DoAndMaybeSwitchInterpreter([=](){ *has_listener = true; });
+  *has_listener = true;
 }
 
 void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t events) {
@@ -655,11 +655,11 @@ static void PotentiallyRemoveListenerFrom(Instrumentation::InstrumentationEvent 
   // Check if the list contains any non-null listener, and update 'has_listener'.
   for (InstrumentationListener* l : list) {
     if (l != nullptr) {
-      Runtime::DoAndMaybeSwitchInterpreter([=](){ *has_listener = true; });
+      *has_listener = true;
       return;
     }
   }
-  Runtime::DoAndMaybeSwitchInterpreter([=](){ *has_listener = false; });
+  *has_listener = false;
 }
 
 void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t events) {
