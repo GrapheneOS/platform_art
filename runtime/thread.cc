@@ -74,7 +74,6 @@
 #include "indirect_reference_table-inl.h"
 #include "instrumentation.h"
 #include "interpreter/interpreter.h"
-#include "interpreter/mterp/mterp.h"
 #include "interpreter/shadow_frame-inl.h"
 #include "java_frame_root_info.h"
 #include "jni/java_vm_ext.h"
@@ -944,10 +943,6 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
   RemoveSuspendTrigger();
   InitCardTable();
   InitTid();
-  {
-    ScopedTrace trace2("InitInterpreterTls");
-    interpreter::InitInterpreterTls(this);
-  }
 
 #ifdef __BIONIC__
   __get_tls()[TLS_SLOT_ART_THREAD_SELF] = this;
@@ -2325,12 +2320,7 @@ Thread::Thread(bool daemon)
   tlsPtr_.flip_function = nullptr;
   tlsPtr_.thread_local_mark_stack = nullptr;
   tls32_.is_transitioning_to_runnable = false;
-  tls32_.use_mterp = false;
   ResetTlab();
-}
-
-void Thread::NotifyInTheadList() {
-  tls32_.use_mterp = interpreter::CanUseMterp();
 }
 
 bool Thread::CanLoadClasses() const {

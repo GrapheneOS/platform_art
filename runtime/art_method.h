@@ -326,23 +326,6 @@ class ArtMethod final {
 
   bool IsSignaturePolymorphic() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool UseFastInterpreterToInterpreterInvoke() const {
-    // The bit is applicable only if the method is not intrinsic.
-    constexpr uint32_t mask = kAccFastInterpreterToInterpreterInvoke | kAccIntrinsic;
-    return (GetAccessFlags() & mask) == kAccFastInterpreterToInterpreterInvoke;
-  }
-
-  void SetFastInterpreterToInterpreterInvokeFlag() REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(!IsIntrinsic());
-    AddAccessFlags(kAccFastInterpreterToInterpreterInvoke);
-  }
-
-  void ClearFastInterpreterToInterpreterInvokeFlag() REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!IsIntrinsic()) {
-      ClearAccessFlags(kAccFastInterpreterToInterpreterInvoke);
-    }
-  }
-
   bool SkipAccessChecks() const {
     // The kAccSkipAccessChecks flag value is used with a different meaning for native methods,
     // so we need to check the kAccNative flag as well.
@@ -498,8 +481,6 @@ class ArtMethod final {
     SetNativePointer(EntryPointFromQuickCompiledCodeOffset(pointer_size),
                      entry_point_from_quick_compiled_code,
                      pointer_size);
-    // We might want to invoke compiled code, so don't use the fast path.
-    ClearFastInterpreterToInterpreterInvokeFlag();
   }
 
   static constexpr MemberOffset DataOffset(PointerSize pointer_size) {

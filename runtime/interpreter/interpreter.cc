@@ -23,13 +23,11 @@
 #include "common_throws.h"
 #include "dex/dex_file_types.h"
 #include "interpreter_common.h"
-#include "interpreter_mterp_impl.h"
 #include "interpreter_switch_impl.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jvalue-inl.h"
 #include "mirror/string-inl.h"
-#include "mterp/mterp.h"
 #include "nativehelper/scoped_local_ref.h"
 #include "scoped_thread_state_change-inl.h"
 #include "shadow_frame-inl.h"
@@ -233,17 +231,6 @@ static void InterpreterJni(Thread* self,
   }
 }
 
-enum InterpreterImplKind {
-  kSwitchImplKind,        // Switch-based interpreter implementation.
-  kMterpImplKind          // Assembly interpreter
-};
-
-#if ART_USE_CXX_INTERPRETER
-static constexpr InterpreterImplKind kInterpreterImplKind = kSwitchImplKind;
-#else
-static constexpr InterpreterImplKind kInterpreterImplKind = kMterpImplKind;
-#endif
-
 static JValue ExecuteSwitch(Thread* self,
                             const CodeItemDataAccessor& accessor,
                             ShadowFrame& shadow_frame,
@@ -277,13 +264,6 @@ static inline JValue Execute(
     bool from_deoptimize = false) REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(!shadow_frame.GetMethod()->IsAbstract());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
-
-  // Check that we are using the right interpreter.
-  if (kIsDebugBuild && self->UseMterp() != CanUseMterp()) {
-    // The flag might be currently being updated on all threads. Retry with lock.
-    MutexLock tll_mu(self, *Locks::thread_list_lock_);
-    DCHECK_EQ(self->UseMterp(), CanUseMterp());
-  }
 
   if (LIKELY(!from_deoptimize)) {  // Entering the method, but not via deoptimization.
     if (kIsDebugBuild) {
@@ -365,40 +345,8 @@ static inline JValue Execute(
 
   VLOG(interpreter) << "Interpreting " << method->PrettyMethod();
 
-  // Note that mterp doesn't support non-compilable methods, nor methods on
-  // which we must count locks.
-  if (kInterpreterImplKind == kSwitchImplKind ||
-      UNLIKELY(!Runtime::Current()->IsStarted()) ||
-      !method->IsCompilable() ||
-      method->MustCountLocks() ||
-      Runtime::Current()->IsActiveTransaction()) {
-    return ExecuteSwitch(
-        self, accessor, shadow_frame, result_register, /*interpret_one_instruction=*/ false);
-  }
-
-  CHECK_EQ(kInterpreterImplKind, kMterpImplKind);
-  while (true) {
-    // Mterp does not support all instrumentation/debugging.
-    if (!self->UseMterp()) {
-      return ExecuteSwitch(
-          self, accessor, shadow_frame, result_register, /*interpret_one_instruction=*/ false);
-    }
-    bool returned = ExecuteMterpImpl(self,
-                                     accessor.Insns(),
-                                     &shadow_frame,
-                                     &result_register);
-    if (returned) {
-      return result_register;
-    } else {
-      // Mterp didn't like that instruction.  Single-step it with the reference interpreter.
-      result_register = ExecuteSwitch(
-          self, accessor, shadow_frame, result_register, /*interpret_one_instruction=*/ true);
-      if (shadow_frame.GetDexPC() == dex::kDexNoIndex) {
-        // Single-stepped a return or an exception not handled locally.  Return to caller.
-        return result_register;
-      }
-    }
-  }
+  return ExecuteSwitch(
+      self, accessor, shadow_frame, result_register, /*interpret_one_instruction=*/ false);
 }
 
 void EnterInterpreterFromInvoke(Thread* self,
@@ -691,12 +639,7 @@ void ArtInterpreterToInterpreterBridge(Thread* self,
 }
 
 void CheckInterpreterAsmConstants() {
-  CheckMterpAsmConstants();
   CheckNterpAsmConstants();
-}
-
-void InitInterpreterTls(Thread* self) {
-  InitMterpTls(self);
 }
 
 bool PrevFrameWillRetry(Thread* self, const ShadowFrame& frame) {
