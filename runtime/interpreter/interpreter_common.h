@@ -46,7 +46,6 @@
 #include "dex/dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
-#include "interpreter_mterp_impl.h"
 #include "interpreter_switch_impl.h"
 #include "jit/jit-inl.h"
 #include "mirror/call_site.h"
@@ -57,7 +56,6 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
-#include "mterp/mterp.h"
 #include "obj_ptr.h"
 #include "stack.h"
 #include "thread.h"
@@ -232,9 +230,7 @@ static ALWAYS_INLINE bool DoInvoke(Thread* self,
                                    JValue* result)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Make sure to check for async exceptions before anything else.
-  if (is_mterp && self->UseMterp()) {
-    DCHECK(!self->ObserveAsyncException());
-  } else if (UNLIKELY(self->ObserveAsyncException())) {
+  if (UNLIKELY(self->ObserveAsyncException())) {
     return false;
   }
   const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
@@ -290,94 +286,6 @@ static ALWAYS_INLINE bool DoInvoke(Thread* self,
       }
       return !self->IsExceptionPending();
     }
-  }
-
-  // Check whether we can use the fast path. The result is cached in the ArtMethod.
-  // If the bit is not set, we explicitly recheck all the conditions.
-  // If any of the conditions get falsified, it is important to clear the bit.
-  bool use_fast_path = false;
-  if (is_mterp && self->UseMterp()) {
-    use_fast_path = called_method->UseFastInterpreterToInterpreterInvoke();
-    if (!use_fast_path) {
-      use_fast_path = UseFastInterpreterToInterpreterInvoke(called_method);
-      if (use_fast_path) {
-        called_method->SetFastInterpreterToInterpreterInvokeFlag();
-      }
-    }
-  }
-
-  if (use_fast_path) {
-    DCHECK(Runtime::Current()->IsStarted());
-    DCHECK(!Runtime::Current()->IsActiveTransaction());
-    DCHECK(called_method->SkipAccessChecks());
-    DCHECK(!called_method->IsNative());
-    DCHECK(!called_method->IsProxyMethod());
-    DCHECK(!called_method->IsIntrinsic());
-    DCHECK(!(called_method->GetDeclaringClass()->IsStringClass() &&
-        called_method->IsConstructor()));
-    DCHECK(type != kStatic || called_method->GetDeclaringClass()->IsVisiblyInitialized());
-
-    const uint16_t number_of_inputs =
-        (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
-    CodeItemDataAccessor accessor(called_method->DexInstructionData());
-    uint32_t num_regs = accessor.RegistersSize();
-    DCHECK_EQ(number_of_inputs, accessor.InsSize());
-    DCHECK_GE(num_regs, number_of_inputs);
-    size_t first_dest_reg = num_regs - number_of_inputs;
-
-    if (UNLIKELY(!CheckStackOverflow(self, ShadowFrame::ComputeSize(num_regs)))) {
-      return false;
-    }
-
-    if (jit != nullptr) {
-      jit->AddSamples(self, called_method, 1, /* with_backedges */false);
-    }
-
-    // Create shadow frame on the stack.
-    const char* old_cause = self->StartAssertNoThreadSuspension("DoFastInvoke");
-    ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
-        CREATE_SHADOW_FRAME(num_regs, &shadow_frame, called_method, /* dex pc */ 0);
-    ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
-    if (is_range) {
-      size_t src = vregC;
-      for (size_t i = 0, dst = first_dest_reg; i < number_of_inputs; ++i, ++dst, ++src) {
-        *new_shadow_frame->GetVRegAddr(dst) = *shadow_frame.GetVRegAddr(src);
-        *new_shadow_frame->GetShadowRefAddr(dst) = *shadow_frame.GetShadowRefAddr(src);
-      }
-    } else {
-      uint32_t arg[Instruction::kMaxVarArgRegs];
-      inst->GetVarArgs(arg, inst_data);
-      for (size_t i = 0, dst = first_dest_reg; i < number_of_inputs; ++i, ++dst) {
-        *new_shadow_frame->GetVRegAddr(dst) = *shadow_frame.GetVRegAddr(arg[i]);
-        *new_shadow_frame->GetShadowRefAddr(dst) = *shadow_frame.GetShadowRefAddr(arg[i]);
-      }
-    }
-    self->PushShadowFrame(new_shadow_frame);
-    self->EndAssertNoThreadSuspension(old_cause);
-
-    VLOG(interpreter) << "Interpreting " << called_method->PrettyMethod();
-
-    DCheckStaticState(self, called_method);
-    while (true) {
-      // Mterp does not support all instrumentation/debugging.
-      if (!self->UseMterp()) {
-        *result =
-            ExecuteSwitchImpl<false, false>(self, accessor, *new_shadow_frame, *result, false);
-        break;
-      }
-      if (ExecuteMterpImpl(self, accessor.Insns(), new_shadow_frame, result)) {
-        break;
-      } else {
-        // Mterp didn't like that instruction.  Single-step it with the reference interpreter.
-        *result = ExecuteSwitchImpl<false, false>(self, accessor, *new_shadow_frame, *result, true);
-        if (new_shadow_frame->GetDexPC() == dex::kDexNoIndex) {
-          break;  // Single-stepped a return or an exception not handled locally.
-        }
-      }
-    }
-    self->PopShadowFrame();
-
-    return !self->IsExceptionPending();
   }
 
   return DoCall<is_range, do_access_check>(called_method, self, shadow_frame, inst, inst_data,

@@ -22,8 +22,8 @@ import sys, re
 from io import StringIO
 
 out = StringIO()  # File-like in-memory buffer.
-handler_size_bytes = "MTERP_HANDLER_SIZE"
-handler_size_bits = "MTERP_HANDLER_SIZE_LOG2"
+handler_size_bytes = "NTERP_HANDLER_SIZE"
+handler_size_bits = "NTERP_HANDLER_SIZE_LOG2"
 opcode = ""
 opnum = ""
 
