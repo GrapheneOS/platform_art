@@ -151,8 +151,6 @@
 #include "verifier/verifier_deps.h"
 #include "well_known_classes.h"
 
-#include "interpreter/interpreter_mterp_impl.h"
-
 namespace art {
 
 using android::base::StringPrintf;
