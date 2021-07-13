@@ -3826,9 +3826,9 @@ void X86_64Assembler::xchgl(CpuRegister dst, CpuRegister src) {
   }
 
   // General case.
-  EmitOptionalRex32(src, dst);
+  EmitOptionalRex32(dst, src);
   EmitUint8(0x87);
-  EmitRegisterOperand(src.LowBits(), dst.LowBits());
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
 }
 
 
@@ -3851,9 +3851,9 @@ void X86_64Assembler::xchgq(CpuRegister dst, CpuRegister src) {
   }
 
   // General case.
-  EmitRex64(src, dst);
+  EmitRex64(dst, src);
   EmitUint8(0x87);
-  EmitRegisterOperand(src.LowBits(), dst.LowBits());
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
 }
 
 

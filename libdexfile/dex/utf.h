@@ -43,7 +43,7 @@ size_t CountModifiedUtf8Chars(const char* utf8, size_t byte_count);
  * Returns the number of modified UTF-8 bytes needed to represent the given
  * UTF-16 string.
  */
-size_t CountModifiedUtf8Bytes(const uint16_t* chars, size_t char_count);
+size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count);
 
 /*
  * Convert from Modified UTF-8 to UTF-16.
@@ -67,14 +67,12 @@ int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t
 
 /*
  * Convert from UTF-16 to Modified UTF-8. Note that the output is _not_
- * NUL-terminated. You probably need to call CountModifiedUtf8Bytes before
- * calling this anyway, so if you want a NUL-terminated string, you know
- * where to put the NUL byte.
+ * NUL-terminated. You probably need to call CountUtf8Bytes before calling
+ * this anyway, so if you want a NUL-terminated string, you know where to
+ * put the NUL byte.
  */
-void ConvertUtf16ToModifiedUtf8(char* utf8_out,
-                                size_t byte_count,
-                                const uint16_t* utf16_in,
-                                size_t char_count);
+void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
+                                const uint16_t* utf16_in, size_t char_count);
 
 /*
  * The java.lang.String hashCode() algorithm.
