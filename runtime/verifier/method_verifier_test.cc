@@ -41,13 +41,21 @@ class MethodVerifierTest : public CommonRuntimeTest {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ASSERT_FALSE(descriptor.empty());
     Thread* self = Thread::Current();
-    ObjPtr<mirror::Class> klass = class_linker_->FindSystemClass(self, descriptor.c_str());
+    StackHandleScope<3> hs(self);
+    Handle<mirror::Class> klass(
+        hs.NewHandle(class_linker_->FindSystemClass(self, descriptor.c_str())));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
+    Handle<mirror::ClassLoader> loader(hs.NewHandle(klass->GetClassLoader()));
 
     // Verify the class
     std::string error_msg;
     FailureKind failure = ClassVerifier::VerifyClass(self,
                                                      /* verifier_deps= */ nullptr,
+                                                     dex_cache->GetDexFile(),
                                                      klass,
+                                                     dex_cache,
+                                                     loader,
+                                                     *klass->GetClassDef(),
                                                      nullptr,
                                                      true,
                                                      HardFailLogMode::kLogWarning,
