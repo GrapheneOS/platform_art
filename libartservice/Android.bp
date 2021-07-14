@@ -71,6 +71,18 @@ java_sdk_library {
     sdk_version: "core_platform",
     min_sdk_version: "31",
 
+    public: {
+        // Override the setting of "module_current" from the defaults as that is
+        // not available in all manifests where this needs to be built.
+        sdk_version: "core_current",
+    },
+
+    system_server: {
+        // Override the setting of "module_current" from the defaults as that is
+        // not available in all manifests where this needs to be built.
+        sdk_version: "core_current",
+    },
+
     // The API elements are the ones annotated with
     //   libcore.api.CorePlatformApi(status=libcore.api.CorePlatformApi.Status.STABLE)
     droiddoc_options: [
