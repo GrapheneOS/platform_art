@@ -70,7 +70,7 @@ class ClassLoader;
 class Object;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
-typedef PrimitiveArray<int32_t> IntArray;
+using IntArray = PrimitiveArray<int32_t>;
 class StackTraceElement;
 class String;
 class Throwable;
@@ -1538,7 +1538,7 @@ class Thread {
   struct PACKED(4) tls_32bit_sized_values {
     // We have no control over the size of 'bool', but want our boolean fields
     // to be 4-byte quantities.
-    typedef uint32_t bool32_t;
+    using bool32_t = uint32_t;
 
     explicit tls_32bit_sized_values(bool is_daemon)
         : suspend_count(0),

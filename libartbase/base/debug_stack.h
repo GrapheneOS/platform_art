@@ -37,9 +37,9 @@ class DebugStackReferenceImpl;
 template <bool kIsDebug>
 class DebugStackIndirectTopRefImpl;
 
-typedef DebugStackRefCounterImpl<kIsDebugBuild> DebugStackRefCounter;
-typedef DebugStackReferenceImpl<kIsDebugBuild> DebugStackReference;
-typedef DebugStackIndirectTopRefImpl<kIsDebugBuild> DebugStackIndirectTopRef;
+using DebugStackRefCounter = DebugStackRefCounterImpl<kIsDebugBuild>;
+using DebugStackReference = DebugStackReferenceImpl<kIsDebugBuild>;
+using DebugStackIndirectTopRef = DebugStackIndirectTopRefImpl<kIsDebugBuild>;
 
 // Non-debug mode specializations. This should be optimized away.
 

@@ -31,19 +31,20 @@ template <typename K, typename V, typename Comparator = std::less<K>,
           typename Allocator = std::allocator<std::pair<const K, V>>>
 class SafeMap {
  private:
-  typedef SafeMap<K, V, Comparator, Allocator> Self;
+  using Self = SafeMap<K, V, Comparator, Allocator>;
+  using Impl = std::map<K, V, Comparator, Allocator>;
 
  public:
-  typedef typename ::std::map<K, V, Comparator, Allocator>::key_compare key_compare;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::value_compare value_compare;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::allocator_type allocator_type;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::iterator iterator;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::const_iterator const_iterator;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::size_type size_type;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::key_type key_type;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::value_type value_type;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::node_type node_type;
-  typedef typename ::std::map<K, V, Comparator, Allocator>::insert_return_type insert_return_type;
+  using key_compare        = typename Impl::key_compare;
+  using value_compare      = typename Impl::value_compare;
+  using allocator_type     = typename Impl::allocator_type;
+  using iterator           = typename Impl::iterator;
+  using const_iterator     = typename Impl::const_iterator;
+  using size_type          = typename Impl::size_type;
+  using key_type           = typename Impl::key_type;
+  using value_type         = typename Impl::value_type;
+  using node_type          = typename Impl::node_type;
+  using insert_return_type = typename Impl::insert_return_type;
 
   SafeMap() = default;
   SafeMap(const SafeMap&) = default;
@@ -177,7 +178,7 @@ class SafeMap {
   }
 
  private:
-  ::std::map<K, V, Comparator, Allocator> map_;
+  Impl map_;
 };
 
 template <typename K, typename V, typename Comparator, typename Allocator>

@@ -80,7 +80,7 @@ class MemoryRegion final : public ValueObject {
   template<typename T>
   ALWAYS_INLINE T LoadUnaligned(uintptr_t offset) const {
     // Equivalent unsigned integer type corresponding to T.
-    typedef typename std::make_unsigned<T>::type U;
+    using U = std::make_unsigned_t<T>;
     U equivalent_unsigned_integer_value = 0;
     // Read the value byte by byte in a little-endian fashion.
     for (size_t i = 0; i < sizeof(U); ++i) {
@@ -95,7 +95,7 @@ class MemoryRegion final : public ValueObject {
   template<typename T>
   ALWAYS_INLINE void StoreUnaligned(uintptr_t offset, T value) const {
     // Equivalent unsigned integer type corresponding to T.
-    typedef typename std::make_unsigned<T>::type U;
+    using U = std::make_unsigned_t<T>;
     U equivalent_unsigned_integer_value = bit_cast<U, T>(value);
     // Write the value byte by byte in a little-endian fashion.
     for (size_t i = 0; i < sizeof(U); ++i) {

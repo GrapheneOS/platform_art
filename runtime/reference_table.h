@@ -55,8 +55,8 @@ class ReferenceTable {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  typedef std::vector<GcRoot<mirror::Object>,
-                      TrackingAllocator<GcRoot<mirror::Object>, kAllocatorTagReferenceTable>> Table;
+  using Table = std::vector<GcRoot<mirror::Object>,
+                            TrackingAllocator<GcRoot<mirror::Object>, kAllocatorTagReferenceTable>>;
   static void Dump(std::ostream& os, Table& entries)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::alloc_tracker_lock_);
