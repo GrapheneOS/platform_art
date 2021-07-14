@@ -951,17 +951,41 @@ TEST_F(AssemblerX86_64Test, XorlImm) {
                      /*imm_bytes*/ 4U, "xor ${imm}, %{reg}"), "xorli");
 }
 
-TEST_F(AssemblerX86_64Test, Xchgq) {
+TEST_F(AssemblerX86_64Test, XchgqReg) {
   DriverStr(RepeatRR(&x86_64::X86_64Assembler::xchgq, "xchgq %{reg2}, %{reg1}"), "xchgq");
 }
 
-TEST_F(AssemblerX86_64Test, Xchgl) {
+TEST_F(AssemblerX86_64Test, XchgqMem) {
+  DriverStr(RepeatRA(&x86_64::X86_64Assembler::xchgq, "xchgq %{reg}, {mem}"), "xchgq");
+}
+
+TEST_F(AssemblerX86_64Test, XchglReg) {
   // Exclude `xcghl eax, eax` because the reference implementation generates 0x87 0xC0 (contrary to
   // the intel manual saying that this should be a `nop` 0x90). All other cases are the same.
   static const std::vector<std::pair<x86_64::CpuRegister, x86_64::CpuRegister>> except = {
     std::make_pair(x86_64::CpuRegister(x86_64::RAX), x86_64::CpuRegister(x86_64::RAX))
   };
   DriverStr(Repeatrr(&x86_64::X86_64Assembler::xchgl, "xchgl %{reg2}, %{reg1}", &except), "xchgl");
+}
+
+TEST_F(AssemblerX86_64Test, XchglMem) {
+  DriverStr(RepeatrA(&x86_64::X86_64Assembler::xchgl, "xchgl %{reg}, {mem}"), "xchgl");
+}
+
+TEST_F(AssemblerX86_64Test, XchgwReg) {
+  DriverStr(Repeatww(&x86_64::X86_64Assembler::xchgw, "xchgw %{reg2}, %{reg1}"), "xchgw");
+}
+
+TEST_F(AssemblerX86_64Test, XchgwMem) {
+  DriverStr(RepeatwA(&x86_64::X86_64Assembler::xchgw, "xchgw %{reg}, {mem}"), "xchgw");
+}
+
+TEST_F(AssemblerX86_64Test, XchgbReg) {
+  DriverStr(Repeatbb(&x86_64::X86_64Assembler::xchgb, "xchgb %{reg2}, %{reg1}"), "xchgb");
+}
+
+TEST_F(AssemblerX86_64Test, XchgbMem) {
+  DriverStr(RepeatbA(&x86_64::X86_64Assembler::xchgb, "xchgb %{reg}, {mem}"), "xchgb");
 }
 
 TEST_F(AssemblerX86_64Test, Cmpxchgb) {
