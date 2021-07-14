@@ -109,7 +109,7 @@ class BitVector {
   BitVector(const BitVector& other) = delete;
   BitVector& operator=(const BitVector& other) = delete;
 
-  BitVector(BitVector&& other)
+  BitVector(BitVector&& other) noexcept
       : storage_(other.storage_),
         storage_size_(other.storage_size_),
         allocator_(other.allocator_),

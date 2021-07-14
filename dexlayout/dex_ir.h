@@ -119,9 +119,9 @@ template<class T> class Iterator : public std::iterator<std::random_access_itera
   using reference = typename std::iterator<std::random_access_iterator_tag, value_type>::reference;
 
   Iterator(const Iterator&) = default;
-  Iterator(Iterator&&) = default;
+  Iterator(Iterator&&) noexcept = default;
   Iterator& operator=(const Iterator&) = default;
-  Iterator& operator=(Iterator&&) = default;
+  Iterator& operator=(Iterator&&) noexcept = default;
 
   Iterator(const std::vector<T>& vector,
            uint32_t position,

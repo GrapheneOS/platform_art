@@ -44,7 +44,7 @@ class HashSetIterator {
   using reference = Elem&;
 
   HashSetIterator(const HashSetIterator&) = default;
-  HashSetIterator(HashSetIterator&&) = default;
+  HashSetIterator(HashSetIterator&&) noexcept = default;
   HashSetIterator(HashSetType* hash_set, size_t index) : index_(index), hash_set_(hash_set) {}
 
   // Conversion from iterator to const_iterator.
@@ -57,7 +57,7 @@ class HashSetIterator {
       : index_(other.index_), hash_set_(other.hash_set_) {}
 
   HashSetIterator& operator=(const HashSetIterator&) = default;
-  HashSetIterator& operator=(HashSetIterator&&) = default;
+  HashSetIterator& operator=(HashSetIterator&&) noexcept = default;
 
   bool operator==(const HashSetIterator& other) const {
     return hash_set_ == other.hash_set_ && this->index_ == other.index_;
@@ -234,7 +234,7 @@ class HashSet {
     DCHECK_LT(max_load_factor, 1.0);
   }
 
-  HashSet(const HashSet& other) noexcept
+  HashSet(const HashSet& other)
       : allocfn_(other.allocfn_),
         hashfn_(other.hashfn_),
         emptyfn_(other.emptyfn_),
@@ -359,7 +359,7 @@ class HashSet {
     return *this;
   }
 
-  HashSet& operator=(const HashSet& other) noexcept {
+  HashSet& operator=(const HashSet& other) {
     HashSet(other).swap(*this);  // NOLINT(runtime/explicit) - a case of lint gone mad.
     return *this;
   }
