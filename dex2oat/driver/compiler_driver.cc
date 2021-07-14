@@ -1846,6 +1846,7 @@ class VerifyClassVisitor : public CompilationVisitor {
           verifier::ClassVerifier::VerifyClass(soa.Self(),
                                                soa.Self()->GetVerifierDeps(),
                                                &dex_file,
+                                               klass,
                                                dex_cache,
                                                class_loader,
                                                class_def,

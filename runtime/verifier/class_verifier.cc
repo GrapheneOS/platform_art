@@ -51,202 +51,39 @@ using android::base::StringPrintf;
 // sure we only print this once.
 static bool gPrintedDxMonitorText = false;
 
-// A class used by the verifier to tell users about what options need to be set for given methods.
-class VerifierCallback {
- public:
-  virtual ~VerifierCallback() {}
-  virtual void SetDontCompile(ArtMethod* method, bool value)
-      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-  virtual void SetMustCountLocks(ArtMethod* method, bool value)
-      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-};
-
-class StandardVerifyCallback : public VerifierCallback {
- public:
-  void SetDontCompile(ArtMethod* m, bool value) override REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (value) {
-      m->SetDontCompile();
-    }
+static void UpdateMethodFlags(uint32_t method_index,
+                              Handle<mirror::Class> klass,
+                              Handle<mirror::DexCache> dex_cache,
+                              int error_types)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (klass == nullptr) {
+    DCHECK(Runtime::Current()->IsAotCompiler());
+    // Flags will be set at runtime.
+    return;
   }
-  void SetMustCountLocks(ArtMethod* m, bool value) override REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (value) {
-      m->SetMustCountLocks();
-    }
+
+  // Mark methods with DontCompile/MustCountLocks flags.
+  ClassLinker* const linker = Runtime::Current()->GetClassLinker();
+  ArtMethod* method =
+      klass->FindClassMethod(dex_cache.Get(), method_index, linker->GetImagePointerSize());
+  DCHECK(method != nullptr);
+  DCHECK(method->GetDeclaringClass() == klass.Get());
+  if (!CanCompilerHandleVerificationFailure(error_types)) {
+    method->SetDontCompile();
   }
-};
-
-FailureKind ClassVerifier::ReverifyClass(Thread* self,
-                                         ObjPtr<mirror::Class> klass,
-                                         HardFailLogMode log_level,
-                                         uint32_t api_level,
-                                         std::string* error) {
-  DCHECK(!Runtime::Current()->IsAotCompiler());
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Class> h_klass(hs.NewHandle(klass));
-  // We don't want to mess with these while other mutators are possibly looking at them. Instead we
-  // will wait until we can update them while everything is suspended.
-  class DelayedVerifyCallback : public VerifierCallback {
-   public:
-    void SetDontCompile(ArtMethod* m, bool value) override REQUIRES_SHARED(Locks::mutator_lock_) {
-      dont_compiles_.push_back({ m, value });
-    }
-    void SetMustCountLocks(ArtMethod* m, bool value) override
-        REQUIRES_SHARED(Locks::mutator_lock_) {
-      count_locks_.push_back({ m, value });
-    }
-    void UpdateFlags(bool skip_access_checks) REQUIRES(Locks::mutator_lock_) {
-      for (auto it : count_locks_) {
-        VLOG(verifier_debug) << "Setting " << it.first->PrettyMethod() << " count locks to "
-                             << it.second;
-        if (it.second) {
-          it.first->SetMustCountLocks();
-        } else {
-          it.first->ClearMustCountLocks();
-        }
-        if (skip_access_checks && it.first->IsInvokable() && !it.first->IsNative()) {
-          it.first->SetSkipAccessChecks();
-        }
-      }
-      for (auto it : dont_compiles_) {
-        VLOG(verifier_debug) << "Setting " << it.first->PrettyMethod() << " dont-compile to "
-                             << it.second;
-        if (it.second) {
-          it.first->SetDontCompile();
-        } else {
-          it.first->ClearDontCompile();
-        }
-      }
-    }
-
-   private:
-    std::vector<std::pair<ArtMethod*, bool>> dont_compiles_;
-    std::vector<std::pair<ArtMethod*, bool>> count_locks_;
-  };
-  DelayedVerifyCallback dvc;
-  FailureKind res = CommonVerifyClass(self,
-                                      /*verifier_deps=*/nullptr,
-                                      h_klass.Get(),
-                                      /*callbacks=*/nullptr,
-                                      &dvc,
-                                      /*allow_soft_failures=*/false,
-                                      log_level,
-                                      api_level,
-                                      error);
-  DCHECK_NE(res, FailureKind::kHardFailure);
-  ScopedThreadSuspension sts(Thread::Current(), ThreadState::kSuspended);
-  ScopedSuspendAll ssa("Update method flags for reverify");
-  dvc.UpdateFlags(res == FailureKind::kNoFailure);
-  return res;
-}
-
-FailureKind ClassVerifier::VerifyClass(Thread* self,
-                                       VerifierDeps* verifier_deps,
-                                       ObjPtr<mirror::Class> klass,
-                                       CompilerCallbacks* callbacks,
-                                       bool allow_soft_failures,
-                                       HardFailLogMode log_level,
-                                       uint32_t api_level,
-                                       std::string* error) {
-  if (klass->IsVerified()) {
-    return FailureKind::kNoFailure;
+  if ((error_types & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
+    method->SetMustCountLocks();
   }
-  StandardVerifyCallback svc;
-  return CommonVerifyClass(self,
-                           verifier_deps,
-                           klass,
-                           callbacks,
-                           &svc,
-                           allow_soft_failures,
-                           log_level,
-                           api_level,
-                           error);
-}
-
-FailureKind ClassVerifier::CommonVerifyClass(Thread* self,
-                                             VerifierDeps* verifier_deps,
-                                             ObjPtr<mirror::Class> klass,
-                                             CompilerCallbacks* callbacks,
-                                             VerifierCallback* verifier_callback,
-                                             bool allow_soft_failures,
-                                             HardFailLogMode log_level,
-                                             uint32_t api_level,
-                                             std::string* error) {
-  bool early_failure = false;
-  std::string failure_message;
-  const DexFile& dex_file = klass->GetDexFile();
-  const dex::ClassDef* class_def = klass->GetClassDef();
-  ObjPtr<mirror::Class> super = klass->GetSuperClass();
-  std::string temp;
-  if (super == nullptr && strcmp("Ljava/lang/Object;", klass->GetDescriptor(&temp)) != 0) {
-    early_failure = true;
-    failure_message = " that has no super class";
-  } else if (super != nullptr && super->IsFinal()) {
-    early_failure = true;
-    failure_message = " that attempts to sub-class final class " + super->PrettyDescriptor();
-  } else if (class_def == nullptr) {
-    early_failure = true;
-    failure_message = " that isn't present in dex file " + dex_file.GetLocation();
-  }
-  if (early_failure) {
-    *error = "Verifier rejected class " + klass->PrettyDescriptor() + failure_message;
-    if (callbacks != nullptr) {
-      ClassReference ref(&dex_file, klass->GetDexClassDefIndex());
-      callbacks->ClassRejected(ref);
-    }
-    return FailureKind::kHardFailure;
-  }
-  StackHandleScope<2> hs(self);
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(klass->GetClassLoader()));
-  return VerifyClass(self,
-                     verifier_deps,
-                     &dex_file,
-                     dex_cache,
-                     class_loader,
-                     *class_def,
-                     callbacks,
-                     verifier_callback,
-                     allow_soft_failures,
-                     log_level,
-                     api_level,
-                     error);
-}
-
-
-FailureKind ClassVerifier::VerifyClass(Thread* self,
-                                       VerifierDeps* verifier_deps,
-                                       const DexFile* dex_file,
-                                       Handle<mirror::DexCache> dex_cache,
-                                       Handle<mirror::ClassLoader> class_loader,
-                                       const dex::ClassDef& class_def,
-                                       CompilerCallbacks* callbacks,
-                                       bool allow_soft_failures,
-                                       HardFailLogMode log_level,
-                                       uint32_t api_level,
-                                       std::string* error) {
-  StandardVerifyCallback svc;
-  return VerifyClass(self,
-                     verifier_deps,
-                     dex_file,
-                     dex_cache,
-                     class_loader,
-                     class_def,
-                     callbacks,
-                     &svc,
-                     allow_soft_failures,
-                     log_level,
-                     api_level,
-                     error);
 }
 
 FailureKind ClassVerifier::VerifyClass(Thread* self,
                                        VerifierDeps* verifier_deps,
                                        const DexFile* dex_file,
+                                       Handle<mirror::Class> klass,
                                        Handle<mirror::DexCache> dex_cache,
                                        Handle<mirror::ClassLoader> class_loader,
                                        const dex::ClassDef& class_def,
                                        CompilerCallbacks* callbacks,
-                                       VerifierCallback* verifier_callback,
                                        bool allow_soft_failures,
                                        HardFailLogMode log_level,
                                        uint32_t api_level,
@@ -259,6 +96,9 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
     return FailureKind::kHardFailure;
   }
 
+  // Note that `klass` can be a redefined class, not in the loader's table yet.
+  // Therefore, we do not use it for class resolution, but only when needing to
+  // update its methods' flags.
   ClassAccessor accessor(*dex_file, class_def);
   SCOPED_TRACE << "VerifyClass " << PrettyDescriptor(accessor.GetDescriptor());
   metrics::AutoTimer timer{GetMetrics()->ClassVerificationTotalTime()};
@@ -310,33 +150,19 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
       *error += " ";
       *error += hard_failure_msg;
     } else if (result.kind != FailureKind::kNoFailure) {
-      // Mark methods with DontCompile/MustCountLocks flags.
-      const InvokeType type = method.GetInvokeType(class_def.access_flags_);
-      ArtMethod* resolved_method = linker->ResolveMethod<ClassLinker::ResolveMode::kNoChecks>(
-          method_idx, dex_cache, class_loader, /* referrer= */ nullptr, type);
-      if (resolved_method == nullptr) {
-        DCHECK(self->IsExceptionPending());
-        // We couldn't resolve the method, but continue regardless.
-        self->ClearException();
-      } else {
-        DCHECK(resolved_method->GetDeclaringClassUnchecked() != nullptr) << type;
-        if (!CanCompilerHandleVerificationFailure(result.types)) {
-          verifier_callback->SetDontCompile(resolved_method, true);
+      UpdateMethodFlags(method.GetIndex(), klass, dex_cache, result.types);
+      if ((result.types & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
+        // Print a warning about expected slow-down.
+        // Use a string temporary to print one contiguous warning.
+        std::string tmp =
+            StringPrintf("Method %s failed lock verification and will run slower.",
+                         dex_file->PrettyMethod(method.GetIndex()).c_str());
+        if (!gPrintedDxMonitorText) {
+          tmp = tmp + "\nCommon causes for lock verification issues are non-optimized dex code\n"
+                      "and incorrect proguard optimizations.";
+          gPrintedDxMonitorText = true;
         }
-        if ((result.types & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
-          verifier_callback->SetMustCountLocks(resolved_method, true);
-          // Print a warning about expected slow-down.
-          // Use a string temporary to print one contiguous warning.
-          std::string tmp =
-              StringPrintf("Method %s failed lock verification and will run slower.",
-                           resolved_method->PrettyMethod().c_str());
-          if (!gPrintedDxMonitorText) {
-            tmp = tmp + "\nCommon causes for lock verification issues are non-optimized dex code\n"
-                        "and incorrect proguard optimizations.";
-            gPrintedDxMonitorText = true;
-          }
-          LOG(WARNING) << tmp;
-        }
+        LOG(WARNING) << tmp;
       }
     }
 
