@@ -209,8 +209,7 @@ void CommonCompilerTestImpl::OverrideInstructionSetFeatures(InstructionSet instr
 
 void CommonCompilerTestImpl::SetUpRuntimeOptionsImpl() {
   compiler_options_.reset(new CompilerOptions);
-  verification_results_.reset(new VerificationResults(compiler_options_.get()));
-
+  verification_results_.reset(new VerificationResults());
   ApplyInstructionSet();
 }
 
@@ -251,9 +250,6 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
                                              dex_file,
                                              dex_cache);
     } else {
-      verification_results_->AddDexFile(&dex_file);
-      verification_results_->CreateVerifiedMethodFor(
-          MethodReference(&dex_file, method->GetDexMethodIndex()));
       compiled_method = compiler->Compile(method->GetCodeItem(),
                                           method->GetAccessFlags(),
                                           method->GetInvokeType(),

@@ -41,8 +41,7 @@ void CommonCompilerDriverTest::CompileAll(jobject class_loader,
   compiler_driver_->PreCompile(class_loader,
                                dex_files,
                                timings,
-                               &compiler_options_->image_classes_,
-                               verification_results_.get());
+                               &compiler_options_->image_classes_);
 
   // Verification results in the `callback_` should not be used during compilation.
   down_cast<QuickCompilerCallbacks*>(callbacks_.get())->SetVerificationResults(
