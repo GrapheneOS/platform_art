@@ -23,7 +23,6 @@
 #include "block_builder.h"
 #include "code_generator.h"
 #include "data_type-inl.h"
-#include "dex/verified_method.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
 #include "instruction_builder.h"

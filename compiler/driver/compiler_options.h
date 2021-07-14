@@ -48,7 +48,6 @@ enum class InstructionSet;
 class InstructionSetFeatures;
 class ProfileCompilationInfo;
 class VerificationResults;
-class VerifiedMethod;
 
 // Enum for CheckProfileMethodsCompiled. Outside CompilerOptions so it can be forward-declared.
 enum class ProfileMethodsCheck : uint8_t {
@@ -297,14 +296,6 @@ class CompilerOptions final {
   bool IsImageClass(const char* descriptor) const;
 
   const VerificationResults* GetVerificationResults() const;
-
-  const VerifiedMethod* GetVerifiedMethod(const DexFile* dex_file, uint32_t method_idx) const;
-
-  // Checks if the specified method has been verified without failures. Returns
-  // false if the method is not in the verification results (GetVerificationResults).
-  bool IsMethodVerifiedWithoutFailures(uint32_t method_idx,
-                                       uint16_t class_def_idx,
-                                       const DexFile& dex_file) const;
 
   bool ParseCompilerOptions(const std::vector<std::string>& options,
                             bool ignore_unrecognized,

@@ -35,7 +35,6 @@
 #include "base/utils.h"
 #include "class_linker.h"
 #include "class_root-inl.h"
-#include "compiler_callbacks.h"
 #include "dex/class_accessor-inl.h"
 #include "dex/descriptors_names.h"
 #include "dex/dex_file-inl.h"
@@ -5040,7 +5039,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          const dex::ClassDef& class_def,
                                                          const dex::CodeItem* code_item,
                                                          uint32_t method_access_flags,
-                                                         CompilerCallbacks* callbacks,
                                                          bool allow_soft_failures,
                                                          HardFailLogMode log_level,
                                                          bool need_precise_constants,
@@ -5059,7 +5057,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                               class_def,
                               code_item,
                               method_access_flags,
-                              callbacks,
                               allow_soft_failures,
                               log_level,
                               need_precise_constants,
@@ -5078,7 +5075,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                class_def,
                                code_item,
                                method_access_flags,
-                               callbacks,
                                allow_soft_failures,
                                log_level,
                                need_precise_constants,
@@ -5117,7 +5113,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          const dex::ClassDef& class_def,
                                                          const dex::CodeItem* code_item,
                                                          uint32_t method_access_flags,
-                                                         CompilerCallbacks* callbacks,
                                                          bool allow_soft_failures,
                                                          HardFailLogMode log_level,
                                                          bool need_precise_constants,
@@ -5150,11 +5145,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
     CHECK(!verifier.flags_.have_pending_hard_failure_);
-
-    if (code_item != nullptr && callbacks != nullptr) {
-      // Let the interested party know that the method was verified.
-      callbacks->MethodVerified(&verifier);
-    }
 
     if (verifier.failures_.size() != 0) {
       if (VLOG_IS_ON(verifier)) {
@@ -5209,11 +5199,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
     }
     result.kind = FailureKind::kHardFailure;
 
-    if (callbacks != nullptr) {
-      // Let the interested party know that we failed the class.
-      ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
-      callbacks->ClassRejected(ref);
-    }
     if (kVerifierDebug || VLOG_IS_ON(verifier)) {
       LOG(ERROR) << verifier.info_messages_.str();
       verifier.Dump(LOG_STREAM(ERROR));

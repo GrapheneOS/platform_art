@@ -53,7 +53,6 @@
 #include "dex/dex_file_annotations.h"
 #include "dex/dex_instruction-inl.h"
 #include "dex/verification_results.h"
-#include "dex/verified_method.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
 #include "gc/accounting/card_table-inl.h"
@@ -493,18 +492,13 @@ static void CompileMethodQuick(
       const VerificationResults* results = compiler_options.GetVerificationResults();
       DCHECK(results != nullptr);
       MethodReference method_ref(&dex_file, method_idx);
-      const VerifiedMethod* verified_method = results->GetVerifiedMethod(method_ref);
-      bool compile =
-          // Basic checks, e.g., not <clinit>.
-          results->IsCandidateForCompilation(method_ref, access_flags) &&
-          // Did not fail to create VerifiedMethod metadata.
-          verified_method != nullptr &&
-          // Do not have failures that should punt to the interpreter.
-          !verified_method->HasRuntimeThrow() &&
-          (verified_method->GetEncounteredVerificationFailures() &
-              verifier::VERIFY_ERROR_LOCKING) == 0 &&
-          // Is eligible for compilation by methods-to-compile filter.
-          ShouldCompileBasedOnProfile(compiler_options, profile_index, method_ref);
+      // Don't compile class initializers unless kEverything.
+      bool compile = (compiler_options.GetCompilerFilter() == CompilerFilter::kEverything) ||
+         ((access_flags & kAccConstructor) == 0) || ((access_flags & kAccStatic) == 0);
+      // Check if it's an uncompilable method found by the verifier.
+      compile = compile && !results->IsUncompilableMethod(method_ref);
+      // Check if we should compile based on the profile.
+      compile = compile && ShouldCompileBasedOnProfile(compiler_options, profile_index, method_ref);
 
       if (compile) {
         // NOTE: if compiler declines to compile this method, it will return null.
@@ -812,8 +806,7 @@ class CreateConflictTablesVisitor : public ClassVisitor {
 void CompilerDriver::PreCompile(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 TimingLogger* timings,
-                                /*inout*/ HashSet<std::string>* image_classes,
-                                /*out*/ VerificationResults* verification_results) {
+                                /*inout*/ HashSet<std::string>* image_classes) {
   CheckThreadPools();
 
   VLOG(compiler) << "Before precompile " << GetMemoryUsageString(false);
@@ -848,7 +841,7 @@ void CompilerDriver::PreCompile(jobject class_loader,
     VLOG(compiler) << "Verify none mode specified, skipping verification.";
     SetVerified(class_loader, dex_files, timings);
   } else if (compiler_options_->IsVerificationEnabled()) {
-    Verify(class_loader, dex_files, timings, verification_results);
+    Verify(class_loader, dex_files, timings);
     VLOG(compiler) << "Verify: " << GetMemoryUsageString(false);
 
     if (GetCompilerOptions().IsForceDeterminism() &&
@@ -1678,8 +1671,7 @@ static void LoadAndUpdateStatus(const ClassAccessor& accessor,
 
 bool CompilerDriver::FastVerify(jobject jclass_loader,
                                 const std::vector<const DexFile*>& dex_files,
-                                TimingLogger* timings,
-                                /*out*/ VerificationResults* verification_results) {
+                                TimingLogger* timings) {
   verifier::VerifierDeps* verifier_deps =
       Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
   // If there exist VerifierDeps that aren't the ones we just created to output, use them to verify.
@@ -1730,15 +1722,6 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
           // the class.
           LoadAndUpdateStatus(
               accessor, ClassStatus::kVerifiedNeedsAccessChecks, class_loader, soa.Self());
-          // Create `VerifiedMethod`s for each methods, the compiler expects one for
-          // quickening or compiling.
-          // Note that this means:
-          // - We're only going to compile methods that did verify.
-          // - Quickening will not do checkcast ellision.
-          // TODO(ngeoffray): Reconsider this once we refactor compiler filters.
-          for (const ClassAccessor::Method& method : accessor.GetMethods()) {
-            verification_results->CreateVerifiedMethodFor(method.GetReference());
-          }
         }
       } else if (!compiler_only_verifies) {
         // Make sure later compilation stages know they should not try to verify
@@ -1755,9 +1738,8 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
 
 void CompilerDriver::Verify(jobject jclass_loader,
                             const std::vector<const DexFile*>& dex_files,
-                            TimingLogger* timings,
-                            /*out*/ VerificationResults* verification_results) {
-  if (FastVerify(jclass_loader, dex_files, timings, verification_results)) {
+                            TimingLogger* timings) {
+  if (FastVerify(jclass_loader, dex_files, timings)) {
     return;
   }
 

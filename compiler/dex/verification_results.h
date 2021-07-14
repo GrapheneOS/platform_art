@@ -17,65 +17,35 @@
 #ifndef ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
 #define ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
 
-#include <stdint.h>
 #include <set>
 
-#include "base/dchecked_vector.h"
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "base/safe_map.h"
 #include "dex/class_reference.h"
 #include "dex/method_reference.h"
-#include "utils/atomic_dex_ref_map.h"
 
 namespace art {
 
 namespace verifier {
-class MethodVerifier;
 class VerifierDepsTest;
 }  // namespace verifier
-
-class CompilerOptions;
-class VerifiedMethod;
 
 // Used by CompilerCallbacks to track verification information from the Runtime.
 class VerificationResults {
  public:
-  explicit VerificationResults(const CompilerOptions* compiler_options);
+  VerificationResults();
   ~VerificationResults();
-
-  void ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!verified_methods_lock_);
-
-  void CreateVerifiedMethodFor(MethodReference ref)
-      REQUIRES(!verified_methods_lock_);
-
-  const VerifiedMethod* GetVerifiedMethod(MethodReference ref) const
-      REQUIRES(!verified_methods_lock_);
 
   void AddRejectedClass(ClassReference ref) REQUIRES(!rejected_classes_lock_);
   bool IsClassRejected(ClassReference ref) const REQUIRES(!rejected_classes_lock_);
 
-  bool IsCandidateForCompilation(MethodReference& method_ref, const uint32_t access_flags) const;
-
-  // Add a dex file to enable using the atomic map.
-  void AddDexFile(const DexFile* dex_file) REQUIRES(!verified_methods_lock_);
+  void AddUncompilableMethod(MethodReference ref) REQUIRES(!uncompilable_methods_lock_);
+  bool IsUncompilableMethod(MethodReference ref) const REQUIRES(!uncompilable_methods_lock_);
 
  private:
-  // Verified methods. The method array is fixed to avoid needing a lock to extend it.
-  using AtomicMap = AtomicDexRefMap<MethodReference, const VerifiedMethod*>;
-  using VerifiedMethodMap = SafeMap<MethodReference, const VerifiedMethod*>;
-
-  VerifiedMethodMap verified_methods_ GUARDED_BY(verified_methods_lock_);
-  const CompilerOptions* const compiler_options_;
-
-  // Dex2oat can add dex files to atomic_verified_methods_ to avoid locking when calling
-  // GetVerifiedMethod.
-  AtomicMap atomic_verified_methods_;
-
   // TODO: External locking during CompilerDriver::PreCompile(), no locking during compilation.
-  mutable ReaderWriterMutex verified_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  mutable ReaderWriterMutex uncompilable_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::set<MethodReference> uncompilable_methods_ GUARDED_BY(uncompilable_methods_lock_);
 
   // Rejected classes.
   // TODO: External locking during CompilerDriver::PreCompile(), no locking during compilation.

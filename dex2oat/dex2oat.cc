@@ -1516,13 +1516,7 @@ class Dex2Oat final {
     if (CompilerFilter::IsAnyCompilationEnabled(compiler_options_->GetCompilerFilter()) ||
         IsImage()) {
       // Only modes with compilation or image generation require verification results.
-      // Do this here instead of when we
-      // create the compilation callbacks since the compilation mode may have been changed by the
-      // very large app logic.
-      // Avoiding setting the verification results saves RAM by not adding the dex files later in
-      // the function.
-      // Note: When compiling boot image, this must be done before creating the Runtime.
-      verification_results_.reset(new VerificationResults(compiler_options_.get()));
+      verification_results_.reset(new VerificationResults());
       callbacks_->SetVerificationResults(verification_results_.get());
     }
 
@@ -1730,16 +1724,6 @@ class Dex2Oat final {
       if (!map.Protect(PROT_READ | PROT_WRITE)) {
         PLOG(ERROR) << "Failed to make .dex files writeable.";
         return dex2oat::ReturnCode::kOther;
-      }
-    }
-
-    // Verification results are only required for modes that have any compilation. Avoid
-    // adding the dex files if possible to prevent allocating large arrays.
-    if (verification_results_ != nullptr) {
-      for (const auto& dex_file : dex_files) {
-        // Pre-register dex files so that we can access verification results without locks during
-        // compilation and verification.
-        verification_results_->AddDexFile(dex_file);
       }
     }
 
@@ -1993,8 +1977,7 @@ class Dex2Oat final {
     driver_->PreCompile(class_loader,
                         dex_files,
                         timings_,
-                        &compiler_options_->image_classes_,
-                        verification_results_.get());
+                        &compiler_options_->image_classes_);
     callbacks_->SetVerificationResults(nullptr);  // Should not be needed anymore.
     compiler_options_->verification_results_ = verification_results_.get();
     driver_->CompileAll(class_loader, dex_files, timings_);
