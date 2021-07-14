@@ -44,7 +44,7 @@ class LockWord;
 template<class T> class Handle;
 class StackVisitor;
 class Thread;
-typedef uint32_t MonitorId;
+using MonitorId = uint32_t;
 
 namespace mirror {
 class Object;
@@ -452,7 +452,7 @@ class MonitorList {
   size_t DeflateMonitors() REQUIRES(!monitor_list_lock_) REQUIRES(Locks::mutator_lock_);
   size_t Size() REQUIRES(!monitor_list_lock_);
 
-  typedef std::list<Monitor*, TrackingAllocator<Monitor*, kAllocatorTagMonitorList>> Monitors;
+  using Monitors = std::list<Monitor*, TrackingAllocator<Monitor*, kAllocatorTagMonitorList>>;
 
  private:
   // During sweeping we may free an object and on a separate thread have an object created using

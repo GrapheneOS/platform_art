@@ -25,7 +25,7 @@ class FdFile;
 
 namespace art {
 
-typedef ::unix_file::FdFile File;
+using File = ::unix_file::FdFile;
 
 // Interface to the underlying OS platform.
 

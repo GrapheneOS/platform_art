@@ -304,7 +304,7 @@ class CompilerDriver {
   // All class references that are in the classpath. Indexed by class defs.
   ClassStateTable classpath_classes_;
 
-  typedef AtomicDexRefMap<MethodReference, CompiledMethod*> MethodTable;
+  using MethodTable = AtomicDexRefMap<MethodReference, CompiledMethod*>;
 
   // All method references that this compiler has compiled.
   MethodTable compiled_methods_;

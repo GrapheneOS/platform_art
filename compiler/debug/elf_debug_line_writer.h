@@ -32,7 +32,7 @@
 namespace art {
 namespace debug {
 
-typedef std::vector<DexFile::PositionInfo> PositionInfos;
+using PositionInfos = std::vector<DexFile::PositionInfo>;
 
 template<typename ElfTypes>
 class ElfDebugLineWriter {

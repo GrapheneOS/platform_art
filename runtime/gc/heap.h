@@ -76,7 +76,7 @@ class Verification;
 
 namespace accounting {
 template <typename T> class AtomicStack;
-typedef AtomicStack<mirror::Object> ObjectStack;
+using ObjectStack = AtomicStack<mirror::Object>;
 class CardTable;
 class HeapBitmap;
 class ModUnionTable;

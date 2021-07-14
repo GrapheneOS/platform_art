@@ -44,8 +44,9 @@ namespace accounting {
 // from the free list spaces to the bump pointer spaces.
 class RememberedSet {
  public:
-  typedef std::set<uint8_t*, std::less<uint8_t*>,
-                   TrackingAllocator<uint8_t*, kAllocatorTagRememberedSet>> CardSet;
+  using CardSet = std::set<uint8_t*,
+                           std::less<uint8_t*>,
+                           TrackingAllocator<uint8_t*, kAllocatorTagRememberedSet>>;
 
   explicit RememberedSet(const std::string& name, Heap* heap, space::ContinuousSpace* space)
       : name_(name), heap_(heap), space_(space) {}

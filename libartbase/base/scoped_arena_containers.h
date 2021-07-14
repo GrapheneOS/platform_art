@@ -107,13 +107,13 @@ class ScopedArenaAllocatorAdapter<void>
     : private DebugStackReference, private DebugStackIndirectTopRef,
       private ArenaAllocatorAdapterKind {
  public:
-  typedef void value_type;
-  typedef void* pointer;
-  typedef const void* const_pointer;
+  using value_type    = void;
+  using pointer       = void*;
+  using const_pointer = const void*;
 
   template <typename U>
   struct rebind {
-    typedef ScopedArenaAllocatorAdapter<U> other;
+    using other = ScopedArenaAllocatorAdapter<U>;
   };
 
   explicit ScopedArenaAllocatorAdapter(ScopedArenaAllocator* allocator,
@@ -146,17 +146,17 @@ class ScopedArenaAllocatorAdapter
     : private DebugStackReference, private DebugStackIndirectTopRef,
       private ArenaAllocatorAdapterKind {
  public:
-  typedef T value_type;
-  typedef T* pointer;
-  typedef T& reference;
-  typedef const T* const_pointer;
-  typedef const T& const_reference;
-  typedef size_t size_type;
-  typedef ptrdiff_t difference_type;
+  using value_type      = T;
+  using pointer         = T*;
+  using reference       = T&;
+  using const_pointer   = const T*;
+  using const_reference = const T&;
+  using size_type       = size_t;
+  using difference_type = ptrdiff_t;
 
   template <typename U>
   struct rebind {
-    typedef ScopedArenaAllocatorAdapter<U> other;
+    using other = ScopedArenaAllocatorAdapter<U>;
   };
 
   explicit ScopedArenaAllocatorAdapter(ScopedArenaAllocator* allocator,
