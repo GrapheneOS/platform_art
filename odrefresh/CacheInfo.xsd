@@ -25,40 +25,36 @@
   <xs:element name="cacheInfo">
     <xs:complexType>
     <xs:sequence>
-      <xs:element name="artModuleInfo" minOccurs="1" maxOccurs="1" type="t:artModuleInfo" />
-      <xs:element name="bootClasspath" type="t:bootClasspath" />
-      <xs:element name="dex2oatBootClasspath" type="t:dex2oatBootClasspath" />
-      <xs:element name="systemServerClasspath" type="t:systemServerClasspath" />
+      <xs:element name="artModuleInfo" minOccurs="1" maxOccurs="1" type="t:moduleInfo" />
+      <xs:element name="moduleInfoList" minOccurs="1" maxOccurs="1" type="t:moduleInfoList" />
+      <xs:element name="bootClasspath" minOccurs="1" maxOccurs="1" type="t:classpath" />
+      <xs:element name="dex2oatBootClasspath" minOccurs="1" maxOccurs="1" type="t:classpath" />
+      <xs:element name="systemServerClasspath" minOccurs="1" maxOccurs="1" type="t:classpath" />
     </xs:sequence>
     </xs:complexType>
   </xs:element>
 
+  <!-- List of modules. -->
+  <xs:complexType name="moduleInfoList">
+    <xs:sequence>
+      <xs:element name="moduleInfo" type="t:moduleInfo" />
+    </xs:sequence>
+  </xs:complexType>
+
   <!-- Data type representing the provenance of the AOT artifacts in the cache. -->
-  <xs:complexType name="artModuleInfo">
-    <!-- Module versionCode for the active ART APEX from `/apex/apex-info-list.xml`. -->
+  <xs:complexType name="moduleInfo">
+    <!-- Module name for the active APEX from `/apex/apex-info-list.xml`. -->
+    <xs:attribute name="name" type="xs:string" use="required" />
+    <!-- Module versionCode for the active APEX from `/apex/apex-info-list.xml`. -->
     <xs:attribute name="versionCode" type="xs:long" use="required" />
-    <!-- Module versionName for the active ART APEX from `/apex/apex-info-list.xml`. -->
+    <!-- Module versionName for the active APEX from `/apex/apex-info-list.xml`. -->
     <xs:attribute name="versionName" type="xs:string" use="required" />
-    <!-- Module lastUpdateMillis for the active ART APEX from `/apex/apex-info-list.xml`. -->
+    <!-- Module lastUpdateMillis for the active APEX from `/apex/apex-info-list.xml`. -->
     <xs:attribute name="lastUpdateMillis" type="xs:long" use="required" />
   </xs:complexType>
 
-  <!-- Components of the `BOOTCLASSPATH`. -->
-  <xs:complexType name="bootClasspath">
-    <xs:sequence>
-      <xs:element name="component" type="t:component" />
-    </xs:sequence>
-  </xs:complexType>
-
-  <!-- Components of the `DEX2OATBOOTCLASSPATH`. -->
-  <xs:complexType name="dex2oatBootClasspath">
-    <xs:sequence>
-      <xs:element name="component" type="t:component" />
-    </xs:sequence>
-  </xs:complexType>
-
-  <!-- Components of the `SYSTEMSERVERCLASSPATH`. -->
-  <xs:complexType name="systemServerClasspath">
+  <!-- Components of a classpath. -->
+  <xs:complexType name="classpath">
     <xs:sequence>
       <xs:element name="component" type="t:component" />
     </xs:sequence>
