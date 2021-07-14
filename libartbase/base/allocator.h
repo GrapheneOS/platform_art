@@ -105,13 +105,13 @@ inline void RegisterFree(AllocatorTag tag, size_t bytes) {
 template<class T, AllocatorTag kTag>
 class TrackingAllocatorImpl : public std::allocator<T> {
  public:
-  typedef typename std::allocator<T>::value_type value_type;
-  typedef typename std::allocator<T>::size_type size_type;
-  typedef typename std::allocator<T>::difference_type difference_type;
-  typedef typename std::allocator<T>::pointer pointer;
-  typedef typename std::allocator<T>::const_pointer const_pointer;
-  typedef typename std::allocator<T>::reference reference;
-  typedef typename std::allocator<T>::const_reference const_reference;
+  using value_type      = typename std::allocator<T>::value_type;
+  using size_type       = typename std::allocator<T>::size_type;
+  using difference_type = typename std::allocator<T>::difference_type;
+  using pointer         = typename std::allocator<T>::pointer;
+  using const_pointer   = typename std::allocator<T>::const_pointer;
+  using reference       = typename std::allocator<T>::reference;
+  using const_reference = typename std::allocator<T>::const_reference;
 
   // Used internally by STL data structures.
   template <class U>
@@ -127,7 +127,7 @@ class TrackingAllocatorImpl : public std::allocator<T> {
   // Used internally by STL data structures.
   template <class U>
   struct rebind {
-    typedef TrackingAllocatorImpl<U, kTag> other;
+    using other = TrackingAllocatorImpl<U, kTag>;
   };
 
   pointer allocate(size_type n, const_pointer hint ATTRIBUTE_UNUSED = 0) {
@@ -149,11 +149,9 @@ class TrackingAllocatorImpl : public std::allocator<T> {
 };
 
 template<class T, AllocatorTag kTag>
-// C++ doesn't allow template typedefs. This is a workaround template typedef which is
-// TrackingAllocatorImpl<T> if kEnableTrackingAllocator is true, std::allocator<T> otherwise.
-using TrackingAllocator = typename std::conditional<kEnableTrackingAllocator,
-                                                    TrackingAllocatorImpl<T, kTag>,
-                                                    std::allocator<T>>::type;
+using TrackingAllocator = std::conditional_t<kEnableTrackingAllocator,
+                                             TrackingAllocatorImpl<T, kTag>,
+                                             std::allocator<T>>;
 
 }  // namespace art
 

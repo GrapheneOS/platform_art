@@ -148,7 +148,7 @@ class ArenaAllocatorStatsImpl {
   static const char* const kAllocNames[];
 };
 
-typedef ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations> ArenaAllocatorStats;
+using ArenaAllocatorStats = ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations>;
 
 class ArenaAllocatorMemoryTool {
  public:

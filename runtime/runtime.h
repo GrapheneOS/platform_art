@@ -74,7 +74,7 @@ class ClassLoader;
 class DexCache;
 template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
-typedef PrimitiveArray<int8_t> ByteArray;
+using ByteArray = PrimitiveArray<int8_t>;
 class String;
 class Throwable;
 }  // namespace mirror
@@ -115,7 +115,7 @@ class Trace;
 struct TraceConfig;
 class Transaction;
 
-typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
+using RuntimeOptions = std::vector<std::pair<std::string, const void*>>;
 
 class Runtime {
  public:
