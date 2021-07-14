@@ -226,8 +226,9 @@ class FreeListSpace final : public LargeObjectSpace {
    public:
     bool operator()(const AllocationInfo* a, const AllocationInfo* b) const;
   };
-  typedef std::set<AllocationInfo*, SortByPrevFree,
-                   TrackingAllocator<AllocationInfo*, kAllocatorTagLOSFreeList>> FreeBlocks;
+  using FreeBlocks = std::set<AllocationInfo*,
+                              SortByPrevFree,
+                              TrackingAllocator<AllocationInfo*, kAllocatorTagLOSFreeList>>;
 
   // There is not footer for any allocations at the end of the space, so we keep track of how much
   // free space there is at the end manually.

@@ -125,7 +125,7 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
   }
 };
 
-typedef Atomic<int32_t> AtomicInteger;
+using AtomicInteger = Atomic<int32_t>;
 
 static_assert(sizeof(AtomicInteger) == sizeof(int32_t), "Weird AtomicInteger size");
 static_assert(alignof(AtomicInteger) == alignof(int32_t),

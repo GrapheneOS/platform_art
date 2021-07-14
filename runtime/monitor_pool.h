@@ -236,7 +236,7 @@ class MonitorPool {
   // ChunkListCapacity(current_chunk_list_index_).
   size_t current_chunk_list_capacity_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
 
-  typedef TrackingAllocator<uint8_t, kAllocatorTagMonitorPool> Allocator;
+  using Allocator = TrackingAllocator<uint8_t, kAllocatorTagMonitorPool>;
   Allocator allocator_;
 
   // Start of free list of monitors.

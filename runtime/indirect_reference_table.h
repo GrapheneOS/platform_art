@@ -85,7 +85,7 @@ class Object;
 // more memory and additional memory accesses on add/get, but is moving-GC safe. It will catch
 // additional problems, e.g.: create iref1 for obj, delete iref1, create iref2 for same obj,
 // lookup iref1. A pattern based on object bits will miss this.
-typedef void* IndirectRef;
+using IndirectRef = void*;
 
 // Indirect reference kind, used as the two low bits of IndirectRef.
 //
