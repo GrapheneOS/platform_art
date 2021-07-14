@@ -30,7 +30,7 @@ static constexpr uintptr_t kUintPtrTOne = 1U;
 template<typename T, size_t kPosition, size_t kSize>
 class BitField {
  public:
-  typedef T value_type;
+  using value_type = T;
   static constexpr size_t position = kPosition;
   static constexpr size_t size = kSize;
 

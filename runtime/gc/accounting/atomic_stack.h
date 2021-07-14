@@ -285,7 +285,7 @@ class AtomicStack {
   DISALLOW_COPY_AND_ASSIGN(AtomicStack);
 };
 
-typedef AtomicStack<mirror::Object> ObjectStack;
+using ObjectStack = AtomicStack<mirror::Object>;
 
 }  // namespace accounting
 }  // namespace gc

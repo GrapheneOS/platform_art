@@ -36,7 +36,7 @@ class CompilerCallbacks;
 class DexFile;
 struct RuntimeArgumentMap;
 
-typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
+using RuntimeOptions = std::vector<std::pair<std::string, const void*>>;
 
 template <typename TVariantMap,
           template <typename TKeyValue> class TVariantMapKey>

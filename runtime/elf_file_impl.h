@@ -150,7 +150,7 @@ class ElfFileImpl {
   Elf_Word GetHashBucket(size_t i, bool* ok) const;
   Elf_Word GetHashChain(size_t i, bool* ok) const;
 
-  typedef std::map<std::string, Elf_Sym*> SymbolTable;
+  using SymbolTable = std::map<std::string, Elf_Sym*>;
   SymbolTable** GetSymbolTable(Elf_Word section_type);
 
   bool ValidPointer(const uint8_t* start) const;

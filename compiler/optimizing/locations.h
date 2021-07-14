@@ -425,11 +425,11 @@ class Location : public ValueObject {
     return PayloadField::Decode(value_);
   }
 
-  typedef BitField<Kind, 0, kBitsForKind> KindField;
-  typedef BitField<uintptr_t, kBitsForKind, kBitsForPayload> PayloadField;
+  using KindField = BitField<Kind, 0, kBitsForKind>;
+  using PayloadField = BitField<uintptr_t, kBitsForKind, kBitsForPayload>;
 
   // Layout for kUnallocated locations payload.
-  typedef BitField<Policy, 0, 3> PolicyField;
+  using PolicyField = BitField<Policy, 0, 3>;
 
   // Layout for stack slots.
   static const intptr_t kStackIndexBias =

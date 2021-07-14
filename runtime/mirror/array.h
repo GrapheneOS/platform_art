@@ -158,7 +158,7 @@ class MANAGED PrimitiveArray : public Array {
   MIRROR_CLASS("[F");
   MIRROR_CLASS("[D");
 
-  typedef T ElementType;
+  using ElementType = T;
 
   static ObjPtr<PrimitiveArray<T>> Alloc(Thread* self, size_t length)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
