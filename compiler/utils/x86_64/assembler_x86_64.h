@@ -775,9 +775,17 @@ class X86_64Assembler final : public Assembler {
   void fptan();
   void fprem();
 
+  void xchgb(CpuRegister dst, CpuRegister src);
+  void xchgb(CpuRegister reg, const Address& address);
+
+  void xchgw(CpuRegister dst, CpuRegister src);
+  void xchgw(CpuRegister reg, const Address& address);
+
   void xchgl(CpuRegister dst, CpuRegister src);
-  void xchgq(CpuRegister dst, CpuRegister src);
   void xchgl(CpuRegister reg, const Address& address);
+
+  void xchgq(CpuRegister dst, CpuRegister src);
+  void xchgq(CpuRegister reg, const Address& address);
 
   void cmpb(const Address& address, const Immediate& imm);
   void cmpw(const Address& address, const Immediate& imm);
@@ -1102,7 +1110,13 @@ class X86_64Assembler final : public Assembler {
   void EmitRex64(CpuRegister dst, XmmRegister src);
 
   // Emit a REX prefix to normalize byte registers plus necessary register bit encodings.
-  void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src);
+  // `normalize_both` parameter controls if the REX prefix is checked only for the `src` register
+  // (which is the case for instructions like `movzxb rax, bpl`), or for both `src` and `dst`
+  // registers (which is the case of instructions like `xchg bpl, al`). By default only `src` is
+  // used to decide if REX is needed.
+  void EmitOptionalByteRegNormalizingRex32(CpuRegister dst,
+                                           CpuRegister src,
+                                           bool normalize_both = false);
   void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const Operand& operand);
 
   uint8_t EmitVexPrefixByteZero(bool is_twobyte_form);
@@ -1118,6 +1132,12 @@ class X86_64Assembler final : public Assembler {
   uint8_t EmitVexPrefixByteTwo(bool W,
                                int SET_VEX_L,
                                int SET_VEX_PP);
+
+  // Helper function to emit a shorter variant of XCHG if at least one operand is RAX/EAX/AX.
+  bool try_xchg_rax(CpuRegister dst,
+                    CpuRegister src,
+                    void (X86_64Assembler::*prefix_fn)(CpuRegister));
+
   ConstantArea constant_area_;
   bool has_AVX_;     // x86 256bit SIMD AVX.
   bool has_AVX2_;    // x86 256bit SIMD AVX 2.0.
