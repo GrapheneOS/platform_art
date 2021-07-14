@@ -54,8 +54,13 @@ static bool gPrintedDxMonitorText = false;
 static void UpdateMethodFlags(uint32_t method_index,
                               Handle<mirror::Class> klass,
                               Handle<mirror::DexCache> dex_cache,
+                              CompilerCallbacks* callbacks,
                               int error_types)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (callbacks != nullptr && !CanCompilerHandleVerificationFailure(error_types)) {
+    MethodReference ref(dex_cache->GetDexFile(), method_index);
+    callbacks->AddUncompilableMethod(ref);
+  }
   if (klass == nullptr) {
     DCHECK(Runtime::Current()->IsAotCompiler());
     // Flags will be set at runtime.
@@ -130,7 +135,6 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
                                      class_def,
                                      method.GetCodeItem(),
                                      method.GetAccessFlags(),
-                                     callbacks,
                                      allow_soft_failures,
                                      log_level,
                                      /*need_precise_constants=*/ false,
@@ -150,7 +154,7 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
       *error += " ";
       *error += hard_failure_msg;
     } else if (result.kind != FailureKind::kNoFailure) {
-      UpdateMethodFlags(method.GetIndex(), klass, dex_cache, result.types);
+      UpdateMethodFlags(method.GetIndex(), klass, dex_cache, callbacks, result.types);
       if ((result.types & VerifyError::VERIFY_ERROR_LOCKING) != 0) {
         // Print a warning about expected slow-down.
         // Use a string temporary to print one contiguous warning.
@@ -174,6 +178,12 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
                  << ", class: " << PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
 
   GetMetrics()->ClassVerificationCount()->AddOne();
+
+  if (failure_data.kind == verifier::FailureKind::kHardFailure && callbacks != nullptr) {
+    ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
+    callbacks->ClassRejected(ref);
+  }
+
   return failure_data.kind;
 }
 
