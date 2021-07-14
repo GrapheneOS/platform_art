@@ -38,8 +38,6 @@
 #include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
 #include "dex/dex_file_types.h"
-#include "dex/verification_results.h"
-#include "dex/verified_method.h"
 #include "driver/compiled_method_storage.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
@@ -63,7 +61,6 @@
 #include "ssa_phi_elimination.h"
 #include "stack_map_stream.h"
 #include "utils/assembler.h"
-#include "verifier/verifier_compiler_binding.h"
 
 namespace art {
 
@@ -1017,98 +1014,84 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
   CompiledMethod* compiled_method = nullptr;
   Runtime* runtime = Runtime::Current();
   DCHECK(runtime->IsAotCompiler());
-  const VerifiedMethod* verified_method = compiler_options.GetVerifiedMethod(&dex_file, method_idx);
-  DCHECK(!verified_method->HasRuntimeThrow());
-  if (compiler_options.IsMethodVerifiedWithoutFailures(method_idx, class_def_idx, dex_file) ||
-      verifier::CanCompilerHandleVerificationFailure(
-          verified_method->GetEncounteredVerificationFailures())) {
-    ArenaAllocator allocator(runtime->GetArenaPool());
-    ArenaStack arena_stack(runtime->GetArenaPool());
-    CodeVectorAllocator code_allocator(&allocator);
-    std::unique_ptr<CodeGenerator> codegen;
-    bool compiled_intrinsic = false;
-    {
-      ScopedObjectAccess soa(Thread::Current());
-      ArtMethod* method =
-          runtime->GetClassLinker()->ResolveMethod<ClassLinker::ResolveMode::kCheckICCEAndIAE>(
-              method_idx, dex_cache, jclass_loader, /*referrer=*/ nullptr, invoke_type);
-      DCHECK_EQ(method == nullptr, soa.Self()->IsExceptionPending());
-      soa.Self()->ClearException();  // Suppress exception if any.
-      VariableSizedHandleScope handles(soa.Self());
-      Handle<mirror::Class> compiling_class =
-          handles.NewHandle(method != nullptr ? method->GetDeclaringClass() : nullptr);
-      DexCompilationUnit dex_compilation_unit(
-          jclass_loader,
-          runtime->GetClassLinker(),
-          dex_file,
-          code_item,
-          class_def_idx,
-          method_idx,
-          access_flags,
-          /*verified_method=*/ nullptr,  // Not needed by the Optimizing compiler.
-          dex_cache,
-          compiling_class);
-      // All signature polymorphic methods are native.
-      DCHECK(method == nullptr || !method->IsSignaturePolymorphic());
-      // Go to native so that we don't block GC during compilation.
-      ScopedThreadSuspension sts(soa.Self(), kNative);
-      // Try to compile a fully intrinsified implementation.
-      if (method != nullptr && UNLIKELY(method->IsIntrinsic())) {
-        DCHECK(compiler_options.IsBootImage());
-        codegen.reset(
-            TryCompileIntrinsic(&allocator,
-                                &arena_stack,
-                                &code_allocator,
-                                dex_compilation_unit,
-                                method,
-                                &handles));
-        if (codegen != nullptr) {
-          compiled_intrinsic = true;
-        }
-      }
-      if (codegen == nullptr) {
-        codegen.reset(
-            TryCompile(&allocator,
-                       &arena_stack,
-                       &code_allocator,
-                       dex_compilation_unit,
-                       method,
-                       compiler_options.IsBaseline()
-                          ? CompilationKind::kBaseline
-                          : CompilationKind::kOptimized,
-                       &handles));
+  ArenaAllocator allocator(runtime->GetArenaPool());
+  ArenaStack arena_stack(runtime->GetArenaPool());
+  CodeVectorAllocator code_allocator(&allocator);
+  std::unique_ptr<CodeGenerator> codegen;
+  bool compiled_intrinsic = false;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    ArtMethod* method =
+        runtime->GetClassLinker()->ResolveMethod<ClassLinker::ResolveMode::kCheckICCEAndIAE>(
+            method_idx, dex_cache, jclass_loader, /*referrer=*/ nullptr, invoke_type);
+    DCHECK_EQ(method == nullptr, soa.Self()->IsExceptionPending());
+    soa.Self()->ClearException();  // Suppress exception if any.
+    VariableSizedHandleScope handles(soa.Self());
+    Handle<mirror::Class> compiling_class =
+        handles.NewHandle(method != nullptr ? method->GetDeclaringClass() : nullptr);
+    DexCompilationUnit dex_compilation_unit(
+        jclass_loader,
+        runtime->GetClassLinker(),
+        dex_file,
+        code_item,
+        class_def_idx,
+        method_idx,
+        access_flags,
+        /*verified_method=*/ nullptr,  // Not needed by the Optimizing compiler.
+        dex_cache,
+        compiling_class);
+    // All signature polymorphic methods are native.
+    DCHECK(method == nullptr || !method->IsSignaturePolymorphic());
+    // Go to native so that we don't block GC during compilation.
+    ScopedThreadSuspension sts(soa.Self(), kNative);
+    // Try to compile a fully intrinsified implementation.
+    if (method != nullptr && UNLIKELY(method->IsIntrinsic())) {
+      DCHECK(compiler_options.IsBootImage());
+      codegen.reset(
+          TryCompileIntrinsic(&allocator,
+                              &arena_stack,
+                              &code_allocator,
+                              dex_compilation_unit,
+                              method,
+                              &handles));
+      if (codegen != nullptr) {
+        compiled_intrinsic = true;
       }
     }
-    if (codegen.get() != nullptr) {
-      compiled_method = Emit(&allocator,
-                             &code_allocator,
-                             codegen.get(),
-                             compiled_intrinsic ? nullptr : code_item);
-      if (compiled_intrinsic) {
-        compiled_method->MarkAsIntrinsic();
-      }
+    if (codegen == nullptr) {
+      codegen.reset(
+          TryCompile(&allocator,
+                     &arena_stack,
+                     &code_allocator,
+                     dex_compilation_unit,
+                     method,
+                     compiler_options.IsBaseline()
+                        ? CompilationKind::kBaseline
+                        : CompilationKind::kOptimized,
+                     &handles));
+    }
+  }
+  if (codegen.get() != nullptr) {
+    compiled_method = Emit(&allocator,
+                           &code_allocator,
+                           codegen.get(),
+                           compiled_intrinsic ? nullptr : code_item);
+    if (compiled_intrinsic) {
+      compiled_method->MarkAsIntrinsic();
+    }
 
-      if (kArenaAllocatorCountAllocations) {
-        codegen.reset();  // Release codegen's ScopedArenaAllocator for memory accounting.
-        size_t total_allocated = allocator.BytesAllocated() + arena_stack.PeakBytesAllocated();
-        if (total_allocated > kArenaAllocatorMemoryReportThreshold) {
-          MemStats mem_stats(allocator.GetMemStats());
-          MemStats peak_stats(arena_stack.GetPeakStats());
-          LOG(INFO) << "Used " << total_allocated << " bytes of arena memory for compiling "
-                    << dex_file.PrettyMethod(method_idx)
-                    << "\n" << Dumpable<MemStats>(mem_stats)
-                    << "\n" << Dumpable<MemStats>(peak_stats);
-        }
+    if (kArenaAllocatorCountAllocations) {
+      codegen.reset();  // Release codegen's ScopedArenaAllocator for memory accounting.
+      size_t total_allocated = allocator.BytesAllocated() + arena_stack.PeakBytesAllocated();
+      if (total_allocated > kArenaAllocatorMemoryReportThreshold) {
+        MemStats mem_stats(allocator.GetMemStats());
+        MemStats peak_stats(arena_stack.GetPeakStats());
+        LOG(INFO) << "Used " << total_allocated << " bytes of arena memory for compiling "
+                  << dex_file.PrettyMethod(method_idx)
+                  << "\n" << Dumpable<MemStats>(mem_stats)
+                  << "\n" << Dumpable<MemStats>(peak_stats);
       }
     }
-  } else {
-    MethodCompilationStat method_stat;
-    if (compiler_options.VerifyAtRuntime()) {
-      method_stat = MethodCompilationStat::kNotCompiledVerifyAtRuntime;
-    } else {
-      method_stat = MethodCompilationStat::kNotCompiledVerificationError;
-    }
-    MaybeRecordStat(compilation_stats_.get(), method_stat);
   }
 
   if (kIsDebugBuild &&

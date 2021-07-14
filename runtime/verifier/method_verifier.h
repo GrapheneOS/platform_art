@@ -39,7 +39,6 @@
 namespace art {
 
 class ClassLinker;
-class CompilerCallbacks;
 class DexFile;
 class Instruction;
 struct ReferenceMap2Visitor;
@@ -178,7 +177,6 @@ class MethodVerifier {
   void VisitRoots(RootVisitor* visitor, const RootInfo& roots)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Accessors used by the compiler via CompilerCallback
   const CodeItemDataAccessor& CodeItem() const {
     return code_item_accessor_;
   }
@@ -257,7 +255,6 @@ class MethodVerifier {
                                   const dex::ClassDef& class_def_idx,
                                   const dex::CodeItem* code_item,
                                   uint32_t method_access_flags,
-                                  CompilerCallbacks* callbacks,
                                   bool allow_soft_failures,
                                   HardFailLogMode log_level,
                                   bool need_precise_constants,
@@ -278,7 +275,6 @@ class MethodVerifier {
                                   const dex::ClassDef& class_def_idx,
                                   const dex::CodeItem* code_item,
                                   uint32_t method_access_flags,
-                                  CompilerCallbacks* callbacks,
                                   bool allow_soft_failures,
                                   HardFailLogMode log_level,
                                   bool need_precise_constants,

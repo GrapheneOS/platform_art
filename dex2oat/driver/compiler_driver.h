@@ -104,8 +104,7 @@ class CompilerDriver {
   void PreCompile(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
                   TimingLogger* timings,
-                  /*inout*/ HashSet<std::string>* image_classes,
-                  /*out*/ VerificationResults* verification_results)
+                  /*inout*/ HashSet<std::string>* image_classes)
       REQUIRES(!Locks::mutator_lock_);
   void CompileAll(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
@@ -241,13 +240,11 @@ class CompilerDriver {
   // verification was successful.
   bool FastVerify(jobject class_loader,
                   const std::vector<const DexFile*>& dex_files,
-                  TimingLogger* timings,
-                  /*out*/ VerificationResults* verification_results);
+                  TimingLogger* timings);
 
   void Verify(jobject class_loader,
               const std::vector<const DexFile*>& dex_files,
-              TimingLogger* timings,
-              /*out*/ VerificationResults* verification_results);
+              TimingLogger* timings);
 
   void VerifyDexFile(jobject class_loader,
                      const DexFile& dex_file,
