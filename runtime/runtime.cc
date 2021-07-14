@@ -882,7 +882,7 @@ bool Runtime::Start() {
 
   self->TransitionFromRunnableToSuspended(kNative);
 
-  DoAndMaybeSwitchInterpreter([=](){ started_ = true; });
+  started_ = true;
 
   if (!IsImageDex2OatEnabled() || !GetHeap()->HasBootImageSpace()) {
     ScopedObjectAccess soa(self);
@@ -1309,8 +1309,13 @@ void Runtime::InitializeApexVersions() {
       if (info == apex_infos.end() || info->second->getIsFactory()) {
         result += '/';
       } else {
-        // We use the mtime provided in the format as a version number.
-        android::base::StringAppendF(&result, "/%" PRIu64, info->second->getLastUpdateMillis());
+        // In case lastUpdateMillis field is populated in apex-info-list.xml, we
+        // prefer to use it as version scheme. If the field is missing we
+        // fallback to the version code of the APEX.
+        uint64_t version = info->second->hasLastUpdateMillis()
+            ? info->second->getLastUpdateMillis()
+            : info->second->getVersionCode();
+        android::base::StringAppendF(&result, "/%" PRIu64, version);
       }
     }
 #endif
@@ -2938,7 +2943,7 @@ void Runtime::CreateJit() {
   }
 
   jit::Jit* jit = jit::Jit::Create(jit_code_cache_.get(), jit_options_.get());
-  DoAndMaybeSwitchInterpreter([=](){ jit_.reset(jit); });
+  jit_.reset(jit);
   if (jit == nullptr) {
     LOG(WARNING) << "Failed to allocate JIT";
     // Release JIT code cache resources (several MB of memory).

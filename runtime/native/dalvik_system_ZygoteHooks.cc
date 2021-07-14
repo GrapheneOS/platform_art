@@ -197,9 +197,7 @@ static uint32_t EnableDebugFeatures(uint32_t runtime_flags) {
   if ((runtime_flags & DEBUG_ALWAYS_JIT) != 0) {
     jit::JitOptions* jit_options = runtime->GetJITOptions();
     CHECK(jit_options != nullptr);
-    Runtime::Current()->DoAndMaybeSwitchInterpreter([=]() {
-        jit_options->SetJitAtFirstUse();
-    });
+    jit_options->SetJitAtFirstUse();
     runtime_flags &= ~DEBUG_ALWAYS_JIT;
   }
 
