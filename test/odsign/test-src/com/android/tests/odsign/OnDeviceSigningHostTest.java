@@ -211,7 +211,7 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         int zygoteCount = 0;
         for (String zygoteName : ZYGOTE_NAMES) {
             final Optional<Set<String>> mappedArtifacts = getZygoteLoadedArtifacts(zygoteName);
-            if (mappedArtifacts.isEmpty()) {
+            if (!mappedArtifacts.isPresent()) {
                 continue;
             }
             verifyZygoteLoadedArtifacts(zygoteName, mappedArtifacts.get());
