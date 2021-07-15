@@ -32,7 +32,7 @@ public java.lang.Object java.lang.Class.cast(java.lang.Object) with [class Main$
 Calling public boolean java.lang.Class.desiredAssertionStatus() with params: []
 public boolean java.lang.Class.desiredAssertionStatus() on (obsolete)class Main$Transform with [] = false
 Calling public int java.lang.Class.getAccessFlags() with params: []
-public int java.lang.Class.getAccessFlags() on (obsolete)class Main$Transform with [] = 2621441
+public int java.lang.Class.getAccessFlags() on (obsolete)class Main$Transform with [] = 2097153
 Calling public java.lang.annotation.Annotation java.lang.Class.getAnnotation(java.lang.Class) with params: [[null, class java.lang.Object, (obsolete)class Main$Transform, class Main$Transform, long, class java.lang.Class]]
 public java.lang.annotation.Annotation java.lang.Class.getAnnotation(java.lang.Class) with [null] throws java.lang.reflect.InvocationTargetException: java.lang.NullPointerException
 public java.lang.annotation.Annotation java.lang.Class.getAnnotation(java.lang.Class) with [class java.lang.Object] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
@@ -245,7 +245,7 @@ public java.lang.Object java.lang.Class.cast(java.lang.Object) with [class Main$
 Calling public boolean java.lang.Class.desiredAssertionStatus() with params: []
 public boolean java.lang.Class.desiredAssertionStatus() on class Main$Transform with [] = false
 Calling public int java.lang.Class.getAccessFlags() with params: []
-public int java.lang.Class.getAccessFlags() on class Main$Transform with [] = 524289
+public int java.lang.Class.getAccessFlags() on class Main$Transform with [] = 1
 Calling public java.lang.annotation.Annotation java.lang.Class.getAnnotation(java.lang.Class) with params: [[null, class java.lang.Object, (obsolete)class Main$Transform, class Main$Transform, long, class java.lang.Class]]
 public java.lang.annotation.Annotation java.lang.Class.getAnnotation(java.lang.Class) with [null] throws java.lang.reflect.InvocationTargetException: java.lang.NullPointerException
 public java.lang.annotation.Annotation java.lang.Class.getAnnotation(java.lang.Class) on class Main$Transform with [class java.lang.Object] = null
