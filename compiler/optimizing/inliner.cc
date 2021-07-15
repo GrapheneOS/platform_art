@@ -379,25 +379,29 @@ ArtMethod* HInliner::FindMethodFromCHA(ArtMethod* resolved_method) {
   return single_impl;
 }
 
-static bool IsMethodUnverified(const CompilerOptions& compiler_options, ArtMethod* method)
+static bool IsMethodVerified(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (!method->GetDeclaringClass()->IsVerified()) {
-    if (compiler_options.IsJitCompiler()) {
-      // We're at runtime, we know this is cold code if the class
-      // is not verified, so don't bother analyzing.
-      return true;
-    } else if (!method->GetDeclaringClass()->IsVerifiedNeedsAccessChecks()) {
+  if (method->GetDeclaringClass()->IsVerified()) {
+    return true;
+  }
+  // For AOT, we check if the class has a verification status that allows us to
+  // inline / analyze.
+  // At runtime, we know this is cold code if the class is not verified, so don't
+  // bother analyzing.
+  if (Runtime::Current()->IsAotCompiler()) {
+    if (method->GetDeclaringClass()->IsVerifiedNeedsAccessChecks() ||
+        method->GetDeclaringClass()->ShouldVerifyAtRuntime()) {
       return true;
     }
   }
   return false;
 }
 
-static bool AlwaysThrows(const CompilerOptions& compiler_options, ArtMethod* method)
+static bool AlwaysThrows(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(method != nullptr);
   // Skip non-compilable and unverified methods.
-  if (!method->IsCompilable() || IsMethodUnverified(compiler_options, method)) {
+  if (!method->IsCompilable() || !IsMethodVerified(method)) {
     return false;
   }
   // Skip native methods, methods with try blocks, and methods that are too large.
@@ -476,7 +480,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
       }
       // Set always throws property for non-inlined method call with single
       // target.
-      if (AlwaysThrows(codegen_->GetCompilerOptions(), actual_method)) {
+      if (AlwaysThrows(actual_method)) {
         invoke_to_analyze->SetAlwaysThrows(true);
       }
     }
@@ -1329,7 +1333,7 @@ bool HInliner::IsInliningAllowed(ArtMethod* method, const CodeItemDataAccessor& 
     return false;
   }
 
-  if (IsMethodUnverified(codegen_->GetCompilerOptions(), method)) {
+  if (!IsMethodVerified(method)) {
     LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedNotVerified)
         << "Method " << method->PrettyMethod()
         << " couldn't be verified, so it cannot be inlined";
