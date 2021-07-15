@@ -93,20 +93,20 @@ bool GetDalvikCacheFilename(const char* location, const char* cache_location,
 // than in an APEX. Returns the oat filename if `location` is valid, empty string otherwise.
 std::string GetApexDataOatFilename(std::string_view location, InstructionSet isa);
 
-// Gets the odex location in the ART APEX data directory for a DEX file installed anywhere other
-// than in an APEX. Returns the odex filename if `location` is valid, empty string otherwise.
+// Gets the odex location in the ART APEX data directory for a DEX file. Returns the odex filename
+// if `location` is valid, empty string otherwise.
 std::string GetApexDataOdexFilename(std::string_view location, InstructionSet isa);
 
 // Gets the boot image in the ART APEX data directory for a DEX file installed anywhere other
 // than in an APEX. Returns the image location if `dex_location` is valid, empty string otherwise.
 std::string GetApexDataBootImage(std::string_view dex_location);
 
-// Gets the image in the ART APEX data directory for a DEX file installed installed anywhere other
-// than in an APEX. Returns the image location if `dex_location` is valid, empty string otherwise.
+// Gets the image in the ART APEX data directory for a DEX file. Returns the image location if
+// `dex_location` is valid, empty string otherwise.
 std::string GetApexDataImage(std::string_view dex_location);
 
 // Gets the name of a file in the ART APEX directory dalvik-cache. This method assumes the
-// `dex_location` is for an application and that the `dex_location` is not within an APEX.
+// `dex_location` is for an application.
 // Returns the location of the file in the dalvik-cache
 std::string GetApexDataDalvikCacheFilename(std::string_view dex_location,
                                            InstructionSet isa,

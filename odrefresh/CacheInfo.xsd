@@ -26,6 +26,7 @@
     <xs:complexType>
     <xs:sequence>
       <xs:element name="artModuleInfo" minOccurs="1" maxOccurs="1" type="t:artModuleInfo" />
+      <xs:element name="bootClasspath" type="t:bootClasspath" />
       <xs:element name="dex2oatBootClasspath" type="t:dex2oatBootClasspath" />
       <xs:element name="systemServerClasspath" type="t:systemServerClasspath" />
     </xs:sequence>
@@ -40,6 +41,13 @@
     <xs:attribute name="versionName" type="xs:string" use="required" />
     <!-- Module lastUpdateMillis for the active ART APEX from `/apex/apex-info-list.xml`. -->
     <xs:attribute name="lastUpdateMillis" type="xs:long" use="required" />
+  </xs:complexType>
+
+  <!-- Components of the `BOOTCLASSPATH`. -->
+  <xs:complexType name="bootClasspath">
+    <xs:sequence>
+      <xs:element name="component" type="t:component" />
+    </xs:sequence>
   </xs:complexType>
 
   <!-- Components of the `DEX2OATBOOTCLASSPATH`. -->
