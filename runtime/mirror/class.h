@@ -179,7 +179,7 @@ class MANAGED Class final : public Object {
   // executed with access checks.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsVerifiedNeedsAccessChecks() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetStatus<kVerifyFlags>() >= ClassStatus::kVerifiedNeedsAccessChecks;
+    return GetStatus<kVerifyFlags>() == ClassStatus::kVerifiedNeedsAccessChecks;
   }
 
   // Returns true if the class has been verified.
