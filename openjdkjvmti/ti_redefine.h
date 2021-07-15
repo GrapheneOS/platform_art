@@ -240,12 +240,6 @@ class Redefiner {
     void UpdateClass(const RedefinitionDataIter& cur_data)
         REQUIRES(art::Locks::mutator_lock_);
 
-    void UpdateClassCommon(const RedefinitionDataIter& cur_data)
-        REQUIRES(art::Locks::mutator_lock_);
-
-    void ReverifyClass(const RedefinitionDataIter& cur_data)
-        REQUIRES_SHARED(art::Locks::mutator_lock_);
-
     void CollectNewFieldAndMethodMappings(const RedefinitionDataIter& data,
                                           std::map<art::ArtMethod*, art::ArtMethod*>* method_map,
                                           std::map<art::ArtField*, art::ArtField*>* field_map)
@@ -292,10 +286,6 @@ class Redefiner {
     bool added_fields_ = false;
     bool added_methods_ = false;
     bool has_virtuals_ = false;
-
-    // Does the class need to be reverified due to verification soft-fails possibly forcing
-    // interpreter or lock-counting?
-    bool needs_reverify_ = false;
   };
 
   ArtJvmTiEnv* env_;

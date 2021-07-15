@@ -66,7 +66,7 @@ class CompilerCallbacks;
 class DexFile;
 class JavaVMExt;
 class Runtime;
-typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
+using RuntimeOptions = std::vector<std::pair<std::string, const void*>>;
 class Thread;
 class VariableSizedHandleScope;
 

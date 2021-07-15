@@ -85,8 +85,8 @@ class ClassHierarchyAnalysis {
   // as the entrypoint, we update the entrypoint to the interpreter bridge.
   // We will also deoptimize frames that are currently executing the code of
   // the method header.
-  typedef std::pair<ArtMethod*, OatQuickMethodHeader*> MethodAndMethodHeaderPair;
-  typedef std::vector<MethodAndMethodHeaderPair> ListOfDependentPairs;
+  using MethodAndMethodHeaderPair = std::pair<ArtMethod*, OatQuickMethodHeader*>;
+  using ListOfDependentPairs = std::vector<MethodAndMethodHeaderPair>;
 
   ClassHierarchyAnalysis() {}
 

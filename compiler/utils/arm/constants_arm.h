@@ -119,8 +119,7 @@ enum Opcode {
 const int kRegisterSize = 4;
 
 // List of registers used in load/store multiple.
-typedef uint16_t RegList;
-
+using RegList = uint16_t;
 
 }  // namespace arm
 }  // namespace art

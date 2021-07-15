@@ -261,8 +261,8 @@ class SpaceBitmap {
   std::string name_;
 };
 
-typedef SpaceBitmap<kObjectAlignment> ContinuousSpaceBitmap;
-typedef SpaceBitmap<kLargeObjectAlignment> LargeObjectBitmap;
+using ContinuousSpaceBitmap = SpaceBitmap<kObjectAlignment>;
+using LargeObjectBitmap = SpaceBitmap<kLargeObjectAlignment>;
 
 template<size_t kAlignment>
 std::ostream& operator << (std::ostream& stream, const SpaceBitmap<kAlignment>& bitmap);

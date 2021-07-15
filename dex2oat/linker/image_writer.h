@@ -53,7 +53,7 @@ namespace art {
 namespace gc {
 namespace accounting {
 template <size_t kAlignment> class SpaceBitmap;
-typedef SpaceBitmap<kObjectAlignment> ContinuousSpaceBitmap;
+using ContinuousSpaceBitmap = SpaceBitmap<kObjectAlignment>;
 }  // namespace accounting
 namespace space {
 class ImageSpace;

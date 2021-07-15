@@ -134,11 +134,11 @@ class ClassTable {
 
   // Hash set that hashes class descriptor, and compares descriptors and class loaders. Results
   // should be compared for a matching class descriptor and class loader.
-  typedef HashSet<TableSlot,
-                  TableSlotEmptyFn,
-                  ClassDescriptorHash,
-                  ClassDescriptorEquals,
-                  TrackingAllocator<TableSlot, kAllocatorTagClassTable>> ClassSet;
+  using ClassSet = HashSet<TableSlot,
+                           TableSlotEmptyFn,
+                           ClassDescriptorHash,
+                           ClassDescriptorEquals,
+                           TrackingAllocator<TableSlot, kAllocatorTagClassTable>>;
 
   ClassTable();
 

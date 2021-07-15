@@ -226,7 +226,7 @@ typename BitTable<Accessor>::const_iterator operator+(
 template<typename Accessor>
 class BitTableRange : public IterationRange<typename BitTable<Accessor>::const_iterator> {
  public:
-  typedef typename BitTable<Accessor>::const_iterator const_iterator;
+  using const_iterator = typename BitTable<Accessor>::const_iterator;
 
   using IterationRange<const_iterator>::IterationRange;
   BitTableRange() : IterationRange<const_iterator>(const_iterator(), const_iterator()) { }
