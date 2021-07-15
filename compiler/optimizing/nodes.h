@@ -194,7 +194,7 @@ class HInstructionList : public ValueObject {
 
 class ReferenceTypeInfo : ValueObject {
  public:
-  typedef Handle<mirror::Class> TypeHandle;
+  using TypeHandle = Handle<mirror::Class>;
 
   static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact);
 
@@ -5705,7 +5705,7 @@ class HUShr final : public HBinaryOperation {
 
   template <typename T>
   static T Compute(T value, int32_t distance, int32_t max_shift_distance) {
-    typedef typename std::make_unsigned<T>::type V;
+    using V = std::make_unsigned_t<T>;
     V ux = static_cast<V>(value);
     return static_cast<T>(ux >> (distance & max_shift_distance));
   }
@@ -5862,7 +5862,7 @@ class HRor final : public HBinaryOperation {
 
   template <typename T>
   static T Compute(T value, int32_t distance, int32_t max_shift_value) {
-    typedef typename std::make_unsigned<T>::type V;
+    using V = std::make_unsigned_t<T>;
     V ux = static_cast<V>(value);
     if ((distance & max_shift_value) == 0) {
       return static_cast<T>(ux);

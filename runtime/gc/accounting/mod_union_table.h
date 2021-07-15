@@ -52,9 +52,10 @@ class ModUnionTable {
   // A callback for visiting an object in the heap.
   using ObjectCallback = void (*)(mirror::Object*, void*);
 
-  typedef std::set<uint8_t*, std::less<uint8_t*>,
-                   TrackingAllocator<uint8_t*, kAllocatorTagModUnionCardSet>> CardSet;
-  typedef MemoryRangeBitmap<CardTable::kCardSize> CardBitmap;
+  using CardSet = std::set<uint8_t*,
+                           std::less<uint8_t*>,
+                           TrackingAllocator<uint8_t*, kAllocatorTagModUnionCardSet>>;
+  using CardBitmap = MemoryRangeBitmap<CardTable::kCardSize>;
 
   explicit ModUnionTable(const std::string& name, Heap* heap, space::ContinuousSpace* space)
       : name_(name),

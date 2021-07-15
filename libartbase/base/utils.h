@@ -101,7 +101,7 @@ static inline const void* EntryPointToCodePointer(const void* entry_point) {
 
 #if defined(__BIONIC__)
 struct Arc4RandomGenerator {
-  typedef uint32_t result_type;
+  using result_type = uint32_t;
   static constexpr uint32_t min() { return std::numeric_limits<uint32_t>::min(); }
   static constexpr uint32_t max() { return std::numeric_limits<uint32_t>::max(); }
   uint32_t operator() () { return arc4random(); }

@@ -710,7 +710,7 @@ class Instrumentation {
 
   // Contains the instrumentation level required by each client of the instrumentation identified
   // by a string key.
-  typedef SafeMap<const char*, InstrumentationLevel> InstrumentationLevelTable;
+  using InstrumentationLevelTable = SafeMap<const char*, InstrumentationLevel>;
   InstrumentationLevelTable requested_instrumentation_levels_ GUARDED_BY(Locks::mutator_lock_);
 
   // The event listeners, written to with the mutator_lock_ exclusively held.

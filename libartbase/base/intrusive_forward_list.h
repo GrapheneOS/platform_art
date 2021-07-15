@@ -134,14 +134,14 @@ typename std::enable_if<std::is_same<const T, const OtherT>::value, bool>::type 
 template <typename T, typename HookTraits>
 class IntrusiveForwardList {
  public:
-  typedef HookTraits hook_traits;
-  typedef       T  value_type;
-  typedef       T& reference;
-  typedef const T& const_reference;
-  typedef       T* pointer;
-  typedef const T* const_pointer;
-  typedef IntrusiveForwardListIterator<      T, hook_traits> iterator;
-  typedef IntrusiveForwardListIterator<const T, hook_traits> const_iterator;
+  using hook_traits     = HookTraits;
+  using value_type      = T;
+  using reference       = T&;
+  using const_reference = const T&;
+  using pointer         = T*;
+  using const_pointer   = const T*;
+  using iterator        = IntrusiveForwardListIterator<T, hook_traits>;
+  using const_iterator  = IntrusiveForwardListIterator<const T, hook_traits>;
 
   // Construct/copy/destroy.
   IntrusiveForwardList() = default;

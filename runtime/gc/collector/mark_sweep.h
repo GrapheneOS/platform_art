@@ -46,7 +46,7 @@ class Heap;
 
 namespace accounting {
 template<typename T> class AtomicStack;
-typedef AtomicStack<mirror::Object> ObjectStack;
+using ObjectStack = AtomicStack<mirror::Object>;
 }  // namespace accounting
 
 namespace collector {

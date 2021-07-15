@@ -110,6 +110,7 @@ art_module_sdk {
 
             java_sdk_libs: [
                 "art.module.public.api",
+                "service-art",
             ],
 
             java_system_modules: [
