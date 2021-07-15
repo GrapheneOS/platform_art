@@ -52,8 +52,6 @@ static constexpr uint32_t kAccClassIsProxy =          0x00040000;  // class  (de
 static constexpr uint32_t kAccObsoleteMethod =        0x00040000;  // method (runtime)
 // Used by a method to denote that its execution does not need to go through slow path interpreter.
 static constexpr uint32_t kAccSkipAccessChecks =      0x00080000;  // method (runtime, not native)
-// Used by a class to denote that the verifier has attempted to check it at least once.
-static constexpr uint32_t kAccVerificationAttempted = 0x00080000;  // class (runtime)
 static constexpr uint32_t kAccSkipHiddenapiChecks =   0x00100000;  // class (runtime)
 // Used by a class to denote that this class and any objects with this as a
 // declaring-class/super-class are to be considered obsolete, meaning they should not be used by.

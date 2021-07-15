@@ -116,8 +116,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0, primitive->GetIfTableCount());
     EXPECT_TRUE(primitive->GetIfTable() != nullptr);
     EXPECT_EQ(primitive->GetIfTable()->Count(), 0u);
-    EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract | kAccVerificationAttempted,
-              primitive->GetAccessFlags());
+    EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract, primitive->GetAccessFlags());
   }
 
   void AssertObjectClass(ObjPtr<mirror::Class> JavaLangObject)
@@ -1446,8 +1445,6 @@ static void CheckMethod(ArtMethod* method, bool verified)
 
 static void CheckVerificationAttempted(ObjPtr<mirror::Class> c, bool preverified)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  EXPECT_EQ((c->GetAccessFlags() & kAccVerificationAttempted) != 0U, preverified)
-      << "Class " << mirror::Class::PrettyClass(c) << " not as expected";
   for (auto& m : c->GetMethods(kRuntimePointerSize)) {
     CheckMethod(&m, preverified);
   }

@@ -217,22 +217,21 @@ static void ChangeInterpreterBridgeToNterp(ArtMethod* method, ClassLinker* class
   }
 }
 
-// Ensures that methods have the kAccSkipAccessChecks bit set. We use the
-// kAccVerificationAttempted bit on the class access flags to determine whether this has been done
-// before.
-static void EnsureSkipAccessChecksMethods(Handle<mirror::Class> klass, PointerSize pointer_size)
+static void UpdateClassAfterVerification(Handle<mirror::Class> klass,
+                                         PointerSize pointer_size,
+                                         verifier::FailureKind failure_kind)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  if (!klass->WasVerificationAttempted()) {
+  if (failure_kind == verifier::FailureKind::kNoFailure) {
     klass->SetSkipAccessChecksFlagOnAllMethods(pointer_size);
-    klass->SetVerificationAttempted();
-    // Now that the class has passed verification, try to set nterp entrypoints
-    // to methods that currently use the switch interpreter.
-    if (interpreter::CanRuntimeUseNterp()) {
-      for (ArtMethod& m : klass->GetMethods(pointer_size)) {
-        ChangeInterpreterBridgeToNterp(&m, class_linker);
-      }
+  }
+
+  // Now that the class has passed verification, try to set nterp entrypoints
+  // to methods that currently use the switch interpreter.
+  if (interpreter::CanRuntimeUseNterp()) {
+    for (ArtMethod& m : klass->GetMethods(pointer_size)) {
+      ChangeInterpreterBridgeToNterp(&m, class_linker);
     }
   }
 }
@@ -2439,9 +2438,6 @@ void ClassLinker::FinishArrayClassSetup(ObjPtr<mirror::Class> array_class) {
   array_class->PopulateEmbeddedVTable(image_pointer_size_);
   ImTable* object_imt = java_lang_Object->GetImt(image_pointer_size_);
   array_class->SetImt(object_imt, image_pointer_size_);
-  // Skip EnsureSkipAccessChecksMethods(). We can skip the verified status,
-  // the kAccVerificationAttempted flag is added below, and there are no
-  // methods that need the kAccSkipAccessChecks flag.
   DCHECK_EQ(array_class->NumMethods(), 0u);
 
   // don't need to set new_class->SetObjectSize(..)
@@ -2467,8 +2463,6 @@ void ClassLinker::FinishArrayClassSetup(ObjPtr<mirror::Class> array_class) {
   // and remove "interface".
   access_flags |= kAccAbstract | kAccFinal;
   access_flags &= ~kAccInterface;
-  // Arrays are access-checks-clean and preverified.
-  access_flags |= kAccVerificationAttempted;
 
   array_class->SetAccessFlagsDuringLinking(access_flags);
 
@@ -4131,13 +4125,9 @@ void ClassLinker::CreatePrimitiveClass(Thread* self,
   CHECK(primitive_class != nullptr) << "OOM for primitive class " << type;
   // Do not hold lock on the primitive class object, the initialization of
   // primitive classes is done while the process is still single threaded.
-  primitive_class->SetAccessFlagsDuringLinking(
-      kAccPublic | kAccFinal | kAccAbstract | kAccVerificationAttempted);
+  primitive_class->SetAccessFlagsDuringLinking(kAccPublic | kAccFinal | kAccAbstract);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetIfTable(GetClassRoot<mirror::Object>(this)->GetIfTable());
-  // Skip EnsureSkipAccessChecksMethods(). We can skip the verified status,
-  // the kAccVerificationAttempted flag was added above, and there are no
-  // methods that need the kAccSkipAccessChecks flag.
   DCHECK_EQ(primitive_class->NumMethods(), 0u);
   // Primitive classes are initialized during single threaded startup, so visibly initialized.
   primitive_class->SetStatusForPrimitiveOrArray(ClassStatus::kVisiblyInitialized);
@@ -4531,7 +4521,6 @@ verifier::FailureKind ClassLinker::VerifyClass(Thread* self,
 
     // Don't attempt to re-verify if already verified.
     if (klass->IsVerified()) {
-      EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
       if (verifier_deps != nullptr &&
           verifier_deps->ContainsDexFile(klass->GetDexFile()) &&
           !verifier_deps->HasRecordedVerifiedStatus(klass->GetDexFile(), *klass->GetClassDef()) &&
@@ -4554,8 +4543,7 @@ verifier::FailureKind ClassLinker::VerifyClass(Thread* self,
     if (klass->IsVerifiedNeedsAccessChecks()) {
       if (!Runtime::Current()->IsAotCompiler()) {
         // Mark the class as having a verification attempt to avoid re-running
-        // the verifier and avoid calling EnsureSkipAccessChecksMethods.
-        klass->SetVerificationAttempted();
+        // the verifier.
         mirror::Class::SetStatus(klass, ClassStatus::kVerified, self);
       }
       return verifier::FailureKind::kAccessChecksFailure;
@@ -4574,7 +4562,7 @@ verifier::FailureKind ClassLinker::VerifyClass(Thread* self,
     // Skip verification if disabled.
     if (!Runtime::Current()->IsVerificationEnabled()) {
       mirror::Class::SetStatus(klass, ClassStatus::kVerified, self);
-      EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
+      UpdateClassAfterVerification(klass, image_pointer_size_, verifier::FailureKind::kNoFailure);
       return verifier::FailureKind::kNoFailure;
     }
   }
@@ -4655,86 +4643,52 @@ verifier::FailureKind ClassLinker::VerifyClass(Thread* self,
   verifier::FailureKind verifier_failure = verifier::FailureKind::kNoFailure;
   if (!preverified) {
     verifier_failure = PerformClassVerification(self, verifier_deps, klass, log_level, &error_msg);
+  } else if (oat_file_class_status == ClassStatus::kVerifiedNeedsAccessChecks) {
+    verifier_failure = verifier::FailureKind::kAccessChecksFailure;
   }
 
   // Verification is done, grab the lock again.
   ObjectLock<mirror::Class> lock(self, klass);
+  self->AssertNoPendingException();
 
-  if (preverified || verifier_failure != verifier::FailureKind::kHardFailure) {
-    if (!preverified && verifier_failure != verifier::FailureKind::kNoFailure) {
-      VLOG(class_linker) << "Soft verification failure in class "
-                         << klass->PrettyDescriptor()
-                         << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
-                         << " because: " << error_msg;
-    }
-    self->AssertNoPendingException();
-    // Make sure all classes referenced by catch blocks are resolved.
-    ResolveClassExceptionHandlerTypes(klass);
-    if (verifier_failure == verifier::FailureKind::kNoFailure) {
-      // Even though there were no verifier failures we need to respect whether the super-class and
-      // super-default-interfaces were verified or requiring runtime reverification.
-      if (supertype == nullptr
-          || supertype->IsVerified()
-          || supertype->IsVerifiedNeedsAccessChecks()) {
-        mirror::Class::SetStatus(klass, ClassStatus::kVerified, self);
-      } else {
-        CHECK(Runtime::Current()->IsAotCompiler());
-        CHECK_EQ(supertype->GetStatus(), ClassStatus::kRetryVerificationAtRuntime);
-        mirror::Class::SetStatus(klass, ClassStatus::kRetryVerificationAtRuntime, self);
-        // Pretend a soft failure occurred so that we don't consider the class verified below.
-        verifier_failure = verifier::FailureKind::kSoftFailure;
-      }
-    } else {
-      CHECK(verifier_failure == verifier::FailureKind::kSoftFailure ||
-            verifier_failure == verifier::FailureKind::kTypeChecksFailure ||
-            verifier_failure == verifier::FailureKind::kAccessChecksFailure);
-      // Soft failures at compile time should be retried at runtime. Soft
-      // failures at runtime will be handled by slow paths in the generated
-      // code. Set status accordingly.
-      if (Runtime::Current()->IsAotCompiler()) {
-        if (verifier_failure == verifier::FailureKind::kSoftFailure ||
-            verifier_failure == verifier::FailureKind::kTypeChecksFailure) {
-          mirror::Class::SetStatus(klass, ClassStatus::kRetryVerificationAtRuntime, self);
-        } else {
-          mirror::Class::SetStatus(klass, ClassStatus::kVerifiedNeedsAccessChecks, self);
-        }
-      } else {
-        mirror::Class::SetStatus(klass, ClassStatus::kVerified, self);
-        // As this is a fake verified status, make sure the methods are _not_ marked
-        // kAccSkipAccessChecks later.
-        klass->SetVerificationAttempted();
-      }
-    }
-  } else {
+  if (verifier_failure == verifier::FailureKind::kHardFailure) {
     VLOG(verifier) << "Verification failed on class " << klass->PrettyDescriptor()
                   << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
                   << " because: " << error_msg;
-    self->AssertNoPendingException();
     ThrowVerifyError(klass.Get(), "%s", error_msg.c_str());
     mirror::Class::SetStatus(klass, ClassStatus::kErrorResolved, self);
+    return verifier_failure;
   }
-  if (preverified || verifier_failure == verifier::FailureKind::kNoFailure) {
-    if (oat_file_class_status == ClassStatus::kVerifiedNeedsAccessChecks ||
-        UNLIKELY(Runtime::Current()->IsVerificationSoftFail())) {
-      // Never skip access checks if the verification soft fail is forced.
-      // Mark the class as having a verification attempt to avoid re-running the verifier.
-      klass->SetVerificationAttempted();
-    } else {
-      // Class is verified so we don't need to do any access check on its methods.
-      // Let the interpreter know it by setting the kAccSkipAccessChecks flag onto each
-      // method.
-      // Note: we're going here during compilation and at runtime. When we set the
-      // kAccSkipAccessChecks flag when compiling image classes, the flag is recorded
-      // in the image and is set when loading the image.
-      EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
-    }
-  }
-  // Done verifying. Notify the compiler about the verification status, in case the class
-  // was verified implicitly (eg super class of a compiled class).
+
+  // Make sure all classes referenced by catch blocks are resolved.
+  ResolveClassExceptionHandlerTypes(klass);
+
   if (Runtime::Current()->IsAotCompiler()) {
+    if (supertype != nullptr && supertype->ShouldVerifyAtRuntime()) {
+      // Regardless of our own verification result, we need to verify the class
+      // at runtime if the super class is not verified. This is required in case
+      // we generate an app/boot image.
+      verifier_failure = verifier::FailureKind::kSoftFailure;
+      mirror::Class::SetStatus(klass, ClassStatus::kRetryVerificationAtRuntime, self);
+    } else if (verifier_failure == verifier::FailureKind::kNoFailure) {
+      mirror::Class::SetStatus(klass, ClassStatus::kVerified, self);
+    } else if (verifier_failure == verifier::FailureKind::kSoftFailure ||
+               verifier_failure == verifier::FailureKind::kTypeChecksFailure) {
+      mirror::Class::SetStatus(klass, ClassStatus::kRetryVerificationAtRuntime, self);
+    } else {
+      mirror::Class::SetStatus(klass, ClassStatus::kVerifiedNeedsAccessChecks, self);
+    }
+    // Notify the compiler about the verification status, in case the class
+    // was verified implicitly (eg super class of a compiled class). When the
+    // compiler unloads dex file after compilation, we still want to keep
+    // verification states.
     Runtime::Current()->GetCompilerCallbacks()->UpdateClassState(
         ClassReference(&klass->GetDexFile(), klass->GetDexClassDefIndex()), klass->GetStatus());
+  } else {
+    mirror::Class::SetStatus(klass, ClassStatus::kVerified, self);
   }
+
+  UpdateClassAfterVerification(klass, image_pointer_size_, verifier_failure);
   return verifier_failure;
 }
 
@@ -4896,8 +4850,7 @@ ObjPtr<mirror::Class> ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRun
   temp_klass->SetObjectSize(sizeof(mirror::Proxy));
   // Set the class access flags incl. VerificationAttempted, so we do not try to set the flag on
   // the methods.
-  temp_klass->SetAccessFlagsDuringLinking(
-      kAccClassIsProxy | kAccPublic | kAccFinal | kAccVerificationAttempted);
+  temp_klass->SetAccessFlagsDuringLinking(kAccClassIsProxy | kAccPublic | kAccFinal);
   temp_klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader));
   DCHECK_EQ(temp_klass->GetPrimitiveType(), Primitive::kPrimNot);
   temp_klass->SetName(soa.Decode<mirror::String>(name));
@@ -5063,7 +5016,6 @@ ObjPtr<mirror::Class> ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRun
   {
     // Lock on klass is released. Lock new class object.
     ObjectLock<mirror::Class> initialization_lock(self, klass);
-    EnsureSkipAccessChecksMethods(klass, image_pointer_size_);
     // Conservatively go through the ClassStatus::kInitialized state.
     callback = MarkClassInitialized(self, klass);
   }
@@ -5832,7 +5784,6 @@ bool ClassLinker::EnsureInitialized(Thread* self,
         MakeInitializedClassesVisiblyInitialized(self, /*wait=*/ false);
       }
     }
-    DCHECK(c->WasVerificationAttempted()) << c->PrettyClassAndClassLoader();
     return true;
   }
   // SubtypeCheckInfo::Initialized must happen-before any new-instance for that type.

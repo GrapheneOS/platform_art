@@ -2084,10 +2084,6 @@ art::ObjPtr<art::mirror::Class> Redefiner::ClassRedefinition::AllocateNewClassOb
       << "Attempting to redefine an unresolved class " << old_class->PrettyClass()
       << " status=" << old_class->GetStatus();
   CHECK(linked_class->IsResolved());
-  if (old_class->WasVerificationAttempted()) {
-    // Match verification-attempted flag
-    linked_class->SetVerificationAttempted();
-  }
   if (old_class->ShouldSkipHiddenApiChecks()) {
     // Match skip hiddenapi flag
     linked_class->SetSkipHiddenApiChecks();

@@ -252,10 +252,6 @@ void Class::SetStatus(Handle<Class> h_this, ClassStatus new_status, Thread* self
     }
   }
 
-  if (kIsDebugBuild && new_status >= ClassStatus::kInitialized) {
-    CHECK(h_this->WasVerificationAttempted()) << h_this->PrettyClassAndClassLoader();
-  }
-
   if (!class_linker_initialized) {
     // When the class linker is being initialized its single threaded and by definition there can be
     // no waiters. During initialization classes may appear temporary but won't be retired as their
@@ -306,10 +302,6 @@ void Class::SetStatusForPrimitiveOrArray(ClassStatus new_status) {
 
   // Do not update `object_alloc_fast_path_`. Arrays are variable size and
   // instances of primitive classes cannot be created at all.
-
-  if (kIsDebugBuild && new_status >= ClassStatus::kInitialized) {
-    CHECK(WasVerificationAttempted()) << PrettyClassAndClassLoader();
-  }
 
   // There can be no waiters to notify as these classes are initialized
   // before another thread can see them.
@@ -1931,13 +1923,6 @@ template void Class::GetAccessFlagsDCheck<kVerifyThis>();
 template void Class::GetAccessFlagsDCheck<kVerifyReads>();
 template void Class::GetAccessFlagsDCheck<kVerifyWrites>();
 template void Class::GetAccessFlagsDCheck<kVerifyAll>();
-
-void Class::SetAccessFlagsDCheck(uint32_t new_access_flags) {
-  uint32_t old_access_flags = GetField32<kVerifyNone>(AccessFlagsOffset());
-  // kAccVerificationAttempted is retained.
-  CHECK((old_access_flags & kAccVerificationAttempted) == 0 ||
-        (new_access_flags & kAccVerificationAttempted) != 0);
-}
 
 ObjPtr<Object> Class::GetMethodIds() {
   ObjPtr<ClassExt> ext(GetExtData());
