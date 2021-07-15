@@ -20,11 +20,14 @@
 #include <stdlib.h>
 
 #include <optional>
+#include <vector>
 
 #include "base/stl_util.h"
 #include "common_art_test.h"
 
 namespace art {
+
+static constexpr const char kAndroidWifiApexDefaultPath[] = "/apex/com.android.wifi";
 
 class FileUtilsTest : public CommonArtTest {};
 
@@ -169,11 +172,11 @@ TEST_F(FileUtilsTest, GetApexDataOatFilename) {
             GetApexDataOatFilename("/product/javalib/beep.jar", InstructionSet::kArm));
 
   const std::string art_apex_jar = std::string {kAndroidArtApexDefaultPath} + "/javalib/some.jar";
-  EXPECT_EQ(std::string{}, GetApexDataOatFilename(art_apex_jar.c_str(), InstructionSet::kArm));
+  EXPECT_EQ(std::string {}, GetApexDataOatFilename(art_apex_jar.c_str(), InstructionSet::kArm));
 
   const std::string i18n_jar =
       std::string {kAndroidI18nApexDefaultPath} + "/javalib/core-icu4j.jar";
-  EXPECT_EQ(std::string{}, GetApexDataOatFilename(i18n_jar, InstructionSet::kArm));
+  EXPECT_EQ(std::string {}, GetApexDataOatFilename(i18n_jar, InstructionSet::kArm));
 
   const std::string system_jar_apexdata_oat = GetArtApexData() + "/dalvik-cache/x86/boot-lace.oat";
   EXPECT_EQ(system_jar_apexdata_oat,
@@ -188,11 +191,15 @@ TEST_F(FileUtilsTest, GetApexDataOdexFilename) {
             GetApexDataOdexFilename("/data/some/code.dex", InstructionSet::kArm));
 
   const std::string art_apex_jar = std::string {kAndroidArtApexDefaultPath} + "/javalib/some.jar";
-  EXPECT_EQ(std::string{}, GetApexDataOdexFilename(art_apex_jar.c_str(), InstructionSet::kArm));
+  EXPECT_EQ(
+      GetArtApexData() + "/dalvik-cache/arm/apex@com.android.art@javalib@some.jar@classes.odex",
+      GetApexDataOdexFilename(art_apex_jar.c_str(), InstructionSet::kArm));
 
   const std::string i18n_jar =
       std::string {kAndroidI18nApexDefaultPath} + "/javalib/core-icu4j.jar";
-  EXPECT_EQ(std::string{}, GetApexDataOdexFilename(i18n_jar.c_str(), InstructionSet::kArm));
+  EXPECT_EQ(GetArtApexData() +
+                "/dalvik-cache/arm/apex@com.android.i18n@javalib@core-icu4j.jar@classes.odex",
+            GetApexDataOdexFilename(i18n_jar.c_str(), InstructionSet::kArm));
 
   const std::string system_jar_apexdata_odex =
       GetArtApexData() + "/dalvik-cache/x86/system@framework@cookie.jar@classes.odex";
@@ -204,7 +211,7 @@ TEST_F(FileUtilsTest, GetApexDataBootImage) {
   ScopedUnsetEnvironmentVariable android_root("ANDROID_ROOT");
   ScopedUnsetEnvironmentVariable art_apex_data("ART_APEX_DATA");
 
-  EXPECT_EQ(std::string{},
+  EXPECT_EQ(std::string {},
             GetApexDataBootImage(std::string {kAndroidI18nApexDefaultPath} + "/javalib/bar.jar"));
 
   // Check image location has the prefix "boot-" in front of the basename of dex location and
@@ -224,8 +231,9 @@ TEST_F(FileUtilsTest, GetApexDataImage) {
   ScopedUnsetEnvironmentVariable android_root("ANDROID_ROOT");
   ScopedUnsetEnvironmentVariable art_apex_data("ART_APEX_DATA");
 
-  EXPECT_EQ(std::string{},
-            GetApexDataImage(std::string {kAndroidI18nApexDefaultPath} + "/lib/javalib/bar.jar"));
+  EXPECT_EQ(
+      GetArtApexData() + "/dalvik-cache/apex@com.android.wifi@lib@javalib@bar.jar@classes.art",
+      GetApexDataImage(std::string {kAndroidWifiApexDefaultPath} + "/lib/javalib/bar.jar"));
 
   // Check image has basename of dex location with the .art suffix.
   const char* jar = "/system/framework/mcguffin/test.jar";
@@ -241,9 +249,9 @@ TEST_F(FileUtilsTest, GetApexDataImage) {
 }
 
 TEST_F(FileUtilsTest, GetApexDataDalvikCacheFilename) {
-  // Check /apex inputs return empty string
-  const std::string apex_jar = std::string {kAndroidI18nApexDefaultPath} + "/lib/javalib/bar.jar";
-  EXPECT_EQ(std::string{},
+  const std::string apex_jar = std::string {kAndroidWifiApexDefaultPath} + "/lib/javalib/bar.jar";
+  EXPECT_EQ(GetArtApexData() +
+                "/dalvik-cache/x86_64/apex@com.android.wifi@lib@javalib@bar.jar@classes.art",
             GetApexDataDalvikCacheFilename(apex_jar, InstructionSet::kX86_64, "art"));
 
   // Check dalvik-cache filename follows convention.

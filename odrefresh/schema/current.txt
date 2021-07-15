@@ -11,12 +11,20 @@ package com.android.art {
     method public void setVersionName(String);
   }
 
+  public class BootClasspath {
+    ctor public BootClasspath();
+    method public com.android.art.Component getComponent();
+    method public void setComponent(com.android.art.Component);
+  }
+
   public class CacheInfo {
     ctor public CacheInfo();
     method public com.android.art.ArtModuleInfo getArtModuleInfo();
+    method public com.android.art.BootClasspath getBootClasspath();
     method public com.android.art.Dex2oatBootClasspath getDex2oatBootClasspath();
     method public com.android.art.SystemServerClasspath getSystemServerClasspath();
     method public void setArtModuleInfo(com.android.art.ArtModuleInfo);
+    method public void setBootClasspath(com.android.art.BootClasspath);
     method public void setDex2oatBootClasspath(com.android.art.Dex2oatBootClasspath);
     method public void setSystemServerClasspath(com.android.art.SystemServerClasspath);
   }
