@@ -430,13 +430,14 @@ static std::string GetApexDataDalvikCacheDirectory(InstructionSet isa) {
 
 static std::string GetApexDataDalvikCacheFilename(std::string_view dex_location,
                                                   InstructionSet isa,
-                                                  bool encode_location,
+                                                  bool is_boot_classpath_location,
                                                   std::string_view file_extension) {
-  if (LocationIsOnApex(dex_location)) {
+  if (LocationIsOnApex(dex_location) && is_boot_classpath_location) {
+    // We don't compile boot images for updatable APEXes.
     return {};
   }
   std::string apex_data_dalvik_cache = GetApexDataDalvikCacheDirectory(isa);
-  if (encode_location) {
+  if (!is_boot_classpath_location) {
     // Arguments: "/system/framework/xyz.jar", "arm", true, "odex"
     // Result:
     // "/data/misc/apexdata/com.android.art/dalvik-cache/arm/system@framework@xyz.jar@classes.odex"
@@ -455,24 +456,25 @@ static std::string GetApexDataDalvikCacheFilename(std::string_view dex_location,
 }
 
 std::string GetApexDataOatFilename(std::string_view location, InstructionSet isa) {
-  return GetApexDataDalvikCacheFilename(location, isa, /*encode_location=*/false, "oat");
+  return GetApexDataDalvikCacheFilename(location, isa, /*is_boot_classpath_location=*/true, "oat");
 }
 
 std::string GetApexDataOdexFilename(std::string_view location, InstructionSet isa) {
-  return GetApexDataDalvikCacheFilename(location, isa, /*encode_location=*/true, "odex");
+  return GetApexDataDalvikCacheFilename(
+      location, isa, /*is_boot_classpath_location=*/false, "odex");
 }
 
 std::string GetApexDataBootImage(std::string_view dex_location) {
   return GetApexDataDalvikCacheFilename(dex_location,
                                         InstructionSet::kNone,
-                                        /*encode_location=*/false,
+                                        /*is_boot_classpath_location=*/true,
                                         kArtImageExtension);
 }
 
 std::string GetApexDataImage(std::string_view dex_location) {
   return GetApexDataDalvikCacheFilename(dex_location,
                                         InstructionSet::kNone,
-                                        /*encode_location=*/true,
+                                        /*is_boot_classpath_location=*/false,
                                         kArtImageExtension);
 }
 
@@ -480,7 +482,7 @@ std::string GetApexDataDalvikCacheFilename(std::string_view dex_location,
                                            InstructionSet isa,
                                            std::string_view file_extension) {
   return GetApexDataDalvikCacheFilename(
-      dex_location, isa, /*encode_location=*/true, file_extension);
+      dex_location, isa, /*is_boot_classpath_location=*/false, file_extension);
 }
 
 std::string GetVdexFilename(const std::string& oat_location) {

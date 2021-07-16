@@ -208,8 +208,6 @@ uintptr_t NterpGetCatchHandler() {
 bool CanMethodUseNterp(ArtMethod* method, InstructionSet isa) {
   return !method->IsNative() &&
       method->IsInvokable() &&
-      // Nterp supports the same methods the compiler supports.
-      method->IsCompilable() &&
       !method->MustCountLocks() &&
       // Proxy methods do not go through the JIT like other methods, so we don't
       // run them with nterp.
