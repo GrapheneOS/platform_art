@@ -132,13 +132,8 @@ class TimingLogger {
   class TimingData {
    public:
     TimingData() = default;
-    TimingData(TimingData&& other) {
-      std::swap(data_, other.data_);
-    }
-    TimingData& operator=(TimingData&& other) {
-      std::swap(data_, other.data_);
-      return *this;
-    }
+    TimingData(TimingData&& other) noexcept = default;
+    TimingData& operator=(TimingData&& other) noexcept = default;
     uint64_t GetTotalTime(size_t idx) {
       return data_[idx].total_time;
     }

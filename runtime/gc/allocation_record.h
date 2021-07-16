@@ -77,7 +77,7 @@ class AllocRecordStackTrace {
 
   AllocRecordStackTrace() = default;
 
-  AllocRecordStackTrace(AllocRecordStackTrace&& r)
+  AllocRecordStackTrace(AllocRecordStackTrace&& r) noexcept
       : tid_(r.tid_),
         stack_(std::move(r.stack_)) {}
 
