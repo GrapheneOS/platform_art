@@ -46,26 +46,22 @@ void WriteCIE(bool is64bit,
 
   Writer<> writer(buffer);
   size_t cie_header_start_ = writer.data()->size();
-  if (is64bit) {
-    writer.PushUint32(0xFFFFFFFF);
-    writer.PushUint64(0);  // Length placeholder.
-    writer.PushUint64(0xFFFFFFFFFFFFFFFFull);  // CIE id.
-  } else {
-    writer.PushUint32(0);  // Length placeholder.
-    writer.PushUint32(0xFFFFFFFF);  // CIE id.
-  }
-  writer.PushUint8(3);   // Version.
-  writer.PushString("");  // Augmentation.
+  writer.PushUint32(0);  // Length placeholder.
+  writer.PushUint32(0xFFFFFFFF);  // CIE id.
+  writer.PushUint8(1);   // Version.
+  writer.PushString("zR");
   writer.PushUleb128(DebugFrameOpCodeWriter<Vector>::kCodeAlignmentFactor);
   writer.PushSleb128(DebugFrameOpCodeWriter<Vector>::kDataAlignmentFactor);
   writer.PushUleb128(return_address_register.num());  // ubyte in DWARF2.
+  writer.PushUleb128(1);  // z: Augmentation data size.
+  if (is64bit) {
+    writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata8);  // R: Pointer encoding.
+  } else {
+    writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata4);  // R: Pointer encoding.
+  }
   writer.PushData(opcodes.data());
   writer.Pad(is64bit ? 8 : 4);
-  if (is64bit) {
-    writer.UpdateUint64(cie_header_start_ + 4, writer.data()->size() - cie_header_start_ - 12);
-  } else {
-    writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
-  }
+  writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
 }
 
 // Write frame description entry (FDE) to .debug_frame or .eh_frame section.
@@ -78,27 +74,20 @@ void WriteFDE(bool is64bit,
               /*inout*/ std::vector<uint8_t>* buffer) {
   Writer<> writer(buffer);
   size_t fde_header_start = writer.data()->size();
+  writer.PushUint32(0);  // Length placeholder.
+  writer.PushUint32(cie_pointer);
   // Relocate code_address if it has absolute value.
   if (is64bit) {
-    writer.PushUint32(0xFFFFFFFF);
-    writer.PushUint64(0);  // Length placeholder.
-    writer.PushUint64(cie_pointer);
     writer.PushUint64(code_address);
     writer.PushUint64(code_size);
   } else {
-    writer.PushUint32(0);  // Length placeholder.
-    writer.PushUint32(cie_pointer);
     writer.PushUint32(code_address);
     writer.PushUint32(code_size);
   }
   writer.PushUleb128(0);  // Augmentation data size.
   writer.PushData(opcodes.data(), opcodes.size());
   writer.Pad(is64bit ? 8 : 4);
-  if (is64bit) {
-    writer.UpdateUint64(fde_header_start + 4, writer.data()->size() - fde_header_start - 12);
-  } else {
-    writer.UpdateUint32(fde_header_start, writer.data()->size() - fde_header_start - 4);
-  }
+  writer.UpdateUint32(fde_header_start, writer.data()->size() - fde_header_start - 4);
 }
 
 // Write compilation unit (CU) to .debug_info section.
