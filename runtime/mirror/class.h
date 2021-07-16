@@ -179,7 +179,7 @@ class MANAGED Class final : public Object {
   // executed with access checks.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsVerifiedNeedsAccessChecks() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetStatus<kVerifyFlags>() >= ClassStatus::kVerifiedNeedsAccessChecks;
+    return GetStatus<kVerifyFlags>() == ClassStatus::kVerifiedNeedsAccessChecks;
   }
 
   // Returns true if the class has been verified.
@@ -319,22 +319,6 @@ class MANAGED Class final : public Object {
   // Returns true if the class is synthetic.
   ALWAYS_INLINE bool IsSynthetic() REQUIRES_SHARED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccSynthetic) != 0;
-  }
-
-  // Return whether the class had run the verifier at least once.
-  // This does not necessarily mean that access checks are avoidable,
-  // since the class methods might still need to be run with access checks.
-  bool WasVerificationAttempted() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return (GetAccessFlags() & kAccVerificationAttempted) != 0;
-  }
-
-  // Mark the class as having gone through a verification attempt.
-  // Mutually exclusive from whether or not each method is allowed to skip access checks.
-  void SetVerificationAttempted() REQUIRES_SHARED(Locks::mutator_lock_) {
-    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
-    if ((flags & kAccVerificationAttempted) == 0) {
-      SetAccessFlags(flags | kAccVerificationAttempted);
-    }
   }
 
   bool IsObsoleteObject() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1393,8 +1377,6 @@ class MANAGED Class final : public Object {
 
   template<VerifyObjectFlags kVerifyFlags>
   void GetAccessFlagsDCheck() REQUIRES_SHARED(Locks::mutator_lock_);
-
-  void SetAccessFlagsDCheck(uint32_t new_access_flags) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Check that the pointer size matches the one in the class linker.
   ALWAYS_INLINE static void CheckPointerSize(PointerSize pointer_size);
