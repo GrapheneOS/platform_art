@@ -586,7 +586,7 @@ struct SubtypeCheck {
   // Tests can inherit this class. Normal code should use static methods.
   SubtypeCheck() = default;
   SubtypeCheck(const SubtypeCheck& other) = default;
-  SubtypeCheck(SubtypeCheck&& other) = default;
+  SubtypeCheck(SubtypeCheck&& other) noexcept = default;
   ~SubtypeCheck() = default;
 
   friend struct MockSubtypeCheck;

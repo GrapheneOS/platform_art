@@ -210,8 +210,8 @@ class SpaceBitmap {
   // however, we document that this is expected on heap_end_
 
   SpaceBitmap() = default;
-  SpaceBitmap(SpaceBitmap&&) = default;
-  SpaceBitmap& operator=(SpaceBitmap&&) = default;
+  SpaceBitmap(SpaceBitmap&&) noexcept = default;
+  SpaceBitmap& operator=(SpaceBitmap&&) noexcept = default;
 
   bool IsValid() const {
     return bitmap_begin_ != nullptr;

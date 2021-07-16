@@ -95,7 +95,7 @@ class DebugStackReferenceImpl {
   DebugStackReferenceImpl(const DebugStackReferenceImpl& other)
     : counter_(other.counter_), ref_count_(counter_->IncrementRefCount()) {
   }
-  DebugStackReferenceImpl(DebugStackReferenceImpl&& other)
+  DebugStackReferenceImpl(DebugStackReferenceImpl&& other) noexcept
     : counter_(other.counter_), ref_count_(other.ref_count_) {
     other.counter_ = nullptr;
   }
