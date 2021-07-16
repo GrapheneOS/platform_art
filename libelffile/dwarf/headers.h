@@ -48,17 +48,13 @@ void WriteCIE(bool is64bit,
   size_t cie_header_start_ = writer.data()->size();
   writer.PushUint32(0);  // Length placeholder.
   writer.PushUint32(0xFFFFFFFF);  // CIE id.
-  writer.PushUint8(1);   // Version.
-  writer.PushString("zR");
+  writer.PushUint8(4);                // Version.
+  writer.PushString("");              // Augmentation.
+  writer.PushUint8(is64bit ? 8 : 4);  // Address size.
+  writer.PushUint8(0);                // Segment size.
   writer.PushUleb128(DebugFrameOpCodeWriter<Vector>::kCodeAlignmentFactor);
   writer.PushSleb128(DebugFrameOpCodeWriter<Vector>::kDataAlignmentFactor);
   writer.PushUleb128(return_address_register.num());  // ubyte in DWARF2.
-  writer.PushUleb128(1);  // z: Augmentation data size.
-  if (is64bit) {
-    writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata8);  // R: Pointer encoding.
-  } else {
-    writer.PushUint8(DW_EH_PE_absptr | DW_EH_PE_udata4);  // R: Pointer encoding.
-  }
   writer.PushData(opcodes.data());
   writer.Pad(is64bit ? 8 : 4);
   writer.UpdateUint32(cie_header_start_, writer.data()->size() - cie_header_start_ - 4);
