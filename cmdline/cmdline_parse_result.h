@@ -119,7 +119,7 @@ struct CmdlineParseResult : CmdlineResult {
   // Make sure copying is allowed
   CmdlineParseResult(const CmdlineParseResult&) = default;
   // Make sure moving is cheap
-  CmdlineParseResult(CmdlineParseResult&&) = default;
+  CmdlineParseResult(CmdlineParseResult&&) noexcept = default;
 
  private:
   explicit CmdlineParseResult(const T& value)
