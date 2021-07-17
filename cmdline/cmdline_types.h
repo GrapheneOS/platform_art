@@ -436,7 +436,7 @@ struct ParseList {
 
   ParseList() = default;
   ParseList(const ParseList&) = default;
-  ParseList(ParseList&&) = default;
+  ParseList(ParseList&&) noexcept = default;
 
  private:
   std::vector<ArgType> list_;
@@ -457,7 +457,7 @@ struct ParseStringList : public ParseList<std::string, Separator> {
 
   ParseStringList() = default;
   ParseStringList(const ParseStringList&) = default;
-  ParseStringList(ParseStringList&&) = default;
+  ParseStringList(ParseStringList&&) noexcept = default;
 };
 
 template <char Separator>

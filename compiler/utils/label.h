@@ -59,7 +59,7 @@ class Label {
  public:
   Label() : position_(0) {}
 
-  Label(Label&& src)
+  Label(Label&& src) noexcept
       : position_(src.position_) {
     // We must unlink/unbind the src label when moving; if not, calling the destructor on
     // the src label would fail.

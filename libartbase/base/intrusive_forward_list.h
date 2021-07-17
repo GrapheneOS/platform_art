@@ -149,11 +149,11 @@ class IntrusiveForwardList {
   IntrusiveForwardList(InputIterator first, InputIterator last) : IntrusiveForwardList() {
     insert_after(before_begin(), first, last);
   }
-  IntrusiveForwardList(IntrusiveForwardList&& src) : first_(src.first_.next_hook) {
+  IntrusiveForwardList(IntrusiveForwardList&& src) noexcept : first_(src.first_.next_hook) {
     src.first_.next_hook = nullptr;
   }
   IntrusiveForwardList& operator=(const IntrusiveForwardList& src) = delete;
-  IntrusiveForwardList& operator=(IntrusiveForwardList&& src) {
+  IntrusiveForwardList& operator=(IntrusiveForwardList&& src) noexcept {
     IntrusiveForwardList tmp(std::move(src));
     tmp.swap(*this);
     return *this;
