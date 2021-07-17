@@ -28,7 +28,7 @@ namespace verifier {
 struct ScopedNewLine {
   explicit ScopedNewLine(std::ostream& os) : stream(os) {}
 
-  ScopedNewLine(ScopedNewLine&& other) : stream(other.stream), active(other.active) {
+  ScopedNewLine(ScopedNewLine&& other) noexcept : stream(other.stream), active(other.active) {
     other.active = false;
   }
 
