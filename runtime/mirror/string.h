@@ -120,6 +120,13 @@ class MANAGED String final : public Object {
 
   ObjPtr<String> Intern() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <bool kIsInstrumented = true, typename PreFenceVisitor>
+  ALWAYS_INLINE static ObjPtr<String> Alloc(Thread* self,
+                                            int32_t utf16_length_with_flag,
+                                            gc::AllocatorType allocator_type,
+                                            const PreFenceVisitor& pre_fence_visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
   template <bool kIsInstrumented = true>
   ALWAYS_INLINE static ObjPtr<String> AllocFromByteArray(Thread* self,
                                                          int32_t byte_length,
@@ -252,13 +259,6 @@ class MANAGED String final : public Object {
     DCHECK_EQ(0, GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_)));
     SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, hash_code_), new_hash_code);
   }
-
-  template <bool kIsInstrumented = true, typename PreFenceVisitor>
-  ALWAYS_INLINE static ObjPtr<String> Alloc(Thread* self,
-                                            int32_t utf16_length_with_flag,
-                                            gc::AllocatorType allocator_type,
-                                            const PreFenceVisitor& pre_fence_visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
 
