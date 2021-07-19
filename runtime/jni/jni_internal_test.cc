@@ -1612,7 +1612,6 @@ TEST_F(JniInternalTest, NewStringUTF_Validation) {
   env_->ReleaseStringChars(s, jchars);
 
   // Replace the leading two-byte sequence with a two-byte sequence that decodes as ASCII (0x40).
-  // The sequence shall be replaced if string compression is used.
   utf_src[0] = '\xc1';
   utf_src[1] = '\x80';
   s = base_env->NewStringUTF(env_, utf_src);
@@ -1620,7 +1619,7 @@ TEST_F(JniInternalTest, NewStringUTF_Validation) {
   ASSERT_EQ(mirror::String::GetFlaggedCount(kPageSize - 2u, /* compressible= */ true),
             env_->GetIntField(s, count_fid));
   jchars = env_->GetStringChars(s, nullptr);
-  EXPECT_EQ(mirror::kUseStringCompression ? '?' : '\x40', jchars[0]);
+  EXPECT_EQ('\x40', jchars[0]);
   for (size_t pos = 1; pos != kPageSize - 3u; ++pos) {
     ASSERT_EQ('x', jchars[pos]) << pos;
   }
@@ -1628,7 +1627,6 @@ TEST_F(JniInternalTest, NewStringUTF_Validation) {
   env_->ReleaseStringChars(s, jchars);
 
   // Replace the leading three bytes with a three-byte sequence that decodes as ASCII (0x40).
-  // The sequence shall be replaced if string compression is used.
   utf_src[0] = '\xe0';
   utf_src[1] = '\x81';
   utf_src[2] = '\x80';
@@ -1637,7 +1635,7 @@ TEST_F(JniInternalTest, NewStringUTF_Validation) {
   ASSERT_EQ(mirror::String::GetFlaggedCount(kPageSize - 3u, /* compressible= */ true),
             env_->GetIntField(s, count_fid));
   jchars = env_->GetStringChars(s, nullptr);
-  EXPECT_EQ(mirror::kUseStringCompression ? '?' : '\x40', jchars[0]);
+  EXPECT_EQ('\x40', jchars[0]);
   for (size_t pos = 1; pos != kPageSize - 4u; ++pos) {
     ASSERT_EQ('x', jchars[pos]) << pos;
   }
@@ -1651,11 +1649,27 @@ TEST_F(JniInternalTest, NewStringUTF_Validation) {
   ASSERT_EQ(mirror::String::GetFlaggedCount(kPageSize - 4u, /* compressible= */ false),
             env_->GetIntField(s, count_fid));
   jchars = env_->GetStringChars(s, nullptr);
-  EXPECT_EQ(mirror::kUseStringCompression ? '?' : '\x40', jchars[0]);
+  EXPECT_EQ('\x40', jchars[0]);
   for (size_t pos = 1; pos != kPageSize - 5u; ++pos) {
     ASSERT_EQ('x', jchars[pos]) << pos;
   }
   EXPECT_EQ('\0', jchars[kPageSize - 5u]);
+  env_->ReleaseStringChars(s, jchars);
+
+  // Replace the last three characters with a three-byte sequence that decodes as 0.
+  // This is an incorrect encoding but `NewStringUTF()` is permissive.
+  utf_src[kPageSize - 4u] = '\xe0';
+  utf_src[kPageSize - 3u] = '\x80';
+  utf_src[kPageSize - 2u] = '\x80';
+  s = base_env->NewStringUTF(env_, utf_src);
+  ASSERT_EQ(mirror::String::GetFlaggedCount(kPageSize - 5u, /* compressible= */ false),
+            env_->GetIntField(s, count_fid));
+  jchars = env_->GetStringChars(s, nullptr);
+  EXPECT_EQ('\x40', jchars[0]);
+  for (size_t pos = 1; pos != kPageSize - 6u; ++pos) {
+    ASSERT_EQ('x', jchars[pos]) << pos;
+  }
+  EXPECT_EQ('\0', jchars[kPageSize - 6u]);
   env_->ReleaseStringChars(s, jchars);
 }
 
