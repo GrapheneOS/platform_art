@@ -140,7 +140,7 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
         // A supplementary character.
         jchar high = static_cast<jchar>(ch);
         jchar low = (i + 1 != length) ? chars16[i + 1] : 0;
-        if (!U16_IS_SURROGATE_LEAD(high) || !U16_IS_SURROGATE_TRAIL(low)) {
+        if (!U16_IS_SURROGATE_LEAD(high) || !U16_IS_TRAIL(low)) {
           append('?');
           continue;
         }
