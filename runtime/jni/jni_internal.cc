@@ -81,19 +81,17 @@ struct ScopedVAArgs {
   va_list* args;
 };
 
-constexpr char kBadUtf8ReplacementChar[] = "?";
+constexpr char kBadUtf8ReplacementChar = '?';
 
-// This is a modified version of CountModifiedUtf8Chars() from utf.cc
+// This is a modified version of `CountModifiedUtf8Chars()` from utf.cc,
 // with extra checks and different output options.
 //
 // The `good` functor can process valid characters.
-// The `bad` functor is called when we find an invalid character and
-// returns true to abort processing, or false to continue processing.
+// The `bad` functor is called when we find an invalid character.
 //
-// When aborted, VisitModifiedUtf8Chars() returns 0, otherwise the
-// number of UTF-16 chars.
+// Returns the number of UTF-16 characters.
 template <typename GoodFunc, typename BadFunc>
-size_t VisitModifiedUtf8Chars(const char* utf8, size_t byte_count, GoodFunc good, BadFunc bad) {
+size_t VisitUtf8Chars(const char* utf8, size_t byte_count, GoodFunc good, BadFunc bad) {
   DCHECK_LE(byte_count, strlen(utf8));
   size_t len = 0;
   const char* end = utf8 + byte_count;
@@ -106,24 +104,15 @@ size_t VisitModifiedUtf8Chars(const char* utf8, size_t byte_count, GoodFunc good
       len += 1u;
       continue;
     }
-    auto is_ascii = [utf8]() {
-      const char* ptr = utf8;  // Make a copy that can be modified by GetUtf16FromUtf8().
-      return mirror::String::IsASCII(dchecked_integral_cast<uint16_t>(GetUtf16FromUtf8(&ptr)));
-    };
-    // Note: Neither CountModifiedUtf8Chars() nor GetUtf16FromUtf8() checks whether
-    // the bit 0x40 is correctly set in the leading byte of a multi-byte sequence.
+    // Note: We do not check whether the bit 0x40 is correctly set in the leading byte of
+    // a multi-byte sequence. Nor do we verify the top two bits of continuation characters.
     if ((ic & 0x20) == 0) {
       // Two-byte encoding.
       if (static_cast<size_t>(end - utf8) < 2u) {
-        return bad() ? 0u : len + 1u;  // Reached end of sequence
+        bad();
+        return len + 1u;  // Reached end of sequence.
       }
-      if (mirror::kUseStringCompression && is_ascii()) {
-        if (bad()) {
-          return 0u;
-        }
-      } else {
-        good(utf8, 2u);
-      }
+      good(utf8, 2u);
       utf8 += 2u;
       len += 1u;
       continue;
@@ -131,24 +120,19 @@ size_t VisitModifiedUtf8Chars(const char* utf8, size_t byte_count, GoodFunc good
     if ((ic & 0x10) == 0) {
       // Three-byte encoding.
       if (static_cast<size_t>(end - utf8) < 3u) {
-        return bad() ? 0u : len + 1u;  // Reached end of sequence
+        bad();
+        return len + 1u;  // Reached end of sequence
       }
-      if (mirror::kUseStringCompression && is_ascii()) {
-        if (bad()) {
-          return 0u;
-        }
-      } else {
-        good(utf8, 3u);
-      }
+      good(utf8, 3u);
       utf8 += 3u;
       len += 1u;
       continue;
     }
 
     // Four-byte encoding: needs to be converted into a surrogate pair.
-    // The decoded chars are never ASCII.
     if (static_cast<size_t>(end - utf8) < 4u) {
-      return bad() ? 0u : len + 1u;  // Reached end of sequence
+      bad();
+      return len + 1u;  // Reached end of sequence.
     }
     good(utf8, 4u);
     utf8 += 4u;
@@ -156,6 +140,79 @@ size_t VisitModifiedUtf8Chars(const char* utf8, size_t byte_count, GoodFunc good
   }
   return len;
 }
+
+ALWAYS_INLINE
+static inline uint16_t DecodeModifiedUtf8Character(const char* ptr, size_t length) {
+  switch (length) {
+    case 1:
+      return ptr[0];
+    case 2:
+      return ((ptr[0] & 0x1fu) << 6) | (ptr[1] & 0x3fu);
+    case 3:
+      return ((ptr[0] & 0x0fu) << 12) | ((ptr[1] & 0x3fu) << 6) | (ptr[2] & 0x3fu);
+    default:
+      LOG(FATAL) << "UNREACHABLE";  // 4-byte sequences are not valid Modified UTF-8.
+      UNREACHABLE();
+  }
+}
+
+class NewStringUTFVisitor {
+ public:
+  NewStringUTFVisitor(const char* utf, size_t utf8_length, int32_t count, bool has_bad_char)
+      : utf_(utf), utf8_length_(utf8_length), count_(count), has_bad_char_(has_bad_char) {}
+
+  void operator()(ObjPtr<mirror::Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    // Avoid AsString as object is not yet in live bitmap or allocation stack.
+    ObjPtr<mirror::String> string = ObjPtr<mirror::String>::DownCast(obj);
+    string->SetCount(count_);
+    DCHECK(!string->IsCompressed() || mirror::kUseStringCompression);
+    if (string->IsCompressed()) {
+      uint8_t* value_compressed = string->GetValueCompressed();
+      auto good = [&](const char* ptr, size_t length) {
+        uint16_t c = DecodeModifiedUtf8Character(ptr, length);
+        DCHECK(mirror::String::IsASCII(c));
+        *value_compressed++ = dchecked_integral_cast<uint8_t>(c);
+      };
+      auto bad = [&]() {
+        DCHECK(has_bad_char_);
+        *value_compressed++ = kBadUtf8ReplacementChar;
+      };
+      VisitUtf8Chars(utf_, utf8_length_, good, bad);
+    } else {
+      // Uncompressed.
+      uint16_t* value = string->GetValue();
+      auto good = [&](const char* ptr, size_t length) {
+        if (length != 4u) {
+          *value++ = DecodeModifiedUtf8Character(ptr, length);
+        } else {
+          const uint32_t code_point = ((ptr[0] & 0x0fu) << 18) |
+                                      ((ptr[1] & 0x3fu) << 12) |
+                                      ((ptr[2] & 0x3fu) << 6) |
+                                      (ptr[3] & 0x3fu);
+          // TODO: What do we do about values outside the range [U+10000, U+10FFFF]?
+          // The spec says they're invalid but nobody appears to check for them.
+          const uint32_t code_point_bits = code_point - 0x10000u;
+          *value++ = 0xd800u | ((code_point_bits >> 10) & 0x3ffu);
+          *value++ = 0xdc00u | (code_point_bits & 0x3ffu);
+        }
+      };
+      auto bad = [&]() {
+        DCHECK(has_bad_char_);
+        *value++ = kBadUtf8ReplacementChar;
+      };
+      VisitUtf8Chars(utf_, utf8_length_, good, bad);
+      DCHECK(!mirror::kUseStringCompression ||
+             !mirror::String::AllASCII(string->GetValue(), string->GetLength()));
+    }
+  }
+
+ private:
+  const char* utf_;
+  size_t utf8_length_;
+  const int32_t count_;
+  bool has_bad_char_;
+};
 
 }  // namespace
 
@@ -1905,6 +1962,9 @@ class JNI {
     return soa.AddLocalReference<jstring>(result);
   }
 
+  // For historical reasons, NewStringUTF() accepts 4-byte UTF-8
+  // sequences which are not valid Modified UTF-8. This can be
+  // considered an extension of the JNI specification.
   static jstring NewStringUTF(JNIEnv* env, const char* utf) {
     if (utf == nullptr) {
       return nullptr;
@@ -1912,27 +1972,48 @@ class JNI {
 
     // The input may come from an untrusted source, so we need to validate it.
     // We do not perform full validation, only as much as necessary to avoid reading
-    // beyond the terminating null character or breaking string compression invariants.
-    // CheckJNI performs stronger validation.
+    // beyond the terminating null character. CheckJNI performs stronger validation.
     size_t utf8_length = strlen(utf);
-    if (UNLIKELY(utf8_length > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))) {
-      // Converting the utf8_length to int32_t for String::AllocFromModifiedUtf8() would
-      // overflow. Throw OOME eagerly to avoid 2GiB allocation when trying to replace
-      // invalid sequences (even if such replacements could reduce the size below 2GiB).
+    bool compressible = mirror::kUseStringCompression;
+    bool has_bad_char = false;
+    size_t utf16_length = VisitUtf8Chars(
+        utf,
+        utf8_length,
+        /*good=*/ [&compressible](const char* ptr, size_t length) {
+          if (mirror::kUseStringCompression) {
+            switch (length) {
+              case 1:
+                DCHECK(mirror::String::IsASCII(*ptr));
+                break;
+              case 2:
+              case 3:
+                if (!mirror::String::IsASCII(DecodeModifiedUtf8Character(ptr, length))) {
+                  compressible = false;
+                }
+                break;
+              default:
+                // 4-byte sequences lead to uncompressible surroate pairs.
+                DCHECK_EQ(length, 4u);
+                compressible = false;
+                break;
+            }
+          }
+        },
+        /*bad=*/ [&has_bad_char]() {
+          static_assert(mirror::String::IsASCII(kBadUtf8ReplacementChar));  // Compressible.
+          has_bad_char = true;
+        });
+    if (UNLIKELY(utf16_length > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))) {
+      // Converting the utf16_length to int32_t would overflow. Explicitly throw an OOME.
       std::string error =
-          android::base::StringPrintf("NewStringUTF input is 2 GiB or more: %zu", utf8_length);
+          android::base::StringPrintf("NewStringUTF input has 2^31 or more characters: %zu",
+                                      utf16_length);
       ScopedObjectAccess soa(env);
       soa.Self()->ThrowOutOfMemoryError(error.c_str());
       return nullptr;
     }
-    std::optional<std::string> replacement_utf;
-    size_t utf16_length = VisitModifiedUtf8Chars(
-        utf,
-        utf8_length,
-        /*good=*/ [](const char* ptr ATTRIBUTE_UNUSED, size_t length ATTRIBUTE_UNUSED) {},
-        /*bad=*/ []() { return true; });  // Abort processing and return 0 for bad characters.
-    if (UNLIKELY(utf8_length != 0u && utf16_length == 0u)) {
-      // VisitModifiedUtf8Chars() aborted for a bad character.
+    if (UNLIKELY(has_bad_char)) {
+      // VisitUtf8Chars() found a bad character.
       android_errorWriteLog(0x534e4554, "172655291");  // Report to SafetyNet.
       // Report the error to logcat but avoid too much spam.
       static const uint64_t kMinDelay = UINT64_C(10000000000);  // 10s
@@ -1943,28 +2024,14 @@ class JNI {
           prev_bad_input_time.compare_exchange_strong(prev_time, now, std::memory_order_relaxed)) {
         LOG(ERROR) << "Invalid UTF-8 input to JNI::NewStringUTF()";
       }
-      // Copy the input to the `replacement_utf` and replace bad characters.
-      replacement_utf.emplace();
-      replacement_utf->reserve(utf8_length);
-      utf16_length = VisitModifiedUtf8Chars(
-          utf,
-          utf8_length,
-          /*good=*/ [&](const char* ptr, size_t length) {
-            replacement_utf->append(ptr, length);
-          },
-          /*bad=*/ [&]() {
-            replacement_utf->append(kBadUtf8ReplacementChar, sizeof(kBadUtf8ReplacementChar) - 1u);
-            return false;  // Continue processing.
-          });
-      utf = replacement_utf->c_str();
-      utf8_length = replacement_utf->length();
     }
-    DCHECK_LE(utf16_length, utf8_length);
-    DCHECK_LE(utf8_length, static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
+    const int32_t length_with_flag = mirror::String::GetFlaggedCount(utf16_length, compressible);
+    NewStringUTFVisitor visitor(utf, utf8_length, length_with_flag, has_bad_char);
 
     ScopedObjectAccess soa(env);
+    gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
     ObjPtr<mirror::String> result =
-        mirror::String::AllocFromModifiedUtf8(soa.Self(), utf16_length, utf, utf8_length);
+        mirror::String::Alloc(soa.Self(), length_with_flag, allocator_type, visitor);
     return soa.AddLocalReference<jstring>(result);
   }
 

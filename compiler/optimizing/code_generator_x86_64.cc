@@ -603,9 +603,11 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86_64 : public SlowPathCode {
     static constexpr auto kVarHandleCAS = mirror::VarHandle::AccessModeTemplate::kCompareAndSet;
     static constexpr auto kVarHandleCAX =
         mirror::VarHandle::AccessModeTemplate::kCompareAndExchange;
+    static constexpr auto kVarHandleGAU = mirror::VarHandle::AccessModeTemplate::kGetAndUpdate;
     DCHECK(intrinsic == Intrinsics::kUnsafeCASObject ||
            mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAS ||
-           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAX);
+           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAX ||
+           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleGAU);
 
     __ Bind(GetEntryLabel());
     if (unpoison_ref_before_marking_) {
