@@ -506,14 +506,24 @@ class PacketReader {
     pkt_->type.cmd.data = ReadRemaining();
   }
 
-  template <typename T>
-  T HandleResult(IOResult res, T val, T fail) {
+  // `produceVal` is a function which produces the success value. It'd be a bit
+  // syntactically simpler to simply take a `T success`, but doing so invites
+  // the possibility of operating on uninitalized data, since we often want to
+  // either return the failure value, or return a massaged version of what we
+  // read off the wire, e.g.,
+  //
+  // ```
+  // IOResult res = transport->ReadFully(&out, sizeof(out));
+  // return HandleResult(res, fail, [&] { return SomeTransform(&out); });
+  // ```
+  template <typename T, typename Fn>
+  T HandleResult(IOResult res, T fail, Fn produceVal) {
     switch (res) {
       case IOResult::kError:
         is_err_ = true;
         return fail;
       case IOResult::kOk:
-        return val;
+        return produceVal();
       case IOResult::kEOF:
         is_eof_ = true;
         pkt_->type.cmd.len = 0;
@@ -537,7 +547,7 @@ class PacketReader {
     } else {
       out = reinterpret_cast<jbyte*>(transport_->Alloc(rem));
       IOResult res = transport_->ReadFully(out, rem);
-      jbyte* ret = HandleResult(res, out, static_cast<jbyte*>(nullptr));
+      jbyte* ret = HandleResult(res, static_cast<jbyte*>(nullptr), [&] { return out; });
       if (ret != out) {
         transport_->Free(out);
       }
@@ -551,7 +561,7 @@ class PacketReader {
     }
     jbyte out;
     IOResult res = transport_->ReadFully(&out, sizeof(out));
-    return HandleResult(res, NetworkToHost(out), static_cast<jbyte>(-1));
+    return HandleResult(res, static_cast<jbyte>(-1), [&] { return NetworkToHost(out); });
   }
 
   jshort ReadInt16() {
@@ -560,7 +570,7 @@ class PacketReader {
     }
     jshort out;
     IOResult res = transport_->ReadFully(&out, sizeof(out));
-    return HandleResult(res, NetworkToHost(out), static_cast<jshort>(-1));
+    return HandleResult(res, static_cast<jshort>(-1), [&] { return NetworkToHost(out); });
   }
 
   jint ReadInt32() {
@@ -569,7 +579,7 @@ class PacketReader {
     }
     jint out;
     IOResult res = transport_->ReadFully(&out, sizeof(out));
-    return HandleResult(res, NetworkToHost(out), -1);
+    return HandleResult(res, -1, [&] { return NetworkToHost(out); });
   }
 
   FdForwardTransport* transport_;
