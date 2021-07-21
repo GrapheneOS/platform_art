@@ -4045,7 +4045,6 @@ static void GenerateVarHandleStaticFieldCheck(HInvoke* invoke,
 static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
                                                  CodeGeneratorARM64* codegen,
                                                  SlowPathCodeARM64* slow_path) {
-  VarHandleOptimizations optimizations(invoke);
   MacroAssembler* masm = codegen->GetVIXLAssembler();
   Register varhandle = InputRegisterAt(invoke, 0);
   Register object = InputRegisterAt(invoke, 1);
@@ -4054,9 +4053,7 @@ static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
   const MemberOffset coordinate_type1_offset = mirror::VarHandle::CoordinateType1Offset();
 
   // Null-check the object.
-  if (!optimizations.GetSkipObjectNullCheck()) {
-    __ Cbz(object, slow_path->GetEntryLabel());
-  }
+  __ Cbz(object, slow_path->GetEntryLabel());
 
   UseScratchRegisterScope temps(masm);
   Register temp = temps.AcquireW();
@@ -4093,7 +4090,6 @@ static DataType::Type GetVarHandleExpectedValueType(HInvoke* invoke,
 static void GenerateVarHandleArrayChecks(HInvoke* invoke,
                                          CodeGeneratorARM64* codegen,
                                          VarHandleSlowPathARM64* slow_path) {
-  VarHandleOptimizations optimizations(invoke);
   MacroAssembler* masm = codegen->GetVIXLAssembler();
   Register varhandle = InputRegisterAt(invoke, 0);
   Register object = InputRegisterAt(invoke, 1);
@@ -4110,9 +4106,7 @@ static void GenerateVarHandleArrayChecks(HInvoke* invoke,
   const MemberOffset array_length_offset = mirror::Array::LengthOffset();
 
   // Null-check the object.
-  if (!optimizations.GetSkipObjectNullCheck()) {
-    __ Cbz(object, slow_path->GetEntryLabel());
-  }
+  __ Cbz(object, slow_path->GetEntryLabel());
 
   UseScratchRegisterScope temps(masm);
   Register temp = temps.AcquireW();
@@ -4268,6 +4262,91 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
   }
 }
 
+static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
+  size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
+  if (expected_coordinates_count > 2u) {
+    // Invalid coordinate count. This invoke shall throw at runtime.
+    return false;
+  }
+  if (expected_coordinates_count != 0u &&
+      invoke->InputAt(1)->GetType() != DataType::Type::kReference) {
+    // Except for static fields (no coordinates), the first coordinate must be a reference.
+    return false;
+  }
+  if (expected_coordinates_count == 2u) {
+    // For arrays and views, the second coordinate must be convertible to `int`.
+    // In this context, `boolean` is not convertible but we have to look at the shorty
+    // as compiler transformations can give the invoke a valid boolean input.
+    DataType::Type index_type = GetDataTypeFromShorty(invoke, 2);
+    if (index_type == DataType::Type::kBool ||
+        DataType::Kind(index_type) != DataType::Type::kInt32) {
+      return false;
+    }
+  }
+
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  DataType::Type return_type = invoke->GetType();
+  mirror::VarHandle::AccessModeTemplate access_mode_template =
+      mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
+  switch (access_mode_template) {
+    case mirror::VarHandle::AccessModeTemplate::kGet:
+      // The return type should be the same as varType, so it shouldn't be void.
+      if (return_type == DataType::Type::kVoid) {
+        return false;
+      }
+      break;
+    case mirror::VarHandle::AccessModeTemplate::kSet:
+      if (return_type != DataType::Type::kVoid) {
+        return false;
+      }
+      break;
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndSet: {
+      if (return_type != DataType::Type::kBool) {
+        return false;
+      }
+      uint32_t expected_value_index = number_of_arguments - 2;
+      uint32_t new_value_index = number_of_arguments - 1;
+      DataType::Type expected_value_type = GetDataTypeFromShorty(invoke, expected_value_index);
+      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, new_value_index);
+      if (expected_value_type != new_value_type) {
+        return false;
+      }
+      break;
+    }
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange: {
+      uint32_t expected_value_index = number_of_arguments - 2;
+      uint32_t new_value_index = number_of_arguments - 1;
+      DataType::Type expected_value_type = GetDataTypeFromShorty(invoke, expected_value_index);
+      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, new_value_index);
+      if (expected_value_type != new_value_type || return_type != expected_value_type) {
+        return false;
+      }
+      break;
+    }
+    case mirror::VarHandle::AccessModeTemplate::kGetAndUpdate: {
+      DataType::Type value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1);
+      if (IsVarHandleGetAndAdd(invoke) &&
+          (value_type == DataType::Type::kReference || value_type == DataType::Type::kBool)) {
+        // We should only add numerical types.
+        return false;
+      } else if (IsVarHandleGetAndBitwiseOp(invoke) && !DataType::IsIntegralType(value_type)) {
+        // We can only apply operators to bitwise integral types.
+        // Note that bitwise VarHandle operations accept a non-integral boolean type and
+        // perform the appropriate logical operation. However, the result is the same as
+        // using the bitwise operation on our boolean representation and this fits well
+        // with DataType::IsIntegralType() treating the compiler type kBool as integral.
+        return false;
+      }
+      if (value_type != return_type) {
+        return false;
+      }
+      break;
+    }
+  }
+
+  return true;
+}
+
 static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   DataType::Type return_type = invoke->GetType();
@@ -4320,8 +4399,7 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
 }
 
 static void CreateVarHandleGetLocations(HInvoke* invoke) {
-  VarHandleOptimizations optimizations(invoke);
-  if (optimizations.GetDoNotIntrinsify()) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
     return;
   }
 
@@ -4447,8 +4525,7 @@ void IntrinsicCodeGeneratorARM64::VisitVarHandleGetVolatile(HInvoke* invoke) {
 }
 
 static void CreateVarHandleSetLocations(HInvoke* invoke) {
-  VarHandleOptimizations optimizations(invoke);
-  if (optimizations.GetDoNotIntrinsify()) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
     return;
   }
 
@@ -4553,8 +4630,7 @@ void IntrinsicCodeGeneratorARM64::VisitVarHandleSetVolatile(HInvoke* invoke) {
 }
 
 static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke, bool return_success) {
-  VarHandleOptimizations optimizations(invoke);
-  if (optimizations.GetDoNotIntrinsify()) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
     return;
   }
 
@@ -4901,8 +4977,7 @@ void IntrinsicCodeGeneratorARM64::VisitVarHandleWeakCompareAndSetRelease(HInvoke
 
 static void CreateVarHandleGetAndUpdateLocations(HInvoke* invoke,
                                                  GetAndUpdateOp get_and_update_op) {
-  VarHandleOptimizations optimizations(invoke);
-  if (optimizations.GetDoNotIntrinsify()) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
     return;
   }
 

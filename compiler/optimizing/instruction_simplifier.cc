@@ -22,7 +22,6 @@
 #include "data_type-inl.h"
 #include "escape.h"
 #include "intrinsics.h"
-#include "intrinsics_utils.h"
 #include "mirror/class-inl.h"
 #include "optimizing/nodes.h"
 #include "scoped_thread_state_change-inl.h"
@@ -124,7 +123,6 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyNPEOnArgN(HInvoke* invoke, size_t);
   void SimplifyReturnThis(HInvoke* invoke);
   void SimplifyAllocationIntrinsic(HInvoke* invoke);
-  void SimplifyVarHandleIntrinsic(HInvoke* invoke);
 
   CodeGenerator* codegen_;
   OptimizingCompilerStats* stats_;
@@ -2764,108 +2762,6 @@ void InstructionSimplifierVisitor::SimplifyAllocationIntrinsic(HInvoke* invoke) 
   }
 }
 
-void InstructionSimplifierVisitor::SimplifyVarHandleIntrinsic(HInvoke* invoke) {
-  DCHECK(invoke->IsInvokePolymorphic());
-  VarHandleOptimizations optimizations(invoke);
-  size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
-  if (expected_coordinates_count > 2u) {
-    optimizations.SetDoNotIntrinsify();
-    return;
-  }
-  if (expected_coordinates_count != 0u) {
-    // Except for static fields (no coordinates), the first coordinate must be a reference.
-    // Do not intrinsify if the reference is null as we would always go to slow path anyway.
-    HInstruction* object = invoke->InputAt(1);
-    if (object->GetType() != DataType::Type::kReference || object->IsNullConstant()) {
-      optimizations.SetDoNotIntrinsify();
-      return;
-    }
-    // Test whether we can avoid the null check on the object.
-    if (CanEnsureNotNullAt(object, invoke)) {
-      optimizations.SetSkipObjectNullCheck();
-    }
-  }
-  if (expected_coordinates_count == 2u) {
-    // For arrays and views, the second coordinate must be convertible to `int`.
-    // In this context, `boolean` is not convertible but we have to look at the shorty
-    // as compiler transformations can give the invoke a valid boolean input.
-    DataType::Type index_type = GetDataTypeFromShorty(invoke, 2);
-    if (index_type == DataType::Type::kBool ||
-        DataType::Kind(index_type) != DataType::Type::kInt32) {
-      optimizations.SetDoNotIntrinsify();
-      return;
-    }
-  }
-
-  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
-  DataType::Type return_type = invoke->GetType();
-  mirror::VarHandle::AccessModeTemplate access_mode_template =
-      mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
-  switch (access_mode_template) {
-    case mirror::VarHandle::AccessModeTemplate::kGet:
-      // The return type should be the same as varType, so it shouldn't be void.
-      if (return_type == DataType::Type::kVoid) {
-        optimizations.SetDoNotIntrinsify();
-        return;
-      }
-      break;
-    case mirror::VarHandle::AccessModeTemplate::kSet:
-      if (return_type != DataType::Type::kVoid) {
-        optimizations.SetDoNotIntrinsify();
-        return;
-      }
-      break;
-    case mirror::VarHandle::AccessModeTemplate::kCompareAndSet: {
-      if (return_type != DataType::Type::kBool) {
-        optimizations.SetDoNotIntrinsify();
-        return;
-      }
-      uint32_t expected_value_index = number_of_arguments - 2;
-      uint32_t new_value_index = number_of_arguments - 1;
-      DataType::Type expected_value_type = GetDataTypeFromShorty(invoke, expected_value_index);
-      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, new_value_index);
-      if (expected_value_type != new_value_type) {
-        optimizations.SetDoNotIntrinsify();
-        return;
-      }
-      break;
-    }
-    case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange: {
-      uint32_t expected_value_index = number_of_arguments - 2;
-      uint32_t new_value_index = number_of_arguments - 1;
-      DataType::Type expected_value_type = GetDataTypeFromShorty(invoke, expected_value_index);
-      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, new_value_index);
-      if (expected_value_type != new_value_type || return_type != expected_value_type) {
-        optimizations.SetDoNotIntrinsify();
-        return;
-      }
-      break;
-    }
-    case mirror::VarHandle::AccessModeTemplate::kGetAndUpdate: {
-      DataType::Type value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1);
-      if (IsVarHandleGetAndAdd(invoke) &&
-          (value_type == DataType::Type::kReference || value_type == DataType::Type::kBool)) {
-        // We should only add numerical types.
-        optimizations.SetDoNotIntrinsify();
-        return;
-      } else if (IsVarHandleGetAndBitwiseOp(invoke) && !DataType::IsIntegralType(value_type)) {
-        // We can only apply operators to bitwise integral types.
-        // Note that bitwise VarHandle operations accept a non-integral boolean type and
-        // perform the appropriate logical operation. However, the result is the same as
-        // using the bitwise operation on our boolean representation and this fits well
-        // with DataType::IsIntegralType() treating the compiler type kBool as integral.
-        optimizations.SetDoNotIntrinsify();
-        return;
-      }
-      if (value_type != return_type) {
-        optimizations.SetDoNotIntrinsify();
-        return;
-      }
-      break;
-    }
-  }
-}
-
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   switch (instruction->GetIntrinsic()) {
     case Intrinsics::kStringEquals:
@@ -2912,39 +2808,6 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kStringBufferToString:
     case Intrinsics::kStringBuilderToString:
       SimplifyAllocationIntrinsic(instruction);
-      break;
-    case Intrinsics::kVarHandleCompareAndExchange:
-    case Intrinsics::kVarHandleCompareAndExchangeAcquire:
-    case Intrinsics::kVarHandleCompareAndExchangeRelease:
-    case Intrinsics::kVarHandleCompareAndSet:
-    case Intrinsics::kVarHandleGet:
-    case Intrinsics::kVarHandleGetAcquire:
-    case Intrinsics::kVarHandleGetAndAdd:
-    case Intrinsics::kVarHandleGetAndAddAcquire:
-    case Intrinsics::kVarHandleGetAndAddRelease:
-    case Intrinsics::kVarHandleGetAndBitwiseAnd:
-    case Intrinsics::kVarHandleGetAndBitwiseAndAcquire:
-    case Intrinsics::kVarHandleGetAndBitwiseAndRelease:
-    case Intrinsics::kVarHandleGetAndBitwiseOr:
-    case Intrinsics::kVarHandleGetAndBitwiseOrAcquire:
-    case Intrinsics::kVarHandleGetAndBitwiseOrRelease:
-    case Intrinsics::kVarHandleGetAndBitwiseXor:
-    case Intrinsics::kVarHandleGetAndBitwiseXorAcquire:
-    case Intrinsics::kVarHandleGetAndBitwiseXorRelease:
-    case Intrinsics::kVarHandleGetAndSet:
-    case Intrinsics::kVarHandleGetAndSetAcquire:
-    case Intrinsics::kVarHandleGetAndSetRelease:
-    case Intrinsics::kVarHandleGetOpaque:
-    case Intrinsics::kVarHandleGetVolatile:
-    case Intrinsics::kVarHandleSet:
-    case Intrinsics::kVarHandleSetOpaque:
-    case Intrinsics::kVarHandleSetRelease:
-    case Intrinsics::kVarHandleSetVolatile:
-    case Intrinsics::kVarHandleWeakCompareAndSet:
-    case Intrinsics::kVarHandleWeakCompareAndSetAcquire:
-    case Intrinsics::kVarHandleWeakCompareAndSetPlain:
-    case Intrinsics::kVarHandleWeakCompareAndSetRelease:
-      SimplifyVarHandleIntrinsic(instruction);
       break;
     case Intrinsics::kIntegerRotateRight:
     case Intrinsics::kLongRotateRight:
