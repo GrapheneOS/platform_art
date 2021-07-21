@@ -1011,6 +1011,30 @@ class X86_64Assembler final : public Assembler {
     lock()->cmpxchgq(address, reg);
   }
 
+  void LockXaddb(const Address& address, CpuRegister reg) {
+    lock()->xaddb(address, reg);
+  }
+
+  void LockXaddw(const Address& address, CpuRegister reg) {
+    AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+    // We make sure that the operand size override bytecode is emited before the lock bytecode.
+    // We test against clang which enforces this bytecode order.
+    EmitOperandSizeOverride();
+    EmitUint8(0xF0);
+    EmitOptionalRex32(reg, address);
+    EmitUint8(0x0F);
+    EmitUint8(0xC1);
+    EmitOperand(reg.LowBits(), address);
+  }
+
+  void LockXaddl(const Address& address, CpuRegister reg) {
+    lock()->xaddl(address, reg);
+  }
+
+  void LockXaddq(const Address& address, CpuRegister reg) {
+    lock()->xaddq(address, reg);
+  }
+
   //
   // Misc. functionality
   //
