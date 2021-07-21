@@ -319,42 +319,6 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
       case Intrinsics::kUnsafeLoadFence:
       case Intrinsics::kUnsafeStoreFence:
       case Intrinsics::kUnsafeFullFence:
-      case Intrinsics::kVarHandleFullFence:
-      case Intrinsics::kVarHandleAcquireFence:
-      case Intrinsics::kVarHandleReleaseFence:
-      case Intrinsics::kVarHandleLoadLoadFence:
-      case Intrinsics::kVarHandleStoreStoreFence:
-      case Intrinsics::kVarHandleCompareAndExchange:
-      case Intrinsics::kVarHandleCompareAndExchangeAcquire:
-      case Intrinsics::kVarHandleCompareAndExchangeRelease:
-      case Intrinsics::kVarHandleCompareAndSet:
-      case Intrinsics::kVarHandleGet:
-      case Intrinsics::kVarHandleGetAcquire:
-      case Intrinsics::kVarHandleGetAndAdd:
-      case Intrinsics::kVarHandleGetAndAddAcquire:
-      case Intrinsics::kVarHandleGetAndAddRelease:
-      case Intrinsics::kVarHandleGetAndBitwiseAnd:
-      case Intrinsics::kVarHandleGetAndBitwiseAndAcquire:
-      case Intrinsics::kVarHandleGetAndBitwiseAndRelease:
-      case Intrinsics::kVarHandleGetAndBitwiseOr:
-      case Intrinsics::kVarHandleGetAndBitwiseOrAcquire:
-      case Intrinsics::kVarHandleGetAndBitwiseOrRelease:
-      case Intrinsics::kVarHandleGetAndBitwiseXor:
-      case Intrinsics::kVarHandleGetAndBitwiseXorAcquire:
-      case Intrinsics::kVarHandleGetAndBitwiseXorRelease:
-      case Intrinsics::kVarHandleGetAndSet:
-      case Intrinsics::kVarHandleGetAndSetAcquire:
-      case Intrinsics::kVarHandleGetAndSetRelease:
-      case Intrinsics::kVarHandleGetOpaque:
-      case Intrinsics::kVarHandleGetVolatile:
-      case Intrinsics::kVarHandleSet:
-      case Intrinsics::kVarHandleSetOpaque:
-      case Intrinsics::kVarHandleSetRelease:
-      case Intrinsics::kVarHandleSetVolatile:
-      case Intrinsics::kVarHandleWeakCompareAndSet:
-      case Intrinsics::kVarHandleWeakCompareAndSetAcquire:
-      case Intrinsics::kVarHandleWeakCompareAndSetPlain:
-      case Intrinsics::kVarHandleWeakCompareAndSetRelease:
         return 0u;
       case Intrinsics::kFP16Ceil:
       case Intrinsics::kFP16Floor:
