@@ -988,6 +988,38 @@ TEST_F(AssemblerX86_64Test, XchgbMem) {
   DriverStr(RepeatbA(&x86_64::X86_64Assembler::xchgb, "xchgb %{reg}, {mem}"), "xchgb");
 }
 
+TEST_F(AssemblerX86_64Test, XaddqReg) {
+  DriverStr(RepeatRR(&x86_64::X86_64Assembler::xaddq, "xaddq %{reg2}, %{reg1}"), "xaddq");
+}
+
+TEST_F(AssemblerX86_64Test, XaddqMem) {
+  DriverStr(RepeatAR(&x86_64::X86_64Assembler::xaddq, "xaddq %{reg}, {mem}"), "xaddq");
+}
+
+TEST_F(AssemblerX86_64Test, XaddlReg) {
+  DriverStr(Repeatrr(&x86_64::X86_64Assembler::xaddl, "xaddl %{reg2}, %{reg1}"), "xaddl");
+}
+
+TEST_F(AssemblerX86_64Test, XaddlMem) {
+  DriverStr(RepeatAr(&x86_64::X86_64Assembler::xaddl, "xaddl %{reg}, {mem}"), "xaddl");
+}
+
+TEST_F(AssemblerX86_64Test, XaddwReg) {
+  DriverStr(Repeatww(&x86_64::X86_64Assembler::xaddw, "xaddw %{reg2}, %{reg1}"), "xaddw");
+}
+
+TEST_F(AssemblerX86_64Test, XaddwMem) {
+  DriverStr(RepeatAw(&x86_64::X86_64Assembler::xaddw, "xaddw %{reg}, {mem}"), "xaddw");
+}
+
+TEST_F(AssemblerX86_64Test, XaddbReg) {
+  DriverStr(Repeatbb(&x86_64::X86_64Assembler::xaddb, "xaddb %{reg2}, %{reg1}"), "xaddb");
+}
+
+TEST_F(AssemblerX86_64Test, XaddbMem) {
+  DriverStr(RepeatAb(&x86_64::X86_64Assembler::xaddb, "xaddb %{reg}, {mem}"), "xaddb");
+}
+
 TEST_F(AssemblerX86_64Test, Cmpxchgb) {
   DriverStr(RepeatAb(&x86_64::X86_64Assembler::cmpxchgb, "cmpxchgb %{reg}, {mem}"), "cmpxchgb");
 }
