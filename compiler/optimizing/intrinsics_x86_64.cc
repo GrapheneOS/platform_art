@@ -3129,7 +3129,6 @@ static void GenerateVarHandleStaticFieldCheck(HInvoke* invoke,
 static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
                                                  CodeGeneratorX86_64* codegen,
                                                  SlowPathCode* slow_path) {
-  VarHandleOptimizations optimizations(invoke);
   X86_64Assembler* assembler = codegen->GetAssembler();
 
   LocationSummary* locations = invoke->GetLocations();
@@ -3141,10 +3140,8 @@ static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
   const MemberOffset coordinate_type1_offset = mirror::VarHandle::CoordinateType1Offset();
 
   // Null-check the object.
-  if (!optimizations.GetSkipObjectNullCheck()) {
-    __ testl(object, object);
-    __ j(kZero, slow_path->GetEntryLabel());
-  }
+  __ testl(object, object);
+  __ j(kZero, slow_path->GetEntryLabel());
 
   // Check that the VarHandle references an instance field by checking that
   // coordinateType1 == null. coordinateType0 should be not null, but this is handled by the
@@ -3245,17 +3242,72 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
     return false;
   }
 
-  VarHandleOptimizations optimizations(invoke);
-  if (optimizations.GetDoNotIntrinsify()) {
-    return false;
-  }
-
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
-  DCHECK_LE(expected_coordinates_count, 2u);  // Filtered by the `DoNotIntrinsify` flag above.
   if (expected_coordinates_count > 1u) {
     // Only static and instance fields VarHandle are supported now.
     // TODO: add support for arrays and views.
     return false;
+  }
+  if (expected_coordinates_count != 0u &&
+      invoke->InputAt(1)->GetType() != DataType::Type::kReference) {
+    // Except for static fields (no coordinates), the first coordinate must be a reference.
+    return false;
+  }
+
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  DataType::Type return_type = invoke->GetType();
+  mirror::VarHandle::AccessModeTemplate access_mode_template =
+      mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
+  switch (access_mode_template) {
+    case mirror::VarHandle::AccessModeTemplate::kGet:
+      // The return type should be the same as varType, so it shouldn't be void.
+      if (return_type == DataType::Type::kVoid) {
+        return false;
+      }
+      break;
+    case mirror::VarHandle::AccessModeTemplate::kSet:
+      if (return_type != DataType::Type::kVoid) {
+        return false;
+      }
+      break;
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndSet: {
+      if (return_type != DataType::Type::kBool) {
+        return false;
+      }
+      DataType::Type expected_type = GetDataTypeFromShorty(invoke, number_of_arguments - 2);
+      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1);
+      if (expected_type != new_value_type) {
+        return false;
+      }
+      break;
+    }
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange: {
+      DataType::Type expected_type = GetDataTypeFromShorty(invoke, number_of_arguments - 2);
+      DataType::Type new_value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1);
+      if (expected_type != new_value_type || return_type != expected_type) {
+        return false;
+      }
+      break;
+    }
+    case mirror::VarHandle::AccessModeTemplate::kGetAndUpdate: {
+      DataType::Type value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1);
+      if (IsVarHandleGetAndAdd(invoke) &&
+          (value_type == DataType::Type::kReference || value_type == DataType::Type::kBool)) {
+        // We should only add numerical types.
+        return false;
+      } else if (IsVarHandleGetAndBitwiseOp(invoke) && !DataType::IsIntegralType(value_type)) {
+        // We can only apply operators to bitwise integral types.
+        // Note that bitwise VarHandle operations accept a non-integral boolean type and
+        // perform the appropriate logical operation. However, the result is the same as
+        // using the bitwise operation on our boolean representation and this fits well
+        // with DataType::IsIntegralType() treating the compiler type kBool as integral.
+        return false;
+      }
+      if (return_type != value_type) {
+        return false;
+      }
+      break;
+    }
   }
 
   return true;
