@@ -111,8 +111,8 @@ static inline size_t GetExpectedVarHandleCoordinatesCount(HInvoke *invoke) {
 
 static inline DataType::Type GetDataTypeFromShorty(HInvoke* invoke, uint32_t index) {
   DCHECK(invoke->IsInvokePolymorphic());
-  const DexFile& dex_file = invoke->GetBlock()->GetGraph()->GetDexFile();
-  const char* shorty = dex_file.GetShorty(invoke->AsInvokePolymorphic()->GetProtoIndex());
+  const DexFile* dex_file = invoke->GetMethodReference().dex_file;
+  const char* shorty = dex_file->GetShorty(invoke->AsInvokePolymorphic()->GetProtoIndex());
   DCHECK_LT(index, strlen(shorty));
 
   return DataType::FromShorty(shorty[index]);
