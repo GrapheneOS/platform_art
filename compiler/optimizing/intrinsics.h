@@ -224,14 +224,6 @@ class SystemArrayCopyOptimizations : public IntrinsicOptimizations {
   DISALLOW_COPY_AND_ASSIGN(SystemArrayCopyOptimizations);
 };
 
-class VarHandleOptimizations : public IntrinsicOptimizations {
- public:
-  explicit VarHandleOptimizations(HInvoke* invoke) : IntrinsicOptimizations(invoke) {}
-
-  INTRINSIC_OPTIMIZATION(DoNotIntrinsify, 0);  // One of the checks is statically known to fail.
-  INTRINSIC_OPTIMIZATION(SkipObjectNullCheck, 1);  // Not applicable for static fields.
-};
-
 #undef INTRISIC_OPTIMIZATION
 
 //
