@@ -374,7 +374,6 @@ libart_cc_defaults {
             ],
             shared_libs: [
                 "libdl_android",
-                "libicu",
                 "libstatssocket",
                 "libz", // For adler32.
                 "heapprofd_client_api",
@@ -404,9 +403,6 @@ libart_cc_defaults {
                 "monitor_linux.cc",
                 "runtime_linux.cc",
                 "thread_linux.cc",
-            ],
-            header_libs: [
-                "libicuuc_headers",
             ],
             shared_libs: [
                 "libz", // For adler32.

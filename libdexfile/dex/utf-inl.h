@@ -94,6 +94,55 @@ inline int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* u
   return GetTrailingUtf16Char(c1) - GetTrailingUtf16Char(c2);
 }
 
+template <bool kUseShortZero, bool kUse4ByteSequence, bool kReplaceBadSurrogates, typename Append>
+inline void ConvertUtf16ToUtf8(const uint16_t* utf16, size_t char_count, Append&& append) {
+  static_assert(kUse4ByteSequence || !kReplaceBadSurrogates);
+
+  // Use local helpers instead of macros from `libicu` to avoid the dependency on `libicu`.
+  auto is_lead = [](uint16_t ch) ALWAYS_INLINE { return (ch & 0xfc00u) == 0xd800u; };
+  auto is_trail = [](uint16_t ch) ALWAYS_INLINE { return (ch & 0xfc00u) == 0xdc00u; };
+  auto is_surrogate = [](uint16_t ch) ALWAYS_INLINE { return (ch & 0xf800u) == 0xd800u; };
+  auto is_surrogate_lead = [](uint16_t ch) ALWAYS_INLINE { return (ch & 0x0400u) == 0u; };
+  auto get_supplementary = [](uint16_t lead, uint16_t trail) ALWAYS_INLINE {
+    constexpr uint32_t offset = (0xd800u << 10) + 0xdc00u - 0x10000u;
+    return (static_cast<uint32_t>(lead) << 10) + static_cast<uint32_t>(trail) - offset;
+  };
+
+  for (size_t i = 0u; i < char_count; ++i) {
+    auto has_trail = [&]() { return i + 1u != char_count && is_trail(utf16[i + 1u]); };
+
+    uint16_t ch = utf16[i];
+    if (ch < 0x80u && (kUseShortZero || ch != 0u)) {
+      // One byte.
+      append(ch);
+    } else if (ch < 0x800u) {
+      // Two bytes.
+      append((ch >> 6) | 0xc0);
+      append((ch & 0x3f) | 0x80);
+    } else if (kReplaceBadSurrogates
+                   ? is_surrogate(ch)
+                   : kUse4ByteSequence && is_lead(ch) && has_trail()) {
+      if (kReplaceBadSurrogates && (!is_surrogate_lead(ch) || !has_trail())) {
+        append('?');
+      } else {
+        // We have a *valid* surrogate pair.
+        uint32_t code_point = get_supplementary(ch, utf16[i + 1u]);
+        ++i;  //  Consume the leading surrogate.
+        // Four bytes.
+        append((code_point >> 18) | 0xf0);
+        append(((code_point >> 12) & 0x3f) | 0x80);
+        append(((code_point >> 6) & 0x3f) | 0x80);
+        append((code_point & 0x3f) | 0x80);
+      }
+    } else {
+      // Three bytes.
+      append((ch >> 12) | 0xe0);
+      append(((ch >> 6) & 0x3f) | 0x80);
+      append((ch & 0x3f) | 0x80);
+    }
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_LIBDEXFILE_DEX_UTF_INL_H_
