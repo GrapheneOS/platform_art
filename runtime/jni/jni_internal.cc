@@ -214,6 +214,27 @@ class NewStringUTFVisitor {
   bool has_bad_char_;
 };
 
+// The JNI specification says that `GetStringUTFLength()`, `GetStringUTFChars()`
+// and `GetStringUTFRegion()` should emit the Modified UTF-8 encoding.
+// However, we have been emitting 4-byte UTF-8 sequences for several years now
+// and changing that would risk breaking a lot of binary interfaces.
+constexpr bool kUtfUseShortZero = false;
+constexpr bool kUtfUse4ByteSequence = true;  // This is against the JNI spec.
+constexpr bool kUtfReplaceBadSurrogates = false;
+
+jsize GetUncompressedStringUTFLength(const uint16_t* chars, size_t length) {
+  jsize byte_count = 0;
+  ConvertUtf16ToUtf8<kUtfUseShortZero, kUtfUse4ByteSequence, kUtfReplaceBadSurrogates>(
+      chars, length, [&](char c ATTRIBUTE_UNUSED) { ++byte_count; });
+  return byte_count;
+}
+
+char* GetUncompressedStringUTFChars(const uint16_t* chars, size_t length, char* dest) {
+  ConvertUtf16ToUtf8<kUtfUseShortZero, kUtfUse4ByteSequence, kUtfReplaceBadSurrogates>(
+      chars, length, [&](char c) { *dest++ = c; });
+  return dest;
+}
+
 }  // namespace
 
 // Consider turning this on when there is errors which could be related to JNI array copies such as
@@ -2044,7 +2065,10 @@ class JNI {
   static jsize GetStringUTFLength(JNIEnv* env, jstring java_string) {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(java_string);
     ScopedObjectAccess soa(env);
-    return soa.Decode<mirror::String>(java_string)->GetUtfLength();
+    ObjPtr<mirror::String> str = soa.Decode<mirror::String>(java_string);
+    return str->IsCompressed()
+        ? str->GetLength()
+        : GetUncompressedStringUTFLength(str->GetValue(), str->GetLength());
   }
 
   static void GetStringRegion(JNIEnv* env, jstring java_string, jsize start, jsize length,
@@ -2088,10 +2112,8 @@ class JNI {
         }
         buf[length] = '\0';
       } else {
-        const jchar* chars = s->GetValue();
-        size_t bytes = CountUtf8Bytes(chars + start, length);
-        ConvertUtf16ToModifiedUtf8(buf, bytes, chars + start, length);
-        buf[bytes] = '\0';
+        char* end = GetUncompressedStringUTFChars(s->GetValue() + start, length, buf);
+        *end = '\0';
       }
     }
   }
@@ -2195,9 +2217,12 @@ class JNI {
     if (is_copy != nullptr) {
       *is_copy = JNI_TRUE;
     }
+
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
-    size_t byte_count = s->GetUtfLength();
+    size_t length = s->GetLength();
+    size_t byte_count =
+        s->IsCompressed() ? length : GetUncompressedStringUTFLength(s->GetValue(), length);
     char* bytes = new char[byte_count + 1];
     CHECK(bytes != nullptr);  // bionic aborts anyway.
     if (s->IsCompressed()) {
@@ -2206,8 +2231,8 @@ class JNI {
         bytes[i] = src[i];
       }
     } else {
-      const uint16_t* chars = s->GetValue();
-      ConvertUtf16ToModifiedUtf8(bytes, byte_count, chars, s->GetLength());
+      char* end = GetUncompressedStringUTFChars(s->GetValue(), length, bytes);
+      DCHECK_EQ(byte_count, static_cast<size_t>(end - bytes));
     }
     bytes[byte_count] = '\0';
     return bytes;
