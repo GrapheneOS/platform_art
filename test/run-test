@@ -169,7 +169,8 @@ bisection_search="no"
 timeout=""
 suspend_timeout="500000"
 run_optimizing="false"
-
+dump_cfg="false"
+dump_cfg_path=""
 # To cause tests to fail fast, limit the file sizes created by dx, dex2oat and
 # ART output to approximately 128MB. This should be more than sufficient
 # for any test while still catching cases of runaway output.
@@ -308,6 +309,11 @@ while true; do
         shift
         option="$1"
         run_args+=(--debug-agent "$1")
+        shift
+    elif [ "x$1" = "x--dump-cfg" ]; then
+        shift
+        dump_cfg="true"
+        dump_cfg_path="$1"
         shift
     elif [ "x$1" = "x--gdb" ]; then
         run_args+=(--gdb)
@@ -935,7 +941,9 @@ export TEST_NAME=`basename ${test_dir}`
 
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
-if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
+# Additionally, if the user specifies that the CFG must be dumped, it will
+# run the checker for any type of test to generate the CFG.
+if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]] || [ "$dump_cfg" = "true" ]; then
   if [ "$runtime" = "art" -a "$run_optimizing" = "true" ]; then
     # In no-prebuild or no-image mode, the compiler only quickens so disable the checker.
     if [ "$prebuild_mode" = "yes" -a "$have_image" = "yes" ]; then
@@ -1152,6 +1160,19 @@ fi
     fi
 
 ) 2>&${real_stderr} 1>&2
+
+# Copy the generated CFG to the specified path.
+if [ $dump_cfg = "true" ]; then
+    if [ $run_optimizing != "true" ]; then
+        err_echo "Can't dump the .cfg if the compiler type isn't set to \"optimizing\"."
+    else
+        if [ "$target_mode" = "yes" ]; then
+            adb pull $chroot/$cfg_output_dir/$cfg_output $dump_cfg_path
+        else
+            cp $cfg_output_dir/$cfg_output $dump_cfg_path
+        fi
+    fi
+fi
 
 # Attempt bisection only if the test failed.
 # TODO: Implement support for chroot-based bisection search.
