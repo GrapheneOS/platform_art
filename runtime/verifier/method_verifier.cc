@@ -2527,7 +2527,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "thrown value of non-reference type " << res_type;
         } else {
           Fail(res_type.IsUnresolvedTypes()
-                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK : VERIFY_ERROR_BAD_CLASS_SOFT)
+                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK : VERIFY_ERROR_BAD_CLASS_HARD)
                 << "thrown class " << res_type << " not instanceof Throwable";
         }
       }
