@@ -735,21 +735,88 @@ class OnDeviceRefresh final {
     }
   }
 
+  static bool AddCompiledBootClasspathFds(
+      /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
+      /*inout*/ std::vector<std::string>& bcp_image_fds,
+      /*inout*/ std::vector<std::string>& bcp_vdex_fds,
+      /*inout*/ std::vector<std::string>& bcp_oat_fds,
+      const std::string& image_path) {
+    bool added_any = false;
+    std::unique_ptr<File> image_file(OS::OpenFileForReading(image_path.c_str()));
+    if (image_file && image_file->IsValid()) {
+      bcp_image_fds.push_back(std::to_string(image_file->Fd()));
+      output_files.push_back(std::move(image_file));
+      added_any = true;
+    } else {
+      bcp_image_fds.push_back("-1");
+    }
+
+    std::string oat_path = ReplaceFileExtension(image_path, "oat");
+    std::unique_ptr<File> oat_file(OS::OpenFileForReading(oat_path.c_str()));
+    if (oat_file && oat_file->IsValid()) {
+      bcp_oat_fds.push_back(std::to_string(oat_file->Fd()));
+      output_files.push_back(std::move(oat_file));
+      added_any = true;
+    } else {
+      bcp_oat_fds.push_back("-1");
+    }
+
+    std::string vdex_path = ReplaceFileExtension(image_path, "vdex");
+    std::unique_ptr<File> vdex_file(OS::OpenFileForReading(vdex_path.c_str()));
+    if (vdex_file && vdex_file->IsValid()) {
+      bcp_vdex_fds.push_back(std::to_string(vdex_file->Fd()));
+      output_files.push_back(std::move(vdex_file));
+      added_any = true;
+    } else {
+      bcp_vdex_fds.push_back("-1");
+    }
+    return added_any;
+  }
+
   static bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
                                   /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
-                                  const std::vector<std::string>& bcp_jars) {
+                                  const std::vector<std::string>& bcp_jars,
+                                  const InstructionSet isa,
+                                  bool use_compiled_bcp_ext_as_fds) {
     auto bcp_fds = std::vector<std::string>();
+    auto bcp_image_fds = std::vector<std::string>();
+    auto bcp_oat_fds = std::vector<std::string>();
+    auto bcp_vdex_fds = std::vector<std::string>();
+    bool added_any = false;
     for (const std::string& jar : bcp_jars) {
       std::unique_ptr<File> jar_file(OS::OpenFileForReading(jar.c_str()));
-      if (!jar_file->IsValid()) {
+      if (jar_file && !jar_file->IsValid()) {
         LOG(ERROR) << "Failed to open a BCP jar " << jar;
         return false;
       }
       bcp_fds.push_back(std::to_string(jar_file->Fd()));
       output_files.push_back(std::move(jar_file));
+
+      // When enabled, for each JAR, also pass the corresponding .art/.vdex/.odex as FDs.
+      if (use_compiled_bcp_ext_as_fds) {
+        std::string image_path = GetApexDataBootImage(jar);
+        if (!image_path.empty()) {
+          added_any |= AddCompiledBootClasspathFds(output_files,
+                                                   bcp_image_fds,
+                                                   bcp_oat_fds,
+                                                   bcp_vdex_fds,
+                                                   GetSystemImageFilename(image_path.c_str(), isa));
+        }
+      }
     }
     args.emplace_back("--runtime-arg");
     args.emplace_back(Concatenate({"-Xbootclasspathfds:", android::base::Join(bcp_fds, ':')}));
+    if (use_compiled_bcp_ext_as_fds && added_any) {
+      args.emplace_back("--runtime-arg");
+      args.emplace_back(Concatenate({"-Xbootclasspathimagefds:",
+        android::base::Join(bcp_image_fds, ':')}));
+      args.emplace_back("--runtime-arg");
+      args.emplace_back(Concatenate({"-Xbootclasspathoatfds:",
+        android::base::Join(bcp_oat_fds, ':')}));
+      args.emplace_back("--runtime-arg");
+      args.emplace_back(Concatenate({"-Xbootclasspathvdexfds:",
+        android::base::Join(bcp_vdex_fds, ':')}));
+    }
     return true;
   }
 
@@ -1119,7 +1186,8 @@ class OnDeviceRefresh final {
     args.emplace_back("--runtime-arg");
     args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetDex2oatBootClasspath()}));
     auto bcp_jars = android::base::Split(config_.GetDex2oatBootClasspath(), ":");
-    if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
+    if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars, isa,
+                             /*use_compiled_bcp_ext_as_fds=*/ false)) {
       return false;
     }
 
@@ -1285,7 +1353,8 @@ class OnDeviceRefresh final {
       args.emplace_back("--runtime-arg");
       args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetBootClasspath()}));
       auto bcp_jars = android::base::Split(config_.GetBootClasspath(), ":");
-      if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
+      if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars, isa,
+                               /*use_compiled_bcp_ext_as_fds=*/ true)) {
         return false;
       }
 
