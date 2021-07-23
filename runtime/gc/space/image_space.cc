@@ -1418,17 +1418,11 @@ class ImageSpace::BootImageLayout {
   BootImageLayout(ArrayRef<const std::string> image_locations,
                   ArrayRef<const std::string> boot_class_path,
                   ArrayRef<const std::string> boot_class_path_locations,
-                  ArrayRef<const int> boot_class_path_fds,
-                  ArrayRef<const int> boot_class_path_image_fds,
-                  ArrayRef<const int> boot_class_path_vdex_fds,
-                  ArrayRef<const int> boot_class_path_oat_fds)
+                  ArrayRef<const int> boot_class_path_fds)
      : image_locations_(image_locations),
        boot_class_path_(boot_class_path),
        boot_class_path_locations_(boot_class_path_locations),
-       boot_class_path_fds_(boot_class_path_fds),
-       boot_class_path_image_fds_(boot_class_path_image_fds),
-       boot_class_path_vdex_fds_(boot_class_path_vdex_fds),
-       boot_class_path_oat_fds_(boot_class_path_oat_fds) {}
+       boot_class_path_fds_(boot_class_path_fds) {}
 
   std::string GetPrimaryImageLocation();
 
@@ -1543,9 +1537,6 @@ class ImageSpace::BootImageLayout {
   ArrayRef<const std::string> boot_class_path_;
   ArrayRef<const std::string> boot_class_path_locations_;
   ArrayRef<const int> boot_class_path_fds_;
-  ArrayRef<const int> boot_class_path_image_fds_;
-  ArrayRef<const int> boot_class_path_vdex_fds_;
-  ArrayRef<const int> boot_class_path_oat_fds_;
 
   std::vector<ImageChunk> chunks_;
   uint32_t base_address_ = 0u;
@@ -1828,19 +1819,8 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
   DCHECK_LT(bcp_index, boot_class_path_.size());
 
   std::string actual_filename = ExpandLocation(base_filename, bcp_index);
-  int bcp_image_fd = bcp_index < boot_class_path_image_fds_.size()
-      ? boot_class_path_image_fds_[bcp_index]
-      : -1;
   ImageHeader header;
-  auto image_file = bcp_image_fd >= 0
-      ? std::make_unique<File>(bcp_image_fd, actual_filename, /*check_usage=*/ false)
-      : std::unique_ptr<File>(OS::OpenFileForReading(actual_filename.c_str()));
-  if (!image_file || !image_file->IsOpened()) {
-    *error_msg = StringPrintf("Unable to open file \"%s\" for reading image header",
-                              actual_filename.c_str());
-    return false;
-  }
-  if (!ReadSpecificImageHeader(image_file.get(), actual_filename.c_str(), &header, error_msg)) {
+  if (!ReadSpecificImageHeader(actual_filename.c_str(), &header, error_msg)) {
     return false;
   }
   const char* file_description = actual_filename.c_str();
@@ -1862,20 +1842,6 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
   chunk.boot_image_component_count = header.GetBootImageComponentCount();
   chunk.boot_image_checksum = header.GetBootImageChecksum();
   chunk.boot_image_size = header.GetBootImageSize();
-  // When BCP art/vdex/oat FDs are also passed, initialize the chunk accordingly.
-  if (bcp_index < boot_class_path_image_fds_.size()) {
-    // The FD of .art needs to be duplicated because it'll be owned/used later.
-    int fd = boot_class_path_image_fds_[bcp_index];
-    if (fd >= 0) {
-      chunk.art_fd.reset(dup(fd));
-    }
-  }
-  if (bcp_index < boot_class_path_vdex_fds_.size()) {
-    chunk.vdex_fd.reset(boot_class_path_vdex_fds_[bcp_index]);
-  }
-  if (bcp_index < boot_class_path_oat_fds_.size()) {
-    chunk.oat_fd.reset(boot_class_path_oat_fds_[bcp_index]);
-  }
   chunks_.push_back(std::move(chunk));
   next_bcp_index_ = bcp_index + header.GetComponentCount();
   total_component_count_ += header.GetComponentCount();
@@ -2261,9 +2227,6 @@ class ImageSpace::BootImageLoader {
   BootImageLoader(const std::vector<std::string>& boot_class_path,
                   const std::vector<std::string>& boot_class_path_locations,
                   const std::vector<int>& boot_class_path_fds,
-                  const std::vector<int>& boot_class_path_image_fds,
-                  const std::vector<int>& boot_class_path_vdex_fds,
-                  const std::vector<int>& boot_class_path_oat_fds,
                   const std::vector<std::string>& image_locations,
                   InstructionSet image_isa,
                   bool relocate,
@@ -2271,9 +2234,6 @@ class ImageSpace::BootImageLoader {
       : boot_class_path_(boot_class_path),
         boot_class_path_locations_(boot_class_path_locations),
         boot_class_path_fds_(boot_class_path_fds),
-        boot_class_path_image_fds_(boot_class_path_image_fds),
-        boot_class_path_vdex_fds_(boot_class_path_vdex_fds),
-        boot_class_path_oat_fds_(boot_class_path_oat_fds),
         image_locations_(image_locations),
         image_isa_(image_isa),
         relocate_(relocate),
@@ -2285,10 +2245,7 @@ class ImageSpace::BootImageLoader {
     BootImageLayout layout(image_locations_,
                            boot_class_path_,
                            boot_class_path_locations_,
-                           boot_class_path_fds_,
-                           boot_class_path_image_fds_,
-                           boot_class_path_vdex_fds_,
-                           boot_class_path_oat_fds_);
+                           boot_class_path_fds_);
     std::string image_location = layout.GetPrimaryImageLocation();
     std::string system_filename;
     bool found_image = FindImageFilenameImpl(image_location.c_str(),
@@ -2912,7 +2869,6 @@ class ImageSpace::BootImageLoader {
                                      executable_,
                                      /*low_4gb=*/ false,
                                      dex_filenames,
-                                     dex_fds,
                                      image_reservation,
                                      error_msg));
         // We no longer need the file descriptors and they will be closed by
@@ -3171,9 +3127,6 @@ class ImageSpace::BootImageLoader {
   const ArrayRef<const std::string> boot_class_path_;
   const ArrayRef<const std::string> boot_class_path_locations_;
   const ArrayRef<const int> boot_class_path_fds_;
-  const ArrayRef<const int> boot_class_path_image_fds_;
-  const ArrayRef<const int> boot_class_path_vdex_fds_;
-  const ArrayRef<const int> boot_class_path_oat_fds_;
   const ArrayRef<const std::string> image_locations_;
   const InstructionSet image_isa_;
   const bool relocate_;
@@ -3191,10 +3144,7 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
   BootImageLayout layout(image_locations_,
                          boot_class_path_,
                          boot_class_path_locations_,
-                         boot_class_path_fds_,
-                         boot_class_path_image_fds_,
-                         boot_class_path_vdex_fds_,
-                         boot_class_path_oat_fds_);
+                         boot_class_path_fds_);
   if (!layout.LoadFromSystem(image_isa_, error_msg)) {
     return false;
   }
@@ -3222,10 +3172,7 @@ bool ImageSpace::IsBootClassPathOnDisk(InstructionSet image_isa) {
   BootImageLayout layout(ArrayRef<const std::string>(runtime->GetImageLocations()),
                          ArrayRef<const std::string>(runtime->GetBootClassPath()),
                          ArrayRef<const std::string>(runtime->GetBootClassPathLocations()),
-                         ArrayRef<const int>(runtime->GetBootClassPathFds()),
-                         ArrayRef<const int>(runtime->GetBootClassPathImageFds()),
-                         ArrayRef<const int>(runtime->GetBootClassPathVdexFds()),
-                         ArrayRef<const int>(runtime->GetBootClassPathOatFds()));
+                         ArrayRef<const int>(runtime->GetBootClassPathFds()));
   const std::string image_location = layout.GetPrimaryImageLocation();
   std::unique_ptr<ImageHeader> image_header;
   std::string error_msg;
@@ -3248,9 +3195,6 @@ bool ImageSpace::LoadBootImage(
     const std::vector<std::string>& boot_class_path,
     const std::vector<std::string>& boot_class_path_locations,
     const std::vector<int>& boot_class_path_fds,
-    const std::vector<int>& boot_class_path_image_fds,
-    const std::vector<int>& boot_class_path_vdex_fds,
-    const std::vector<int>& boot_class_path_odex_fds,
     const std::vector<std::string>& image_locations,
     const InstructionSet image_isa,
     bool relocate,
@@ -3273,9 +3217,6 @@ bool ImageSpace::LoadBootImage(
   BootImageLoader loader(boot_class_path,
                          boot_class_path_locations,
                          boot_class_path_fds,
-                         boot_class_path_image_fds,
-                         boot_class_path_vdex_fds,
-                         boot_class_path_odex_fds,
                          image_locations,
                          image_isa,
                          relocate,
@@ -3547,10 +3488,7 @@ bool ImageSpace::VerifyBootClassPathChecksums(std::string_view oat_checksums,
     BootImageLayout layout(image_locations,
                            boot_class_path.SubArray(/*pos=*/ 0u, bcp_size),
                            boot_class_path_locations.SubArray(/*pos=*/ 0u, bcp_size),
-                           bcp_fds,
-                           /*boot_class_path_image_fds=*/ ArrayRef<const int>(),
-                           /*boot_class_path_vdex_fds=*/ ArrayRef<const int>(),
-                           /*boot_class_path_oat_fds=*/ ArrayRef<const int>());
+                           bcp_fds);
     std::string primary_image_location = layout.GetPrimaryImageLocation();
     std::string system_filename;
     bool has_system = false;
