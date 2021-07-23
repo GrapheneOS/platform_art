@@ -127,7 +127,6 @@ class OatFileBase : public OatFile {
                                   bool executable,
                                   bool low_4gb,
                                   ArrayRef<const std::string> dex_filenames,
-                                  ArrayRef<const int> dex_fds,
                                   /*inout*/MemMap* reservation,  // Where to load if not null.
                                   /*out*/std::string* error_msg);
 
@@ -249,7 +248,6 @@ OatFileBase* OatFileBase::OpenOatFile(int zip_fd,
                                       bool executable,
                                       bool low_4gb,
                                       ArrayRef<const std::string> dex_filenames,
-                                      ArrayRef<const int> dex_fds,
                                       /*inout*/MemMap* reservation,
                                       /*out*/std::string* error_msg) {
   std::unique_ptr<OatFileBase> ret(new kOatFileBaseSubType(oat_location, executable));
@@ -273,7 +271,7 @@ OatFileBase* OatFileBase::OpenOatFile(int zip_fd,
     return nullptr;
   }
 
-  if (!ret->Setup(zip_fd, dex_filenames, dex_fds, error_msg)) {
+  if (!ret->Setup(zip_fd, dex_filenames, /*dex_fds=*/ArrayRef<const int>(), error_msg)) {
     return nullptr;
   }
 
@@ -1833,7 +1831,6 @@ OatFile* OatFile::Open(int zip_fd,
                        bool executable,
                        bool low_4gb,
                        ArrayRef<const std::string> dex_filenames,
-                       ArrayRef<const int> dex_fds,
                        /*inout*/MemMap* reservation,
                        /*out*/std::string* error_msg) {
   CHECK(!oat_location.empty()) << oat_location;
@@ -1849,7 +1846,6 @@ OatFile* OatFile::Open(int zip_fd,
                                                                 executable,
                                                                 low_4gb,
                                                                 dex_filenames,
-                                                                dex_fds,
                                                                 reservation,
                                                                 error_msg);
   return with_internal;

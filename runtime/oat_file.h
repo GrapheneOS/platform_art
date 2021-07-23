@@ -154,7 +154,6 @@ class OatFile {
                        bool executable,
                        bool low_4gb,
                        ArrayRef<const std::string> dex_filenames,
-                       ArrayRef<const int> dex_fds,
                        /*inout*/MemMap* reservation,  // Where to load if not null.
                        /*out*/std::string* error_msg);
 
