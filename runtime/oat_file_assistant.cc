@@ -877,7 +877,6 @@ const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
                                   executable,
                                   /*low_4gb=*/ false,
                                   dex_locations,
-                                  /*dex_fds=*/ ArrayRef<const int>(),
                                   /*reservation=*/ nullptr,
                                   &error_msg));
       }
