@@ -163,7 +163,6 @@ class VerifierDepsTest : public CommonCompilerDriverTest {
                                            method.GetAccessFlags(),
                                            /* can_load_classes= */ true,
                                            /* allow_soft_failures= */ true,
-                                           /* need_precise_constants= */ true,
                                            /* verify to dump */ false,
                                            /* allow_thread_suspension= */ true,
                                            /* api_level= */ 0));
