@@ -18,6 +18,7 @@
 
 #include <string.h>
 
+#include "dex/utf-inl.h"
 #include "handle_scope-inl.h"
 #include "jni/jni_internal.h"
 #include "mirror/string-inl.h"
@@ -26,7 +27,6 @@
 #include "nativehelper/scoped_primitive_array.h"
 #include "nativehelper/jni_macros.h"
 #include "scoped_fast_native_object_access-inl.h"
-#include "unicode/utf16.h"
 
 namespace art {
 
@@ -125,48 +125,16 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
   DCHECK_GE(length, 0);
   DCHECK_LE(length, string->GetLength() - offset);
 
-  auto visit_chars16 = [string, offset, length](auto append) REQUIRES_SHARED(Locks::mutator_lock_) {
-    const uint16_t* chars16 = string->GetValue() + offset;
-    for (int i = 0; i < length; ++i) {
-      jint ch = chars16[i];
-      if (ch < 0x80) {
-        // One byte.
-        append(ch);
-      } else if (ch < 0x800) {
-        // Two bytes.
-        append((ch >> 6) | 0xc0);
-        append((ch & 0x3f) | 0x80);
-      } else if (U16_IS_SURROGATE(ch)) {
-        // A supplementary character.
-        jchar high = static_cast<jchar>(ch);
-        jchar low = (i + 1 != length) ? chars16[i + 1] : 0;
-        if (!U16_IS_SURROGATE_LEAD(high) || !U16_IS_TRAIL(low)) {
-          append('?');
-          continue;
-        }
-        // Now we know we have a *valid* surrogate pair, we can consume the low surrogate.
-        ++i;
-        ch = U16_GET_SUPPLEMENTARY(high, low);
-        // Four bytes.
-        append((ch >> 18) | 0xf0);
-        append(((ch >> 12) & 0x3f) | 0x80);
-        append(((ch >> 6) & 0x3f) | 0x80);
-        append((ch & 0x3f) | 0x80);
-      } else {
-        // Three bytes.
-        append((ch >> 12) | 0xe0);
-        append(((ch >> 6) & 0x3f) | 0x80);
-        append((ch & 0x3f) | 0x80);
-      }
-    }
-  };
-
   bool compressed = string->IsCompressed();
   size_t utf8_length = 0;
   if (compressed) {
     utf8_length = length;
   } else {
-    visit_chars16([&utf8_length](jbyte c ATTRIBUTE_UNUSED) { ++utf8_length; });
+    const uint16_t* utf16 = string->GetValue() + offset;
+    auto count_length = [&utf8_length](jbyte c ATTRIBUTE_UNUSED) ALWAYS_INLINE { ++utf8_length; };
+    ConvertUtf16ToUtf8</*kUseShortZero=*/ true,
+                       /*kUse4ByteSequence=*/ true,
+                       /*kReplaceBadSurrogates=*/ true>(utf16, length, count_length);
   }
   ObjPtr<mirror::ByteArray> result =
       mirror::ByteArray::Alloc(soa.Self(), dchecked_integral_cast<int32_t>(utf8_length));
@@ -177,8 +145,12 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
   if (compressed) {
     memcpy(result->GetData(), string->GetValueCompressed() + offset, length);
   } else {
+    const uint16_t* utf16 = string->GetValue() + offset;
     int8_t* data = result->GetData();
-    visit_chars16([&data](jbyte c) { *data++ = c; });
+    auto store_data = [&data](jbyte c) ALWAYS_INLINE { *data++ = c; };
+    ConvertUtf16ToUtf8</*kUseShortZero=*/ true,
+                       /*kUse4ByteSequence=*/ true,
+                       /*kReplaceBadSurrogates=*/ true>(utf16, length, store_data);
   }
   return soa.AddLocalReference<jbyteArray>(result);
 }

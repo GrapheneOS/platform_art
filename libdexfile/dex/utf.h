@@ -66,6 +66,24 @@ int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t
                                                 size_t utf16_length);
 
 /*
+ * Helper template for converting UTF-16 to UTF-8 and similar encodings.
+ *
+ * Template arguments:
+ *    kUseShortZero: Encode U+0000 as a single byte with value 0 (otherwise emit 0xc0 0x80).
+ *    kUse4ByteSequence: Encode valid surrogate pairs as a 4-byte sequence.
+ *    kReplaceBadSurrogates: Replace unmatched surrogates with '?' (otherwise use 3-byte sequence).
+ *                           Must be false if kUse4ByteSequence is false.
+ *    Append: The type of the `append` functor. Should be deduced automatically.
+ *
+ * Encoding               kUseShortZero kUse4ByteSequence kReplaceBadSurrogates
+ * UTF-8                  true          true              true
+ * Modified UTF8          false         false             n/a
+ * JNI GetStringUTFChars  false         true              false
+ */
+template <bool kUseShortZero, bool kUse4ByteSequence, bool kReplaceBadSurrogates, typename Append>
+void ConvertUtf16ToUtf8(const uint16_t* utf16, size_t char_count, Append&& append);
+
+/*
  * Convert from UTF-16 to Modified UTF-8. Note that the output is _not_
  * NUL-terminated. You probably need to call CountUtf8Bytes before calling
  * this anyway, so if you want a NUL-terminated string, you know where to
