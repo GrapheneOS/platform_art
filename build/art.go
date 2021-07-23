@@ -305,7 +305,7 @@ func testcasesContent(config android.Config) map[string]string {
 // The 'key' is the file in testcases and 'value' is the path to copy it from.
 // The actual copy will be done in make since soong does not do installations.
 func addTestcasesFile(ctx android.InstallHookContext) {
-	if ctx.Os() != android.BuildOs || ctx.Module().IsSkipInstall() {
+	if ctx.Os() != ctx.Config().BuildOS || ctx.Module().IsSkipInstall() {
 		return
 	}
 
