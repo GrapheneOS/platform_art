@@ -38,6 +38,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "runtime.h"
+#include "runtime_intrinsics.h"
 #include "scoped_thread_state_change-inl.h"
 #include "shadow_frame-inl.h"
 #include "thread.h"
@@ -61,6 +62,11 @@ using UniqueDeoptShadowFramePtr = std::unique_ptr<ShadowFrame, DeoptShadowFrameD
 
 class UnstartedRuntimeTest : public CommonRuntimeTest {
  protected:
+  void SetUp() override {
+    CommonRuntimeTest::SetUp();
+    InitializeIntrinsics();
+  }
+
   // Re-expose all UnstartedRuntime implementations so we don't need to declare a million
   // test friends.
 
