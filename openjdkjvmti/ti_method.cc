@@ -634,14 +634,11 @@ class CommonLocalVariableClosure : public art::Closure {
                                        /*out*/ std::string* descriptor,
                                        /*out*/ SlotType* type)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    art::Thread* self = art::Thread::Current();
-    art::StackHandleScope<2> hs(self);
     std::unique_ptr<art::verifier::MethodVerifier> verifier(
         art::verifier::MethodVerifier::CalculateVerificationInfo(
-            self,
+            art::Thread::Current(),
             method,
-            hs.NewHandle(method->GetDexCache()),
-            hs.NewHandle(method->GetDeclaringClass()->GetClassLoader())));
+            dex_pc));
     if (verifier == nullptr) {
       JVMTI_LOG(WARNING, jvmti_) << "Unable to extract verification information from "
                                  << method->PrettyMethod() << " due to hard verification failures! "

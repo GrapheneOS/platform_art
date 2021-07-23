@@ -75,28 +75,16 @@ static constexpr bool kTimeVerifyMethod = !kIsDebugBuild;
 PcToRegisterLineTable::PcToRegisterLineTable(ScopedArenaAllocator& allocator)
     : register_lines_(allocator.Adapter(kArenaAllocVerifier)) {}
 
-void PcToRegisterLineTable::Init(RegisterTrackingMode mode,
-                                 InstructionFlags* flags,
+void PcToRegisterLineTable::Init(InstructionFlags* flags,
                                  uint32_t insns_size,
                                  uint16_t registers_size,
                                  ScopedArenaAllocator& allocator,
-                                 RegTypeCache* reg_types) {
+                                 RegTypeCache* reg_types,
+                                 uint32_t interesting_dex_pc) {
   DCHECK_GT(insns_size, 0U);
   register_lines_.resize(insns_size);
   for (uint32_t i = 0; i < insns_size; i++) {
-    bool interesting = false;
-    switch (mode) {
-      case kTrackRegsAll:
-        interesting = flags[i].IsOpcode();
-        break;
-      case kTrackCompilerInterestPoints:
-        interesting = flags[i].IsCompileTimeInfoPoint() || flags[i].IsBranchTarget();
-        break;
-      case kTrackRegsBranches:
-        interesting = flags[i].IsBranchTarget();
-        break;
-    }
-    if (interesting) {
+    if ((i == interesting_dex_pc) || flags[i].IsBranchTarget()) {
       register_lines_[i].reset(RegisterLine::Create(registers_size, allocator, reg_types));
     }
   }
@@ -163,9 +151,7 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
                  Handle<mirror::ClassLoader> class_loader,
                  const dex::ClassDef& class_def,
                  uint32_t access_flags,
-                 bool need_precise_constants,
                  bool verify_to_dump,
-                 bool fill_register_lines,
                  uint32_t api_level) REQUIRES_SHARED(Locks::mutator_lock_)
      : art::verifier::MethodVerifier(self,
                                      class_linker,
@@ -186,11 +172,9 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
        declaring_class_(nullptr),
        interesting_dex_pc_(-1),
        monitor_enter_dex_pcs_(nullptr),
-       need_precise_constants_(need_precise_constants),
        verify_to_dump_(verify_to_dump),
        allow_thread_suspension_(allow_thread_suspension),
        is_constructor_(false),
-       fill_register_lines_(fill_register_lines),
        api_level_(api_level == 0 ? std::numeric_limits<uint32_t>::max() : api_level) {
   }
 
@@ -697,7 +681,7 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
     return &GetModifiableInstructionFlags(work_insn_idx_);
   }
 
-  const RegType& DetermineCat1Constant(int32_t value, bool precise)
+  const RegType& DetermineCat1Constant(int32_t value)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to create a register type from the given class. In case a precise type is requested, but
@@ -779,13 +763,6 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
   // null if we're not doing FindLocksAtDexPc.
   std::vector<DexLockInfo>* monitor_enter_dex_pcs_;
 
-
-  // An optimization where instead of generating unique RegTypes for constants we use imprecise
-  // constants that cover a range of constants. This isn't good enough for deoptimization that
-  // avoids loading from registers in the case of a constant as the dex instruction set lost the
-  // notion of whether a value should be in a floating point or general purpose register file.
-  const bool need_precise_constants_;
-
   // Indicates whether we verify to dump the info. In that case we accept quickened instructions
   // even though we might detect to be a compiler. Should only be set when running
   // VerifyMethodAndDump.
@@ -802,9 +779,6 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
   //
   // Note: this flag is only valid once Verify() has started.
   bool is_constructor_;
-
-  // Whether to attempt to fill all register lines for (ex) debugger use.
-  bool fill_register_lines_;
 
   // API level, for dependent checks. Note: we do not use '0' for unset here, to simplify checks.
   // Instead, unset level should correspond to max().
@@ -1582,15 +1556,12 @@ bool MethodVerifier<kVerifierDebug>::VerifyCodeFlow() {
   const uint16_t registers_size = code_item_accessor_.RegistersSize();
 
   /* Create and initialize table holding register status */
-  RegisterTrackingMode base_mode = IsAotMode()
-                                       ? kTrackCompilerInterestPoints
-                                       : kTrackRegsBranches;
-  reg_table_.Init(fill_register_lines_ ? kTrackRegsAll : base_mode,
-                  insn_flags_.get(),
+  reg_table_.Init(insn_flags_.get(),
                   code_item_accessor_.InsnsSizeInCodeUnits(),
                   registers_size,
                   allocator_,
-                  GetRegTypeCache());
+                  GetRegTypeCache(),
+                  interesting_dex_pc_);
 
   work_line_.reset(RegisterLine::Create(registers_size, allocator_, GetRegTypeCache()));
   saved_line_.reset(RegisterLine::Create(registers_size, allocator_, GetRegTypeCache()));
@@ -2234,25 +2205,25 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
     case Instruction::CONST_4: {
       int32_t val = static_cast<int32_t>(inst->VRegB_11n() << 28) >> 28;
       work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_11n(), DetermineCat1Constant(val, need_precise_constants_));
+          this, inst->VRegA_11n(), DetermineCat1Constant(val));
       break;
     }
     case Instruction::CONST_16: {
       int16_t val = static_cast<int16_t>(inst->VRegB_21s());
       work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21s(), DetermineCat1Constant(val, need_precise_constants_));
+          this, inst->VRegA_21s(), DetermineCat1Constant(val));
       break;
     }
     case Instruction::CONST: {
       int32_t val = inst->VRegB_31i();
       work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_31i(), DetermineCat1Constant(val, need_precise_constants_));
+          this, inst->VRegA_31i(), DetermineCat1Constant(val));
       break;
     }
     case Instruction::CONST_HIGH16: {
       int32_t val = static_cast<int32_t>(inst->VRegB_21h() << 16);
       work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21h(), DetermineCat1Constant(val, need_precise_constants_));
+          this, inst->VRegA_21h(), DetermineCat1Constant(val));
       break;
     }
       /* could be long or double; resolved upon use */
@@ -4396,7 +4367,7 @@ void MethodVerifier<kVerifierDebug>::VerifyAGet(const Instruction* inst,
         // Pick a non-zero constant (to distinguish with null) that can fit in any primitive.
         // We cannot use 'insn_type' as it could be a float array or an int array.
         work_line_->SetRegisterType<LockOp::kClear>(
-            this, inst->VRegA_23x(), DetermineCat1Constant(1, need_precise_constants_));
+            this, inst->VRegA_23x(), DetermineCat1Constant(1));
       } else if (insn_type.IsCategory1Types()) {
         // Category 1
         // The 'insn_type' is exactly the type we need.
@@ -4922,31 +4893,26 @@ const RegType& MethodVerifier<kVerifierDebug>::GetMethodReturnType() {
 }
 
 template <bool kVerifierDebug>
-const RegType& MethodVerifier<kVerifierDebug>::DetermineCat1Constant(int32_t value, bool precise) {
-  if (precise) {
-    // Precise constant type.
-    return reg_types_.FromCat1Const(value, true);
+const RegType& MethodVerifier<kVerifierDebug>::DetermineCat1Constant(int32_t value) {
+  // Imprecise constant type.
+  if (value < -32768) {
+    return reg_types_.IntConstant();
+  } else if (value < -128) {
+    return reg_types_.ShortConstant();
+  } else if (value < 0) {
+    return reg_types_.ByteConstant();
+  } else if (value == 0) {
+    return reg_types_.Zero();
+  } else if (value == 1) {
+    return reg_types_.One();
+  } else if (value < 128) {
+    return reg_types_.PosByteConstant();
+  } else if (value < 32768) {
+    return reg_types_.PosShortConstant();
+  } else if (value < 65536) {
+    return reg_types_.CharConstant();
   } else {
-    // Imprecise constant type.
-    if (value < -32768) {
-      return reg_types_.IntConstant();
-    } else if (value < -128) {
-      return reg_types_.ShortConstant();
-    } else if (value < 0) {
-      return reg_types_.ByteConstant();
-    } else if (value == 0) {
-      return reg_types_.Zero();
-    } else if (value == 1) {
-      return reg_types_.One();
-    } else if (value < 128) {
-      return reg_types_.PosByteConstant();
-    } else if (value < 32768) {
-      return reg_types_.PosShortConstant();
-    } else if (value < 65536) {
-      return reg_types_.CharConstant();
-    } else {
-      return reg_types_.IntConstant();
-    }
+    return reg_types_.IntConstant();
   }
 }
 
@@ -5041,7 +5007,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          uint32_t method_access_flags,
                                                          bool allow_soft_failures,
                                                          HardFailLogMode log_level,
-                                                         bool need_precise_constants,
                                                          uint32_t api_level,
                                                          bool aot_mode,
                                                          std::string* hard_failure_msg) {
@@ -5059,7 +5024,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                               method_access_flags,
                               allow_soft_failures,
                               log_level,
-                              need_precise_constants,
                               api_level,
                               aot_mode,
                               hard_failure_msg);
@@ -5077,7 +5041,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                method_access_flags,
                                allow_soft_failures,
                                log_level,
-                               need_precise_constants,
                                api_level,
                                aot_mode,
                                hard_failure_msg);
@@ -5115,7 +5078,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          uint32_t method_access_flags,
                                                          bool allow_soft_failures,
                                                          HardFailLogMode log_level,
-                                                         bool need_precise_constants,
                                                          uint32_t api_level,
                                                          bool aot_mode,
                                                          std::string* hard_failure_msg) {
@@ -5137,9 +5099,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                 class_loader,
                                                 class_def,
                                                 method_access_flags,
-                                                need_precise_constants,
                                                 /* verify to dump */ false,
-                                                /* fill_register_lines= */ false,
                                                 api_level);
   if (verifier.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
@@ -5233,8 +5193,10 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
 MethodVerifier* MethodVerifier::CalculateVerificationInfo(
       Thread* self,
       ArtMethod* method,
-      Handle<mirror::DexCache> dex_cache,
-      Handle<mirror::ClassLoader> class_loader) {
+      uint32_t dex_pc) {
+  StackHandleScope<2> hs(self);
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(method->GetClassLoader()));
   std::unique_ptr<impl::MethodVerifier<false>> verifier(
       new impl::MethodVerifier<false>(self,
                                       Runtime::Current()->GetClassLinker(),
@@ -5251,13 +5213,12 @@ MethodVerifier* MethodVerifier::CalculateVerificationInfo(
                                       class_loader,
                                       *method->GetDeclaringClass()->GetClassDef(),
                                       method->GetAccessFlags(),
-                                      /* need_precise_constants= */ true,
                                       /* verify_to_dump= */ false,
-                                      /* fill_register_lines= */ true,
                                       // Just use the verifier at the current skd-version.
                                       // This might affect what soft-verifier errors are reported.
                                       // Callers can then filter out relevant errors if needed.
                                       Runtime::Current()->GetTargetSdkVersion()));
+  verifier->interesting_dex_pc_ = dex_pc;
   verifier->Verify();
   if (VLOG_IS_ON(verifier)) {
     verifier->DumpFailures(VLOG_STREAM(verifier));
@@ -5297,9 +5258,7 @@ MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self,
       class_loader,
       class_def,
       method_access_flags,
-      /* need_precise_constants= */ true,
       /* verify_to_dump= */ true,
-      /* fill_register_lines= */ false,
       api_level);
   verifier->Verify();
   verifier->DumpFailures(vios->Stream());
@@ -5338,9 +5297,7 @@ void MethodVerifier::FindLocksAtDexPc(
                                        class_loader,
                                        m->GetClassDef(),
                                        m->GetAccessFlags(),
-                                       /* need_precise_constants= */ false,
                                        /* verify_to_dump= */ false,
-                                       /* fill_register_lines= */ false,
                                        api_level);
   verifier.interesting_dex_pc_ = dex_pc;
   verifier.monitor_enter_dex_pcs_ = monitor_enter_dex_pcs;
@@ -5358,7 +5315,6 @@ MethodVerifier* MethodVerifier::CreateVerifier(Thread* self,
                                                uint32_t access_flags,
                                                bool can_load_classes,
                                                bool allow_soft_failures,
-                                               bool need_precise_constants,
                                                bool verify_to_dump,
                                                bool allow_thread_suspension,
                                                uint32_t api_level) {
@@ -5377,9 +5333,7 @@ MethodVerifier* MethodVerifier::CreateVerifier(Thread* self,
                                          class_loader,
                                          class_def,
                                          access_flags,
-                                         need_precise_constants,
                                          verify_to_dump,
-                                         /* fill_register_lines= */ false,
                                          api_level);
 }
 
