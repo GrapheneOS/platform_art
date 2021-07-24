@@ -9330,7 +9330,9 @@ ObjPtr<mirror::MethodType> ClassLinker::ResolveMethodType(
 
   Handle<mirror::MethodType> type = hs.NewHandle(
       mirror::MethodType::Create(self, return_type, method_params));
-  dex_cache->SetResolvedMethodType(proto_idx, type.Get());
+  if (type != nullptr) {
+    dex_cache->SetResolvedMethodType(proto_idx, type.Get());
+  }
 
   return type.Get();
 }
