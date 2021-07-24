@@ -43,6 +43,11 @@ ObjPtr<MethodType> MethodType::Create(Thread* const self,
   Handle<MethodType> mt(
       hs.NewHandle(ObjPtr<MethodType>::DownCast(GetClassRoot<MethodType>()->AllocObject(self))));
 
+  if (mt == nullptr) {
+    self->AssertPendingOOMException();
+    return nullptr;
+  }
+
   // We're initializing a newly allocated object, so we do not need to record that under
   // a transaction. If the transaction is aborted, the whole object shall be unreachable.
   mt->SetFieldObject</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(

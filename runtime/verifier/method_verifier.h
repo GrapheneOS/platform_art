@@ -63,15 +63,6 @@ class RegType;
 struct ScopedNewLine;
 class VerifierDeps;
 
-// We don't need to store the register data for many instructions, because we either only need
-// it at branch points (for verification) or GC points and branches (for verification +
-// type-precise register analysis).
-enum RegisterTrackingMode {
-  kTrackRegsBranches,
-  kTrackCompilerInterestPoints,
-  kTrackRegsAll,
-};
-
 // A mapping from a dex pc to the register line statuses as they are immediately prior to the
 // execution of that instruction.
 class PcToRegisterLineTable {
@@ -82,12 +73,12 @@ class PcToRegisterLineTable {
   // Initialize the RegisterTable. Every instruction address can have a different set of information
   // about what's in which register, but for verification purposes we only need to store it at
   // branch target addresses (because we merge into that).
-  void Init(RegisterTrackingMode mode,
-            InstructionFlags* flags,
+  void Init(InstructionFlags* flags,
             uint32_t insns_size,
             uint16_t registers_size,
             ScopedArenaAllocator& allocator,
-            RegTypeCache* reg_types);
+            RegTypeCache* reg_types,
+            uint32_t interesting_dex_pc);
 
   bool IsInitialized() const {
     return !register_lines_.empty();
@@ -118,14 +109,11 @@ class MethodVerifier {
                                              uint32_t api_level)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Calculates the verification information for every instruction of the given method. The given
-  // dex-cache and class-loader will be used for lookups. No classes will be loaded. If verification
-  // fails hard nullptr will be returned. This should only be used if one needs to examine what the
-  // verifier believes about the registers of a given method.
+  // Calculates the type information at the given `dex_pc`.
+  // No classes will be loaded.
   static MethodVerifier* CalculateVerificationInfo(Thread* self,
                                                    ArtMethod* method,
-                                                   Handle<mirror::DexCache> dex_cache,
-                                                   Handle<mirror::ClassLoader> class_loader)
+                                                   uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   const DexFile& GetDexFile() const {
@@ -257,7 +245,6 @@ class MethodVerifier {
                                   uint32_t method_access_flags,
                                   bool allow_soft_failures,
                                   HardFailLogMode log_level,
-                                  bool need_precise_constants,
                                   uint32_t api_level,
                                   bool aot_mode,
                                   std::string* hard_failure_msg)
@@ -277,7 +264,6 @@ class MethodVerifier {
                                   uint32_t method_access_flags,
                                   bool allow_soft_failures,
                                   HardFailLogMode log_level,
-                                  bool need_precise_constants,
                                   uint32_t api_level,
                                   bool aot_mode,
                                   std::string* hard_failure_msg)
@@ -299,7 +285,6 @@ class MethodVerifier {
                                         uint32_t access_flags,
                                         bool can_load_classes,
                                         bool allow_soft_failures,
-                                        bool need_precise_constants,
                                         bool verify_to_dump,
                                         bool allow_thread_suspension,
                                         uint32_t api_level)
