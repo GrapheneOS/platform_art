@@ -238,6 +238,12 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    public void verifyGeneratedArtifactsLoadedAfterReboot() throws Exception {
+        reboot();
+        verifyGeneratedArtifactsLoaded();
+    }
+
+    @Test
     public void verifyGeneratedArtifactsLoadedForSamegradeUpdate() throws Exception {
         // Install the same APEX effecting a samegrade update. The setUp method has installed it
         // before us.
