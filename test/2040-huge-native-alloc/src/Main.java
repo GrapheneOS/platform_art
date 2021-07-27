@@ -24,6 +24,7 @@ public class Main {
   int allocated = 0;
   int deallocated = 0;
   static Object lock = new Object();
+  final static int MAX_TRIES = 4;
   WeakReference<BufferHolder>[] references = new WeakReference[HOW_MANY_HUGE];
 
   class BufferHolder {
@@ -55,9 +56,9 @@ public class Main {
   public static void main(String[] args) {
     System.loadLibrary(args[0]);
     System.out.println("Main Started");
-    while (true) {
+    for (int i = 1; i <= MAX_TRIES; ++i) {
       Runtime.getRuntime().gc();
-      if (new Main().tryToRun()) {
+      if (new Main().tryToRun(i == MAX_TRIES)) {
         break;
       }
       // Clean up and try again.
@@ -67,7 +68,8 @@ public class Main {
     System.out.println("Main Finished");
   }
 
-  boolean tryToRun() {
+  // Returns false on a failure that should be retried.
+  boolean tryToRun(boolean lastChance) {
     final int startingGcNum = getGcNum();
     timeNotifications();  // warm up.
     final long referenceTime1 = timeNotifications();
@@ -95,12 +97,13 @@ public class Main {
       System.out.println("Notifications ran too slowly; excessive blocking? msec = "
           + (actualTime / 1_000_000));
     } else if (actualTime < minBlockingTime) {
-      // Try again before reporting.
-      actualTime = timeNotifications();
-      if (actualTime < minBlockingTime) {
-        System.out.println("Notifications ran too quickly; no blocking GC? msec = "
-            + (actualTime / 1_000_000) + " reference(msec) = " + (referenceTime / 1_000_000));
+      if (!lastChance) {
+        // We sometimes see this, maybe because a GC is triggered by other means?
+        // Try again before reporting.
+        return false;
       }
+      System.out.println("Notifications ran too quickly; no blocking GC? msec = "
+          + (actualTime / 1_000_000) + " reference(msec) = " + (referenceTime / 1_000_000));
     }
 
     // Let finalizers run.
