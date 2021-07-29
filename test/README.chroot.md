@@ -72,7 +72,8 @@ Note that using this chroot-based approach requires root access to the device
     ```bash
     art/tools/buildbot-cleanup-device.sh
     ```
-5. Setup the device (including setting up mount points and files in the chroot directory):
+5. Setup the device (including setting up mount points and files in the chroot
+   directory):
     ```bash
     art/tools/buildbot-setup-device.sh
     ```
@@ -85,14 +86,45 @@ Note that using this chroot-based approach requires root access to the device
     ```bash
     art/tools/run-gtests.sh -j4
     ```
-    * Note: This currently fails on test
-    `test-art-target-gtest-image_space_test{32,64}` when using the full AOSP
+    * Specific tests to run can be passed on the command line, specified by
+      their absolute paths beginning with `/apex/`:
+        ```bash
+        art/tools/run-gtests.sh \
+          /apex/com.android.art/bin/art/arm64/art_cmdline_tests \
+          /apex/com.android.art/bin/art/arm64/art_dexdump_tests
+        ```
+    * Gtest options can be passed to each gtest by passing them after `--`; see
+      the following examples.
+        * To print the list of all test cases of a given gtest, use option
+          `--gtest_list_tests`:
+            ```bash
+            art/tools/run-gtests.sh \
+              /apex/com.android.art/bin/art/arm64/art_cmdline_tests \
+              -- --gtest_list_tests
+            ```
+        * To filter the test cases to execute, use option `--gtest_filter`:
+            ```bash
+            art/tools/run-gtests.sh \
+              /apex/com.android.art/bin/art/arm64/art_cmdline_tests \
+              -- --gtest_filter="*TestJdwp*"
+            ```
+        * To see all the options supported by a gtest, use option `--help`:
+            ```bash
+            art/tools/run-gtests.sh \
+              /apex/com.android.art/bin/art/arm64/art_cmdline_tests \
+              -- --help
+            ```
+    * Note: Some test cases of `art_runtime_tests` defined in
+    `art/runtime/gc/space/image_space_test.cc` may fail when using the full AOSP
     tree (b/119815008).
         * Workaround: Run `m clean-oat-host` before the build step
         (`art/tools/buildbot-build.sh --target`) above.
-    * Note: The `-j` option is not honored yet (b/129930445).
-    * Specific tests to run can be passed on the command line, specified by
-    their absolute paths beginning with `/apex/`.
+    * Note: The `-j` option of script `art/tools/run-gtests.sh` is not honored
+      yet (b/129930445). However, gtests themselves support parallel execution,
+      which can be specified via the gtest option `-j`:
+        ```bash
+        art/tools/run-gtests.sh -- -j4
+        ```
 8. Run ART run-tests:
     * On a 64-bit target:
         ```bash
