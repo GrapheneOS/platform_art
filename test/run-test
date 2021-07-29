@@ -118,6 +118,8 @@ if [ -z "$HIDDENAPI" ]; then
   export HIDDENAPI="${ANDROID_HOST_OUT}/bin/hiddenapi"
 fi
 
+export SOONG_ZIP="$ANDROID_BUILD_TOP/prebuilts/build-tools/linux-x86/bin/soong_zip"
+
 chroot=
 
 info="info.txt"

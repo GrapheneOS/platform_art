@@ -50,7 +50,7 @@ export JAVAC=javac_wrapper
 # Build the transformer to apply to compiled classes.
 mkdir classes
 ${ORIGINAL_JAVAC:-javac} ${JAVAC_ARGS} -cp "${ASM_JAR}" -d classes $(find util-src -name '*.java')
-jar -cf transformer.jar -C classes transformer/ -C classes annotations/
+${SOONG_ZIP} --jar -o transformer.jar -C classes -D classes
 rm -rf classes
 
 # Use API level 28 for DEX file support constant method handles.
