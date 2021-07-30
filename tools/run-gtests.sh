@@ -14,12 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e
+
 if [[ $1 = -h ]]; then
   cat <<EOF
+Usage: $0 [<gtest>...] [--] [<gtest-option>...]
+
 Script to run gtests located in the ART (Testing) APEX.
 
 If called with arguments, only those tests are run, as specified by their
 absolute paths (starting with /apex). All gtests are run otherwise.
+
+Options after \`--\` are passed verbatim to each gtest binary.
 EOF
   exit
 fi
@@ -40,27 +46,38 @@ if [[ $1 = -j* ]]; then
   shift
 fi
 
-if [ $# -gt 0 ]; then
-  tests="$@"
-else
+tests=()
+
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "--" ]]; then
+    shift
+    break
+  fi
+  tests+=("$1")
+  shift
+done
+
+options="$@"
+
+if [[ ${#tests[@]} -eq 0 ]]; then
   # Search for executables under the `bin/art` directory of the ART APEX.
-  tests=$("$adb" shell chroot "$ART_TEST_CHROOT" \
+  readarray -t tests <<<$("$adb" shell chroot "$ART_TEST_CHROOT" \
     find "$android_art_root/bin/art" -type f -perm /ugo+x | sort)
 fi
 
 failing_tests=()
 
-for t in $tests; do
+for t in ${tests[@]}; do
   echo "$t"
   "$adb" shell chroot "$ART_TEST_CHROOT" \
     env ANDROID_ART_ROOT="$android_art_root" \
         ANDROID_I18N_ROOT="$android_i18n_root" \
         ANDROID_TZDATA_ROOT="$android_tzdata_root" \
-        $t \
+        $t $options \
     || failing_tests+=("$t")
 done
 
-if [ -n "$failing_tests" ]; then
+if [[ -n "$failing_tests" ]]; then
   for t in "${failing_tests[@]}"; do
     echo "Failed test: $t"
   done
