@@ -1697,7 +1697,7 @@ TEST_F(OatFileAssistantTest, GetDexOptNeededWithApexVersions) {
 
     OatFileAssistant oat_file_assistant(
         dex_location.c_str(), kRuntimeISA, default_context_.get(), false);
-    EXPECT_EQ(OatFileAssistant::kDex2OatForBootImage, oat_file_assistant.OdexFileStatus());
+    EXPECT_EQ(OatFileAssistant::kOatBootImageOutOfDate, oat_file_assistant.OdexFileStatus());
   }
 }
 
