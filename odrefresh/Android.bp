@@ -50,8 +50,7 @@ cc_defaults {
     static_libs: ["libtinyxml2"],
     target: {
         android: {
-            // Use the 32-bit version of odrefresh on devices.
-            compile_multilib: "prefer32",
+            compile_multilib: "first",
         },
     },
     tidy: true,
