@@ -18,7 +18,6 @@
 set -e
 
 # Write out a bunch of source files.
-gcc -Wall -Werror -o classes-gen classes-gen.c
 ./classes-gen
 
 ./default-build "$@"
