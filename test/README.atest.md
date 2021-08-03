@@ -44,18 +44,43 @@ is actively working on this issue.
 
 ### Running ART gtests on device
 
-Because of current build- and link-related limitations, ART gtests can only run
-as part of the Testing ART APEX (`com.android.art.testing.apex`) on device,
-i.e. they have to be part of the ART APEX package itself to be able to build and
-run properly. This means that it is not possible to test the ART APEX presently
-residing on a device (either the original one, located in the "system"
-partition, or an updated package, present in the "data" partition).
+There are three ways to run ART gtests on device:
+1. by building "standalone" ART gtests and running them against the active ART
+   APEX on the device;
+2. by installing the Testing ART APEX (i.e. manually "updating" the ART APEX on
+   device); or
+3. by setting up a `chroot` environment on the device, and "activating" the
+   Testing ART APEX in that environment.
 
-There are two ways to run ART gtests on device:
-* by installing the Testing ART APEX (i.e. manually "updating" the ART APEX on
-  device); or
-* by setting up a `chroot` environment on the device, and "activating" the
-  Testing ART APEX in that environment.
+The first approach can be used to test the ART APEX presently residing on a
+device (either the original one, located in the "system" partition, or an
+updated package, present in the "data" partition).
+
+The second and third approaches make use of the Testing ART APEX
+(`com.android.art.testing.apex`), and were previously the only options to run
+ART gtests on device, because of build- and link-related limitations (the ART
+gtests had to be part of the ART APEX package itself to be able to build and run
+properly).
+
+### Running standalone ART gtests on device
+
+Standalone ART gtests are defined as Soong modules `art_standalone_*_tests`. You
+can run them individually with Atest, e.g:
+
+```bash
+atest art_standalone_cmdline_tests
+```
+
+You can also run all of them with a single Atest command, using its support for
+wildcards:
+
+```bash
+atest art_standalone_\*_tests
+```
+
+The previous commands build the corresponding ART gtests and their dependencies,
+dynamically link them against local ART APEX libraries (in the source tree), and
+run them on device against the active ART APEX.
 
 ### Running ART gtests on device by installing the Testing ART APEX
 
