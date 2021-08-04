@@ -155,6 +155,7 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
       started_trace = true;
       start_millis = MilliTime();
     }
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     condition_.WaitHoldingLocks(self);
   }
   if (started_trace) {
