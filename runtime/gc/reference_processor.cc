@@ -147,15 +147,12 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
         }
       }
     }
-    // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
-    // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);
     if (!started_trace) {
       ATraceBegin("GetReferent blocked");
       started_trace = true;
       start_millis = MilliTime();
     }
-    condition_.WaitHoldingLocks(self);
+    WaitUntilDoneProcessingReferences(self);
   }
   if (started_trace) {
     finish_trace(start_millis);
@@ -380,13 +377,34 @@ void ReferenceProcessor::ClearReferent(ObjPtr<mirror::Reference> ref) {
 }
 
 void ReferenceProcessor::WaitUntilDoneProcessingReferences(Thread* self) {
-  // Wait until we are done processing reference.
+  // Wait until we are done processing references.
+  // TODO: We must hold reference_processor_lock_ to wait, and we cannot release and reacquire
+  // the mutator lock while we hold it. But we shouldn't remain runnable while we're asleep.
+  // Is there a way to do this more cleanly if we release the mutator lock in the condvar
+  // implementation? Without such a fix, we still need to be careful that we only very rarely
+  // need checkpoint or suspend requests to be serviced while we're waiting here; waiting for
+  // a timeout is better than a deadlock, but not cheap. See b/195664026 .
+  bool warned = false;
   while ((!kUseReadBarrier && SlowPathEnabled()) ||
          (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
     self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);
-    condition_.WaitHoldingLocks(self);
+    if (condition_.TimedWaitHoldingLocks(self, /*ms=*/ 10, /*nsec=*/ 0)) {
+      // Timed out.
+      // We should rarely get here. If we do, temporarily release reference_processor_lock_ and
+      // mutator lock, so we can respond to checkpoint and suspend requests.
+      Locks::reference_processor_lock_->ExclusiveUnlock(self);
+      {
+        ScopedThreadSuspension sts(self, ThreadState::kSuspended);
+        if (!warned) {
+          LOG(WARNING) << "Long wait for reference processor.";
+          warned = true;
+        }
+        usleep(100);
+      }
+      Locks::reference_processor_lock_->ExclusiveLock(self);
+    }
   }
 }
 
