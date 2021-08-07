@@ -1105,10 +1105,14 @@ void ConditionVariable::WaitHoldingLocks(Thread* self) {
 }
 
 bool ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
+  guard_.CheckSafeToWait(self);
+  return TimedWaitHoldingLocks(self, ms, ns);
+}
+
+bool ConditionVariable::TimedWaitHoldingLocks(Thread* self, int64_t ms, int32_t ns) {
   DCHECK(self == nullptr || self == Thread::Current());
   bool timed_out = false;
   guard_.AssertExclusiveHeld(self);
-  guard_.CheckSafeToWait(self);
   unsigned int old_recursion_count = guard_.recursion_count_;
 #if ART_USE_FUTEXES
   timespec rel_ts;
