@@ -58,7 +58,7 @@ class ReferenceProcessor {
   // GetReferent fast path as an optimization.
   void EnableSlowPath() REQUIRES_SHARED(Locks::mutator_lock_);
   void BroadcastForSlowPath(Thread* self);
-  // Decode the referent, may block and allow suspension if references are being processed.
+  // Decode the referent, may block if references are being processed.
   ObjPtr<mirror::Object> GetReferent(Thread* self, ObjPtr<mirror::Reference> reference)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::reference_processor_lock_);
   // Collects the cleared references and returns a task, to be executed after FinishGC, that will
@@ -89,7 +89,7 @@ class ReferenceProcessor {
   // referents.
   void StartPreservingReferences(Thread* self) REQUIRES(!Locks::reference_processor_lock_);
   void StopPreservingReferences(Thread* self) REQUIRES(!Locks::reference_processor_lock_);
-  // Wait until reference processing is done. May temporarily release both required locks.
+  // Wait until reference processing is done.
   void WaitUntilDoneProcessingReferences(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::reference_processor_lock_);
