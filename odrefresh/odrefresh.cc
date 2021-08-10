@@ -1291,11 +1291,11 @@ class OnDeviceRefresh final {
       const std::string jar_name(android::base::Basename(jar));
       const std::string profile = Concatenate({GetAndroidRoot(), "/framework/", jar_name, ".prof"});
       std::string compiler_filter =
-          android::base::GetProperty("dalvik.vm.systemservercompilerfilter", {});
+          android::base::GetProperty("dalvik.vm.systemservercompilerfilter", "speed");
       if (compiler_filter == "speed-profile") {
         AddDex2OatProfileAndCompilerFilter(&args, &readonly_files_raii, profile);
       } else {
-        args.emplace_back("--compiler-filter=speed");
+        args.emplace_back("--compiler-filter=" + compiler_filter);
       }
 
       const std::string image_location = GetSystemServerImagePath(/*on_system=*/false, jar);
