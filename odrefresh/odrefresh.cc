@@ -1290,7 +1290,13 @@ class OnDeviceRefresh final {
       AddDex2OatInstructionSet(&args, isa);
       const std::string jar_name(android::base::Basename(jar));
       const std::string profile = Concatenate({GetAndroidRoot(), "/framework/", jar_name, ".prof"});
-      AddDex2OatProfileAndCompilerFilter(&args, &readonly_files_raii, profile);
+      std::string compiler_filter =
+          android::base::GetProperty("dalvik.vm.systemservercompilerfilter", {});
+      if (compiler_filter == "speed-profile") {
+        AddDex2OatProfileAndCompilerFilter(&args, &readonly_files_raii, profile);
+      } else {
+        args.emplace_back("--compiler-filter=speed");
+      }
 
       const std::string image_location = GetSystemServerImagePath(/*on_system=*/false, jar);
       const std::string install_location = android::base::Dirname(image_location);
