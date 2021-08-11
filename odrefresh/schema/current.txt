@@ -1,32 +1,24 @@
 // Signature format: 2.0
 package com.android.art {
 
-  public class ArtModuleInfo {
-    ctor public ArtModuleInfo();
-    method public long getLastUpdateMillis();
-    method public long getVersionCode();
-    method public String getVersionName();
-    method public void setLastUpdateMillis(long);
-    method public void setVersionCode(long);
-    method public void setVersionName(String);
-  }
-
-  public class BootClasspath {
-    ctor public BootClasspath();
-    method public com.android.art.Component getComponent();
-    method public void setComponent(com.android.art.Component);
-  }
-
   public class CacheInfo {
     ctor public CacheInfo();
-    method public com.android.art.ArtModuleInfo getArtModuleInfo();
-    method public com.android.art.BootClasspath getBootClasspath();
-    method public com.android.art.Dex2oatBootClasspath getDex2oatBootClasspath();
-    method public com.android.art.SystemServerClasspath getSystemServerClasspath();
-    method public void setArtModuleInfo(com.android.art.ArtModuleInfo);
-    method public void setBootClasspath(com.android.art.BootClasspath);
-    method public void setDex2oatBootClasspath(com.android.art.Dex2oatBootClasspath);
-    method public void setSystemServerClasspath(com.android.art.SystemServerClasspath);
+    method public com.android.art.ModuleInfo getArtModuleInfo();
+    method public com.android.art.Classpath getBootClasspath();
+    method public com.android.art.Classpath getDex2oatBootClasspath();
+    method public com.android.art.ModuleInfoList getModuleInfoList();
+    method public com.android.art.Classpath getSystemServerClasspath();
+    method public void setArtModuleInfo(com.android.art.ModuleInfo);
+    method public void setBootClasspath(com.android.art.Classpath);
+    method public void setDex2oatBootClasspath(com.android.art.Classpath);
+    method public void setModuleInfoList(com.android.art.ModuleInfoList);
+    method public void setSystemServerClasspath(com.android.art.Classpath);
+  }
+
+  public class Classpath {
+    ctor public Classpath();
+    method public com.android.art.Component getComponent();
+    method public void setComponent(com.android.art.Component);
   }
 
   public class Component {
@@ -39,16 +31,22 @@ package com.android.art {
     method public void setSize(java.math.BigInteger);
   }
 
-  public class Dex2oatBootClasspath {
-    ctor public Dex2oatBootClasspath();
-    method public com.android.art.Component getComponent();
-    method public void setComponent(com.android.art.Component);
+  public class ModuleInfo {
+    ctor public ModuleInfo();
+    method public long getLastUpdateMillis();
+    method public String getName();
+    method public long getVersionCode();
+    method public String getVersionName();
+    method public void setLastUpdateMillis(long);
+    method public void setName(String);
+    method public void setVersionCode(long);
+    method public void setVersionName(String);
   }
 
-  public class SystemServerClasspath {
-    ctor public SystemServerClasspath();
-    method public com.android.art.Component getComponent();
-    method public void setComponent(com.android.art.Component);
+  public class ModuleInfoList {
+    ctor public ModuleInfoList();
+    method public com.android.art.ModuleInfo getModuleInfo();
+    method public void setModuleInfo(com.android.art.ModuleInfo);
   }
 
   public class XmlParser {
