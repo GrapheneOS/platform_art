@@ -409,7 +409,7 @@ Runtime::~Runtime() {
     while (threads_being_born_ > 0) {
       shutdown_cond_->Wait(self);
     }
-    shutting_down_ = true;
+    SetShuttingDown();
   }
   // Shutdown and wait for the daemons.
   CHECK(self != nullptr);
@@ -640,7 +640,7 @@ void Runtime::Abort(const char* msg) {
   // May be coming from an unattached thread.
   if (Thread::Current() == nullptr) {
     Runtime* current = Runtime::Current();
-    if (current != nullptr && current->IsStarted() && !current->IsShuttingDown(nullptr)) {
+    if (current != nullptr && current->IsStarted() && !current->IsShuttingDownUnsafe()) {
       // We do not flag this to the unexpected-signal handler so that that may dump the stack.
       abort();
       UNREACHABLE();
