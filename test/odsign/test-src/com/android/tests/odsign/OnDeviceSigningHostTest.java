@@ -136,19 +136,32 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
      * process does not exist.
      */
     private Optional<Set<String>> getZygoteLoadedArtifacts(String zygoteName) throws Exception {
-        final CommandResult pgrepResult = getDevice().executeShellV2Command("pidof " + zygoteName);
-        if (pgrepResult.getExitCode() != 0) {
+        final CommandResult result =
+                getDevice().executeShellV2Command("pidof " + zygoteName);
+        if (result.getExitCode() != 0) {
             return Optional.empty();
         }
-        final String zygotePid = pgrepResult.getStdout();
+        // There may be multiple Zygote processes when Zygote just forks and has not executed any
+        // app binary. We can take any of the pids.
+        // We can't use the "-s" flag when calling `pidof` because the Toybox's `pidof`
+        // implementation is wrong and it outputs multiple pids regardless of the "-s" flag, so we
+        // split the output and take the first pid ourselves.
+        final String zygotePid = result.getStdout().trim().split("\\s+")[0];
+        assertTrue(!zygotePid.isEmpty());
 
         final String grepPattern = ART_APEX_DALVIK_CACHE_DIRNAME + ".*boot-framework";
         return Optional.of(getMappedArtifacts(zygotePid, grepPattern));
     }
 
     private Set<String> getSystemServerLoadedArtifacts() throws Exception {
-        String systemServerPid = getDevice().executeShellCommand("pidof system_server");
-        assertTrue(systemServerPid != null);
+        final CommandResult result =
+                getDevice().executeShellV2Command("pidof system_server");
+        assertTrue(result.toString(), result.getExitCode() == 0);
+        final String systemServerPid = result.getStdout().trim();
+        assertTrue(!systemServerPid.isEmpty());
+        assertTrue(
+                "There should be exactly one `system_server` process",
+                systemServerPid.matches("\\d+"));
 
         // system_server artifacts are in the APEX data dalvik cache and names all contain
         // the word "@classes". Look for mapped files that match this pattern in the proc map for
