@@ -29,6 +29,7 @@ cc_defaults {
     defaults: ["art_defaults"],
     srcs: [
         "odrefresh.cc",
+        "odr_common.cc",
         "odr_compilation_log.cc",
         "odr_fs_utils.cc",
         "odr_metrics.cc",
@@ -87,6 +88,7 @@ gensrcs {
 art_cc_binary {
     name: "odrefresh",
     defaults: ["odrefresh-defaults"],
+    srcs: ["odrefresh_main.cc"],
     required: [
         "dexoptanalyzer",
         "dex2oat",
@@ -107,6 +109,7 @@ art_cc_binary {
         "art_debug_defaults",
         "odrefresh-defaults",
     ],
+    srcs: ["odrefresh_main.cc"],
     required: [
         "dexoptanalyzerd",
         "dex2oatd",
