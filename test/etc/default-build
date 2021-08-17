@@ -227,10 +227,16 @@ D8_FLAGS="${D8_FLAGS} --min-api $API_LEVEL"
 # Optionally, zipalign results to some alignment.
 function zip() {
   local zip_target="$1"
-  local entry_src="$2"
-  shift 2
+  local zip_args="-o $1 "
+  shift
+  if [[ $ZIP_COMPRESSION_METHOD = "store" ]]; then
+    zip_args+="-L 0 "
+  fi
+  for arg in "$@"; do
+    zip_args+="-f $arg "
+  done
 
-  command zip --compression-method "$ZIP_COMPRESSION_METHOD" "$zip_target" "$entry_src" "$@"
+  ${SOONG_ZIP} $zip_args
 
   if "$WITH_ZIP_ALIGN"; then
     # zipalign does not operate in-place, so write results to a temp file.

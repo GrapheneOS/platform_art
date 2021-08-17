@@ -38,5 +38,5 @@ export D8=':'
 
 ######################################################################
 
-jar -cf classes.jar classes.dex
+${SOONG_ZIP} --jar -o classes.jar -f classes.dex
 ./default-build "$@"
