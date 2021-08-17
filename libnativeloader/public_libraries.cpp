@@ -55,6 +55,7 @@ constexpr const char* kExtendedPublicLibrariesFilePrefix = "public.libraries-";
 constexpr const char* kExtendedPublicLibrariesFileSuffix = ".txt";
 constexpr const char* kApexLibrariesConfigFile = "/linkerconfig/apex.libraries.config.txt";
 constexpr const char* kVendorPublicLibrariesFile = "/vendor/etc/public.libraries.txt";
+constexpr const char* kProductPublicLibrariesFile = "/product/etc/public.libraries.txt";
 constexpr const char* kLlndkLibrariesFile = "/apex/com.android.vndk.v{}/etc/llndk.libraries.{}.txt";
 constexpr const char* kVndkLibrariesFile = "/apex/com.android.vndk.v{}/etc/vndksp.libraries.{}.txt";
 
@@ -185,6 +186,15 @@ static std::string InitVendorPublicLibraries() {
   return android::base::Join(*sonames, ':');
 }
 
+static std::string InitProductPublicLibraries() {
+  // This file is optional, quietly ignore if the file does not exist.
+  auto sonames = ReadConfig(kProductPublicLibrariesFile, always_true);
+  if (!sonames.ok()) {
+    return "";
+  }
+  return android::base::Join(*sonames, ':');
+}
+
 // read /system/etc/public.libraries-<companyname>.txt,
 // /system_ext/etc/public.libraries-<companyname>.txt and
 // /product/etc/public.libraries-<companyname>.txt which contain partner defined
@@ -194,7 +204,9 @@ static std::string InitExtendedPublicLibraries() {
   std::vector<std::string> sonames;
   ReadExtensionLibraries("/system/etc", &sonames);
   ReadExtensionLibraries("/system_ext/etc", &sonames);
-  ReadExtensionLibraries("/product/etc", &sonames);
+  if (!is_product_vndk_version_defined()) {
+    ReadExtensionLibraries("/product/etc", &sonames);
+  }
   return android::base::Join(sonames, ':');
 }
 
@@ -302,6 +314,11 @@ const std::string& default_public_libraries() {
 
 const std::string& vendor_public_libraries() {
   static std::string list = InitVendorPublicLibraries();
+  return list;
+}
+
+const std::string& product_public_libraries() {
+  static std::string list = InitProductPublicLibraries();
   return list;
 }
 

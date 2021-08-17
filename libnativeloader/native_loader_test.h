@@ -87,6 +87,7 @@ static std::unordered_map<std::string, Platform::mock_namespace_handle> namespac
 
   NAMESPACE_ENTRY("default"),
   NAMESPACE_ENTRY("sphal"),
+  NAMESPACE_ENTRY("product"),
   NAMESPACE_ENTRY("system"),
   NAMESPACE_ENTRY("vndk"),
   NAMESPACE_ENTRY("vndk_product"),

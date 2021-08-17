@@ -33,6 +33,7 @@ using android::base::Result;
 const std::string& preloadable_public_libraries();
 const std::string& default_public_libraries();
 const std::string& vendor_public_libraries();
+const std::string& product_public_libraries();
 const std::string& extended_public_libraries();
 const std::string& llndk_libraries_product();
 const std::string& llndk_libraries_vendor();
