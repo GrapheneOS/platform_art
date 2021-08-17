@@ -30,9 +30,18 @@ public class Main implements Runnable {
     private final static int THREAD_COUNT = 16;
 
     // Use a couple of different forms of synchronizing to test some of these...
-    private final static AtomicInteger counter = new AtomicInteger();
+    private final static AtomicInteger counter = new AtomicInteger(-1);
     private final static Object gate = new Object();
     private volatile static int waitCount = 0;
+
+    static {
+        // If we're using the interpreter for the boot class path, the VarHandle implementation of
+        // AtomicInteger.incrementAndGet() needs to resolve a MethodType which is then cached for
+        // subsequent uses. Make sure the MethodType is resolved early, otherwise the
+        // counter.incrementAndGet() call in work(), after we have tried to allocate all memory,
+        // could throw OOME.
+        counter.incrementAndGet();
+    }
 
     public static void main(String[] args) throws Exception {
         Thread[] threads = new Thread[THREAD_COUNT];
