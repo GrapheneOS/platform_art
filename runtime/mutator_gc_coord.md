@@ -120,7 +120,7 @@ suspended thread stays suspended, and then running the function on its behalf.
 `RunCheckpoint()` does not wait for completion of the function calls triggered by
 the resulting `RequestCheckpoint()` invocations.
 
-**Empty Checkpoints**
+**Empty checkpoints**
 : ThreadList provides `RunEmptyCheckpoint()`, which waits until
 all threads have either passed a suspend point, or have been suspended. This
 ensures that no thread is still executing Java code inside the same
@@ -134,6 +134,73 @@ a `SuspendAll()` call to suspend one or all threads until they are resumed by
 `Resume()` or `ResumeAll()`. The `Suspend...` calls guarantee that the target
 thread(s) are suspended (again, only in the sense of not running Java code)
 when the call returns.
+
+Deadlock freedom
+----------------
+
+It is easy to deadlock while attempting to run checkpoints, or suspending
+threads. In particular, we need to avoid situations in which we cannot suspend
+a thread because it is blocked, directly, or indirectly, on the GC completing
+its task. Deadlocks are avoided as follows:
+
+**Mutator lock ordering**
+The mutator lock participates in the normal ART lock ordering hierarchy, as though it
+were a regular lock. See `base/locks.h` for the hierarchy. In particular, only
+locks at or below level `kPostMutatorTopLockLevel` may be acquired after
+acquiring the mutator lock, e.g. inside the scope of a `ScopedObjectAccess`.
+Similarly only locks at level strictly above `kMutatatorLock`may be held while
+acquiring the mutator lock, e.g. either by starting a `ScopedObjectAccess`, or
+ending a `ScopedThreadSuspension`.
+
+This ensures that code that uses purely mutexes and threads state changes cannot
+deadlock: Since we always wait on a lower-level lock, the holder of the
+lowest-level lock can always progress. An attempt to initiate a checkpoint or to
+suspend another thread must also be treated as an acquisition of the mutator
+lock: A thread that is waiting for a lock before it can respond to the request
+is itself holding the mutator lock, and can only be blocked on lower-level
+locks. And acquisition of those can never depend on acquiring the mutator
+lock.
+
+**Waiting**
+This becomes much more problematic when we wait for something other than a lock.
+Waiting for something that may depend on the GC, while holding the mutator lock,
+can potentially lead to deadlock, since it will prevent the waiting thread from
+participating in GC checkpoints. Waiting while holding a lower-level lock like
+`thread_list_lock_` is similarly unsafe in general, since a runnable thread may
+not respond to checkpoints until it acquires `thread_list_lock_`. In general,
+waiting for a condition variable while holding an unrelated lock is problematic,
+and these are specific instances of that general problem.
+
+We do currently provide `WaitHoldingLocks`, and it is sometimes used with
+low-level locks held. But such code must somehow ensure that such waits
+eventually terminate without deadlock.
+
+One common use of WaitHoldingLocks is to wait for weak reference processing.
+Special rules apply to avoid deadlocks in this case: Such waits must start after
+weak reference processing is disabled; the GC may not issue further nonempty
+checkpoints or suspend requests until weak reference processing has been
+reenabled, and threads have been notified. Thus the waiting thread's inability
+to respond to nonempty checkpoints and suspend requests cannot directly block
+the GC. Non-GC checkpoint or suspend requests that target a thread waiting on
+reference processing will block until reference processing completes.
+
+Consider a case in which thread W1 waits on reference processing, while holding
+a low-level mutex M. Thread W2 holds the mutator lock and waits on M. We avoid a
+situation in which the GC needs to suspend or checkpoint W2 by briefly stopping
+the world to disable weak reference access. During the stop-the-world phase, W1
+cannot yet be waiting for weak-reference access.  Thus there is no danger of
+deadlock while entering this phase. After this phase, there is no need for W2 to
+suspend or execute a nonempty checkpoint. If we replaced the stop-the-world
+phase by a checkpoint, W2 could receive the checkpoint request too late, and be
+unable to respond.
+
+Empty checkpoints can continue to occur during reference processing.  Reference
+processing wait loops explicitly handle empty checkpoints, and an empty
+checkpoint request notifies the condition variable used to wait for reference
+processing, after acquiring `reference_processor_lock_`.  This means that empty
+checkpoints do not preclude client threads from being in the middle of an
+operation that involves a weak reference access, while nonempty checkpoints do.
+
 
 [^1]: Some comments in the code refer to a not-yet-really-implemented scheme in
 which the compiler-generated code would load through the address at
