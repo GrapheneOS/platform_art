@@ -18,6 +18,7 @@
 set -e
 
 # Write out the source file.
-cpp -P src/Main.java.in src/Main.java
+mkdir -p src
+./generate
 
 ./default-build "$@"
