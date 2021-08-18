@@ -37,6 +37,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 
 import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Optional;
@@ -89,7 +91,7 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
             mZygoteArtifacts.addAll(getZygoteLoadedArtifacts(zygoteName).orElse(new HashSet<>()));
         }
         mSystemServerArtifacts = getSystemServerLoadedArtifacts();
-        mBootTimeMs = getDevice().getDeviceDate();
+        mBootTimeMs = getCurrentTimeMs();
     }
 
     @After
@@ -339,24 +341,56 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         getDevice().pushString(apexInfo, CACHE_INFO_FILE);
     }
 
-    long getModifiedTimeMs(String filename) throws Exception {
-        String timeStr = getDevice()
-                .executeShellCommand(String.format("stat -c '%%.3Y' '%s'", filename))
-                .trim();
-        return (long)(Double.parseDouble(timeStr) * 1000);
+    long parseFormattedDateTime(String dateTimeStr) throws Exception {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(
+                "yyyy-MM-dd HH:mm:ss.nnnnnnnnn Z");
+        ZonedDateTime zonedDateTime = ZonedDateTime.parse(dateTimeStr, formatter);
+        return zonedDateTime.toInstant().toEpochMilli();
     }
 
-    void assertArtifactsModifiedAfter(Set<String> artifacts, long timeMs) throws Exception {
+    long getModifiedTimeMs(String filename) throws Exception {
+        // We can't use the "-c '%.3Y'" flag when to get the timestamp because the Toybox's `stat`
+        // implementation truncates the timestamp to seconds, which is not accurate enough, so we
+        // use "-c '%%y'" and parse the time ourselves.
+        String dateTimeStr = getDevice()
+                .executeShellCommand(String.format("stat -c '%%y' '%s'", filename))
+                .trim();
+        return parseFormattedDateTime(dateTimeStr);
+    }
+
+    long getCurrentTimeMs() throws Exception {
+        // We can't use getDevice().getDeviceDate() because it truncates the timestamp to seconds,
+        // which is not accurate enough.
+        String dateTimeStr = getDevice()
+                .executeShellCommand("date +'%Y-%m-%d %H:%M:%S.%N %z'")
+                .trim();
+        return parseFormattedDateTime(dateTimeStr);
+    }
+
+    void assertArtifactsModifiedAfterBoot(Set<String> artifacts) throws Exception {
         for (String artifact : artifacts) {
-            assertTrue("Artifact " + artifact + " is not re-compiled",
-                    getModifiedTimeMs(artifact) > timeMs);
+            long modifiedTime = getModifiedTimeMs(artifact);
+            assertTrue(
+                    String.format(
+                            "Artifact %s is not re-compiled. Modified time: %d, Boot time: %d",
+                            artifact,
+                            modifiedTime,
+                            mBootTimeMs),
+                    modifiedTime > mBootTimeMs);
         }
     }
 
-    void assertArtifactsNotModifiedAfter(Set<String> artifacts, long timeMs) throws Exception {
+    void assertArtifactsNotModifiedAfterBoot(Set<String> artifacts) throws Exception {
         for (String artifact : artifacts) {
-            assertTrue("Artifact " + artifact + " is unexpectedly re-compiled",
-                    getModifiedTimeMs(artifact) < timeMs);
+            long modifiedTime = getModifiedTimeMs(artifact);
+            assertTrue(
+                    String.format(
+                            "Artifact %s is unexpectedly re-compiled. " +
+                                    "Modified time: %d, Boot time: %d",
+                            artifact,
+                            modifiedTime,
+                            mBootTimeMs),
+                    modifiedTime < mBootTimeMs);
         }
     }
 
@@ -366,8 +400,8 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         removeCompilationLogToAvoidBackoff();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsModifiedAfter(mZygoteArtifacts, mBootTimeMs);
-        assertArtifactsModifiedAfter(mSystemServerArtifacts, mBootTimeMs);
+        assertArtifactsModifiedAfterBoot(mZygoteArtifacts);
+        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
     }
 
     @Test
@@ -376,8 +410,8 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         removeCompilationLogToAvoidBackoff();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsNotModifiedAfter(mZygoteArtifacts, mBootTimeMs);
-        assertArtifactsModifiedAfter(mSystemServerArtifacts, mBootTimeMs);
+        assertArtifactsNotModifiedAfterBoot(mZygoteArtifacts);
+        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
     }
 
     @Test
@@ -386,8 +420,8 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         removeCompilationLogToAvoidBackoff();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsModifiedAfter(mZygoteArtifacts, mBootTimeMs);
-        assertArtifactsModifiedAfter(mSystemServerArtifacts, mBootTimeMs);
+        assertArtifactsModifiedAfterBoot(mZygoteArtifacts);
+        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
     }
 
     @Test
@@ -396,8 +430,8 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         removeCompilationLogToAvoidBackoff();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsNotModifiedAfter(mZygoteArtifacts, mBootTimeMs);
-        assertArtifactsModifiedAfter(mSystemServerArtifacts, mBootTimeMs);
+        assertArtifactsNotModifiedAfterBoot(mZygoteArtifacts);
+        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
     }
 
     @Test
@@ -405,8 +439,8 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         removeCompilationLogToAvoidBackoff();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsNotModifiedAfter(mZygoteArtifacts, mBootTimeMs);
-        assertArtifactsNotModifiedAfter(mSystemServerArtifacts, mBootTimeMs);
+        assertArtifactsNotModifiedAfterBoot(mZygoteArtifacts);
+        assertArtifactsNotModifiedAfterBoot(mSystemServerArtifacts);
     }
 
     private boolean haveCompilationLog() throws Exception {
