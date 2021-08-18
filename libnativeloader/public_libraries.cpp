@@ -185,6 +185,17 @@ static std::string InitVendorPublicLibraries() {
   return android::base::Join(*sonames, ':');
 }
 
+// If ro.product.vndk.version is defined, /product/etc/public.libraries-<companyname>.txt contains
+// the product public libraries that are loaded from the product namespace. Otherwise, the file
+// contains the extended public libraries that are loaded from the system namespace.
+static std::string InitProductPublicLibraries() {
+  std::vector<std::string> sonames;
+  if (is_product_vndk_version_defined()) {
+    ReadExtensionLibraries("/product/etc", &sonames);
+  }
+  return android::base::Join(sonames, ':');
+}
+
 // read /system/etc/public.libraries-<companyname>.txt,
 // /system_ext/etc/public.libraries-<companyname>.txt and
 // /product/etc/public.libraries-<companyname>.txt which contain partner defined
@@ -194,7 +205,9 @@ static std::string InitExtendedPublicLibraries() {
   std::vector<std::string> sonames;
   ReadExtensionLibraries("/system/etc", &sonames);
   ReadExtensionLibraries("/system_ext/etc", &sonames);
-  ReadExtensionLibraries("/product/etc", &sonames);
+  if (!is_product_vndk_version_defined()) {
+    ReadExtensionLibraries("/product/etc", &sonames);
+  }
   return android::base::Join(sonames, ':');
 }
 
@@ -302,6 +315,11 @@ const std::string& default_public_libraries() {
 
 const std::string& vendor_public_libraries() {
   static std::string list = InitVendorPublicLibraries();
+  return list;
+}
+
+const std::string& product_public_libraries() {
+  static std::string list = InitProductPublicLibraries();
   return list;
 }
 
