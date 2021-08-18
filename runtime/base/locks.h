@@ -48,8 +48,8 @@ enum LockLevel : uint8_t {
   kJniIdLock,
   kNativeDebugInterfaceLock,
   kSignalHandlingLock,
-  // A generic lock level for mutexs that should not allow any additional mutexes to be gained after
-  // acquiring it.
+  // A generic lock level for mutexes that should not allow any additional mutexes to be gained
+  // after acquiring it.
   kGenericBottomLock,
   // Tracks the second acquisition at the same lock level for kThreadWaitLock. This is an exception
   // to the normal lock ordering, used to implement Monitor::Wait - while holding one kThreadWait
