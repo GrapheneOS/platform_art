@@ -100,7 +100,7 @@ class Main {{
     main_func = self.MAIN_FUNCTION_TEMPLATE.format(test_group_invoke=test_invoke)
 
     funcs = ""
-    for f in self.global_funcs:
+    for f in sorted(self.global_funcs):
       funcs += str(f)
     return self.MAIN_CLASS_TEMPLATE.format(copyright = get_copyright('java'),
                                            test_groups=test_groups,
