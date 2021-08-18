@@ -25,6 +25,13 @@ lucicfg.check_version("1.24.4", "Please update depot_tools")
 # Enable v2 bucket names in LUCI Scheduler config.
 lucicfg.enable_experiment("crbug.com/1182002")
 
+# Enable LUCI Security Realms.
+lucicfg.enable_experiment("crbug.com/1085650")
+
+# Launch 0% of Builds in "Realms-aware mode"
+# TODO(tandrii): bump to 100%.
+luci.builder.defaults.experiments.set({"luci.use_realms": 0})
+
 # Tell lucicfg what files it is allowed to touch.
 lucicfg.config(
     config_dir = "generated",
@@ -33,7 +40,6 @@ lucicfg.config(
 )
 
 # TODO: Switch to project-scoped service account.
-# TODO: Switch to realms.
 
 luci.project(
     name = "art",
@@ -66,14 +72,37 @@ luci.project(
             groups = "luci-logdog-chromium-writers",
         ),
     ],
+    bindings = [
+        luci.binding(
+            roles = "role/swarming.poolOwner",
+            groups = "project-art-admins",
+        ),
+        luci.binding(
+            roles = "role/swarming.poolViewer",
+            groups = "all",
+        ),
+    ],
 )
 
 # Per-service tweaks.
 luci.logdog(gs_bucket = "chromium-luci-logdog")
 luci.milo(logo = "https://storage.googleapis.com/chrome-infra-public/logo/art-logo.png")
 
+# Allow admins to use LED and "Debug" button on every builder and bot.
+luci.binding(
+    realm = "@root",
+    roles = "role/swarming.poolUser",
+    groups = "project-art-admins",
+)
+luci.binding(
+    realm = "@root",
+    roles = "role/swarming.taskTriggerer",
+    groups = "project-art-admins",
+)
+
 # Resources shared by all subprojects.
 
+luci.realm(name = "pools/ci")
 luci.bucket(name = "ci")
 
 luci.notifier_template(
