@@ -100,7 +100,8 @@ class ReferenceProcessor {
   // If this is true, then we cannot return a referent (see comment in GetReferent).
   bool preserving_references_ GUARDED_BY(Locks::reference_processor_lock_);
   // Condition that people wait on if they attempt to get the referent of a reference while
-  // processing is in progress.
+  // processing is in progress. Broadcast when an empty checkpoint is requested, but not for other
+  // checkpoints or thread suspensions. See mutator_gc_coord.md.
   ConditionVariable condition_ GUARDED_BY(Locks::reference_processor_lock_);
   // Reference queues used by the GC.
   ReferenceQueue soft_reference_queue_;
