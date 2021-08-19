@@ -24,6 +24,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -2815,14 +2816,12 @@ class Dex2Oat final {
   template <typename T>
   static std::unique_ptr<T> ReadCommentedInputFromFile(
       const char* input_filename, std::function<std::string(const char*)>* process) {
-    std::ifstream input_file(input_filename, std::ifstream::in);
-    if (!input_file.good()) {
+    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "r"), fclose};
+    if (!input_file) {
       LOG(ERROR) << "Failed to open input file " << input_filename;
       return nullptr;
     }
-    std::unique_ptr<T> result = ReadCommentedInputStream<T>(input_file, process);
-    input_file.close();
-    return result;
+    return ReadCommentedInputStream<T>(input_file.get(), process);
   }
 
   // Read lines from the given fd, dropping comments and empty lines. Post-process each line with
@@ -2830,36 +2829,39 @@ class Dex2Oat final {
   template <typename T>
   static std::unique_ptr<T> ReadCommentedInputFromFd(
       int input_fd, std::function<std::string(const char*)>* process) {
-    std::ifstream input_file(StringPrintf("/proc/self/fd/%d", input_fd), std::ifstream::in);
-    if (!input_file.good()) {
+    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fdopen(input_fd, "r"), fclose};
+    if (!input_file) {
       LOG(ERROR) << "Failed to re-open input fd from /prof/self/fd/" << input_fd;
       return nullptr;
     }
-    std::unique_ptr<T> result = ReadCommentedInputStream<T>(input_file, process);
-    input_file.close();
-    return result;
+    return ReadCommentedInputStream<T>(input_file.get(), process);
   }
 
   // Read lines from the given stream, dropping comments and empty lines. Post-process each line
   // with the given function.
   template <typename T>
   static std::unique_ptr<T> ReadCommentedInputStream(
-      std::istream& in_stream,
+      std::FILE* in_stream,
       std::function<std::string(const char*)>* process) {
     std::unique_ptr<T> output(new T());
-    while (in_stream.good()) {
-      std::string dot;
-      std::getline(in_stream, dot);
-      if (android::base::StartsWith(dot, "#") || dot.empty()) {
+    char* line = nullptr;
+    size_t line_alloc = 0;
+    ssize_t len = 0;
+    while ((len = getline(&line, &line_alloc, in_stream)) > 0) {
+      if (line[0] == '\0' || line[0] == '#' || line[0] == '\n') {
         continue;
       }
+      if (line[len - 1] == '\n') {
+        line[len - 1] = '\0';
+      }
       if (process != nullptr) {
-        std::string descriptor((*process)(dot.c_str()));
+        std::string descriptor((*process)(line));
         output->insert(output->end(), descriptor);
       } else {
-        output->insert(output->end(), dot);
+        output->insert(output->end(), line);
       }
     }
+    free(line);
     return output;
   }
 
