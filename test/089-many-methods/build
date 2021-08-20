@@ -48,4 +48,8 @@ export NEED_DEX=true
 
 # Specify old API level as d8 automagically produces a multidex file
 # when the API level is above 20. Failing the build here is deliberate.
-./default-build --api-level 20 "$@"
+./default-build --api-level 20 "$@" > /dev/null 2> stderr.txt || true
+
+# Check that a build failure happened (the test is not expected to run).
+EXPECTED_ERROR="Cannot fit requested classes in a single dex"
+grep -q "$EXPECTED_ERROR" stderr.txt
