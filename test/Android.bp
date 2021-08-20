@@ -454,9 +454,9 @@ java_defaults {
     system_modules: "core-all-system-modules",
 
     // Some ART run-tests contain constructs which break ErrorProne checks;
-    // disable them on `errorprone` builds.
+    // disable `errorprone` builds.
     errorprone: {
-        javacflags: ["-XepDisableAllChecks"],
+        enabled: false,
     },
     test_suites: [
         "general-tests",
@@ -1081,6 +1081,11 @@ java_library {
         "2007-virtual-structural-finalizable/src-art/art/Test2007.java",
     ],
     sdk_version: "core_platform",
+    // Some ART run-tests contain constructs which break ErrorProne checks;
+    // disable `errorprone` builds.
+    errorprone: {
+        enabled: false,
+    },
 }
 
 // CTS test runner in cts/hostsidetests/jvmti looks for an expected test
