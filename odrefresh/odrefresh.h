@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,14 @@
 #define ART_ODREFRESH_ODREFRESH_H_
 
 #include <ctime>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "com_android_apex.h"
 #include "com_android_art.h"
+#include "exec_utils.h"
 #include "odr_artifacts.h"
 #include "odr_config.h"
 #include "odr_metrics.h"
@@ -35,6 +37,11 @@ namespace odrefresh {
 class OnDeviceRefresh final {
  public:
   explicit OnDeviceRefresh(const OdrConfig& config);
+
+  // Constructor with injections. For testing and internal use only.
+  OnDeviceRefresh(const OdrConfig& config,
+                  const std::string& cache_info_filename,
+                  std::unique_ptr<ExecUtils> exec_utils);
 
   // Returns the exit code, a list of ISAs that boot extensions should be compiled for, and a
   // boolean indicating whether the system server should be compiled.
@@ -168,6 +175,8 @@ class OnDeviceRefresh final {
   std::vector<std::string> boot_classpath_jars_;
 
   const time_t start_time_;
+
+  std::unique_ptr<ExecUtils> exec_utils_;
 
   DISALLOW_COPY_AND_ASSIGN(OnDeviceRefresh);
 };
