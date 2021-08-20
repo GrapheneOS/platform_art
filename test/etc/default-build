@@ -331,7 +331,7 @@ function make_dexmerge() {
 
   # We assume the dexer did all the API level checks and just merge away.
   mkdir d8_merge_out
-  ${DEXMERGER} --min-api 1000 --output ./d8_merge_out "${dex_files_to_merge[@]}"
+  ${D8} --min-api 1000 --output ./d8_merge_out "${dex_files_to_merge[@]}"
 
   if [[ -e "./d8_merge_out/classes2.dex" ]]; then
     fail "Cannot merge all dex files into a single dex"
