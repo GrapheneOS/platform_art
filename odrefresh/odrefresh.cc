@@ -456,9 +456,17 @@ std::string GetBootImage() {
 }  // namespace
 
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
+    : OnDeviceRefresh(config,
+                      Concatenate({kOdrefreshArtifactDirectory, "/", kCacheInfoFile}),
+                      std::make_unique<ExecUtils>()) {}
+
+OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config,
+                                 const std::string& cache_info_filename,
+                                 std::unique_ptr<ExecUtils> exec_utils)
     : config_{config},
-      cache_info_filename_{Concatenate({kOdrefreshArtifactDirectory, "/", kCacheInfoFile})},
-      start_time_{time(nullptr)} {
+      cache_info_filename_{cache_info_filename},
+      start_time_{time(nullptr)},
+      exec_utils_{std::move(exec_utils)} {
   for (const std::string& jar : android::base::Split(config_.GetDex2oatBootClasspath(), ":")) {
     // Boot class path extensions are those not in the ART APEX. Updatable APEXes should not
     // have DEX files in the DEX2OATBOOTCLASSPATH. At the time of writing i18n is a non-updatable
@@ -1077,7 +1085,8 @@ WARN_UNUSED bool OnDeviceRefresh::VerifyBootExtensionArtifactsAreUpToDate(const 
   std::string error_msg;
   bool timed_out = false;
   const time_t timeout = GetSubprocessTimeout();
-  const int dexoptanalyzer_result = ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
+  const int dexoptanalyzer_result =
+      exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
   if (dexoptanalyzer_result == -1) {
     LOG(ERROR) << "Unexpected exit from dexoptanalyzer: " << error_msg;
     if (timed_out) {
@@ -1173,7 +1182,8 @@ WARN_UNUSED bool OnDeviceRefresh::VerifySystemServerArtifactsAreUpToDate(bool on
     std::string error_msg;
     bool timed_out = false;
     const time_t timeout = GetSubprocessTimeout();
-    const int dexoptanalyzer_result = ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
+    const int dexoptanalyzer_result =
+        exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
     if (dexoptanalyzer_result == -1) {
       LOG(ERROR) << "Unexpected exit from dexoptanalyzer: " << error_msg;
       if (timed_out) {
@@ -1352,7 +1362,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootExtensionArtifacts(const Instructio
   }
 
   bool timed_out = false;
-  int dex2oat_exit_code = ExecAndReturnCode(args, timeout, &timed_out, error_msg);
+  int dex2oat_exit_code = exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, error_msg);
   if (dex2oat_exit_code != 0) {
     if (timed_out) {
       metrics.SetStatus(OdrMetrics::Status::kTimeLimitExceeded);
@@ -1502,7 +1512,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(const std::string
     }
 
     bool timed_out = false;
-    int dex2oat_exit_code = ExecAndReturnCode(args, timeout, &timed_out, error_msg);
+    int dex2oat_exit_code = exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, error_msg);
     if (dex2oat_exit_code != 0) {
       if (timed_out) {
         metrics.SetStatus(OdrMetrics::Status::kTimeLimitExceeded);
@@ -1533,10 +1543,14 @@ OnDeviceRefresh::Compile(OdrMetrics& metrics,
   const char* staging_dir = nullptr;
   metrics.SetStage(OdrMetrics::Stage::kPreparation);
 
-  // Create staging area and assign label for generating compilation artifacts.
-  if (PaletteCreateOdrefreshStagingDirectory(&staging_dir) != PALETTE_STATUS_OK) {
-    metrics.SetStatus(OdrMetrics::Status::kStagingFailed);
-    return ExitCode::kCleanupFailed;
+  if (!config_.GetStagingDir().empty()) {
+    staging_dir = config_.GetStagingDir().c_str();
+  } else {
+    // Create staging area and assign label for generating compilation artifacts.
+    if (PaletteCreateOdrefreshStagingDirectory(&staging_dir) != PALETTE_STATUS_OK) {
+      metrics.SetStatus(OdrMetrics::Status::kStagingFailed);
+      return ExitCode::kCleanupFailed;
+    }
   }
 
   // Emit cache info before compiling. This can be used to throttle compilation attempts later.
