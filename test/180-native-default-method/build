@@ -25,6 +25,6 @@ if [[ $@ != *"--jvm"* ]]; then
     # place ascii value '035' into the classes.dex file starting at byte 4.
     printf '035' | dd status=none conv=notrunc of=classes.dex bs=1 seek=4 count=3
     rm -f $TEST_NAME.jar
-    zip $TEST_NAME.jar classes.dex
+    ${SOONG_ZIP} -o $TEST_NAME.jar -f classes.dex
   fi
 fi
