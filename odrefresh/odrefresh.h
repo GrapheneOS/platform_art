@@ -169,6 +169,8 @@ class OnDeviceRefresh final {
 
   const time_t start_time_;
 
+  time_t max_child_process_seconds_;
+
   DISALLOW_COPY_AND_ASSIGN(OnDeviceRefresh);
 };
 
