@@ -94,6 +94,9 @@ constexpr time_t kMaximumExecutionSeconds = 300;
 // Maximum execution time for any child process spawned.
 constexpr time_t kMaxChildProcessSeconds = 90;
 
+// Extra execution time for any child process spawned in a VM.
+constexpr time_t kExtraChildProcessSecondsInVm = 30;
+
 void EraseFiles(const std::vector<std::unique_ptr<File>>& files) {
   for (auto& file : files) {
     file->Erase(/*unlink=*/true);
@@ -470,6 +473,14 @@ OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
 
   systemserver_compilable_jars_ = android::base::Split(config_.GetSystemServerClasspath(), ":");
   boot_classpath_jars_ = android::base::Split(config_.GetBootClasspath(), ":");
+
+  max_child_process_seconds_ = kMaxChildProcessSeconds;
+  if (config_.UseCompilationOs()) {
+    // Give extra time to all of the Comp OS cases for simplicity. But really, this is only needed
+    // on cuttlefish, where we run Comp OS in a slow, *nested* VM.
+    // TODO(197531822): Remove once we can give the VM more CPU and/or improve the file caching.
+    max_child_process_seconds_ += kExtraChildProcessSecondsInVm;
+  }
 }
 
 time_t OnDeviceRefresh::GetExecutionTimeUsed() const {
@@ -481,7 +492,7 @@ time_t OnDeviceRefresh::GetExecutionTimeRemaining() const {
 }
 
 time_t OnDeviceRefresh::GetSubprocessTimeout() const {
-  return std::max(GetExecutionTimeRemaining(), kMaxChildProcessSeconds);
+  return std::max(GetExecutionTimeRemaining(), max_child_process_seconds_);
 }
 
 std::optional<std::vector<apex::ApexInfo>> OnDeviceRefresh::GetApexInfoList() const {
