@@ -374,6 +374,7 @@ public class Test993 {
   // These test to make sure we are able to break on functions that might have been quickened or
   // inlined from the boot-image. These were all chosen for being in the bootclasspath, not being
   // long enough to prevent inlining, and not being used for the testing framework.
+  @SuppressWarnings("OptionalOfRedundantMethod")
   public static void runBCPMethodTests(boolean test_BCP_private) throws Exception {
     // The methods we will be breaking on.
     Method bcp_private_method =

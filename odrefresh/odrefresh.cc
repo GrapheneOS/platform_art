@@ -94,6 +94,9 @@ constexpr time_t kMaximumExecutionSeconds = 300;
 // Maximum execution time for any child process spawned.
 constexpr time_t kMaxChildProcessSeconds = 90;
 
+// Extra execution time for any child process spawned in a VM.
+constexpr time_t kExtraChildProcessSecondsInVm = 30;
+
 void EraseFiles(const std::vector<std::unique_ptr<File>>& files) {
   for (auto& file : files) {
     file->Erase(/*unlink=*/true);
@@ -456,17 +459,9 @@ std::string GetBootImage() {
 }  // namespace
 
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
-    : OnDeviceRefresh(config,
-                      Concatenate({kOdrefreshArtifactDirectory, "/", kCacheInfoFile}),
-                      std::make_unique<ExecUtils>()) {}
-
-OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config,
-                                 const std::string& cache_info_filename,
-                                 std::unique_ptr<ExecUtils> exec_utils)
     : config_{config},
-      cache_info_filename_{cache_info_filename},
-      start_time_{time(nullptr)},
-      exec_utils_{std::move(exec_utils)} {
+      cache_info_filename_{Concatenate({kOdrefreshArtifactDirectory, "/", kCacheInfoFile})},
+      start_time_{time(nullptr)} {
   for (const std::string& jar : android::base::Split(config_.GetDex2oatBootClasspath(), ":")) {
     // Boot class path extensions are those not in the ART APEX. Updatable APEXes should not
     // have DEX files in the DEX2OATBOOTCLASSPATH. At the time of writing i18n is a non-updatable
@@ -478,6 +473,14 @@ OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config,
 
   systemserver_compilable_jars_ = android::base::Split(config_.GetSystemServerClasspath(), ":");
   boot_classpath_jars_ = android::base::Split(config_.GetBootClasspath(), ":");
+
+  max_child_process_seconds_ = kMaxChildProcessSeconds;
+  if (config_.UseCompilationOs()) {
+    // Give extra time to all of the Comp OS cases for simplicity. But really, this is only needed
+    // on cuttlefish, where we run Comp OS in a slow, *nested* VM.
+    // TODO(197531822): Remove once we can give the VM more CPU and/or improve the file caching.
+    max_child_process_seconds_ += kExtraChildProcessSecondsInVm;
+  }
 }
 
 time_t OnDeviceRefresh::GetExecutionTimeUsed() const {
@@ -489,7 +492,7 @@ time_t OnDeviceRefresh::GetExecutionTimeRemaining() const {
 }
 
 time_t OnDeviceRefresh::GetSubprocessTimeout() const {
-  return std::max(GetExecutionTimeRemaining(), kMaxChildProcessSeconds);
+  return std::max(GetExecutionTimeRemaining(), max_child_process_seconds_);
 }
 
 std::optional<std::vector<apex::ApexInfo>> OnDeviceRefresh::GetApexInfoList() const {
@@ -1085,8 +1088,7 @@ WARN_UNUSED bool OnDeviceRefresh::VerifyBootExtensionArtifactsAreUpToDate(const 
   std::string error_msg;
   bool timed_out = false;
   const time_t timeout = GetSubprocessTimeout();
-  const int dexoptanalyzer_result =
-      exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
+  const int dexoptanalyzer_result = ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
   if (dexoptanalyzer_result == -1) {
     LOG(ERROR) << "Unexpected exit from dexoptanalyzer: " << error_msg;
     if (timed_out) {
@@ -1182,8 +1184,7 @@ WARN_UNUSED bool OnDeviceRefresh::VerifySystemServerArtifactsAreUpToDate(bool on
     std::string error_msg;
     bool timed_out = false;
     const time_t timeout = GetSubprocessTimeout();
-    const int dexoptanalyzer_result =
-        exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
+    const int dexoptanalyzer_result = ExecAndReturnCode(args, timeout, &timed_out, &error_msg);
     if (dexoptanalyzer_result == -1) {
       LOG(ERROR) << "Unexpected exit from dexoptanalyzer: " << error_msg;
       if (timed_out) {
@@ -1362,7 +1363,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootExtensionArtifacts(const Instructio
   }
 
   bool timed_out = false;
-  int dex2oat_exit_code = exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, error_msg);
+  int dex2oat_exit_code = ExecAndReturnCode(args, timeout, &timed_out, error_msg);
   if (dex2oat_exit_code != 0) {
     if (timed_out) {
       metrics.SetStatus(OdrMetrics::Status::kTimeLimitExceeded);
@@ -1512,7 +1513,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(const std::string
     }
 
     bool timed_out = false;
-    int dex2oat_exit_code = exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, error_msg);
+    int dex2oat_exit_code = ExecAndReturnCode(args, timeout, &timed_out, error_msg);
     if (dex2oat_exit_code != 0) {
       if (timed_out) {
         metrics.SetStatus(OdrMetrics::Status::kTimeLimitExceeded);
@@ -1543,14 +1544,10 @@ OnDeviceRefresh::Compile(OdrMetrics& metrics,
   const char* staging_dir = nullptr;
   metrics.SetStage(OdrMetrics::Stage::kPreparation);
 
-  if (!config_.GetStagingDir().empty()) {
-    staging_dir = config_.GetStagingDir().c_str();
-  } else {
-    // Create staging area and assign label for generating compilation artifacts.
-    if (PaletteCreateOdrefreshStagingDirectory(&staging_dir) != PALETTE_STATUS_OK) {
-      metrics.SetStatus(OdrMetrics::Status::kStagingFailed);
-      return ExitCode::kCleanupFailed;
-    }
+  // Create staging area and assign label for generating compilation artifacts.
+  if (PaletteCreateOdrefreshStagingDirectory(&staging_dir) != PALETTE_STATUS_OK) {
+    metrics.SetStatus(OdrMetrics::Status::kStagingFailed);
+    return ExitCode::kCleanupFailed;
   }
 
   // Emit cache info before compiling. This can be used to throttle compilation attempts later.
