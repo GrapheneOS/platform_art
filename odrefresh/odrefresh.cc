@@ -782,12 +782,13 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBootExtensionArtifactsAreUpToDate(
     return false;
   }
 
-  // Check lastUpdateMillis for samegrade installs. If `cached_art_info` is missing
-  // lastUpdateMillis then it is not current with the schema used by this binary so treat it as a
-  // samegrade update. Otherwise check whether the lastUpdateMillis changed.
-  if (!cached_art_info->hasLastUpdateMillis() ||
-      cached_art_info->getLastUpdateMillis() != art_apex_info.getLastUpdateMillis()) {
-    LOG(INFO) << "ART APEX last update time mismatch (" << cached_art_info->getLastUpdateMillis()
+  // Check lastUpdateMillis for samegrade installs. If `cached_art_info` is missing the
+  // lastUpdateMillis field then it is not current with the schema used by this binary so treat
+  // it as a samegrade update. Otherwise check whether the lastUpdateMillis changed.
+  const int64_t cached_art_last_update_millis =
+      cached_art_info->hasLastUpdateMillis() ? cached_art_info->getLastUpdateMillis() : -1;
+  if (cached_art_last_update_millis != art_apex_info.getLastUpdateMillis()) {
+    LOG(INFO) << "ART APEX last update time mismatch (" << cached_art_last_update_millis
               << " != " << art_apex_info.getLastUpdateMillis() << ").";
     metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
     *cleanup_required = true;
@@ -1024,6 +1025,9 @@ WARN_UNUSED ExitCode OnDeviceRefresh::CheckArtifactsAreUpToDate(
 
   // Record ART APEX version for metrics reporting.
   metrics.SetArtApexVersion(art_apex_info->getVersionCode());
+
+  // Log the version so there's a starting point for any issues reported (b/197489543).
+  LOG(INFO) << "ART APEX version " << art_apex_info->getVersionCode();
 
   // Record ART APEX last update milliseconds (used in compilation log).
   metrics.SetArtApexLastUpdateMillis(art_apex_info->getLastUpdateMillis());
