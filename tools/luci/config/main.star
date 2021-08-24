@@ -30,7 +30,7 @@ lucicfg.enable_experiment("crbug.com/1085650")
 
 # Launch 0% of Builds in "Realms-aware mode"
 # TODO(tandrii): bump to 100%.
-luci.builder.defaults.experiments.set({"luci.use_realms": 0})
+luci.builder.defaults.experiments.set({"luci.use_realms": 20})
 
 # Tell lucicfg what files it is allowed to touch.
 lucicfg.config(
