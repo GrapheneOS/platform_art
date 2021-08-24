@@ -25,8 +25,6 @@ package {
 
 cc_defaults {
     name: "odrefresh-defaults",
-    host_supported: true,
-    defaults: ["art_defaults"],
     srcs: [
         "odrefresh.cc",
         "odr_common.cc",
@@ -45,20 +43,32 @@ cc_defaults {
     shared_libs: [
         "libartpalette",
         "libbase",
-        "libdexfile",
         "liblog",
     ],
     static_libs: ["libtinyxml2"],
-    target: {
-        android: {
-            compile_multilib: "first",
-        },
-    },
     tidy: true,
     tidy_flags: [
         "-format-style=file",
         "-header-filter=(art/odrefresh/|system/apex/)",
     ],
+}
+
+cc_defaults {
+    name: "odrefresh_binary_defaults",
+    host_supported: true,
+    defaults: [
+        "art_defaults",
+        "odrefresh-defaults",
+    ],
+    srcs: ["odrefresh_main.cc"],
+    shared_libs: [
+        "libdexfile",
+    ],
+    target: {
+        android: {
+            compile_multilib: "first",
+        },
+    },
 }
 
 cc_library_headers {
@@ -87,8 +97,7 @@ gensrcs {
 
 art_cc_binary {
     name: "odrefresh",
-    defaults: ["odrefresh-defaults"],
-    srcs: ["odrefresh_main.cc"],
+    defaults: ["odrefresh_binary_defaults"],
     required: [
         "dexoptanalyzer",
         "dex2oat",
@@ -107,9 +116,8 @@ art_cc_binary {
     name: "odrefreshd",
     defaults: [
         "art_debug_defaults",
-        "odrefresh-defaults",
+        "odrefresh_binary_defaults",
     ],
-    srcs: ["odrefresh_main.cc"],
     required: [
         "dexoptanalyzerd",
         "dex2oatd",
@@ -132,7 +140,6 @@ cc_library_static {
     defaults: ["art_defaults"],
     host_supported: true,
     export_include_dirs: ["include"],
-
     local_include_dirs: ["include"],
     shared_libs: ["libartbase"],
     target: {
@@ -157,21 +164,19 @@ cc_library_static {
 
 art_cc_defaults {
     name: "art_odrefresh_tests_defaults",
-    generated_sources: ["art-odrefresh-operator-srcs"],
+    defaults: ["odrefresh-defaults"],
     header_libs: ["odrefresh_headers"],
     srcs: [
         "odr_artifacts_test.cc",
-        "odr_compilation_log.cc",
         "odr_compilation_log_test.cc",
-        "odr_fs_utils.cc",
         "odr_fs_utils_test.cc",
-        "odr_metrics.cc",
         "odr_metrics_test.cc",
-        "odr_metrics_record.cc",
         "odr_metrics_record_test.cc",
         "odrefresh_test.cc",
     ],
-    shared_libs: ["libbase"],
+    static_libs: [
+        "libgmock",
+    ],
 }
 
 // Version of ART gtest `art_odrefresh_tests` bundled with the ART APEX on target.
@@ -182,6 +187,10 @@ art_cc_test {
         "art_gtest_defaults",
         "art_odrefresh_tests_defaults",
     ],
+    shared_libs: [
+        "libdexfiled",
+    ],
+    test_config_template: "art_odrefresh_tests.xml",
 }
 
 // Standalone version of ART gtest `art_odrefresh_tests`, not bundled with the ART APEX on target.
@@ -191,6 +200,10 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_odrefresh_tests_defaults",
     ],
+    shared_libs: [
+        "libdexfile",
+    ],
+    test_config_template: "art_odrefresh_tests.xml",
 }
 
 genrule {

@@ -37,6 +37,28 @@ int ExecAndReturnCode(std::vector<std::string>& arg_vector,
                       /*out*/ bool* timed_out,
                       /*out*/ std::string* error_msg);
 
+// A wrapper class to make the functions above mockable.
+class ExecUtils {
+ public:
+  virtual ~ExecUtils() = default;
+
+  virtual bool Exec(std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg) const {
+    return art::Exec(arg_vector, error_msg);
+  }
+
+  virtual int ExecAndReturnCode(std::vector<std::string>& arg_vector,
+                                /*out*/ std::string* error_msg) const {
+    return art::ExecAndReturnCode(arg_vector, error_msg);
+  }
+
+  virtual int ExecAndReturnCode(std::vector<std::string>& arg_vector,
+                                time_t timeout_secs,
+                                /*out*/ bool* timed_out,
+                                /*out*/ std::string* error_msg) const {
+    return art::ExecAndReturnCode(arg_vector, timeout_secs, timed_out, error_msg);
+  }
+};
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_EXEC_UTILS_H_

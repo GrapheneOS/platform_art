@@ -57,6 +57,10 @@ class OdrConfig final {
   std::string compilation_os_address_;
   std::string boot_classpath_;
 
+  // Staging directory for artifacts. The directory must exist and will be automatically removed
+  // after compilation. If empty, use the default directory.
+  std::string staging_dir_;
+
  public:
   explicit OdrConfig(const char* program_name)
     : dry_run_(false),
@@ -120,7 +124,12 @@ class OdrConfig final {
   const std::string& GetSystemServerClasspath() const { return system_server_classpath_; }
   const std::string& GetUpdatableBcpPackagesFile() const { return updatable_bcp_packages_file_; }
   bool UseCompilationOs() const { return !compilation_os_address_.empty(); }
-  std::string GetCompilationOsAddress() const { return compilation_os_address_; }
+  const std::string& GetCompilationOsAddress() const {
+    return compilation_os_address_;
+  }
+  const std::string& GetStagingDir() const {
+    return staging_dir_;
+  }
 
   void SetApexInfoListFile(const std::string& file_path) { apex_info_list_file_ = file_path; }
   void SetArtBinDir(const std::string& art_bin_dir) { art_bin_dir_ = art_bin_dir; }
@@ -143,6 +152,10 @@ class OdrConfig final {
   const std::string& GetBootClasspath() const { return boot_classpath_; }
 
   void SetBootClasspath(const std::string& classpath) { boot_classpath_ = classpath; }
+
+  void SetStagingDir(const std::string& staging_dir) {
+    staging_dir_ = staging_dir;
+  }
 
  private:
   // Returns a pair for the possible instruction sets for the configured instruction set
