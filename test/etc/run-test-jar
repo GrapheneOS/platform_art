@@ -2,8 +2,24 @@
 #
 # Runner for an individual run-test.
 
+# Check how many colors the terminal can display.
+ncolors=$(tput colors 2>/dev/null)
+
+# Check that stdout is connected to a terminal and that we have at least 1 color.
+# This ensures that if the stdout is not connected to a terminal and instead
+# the stdout will be used for a log, it will not append the color characters.
+if [[ -t 1 && ${ncolors} && ${ncolors} -ge 1 ]]; then
+  bold_red="$(tput bold)$(tput setaf 1)"
+fi
+
+readonly bold_red
+
+error_msg() {
+  echo -e "${bold_red}ERROR: $@" 1>&2
+}
+
 if [[ -z "$ANDROID_BUILD_TOP" ]]; then
-  echo 'ANDROID_BUILD_TOP environment variable is empty; did you forget to run `lunch`?'
+  error_msg 'ANDROID_BUILD_TOP environment variable is empty; did you forget to run `lunch`?'
   exit 1
 fi
 
@@ -122,7 +138,7 @@ while true; do
     elif [ "x$1" = "x--dex2oat-rt-timeout" ]; then
         shift
         if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --dex2oat-rt-timeout" 1>&2
+            error_msg "$0 missing argument to --dex2oat-rt-timeout"
             exit 1
         fi
         DEX2OAT_RT_TIMEOUT="$1"
@@ -130,7 +146,7 @@ while true; do
     elif [ "x$1" = "x--dex2oat-timeout" ]; then
         shift
         if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --dex2oat-timeout" 1>&2
+            error_msg "$0 missing argument to --dex2oat-timeout"
             exit 1
         fi
         DEX2OAT_TIMEOUT="$1"
@@ -150,7 +166,7 @@ while true; do
     elif [ "x$1" = "x--lib" ]; then
         shift
         if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --lib" 1>&2
+            error_msg "$0 missing argument to --lib"
             exit 1
         fi
         LIB="$1"
@@ -162,7 +178,7 @@ while true; do
     elif [ "x$1" = "x--testlib" ]; then
         shift
         if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --testlib" 1>&2
+            error_msg "$0 missing argument to --testlib"
             exit 1
         fi
         ARGS="${ARGS} $1"
@@ -170,7 +186,7 @@ while true; do
     elif [ "x$1" = "x--args" ]; then
         shift
         if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --args" 1>&2
+            error_msg "$0 missing argument to --args"
             exit 1
         fi
         ARGS="${ARGS} $1"
@@ -372,7 +388,7 @@ while true; do
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
         if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --invoke-with" 1>&2
+            error_msg "$0 missing argument to --invoke-with"
             exit 1
         fi
         if [ "x$INVOKE_WITH" = "x" ]; then
@@ -435,7 +451,7 @@ while true; do
         shift
     elif [ "x$1" = "x--experimental" ]; then
         if [ "$#" -lt 2 ]; then
-            echo "missing --experimental option" 1>&2
+            error_msg "missing --experimental option"
             exit 1
         fi
         EXPERIMENTAL="$EXPERIMENTAL $2"
@@ -471,7 +487,7 @@ while true; do
         RANDOM_PROFILE="y"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
-        echo "unknown $0 option: $1" 1>&2
+        error_msg "unknown $0 option: $1"
         exit 1
     else
         break
@@ -582,7 +598,7 @@ elif [ "$DEBUGGER" = "agent" ]; then
   PORT=12345
   # TODO Support ddms connection and support target.
   if [ "$HOST" = "n" ]; then
-    echo "--debug-agent not supported yet for target!"
+    error_msg "--debug-agent not supported yet for target!"
     exit 1
   fi
   AGENTPATH=${DEBUGGER_AGENT}
@@ -706,9 +722,9 @@ if [ "${HOST}" = "y" ]; then
   if [ "${ANDROID_HOST_OUT:0:${#ANDROID_BUILD_TOP}+1}" = "${ANDROID_BUILD_TOP}/" ]; then
     bpath_location_prefix="${ANDROID_HOST_OUT:${#ANDROID_BUILD_TOP}+1}"
   else
-    echo "error: ANDROID_BUILD_TOP/ is not a prefix of ANDROID_HOST_OUT"
-    echo "ANDROID_BUILD_TOP=${ANDROID_BUILD_TOP}"
-    echo "ANDROID_HOST_OUT=${ANDROID_HOST_OUT}"
+    error_msg "ANDROID_BUILD_TOP/ is not a prefix of ANDROID_HOST_OUT"\
+              "\nANDROID_BUILD_TOP=${ANDROID_BUILD_TOP}"\
+              "\nANDROID_HOST_OUT=${ANDROID_HOST_OUT}"
     exit
   fi
 fi
@@ -749,7 +765,7 @@ fi
 
 if [ "$USE_GDB" = "y" ]; then
   if [ "$USE_GDBSERVER" = "y" ]; then
-    echo "Cannot pass both --gdb and --gdbserver at the same time!" >&2
+    error_msg "Cannot pass both --gdb and --gdbserver at the same time!"
     exit 1
   elif [ "$HOST" = "n" ]; then
     # We might not have any hostname resolution if we are using a chroot.
@@ -813,7 +829,7 @@ if [ "$BIONIC" = "y" ]; then
   # This is the location that soong drops linux_bionic builds. Despite being
   # called linux_bionic-x86 the build is actually amd64 (x86_64) only.
   if [ ! -e "$OUT_DIR/soong/host/linux_bionic-x86" ]; then
-    echo "linux_bionic-x86 target doesn't seem to have been built!" >&2
+    error_msg "linux_bionic-x86 target doesn't seem to have been built!"
     exit 1
   fi
   # Set TIMEOUT_DUMPER manually so it works even with apex's
@@ -836,7 +852,7 @@ DEX_LOCATION_STRIPPED="${DEX_LOCATION#/}"
 VDEX_NAME="${DEX_LOCATION_STRIPPED//\//@}@$TEST_NAME.jar@classes.vdex"
 if [ ${#VDEX_NAME} -gt $max_filename_size ]; then
     echo "Dex location path too long:"
-    echo "$VDEX_NAME is ${#VDEX_NAME} character long, and the limit is $max_filename_size."
+    error_msg "$VDEX_NAME is ${#VDEX_NAME} character long, and the limit is $max_filename_size."
     exit 1
 fi
 
