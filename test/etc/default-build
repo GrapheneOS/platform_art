@@ -278,7 +278,7 @@ function javac_with_bootclasspath {
 # packaged in a jar file.
 function make_dex() {
   local name="$1"
-  local d8_inputs=$(find $name -name '*.class' -type f)
+  local d8_inputs=$(find $name -name '*.class' -type f | sort)
   local d8_output=${name}.jar
   local dex_output=${name}.dex
   local d8_local_flags=""
