@@ -32,5 +32,5 @@ else
   # Generate the smali files and expected-stdout.txt or fail
   ./util-src/generate_smali.py ./smali ./expected-stdout.txt
   # Use the default build script
-  ./default-build "$@" "$EXTRA_ARGS" --experimental default-methods
+  ./default-build "$@" --experimental default-methods
 fi

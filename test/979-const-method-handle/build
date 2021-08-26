@@ -21,11 +21,11 @@ export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-6.0.jar"
 
 export ORIGINAL_JAVAC="$JAVAC"
 
-function javac_wrapper {
+cat >javac_wrapper.sh <<"EOF"
   set -e
 
   # Add annotation src files to our compiler inputs.
-  local asrcs=util-src/annotations/*.java
+  asrcs=util-src/annotations/*.java
 
   # Compile.
   $ORIGINAL_JAVAC "$@" $asrcs
@@ -35,15 +35,13 @@ function javac_wrapper {
   mkdir classes
 
   # Transform intermediate classes.
-  local transformer_args="-cp ${ASM_JAR}:$PWD/transformer.jar transformer.ConstantTransformer"
+  transformer_args="-cp ${ASM_JAR}:$PWD/transformer.jar transformer.ConstantTransformer"
   for class in intermediate-classes/*.class ; do
-    local transformed_class=classes/$(basename ${class})
+    transformed_class=classes/$(basename ${class})
     ${JAVA:-java} ${transformer_args} ${class} ${transformed_class}
   done
-}
-
-export -f javac_wrapper
-export JAVAC=javac_wrapper
+EOF
+export JAVAC=./javac_wrapper.sh
 
 ######################################################################
 
