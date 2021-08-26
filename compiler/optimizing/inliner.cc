@@ -722,6 +722,13 @@ static ArtMethod* ResolveMethodFromInlineCache(Handle<mirror::Class> klass,
     if (!resolved_method->GetDeclaringClass()->IsAssignableFrom(klass.Get())) {
       return nullptr;
     }
+
+    // Also check whether the type in the inline cache is an interface or an
+    // abstract class. We only expect concrete classes in inline caches, so this
+    // means the class was changed.
+    if (klass->IsAbstract() || klass->IsInterface()) {
+      return nullptr;
+    }
   }
 
   if (invoke_instruction->IsInvokeInterface()) {
