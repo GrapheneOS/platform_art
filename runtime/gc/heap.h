@@ -336,10 +336,9 @@ class Heap {
   void ChangeAllocator(AllocatorType allocator)
       REQUIRES(Locks::mutator_lock_, !Locks::runtime_shutdown_lock_);
 
-  // Change the collector to be one of the possible options (MS, CMS, SS). Only safe when no
-  // concurrent accesses to the heap are possible.
+  // Change the collector to be one of the possible options (MS, CMS, SS).
   void ChangeCollector(CollectorType collector_type)
-      REQUIRES(Locks::mutator_lock_, !*gc_complete_lock_);
+      REQUIRES(Locks::mutator_lock_);
 
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   // TODO: NO_THREAD_SAFETY_ANALYSIS since we call this everywhere and it is impossible to find a
@@ -412,7 +411,7 @@ class Heap {
 
   // Removes the growth limit on the alloc space so it may grow to its maximum capacity. Used to
   // implement dalvik.system.VMRuntime.clearGrowthLimit.
-  void ClearGrowthLimit() REQUIRES(!*gc_complete_lock_);
+  void ClearGrowthLimit();
 
   // Make the current growth limit the new maximum capacity, unmaps pages at the end of spaces
   // which will never be used. Used to implement dalvik.system.VMRuntime.clampGrowthLimit.
@@ -465,7 +464,6 @@ class Heap {
 
   // For the alloc space, sets the maximum number of bytes that the heap is allowed to allocate
   // from the system. Doesn't allow the space to exceed its growth limit.
-  // Set while we hold gc_complete_lock or collector_type_running_ != kCollectorTypeNone.
   void SetIdealFootprint(size_t max_allowed_footprint);
 
   // Blocks the caller until the garbage collector becomes idle and returns the type of GC we
@@ -962,7 +960,7 @@ class Heap {
 
   const Verification* GetVerification() const;
 
-  void PostForkChildAction(Thread* self) REQUIRES(!*gc_complete_lock_);
+  void PostForkChildAction(Thread* self);
 
   void TraceHeapSize(size_t heap_size);
 
@@ -972,7 +970,7 @@ class Heap {
   class ConcurrentGCTask;
   class CollectorTransitionTask;
   class HeapTrimTask;
-  class ReduceTargetFootprintTask;
+  class TriggerPostForkCCGcTask;
 
   // Compact source space to target space. Returns the collector used.
   collector::GarbageCollector* Compact(space::ContinuousMemMapAllocSpace* target_space,
@@ -1179,9 +1177,6 @@ class Heap {
   // the target utilization ratio.  This should only be called immediately after a full garbage
   // collection. bytes_allocated_before_gc is used to measure bytes / second for the period which
   // the GC was run.
-  // This is only called by the thread that set collector_type_running_ to a value other than
-  // kCollectorTypeNone, or while holding gc_complete_lock, and ensuring that
-  // collector_type_running_ is kCollectorTypeNone.
   void GrowForUtilization(collector::GarbageCollector* collector_ran,
                           size_t bytes_allocated_before_gc = 0)
       REQUIRES(!process_state_update_lock_);
@@ -1273,11 +1268,6 @@ class Heap {
   // are currently in use, and could possibly be reclaimed as an indirect result
   // of a garbage collection.
   size_t GetNativeBytes();
-
-  // Set concurrent_start_bytes_ to a reasonable guess, given target_footprint_ .
-  void SetDefaultConcurrentStartBytes() REQUIRES(!*gc_complete_lock_);
-  // This version assumes no concurrent updaters.
-  void SetDefaultConcurrentStartBytesLocked();
 
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_ GUARDED_BY(Locks::mutator_lock_);
@@ -1395,9 +1385,6 @@ class Heap {
   // Task processor, proxies heap trim requests to the daemon threads.
   std::unique_ptr<TaskProcessor> task_processor_;
 
-  // The following are declared volatile only for debugging purposes; it shouldn't otherwise
-  // matter.
-
   // Collector type of the running GC.
   volatile CollectorType collector_type_running_ GUARDED_BY(gc_complete_lock_);
 
@@ -1419,29 +1406,21 @@ class Heap {
   // Only weakly enforced for simultaneous allocations.
   size_t growth_limit_;
 
-  // Requested initial heap size. Temporarily ignored after a fork, but then reestablished after
-  // a while to usually trigger the initial GC.
-  size_t initial_heap_size_;
-
   // Target size (as in maximum allocatable bytes) for the heap. Weakly enforced as a limit for
   // non-concurrent GC. Used as a guideline for computing concurrent_start_bytes_ in the
-  // concurrent GC case. Updates normally occur while collector_type_running_ is not none.
+  // concurrent GC case.
   Atomic<size_t> target_footprint_;
-
-  Mutex process_state_update_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // Computed with foreground-multiplier in GrowForUtilization() when run in
   // jank non-perceptible state. On update to process state from background to
   // foreground we set target_footprint_ to this value.
+  Mutex process_state_update_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   size_t min_foreground_target_footprint_ GUARDED_BY(process_state_update_lock_);
 
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
   // A multiple of this is also used to determine when to trigger a GC in response to native
   // allocation.
-  // After initialization, this is only updated by the thread that set collector_type_running_ to
-  // a value other than kCollectorTypeNone, or while holding gc_complete_lock, and ensuring that
-  // collector_type_running_ is kCollectorTypeNone.
   size_t concurrent_start_bytes_;
 
   // Since the heap was created, how many bytes have been freed.
