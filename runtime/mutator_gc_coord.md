@@ -161,6 +161,22 @@ is itself holding the mutator lock, and can only be blocked on lower-level
 locks. And acquisition of those can never depend on acquiring the mutator
 lock.
 
+**Checkpoints**
+Running a checkpoint in a thread requires suspending that thread for the
+duration of the checkpoint, or running the checkpoint on the threads behalf
+while that thread is blocked from executing Java code. In the former case, the
+checkpoint code is run from `CheckSuspend`, which requires the mutator lock,
+so checkpoint code may only acquire mutexes at or below level
+`kPostMutatorTopLockLevel`. But that is not sufficient.
+
+No matter whether the checkpoint is run in the target thread, or on its behalf,
+the target thread is effectively suspended and prevented from running Java code.
+However the target may hold arbitrary Java monitors, which it can no longer
+release. This may also prevent higher level mutexes from getting released.  Thus
+checkpoint code should only acquire mutexes at level `kPostMonitorLock` or
+below.
+
+
 **Waiting**
 This becomes much more problematic when we wait for something other than a lock.
 Waiting for something that may depend on the GC, while holding the mutator lock,
