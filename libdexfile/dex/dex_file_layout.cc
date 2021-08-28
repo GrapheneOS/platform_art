@@ -56,40 +56,19 @@ void DexLayoutSection::Subsection::Madvise(const DexFile* dex_file, int advice) 
                                   advice);
 }
 
-void DexLayoutSections::Madvise(const DexFile* dex_file, MadviseState state) const {
+void DexLayoutSections::MadviseAtLoad(const DexFile* dex_file) const {
 #ifdef _WIN32
   UNUSED(dex_file);
-  UNUSED(state);
   PLOG(WARNING) << "madvise is unsupported on Windows.";
 #else
   // The dex file is already defaulted to random access everywhere.
   for (const DexLayoutSection& section : sections_) {
-    switch (state) {
-      case MadviseState::kMadviseStateAtLoad: {
-        section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeStartupOnly)].Madvise(
-            dex_file,
-            MADV_WILLNEED);
-        section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeHot)].Madvise(
-            dex_file,
-            MADV_WILLNEED);
-        break;
-      }
-      case MadviseState::kMadviseStateFinishedLaunch: {
-        section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeStartupOnly)].Madvise(
-            dex_file,
-            MADV_DONTNEED);
-        break;
-      }
-      case MadviseState::kMadviseStateFinishedTrim: {
-        section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeSometimesUsed)].Madvise(
-            dex_file,
-            MADV_DONTNEED);
-        section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeUsedOnce)].Madvise(
-            dex_file,
-            MADV_DONTNEED);
-        break;
-      }
-    }
+    section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeStartupOnly)].Madvise(
+        dex_file,
+        MADV_WILLNEED);
+    section.parts_[static_cast<size_t>(LayoutType::kLayoutTypeHot)].Madvise(
+        dex_file,
+        MADV_WILLNEED);
   }
 #endif
 }

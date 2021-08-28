@@ -334,7 +334,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
       } else {
         // Opened dex files from an oat file, madvise them to their loaded state.
          for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
-           OatDexFile::MadviseDexFile(*dex_file, MadviseState::kMadviseStateAtLoad);
+           OatDexFile::MadviseDexFileAtLoad(*dex_file);
          }
       }
 

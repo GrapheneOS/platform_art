@@ -2218,14 +2218,14 @@ const dex::ClassDef* OatDexFile::FindClassDef(const DexFile& dex_file,
 }
 
 // Madvise the dex file based on the state we are moving to.
-void OatDexFile::MadviseDexFile(const DexFile& dex_file, MadviseState state) {
+void OatDexFile::MadviseDexFileAtLoad(const DexFile& dex_file) {
   Runtime* const runtime = Runtime::Current();
   const bool low_ram = runtime->GetHeap()->IsLowMemoryMode();
-  // TODO: Also do madvise hints for non low ram devices.
+  // TODO(b/196052575): Revisit low-ram madvise behavior in light of vdex/odex/art madvise hints.
   if (!low_ram) {
     return;
   }
-  if (state == MadviseState::kMadviseStateAtLoad && runtime->MAdviseRandomAccess()) {
+  if (runtime->MAdviseRandomAccess()) {
     // Default every dex file to MADV_RANDOM when its loaded by default for low ram devices.
     // Other devices have enough page cache to get performance benefits from loading more pages
     // into the page cache.
@@ -2238,7 +2238,7 @@ void OatDexFile::MadviseDexFile(const DexFile& dex_file, MadviseState state) {
     // Should always be there.
     const DexLayoutSections* const sections = oat_dex_file->GetDexLayoutSections();
     if (sections != nullptr) {
-      sections->Madvise(&dex_file, state);
+      sections->MadviseAtLoad(&dex_file);
     } else {
       DCHECK(oat_dex_file->IsBackedByVdexOnly());
     }

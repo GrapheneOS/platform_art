@@ -551,8 +551,8 @@ class OatDexFile final {
                                            const char* descriptor,
                                            size_t hash);
 
-  // Madvise the dex file based on the state we are moving to.
-  static void MadviseDexFile(const DexFile& dex_file, MadviseState state);
+  // Madvise the dex file for load-time usage.
+  static void MadviseDexFileAtLoad(const DexFile& dex_file);
 
   const TypeLookupTable& GetTypeLookupTable() const {
     return lookup_table_;
