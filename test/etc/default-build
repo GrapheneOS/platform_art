@@ -320,23 +320,17 @@ function make_dexmerge() {
     shift
   done
 
-  # Skip merge if we are not merging anything. IE: input = output.
-  if [[ "${#dex_files_to_merge[@]}" -eq "1" ]]; then
-    local single_input=${dex_files_to_merge[0]}
-    if [[ "$dst_file" != "$single_input" ]]; then
-     mv "$single_input" "$dst_file";
-     return
-    fi
-  fi
+  # NB: We merge even if there is just single input.
+  # It is useful to normalize non-deterministic smali output.
 
-  # We assume the dexer did all the API level checks and just merge away.
   mkdir d8_merge_out
-  ${D8} --min-api 1000 --output ./d8_merge_out "${dex_files_to_merge[@]}"
+  ${D8} --min-api $API_LEVEL --output ./d8_merge_out "${dex_files_to_merge[@]}"
 
   if [[ -e "./d8_merge_out/classes2.dex" ]]; then
     fail "Cannot merge all dex files into a single dex"
   fi
 
+  rm "${dex_files_to_merge[@]}"
   mv ./d8_merge_out/classes.dex "$dst_file";
   rmdir d8_merge_out
 }

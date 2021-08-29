@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2018 The Android Open Source Project
+# Copyright 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Avoid D8 merge in the default script since it would reject the class.
-# Use old API level to create DEX file with 035 version. Stricter
-# checking introduced with DEX file version 37 rejects class
-# otherwise (see DexFile::kClassDefinitionOrderEnforcedVersion).
-${SMALI} -JXmx512m assemble --api 13 --output classes.dex `find smali -name '*.smali'`
+# Avoid D8 merge in the default script since we intentionally generate invalid dex.
+${SMALI} -JXmx512m assemble --api 26 --output classes.dex `find smali -name '*.smali'`
 ${SOONG_ZIP} -o $TEST_NAME.jar -f classes.dex
