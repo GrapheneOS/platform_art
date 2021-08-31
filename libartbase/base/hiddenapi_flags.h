@@ -75,7 +75,7 @@ namespace helper {
 
 /*
  * This class represents the information whether a field/method is in
- * public API (whitelist) or if it isn't, apps targeting which SDK
+ * public API (SDK) or if it isn't, apps targeting which SDK
  * versions are allowed to access it.
  */
 class ApiList {
