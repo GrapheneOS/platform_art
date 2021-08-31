@@ -95,7 +95,7 @@ constexpr time_t kMaximumExecutionSeconds = 300;
 constexpr time_t kMaxChildProcessSeconds = 90;
 
 // Extra execution time for any child process spawned in a VM.
-constexpr time_t kExtraChildProcessSecondsInVm = 30;
+constexpr time_t kExtraChildProcessSecondsInVm = 60;
 
 void EraseFiles(const std::vector<std::unique_ptr<File>>& files) {
   for (auto& file : files) {
