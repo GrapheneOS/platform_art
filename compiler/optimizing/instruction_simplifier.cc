@@ -22,6 +22,7 @@
 #include "data_type-inl.h"
 #include "escape.h"
 #include "intrinsics.h"
+#include "intrinsics_utils.h"
 #include "mirror/class-inl.h"
 #include "optimizing/nodes.h"
 #include "scoped_thread_state_change-inl.h"
@@ -112,8 +113,6 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void VisitVecMul(HVecMul* instruction) override;
   void VisitPredicatedInstanceFieldGet(HPredicatedInstanceFieldGet* instruction) override;
 
-  bool CanEnsureNotNullAt(HInstruction* instr, HInstruction* at) const;
-
   void SimplifySystemArrayCopy(HInvoke* invoke);
   void SimplifyStringEquals(HInvoke* invoke);
   void SimplifyFP2Int(HInvoke* invoke);
@@ -123,6 +122,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyNPEOnArgN(HInvoke* invoke, size_t);
   void SimplifyReturnThis(HInvoke* invoke);
   void SimplifyAllocationIntrinsic(HInvoke* invoke);
+  void SimplifyVarHandleIntrinsic(HInvoke* invoke);
 
   CodeGenerator* codegen_;
   OptimizingCompilerStats* stats_;
@@ -580,7 +580,7 @@ void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
   }
 }
 
-bool InstructionSimplifierVisitor::CanEnsureNotNullAt(HInstruction* input, HInstruction* at) const {
+bool CanEnsureNotNullAt(HInstruction* input, HInstruction* at) {
   if (!input->CanBeNull()) {
     return true;
   }
@@ -2762,6 +2762,27 @@ void InstructionSimplifierVisitor::SimplifyAllocationIntrinsic(HInvoke* invoke) 
   }
 }
 
+void InstructionSimplifierVisitor::SimplifyVarHandleIntrinsic(HInvoke* invoke) {
+  DCHECK(invoke->IsInvokePolymorphic());
+  VarHandleOptimizations optimizations(invoke);
+
+  if (optimizations.GetDoNotIntrinsify()) {
+    // Preceding static checks disabled intrinsic, so no need to analyze further.
+    return;
+  }
+
+  size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
+  if (expected_coordinates_count == 1u) {
+    HInstruction* object = invoke->InputAt(1);
+    // The following has been ensured by static checks in done in the instruction builder.
+    DCHECK(object->GetType() == DataType::Type::kReference && !object->IsNullConstant());
+    // Test whether we can avoid the null check on the object.
+    if (CanEnsureNotNullAt(object, invoke)) {
+      optimizations.SetSkipObjectNullCheck();
+    }
+  }
+}
+
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
   switch (instruction->GetIntrinsic()) {
     case Intrinsics::kStringEquals:
@@ -2808,6 +2829,39 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kStringBufferToString:
     case Intrinsics::kStringBuilderToString:
       SimplifyAllocationIntrinsic(instruction);
+      break;
+    case Intrinsics::kVarHandleCompareAndExchange:
+    case Intrinsics::kVarHandleCompareAndExchangeAcquire:
+    case Intrinsics::kVarHandleCompareAndExchangeRelease:
+    case Intrinsics::kVarHandleCompareAndSet:
+    case Intrinsics::kVarHandleGet:
+    case Intrinsics::kVarHandleGetAcquire:
+    case Intrinsics::kVarHandleGetAndAdd:
+    case Intrinsics::kVarHandleGetAndAddAcquire:
+    case Intrinsics::kVarHandleGetAndAddRelease:
+    case Intrinsics::kVarHandleGetAndBitwiseAnd:
+    case Intrinsics::kVarHandleGetAndBitwiseAndAcquire:
+    case Intrinsics::kVarHandleGetAndBitwiseAndRelease:
+    case Intrinsics::kVarHandleGetAndBitwiseOr:
+    case Intrinsics::kVarHandleGetAndBitwiseOrAcquire:
+    case Intrinsics::kVarHandleGetAndBitwiseOrRelease:
+    case Intrinsics::kVarHandleGetAndBitwiseXor:
+    case Intrinsics::kVarHandleGetAndBitwiseXorAcquire:
+    case Intrinsics::kVarHandleGetAndBitwiseXorRelease:
+    case Intrinsics::kVarHandleGetAndSet:
+    case Intrinsics::kVarHandleGetAndSetAcquire:
+    case Intrinsics::kVarHandleGetAndSetRelease:
+    case Intrinsics::kVarHandleGetOpaque:
+    case Intrinsics::kVarHandleGetVolatile:
+    case Intrinsics::kVarHandleSet:
+    case Intrinsics::kVarHandleSetOpaque:
+    case Intrinsics::kVarHandleSetRelease:
+    case Intrinsics::kVarHandleSetVolatile:
+    case Intrinsics::kVarHandleWeakCompareAndSet:
+    case Intrinsics::kVarHandleWeakCompareAndSetAcquire:
+    case Intrinsics::kVarHandleWeakCompareAndSetPlain:
+    case Intrinsics::kVarHandleWeakCompareAndSetRelease:
+      SimplifyVarHandleIntrinsic(instruction);
       break;
     case Intrinsics::kIntegerRotateRight:
     case Intrinsics::kLongRotateRight:
