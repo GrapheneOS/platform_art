@@ -18,5 +18,5 @@
 # methods at runtime.
 #
 # N.B. Compilation of secondary dexes can prevent hidden API checks, e.g. if
-# a blacklisted field get is inlined.
+# a blocklisted field get is inlined.
 exec ${RUN} $@ --verify-soft-fail --no-secondary-compilation
