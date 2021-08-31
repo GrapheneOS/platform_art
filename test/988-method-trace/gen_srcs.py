@@ -38,10 +38,10 @@ IDX_METHOD_NAME = -2
 IDX_CLASS_NAME = -3
 
 # Exclude all hidden API.
-KLASS_BLACK_LIST = ['sun.misc.Unsafe', 'libcore.io.Memory', 'java.lang.StringFactory',
+KLASS_BLOCK_LIST = ['sun.misc.Unsafe', 'libcore.io.Memory', 'java.lang.StringFactory',
                     'java.lang.invoke.MethodHandle', # invokes are tested by 956-method-handles
                     'java.lang.invoke.VarHandle' ]  # TODO(b/65872996): will tested separately
-METHOD_BLACK_LIST = [('java.lang.ref.Reference', 'getReferent'),
+METHOD_BLOCK_LIST = [('java.lang.ref.Reference', 'getReferent'),
                      ('java.lang.String', 'getCharsNoCheck'),
                      ('java.lang.System', 'arraycopy')]  # arraycopy has a manual test.
 
@@ -201,12 +201,12 @@ class MethodInfo:
   def placeholder_instance_value(self):
     return KLASS_INSTANCE_INITIALIZERS.get(self.klass, 'new %s()' %(self.klass))
 
-  def is_blacklisted(self):
-    for blk in KLASS_BLACK_LIST:
+  def is_blocklisted(self):
+    for blk in KLASS_BLOCK_LIST:
       if self.klass.startswith(blk):
         return True
 
-    return (self.klass, self.method_name) in METHOD_BLACK_LIST
+    return (self.klass, self.method_name) in METHOD_BLOCK_LIST
 
 # parse the V(...) \ list of items into a MethodInfo
 def parse_method_info(items):
@@ -293,8 +293,8 @@ def main():
   initialize_klass_dict = collections.OrderedDict()
   for i in parse_all_method_infos():
     debug_print(i)
-    if i.is_blacklisted():
-      debug_print("Blacklisted: " + str(i))
+    if i.is_blocklisted():
+      debug_print("Blocklisted: " + str(i))
       continue
 
     call_str = format_call_to(i)
