@@ -1084,7 +1084,7 @@ void UnstartedRuntime::UnstartedThreadCurrentThread(
                      "void java.lang.Thread.<init>()",
                      "void java.util.logging.LogManager$Cleaner.<init>("
                          "java.util.logging.LogManager)" })) {
-    // Whitelist LogManager$Cleaner, which is an unstarted Thread (for a shutdown hook). The
+    // Allow list LogManager$Cleaner, which is an unstarted Thread (for a shutdown hook). The
     // Thread constructor only asks for the current thread to set up defaults and add the
     // thread as unstarted to the ThreadGroup. A faked-up main thread peer is good enough for
     // these purposes.
@@ -1120,7 +1120,7 @@ void UnstartedRuntime::UnstartedThreadGetNativeState(
                      "void java.lang.Thread.<init>()",
                      "void java.util.logging.LogManager$Cleaner.<init>("
                          "java.util.logging.LogManager)" })) {
-    // Whitelist reading the state of the "main" thread when creating another (unstarted) thread
+    // Allow list reading the state of the "main" thread when creating another (unstarted) thread
     // for LogManager. Report the thread as "new" (it really only counts that it isn't terminated).
     constexpr int32_t kJavaRunnable = 1;
     result->SetI(kJavaRunnable);

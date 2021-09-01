@@ -63,7 +63,7 @@ public class Main {
     doTest(DexDomain.Platform, DexDomain.Application, false);
     doUnloading();
 
-    // Now run the same test again, but with the blacklist exmemptions list set
+    // Now run the same test again, but with the blocklist exemptions list set
     // to "L" which matches everything.
     doTest(DexDomain.Platform, DexDomain.Application, true);
     doUnloading();
