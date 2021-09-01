@@ -699,17 +699,8 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     // If not set, background collector type defaults to homogeneous compaction.
     // If not low memory mode, semispace otherwise.
 
-    gc::CollectorType background_collector_type_;
-    gc::CollectorType collector_type_ = (XGcOption{}).collector_type_;
+    gc::CollectorType background_collector_type_ = args.GetOrDefault(M::BackgroundGc);
     bool low_memory_mode_ = args.Exists(M::LowMemoryMode);
-
-    background_collector_type_ = args.GetOrDefault(M::BackgroundGc);
-    {
-      XGcOption* xgc = args.Get(M::GcOption);
-      if (xgc != nullptr && xgc->collector_type_ != gc::kCollectorTypeNone) {
-        collector_type_ = xgc->collector_type_;
-      }
-    }
 
     if (background_collector_type_ == gc::kCollectorTypeNone) {
       background_collector_type_ = low_memory_mode_ ?
