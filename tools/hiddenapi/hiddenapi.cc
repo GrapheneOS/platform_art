@@ -1111,7 +1111,7 @@ class HiddenApi final {
       boot_members[boot_member.GetApiEntry()] = {kExcludeFromOutput};
     });
 
-    // Resolve each SDK dex member against the framework and mark it white.
+    // Resolve each SDK dex member against the framework and mark it as SDK.
     for (const auto& cp_entry : stub_classpaths_) {
       // Ignore any empty stub jars as it just means that they provide no APIs
       // for the current kind, e.g. framework-sdkextensions does not provide
