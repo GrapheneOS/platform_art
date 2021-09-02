@@ -124,6 +124,8 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyAllocationIntrinsic(HInvoke* invoke);
   void SimplifyVarHandleIntrinsic(HInvoke* invoke);
 
+  static bool CanEnsureNotNullAt(HInstruction* input, HInstruction* at);
+
   CodeGenerator* codegen_;
   OptimizingCompilerStats* stats_;
   bool simplification_occurred_ = false;
@@ -580,7 +582,7 @@ void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
   }
 }
 
-bool CanEnsureNotNullAt(HInstruction* input, HInstruction* at) {
+bool InstructionSimplifierVisitor::CanEnsureNotNullAt(HInstruction* input, HInstruction* at) {
   if (!input->CanBeNull()) {
     return true;
   }
@@ -2774,8 +2776,13 @@ void InstructionSimplifierVisitor::SimplifyVarHandleIntrinsic(HInvoke* invoke) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   if (expected_coordinates_count == 1u) {
     HInstruction* object = invoke->InputAt(1);
-    // The following has been ensured by static checks in done in the instruction builder.
-    DCHECK(object->GetType() == DataType::Type::kReference && !object->IsNullConstant());
+    // The following has been ensured by static checks in the instruction builder.
+    DCHECK(object->GetType() == DataType::Type::kReference);
+    // Re-check for null constant, as this might have changed after the inliner.
+    if (object->IsNullConstant()) {
+      optimizations.SetDoNotIntrinsify();
+      return;
+    }
     // Test whether we can avoid the null check on the object.
     if (CanEnsureNotNullAt(object, invoke)) {
       optimizations.SetSkipObjectNullCheck();
