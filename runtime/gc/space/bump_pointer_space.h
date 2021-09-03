@@ -161,7 +161,7 @@ class BumpPointerSpace final : public ContinuousMemMapAllocSpace {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Object alignment within the space.
-  static constexpr size_t kAlignment = 8;
+  static constexpr size_t kAlignment = kObjectAlignment;
 
  protected:
   BumpPointerSpace(const std::string& name, MemMap&& mem_map);
