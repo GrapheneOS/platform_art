@@ -21,6 +21,7 @@
 #include "base/bit_utils.h"
 #include "base/mem_map.h"
 #include "card_table.h"
+#include "gc/collector/mark_compact.h"
 #include "jit/jit_memory_region.h"
 
 namespace art {
@@ -98,6 +99,7 @@ MemoryRangeBitmap<kAlignment>* MemoryRangeBitmap<kAlignment>::CreateFromMemMap(
 
 template class MemoryRangeBitmap<CardTable::kCardSize>;
 template class MemoryRangeBitmap<jit::kJitCodeAccountingBytes>;
+template class MemoryRangeBitmap<collector::MarkCompact::kAlignment>;
 
 }  // namespace accounting
 }  // namespace gc

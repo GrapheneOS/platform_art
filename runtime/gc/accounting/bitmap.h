@@ -81,7 +81,7 @@ class Bitmap {
   void CopyFrom(Bitmap* source_bitmap);
 
   // Starting address of our internal storage.
-  uintptr_t* Begin() {
+  uintptr_t* Begin() const {
     return bitmap_begin_;
   }
 
@@ -109,7 +109,9 @@ class Bitmap {
   template<bool kSetBit>
   ALWAYS_INLINE bool ModifyBit(uintptr_t bit_index);
 
-  // Backing storage for bitmap.
+  // Backing storage for bitmap. This is interpreted as an array of
+  // kBitsPerBitmapWord-sized integers, with bits assigned in each word little
+  // endian first.
   MemMap mem_map_;
 
   // This bitmap itself, word sized for efficiency in scanning.
@@ -122,7 +124,7 @@ class Bitmap {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Bitmap);
 };
 
-// One bit per kAlignment in range (start, end]
+// One bit per kAlignment in range [start, end)
 template<size_t kAlignment>
 class MemoryRangeBitmap : public Bitmap {
  public:
