@@ -29,8 +29,8 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-// Last change: kAccNterpInvokeFastPathFlag in method modifiers.
-const uint8_t ImageHeader::kImageVersion[] = { '0', '9', '9', '\0' };
+// Last change: FP16 Compare intrinsic.
+const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '0', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_reservation_size,
                          uint32_t component_count,
