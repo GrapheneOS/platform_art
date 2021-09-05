@@ -279,6 +279,10 @@ known_failing_tests = [
   #           at Main.main(Main.java:20)
   #
   "821-many-args",
+  # 826-infinite-loop: The test expects an argument passed to `Main.main` (the test library,
+  # usually `arttestd` or `arttest)`, but the ART run-test TradeFed test runner
+  # (`com.android.tradefed.testtype.ArtRunTest`) does not implement this yet.
+  "826-infinite-loop",
   "900-hello-plugin",
   "901-hello-ti-agent",
   "902-hello-transformation",
