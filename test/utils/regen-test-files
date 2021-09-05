@@ -279,6 +279,10 @@ known_failing_tests = [
   #           at Main.main(Main.java:20)
   #
   "821-many-args",
+  # 826-infinite-loop: The test expects an argument passed to `Main.main` (the test library,
+  # usually `arttestd` or `arttest)`, but the ART run-test TradeFed test runner
+  # (`com.android.tradefed.testtype.ArtRunTest`) does not implement this yet.
+  "826-infinite-loop",
   "900-hello-plugin",
   "901-hello-ti-agent",
   "902-hello-transformation",
@@ -686,20 +690,23 @@ class Generator:
       f.write(test_mapping_contents)
       f.write("\n")
 
-  def create_mts_test_shard(self, description, tests, shard_num, copyright_year, comments = []):
+  def create_mts_test_shard(self, description, tests, shard_num, copyright_year,
+                            excluded_tests = [], comments = []):
     """Factory method instantiating an `MtsTestShard`."""
-    return self.MtsTestShard(self.mts_config_dir,
-                             description, tests, shard_num, copyright_year, comments)
+    return self.MtsTestShard(self.mts_config_dir, description, tests, shard_num, copyright_year,
+                             excluded_tests, comments)
 
   class MtsTestShard:
     """Class encapsulating data and generation logic for an ART MTS test shard."""
 
-    def __init__(self, mts_config_dir, description, tests, shard_num, copyright_year, comments):
+    def __init__(self, mts_config_dir, description, tests, shard_num, copyright_year,
+                 excluded_tests, comments):
       self.mts_config_dir = mts_config_dir
       self.description = description
       self.tests = tests
       self.shard_num = shard_num
       self.copyright_year = copyright_year
+      self.excluded_tests = excluded_tests
       self.comments = comments
 
     def shard_id(self):
@@ -778,6 +785,23 @@ class Generator:
         configuration.appendChild(xml_comment)
       for t in self.tests:
         append_test_declaration(t)
+
+      # Tests exclusions.
+      # -----------------
+
+      def append_test_exclusions(test_name, test_comment):
+        xml_comment = root.createComment(f" {test_comment} ")
+        configuration.appendChild(xml_comment)
+        option = root.createElement("option")
+        option.setAttribute("name", "compatibility:exclude-filter")
+        option.setAttribute("value", test_name)
+        configuration.appendChild(option)
+
+      if self.excluded_tests:
+        xml_comment = root.createComment(" Excluded tests. ")
+        configuration.appendChild(xml_comment)
+        for (test_name, test_comment) in self.excluded_tests:
+          append_test_exclusions(test_name, test_comment)
 
       # `MainlineTestModuleController` configurations.
       # ----------------------------------------------
@@ -861,13 +885,17 @@ class Generator:
         art_tests_shard_i_tests.extend(art_gtest_user_module_names)
       art_tests_shard_i = self.create_mts_test_shard(
           "ART run-tests", art_tests_shard_i_tests, i, 2020,
-          ["TODO(rpl): Find a way to express this list in a more concise fashion."])
+          comments = ["TODO(rpl): Find a way to express this list in a more concise fashion."])
       mts_test_shards.append(art_tests_shard_i)
 
     # CTS Libcore non-OJ tests (`CtsLibcoreTestCases`) shard.
     cts_libcore_tests_shard_num = len(mts_test_shards)
     cts_libcore_tests_shard = self.create_mts_test_shard(
-        "CTS Libcore non-OJ tests", ["CtsLibcoreTestCases"], cts_libcore_tests_shard_num, 2020)
+        "CTS Libcore non-OJ tests", ["CtsLibcoreTestCases"], cts_libcore_tests_shard_num, 2020,
+        excluded_tests = [
+            ("CtsLibcoreTestCases com.android.org.conscrypt.NativeCryptoArgTest",
+             "Test requires an updated Conscrypt and is not really relevant to ART (b/198606382).")
+        ])
     mts_test_shards.append(cts_libcore_tests_shard)
 
     # Other CTS Libcore tests shard.
