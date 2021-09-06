@@ -3711,7 +3711,7 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
                     unresolved = &unresolved->SafeMerge(exception, &reg_types_, this);
                   }
                 } else {
-                  Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class "
+                  Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected non-throwable class "
                                                     << exception;
                   return std::make_pair(true, &reg_types_.Conflict());
                 }
