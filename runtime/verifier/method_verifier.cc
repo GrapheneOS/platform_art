@@ -2179,21 +2179,8 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
               Fail(VERIFY_ERROR_UNRESOLVED_TYPE_CHECK)
                   << " can't resolve returned type '" << return_type << "' or '" << reg_type << "'";
             } else {
-              bool soft_error = false;
-              // Check whether arrays are involved. They will show a valid class status, even
-              // if their components are erroneous.
-              if (reg_type.IsArrayTypes() && return_type.IsArrayTypes()) {
-                return_type.CanAssignArray(reg_type, reg_types_, class_loader_, this, &soft_error);
-                if (soft_error) {
-                  Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "array with erroneous component type: "
-                        << reg_type << " vs " << return_type;
-                }
-              }
-
-              if (!soft_error) {
-                Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
-                    << "', but expected from declaration '" << return_type << "'";
-              }
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
+                  << "', but expected from declaration '" << return_type << "'";
             }
           }
         }
