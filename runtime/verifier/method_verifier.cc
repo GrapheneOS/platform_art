@@ -2176,8 +2176,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
                                               << reg_type;
           } else if (!return_type.IsAssignableFrom(reg_type, this)) {
             if (reg_type.IsUnresolvedTypes() || return_type.IsUnresolvedTypes()) {
-              Fail(api_level_ > 29u
-                      ? VERIFY_ERROR_BAD_CLASS_SOFT : VERIFY_ERROR_UNRESOLVED_TYPE_CHECK)
+              Fail(VERIFY_ERROR_UNRESOLVED_TYPE_CHECK)
                   << " can't resolve returned type '" << return_type << "' or '" << reg_type << "'";
             } else {
               bool soft_error = false;
@@ -3712,7 +3711,7 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
                     unresolved = &unresolved->SafeMerge(exception, &reg_types_, this);
                   }
                 } else {
-                  Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class "
+                  Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected non-throwable class "
                                                     << exception;
                   return std::make_pair(true, &reg_types_.Conflict());
                 }
@@ -3968,9 +3967,9 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgsFromIterator(
             false);
       }
       if (!res_method_class->IsAssignableFrom(adjusted_type, this)) {
-        Fail(adjusted_type.IsUnresolvedTypes()
+        Fail((adjusted_type.IsUnresolvedTypes() || res_method_class->IsUnresolvedTypes())
                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK
-                 : VERIFY_ERROR_BAD_CLASS_SOFT)
+                 : VERIFY_ERROR_BAD_CLASS_HARD)
             << "'this' argument '" << actual_arg_type << "' not instance of '"
             << *res_method_class << "'";
         // Continue on soft failures. We need to find possible hard failures to avoid problems in
