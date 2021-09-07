@@ -3649,7 +3649,7 @@ const RegType& MethodVerifier<kVerifierDebug>::ResolveClass(dex::TypeIndex class
   DCHECK(result != nullptr);
   if (result->IsConflict()) {
     const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
-    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "accessing broken descriptor '" << descriptor
         << "' in " << GetDeclaringClass();
     return *result;
   }
