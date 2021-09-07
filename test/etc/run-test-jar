@@ -906,6 +906,8 @@ installapex_test_cmdline="true"
 
 linkdirs() {
   find "$1" -maxdepth 1 -mindepth 1 -type d | xargs -i ln -sf '{}' "$2"
+  # Also create a link for the boot image.
+  ln -sf $ANDROID_HOST_OUT/apex/art_boot_images "$2"
 }
 
 if [ "$CREATE_ANDROID_ROOT" = "y" ]; then
@@ -915,6 +917,8 @@ if [ "$CREATE_ANDROID_ROOT" = "y" ]; then
     # TODO Make this overlay more generic.
     linkroot_overlay_cmdline="linkdirs $OUT_DIR/soong/host/linux_bionic-x86 ${ANDROID_ROOT}"
   fi
+  # Replace the boot image to a location expected by the runtime.
+  DALVIKVM_BOOT_OPT="-Ximage:${ANDROID_ROOT}/art_boot_images/javalib/boot.art"
 fi
 
 if [ "$USE_ZIPAPEX" = "y" ]; then
