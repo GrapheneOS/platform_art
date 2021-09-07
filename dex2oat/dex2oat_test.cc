@@ -1387,29 +1387,6 @@ TEST_F(Dex2oatVerifierAbort, HardFail) {
   EXPECT_EQ(0, res_no_fail);
 }
 
-TEST_F(Dex2oatVerifierAbort, SoftFail) {
-  // Use VerifierDepsMulti as it has soft-failing classes.
-  std::unique_ptr<const DexFile> dex(OpenTestDexFile("VerifierDepsMulti"));
-  std::string out_dir = GetScratchDir();
-  const std::string base_oat_name = out_dir + "/base.oat";
-  std::string error_msg;
-  const int res_fail = GenerateOdexForTestWithStatus(
-        {dex->GetLocation()},
-        base_oat_name,
-        CompilerFilter::Filter::kVerify,
-        &error_msg,
-        {"--abort-on-soft-verifier-error"});
-  EXPECT_NE(0, res_fail);
-
-  const int res_no_fail = GenerateOdexForTestWithStatus(
-        {dex->GetLocation()},
-        base_oat_name,
-        CompilerFilter::Filter::kVerify,
-        &error_msg,
-        {"--no-abort-on-soft-verifier-error"});
-  EXPECT_EQ(0, res_no_fail);
-}
-
 class Dex2oatDedupeCode : public Dex2oatTest {};
 
 TEST_F(Dex2oatDedupeCode, DedupeTest) {
