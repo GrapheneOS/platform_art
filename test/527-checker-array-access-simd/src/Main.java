@@ -59,9 +59,11 @@ public class Main {
   ///     CHECK-DAG:             <<LoopP:j\d+>>         VecPredWhile
   ///     CHECK-DAG:             <<Index:i\d+>>         Phi
   ///     CHECK-DAG:                                    If
-  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<Array>>,<<Index>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr1:i\d+>>      IntermediateAddress [<<Array>>,{{i\d+}}]
+  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<IntAddr1>>,<<Index>>,<<LoopP>>]
   ///     CHECK-DAG:             <<Add:d\d+>>           VecAdd [<<Load>>,<<Repl>>,<<LoopP>>]
-  ///     CHECK-DAG:                                    VecStore [<<Array>>,<<Index>>,<<Add>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr2:i\d+>>      IntermediateAddress [<<Array>>,{{i\d+}}]
+  ///     CHECK-DAG:                                    VecStore [<<IntAddr2>>,<<Index>>,<<Add>>,<<LoopP>>]
   //
   /// CHECK-ELSE:
   //
@@ -90,10 +92,10 @@ public class Main {
   ///     CHECK-DAG:             <<LoopP:j\d+>>         VecPredWhile
   ///     CHECK-DAG:             <<Index:i\d+>>         Phi
   ///     CHECK-DAG:                                    If
-  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<Array>>,<<Index>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr:i\d+>>       IntermediateAddress [<<Array>>,{{i\d+}}]
+  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<IntAddr>>,<<Index>>,<<LoopP>>]
   ///     CHECK-DAG:             <<Add:d\d+>>           VecAdd [<<Load>>,<<Repl>>,<<LoopP>>]
-  ///     CHECK-NOT:                                    IntermediateAddress
-  ///     CHECK-DAG:                                    VecStore [<<Array>>,<<Index>>,<<Add>>,<<LoopP>>]
+  ///     CHECK-DAG:                                    VecStore [<<IntAddr>>,<<Index>>,<<Add>>,<<LoopP>>]
   //
   /// CHECK-ELSE:
   //
@@ -116,7 +118,6 @@ public class Main {
   //
   //      IntermediateAddressIndex is not supported for SVE.
   ///     CHECK-NOT:                                    IntermediateAddressIndex
-  ///     CHECK-NOT:                                    IntermediateAddress
   //
   /// CHECK-ELSE:
   //
@@ -168,9 +169,11 @@ public class Main {
   ///     CHECK-DAG:             <<LoopP:j\d+>>         VecPredWhile
   ///     CHECK-DAG:             <<Index:i\d+>>         Phi
   ///     CHECK-DAG:                                    If
-  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<Array>>,<<Index>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr1:i\d+>>      IntermediateAddress [<<Array>>,{{i\d+}}]
+  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<IntAddr1>>,<<Index>>,<<LoopP>>]
   ///     CHECK-DAG:             <<Add:d\d+>>           VecAdd [<<Load>>,<<Repl>>,<<LoopP>>]
-  ///     CHECK-DAG:                                    VecStore [<<Array>>,<<Index>>,<<Add>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr2:i\d+>>      IntermediateAddress [<<Array>>,{{i\d+}}]
+  ///     CHECK-DAG:                                    VecStore [<<IntAddr2>>,<<Index>>,<<Add>>,<<LoopP>>]
   //
   /// CHECK-ELSE:
   //
@@ -199,10 +202,10 @@ public class Main {
   ///     CHECK-DAG:             <<LoopP:j\d+>>         VecPredWhile
   ///     CHECK-DAG:             <<Index:i\d+>>         Phi
   ///     CHECK-DAG:                                    If
-  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<Array>>,<<Index>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr:i\d+>>       IntermediateAddress [<<Array>>,{{i\d+}}]
+  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<IntAddr>>,<<Index>>,<<LoopP>>]
   ///     CHECK-DAG:             <<Add:d\d+>>           VecAdd [<<Load>>,<<Repl>>,<<LoopP>>]
-  ///     CHECK-NOT:                                    IntermediateAddress
-  ///     CHECK-DAG:                                    VecStore [<<Array>>,<<Index>>,<<Add>>,<<LoopP>>]
+  ///     CHECK-DAG:                                    VecStore [<<IntAddr>>,<<Index>>,<<Add>>,<<LoopP>>]
   //
   /// CHECK-ELSE:
   //
@@ -224,7 +227,6 @@ public class Main {
   //
   //      IntermediateAddressIndex is not supported for SVE.
   ///     CHECK-NOT:                                    IntermediateAddressIndex
-  ///     CHECK-NOT:                                    IntermediateAddress
   //
   /// CHECK-ELSE:
   //
@@ -275,7 +277,8 @@ public class Main {
   ///     CHECK-DAG:             <<LoopP:j\d+>>         VecPredWhile
   ///     CHECK-DAG:             <<Index:i\d+>>         Phi
   ///     CHECK-DAG:                                    If
-  ///     CHECK-DAG:                                    VecStore [<<Array>>,<<Index>>,<<Repl>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr:i\d+>>       IntermediateAddress [<<Array>>,{{i\d+}}]
+  ///     CHECK-DAG:                                    VecStore [<<IntAddr>>,<<Index>>,<<Repl>>,<<LoopP>>]
   //
   /// CHECK-ELSE:
   //
@@ -327,9 +330,11 @@ public class Main {
   ///     CHECK-DAG:             <<LoopP:j\d+>>         VecPredWhile
   ///     CHECK-DAG:             <<Index:i\d+>>         Phi
   ///     CHECK-DAG:                                    If
-  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<Array1>>,<<Index>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr1:i\d+>>      IntermediateAddress [<<Array1>>,{{i\d+}}]
+  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<IntAddr1>>,<<Index>>,<<LoopP>>]
   ///     CHECK-DAG:             <<Cnv:d\d+>>           VecCnv [<<Load>>,<<LoopP>>]
-  ///     CHECK-DAG:                                    VecStore [<<Array2>>,<<Index>>,<<Cnv>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr2:i\d+>>      IntermediateAddress [<<Array2>>,{{i\d+}}]
+  ///     CHECK-DAG:                                    VecStore [<<IntAddr2>>,<<Index>>,<<Cnv>>,<<LoopP>>]
   //
   /// CHECK-ELSE:
   //
@@ -356,10 +361,11 @@ public class Main {
   ///     CHECK-DAG:             <<LoopP:j\d+>>         VecPredWhile
   ///     CHECK-DAG:             <<Index:i\d+>>         Phi
   ///     CHECK-DAG:                                    If
-  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<Array1>>,<<Index>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr1:i\d+>>      IntermediateAddress [<<Array1>>,{{i\d+}}]
+  ///     CHECK-DAG:             <<Load:d\d+>>          VecLoad [<<IntAddr1>>,<<Index>>,<<LoopP>>]
   ///     CHECK-DAG:             <<Cnv:d\d+>>           VecCnv [<<Load>>,<<LoopP>>]
-  ///     CHECK-NOT:                                    IntermediateAddress
-  ///     CHECK-DAG:                                    VecStore [<<Array2>>,<<Index>>,<<Cnv>>,<<LoopP>>]
+  ///     CHECK-DAG:             <<IntAddr2:i\d+>>      IntermediateAddress [<<Array2>>,{{i\d+}}]
+  ///     CHECK-DAG:                                    VecStore [<<IntAddr2>>,<<Index>>,<<Cnv>>,<<LoopP>>]
   //
   /// CHECK-ELSE:
   //
@@ -381,7 +387,6 @@ public class Main {
   //
   //      IntermediateAddressIndex is not supported for SVE.
   ///     CHECK-NOT:                                    IntermediateAddressIndex
-  ///     CHECK-NOT:                                    IntermediateAddress
   //
   /// CHECK-ELSE:
   //

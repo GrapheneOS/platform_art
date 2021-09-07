@@ -277,18 +277,30 @@ void InstructionSimplifierArm64Visitor::VisitXor(HXor* instruction) {
 }
 
 void InstructionSimplifierArm64Visitor::VisitVecLoad(HVecLoad* instruction) {
-  // TODO: Extract regular HIntermediateAddress.
   if (!instruction->IsPredicated() && !instruction->IsStringCharAt() &&
       TryExtractVecArrayAccessAddress(instruction, instruction->GetIndex())) {
     RecordSimplification();
+  } else if (instruction->IsPredicated()) {
+    size_t size = DataType::Size(instruction->GetPackedType());
+    size_t offset = mirror::Array::DataOffset(size).Uint32Value();
+    if (TryExtractArrayAccessAddress(
+            instruction, instruction->GetArray(), instruction->GetIndex(), offset)) {
+      RecordSimplification();
+    }
   }
 }
 
 void InstructionSimplifierArm64Visitor::VisitVecStore(HVecStore* instruction) {
-  // TODO: Extract regular HIntermediateAddress.
   if (!instruction->IsPredicated() &&
       TryExtractVecArrayAccessAddress(instruction, instruction->GetIndex())) {
     RecordSimplification();
+  } else if (instruction->IsPredicated()) {
+    size_t size = DataType::Size(instruction->GetPackedType());
+    size_t offset = mirror::Array::DataOffset(size).Uint32Value();
+    if (TryExtractArrayAccessAddress(
+            instruction, instruction->GetArray(), instruction->GetIndex(), offset)) {
+      RecordSimplification();
+    }
   }
 }
 
