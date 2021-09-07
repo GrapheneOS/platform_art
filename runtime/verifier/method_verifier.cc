@@ -3747,8 +3747,8 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
       }
     }
     if (common_super == nullptr) {
-      /* no catch blocks, or no catches with classes we can find */
-      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unable to find exception handler";
+      /* No catch block */
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unable to find exception handler";
       return std::make_pair(true, &reg_types_.Conflict());
     }
     return std::make_pair(true, common_super);
