@@ -3930,7 +3930,7 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgsFromIterator(
     }
     bool is_init = false;
     if (actual_arg_type.IsUninitializedTypes()) {
-      if (res_method) {
+      if (res_method != nullptr) {
         if (!res_method->IsConstructor()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'this' arg must be initialized";
           return nullptr;
@@ -4164,7 +4164,9 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgs(
         dex_file_->StringByTypeIdx(class_idx),
         false);
     if (reference_type.IsUnresolvedTypes()) {
-      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Unable to find referenced class from invoke-super";
+      // We cannot differentiate on whether this is a class change error or just
+      // a missing method. This will be handled at runtime.
+      Fail(VERIFY_ERROR_NO_METHOD) << "Unable to find referenced class from invoke-super";
       return nullptr;
     }
     if (reference_type.GetClass()->IsInterface()) {
