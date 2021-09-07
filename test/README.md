@@ -58,6 +58,20 @@ art/test/run-test --help
 art/test/testrunner/testrunner.py --help
 ```
 
+### Checker tests
+
+Some ART run-tests, known as "Checker tests", perform additional checks on ART's
+compiler. They are identified by their name, which match the
+`^[0-9]+-checker-.*` regular expression (e.g. `004-checker-UnsafeTest18`).
+
+Checker assertions are annotations in a run-test's (Java and Smali) source files
+verifying the behavior of the ART compiler when compiling the corresponding Dex
+code. They are checked by the `checker` tool (see [directory
+`art/tools/checker`](https://cs.android.com/android/platform/superproject/+/master:art/tools/checker/))
+against a c1visualizer-style (`.cfg`) file emitted by `dex2oat`, containing
+control-flow graphs (CFGs) for compiled methods at each step (pass) in the
+compiler's pipeline, as well as the emitted assembly code.
+
 ## ART gtests
 
 ART gtests are written in C++ using the [Google
