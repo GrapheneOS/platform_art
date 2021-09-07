@@ -947,14 +947,14 @@ TEST_F(UnstartedRuntimeTest, ThreadLocalGet) {
   {
     Handle<mirror::Class> floating_decimal = hs.NewHandle(
         class_linker->FindClass(self,
-                                "Lsun/misc/FloatingDecimal;",
+                                "Ljdk/internal/math/FloatingDecimal;",
                                 ScopedNullHandle<mirror::ClassLoader>()));
     ASSERT_TRUE(floating_decimal != nullptr);
     ASSERT_TRUE(class_linker->EnsureInitialized(self, floating_decimal, true, true));
 
     ArtMethod* caller_method = floating_decimal->FindClassMethod(
         "getBinaryToASCIIBuffer",
-        "()Lsun/misc/FloatingDecimal$BinaryToASCIIBuffer;",
+        "()Ljdk/internal/math/FloatingDecimal$BinaryToASCIIBuffer;",
         class_linker->GetImagePointerSize());
     // floating_decimal->DumpClass(LOG_STREAM(ERROR), mirror::Class::kDumpClassFullDetail);
     ASSERT_TRUE(caller_method != nullptr);
