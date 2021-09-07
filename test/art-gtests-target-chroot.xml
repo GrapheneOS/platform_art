@@ -16,6 +16,7 @@
 <configuration description="ART gtests for target (using chroot)">
     <option name="test-suite-tag" value="art-target-gtest-chroot" />
 
+    <target_preparer class="com.android.tradefed.targetprep.RebootTargetPreparer" />
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
     <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer" />
     <target_preparer class="com.android.tradefed.targetprep.ArtChrootPreparer" />
