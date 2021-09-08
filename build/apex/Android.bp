@@ -33,8 +33,12 @@ art_runtime_base_binaries_both_on_device_first_on_host = [
 //  (likely 64-bit) and on host).
 art_runtime_base_binaries_first_on_device_first_on_host = [
     "dexoptanalyzer",
-    "odrefresh",
     "profman",
+]
+// - Base requirements (binaries for which the "first" version is preferred on device
+//  (likely 64-bit).
+art_runtime_base_binaries_first_on_device = [
+    "odrefresh",
 ]
 
 // - Base requirements (libraries).
@@ -257,6 +261,7 @@ apex_defaults {
         },
         first: {
             binaries: art_runtime_base_binaries_first_on_device_first_on_host +
+                art_runtime_base_binaries_first_on_device +
                 art_tools_common_binaries +
                 art_tools_device_only_binaries,
         },
