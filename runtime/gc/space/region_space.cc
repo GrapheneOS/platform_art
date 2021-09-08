@@ -223,71 +223,52 @@ inline bool RegionSpace::Region::ShouldBeEvacuated(EvacMode evac_mode) {
   DCHECK(GetUseGenerationalCC() || (evac_mode != kEvacModeNewlyAllocated));
   DCHECK((IsAllocated() || IsLarge()) && IsInToSpace());
   // The region should be evacuated if:
-  // - the evacuation is forced (`evac_mode == kEvacModeForceAll`); or
+  // - the evacuation is forced (!large && `evac_mode == kEvacModeForceAll`); or
   // - the region was allocated after the start of the previous GC (newly allocated region); or
-  // - the live ratio is below threshold (`kEvacuateLivePercentThreshold`).
+  // - !large and the live ratio is below threshold (`kEvacuateLivePercentThreshold`).
+  if (IsLarge()) {
+    // It makes no sense to evacuate in the large case, since the region only contains zero or
+    // one object. If the regions is completely empty, we'll reclaim it anyhow. If its one object
+    // is live, we would just be moving around region-aligned memory.
+    return false;
+  }
   if (UNLIKELY(evac_mode == kEvacModeForceAll)) {
     return true;
   }
-  bool result = false;
+  DCHECK(IsAllocated());
   if (is_newly_allocated_) {
     // Invariant: newly allocated regions have an undefined live bytes count.
     DCHECK_EQ(live_bytes_, static_cast<size_t>(-1));
-    if (IsAllocated()) {
-      // We always evacuate newly-allocated non-large regions as we
-      // believe they contain many dead objects (a very simple form of
-      // the generational hypothesis, even before the Sticky-Bit CC
-      // approach).
-      //
-      // TODO: Verify that assertion by collecting statistics on the
-      // number/proportion of live objects in newly allocated regions
-      // in RegionSpace::ClearFromSpace.
-      //
-      // Note that a side effect of evacuating a newly-allocated
-      // non-large region is that the "newly allocated" status will
-      // later be removed, as its live objects will be copied to an
-      // evacuation region, which won't be marked as "newly
-      // allocated" (see RegionSpace::AllocateRegion).
-      result = true;
-    } else {
-      DCHECK(IsLarge());
-      // We never want to evacuate a large region (and the associated
-      // tail regions), except if:
-      // - we are forced to do so (see the `kEvacModeForceAll` case
-      //   above); or
-      // - we know that the (sole) object contained in this region is
-      //   dead (see the corresponding logic below, in the
-      //   `kEvacModeLivePercentNewlyAllocated` case).
-      // For a newly allocated region (i.e. allocated since the
-      // previous GC started), we don't have any liveness information
-      // (the live bytes count is -1 -- also note this region has been
-      // a to-space one between the time of its allocation and now),
-      // so we prefer not to evacuate it.
-      result = false;
-    }
+    // We always evacuate newly-allocated non-large regions as we
+    // believe they contain many dead objects (a very simple form of
+    // the generational hypothesis, even before the Sticky-Bit CC
+    // approach).
+    //
+    // TODO: Verify that assertion by collecting statistics on the
+    // number/proportion of live objects in newly allocated regions
+    // in RegionSpace::ClearFromSpace.
+    //
+    // Note that a side effect of evacuating a newly-allocated
+    // non-large region is that the "newly allocated" status will
+    // later be removed, as its live objects will be copied to an
+    // evacuation region, which won't be marked as "newly
+    // allocated" (see RegionSpace::AllocateRegion).
+    return true;
   } else if (evac_mode == kEvacModeLivePercentNewlyAllocated) {
     bool is_live_percent_valid = (live_bytes_ != static_cast<size_t>(-1));
     if (is_live_percent_valid) {
       DCHECK(IsInToSpace());
-      DCHECK(!IsLargeTail());
       DCHECK_NE(live_bytes_, static_cast<size_t>(-1));
       DCHECK_LE(live_bytes_, BytesAllocated());
       const size_t bytes_allocated = RoundUp(BytesAllocated(), kRegionSize);
       DCHECK_LE(live_bytes_, bytes_allocated);
-      if (IsAllocated()) {
-        // Side node: live_percent == 0 does not necessarily mean
-        // there's no live objects due to rounding (there may be a
-        // few).
-        result = (live_bytes_ * 100U < kEvacuateLivePercentThreshold * bytes_allocated);
-      } else {
-        DCHECK(IsLarge());
-        result = (live_bytes_ == 0U);
-      }
-    } else {
-      result = false;
+      // Side node: live_percent == 0 does not necessarily mean
+      // there's no live objects due to rounding (there may be a
+      // few).
+      return live_bytes_ * 100U < kEvacuateLivePercentThreshold * bytes_allocated;
     }
   }
-  return result;
+  return false;
 }
 
 void RegionSpace::ZeroLiveBytesForLargeObject(mirror::Object* obj) {
