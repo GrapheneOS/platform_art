@@ -18,9 +18,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 
 public class Main {
-  // Workaround for b/18051191.
-  class Inner {}
-
   public static native void assertIsInterpreted();
   public static native void ensureJitCompiled(Class<?> cls, String methodName);
 
