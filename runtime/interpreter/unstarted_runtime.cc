@@ -1064,9 +1064,9 @@ static ObjPtr<mirror::Object> CreateInstanceOf(Thread* self, const char* class_d
 
 void UnstartedRuntime::UnstartedThreadLocalGet(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
-  if (CheckCallers(shadow_frame, { "sun.misc.FloatingDecimal$BinaryToASCIIBuffer "
-                                       "sun.misc.FloatingDecimal.getBinaryToASCIIBuffer()" })) {
-    result->SetL(CreateInstanceOf(self, "Lsun/misc/FloatingDecimal$BinaryToASCIIBuffer;"));
+  if (CheckCallers(shadow_frame, { "jdk.internal.math.FloatingDecimal$BinaryToASCIIBuffer "
+                                       "jdk.internal.math.FloatingDecimal.getBinaryToASCIIBuffer()" })) {
+    result->SetL(CreateInstanceOf(self, "Ljdk/internal/math/FloatingDecimal$BinaryToASCIIBuffer;"));
   } else {
     AbortTransactionOrFail(self,
                            "ThreadLocal.get() does not support %s",

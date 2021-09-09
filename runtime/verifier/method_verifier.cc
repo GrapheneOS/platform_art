@@ -2179,14 +2179,8 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
               Fail(VERIFY_ERROR_UNRESOLVED_TYPE_CHECK)
                   << " can't resolve returned type '" << return_type << "' or '" << reg_type << "'";
             } else {
-              // Check whether arrays are involved. They will show a valid class status, even
-              // if their components are erroneous.
-              if (reg_type.IsArrayTypes() && return_type.IsArrayTypes()) {
-                if (!return_type.CanAssignArray(reg_type, reg_types_, class_loader_, this)) {
-                  Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
-                      << "', but expected from declaration '" << return_type << "'";
-                }
-              }
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
+                  << "', but expected from declaration '" << return_type << "'";
             }
           }
         }
@@ -2520,7 +2514,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "thrown value of non-reference type " << res_type;
         } else {
           Fail(res_type.IsUnresolvedTypes()
-                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK : VERIFY_ERROR_BAD_CLASS_SOFT)
+                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK : VERIFY_ERROR_BAD_CLASS_HARD)
                 << "thrown class " << res_type << " not instanceof Throwable";
         }
       }
@@ -3642,7 +3636,7 @@ const RegType& MethodVerifier<kVerifierDebug>::ResolveClass(dex::TypeIndex class
   DCHECK(result != nullptr);
   if (result->IsConflict()) {
     const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
-    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "accessing broken descriptor '" << descriptor
         << "' in " << GetDeclaringClass();
     return *result;
   }
@@ -3704,7 +3698,7 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
                     unresolved = &unresolved->SafeMerge(exception, &reg_types_, this);
                   }
                 } else {
-                  Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class "
+                  Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected non-throwable class "
                                                     << exception;
                   return std::make_pair(true, &reg_types_.Conflict());
                 }
@@ -3740,8 +3734,8 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
       }
     }
     if (common_super == nullptr) {
-      /* no catch blocks, or no catches with classes we can find */
-      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unable to find exception handler";
+      /* No catch block */
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unable to find exception handler";
       return std::make_pair(true, &reg_types_.Conflict());
     }
     return std::make_pair(true, common_super);
@@ -3923,7 +3917,7 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgsFromIterator(
     }
     bool is_init = false;
     if (actual_arg_type.IsUninitializedTypes()) {
-      if (res_method) {
+      if (res_method != nullptr) {
         if (!res_method->IsConstructor()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'this' arg must be initialized";
           return nullptr;
@@ -3960,9 +3954,9 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgsFromIterator(
             false);
       }
       if (!res_method_class->IsAssignableFrom(adjusted_type, this)) {
-        Fail(adjusted_type.IsUnresolvedTypes()
+        Fail((adjusted_type.IsUnresolvedTypes() || res_method_class->IsUnresolvedTypes())
                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK
-                 : VERIFY_ERROR_BAD_CLASS_SOFT)
+                 : VERIFY_ERROR_BAD_CLASS_HARD)
             << "'this' argument '" << actual_arg_type << "' not instance of '"
             << *res_method_class << "'";
         // Continue on soft failures. We need to find possible hard failures to avoid problems in
@@ -4157,7 +4151,9 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgs(
         dex_file_->StringByTypeIdx(class_idx),
         false);
     if (reference_type.IsUnresolvedTypes()) {
-      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Unable to find referenced class from invoke-super";
+      // We cannot differentiate on whether this is a class change error or just
+      // a missing method. This will be handled at runtime.
+      Fail(VERIFY_ERROR_NO_METHOD) << "Unable to find referenced class from invoke-super";
       return nullptr;
     }
     if (reference_type.GetClass()->IsInterface()) {

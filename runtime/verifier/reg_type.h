@@ -219,16 +219,6 @@ class RegType {
   bool IsAssignableFrom(const RegType& src, MethodVerifier* verifier) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Can this array type potentially be assigned by src.
-  // This function is necessary as array types are valid even if their components types are not,
-  // e.g., when they component type could not be resolved. The function will return true iff the
-  // types assignable. It will return false otherwise.
-  bool CanAssignArray(const RegType& src,
-                      RegTypeCache& reg_types,
-                      Handle<mirror::ClassLoader> class_loader,
-                      MethodVerifier* verifier) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Can this type be assigned by src? Variant of IsAssignableFrom that doesn't
   // allow assignment to
   // an interface from an Object.
