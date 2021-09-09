@@ -157,8 +157,6 @@ class VdexFile {
     return size;
   }
 
-  bool IsDexSectionValid() const;
-
   bool HasDexSection() const {
     return GetSectionHeader(VdexSection::kDexFileSection).section_size != 0u;
   }
