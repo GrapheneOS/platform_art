@@ -505,7 +505,9 @@ inline bool Class::ResolvedMethodAccessTest(ObjPtr<Class> access_to,
         class_idx,
         dex_cache,
         access_to->GetClassLoader());
-    DCHECK(dex_access_to != nullptr);
+    DCHECK(dex_access_to != nullptr)
+        << " Could not resolve " << dex_cache->GetDexFile()->StringByTypeIdx(class_idx)
+        << " when checking access to " << method->PrettyMethod() << " from " << PrettyDescriptor();
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
         ThrowIllegalAccessErrorClassForMethodDispatch(this,
