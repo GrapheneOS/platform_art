@@ -170,8 +170,3 @@ To only run tests executed during pre-submit testing, use:
 ```bash
 atest --test-mapping art:presubmit
 ```
-
-To only run tests executed during post-submit testing, use:
-```bash
-atest --test-mapping art:postsubmit
-```
