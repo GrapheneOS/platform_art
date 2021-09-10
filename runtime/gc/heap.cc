@@ -2341,6 +2341,8 @@ void Heap::IncrementFreedEver() {
 #  pragma clang diagnostic ignored "-Wframe-larger-than="
 #endif
 // This has a large frame, but shouldn't be run anywhere near the stack limit.
+// FIXME: BUT it did exceed... http://b/197647048
+#  pragma clang diagnostic ignored "-Wframe-larger-than="
 void Heap::PreZygoteFork() {
   if (!HasZygoteSpace()) {
     // We still want to GC in case there is some unreachable non moving objects that could cause a
