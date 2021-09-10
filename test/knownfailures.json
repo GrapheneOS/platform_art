@@ -443,6 +443,7 @@
             ".*var-handle.*",
             "160-read-barrier-stress",
             "716-jli-jit-samples",
+            "1002-notify-startup",
             "1975-hello-structural-transformation",
             "1976-hello-structural-static-methods",
             "1985-structural-redefine-stack-scope",
