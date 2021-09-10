@@ -44,6 +44,7 @@ BITNESS_ALL = [BITNESS_32, BITNESS_64, BITNESS_MULTILIB, BITNESS_AUTO]
 
 # Architectures supported by APEX packages.
 ARCHS = ["arm", "arm64", "x86", "x86_64"]
+ARCHS_64 = ["arm64", "x86_64"]
 
 # Directory containing ART tests within an ART APEX (if the package includes
 # any). ART test executables are installed in `bin/art/<arch>`. Segregating
@@ -247,7 +248,7 @@ class Checker:
       self.fail('%s is not a symlink', path)
     self._expected_file_globs.add(path)
 
-  def arch_dirs_for_path(self, path):
+  def arch_dirs_for_path(self, path, prefer64=False):
     # Look for target-specific subdirectories for the given directory path.
     # This is needed because the list of build targets is not propagated
     # to this script.
@@ -255,15 +256,15 @@ class Checker:
     # TODO(b/123602136): Pass build target information to this script and fix
     # all places where this function in used (or similar workarounds).
     dirs = []
-    for arch in ARCHS:
+    archs = ARCHS_64 if prefer64 else ARCHS
+    for arch in archs:
       dir = '%s/%s' % (path, arch)
       found, _ = self.is_dir(dir)
       if found:
         dirs.append(dir)
     return dirs
 
-  def check_art_test_executable(self, filename):
-    dirs = self.arch_dirs_for_path(ART_TEST_DIR)
+  def check_art_test_executable_in_dirs(self, filename, dirs):
     if not dirs:
       self.fail('ART test binary missing: %s', filename)
     for dir in dirs:
@@ -271,6 +272,14 @@ class Checker:
       self._expected_file_globs.add(test_path)
       if not self._provider.get(test_path).is_exec:
         self.fail('%s is not executable', test_path)
+
+  def check_art_test_executable(self, filename):
+    self.check_art_test_executable_in_dirs(
+        filename, self.arch_dirs_for_path(ART_TEST_DIR))
+
+  def check_prefer64_art_test_executable(self, filename):
+    self.check_art_test_executable_in_dirs(
+        filename, self.arch_dirs_for_path(ART_TEST_DIR, prefer64=True))
 
   def check_art_test_data(self, filename):
     dirs = self.arch_dirs_for_path(ART_TEST_DIR)
@@ -469,6 +478,8 @@ class ReleaseChecker:
 
     # Check internal libraries for ART.
     self._checker.check_prefer64_library('artd-aidl-ndk')
+    self._checker.check_prefer64_library('artd-private-aidl-ndk')
+    self._checker.check_prefer64_library('libdexopt')
     self._checker.check_native_library('libadbconnection')
     self._checker.check_native_library('libart')
     self._checker.check_native_library('libart-compiler')
@@ -669,6 +680,7 @@ class TestingTargetChecker:
 
   def run(self):
     # Check ART test binaries.
+    self._checker.check_prefer64_art_test_executable('art_odrefresh_tests')
     self._checker.check_art_test_executable('art_cmdline_tests')
     self._checker.check_art_test_executable('art_compiler_tests')
     self._checker.check_art_test_executable('art_dex2oat_tests')
@@ -687,13 +699,13 @@ class TestingTargetChecker:
     self._checker.check_art_test_executable('art_libdexfile_tests')
     self._checker.check_art_test_executable('art_libprofile_tests')
     self._checker.check_art_test_executable('art_oatdump_tests')
-    self._checker.check_art_test_executable('art_odrefresh_tests')
     self._checker.check_art_test_executable('art_profman_tests')
     self._checker.check_art_test_executable('art_runtime_compiler_tests')
     self._checker.check_art_test_executable('art_runtime_tests')
     self._checker.check_art_test_executable('art_sigchain_tests')
 
     # Check ART test (internal) libraries.
+    self._checker.check_prefer64_library('libdexoptd')
     self._checker.check_native_library('libartd-gtest')
     self._checker.check_native_library('libartd-simulator-container')
 
