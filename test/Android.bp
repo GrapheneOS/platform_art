@@ -39,10 +39,16 @@ art_module_cc_defaults {
         darwin: {
             enabled: false,
         },
+        // This has to be duplicated for android and host to make sure it
+        // comes after the -Wframe-larger-than warnings inserted by art.go
+        // target-specific properties
+        android: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+        host: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
     },
-    cflags: [
-        "-Wno-frame-larger-than=",
-    ],
 }
 
 art_module_cc_defaults {
