@@ -34,9 +34,17 @@ art_cc_library {
         "micro-native/micro_native.cc",
         "scoped-primitive-array/scoped_primitive_array.cc",
     ],
-    cflags: [
-        "-Wno-frame-larger-than=",
-    ],
+    target: {
+        // This has to be duplicated for android and host to make sure it
+        // comes after the -Wframe-larger-than warnings inserted by art.go
+        // target-specific properties
+        android: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+        host: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+    },
     header_libs: [
         "libnativehelper_header_only",
     ],
@@ -65,7 +73,15 @@ art_cc_library {
     ],
     header_libs: ["jni_headers"],
     stl: "libc++_static",
-    cflags: [
-        "-Wno-frame-larger-than=",
-    ],
+    target: {
+        // This has to be duplicated for android and host to make sure it
+        // comes after the -Wframe-larger-than warnings inserted by art.go
+        // target-specific properties
+        android: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+        host: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+    },
 }
