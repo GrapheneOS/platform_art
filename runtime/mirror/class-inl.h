@@ -504,7 +504,7 @@ inline bool Class::ResolvedMethodAccessTest(ObjPtr<Class> access_to,
     ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
         class_idx,
         dex_cache,
-        access_to->GetClassLoader());
+        GetClassLoader());
     DCHECK(dex_access_to != nullptr)
         << " Could not resolve " << dex_cache->GetDexFile()->StringByTypeIdx(class_idx)
         << " when checking access to " << method->PrettyMethod() << " from " << PrettyDescriptor();
