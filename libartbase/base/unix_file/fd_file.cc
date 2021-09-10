@@ -557,6 +557,7 @@ bool FdFile::Erase(bool unlink) {
   result = Flush();
   result = Close();
   // Ignore the errors.
+  (void) result;
 
   return ret_result;
 }
