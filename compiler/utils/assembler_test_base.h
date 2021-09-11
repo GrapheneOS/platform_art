@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
+#include <regex>
 
 #include "android-base/strings.h"
 
@@ -110,9 +111,11 @@ class AssemblerTestBase : public testing::Test {
     std::string art_disassembly;
     ASSERT_TRUE(Disassemble(art_obj_file, &art_disassembly));
     art_disassembly = Replace(art_disassembly, art_obj_file, test_path("<extension-redacted>"));
+    art_disassembly = StripComments(art_disassembly);
     std::string ref_disassembly;
     ASSERT_TRUE(Disassemble(ref_obj_file, &ref_disassembly));
     ref_disassembly = Replace(ref_disassembly, ref_obj_file, test_path("<extension-redacted>"));
+    ref_disassembly = StripComments(ref_disassembly);
     ASSERT_EQ(art_disassembly, ref_disassembly) << "Outputs (and disassembly) not identical.";
 
     // ART produced different (but valid) code than the reference assembler, report it.
@@ -245,6 +248,11 @@ class AssemblerTestBase : public testing::Test {
     }
     output += str.substr(pos, str.size() - pos);
     return output;
+  }
+
+  // Remove comments emitted by objdump.
+  std::string StripComments(const std::string& str) {
+    return std::regex_replace(str, std::regex(" +#.*"), "");
   }
 
   std::optional<ScratchDir> scratch_dir_;
