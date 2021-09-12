@@ -252,7 +252,7 @@ class AssemblerTestBase : public testing::Test {
 
   // Remove comments emitted by objdump.
   std::string StripComments(const std::string& str) {
-    return std::regex_replace(str, std::regex(" +#.*"), "");
+    return std::regex_replace(str, std::regex(" +# .*"), "");
   }
 
   std::optional<ScratchDir> scratch_dir_;
