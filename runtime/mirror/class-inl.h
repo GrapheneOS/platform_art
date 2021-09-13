@@ -468,7 +468,7 @@ inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
     ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
         class_idx,
         dex_cache,
-        access_to->GetClassLoader());
+        GetClassLoader());
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
