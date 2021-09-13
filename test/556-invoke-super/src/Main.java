@@ -17,10 +17,6 @@
 import java.lang.reflect.Method;
 
 public class Main {
-
-  // Workaround for b/18051191.
-  class InnerClass {}
-
   static void assertEquals(int expected, int value) {
     if (expected != value) {
       throw new Error("Expected " + expected + ", got " + value);
