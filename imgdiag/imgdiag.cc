@@ -1266,6 +1266,7 @@ class ImgDiagDumper {
         total_dirty_pages += num_dirty_pages;
       }
     }
+    os << "Found " << total_dirty_pages << " dirty pages in total ";
 
     // Commit the mappings and files.
     image_proc_maps_ = std::move(image_proc_maps);
