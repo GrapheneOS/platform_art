@@ -19,9 +19,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 
 public class Main {
-  // Workaround for b/18051191.
-  class Inner {}
-
   public static boolean field0;
   public static boolean field1;
   public static boolean field2;

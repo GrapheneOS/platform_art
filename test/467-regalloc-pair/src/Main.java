@@ -21,10 +21,6 @@ interface Itf {
 }
 
 public class Main implements Itf {
-
-  // Workaround for b/18051191.
-  class InnerClass {}
-
   public static void main(String[] args) throws Exception {
     Class<?> c = Class.forName("TestCase");
     Method m = c.getMethod("testCase", byte[].class, Main.class);

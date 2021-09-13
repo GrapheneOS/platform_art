@@ -17,10 +17,6 @@
 import java.lang.reflect.Method;
 
 public class Main {
-
-  // Workaround for b/18051191.
-  class InnerClass {}
-
   private static int runTestCase(String name, long arg) throws Exception {
     Class<?> c = Class.forName("TestCase");
     Method m = c.getMethod(name, long.class);

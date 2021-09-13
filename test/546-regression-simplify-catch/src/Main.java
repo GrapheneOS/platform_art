@@ -15,10 +15,6 @@
  */
 
 public class Main {
-
-  // Workaround for b/18051191.
-  class InnerClass {}
-
   public static void main(String[] args) {}
 
 }
