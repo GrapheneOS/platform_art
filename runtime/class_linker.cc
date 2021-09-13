@@ -8867,6 +8867,7 @@ ObjPtr<mirror::Class> ClassLinker::DoLookupResolvedType(dex::TypeIndex type_idx,
 ObjPtr<mirror::Class> ClassLinker::DoLookupResolvedType(dex::TypeIndex type_idx,
                                                         ObjPtr<mirror::DexCache> dex_cache,
                                                         ObjPtr<mirror::ClassLoader> class_loader) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   const DexFile& dex_file = *dex_cache->GetDexFile();
   const char* descriptor = dex_file.StringByTypeIdx(type_idx);
   ObjPtr<mirror::Class> type = LookupResolvedType(descriptor, class_loader);
@@ -8914,6 +8915,7 @@ template ObjPtr<mirror::Class> ClassLinker::DoResolveType(dex::TypeIndex type_id
 ObjPtr<mirror::Class> ClassLinker::DoResolveType(dex::TypeIndex type_idx,
                                                  Handle<mirror::DexCache> dex_cache,
                                                  Handle<mirror::ClassLoader> class_loader) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
   Thread* self = Thread::Current();
   const char* descriptor = dex_cache->GetDexFile()->StringByTypeIdx(type_idx);
   ObjPtr<mirror::Class> resolved = FindClass(self, descriptor, class_loader);
@@ -8944,6 +8946,7 @@ ArtMethod* ClassLinker::FindResolvedMethod(ObjPtr<mirror::Class> klass,
                                            ObjPtr<mirror::DexCache> dex_cache,
                                            ObjPtr<mirror::ClassLoader> class_loader,
                                            uint32_t method_idx) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   // Search for the method using dex_cache and method_idx. The Class::Find*Method()
   // functions can optimize the search if the dex_cache is the same as the DexCache
   // of the class, with fall-back to name and signature search otherwise.
@@ -9004,6 +9007,7 @@ static bool CheckNoSuchMethod(ArtMethod* method,
                               ObjPtr<mirror::DexCache> dex_cache,
                               ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   return method == nullptr ||
          hiddenapi::ShouldDenyAccessToMember(method,
                                              hiddenapi::AccessContext(class_loader, dex_cache),
@@ -9014,6 +9018,7 @@ ArtMethod* ClassLinker::FindIncompatibleMethod(ObjPtr<mirror::Class> klass,
                                                ObjPtr<mirror::DexCache> dex_cache,
                                                ObjPtr<mirror::ClassLoader> class_loader,
                                                uint32_t method_idx) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   if (klass->IsInterface()) {
     ArtMethod* method = klass->FindClassMethod(dex_cache, method_idx, image_pointer_size_);
     return CheckNoSuchMethod(method, dex_cache, class_loader) ? nullptr : method;
@@ -9036,6 +9041,7 @@ ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
                                       Handle<mirror::ClassLoader> class_loader,
                                       ArtMethod* referrer,
                                       InvokeType type) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
   DCHECK(!Thread::Current()->IsExceptionPending()) << Thread::Current()->GetException()->Dump();
   DCHECK(dex_cache != nullptr);
   DCHECK(referrer == nullptr || !referrer->IsProxyMethod());
@@ -9130,6 +9136,7 @@ ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
 ArtMethod* ClassLinker::ResolveMethodWithoutInvokeType(uint32_t method_idx,
                                                        Handle<mirror::DexCache> dex_cache,
                                                        Handle<mirror::ClassLoader> class_loader) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
   ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
   Thread::PoisonObjectPointersIfDebug();
   if (resolved != nullptr) {
@@ -9163,6 +9170,7 @@ ArtField* ClassLinker::LookupResolvedField(uint32_t field_idx,
                                            ObjPtr<mirror::DexCache> dex_cache,
                                            ObjPtr<mirror::ClassLoader> class_loader,
                                            bool is_static) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   const DexFile& dex_file = *dex_cache->GetDexFile();
   const dex::FieldId& field_id = dex_file.GetFieldId(field_idx);
   ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(field_id.class_idx_);
@@ -9183,6 +9191,7 @@ ArtField* ClassLinker::ResolveField(uint32_t field_idx,
                                     Handle<mirror::ClassLoader> class_loader,
                                     bool is_static) {
   DCHECK(dex_cache != nullptr);
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
   DCHECK(!Thread::Current()->IsExceptionPending()) << Thread::Current()->GetException()->Dump();
   ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   Thread::PoisonObjectPointersIfDebug();
@@ -9210,6 +9219,7 @@ ArtField* ClassLinker::ResolveFieldJLS(uint32_t field_idx,
                                        Handle<mirror::DexCache> dex_cache,
                                        Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache != nullptr);
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
   ArtField* resolved = dex_cache->GetResolvedField(field_idx);
   Thread::PoisonObjectPointersIfDebug();
   if (resolved != nullptr) {
@@ -9237,6 +9247,7 @@ ArtField* ClassLinker::FindResolvedField(ObjPtr<mirror::Class> klass,
                                          ObjPtr<mirror::ClassLoader> class_loader,
                                          uint32_t field_idx,
                                          bool is_static) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   ArtField* resolved = is_static ? klass->FindStaticField(dex_cache, field_idx)
                                  : klass->FindInstanceField(dex_cache, field_idx);
   if (resolved != nullptr &&
@@ -9257,6 +9268,7 @@ ArtField* ClassLinker::FindResolvedFieldJLS(ObjPtr<mirror::Class> klass,
                                             ObjPtr<mirror::DexCache> dex_cache,
                                             ObjPtr<mirror::ClassLoader> class_loader,
                                             uint32_t field_idx) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   ArtField* resolved = klass->FindField(dex_cache, field_idx);
 
   if (resolved != nullptr &&
@@ -9280,6 +9292,7 @@ ObjPtr<mirror::MethodType> ClassLinker::ResolveMethodType(
     Handle<mirror::ClassLoader> class_loader) {
   DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
   DCHECK(dex_cache != nullptr);
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
 
   ObjPtr<mirror::MethodType> resolved = dex_cache->GetResolvedMethodType(proto_idx);
   if (resolved != nullptr) {
