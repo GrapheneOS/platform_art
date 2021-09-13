@@ -982,6 +982,9 @@ void CodeGenerator::AllocateLocations(HInstruction* instruction) {
     if (locations != nullptr) {
       if (locations->CanCall()) {
         MarkNotLeaf();
+        if (locations->NeedsSuspendCheckEntry()) {
+          MarkNeedsSuspendCheckEntry();
+        }
       } else if (locations->Intrinsified() &&
                  instruction->IsInvokeStaticOrDirect() &&
                  !instruction->AsInvokeStaticOrDirect()->HasCurrentMethodInput()) {
@@ -1061,6 +1064,7 @@ CodeGenerator::CodeGenerator(HGraph* graph,
       current_slow_path_(nullptr),
       current_block_index_(0),
       is_leaf_(true),
+      needs_suspend_check_entry_(false),
       requires_current_method_(false),
       code_generation_data_() {
   if (GetGraph()->IsCompilingOsr()) {
