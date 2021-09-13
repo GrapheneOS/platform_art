@@ -1240,7 +1240,6 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   }
 
   uint32_t outer_dex_pc = dex_pc;
-  uint32_t outer_environment_size = 0u;
   uint32_t inlining_depth = 0;
   HEnvironment* const environment = instruction->GetEnvironment();
   if (environment != nullptr) {
@@ -1250,7 +1249,6 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
       ++inlining_depth;
     }
     outer_dex_pc = outer_environment->GetDexPc();
-    outer_environment_size = outer_environment->Size();
   }
 
   HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
