@@ -18,10 +18,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 
 public class Main {
-
-  // Workaround for b/18051191.
-  class InnerClass {}
-
   public static void main(String[] args) throws Exception {
     Class<?> c = Class.forName("StoreLoad");
     Method m = c.getMethod("test", int.class);
