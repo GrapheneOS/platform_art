@@ -17,9 +17,6 @@
 import java.lang.reflect.Method;
 
 public class Main {
-  // Workaround for b/18051191.
-  class Inner {}
-
   public static void main(String[] args) throws Exception {
     Class<?> c = Class.forName("Equivalent");
     Method m = c.getMethod("method", int[].class);

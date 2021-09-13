@@ -27,9 +27,5 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 
 public class Main {
-
-  // Workaround for b/18051191.
-  class InnerClass {}
-
   public static void main(String args[]) {}
 }
