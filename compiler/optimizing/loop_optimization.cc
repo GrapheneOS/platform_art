@@ -636,6 +636,47 @@ bool HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
 }
 
 //
+// This optimization applies to loops with plain simple operations
+// (I.e. no calls to java code or runtime) with a known small trip_count * instr_count
+// value.
+//
+bool HLoopOptimization::TryToRemoveSuspendCheckFromLoopHeader(LoopAnalysisInfo* analysis_info,
+                                                              bool generate_code) {
+  if (!graph_->SuspendChecksAreAllowedToBeRemoved()) {
+    return false;
+  }
+
+  int64_t trip_count = analysis_info->GetTripCount();
+
+  if (trip_count == LoopAnalysisInfo::kUnknownTripCount) {
+    return false;
+  }
+
+  int64_t instruction_count = analysis_info->GetNumberOfInstructions();
+  int64_t total_instruction_count = trip_count * instruction_count;
+
+  // The inclusion of the HasInstructionsPreventingScalarOpts() prevents this
+  // optimization from being applied to loops that have calls.
+  bool can_optimize =
+      total_instruction_count <= HLoopOptimization::kMaxTotalInstRemoveSuspendCheck &&
+      !analysis_info->HasInstructionsPreventingScalarOpts();
+
+  if (!can_optimize) {
+    return false;
+  }
+
+  if (generate_code) {
+    HLoopInformation* loop_info = analysis_info->GetLoopInfo();
+    HBasicBlock* header = loop_info->GetHeader();
+    HInstruction* instruction = header->GetLoopInformation()->GetSuspendCheck();
+    header->RemoveInstruction(instruction);
+    loop_info->SetSuspendCheck(nullptr);
+  }
+
+  return true;
+}
+
+//
 // Optimization.
 //
 
@@ -779,7 +820,7 @@ bool HLoopOptimization::TryOptimizeInnerLoopFinite(LoopNode* node) {
 }
 
 bool HLoopOptimization::OptimizeInnerLoop(LoopNode* node) {
-  return TryOptimizeInnerLoopFinite(node) || TryPeelingAndUnrolling(node);
+  return TryOptimizeInnerLoopFinite(node) || TryLoopScalarOpts(node);
 }
 
 
@@ -885,7 +926,7 @@ bool HLoopOptimization::TryFullUnrolling(LoopAnalysisInfo* analysis_info, bool g
   return true;
 }
 
-bool HLoopOptimization::TryPeelingAndUnrolling(LoopNode* node) {
+bool HLoopOptimization::TryLoopScalarOpts(LoopNode* node) {
   HLoopInformation* loop_info = node->loop_info;
   int64_t trip_count = LoopAnalysis::GetLoopTripCount(loop_info, &induction_range_);
   LoopAnalysisInfo analysis_info(loop_info);
@@ -898,9 +939,15 @@ bool HLoopOptimization::TryPeelingAndUnrolling(LoopNode* node) {
 
   if (!TryFullUnrolling(&analysis_info, /*generate_code*/ false) &&
       !TryPeelingForLoopInvariantExitsElimination(&analysis_info, /*generate_code*/ false) &&
-      !TryUnrollingForBranchPenaltyReduction(&analysis_info, /*generate_code*/ false)) {
+      !TryUnrollingForBranchPenaltyReduction(&analysis_info, /*generate_code*/ false) &&
+      !TryToRemoveSuspendCheckFromLoopHeader(&analysis_info, /*generate_code*/ false)) {
     return false;
   }
+
+  // Try the suspend check removal even for non-clonable loops. Also this
+  // optimization doesn't interfere with other scalar loop optimizations so it can
+  // be done prior to them.
+  bool removed_suspend_check = TryToRemoveSuspendCheckFromLoopHeader(&analysis_info);
 
   // Run 'IsLoopClonable' the last as it might be time-consuming.
   if (!LoopClonerHelper::IsLoopClonable(loop_info)) {
@@ -909,7 +956,7 @@ bool HLoopOptimization::TryPeelingAndUnrolling(LoopNode* node) {
 
   return TryFullUnrolling(&analysis_info) ||
          TryPeelingForLoopInvariantExitsElimination(&analysis_info) ||
-         TryUnrollingForBranchPenaltyReduction(&analysis_info);
+         TryUnrollingForBranchPenaltyReduction(&analysis_info) || removed_suspend_check;
 }
 
 //
