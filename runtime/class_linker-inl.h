@@ -164,6 +164,7 @@ inline ObjPtr<mirror::Class> ClassLinker::ResolveType(dex::TypeIndex type_idx,
                                                       Handle<mirror::DexCache> dex_cache,
                                                       Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache != nullptr);
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> resolved = dex_cache->GetResolvedType(type_idx);
   if (resolved == nullptr) {
@@ -212,6 +213,7 @@ inline ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(
     dex::TypeIndex type_idx,
     ObjPtr<mirror::DexCache> dex_cache,
     ObjPtr<mirror::ClassLoader> class_loader) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
   if (type == nullptr) {
     type = DoLookupResolvedType(type_idx, dex_cache, class_loader);
@@ -273,6 +275,7 @@ inline bool ClassLinker::CheckInvokeClassMismatch(ObjPtr<mirror::DexCache> dex_c
                                                   InvokeType type,
                                                   uint32_t method_idx,
                                                   ObjPtr<mirror::ClassLoader> class_loader) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   return CheckInvokeClassMismatch<kThrow>(
       dex_cache,
       type,
@@ -288,6 +291,7 @@ inline bool ClassLinker::CheckInvokeClassMismatch(ObjPtr<mirror::DexCache> dex_c
 inline ArtMethod* ClassLinker::LookupResolvedMethod(uint32_t method_idx,
                                                     ObjPtr<mirror::DexCache> dex_cache,
                                                     ObjPtr<mirror::ClassLoader> class_loader) {
+  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
   ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
   if (resolved == nullptr) {
     const DexFile& dex_file = *dex_cache->GetDexFile();
@@ -433,6 +437,7 @@ inline ArtField* ClassLinker::LookupResolvedField(uint32_t field_idx,
   ArtField* field = referrer->GetDexCache<kWithoutReadBarrier>()->GetResolvedField(
       field_idx);
   if (field == nullptr) {
+    referrer = referrer->GetInterfaceMethodIfProxy(image_pointer_size_);
     ObjPtr<mirror::ClassLoader> class_loader = referrer->GetDeclaringClass()->GetClassLoader();
     field = LookupResolvedField(field_idx, referrer->GetDexCache(), class_loader, is_static);
   }
@@ -449,6 +454,7 @@ inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
       field_idx);
   if (UNLIKELY(resolved_field == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
+    referrer = referrer->GetInterfaceMethodIfProxy(image_pointer_size_);
     ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(referrer->GetDexCache()));
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(referring_class->GetClassLoader()));
