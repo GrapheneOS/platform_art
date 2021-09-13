@@ -559,7 +559,8 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   if (!class_linker->IsQuickGenericJniStub(existing_entry_point) &&
       !class_linker->IsQuickResolutionStub(existing_entry_point) &&
       !class_linker->IsQuickToInterpreterBridge(existing_entry_point) &&
-      existing_entry_point != GetQuickInstrumentationEntryPoint()) {
+      existing_entry_point != GetQuickInstrumentationEntryPoint() &&
+      existing_entry_point != GetInvokeObsoleteMethodStub()) {
     OatQuickMethodHeader* method_header =
         OatQuickMethodHeader::FromEntryPoint(existing_entry_point);
 

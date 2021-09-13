@@ -66,7 +66,7 @@ class PACKED(4) OatQuickMethodHeader {
   ALWAYS_INLINE bool IsOptimized() const {
     uintptr_t code = reinterpret_cast<uintptr_t>(code_);
     DCHECK_NE(data_, 0u) << std::hex << code;          // Probably a padding of native code.
-    DCHECK_NE(data_, 0xFFFFFFFF) << std::hex << code;  // Probably a stub or trampoline.
+    DCHECK_NE(data_, kInvalidData) << std::hex << code;  // Probably a stub or trampoline.
     return (data_ & kIsCodeInfoMask) != 0;
   }
 
@@ -103,6 +103,8 @@ class PACKED(4) OatQuickMethodHeader {
   }
 
   bool Contains(uintptr_t pc) const {
+    // We should not call `Contains` on a stub or trampoline.
+    DCHECK_NE(data_, kInvalidData) << std::hex << reinterpret_cast<uintptr_t>(code_);
     // Remove hwasan tag to make comparison below valid. The PC from the stack does not have it.
     uintptr_t code_start = reinterpret_cast<uintptr_t>(HWASanUntag(code_));
     static_assert(kRuntimeISA != InstructionSet::kThumb2, "kThumb2 cannot be a runtime ISA");
@@ -162,6 +164,10 @@ class PACKED(4) OatQuickMethodHeader {
   static constexpr uint32_t kIsCodeInfoMask       = 0x40000000;
   static constexpr uint32_t kCodeInfoMask         = 0x3FFFFFFF;  // If kIsCodeInfoMask is set.
   static constexpr uint32_t kCodeSizeMask         = 0x3FFFFFFF;  // If kIsCodeInfoMask is clear.
+
+  // In order to not confuse a stub with Java-generated code, we prefix each
+  // stub with a 0xFFFFFFFF marker.
+  static constexpr uint32_t kInvalidData = 0xFFFFFFFF;
 
   uint32_t data_ = 0u;  // Combination of fields using the above masks.
   uint8_t code_[0];     // The actual method code.
