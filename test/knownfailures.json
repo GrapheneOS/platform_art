@@ -1142,6 +1142,7 @@
                   "820-vdex-multidex",
                   "821-many-args",
                   "822-hiddenapi-future",
+                  "827-resolve-method",
                   "830-goto-zero",
                   "831-unverified-bcp",
                   "833-background-verification",

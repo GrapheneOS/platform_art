@@ -247,6 +247,10 @@ void DexCache::SetClassLoader(ObjPtr<ClassLoader> class_loader) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, class_loader_), class_loader);
 }
 
+ObjPtr<ClassLoader> DexCache::GetClassLoader() {
+  return GetFieldObject<mirror::ClassLoader>(OFFSET_OF_OBJECT_MEMBER(DexCache, class_loader_));
+}
+
 #if !defined(__aarch64__) && !defined(__x86_64__)
 static pthread_mutex_t dex_cache_slow_atomic_mutex = PTHREAD_MUTEX_INITIALIZER;
 

@@ -472,6 +472,7 @@ class MANAGED DexCache final : public Object {
   void VisitReflectiveTargets(ReflectiveValueVisitor* visitor) REQUIRES(Locks::mutator_lock_);
 
   void SetClassLoader(ObjPtr<ClassLoader> class_loader) REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<ClassLoader> GetClassLoader() REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   void SetNativeArrays(StringDexCacheType* strings,
