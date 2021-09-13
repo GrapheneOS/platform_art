@@ -410,7 +410,8 @@ Heap::Heap(size_t initial_size,
       dump_region_info_after_gc_(dump_region_info_after_gc),
       boot_image_spaces_(),
       boot_images_start_address_(0u),
-      boot_images_size_(0u) {
+      boot_images_size_(0u),
+      pre_oome_gc_count_(0u) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -1244,7 +1245,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   os << "Total GC time: " << PrettyDuration(GetGcTime()) << "\n";
   os << "Total blocking GC count: " << GetBlockingGcCount() << "\n";
   os << "Total blocking GC time: " << PrettyDuration(GetBlockingGcTime()) << "\n";
-
+  os << "Total pre-OOME GC count: " << GetPreOomeGcCount() << "\n";
   {
     MutexLock mu(Thread::Current(), *gc_complete_lock_);
     if (gc_count_rate_histogram_.SampleSize() > 0U) {
@@ -1291,6 +1292,7 @@ void Heap::ResetGcPerformanceInfo() {
   total_wait_time_ = 0;
   blocking_gc_count_ = 0;
   blocking_gc_time_ = 0;
+  pre_oome_gc_count_.store(0, std::memory_order_relaxed);
   gc_count_last_window_ = 0;
   blocking_gc_count_last_window_ = 0;
   last_update_time_gc_count_rate_histograms_ =  // Round down by the window duration.
@@ -1338,6 +1340,10 @@ void Heap::DumpBlockingGcCountRateHistogram(std::ostream& os) const {
   if (blocking_gc_count_rate_histogram_.SampleSize() > 0U) {
     blocking_gc_count_rate_histogram_.DumpBins(os);
   }
+}
+
+uint64_t Heap::GetPreOomeGcCount() const {
+  return pre_oome_gc_count_.load(std::memory_order_relaxed);
 }
 
 ALWAYS_INLINE
@@ -1906,6 +1912,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self,
   // TODO: Should check whether another thread already just ran a GC with soft
   // references.
   DCHECK(!gc_plan_.empty());
+  pre_oome_gc_count_.fetch_add(1, std::memory_order_relaxed);
   PERFORM_SUSPENDING_OPERATION(
       CollectGarbageInternal(gc_plan_.back(), kGcCauseForAlloc, true, GC_NUM_ANY));
   if ((was_default_allocator && allocator != GetCurrentAllocator()) ||
