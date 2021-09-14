@@ -866,6 +866,7 @@ class Heap {
   uint64_t GetTotalTimeWaitingForGC() const {
     return total_wait_time_;
   }
+  uint64_t GetPreOomeGcCount() const;
 
   // Perfetto Art Heap Profiler Support.
   HeapSampler& GetHeapSampler() {
@@ -1687,6 +1688,9 @@ class Heap {
   // Boot image address range. Includes images and oat files.
   uint32_t boot_images_start_address_;
   uint32_t boot_images_size_;
+
+  // The number of times we initiated a GC of last resort to try to avoid an OOME.
+  Atomic<uint64_t> pre_oome_gc_count_;
 
   // An installed allocation listener.
   Atomic<AllocationListener*> alloc_listener_;

@@ -17,10 +17,6 @@
 import java.lang.reflect.Method;
 
 public class Main {
-
-  // Workaround for b/18051191.
-  class InnerClass {}
-
   private static void assertEquals(int expected, int actual) {
     if (expected != actual) {
       throw new Error("Wrong result, expected=" + expected + ", actual=" + actual);
