@@ -225,7 +225,19 @@ void RegisterAllocatorLinearScan::ProcessInstruction(HInstruction* instruction) 
   LocationSummary* locations = instruction->GetLocations();
   size_t position = instruction->GetLifetimePosition();
 
+  // Check for early returns.
   if (locations == nullptr) return;
+  if (locations->NeedsSafepoint()) {
+    if (instruction->IsSuspendCheckEntry() && !codegen_->NeedsSuspendCheckEntry()) {
+      // TODO: We do this here because we do not want the suspend check to artificially
+      // create live registers. We should find another place, but this is currently the
+      // simplest.
+      DCHECK_EQ(locations->GetTempCount(), 0u);
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
+    }
+    safepoints_.push_back(instruction);
+  }
 
   // Create synthesized intervals for temporaries.
   for (size_t i = 0; i < locations->GetTempCount(); ++i) {
@@ -270,18 +282,6 @@ void RegisterAllocatorLinearScan::ProcessInstruction(HInstruction* instruction) 
 
   bool core_register = (instruction->GetType() != DataType::Type::kFloat64)
       && (instruction->GetType() != DataType::Type::kFloat32);
-
-  if (locations->NeedsSafepoint()) {
-    if (codegen_->IsLeafMethod()) {
-      // TODO: We do this here because we do not want the suspend check to artificially
-      // create live registers. We should find another place, but this is currently the
-      // simplest.
-      DCHECK(instruction->IsSuspendCheckEntry());
-      instruction->GetBlock()->RemoveInstruction(instruction);
-      return;
-    }
-    safepoints_.push_back(instruction);
-  }
 
   if (locations->WillCall()) {
     BlockRegisters(position, position + 1, /* caller_save_only= */ true);
