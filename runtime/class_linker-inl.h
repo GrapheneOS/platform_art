@@ -164,7 +164,7 @@ inline ObjPtr<mirror::Class> ClassLinker::ResolveType(dex::TypeIndex type_idx,
                                                       Handle<mirror::DexCache> dex_cache,
                                                       Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache != nullptr);
-  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Get());
+  DCHECK(dex_cache->GetClassLoader() == class_loader.Get());
   Thread::PoisonObjectPointersIfDebug();
   ObjPtr<mirror::Class> resolved = dex_cache->GetResolvedType(type_idx);
   if (resolved == nullptr) {
@@ -213,7 +213,7 @@ inline ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(
     dex::TypeIndex type_idx,
     ObjPtr<mirror::DexCache> dex_cache,
     ObjPtr<mirror::ClassLoader> class_loader) {
-  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
+  DCHECK(dex_cache->GetClassLoader() == class_loader);
   ObjPtr<mirror::Class> type = dex_cache->GetResolvedType(type_idx);
   if (type == nullptr) {
     type = DoLookupResolvedType(type_idx, dex_cache, class_loader);
@@ -291,7 +291,7 @@ inline bool ClassLinker::CheckInvokeClassMismatch(ObjPtr<mirror::DexCache> dex_c
 inline ArtMethod* ClassLinker::LookupResolvedMethod(uint32_t method_idx,
                                                     ObjPtr<mirror::DexCache> dex_cache,
                                                     ObjPtr<mirror::ClassLoader> class_loader) {
-  DCHECK(dex_cache->GetClassLoader().Ptr() == class_loader.Ptr());
+  DCHECK(dex_cache->GetClassLoader() == class_loader);
   ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
   if (resolved == nullptr) {
     const DexFile& dex_file = *dex_cache->GetDexFile();
