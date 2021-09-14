@@ -605,11 +605,17 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   }
 
   bool CallsOnSlowPath() const {
-    return call_kind_ == kCallOnSlowPath || call_kind_ == kCallOnMainAndSlowPath;
+    return OnlyCallsOnSlowPath() || CallsOnMainAndSlowPath();
   }
 
   bool OnlyCallsOnSlowPath() const {
     return call_kind_ == kCallOnSlowPath;
+  }
+
+  bool NeedsSuspendCheckEntry() const {
+    // Slow path calls do not need a SuspendCheck at method entry since they go into the runtime,
+    // which we expect to either do a suspend check or return quickly.
+    return WillCall();
   }
 
   bool CallsOnMainAndSlowPath() const {
