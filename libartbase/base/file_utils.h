@@ -119,6 +119,10 @@ std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 // Returns the vdex filename for the given oat filename.
 std::string GetVdexFilename(const std::string& oat_filename);
 
+// Returns the odex location on /system for a DEX file on /apex. The caller must make sure that
+// `location` is on /apex.
+std::string GetSystemOdexFilenameForApex(std::string_view location, InstructionSet isa);
+
 // Returns `filename` with the text after the last occurrence of '.' replaced with
 // `extension`. If `filename` does not contain a period, returns a string containing `filename`,
 // a period, and `new_extension`.
