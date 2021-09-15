@@ -554,11 +554,12 @@ class ConcurrentCopying::FlipCallback : public Closure {
     }
     {
       TimingLogger::ScopedTiming split2("(Paused)SetFromSpace", cc->GetTimings());
-      // Only change live bytes for 1-phase full heap CC.
+      // Only change live bytes for 1-phase full heap CC, that is if we are either not running in
+      // generational-mode, or it's an 'evacuate-all' mode GC.
       cc->region_space_->SetFromSpace(
           cc->rb_table_,
           evac_mode,
-          /*clear_live_bytes=*/ !cc->use_generational_cc_);
+          /*clear_live_bytes=*/ !cc->use_generational_cc_ || cc->force_evacuate_all_);
     }
     cc->SwapStacks();
     if (ConcurrentCopying::kEnableFromSpaceAccountingCheck) {
@@ -2236,9 +2237,7 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
         << " type=" << to_ref->PrettyTypeOf()
         << " young_gen=" << std::boolalpha << young_gen_ << std::noboolalpha
         << " space=" << heap_->DumpSpaceNameFromAddress(to_ref)
-        << " region_type=" << rtype
-        // TODO: Temporary; remove this when this is no longer needed (b/116087961).
-        << " runtime->sentinel=" << Runtime::Current()->GetSentinel().Read<kWithoutReadBarrier>();
+        << " region_type=" << rtype;
   }
   bool add_to_live_bytes = false;
   // Invariant: There should be no object from a newly-allocated
@@ -3433,9 +3432,9 @@ mirror::Object* ConcurrentCopying::Copy(Thread* const self,
   // Note that from_ref is a from space ref so the SizeOf() call will access the from-space meta
   // objects, but it's ok and necessary.
   size_t obj_size = from_ref->SizeOf<kDefaultVerifyFlags>();
-  size_t region_space_alloc_size = (obj_size <= space::RegionSpace::kRegionSize)
-      ? RoundUp(obj_size, space::RegionSpace::kAlignment)
-      : RoundUp(obj_size, space::RegionSpace::kRegionSize);
+  size_t region_space_alloc_size = RoundUp(obj_size, space::RegionSpace::kAlignment);
+  // Large objects are never evacuated.
+  CHECK_LE(region_space_alloc_size, space::RegionSpace::kRegionSize);
   size_t region_space_bytes_allocated = 0U;
   size_t non_moving_space_bytes_allocated = 0U;
   size_t bytes_allocated = 0U;
@@ -3507,18 +3506,13 @@ mirror::Object* ConcurrentCopying::Copy(Thread* const self,
       FillWithFakeObject(self, to_ref, bytes_allocated);
       if (!fall_back_to_non_moving) {
         DCHECK(region_space_->IsInToSpace(to_ref));
-        if (bytes_allocated > space::RegionSpace::kRegionSize) {
-          // Free the large alloc.
-          region_space_->FreeLarge</*kForEvac=*/ true>(to_ref, bytes_allocated);
-        } else {
-          // Record the lost copy for later reuse.
-          heap_->num_bytes_allocated_.fetch_add(bytes_allocated, std::memory_order_relaxed);
-          to_space_bytes_skipped_.fetch_add(bytes_allocated, std::memory_order_relaxed);
-          to_space_objects_skipped_.fetch_add(1, std::memory_order_relaxed);
-          MutexLock mu(self, skipped_blocks_lock_);
-          skipped_blocks_map_.insert(std::make_pair(bytes_allocated,
-                                                    reinterpret_cast<uint8_t*>(to_ref)));
-        }
+        // Record the lost copy for later reuse.
+        heap_->num_bytes_allocated_.fetch_add(bytes_allocated, std::memory_order_relaxed);
+        to_space_bytes_skipped_.fetch_add(bytes_allocated, std::memory_order_relaxed);
+        to_space_objects_skipped_.fetch_add(1, std::memory_order_relaxed);
+        MutexLock mu(self, skipped_blocks_lock_);
+        skipped_blocks_map_.insert(std::make_pair(bytes_allocated,
+                                                  reinterpret_cast<uint8_t*>(to_ref)));
       } else {
         DCHECK(heap_->non_moving_space_->HasAddress(to_ref));
         DCHECK_EQ(bytes_allocated, non_moving_space_bytes_allocated);
