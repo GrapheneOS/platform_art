@@ -139,6 +139,7 @@ art_cc_defaults {
     // eventually.
     host_supported: false,
     test_config_template: ":art-gtests-target-standalone-template",
+    min_sdk_version: "S",
 }
 
 // Properties common to `art_gtest_defaults` and `art_standalone_gtest_defaults`.
@@ -471,6 +472,7 @@ java_defaults {
     host_required: [
         "art-run-test-checker",
     ],
+    min_sdk_version: "S",
 }
 
 art_cc_test_library {
