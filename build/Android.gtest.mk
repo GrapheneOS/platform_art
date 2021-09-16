@@ -99,7 +99,7 @@ ART_GTEST_transaction_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_DEFAULT_64) $(TARG
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
 
-ART_TEST_MODULES := \
+ART_TEST_MODULES_COMMON := \
     art_cmdline_tests \
     art_compiler_host_tests \
     art_compiler_tests \
@@ -122,23 +122,25 @@ ART_TEST_MODULES := \
     art_libdexfile_tests \
     art_libprofile_tests \
     art_oatdump_tests \
-    art_odrefresh_tests \
     art_profman_tests \
     art_runtime_compiler_tests \
     art_runtime_tests \
     art_sigchain_tests \
 
-ART_TARGET_GTEST_NAMES := $(foreach tm,$(ART_TEST_MODULES),\
+ART_TEST_MODULES_TARGET := $(ART_TEST_MODULES_COMMON) art_odrefresh_tests
+ART_TEST_MODULES_HOST := $(ART_TEST_MODULES_COMMON)
+
+ART_TARGET_GTEST_NAMES := $(foreach tm,$(ART_TEST_MODULES_TARGET),\
   $(foreach path,$(ART_TEST_LIST_device_$(TARGET_ARCH)_$(tm)),\
     $(notdir $(path))\
    )\
 )
 
-ART_HOST_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
+ART_HOST_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES_HOST),\
     $(ART_TEST_LIST_host_$(ART_HOST_ARCH)_$(m)))
 
 ifneq ($(HOST_PREFER_32_BIT),true)
-2ND_ART_HOST_GTEST_FILES += $(foreach m,$(ART_TEST_MODULES),\
+2ND_ART_HOST_GTEST_FILES += $(foreach m,$(ART_TEST_MODULES_HOST),\
     $(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_$(m)))
 endif
 
