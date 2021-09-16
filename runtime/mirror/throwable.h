@@ -43,6 +43,7 @@ class MANAGED Throwable : public Object {
   // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
   void SetCause(ObjPtr<Throwable> cause) REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<Throwable> GetCause() REQUIRES_SHARED(Locks::mutator_lock_);
   void SetStackState(ObjPtr<Object> state) REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsCheckedException() REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsError() REQUIRES_SHARED(Locks::mutator_lock_);
