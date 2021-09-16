@@ -7503,20 +7503,10 @@ TEST_F(LoadStoreEliminationTest, PartialLoopPhis5) {
                 FindSingleInstruction<HNewInstance>(graph_, escape->GetSinglePredecessor()));
   HPhi* inst_value_phi = pred_get->GetDefaultValue()->AsPhi();
   ASSERT_TRUE(inst_value_phi != nullptr) << pred_get->GetDefaultValue()->DumpWithArgs();
-  HPhi* loop_header_phi = FindSingleInstruction<HPhi>(graph_, loop_header);
-  HPhi* loop_merge_phi = FindSingleInstruction<HPhi>(graph_, loop_merge);
-  EXPECT_INS_EQ(inst_value_phi->InputAt(0), loop_header_phi);
-  EXPECT_INS_EQ(inst_value_phi->InputAt(1), graph_->GetIntConstant(0));
-  EXPECT_INS_EQ(loop_header_phi->InputAt(0), c3);
-  EXPECT_INS_EQ(loop_header_phi->InputAt(1), loop_merge_phi);
-  EXPECT_INS_EQ(loop_merge_phi->InputAt(0), loop_header_phi);
-  EXPECT_INS_EQ(loop_merge_phi->InputAt(1), add_loop_right);
-  EXPECT_INS_EQ(add_loop_right->InputAt(0), loop_header_phi);
   EXPECT_INS_EQ(add_loop_right->InputAt(1), c5);
   HInstanceFieldSet* mat_set =
       FindSingleInstruction<HInstanceFieldSet>(graph_, escape->GetSinglePredecessor());
   ASSERT_NE(mat_set, nullptr);
-  EXPECT_INS_EQ(mat_set->InputAt(1), loop_header_phi);
   EXPECT_INS_REMOVED(write_loop_right) << *write_loop_right;
   EXPECT_INS_REMOVED(write_pre_header) << *write_pre_header;
 }
