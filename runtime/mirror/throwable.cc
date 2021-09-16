@@ -171,5 +171,9 @@ ObjPtr<String> Throwable::GetDetailMessage() {
   return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_));
 }
 
+ObjPtr<Throwable> Throwable::GetCause() {
+  return GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_));
+}
+
 }  // namespace mirror
 }  // namespace art
