@@ -83,15 +83,25 @@ activate_apex() {
   local src_apex=${1}
   local dst_apex=${2:-${src_apex}}
 
-  # Unpack the .apex file in the product directory, but if we already see a
-  # directory we assume buildbot-build.sh has already done it for us and just
-  # use it.
+  # Unpack the .apex or .capex file in the product directory, but if we already
+  # see a directory we assume buildbot-build.sh has already done it for us and
+  # just use it.
   src_apex_path=$ANDROID_PRODUCT_OUT/system/apex/${src_apex}
   if [ ! -d $src_apex_path ]; then
-    echo -e "${green}Extracting APEX ${src_apex}.apex...${nc}"
+    unset src_apex_file
+    if [ -f "${src_apex_path}.apex" ]; then
+      src_apex_file="${src_apex_path}.apex"
+    elif [ -f "${src_apex_path}.capex" ]; then
+      src_apex_file="${src_apex_path}.capex"
+    fi
+    if [ -z "${src_apex_file}" ]; then
+      echo -e "${red}Failed to find .apex or .capex file to extract for ${src_apex_path}${nc}"
+      exit 1
+    fi
+    echo -e "${green}Extracting APEX ${src_apex_file}...${nc}"
     mkdir -p $src_apex_path
     $ANDROID_HOST_OUT/bin/deapexer --debugfs_path $ANDROID_HOST_OUT/bin/debugfs_static \
-      extract ${src_apex_path}.apex $src_apex_path
+      extract ${src_apex_file} $src_apex_path
   fi
 
   echo -e "${green}Activating APEX ${src_apex} as ${dst_apex}...${nc}"

@@ -149,9 +149,15 @@ if [[ $build_target == "yes" ]]; then
   debugfs=$ANDROID_HOST_OUT/bin/debugfs_static
   for apex in ${apexes[@]}; do
     dir="$ANDROID_PRODUCT_OUT/system/apex/${apex}"
-    file="$ANDROID_PRODUCT_OUT/system/apex/${apex}.apex"
-    if [ -f "${file}" ]; then
-      echo "Extracting APEX file: ${apex}"
+    apexbase="$ANDROID_PRODUCT_OUT/system/apex/${apex}"
+    unset file
+    if [ -f "${apexbase}.apex" ]; then
+      file="${apexbase}.apex"
+    elif [ -f "${apexbase}.capex" ]; then
+      file="${apexbase}.capex"
+    fi
+    if [ -n "${file}" ]; then
+      echo "Extracting APEX file: ${file}"
       rm -rf $dir
       mkdir -p $dir
       $ANDROID_HOST_OUT/bin/deapexer --debugfs_path $debugfs extract $file $dir
