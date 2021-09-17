@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_EXEC_UTILS_H_
 #define ART_RUNTIME_EXEC_UTILS_H_
 
+#include <time.h>
+
 #include <string>
 #include <vector>
 

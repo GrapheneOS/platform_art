@@ -29,7 +29,6 @@
  * questions.
  */
 
-#include <error.h>
 #include <stddef.h>
 #include <sys/types.h>
 

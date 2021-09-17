@@ -114,6 +114,8 @@ static void lookup_libc_symbol(T* output, T wrapper, const char* name) {
 #error unsupported glibc version
 #endif
   constexpr const char* libc_name = "libc.so.6";
+#elif defined(ANDROID_HOST_MUSL)
+  constexpr const char* libc_name = "libc_musl.so";
 #else
 #error unsupported libc: not bionic or glibc?
 #endif

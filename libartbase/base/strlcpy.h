@@ -26,7 +26,7 @@
 // Bionic exposes this function, but the host glibc does not. Remove this shim when we compile
 // against bionic on the host, also.
 
-#if !defined(__BIONIC__) && !defined(__APPLE__)
+#if !defined(__BIONIC__) && !defined(__APPLE__) && !defined(ANDROID_HOST_MUSL)
 
 static inline size_t strlcpy(char* dst, const char* src, size_t size) {
   // Extra-lazy implementation: this is only a host shim, and we don't have to call this often.
