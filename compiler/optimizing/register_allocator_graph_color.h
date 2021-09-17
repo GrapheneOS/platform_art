@@ -121,6 +121,9 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
   // the number of live registers at this point.
   void CheckForSafepoint(HInstruction* instruction);
 
+  // Try to remove the SuspendCheck at function entry. Returns true if it was successful.
+  bool TryRemoveSuspendCheckEntry(HInstruction* instruction);
+
   // Split an interval, but only if `position` is inside of `interval`.
   // Return either the new interval, or the original interval if not split.
   static LiveInterval* TrySplit(LiveInterval* interval, size_t position);
