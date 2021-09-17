@@ -73,13 +73,13 @@ class SigchainTest : public ::testing::Test {
 
  protected:
   void RaiseHandled() {
-      sigval_t value;
+      sigval value;
       value.sival_ptr = &value;
       pthread_sigqueue(pthread_self(), SIGSEGV, value);
   }
 
   void RaiseUnhandled() {
-      sigval_t value;
+      sigval value;
       value.sival_ptr = nullptr;
       pthread_sigqueue(pthread_self(), SIGSEGV, value);
   }
@@ -208,6 +208,8 @@ TEST_F(SigchainTest, EnsureFrontOfChain) {
   constexpr char kLibcSoName[] = "libc.so";
 #elif defined(__GNU_LIBRARY__) && __GNU_LIBRARY__ == 6
   constexpr char kLibcSoName[] = "libc.so.6";
+#elif defined(ANDROID_HOST_MUSL)
+  constexpr char kLibcSoName[] = "libc_musl.so";
 #else
   #error Unknown libc
 #endif
