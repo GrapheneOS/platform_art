@@ -18,8 +18,8 @@
 #define ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_LINEAR_SCAN_H_
 
 #include "arch/instruction_set.h"
-#include "base/scoped_arena_containers.h"
 #include "base/macros.h"
+#include "base/scoped_arena_containers.h"
 #include "register_allocator.h"
 
 namespace art {
@@ -97,6 +97,29 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   int FindAvailableRegisterPair(size_t* next_use, size_t starting_at) const;
   int FindAvailableRegister(size_t* next_use, LiveInterval* current) const;
   bool IsCallerSaveRegister(int reg) const;
+
+  // If any inputs require specific registers, block those registers
+  // at the position of this instruction.
+  void CheckForFixedInputs(HInstruction* instruction);
+
+  // If the output of an instruction requires a specific register, split
+  // the interval and assign the register to the first part.
+  void CheckForFixedOutput(HInstruction* instruction);
+
+  // Add all applicable safepoints to a live interval.
+  // Currently depends on instruction processing order.
+  void AddSafepointsFor(HInstruction* instruction);
+
+  // Collect all live intervals associated with the temporary locations
+  // needed by an instruction.
+  void CheckForTempLiveIntervals(HInstruction* instruction);
+
+  // If a safe point is needed, add a synthesized interval to later record
+  // the number of live registers at this point.
+  void CheckForSafepoint(HInstruction* instruction);
+
+  // Try to remove the SuspendCheck at function entry. Returns true if it was successful.
+  bool TryRemoveSuspendCheckEntry(HInstruction* instruction);
 
   // Try splitting an active non-pair or unaligned pair interval at the given `position`.
   // Returns whether it was successful at finding such an interval.
