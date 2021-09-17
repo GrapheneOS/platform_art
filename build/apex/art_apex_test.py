@@ -580,7 +580,6 @@ class ReleaseHostChecker:
     self._checker.check_executable('hprof-conv')
     self._checker.check_symlinked_first_executable('dex2oatd')
     self._checker.check_symlinked_first_executable('dex2oat')
-    self._checker.check_executable("odrefresh")
 
     # Check exported native libraries for Managed Core Library.
     self._checker.check_native_library('libicu')
