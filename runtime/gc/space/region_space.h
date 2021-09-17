@@ -614,6 +614,12 @@ class RegionSpace final : public ContinuousMemMapAllocSpace {
     static bool GetUseGenerationalCC();
 
     size_t idx_;                        // The region's index in the region space.
+    // Number of bytes in live objects, or -1 for newly allocated regions.  Used to compute
+    // percent live for region evacuation decisions, and to determine whether an unevacuated
+    // region is completely empty, and thus can be reclaimed. Reset to zero either at the
+    // beginning of MarkingPhase(), or during the flip for a nongenerational GC, where we
+    // don't have a separate mark phase. It is then incremented whenever a mark bit in that
+    // region is set.
     size_t live_bytes_;                 // The live bytes. Used to compute the live percent.
     uint8_t* begin_;                    // The begin address of the region.
     Thread* thread_;                    // The owning thread if it's a tlab.

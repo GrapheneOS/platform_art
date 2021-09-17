@@ -1506,12 +1506,17 @@ ObjPtr<mirror::Class> GetDeclaringClass(Handle<mirror::Class> klass) {
   if (obj == nullptr) {
     return nullptr;
   }
+  if (!obj->IsClass()) {
+    // TypeNotPresentException, throw the NoClassDefFoundError.
+    Thread::Current()->SetException(obj->AsThrowable()->GetCause());
+    return nullptr;
+  }
   return obj->AsClass();
 }
 
 ObjPtr<mirror::Class> GetEnclosingClass(Handle<mirror::Class> klass) {
   ObjPtr<mirror::Class> declaring_class = GetDeclaringClass(klass);
-  if (declaring_class != nullptr) {
+  if (declaring_class != nullptr || Thread::Current()->IsExceptionPending()) {
     return declaring_class;
   }
   ClassData data(klass);
