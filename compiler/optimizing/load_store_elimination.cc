@@ -335,7 +335,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
              bool perform_partial_lse,
              OptimizingCompilerStats* stats);
 
-  void Run(bool partial);
+  void Run();
 
  private:
   class PhiPlaceholder {
@@ -2749,7 +2749,57 @@ void LSEVisitor::FindOldValueForPhiPlaceholder(PhiPlaceholder phi_placeholder,
             !success);
 }
 
+struct ScopedRestoreHeapValues {
+ public:
+  ScopedRestoreHeapValues(ArenaStack* alloc,
+                          size_t num_heap_locs,
+                          ScopedArenaVector<ScopedArenaVector<LSEVisitor::ValueRecord>>& to_restore)
+      : alloc_(alloc),
+        updated_values_(alloc_.Adapter(kArenaAllocLSE)),
+        to_restore_(to_restore) {
+    updated_values_.reserve(num_heap_locs * to_restore_.size());
+  }
+
+  ~ScopedRestoreHeapValues() {
+    for (const auto& rec : updated_values_) {
+      to_restore_[rec.blk_id][rec.heap_loc].value = rec.val_;
+    }
+  }
+
+  template<typename Func>
+  void ForEachRecord(Func func) {
+    for (size_t blk_id : Range(to_restore_.size())) {
+      for (size_t heap_loc : Range(to_restore_[blk_id].size())) {
+        LSEVisitor::ValueRecord* vr = &to_restore_[blk_id][heap_loc];
+        LSEVisitor::Value initial = vr->value;
+        func(vr);
+        if (!vr->value.ExactEquals(initial)) {
+          updated_values_.push_back({blk_id, heap_loc, initial});
+        }
+      }
+    }
+  }
+
+ private:
+  struct UpdateRecord {
+    size_t blk_id;
+    size_t heap_loc;
+    LSEVisitor::Value val_;
+  };
+  ScopedArenaAllocator alloc_;
+  ScopedArenaVector<UpdateRecord> updated_values_;
+  ScopedArenaVector<ScopedArenaVector<LSEVisitor::ValueRecord>>& to_restore_;
+
+  DISALLOW_COPY_AND_ASSIGN(ScopedRestoreHeapValues);
+};
+
 void LSEVisitor::FindStoresWritingOldValues() {
+  // Partial LSE relies on knowing the real heap-values not the
+  // store-replacement versions so we need to restore the map after removing
+  // stores.
+  ScopedRestoreHeapValues heap_vals(allocator_.GetArenaStack(),
+                                    heap_location_collector_.GetNumberOfHeapLocations(),
+                                    heap_values_for_);
   // The Phi placeholder replacements have so far been used for eliminating loads,
   // tracking values that would be stored if all stores were kept. As we want to
   // compare actual old values after removing unmarked stores, prune the Phi
@@ -2764,10 +2814,14 @@ void LSEVisitor::FindStoresWritingOldValues() {
   }
 
   // Update heap values at end of blocks.
-  for (HBasicBlock* block : GetGraph()->GetReversePostOrder()) {
-    for (ValueRecord& value_record : heap_values_for_[block->GetBlockId()]) {
-      UpdateValueRecordForStoreElimination(&value_record);
-    }
+  heap_vals.ForEachRecord([&](ValueRecord* rec) {
+    UpdateValueRecordForStoreElimination(rec);
+  });
+
+  if (kIsDebugBuild) {
+    heap_vals.ForEachRecord([](ValueRecord* rec) {
+      DCHECK(!rec->value.NeedsNonLoopPhi()) << rec->value;
+    });
   }
 
   // Use local allocator to reduce peak memory usage.
@@ -2802,32 +2856,30 @@ void LSEVisitor::FindStoresWritingOldValues() {
   kept_stores_.Subtract(&eliminated_stores);
 }
 
-void LSEVisitor::Run(bool partial) {
-  // Process blocks and instructions in reverse post order.
+void LSEVisitor::Run() {
+  // 1. Process blocks and instructions in reverse post order.
   for (HBasicBlock* block : GetGraph()->GetReversePostOrder()) {
     VisitBasicBlock(block);
   }
 
-  if (partial) {
-    // Move partial escapes down and fixup with PHIs.
-    current_phase_ = Phase::kPartialElimination;
-    MovePartialEscapes();
-  } else {
-    // Process loads that require loop Phis, trying to find/create replacements.
-    current_phase_ = Phase::kLoadElimination;
-    ProcessLoadsRequiringLoopPhis();
+  // 2. Process loads that require loop Phis, trying to find/create replacements.
+  current_phase_ = Phase::kLoadElimination;
+  ProcessLoadsRequiringLoopPhis();
 
-    // Determine which stores to keep and which to eliminate.
-    current_phase_ = Phase::kStoreElimination;
-    // Finish marking stores for keeping.
-    SearchPhiPlaceholdersForKeptStores();
+  // 3. Determine which stores to keep and which to eliminate.
+  current_phase_ = Phase::kStoreElimination;
+  // Finish marking stores for keeping.
+  SearchPhiPlaceholdersForKeptStores();
 
-    // Find stores that write the same value as is already present in the location.
-    FindStoresWritingOldValues();
+  // Find stores that write the same value as is already present in the location.
+  FindStoresWritingOldValues();
 
-    // Replace loads and remove unnecessary stores and singleton allocations.
-    FinishFullLSE();
-  }
+  // 4. Replace loads and remove unnecessary stores and singleton allocations.
+  FinishFullLSE();
+
+  // 5. Move partial escapes down and fixup with PHIs.
+  current_phase_ = Phase::kPartialElimination;
+  MovePartialEscapes();
 }
 
 // Clear unknown loop-phi results. Here we'll be able to use partial-unknowns so we need to
@@ -3811,8 +3863,8 @@ class LSEVisitorWrapper : public DeletableArenaObject<kArenaAllocLSE> {
                     OptimizingCompilerStats* stats)
       : lse_visitor_(graph, heap_location_collector, perform_partial_lse, stats) {}
 
-  void Run(bool partial) {
-    lse_visitor_.Run(partial);
+  void Run() {
+    lse_visitor_.Run();
   }
 
  private:
@@ -3832,37 +3884,22 @@ bool LoadStoreElimination::Run(bool enable_partial_lse) {
   // This is O(blocks^3) time complexity. It means we can query reachability in
   // O(1) though.
   graph_->ComputeReachabilityInformation();
+  ScopedArenaAllocator allocator(graph_->GetArenaStack());
+  LoadStoreAnalysis lsa(graph_,
+                        stats_,
+                        &allocator,
+                        enable_partial_lse ? LoadStoreAnalysisType::kFull
+                                           : LoadStoreAnalysisType::kNoPredicatedInstructions);
+  lsa.Run();
+  const HeapLocationCollector& heap_location_collector = lsa.GetHeapLocationCollector();
+  if (heap_location_collector.GetNumberOfHeapLocations() == 0) {
+    // No HeapLocation information from LSA, skip this optimization.
+    return false;
+  }
 
-  {
-    ScopedArenaAllocator allocator(graph_->GetArenaStack());
-    LoadStoreAnalysis lsa(graph_,
-                          stats_,
-                          &allocator,
-                          LoadStoreAnalysisType::kNoPredicatedInstructions);
-    lsa.Run();
-    const HeapLocationCollector& heap_location_collector = lsa.GetHeapLocationCollector();
-    if (heap_location_collector.GetNumberOfHeapLocations() == 0) {
-      // No HeapLocation information from LSA, skip this optimization.
-      return false;
-    }
-    std::unique_ptr<LSEVisitorWrapper> lse_visitor(new (&allocator) LSEVisitorWrapper(
-        graph_, heap_location_collector, enable_partial_lse, stats_));
-    lse_visitor->Run(/* partial= */ false);
-  }
-  if (enable_partial_lse) {
-    ScopedArenaAllocator allocator(graph_->GetArenaStack());
-    LoadStoreAnalysis lsa(graph_,
-                          stats_,
-                          &allocator,
-                          LoadStoreAnalysisType::kFull);
-    lsa.Run();
-    const HeapLocationCollector& heap_location_collector = lsa.GetHeapLocationCollector();
-    if (heap_location_collector.GetNumberOfHeapLocations() != 0) {
-      std::unique_ptr<LSEVisitorWrapper> lse_visitor(new (&allocator) LSEVisitorWrapper(
-          graph_, heap_location_collector, enable_partial_lse, stats_));
-      lse_visitor->Run(/* partial= */ true);
-    }
-  }
+  std::unique_ptr<LSEVisitorWrapper> lse_visitor(new (&allocator) LSEVisitorWrapper(
+      graph_, heap_location_collector, enable_partial_lse, stats_));
+  lse_visitor->Run();
   return true;
 }
 
