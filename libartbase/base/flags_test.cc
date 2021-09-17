@@ -174,7 +174,7 @@ TEST_F(FlagsTestsWithCmdLine, FlagsTestsGetValueServerSetting) {
     return;
   }
 
-  if (android::base::SetProperty(test_flag_->ServerSetting(), "3")) {
+  if (!android::base::SetProperty(test_flag_->ServerSetting(), "3")) {
     LOG(ERROR) << "Release does not support property setting, skipping test: "
         << test_flag_->ServerSetting();
     return;
@@ -228,7 +228,7 @@ TEST_F(FlagsTestsCmdLineOnly, CmdlineOnlyFlags) {
     return;
   }
 
-  if (android::base::SetProperty(test_flag_->ServerSetting(), "3")) {
+  if (!android::base::SetProperty(test_flag_->ServerSetting(), "3")) {
     LOG(ERROR) << "Release does not support property setting, skipping test: "
         << test_flag_->ServerSetting();
     return;
