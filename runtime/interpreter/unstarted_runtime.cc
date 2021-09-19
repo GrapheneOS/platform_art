@@ -1077,9 +1077,9 @@ void UnstartedRuntime::UnstartedThreadLocalGet(
 void UnstartedRuntime::UnstartedThreadCurrentThread(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
   if (CheckCallers(shadow_frame,
-                   { "void java.lang.Thread.init(java.lang.ThreadGroup, java.lang.Runnable, "
-                         "java.lang.String, long, java.security.AccessControlContext)",
-                     "void java.lang.Thread.init(java.lang.ThreadGroup, java.lang.Runnable, "
+                   { "void java.lang.Thread.<init>(java.lang.ThreadGroup, java.lang.Runnable, "
+                         "java.lang.String, long, java.security.AccessControlContext, boolean)",
+                     "void java.lang.Thread.<init>(java.lang.ThreadGroup, java.lang.Runnable, "
                          "java.lang.String, long)",
                      "void java.lang.Thread.<init>()",
                      "void java.util.logging.LogManager$Cleaner.<init>("
@@ -1113,9 +1113,9 @@ void UnstartedRuntime::UnstartedThreadGetNativeState(
   if (CheckCallers(shadow_frame,
                    { "java.lang.Thread$State java.lang.Thread.getState()",
                      "java.lang.ThreadGroup java.lang.Thread.getThreadGroup()",
-                     "void java.lang.Thread.init(java.lang.ThreadGroup, java.lang.Runnable, "
-                         "java.lang.String, long, java.security.AccessControlContext)",
-                     "void java.lang.Thread.init(java.lang.ThreadGroup, java.lang.Runnable, "
+                     "void java.lang.Thread.<init>(java.lang.ThreadGroup, java.lang.Runnable, "
+                         "java.lang.String, long, java.security.AccessControlContext, boolean)",
+                     "void java.lang.Thread.<init>(java.lang.ThreadGroup, java.lang.Runnable, "
                          "java.lang.String, long)",
                      "void java.lang.Thread.<init>()",
                      "void java.util.logging.LogManager$Cleaner.<init>("
