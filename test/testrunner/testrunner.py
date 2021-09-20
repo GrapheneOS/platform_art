@@ -138,6 +138,8 @@ dist = False
 gdb = False
 gdb_arg = ''
 dump_cfg = ''
+gdb_dex2oat = False
+gdb_dex2oat_args = ''
 csv_result = None
 csv_writer = None
 runtime_option = ''
@@ -423,6 +425,10 @@ def run_tests(tests):
 
   if dump_cfg:
     options_all += ' --dump-cfg ' + dump_cfg
+  if gdb_dex2oat:
+    options_all += ' --gdb-dex2oat'
+    if gdb_dex2oat_args:
+      options_all += ' --gdb-dex2oat-args ' + gdb_dex2oat_args
 
   options_all += ' ' + ' '.join(run_test_option)
 
@@ -680,7 +686,7 @@ def run_test(command, test, test_variant, test_name):
       test_start_time = time.monotonic()
       if verbose:
         print_text("Starting %s at %s\n" % (test_name, test_start_time))
-      if gdb:
+      if gdb or gdb_dex2oat:
         proc = _popen(
           args=command.split(),
           stderr=subprocess.STDOUT,
@@ -1107,6 +1113,8 @@ def parse_option():
   global gdb
   global gdb_arg
   global dump_cfg
+  global gdb_dex2oat
+  global gdb_dex2oat_args
   global runtime_option
   global run_test_option
   global timeout
@@ -1151,6 +1159,8 @@ def parse_option():
   global_group.add_argument('--dump-cfg', dest='dump_cfg',
                             help="""Dump the CFG to the specified host path.
                             Example \"--dump-cfg <full-path>/graph.cfg\".""")
+  global_group.add_argument('--gdb-dex2oat', action='store_true', dest='gdb_dex2oat')
+  global_group.add_argument('--gdb-dex2oat-args', dest='gdb_dex2oat_args')
   global_group.add_argument('--run-test-option', action='append', dest='run_test_option',
                             default=[],
                             help="""Pass an option, unaltered, to the run-test script.
@@ -1226,6 +1236,11 @@ def parse_option():
       gdb_arg = options['gdb_arg']
   if options['dump_cfg']:
     dump_cfg = options['dump_cfg']
+  if options['gdb_dex2oat']:
+    n_thread = 1
+    gdb_dex2oat = True
+    if options['gdb_dex2oat_args']:
+      gdb_dex2oat_args = options['gdb_dex2oat_args']
   runtime_option = options['runtime_option'];
   with_agent = options['with_agent'];
   run_test_option = sum(map(shlex.split, options['run_test_option']), [])

@@ -54,6 +54,8 @@ FLAGS=""
 ANDROID_FLAGS=""
 GDB=""
 GDB_ARGS=""
+GDB_DEX2OAT=""
+GDB_DEX2OAT_ARGS=""
 GDBSERVER_DEVICE="gdbserver"
 GDBSERVER_HOST="gdbserver"
 HAVE_IMAGE="y"
@@ -87,6 +89,7 @@ TIME_OUT_VALUE=
 USE_GDB="n"
 USE_GDBSERVER="n"
 GDBSERVER_PORT=":5039"
+USE_GDB_DEX2OAT="n"
 USE_JVM="n"
 USE_JVMTI="n"
 VERIFY="y" # y=yes,n=no,s=softfail
@@ -364,6 +367,17 @@ while true; do
         shift
         gdb_arg="$1"
         GDB_ARGS="${GDB_ARGS} $gdb_arg"
+        shift
+    elif [ "x$1" = "x--gdb-dex2oat" ]; then
+        USE_GDB_DEX2OAT="y"
+        DEV_MODE="y"
+        TIME_OUT="n"
+        shift
+    elif [ "x$1" = "x--gdb-dex2oat-args" ]; then
+        shift
+        for arg in $(echo $1 | tr ";" " "); do
+          GDB_DEX2OAT_ARGS+="$arg "
+        done
         shift
     elif [ "x$1" = "x--zygote" ]; then
         ZYGOTE="-Xzygote"
@@ -762,6 +776,12 @@ else
     DALVIKVM_BOOT_OPT="-Ximage:${BOOT_IMAGE}"
 fi
 
+if [ "$USE_GDB_DEX2OAT" = "y" ]; then
+  if [ "$HOST" = "n" ]; then
+    echo "The --gdb-dex2oat option is not yet implemented for target." >&2
+    exit 1
+  fi
+fi
 
 if [ "$USE_GDB" = "y" ]; then
   if [ "$USE_GDBSERVER" = "y" ]; then
@@ -943,6 +963,47 @@ if [ "$PROFILE" = "y" ] || [ "$RANDOM_PROFILE" = "y" ]; then
   fi
 fi
 
+function get_prebuilt_lldb_path {
+  local CLANG_BASE="prebuilts/clang/host"
+  local CLANG_VERSION="$("$ANDROID_BUILD_TOP/build/soong/scripts/get_clang_version.py")"
+  case "$(uname -s)" in
+    Darwin)
+      local PREBUILT_NAME="darwin-x86"
+      ;;
+    Linux)
+      local PREBUILT_NAME="linux-x86"
+      ;;
+    *)
+      >&2 echo "Unknown host $(uname -s). Unsupported for debugging dex2oat with LLDB."
+      return
+      ;;
+  esac
+  local CLANG_PREBUILT_HOST_PATH="$ANDROID_BUILD_TOP/$CLANG_BASE/$PREBUILT_NAME/$CLANG_VERSION"
+  # If the clang prebuilt directory exists and the reported clang version
+  # string does not, then it is likely that the clang version reported by the
+  # get_clang_version.py script does not match the expected directory name.
+  if [ -d "${ANDROID_BUILD_TOP}/${CLANG_BASE}/${PREBUILT_NAME}" ] && \
+     [ ! -d "${CLANG_PREBUILT_HOST_PATH}" ]; then
+    error_msg "The prebuilt clang directory exists, but the specific clang"\
+    "\nversion reported by get_clang_version.py does not exist in that path."\
+    "\nPlease make sure that the reported clang version resides in the"\
+    "\nprebuilt clang directory!"
+    exit 1
+  fi
+
+  # The lldb-server binary is a dependency of lldb.
+  export LLDB_DEBUGSERVER_PATH="${CLANG_PREBUILT_HOST_PATH}/runtimes_ndk_cxx/x86_64/lldb-server"
+
+  # Set the current terminfo directory to TERMINFO so that LLDB can read the
+  # termcap database.
+  local terminfo_regexp_path='\/.*\/*terminfo\/'
+  if [[ $(infocmp) =~ $terminfo_regexp_path ]] ; then
+    export TERMINFO="${BASH_REMATCH[0]}"
+  fi
+
+  prebuilt_lldb_path="$CLANG_PREBUILT_HOST_PATH/bin/lldb.sh"
+}
+
 function write_dex2oat_cmdlines {
   local name="$1"
 
@@ -963,12 +1024,20 @@ function write_dex2oat_cmdlines {
   local app_image=""
   $enable_app_image && app_image="--app-image-file=$DEX_LOCATION/oat/$ISA/$name.art --resolve-startup-const-strings=true"
 
+  if [ "$USE_GDB_DEX2OAT" = "y" ]; then
+    get_prebuilt_lldb_path
+    GDB_DEX2OAT="$prebuilt_lldb_path -f"
+    GDB_DEX2OAT_ARGS+=" -- "
+  fi
+
   local dex2oat_binary
   dex2oat_binary=${DEX2OAT_DEBUG_BINARY}
   if  [[ "$TEST_IS_NDEBUG" = "y" ]]; then
     dex2oat_binary=${DEX2OAT_NDEBUG_BINARY}
   fi
-  dex2oat_cmdline="$INVOKE_WITH $ANDROID_ART_BIN_DIR/$dex2oat_binary \
+  dex2oat_cmdline="$INVOKE_WITH $GDB_DEX2OAT \
+                      $ANDROID_ART_BIN_DIR/$dex2oat_binary \
+                      $GDB_DEX2OAT_ARGS \
                       $COMPILE_FLAGS \
                       --boot-image=${BOOT_IMAGE} \
                       --dex-file=$DEX_LOCATION/$name.jar \
@@ -982,12 +1051,13 @@ function write_dex2oat_cmdlines {
   fi
 
   # Add in a timeout. This is important for testing the compilation/verification time of
-  # pathological cases.
+  # pathological cases. We do not append a timeout when debugging dex2oat because we
+  # do not want it to exit while debugging.
   # Note: as we don't know how decent targets are (e.g., emulator), only do this on the host for
   #       now. We should try to improve this.
   #       The current value is rather arbitrary. run-tests should compile quickly.
   # Watchdog timeout is in milliseconds so add 3 '0's to the dex2oat timeout.
-  if [ "$HOST" != "n" ]; then
+  if [ "$HOST" != "n" ] && [ "$USE_GDB_DEX2OAT" != "y" ]; then
     # Use SIGRTMIN+2 to try to dump threads.
     # Use -k 1m to SIGKILL it a minute later if it hasn't ended.
     dex2oat_cmdline="timeout -k ${DEX2OAT_TIMEOUT}s -s SIGRTMIN+2 ${DEX2OAT_RT_TIMEOUT}s ${dex2oat_cmdline} --watchdog-timeout=${DEX2OAT_TIMEOUT}000"
