@@ -296,6 +296,11 @@ while true; do
         gdb_arg="$1"
         run_args+=(--gdb-arg "$gdb_arg")
         shift
+    elif [ "x$1" = "x--gdb-dex2oat-args" ]; then
+        shift
+        gdb_dex2oat_args="$1"
+        run_args+=(--gdb-dex2oat-args "$gdb_dex2oat_args")
+        shift
     elif [ "x$1" = "x--debug" ]; then
         run_args+=(--debug)
         shift
@@ -319,6 +324,10 @@ while true; do
         shift
     elif [ "x$1" = "x--gdb" ]; then
         run_args+=(--gdb)
+        dev_mode="yes"
+        shift
+    elif [ "x$1" = "x--gdb-dex2oat" ]; then
+        run_args+=(--gdb-dex2oat)
         dev_mode="yes"
         shift
     elif [ "x$1" = "x--gdbserver-bin" ]; then
@@ -811,12 +820,14 @@ if [ "$usage" = "yes" ]; then
         echo "    --with-agent <agent>  Run the test with the given agent loaded with -agentpath:"
         echo "    --debuggable          Whether to compile Java code for a debugger."
         echo "    --gdb                 Run under gdb; incompatible with some tests."
+        echo "    --gdb-dex2oat         Run dex2oat under the prebuilt lldb."
         echo "    --gdbserver           Start gdbserver (defaults to port :5039)."
         echo "    --gdbserver-port <port>"
         echo "                          Start gdbserver with the given COMM (see man gdbserver)."
         echo "    --gdbserver-bin <binary>"
         echo "                          Use the given binary as gdbserver."
         echo "    --gdb-arg             Pass an option to gdb or gdbserver."
+        echo "    --gdb-dex2oat-args    Pass options separated by ';' to lldb for dex2oat."
         echo "    --build-only          Build test files only (off by default)."
         echo "    --skip-build          Assume that test files are already built (off by default)."
         echo "    --build-path [path]   Location where to store or expect the build files."
