@@ -4758,11 +4758,12 @@ void MethodVerifier<kVerifierDebug>::VerifyISFieldAccess(const Instruction* inst
       VerifyPrimitivePut(*field_type, insn_type, vregA);
     } else {
       if (!insn_type.IsAssignableFrom(*field_type, this)) {
-        // If the field type is not a reference, this is a global failure rather than
-        // a class change failure as the instructions and the descriptors for the type
-        // should have been consistent within the same file at compile time.
-        VerifyError error = field_type->IsReferenceTypes() ? VERIFY_ERROR_BAD_CLASS_SOFT
-                                                           : VERIFY_ERROR_BAD_CLASS_HARD;
+        VerifyError error;
+        if (insn_type.IsUnresolvedTypes() || field_type->IsUnresolvedTypes()) {
+          error = VERIFY_ERROR_UNRESOLVED_TYPE_CHECK;
+        } else {
+          error = VERIFY_ERROR_BAD_CLASS_HARD;
+        }
         Fail(error) << "expected field " << ArtField::PrettyField(field)
                     << " to be compatible with type '" << insn_type
                     << "' but found type '" << *field_type
@@ -4790,11 +4791,12 @@ void MethodVerifier<kVerifierDebug>::VerifyISFieldAccess(const Instruction* inst
       }
     } else {
       if (!insn_type.IsAssignableFrom(*field_type, this)) {
-        // If the field type is not a reference, this is a global failure rather than
-        // a class change failure as the instructions and the descriptors for the type
-        // should have been consistent within the same file at compile time.
-        VerifyError error = field_type->IsReferenceTypes() ? VERIFY_ERROR_BAD_CLASS_SOFT
-                                                           : VERIFY_ERROR_BAD_CLASS_HARD;
+        VerifyError error;
+        if (insn_type.IsUnresolvedTypes() || field_type->IsUnresolvedTypes()) {
+          error = VERIFY_ERROR_UNRESOLVED_TYPE_CHECK;
+        } else {
+          error = VERIFY_ERROR_BAD_CLASS_HARD;
+        }
         Fail(error) << "expected field " << ArtField::PrettyField(field)
                     << " to be compatible with type '" << insn_type
                     << "' but found type '" << *field_type
