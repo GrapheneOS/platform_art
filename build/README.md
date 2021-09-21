@@ -64,7 +64,7 @@ the module. It is also mutually exclusive with the other ones.
 4.  Install the module and reboot:
 
     ```
-    adb install out/target/product/generic_<arch>/system/apex/com.android.art.apex
+    adb install out/target/product/module_<arch>/system/apex/com.android.art.apex
     adb reboot
     ```
 
