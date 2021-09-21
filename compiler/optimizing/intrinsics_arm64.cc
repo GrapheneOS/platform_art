@@ -3733,6 +3733,20 @@ void IntrinsicCodeGeneratorARM64::VisitFP16Rint(HInvoke* invoke) {
   GenerateFP16Round(invoke, codegen_, masm, roundOp);
 }
 
+void FP16ComparisonLocations(HInvoke* invoke,
+                             ArenaAllocator* allocator_,
+                             CodeGeneratorARM64* codegen_,
+                             int requiredTemps) {
+  if (!codegen_->GetInstructionSetFeatures().HasFP16()) {
+    return;
+  }
+
+  CreateIntIntToIntLocations(allocator_, invoke);
+  for (int i = 0; i < requiredTemps; i++) {
+    invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
+  }
+}
+
 template<typename OP>
 void GenerateFP16Compare(HInvoke* invoke,
                          CodeGeneratorARM64* codegen,
@@ -3760,13 +3774,7 @@ static inline void GenerateFP16Compare(HInvoke* invoke,
 }
 
 void IntrinsicLocationsBuilderARM64::VisitFP16Greater(HInvoke* invoke) {
-  if (!codegen_->GetInstructionSetFeatures().HasFP16()) {
-    return;
-  }
-
-  CreateIntIntToIntLocations(allocator_, invoke);
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
+  FP16ComparisonLocations(invoke, allocator_, codegen_, 2);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitFP16Greater(HInvoke* invoke) {
@@ -3775,13 +3783,7 @@ void IntrinsicCodeGeneratorARM64::VisitFP16Greater(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitFP16GreaterEquals(HInvoke* invoke) {
-  if (!codegen_->GetInstructionSetFeatures().HasFP16()) {
-    return;
-  }
-
-  CreateIntIntToIntLocations(allocator_, invoke);
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
+  FP16ComparisonLocations(invoke, allocator_, codegen_, 2);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitFP16GreaterEquals(HInvoke* invoke) {
@@ -3790,13 +3792,7 @@ void IntrinsicCodeGeneratorARM64::VisitFP16GreaterEquals(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitFP16Less(HInvoke* invoke) {
-  if (!codegen_->GetInstructionSetFeatures().HasFP16()) {
-    return;
-  }
-
-  CreateIntIntToIntLocations(allocator_, invoke);
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
+  FP16ComparisonLocations(invoke, allocator_, codegen_, 2);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitFP16Less(HInvoke* invoke) {
@@ -3805,13 +3801,7 @@ void IntrinsicCodeGeneratorARM64::VisitFP16Less(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitFP16LessEquals(HInvoke* invoke) {
-  if (!codegen_->GetInstructionSetFeatures().HasFP16()) {
-    return;
-  }
-
-  CreateIntIntToIntLocations(allocator_, invoke);
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
+  FP16ComparisonLocations(invoke, allocator_, codegen_, 2);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitFP16LessEquals(HInvoke* invoke) {
@@ -3820,13 +3810,7 @@ void IntrinsicCodeGeneratorARM64::VisitFP16LessEquals(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitFP16Compare(HInvoke* invoke) {
-  if (!codegen_->GetInstructionSetFeatures().HasFP16()) {
-    return;
-  }
-
-  CreateIntIntToIntLocations(allocator_, invoke);
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
+  FP16ComparisonLocations(invoke, allocator_, codegen_, 2);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitFP16Compare(HInvoke* invoke) {
@@ -3880,6 +3864,78 @@ void IntrinsicCodeGeneratorARM64::VisitFP16Compare(HInvoke* invoke) {
   };
 
   GenerateFP16Compare(invoke, codegen_, masm, compareOp);
+}
+
+const int kFP16NaN = 0x7e00;
+
+static inline void GenerateFP16MinMax(HInvoke* invoke,
+                                       CodeGeneratorARM64* codegen,
+                                       MacroAssembler* masm,
+                                       vixl::aarch64::Condition cond) {
+  DCHECK(codegen->GetInstructionSetFeatures().HasFP16());
+  LocationSummary* locations = invoke->GetLocations();
+
+  vixl::aarch64::Label equal;
+  vixl::aarch64::Label end;
+
+  UseScratchRegisterScope temps(masm);
+
+  Register out = WRegisterFrom(locations->Out());
+  Register in0 = WRegisterFrom(locations->InAt(0));
+  Register in1 = WRegisterFrom(locations->InAt(1));
+  VRegister half0 = HRegisterFrom(locations->GetTemp(0));
+  VRegister half1 = temps.AcquireH();
+
+  // The normal cases for this method are:
+  // - in0.h == in1.h => out = in0 or in1
+  // - in0.h <cond> in1.h => out = in0
+  // - in0.h <!cond> in1.h => out = in1
+  // +/-Infinity are ordered by default so are handled by the normal case.
+  // There are two special cases that Fcmp is insufficient for distinguishing:
+  // - in0 and in1 are +0 and -0 => +0 > -0 so compare encoding instead of value
+  // - in0 or in1 is NaN => out = NaN
+  __ Fmov(half0, in0);
+  __ Fmov(half1, in1);
+  __ Fcmp(half0, half1);
+  __ B(eq, &equal);  // half0 = half1 or +0/-0 case.
+  __ Csel(out, in0, in1, cond);  // if half0 <cond> half1 => out = in0, otherwise out = in1.
+  __ B(vc, &end);  // None of the inputs were NaN.
+
+  // Atleast one input was NaN.
+  __ Mov(out, kFP16NaN);  // out=NaN.
+  __ B(&end);
+
+  // in0 == in1 or if one of the inputs is +0 and the other is -0.
+  __ Bind(&equal);
+  // Fcmp cannot normally distinguish +0 and -0 so compare encoding.
+  // Encoding is compared as the denormal fraction of a Single.
+  // Note: encoding of -0 > encoding of +0 despite +0 > -0 so in0 and in1 are swapped.
+  // Note: The instruction Fmov(Hregister, Wregister) zero extends the Hregister.
+  __ Fcmp(half1.S(), half0.S());
+
+  __ Csel(out, in0, in1, cond);  // if half0 <cond> half1 => out = in0, otherwise out = in1.
+
+  __ Bind(&end);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitFP16Min(HInvoke* invoke) {
+  FP16ComparisonLocations(invoke, allocator_, codegen_, 1);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitFP16Min(HInvoke* invoke) {
+  DCHECK(codegen_->GetInstructionSetFeatures().HasFP16());
+  MacroAssembler* masm = GetVIXLAssembler();
+  GenerateFP16MinMax(invoke, codegen_, masm, mi);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitFP16Max(HInvoke* invoke) {
+  FP16ComparisonLocations(invoke, allocator_, codegen_, 1);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitFP16Max(HInvoke* invoke) {
+  DCHECK(codegen_->GetInstructionSetFeatures().HasFP16());
+  MacroAssembler* masm = GetVIXLAssembler();
+  GenerateFP16MinMax(invoke, codegen_, masm, gt);
 }
 
 static void GenerateDivideUnsigned(HInvoke* invoke, CodeGeneratorARM64* codegen) {
