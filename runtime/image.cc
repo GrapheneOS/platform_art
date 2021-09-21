@@ -29,8 +29,8 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-// Last change: FP16 Compare intrinsic.
-const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '0', '\0' };
+// Last change: FP16 Min and Max intrinsic.
+const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '1', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_reservation_size,
                          uint32_t component_count,

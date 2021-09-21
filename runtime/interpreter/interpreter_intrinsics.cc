@@ -587,6 +587,8 @@ bool MterpHandleIntrinsic(ShadowFrame* shadow_frame,
     UNIMPLEMENTED_CASE(FP16GreaterEquals /* (SS)Z */)
     UNIMPLEMENTED_CASE(FP16Less /* (SS)Z */)
     UNIMPLEMENTED_CASE(FP16LessEquals /* (SS)Z */)
+    UNIMPLEMENTED_CASE(FP16Min /* (SS)S */)
+    UNIMPLEMENTED_CASE(FP16Max /* (SS)S */)
     INTRINSIC_CASE(VarHandleFullFence)
     INTRINSIC_CASE(VarHandleAcquireFence)
     INTRINSIC_CASE(VarHandleReleaseFence)
