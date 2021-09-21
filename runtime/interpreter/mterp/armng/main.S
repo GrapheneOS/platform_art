@@ -301,9 +301,9 @@ END \name
 .endm
 
 .macro BRANCH
-    // Update method counter and do a suspend check if the branch is negative.
+    // Update method counter and do a suspend check if the branch is negative or zero.
     cmp rINST, #0
-    blt 2f
+    ble 2f
 1:
     add r2, rINST, rINST                // r2<- byte offset
     FETCH_ADVANCE_INST_RB r2            // update xPC, load rINST

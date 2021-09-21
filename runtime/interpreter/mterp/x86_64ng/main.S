@@ -251,9 +251,9 @@ END_FUNCTION \name
 
 
 .macro BRANCH
-    // Update method counter and do a suspend check if the branch is negative.
+    // Update method counter and do a suspend check if the branch is negative or zero.
     testq rINSTq, rINSTq
-    js 3f
+    jle 3f
 2:
     leaq    (rPC, rINSTq, 2), rPC
     FETCH_INST
