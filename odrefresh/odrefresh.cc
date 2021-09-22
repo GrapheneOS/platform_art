@@ -349,18 +349,31 @@ bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
   return true;
 }
 
+std::string GetBootImagePath(bool on_system, const std::string& jar_path) {
+  if (on_system) {
+    const std::string jar_name = android::base::Basename(jar_path);
+    const std::string image_name = ReplaceFileExtension(jar_name, "art");
+    // Typically "/system/framework/boot-framework.art".
+    return Concatenate({GetAndroidRoot(), "/framework/boot-", image_name});
+  } else {
+    // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot-framework.art".
+    return GetApexDataBootImage(jar_path);
+  }
+}
+
 void AddCompiledBootClasspathFdsIfAny(
     /*inout*/ std::vector<std::string>& args,
     /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
     const std::vector<std::string>& bcp_jars,
-    const InstructionSet isa) {
+    const InstructionSet isa,
+    bool on_system) {
   std::vector<std::string> bcp_image_fds;
   std::vector<std::string> bcp_oat_fds;
   std::vector<std::string> bcp_vdex_fds;
   std::vector<std::unique_ptr<File>> opened_files;
   bool added_any = false;
   for (const std::string& jar : bcp_jars) {
-    std::string image_path = GetApexDataBootImage(jar);
+    std::string image_path = GetBootImagePath(on_system, jar);
     image_path = image_path.empty() ? "" : GetSystemImageFilename(image_path.c_str(), isa);
     std::unique_ptr<File> image_file(OS::OpenFileForReading(image_path.c_str()));
     if (image_file && image_file->IsValid()) {
@@ -607,15 +620,7 @@ std::vector<art_apex::Component> OnDeviceRefresh::GenerateSystemServerComponents
 std::string OnDeviceRefresh::GetBootImageExtensionImage(bool on_system) const {
   CHECK(!boot_extension_compilable_jars_.empty());
   const std::string leading_jar = boot_extension_compilable_jars_[0];
-  if (on_system) {
-    const std::string jar_name = android::base::Basename(leading_jar);
-    const std::string image_name = ReplaceFileExtension(jar_name, "art");
-    // Typically "/system/framework/boot-framework.art".
-    return Concatenate({GetAndroidRoot(), "/framework/boot-", image_name});
-  } else {
-    // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot-framework.art".
-    return GetApexDataBootImage(leading_jar);
-  }
+  return GetBootImagePath(on_system, leading_jar);
 }
 
 std::string OnDeviceRefresh::GetBootImageExtensionImagePath(bool on_system,
@@ -1480,7 +1485,13 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(const std::string
     if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
       return false;
     }
-    AddCompiledBootClasspathFdsIfAny(args, readonly_files_raii, bcp_jars, isa);
+    std::string unused_error_msg;
+    // If the boot extension artifacts are not on /data, then boot extensions are not re-compiled
+    // and the artifacts must exist on /system.
+    bool boot_image_on_system =
+        !BootExtensionArtifactsExist(/*on_system=*/false, isa, &unused_error_msg);
+    AddCompiledBootClasspathFdsIfAny(
+        args, readonly_files_raii, bcp_jars, isa, boot_image_on_system);
 
     const std::string context_path = android::base::Join(classloader_context, ':');
     args.emplace_back(Concatenate({"--class-loader-context=PCL[", context_path, "]"}));
@@ -1499,7 +1510,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(const std::string
       const std::string context_fds = android::base::Join(fds, ':');
       args.emplace_back(Concatenate({"--class-loader-context-fds=", context_fds}));
     }
-    const std::string extension_image = GetBootImageExtensionImage(/*on_system=*/false);
+    std::string extension_image = GetBootImageExtensionImage(boot_image_on_system);
     args.emplace_back(Concatenate({"--boot-image=", GetBootImage(), ":", extension_image}));
 
     if (config_.UseCompilationOs()) {
