@@ -644,14 +644,12 @@ bool LocationIsOnSystem(const std::string& location) {
   LOG(FATAL) << "LocationIsOnSystem is unsupported on Windows.";
   return false;
 #else
-  UniqueCPtr<const char[]> full_path(realpath(location.c_str(), nullptr));
-  return full_path != nullptr &&
-      android::base::StartsWith(full_path.get(), GetAndroidRoot().c_str());
+  return android::base::StartsWith(location, GetAndroidRoot().c_str());
 #endif
 }
 
 bool LocationIsTrusted(const std::string& location, bool trust_art_apex_data_files) {
-  if (LocationIsOnSystem(location)) {
+  if (LocationIsOnSystem(location) || LocationIsOnArtModule(location)) {
     return true;
   }
   return LocationIsOnArtApexData(location) & trust_art_apex_data_files;
