@@ -627,7 +627,9 @@ std::string OnDeviceRefresh::GetBootImageExtensionImagePath(bool on_system,
 std::string OnDeviceRefresh::GetSystemServerImagePath(bool on_system,
                                                       const std::string& jar_path) const {
   if (on_system) {
-    // TODO(b/194150908): Define a path for "preopted" APEX artifacts.
+    if (LocationIsOnApex(jar_path)) {
+      return GetSystemOdexFilenameForApex(jar_path, config_.GetSystemServerIsa());
+    }
     const std::string jar_name = android::base::Basename(jar_path);
     const std::string image_name = ReplaceFileExtension(jar_name, "art");
     const char* isa_str = GetInstructionSetString(config_.GetSystemServerIsa());
@@ -707,13 +709,6 @@ WARN_UNUSED bool OnDeviceRefresh::BootExtensionArtifactsExist(
 WARN_UNUSED bool OnDeviceRefresh::SystemServerArtifactsExist(bool on_system,
                                                              /*out*/ std::string* error_msg) const {
   for (const std::string& jar_path : systemserver_compilable_jars_) {
-    // Temporarily skip checking APEX jar artifacts on system to prevent compilation on the first
-    // boot. Currently, APEX jar artifacts can never be found on system because we don't preopt
-    // them.
-    // TODO(b/194150908): Preopt APEX jars for system server and put the artifacts on /system.
-    if (on_system && StartsWith(jar_path, "/apex")) {
-      continue;
-    }
     const std::string image_location = GetSystemServerImagePath(on_system, jar_path);
     const OdrArtifacts artifacts = OdrArtifacts::ForSystemServer(image_location);
     // .art files are optional and are not generated for all jars by the build system.
