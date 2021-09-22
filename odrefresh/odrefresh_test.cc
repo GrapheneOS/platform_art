@@ -118,7 +118,7 @@ MATCHER_P(FdOf, matcher, "") {
   if (len < 0) {
     return false;
   }
-  std::string path_str{path, (size_t)len};
+  std::string path_str{path, static_cast<size_t>(len)};
   return ExplainMatchResult(matcher, path_str, result_listener);
 }
 
