@@ -433,6 +433,12 @@ static bool AlwaysThrows(ArtMethod* method)
 bool HInliner::TryInline(HInvoke* invoke_instruction) {
   MaybeRecordStat(stats_, MethodCompilationStat::kTryInline);
 
+  // Don't bother to move further if the outer method has too many registers.
+  if (total_number_of_dex_registers_ > kMaximumNumberOfCumulatedDexRegisters) {
+    MaybeRecordStat(stats_, MethodCompilationStat::kNotInlinedEnvironmentBudget);
+    return false;
+  }
+
   // Don't bother to move further if we know the method is unresolved or the invocation is
   // polymorphic (invoke-{polymorphic,custom}).
   if (invoke_instruction->IsInvokeUnresolved()) {
@@ -1845,24 +1851,16 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
         return false;
       }
       HInstruction* current = instr_it.Current();
-      if (current->NeedsEnvironment() &&
-          (total_number_of_dex_registers_ > kMaximumNumberOfCumulatedDexRegisters)) {
-        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedEnvironmentBudget)
-            << "Method " << resolved_method->PrettyMethod()
-            << " is not inlined because its caller has reached"
-            << " its environment budget limit.";
-        return false;
-      }
-
-      if (current->NeedsEnvironment() &&
-          !CanEncodeInlinedMethodInStackMap(*caller_compilation_unit_.GetDexFile(),
-                                            resolved_method)) {
-        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedStackMaps)
-            << "Method " << resolved_method->PrettyMethod()
-            << " could not be inlined because " << current->DebugName()
-            << " needs an environment, is in a different dex file"
-            << ", and cannot be encoded in the stack maps.";
-        return false;
+      if (current->NeedsEnvironment()) {
+        DCHECK_LE(total_number_of_dex_registers_, kMaximumNumberOfCumulatedDexRegisters);
+        if (!CanEncodeInlinedMethodInStackMap(*caller_compilation_unit_.GetDexFile(),
+                                              resolved_method)) {
+          LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedStackMaps)
+              << "Method " << resolved_method->PrettyMethod() << " could not be inlined because "
+              << current->DebugName() << " needs an environment, is in a different dex file"
+              << ", and cannot be encoded in the stack maps.";
+          return false;
+        }
       }
 
       if (current->IsUnresolvedStaticFieldGet() ||
@@ -2028,15 +2026,6 @@ void HInliner::RunOptimizations(HGraph* callee_graph,
   for (size_t i = 0; i < arraysize(optimizations); ++i) {
     HOptimization* optimization = optimizations[i];
     optimization->Run();
-  }
-
-  // Bail early for pathological cases on the environment (for example recursive calls,
-  // or too large environment).
-  if (total_number_of_dex_registers_ > kMaximumNumberOfCumulatedDexRegisters) {
-    LOG_NOTE() << "Calls in " << callee_graph->GetArtMethod()->PrettyMethod()
-             << " will not be inlined because the outer method has reached"
-             << " its environment budget limit.";
-    return;
   }
 
   // Bail early if we know we already are over the limit.
