@@ -1367,7 +1367,7 @@ static void dumpMethod(const ClassAccessor::Method& method, int i) {
     }
   }
 
- bail:
+bail:
   free(typeDescriptor);
   free(accessStr);
 }
