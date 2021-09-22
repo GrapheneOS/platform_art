@@ -190,6 +190,9 @@ art_cc_test {
     shared_libs: [
         "libdexfiled",
     ],
+    static_libs: [
+        "libartbased",
+    ],
     test_config_template: "art_odrefresh_tests.xml",
 }
 
@@ -202,6 +205,9 @@ art_cc_test {
     ],
     shared_libs: [
         "libdexfile",
+    ],
+    static_libs: [
+        "libartbase",
     ],
     test_config_template: "art_odrefresh_tests.xml",
 }
