@@ -230,7 +230,7 @@ static jint Unsafe_pageSize(JNIEnv* env ATTRIBUTE_UNUSED, jobject ob ATTRIBUTE_U
 static jlong Unsafe_allocateMemory(JNIEnv* env, jobject, jlong bytes) {
   ScopedFastNativeObjectAccess soa(env);
   // bytes is nonnegative and fits into size_t
-  if (bytes < 0 || bytes != (jlong)(size_t) bytes) {
+  if (bytes < 0 || bytes != static_cast<jlong>(static_cast<size_t>(bytes))) {
     ThrowIllegalAccessException("wrong number of bytes");
     return 0;
   }
@@ -311,11 +311,11 @@ static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED, jlon
     return;
   }
   // size is nonnegative and fits into size_t
-  if (size < 0 || size != (jlong)(size_t) size) {
+  if (size < 0 || size != static_cast<jlong>(static_cast<size_t>(size))) {
     ScopedFastNativeObjectAccess soa(env);
     ThrowIllegalAccessException("wrong number of bytes");
   }
-  size_t sz = (size_t)size;
+  size_t sz = static_cast<size_t>(size);
   memcpy(reinterpret_cast<void *>(dst), reinterpret_cast<void *>(src), sz);
 }
 
@@ -358,11 +358,11 @@ static void Unsafe_copyMemoryToPrimitiveArray(JNIEnv *env,
     return;
   }
   // size is nonnegative and fits into size_t
-  if (size < 0 || size != (jlong)(size_t) size) {
+  if (size < 0 || size != static_cast<jlong>(static_cast<size_t>(size))) {
     ThrowIllegalAccessException("wrong number of bytes");
   }
-  size_t sz = (size_t)size;
-  size_t dst_offset = (size_t)dstOffset;
+  size_t sz = static_cast<size_t>(size);
+  size_t dst_offset = static_cast<size_t>(dstOffset);
   ObjPtr<mirror::Object> dst = soa.Decode<mirror::Object>(dstObj);
   ObjPtr<mirror::Class> component_type = dst->GetClass()->GetComponentType();
   if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
@@ -393,11 +393,11 @@ static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
     return;
   }
   // size is nonnegative and fits into size_t
-  if (size < 0 || size != (jlong)(size_t) size) {
+  if (size < 0 || size != static_cast<jlong>(static_cast<size_t>(size))) {
     ThrowIllegalAccessException("wrong number of bytes");
   }
-  size_t sz = (size_t)size;
-  size_t src_offset = (size_t)srcOffset;
+  size_t sz = static_cast<size_t>(size);
+  size_t src_offset = static_cast<size_t>(srcOffset);
   ObjPtr<mirror::Object> src = soa.Decode<mirror::Object>(srcObj);
   ObjPtr<mirror::Class> component_type = src->GetClass()->GetComponentType();
   if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {

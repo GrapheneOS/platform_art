@@ -1272,7 +1272,7 @@ void DexLayout::DumpMethod(uint32_t idx,
     }
   }
 
- bail:
+bail:
   free(type_descriptor);
   free(access_str);
 }
