@@ -53,7 +53,9 @@ class OatFileManager {
 
   // Add an oat file to the internal accounting, std::aborts if there already exists an oat file
   // with the same base address. Returns the oat file pointer from oat_file.
-  const OatFile* RegisterOatFile(std::unique_ptr<const OatFile> oat_file)
+  // The `in_memory` parameter is whether the oat file is not present on disk,
+  // but only in memory (for example files created with memfd).
+  const OatFile* RegisterOatFile(std::unique_ptr<const OatFile> oat_file, bool in_memory = false)
       REQUIRES(!Locks::oat_file_manager_lock_);
 
   void UnRegisterAndDeleteOatFile(const OatFile* oat_file)
@@ -119,6 +121,7 @@ class OatFileManager {
   void DumpForSigQuit(std::ostream& os);
 
   void SetOnlyUseTrustedOatFiles();
+  void ClearOnlyUseTrustedOatFiles();
 
   // Spawn a background thread which verifies all classes in the given dex files.
   void RunBackgroundVerification(const std::vector<const DexFile*>& dex_files,

@@ -316,10 +316,10 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
     runtime_flags &= ~DISABLE_VERIFIER;
   }
 
-  if ((runtime_flags & ONLY_USE_TRUSTED_OAT_FILES) != 0 || is_system_server) {
-    runtime->GetOatFileManager().SetOnlyUseTrustedOatFiles();
-    runtime_flags &= ~ONLY_USE_TRUSTED_OAT_FILES;
+  if ((runtime_flags & ONLY_USE_TRUSTED_OAT_FILES) == 0 && !is_system_server) {
+    runtime->GetOatFileManager().ClearOnlyUseTrustedOatFiles();
   }
+  runtime_flags &= ~ONLY_USE_TRUSTED_OAT_FILES;
 
   api_enforcement_policy = hiddenapi::EnforcementPolicyFromInt(
       (runtime_flags & HIDDEN_API_ENFORCEMENT_POLICY_MASK) >> API_ENFORCEMENT_POLICY_SHIFT);

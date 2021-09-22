@@ -65,16 +65,19 @@ using android::base::StringPrintf;
 // If true, we attempt to load the application image if it exists.
 static constexpr bool kEnableAppImage = true;
 
-const OatFile* OatFileManager::RegisterOatFile(std::unique_ptr<const OatFile> oat_file) {
+const OatFile* OatFileManager::RegisterOatFile(std::unique_ptr<const OatFile> oat_file,
+                                               bool in_memory) {
   // Use class_linker vlog to match the log for dex file registration.
   VLOG(class_linker) << "Registered oat file " << oat_file->GetLocation();
   PaletteNotifyOatFileLoaded(oat_file->GetLocation().c_str());
 
   WriterMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
-  CHECK(!only_use_system_oat_files_ ||
+  CHECK(in_memory ||
+        !only_use_system_oat_files_ ||
         LocationIsTrusted(oat_file->GetLocation(), !Runtime::Current()->DenyArtApexDataFiles()) ||
         !oat_file->IsExecutable())
-      << "Registering a non /system oat file: " << oat_file->GetLocation();
+      << "Registering a non /system oat file: " << oat_file->GetLocation() << " android-root="
+      << GetAndroidRoot();
   DCHECK(oat_file != nullptr);
   if (kIsDebugBuild) {
     CHECK(oat_files_.find(oat_file) == oat_files_.end());
@@ -155,7 +158,9 @@ std::vector<const OatFile*> OatFileManager::RegisterImageOatFiles(
   std::vector<const OatFile*> oat_files;
   oat_files.reserve(spaces.size());
   for (gc::space::ImageSpace* space : spaces) {
-    oat_files.push_back(RegisterOatFile(space->ReleaseOatFile()));
+    // The oat file was generated in memory if the image space has a profile.
+    bool in_memory = !space->GetProfileFile().empty();
+    oat_files.push_back(RegisterOatFile(space->ReleaseOatFile(), in_memory));
   }
   return oat_files;
 }
@@ -795,29 +800,14 @@ void OatFileManager::WaitForBackgroundVerificationTasks() {
   }
 }
 
+void OatFileManager::ClearOnlyUseTrustedOatFiles() {
+  only_use_system_oat_files_ = false;
+}
+
 void OatFileManager::SetOnlyUseTrustedOatFiles() {
   ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
-  // Make sure all files that were loaded up to this point are on /system.
-  // Skip the image files as they can encode locations that don't exist (eg not
-  // containing the arch in the path, or for JIT zygote /nonx/existent).
-  std::vector<const OatFile*> boot_vector = GetBootOatFiles();
-  std::unordered_set<const OatFile*> boot_set(boot_vector.begin(), boot_vector.end());
-
-  for (const std::unique_ptr<const OatFile>& oat_file : oat_files_) {
-    if (boot_set.find(oat_file.get()) == boot_set.end()) {
-      // This method is called during runtime initialization before we can call
-      // Runtime::Current()->DenyArtApexDataFiles(). Since we don't want to fail hard if
-      // the ART APEX data files are untrusted, just treat them as trusted for the check here.
-      const bool trust_art_apex_data_files = true;
-      if (!LocationIsTrusted(oat_file->GetLocation(), trust_art_apex_data_files)) {
-        // When the file is not in a trusted location, we check whether the oat file has any
-        // AOT or DEX code. It is a fatal error if it has.
-        if (CompilerFilter::IsAotCompilationEnabled(oat_file->GetCompilerFilter()) ||
-            oat_file->ContainsDexCode()) {
-          LOG(FATAL) << "Executing untrusted code from " << oat_file->GetLocation();
-        }
-      }
-    }
+  if (!oat_files_.empty()) {
+    LOG(FATAL) << "Unexpected non-empty loaded oat files ";
   }
   only_use_system_oat_files_ = true;
 }
