@@ -271,4 +271,13 @@ TEST_F(FileUtilsTest, GetApexDataDalvikCacheFilename) {
   CHECK_EQ(vdex_filename, ReplaceFileExtension(art_filename, "vdex"));
 }
 
+TEST_F(FileUtilsTest, GetSystemOdexFilenameForApex) {
+  ScopedUnsetEnvironmentVariable android_root("ANDROID_ROOT");
+
+  const std::string apex_jar = std::string {kAndroidArtApexDefaultPath} + "/javalib/some.jar";
+  EXPECT_EQ(
+      GetAndroidRoot() + "/framework/oat/arm/apex@com.android.art@javalib@some.jar@classes.odex",
+      GetSystemOdexFilenameForApex(apex_jar.c_str(), InstructionSet::kArm));
+}
+
 }  // namespace art

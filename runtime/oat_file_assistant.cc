@@ -523,6 +523,18 @@ bool OatFileAssistant::DexLocationToOdexFilename(const std::string& location,
   CHECK(odex_filename != nullptr);
   CHECK(error_msg != nullptr);
 
+  // For a DEX file on /apex, check if there is an odex file on /system. If so, and the file exists,
+  // use it.
+  if (LocationIsOnApex(location)) {
+    const std::string system_file = GetSystemOdexFilenameForApex(location, isa);
+    if (OS::FileExists(system_file.c_str(), /*check_file_type=*/true)) {
+      *odex_filename = system_file;
+      return true;
+    } else if (errno != ENOENT) {
+      PLOG(ERROR) << "Could not check odex file " << system_file;
+    }
+  }
+
   // The odex file name is formed by replacing the dex_location extension with
   // .odex and inserting an oat/<isa> directory. For example:
   //   location = /foo/bar/baz.jar
