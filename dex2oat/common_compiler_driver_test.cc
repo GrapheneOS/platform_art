@@ -67,7 +67,7 @@ void CommonCompilerDriverTest::ReserveImageSpace() {
   MemMap::Init();
   image_reservation_ = MemMap::MapAnonymous("image reservation",
                                             reinterpret_cast<uint8_t*>(ART_BASE_ADDRESS),
-                                            (size_t)120 * 1024 * 1024,  // 120MB
+                                            static_cast<size_t>(120 * 1024 * 1024),  // 120MB
                                             PROT_NONE,
                                             false /* no need for 4gb flag with fixed mmap */,
                                             /*reuse=*/ false,
