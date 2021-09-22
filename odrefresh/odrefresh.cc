@@ -1466,19 +1466,6 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(const std::string
     }
     args.emplace_back("--oat-location=" + artifacts.OatPath());
 
-    if (!config_.GetUpdatableBcpPackagesFile().empty()) {
-      const std::string& bcp_packages = config_.GetUpdatableBcpPackagesFile();
-      if (!OS::FileExists(bcp_packages.c_str())) {
-        *error_msg = "Cannot compile system_server JARs: missing " + QuotePath(bcp_packages);
-        metrics.SetStatus(OdrMetrics::Status::kIoError);
-        EraseFiles(staging_files);
-        return false;
-      }
-      std::unique_ptr<File> file(OS::OpenFileForReading(bcp_packages.c_str()));
-      args.emplace_back(android::base::StringPrintf("--updatable-bcp-packages-fd=%d", file->Fd()));
-      readonly_files_raii.push_back(std::move(file));
-    }
-
     args.emplace_back("--runtime-arg");
     args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetBootClasspath()}));
     auto bcp_jars = android::base::Split(config_.GetBootClasspath(), ":");
