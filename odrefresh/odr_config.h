@@ -52,7 +52,6 @@ class OdrConfig final {
   InstructionSet isa_;
   std::string program_name_;
   std::string system_server_classpath_;
-  std::string updatable_bcp_packages_file_;
   ZygoteKind zygote_kind_;
   std::string compilation_os_address_;
   std::string boot_classpath_;
@@ -121,8 +120,9 @@ class OdrConfig final {
   }
 
   bool GetDryRun() const { return dry_run_; }
-  const std::string& GetSystemServerClasspath() const { return system_server_classpath_; }
-  const std::string& GetUpdatableBcpPackagesFile() const { return updatable_bcp_packages_file_; }
+  const std::string& GetSystemServerClasspath() const {
+    return system_server_classpath_;
+  }
   bool UseCompilationOs() const { return !compilation_os_address_.empty(); }
   const std::string& GetCompilationOsAddress() const {
     return compilation_os_address_;
@@ -146,7 +146,6 @@ class OdrConfig final {
     system_server_classpath_ = classpath;
   }
 
-  void SetUpdatableBcpPackagesFile(const std::string& file) { updatable_bcp_packages_file_ = file; }
   void SetZygoteKind(ZygoteKind zygote_kind) { zygote_kind_ = zygote_kind; }
 
   const std::string& GetBootClasspath() const { return boot_classpath_; }
