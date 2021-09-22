@@ -1390,9 +1390,9 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   QuasiAtomic::Startup();
 
-  oat_file_manager_ = new OatFileManager;
+  oat_file_manager_ = new OatFileManager();
 
-  jni_id_manager_.reset(new jni::JniIdManager);
+  jni_id_manager_.reset(new jni::JniIdManager());
 
   Thread::SetSensitiveThreadHook(runtime_options.GetOrDefault(Opt::HookIsSensitiveThread));
   Monitor::Init(runtime_options.GetOrDefault(Opt::LockProfThreshold),
@@ -1437,6 +1437,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   is_explicit_gc_disabled_ = runtime_options.Exists(Opt::DisableExplicitGC);
   image_dex2oat_enabled_ = runtime_options.GetOrDefault(Opt::ImageDex2Oat);
   dump_native_stack_on_sig_quit_ = runtime_options.GetOrDefault(Opt::DumpNativeStackOnSigQuit);
+
+  if (is_zygote_ || runtime_options.Exists(Opt::OnlyUseTrustedOatFiles)) {
+    oat_file_manager_->SetOnlyUseTrustedOatFiles();
+  }
 
   vfprintf_ = runtime_options.GetOrDefault(Opt::HookVfprintf);
   exit_ = runtime_options.GetOrDefault(Opt::HookExit);
@@ -1980,11 +1984,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   }
 
   VLOG(startup) << "Runtime::Init exiting";
-
-  // Set OnlyUseTrustedOatFiles only after the boot classpath has been set up.
-  if (runtime_options.Exists(Opt::OnlyUseTrustedOatFiles)) {
-    oat_file_manager_->SetOnlyUseTrustedOatFiles();
-  }
 
   return true;
 }
