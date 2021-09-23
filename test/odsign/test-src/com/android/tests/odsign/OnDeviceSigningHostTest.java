@@ -18,19 +18,21 @@ package com.android.tests.odsign;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 import android.cts.install.lib.host.InstallUtilsHost;
 
 import com.android.tradefed.device.ITestDevice.ApexInfo;
+import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
+import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 
-import org.junit.After;
-import org.junit.Before;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -68,42 +70,48 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     private static final String TEST_APP_PACKAGE_NAME = "com.android.tests.odsign";
     private static final String TEST_APP_APK = "odsign_e2e_test_app.apk";
 
-    private final InstallUtilsHost mInstallUtils = new InstallUtilsHost(this);
-
     private static final Duration BOOT_COMPLETE_TIMEOUT = Duration.ofMinutes(2);
 
-    private final String[] ZYGOTE_NAMES = new String[] {"zygote", "zygote64"};
+    private static final String[] ZYGOTE_NAMES = new String[] {"zygote", "zygote64"};
 
-    private Set<String> mZygoteArtifacts;
-    private Set<String> mSystemServerArtifacts;
-    private long mBootTimeMs;
+    private static InstallUtilsHost sInstallUtils;
+    private static TestInformation sTestInfo;
 
-    @Before
-    public void setUp() throws Exception {
-        assumeTrue("Updating APEX is not supported", mInstallUtils.isApexUpdateSupported());
-        installPackage(TEST_APP_APK);
-        mInstallUtils.installApexes(APEX_FILENAME);
+    private static Set<String> sZygoteArtifacts;
+    private static Set<String> sSystemServerArtifacts;
+
+    @BeforeClassWithInfo
+    public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
+        assertNotNull(testInfo.getDevice());
+        sInstallUtils = new InstallUtilsHost(testInfo);
+        sTestInfo = testInfo;
+
+        assumeTrue("Updating APEX is not supported", sInstallUtils.isApexUpdateSupported());
+        sInstallUtils.installApexes(APEX_FILENAME);
         removeCompilationLogToAvoidBackoff();
         reboot();
 
-        mZygoteArtifacts = new HashSet<>();
+        sZygoteArtifacts = new HashSet<>();
         for (String zygoteName : ZYGOTE_NAMES) {
-            mZygoteArtifacts.addAll(getZygoteLoadedArtifacts(zygoteName).orElse(new HashSet<>()));
+            sZygoteArtifacts.addAll(getZygoteLoadedArtifacts(zygoteName).orElse(new HashSet<>()));
         }
-        mSystemServerArtifacts = getSystemServerLoadedArtifacts();
-        mBootTimeMs = getCurrentTimeMs();
+        sSystemServerArtifacts = getSystemServerLoadedArtifacts();
     }
 
-    @After
-    public void cleanup() throws Exception {
-        ApexInfo apex = mInstallUtils.getApexInfo(mInstallUtils.getTestFile(APEX_FILENAME));
-        getDevice().uninstallPackage(apex.name);
+    @AfterClassWithInfo
+    public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
+        ApexInfo apex = sInstallUtils.getApexInfo(sInstallUtils.getTestFile(APEX_FILENAME));
+        testInfo.getDevice().uninstallPackage(apex.name);
         removeCompilationLogToAvoidBackoff();
         reboot();
     }
+
+    // Test cases starts with `testA` check if odrefresh, odsign, fs-verity, and ART runtime work
+    // together properly.
 
     @Test
-    public void verifyArtUpgradeSignsFiles() throws Exception {
+    public void testAVerifyArtUpgradeSignsFiles() throws Exception {
+        installPackage(TEST_APP_APK);
         DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
         options.setTestClassName(TEST_APP_PACKAGE_NAME + ".ArtifactsSignedTest");
         options.setTestMethodName("testArtArtifactsHaveFsverity");
@@ -111,16 +119,17 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void verifyArtUpgradeGeneratesRequiredArtifacts() throws Exception {
+    public void testAVerifyArtUpgradeGeneratesRequiredArtifacts() throws Exception {
+        installPackage(TEST_APP_APK);
         DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
         options.setTestClassName(TEST_APP_PACKAGE_NAME + ".ArtifactsSignedTest");
         options.setTestMethodName("testGeneratesRequiredArtArtifacts");
         runDeviceTests(options);
     }
 
-    private Set<String> getMappedArtifacts(String pid, String grepPattern) throws Exception {
+    private static Set<String> getMappedArtifacts(String pid, String grepPattern) throws Exception {
         final String grepCommand = String.format("grep \"%s\" /proc/%s/maps", grepPattern, pid);
-        CommandResult result = getDevice().executeShellV2Command(grepCommand);
+        CommandResult result = sTestInfo.getDevice().executeShellV2Command(grepCommand);
         assertTrue(result.toString(), result.getExitCode() == 0);
         Set<String> mappedFiles = new HashSet<>();
         for (String line : result.getStdout().split("\\R")) {
@@ -137,9 +146,10 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
      * Returns the mapped artifacts of the Zygote process, or {@code Optional.empty()} if the
      * process does not exist.
      */
-    private Optional<Set<String>> getZygoteLoadedArtifacts(String zygoteName) throws Exception {
+    private static Optional<Set<String>> getZygoteLoadedArtifacts(String zygoteName)
+            throws Exception {
         final CommandResult result =
-                getDevice().executeShellV2Command("pidof " + zygoteName);
+                sTestInfo.getDevice().executeShellV2Command("pidof " + zygoteName);
         if (result.getExitCode() != 0) {
             return Optional.empty();
         }
@@ -155,9 +165,9 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         return Optional.of(getMappedArtifacts(zygotePid, grepPattern));
     }
 
-    private Set<String> getSystemServerLoadedArtifacts() throws Exception {
+    private static Set<String> getSystemServerLoadedArtifacts() throws Exception {
         final CommandResult result =
-                getDevice().executeShellV2Command("pidof system_server");
+                sTestInfo.getDevice().executeShellV2Command("pidof system_server");
         assertTrue(result.toString(), result.getExitCode() == 0);
         final String systemServerPid = result.getStdout().trim();
         assertTrue(!systemServerPid.isEmpty());
@@ -247,7 +257,7 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void verifyGeneratedArtifactsLoaded() throws Exception {
+    public void testAVerifyGeneratedArtifactsLoaded() throws Exception {
         // Checking zygote and system_server need the device have adb root to walk process maps.
         final boolean adbEnabled = getDevice().enableAdbRoot();
         assertTrue("ADB root failed and required to get process maps", adbEnabled);
@@ -264,9 +274,9 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void verifyGeneratedArtifactsLoadedAfterReboot() throws Exception {
+    public void testAVerifyGeneratedArtifactsLoadedAfterReboot() throws Exception {
         reboot();
-        verifyGeneratedArtifactsLoaded();
+        testAVerifyGeneratedArtifactsLoaded();
     }
 
     /**
@@ -367,80 +377,89 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         return parseFormattedDateTime(dateTimeStr);
     }
 
-    void assertArtifactsModifiedAfterBoot(Set<String> artifacts) throws Exception {
+    void assertArtifactsModifiedAfter(Set<String> artifacts, long timeMs) throws Exception {
         for (String artifact : artifacts) {
             long modifiedTime = getModifiedTimeMs(artifact);
             assertTrue(
                     String.format(
-                            "Artifact %s is not re-compiled. Modified time: %d, Boot time: %d",
+                            "Artifact %s is not re-compiled. Modified time: %d, Reference time: %d",
                             artifact,
                             modifiedTime,
-                            mBootTimeMs),
-                    modifiedTime > mBootTimeMs);
+                            timeMs),
+                    modifiedTime > timeMs);
         }
     }
 
-    void assertArtifactsNotModifiedAfterBoot(Set<String> artifacts) throws Exception {
+    void assertArtifactsNotModifiedAfter(Set<String> artifacts, long timeMs) throws Exception {
         for (String artifact : artifacts) {
             long modifiedTime = getModifiedTimeMs(artifact);
             assertTrue(
                     String.format(
                             "Artifact %s is unexpectedly re-compiled. " +
-                                    "Modified time: %d, Boot time: %d",
+                                    "Modified time: %d, Reference time: %d",
                             artifact,
                             modifiedTime,
-                            mBootTimeMs),
-                    modifiedTime < mBootTimeMs);
+                            timeMs),
+                    modifiedTime < timeMs);
         }
     }
 
+    // Test cases starts with `testB` check end-to-end odrefresh invocations, but without odsign,
+    // fs-verity, and ART runtime involved. Do not add tests after `testB*` cases that check
+    // fs-verity or runtime behaviors.
+
     @Test
-    public void verifyArtSamegradeUpdateTriggersCompilation() throws Exception {
+    public void testBVerifyArtSamegradeUpdateTriggersCompilation() throws Exception {
         simulateArtApexUpgrade();
         removeCompilationLogToAvoidBackoff();
+        long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsModifiedAfterBoot(mZygoteArtifacts);
-        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
+        assertArtifactsModifiedAfter(sZygoteArtifacts, timeMs);
+        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
     }
 
     @Test
-    public void verifyOtherApexSamegradeUpdateTriggersCompilation() throws Exception {
+    public void testBVerifyOtherApexSamegradeUpdateTriggersCompilation() throws Exception {
         simulateApexUpgrade();
         removeCompilationLogToAvoidBackoff();
+        long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsNotModifiedAfterBoot(mZygoteArtifacts);
-        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
+        assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
+        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
     }
 
     @Test
-    public void verifyBootClasspathOtaTriggersCompilation() throws Exception {
+    public void testBVerifyBootClasspathOtaTriggersCompilation() throws Exception {
         simulateBootClasspathOta();
         removeCompilationLogToAvoidBackoff();
+        long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsModifiedAfterBoot(mZygoteArtifacts);
-        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
+        assertArtifactsModifiedAfter(sZygoteArtifacts, timeMs);
+        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
     }
 
     @Test
-    public void verifySystemServerOtaTriggersCompilation() throws Exception {
+    public void testBVerifySystemServerOtaTriggersCompilation() throws Exception {
         simulateSystemServerOta();
         removeCompilationLogToAvoidBackoff();
+        long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsNotModifiedAfterBoot(mZygoteArtifacts);
-        assertArtifactsModifiedAfterBoot(mSystemServerArtifacts);
+        assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
+        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
     }
 
     @Test
-    public void verifyNoCompilationWhenCacheIsGood() throws Exception {
+    public void testBVerifyNoCompilationWhenCacheIsGood() throws Exception {
         removeCompilationLogToAvoidBackoff();
+        long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
-        assertArtifactsNotModifiedAfterBoot(mZygoteArtifacts);
-        assertArtifactsNotModifiedAfterBoot(mSystemServerArtifacts);
+        assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
+        assertArtifactsNotModifiedAfter(sSystemServerArtifacts, timeMs);
     }
 
     private boolean haveCompilationLog() throws Exception {
@@ -449,13 +468,14 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         return result.getExitCode() == 0;
     }
 
-    private void removeCompilationLogToAvoidBackoff() throws Exception {
-        getDevice().executeShellCommand("rm -f " + ODREFRESH_COMPILATION_LOG);
+    private static void removeCompilationLogToAvoidBackoff() throws Exception {
+        sTestInfo.getDevice().executeShellCommand("rm -f " + ODREFRESH_COMPILATION_LOG);
     }
 
-    private void reboot() throws Exception {
-        getDevice().reboot();
-        boolean success = getDevice().waitForBootComplete(BOOT_COMPLETE_TIMEOUT.toMillis());
+    private static void reboot() throws Exception {
+        sTestInfo.getDevice().reboot();
+        boolean success =
+                sTestInfo.getDevice().waitForBootComplete(BOOT_COMPLETE_TIMEOUT.toMillis());
         assertWithMessage("Device didn't boot in %s", BOOT_COMPLETE_TIMEOUT).that(success).isTrue();
     }
 }

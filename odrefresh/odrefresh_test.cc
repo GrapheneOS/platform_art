@@ -16,9 +16,17 @@
 
 #include "odrefresh.h"
 
+#include <unistd.h>
+
 #include <functional>
 #include <memory>
 #include <string_view>
+#include <vector>
+
+#include "android-base/parseint.h"
+#include "android-base/stringprintf.h"
+#include "base/stl_util.h"
+#include "odr_artifacts.h"
 
 #ifdef __ANDROID__
 #include <android/api-level.h>
@@ -57,6 +65,11 @@ void CreateEmptyFile(const std::string& name) {
   delete file;
 }
 
+android::base::ScopeGuard<std::function<void()>> ScopedCreateEmptyFile(const std::string& name) {
+  CreateEmptyFile(name);
+  return android::base::ScopeGuard([=]() { unlink(name.c_str()); });
+}
+
 android::base::ScopeGuard<std::function<void()>> ScopedSetProperty(const std::string& key,
                                                                    const std::string& value) {
   std::string old_value = android::base::GetProperty(key, /*default_value=*/{});
@@ -77,6 +90,37 @@ class MockExecUtils : public ExecUtils {
 
   MOCK_METHOD(int, DoExecAndReturnCode, (std::vector<std::string> & arg_vector), (const));
 };
+
+// Matches a flag that starts with `flag` and is a colon-separated list that contains an element
+// that matches `matcher`.
+MATCHER_P2(FlagContains, flag, matcher, "") {
+  std::string_view value = arg;
+  if (!android::base::ConsumePrefix(&value, flag)) {
+    return false;
+  }
+  for (std::string_view s : SplitString(value, ':')) {
+    if (ExplainMatchResult(matcher, s, result_listener)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Matches an FD of a file whose path matches `matcher`.
+MATCHER_P(FdOf, matcher, "") {
+  char path[PATH_MAX];
+  int fd;
+  if (!android::base::ParseInt(std::string{arg}, &fd)) {
+    return false;
+  }
+  std::string proc_path = android::base::StringPrintf("/proc/self/fd/%d", fd);
+  ssize_t len = readlink(proc_path.c_str(), path, sizeof(path));
+  if (len < 0) {
+    return false;
+  }
+  std::string path_str{path, static_cast<size_t>(len)};
+  return ExplainMatchResult(matcher, path_str, result_listener);
+}
 
 class OdRefreshTest : public CommonArtTest {
  public:
@@ -105,19 +149,19 @@ class OdRefreshTest : public CommonArtTest {
     art_apex_data_env_ = std::make_unique<ScopedUnsetEnvironmentVariable>("ART_APEX_DATA");
     setenv("ART_APEX_DATA", art_apex_data_path.c_str(), kReplace);
 
-    std::string dalvik_cache_dir = art_apex_data_path + "/dalvik-cache";
-    ASSERT_TRUE(EnsureDirectoryExists(dalvik_cache_dir));
+    dalvik_cache_dir_ = art_apex_data_path + "/dalvik-cache";
+    ASSERT_TRUE(EnsureDirectoryExists(dalvik_cache_dir_ + "/x86_64"));
 
-    std::string framework_dir = android_root_path + "/framework";
-    framework_jar_ = framework_dir + "/framework.jar";
-    location_provider_jar_ = framework_dir + "/com.android.location.provider.jar";
-    services_jar_ = framework_dir + "/services.jar";
-    std::string services_jar_prof = framework_dir + "/services.jar.prof";
+    framework_dir_ = android_root_path + "/framework";
+    framework_jar_ = framework_dir_ + "/framework.jar";
+    location_provider_jar_ = framework_dir_ + "/com.android.location.provider.jar";
+    services_jar_ = framework_dir_ + "/services.jar";
+    std::string services_jar_prof = framework_dir_ + "/services.jar.prof";
     std::string javalib_dir = android_art_root_path + "/javalib";
     std::string boot_art = javalib_dir + "/boot.art";
 
     // Create placeholder files.
-    ASSERT_TRUE(EnsureDirectoryExists(framework_dir));
+    ASSERT_TRUE(EnsureDirectoryExists(framework_dir_ + "/x86_64"));
     CreateEmptyFile(framework_jar_);
     CreateEmptyFile(location_provider_jar_);
     CreateEmptyFile(services_jar_);
@@ -133,16 +177,16 @@ class OdRefreshTest : public CommonArtTest {
     config_.SetIsa(InstructionSet::kX86_64);
     config_.SetZygoteKind(ZygoteKind::kZygote64_32);
 
-    std::string staging_dir = dalvik_cache_dir + "/staging";
+    std::string staging_dir = dalvik_cache_dir_ + "/staging";
     ASSERT_TRUE(EnsureDirectoryExists(staging_dir));
     config_.SetStagingDir(staging_dir);
 
     auto mock_exec_utils = std::make_unique<MockExecUtils>();
     mock_exec_utils_ = mock_exec_utils.get();
 
-    metrics_ = std::make_unique<OdrMetrics>(dalvik_cache_dir);
+    metrics_ = std::make_unique<OdrMetrics>(dalvik_cache_dir_);
     odrefresh_ = std::make_unique<OnDeviceRefresh>(
-        config_, dalvik_cache_dir + "/cache-info.xml", std::move(mock_exec_utils));
+        config_, dalvik_cache_dir_ + "/cache-info.xml", std::move(mock_exec_utils));
   }
 
   void TearDown() override {
@@ -166,6 +210,8 @@ class OdRefreshTest : public CommonArtTest {
   std::string framework_jar_;
   std::string location_provider_jar_;
   std::string services_jar_;
+  std::string dalvik_cache_dir_;
+  std::string framework_dir_;
 };
 
 TEST_F(OdRefreshTest, OdrefreshArtifactDirectory) {
@@ -234,6 +280,51 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilter) {
                                           Not(Contains(HasSubstr("--profile-file-fd="))),
                                           Contains("--compiler-filter=verify"))))
         .WillOnce(Return(0));
+    EXPECT_EQ(odrefresh_->Compile(
+                  *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
+              ExitCode::kCompilationSuccess);
+  }
+}
+
+TEST_F(OdRefreshTest, CompileChoosesBootImage) {
+  {
+    // Boot image is on /data.
+    OdrArtifacts artifacts =
+        OdrArtifacts::ForBootImageExtension(dalvik_cache_dir_ + "/x86_64/boot-framework.art");
+    auto file1 = ScopedCreateEmptyFile(artifacts.ImagePath());
+    auto file2 = ScopedCreateEmptyFile(artifacts.VdexPath());
+    auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
+
+    EXPECT_CALL(
+        *mock_exec_utils_,
+        DoExecAndReturnCode(AllOf(
+            Contains(FlagContains("--boot-image=", dalvik_cache_dir_ + "/boot-framework.art")),
+            Contains(FlagContains("-Xbootclasspathimagefds:", FdOf(artifacts.ImagePath()))),
+            Contains(FlagContains("-Xbootclasspathvdexfds:", FdOf(artifacts.VdexPath()))),
+            Contains(FlagContains("-Xbootclasspathoatfds:", FdOf(artifacts.OatPath()))))))
+        .Times(2)
+        .WillRepeatedly(Return(0));
+    EXPECT_EQ(odrefresh_->Compile(
+                  *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
+              ExitCode::kCompilationSuccess);
+  }
+
+  {
+    // Boot image is on /system.
+    OdrArtifacts artifacts =
+        OdrArtifacts::ForBootImageExtension(framework_dir_ + "/x86_64/boot-framework.art");
+    auto file1 = ScopedCreateEmptyFile(artifacts.ImagePath());
+    auto file2 = ScopedCreateEmptyFile(artifacts.VdexPath());
+    auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
+
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(
+                    Contains(FlagContains("--boot-image=", framework_dir_ + "/boot-framework.art")),
+                    Contains(FlagContains("-Xbootclasspathimagefds:", FdOf(artifacts.ImagePath()))),
+                    Contains(FlagContains("-Xbootclasspathvdexfds:", FdOf(artifacts.VdexPath()))),
+                    Contains(FlagContains("-Xbootclasspathoatfds:", FdOf(artifacts.OatPath()))))))
+        .Times(2)
+        .WillRepeatedly(Return(0));
     EXPECT_EQ(odrefresh_->Compile(
                   *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
               ExitCode::kCompilationSuccess);

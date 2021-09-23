@@ -349,18 +349,31 @@ bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
   return true;
 }
 
+std::string GetBootImagePath(bool on_system, const std::string& jar_path) {
+  if (on_system) {
+    const std::string jar_name = android::base::Basename(jar_path);
+    const std::string image_name = ReplaceFileExtension(jar_name, "art");
+    // Typically "/system/framework/boot-framework.art".
+    return Concatenate({GetAndroidRoot(), "/framework/boot-", image_name});
+  } else {
+    // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot-framework.art".
+    return GetApexDataBootImage(jar_path);
+  }
+}
+
 void AddCompiledBootClasspathFdsIfAny(
     /*inout*/ std::vector<std::string>& args,
     /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
     const std::vector<std::string>& bcp_jars,
-    const InstructionSet isa) {
+    const InstructionSet isa,
+    bool on_system) {
   std::vector<std::string> bcp_image_fds;
   std::vector<std::string> bcp_oat_fds;
   std::vector<std::string> bcp_vdex_fds;
   std::vector<std::unique_ptr<File>> opened_files;
   bool added_any = false;
   for (const std::string& jar : bcp_jars) {
-    std::string image_path = GetApexDataBootImage(jar);
+    std::string image_path = GetBootImagePath(on_system, jar);
     image_path = image_path.empty() ? "" : GetSystemImageFilename(image_path.c_str(), isa);
     std::unique_ptr<File> image_file(OS::OpenFileForReading(image_path.c_str()));
     if (image_file && image_file->IsValid()) {
@@ -607,15 +620,7 @@ std::vector<art_apex::Component> OnDeviceRefresh::GenerateSystemServerComponents
 std::string OnDeviceRefresh::GetBootImageExtensionImage(bool on_system) const {
   CHECK(!boot_extension_compilable_jars_.empty());
   const std::string leading_jar = boot_extension_compilable_jars_[0];
-  if (on_system) {
-    const std::string jar_name = android::base::Basename(leading_jar);
-    const std::string image_name = ReplaceFileExtension(jar_name, "art");
-    // Typically "/system/framework/boot-framework.art".
-    return Concatenate({GetAndroidRoot(), "/framework/boot-", image_name});
-  } else {
-    // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot-framework.art".
-    return GetApexDataBootImage(leading_jar);
-  }
+  return GetBootImagePath(on_system, leading_jar);
 }
 
 std::string OnDeviceRefresh::GetBootImageExtensionImagePath(bool on_system,
@@ -627,7 +632,9 @@ std::string OnDeviceRefresh::GetBootImageExtensionImagePath(bool on_system,
 std::string OnDeviceRefresh::GetSystemServerImagePath(bool on_system,
                                                       const std::string& jar_path) const {
   if (on_system) {
-    // TODO(b/194150908): Define a path for "preopted" APEX artifacts.
+    if (LocationIsOnApex(jar_path)) {
+      return GetSystemOdexFilenameForApex(jar_path, config_.GetSystemServerIsa());
+    }
     const std::string jar_name = android::base::Basename(jar_path);
     const std::string image_name = ReplaceFileExtension(jar_name, "art");
     const char* isa_str = GetInstructionSetString(config_.GetSystemServerIsa());
@@ -707,13 +714,6 @@ WARN_UNUSED bool OnDeviceRefresh::BootExtensionArtifactsExist(
 WARN_UNUSED bool OnDeviceRefresh::SystemServerArtifactsExist(bool on_system,
                                                              /*out*/ std::string* error_msg) const {
   for (const std::string& jar_path : systemserver_compilable_jars_) {
-    // Temporarily skip checking APEX jar artifacts on system to prevent compilation on the first
-    // boot. Currently, APEX jar artifacts can never be found on system because we don't preopt
-    // them.
-    // TODO(b/194150908): Preopt APEX jars for system server and put the artifacts on /system.
-    if (on_system && StartsWith(jar_path, "/apex")) {
-      continue;
-    }
     const std::string image_location = GetSystemServerImagePath(on_system, jar_path);
     const OdrArtifacts artifacts = OdrArtifacts::ForSystemServer(image_location);
     // .art files are optional and are not generated for all jars by the build system.
@@ -1466,26 +1466,19 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(const std::string
     }
     args.emplace_back("--oat-location=" + artifacts.OatPath());
 
-    if (!config_.GetUpdatableBcpPackagesFile().empty()) {
-      const std::string& bcp_packages = config_.GetUpdatableBcpPackagesFile();
-      if (!OS::FileExists(bcp_packages.c_str())) {
-        *error_msg = "Cannot compile system_server JARs: missing " + QuotePath(bcp_packages);
-        metrics.SetStatus(OdrMetrics::Status::kIoError);
-        EraseFiles(staging_files);
-        return false;
-      }
-      std::unique_ptr<File> file(OS::OpenFileForReading(bcp_packages.c_str()));
-      args.emplace_back(android::base::StringPrintf("--updatable-bcp-packages-fd=%d", file->Fd()));
-      readonly_files_raii.push_back(std::move(file));
-    }
-
     args.emplace_back("--runtime-arg");
     args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetBootClasspath()}));
     auto bcp_jars = android::base::Split(config_.GetBootClasspath(), ":");
     if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
       return false;
     }
-    AddCompiledBootClasspathFdsIfAny(args, readonly_files_raii, bcp_jars, isa);
+    std::string unused_error_msg;
+    // If the boot extension artifacts are not on /data, then boot extensions are not re-compiled
+    // and the artifacts must exist on /system.
+    bool boot_image_on_system =
+        !BootExtensionArtifactsExist(/*on_system=*/false, isa, &unused_error_msg);
+    AddCompiledBootClasspathFdsIfAny(
+        args, readonly_files_raii, bcp_jars, isa, boot_image_on_system);
 
     const std::string context_path = android::base::Join(classloader_context, ':');
     args.emplace_back(Concatenate({"--class-loader-context=PCL[", context_path, "]"}));
@@ -1504,7 +1497,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(const std::string
       const std::string context_fds = android::base::Join(fds, ':');
       args.emplace_back(Concatenate({"--class-loader-context-fds=", context_fds}));
     }
-    const std::string extension_image = GetBootImageExtensionImage(/*on_system=*/false);
+    std::string extension_image = GetBootImageExtensionImage(boot_image_on_system);
     args.emplace_back(Concatenate({"--boot-image=", GetBootImage(), ":", extension_image}));
 
     if (config_.UseCompilationOs()) {
