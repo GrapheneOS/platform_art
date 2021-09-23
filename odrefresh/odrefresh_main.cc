@@ -167,8 +167,6 @@ int InitializeHostConfig(int argc, const char** argv, OdrConfig* config) {
       config->SetIsa(art::GetInstructionSetFromString(value.c_str()));
     } else if (ArgumentMatches(arg, "--system-server-classpath=", &value)) {
       config->SetSystemServerClasspath(arg);
-    } else if (ArgumentMatches(arg, "--updatable-bcp-packages-file=", &value)) {
-      config->SetUpdatableBcpPackagesFile(value);
     } else if (ArgumentMatches(arg, "--zygote-arch=", &value)) {
       ZygoteKind zygote_kind;
       if (!ParseZygoteKind(value.c_str(), &zygote_kind)) {
@@ -196,10 +194,6 @@ int InitializeTargetConfig(int argc, const char** argv, OdrConfig* config) {
     LOG(FATAL) << "Unknown zygote: " << QuotePath(zygote);
   }
   config->SetZygoteKind(zygote_kind);
-
-  const std::string updatable_packages =
-      android::base::GetProperty("dalvik.vm.dex2oat-updatable-bcp-packages-file", {});
-  config->SetUpdatableBcpPackagesFile(updatable_packages);
 
   int n = 1;
   for (; n < argc - 1; ++n) {
