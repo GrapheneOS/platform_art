@@ -53,6 +53,12 @@ art_module_sdk {
 
     prebuilt_visibility: prebuilt_visibility,
 
+    traits: {
+        native_bridge_support: [
+            "jni_headers",
+        ],
+    },
+
     target: {
         // Both android and host linux but not windows or darwin.
         linux: {
