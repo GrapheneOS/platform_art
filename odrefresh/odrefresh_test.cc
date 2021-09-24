@@ -16,6 +16,7 @@
 
 #include "odrefresh.h"
 
+#include <sys/system_properties.h>
 #include <unistd.h>
 
 #include <functional>
@@ -24,23 +25,18 @@
 #include <vector>
 
 #include "android-base/parseint.h"
-#include "android-base/stringprintf.h"
-#include "base/stl_util.h"
-#include "odr_artifacts.h"
-
-#ifdef __ANDROID__
-#include <android/api-level.h>
-#endif
-
 #include "android-base/properties.h"
 #include "android-base/scopeguard.h"
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "arch/instruction_set.h"
 #include "base/common_art_test.h"
 #include "base/file_utils.h"
+#include "base/stl_util.h"
 #include "exec_utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "odr_artifacts.h"
 #include "odr_common.h"
 #include "odr_config.h"
 #include "odr_fs_utils.h"
@@ -222,13 +218,11 @@ TEST_F(OdRefreshTest, OdrefreshArtifactDirectory) {
 }
 
 TEST_F(OdRefreshTest, CompileSetsCompilerFilter) {
-#ifdef __ANDROID__
-  // This test depends on a system property introduced in S. Since the whole odrefresh program is
-  // for S and later, we don't need to run the test on older platforms.
-  if (android_get_device_api_level() < __ANDROID_API_S__) {
+  // This test depends on a system property that doesn't exist on old platforms. Since the whole
+  // odrefresh program is for S and later, we don't need to run the test on old platforms.
+  if (__system_property_find("dalvik.vm.systemservercompilerfilter") == nullptr) {
     return;
   }
-#endif
 
   {
     // Defaults to "speed".
