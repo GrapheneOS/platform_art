@@ -1077,6 +1077,7 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(
 
   switch (invoke->GetCodePtrLocation()) {
     case CodePtrLocation::kCallSelf:
+      DCHECK(!GetGraph()->HasShouldDeoptimizeFlag());
       __ call(&frame_entry_label_);
       RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
       break;
