@@ -149,23 +149,22 @@ struct IRTSegmentState {
 // Use as initial value for "cookie", and when table has only one segment.
 static constexpr IRTSegmentState kIRTFirstSegment = { 0 };
 
-// Try to choose kIRTPrevCount so that sizeof(IrtEntry) is a power of 2.
-// Contains multiple entries but only one active one, this helps us detect use after free errors
-// since the serial stored in the indirect ref wont match.
-static constexpr size_t kIRTPrevCount = kIsDebugBuild ? 7 : 3;
+// We associate a few bits of serial number with each reference, for error checking.
+static constexpr unsigned int kIRTSerialBits = 3;
+static constexpr uint32_t kIRTMaxSerial = ((1 << kIRTSerialBits) - 1);
 
 class IrtEntry {
  public:
   void Add(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   GcRoot<mirror::Object>* GetReference() {
-    DCHECK_LT(serial_, kIRTPrevCount);
-    return &references_[serial_];
+    DCHECK_LE(serial_, kIRTMaxSerial);
+    return &reference_;
   }
 
   const GcRoot<mirror::Object>* GetReference() const {
-    DCHECK_LT(serial_, kIRTPrevCount);
-    return &references_[serial_];
+    DCHECK_LE(serial_, kIRTMaxSerial);
+    return &reference_;
   }
 
   uint32_t GetSerial() const {
@@ -175,11 +174,10 @@ class IrtEntry {
   void SetReference(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  uint32_t serial_;
-  GcRoot<mirror::Object> references_[kIRTPrevCount];
+  uint32_t serial_;  // Incremented for each reuse; checked against reference.
+  GcRoot<mirror::Object> reference_;
 };
-static_assert(sizeof(IrtEntry) == (1 + kIRTPrevCount) * sizeof(uint32_t),
-              "Unexpected sizeof(IrtEntry)");
+static_assert(sizeof(IrtEntry) == 2 * sizeof(uint32_t), "Unexpected sizeof(IrtEntry)");
 static_assert(IsPowerOfTwo(sizeof(IrtEntry)), "Unexpected sizeof(IrtEntry)");
 
 class IrtIterator {
@@ -346,8 +344,7 @@ class IndirectReferenceTable {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  static constexpr size_t kSerialBits = MinimumBitsToStore(kIRTPrevCount);
-  static constexpr uint32_t kShiftedSerialMask = (1u << kSerialBits) - 1;
+  static constexpr uint32_t kShiftedSerialMask = (1u << kIRTSerialBits) - 1;
 
   static constexpr size_t kKindBits = MinimumBitsToStore(
       static_cast<uint32_t>(IndirectRefKind::kLastKind));
@@ -355,11 +352,11 @@ class IndirectReferenceTable {
 
   static constexpr uintptr_t EncodeIndex(uint32_t table_index) {
     static_assert(sizeof(IndirectRef) == sizeof(uintptr_t), "Unexpected IndirectRef size");
-    DCHECK_LE(MinimumBitsToStore(table_index), BitSizeOf<uintptr_t>() - kSerialBits - kKindBits);
-    return (static_cast<uintptr_t>(table_index) << kKindBits << kSerialBits);
+    DCHECK_LE(MinimumBitsToStore(table_index), BitSizeOf<uintptr_t>() - kIRTSerialBits - kKindBits);
+    return (static_cast<uintptr_t>(table_index) << kKindBits << kIRTSerialBits);
   }
   static constexpr uint32_t DecodeIndex(uintptr_t uref) {
-    return static_cast<uint32_t>((uref >> kKindBits) >> kSerialBits);
+    return static_cast<uint32_t>((uref >> kKindBits) >> kIRTSerialBits);
   }
 
   static constexpr uintptr_t EncodeIndirectRefKind(IndirectRefKind kind) {
@@ -370,7 +367,7 @@ class IndirectReferenceTable {
   }
 
   static constexpr uintptr_t EncodeSerial(uint32_t serial) {
-    DCHECK_LE(MinimumBitsToStore(serial), kSerialBits);
+    DCHECK_LE(MinimumBitsToStore(serial), kIRTSerialBits);
     return serial << kKindBits;
   }
   static constexpr uint32_t DecodeSerial(uintptr_t uref) {
