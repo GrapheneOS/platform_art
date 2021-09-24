@@ -29,7 +29,6 @@ cc_defaults {
         "odrefresh.cc",
         "odr_common.cc",
         "odr_compilation_log.cc",
-        "odr_dexopt.cc",
         "odr_fs_utils.cc",
         "odr_metrics.cc",
         "odr_metrics_record.cc",
@@ -42,7 +41,6 @@ cc_defaults {
         "art-odrefresh-operator-srcs",
     ],
     shared_libs: [
-        "artd-private-aidl-ndk",
         "libartpalette",
         "libbase",
         "liblog",
@@ -106,7 +104,6 @@ art_cc_binary {
     shared_libs: [
         "libart",
         "libartbase",
-        "libdexopt",
     ],
     apex_available: [
         "com.android.art",
@@ -127,7 +124,6 @@ art_cc_binary {
     shared_libs: [
         "libartd",
         "libartbased",
-        "libdexoptd",
     ],
     apex_available: [
         "com.android.art.debug",
@@ -180,11 +176,6 @@ art_cc_defaults {
     static_libs: [
         "libgmock",
     ],
-    target: {
-        android: {
-            compile_multilib: "first",
-        },
-    },
 }
 
 // Version of ART gtest `art_odrefresh_tests` bundled with the ART APEX on target.
@@ -198,7 +189,6 @@ art_cc_test {
     host_supported: false,
     shared_libs: [
         "libdexfiled",
-        "libdexoptd",
     ],
     test_config_template: "art_odrefresh_tests.xml",
 }
@@ -212,7 +202,6 @@ art_cc_test {
     ],
     shared_libs: [
         "libdexfile",
-        "libdexopt",
     ],
     test_config_template: "art_odrefresh_tests.xml",
 }
