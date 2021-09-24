@@ -624,10 +624,7 @@ class JvmtiMethodTraceListener final : public art::instrumentation::Instrumentat
   }
 
   // Call-back for when a method is entered.
-  void MethodEntered(art::Thread* self,
-                     art::Handle<art::mirror::Object> this_object ATTRIBUTE_UNUSED,
-                     art::ArtMethod* method,
-                     uint32_t dex_pc ATTRIBUTE_UNUSED)
+  void MethodEntered(art::Thread* self, art::ArtMethod* method)
       REQUIRES_SHARED(art::Locks::mutator_lock_) override {
     if (!method->IsRuntimeMethod() &&
         event_handler_->IsEventEnabledAnywhere(ArtJvmtiEvent::kMethodEntry)) {
