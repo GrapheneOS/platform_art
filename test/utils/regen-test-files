@@ -218,6 +218,7 @@ known_failing_tests = [
   "2033-shutdown-mechanics",
   "2036-jni-filechannel",
   "2037-thread-name-inherit",
+  "2235-JdkUnsafeTest",
   "305-other-fault-handler",
   "449-checker-bce",
   "454-get-vreg",

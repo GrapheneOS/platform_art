@@ -333,7 +333,7 @@ static ALWAYS_INLINE bool name(ShadowFrame* shadow_frame ATTRIBUTE_UNUSED, \
   return true;                                                             \
 }
 
-// The VarHandle fence methods are static (unlike sun.misc.Unsafe versions).
+// The VarHandle fence methods are static (unlike jdk.internal.misc.Unsafe versions).
 // The fences for the LoadLoadFence and StoreStoreFence are stronger
 // than strictly required, but the impact should be marginal.
 VARHANDLE_FENCE_INTRINSIC(MterpVarHandleFullFence, std::memory_order_seq_cst)
@@ -570,6 +570,32 @@ bool MterpHandleIntrinsic(ShadowFrame* shadow_frame,
     UNIMPLEMENTED_CASE(UnsafeLoadFence /* ()V */)
     UNIMPLEMENTED_CASE(UnsafeStoreFence /* ()V */)
     UNIMPLEMENTED_CASE(UnsafeFullFence /* ()V */)
+    UNIMPLEMENTED_CASE(JdkUnsafeCASInt /* (Ljava/lang/Object;JII)Z */)
+    UNIMPLEMENTED_CASE(JdkUnsafeCASLong /* (Ljava/lang/Object;JJJ)Z */)
+    UNIMPLEMENTED_CASE(JdkUnsafeCASObject /* (Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGet /* (Ljava/lang/Object;J)I */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetVolatile /* (Ljava/lang/Object;J)I */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetObject /* (Ljava/lang/Object;J)Ljava/lang/Object; */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetObjectVolatile /* (Ljava/lang/Object;J)Ljava/lang/Object; */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetLong /* (Ljava/lang/Object;J)J */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetLongVolatile /* (Ljava/lang/Object;J)J */)
+    UNIMPLEMENTED_CASE(JdkUnsafePut /* (Ljava/lang/Object;JI)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutOrdered /* (Ljava/lang/Object;JI)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutVolatile /* (Ljava/lang/Object;JI)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutObject /* (Ljava/lang/Object;JLjava/lang/Object;)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutObjectOrdered /* (Ljava/lang/Object;JLjava/lang/Object;)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutObjectVolatile /* (Ljava/lang/Object;JLjava/lang/Object;)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutLong /* (Ljava/lang/Object;JJ)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutLongOrdered /* (Ljava/lang/Object;JJ)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafePutLongVolatile /* (Ljava/lang/Object;JJ)V */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetAndAddInt /* (Ljava/lang/Object;JI)I */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetAndAddLong /* (Ljava/lang/Object;JJ)J */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetAndSetInt /* (Ljava/lang/Object;JI)I */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetAndSetLong /* (Ljava/lang/Object;JJ)J */)
+    UNIMPLEMENTED_CASE(JdkUnsafeGetAndSetObject /* (Ljava/lang/Object;JLjava/lang/Object;)Ljava/lang/Object; */)
+    UNIMPLEMENTED_CASE(JdkUnsafeLoadFence /* ()V */)
+    UNIMPLEMENTED_CASE(JdkUnsafeStoreFence /* ()V */)
+    UNIMPLEMENTED_CASE(JdkUnsafeFullFence /* ()V */)
     UNIMPLEMENTED_CASE(ReferenceGetReferent /* ()Ljava/lang/Object; */)
     UNIMPLEMENTED_CASE(ReferenceRefersTo /* (Ljava/lang/Object;)Z */)
     UNIMPLEMENTED_CASE(IntegerValueOf /* (I)Ljava/lang/Integer; */)
