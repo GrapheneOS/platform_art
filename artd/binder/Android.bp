@@ -40,6 +40,32 @@ aidl_interface {
             apex_available: [
                 "com.android.art",
                 "com.android.art.debug",
+                "com.android.compos",
+            ],
+            // TODO(b/177273468): Increment to next version when possible
+            min_sdk_version: "S",
+        },
+    },
+    unstable: true,
+    visibility: [
+        "//system/tools/aidl/build",
+        "//art:__subpackages__",
+    ],
+}
+
+aidl_interface {
+    name: "artd-private-aidl",
+    srcs: [
+        "private/**/*.aidl",
+    ],
+    host_supported: true,
+    local_include_dir: "private",
+    backend: {
+        ndk: {
+            enabled: true,
+            apex_available: [
+                "com.android.art",
+                "com.android.art.debug",
             ],
             // TODO(b/177273468): Increment to next version when possible
             min_sdk_version: "S",
