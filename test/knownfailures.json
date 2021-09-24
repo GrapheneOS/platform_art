@@ -1432,5 +1432,11 @@
         "variant": "host",
         "bug": "b/176786675",
         "description": ["Out of memory"]
+    },
+    {
+        "tests": ["2235-JdkUnsafeTest"],
+        "variant": "jvm",
+        "bug": "b/195387473",
+        "description": ["Depends on using language level 11."]
     }
 ]

@@ -913,6 +913,7 @@ cc_defaults {
         "2036-jni-filechannel/jni_filechannel.cc",
         "2037-thread-name-inherit/thread_name_inherit.cc",
         "2040-huge-native-alloc/huge_native_buf.cc",
+        "2235-JdkUnsafeTest/unsafe_test.cc",
         "common/runtime_state.cc",
         "common/stack_inspect.cc",
     ],
