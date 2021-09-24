@@ -437,14 +437,12 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
     for (auto isi = thread->GetInstrumentationStack()->rbegin(),
         end = thread->GetInstrumentationStack()->rend(); isi != end; ++isi) {
       while (ssi != visitor.shadow_stack_.rend() && (*ssi).frame_id_ < isi->second.frame_id_) {
-        instrumentation->MethodEnterEvent(thread, (*ssi).this_object_, (*ssi).method_, 0);
+        instrumentation->MethodEnterEvent(thread, (*ssi).method_);
         ++ssi;
       }
-      uint32_t dex_pc = visitor.dex_pcs_.back();
       visitor.dex_pcs_.pop_back();
       if (!isi->second.interpreter_entry_ && !isi->second.method_->IsRuntimeMethod()) {
-        instrumentation->MethodEnterEvent(
-            thread, isi->second.this_object_, isi->second.method_, dex_pc);
+        instrumentation->MethodEnterEvent(thread, isi->second.method_);
       }
     }
   }
@@ -1178,18 +1176,12 @@ const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, PointerSize poin
   return class_linker->GetQuickOatCodeFor(method);
 }
 
-void Instrumentation::MethodEnterEventImpl(Thread* thread,
-                                           ObjPtr<mirror::Object> this_object,
-                                           ArtMethod* method,
-                                           uint32_t dex_pc) const {
+void Instrumentation::MethodEnterEventImpl(Thread* thread, ArtMethod* method) const {
   DCHECK(!method->IsRuntimeMethod());
   if (HasMethodEntryListeners()) {
-    Thread* self = Thread::Current();
-    StackHandleScope<1> hs(self);
-    Handle<mirror::Object> thiz(hs.NewHandle(this_object));
     for (InstrumentationListener* listener : method_entry_listeners_) {
       if (listener != nullptr) {
-        listener->MethodEntered(thread, thiz, method, dex_pc);
+        listener->MethodEntered(thread, method);
       }
     }
   }
@@ -1382,7 +1374,7 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self,
   StackHandleScope<1> hs(self);
   Handle<mirror::Object> h_this(hs.NewHandle(this_object));
   if (!interpreter_entry) {
-    MethodEnterEvent(self, h_this.Get(), method, 0);
+    MethodEnterEvent(self, method);
     if (self->IsExceptionPending()) {
       MethodUnwindEvent(self, h_this.Get(), method, 0);
       return;
