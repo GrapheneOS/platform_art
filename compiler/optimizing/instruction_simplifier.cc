@@ -2884,6 +2884,9 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kUnsafeLoadFence:
     case Intrinsics::kUnsafeStoreFence:
     case Intrinsics::kUnsafeFullFence:
+    case Intrinsics::kJdkUnsafeLoadFence:
+    case Intrinsics::kJdkUnsafeStoreFence:
+    case Intrinsics::kJdkUnsafeFullFence:
     case Intrinsics::kVarHandleFullFence:
     case Intrinsics::kVarHandleAcquireFence:
     case Intrinsics::kVarHandleReleaseFence:
