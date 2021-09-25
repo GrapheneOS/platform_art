@@ -274,10 +274,7 @@ static inline JValue Execute(
     ArtMethod *method = shadow_frame.GetMethod();
 
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
-      instrumentation->MethodEnterEvent(self,
-                                        shadow_frame.GetThisObject(accessor.InsSize()),
-                                        method,
-                                        0);
+      instrumentation->MethodEnterEvent(self, method);
       if (UNLIKELY(shadow_frame.GetForcePopFrame())) {
         // The caller will retry this invoke or ignore the result. Just return immediately without
         // any value.

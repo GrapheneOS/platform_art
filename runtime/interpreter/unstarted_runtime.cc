@@ -1455,6 +1455,34 @@ void UnstartedRuntime::UnstartedRuntimeAvailableProcessors(
 
 void UnstartedRuntime::UnstartedUnsafeCompareAndSwapLong(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  UnstartedJdkUnsafeCompareAndSwapLong(self, shadow_frame, result, arg_offset);
+}
+
+void UnstartedRuntime::UnstartedUnsafeCompareAndSwapObject(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  UnstartedJdkUnsafeCompareAndSwapObject(self, shadow_frame, result, arg_offset);
+}
+
+void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  UnstartedJdkUnsafeGetObjectVolatile(self, shadow_frame, result, arg_offset);
+}
+
+void UnstartedRuntime::UnstartedUnsafePutObjectVolatile(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  UnstartedJdkUnsafePutObjectVolatile(self, shadow_frame, result, arg_offset);
+}
+
+void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  UnstartedJdkUnsafePutOrderedObject(self, shadow_frame, result, arg_offset);
+}
+
+void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapLong(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   // Argument 0 is the Unsafe instance, skip.
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
   if (obj == nullptr) {
@@ -1482,7 +1510,7 @@ void UnstartedRuntime::UnstartedUnsafeCompareAndSwapLong(
   result->SetZ(success ? 1 : 0);
 }
 
-void UnstartedRuntime::UnstartedUnsafeCompareAndSwapObject(
+void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapObject(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   // Argument 0 is the Unsafe instance, skip.
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
@@ -1532,7 +1560,7 @@ void UnstartedRuntime::UnstartedUnsafeCompareAndSwapObject(
   result->SetZ(success ? 1 : 0);
 }
 
-void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
+void UnstartedRuntime::UnstartedJdkUnsafeGetObjectVolatile(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
@@ -1546,7 +1574,7 @@ void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
   result->SetL(value);
 }
 
-void UnstartedRuntime::UnstartedUnsafePutObjectVolatile(
+void UnstartedRuntime::UnstartedJdkUnsafePutObjectVolatile(
     Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
@@ -1568,7 +1596,7 @@ void UnstartedRuntime::UnstartedUnsafePutObjectVolatile(
   }
 }
 
-void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
+void UnstartedRuntime::UnstartedJdkUnsafePutOrderedObject(
     Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
@@ -1901,6 +1929,50 @@ void UnstartedRuntime::UnstartedJNIThrowableNativeFillInStackTrace(
 
 void UnstartedRuntime::UnstartedJNIUnsafeCompareAndSwapInt(
     Thread* self,
+    ArtMethod* method,
+    mirror::Object* receiver,
+    uint32_t* args,
+    JValue* result) {
+  UnstartedJNIJdkUnsafeCompareAndSwapInt(self, method, receiver, args, result);
+}
+
+void UnstartedRuntime::UnstartedJNIUnsafeGetIntVolatile(Thread* self,
+                                                        ArtMethod* method,
+                                                        mirror::Object* receiver,
+                                                        uint32_t* args,
+                                                        JValue* result) {
+  UnstartedJNIJdkUnsafeGetIntVolatile(self, method, receiver, args, result);
+}
+
+void UnstartedRuntime::UnstartedJNIUnsafePutObject(Thread* self,
+                                                   ArtMethod* method,
+                                                   mirror::Object* receiver,
+                                                   uint32_t* args,
+                                                   JValue* result) {
+  UnstartedJNIJdkUnsafePutObject(self, method, receiver, args, result);
+}
+
+void UnstartedRuntime::UnstartedJNIUnsafeGetArrayBaseOffsetForComponentType(
+    Thread* self,
+    ArtMethod* method,
+    mirror::Object* receiver,
+    uint32_t* args,
+    JValue* result) {
+  UnstartedJNIJdkUnsafeGetArrayBaseOffsetForComponentType(self, method, receiver, args, result);
+}
+
+void UnstartedRuntime::UnstartedJNIUnsafeGetArrayIndexScaleForComponentType(
+    Thread* self,
+    ArtMethod* method,
+    mirror::Object* receiver,
+    uint32_t* args,
+    JValue* result) {
+  UnstartedJNIJdkUnsafeGetArrayIndexScaleForComponentType(self, method, receiver, args, result);
+}
+
+
+void UnstartedRuntime::UnstartedJNIJdkUnsafeCompareAndSwapInt(
+    Thread* self,
     ArtMethod* method ATTRIBUTE_UNUSED,
     mirror::Object* receiver ATTRIBUTE_UNUSED,
     uint32_t* args,
@@ -1934,7 +2006,7 @@ void UnstartedRuntime::UnstartedJNIUnsafeCompareAndSwapInt(
   result->SetZ(success ? JNI_TRUE : JNI_FALSE);
 }
 
-void UnstartedRuntime::UnstartedJNIUnsafeGetIntVolatile(Thread* self,
+void UnstartedRuntime::UnstartedJNIJdkUnsafeGetIntVolatile(Thread* self,
                                                         ArtMethod* method ATTRIBUTE_UNUSED,
                                                         mirror::Object* receiver ATTRIBUTE_UNUSED,
                                                         uint32_t* args,
@@ -1949,7 +2021,7 @@ void UnstartedRuntime::UnstartedJNIUnsafeGetIntVolatile(Thread* self,
   result->SetI(obj->GetField32Volatile(MemberOffset(offset)));
 }
 
-void UnstartedRuntime::UnstartedJNIUnsafePutObject(Thread* self,
+void UnstartedRuntime::UnstartedJNIJdkUnsafePutObject(Thread* self,
                                                    ArtMethod* method ATTRIBUTE_UNUSED,
                                                    mirror::Object* receiver ATTRIBUTE_UNUSED,
                                                    uint32_t* args,
@@ -1972,7 +2044,7 @@ void UnstartedRuntime::UnstartedJNIUnsafePutObject(Thread* self,
   }
 }
 
-void UnstartedRuntime::UnstartedJNIUnsafeGetArrayBaseOffsetForComponentType(
+void UnstartedRuntime::UnstartedJNIJdkUnsafeGetArrayBaseOffsetForComponentType(
     Thread* self,
     ArtMethod* method ATTRIBUTE_UNUSED,
     mirror::Object* receiver ATTRIBUTE_UNUSED,
@@ -1987,7 +2059,7 @@ void UnstartedRuntime::UnstartedJNIUnsafeGetArrayBaseOffsetForComponentType(
   result->SetI(mirror::Array::DataOffset(Primitive::ComponentSize(primitive_type)).Int32Value());
 }
 
-void UnstartedRuntime::UnstartedJNIUnsafeGetArrayIndexScaleForComponentType(
+void UnstartedRuntime::UnstartedJNIJdkUnsafeGetArrayIndexScaleForComponentType(
     Thread* self,
     ArtMethod* method ATTRIBUTE_UNUSED,
     mirror::Object* receiver ATTRIBUTE_UNUSED,
