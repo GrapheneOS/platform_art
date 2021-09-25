@@ -732,10 +732,7 @@ void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
              << " " << dex_pc;
 }
 
-void Trace::MethodEntered(Thread* thread,
-                          Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
-                          ArtMethod* method,
-                          uint32_t dex_pc ATTRIBUTE_UNUSED) {
+void Trace::MethodEntered(Thread* thread, ArtMethod* method) {
   uint32_t thread_clock_diff = 0;
   uint32_t wall_clock_diff = 0;
   ReadClocks(thread, &thread_clock_diff, &wall_clock_diff);

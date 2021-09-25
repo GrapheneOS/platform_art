@@ -319,6 +319,32 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
       case Intrinsics::kUnsafeLoadFence:
       case Intrinsics::kUnsafeStoreFence:
       case Intrinsics::kUnsafeFullFence:
+      case Intrinsics::kJdkUnsafeCASInt:
+      case Intrinsics::kJdkUnsafeCASLong:
+      case Intrinsics::kJdkUnsafeCASObject:
+      case Intrinsics::kJdkUnsafeGetAndAddInt:
+      case Intrinsics::kJdkUnsafeGetAndAddLong:
+      case Intrinsics::kJdkUnsafeGetAndSetInt:
+      case Intrinsics::kJdkUnsafeGetAndSetLong:
+      case Intrinsics::kJdkUnsafeGetAndSetObject:
+      case Intrinsics::kJdkUnsafeGetLongVolatile:
+      case Intrinsics::kJdkUnsafeGetObjectVolatile:
+      case Intrinsics::kJdkUnsafeGetVolatile:
+      case Intrinsics::kJdkUnsafePutLongOrdered:
+      case Intrinsics::kJdkUnsafePutLongVolatile:
+      case Intrinsics::kJdkUnsafePutObjectOrdered:
+      case Intrinsics::kJdkUnsafePutObjectVolatile:
+      case Intrinsics::kJdkUnsafePutOrdered:
+      case Intrinsics::kJdkUnsafePutVolatile:
+      case Intrinsics::kJdkUnsafeLoadFence:
+      case Intrinsics::kJdkUnsafeStoreFence:
+      case Intrinsics::kJdkUnsafeFullFence:
+      case Intrinsics::kJdkUnsafeGet:
+      case Intrinsics::kJdkUnsafeGetLong:
+      case Intrinsics::kJdkUnsafeGetObject:
+      case Intrinsics::kJdkUnsafePutLong:
+      case Intrinsics::kJdkUnsafePut:
+      case Intrinsics::kJdkUnsafePutObject:
         return 0u;
       case Intrinsics::kFP16Ceil:
       case Intrinsics::kFP16Compare:

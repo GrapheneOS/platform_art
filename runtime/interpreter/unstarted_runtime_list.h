@@ -75,6 +75,11 @@
   V(UnsafeGetObjectVolatile, "Lsun/misc/Unsafe;", "getObjectVolatile", "(Ljava/lang/Object;J)Ljava/lang/Object;") \
   V(UnsafePutObjectVolatile, "Lsun/misc/Unsafe;", "putObjectVolatile", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
   V(UnsafePutOrderedObject, "Lsun/misc/Unsafe;", "putOrderedObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
+  V(JdkUnsafeCompareAndSwapLong, "Ljdk/internal/misc/Unsafe;", "compareAndSwapLong", "(Ljava/lang/Object;JJJ)Z") \
+  V(JdkUnsafeCompareAndSwapObject, "Ljdk/internal/misc/Unsafe;", "compareAndSwapObject", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z") \
+  V(JdkUnsafeGetObjectVolatile, "Ljdk/internal/misc/Unsafe;", "getObjectVolatile", "(Ljava/lang/Object;J)Ljava/lang/Object;") \
+  V(JdkUnsafePutObjectVolatile, "Ljdk/internal/misc/Unsafe;", "putObjectVolatile", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
+  V(JdkUnsafePutOrderedObject, "Ljdk/internal/misc/Unsafe;", "putOrderedObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
   V(IntegerParseInt, "Ljava/lang/Integer;", "parseInt", "(Ljava/lang/String;)I") \
   V(LongParseLong, "Ljava/lang/Long;", "parseLong", "(Ljava/lang/String;)J") \
   V(SystemIdentityHashCode, "Ljava/lang/System;", "identityHashCode", "(Ljava/lang/Object;)I")
@@ -104,6 +109,11 @@
   V(UnsafePutObject, "Lsun/misc/Unsafe;", "putObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
   V(UnsafeGetArrayBaseOffsetForComponentType, "Lsun/misc/Unsafe;", "getArrayBaseOffsetForComponentType", "(Ljava/lang/Class;)I") \
   V(UnsafeGetArrayIndexScaleForComponentType, "Lsun/misc/Unsafe;", "getArrayIndexScaleForComponentType", "(Ljava/lang/Class;)I") \
+  V(JdkUnsafeCompareAndSwapInt, "Ljdk/internal/misc/Unsafe;", "compareAndSwapInt", "(Ljava/lang/Object;JII)Z") \
+  V(JdkUnsafeGetIntVolatile, "Ljdk/internal/misc/Unsafe;", "getIntVolatile", "(Ljava/lang/Object;J)I") \
+  V(JdkUnsafePutObject, "Ljdk/internal/misc/Unsafe;", "putObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
+  V(JdkUnsafeGetArrayBaseOffsetForComponentType, "Ljdk/internal/misc/Unsafe;", "getArrayBaseOffsetForComponentType", "(Ljava/lang/Class;)I") \
+  V(JdkUnsafeGetArrayIndexScaleForComponentType, "Ljdk/internal/misc/Unsafe;", "getArrayIndexScaleForComponentType", "(Ljava/lang/Class;)I") \
   V(FieldGetArtField, "Ljava/lang/reflect/Field;", "getArtField", "()J") \
   V(FieldGetNameInternal, "Ljava/lang/reflect/Field;", "getNameInternal", "()Ljava/lang/String;")
 

@@ -470,11 +470,9 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   stream.BeginMethod(32, 0, 0, 1);
 
   ArenaBitVector sp_mask(&allocator, 0, false);
-  uint32_t number_of_dex_registers = 0;
   stream.BeginStackMapEntry(0, 64 * kPcAlign, 0x3, &sp_mask);
   stream.EndStackMapEntry();
 
-  number_of_dex_registers = 1;
   stream.BeginStackMapEntry(1, 68 * kPcAlign, 0x4, &sp_mask);
   stream.AddDexRegisterEntry(Kind::kNone, 0);
   stream.EndStackMapEntry();

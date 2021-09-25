@@ -1156,6 +1156,7 @@
                   "822-hiddenapi-future",
                   "827-resolve-method",
                   "830-goto-zero",
+                  "831-unverified-bcp",
                   "999-redefine-hiddenapi",
                   "1000-non-moving-space-stress",
                   "1001-app-image-regions",
@@ -1432,5 +1433,11 @@
         "variant": "host",
         "bug": "b/176786675",
         "description": ["Out of memory"]
+    },
+    {
+        "tests": ["2235-JdkUnsafeTest"],
+        "variant": "jvm",
+        "bug": "b/195387473",
+        "description": ["Depends on using language level 11."]
     }
 ]
