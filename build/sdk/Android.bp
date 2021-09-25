@@ -57,6 +57,12 @@ art_module_sdk {
         native_bridge_support: [
             "jni_headers",
         ],
+        ramdisk_image_required: [
+            "jni_headers",
+        ],
+        recovery_image_required: [
+            "jni_headers",
+        ],
     },
 
     target: {
