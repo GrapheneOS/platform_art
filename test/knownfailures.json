@@ -520,7 +520,8 @@
             "607-daemon-stress",
             "602-deoptimizeable",
             "121-simple-suspend-check",
-            "083-compiler-regressions"
+            "083-compiler-regressions",
+            "830-goto-zero"
         ],
         "description": ["Tests that have failed on redefine stress for unknown reasons"],
         "bug": "b/73177368",
