@@ -5295,6 +5295,7 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(
 
   switch (invoke->GetCodePtrLocation()) {
     case CodePtrLocation::kCallSelf:
+      DCHECK(!GetGraph()->HasShouldDeoptimizeFlag());
       __ call(GetFrameEntryLabel());
       RecordPcInfo(invoke, invoke->GetDexPc(), slow_path);
       break;

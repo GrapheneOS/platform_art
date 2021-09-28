@@ -4639,6 +4639,7 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(
   switch (invoke->GetCodePtrLocation()) {
     case CodePtrLocation::kCallSelf:
       {
+        DCHECK(!GetGraph()->HasShouldDeoptimizeFlag());
         // Use a scope to help guarantee that `RecordPcInfo()` records the correct pc.
         ExactAssemblyScope eas(GetVIXLAssembler(),
                                kInstructionSize,
