@@ -9255,6 +9255,7 @@ void CodeGeneratorARMVIXL::GenerateStaticOrDirectCall(
   switch (invoke->GetCodePtrLocation()) {
     case CodePtrLocation::kCallSelf:
       {
+        DCHECK(!GetGraph()->HasShouldDeoptimizeFlag());
         // Use a scope to help guarantee that `RecordPcInfo()` records the correct pc.
         ExactAssemblyScope aas(GetVIXLAssembler(),
                                vixl32::k32BitT32InstructionSizeInBytes,
