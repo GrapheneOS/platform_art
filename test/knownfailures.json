@@ -1158,6 +1158,7 @@
                   "827-resolve-method",
                   "830-goto-zero",
                   "831-unverified-bcp",
+                  "831-unresolved-field",
                   "999-redefine-hiddenapi",
                   "1000-non-moving-space-stress",
                   "1001-app-image-regions",
