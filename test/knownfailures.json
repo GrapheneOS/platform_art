@@ -372,7 +372,8 @@
                   "530-checker-lse2",
                   "030-bad-finalizer",
                   "080-oom-throw",
-                  "1336-short-finalizer-timeout"],
+                  "1336-short-finalizer-timeout",
+		  "2041-bad-cleaner"],
         "bug": "http://b/36377828",
         "variant": "interp-ac"
     },
@@ -1083,6 +1084,7 @@
           "1945-proxy-method-arguments",
           "1946-list-descriptors",
           "1947-breakpoint-redefine-deopt",
+	  "2041-bad-cleaner",
           "2230-profile-save-hotness"
         ],
         "variant": "jvm",
