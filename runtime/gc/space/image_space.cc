@@ -3594,9 +3594,11 @@ bool ImageSpace::VerifyBootClassPathChecksums(std::string_view oat_checksums,
     for (uint32_t checksum : checksums) {
       std::string dex_file_checksum = StringPrintf("/%08x", checksum);
       if (!StartsWith(oat_checksums, dex_file_checksum)) {
-        *error_msg = StringPrintf("Dex checksum mismatch, expected %s to start with %s",
-                                  std::string(oat_checksums).c_str(),
-                                  dex_file_checksum.c_str());
+        *error_msg = StringPrintf(
+            "Dex checksum mismatch for bootclasspath file %s, expected %s to start with %s",
+            bcp_filename.c_str(),
+            std::string(oat_checksums).c_str(),
+            dex_file_checksum.c_str());
         return false;
       }
       oat_checksums.remove_prefix(dex_file_checksum.size());
