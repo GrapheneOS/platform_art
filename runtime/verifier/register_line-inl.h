@@ -68,7 +68,7 @@ inline bool RegisterLine::SetRegisterTypeWide(MethodVerifier* verifier, uint32_t
                                               const RegType& new_type2) {
   DCHECK_LT(vdst + 1, num_regs_);
   if (!new_type1.CheckWidePair(new_type2)) {
-    verifier->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Invalid wide pair '"
+    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Invalid wide pair '"
         << new_type1 << "' '" << new_type2 << "'";
     return false;
   } else {
