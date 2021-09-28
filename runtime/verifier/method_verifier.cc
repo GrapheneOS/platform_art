@@ -4675,7 +4675,8 @@ void MethodVerifier<kVerifierDebug>::VerifyISFieldAccess(const Instruction* inst
     // We thus modify the type if the uninitialized reference is a "this" reference (this also
     // checks at the same time that we're verifying a constructor).
     bool should_adjust = (kAccType == FieldAccessType::kAccPut) &&
-                         object_type.IsUninitializedThisReference();
+                         (object_type.IsUninitializedThisReference() ||
+                          object_type.IsUnresolvedAndUninitializedThisReference());
     const RegType& adjusted_type = should_adjust
                                        ? GetRegTypeCache()->FromUninitialized(object_type)
                                        : object_type;
@@ -4684,13 +4685,27 @@ void MethodVerifier<kVerifierDebug>::VerifyISFieldAccess(const Instruction* inst
       return;
     }
     if (should_adjust) {
+      bool illegal_field_access = false;
       if (field == nullptr) {
-        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Might be accessing a superclass instance field prior "
-                                          << "to the superclass being initialized in "
-                                          << dex_file_->PrettyMethod(dex_method_idx_);
+        const dex::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+        if (field_id.class_idx_ != GetClassDef().class_idx_) {
+          illegal_field_access = true;
+        } else {
+          ClassAccessor accessor(*dex_file_, GetClassDef());
+          illegal_field_access = (accessor.GetInstanceFields().end() ==
+              std::find_if(accessor.GetInstanceFields().begin(),
+                           accessor.GetInstanceFields().end(),
+                           [field_idx] (const ClassAccessor::Field& f) {
+                             return f.GetIndex() == field_idx;
+                           }));
+        }
       } else if (field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access superclass instance field "
-                                          << field->PrettyField() << " of a not fully initialized "
+        illegal_field_access = true;
+      }
+      if (illegal_field_access) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field "
+                                          << dex_file_->PrettyField(field_idx)
+                                          << " of a not fully initialized "
                                           << "object within the context of "
                                           << dex_file_->PrettyMethod(dex_method_idx_);
         return;
