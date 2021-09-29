@@ -144,7 +144,7 @@ inline bool RegisterLine::VerifyRegisterType(MethodVerifier* verifier, uint32_t 
     } else if (check_type.IsUnresolvedTypes() || src_type.IsUnresolvedTypes()) {
       fail_type = VERIFY_ERROR_UNRESOLVED_TYPE_CHECK;
     } else {
-      fail_type = VERIFY_ERROR_BAD_CLASS_SOFT;
+      fail_type = VERIFY_ERROR_BAD_CLASS_HARD;
     }
     verifier->Fail(fail_type) << "register v" << vsrc << " has type "
                                << src_type << " but expected " << check_type;
