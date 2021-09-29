@@ -134,7 +134,7 @@ bool InitializeCommonConfig(std::string_view argument, OdrConfig* config) {
   return false;
 }
 
-int InitializeHostConfig(int argc, const char** argv, OdrConfig* config) {
+int InitializeHostConfig(int argc, char** argv, OdrConfig* config) {
   __android_log_set_logger(__android_log_stderr_logger);
 
   std::string current_binary;
@@ -180,7 +180,7 @@ int InitializeHostConfig(int argc, const char** argv, OdrConfig* config) {
   return n;
 }
 
-int InitializeTargetConfig(int argc, const char** argv, OdrConfig* config) {
+int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
   config->SetApexInfoListFile("/apex/apex-info-list.xml");
   config->SetArtBinDir(art::GetArtBinDir());
   config->SetBootClasspath(GetEnvironmentVariableOrDie("BOOTCLASSPATH"));
@@ -208,7 +208,7 @@ int InitializeTargetConfig(int argc, const char** argv, OdrConfig* config) {
   return n;
 }
 
-int InitializeConfig(int argc, const char** argv, OdrConfig* config) {
+int InitializeConfig(int argc, char** argv, OdrConfig* config) {
   if (art::kIsTargetBuild) {
     return InitializeTargetConfig(argc, argv, config);
   } else {
@@ -218,11 +218,14 @@ int InitializeConfig(int argc, const char** argv, OdrConfig* config) {
 
 }  // namespace
 
-int main(int argc, const char** argv) {
+int main(int argc, char** argv) {
   // odrefresh is launched by `init` which sets the umask of forked processed to
   // 077 (S_IRWXG | S_IRWXO). This blocks the ability to make files and directories readable
   // by others and prevents system_server from loading generated artifacts.
   umask(S_IWGRP | S_IWOTH);
+
+  // Explicitly initialize logging (b/201042799).
+  android::base::InitLogging(argv, android::base::LogdLogger(android::base::SYSTEM));
 
   OdrConfig config(argv[0]);
   int n = InitializeConfig(argc, argv, &config);
