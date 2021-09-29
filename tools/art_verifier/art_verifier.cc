@@ -256,7 +256,6 @@ struct MethodVerifierMain : public CmdlineMain<MethodVerifierArgs> {
                                                  h_loader,
                                                  *h_klass->GetClassDef(),
                                                  runtime->GetCompilerCallbacks(),
-                                                 true,
                                                  verifier::HardFailLogMode::kLogWarning,
                                                  args_->api_level_,
                                                  &error_msg);
