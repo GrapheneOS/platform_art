@@ -1836,8 +1836,6 @@ class VerifyClassVisitor : public CompilationVisitor {
                                                &error_msg);
       switch (failure_kind) {
         case verifier::FailureKind::kHardFailure: {
-          LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
-                     << " because: " << error_msg;
           manager_->GetCompiler()->SetHadHardVerifierFailure();
           break;
         }
