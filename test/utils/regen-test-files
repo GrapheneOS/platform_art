@@ -213,7 +213,6 @@ known_failing_tests = [
   #           at Main.main(Main.java:56)
   #
   "2040-huge-native-alloc",
-  "2041-bad-cleaner",
   "203-multi-checkpoint",
   "2031-zygote-compiled-frame-deopt",
   "2033-shutdown-mechanics",

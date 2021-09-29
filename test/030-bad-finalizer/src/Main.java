@@ -54,7 +54,6 @@ public class Main {
                 try {
                     args.wait(remainingWait);
                 } catch (Exception e) {
-                    System.out.println("UNEXPECTED EXCEPTION");
                 }
             }
             remainingWait = timeout - (System.currentTimeMillis() - waitStart);
@@ -93,13 +92,14 @@ public class Main {
         protected void finalize() {
             finalizerWait.countDown();
 
-            System.out.println("Finalizer started and sleeping briefly...");
+            System.out.println("Finalizer started and spinning...");
 
+            /* spin for a bit */
             long start, end;
             start = System.nanoTime();
             snooze(2000);
             end = System.nanoTime();
-            System.out.println("Finalizer done snoozing.");
+            System.out.println("Finalizer done spinning.");
 
             System.out.println("Finalizer sleeping forever now.");
             while (true) {
