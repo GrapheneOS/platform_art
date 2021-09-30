@@ -675,13 +675,6 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     return cha_single_implementation_list_;
   }
 
-  // In case of OSR we intend to use SuspendChecks as an entry point to the
-  // function; for debuggable graphs we might deoptimize to interpreter from
-  // SuspendChecks. In these cases we shouldn't remove them.
-  bool SuspendChecksAreAllowedToBeRemoved() const {
-    return !IsDebuggable() && !IsCompilingOsr();
-  }
-
   void AddCHASingleImplementationDependency(ArtMethod* method) {
     cha_single_implementation_list_.insert(method);
   }
