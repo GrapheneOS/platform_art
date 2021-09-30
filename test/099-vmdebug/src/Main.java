@@ -35,6 +35,9 @@ public class Main {
         testCountInstances();
         testRuntimeStat();
         testRuntimeStats();
+        testGetAllocCount();
+        testGetVmFeatureList();
+        testDebuggerDetails();
     }
 
     private static File createTempFile() throws Exception {
@@ -117,9 +120,22 @@ public class Main {
             System.out.println("Got expected exception");
         }
 
+        try {
+            VMDebug.startMethodTracingDdms(1000, 0, false, 0);
+            System.out.println("Should have thrown an exception");
+        } catch (Exception e) {
+            System.out.println("Got expected exception");
+        }
+
         System.out.println("Test sampling with bogus (<= 0) interval");
         try {
             VMDebug.startMethodTracing(tempFileName, 0, 0, true, 0);
+            System.out.println("Should have thrown an exception");
+        } catch (Exception e) {
+            System.out.println("Got expected exception");
+        }
+        try {
+            VMDebug.startMethodTracingDdms(0, 0, true, 0);
             System.out.println("Should have thrown an exception");
         } catch (Exception e) {
             System.out.println("Got expected exception");
@@ -136,6 +152,18 @@ public class Main {
         long n = Long.parseLong(s);
         if (n < 0) {
             System.out.println("Got negative number " + n);
+        }
+    }
+
+    private static void checkBiggerThanZero(int i) throws Exception {
+        if (i <= 0) {
+            System.out.println("Got zero or smaller  " + i);
+        }
+    }
+
+    private static void checkZero(int i) throws Exception {
+        if (i != 0) {
+            System.out.println("Got non-zero result after reset " + i);
         }
     }
 
@@ -224,6 +252,67 @@ public class Main {
         checkHistogram(blocking_gc_count_rate_histogram);
     }
 
+    /* constants for getAllocCount */
+    private static final int KIND_ALLOCATED_OBJECTS     = 1<<0;
+    private static final int KIND_ALLOCATED_BYTES       = 1<<1;
+    private static final int KIND_FREED_OBJECTS         = 1<<2;
+    private static final int KIND_FREED_BYTES           = 1<<3;
+    private static final int RESET_ALL       = 0xffffffff;
+
+    private static void testGetAllocCount() throws Exception {
+        VMDebug.startAllocCounting();
+
+        ClassA a1 = new ClassA();
+        Object obj1 = new Object();
+        Runtime.getRuntime().gc();
+
+        int alloc_objects = VMDebug.getAllocCount(KIND_ALLOCATED_OBJECTS);
+        int alloc_bytes = VMDebug.getAllocCount(KIND_ALLOCATED_BYTES);
+        int freed_objects = VMDebug.getAllocCount(KIND_FREED_OBJECTS);
+        int freed_bytes = VMDebug.getAllocCount(KIND_FREED_BYTES);
+        checkBiggerThanZero(alloc_objects);
+        checkBiggerThanZero(alloc_bytes);
+        checkBiggerThanZero(freed_objects);
+        checkBiggerThanZero(freed_bytes);
+
+        VMDebug.stopAllocCounting();
+        VMDebug.resetAllocCount(RESET_ALL);
+        checkZero(VMDebug.getAllocCount(KIND_ALLOCATED_OBJECTS));
+        checkZero(VMDebug.getAllocCount(KIND_ALLOCATED_BYTES));
+        checkZero(VMDebug.getAllocCount(KIND_FREED_OBJECTS));
+        checkZero(VMDebug.getAllocCount(KIND_FREED_BYTES));
+
+        // Even if we create new classes the count should remain 0.
+        ClassA a2 = new ClassA();
+        Object obj2 = new Object();
+
+        checkZero(VMDebug.getAllocCount(KIND_ALLOCATED_OBJECTS));
+    }
+
+    private static void testGetVmFeatureList() throws Exception {
+        String[] feature_list = VMDebug.getVmFeatureList();
+        if (feature_list.length == 0) {
+            System.out.println("Got empty feature list");
+        }
+    }
+
+    private static void testDebuggerDetails() throws Exception {
+        boolean debugger_connected = VMDebug.isDebuggerConnected();
+        boolean debugging_enabled = VMDebug.isDebuggingEnabled();
+        long last_activity = VMDebug.lastDebuggerActivity();
+        if (debugger_connected && last_activity < 0) {
+            System.out.println("Last debugging activity expected but not found");
+        }
+        if (!debugger_connected && last_activity != -1) {
+            System.out.println("Found unexpected last activity");
+        }
+        if (VMDebug.threadCpuTimeNanos() <= 0) {
+            System.out.println("Could not get CPU thread time");
+        }
+        VMDebug.dumpHprofDataDdms();
+        VMDebug.dumpReferenceTables();
+    }
+
     static class ClassA { }
     static class ClassB { }
     static class ClassC extends ClassA { }
@@ -247,6 +336,8 @@ public class Main {
         System.out.println("Array counts " + Arrays.toString(counts));
         counts = VMDebug.countInstancesofClasses(classes, true);
         System.out.println("Array counts assignable " + Arrays.toString(counts));
+        int class_count = VMDebug.getLoadedClassCount();
+        checkBiggerThanZero(class_count);
     }
 
     static class ClassD {
@@ -265,16 +356,32 @@ public class Main {
 
     private static class VMDebug {
         private static final Method startMethodTracingMethod;
+        private static final Method startMethodTracingDdmsMethod;
         private static final Method stopMethodTracingMethod;
         private static final Method getMethodTracingModeMethod;
         private static final Method getRuntimeStatMethod;
         private static final Method getRuntimeStatsMethod;
         private static final Method countInstancesOfClassMethod;
         private static final Method countInstancesOfClassesMethod;
+        private static final Method getAllocCountMethod;
+        private static final Method startAllocCountingMethod;
+        private static final Method stopAllocCountingMethod;
+        private static final Method setAllocTrackerStackDepthMethod;
+        private static final Method resetAllocCountMethod;
+        private static final Method getLoadedClassCountMethod;
+        private static final Method getVmFeatureListMethod;
+        private static final Method isDebuggerConnectedMethod;
+        private static final Method isDebuggingEnabledMethod;
+        private static final Method lastDebuggerActivityMethod;
+        private static final Method threadCpuTimeNanosMethod;
+        private static final Method dumpHprofDataDdmsMethod;
+        private static final Method dumpReferenceTablesMethod;
         static {
             try {
                 Class<?> c = Class.forName("dalvik.system.VMDebug");
                 startMethodTracingMethod = c.getDeclaredMethod("startMethodTracing", String.class,
+                        Integer.TYPE, Integer.TYPE, Boolean.TYPE, Integer.TYPE);
+                startMethodTracingDdmsMethod = c.getDeclaredMethod("startMethodTracingDdms",
                         Integer.TYPE, Integer.TYPE, Boolean.TYPE, Integer.TYPE);
                 stopMethodTracingMethod = c.getDeclaredMethod("stopMethodTracing");
                 getMethodTracingModeMethod = c.getDeclaredMethod("getMethodTracingMode");
@@ -284,6 +391,22 @@ public class Main {
                         Class.class, Boolean.TYPE);
                 countInstancesOfClassesMethod = c.getDeclaredMethod("countInstancesOfClasses",
                         Class[].class, Boolean.TYPE);
+                getAllocCountMethod = c.getDeclaredMethod("getAllocCount",
+                        Integer.TYPE);
+                startAllocCountingMethod = c.getDeclaredMethod("startAllocCounting");
+                stopAllocCountingMethod = c.getDeclaredMethod("stopAllocCounting");
+                setAllocTrackerStackDepthMethod = c.getDeclaredMethod("setAllocTrackerStackDepth",
+                        Integer.TYPE);
+                resetAllocCountMethod = c.getDeclaredMethod("resetAllocCount",
+                        Integer.TYPE);
+                getLoadedClassCountMethod = c.getDeclaredMethod("getLoadedClassCount");
+                getVmFeatureListMethod = c.getDeclaredMethod("getVmFeatureList");
+                isDebuggerConnectedMethod = c.getDeclaredMethod("isDebuggerConnected");
+                isDebuggingEnabledMethod = c.getDeclaredMethod("isDebuggingEnabled");
+                lastDebuggerActivityMethod = c.getDeclaredMethod("lastDebuggerActivity");
+                threadCpuTimeNanosMethod = c.getDeclaredMethod("threadCpuTimeNanos");
+                dumpHprofDataDdmsMethod = c.getDeclaredMethod("dumpHprofDataDdms");
+                dumpReferenceTablesMethod = c.getDeclaredMethod("dumpReferenceTables");
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -292,6 +415,11 @@ public class Main {
         public static void startMethodTracing(String filename, int bufferSize, int flags,
                 boolean samplingEnabled, int intervalUs) throws Exception {
             startMethodTracingMethod.invoke(null, filename, bufferSize, flags, samplingEnabled,
+                    intervalUs);
+        }
+        public static void startMethodTracingDdms(int bufferSize, int flags,
+                boolean samplingEnabled, int intervalUs) throws Exception {
+            startMethodTracingDdmsMethod.invoke(null, bufferSize, flags, samplingEnabled,
                     intervalUs);
         }
         public static void stopMethodTracing() throws Exception {
@@ -313,6 +441,45 @@ public class Main {
                 throws Exception {
             return (long[]) countInstancesOfClassesMethod.invoke(
                     null, new Object[]{classes, assignable});
+        }
+        public static int getAllocCount(Integer kind) throws Exception {
+            return (int) getAllocCountMethod.invoke(null, kind);
+        }
+        public static void startAllocCounting() throws Exception {
+            startAllocCountingMethod.invoke(null);
+        }
+        public static void stopAllocCounting() throws Exception {
+            stopAllocCountingMethod.invoke(null);
+        }
+        public static void setAllocTrackerStackDepth(Integer stackDepth) throws Exception {
+            setAllocTrackerStackDepthMethod.invoke(null, stackDepth);
+        }
+        public static void resetAllocCount(Integer kind) throws Exception {
+            resetAllocCountMethod.invoke(null, kind);
+        }
+        public static int getLoadedClassCount() throws Exception {
+            return (int) getLoadedClassCountMethod.invoke(null);
+        }
+        public static String[] getVmFeatureList() throws Exception {
+            return (String[]) getVmFeatureListMethod.invoke(null);
+        }
+        public static boolean isDebuggerConnected() throws Exception {
+            return (boolean) isDebuggerConnectedMethod.invoke(null);
+        }
+        public static boolean isDebuggingEnabled() throws Exception {
+            return (boolean) isDebuggingEnabledMethod.invoke(null);
+        }
+        public static long lastDebuggerActivity() throws Exception {
+            return (long) lastDebuggerActivityMethod.invoke(null);
+        }
+        public static long threadCpuTimeNanos() throws Exception {
+            return (long) threadCpuTimeNanosMethod.invoke(null);
+        }
+        public static void dumpHprofDataDdms() throws Exception {
+            dumpHprofDataDdmsMethod.invoke(null);
+        }
+        public static void dumpReferenceTables() throws Exception {
+            dumpReferenceTablesMethod.invoke(null);
         }
     }
 }

@@ -15,7 +15,9 @@ Test tracing with empty filename
 Got expected exception
 Test tracing with bogus (< 1024 && != 0) filesize
 Got expected exception
+Got expected exception
 Test sampling with bogus (<= 0) interval
+Got expected exception
 Got expected exception
 Instances of ClassA 2
 Instances of ClassB 1
