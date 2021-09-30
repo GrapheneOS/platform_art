@@ -343,6 +343,7 @@ Heap::Heap(size_t initial_size,
       old_native_bytes_allocated_(0),
       native_objects_notified_(0),
       num_bytes_freed_revoke_(0),
+      num_bytes_alive_after_gc_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(verify_pre_gc_heap),
@@ -2741,6 +2742,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(collector, bytes_allocated_before_gc);
   old_native_bytes_allocated_.store(GetNativeBytes());
+  num_bytes_alive_after_gc_ = bytes_allocated_before_gc - current_gc_iteration_.GetFreedBytes();
   LogGC(gc_cause, collector);
   FinishGC(self, gc_type);
   // Actually enqueue all cleared references. Do this after the GC has officially finished since
@@ -3873,6 +3875,16 @@ void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint
     // For CC, we invoke a full compaction when going to the background, but the collector type
     // doesn't change.
     DCHECK_EQ(desired_collector_type_, kCollectorTypeCCBackground);
+    // App's allocations (since last GC) more than the threshold then do TransitionGC
+    // when the app was in background. If not then don't do TransitionGC.
+    size_t num_bytes_allocated_since_gc = GetBytesAllocated() - num_bytes_alive_after_gc_;
+    if (num_bytes_allocated_since_gc <
+        (UnsignedDifference(target_footprint_.load(std::memory_order_relaxed),
+                            num_bytes_alive_after_gc_)/4)
+        && !kStressCollectorTransition
+        && !IsLowMemoryMode()) {
+      return;
+    }
   }
   DCHECK_NE(collector_type_, kCollectorTypeCCBackground);
   CollectorTransitionTask* added_task = nullptr;
