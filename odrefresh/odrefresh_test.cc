@@ -22,7 +22,6 @@
 #include <functional>
 #include <memory>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "android-base/parseint.h"
@@ -40,35 +39,24 @@
 #include "odr_artifacts.h"
 #include "odr_common.h"
 #include "odr_config.h"
-#include "odr_dexopt.h"
 #include "odr_fs_utils.h"
 #include "odr_metrics.h"
 #include "odrefresh/odrefresh.h"
-
-#include "aidl/com/android/art/CompilerFilter.h"
-#include "aidl/com/android/art/DexoptBcpExtArgs.h"
-#include "aidl/com/android/art/DexoptSystemServerArgs.h"
-#include "aidl/com/android/art/Isa.h"
 
 namespace art {
 namespace odrefresh {
 
 using ::testing::AllOf;
 using ::testing::Contains;
-using ::testing::Eq;
-using ::testing::Field;
-using ::testing::Ge;
+using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::Return;
-using aidl::com::android::art::CompilerFilter;
-using aidl::com::android::art::DexoptBcpExtArgs;
-using aidl::com::android::art::DexoptSystemServerArgs;
-using aidl::com::android::art::Isa;
 
 constexpr int kReplace = 1;
 
 void CreateEmptyFile(const std::string& name) {
   File* file = OS::CreateEmptyFile(name.c_str());
-  ASSERT_TRUE(file != nullptr) << "Cannot create file " << name;
+  ASSERT_TRUE(file != nullptr);
   file->Release();
   delete file;
 }
@@ -85,32 +73,42 @@ android::base::ScopeGuard<std::function<void()>> ScopedSetProperty(const std::st
   return android::base::ScopeGuard([=]() { android::base::SetProperty(key, old_value); });
 }
 
-class MockOdrDexopt : public OdrDexopt {
+class MockExecUtils : public ExecUtils {
  public:
   // A workaround to avoid MOCK_METHOD on a method with an `std::string*` parameter, which will lead
   // to a conflict between gmock and android-base/logging.h (b/132668253).
-  int DexoptBcpExtension(const DexoptBcpExtArgs& args,
-                         time_t,
-                         bool*,
-                         std::string*) override {
-    return DoDexoptBcpExtension(args);
+  int ExecAndReturnCode(std::vector<std::string>& arg_vector,
+                        time_t,
+                        bool*,
+                        std::string*) const override {
+    return DoExecAndReturnCode(arg_vector);
   }
 
-  int DexoptSystemServer(const DexoptSystemServerArgs& args,
-                         time_t,
-                         bool*,
-                         std::string*) override {
-    return DoDexoptSystemServer(args);
-  }
-
-  MOCK_METHOD(int, DoDexoptBcpExtension, (const DexoptBcpExtArgs&));
-  MOCK_METHOD(int, DoDexoptSystemServer, (const DexoptSystemServerArgs&));
+  MOCK_METHOD(int, DoExecAndReturnCode, (std::vector<std::string> & arg_vector), (const));
 };
+
+// Matches a flag that starts with `flag` and is a colon-separated list that contains an element
+// that matches `matcher`.
+MATCHER_P2(FlagContains, flag, matcher, "") {
+  std::string_view value = arg;
+  if (!android::base::ConsumePrefix(&value, flag)) {
+    return false;
+  }
+  for (std::string_view s : SplitString(value, ':')) {
+    if (ExplainMatchResult(matcher, s, result_listener)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // Matches an FD of a file whose path matches `matcher`.
 MATCHER_P(FdOf, matcher, "") {
   char path[PATH_MAX];
-  int fd = arg;
+  int fd;
+  if (!android::base::ParseInt(std::string{arg}, &fd)) {
+    return false;
+  }
   std::string proc_path = android::base::StringPrintf("/proc/self/fd/%d", fd);
   ssize_t len = readlink(proc_path.c_str(), path, sizeof(path));
   if (len < 0) {
@@ -150,11 +148,6 @@ class OdRefreshTest : public CommonArtTest {
     dalvik_cache_dir_ = art_apex_data_path + "/dalvik-cache";
     ASSERT_TRUE(EnsureDirectoryExists(dalvik_cache_dir_ + "/x86_64"));
 
-    std::string system_etc_dir = Concatenate({android_root_path, "/etc"});
-    ASSERT_TRUE(EnsureDirectoryExists(system_etc_dir));
-    boot_profile_file_ = system_etc_dir + "/boot-image.prof";
-    CreateEmptyFile(boot_profile_file_);
-
     framework_dir_ = android_root_path + "/framework";
     framework_jar_ = framework_dir_ + "/framework.jar";
     location_provider_jar_ = framework_dir_ + "/com.android.location.provider.jar";
@@ -184,7 +177,12 @@ class OdRefreshTest : public CommonArtTest {
     ASSERT_TRUE(EnsureDirectoryExists(staging_dir));
     config_.SetStagingDir(staging_dir);
 
+    auto mock_exec_utils = std::make_unique<MockExecUtils>();
+    mock_exec_utils_ = mock_exec_utils.get();
+
     metrics_ = std::make_unique<OdrMetrics>(dalvik_cache_dir_);
+    odrefresh_ = std::make_unique<OnDeviceRefresh>(
+        config_, dalvik_cache_dir_ + "/cache-info.xml", std::move(mock_exec_utils));
   }
 
   void TearDown() override {
@@ -197,27 +195,19 @@ class OdRefreshTest : public CommonArtTest {
     CommonArtTest::TearDown();
   }
 
-  std::pair<std::unique_ptr<OnDeviceRefresh>, MockOdrDexopt*> CreateOdRefresh() {
-    auto mock_odr_dexopt = std::make_unique<MockOdrDexopt>();
-    MockOdrDexopt* mock_odr_dexopt_ptr = mock_odr_dexopt.get();
-    auto odrefresh = std::make_unique<OnDeviceRefresh>(
-        config_, dalvik_cache_dir_ + "/cache-info.xml", std::make_unique<ExecUtils>(),
-        std::move(mock_odr_dexopt));
-    return std::make_pair(std::move(odrefresh), mock_odr_dexopt_ptr);
-  }
-
   std::unique_ptr<ScratchDir> temp_dir_;
   std::unique_ptr<ScopedUnsetEnvironmentVariable> android_root_env_;
   std::unique_ptr<ScopedUnsetEnvironmentVariable> android_art_root_env_;
   std::unique_ptr<ScopedUnsetEnvironmentVariable> art_apex_data_env_;
   OdrConfig config_;
+  MockExecUtils* mock_exec_utils_;
   std::unique_ptr<OdrMetrics> metrics_;
+  std::unique_ptr<OnDeviceRefresh> odrefresh_;
   std::string framework_jar_;
   std::string location_provider_jar_;
   std::string services_jar_;
   std::string dalvik_cache_dir_;
   std::string framework_dir_;
-  std::string boot_profile_file_;
 };
 
 TEST_F(OdRefreshTest, OdrefreshArtifactDirectory) {
@@ -235,116 +225,63 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilter) {
   }
 
   {
-    auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
-
-    // Test setup: default compiler filter should be "speed".
-    auto guard = ScopedSetProperty("dalvik.vm.systemservercompilerfilter", "");
-
+    // Defaults to "speed".
     EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::dexPath, Eq(location_provider_jar_)),
-            Field(&DexoptSystemServerArgs::compilerFilter, Eq(CompilerFilter::SPEED)))))
-      .WillOnce(Return(0))
-      .RetiresOnSaturation();
-    EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::dexPath, Eq(services_jar_)),
-            Field(&DexoptSystemServerArgs::compilerFilter, Eq(CompilerFilter::SPEED)))))
-      .WillOnce(Return(0))
-      .RetiresOnSaturation();
-    EXPECT_EQ(odrefresh->Compile(
+        *mock_exec_utils_,
+        DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", location_provider_jar_})),
+                                  Not(Contains(HasSubstr("--profile-file-fd="))),
+                                  Contains("--compiler-filter=speed"))))
+        .WillOnce(Return(0));
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
+                                          Not(Contains(HasSubstr("--profile-file-fd="))),
+                                          Contains("--compiler-filter=speed"))))
+        .WillOnce(Return(0));
+    EXPECT_EQ(odrefresh_->Compile(
                   *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
               ExitCode::kCompilationSuccess);
   }
 
   {
-    auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
-
-    // Test setup: with "speed-profile" compiler filter in the request, only apply if there is a
-    // profile, otherwise fallback to speed.
     auto guard = ScopedSetProperty("dalvik.vm.systemservercompilerfilter", "speed-profile");
-
     // services.jar has a profile, while location.provider.jar does not.
     EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::dexPath, Eq(services_jar_)),
-            Field(&DexoptSystemServerArgs::profileFd, Ge(0)),
-            Field(&DexoptSystemServerArgs::compilerFilter, Eq(CompilerFilter::SPEED_PROFILE)))))
-      .WillOnce(Return(0))
-      .RetiresOnSaturation();
-    EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::dexPath, Eq(location_provider_jar_)),
-            Field(&DexoptSystemServerArgs::compilerFilter, Eq(CompilerFilter::SPEED)))))
-      .WillOnce(Return(0))
-      .RetiresOnSaturation();
-    EXPECT_EQ(odrefresh->Compile(
+        *mock_exec_utils_,
+        DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", location_provider_jar_})),
+                                  Not(Contains(HasSubstr("--profile-file-fd="))),
+                                  Contains("--compiler-filter=speed"))))
+        .WillOnce(Return(0));
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
+                                          Contains(HasSubstr("--profile-file-fd=")),
+                                          Contains("--compiler-filter=speed-profile"))))
+        .WillOnce(Return(0));
+    EXPECT_EQ(odrefresh_->Compile(
                   *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
               ExitCode::kCompilationSuccess);
   }
 
   {
-    auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
-
-    // Test setup: "verify" compiler filter should be simply applied.
     auto guard = ScopedSetProperty("dalvik.vm.systemservercompilerfilter", "verify");
-
     EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::dexPath, Eq(location_provider_jar_)),
-            Field(&DexoptSystemServerArgs::compilerFilter, Eq(CompilerFilter::VERIFY)))))
-      .WillOnce(Return(0))
-      .RetiresOnSaturation();
-    EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::dexPath, Eq(services_jar_)),
-            Field(&DexoptSystemServerArgs::compilerFilter, Eq(CompilerFilter::VERIFY)))))
-      .WillOnce(Return(0))
-      .RetiresOnSaturation();
-    EXPECT_EQ(odrefresh->Compile(
+        *mock_exec_utils_,
+        DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", location_provider_jar_})),
+                                  Not(Contains(HasSubstr("--profile-file-fd="))),
+                                  Contains("--compiler-filter=verify"))))
+        .WillOnce(Return(0));
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
+                                          Not(Contains(HasSubstr("--profile-file-fd="))),
+                                          Contains("--compiler-filter=verify"))))
+        .WillOnce(Return(0));
+    EXPECT_EQ(odrefresh_->Compile(
                   *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
               ExitCode::kCompilationSuccess);
   }
-}
-
-TEST_F(OdRefreshTest, OutputFilesAndIsa) {
-  auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
-
-  EXPECT_CALL(
-      *mock_odr_dexopt,
-      DoDexoptBcpExtension(AllOf(
-          Field(&DexoptBcpExtArgs::isa, Eq(Isa::X86_64)),
-          Field(&DexoptBcpExtArgs::imageFd, Ge(0)),
-          Field(&DexoptBcpExtArgs::vdexFd, Ge(0)),
-          Field(&DexoptBcpExtArgs::oatFd, Ge(0)))))
-      .WillOnce(Return(0));
-
-  EXPECT_CALL(
-      *mock_odr_dexopt,
-      DoDexoptSystemServer(AllOf(
-          Field(&DexoptSystemServerArgs::isa, Eq(Isa::X86_64)),
-          Field(&DexoptSystemServerArgs::imageFd, Ge(0)),
-          Field(&DexoptSystemServerArgs::vdexFd, Ge(0)),
-          Field(&DexoptSystemServerArgs::oatFd, Ge(0)))))
-      .Times(2)
-      .WillRepeatedly(Return(0));
-
-  EXPECT_EQ(odrefresh->Compile(*metrics_,
-                                /*compile_boot_extensions=*/{InstructionSet::kX86_64},
-                                /*compile_system_server=*/true),
-            ExitCode::kCompilationSuccess);
 }
 
 TEST_F(OdRefreshTest, CompileChoosesBootImage) {
   {
-    auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
-
     // Boot image is on /data.
     OdrArtifacts artifacts =
         OdrArtifacts::ForBootImageExtension(dalvik_cache_dir_ + "/x86_64/boot-framework.art");
@@ -353,25 +290,20 @@ TEST_F(OdRefreshTest, CompileChoosesBootImage) {
     auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
 
     EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::isBootImageOnSystem, Eq(false)),
-            Field(&DexoptSystemServerArgs::bootClasspathImageFds,
-                  Contains(FdOf(artifacts.ImagePath()))),
-            Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
-                  Contains(FdOf(artifacts.VdexPath()))),
-            Field(&DexoptSystemServerArgs::bootClasspathOatFds,
-                  Contains(FdOf(artifacts.OatPath()))))))
+        *mock_exec_utils_,
+        DoExecAndReturnCode(AllOf(
+            Contains(FlagContains("--boot-image=", dalvik_cache_dir_ + "/boot-framework.art")),
+            Contains(FlagContains("-Xbootclasspathimagefds:", FdOf(artifacts.ImagePath()))),
+            Contains(FlagContains("-Xbootclasspathvdexfds:", FdOf(artifacts.VdexPath()))),
+            Contains(FlagContains("-Xbootclasspathoatfds:", FdOf(artifacts.OatPath()))))))
         .Times(2)
         .WillRepeatedly(Return(0));
-    EXPECT_EQ(odrefresh->Compile(
+    EXPECT_EQ(odrefresh_->Compile(
                   *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
               ExitCode::kCompilationSuccess);
   }
 
   {
-    auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
-
     // Boot image is on /system.
     OdrArtifacts artifacts =
         OdrArtifacts::ForBootImageExtension(framework_dir_ + "/x86_64/boot-framework.art");
@@ -379,19 +311,15 @@ TEST_F(OdRefreshTest, CompileChoosesBootImage) {
     auto file2 = ScopedCreateEmptyFile(artifacts.VdexPath());
     auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
 
-    EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(
-            Field(&DexoptSystemServerArgs::isBootImageOnSystem, Eq(true)),
-            Field(&DexoptSystemServerArgs::bootClasspathImageFds,
-                  Contains(FdOf(artifacts.ImagePath()))),
-            Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
-                  Contains(FdOf(artifacts.VdexPath()))),
-            Field(&DexoptSystemServerArgs::bootClasspathOatFds,
-                  Contains(FdOf(artifacts.OatPath()))))))
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(
+                    Contains(FlagContains("--boot-image=", framework_dir_ + "/boot-framework.art")),
+                    Contains(FlagContains("-Xbootclasspathimagefds:", FdOf(artifacts.ImagePath()))),
+                    Contains(FlagContains("-Xbootclasspathvdexfds:", FdOf(artifacts.VdexPath()))),
+                    Contains(FlagContains("-Xbootclasspathoatfds:", FdOf(artifacts.OatPath()))))))
         .Times(2)
         .WillRepeatedly(Return(0));
-    EXPECT_EQ(odrefresh->Compile(
+    EXPECT_EQ(odrefresh_->Compile(
                   *metrics_, /*compile_boot_extensions=*/{}, /*compile_system_server=*/true),
               ExitCode::kCompilationSuccess);
   }
