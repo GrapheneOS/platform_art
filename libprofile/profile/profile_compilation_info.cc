@@ -410,7 +410,7 @@ class ProfileCompilationInfo::SafeBuffer {
         ptr_end_(nullptr) {}
 
   explicit SafeBuffer(size_t size)
-      : storage_(new uint8_t[size]),
+      : storage_(new uint8_t[size]()),
         ptr_current_(storage_.get()),
         ptr_end_(ptr_current_ + size) {}
 
