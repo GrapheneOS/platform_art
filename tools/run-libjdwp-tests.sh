@@ -133,6 +133,11 @@ else
 fi
 
 expect_path=$PWD/art/tools/external_oj_libjdwp_art_failures.txt
+
+if [[ "$debug" = "yes" && "$has_gcstress" = "yes" ]]; then
+  expect_path=$expect_path:$PWD/art/tools/external_oj_libjdwp_art_gcstress_debug_failures.txt
+fi
+
 function verbose_run() {
   echo "$@"
   env "$@"
