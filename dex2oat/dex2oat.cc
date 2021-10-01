@@ -115,6 +115,8 @@ namespace dex2oat {
     kNoFailure = 0,          // No failure, execution completed successfully.
     kOther = 1,              // Some other not closer specified error occurred.
     kCreateRuntime = 2,      // Dex2oat failed creating a runtime.
+
+    // 128-255 are reserved and won't returned by dex2oat.
   };
 }  // namespace dex2oat
 
