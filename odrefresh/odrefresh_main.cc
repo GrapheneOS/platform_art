@@ -19,7 +19,6 @@
 #include <string>
 #include <string_view>
 
-#include "android-base/parseint.h"
 #include "android-base/properties.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -201,11 +200,7 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
     const char* arg = argv[n];
     std::string value;
     if (ArgumentMatches(arg, "--use-compilation-os=", &value)) {
-      int cid;
-      if (!android::base::ParseInt(value, &cid)) {
-        ArgumentError("Failed to parse CID: %s", value.c_str());
-      }
-      config->SetCompilationOsAddress(cid);
+      config->SetCompilationOsAddress(value);
     } else if (!InitializeCommonConfig(arg, config)) {
       UsageError("Unrecognized argument: '%s'", arg);
     }
