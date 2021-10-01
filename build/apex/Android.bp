@@ -359,11 +359,15 @@ art_gtests = [
     "art_libdexfile_support_tests",
     "art_libprofile_tests",
     "art_oatdump_tests",
-    "art_odrefresh_tests",
     "art_profman_tests",
     "art_runtime_compiler_tests",
     "art_runtime_tests",
     "art_sigchain_tests",
+]
+art_gtests_first_only = [
+    // We only ship "first" for odrefresh, so don't bother test the "second". This also avoids a
+    // problem where some dependencies may only build "first" and doesn't have "second".
+    "art_odrefresh_tests",
 ]
 
 // "Testing" version of the ART APEX module (containing both release
@@ -374,7 +378,14 @@ art_apex_test {
     defaults: ["com.android.art-devel-defaults"],
     file_contexts: ":com.android.art.debug-file_contexts",
     certificate: ":com.android.art.certificate",
-    tests: art_gtests,
+    multilib: {
+        both: {
+            tests: art_gtests,
+        },
+        first: {
+            tests: art_gtests_first_only,
+        },
+    },
     binaries: ["signal_dumper"], // Need signal_dumper for run-tests.
     updatable: false,
 }
