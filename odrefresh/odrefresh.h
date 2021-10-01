@@ -28,6 +28,7 @@
 #include "exec_utils.h"
 #include "odr_artifacts.h"
 #include "odr_config.h"
+#include "odr_dexopt.h"
 #include "odr_metrics.h"
 #include "odrefresh/odrefresh.h"
 
@@ -41,7 +42,8 @@ class OnDeviceRefresh final {
   // Constructor with injections. For testing and internal use only.
   OnDeviceRefresh(const OdrConfig& config,
                   const std::string& cache_info_filename,
-                  std::unique_ptr<ExecUtils> exec_utils);
+                  std::unique_ptr<ExecUtils> exec_utils,
+                  std::unique_ptr<OdrDexopt> odr_dexopt);
 
   // Returns the exit code, a list of ISAs that boot extensions should be compiled for, and a
   // boolean indicating whether the system server should be compiled.
@@ -179,6 +181,8 @@ class OnDeviceRefresh final {
   time_t max_child_process_seconds_;
 
   std::unique_ptr<ExecUtils> exec_utils_;
+
+  std::unique_ptr<OdrDexopt> odr_dexopt_;
 
   DISALLOW_COPY_AND_ASSIGN(OnDeviceRefresh);
 };
