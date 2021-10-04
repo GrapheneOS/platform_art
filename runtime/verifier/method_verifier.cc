@@ -145,7 +145,6 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
                  uint32_t method_idx,
                  bool can_load_classes,
                  bool allow_thread_suspension,
-                 bool allow_soft_failures,
                  bool aot_mode,
                  Handle<mirror::DexCache> dex_cache,
                  Handle<mirror::ClassLoader> class_loader,
@@ -163,7 +162,6 @@ class MethodVerifier final : public ::art::verifier::MethodVerifier {
                                      method_idx,
                                      can_load_classes,
                                      allow_thread_suspension,
-                                     allow_soft_failures,
                                      aot_mode),
        method_access_flags_(access_flags),
        return_type_(nullptr),
@@ -4971,7 +4969,6 @@ MethodVerifier::MethodVerifier(Thread* self,
                                uint32_t dex_method_idx,
                                bool can_load_classes,
                                bool allow_thread_suspension,
-                               bool allow_soft_failures,
                                bool aot_mode)
     : self_(self),
       arena_stack_(arena_pool),
@@ -4987,7 +4984,6 @@ MethodVerifier::MethodVerifier(Thread* self,
       flags_({false, false, aot_mode}),
       encountered_failure_types_(0),
       can_load_classes_(can_load_classes),
-      allow_soft_failures_(allow_soft_failures),
       class_linker_(class_linker),
       verifier_deps_(verifier_deps),
       link_(nullptr) {
@@ -5010,7 +5006,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          const dex::ClassDef& class_def,
                                                          const dex::CodeItem* code_item,
                                                          uint32_t method_access_flags,
-                                                         bool allow_soft_failures,
                                                          HardFailLogMode log_level,
                                                          uint32_t api_level,
                                                          bool aot_mode,
@@ -5027,7 +5022,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                               class_def,
                               code_item,
                               method_access_flags,
-                              allow_soft_failures,
                               log_level,
                               api_level,
                               aot_mode,
@@ -5044,7 +5038,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                class_def,
                                code_item,
                                method_access_flags,
-                               allow_soft_failures,
                                log_level,
                                api_level,
                                aot_mode,
@@ -5081,7 +5074,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          const dex::ClassDef& class_def,
                                                          const dex::CodeItem* code_item,
                                                          uint32_t method_access_flags,
-                                                         bool allow_soft_failures,
                                                          HardFailLogMode log_level,
                                                          uint32_t api_level,
                                                          bool aot_mode,
@@ -5098,7 +5090,6 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                 method_idx,
                                                 /* can_load_classes= */ true,
                                                 /* allow_thread_suspension= */ true,
-                                                allow_soft_failures,
                                                 aot_mode,
                                                 dex_cache,
                                                 class_loader,
@@ -5212,7 +5203,6 @@ MethodVerifier* MethodVerifier::CalculateVerificationInfo(
                                       method->GetDexMethodIndex(),
                                       /* can_load_classes= */ false,
                                       /* allow_thread_suspension= */ false,
-                                      /* allow_soft_failures= */ true,
                                       Runtime::Current()->IsAotCompiler(),
                                       dex_cache,
                                       class_loader,
@@ -5257,7 +5247,6 @@ MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self,
       dex_method_idx,
       /* can_load_classes= */ true,
       /* allow_thread_suspension= */ true,
-      /* allow_soft_failures= */ true,
       Runtime::Current()->IsAotCompiler(),
       dex_cache,
       class_loader,
@@ -5296,7 +5285,6 @@ void MethodVerifier::FindLocksAtDexPc(
                                        m->GetDexMethodIndex(),
                                        /* can_load_classes= */ false,
                                        /* allow_thread_suspension= */ false,
-                                       /* allow_soft_failures= */ true,
                                        Runtime::Current()->IsAotCompiler(),
                                        dex_cache,
                                        class_loader,
@@ -5319,7 +5307,6 @@ MethodVerifier* MethodVerifier::CreateVerifier(Thread* self,
                                                uint32_t method_idx,
                                                uint32_t access_flags,
                                                bool can_load_classes,
-                                               bool allow_soft_failures,
                                                bool verify_to_dump,
                                                bool allow_thread_suspension,
                                                uint32_t api_level) {
@@ -5332,7 +5319,6 @@ MethodVerifier* MethodVerifier::CreateVerifier(Thread* self,
                                          method_idx,
                                          can_load_classes,
                                          allow_thread_suspension,
-                                         allow_soft_failures,
                                          Runtime::Current()->IsAotCompiler(),
                                          dex_cache,
                                          class_loader,
@@ -5381,13 +5367,6 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
         // This will be reported to the runtime as a soft failure.
         break;
 
-      // Indication that verification should be retried at runtime.
-      case VERIFY_ERROR_BAD_CLASS_SOFT:
-        if (!allow_soft_failures_) {
-          flags_.have_pending_hard_failure_ = true;
-        }
-        break;
-
       // Hard verification failures at compile time will still fail at runtime, so the class is
       // marked as rejected to prevent it from being compiled.
       case VERIFY_ERROR_BAD_CLASS_HARD: {
@@ -5400,7 +5379,6 @@ std::ostream& MethodVerifier::Fail(VerifyError error, bool pending_exc) {
       }
     }
   } else if (kIsDebugBuild) {
-    CHECK_NE(error, VERIFY_ERROR_BAD_CLASS_SOFT);
     CHECK_NE(error, VERIFY_ERROR_BAD_CLASS_HARD);
   }
 
