@@ -1623,7 +1623,6 @@ bool Redefiner::ClassRedefinition::CheckVerification(const RedefinitionDataIter&
                                                 hs.NewHandle(GetClassLoader()),
                                                 /*class_def=*/ dex_file_->GetClassDef(0),
                                                 /*callbacks=*/ nullptr,
-                                                /*allow_soft_failures=*/ true,
                                                 /*log_level=*/
                                                 art::verifier::HardFailLogMode::kLogWarning,
                                                 art::Runtime::Current()->GetTargetSdkVersion(),

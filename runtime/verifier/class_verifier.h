@@ -64,7 +64,6 @@ class ClassVerifier {
                                  Handle<mirror::ClassLoader> class_loader,
                                  const dex::ClassDef& class_def,
                                  CompilerCallbacks* callbacks,
-                                 bool allow_soft_failures,
                                  HardFailLogMode log_level,
                                  uint32_t api_level,
                                  std::string* error)
