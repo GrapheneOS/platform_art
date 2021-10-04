@@ -67,29 +67,20 @@ std::ostream& operator<<(std::ostream& os, MethodType rhs);
 
 /*
  * An enumeration of problems that can turn up during verification.
- * Both VERIFY_ERROR_BAD_CLASS_SOFT and VERIFY_ERROR_BAD_CLASS_HARD denote failures that cause
- * the entire class to be rejected. However, VERIFY_ERROR_BAD_CLASS_SOFT denotes a soft failure
- * that can potentially be corrected, and the verifier will try again at runtime.
- * VERIFY_ERROR_BAD_CLASS_HARD denotes a hard failure that can't be corrected, and will cause
- * the class to remain uncompiled. Other errors denote verification errors that cause bytecode
- * to be rewritten to fail at runtime.
  */
 enum VerifyError : uint32_t {
   VERIFY_ERROR_BAD_CLASS_HARD =    1 << 0,   // VerifyError; hard error that skips compilation.
-  VERIFY_ERROR_BAD_CLASS_SOFT =    1 << 1,   // VerifyError; soft error that verifies again at
-                                             // runtime.
-
-  VERIFY_ERROR_NO_CLASS =          1 << 2,   // NoClassDefFoundError.
-  VERIFY_ERROR_UNRESOLVED_TYPE_CHECK = 1 << 3,   // Missing class for doing a type check
-  VERIFY_ERROR_NO_METHOD =         1 << 4,   // NoSuchMethodError.
-  VERIFY_ERROR_ACCESS_CLASS =      1 << 5,   // IllegalAccessError.
-  VERIFY_ERROR_ACCESS_FIELD =      1 << 6,   // IllegalAccessError.
-  VERIFY_ERROR_ACCESS_METHOD =     1 << 7,   // IllegalAccessError.
-  VERIFY_ERROR_CLASS_CHANGE =      1 << 8,   // IncompatibleClassChangeError.
-  VERIFY_ERROR_INSTANTIATION =     1 << 9,   // InstantiationError.
-  VERIFY_ERROR_LOCKING =           1 << 10,  // Could not guarantee balanced locking. This should be
+  VERIFY_ERROR_NO_CLASS =          1 << 1,   // NoClassDefFoundError.
+  VERIFY_ERROR_UNRESOLVED_TYPE_CHECK = 1 << 2,   // Missing class for doing a type check
+  VERIFY_ERROR_NO_METHOD =         1 << 3,   // NoSuchMethodError.
+  VERIFY_ERROR_ACCESS_CLASS =      1 << 4,   // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_FIELD =      1 << 5,   // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_METHOD =     1 << 6,   // IllegalAccessError.
+  VERIFY_ERROR_CLASS_CHANGE =      1 << 7,   // IncompatibleClassChangeError.
+  VERIFY_ERROR_INSTANTIATION =     1 << 8,   // InstantiationError.
+  VERIFY_ERROR_LOCKING =           1 << 9,  // Could not guarantee balanced locking. This should be
                                              // punted to the interpreter with access checks.
-  VERIFY_ERROR_RUNTIME_THROW =     1 << 11,  // The interpreter found an instruction that will
+  VERIFY_ERROR_RUNTIME_THROW =     1 << 10,  // The interpreter found an instruction that will
                                              // throw. Used for app compatibility for apps < T.
 };
 std::ostream& operator<<(std::ostream& os, VerifyError rhs);
