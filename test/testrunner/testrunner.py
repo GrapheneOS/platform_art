@@ -197,9 +197,6 @@ class ChildProcessTracker(object):
 
 child_process_tracker = ChildProcessTracker()
 
-# Keep track of the already executed build scripts
-finished_build_script = {}
-
 def setup_csv_result():
   """Set up the CSV output if required."""
   global csv_writer
@@ -580,27 +577,9 @@ def run_tests(tests):
       if address_size == '64':
         options_test += ' --64'
 
-      # Make it possible to split the test to two passes: build only and test only.
-      # This is useful to avoid building identical files many times for the test combinations.
-      # We can remove this once we move the build script fully to soong.
-      global build_only
-      global skip_build
-      if (build_only or skip_build) and not is_test_disabled(test, variant_set):
-        assert(env.ART_TEST_RUN_TEST_BUILD_PATH)  # Persistent storage between the passes.
-        build_path = os.path.join(env.ART_TEST_RUN_TEST_BUILD_PATH, test)
-        if build_only and finished_build_script.setdefault(test, test_name) != test_name:
-          return None  # Different combination already build the needed files for this test.
-        os.makedirs(build_path, exist_ok=True)
-        if build_only:
-          options_test += ' --build-only'
-        if skip_build:
-          options_test += ' --skip-build'
-      else:
-        build_path = tempfile.mkdtemp(dir=env.ART_HOST_TEST_DIR)
-
       # b/36039166: Note that the path lengths must kept reasonably short.
       temp_path = tempfile.mkdtemp(dir=env.ART_HOST_TEST_DIR)
-      options_test = '--build-path {} --temp-path {} '.format(build_path, temp_path) + options_test
+      options_test = '--temp-path {} '.format(temp_path) + options_test
 
       run_test_sh = env.ANDROID_BUILD_TOP + '/art/test/run-test'
       command = ' '.join((run_test_sh, options_test, ' '.join(extra_arguments[target]), test))
@@ -1123,8 +1102,6 @@ def parse_option():
   global with_agent
   global zipapex_loc
   global csv_result
-  global build_only
-  global skip_build
 
   parser = argparse.ArgumentParser(description="Runs all or a subset of the ART test suite.")
   parser.add_argument('-t', '--test', action='append', dest='tests', help='name(s) of the test(s)')
@@ -1167,10 +1144,6 @@ def parse_option():
                             This should be enclosed in single-quotes to allow for spaces. The option
                             will be split using shlex.split() prior to invoking run-test.
                             Example \"--run-test-option='--with-agent libtifast.so=MethodExit'\".""")
-  global_group.add_argument('--build-only', action='store_true', dest='build_only',
-                            help="""Only execute the build commands in the run-test script""")
-  global_group.add_argument('--skip-build', action='store_true', dest='skip_build',
-                            help="""Skip the builds command in the run-test script""")
   global_group.add_argument('--with-agent', action='append', dest='with_agent',
                             help="""Pass an agent to be attached to the runtime""")
   global_group.add_argument('--runtime-option', action='append', dest='runtime_option',
@@ -1245,8 +1218,6 @@ def parse_option():
   with_agent = options['with_agent'];
   run_test_option = sum(map(shlex.split, options['run_test_option']), [])
   zipapex_loc = options['runtime_zipapex']
-  build_only = options['build_only']
-  skip_build = options['skip_build']
 
   timeout = options['timeout']
   if options['dex2oat_jobs']:
