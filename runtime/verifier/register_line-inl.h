@@ -38,18 +38,13 @@ inline const RegType& RegisterLine::GetRegisterType(MethodVerifier* verifier, ui
 }
 
 template <LockOp kLockOp>
-inline bool RegisterLine::SetRegisterType(MethodVerifier* verifier, uint32_t vdst,
-                                          const RegType& new_type) {
+inline void RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   DCHECK_LT(vdst, num_regs_);
-  if (new_type.IsLowHalf() || new_type.IsHighHalf()) {
-    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Expected category1 register type not '"
-        << new_type << "'";
-    return false;
-  } else {
-    // Note: previously we failed when asked to set a conflict. However, conflicts are OK as long
-    //       as they are not accessed, and our backends can handle this nowadays.
-    line_[vdst] = new_type.GetId();
-  }
+  DCHECK(!new_type.IsLowHalf());
+  DCHECK(!new_type.IsHighHalf());
+  // Note: previously we failed when asked to set a conflict. However, conflicts are OK as long
+  //       as they are not accessed, and our backends can handle this nowadays.
+  line_[vdst] = new_type.GetId();
   switch (kLockOp) {
     case LockOp::kClear:
       // Clear the monitor entry bits for this register.
@@ -60,25 +55,18 @@ inline bool RegisterLine::SetRegisterType(MethodVerifier* verifier, uint32_t vds
       DCHECK(new_type.IsReferenceTypes());
       break;
   }
-  return true;
 }
 
-inline bool RegisterLine::SetRegisterTypeWide(MethodVerifier* verifier, uint32_t vdst,
+inline void RegisterLine::SetRegisterTypeWide(uint32_t vdst,
                                               const RegType& new_type1,
                                               const RegType& new_type2) {
   DCHECK_LT(vdst + 1, num_regs_);
-  if (!new_type1.CheckWidePair(new_type2)) {
-    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Invalid wide pair '"
-        << new_type1 << "' '" << new_type2 << "'";
-    return false;
-  } else {
-    line_[vdst] = new_type1.GetId();
-    line_[vdst + 1] = new_type2.GetId();
-  }
+  DCHECK(new_type1.CheckWidePair(new_type2));
+  line_[vdst] = new_type1.GetId();
+  line_[vdst + 1] = new_type2.GetId();
   // Clear the monitor entry bits for this register.
   ClearAllRegToLockDepths(vdst);
   ClearAllRegToLockDepths(vdst + 1);
-  return true;
 }
 
 inline void RegisterLine::SetResultTypeToUnknown(RegTypeCache* reg_types) {
@@ -104,9 +92,12 @@ inline void RegisterLine::CopyRegister1(MethodVerifier* verifier, uint32_t vdst,
                                  TypeCategory cat) {
   DCHECK(cat == kTypeCategory1nr || cat == kTypeCategoryRef);
   const RegType& type = GetRegisterType(verifier, vsrc);
-  if (!SetRegisterType<LockOp::kClear>(verifier, vdst, type)) {
+  if (type.IsLowHalf() || type.IsHighHalf()) {
+    verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Expected category1 register type not '"
+        << type << "'";
     return;
   }
+  SetRegisterType<LockOp::kClear>(vdst, type);
   if (!type.IsConflict() &&                                  // Allow conflicts to be copied around.
       ((cat == kTypeCategory1nr && !type.IsCategory1Types()) ||
        (cat == kTypeCategoryRef && !type.IsReferenceTypes()))) {
@@ -125,7 +116,7 @@ inline void RegisterLine::CopyRegister2(MethodVerifier* verifier, uint32_t vdst,
     verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "copy2 v" << vdst << "<-v" << vsrc
                                                  << " type=" << type_l << "/" << type_h;
   } else {
-    SetRegisterTypeWide(verifier, vdst, type_l, type_h);
+    SetRegisterTypeWide(vdst, type_l, type_h);
   }
 }
 
