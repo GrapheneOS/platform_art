@@ -112,13 +112,10 @@ class RegisterLine {
   // available now. An example is sharpening types after a check-cast. Note that when given kKeep,
   // the new_type is dchecked to be a reference type.
   template <LockOp kLockOp>
-  ALWAYS_INLINE bool SetRegisterType(MethodVerifier* verifier,
-                                     uint32_t vdst,
-                                     const RegType& new_type)
+  ALWAYS_INLINE void SetRegisterType(uint32_t vdst, const RegType& new_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool SetRegisterTypeWide(MethodVerifier* verifier,
-                           uint32_t vdst,
+  void SetRegisterTypeWide(uint32_t vdst,
                            const RegType& new_type1,
                            const RegType& new_type2)
       REQUIRES_SHARED(Locks::mutator_lock_);
