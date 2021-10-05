@@ -1520,7 +1520,8 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
   MutableHandle<mirror::DexCache> dex_cache(hs.NewHandle<mirror::DexCache>(nullptr));
   {
     ReaderMutexLock mu(soa.Self(), *Locks::dex_lock_);
-    for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
+    for (const auto& entry : class_linker->GetDexCachesData()) {
+      const ClassLinker::DexCacheData& data = entry.second;
       dex_cache.Assign(soa.Self()->DecodeJObject(data.weak_root)->AsDexCache());
       if (dex_cache != nullptr) {
         break;
