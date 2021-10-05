@@ -51,6 +51,19 @@ static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, 
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
+static jboolean Unsafe_compareAndSetInt(JNIEnv* env, jobject, jobject javaObj, jlong offset,
+                                         jint expectedValue, jint newValue) {
+  ScopedFastNativeObjectAccess soa(env);
+  ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(javaObj);
+  // JNI must use non transactional mode.
+  bool success = obj->CasField32<false>(MemberOffset(offset),
+                                        expectedValue,
+                                        newValue,
+                                        CASMode::kStrong,
+                                        std::memory_order_seq_cst);
+  return success ? JNI_TRUE : JNI_FALSE;
+}
+
 static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset,
                                           jlong expectedValue, jlong newValue) {
   ScopedFastNativeObjectAccess soa(env);
@@ -545,6 +558,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Unsafe, compareAndSwapInt, "(Ljava/lang/Object;JII)Z"),
   FAST_NATIVE_METHOD(Unsafe, compareAndSwapLong, "(Ljava/lang/Object;JJJ)Z"),
   FAST_NATIVE_METHOD(Unsafe, compareAndSwapObject, "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z"),
+  FAST_NATIVE_METHOD(Unsafe, compareAndSetInt, "(Ljava/lang/Object;JII)Z"),
   FAST_NATIVE_METHOD(Unsafe, getIntVolatile, "(Ljava/lang/Object;J)I"),
   FAST_NATIVE_METHOD(Unsafe, putIntVolatile, "(Ljava/lang/Object;JI)V"),
   FAST_NATIVE_METHOD(Unsafe, getLongVolatile, "(Ljava/lang/Object;J)J"),
