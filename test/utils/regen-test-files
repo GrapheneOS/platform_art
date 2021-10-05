@@ -649,8 +649,12 @@ class Generator:
     run_test_module_names = [ART_RUN_TEST_MODULE_NAME_PREFIX + t for t in art_run_tests]
 
     # Mainline presubmits.
+    mainline_other_presubmit_tests = [
+        "ComposHostTestCases",
+    ]
     mainline_presubmit_run_tests = run_test_module_names[0:num_mainline_presubmit_run_tests]
-    mainline_presubmit_tests = mainline_presubmit_run_tests + art_gtest_module_names
+    mainline_presubmit_tests = (mainline_other_presubmit_tests + mainline_presubmit_run_tests +
+                                art_gtest_module_names)
     mainline_presubmit_tests_with_apex = [t + "[com.google.android.art.apex]"
                                           for t
                                           in mainline_presubmit_tests]
