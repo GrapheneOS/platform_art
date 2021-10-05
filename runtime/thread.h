@@ -770,12 +770,6 @@ class Thread {
   }
 
   template<PointerSize pointer_size>
-  static constexpr ThreadOffset<pointer_size> MterpCurrentIBaseOffset() {
-    return ThreadOffsetFromTlsPtr<pointer_size>(
-        OFFSETOF_MEMBER(tls_ptr_sized_values, mterp_current_ibase));
-  }
-
-  template<PointerSize pointer_size>
   static constexpr ThreadOffset<pointer_size> ExceptionOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, exception));
   }
@@ -1225,14 +1219,6 @@ class Thread {
   bool ProtectStack(bool fatal_on_error = true);
   bool UnprotectStack();
 
-  void SetMterpCurrentIBase(void* ibase) {
-    tlsPtr_.mterp_current_ibase = ibase;
-  }
-
-  const void* GetMterpCurrentIBase() const {
-    return tlsPtr_.mterp_current_ibase;
-  }
-
   bool HandlingSignal() const {
     return tls32_.handling_signal_;
   }
@@ -1665,21 +1651,44 @@ class Thread {
   } tls64_;
 
   struct PACKED(sizeof(void*)) tls_ptr_sized_values {
-      tls_ptr_sized_values() : card_table(nullptr), exception(nullptr), stack_end(nullptr),
-      managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), tmp_jni_env(nullptr),
-      self(nullptr), opeer(nullptr), jpeer(nullptr), stack_begin(nullptr), stack_size(0),
-      deps_or_stack_trace_sample(), wait_next(nullptr), monitor_enter_object(nullptr),
-      top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
-      instrumentation_stack(nullptr),
-      stacked_shadow_frame_record(nullptr), deoptimization_context_stack(nullptr),
-      frame_id_to_shadow_frame(nullptr), name(nullptr), pthread_self(0),
-      last_no_thread_suspension_cause(nullptr), checkpoint_function(nullptr),
-      thread_local_start(nullptr), thread_local_pos(nullptr), thread_local_end(nullptr),
-      thread_local_limit(nullptr),
-      thread_local_objects(0), mterp_current_ibase(nullptr), thread_local_alloc_stack_top(nullptr),
-      thread_local_alloc_stack_end(nullptr),
-      flip_function(nullptr), method_verifier(nullptr), thread_local_mark_stack(nullptr),
-      async_exception(nullptr), top_reflective_handle_scope(nullptr) {
+      tls_ptr_sized_values() : card_table(nullptr),
+                               exception(nullptr),
+                               stack_end(nullptr),
+                               managed_stack(),
+                               suspend_trigger(nullptr),
+                               jni_env(nullptr),
+                               tmp_jni_env(nullptr),
+                               self(nullptr),
+                               opeer(nullptr),
+                               jpeer(nullptr),
+                               stack_begin(nullptr),
+                               stack_size(0),
+                               deps_or_stack_trace_sample(),
+                               wait_next(nullptr),
+                               monitor_enter_object(nullptr),
+                               top_handle_scope(nullptr),
+                               class_loader_override(nullptr),
+                               long_jump_context(nullptr),
+                               instrumentation_stack(nullptr),
+                               stacked_shadow_frame_record(nullptr),
+                               deoptimization_context_stack(nullptr),
+                               frame_id_to_shadow_frame(nullptr),
+                               name(nullptr),
+                               pthread_self(0),
+                               last_no_thread_suspension_cause(nullptr),
+                               checkpoint_function(nullptr),
+                               thread_local_start(nullptr),
+                               thread_local_pos(nullptr),
+                               thread_local_end(nullptr),
+                               thread_local_limit(nullptr),
+                               thread_local_objects(0),
+                               thread_local_alloc_stack_top(nullptr),
+                               thread_local_alloc_stack_end(nullptr),
+                               flip_function(nullptr),
+                               method_verifier(nullptr),
+                               thread_local_mark_stack(nullptr),
+                               async_exception(nullptr),
+                               top_reflective_handle_scope(nullptr) {
       std::fill(held_mutexes, held_mutexes + kLockLevelCount, nullptr);
     }
 
@@ -1810,9 +1819,6 @@ class Thread {
     // TODO: move this to more of a global offset table model to avoid per-thread duplication.
     JniEntryPoints jni_entrypoints;
     QuickEntryPoints quick_entrypoints;
-
-    // Mterp jump table base.
-    void* mterp_current_ibase;
 
     // There are RosAlloc::kNumThreadLocalSizeBrackets thread-local size brackets per thread.
     void* rosalloc_runs[kNumRosAllocThreadLocalSizeBracketsInThread];
