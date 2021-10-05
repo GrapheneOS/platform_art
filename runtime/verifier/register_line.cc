@@ -172,7 +172,7 @@ void RegisterLine::CopyResultRegister1(MethodVerifier* verifier, uint32_t vdst, 
         << "copyRes1 v" << vdst << "<- result0"  << " type=" << type;
   } else {
     DCHECK(verifier->GetRegTypeCache()->GetFromId(result_[1]).IsUndefined());
-    SetRegisterType<LockOp::kClear>(verifier, vdst, type);
+    SetRegisterType<LockOp::kClear>(vdst, type);
     result_[0] = verifier->GetRegTypeCache()->Undefined().GetId();
   }
 }
@@ -189,7 +189,7 @@ void RegisterLine::CopyResultRegister2(MethodVerifier* verifier, uint32_t vdst) 
         << "copyRes2 v" << vdst << "<- result0"  << " type=" << type_l;
   } else {
     DCHECK(type_l.CheckWidePair(type_h));  // Set should never allow this case
-    SetRegisterTypeWide(verifier, vdst, type_l, type_h);  // also sets the high
+    SetRegisterTypeWide(vdst, type_l, type_h);  // also sets the high
     result_[0] = verifier->GetRegTypeCache()->Undefined().GetId();
     result_[1] = verifier->GetRegTypeCache()->Undefined().GetId();
   }
@@ -198,7 +198,7 @@ void RegisterLine::CopyResultRegister2(MethodVerifier* verifier, uint32_t vdst) 
 void RegisterLine::CheckUnaryOp(MethodVerifier* verifier, const Instruction* inst,
                                 const RegType& dst_type, const RegType& src_type) {
   if (VerifyRegisterType(verifier, inst->VRegB_12x(), src_type)) {
-    SetRegisterType<LockOp::kClear>(verifier, inst->VRegA_12x(), dst_type);
+    SetRegisterType<LockOp::kClear>(inst->VRegA_12x(), dst_type);
   }
 }
 
@@ -206,7 +206,7 @@ void RegisterLine::CheckUnaryOpWide(MethodVerifier* verifier, const Instruction*
                                     const RegType& dst_type1, const RegType& dst_type2,
                                     const RegType& src_type1, const RegType& src_type2) {
   if (VerifyRegisterTypeWide(verifier, inst->VRegB_12x(), src_type1, src_type2)) {
-    SetRegisterTypeWide(verifier, inst->VRegA_12x(), dst_type1, dst_type2);
+    SetRegisterTypeWide(inst->VRegA_12x(), dst_type1, dst_type2);
   }
 }
 
@@ -214,7 +214,7 @@ void RegisterLine::CheckUnaryOpToWide(MethodVerifier* verifier, const Instructio
                                       const RegType& dst_type1, const RegType& dst_type2,
                                       const RegType& src_type) {
   if (VerifyRegisterType(verifier, inst->VRegB_12x(), src_type)) {
-    SetRegisterTypeWide(verifier, inst->VRegA_12x(), dst_type1, dst_type2);
+    SetRegisterTypeWide(inst->VRegA_12x(), dst_type1, dst_type2);
   }
 }
 
@@ -222,7 +222,7 @@ void RegisterLine::CheckUnaryOpFromWide(MethodVerifier* verifier, const Instruct
                                         const RegType& dst_type,
                                         const RegType& src_type1, const RegType& src_type2) {
   if (VerifyRegisterTypeWide(verifier, inst->VRegB_12x(), src_type1, src_type2)) {
-    SetRegisterType<LockOp::kClear>(verifier, inst->VRegA_12x(), dst_type);
+    SetRegisterType<LockOp::kClear>(inst->VRegA_12x(), dst_type);
   }
 }
 
@@ -238,13 +238,11 @@ void RegisterLine::CheckBinaryOp(MethodVerifier* verifier, const Instruction* in
       DCHECK(dst_type.IsInteger());
       if (GetRegisterType(verifier, vregB).IsBooleanTypes() &&
           GetRegisterType(verifier, vregC).IsBooleanTypes()) {
-        SetRegisterType<LockOp::kClear>(verifier,
-                                        inst->VRegA_23x(),
-                                        verifier->GetRegTypeCache()->Boolean());
+        SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), verifier->GetRegTypeCache()->Boolean());
         return;
       }
     }
-    SetRegisterType<LockOp::kClear>(verifier, inst->VRegA_23x(), dst_type);
+    SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), dst_type);
   }
 }
 
@@ -254,7 +252,7 @@ void RegisterLine::CheckBinaryOpWide(MethodVerifier* verifier, const Instruction
                                      const RegType& src_type2_1, const RegType& src_type2_2) {
   if (VerifyRegisterTypeWide(verifier, inst->VRegB_23x(), src_type1_1, src_type1_2) &&
       VerifyRegisterTypeWide(verifier, inst->VRegC_23x(), src_type2_1, src_type2_2)) {
-    SetRegisterTypeWide(verifier, inst->VRegA_23x(), dst_type1, dst_type2);
+    SetRegisterTypeWide(inst->VRegA_23x(), dst_type1, dst_type2);
   }
 }
 
@@ -263,7 +261,7 @@ void RegisterLine::CheckBinaryOpWideShift(MethodVerifier* verifier, const Instru
                                           const RegType& int_type) {
   if (VerifyRegisterTypeWide(verifier, inst->VRegB_23x(), long_lo_type, long_hi_type) &&
       VerifyRegisterType(verifier, inst->VRegC_23x(), int_type)) {
-    SetRegisterTypeWide(verifier, inst->VRegA_23x(), long_lo_type, long_hi_type);
+    SetRegisterTypeWide(inst->VRegA_23x(), long_lo_type, long_hi_type);
   }
 }
 
@@ -278,13 +276,11 @@ void RegisterLine::CheckBinaryOp2addr(MethodVerifier* verifier, const Instructio
       DCHECK(dst_type.IsInteger());
       if (GetRegisterType(verifier, vregA).IsBooleanTypes() &&
           GetRegisterType(verifier, vregB).IsBooleanTypes()) {
-        SetRegisterType<LockOp::kClear>(verifier,
-                                        vregA,
-                                        verifier->GetRegTypeCache()->Boolean());
+        SetRegisterType<LockOp::kClear>(vregA, verifier->GetRegTypeCache()->Boolean());
         return;
       }
     }
-    SetRegisterType<LockOp::kClear>(verifier, vregA, dst_type);
+    SetRegisterType<LockOp::kClear>(vregA, dst_type);
   }
 }
 
@@ -296,7 +292,7 @@ void RegisterLine::CheckBinaryOp2addrWide(MethodVerifier* verifier, const Instru
   const uint32_t vregB = inst->VRegB_12x();
   if (VerifyRegisterTypeWide(verifier, vregA, src_type1_1, src_type1_2) &&
       VerifyRegisterTypeWide(verifier, vregB, src_type2_1, src_type2_2)) {
-    SetRegisterTypeWide(verifier, vregA, dst_type1, dst_type2);
+    SetRegisterTypeWide(vregA, dst_type1, dst_type2);
   }
 }
 
@@ -307,7 +303,7 @@ void RegisterLine::CheckBinaryOp2addrWideShift(MethodVerifier* verifier, const I
   const uint32_t vregB = inst->VRegB_12x();
   if (VerifyRegisterTypeWide(verifier, vregA, long_lo_type, long_hi_type) &&
       VerifyRegisterType(verifier, vregB, int_type)) {
-    SetRegisterTypeWide(verifier, vregA, long_lo_type, long_hi_type);
+    SetRegisterTypeWide(vregA, long_lo_type, long_hi_type);
   }
 }
 
@@ -322,13 +318,11 @@ void RegisterLine::CheckLiteralOp(MethodVerifier* verifier, const Instruction* i
       /* check vB with the call, then check the constant manually */
       const uint32_t val = is_lit16 ? inst->VRegC_22s() : inst->VRegC_22b();
       if (GetRegisterType(verifier, vregB).IsBooleanTypes() && (val == 0 || val == 1)) {
-        SetRegisterType<LockOp::kClear>(verifier,
-                                        vregA,
-                                        verifier->GetRegTypeCache()->Boolean());
+        SetRegisterType<LockOp::kClear>(vregA, verifier->GetRegTypeCache()->Boolean());
         return;
       }
     }
-    SetRegisterType<LockOp::kClear>(verifier, vregA, dst_type);
+    SetRegisterType<LockOp::kClear>(vregA, dst_type);
   }
 }
 
