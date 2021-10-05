@@ -67,7 +67,9 @@ public class Main {
     testArrayBaseOffset(unsafe);
     testArrayIndexScale(unsafe);
     testGetAndPutAndCAS(unsafe);
+    testCompareAndSet(unsafe);
     testGetAndPutVolatile(unsafe);
+    testGetAcquireAndPutRelease(unsafe);
     testCopyMemoryPrimitiveArrays(unsafe);
   }
 
@@ -212,6 +214,38 @@ public class Main {
     }
   }
 
+  private static void testCompareAndSet(Unsafe unsafe) throws NoSuchFieldException {
+    TestClass t = new TestClass();
+
+    int intValue = 12345678;
+    Field intField = TestClass.class.getDeclaredField("intVar");
+    long intOffset = unsafe.objectFieldOffset(intField);
+    unsafe.putInt(t, intOffset, intValue);
+
+    if (unsafe.compareAndSetInt(t, intOffset, 0, 1)) {
+      System.out.println("Unexpectedly succeeding compareAndSetInt(t, intOffset, 0, 1)");
+    }
+    check(t.intVar, intValue, "Unsafe.compareAndSetInt(Object, long, int, int) - not set");
+
+    if (!unsafe.compareAndSetInt(t, intOffset, intValue, 0)) {
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSetInt(t, intOffset, intValue, 0)");
+    }
+    check(t.intVar, 0, "Unsafe.compareAndSetInt(Object, long, int, int) - gets set");
+
+    if (!unsafe.compareAndSetInt(t, intOffset, 0, 1)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetInt(t, intOffset, 0, 1)");
+    }
+    check(t.intVar, 1, "Unsafe.compareAndSetInt(Object, long, int, int) - gets re-set");
+
+    // Exercise jdk.internal.misc.Unsafe.compareAndSetInt using the same
+    // integer (1) for the `expectedValue` and `newValue` arguments.
+    if (!unsafe.compareAndSetInt(t, intOffset, 1, 1)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetInt(t, intOffset, 1, 1)");
+    }
+    check(t.intVar, 1, "Unsafe.compareAndSetInt(Object, long, int, int) - gets set to same");
+ }
+
   private static void testGetAndPutVolatile(Unsafe unsafe) throws NoSuchFieldException {
     TestVolatileClass tv = new TestVolatileClass();
 
@@ -250,6 +284,22 @@ public class Main {
     check(unsafe.getObjectVolatile(tv, volatileObjectOffset),
           objectValue,
           "Unsafe.getObjectVolatile(Object, long)");
+  }
+
+  private static void testGetAcquireAndPutRelease(Unsafe unsafe) throws NoSuchFieldException {
+    TestVolatileClass tv = new TestVolatileClass();
+
+    int intValue = 12345678;
+    Field volatileIntField = TestVolatileClass.class.getDeclaredField("volatileIntVar");
+    long volatileIntOffset = unsafe.objectFieldOffset(volatileIntField);
+    check(unsafe.getIntAcquire(tv, volatileIntOffset),
+          0,
+          "Unsafe.getIntAcquire(Object, long) - initial");
+    unsafe.putIntRelease(tv, volatileIntOffset, intValue);
+    check(tv.volatileIntVar, intValue, "Unsafe.putIntRelease(Object, long, int)");
+    check(unsafe.getIntAcquire(tv, volatileIntOffset),
+          intValue,
+          "Unsafe.getIntAcquire(Object, long)");
   }
 
   // Regression test for "copyMemory" operations hitting a DCHECK() for float/double arrays.
