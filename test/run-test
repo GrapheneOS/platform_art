@@ -39,38 +39,11 @@ if [ -z "$TMPDIR" ]; then
 else
   tmp_dir="${TMPDIR}/${test_dir}"
 fi
-build_path="${tmp_dir}-build"
 checker="${progdir}/../tools/checker/checker.py"
 export JAVA="java"
 export JAVAC="javac -g -Xlint:-options -source 1.8 -target 1.8"
 export RUN="${progdir}/etc/run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
-export NEED_DEX="true"
-export USE_D8="true"
-export USE_DESUGAR="true"
-export SMALI_ARGS=""
-
-# If d8 was not set by the environment variable, assume it is in the path.
-if [ -z "$D8" ]; then
-  export D8="d8"
-fi
-
-# If dx was not set by the environment variable, assume it is in the path.
-if [ -z "$DX" ]; then
-  export DX="d8-compat-dx"
-fi
-
-export DEXMERGER="$D8"
-
-# If jasmin was not set by the environment variable, assume it is in the path.
-if [ -z "$JASMIN" ]; then
-  export JASMIN="jasmin"
-fi
-
-# If smali was not set by the environment variable, assume it is in the path.
-if [ -z "$SMALI" ]; then
-  export SMALI="smali"
-fi
 
 # ANDROID_BUILD_TOP is not set in a build environment.
 if [ -z "$ANDROID_BUILD_TOP" ]; then
@@ -90,54 +63,19 @@ if [ -z "$ANDROID_HOST_OUT" ]; then
 fi
 
 host_lib_root=${ANDROID_HOST_OUT}
-
-# Allow changing DESUGAR script to something else, or to disable it with DESUGAR=false.
-if [ -z "$DESUGAR" ]; then
-  export DESUGAR="$ANDROID_BUILD_TOP/art/tools/desugar.sh"
-fi
-
-# Zipalign is not on the PATH in some configs, auto-detect it.
-if [ -z "$ZIPALIGN" ]; then
-  if which zipalign >/dev/null; then
-    ZIPALIGN="zipalign";
-  else
-    # TODO: Add a dependency for zipalign in Android.run-test.mk
-    # once it doesn't depend on libandroidfw (b/35246701)
-    case "$OSTYPE" in
-      darwin*)  ZIPALIGN="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/darwin/bin/zipalign" ;;
-      linux*)   ZIPALIGN="$ANDROID_BUILD_TOP/prebuilts/sdk/tools/linux/bin/zipalign" ;;
-      *)        echo "Can't find zipalign: unknown: $OSTYPE" >&2;;
-    esac
-  fi
-fi
-export ZIPALIGN
-
-# If hiddenapi was not set by the environment variable, assume it is in
-# ANDROID_HOST_OUT.
-if [ -z "$HIDDENAPI" ]; then
-  export HIDDENAPI="${ANDROID_HOST_OUT}/bin/hiddenapi"
-fi
-
-export SOONG_ZIP="$ANDROID_BUILD_TOP/prebuilts/build-tools/linux-x86/bin/soong_zip"
-
 chroot=
-
 info="info.txt"
-build="build"
 run="run"
 expected_stdout="expected-stdout.txt"
 expected_stderr="expected-stderr.txt"
 check_cmd="check"
 test_stdout="test-stdout.txt"
 test_stderr="test-stderr.txt"
-build_stdout="build-stdout.txt"
-build_stderr="build-stderr.txt"
 cfg_output="graph.cfg"
 strace_output="strace-output.txt"
 lib="libartd.so"
 testlib="arttestd"
 run_args=(--quiet)
-build_args=""
 
 quiet="no"
 debuggable="no"
@@ -150,8 +88,6 @@ debug_mode="no"
 relocate="no"
 runtime="art"
 usage="no"
-build_only="no"
-skip_build="no"
 suffix64=""
 trace="false"
 trace_stream="false"
@@ -206,7 +142,6 @@ while true; do
         DEX_LOCATION="$tmp_dir"
         runtime="jvm"
         prebuild_mode="no"
-        NEED_DEX="false"
         run_args+=(--jvm)
         shift
     elif [ "x$1" = "x-O" ]; then
@@ -280,11 +215,6 @@ while true; do
         shift
         option="$1"
         run_args+=(-Xcompiler-option "$option")
-        shift
-    elif [ "x$1" = "x--build-option" ]; then
-        shift
-        option="$1"
-        build_args="${build_args} $option"
         shift
     elif [ "x$1" = "x--runtime-option" ]; then
         shift
@@ -396,21 +326,6 @@ while true; do
     elif [ "x$1" = "x--dev" ]; then
         run_args+=(--dev)
         dev_mode="yes"
-        shift
-    elif [ "x$1" = "x--build-only" ]; then
-        build_only="yes"
-        shift
-    elif [ "x$1" = "x--skip-build" ]; then
-        skip_build="yes"
-        shift
-    elif [ "x$1" = "x--build-path" ]; then
-        shift
-        build_path=$1
-        if [ "x$build_path" = "x" ]; then
-            echo "$0 missing argument to --build-path" 1>&2
-            usage="yes"
-            break
-        fi
         shift
     elif [ "x$1" = "x--temp-path" ]; then
         shift
@@ -808,7 +723,6 @@ if [ "$usage" = "yes" ]; then
         echo "  Runtime Options:"
         echo "    -O                    Run non-debug rather than debug build (off by default)."
         echo "    -Xcompiler-option     Pass an option to the compiler."
-        echo "    --build-option        Pass an option to the build script."
         echo "    --runtime-option      Pass an option to the runtime."
         echo "    --compact-dex-level   Specify a compact dex level to the compiler."
         echo "    --debug               Wait for the default debugger to attach."
@@ -828,9 +742,6 @@ if [ "$usage" = "yes" ]; then
         echo "                          Use the given binary as gdbserver."
         echo "    --gdb-arg             Pass an option to gdb or gdbserver."
         echo "    --gdb-dex2oat-args    Pass options separated by ';' to lldb for dex2oat."
-        echo "    --build-only          Build test files only (off by default)."
-        echo "    --skip-build          Assume that test files are already built (off by default)."
-        echo "    --build-path [path]   Location where to store or expect the build files."
         echo "    --temp-path [path]    Location where to execute the tests."
         echo "    --interpreter         Enable interpreter only mode (off by default)."
         echo "    --jit                 Enable jit (off by default)."
@@ -919,37 +830,6 @@ for td_file in "$td_info" "$td_expected_stdout" "$td_expected_stderr"; do
     fi
 done
 
-if [ "$skip_build" = "no" ]; then
-  echo "${test_dir}: building..." 1>&2
-
-  rm -rf "$build_path"
-  cp -LRp "$test_dir" "$build_path"
-  cd "$build_path"
-
-  if [ '!' -r "$build" ]; then
-      cp "${progdir}/etc/default-build" build
-  else
-      cp "${progdir}/etc/default-build" .
-  fi
-
-  if [ '!' -r "$run" ]; then
-      cp "${progdir}/etc/default-run" run
-  else
-      cp "${progdir}/etc/default-run" .
-  fi
-
-  if [ '!' -r "$check_cmd" ]; then
-      cp "${progdir}/etc/default-check" check
-  else
-      cp "${progdir}/etc/default-check" .
-  fi
-
-  chmod 755 "$build"
-  chmod 755 "$run"
-  chmod 755 "$check_cmd"
-fi
-cd "$build_path"
-
 export TEST_NAME=`basename ${test_dir}`
 
 # Tests named '<number>-checker-*' will also have their CFGs verified with
@@ -986,154 +866,84 @@ if ! ulimit -f ${file_ulimit}; then
   err_echo "ulimit file size setting failed"
 fi
 
-# Tell the build script which mode (target, host, jvm) we are building for
-# to determine the bootclasspath at build time.
-if [[ "$target_mode" == "yes" ]]; then
-  build_args="$build_args --target"
-else
-  if [[ $runtime == "jvm" ]]; then
-    build_args="$build_args --jvm"
-  else
-    build_args="$build_args --host"
-  fi
-fi
-
-if [[ "$dev_mode" == "yes" ]]; then
-  build_args="$build_args --dev"
-fi
-
-# Build needed files, and copy them to the directory that will run the tests.
-if [ "$skip_build" = "yes" ]; then
-  # Assume the directory already contains all the needed files.
-  # Load the exit code, since builds can intentionally fail.
-  build_exit=`cat ./build_exit_code`
-elif [ "$dev_mode" = "yes" ]; then
-  "./${build}" $build_args
-  build_exit="$?"
-  echo "build exit status: $build_exit" 1>&2
-  echo "$build_exit" > ./build_exit_code
-else
-  "./${build}" $build_args >"$build_stdout" 2>"$build_stderr"
-  build_exit="$?"
-  echo "$build_exit" > ./build_exit_code
-fi
+# Extract run-test data from the zip file.
 rm -rf "$tmp_dir"
-cp -LRp "$build_path" "$tmp_dir"
+mkdir -p "$tmp_dir/.unzipped"
 cd "$tmp_dir"
+if [[ "$target_mode" == "yes" ]]; then
+  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-target-data.zip"
+  zip_entry="target/${TEST_NAME}"
+elif [[ $runtime == "jvm" ]]; then
+  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-jvm-data.zip"
+  zip_entry="jvm/${TEST_NAME}"
+else
+  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-host-data.zip"
+  zip_entry="host/${TEST_NAME}"
+fi
+unzip -q "${zip_file}" "${zip_entry}/*" -d "$tmp_dir/.unzipped"
+mv "$tmp_dir"/.unzipped/${zip_entry}/* "$tmp_dir"
 
 good="no"
-good_build="yes"
 good_run="yes"
 export TEST_RUNTIME="${runtime}"
 if [ "$dev_mode" = "yes" ]; then
-    if [ "$build_exit" = '0' ]; then
-        echo "${test_dir}: running..." 1>&2
-        "./${run}" "${run_args[@]}" "$@"
-        run_exit="$?"
+    echo "${test_dir}: running..." 1>&2
+    "./${run}" "${run_args[@]}" "$@"
+    run_exit="$?"
 
-        if [ "$run_exit" = "0" ]; then
-            if [ "$run_checker" = "yes" ]; then
-                if [ "$target_mode" = "yes" ]; then
-                  adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
-                fi
-                "$checker" $checker_args "$cfg_output" "$tmp_dir" 2>&1
-                checker_exit="$?"
-                if [ "$checker_exit" = "0" ]; then
-                    good="yes"
-                fi
-                err_echo "checker exit status: $checker_exit"
-            else
-                good="yes"
-            fi
-        fi
-        echo "run exit status: $run_exit" 1>&2
-    fi
-elif [ "$update_mode" = "yes" ]; then
-    if [ "$build_exit" = '0' ]; then
-        echo "${test_dir}: running..." 1>&2
-        "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
+    if [ "$run_exit" = "0" ]; then
         if [ "$run_checker" = "yes" ]; then
-          if [ "$target_mode" = "yes" ]; then
-            adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
-          fi
-          "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >>"$test_stdout" 2>>"$test_stderr"
-        fi
-        sed -e 's/[[:cntrl:]]$//g' <"$test_stdout" >"${td_expected_stdout}"
-        sed -e 's/[[:cntrl:]]$//g' <"$test_stderr" >"${td_expected_stderr}"
-        good="yes"
-    else
-        err_echo "#################### build standard output"
-        cat "$build_stdout" 1>&${real_stderr}
-        err_echo "####################"
-        err_echo "#################### build standard error"
-        cat "$build_stderr" 1>&${real_stderr}
-        err_echo "####################"
-        err_echo "build exit status: $build_exit"
-    fi
-elif [ "$build_only" = "yes" ]; then
-    good="yes"
-    if [ "$build_exit" '!=' '0' ]; then
-        cp "$build_stdout" "$test_stdout"
-        diff --strip-trailing-cr -q "$expected_stdout" "$test_stdout" >/dev/null
-        if [ "$?" '!=' "0" ]; then
-            good="no"
-            err_echo "BUILD FAILED For ${TEST_NAME}" \
-              "(the build's standard output does not match the expected standard output)"
-        fi
-        cp "$build_stderr" "$test_stderr"
-        diff --strip-trailing-cr -q "$expected_stderr" "$test_stderr" >/dev/null
-        if [ "$?" '!=' "0" ]; then
-            good="no"
-            err_echo "BUILD FAILED For ${TEST_NAME}" \
-              "(the build's standard error does not match the expected standard error)"
-        fi
-        echo "build exit status: $build_exit" >>"$test_stderr"
-    fi
-    # Clean up extraneous files that are not used by tests.
-    find $tmp_dir -mindepth 1  \
-        ! -regex ".*/\(.*jar\|$test_stdout\|$expected_stdout|$test_stderr\|$expected_stderr\)" \
-      | xargs rm -rf
-    exit 0
-else
-    if [ "$build_exit" = '0' ]; then
-        echo "${test_dir}: running..." 1>&2
-        "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
-        run_exit="$?"
-        if [ "$run_exit" != "0" ]; then
-            err_echo "run exit status: $run_exit"
-            good_run="no"
-        elif [ "$run_checker" = "yes" ]; then
             if [ "$target_mode" = "yes" ]; then
               adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
             fi
-            "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >>"$test_stdout" 2>>"$test_stderr"
+            "$checker" $checker_args "$cfg_output" "$tmp_dir" 2>&1
             checker_exit="$?"
-            if [ "$checker_exit" != "0" ]; then
-                err_echo "checker exit status: $checker_exit"
-                good_run="no"
-            else
-                good_run="yes"
+            if [ "$checker_exit" = "0" ]; then
+                good="yes"
             fi
+            err_echo "checker exit status: $checker_exit"
+        else
+            good="yes"
+        fi
+    fi
+    echo "run exit status: $run_exit" 1>&2
+elif [ "$update_mode" = "yes" ]; then
+    echo "${test_dir}: running..." 1>&2
+    "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
+    if [ "$run_checker" = "yes" ]; then
+      if [ "$target_mode" = "yes" ]; then
+        adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
+      fi
+      "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >>"$test_stdout" 2>>"$test_stderr"
+    fi
+    sed -e 's/[[:cntrl:]]$//g' <"$test_stdout" >"${td_expected_stdout}"
+    sed -e 's/[[:cntrl:]]$//g' <"$test_stderr" >"${td_expected_stderr}"
+    good="yes"
+else
+    echo "${test_dir}: running..." 1>&2
+    "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
+    run_exit="$?"
+    if [ "$run_exit" != "0" ]; then
+        err_echo "run exit status: $run_exit"
+        good_run="no"
+    elif [ "$run_checker" = "yes" ]; then
+        if [ "$target_mode" = "yes" ]; then
+          adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
+        fi
+        "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >>"$test_stdout" 2>>"$test_stderr"
+        checker_exit="$?"
+        if [ "$checker_exit" != "0" ]; then
+            err_echo "checker exit status: $checker_exit"
+            good_run="no"
         else
             good_run="yes"
         fi
     else
-        good_build="no"
-        cp "$build_stdout" "$test_stdout"
-        cp "$build_stderr" "$test_stderr"
-        echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`" \
-          >> "$test_stderr"
-        echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}" >> "$test_stderr"
-        echo "Args: ${args}" >> "$test_stderr"
-        echo "build exit status: $build_exit" >> "$test_stderr"
-        max_name_length=$(getconf NAME_MAX ${tmp_dir})
-        echo "Max filename (NAME_MAX): ${max_name_length}" >> "$test_stderr"
-        max_path_length=$(getconf PATH_MAX ${tmp_dir})
-        echo "Max pathlength (PATH_MAX): ${max_path_length}" >> "$test_stderr"
+        good_run="yes"
     fi
     ./$check_cmd "$expected_stdout" "$test_stdout" "$expected_stderr" "$test_stderr"
     if [ "$?" = "0" ]; then
-        if [ "$good_build" = "no" -o "$good_run" = "yes" ]; then
+        if [ "$good_run" = "yes" ]; then
           # test_stdout == expected_stdout && test_stderr == expected_stderr
           good="yes"
           echo "${test_dir}: succeeded!" 1>&2
@@ -1225,10 +1035,6 @@ fi
 # Clean up test files.
 if [ "$always_clean" = "yes" -o "$good" = "yes" ] && [ "$never_clean" = "no" ]; then
     cd "$oldwd"
-    # Clean up build files only if we created them.
-    if [ "$skip_build" = "no" ]; then
-      rm -rf "$build_path"
-    fi
     rm -rf "$tmp_dir"
     if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
         adb shell rm -rf $chroot_dex_location
