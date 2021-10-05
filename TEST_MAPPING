@@ -1198,6 +1198,9 @@
       "name": "ArtServiceTests"
     },
     {
+      "name": "ComposHostTestCases"
+    },
+    {
       "name": "art-run-test-001-HelloWorld"
     },
     {
