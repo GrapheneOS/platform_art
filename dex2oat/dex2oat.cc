@@ -24,6 +24,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <log/log.h>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -1368,6 +1369,7 @@ class Dex2Oat final {
           } else {
             if (input_vdex_file_->HasDexSection()) {
               LOG(ERROR) << "The dex metadata is not allowed to contain dex files";
+              android_errorWriteLog(0x534e4554, "178055795");  // Report to SafetyNet.
               return false;
             }
             VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
