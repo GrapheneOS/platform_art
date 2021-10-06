@@ -1724,14 +1724,11 @@ ObjPtr<Method> Class::GetDeclaredMethodInternal(
       continue;
     }
     ArtMethod* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
-    // May cause thread suspension.
-    ObjPtr<String> np_name = np_method->ResolveNameString();
-    if (np_name == nullptr) {
-      // OOME
-      DCHECK(self->IsExceptionPending());
-      return nullptr;
+    if (!np_method->NameEquals(h_method_name.Get())) {
+      continue;
     }
-    if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
+    // `ArtMethod::EqualParameters()` may throw when resolving types.
+    if (!np_method->EqualParameters(h_args)) {
       if (UNLIKELY(self->IsExceptionPending())) {
         return nullptr;
       }
@@ -1760,14 +1757,12 @@ ObjPtr<Method> Class::GetDeclaredMethodInternal(
       if ((modifiers & kAccConstructor) != 0) {
         continue;
       }
-      auto* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
-      // May cause thread suspension.
-      ObjPtr<String> np_name = np_method->ResolveNameString();
-      if (np_name == nullptr) {
-        self->AssertPendingException();
-        return nullptr;
+      ArtMethod* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
+      if (!np_method->NameEquals(h_method_name.Get())) {
+        continue;
       }
-      if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
+      // `ArtMethod::EqualParameters()` may throw when resolving types.
+      if (!np_method->EqualParameters(h_args)) {
         if (UNLIKELY(self->IsExceptionPending())) {
           return nullptr;
         }

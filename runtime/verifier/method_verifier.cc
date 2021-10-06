@@ -1664,15 +1664,14 @@ bool MethodVerifier<kVerifierDebug>::SetTypesFromSignature() {
       if (declaring_class.IsJavaLangObject()) {
         // "this" is implicitly initialized.
         reg_line->SetThisInitialized();
-        reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, declaring_class);
+        reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, declaring_class);
       } else {
         reg_line->SetRegisterType<LockOp::kClear>(
-            this,
             arg_start + cur_arg,
             reg_types_.UninitializedThisArgument(declaring_class));
       }
     } else {
-      reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, declaring_class);
+      reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, declaring_class);
     }
     cur_arg++;
   }
@@ -1706,26 +1705,26 @@ bool MethodVerifier<kVerifierDebug>::SetTypesFromSignature() {
             DCHECK(HasFailures());
             return false;
           }
-          reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, reg_type);
+          reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, reg_type);
         }
         break;
       case 'Z':
-        reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, reg_types_.Boolean());
+        reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, reg_types_.Boolean());
         break;
       case 'C':
-        reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, reg_types_.Char());
+        reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, reg_types_.Char());
         break;
       case 'B':
-        reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, reg_types_.Byte());
+        reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, reg_types_.Byte());
         break;
       case 'I':
-        reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, reg_types_.Integer());
+        reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, reg_types_.Integer());
         break;
       case 'S':
-        reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, reg_types_.Short());
+        reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, reg_types_.Short());
         break;
       case 'F':
-        reg_line->SetRegisterType<LockOp::kClear>(this, arg_start + cur_arg, reg_types_.Float());
+        reg_line->SetRegisterType<LockOp::kClear>(arg_start + cur_arg, reg_types_.Float());
         break;
       case 'J':
       case 'D': {
@@ -1744,7 +1743,7 @@ bool MethodVerifier<kVerifierDebug>::SetTypesFromSignature() {
           lo_half = &reg_types_.DoubleLo();
           hi_half = &reg_types_.DoubleHi();
         }
-        reg_line->SetRegisterTypeWide(this, arg_start + cur_arg, *lo_half, *hi_half);
+        reg_line->SetRegisterTypeWide(arg_start + cur_arg, *lo_half, *hi_half);
         cur_arg++;
         break;
       }
@@ -2188,26 +2187,22 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
       /* could be boolean, int, float, or a null reference */
     case Instruction::CONST_4: {
       int32_t val = static_cast<int32_t>(inst->VRegB_11n() << 28) >> 28;
-      work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_11n(), DetermineCat1Constant(val));
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_11n(), DetermineCat1Constant(val));
       break;
     }
     case Instruction::CONST_16: {
       int16_t val = static_cast<int16_t>(inst->VRegB_21s());
-      work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21s(), DetermineCat1Constant(val));
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_21s(), DetermineCat1Constant(val));
       break;
     }
     case Instruction::CONST: {
       int32_t val = inst->VRegB_31i();
-      work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_31i(), DetermineCat1Constant(val));
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_31i(), DetermineCat1Constant(val));
       break;
     }
     case Instruction::CONST_HIGH16: {
       int32_t val = static_cast<int32_t>(inst->VRegB_21h() << 16);
-      work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21h(), DetermineCat1Constant(val));
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_21h(), DetermineCat1Constant(val));
       break;
     }
       /* could be long or double; resolved upon use */
@@ -2215,37 +2210,35 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
       int64_t val = static_cast<int16_t>(inst->VRegB_21s());
       const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
       const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
-      work_line_->SetRegisterTypeWide(this, inst->VRegA_21s(), lo, hi);
+      work_line_->SetRegisterTypeWide(inst->VRegA_21s(), lo, hi);
       break;
     }
     case Instruction::CONST_WIDE_32: {
       int64_t val = static_cast<int32_t>(inst->VRegB_31i());
       const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
       const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
-      work_line_->SetRegisterTypeWide(this, inst->VRegA_31i(), lo, hi);
+      work_line_->SetRegisterTypeWide(inst->VRegA_31i(), lo, hi);
       break;
     }
     case Instruction::CONST_WIDE: {
       int64_t val = inst->VRegB_51l();
       const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
       const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
-      work_line_->SetRegisterTypeWide(this, inst->VRegA_51l(), lo, hi);
+      work_line_->SetRegisterTypeWide(inst->VRegA_51l(), lo, hi);
       break;
     }
     case Instruction::CONST_WIDE_HIGH16: {
       int64_t val = static_cast<uint64_t>(inst->VRegB_21h()) << 48;
       const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
       const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
-      work_line_->SetRegisterTypeWide(this, inst->VRegA_21h(), lo, hi);
+      work_line_->SetRegisterTypeWide(inst->VRegA_21h(), lo, hi);
       break;
     }
     case Instruction::CONST_STRING:
-      work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21c(), reg_types_.JavaLangString());
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_21c(), reg_types_.JavaLangString());
       break;
     case Instruction::CONST_STRING_JUMBO:
-      work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_31c(), reg_types_.JavaLangString());
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_31c(), reg_types_.JavaLangString());
       break;
     case Instruction::CONST_CLASS: {
       // Get type from instruction if unresolved then we need an access check
@@ -2253,17 +2246,17 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
       const RegType& res_type = ResolveClass<CheckAccess::kYes>(dex::TypeIndex(inst->VRegB_21c()));
       // Register holds class, ie its type is class, on error it will hold Conflict.
       work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21c(), res_type.IsConflict() ? res_type
-                                                         : reg_types_.JavaLangClass());
+          inst->VRegA_21c(),
+          res_type.IsConflict() ? res_type : reg_types_.JavaLangClass());
       break;
     }
     case Instruction::CONST_METHOD_HANDLE:
       work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21c(), reg_types_.JavaLangInvokeMethodHandle());
+          inst->VRegA_21c(), reg_types_.JavaLangInvokeMethodHandle());
       break;
     case Instruction::CONST_METHOD_TYPE:
       work_line_->SetRegisterType<LockOp::kClear>(
-          this, inst->VRegA_21c(), reg_types_.JavaLangInvokeMethodType());
+          inst->VRegA_21c(), reg_types_.JavaLangInvokeMethodType());
       break;
     case Instruction::MONITOR_ENTER:
       work_line_->PushMonitor(this, inst->VRegA_11x(), work_insn_idx_);
@@ -2382,9 +2375,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
 
         DCHECK_NE(failures_.size(), 0U);
         if (!is_checkcast) {
-          work_line_->SetRegisterType<LockOp::kClear>(this,
-                                                      inst->VRegA_22c(),
-                                                      reg_types_.Boolean());
+          work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_22c(), reg_types_.Boolean());
         }
         break;  // bad class
       }
@@ -2413,11 +2404,9 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
         }
       } else {
         if (is_checkcast) {
-          work_line_->SetRegisterType<LockOp::kKeep>(this, inst->VRegA_21c(), res_type);
+          work_line_->SetRegisterType<LockOp::kKeep>(inst->VRegA_21c(), res_type);
         } else {
-          work_line_->SetRegisterType<LockOp::kClear>(this,
-                                                      inst->VRegA_22c(),
-                                                      reg_types_.Boolean());
+          work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_22c(), reg_types_.Boolean());
         }
       }
       break;
@@ -2429,9 +2418,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
           // ie not an array or null
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array-length on non-array " << res_type;
         } else {
-          work_line_->SetRegisterType<LockOp::kClear>(this,
-                                                      inst->VRegA_12x(),
-                                                      reg_types_.Integer());
+          work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_12x(), reg_types_.Integer());
         }
       } else {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array-length on non-array " << res_type;
@@ -2456,7 +2443,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
       // initialized must be marked invalid.
       work_line_->MarkUninitRefsAsInvalid(this, uninit_type);
       // add the new uninitialized reference to the register state
-      work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_21c(), uninit_type);
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_21c(), uninit_type);
       break;
     }
     case Instruction::NEW_ARRAY:
@@ -2478,7 +2465,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
       if (!work_line_->VerifyRegisterType(this, inst->VRegC_23x(), reg_types_.Float())) {
         break;
       }
-      work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_23x(), reg_types_.Integer());
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), reg_types_.Integer());
       break;
     case Instruction::CMPL_DOUBLE:
     case Instruction::CMPG_DOUBLE:
@@ -2490,7 +2477,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
                                               reg_types_.DoubleHi())) {
         break;
       }
-      work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_23x(), reg_types_.Integer());
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), reg_types_.Integer());
       break;
     case Instruction::CMP_LONG:
       if (!work_line_->VerifyRegisterTypeWide(this, inst->VRegB_23x(), reg_types_.LongLo(),
@@ -2501,7 +2488,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
                                               reg_types_.LongHi())) {
         break;
       }
-      work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_23x(), reg_types_.Integer());
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), reg_types_.Integer());
       break;
     case Instruction::THROW: {
       const RegType& res_type = work_line_->GetRegisterType(this, inst->VRegA_11x());
@@ -2670,9 +2657,7 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
             branch_line.reset(update_line);
           }
           update_line->CopyFromLine(work_line_.get());
-          update_line->SetRegisterType<LockOp::kKeep>(this,
-                                                      instance_of_inst.VRegB_22c(),
-                                                      cast_type);
+          update_line->SetRegisterType<LockOp::kKeep>(instance_of_inst.VRegB_22c(), cast_type);
           if (!GetInstructionFlags(instance_of_idx).IsBranchTarget() && 0 != instance_of_idx) {
             // See if instance-of was preceded by a move-object operation, common due to the small
             // register encoding space of instance-of, and propagate type information to the source
@@ -2683,13 +2668,13 @@ bool MethodVerifier<kVerifierDebug>::CodeFlowVerifyInstruction(uint32_t* start_g
               move_idx--;
             }
             DCHECK(GetInstructionFlags(move_idx).IsOpcode());
-            auto maybe_update_fn = [&instance_of_inst, update_line, this, &cast_type](
+            auto maybe_update_fn = [&instance_of_inst, update_line, &cast_type](
                 uint16_t move_src,
                 uint16_t move_trg)
                 REQUIRES_SHARED(Locks::mutator_lock_) {
               if (move_trg == instance_of_inst.VRegB_22c() &&
                   move_src != instance_of_inst.VRegA_22c()) {
-                update_line->SetRegisterType<LockOp::kKeep>(this, move_src, cast_type);
+                update_line->SetRegisterType<LockOp::kKeep>(move_src, cast_type);
               }
             };
             const Instruction& move_inst = code_item_accessor_.InstructionAt(move_idx);
@@ -3739,7 +3724,7 @@ bool MethodVerifier<kVerifierDebug>::HandleMoveException(const Instruction* inst
     return std::make_pair(true, common_super);
   };
   auto result = caught_exc_type_fn();
-  work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_11x(), *result.second);
+  work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_11x(), *result.second);
   return result.first;
 }
 
@@ -4310,7 +4295,7 @@ void MethodVerifier<kVerifierDebug>::VerifyNewArray(const Instruction* inst,
       work_line_->VerifyRegisterType(this, inst->VRegB_22c(), reg_types_.Integer());
       /* set register type to array class */
       const RegType& precise_type = reg_types_.FromUninitialized(res_type);
-      work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_22c(), precise_type);
+      work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_22c(), precise_type);
     } else {
       DCHECK(!res_type.IsUnresolvedMergedReference());
       // Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of
@@ -4348,19 +4333,18 @@ void MethodVerifier<kVerifierDebug>::VerifyAGet(const Instruction* inst,
       // Null array class; this code path will fail at runtime. Infer a merge-able type from the
       // instruction type.
       if (!is_primitive) {
-        work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_23x(), reg_types_.Null());
+        work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), reg_types_.Null());
       } else if (insn_type.IsInteger()) {
         // Pick a non-zero constant (to distinguish with null) that can fit in any primitive.
         // We cannot use 'insn_type' as it could be a float array or an int array.
-        work_line_->SetRegisterType<LockOp::kClear>(
-            this, inst->VRegA_23x(), DetermineCat1Constant(1));
+        work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), DetermineCat1Constant(1));
       } else if (insn_type.IsCategory1Types()) {
         // Category 1
         // The 'insn_type' is exactly the type we need.
-        work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_23x(), insn_type);
+        work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), insn_type);
       } else {
         // Category 2
-        work_line_->SetRegisterTypeWide(this, inst->VRegA_23x(),
+        work_line_->SetRegisterTypeWide(inst->VRegA_23x(),
                                         reg_types_.FromCat2ConstLo(0, false),
                                         reg_types_.FromCat2ConstHi(0, false));
       }
@@ -4375,8 +4359,7 @@ void MethodVerifier<kVerifierDebug>::VerifyAGet(const Instruction* inst,
         Fail(VERIFY_ERROR_NO_CLASS) << "cannot verify aget for " << array_type
             << " because of missing class";
         // Approximate with java.lang.Object[].
-        work_line_->SetRegisterType<LockOp::kClear>(this,
-                                                    inst->VRegA_23x(),
+        work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(),
                                                     reg_types_.JavaLangObject(false));
       }
     } else {
@@ -4398,9 +4381,9 @@ void MethodVerifier<kVerifierDebug>::VerifyAGet(const Instruction* inst,
         // instruction, which can't differentiate object types and ints from floats, longs from
         // doubles.
         if (!component_type.IsLowHalf()) {
-          work_line_->SetRegisterType<LockOp::kClear>(this, inst->VRegA_23x(), component_type);
+          work_line_->SetRegisterType<LockOp::kClear>(inst->VRegA_23x(), component_type);
         } else {
-          work_line_->SetRegisterTypeWide(this, inst->VRegA_23x(), component_type,
+          work_line_->SetRegisterTypeWide(inst->VRegA_23x(), component_type,
                                           component_type.HighHalf(&reg_types_));
         }
       }
@@ -4815,15 +4798,15 @@ void MethodVerifier<kVerifierDebug>::VerifyISFieldAccess(const Instruction* inst
                     << "' but found type '" << *field_type
                     << "' in get-object";
         if (error != VERIFY_ERROR_BAD_CLASS_HARD) {
-          work_line_->SetRegisterType<LockOp::kClear>(this, vregA, reg_types_.Conflict());
+          work_line_->SetRegisterType<LockOp::kClear>(vregA, reg_types_.Conflict());
         }
         return;
       }
     }
     if (!field_type->IsLowHalf()) {
-      work_line_->SetRegisterType<LockOp::kClear>(this, vregA, *field_type);
+      work_line_->SetRegisterType<LockOp::kClear>(vregA, *field_type);
     } else {
-      work_line_->SetRegisterTypeWide(this, vregA, *field_type, field_type->HighHalf(&reg_types_));
+      work_line_->SetRegisterTypeWide(vregA, *field_type, field_type->HighHalf(&reg_types_));
     }
   } else {
     LOG(FATAL) << "Unexpected case.";
