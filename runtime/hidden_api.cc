@@ -21,14 +21,17 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "class_root-inl.h"
 #include "compat_framework.h"
 #include "base/dumpable.h"
 #include "base/file_utils.h"
 #include "dex/class_accessor-inl.h"
 #include "dex/dex_file_loader.h"
 #include "mirror/class_ext.h"
+#include "mirror/proxy.h"
 #include "oat_file.h"
 #include "scoped_thread_state_change.h"
+#include "stack.h"
 #include "thread-inl.h"
 #include "well_known_classes.h"
 
@@ -44,6 +47,10 @@ static constexpr uint64_t kHideMaxtargetsdkQHiddenApis = 149994052;
 static constexpr uint64_t kAllowTestApiAccess = 166236554;
 
 static constexpr uint64_t kMaxLogWarnings = 100;
+
+// Should be the same as dalvik.system.VMRuntime.PREVENT_META_REFLECTION_BLOCKLIST_ACCESS.
+// Corresponds to a bug id.
+static constexpr uint64_t kPreventMetaReflectionBlocklistAccess = 142365358;
 
 // Set to true if we should always print a warning in logcat for all hidden API accesses, not just
 // conditionally and unconditionally blocked. This can be set to true for developer preview / beta
@@ -158,6 +165,75 @@ void InitializeCorePlatformApiPrivateFields() {
     DCHECK(new_access_flags != access_flags);
     field->SetAccessFlags(new_access_flags);
   }
+}
+
+hiddenapi::AccessContext GetReflectionCallerAccessContext(Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Walk the stack and find the first frame not from java.lang.Class,
+  // java.lang.invoke or java.lang.reflect. This is very expensive.
+  // Save this till the last.
+  struct FirstExternalCallerVisitor : public StackVisitor {
+    explicit FirstExternalCallerVisitor(Thread* thread)
+        : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+          caller(nullptr) {
+    }
+
+    bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
+      ArtMethod *m = GetMethod();
+      if (m == nullptr) {
+        // Attached native thread. Assume this is *not* boot class path.
+        caller = nullptr;
+        return false;
+      } else if (m->IsRuntimeMethod()) {
+        // Internal runtime method, continue walking the stack.
+        return true;
+      }
+
+      ObjPtr<mirror::Class> declaring_class = m->GetDeclaringClass();
+      if (declaring_class->IsBootStrapClassLoaded()) {
+        if (declaring_class->IsClassClass()) {
+          return true;
+        }
+        // Check classes in the java.lang.invoke package. At the time of writing, the
+        // classes of interest are MethodHandles and MethodHandles.Lookup, but this
+        // is subject to change so conservatively cover the entire package.
+        // NB Static initializers within java.lang.invoke are permitted and do not
+        // need further stack inspection.
+        ObjPtr<mirror::Class> lookup_class = GetClassRoot<mirror::MethodHandlesLookup>();
+        if ((declaring_class == lookup_class || declaring_class->IsInSamePackage(lookup_class))
+            && !m->IsClassInitializer()) {
+          return true;
+        }
+        // Check for classes in the java.lang.reflect package, except for java.lang.reflect.Proxy.
+        // java.lang.reflect.Proxy does its own hidden api checks (https://r.android.com/915496),
+        // and walking over this frame would cause a null pointer dereference
+        // (e.g. in 691-hiddenapi-proxy).
+        ObjPtr<mirror::Class> proxy_class = GetClassRoot<mirror::Proxy>();
+        CompatFramework& compat_framework = Runtime::Current()->GetCompatFramework();
+        if (declaring_class->IsInSamePackage(proxy_class) && declaring_class != proxy_class) {
+          if (compat_framework.IsChangeEnabled(kPreventMetaReflectionBlocklistAccess)) {
+            return true;
+          }
+        }
+      }
+
+      caller = m;
+      return false;
+    }
+
+    ArtMethod* caller;
+  };
+
+  FirstExternalCallerVisitor visitor(self);
+  visitor.WalkStack();
+
+  // Construct AccessContext from the calling class found on the stack.
+  // If the calling class cannot be determined, e.g. unattached threads,
+  // we conservatively assume the caller is trusted.
+  ObjPtr<mirror::Class> caller = (visitor.caller == nullptr)
+      ? nullptr : visitor.caller->GetDeclaringClass();
+  return caller.IsNull() ? AccessContext(/* is_trusted= */ true)
+                         : AccessContext(caller);
 }
 
 namespace detail {
