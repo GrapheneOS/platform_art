@@ -184,29 +184,6 @@ void DexCache::VisitReflectiveTargets(ReflectiveValueVisitor* visitor) {
   }
 }
 
-bool DexCache::AddPreResolvedStringsArray() {
-  DCHECK_EQ(NumPreResolvedStrings(), 0u);
-  Thread* const self = Thread::Current();
-  LinearAlloc* linear_alloc = Runtime::Current()->GetLinearAlloc();
-  const size_t num_strings = GetDexFile()->NumStringIds();
-  if (num_strings != 0) {
-    GcRoot<mirror::String>* strings =
-        linear_alloc->AllocArray<GcRoot<mirror::String>>(self, num_strings);
-    if (strings == nullptr) {
-      // Failed to allocate pre-resolved string array (probably due to address fragmentation), bail.
-      return false;
-    }
-    SetField32<false>(NumPreResolvedStringsOffset(), num_strings);
-
-    CHECK(strings != nullptr);
-    SetPreResolvedStrings(strings);
-    for (size_t i = 0; i < GetDexFile()->NumStringIds(); ++i) {
-      CHECK(GetPreResolvedStrings()[i].Read() == nullptr);
-    }
-  }
-  return true;
-}
-
 void DexCache::SetNativeArrays(StringDexCacheType* strings,
                                uint32_t num_strings,
                                TypeDexCacheType* resolved_types,

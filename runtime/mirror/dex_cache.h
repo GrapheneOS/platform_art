@@ -196,22 +196,6 @@ class MANAGED DexCache final : public Object {
   // Clear all native fields.
   void ResetNativeFields() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
-  void FixupStrings(StringDexCacheType* dest, const Visitor& visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
-  void FixupResolvedTypes(TypeDexCacheType* dest, const Visitor& visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
-  void FixupResolvedMethodTypes(MethodTypeDexCacheType* dest, const Visitor& visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
-  void FixupResolvedCallSites(GcRoot<mirror::CallSite>* dest, const Visitor& visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   ObjPtr<String> GetLocation() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static constexpr MemberOffset StringsOffset() {
@@ -280,14 +264,6 @@ class MANAGED DexCache final : public Object {
   void SetResolvedString(dex::StringIndex string_idx, ObjPtr<mirror::String> resolved) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetPreResolvedString(dex::StringIndex string_idx,
-                            ObjPtr<mirror::String> resolved)
-      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Clear the preresolved string cache to prevent further usage.
-  void ClearPreResolvedStrings()
-      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Clear a string for a string_idx, used to undo string intern transactions to make sure
   // the string isn't kept live.
   void ClearString(dex::StringIndex string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -335,19 +311,8 @@ class MANAGED DexCache final : public Object {
     return GetFieldPtr64<StringDexCacheType*, kVerifyFlags>(StringsOffset());
   }
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  GcRoot<mirror::String>* GetPreResolvedStrings() ALWAYS_INLINE
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldPtr64<GcRoot<mirror::String>*, kVerifyFlags>(PreResolvedStringsOffset());
-  }
-
   void SetStrings(StringDexCacheType* strings) ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     SetFieldPtr<false>(StringsOffset(), strings);
-  }
-
-  void SetPreResolvedStrings(GcRoot<mirror::String>* strings)
-      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
-    SetFieldPtr<false>(PreResolvedStringsOffset(), strings);
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -470,12 +435,10 @@ class MANAGED DexCache final : public Object {
   uint32_t MethodSlotIndex(uint32_t method_idx) REQUIRES_SHARED(Locks::mutator_lock_);
   uint32_t MethodTypeSlotIndex(dex::ProtoIndex proto_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Returns true if we succeeded in adding the pre-resolved string array.
-  bool AddPreResolvedStringsArray() REQUIRES_SHARED(Locks::mutator_lock_);
-
   void VisitReflectiveTargets(ReflectiveValueVisitor* visitor) REQUIRES(Locks::mutator_lock_);
 
   void SetClassLoader(ObjPtr<ClassLoader> class_loader) REQUIRES_SHARED(Locks::mutator_lock_);
+
   ObjPtr<ClassLoader> GetClassLoader() REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
