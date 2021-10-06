@@ -24,7 +24,9 @@ import argparse, os, tempfile, shutil, subprocess, glob, textwrap, re, json, con
 ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
 KNOWNFAILURES = json.loads(open(os.path.join("art", "test", "knownfailures.json"), "rt").read())
 
-def build(args, tmp, mode, srcdir):
+def copy_sources(args, tmp, mode, srcdir):
+  """Copy test files from Android tree into the build sandbox and return its path."""
+
   join = os.path.join
   test = os.path.basename(srcdir)
   dstdir = join(tmp, mode, test)
@@ -33,7 +35,7 @@ def build(args, tmp, mode, srcdir):
   def is_knownfailure(kf):
     return test in kf.get("tests", []) and mode == kf.get("variant") and not kf.get("env_vars")
   if any(is_knownfailure(kf) for kf in KNOWNFAILURES):
-    return None, 0  # (stdout, exitcode)
+    return None
 
   # Copy all source files to the temporary directory.
   shutil.copytree(srcdir, dstdir)
@@ -46,9 +48,13 @@ def build(args, tmp, mode, srcdir):
     else:
       shutil.copy2(src, dst)  # Use just the default script.
     os.chmod(dst, 0o755)
-  os.sync()  # Ensure the chmod changes are applied and file descriptor is closed.
 
-  # Execute the build script.
+  return dstdir
+
+def build_test(args, mode, dstdir):
+  """Run the build script for single run-test"""
+
+  join = os.path.join
   build_top = os.getcwd()
   java_home = os.environ.get("JAVA_HOME")
   tools_dir = os.path.abspath(join(os.path.dirname(__file__), "../../../out/bin"))
@@ -56,7 +62,7 @@ def build(args, tmp, mode, srcdir):
     "PATH": os.environ.get("PATH"),
     "ANDROID_BUILD_TOP": build_top,
     "ART_TEST_RUN_TEST_BOOTCLASSPATH": join(build_top, args.bootclasspath),
-    "TEST_NAME":   test,
+    "TEST_NAME":   os.path.basename(dstdir),
     "SOONG_ZIP":   join(build_top, "prebuilts/build-tools/linux-x86/bin/soong_zip"),
     "ZIPALIGN":    join(build_top, "prebuilts/build-tools/linux-x86/bin/zipalign"),
     "JAVA":        join(java_home, "bin/java"),
@@ -87,15 +93,16 @@ def main():
   with tempfile.TemporaryDirectory(prefix=os.path.basename(__file__)) as tmp:
     srcdirs = sorted(glob.glob(os.path.join("art", "test", "*")))
     srcdirs = filter(lambda srcdir: re.match(".*/\d*{}-.*".format(args.shard), srcdir), srcdirs)
+    dstdirs = [copy_sources(args, tmp, args.mode, srcdir) for srcdir in srcdirs]
+    dstdirs = filter(lambda dstdir: dstdir, dstdirs)  # Remove None (skipped tests).
     with concurrent.futures.ThreadPoolExecutor() as pool:
-      for stdout, exitcode in pool.map(lambda srcdir: build(args, tmp, args.mode, srcdir), srcdirs):
+      for stdout, exitcode in pool.map(lambda dstdir: build_test(args, args.mode, dstdir), dstdirs):
         if stdout:
           print(stdout.strip())
         assert(exitcode == 0) # Build failed.
 
     # Create the final zip file which contains the content of the temporary directory.
-    proc = subprocess.run([ZIP, "-o", args.out, "-C", tmp, "-D", tmp])
-    assert(proc.returncode == 0) # Zip failed.
+    proc = subprocess.run([ZIP, "-o", args.out, "-C", tmp, "-D", tmp], check=True)
 
 if __name__ == "__main__":
   main()
