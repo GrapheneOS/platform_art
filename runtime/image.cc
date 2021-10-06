@@ -29,8 +29,8 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-// Last change: kJdkUnsafe intrinsics for getAcquire/putRelease and compareAndSetInt
-const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '3', '\0' };
+// Last change: added multiple kJdkUnsafe intrinsics
+const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '4', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_reservation_size,
                          uint32_t component_count,
