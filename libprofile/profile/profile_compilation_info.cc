@@ -414,7 +414,7 @@ class ProfileCompilationInfo::SafeBuffer {
         ptr_end_(nullptr) {}
 
   explicit SafeBuffer(size_t size)
-      : storage_(new uint8_t[size]()),
+      : storage_(new uint8_t[size]),
         ptr_current_(storage_.get()),
         ptr_end_(ptr_current_ + size) {}
 
@@ -2601,6 +2601,10 @@ void ProfileCompilationInfo::DexFileData::WriteMethods(SafeBuffer& buffer) const
     return true;
   });
   DCHECK_EQ(saved_bitmap_index * num_method_ids, saved_bitmap_bit_size);
+  // Clear the padding bits.
+  size_t padding_bit_size = saved_bitmap_byte_size * kBitsPerByte - saved_bitmap_bit_size;
+  BitMemoryRegion padding_region(buffer.GetCurrentPtr(), saved_bitmap_bit_size, padding_bit_size);
+  padding_region.StoreBits(/*bit_offset=*/ 0u, /*value=*/ 0u, /*bit_length=*/ padding_bit_size);
   buffer.Advance(saved_bitmap_byte_size);
 
   uint16_t last_method_index = 0;
