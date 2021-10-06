@@ -48,10 +48,14 @@ ART_TEST_TARGET_RUN_TEST_DEPENDENCIES += libnativebridgetest-target libnativebri
 # Also need signal_dumper.
 ART_TEST_TARGET_RUN_TEST_DEPENDENCIES += signal_dumper-target
 
+ART_TEST_TARGET_RUN_TEST_DEPENDENCIES += art-run-test-target-data
+
 # All tests require the host executables. The tests also depend on the core images, but on
 # specific version depending on the compiler.
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
+  art-run-test-host-data \
+  art-run-test-jvm-data \
   $(HOST_OUT_EXECUTABLES)/hprof-conv \
   $(HOST_OUT_EXECUTABLES)/signal_dumper \
   $(ART_TEST_LIST_host_$(ART_HOST_ARCH)_libtiagent) \

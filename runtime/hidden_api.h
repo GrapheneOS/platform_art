@@ -322,6 +322,7 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
       case Intrinsics::kJdkUnsafeCASInt:
       case Intrinsics::kJdkUnsafeCASLong:
       case Intrinsics::kJdkUnsafeCASObject:
+      case Intrinsics::kJdkUnsafeCompareAndSetInt:
       case Intrinsics::kJdkUnsafeGetAndAddInt:
       case Intrinsics::kJdkUnsafeGetAndAddLong:
       case Intrinsics::kJdkUnsafeGetAndSetInt:
@@ -330,12 +331,14 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
       case Intrinsics::kJdkUnsafeGetLongVolatile:
       case Intrinsics::kJdkUnsafeGetObjectVolatile:
       case Intrinsics::kJdkUnsafeGetVolatile:
+      case Intrinsics::kJdkUnsafeGetAcquire:
       case Intrinsics::kJdkUnsafePutLongOrdered:
       case Intrinsics::kJdkUnsafePutLongVolatile:
       case Intrinsics::kJdkUnsafePutObjectOrdered:
       case Intrinsics::kJdkUnsafePutObjectVolatile:
       case Intrinsics::kJdkUnsafePutOrdered:
       case Intrinsics::kJdkUnsafePutVolatile:
+      case Intrinsics::kJdkUnsafePutRelease:
       case Intrinsics::kJdkUnsafeLoadFence:
       case Intrinsics::kJdkUnsafeStoreFence:
       case Intrinsics::kJdkUnsafeFullFence:

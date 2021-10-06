@@ -79,6 +79,8 @@ if [[ $mode == jvm ]]; then
   # For --mode=jvm:
   # Do not prepend a -bootclasspath, which will use the default bootclasspath instead.
   javac_args=()
+elif [[ ! -z ${ART_TEST_RUN_TEST_BOOTCLASSPATH} ]]; then
+  javac_args=(-bootclasspath "${ART_TEST_RUN_TEST_BOOTCLASSPATH}")
 else
   # For --mode=host or --mode=target, look up the correct -bootclasspath for libcore.
   javac_bootclasspath=()
