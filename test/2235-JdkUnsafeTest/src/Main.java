@@ -222,28 +222,82 @@ public class Main {
     long intOffset = unsafe.objectFieldOffset(intField);
     unsafe.putInt(t, intOffset, intValue);
 
+    long longValue = 1234567887654321L;
+    Field longField = TestClass.class.getDeclaredField("longVar");
+    long longOffset = unsafe.objectFieldOffset(longField);
+    unsafe.putLong(t, longOffset, longValue);
+
+    Object objectValue = new Object();
+    Field objectField = TestClass.class.getDeclaredField("objectVar");
+    long objectOffset = unsafe.objectFieldOffset(objectField);
+    unsafe.putObject(t, objectOffset, objectValue);
+
     if (unsafe.compareAndSetInt(t, intOffset, 0, 1)) {
       System.out.println("Unexpectedly succeeding compareAndSetInt(t, intOffset, 0, 1)");
     }
     check(t.intVar, intValue, "Unsafe.compareAndSetInt(Object, long, int, int) - not set");
-
     if (!unsafe.compareAndSetInt(t, intOffset, intValue, 0)) {
       System.out.println(
           "Unexpectedly not succeeding compareAndSetInt(t, intOffset, intValue, 0)");
     }
     check(t.intVar, 0, "Unsafe.compareAndSetInt(Object, long, int, int) - gets set");
-
     if (!unsafe.compareAndSetInt(t, intOffset, 0, 1)) {
       System.out.println("Unexpectedly not succeeding compareAndSetInt(t, intOffset, 0, 1)");
     }
     check(t.intVar, 1, "Unsafe.compareAndSetInt(Object, long, int, int) - gets re-set");
-
     // Exercise jdk.internal.misc.Unsafe.compareAndSetInt using the same
     // integer (1) for the `expectedValue` and `newValue` arguments.
     if (!unsafe.compareAndSetInt(t, intOffset, 1, 1)) {
       System.out.println("Unexpectedly not succeeding compareAndSetInt(t, intOffset, 1, 1)");
     }
     check(t.intVar, 1, "Unsafe.compareAndSetInt(Object, long, int, int) - gets set to same");
+
+    if (unsafe.compareAndSetLong(t, longOffset, 0, 1)) {
+      System.out.println("Unexpectedly succeeding compareAndSetLong(t, longOffset, 0, 1)");
+    }
+    check(t.longVar, longValue, "Unsafe.compareAndSetLong(Object, long, long, long) - not set");
+    if (!unsafe.compareAndSetLong(t, longOffset, longValue, 0)) {
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSetLong(t, longOffset, longValue, 0)");
+    }
+    check(t.longVar, 0, "Unsafe.compareAndSetLong(Object, long, long, long) - gets set");
+    if (!unsafe.compareAndSetLong(t, longOffset, 0, 1)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetLong(t, longOffset, 0, 1)");
+    }
+    check(t.longVar, 1, "Unsafe.compareAndSetLong(Object, long, long, long) - gets re-set");
+    // Exercise jdk.internal.misc.Unsafe.compareAndSetLong using the same
+    // integer (1) for the `expectedValue` and `newValue` arguments.
+    if (!unsafe.compareAndSetLong(t, longOffset, 1, 1)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetLong(t, longOffset, 1, 1)");
+    }
+    check(t.longVar, 1, "Unsafe.compareAndSetLong(Object, long, long, long) - gets set to same");
+
+    // We do not use `null` as argument to jdk.internal.misc.Unsafe.compareAndSwapObject
+    // in those tests, as this value is not affected by heap poisoning
+    // (which uses address negation to poison and unpoison heap object
+    // references).  This way, when heap poisoning is enabled, we can
+    // better exercise its implementation within that method.
+    if (unsafe.compareAndSetObject(t, objectOffset, new Object(), new Object())) {
+      System.out.println("Unexpectedly succeeding compareAndSetObject(t, objectOffset, 0, 1)");
+    }
+    check(t.objectVar, objectValue, "Unsafe.compareAndSetObject(Object, long, Object, Object) - not set");
+    Object objectValue2 = new Object();
+    if (!unsafe.compareAndSetObject(t, objectOffset, objectValue, objectValue2)) {
+      System.out.println(
+          "Unexpectedly not succeeding compareAndSetObject(t, objectOffset, objectValue, 0)");
+    }
+    check(t.objectVar, objectValue2, "Unsafe.compareAndSetObject(Object, long, Object, Object) - gets set");
+    Object objectValue3 = new Object();
+    if (!unsafe.compareAndSetObject(t, objectOffset, objectValue2, objectValue3)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetObject(t, objectOffset, 0, 1)");
+    }
+    check(t.objectVar, objectValue3, "Unsafe.compareAndSetObject(Object, long, Object, Object) - gets re-set");
+    // Exercise jdk.internal.misc.Unsafe.compareAndSetObject using the same
+    // object for the `expectedValue` and `newValue` arguments.
+    if (!unsafe.compareAndSetObject(t, objectOffset, objectValue3, objectValue3)) {
+      System.out.println("Unexpectedly not succeeding compareAndSetObject(t, objectOffset, 1, 1)");
+    }
+    check(t.objectVar, objectValue3, "Unsafe.compareAndSetObject(Object, long, Object, Object) - gets set to same");
  }
 
   private static void testGetAndPutVolatile(Unsafe unsafe) throws NoSuchFieldException {
@@ -300,6 +354,30 @@ public class Main {
     check(unsafe.getIntAcquire(tv, volatileIntOffset),
           intValue,
           "Unsafe.getIntAcquire(Object, long)");
+
+    long longValue = 1234567887654321L;
+    Field volatileLongField = TestVolatileClass.class.getDeclaredField("volatileLongVar");
+    long volatileLongOffset = unsafe.objectFieldOffset(volatileLongField);
+    check(unsafe.getLongAcquire(tv, volatileLongOffset),
+          0,
+          "Unsafe.getLongAcquire(Object, long) - initial");
+    unsafe.putLongRelease(tv, volatileLongOffset, longValue);
+    check(tv.volatileLongVar, longValue, "Unsafe.putLongRelease(Object, long, long)");
+    check(unsafe.getLongAcquire(tv, volatileLongOffset),
+          longValue,
+          "Unsafe.getLongAcquire(Object, long)");
+
+    Object objectValue = new Object();
+    Field volatileObjectField = TestVolatileClass.class.getDeclaredField("volatileObjectVar");
+    long volatileObjectOffset = unsafe.objectFieldOffset(volatileObjectField);
+    check(unsafe.getObjectAcquire(tv, volatileObjectOffset),
+          null,
+          "Unsafe.getObjectAcquire(Object, long) - initial");
+    unsafe.putObjectRelease(tv, volatileObjectOffset, objectValue);
+    check(tv.volatileObjectVar, objectValue, "Unsafe.putObjectRelease(Object, long, Object)");
+    check(unsafe.getObjectAcquire(tv, volatileObjectOffset),
+          objectValue,
+          "Unsafe.getObjectAcquire(Object, long)");
   }
 
   // Regression test for "copyMemory" operations hitting a DCHECK() for float/double arrays.
