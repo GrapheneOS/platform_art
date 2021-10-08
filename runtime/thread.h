@@ -934,28 +934,6 @@ class Thread {
     return handle_scope;
   }
 
-  // Indicates whether this thread is ready to invoke a method for debugging. This
-  // is only true if the thread has been suspended by a debug event.
-  bool IsReadyForDebugInvoke() const {
-    return tls32_.ready_for_debug_invoke;
-  }
-
-  void SetReadyForDebugInvoke(bool ready) {
-    tls32_.ready_for_debug_invoke = ready;
-  }
-
-  bool IsDebugMethodEntry() const {
-    return tls32_.debug_method_entry_;
-  }
-
-  void SetDebugMethodEntry() {
-    tls32_.debug_method_entry_ = true;
-  }
-
-  void ClearDebugMethodEntry() {
-    tls32_.debug_method_entry_ = false;
-  }
-
   bool GetIsGcMarking() const {
     CHECK(kUseReadBarrier);
     return tls32_.is_gc_marking;
@@ -1218,14 +1196,6 @@ class Thread {
 
   bool ProtectStack(bool fatal_on_error = true);
   bool UnprotectStack();
-
-  bool HandlingSignal() const {
-    return tls32_.handling_signal_;
-  }
-
-  void SetHandlingSignal(bool handling_signal) {
-    tls32_.handling_signal_ = handling_signal;
-  }
 
   bool IsTransitioningToRunnable() const {
     return tls32_.is_transitioning_to_runnable;
@@ -1534,10 +1504,7 @@ class Thread {
           throwing_OutOfMemoryError(false),
           no_thread_suspension(0),
           thread_exit_check_count(0),
-          handling_signal_(false),
           is_transitioning_to_runnable(false),
-          ready_for_debug_invoke(false),
-          debug_method_entry_(false),
           is_gc_marking(false),
           weak_ref_access_enabled(true),
           disable_thread_flip_count(0),
@@ -1576,22 +1543,10 @@ class Thread {
     // How many times has our pthread key's destructor been called?
     uint32_t thread_exit_check_count;
 
-    // True if signal is being handled by this thread.
-    bool32_t handling_signal_;
-
     // True if the thread is in TransitionFromSuspendedToRunnable(). This is used to distinguish the
     // non-runnable threads (eg. kNative, kWaiting) that are about to transition to runnable from
     // the rest of them.
     bool32_t is_transitioning_to_runnable;
-
-    // True if the thread has been suspended by a debugger event. This is
-    // used to invoke method from the debugger which is only allowed when
-    // the thread is suspended by an event.
-    bool32_t ready_for_debug_invoke;
-
-    // True if the thread enters a method. This is used to detect method entry
-    // event for the debugger.
-    bool32_t debug_method_entry_;
 
     // True if the GC is in the marking phase. This is used for the CC collector only. This is
     // thread local so that we can simplify the logic to check for the fast path of read barriers of
