@@ -118,6 +118,8 @@ if [[ $build_target == "yes" ]]; then
   # chroot environment. The *.libraries.txt targets are required by
   # the source linkerconfig but not included in the prebuilt one.
   make_command+=" linkerconfig conv_linker_config sanitizer.libraries.txt vndkcorevariant.libraries.txt"
+  # Additional dependency in /system
+  make_command+=" libbinder_ndk"
   # Additional targets needed for the chroot environment.
   make_command+=" event-log-tags"
   # Needed to extract prebuilt APEXes.
