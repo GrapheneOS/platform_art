@@ -1414,7 +1414,7 @@ uint32_t Jit::CompileMethodsFromProfile(
     return 0u;
   }
 
-  ProfileCompilationInfo profile_info;
+  ProfileCompilationInfo profile_info(/* for_boot_image= */ class_loader.IsNull());
   if (!profile_info.Load(profile.Fd())) {
     LOG(ERROR) << "Could not load profile file";
     return 0u;
