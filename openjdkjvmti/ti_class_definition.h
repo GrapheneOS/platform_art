@@ -50,7 +50,7 @@ namespace openjdkjvmti {
 class ArtClassDefinition {
  public:
   // If we support doing a on-demand dex-dequickening using signal handlers.
-  static constexpr bool kEnableOnDemandDexDequicken = true;
+  static constexpr bool kEnableOnDemandDexDequicken = false;
 
   ArtClassDefinition()
       : klass_(nullptr),
