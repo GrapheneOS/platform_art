@@ -323,19 +323,25 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
       case Intrinsics::kJdkUnsafeCASLong:
       case Intrinsics::kJdkUnsafeCASObject:
       case Intrinsics::kJdkUnsafeCompareAndSetInt:
+      case Intrinsics::kJdkUnsafeCompareAndSetLong:
+      case Intrinsics::kJdkUnsafeCompareAndSetObject:
       case Intrinsics::kJdkUnsafeGetAndAddInt:
       case Intrinsics::kJdkUnsafeGetAndAddLong:
       case Intrinsics::kJdkUnsafeGetAndSetInt:
       case Intrinsics::kJdkUnsafeGetAndSetLong:
       case Intrinsics::kJdkUnsafeGetAndSetObject:
       case Intrinsics::kJdkUnsafeGetLongVolatile:
+      case Intrinsics::kJdkUnsafeGetLongAcquire:
       case Intrinsics::kJdkUnsafeGetObjectVolatile:
+      case Intrinsics::kJdkUnsafeGetObjectAcquire:
       case Intrinsics::kJdkUnsafeGetVolatile:
       case Intrinsics::kJdkUnsafeGetAcquire:
       case Intrinsics::kJdkUnsafePutLongOrdered:
       case Intrinsics::kJdkUnsafePutLongVolatile:
+      case Intrinsics::kJdkUnsafePutLongRelease:
       case Intrinsics::kJdkUnsafePutObjectOrdered:
       case Intrinsics::kJdkUnsafePutObjectVolatile:
+      case Intrinsics::kJdkUnsafePutObjectRelease:
       case Intrinsics::kJdkUnsafePutOrdered:
       case Intrinsics::kJdkUnsafePutVolatile:
       case Intrinsics::kJdkUnsafePutRelease:
