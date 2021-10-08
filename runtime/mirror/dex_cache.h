@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_DEX_CACHE_H_
 
 #include "array.h"
+#include "base/array_ref.h"
 #include "base/bit_utils.h"
 #include "base/locks.h"
 #include "dex/dex_file_types.h"
@@ -188,13 +189,13 @@ class MANAGED DexCache final : public Object {
     return sizeof(DexCache);
   }
 
-  // Initialize native fields and allocate memory.
-  void InitializeNativeFields(const DexFile* dex_file, LinearAlloc* linear_alloc)
+  void Initialize(const DexFile* dex_file, ObjPtr<ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::dex_lock_);
 
-  // Clear all native fields.
-  void ResetNativeFields() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Zero all array references.
+  // WARNING: This does not free the memory since it is in LinearAlloc.
+  void ResetNativeArrays() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ObjPtr<String> GetLocation() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -442,19 +443,10 @@ class MANAGED DexCache final : public Object {
   ObjPtr<ClassLoader> GetClassLoader() REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  void SetNativeArrays(StringDexCacheType* strings,
-                       uint32_t num_strings,
-                       TypeDexCacheType* resolved_types,
-                       uint32_t num_resolved_types,
-                       MethodDexCacheType* resolved_methods,
-                       uint32_t num_resolved_methods,
-                       FieldDexCacheType* resolved_fields,
-                       uint32_t num_resolved_fields,
-                       MethodTypeDexCacheType* resolved_method_types,
-                       uint32_t num_resolved_method_types,
-                       GcRoot<CallSite>* resolved_call_sites,
-                       uint32_t num_resolved_call_sites)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Allocate new array in linear alloc and save it in the given fields.
+  template<typename T, size_t kMaxCacheSize>
+  T* AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t num)
+     REQUIRES_SHARED(Locks::mutator_lock_);
 
   // std::pair<> is not trivially copyable and as such it is unsuitable for atomic operations,
   // so we use a custom pair class for loading and storing the NativeDexCachePair<>.
