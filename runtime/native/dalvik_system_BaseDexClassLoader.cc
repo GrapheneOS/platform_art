@@ -58,7 +58,7 @@ static jobjectArray BaseDexClassLoader_computeClassLoaderContextsNative(JNIEnv* 
   return result;
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   NATIVE_METHOD(BaseDexClassLoader, computeClassLoaderContextsNative,
                 "()[Ljava/lang/String;"),
 };
