@@ -127,33 +127,48 @@ static void DecreaseFrameSizeImpl(X86Assembler* assembler, size_t adjust) {
   }
 }
 
+ManagedRegister X86JNIMacroAssembler::CoreRegisterWithSize(ManagedRegister src, size_t size) {
+  DCHECK(src.AsX86().IsCpuRegister());
+  DCHECK_EQ(size, 4u);
+  return src;
+}
+
 void X86JNIMacroAssembler::DecreaseFrameSize(size_t adjust) {
   DecreaseFrameSizeImpl(&asm_, adjust);
 }
 
 void X86JNIMacroAssembler::Store(FrameOffset offs, ManagedRegister msrc, size_t size) {
+  Store(X86ManagedRegister::FromCpuRegister(ESP), MemberOffset(offs.Int32Value()), msrc, size);
+}
+
+void X86JNIMacroAssembler::Store(ManagedRegister mbase,
+                                 MemberOffset offs,
+                                 ManagedRegister msrc,
+                                 size_t size) {
+  X86ManagedRegister base = mbase.AsX86();
   X86ManagedRegister src = msrc.AsX86();
   if (src.IsNoRegister()) {
     CHECK_EQ(0u, size);
   } else if (src.IsCpuRegister()) {
     CHECK_EQ(4u, size);
-    __ movl(Address(ESP, offs), src.AsCpuRegister());
+    __ movl(Address(base.AsCpuRegister(), offs), src.AsCpuRegister());
   } else if (src.IsRegisterPair()) {
     CHECK_EQ(8u, size);
-    __ movl(Address(ESP, offs), src.AsRegisterPairLow());
-    __ movl(Address(ESP, FrameOffset(offs.Int32Value()+4)), src.AsRegisterPairHigh());
+    __ movl(Address(base.AsCpuRegister(), offs), src.AsRegisterPairLow());
+    __ movl(Address(base.AsCpuRegister(), FrameOffset(offs.Int32Value()+4)),
+            src.AsRegisterPairHigh());
   } else if (src.IsX87Register()) {
     if (size == 4) {
-      __ fstps(Address(ESP, offs));
+      __ fstps(Address(base.AsCpuRegister(), offs));
     } else {
-      __ fstpl(Address(ESP, offs));
+      __ fstpl(Address(base.AsCpuRegister(), offs));
     }
   } else {
     CHECK(src.IsXmmRegister());
     if (size == 4) {
-      __ movss(Address(ESP, offs), src.AsXmmRegister());
+      __ movss(Address(base.AsCpuRegister(), offs), src.AsXmmRegister());
     } else {
-      __ movsd(Address(ESP, offs), src.AsXmmRegister());
+      __ movsd(Address(base.AsCpuRegister(), offs), src.AsXmmRegister());
     }
   }
 }
@@ -191,28 +206,37 @@ void X86JNIMacroAssembler::StoreSpanning(FrameOffset /*dst*/,
 }
 
 void X86JNIMacroAssembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) {
+  Load(mdest, X86ManagedRegister::FromCpuRegister(ESP), MemberOffset(src.Int32Value()), size);
+}
+
+void X86JNIMacroAssembler::Load(ManagedRegister mdest,
+                                ManagedRegister mbase,
+                                MemberOffset offs,
+                                size_t size) {
   X86ManagedRegister dest = mdest.AsX86();
+  X86ManagedRegister base = mbase.AsX86();
   if (dest.IsNoRegister()) {
     CHECK_EQ(0u, size);
   } else if (dest.IsCpuRegister()) {
     CHECK_EQ(4u, size);
-    __ movl(dest.AsCpuRegister(), Address(ESP, src));
+    __ movl(dest.AsCpuRegister(), Address(base.AsCpuRegister(), offs));
   } else if (dest.IsRegisterPair()) {
     CHECK_EQ(8u, size);
-    __ movl(dest.AsRegisterPairLow(), Address(ESP, src));
-    __ movl(dest.AsRegisterPairHigh(), Address(ESP, FrameOffset(src.Int32Value()+4)));
+    __ movl(dest.AsRegisterPairLow(), Address(base.AsCpuRegister(), offs));
+    __ movl(dest.AsRegisterPairHigh(),
+            Address(base.AsCpuRegister(), FrameOffset(offs.Int32Value()+4)));
   } else if (dest.IsX87Register()) {
     if (size == 4) {
-      __ flds(Address(ESP, src));
+      __ flds(Address(base.AsCpuRegister(), offs));
     } else {
-      __ fldl(Address(ESP, src));
+      __ fldl(Address(base.AsCpuRegister(), offs));
     }
   } else {
     CHECK(dest.IsXmmRegister());
     if (size == 4) {
-      __ movss(dest.AsXmmRegister(), Address(ESP, src));
+      __ movss(dest.AsXmmRegister(), Address(base.AsCpuRegister(), offs));
     } else {
-      __ movsd(dest.AsXmmRegister(), Address(ESP, src));
+      __ movsd(dest.AsXmmRegister(), Address(base.AsCpuRegister(), offs));
     }
   }
 }
