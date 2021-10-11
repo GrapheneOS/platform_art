@@ -1,0 +1,5 @@
+About to null reference.
+Cleaner started and sleeping briefly...
+Cleaner done snoozing.
+Cleaner sleeping forever now.
+exit status: 2
