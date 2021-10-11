@@ -53,7 +53,7 @@ class OdrConfig final {
   std::string program_name_;
   std::string system_server_classpath_;
   ZygoteKind zygote_kind_;
-  int compilation_os_address_ = -1;
+  int compilation_os_address_ = 0;
   std::string boot_classpath_;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
@@ -123,7 +123,7 @@ class OdrConfig final {
   const std::string& GetSystemServerClasspath() const {
     return system_server_classpath_;
   }
-  bool UseCompilationOs() const { return compilation_os_address_ >= 0; }
+  bool UseCompilationOs() const { return compilation_os_address_ != 0; }
   int GetCompilationOsAddress() const { return compilation_os_address_; }
   const std::string& GetStagingDir() const {
     return staging_dir_;
