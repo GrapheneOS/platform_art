@@ -38,6 +38,7 @@
 #include "dex/dex_file_annotations.h"
 #include "dex/signature-inl.h"
 #include "dex_cache-inl.h"
+#include "field.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap-inl.h"
 #include "handle_scope-inl.h"
@@ -47,6 +48,7 @@
 #include "method.h"
 #include "object-inl.h"
 #include "object-refvisitor-inl.h"
+#include "object_array-alloc-inl.h"
 #include "object_array-inl.h"
 #include "object_lock.h"
 #include "string-inl.h"
@@ -1163,6 +1165,75 @@ ArtField* Class::FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t de
     }
   }
   return nullptr;
+}
+
+ObjPtr<mirror::ObjectArray<mirror::Field>> Class::GetDeclaredFields(
+    Thread* self,
+    bool public_only,
+    bool force_resolve) REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (UNLIKELY(IsObsoleteObject())) {
+    ThrowRuntimeException("Obsolete Object!");
+    return nullptr;
+  }
+  StackHandleScope<1> hs(self);
+  IterationRange<StrideIterator<ArtField>> ifields = GetIFields();
+  IterationRange<StrideIterator<ArtField>> sfields = GetSFields();
+  size_t array_size = NumInstanceFields() + NumStaticFields();
+  auto hiddenapi_context = hiddenapi::GetReflectionCallerAccessContext(self);
+  // Lets go subtract all the non discoverable fields.
+  for (ArtField& field : ifields) {
+    if (!IsDiscoverable(public_only, hiddenapi_context, &field)) {
+      --array_size;
+    }
+  }
+  for (ArtField& field : sfields) {
+    if (!IsDiscoverable(public_only, hiddenapi_context, &field)) {
+      --array_size;
+    }
+  }
+  size_t array_idx = 0;
+  auto object_array = hs.NewHandle(mirror::ObjectArray<mirror::Field>::Alloc(
+      self, GetClassRoot<mirror::ObjectArray<mirror::Field>>(), array_size));
+  if (object_array == nullptr) {
+    return nullptr;
+  }
+  for (ArtField& field : ifields) {
+    if (IsDiscoverable(public_only, hiddenapi_context, &field)) {
+      ObjPtr<mirror::Field> reflect_field =
+          mirror::Field::CreateFromArtField(self, &field, force_resolve);
+      if (reflect_field == nullptr) {
+        if (kIsDebugBuild) {
+          self->AssertPendingException();
+        }
+        // Maybe null due to OOME or type resolving exception.
+        return nullptr;
+      }
+      // We're initializing a newly allocated object, so we do not need to record that under
+      // a transaction. If the transaction is aborted, the whole object shall be unreachable.
+      object_array->SetWithoutChecks</*kTransactionActive=*/ false,
+                                     /*kCheckTransaction=*/ false>(
+                                         array_idx++, reflect_field);
+    }
+  }
+  for (ArtField& field : sfields) {
+    if (IsDiscoverable(public_only, hiddenapi_context, &field)) {
+      ObjPtr<mirror::Field> reflect_field =
+          mirror::Field::CreateFromArtField(self, &field, force_resolve);
+      if (reflect_field == nullptr) {
+        if (kIsDebugBuild) {
+          self->AssertPendingException();
+        }
+        return nullptr;
+      }
+      // We're initializing a newly allocated object, so we do not need to record that under
+      // a transaction. If the transaction is aborted, the whole object shall be unreachable.
+      object_array->SetWithoutChecks</*kTransactionActive=*/ false,
+                                     /*kCheckTransaction=*/ false>(
+                                         array_idx++, reflect_field);
+    }
+  }
+  DCHECK_EQ(array_idx, array_size);
+  return object_array.Get();
 }
 
 ArtField* Class::FindStaticField(std::string_view name, std::string_view type) {
