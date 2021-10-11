@@ -3346,86 +3346,15 @@ static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
                                           /*object_can_be_null=*/ false);
 }
 
-static void GenerateVarHandleArrayChecks(HInvoke* invoke,
-                                         CodeGeneratorX86_64* codegen,
-                                         SlowPathCode* slow_path) {
-  VarHandleOptimizations optimizations(invoke);
-  X86_64Assembler* assembler = codegen->GetAssembler();
-  LocationSummary* locations = invoke->GetLocations();
-
-  CpuRegister varhandle = locations->InAt(0).AsRegister<CpuRegister>();
-  CpuRegister object = locations->InAt(1).AsRegister<CpuRegister>();
-  CpuRegister index = locations->InAt(2).AsRegister<CpuRegister>();
-  DataType::Type value_type =
-      GetVarHandleExpectedValueType(invoke, /*expected_coordinates_count=*/ 2u);
-  Primitive::Type primitive_type = DataTypeToPrimitive(value_type);
-
-  const MemberOffset coordinate_type0_offset = mirror::VarHandle::CoordinateType0Offset();
-  const MemberOffset coordinate_type1_offset = mirror::VarHandle::CoordinateType1Offset();
-  const MemberOffset component_type_offset = mirror::Class::ComponentTypeOffset();
-  const MemberOffset primitive_type_offset = mirror::Class::PrimitiveTypeOffset();
-  const MemberOffset class_offset = mirror::Object::ClassOffset();
-  const MemberOffset array_length_offset = mirror::Array::LengthOffset();
-
-  // Null-check the object.
-  if (!optimizations.GetSkipObjectNullCheck()) {
-    __ testl(object, object);
-    __ j(kZero, slow_path->GetEntryLabel());
-  }
-
-  CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-
-  // Check that the VarHandle references an array, byte array view or ByteBuffer by checking
-  // that coordinateType1 != null. If that's true, coordinateType1 shall be int.class and
-  // coordinateType0 shall not be null but we do not explicitly verify that.
-  // No need for read barrier or unpoisoning of coordinateType1 for comparison with null.
-  __ cmpl(Address(varhandle, coordinate_type1_offset.Int32Value()), Immediate(0));
-  __ j(kEqual, slow_path->GetEntryLabel());
-
-  // Check object class against componentType0.
-  //
-  // This is an exact check and we defer other cases to the runtime. This includes
-  // conversion to array of superclass references, which is valid but subsequently
-  // requires all update operations to check that the value can indeed be stored.
-  // We do not want to perform such extra checks in the intrinsified code.
-  //
-  // We do this check without read barrier, so there can be false negatives which we
-  // defer to the slow path. There shall be no false negatives for array classes in the
-  // boot image (including Object[] and primitive arrays) because they are non-movable.
-  __ movl(temp, Address(object, class_offset.Int32Value()));
-  __ cmpl(temp, Address(varhandle, coordinate_type0_offset.Int32Value()));
-  __ j(kNotEqual, slow_path->GetEntryLabel());
-
-  // Check that the coordinateType0 is an array type. We do not need a read barrier
-  // for loading constant reference fields (or chains of them) for comparison with null,
-  // nor for finally loading a constant primitive field (primitive type) below.
-  codegen->GetAssembler()->MaybeUnpoisonHeapReference(temp);
-  __ movl(temp, Address(temp, component_type_offset.Int32Value()));
-  codegen->GetAssembler()->MaybeUnpoisonHeapReference(temp);
-  __ testl(temp, temp);
-  __ j(kZero, slow_path->GetEntryLabel());
-
-  // TODO: handle byte array views. Currently the check below always fails for them, so they fall
-  // back to slow path.
-  __ cmpw(Address(temp, primitive_type_offset), Immediate(static_cast<uint16_t>(primitive_type)));
-  __ j(kNotEqual, slow_path->GetEntryLabel());
-
-  // Check for array index out of bounds.
-  __ cmpl(index, Address(object, array_length_offset.Int32Value()));
-  __ j(kGreaterEqual, slow_path->GetEntryLabel());
-}
-
 static void GenerateVarHandleCoordinateChecks(HInvoke* invoke,
                                               CodeGeneratorX86_64* codegen,
                                               SlowPathCode* slow_path) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   if (expected_coordinates_count == 0u) {
     GenerateVarHandleStaticFieldCheck(invoke, codegen, slow_path);
-  } else if (expected_coordinates_count == 1u) {
-    GenerateVarHandleInstanceFieldChecks(invoke, codegen, slow_path);
   } else {
-    DCHECK_EQ(expected_coordinates_count, 2u);
-    GenerateVarHandleArrayChecks(invoke, codegen, slow_path);
+    DCHECK_EQ(expected_coordinates_count, 1u);
+    GenerateVarHandleInstanceFieldChecks(invoke, codegen, slow_path);
   }
 }
 
@@ -3470,39 +3399,27 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
 
   CpuRegister varhandle = locations->InAt(0).AsRegister<CpuRegister>();
 
-  if (expected_coordinates_count <= 1u) {
-    // For static fields, we need to fill the `target.object` with the declaring class,
-    // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
-    // we do not need the declaring class, so we can forget the `ArtMethod*` when
-    // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
-    CpuRegister method((expected_coordinates_count == 0) ? target.object : target.offset);
+  DCHECK_LE(expected_coordinates_count, 1u);
+  // For static fields, we need to fill the `target.object` with the declaring class,
+  // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
+  // we do not need the declaring class, so we can forget the `ArtMethod*` when
+  // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
+  CpuRegister method((expected_coordinates_count == 0) ? target.object : target.offset);
 
-    const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
-    const MemberOffset offset_offset = ArtField::OffsetOffset();
+  const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
+  const MemberOffset offset_offset = ArtField::OffsetOffset();
 
-    // Load the ArtField, the offset and, if needed, declaring class.
-    __ movq(method, Address(varhandle, art_field_offset));
-    __ movl(CpuRegister(target.offset), Address(method, offset_offset));
-    if (expected_coordinates_count == 0u) {
-      InstructionCodeGeneratorX86_64* instr_codegen =
-          down_cast<InstructionCodeGeneratorX86_64*>(codegen->GetInstructionVisitor());
-      instr_codegen->GenerateGcRootFieldLoad(invoke,
-                                             Location::RegisterLocation(target.object),
-                                             Address(method, ArtField::DeclaringClassOffset()),
-                                             /*fixup_label=*/ nullptr,
-                                             kCompilerReadBarrierOption);
-    }
-  } else {
-    DCHECK_EQ(expected_coordinates_count, 2u);
-
-    DataType::Type value_type =
-        GetVarHandleExpectedValueType(invoke, /*expected_coordinates_count=*/ 2u);
-    ScaleFactor scale = CodeGenerator::ScaleFactorForType(value_type);
-    MemberOffset data_offset = mirror::Array::DataOffset(DataType::Size(value_type));
-    CpuRegister index = locations->InAt(2).AsRegister<CpuRegister>();
-
-    // The effect of LEA is `target.offset = index * scale + data_offset`.
-    __ leal(CpuRegister(target.offset), Address(index, scale, data_offset.Int32Value()));
+  // Load the ArtField, the offset and, if needed, declaring class.
+  __ movq(method, Address(varhandle, art_field_offset));
+  __ movl(CpuRegister(target.offset), Address(method, offset_offset));
+  if (expected_coordinates_count == 0u) {
+    InstructionCodeGeneratorX86_64* instr_codegen =
+        down_cast<InstructionCodeGeneratorX86_64*>(codegen->GetInstructionVisitor());
+    instr_codegen->GenerateGcRootFieldLoad(invoke,
+                                           Location::RegisterLocation(target.object),
+                                           Address(method, ArtField::DeclaringClassOffset()),
+                                           /*fixup_label=*/ nullptr,
+                                           kCompilerReadBarrierOption);
   }
 }
 
@@ -3520,12 +3437,9 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   DCHECK_LE(expected_coordinates_count, 2u);  // Filtered by the `DoNotIntrinsify` flag above.
   if (expected_coordinates_count > 1u) {
-    // TODO: Add array support for all intrinsics.
-    // TODO: Add support for byte array views.
-    if (mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic()) !=
-        mirror::VarHandle::AccessModeTemplate::kGet) {
-      return false;
-    }
+    // Only static and instance fields VarHandle are supported now.
+    // TODO: add support for arrays and views.
+    return false;
   }
 
   return true;
