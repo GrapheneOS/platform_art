@@ -200,19 +200,11 @@ static void AddImageMappings(Builder& builder) {
           .IntoKey(M::DirtyImageObjectsFd)
       .Define("--updatable-bcp-packages-file=_")
           .WithType<std::string>()
-          .WithHelp("file with a list of updatable boot class path packages. Classes in these\n"
-                    "packages and sub-packages shall not be resolved during app compilation to\n"
-                    "avoid AOT assumptions being invalidated after applying updates to these\n"
-                    "components."
-          )
+          .WithHelp("Deprecated. No longer takes effect.")
           .IntoKey(M::UpdatableBcpPackagesFile)
       .Define("--updatable-bcp-packages-fd=_")
           .WithType<int>()
-          .WithHelp("File descriptor to read a list of updatable boot class path packages.\n"
-                    "Classes in these packages and sub-packages shall not be resolved during app\n"
-                    "compilation to avoid AOT assumptions being invalidated after applying\n"
-                    "updates to these components."
-          )
+          .WithHelp("Deprecated. No longer takes effect.")
           .IntoKey(M::UpdatableBcpPackagesFd)
       .Define("--image-format=_")
           .WithType<ImageHeader::StorageMode>()

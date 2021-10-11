@@ -863,8 +863,6 @@ class ClassLinker {
     return true;
   }
 
-  virtual bool IsUpdatableBootClassPathDescriptor(const char* descriptor);
-
  private:
   class LinkFieldsHelper;
   class LinkInterfaceMethodsHelper;

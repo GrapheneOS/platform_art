@@ -821,7 +821,6 @@ art_cc_defaults {
     name: "art_runtime_compiler_tests_defaults",
     srcs: [
         "reflection_test.cc",
-        "module_exclusion_test.cc",
     ],
     data: [
         ":art-gtest-jars-Main",
