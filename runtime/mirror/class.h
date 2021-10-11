@@ -71,6 +71,7 @@ class ClassExt;
 class ClassLoader;
 class Constructor;
 class DexCache;
+class Field;
 class IfTable;
 class Method;
 template <typename T> struct PACKED(8) DexCachePair;
@@ -588,6 +589,16 @@ class MANAGED Class final : public Object {
   bool IsInSamePackage(ObjPtr<Class> that) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsInSamePackage(std::string_view descriptor1, std::string_view descriptor2);
+
+  // Returns true if a class member should be discoverable with reflection given
+  // the criteria. Some reflection calls only return public members
+  // (public_only == true), some members should be hidden from non-boot class path
+  // callers (hiddenapi_context).
+  template<typename T>
+  ALWAYS_INLINE static bool IsDiscoverable(bool public_only,
+                                           const hiddenapi::AccessContext& access_context,
+                                           T* member)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if this class can access that class.
   bool CanAccess(ObjPtr<Class> that) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1108,6 +1119,12 @@ class MANAGED Class final : public Object {
 
   ArtField* FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ObjPtr<mirror::ObjectArray<mirror::Field>> GetDeclaredFields(Thread* self,
+                                                               bool public_only,
+                                                               bool force_resolve)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
 
   pid_t GetClinitThreadId() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsIdxLoaded() || IsErroneous()) << PrettyClass();
