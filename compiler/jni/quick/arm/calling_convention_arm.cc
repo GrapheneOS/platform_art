@@ -385,15 +385,17 @@ uint32_t ArmJniCallingConvention::FpSpillMask() const {
   return is_critical_native_ ? 0u : kFpCalleeSpillMask;
 }
 
-ManagedRegister ArmJniCallingConvention::SavedLocalReferenceCookieRegister() const {
-  // The r5 is callee-save register in both managed and native ABIs.
-  // It is saved in the stack frame and it has no special purpose like `tr`.
-  static_assert((kCoreCalleeSpillMask & (1u << R5)) != 0u);  // Managed callee save register.
-  return ArmManagedRegister::FromCoreRegister(R5);
-}
-
-ManagedRegister ArmJniCallingConvention::ReturnScratchRegister() const {
-  return ArmManagedRegister::FromCoreRegister(R2);
+ArrayRef<const ManagedRegister> ArmJniCallingConvention::CalleeSaveScratchRegisters() const {
+  DCHECK(!IsCriticalNative());
+  // Use R5-R8, R10-R11 from managed callee saves.
+  constexpr size_t kStart = 0u;
+  constexpr size_t kLength = 6u;
+  static_assert(kCalleeSaveRegisters[kStart].Equals(ArmManagedRegister::FromCoreRegister(R5)));
+  static_assert(kCalleeSaveRegisters[kStart + kLength - 1u].Equals(
+                    ArmManagedRegister::FromCoreRegister(R11)));
+  static_assert((kCoreCalleeSpillMask & (1u << R9)) == 0u);  // Does not contain thread register R9.
+  static_assert((kCoreCalleeSpillMask & ~kAapcsCoreCalleeSpillMask) == 0u);
+  return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters).SubArray(kStart, kLength);
 }
 
 size_t ArmJniCallingConvention::FrameSize() const {
