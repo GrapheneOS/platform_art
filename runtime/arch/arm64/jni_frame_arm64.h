@@ -30,7 +30,7 @@ namespace arm64 {
 constexpr size_t kFramePointerSize = static_cast<size_t>(PointerSize::k64);
 static_assert(kArm64PointerSize == PointerSize::k64, "Unexpected ARM64 pointer size");
 
-// The AAPCS64 requires 16-byte alignement. This is the same as the Managed ABI stack alignment.
+// The AAPCS64 requires 16-byte alignment. This is the same as the Managed ABI stack alignment.
 static constexpr size_t kAapcs64StackAlignment = 16u;
 static_assert(kAapcs64StackAlignment == kStackAlignment);
 
