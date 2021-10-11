@@ -162,6 +162,10 @@ class ScopedHiddenApiEnforcementPolicySetting {
 
 void InitializeCorePlatformApiPrivateFields() REQUIRES(!Locks::mutator_lock_);
 
+// Walks the stack, finds the caller of this reflective call and returns
+// a hiddenapi AccessContext formed from its declaring class.
+AccessContext GetReflectionCallerAccessContext(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+
 // Implementation details. DO NOT ACCESS DIRECTLY.
 namespace detail {
 
