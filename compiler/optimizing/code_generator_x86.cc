@@ -825,7 +825,8 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
         DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObject) ||
-               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectVolatile))
+               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectVolatile) ||
+               (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kJdkUnsafeGetObjectAcquire))
             << instruction_->AsInvoke()->GetIntrinsic();
         DCHECK_EQ(offset_, 0U);
         DCHECK(index_.IsRegisterPair());
