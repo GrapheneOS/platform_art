@@ -55,8 +55,11 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
   void IncreaseFrameSize(size_t adjust) override;
   void DecreaseFrameSize(size_t adjust) override;
 
+  ManagedRegister CoreRegisterWithSize(ManagedRegister src, size_t size) override;
+
   // Store routines
   void Store(FrameOffset offs, ManagedRegister src, size_t size) override;
+  void Store(ManagedRegister base, MemberOffset offs, ManagedRegister src, size_t size) override;
   void StoreRef(FrameOffset dest, ManagedRegister src) override;
   void StoreRawPtr(FrameOffset dest, ManagedRegister src) override;
 
@@ -70,6 +73,7 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
 
   // Load routines
   void Load(ManagedRegister dest, FrameOffset src, size_t size) override;
+  void Load(ManagedRegister dest, ManagedRegister base, MemberOffset offs, size_t size) override;
 
   void LoadFromThread(ManagedRegister dest, ThreadOffset64 src, size_t size) override;
 

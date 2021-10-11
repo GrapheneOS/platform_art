@@ -50,6 +50,19 @@
 
 namespace art {
 
+constexpr size_t kIRTCookieSize = JniCallingConvention::SavedLocalReferenceCookieSize();
+
+template <PointerSize kPointerSize>
+static void PushLocalReferenceFrame(JNIMacroAssembler<kPointerSize>* jni_asm,
+                                    ManagedRegister jni_env_reg,
+                                    ManagedRegister saved_cookie_reg,
+                                    ManagedRegister temp_reg);
+template <PointerSize kPointerSize>
+static void PopLocalReferenceFrame(JNIMacroAssembler<kPointerSize>* jni_asm,
+                                   ManagedRegister jni_env_reg,
+                                   ManagedRegister saved_cookie_reg,
+                                   ManagedRegister temp_reg);
+
 template <PointerSize kPointerSize>
 static void CopyParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
                           ManagedRuntimeCallingConvention* mr_conv,
@@ -194,11 +207,9 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   //     method and the current thread.
   const char* jni_end_shorty;
   if (reference_return && is_synchronized) {
-    jni_end_shorty = "ILL";
-  } else if (reference_return) {
     jni_end_shorty = "IL";
-  } else if (is_synchronized) {
-    jni_end_shorty = "VL";
+  } else if (reference_return) {
+    jni_end_shorty = "I";
   } else {
     jni_end_shorty = "V";
   }
@@ -275,18 +286,15 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   }
 
   // 5. Call into appropriate JniMethodStart passing Thread* so that transition out of Runnable
-  //    can occur. The result is the saved JNI local state that is restored by the exit call. We
-  //    abuse the JNI calling convention here, that is guaranteed to support passing 2 pointer
-  //    arguments.
-  constexpr size_t cookie_size = JniCallingConvention::SavedLocalReferenceCookieSize();
-  ManagedRegister saved_cookie_register = ManagedRegister::NoRegister();
+  //    can occur. We abuse the JNI calling convention here, that is guaranteed to support passing
+  //    two pointer arguments.
   if (LIKELY(!is_critical_native)) {
     // Skip this for @CriticalNative methods. They do not call JniMethodStart.
-    ThreadOffset<kPointerSize> jni_start(
+    ThreadOffset<kPointerSize> jni_start =
         GetJniEntrypointThreadOffset<kPointerSize>(JniEntrypoint::kStart,
                                                    reference_return,
                                                    is_synchronized,
-                                                   is_fast_native).SizeValue());
+                                                   is_fast_native);
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
     if (is_synchronized) {
       // Pass object for locking.
@@ -322,13 +330,33 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     if (is_synchronized) {  // Check for exceptions from monitor enter.
       __ ExceptionPoll(main_out_arg_size);
     }
-
-    // Store into stack_frame[saved_cookie_offset] the return value of JniMethodStart.
-    saved_cookie_register = main_jni_conv->SavedLocalReferenceCookieRegister();
-    __ Move(saved_cookie_register, main_jni_conv->IntReturnRegister(), cookie_size);
   }
 
-  // 6. Fill arguments.
+  // 6. Push local reference frame.
+  // Skip this for @CriticalNative methods, they cannot use any references.
+  ManagedRegister jni_env_reg = ManagedRegister::NoRegister();
+  ManagedRegister saved_cookie_reg = ManagedRegister::NoRegister();
+  ManagedRegister callee_save_temp = ManagedRegister::NoRegister();
+  if (LIKELY(!is_critical_native)) {
+    // To pop the local reference frame later, we shall need the JNI environment pointer
+    // as well as the cookie, so we preserve them across calls in callee-save registers.
+    // Managed callee-saves were already saved, so these registers are now available.
+    ArrayRef<const ManagedRegister> callee_save_scratch_regs =
+        main_jni_conv->CalleeSaveScratchRegisters();
+    CHECK_GE(callee_save_scratch_regs.size(), 3u);  // At least 3 for each supported architecture.
+    jni_env_reg = callee_save_scratch_regs[0];
+    saved_cookie_reg = __ CoreRegisterWithSize(callee_save_scratch_regs[1], kIRTCookieSize);
+    callee_save_temp = __ CoreRegisterWithSize(callee_save_scratch_regs[2], kIRTCookieSize);
+
+    // Load the JNI environment pointer.
+    __ LoadRawPtrFromThread(jni_env_reg, Thread::JniEnvOffset<kPointerSize>());
+
+    // Push the local reference frame.
+    PushLocalReferenceFrame<kPointerSize>(
+        jni_asm.get(), jni_env_reg, saved_cookie_reg, callee_save_temp);
+  }
+
+  // 7. Fill arguments.
   if (UNLIKELY(is_critical_native)) {
     ArenaVector<ArgumentLocation> src_args(allocator.Adapter());
     ArenaVector<ArgumentLocation> dest_args(allocator.Adapter());
@@ -388,7 +416,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
       CopyParameter(jni_asm.get(), mr_conv.get(), main_jni_conv.get());
     }
 
-    // 7. For static method, create jclass argument as a pointer to the method's declaring class.
+    // 8. For static method, create jclass argument as a pointer to the method's declaring class.
     if (is_static) {
       main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
       main_jni_conv->Next();  // Skip JNIEnv*
@@ -413,18 +441,17 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     // Set the iterator back to the incoming Method*.
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
 
-    // 8. Create 1st argument, the JNI environment ptr.
-    // Register that will hold local indirect reference table
+    // 9. Create 1st argument, the JNI environment ptr.
     if (main_jni_conv->IsCurrentParamInRegister()) {
-      ManagedRegister jni_env = main_jni_conv->CurrentParamRegister();
-      __ LoadRawPtrFromThread(jni_env, Thread::JniEnvOffset<kPointerSize>());
+      ManagedRegister jni_env_arg = main_jni_conv->CurrentParamRegister();
+      __ Move(jni_env_arg, jni_env_reg, static_cast<size_t>(kPointerSize));
     } else {
-      FrameOffset jni_env = main_jni_conv->CurrentParamStackOffset();
-      __ CopyRawPtrFromThread(jni_env, Thread::JniEnvOffset<kPointerSize>());
+      FrameOffset jni_env_arg_offset = main_jni_conv->CurrentParamStackOffset();
+      __ Store(jni_env_arg_offset, jni_env_reg, static_cast<size_t>(kPointerSize));
     }
   }
 
-  // 9. Plant call to native code associated with method.
+  // 10. Plant call to native code associated with method.
   MemberOffset jni_entrypoint_offset =
       ArtMethod::EntryPointFromJniOffset(InstructionSetPointerSize(instruction_set));
   if (UNLIKELY(is_critical_native)) {
@@ -442,7 +469,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
   }
 
-  // 10. Fix differences in result widths.
+  // 11. Fix differences in result widths.
   if (main_jni_conv->RequiresSmallResultTypeExtension()) {
     DCHECK(main_jni_conv->HasSmallReturnType());
     CHECK(!is_critical_native || !main_jni_conv->UseTailCall());
@@ -458,7 +485,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
   }
 
-  // 11. Process return value
+  // 12. Process return value
   bool spill_return_value = main_jni_conv->SpillsReturnValue();
   FrameOffset return_save_location =
       spill_return_value ? main_jni_conv->ReturnValueSaveLocation() : FrameOffset(0);
@@ -504,26 +531,17 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
     end_jni_conv->ResetIterator(FrameOffset(end_out_arg_size));
 
-    // 12. Call JniMethodEnd
-    ThreadOffset<kPointerSize> jni_end(
+    // 13. Call JniMethodEnd
+    ThreadOffset<kPointerSize> jni_end =
         GetJniEntrypointThreadOffset<kPointerSize>(JniEntrypoint::kEnd,
                                                    reference_return,
                                                    is_synchronized,
-                                                   is_fast_native).SizeValue());
+                                                   is_fast_native);
     if (reference_return) {
       // Pass result.
       SetNativeParameter(jni_asm.get(), end_jni_conv.get(), end_jni_conv->ReturnRegister());
       end_jni_conv->Next();
     }
-    // Pass saved local reference state.
-    if (end_jni_conv->IsCurrentParamOnStack()) {
-      FrameOffset out_off = end_jni_conv->CurrentParamStackOffset();
-      __ Store(out_off, saved_cookie_register, cookie_size);
-    } else {
-      ManagedRegister out_reg = end_jni_conv->CurrentParamRegister();
-      __ Move(out_reg, saved_cookie_register, cookie_size);
-    }
-    end_jni_conv->Next();
     if (is_synchronized) {
       // Pass object for unlocking.
       if (is_static) {
@@ -563,26 +581,32 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
       __ CallFromThread(jni_end);
     }
 
-    // 13. Reload return value
+    // 14. Reload return value
     if (spill_return_value) {
       __ Load(mr_conv->ReturnRegister(), return_save_location, mr_conv->SizeOfReturnValue());
     }
   }  // if (!is_critical_native)
 
-  // 14. Move frame up now we're done with the out arg space.
+  // 15. Pop local reference frame.
+  if (!is_critical_native) {
+    PopLocalReferenceFrame<kPointerSize>(
+        jni_asm.get(), jni_env_reg, saved_cookie_reg, callee_save_temp);
+  }
+
+  // 16. Move frame up now we're done with the out arg space.
   //     @CriticalNative remove out args together with the frame in RemoveFrame().
   if (LIKELY(!is_critical_native)) {
     __ DecreaseFrameSize(current_out_arg_size);
     current_frame_size -= current_out_arg_size;
   }
 
-  // 15. Process pending exceptions from JNI call or monitor exit.
+  // 17. Process pending exceptions from JNI call or monitor exit.
   //     @CriticalNative methods do not need exception poll in the stub.
   if (LIKELY(!is_critical_native)) {
     __ ExceptionPoll(/* stack_adjust= */ 0);
   }
 
-  // 16. Remove activation - need to restore callee save registers since the GC may have changed
+  // 18. Remove activation - need to restore callee save registers since the GC may have changed
   //     them.
   DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(current_frame_size));
   if (LIKELY(!is_critical_native) || !main_jni_conv->UseTailCall()) {
@@ -593,7 +617,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(current_frame_size));
   }
 
-  // 17. Read barrier slow path for the declaring class in the method for a static call.
+  // 19. Read barrier slow path for the declaring class in the method for a static call.
   //     Skip this for @CriticalNative because we're not passing a `jclass` to the native method.
   if (kUseReadBarrier && is_static && !is_critical_native) {
     __ Bind(jclass_read_barrier_slow_path.get());
@@ -649,7 +673,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
   }
 
-  // 18. Finalize code generation
+  // 20. Finalize code generation
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);
@@ -662,6 +686,40 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
                            main_jni_conv->CoreSpillMask(),
                            main_jni_conv->FpSpillMask(),
                            ArrayRef<const uint8_t>(*jni_asm->cfi().data()));
+}
+
+template <PointerSize kPointerSize>
+static void PushLocalReferenceFrame(JNIMacroAssembler<kPointerSize>* jni_asm,
+                                    ManagedRegister jni_env_reg,
+                                    ManagedRegister saved_cookie_reg,
+                                    ManagedRegister temp_reg) {
+  const size_t pointer_size = static_cast<size_t>(kPointerSize);
+  const MemberOffset jni_env_cookie_offset = JNIEnvExt::LocalRefCookieOffset(pointer_size);
+  const MemberOffset jni_env_segment_state_offset = JNIEnvExt::SegmentStateOffset(pointer_size);
+
+  // Load the old cookie that we shall need to restore.
+  __ Load(saved_cookie_reg, jni_env_reg, jni_env_cookie_offset, kIRTCookieSize);
+
+  // Set the cookie in JNI environment to the current segment state.
+  __ Load(temp_reg, jni_env_reg, jni_env_segment_state_offset, kIRTCookieSize);
+  __ Store(jni_env_reg, jni_env_cookie_offset, temp_reg, kIRTCookieSize);
+}
+
+template <PointerSize kPointerSize>
+static void PopLocalReferenceFrame(JNIMacroAssembler<kPointerSize>* jni_asm,
+                                   ManagedRegister jni_env_reg,
+                                   ManagedRegister saved_cookie_reg,
+                                   ManagedRegister temp_reg) {
+  const size_t pointer_size = static_cast<size_t>(kPointerSize);
+  const MemberOffset jni_env_cookie_offset = JNIEnvExt::LocalRefCookieOffset(pointer_size);
+  const MemberOffset jni_env_segment_state_offset = JNIEnvExt::SegmentStateOffset(pointer_size);
+
+  // Set the current segment state to the current cookie in JNI environment.
+  __ Load(temp_reg, jni_env_reg, jni_env_cookie_offset, kIRTCookieSize);
+  __ Store(jni_env_reg, jni_env_segment_state_offset, temp_reg, kIRTCookieSize);
+
+  // Restore the cookie in JNI environment to the saved value.
+  __ Store(jni_env_reg, jni_env_cookie_offset, saved_cookie_reg, kIRTCookieSize);
 }
 
 // Copy a single parameter from the managed to the JNI calling convention.
