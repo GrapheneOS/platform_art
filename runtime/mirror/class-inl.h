@@ -32,10 +32,10 @@
 #include "dex/dex_file-inl.h"
 #include "dex/invoke_type.h"
 #include "dex_cache.h"
+#include "hidden_api.h"
 #include "iftable-inl.h"
 #include "imtable.h"
 #include "object-inl.h"
-#include "object_array.h"
 #include "read_barrier-inl.h"
 #include "runtime.h"
 #include "string.h"
@@ -410,6 +410,18 @@ inline void Class::SetObjectSize(uint32_t new_object_size) {
   DCHECK(!IsVariableSize());
   // Not called within a transaction.
   return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size);
+}
+
+template<typename T>
+inline bool Class::IsDiscoverable(bool public_only,
+                                  const hiddenapi::AccessContext& access_context,
+                                  T* member) {
+  if (public_only && ((member->GetAccessFlags() & kAccPublic) == 0)) {
+    return false;
+  }
+
+  return !hiddenapi::ShouldDenyAccessToMember(
+      member, access_context, hiddenapi::AccessMethod::kNone);
 }
 
 // Determine whether "this" is assignable from "src", where both of these

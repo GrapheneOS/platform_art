@@ -842,6 +842,7 @@ class ReadBarrierForHeapReferenceSlowPathARMVIXL : public SlowPathCodeARMVIXL {
                intrinsic == Intrinsics::kUnsafeGetObjectVolatile ||
                intrinsic == Intrinsics::kJdkUnsafeGetObject ||
                intrinsic == Intrinsics::kJdkUnsafeGetObjectVolatile ||
+               intrinsic == Intrinsics::kJdkUnsafeGetObjectAcquire ||
                mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
                    mirror::VarHandle::AccessModeTemplate::kGet ||
                mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==

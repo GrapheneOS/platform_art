@@ -315,12 +315,11 @@ class JniCallingConvention : public CallingConvention {
   // Callee save registers to spill prior to native code (which may clobber)
   virtual ArrayRef<const ManagedRegister> CalleeSaveRegisters() const = 0;
 
-  // Register where the segment state of the local indirect reference table is saved.
-  // This must be a native callee-save register without another special purpose.
-  virtual ManagedRegister SavedLocalReferenceCookieRegister() const = 0;
-
-  // An extra scratch register live after the call
-  virtual ManagedRegister ReturnScratchRegister() const = 0;
+  // Subset of core callee save registers that can be used for arbitrary purposes after
+  // constructing the JNI transition frame. These should be managed callee-saves as well.
+  // These should not include special purpose registers such as thread register.
+  // JNI compiler currently requires at least 3 callee save scratch registers.
+  virtual ArrayRef<const ManagedRegister> CalleeSaveScratchRegisters() const = 0;
 
   // Spill mask values
   virtual uint32_t CoreSpillMask() const = 0;

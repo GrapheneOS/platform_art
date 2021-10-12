@@ -30,7 +30,7 @@ namespace arm {
 constexpr size_t kFramePointerSize = static_cast<size_t>(PointerSize::k32);
 static_assert(kArmPointerSize == PointerSize::k32, "Unexpected ARM pointer size");
 
-// The AAPCS requires 8-byte alignement. This is not as strict as the Managed ABI stack alignment.
+// The AAPCS requires 8-byte alignment. This is not as strict as the Managed ABI stack alignment.
 static constexpr size_t kAapcsStackAlignment = 8u;
 static_assert(kAapcsStackAlignment < kStackAlignment);
 

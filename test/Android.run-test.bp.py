@@ -34,7 +34,7 @@ def main():
         name = "art-run-test-{mode}-data-shard{shard}".format(mode=mode, shard=shard)
         names.append(name)
         f.write(textwrap.dedent("""
-          genrule {{
+          java_genrule {{
               name: "{name}",
               out: ["{name}.zip"],
               srcs: ["*{shard}-*/**/*"],
@@ -45,7 +45,7 @@ def main():
           """.format(name=name, mode=mode, shard=shard)))
       srcs = ("\n"+" "*8).join('":{}",'.format(n) for n in names)
       f.write(textwrap.dedent("""
-        genrule {{
+        java_genrule {{
             name: "art-run-test-{mode}-data-merged",
             out: ["art-run-test-{mode}-data-merged.zip"],
             srcs: [
