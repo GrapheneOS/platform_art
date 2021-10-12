@@ -698,9 +698,11 @@ void VerifierDeps::Dump(VariableIndentationOutputStream* vios) const {
 
 bool VerifierDeps::ValidateDependencies(Thread* self,
                                         Handle<mirror::ClassLoader> class_loader,
+                                        const std::vector<const DexFile*>& dex_files,
                                         /* out */ std::string* error_msg) const {
-  for (const auto& entry : dex_deps_) {
-    if (!VerifyDexFile(class_loader, *entry.first, *entry.second, self, error_msg)) {
+  for (const auto* dex_file : dex_files) {
+    const DexFileDeps* my_deps = GetDexFileDeps(*dex_file);
+    if (!VerifyDexFile(class_loader, *dex_file, *my_deps, self, error_msg)) {
       return false;
     }
   }

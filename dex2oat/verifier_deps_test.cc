@@ -326,6 +326,7 @@ class VerifierDepsTest : public CommonCompilerDriverTest {
 
     return decoded_deps.ValidateDependencies(soa.Self(),
                                              new_class_loader,
+                                             second_dex_files,
                                              error_msg);
   }
 
