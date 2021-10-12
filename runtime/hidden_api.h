@@ -22,9 +22,11 @@
 #include "base/hiddenapi_domain.h"
 #include "base/hiddenapi_flags.h"
 #include "base/locks.h"
+#include "dex/class_accessor.h"
 #include "intrinsics_enum.h"
 #include "jni/jni_internal.h"
-#include "mirror/class-inl.h"
+#include "mirror/class.h"
+#include "mirror/class_loader.h"
 #include "reflection.h"
 #include "runtime.h"
 #include "well_known_classes.h"
@@ -159,6 +161,10 @@ class ScopedHiddenApiEnforcementPolicySetting {
 };
 
 void InitializeCorePlatformApiPrivateFields() REQUIRES(!Locks::mutator_lock_);
+
+// Walks the stack, finds the caller of this reflective call and returns
+// a hiddenapi AccessContext formed from its declaring class.
+AccessContext GetReflectionCallerAccessContext(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Implementation details. DO NOT ACCESS DIRECTLY.
 namespace detail {
@@ -395,111 +401,10 @@ void InitializeDexFileDomain(const DexFile& dex_file, ObjPtr<mirror::ClassLoader
 // considered.
 // This function might print warnings into the log if the member is hidden.
 template<typename T>
-inline bool ShouldDenyAccessToMember(T* member,
-                                     const std::function<AccessContext()>& fn_get_access_context,
-                                     AccessMethod access_method)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(member != nullptr);
-
-  // First check if we have an explicit sdk checker installed that should be used to
-  // verify access. If so, make the decision based on it.
-  //
-  // This is used during off-device AOT compilation which may want to generate verification
-  // metadata only for a specific list of public SDKs. Note that the check here is made
-  // based on descriptor equality and it's aim to further restrict a symbol that would
-  // otherwise be resolved.
-  //
-  // The check only applies to boot classpaths dex files.
-  Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(runtime->IsAotCompiler())) {
-    if (member->GetDeclaringClass()->GetClassLoader() == nullptr &&
-        runtime->GetClassLinker()->DenyAccessBasedOnPublicSdk(member)) {
-      return true;
-    }
-  }
-
-  // Get the runtime flags encoded in member's access flags.
-  // Note: this works for proxy methods because they inherit access flags from their
-  // respective interface methods.
-  const uint32_t runtime_flags = GetRuntimeFlags(member);
-
-  // Exit early if member is public API. This flag is also set for non-boot class
-  // path fields/methods.
-  if ((runtime_flags & kAccPublicApi) != 0) {
-    return false;
-  }
-
-  // Determine which domain the caller and callee belong to.
-  // This can be *very* expensive. This is why ShouldDenyAccessToMember
-  // should not be called on every individual access.
-  const AccessContext caller_context = fn_get_access_context();
-  const AccessContext callee_context(member->GetDeclaringClass());
-
-  // Non-boot classpath callers should have exited early.
-  DCHECK(!callee_context.IsApplicationDomain());
-
-  // Check if the caller is always allowed to access members in the callee context.
-  if (caller_context.CanAlwaysAccess(callee_context)) {
-    return false;
-  }
-
-  // Check if this is platform accessing core platform. We may warn if `member` is
-  // not part of core platform API.
-  switch (caller_context.GetDomain()) {
-    case Domain::kApplication: {
-      DCHECK(!callee_context.IsApplicationDomain());
-
-      // Exit early if access checks are completely disabled.
-      EnforcementPolicy policy = runtime->GetHiddenApiEnforcementPolicy();
-      if (policy == EnforcementPolicy::kDisabled) {
-        return false;
-      }
-
-      // If this is a proxy method, look at the interface method instead.
-      member = detail::GetInterfaceMemberIfProxy(member);
-
-      // Decode hidden API access flags from the dex file.
-      // This is an O(N) operation scaling with the number of fields/methods
-      // in the class. Only do this on slow path and only do it once.
-      ApiList api_list(detail::GetDexFlags(member));
-      DCHECK(api_list.IsValid());
-
-      // Member is hidden and caller is not exempted. Enter slow path.
-      return detail::ShouldDenyAccessToMemberImpl(member, api_list, access_method);
-    }
-
-    case Domain::kPlatform: {
-      DCHECK(callee_context.GetDomain() == Domain::kCorePlatform);
-
-      // Member is part of core platform API. Accessing it is allowed.
-      if ((runtime_flags & kAccCorePlatformApi) != 0) {
-        return false;
-      }
-
-      // Allow access if access checks are disabled.
-      EnforcementPolicy policy = Runtime::Current()->GetCorePlatformApiEnforcementPolicy();
-      if (policy == EnforcementPolicy::kDisabled) {
-        return false;
-      }
-
-      // If this is a proxy method, look at the interface method instead.
-      member = detail::GetInterfaceMemberIfProxy(member);
-
-      // Access checks are not disabled, report the violation.
-      // This may also add kAccCorePlatformApi to the access flags of `member`
-      // so as to not warn again on next access.
-      return detail::HandleCorePlatformApiViolation(member,
-                                                    caller_context,
-                                                    access_method,
-                                                    policy);
-    }
-
-    case Domain::kCorePlatform: {
-      LOG(FATAL) << "CorePlatform domain should be allowed to access all domains";
-      UNREACHABLE();
-    }
-  }
-}
+bool ShouldDenyAccessToMember(T* member,
+                              const std::function<AccessContext()>& fn_get_access_context,
+                              AccessMethod access_method)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Helper method for callers where access context can be determined beforehand.
 // Wraps AccessContext in a lambda and passes it to the real ShouldDenyAccessToMember.

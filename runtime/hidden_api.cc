@@ -21,14 +21,17 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "class_root-inl.h"
 #include "compat_framework.h"
 #include "base/dumpable.h"
 #include "base/file_utils.h"
 #include "dex/class_accessor-inl.h"
 #include "dex/dex_file_loader.h"
 #include "mirror/class_ext.h"
+#include "mirror/proxy.h"
 #include "oat_file.h"
 #include "scoped_thread_state_change.h"
+#include "stack.h"
 #include "thread-inl.h"
 #include "well_known_classes.h"
 
@@ -44,6 +47,10 @@ static constexpr uint64_t kHideMaxtargetsdkQHiddenApis = 149994052;
 static constexpr uint64_t kAllowTestApiAccess = 166236554;
 
 static constexpr uint64_t kMaxLogWarnings = 100;
+
+// Should be the same as dalvik.system.VMRuntime.PREVENT_META_REFLECTION_BLOCKLIST_ACCESS.
+// Corresponds to a bug id.
+static constexpr uint64_t kPreventMetaReflectionBlocklistAccess = 142365358;
 
 // Set to true if we should always print a warning in logcat for all hidden API accesses, not just
 // conditionally and unconditionally blocked. This can be set to true for developer preview / beta
@@ -158,6 +165,75 @@ void InitializeCorePlatformApiPrivateFields() {
     DCHECK(new_access_flags != access_flags);
     field->SetAccessFlags(new_access_flags);
   }
+}
+
+hiddenapi::AccessContext GetReflectionCallerAccessContext(Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Walk the stack and find the first frame not from java.lang.Class,
+  // java.lang.invoke or java.lang.reflect. This is very expensive.
+  // Save this till the last.
+  struct FirstExternalCallerVisitor : public StackVisitor {
+    explicit FirstExternalCallerVisitor(Thread* thread)
+        : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
+          caller(nullptr) {
+    }
+
+    bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
+      ArtMethod *m = GetMethod();
+      if (m == nullptr) {
+        // Attached native thread. Assume this is *not* boot class path.
+        caller = nullptr;
+        return false;
+      } else if (m->IsRuntimeMethod()) {
+        // Internal runtime method, continue walking the stack.
+        return true;
+      }
+
+      ObjPtr<mirror::Class> declaring_class = m->GetDeclaringClass();
+      if (declaring_class->IsBootStrapClassLoaded()) {
+        if (declaring_class->IsClassClass()) {
+          return true;
+        }
+        // Check classes in the java.lang.invoke package. At the time of writing, the
+        // classes of interest are MethodHandles and MethodHandles.Lookup, but this
+        // is subject to change so conservatively cover the entire package.
+        // NB Static initializers within java.lang.invoke are permitted and do not
+        // need further stack inspection.
+        ObjPtr<mirror::Class> lookup_class = GetClassRoot<mirror::MethodHandlesLookup>();
+        if ((declaring_class == lookup_class || declaring_class->IsInSamePackage(lookup_class))
+            && !m->IsClassInitializer()) {
+          return true;
+        }
+        // Check for classes in the java.lang.reflect package, except for java.lang.reflect.Proxy.
+        // java.lang.reflect.Proxy does its own hidden api checks (https://r.android.com/915496),
+        // and walking over this frame would cause a null pointer dereference
+        // (e.g. in 691-hiddenapi-proxy).
+        ObjPtr<mirror::Class> proxy_class = GetClassRoot<mirror::Proxy>();
+        CompatFramework& compat_framework = Runtime::Current()->GetCompatFramework();
+        if (declaring_class->IsInSamePackage(proxy_class) && declaring_class != proxy_class) {
+          if (compat_framework.IsChangeEnabled(kPreventMetaReflectionBlocklistAccess)) {
+            return true;
+          }
+        }
+      }
+
+      caller = m;
+      return false;
+    }
+
+    ArtMethod* caller;
+  };
+
+  FirstExternalCallerVisitor visitor(self);
+  visitor.WalkStack();
+
+  // Construct AccessContext from the calling class found on the stack.
+  // If the calling class cannot be determined, e.g. unattached threads,
+  // we conservatively assume the caller is trusted.
+  ObjPtr<mirror::Class> caller = (visitor.caller == nullptr)
+      ? nullptr : visitor.caller->GetDeclaringClass();
+  return caller.IsNull() ? AccessContext(/* is_trusted= */ true)
+                         : AccessContext(caller);
 }
 
 namespace detail {
@@ -589,6 +665,122 @@ template bool ShouldDenyAccessToMemberImpl<ArtMethod>(ArtMethod* member,
                                                       ApiList api_list,
                                                       AccessMethod access_method);
 }  // namespace detail
+
+template<typename T>
+bool ShouldDenyAccessToMember(T* member,
+                              const std::function<AccessContext()>& fn_get_access_context,
+                              AccessMethod access_method) {
+  DCHECK(member != nullptr);
+
+  // First check if we have an explicit sdk checker installed that should be used to
+  // verify access. If so, make the decision based on it.
+  //
+  // This is used during off-device AOT compilation which may want to generate verification
+  // metadata only for a specific list of public SDKs. Note that the check here is made
+  // based on descriptor equality and it's aim to further restrict a symbol that would
+  // otherwise be resolved.
+  //
+  // The check only applies to boot classpaths dex files.
+  Runtime* runtime = Runtime::Current();
+  if (UNLIKELY(runtime->IsAotCompiler())) {
+    if (member->GetDeclaringClass()->GetClassLoader() == nullptr &&
+        runtime->GetClassLinker()->DenyAccessBasedOnPublicSdk(member)) {
+      return true;
+    }
+  }
+
+  // Get the runtime flags encoded in member's access flags.
+  // Note: this works for proxy methods because they inherit access flags from their
+  // respective interface methods.
+  const uint32_t runtime_flags = GetRuntimeFlags(member);
+
+  // Exit early if member is public API. This flag is also set for non-boot class
+  // path fields/methods.
+  if ((runtime_flags & kAccPublicApi) != 0) {
+    return false;
+  }
+
+  // Determine which domain the caller and callee belong to.
+  // This can be *very* expensive. This is why ShouldDenyAccessToMember
+  // should not be called on every individual access.
+  const AccessContext caller_context = fn_get_access_context();
+  const AccessContext callee_context(member->GetDeclaringClass());
+
+  // Non-boot classpath callers should have exited early.
+  DCHECK(!callee_context.IsApplicationDomain());
+
+  // Check if the caller is always allowed to access members in the callee context.
+  if (caller_context.CanAlwaysAccess(callee_context)) {
+    return false;
+  }
+
+  // Check if this is platform accessing core platform. We may warn if `member` is
+  // not part of core platform API.
+  switch (caller_context.GetDomain()) {
+    case Domain::kApplication: {
+      DCHECK(!callee_context.IsApplicationDomain());
+
+      // Exit early if access checks are completely disabled.
+      EnforcementPolicy policy = runtime->GetHiddenApiEnforcementPolicy();
+      if (policy == EnforcementPolicy::kDisabled) {
+        return false;
+      }
+
+      // If this is a proxy method, look at the interface method instead.
+      member = detail::GetInterfaceMemberIfProxy(member);
+
+      // Decode hidden API access flags from the dex file.
+      // This is an O(N) operation scaling with the number of fields/methods
+      // in the class. Only do this on slow path and only do it once.
+      ApiList api_list(detail::GetDexFlags(member));
+      DCHECK(api_list.IsValid());
+
+      // Member is hidden and caller is not exempted. Enter slow path.
+      return detail::ShouldDenyAccessToMemberImpl(member, api_list, access_method);
+    }
+
+    case Domain::kPlatform: {
+      DCHECK(callee_context.GetDomain() == Domain::kCorePlatform);
+
+      // Member is part of core platform API. Accessing it is allowed.
+      if ((runtime_flags & kAccCorePlatformApi) != 0) {
+        return false;
+      }
+
+      // Allow access if access checks are disabled.
+      EnforcementPolicy policy = Runtime::Current()->GetCorePlatformApiEnforcementPolicy();
+      if (policy == EnforcementPolicy::kDisabled) {
+        return false;
+      }
+
+      // If this is a proxy method, look at the interface method instead.
+      member = detail::GetInterfaceMemberIfProxy(member);
+
+      // Access checks are not disabled, report the violation.
+      // This may also add kAccCorePlatformApi to the access flags of `member`
+      // so as to not warn again on next access.
+      return detail::HandleCorePlatformApiViolation(member,
+                                                    caller_context,
+                                                    access_method,
+                                                    policy);
+    }
+
+    case Domain::kCorePlatform: {
+      LOG(FATAL) << "CorePlatform domain should be allowed to access all domains";
+      UNREACHABLE();
+    }
+  }
+}
+
+// Need to instantiate these.
+template bool ShouldDenyAccessToMember<ArtField>(
+    ArtField* member,
+    const std::function<AccessContext()>& fn_get_access_context,
+    AccessMethod access_method);
+template bool ShouldDenyAccessToMember<ArtMethod>(
+    ArtMethod* member,
+    const std::function<AccessContext()>& fn_get_access_context,
+    AccessMethod access_method);
 
 }  // namespace hiddenapi
 }  // namespace art

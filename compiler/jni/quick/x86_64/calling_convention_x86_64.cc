@@ -91,15 +91,12 @@ static constexpr uint32_t kNativeFpCalleeSpillMask =
 
 // Calling convention
 
-ManagedRegister X86_64JniCallingConvention::SavedLocalReferenceCookieRegister() const {
-  // The RBX is callee-save register in both managed and native ABIs.
-  // It is saved in the stack frame and it has no special purpose like `tr` on arm/arm64.
-  static_assert((kCoreCalleeSpillMask & (1u << RBX)) != 0u);  // Managed callee save register.
-  return X86_64ManagedRegister::FromCpuRegister(RBX);
-}
-
-ManagedRegister X86_64JniCallingConvention::ReturnScratchRegister() const {
-  return ManagedRegister::NoRegister();  // No free regs, so assembler uses push/pop
+ArrayRef<const ManagedRegister> X86_64JniCallingConvention::CalleeSaveScratchRegisters() const {
+  DCHECK(!IsCriticalNative());
+  // All native callee-save registers are available.
+  static_assert((kNativeCoreCalleeSpillMask & ~kCoreCalleeSpillMask) == 0u);
+  static_assert(kNativeFpCalleeSpillMask == 0u);
+  return ArrayRef<const ManagedRegister>(kNativeCalleeSaveRegisters);
 }
 
 static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni ATTRIBUTE_UNUSED) {

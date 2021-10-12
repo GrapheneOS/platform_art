@@ -369,6 +369,19 @@ void UnstartedRuntime::UnstartedClassGetDeclaredField(
   result->SetL(field);
 }
 
+void UnstartedRuntime::UnstartedClassGetDeclaredFields(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
+  // going the reflective Dex way.
+  ObjPtr<mirror::Class> klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
+  auto object_array = klass->GetDeclaredFields(self,
+                                               /*public_only=*/ false,
+                                               /*force_resolve=*/ true);
+  if (object_array != nullptr) {
+    result->SetL(object_array);
+  }
+}
+
 // This is required for Enum(Set) code, as that uses reflection to inspect enum classes.
 void UnstartedRuntime::UnstartedClassGetDeclaredMethod(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
