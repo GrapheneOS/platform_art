@@ -91,6 +91,10 @@ inline MirrorType* ReadBarrier::Barrier(
       LOG(FATAL) << "Unexpected read barrier type";
       UNREACHABLE();
     }
+  } else if (with_read_barrier) {
+    // TODO: invoke MarkCompact's function which translates a pre-compact
+    // address to from-space address, if we are in the compaction phase.
+    return ref_addr->template AsMirrorPtr<kIsVolatile>();
   } else {
     // No read barrier.
     return ref_addr->template AsMirrorPtr<kIsVolatile>();
