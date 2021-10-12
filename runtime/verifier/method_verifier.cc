@@ -3937,7 +3937,7 @@ ArtMethod* MethodVerifier<kVerifierDebug>::VerifyInvocationArgsFromIterator(
             false);
       }
       if (!res_method_class->IsAssignableFrom(adjusted_type, this)) {
-        Fail((adjusted_type.IsUnresolvedTypes() || res_method_class->IsUnresolvedTypes())
+        Fail(adjusted_type.IsUnresolvedTypes()
                  ? VERIFY_ERROR_UNRESOLVED_TYPE_CHECK
                  : VERIFY_ERROR_BAD_CLASS_HARD)
             << "'this' argument '" << actual_arg_type << "' not instance of '"
