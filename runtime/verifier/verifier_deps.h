@@ -117,6 +117,7 @@ class VerifierDeps {
   // Verify the encoded dependencies of this `VerifierDeps` are still valid.
   bool ValidateDependencies(Thread* self,
                             Handle<mirror::ClassLoader> class_loader,
+                            const std::vector<const DexFile*>& dex_files,
                             /* out */ std::string* error_msg) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
