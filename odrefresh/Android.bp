@@ -45,6 +45,9 @@ cc_defaults {
         "artd-private-aidl-ndk",
         "libartpalette",
         "libbase",
+        "libbinder_ndk",
+        "libcompos_client",
+        "libdexopt",
         "liblog",
     ],
     static_libs: ["libtinyxml2"],
@@ -106,7 +109,6 @@ art_cc_binary {
     shared_libs: [
         "libart",
         "libartbase",
-        "libdexopt",
     ],
     apex_available: [
         "com.android.art",
@@ -212,7 +214,6 @@ art_cc_test {
     ],
     shared_libs: [
         "libdexfile",
-        "libdexopt",
     ],
     test_config_template: "art_odrefresh_tests.xml",
 }

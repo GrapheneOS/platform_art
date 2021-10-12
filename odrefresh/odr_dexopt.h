@@ -37,17 +37,19 @@ class OdrConfig;
 
 class OdrDexopt {
  public:
+  // Exit code to indicate dex2oat has timed out. This number is in a reserved ranged of dex2oat
+  // that it won't return, which allows us to piggyback to indicate extra execution result.
+  static const int kDex2oatExitCode_Timeout = 128;
+
   static std::unique_ptr<OdrDexopt> Create(const OdrConfig& confg,
                                            std::unique_ptr<ExecUtils> exec_utils);
 
   virtual ~OdrDexopt() {}
 
   virtual int DexoptBcpExtension(const DexoptBcpExtArgs& args,
-                                 time_t timeout_secs,
                                  /*out*/ bool* timed_out,
                                  /*out*/ std::string* error_msg) = 0;
   virtual int DexoptSystemServer(const DexoptSystemServerArgs& args,
-                                 time_t timeout_secs,
                                  /*out*/ bool* timed_out,
                                  /*out*/ std::string* error_msg) = 0;
 };
