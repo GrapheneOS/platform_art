@@ -559,7 +559,11 @@ class Dex2Oat final {
     if (!kIsDebugBuild && !(kRunningOnMemoryTool && kMemoryToolDetectsLeaks)) {
       // We want to just exit on non-debug builds, not bringing the runtime down
       // in an orderly fashion. So release the following fields.
-      driver_.release();                // NOLINT
+      if (!compiler_options_->GetDumpStats()) {
+        // The --dump-stats get logged when the optimizing compiler gets destroyed, so we can't
+        // release the driver_.
+        driver_.release();              // NOLINT
+      }
       image_writer_.release();          // NOLINT
       for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files_) {
         dex_file.release();             // NOLINT
