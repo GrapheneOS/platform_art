@@ -98,29 +98,64 @@ class MarkCompact : public GarbageCollector {
       REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
  private:
+  using ObjReference = mirror::ObjectReference</*kPoisonReferences*/ false, mirror::Object>;
   // Number of bits (live-words) covered by a single offset-vector (below)
   // entry/word.
   // TODO: Since popcount is performed usomg SIMD instructions, we should
   // consider using 128-bit in order to halve the offset-vector size.
-  static constexpr size_t kBitsPerVectorWord = kBitsPerIntPtrT;
-  static constexpr size_t kOffsetChunkSize = kBitsPerVectorWord * kAlignment;
+  static constexpr uint32_t kBitsPerVectorWord = kBitsPerIntPtrT;
+  static constexpr uint32_t kOffsetChunkSize = kBitsPerVectorWord * kAlignment;
+  static_assert(kOffsetChunkSize < kPageSize);
   // Bitmap with bits corresponding to every live word set. For an object
   // which is 4 words in size will have the corresponding 4 bits set. This is
-  // required for efficient computation of new-address (after-compaction) from
-  // the given old-address (pre-compacted).
+  // required for efficient computation of new-address (post-compaction) from
+  // the given old-address (pre-compaction).
   template <size_t kAlignment>
   class LiveWordsBitmap : private accounting::MemoryRangeBitmap<kAlignment> {
     using Bitmap = accounting::Bitmap;
     using MemRangeBitmap = accounting::MemoryRangeBitmap<kAlignment>;
 
    public:
+    static_assert(IsPowerOfTwo(kBitsPerVectorWord));
+    static_assert(IsPowerOfTwo(Bitmap::kBitsPerBitmapWord));
+    static_assert(kBitsPerVectorWord >= Bitmap::kBitsPerBitmapWord);
+    static constexpr uint32_t kBitmapWordsPerVectorWord =
+            kBitsPerVectorWord / Bitmap::kBitsPerBitmapWord;
+    static_assert(IsPowerOfTwo(kBitmapWordsPerVectorWord));
     static LiveWordsBitmap* Create(uintptr_t begin, uintptr_t end);
+
+    // Return offset (within the offset-vector chunk) of the nth live word.
+    uint32_t FindNthLiveWordOffset(size_t offset_vec_idx, uint32_t n) const;
     // Sets all bits in the bitmap corresponding to the given range. Also
     // returns the bit-index of the first word.
-    uintptr_t SetLiveWords(uintptr_t begin, size_t size);
+    ALWAYS_INLINE uintptr_t SetLiveWords(uintptr_t begin, size_t size);
+    // Count number of live words upto the given bit-index. This is to be used
+    // to compute the post-compact address of an old reference.
+    ALWAYS_INLINE size_t CountLiveWordsUpto(size_t bit_idx) const;
+    // Call visitor for every stride of contiguous marked bits in the live-word
+    // bitmap. Passes to the visitor index of the first marked bit in the
+    // stride, stride-size and whether it's the last stride in the given range
+    // or not.
+    template <typename Visitor>
+    ALWAYS_INLINE void VisitLiveStrides(uintptr_t begin_bit_idx,
+                                        const size_t bytes,
+                                        Visitor&& visitor) const;
     void ClearBitmap() { Bitmap::Clear(); }
-    uintptr_t Begin() const { return MemRangeBitmap::CoverBegin(); }
+    ALWAYS_INLINE uintptr_t Begin() const { return MemRangeBitmap::CoverBegin(); }
+    ALWAYS_INLINE bool HasAddress(mirror::Object* obj) const {
+      return MemRangeBitmap::HasAddress(reinterpret_cast<uintptr_t>(obj));
+    }
+    bool Test(uintptr_t bit_index) {
+      return Bitmap::TestBit(bit_index);
+    }
   };
+
+  // For a given pre-compact object, return its from-space address.
+  mirror::Object* GetFromSpaceAddr(mirror::Object* obj) const {
+    DCHECK(live_words_bitmap_->HasAddress(obj) && live_words_bitmap_->Test(obj));
+    uintptr_t offset = reinterpret_cast<uintptr_t>(obj) - live_words_bitmap_->Begin();
+    return reinterpret_cast<mirror::Object*>(from_space_begin_ + offset);
+  }
 
   void InitializePhase();
   void FinishPhase() REQUIRES(!Locks::mutator_lock_, !Locks::heap_bitmap_lock_);
@@ -130,6 +165,17 @@ class MarkCompact : public GarbageCollector {
   void SweepSystemWeaks(Thread* self, const bool paused)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::heap_bitmap_lock_);
+  // Update the reference at given offset in the given object with post-compact
+  // address.
+  ALWAYS_INLINE void UpdateRef(mirror::Object* obj, MemberOffset offset)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Update the given root with post-compact address.
+  ALWAYS_INLINE void UpdateRoot(mirror::CompressedReference<mirror::Object>* root)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Given the pre-compact address, the function returns the post-compact
+  // address of the given object.
+  ALWAYS_INLINE mirror::Object* PostCompactAddress(mirror::Object* old_ref) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // Identify immune spaces and reset card-table, mod-union-table, and mark
   // bitmaps.
   void BindAndResetBitmaps() REQUIRES_SHARED(Locks::mutator_lock_)
@@ -145,6 +191,34 @@ class MarkCompact : public GarbageCollector {
   // Compute offset-vector and other data structures required during concurrent
   // compaction
   void PrepareForCompaction() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Copy kPageSize live bytes starting from 'offset' (within the moving space),
+  // which must be within 'obj', into the kPageSize sized memory pointed by 'addr'.
+  // Then update the references within the copied objects. The boundary objects are
+  // partially updated such that only the references that lie in the page are updated.
+  // This is necessary to avoid cascading userfaults.
+  void CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* addr)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Compact the bump-pointer space.
+  void CompactMovingSpace() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Update all the objects in the given non-moving space page. 'first' object
+  // could have started in some preceding page.
+  void UpdateNonMovingPage(mirror::Object* first, uint8_t* page)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Update all the references in the non-moving space.
+  void UpdateNonMovingSpace() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // For all the pages in non-moving space, find the first object that overlaps
+  // with the pages' start address, and store in first_objs_non_moving_space_ array.
+  void InitNonMovingSpaceFirstObjects() REQUIRES_SHARED(Locks::mutator_lock_);
+  // In addition to the first-objects for every post-compact moving space page,
+  // also find offsets within those objects from where the contents should be
+  // copied to the page. The offsets are relative to the moving-space's
+  // beginning. Store the computed first-object and offset in first_objs_moving_space_
+  // and pre_compact_offset_moving_space_ respectively.
+  void InitMovingSpaceFirstObjects(const size_t vec_len) REQUIRES_SHARED(Locks::mutator_lock_);
+
+
   // Perform reference-processing and the likes before sweeping the non-movable
   // spaces.
   void ReclaimPhase() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_);
@@ -237,19 +311,43 @@ class MarkCompact : public GarbageCollector {
   // when collecting thread-stack roots using checkpoint.
   Mutex mark_stack_lock_;
   accounting::ObjectStack* mark_stack_;
-  // The main space bitmap
-  accounting::ContinuousSpaceBitmap* current_space_bitmap_;
-  accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
   // Special bitmap wherein all the bits corresponding to an object are set.
+  // TODO: make LiveWordsBitmap encapsulated in this class rather than a
+  // pointer. We tend to access its members in performance-sensitive
+  // code-path. Also, use a single MemMap for all the GC's data structures,
+  // which we will clear in the end. This would help in limiting the number of
+  // VMAs that get created in the kernel.
   std::unique_ptr<LiveWordsBitmap<kAlignment>> live_words_bitmap_;
   // Any array of live-bytes in logical chunks of kOffsetChunkSize size
   // in the 'to-be-compacted' space.
-  std::unique_ptr<MemMap> offset_vector_map_;
+  std::unique_ptr<MemMap> info_map_;
   uint32_t* offset_vector_;
+  // The main space bitmap
+  accounting::ContinuousSpaceBitmap* current_space_bitmap_;
+  accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
+
+  // For every page in the to-space (post-compact heap) we need to know the
+  // first object from which we must compact and/or update references. This is
+  // for both non-moving and moving space. Additionally, for the moving-space,
+  // we also need the offset within the object from where we need to start
+  // copying.
+  uint32_t* pre_compact_offset_moving_space_;
+  // first_objs_moving_space_[i] is the address of the first object for the ith page
+  ObjReference* first_objs_moving_space_;
+  ObjReference* first_objs_non_moving_space_;
+  size_t non_moving_first_objs_count_;
+  // Number of first-objects in the moving space.
+  size_t moving_first_objs_count_;
+
+  uint8_t* from_space_begin_;
+  uint8_t* black_allocations_begin_;
   size_t vector_length_;
   size_t live_stack_freeze_size_;
+  space::ContinuousSpace* non_moving_space_;
   const space::BumpPointerSpace* bump_pointer_space_;
   Thread* thread_running_gc_;
+  // Set to true when compacting starts.
+  bool compacting_;
 
   class VerifyRootMarkedVisitor;
   class ScanObjectVisitor;
@@ -257,6 +355,7 @@ class MarkCompact : public GarbageCollector {
   template<size_t kBufferSize> class ThreadRootsVisitor;
   class CardModifiedVisitor;
   class RefFieldsVisitor;
+  template <bool kCheckBegin, bool kCheckEnd> class RefsUpdateVisitor;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MarkCompact);
 };

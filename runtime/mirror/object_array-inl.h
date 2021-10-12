@@ -327,7 +327,20 @@ template<class T> template<typename Visitor>
 inline void ObjectArray<T>::VisitReferences(const Visitor& visitor) {
   const size_t length = static_cast<size_t>(GetLength());
   for (size_t i = 0; i < length; ++i) {
-    visitor(this, OffsetOfElement(i), false);
+    visitor(this, OffsetOfElement(i), /* is_static= */ false);
+  }
+}
+
+template<class T> template<typename Visitor>
+inline void ObjectArray<T>::VisitReferences(const Visitor& visitor,
+                                            MemberOffset begin,
+                                            MemberOffset end) {
+  const size_t length = static_cast<size_t>(GetLength());
+  begin = std::max(begin, OffsetOfElement(0));
+  end = std::min(end, OffsetOfElement(length));
+  while (begin < end) {
+    visitor(this, begin, /* is_static= */ false, /*is_obj_array*/ true);
+    begin += kHeapReferenceSize;
   }
 }
 

@@ -37,11 +37,27 @@ class Offset {
   constexpr size_t SizeValue() const {
     return val_;
   }
+  Offset& operator+=(const size_t rhs) {
+    val_ += rhs;
+    return *this;
+  }
   constexpr bool operator==(Offset o) const {
     return SizeValue() == o.SizeValue();
   }
   constexpr bool operator!=(Offset o) const {
     return !(*this == o);
+  }
+  constexpr bool operator<(Offset o) const {
+    return SizeValue() < o.SizeValue();
+  }
+  constexpr bool operator<=(Offset o) const {
+    return !(*this > o);
+  }
+  constexpr bool operator>(Offset o) const {
+    return o < *this;
+  }
+  constexpr bool operator>=(Offset o) const {
+    return !(*this < o);
   }
 
  protected:
