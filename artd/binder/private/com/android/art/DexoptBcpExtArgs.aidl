@@ -62,5 +62,4 @@ parcelable DexoptBcpExtArgs {
     // SECURITY: Computational resource should not affect the compilation results.
     int[] cpuSet;
     int threads;
-    int timeoutSecs = 0;
 }
