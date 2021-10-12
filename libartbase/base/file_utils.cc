@@ -519,6 +519,10 @@ std::string GetVdexFilename(const std::string& oat_location) {
   return ReplaceFileExtension(oat_location, "vdex");
 }
 
+std::string GetDmFilename(const std::string& dex_location) {
+  return ReplaceFileExtension(dex_location, "dm");
+}
+
 std::string GetSystemOdexFilenameForApex(std::string_view location, InstructionSet isa) {
   DCHECK(LocationIsOnApex(location));
   std::string dir = GetAndroidRoot() + "/framework/oat/" + GetInstructionSetString(isa);
