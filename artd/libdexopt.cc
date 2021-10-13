@@ -183,6 +183,12 @@ void AddDex2OatCommonOptions(/*inout*/ std::vector<std::string>& cmdline) {
   cmdline.emplace_back("--image-format=lz4");
   cmdline.emplace_back("--force-determinism");
   cmdline.emplace_back("--resolve-startup-const-strings=true");
+
+  // Avoid storing dex2oat cmdline in oat header. We want to be sure that the compiled artifacts
+  // are identical regardless of where the compilation happened. But some of the cmdline flags tends
+  // to be unstable, e.g. those contains FD numbers. To avoid the problem, the whole cmdline is not
+  // added to the oat header.
+  cmdline.emplace_back("--avoid-storing-invocation");
 }
 
 void AddDex2OatDebugInfo(/*inout*/ std::vector<std::string>& cmdline) {

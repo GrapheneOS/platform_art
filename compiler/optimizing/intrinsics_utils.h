@@ -146,6 +146,18 @@ static inline bool IsVarHandleGetAndAdd(HInvoke* invoke) {
   }
 }
 
+static inline DataType::Type GetVarHandleExpectedValueType(HInvoke* invoke,
+                                                           size_t expected_coordinates_count) {
+  DCHECK_EQ(expected_coordinates_count, GetExpectedVarHandleCoordinatesCount(invoke));
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  DCHECK_GE(number_of_arguments, /* VarHandle object */ 1u + expected_coordinates_count);
+  if (number_of_arguments == /* VarHandle object */ 1u + expected_coordinates_count) {
+    return invoke->GetType();
+  } else {
+    return GetDataTypeFromShorty(invoke, number_of_arguments - 1u);
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_UTILS_H_
