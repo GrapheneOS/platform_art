@@ -119,9 +119,6 @@ if [[ $build_target == "yes" ]]; then
   # These are built to go into system/lib(64) to be part of the system linker
   # namespace.
   make_command+=" libbacktrace libnetd_client-target libprocinfo libtombstoned_client libunwindstack"
-  # testrunner in chroot requires the class files for conscrypt and ICU (cf.
-  # https://r.android.com/1828052).
-  make_command+=" conscrypt core-icu4j"
   make_command+=" ${ANDROID_PRODUCT_OUT#"${ANDROID_BUILD_TOP}/"}/system/etc/public.libraries.txt"
   # Targets required to generate a linker configuration for device within the
   # chroot environment. The *.libraries.txt targets are required by
