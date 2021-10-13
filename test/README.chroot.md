@@ -67,6 +67,10 @@ Note that using this chroot-based approach requires root access to the device
     ```bash
     art/tools/buildbot-build.sh --target
     ```
+    After building it is fine to see it finish with an error like:
+    ```
+    linkerconfig E [...] variableloader.cc:83] Unable to access VNDK APEX at path: <path>: No such file or directory
+    ```
 4. Clean up the device:
     ```bash
     art/tools/buildbot-cleanup-device.sh
