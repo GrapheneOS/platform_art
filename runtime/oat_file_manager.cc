@@ -722,6 +722,20 @@ void OatFileManager::RunBackgroundVerification(const std::vector<const DexFile*>
     return;
   }
 
+  {
+    // Temporarily create a class loader context to see if we recognize the
+    // chain.
+    std::unique_ptr<ClassLoaderContext> context(
+        ClassLoaderContext::CreateContextForClassLoader(class_loader, nullptr));
+    if (context == nullptr) {
+      // We only run background verification for class loaders we know the lookup
+      // chain. Because the background verification runs on runtime threads,
+      // which do not call Java, we won't be able to load classes when
+      // verifying, which is something the current verifier relies on.
+      return;
+    }
+  }
+
   if (!IsSdkVersionSetAndAtLeast(runtime->GetTargetSdkVersion(), SdkVersion::kQ)) {
     // Do not run for legacy apps as they may depend on the previous class loader behaviour.
     return;
