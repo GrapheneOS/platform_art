@@ -344,6 +344,8 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
   bool CpuHasAvxFeatureFlag();
   bool CpuHasAvx2FeatureFlag();
 
+  void GenerateMethodEntryExitHook(HInstruction* instruction);
+
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
 

@@ -276,6 +276,7 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
   void GenerateMinMaxInt(LocationSummary* locations, bool is_min, DataType::Type type);
   void GenerateMinMaxFP(LocationSummary* locations, bool is_min, DataType::Type type);
   void GenerateMinMax(HBinaryOperation* minmax, bool is_min);
+  void GenerateMethodEntryExitHook(HInstruction* instruction);
 
   // Generate a heap reference load using one register `out`:
   //
