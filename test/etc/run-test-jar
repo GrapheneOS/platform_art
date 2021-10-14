@@ -1020,7 +1020,17 @@ function write_dex2oat_cmdlines {
   # If the name ends in -ex then this is a secondary dex file
   if [ "${name:${#name}-3}" = "-ex" ]; then
     # Lazily realize the default value in case DEX_LOCATION/TEST_NAME change
-    [ -z "$SECONDARY_CLASS_LOADER_CONTEXT" ] && SECONDARY_CLASS_LOADER_CONTEXT="PCL[];PCL[$DEX_LOCATION/$TEST_NAME.jar]"
+    if [ "x$SECONDARY_CLASS_LOADER_CONTEXT" = "x" ]; then
+      if [ "x$SECONDARY_DEX" = "x" ]; then
+        # Tests without `--secondary` load the "-ex" jar in a separate PathClassLoader
+        # that is a child of the main PathClassLoader. If the class loader is constructed
+        # in any other way, the test needs to specify the secondary CLC explicitly.
+        SECONDARY_CLASS_LOADER_CONTEXT="PCL[];PCL[$DEX_LOCATION/$TEST_NAME.jar]"
+      else
+        # Tests with `--secondary` load the `-ex` jar a part of the main PathClassLoader.
+        SECONDARY_CLASS_LOADER_CONTEXT="PCL[$DEX_LOCATION/$TEST_NAME.jar]"
+      fi
+    fi
     class_loader_context="'--class-loader-context=$SECONDARY_CLASS_LOADER_CONTEXT'"
     $enable_app_image && [ "$SECONDARY_APP_IMAGE" = "y" ] || enable_app_image=false
   fi
