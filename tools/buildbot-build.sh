@@ -43,6 +43,7 @@ specific_targets="libjavacoretests libwrapagentproperties libwrapagentproperties
 build_host="no"
 build_target="no"
 installclean="no"
+skip_run_tests_build="no"
 j_arg="-j$(nproc)"
 showcommands=
 make_command=
@@ -56,6 +57,9 @@ while true; do
     shift
   elif [[ "$1" == "--installclean" ]]; then
     installclean="yes"
+    shift
+  elif [[ "$1" == "--skip-run-tests-build" ]]; then
+    skip_run_tests_build="yes"
     shift
   elif [[ "$1" == -j* ]]; then
     j_arg=$1
@@ -96,7 +100,8 @@ apexes=(
 
 make_command="build/soong/soong_ui.bash --make-mode $j_arg $extra_args $showcommands $common_targets"
 if [[ $build_host == "yes" ]]; then
-  make_command+=" build-art-host-tests"
+  make_command+=" build-art-host-gtests"
+  test $skip_run_tests_build == "yes" || make_command+=" build-art-host-run-tests"
   make_command+=" dx-tests junit-host libjdwp-host"
   for LIB in ${specific_targets} ; do
     make_command+=" $LIB-host"
@@ -107,12 +112,13 @@ if [[ $build_target == "yes" ]]; then
     echo 'ANDROID_PRODUCT_OUT environment variable is empty; did you forget to run `lunch`?'
     exit 1
   fi
-  make_command+=" build-art-target-tests"
-  make_command+=" libnetd_client-target toybox sh libtombstoned_client"
-  make_command+=" debuggerd su"
-  # testrunner in chroot requires the class files for conscrypt and ICU (cf.
-  # https://r.android.com/1828052).
-  make_command+=" conscrypt core-icu4j"
+  make_command+=" build-art-target-gtests"
+  test $skip_run_tests_build == "yes" || make_command+=" build-art-target-run-tests"
+  make_command+=" debuggerd sh su toybox"
+  # Indirect dependencies in the platform, e.g. through heapprofd_client_api.
+  # These are built to go into system/lib(64) to be part of the system linker
+  # namespace.
+  make_command+=" libbacktrace libnetd_client-target libprocinfo libtombstoned_client libunwindstack"
   make_command+=" ${ANDROID_PRODUCT_OUT#"${ANDROID_BUILD_TOP}/"}/system/etc/public.libraries.txt"
   # Targets required to generate a linker configuration for device within the
   # chroot environment. The *.libraries.txt targets are required by

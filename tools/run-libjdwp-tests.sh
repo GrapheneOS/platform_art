@@ -132,10 +132,10 @@ else
   args+=(-Xplugin:libopenjdkjvmti.so)
 fi
 
-expect_path=$PWD/art/tools/external_oj_libjdwp_art_failures.txt
+expectations="--expectations $PWD/art/tools/external_oj_libjdwp_art_failures.txt"
 
 if [[ "$debug" = "yes" && "$has_gcstress" = "yes" ]]; then
-  expect_path=$expect_path:$PWD/art/tools/external_oj_libjdwp_art_gcstress_debug_failures.txt
+  expectations="$expectations --expectations $PWD/art/tools/external_oj_libjdwp_art_gcstress_debug_failures.txt"
 fi
 
 function verbose_run() {
@@ -155,4 +155,4 @@ verbose_run ./art/tools/run-jdwp-tests.sh \
             --jdwp-path "libjdwp.so"      \
             --vm-arg -Djpda.settings.debuggeeAgentExtraOptions=coredump=y \
             --vm-arg -Djpda.settings.testSuiteType=libjdwp \
-            --expectations "$expect_path"
+            "$expectations"
