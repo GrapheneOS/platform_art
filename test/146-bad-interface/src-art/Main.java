@@ -23,11 +23,11 @@ import dalvik.system.PathClassLoader;
 public class Main {
   static final String DEX_LOCATION = System.getenv("DEX_LOCATION");
   static final String DEX_FILES =
-      DEX_LOCATION + "/146-bad-interface-ex.jar" + ":" +
-      DEX_LOCATION + "/146-bad-interface.jar";
+      DEX_LOCATION + "/146-bad-interface.jar" + ":" +
+      DEX_LOCATION + "/146-bad-interface-ex.jar";
   public static void main(String[] args) {
     try {
-      PathClassLoader p = new PathClassLoader(DEX_FILES, Main.class.getClassLoader());
+      PathClassLoader p = new PathClassLoader(DEX_FILES, Main.class.getClassLoader().getParent());
       Class<?> c = Class.forName("A", true, p);
       Object o = c.newInstance();
       Class<?> runner = Class.forName("InvokeInf", true, p);
