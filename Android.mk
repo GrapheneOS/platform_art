@@ -738,11 +738,21 @@ build-art-unbundled-golem: art-runtime linker oatdump $(art_apex_jars) conscrypt
 ########################################################################
 # Rules for building all dependencies for tests.
 
-.PHONY: build-art-host-tests
-build-art-host-tests:   build-art-host $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_GTEST_DEPENDENCIES)
+.PHONY: build-art-host-gtests build-art-host-run-tests build-art-host-tests
 
-.PHONY: build-art-target-tests
-build-art-target-tests:   build-art-target $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_TARGET_RUN_TEST_DEPENDENCIES) $(ART_TEST_TARGET_GTEST_DEPENDENCIES)
+build-art-host-gtests: build-art-host $(ART_TEST_HOST_GTEST_DEPENDENCIES)
+
+build-art-host-run-tests: build-art-host $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES)
+
+build-art-host-tests: build-art-host-gtests build-art-host-run-tests
+
+.PHONY: build-art-target-gtests build-art-target-run-tests build-art-target-tests
+
+build-art-target-gtests: build-art-target $(ART_TEST_TARGET_GTEST_DEPENDENCIES)
+
+build-art-target-run-tests: build-art-target $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_TARGET_RUN_TEST_DEPENDENCIES)
+
+build-art-target-tests: build-art-target-gtests build-art-target-run-tests
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart

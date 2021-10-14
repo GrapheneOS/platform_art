@@ -75,7 +75,7 @@ if [[ $core_jars_only == y ]]; then
   # Note: This must start with the CORE_IMG_JARS in Android.common_path.mk
   # because that's what we use for compiling the boot.art image.
   # It may contain additional modules from TEST_CORE_JARS.
-  core_jars_list="core-oj core-libart okhttp bouncycastle apache-xml core-icu4j"
+  core_jars_list="core-oj core-libart okhttp bouncycastle apache-xml"
   boot_jars_list=""
   boot_separator=""
   for boot_module in ${core_jars_list}; do

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import android.icu.util.TimeZone;
+import java.lang.reflect.Modifier;
 
-public abstract class MyTimeZone extends TimeZone {
-  // Reference to MyTimeZone.getDefaultTimeZoneType() shall resolve
-  // to TimeZone.getDefaultTimeZoneType() which should be easily inlined.
+public abstract class MyModifier extends Modifier {
+  // Reference to MyModifier.classModifiers() shall resolve to
+  // Modifier.classModifiers() which should be easily inlined.
 }
