@@ -16,6 +16,8 @@
 
 # This test checks whether dex files can be injected into parent classloaders. App images preload
 # classes, which will make the injection moot. Turn off app images to avoid the issue.
+# Pass the correct `--secondary-class-loader-context` for the "-ex" jar.
 
 ./default-run "$@" --jvmti \
-                   --no-app-image
+                   --no-app-image \
+                   --secondary-class-loader-context "PCL[$DEX_LOCATION/$TEST_NAME.jar]"
