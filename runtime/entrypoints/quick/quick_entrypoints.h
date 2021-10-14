@@ -55,22 +55,19 @@ struct PACKED(4) QuickEntryPoints {
 // JNI entrypoints.
 // TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
 extern void JniMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodFastStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern void JniMethodStartSynchronized(jobject to_lock, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern void JniMethodEnd(Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodFastEnd(Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern void JniMethodEndSynchronized(jobject locked, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern mirror::Object* JniMethodEndWithReference(jobject result, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMethodFastEndWithReference(jobject result, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              jobject locked,
                                                              Thread* self)
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+extern mirror::Object* JniDecodeReferenceResult(jobject result, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 // JNI entrypoints when monitoring entry/exit.
