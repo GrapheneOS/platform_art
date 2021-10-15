@@ -4753,17 +4753,13 @@ void MethodVerifier<kVerifierDebug>::VerifyISFieldAccess(const Instruction* inst
     if (is_primitive) {
       VerifyPrimitivePut(*field_type, insn_type, vregA);
     } else {
+      DCHECK(insn_type.IsJavaLangObject());
       if (!insn_type.IsAssignableFrom(*field_type, this)) {
-        VerifyError error;
-        if (insn_type.IsUnresolvedTypes() || field_type->IsUnresolvedTypes()) {
-          error = VERIFY_ERROR_UNRESOLVED_TYPE_CHECK;
-        } else {
-          error = VERIFY_ERROR_BAD_CLASS_HARD;
-        }
-        Fail(error) << "expected field " << ArtField::PrettyField(field)
-                    << " to be compatible with type '" << insn_type
-                    << "' but found type '" << *field_type
-                    << "' in put-object";
+        DCHECK(!field_type->IsReferenceTypes());
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << ArtField::PrettyField(field)
+                                          << " to be compatible with type '" << insn_type
+                                          << "' but found type '" << *field_type
+                                          << "' in put-object";
         return;
       }
       work_line_->VerifyRegisterType(this, vregA, *field_type);
@@ -4786,20 +4782,13 @@ void MethodVerifier<kVerifierDebug>::VerifyISFieldAccess(const Instruction* inst
         return;
       }
     } else {
+      DCHECK(insn_type.IsJavaLangObject());
       if (!insn_type.IsAssignableFrom(*field_type, this)) {
-        VerifyError error;
-        if (insn_type.IsUnresolvedTypes() || field_type->IsUnresolvedTypes()) {
-          error = VERIFY_ERROR_UNRESOLVED_TYPE_CHECK;
-        } else {
-          error = VERIFY_ERROR_BAD_CLASS_HARD;
-        }
-        Fail(error) << "expected field " << ArtField::PrettyField(field)
-                    << " to be compatible with type '" << insn_type
-                    << "' but found type '" << *field_type
-                    << "' in get-object";
-        if (error != VERIFY_ERROR_BAD_CLASS_HARD) {
-          work_line_->SetRegisterType<LockOp::kClear>(vregA, reg_types_.Conflict());
-        }
+        DCHECK(!field_type->IsReferenceTypes());
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << ArtField::PrettyField(field)
+                                          << " to be compatible with type '" << insn_type
+                                          << "' but found type '" << *field_type
+                                          << "' in get-object";
         return;
       }
     }
