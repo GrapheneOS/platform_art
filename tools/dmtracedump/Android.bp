@@ -27,6 +27,7 @@ art_cc_binary {
     name: "dmtracedump",
     host_supported: true,
     device_supported: false,
+    visibility: ["//development/build"],
     srcs: ["tracedump.cc"],
     cflags: [
         "-O0",
