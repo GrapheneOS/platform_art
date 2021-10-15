@@ -47,6 +47,7 @@ def main():
       f.write(textwrap.dedent("""
         java_genrule {{
             name: "art-run-test-{mode}-data-merged",
+            defaults: ["art-run-test-data-defaults"],
             out: ["art-run-test-{mode}-data-merged.zip"],
             srcs: [
                 {srcs}
