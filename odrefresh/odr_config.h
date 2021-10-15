@@ -29,6 +29,12 @@
 namespace art {
 namespace odrefresh {
 
+// Maximum execution time for odrefresh from start to end.
+constexpr time_t kMaximumExecutionSeconds = 300;
+
+// Maximum execution time for any child process spawned.
+constexpr time_t kMaxChildProcessSeconds = 90;
+
 // An enumeration of the possible zygote configurations on Android.
 enum class ZygoteKind : uint8_t {
   // 32-bit primary zygote, no secondary zygote.
@@ -57,6 +63,8 @@ class OdrConfig final {
   int compilation_os_address_ = 0;
   std::string boot_classpath_;
   std::string artifact_dir_;
+  time_t max_execution_seconds_ = kMaxChildProcessSeconds;
+  time_t max_child_process_seconds_ = kMaximumExecutionSeconds;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
@@ -133,6 +141,8 @@ class OdrConfig final {
   const std::string& GetStagingDir() const {
     return staging_dir_;
   }
+  time_t GetMaxExecutionSeconds() const { return max_execution_seconds_; }
+  time_t GetMaxChildProcessSeconds() const { return max_child_process_seconds_; }
 
   void SetApexInfoListFile(const std::string& file_path) { apex_info_list_file_ = file_path; }
   void SetArtBinDir(const std::string& art_bin_dir) { art_bin_dir_ = art_bin_dir; }
@@ -148,6 +158,8 @@ class OdrConfig final {
   void SetDryRun() { dry_run_ = true; }
   void SetIsa(const InstructionSet isa) { isa_ = isa; }
   void SetCompilationOsAddress(int address) { compilation_os_address_ = address; }
+  void SetMaxExecutionSeconds(int seconds) { max_execution_seconds_ = seconds; }
+  void SetMaxChildProcessSeconds(int seconds) { max_child_process_seconds_ = seconds; }
 
   void SetSystemServerClasspath(const std::string& classpath) {
     system_server_classpath_ = classpath;

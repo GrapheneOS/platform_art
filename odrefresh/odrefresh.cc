@@ -103,18 +103,6 @@ namespace {
 // Name of cache info file in the ART Apex artifact cache.
 constexpr const char* kCacheInfoFile = "cache-info.xml";
 
-// Maximum execution time for odrefresh from start to end.
-constexpr time_t kMaximumExecutionSeconds = 300;
-
-// Extra execution time when running child processes in a VM.
-constexpr time_t kExtraExecutionSecondsInVm = 180;
-
-// Maximum execution time for any child process spawned.
-constexpr time_t kMaxChildProcessSeconds = 90;
-
-// Extra execution time for any child process spawned in a VM.
-constexpr time_t kExtraChildProcessSecondsInVm = 60;
-
 void EraseFiles(const std::vector<std::unique_ptr<File>>& files) {
   for (auto& file : files) {
     file->Erase(/*unlink=*/true);
@@ -496,17 +484,6 @@ OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config,
 
   systemserver_compilable_jars_ = android::base::Split(config_.GetSystemServerClasspath(), ":");
   boot_classpath_jars_ = android::base::Split(config_.GetBootClasspath(), ":");
-
-  max_execution_seconds_ = kMaximumExecutionSeconds;
-  max_child_process_seconds_ = kMaxChildProcessSeconds;
-
-  if (config_.UseCompilationOs()) {
-    // Give extra time to all of the Comp OS cases for simplicity. But really, this is only needed
-    // on cuttlefish, where we run Comp OS in a slow, *nested* VM.
-    // TODO(197531822): Remove once we can give the VM more CPU and/or improve the file caching.
-    max_execution_seconds_ += kExtraExecutionSecondsInVm;
-    max_child_process_seconds_ += kExtraChildProcessSecondsInVm;
-  }
 }
 
 time_t OnDeviceRefresh::GetExecutionTimeUsed() const {
@@ -514,11 +491,11 @@ time_t OnDeviceRefresh::GetExecutionTimeUsed() const {
 }
 
 time_t OnDeviceRefresh::GetExecutionTimeRemaining() const {
-  return std::max(static_cast<time_t>(0), max_execution_seconds_ - GetExecutionTimeUsed());
+  return std::max(static_cast<time_t>(0), config_.GetMaxExecutionSeconds() - GetExecutionTimeUsed());
 }
 
 time_t OnDeviceRefresh::GetSubprocessTimeout() const {
-  return std::min(GetExecutionTimeRemaining(), max_child_process_seconds_);
+  return std::min(GetExecutionTimeRemaining(), config_.GetMaxChildProcessSeconds());
 }
 
 std::optional<std::vector<apex::ApexInfo>> OnDeviceRefresh::GetApexInfoList() const {
