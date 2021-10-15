@@ -192,6 +192,8 @@ static const char* SignalCodeName(int sig, int code) {
     switch (code) {
       case SEGV_MAPERR: return "SEGV_MAPERR";
       case SEGV_ACCERR: return "SEGV_ACCERR";
+      case 8:           return "SEGV_MTEAERR";
+      case 9:           return "SEGV_MTESERR";
       default:          return "UNKNOWN";
     }
   }
