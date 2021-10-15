@@ -903,6 +903,7 @@ java_genrule {
 
 java_genrule {
     name: "art-run-test-host-data-merged",
+    defaults: ["art-run-test-data-defaults"],
     out: ["art-run-test-host-data-merged.zip"],
     srcs: [
         ":art-run-test-host-data-shard00",
@@ -1912,6 +1913,7 @@ java_genrule {
 
 java_genrule {
     name: "art-run-test-target-data-merged",
+    defaults: ["art-run-test-data-defaults"],
     out: ["art-run-test-target-data-merged.zip"],
     srcs: [
         ":art-run-test-target-data-shard00",
@@ -2921,6 +2923,7 @@ java_genrule {
 
 java_genrule {
     name: "art-run-test-jvm-data-merged",
+    defaults: ["art-run-test-data-defaults"],
     out: ["art-run-test-jvm-data-merged.zip"],
     srcs: [
         ":art-run-test-jvm-data-shard00",
