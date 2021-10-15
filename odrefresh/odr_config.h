@@ -24,6 +24,7 @@
 #include "arch/instruction_set.h"
 #include "base/globals.h"
 #include "log/log.h"
+#include "odrefresh/odrefresh.h"
 
 namespace art {
 namespace odrefresh {
@@ -55,6 +56,7 @@ class OdrConfig final {
   ZygoteKind zygote_kind_;
   int compilation_os_address_ = 0;
   std::string boot_classpath_;
+  std::string artifact_dir_;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
@@ -64,7 +66,8 @@ class OdrConfig final {
   explicit OdrConfig(const char* program_name)
     : dry_run_(false),
       isa_(InstructionSet::kNone),
-      program_name_(android::base::Basename(program_name)) {
+      program_name_(android::base::Basename(program_name)),
+      artifact_dir_(kOdrefreshArtifactDirectory) {
   }
 
   const std::string& GetApexInfoListFile() const { return apex_info_list_file_; }
@@ -95,6 +98,8 @@ class OdrConfig final {
   }
 
   const std::string& GetDex2oatBootClasspath() const { return dex2oat_boot_classpath_; }
+
+  const std::string& GetArtifactDirectory() const { return artifact_dir_; }
 
   std::string GetDex2Oat() const {
     const char* prefix = UseDebugBinaries() ? "dex2oatd" : "dex2oat";
@@ -134,6 +139,10 @@ class OdrConfig final {
 
   void SetDex2oatBootclasspath(const std::string& classpath) {
     dex2oat_boot_classpath_ = classpath;
+  }
+
+  void SetArtifactDirectory(const std::string& artifact_dir) {
+    artifact_dir_ = artifact_dir;
   }
 
   void SetDryRun() { dry_run_ = true; }

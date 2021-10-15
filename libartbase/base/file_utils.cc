@@ -370,11 +370,18 @@ std::string GetBootImagePath(bool on_system, const std::string& jar_path) {
   }
 }
 
+static /*constinit*/ std::string_view dalvik_cache_sub_dir = "dalvik-cache";
+
+void OverrideDalvikCacheSubDirectory(std::string sub_dir) {
+    static std::string overridden_dalvik_cache_sub_dir;
+    overridden_dalvik_cache_sub_dir = std::move(sub_dir);
+    dalvik_cache_sub_dir = overridden_dalvik_cache_sub_dir;
+}
+
 static std::string GetDalvikCacheDirectory(std::string_view root_directory,
                                            std::string_view sub_directory = {}) {
-  static constexpr std::string_view kDalvikCache = "dalvik-cache";
   std::stringstream oss;
-  oss << root_directory << '/' << kDalvikCache;
+  oss << root_directory << '/' << dalvik_cache_sub_dir;
   if (!sub_directory.empty()) {
     oss << '/' << sub_directory;
   }
