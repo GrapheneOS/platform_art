@@ -206,6 +206,18 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
       art::OverrideDalvikCacheSubDirectory(value);
       config->SetArtifactDirectory(Concatenate(
           {android::base::Dirname(art::odrefresh::kOdrefreshArtifactDirectory), "/", value}));
+    } else if (ArgumentMatches(arg, "--max-execution-seconds=", &value)) {
+      int seconds;
+      if (!android::base::ParseInt(value, &seconds)) {
+        ArgumentError("Failed to parse integer: %s", value.c_str());
+      }
+      config->SetMaxExecutionSeconds(seconds);
+    } else if (ArgumentMatches(arg, "--max-child-process-seconds=", &value)) {
+      int seconds;
+      if (!android::base::ParseInt(value, &seconds)) {
+        ArgumentError("Failed to parse integer: %s", value.c_str());
+      }
+      config->SetMaxChildProcessSeconds(seconds);
     } else if (!InitializeCommonConfig(arg, config)) {
       UsageError("Unrecognized argument: '%s'", arg);
     }
