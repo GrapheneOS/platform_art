@@ -1315,6 +1315,7 @@ art_cc_test {
 // Install run-test data in the output directory.
 prebuilt_etc_host {
     name: "art-run-test-host-data",
+    defaults: ["art_module_source_build_prebuilt_defaults"],
     src: ":art-run-test-host-data-merged",
     sub_dir: "art",
     filename: "art-run-test-host-data.zip",
@@ -1323,6 +1324,7 @@ prebuilt_etc_host {
 // Install run-test data in the output directory.
 prebuilt_etc_host {
     name: "art-run-test-jvm-data",
+    defaults: ["art_module_source_build_prebuilt_defaults"],
     src: ":art-run-test-jvm-data-merged",
     sub_dir: "art",
     filename: "art-run-test-jvm-data.zip",
@@ -1331,6 +1333,7 @@ prebuilt_etc_host {
 // Install run-test data in the output directory.
 prebuilt_etc_host {
     name: "art-run-test-target-data",
+    defaults: ["art_module_source_build_prebuilt_defaults"],
     src: ":art-run-test-target-data-merged",
     sub_dir: "art",
     filename: "art-run-test-target-data.zip",
@@ -1814,6 +1817,11 @@ genrule {
 
 genrule_defaults {
     name: "art-run-test-data-defaults",
+    defaults: [
+        // Enable only in source builds, where com.android.art.testing is
+        // available.
+        "art_module_source_build_genrule_defaults",
+    ],
     tool_files: [
         "run-test-build.py",
         "knownfailures.json",
