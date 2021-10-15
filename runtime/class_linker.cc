@@ -3054,18 +3054,6 @@ ObjPtr<mirror::Class> ClassLinker::DefineClass(Thread* self,
     }
   }
 
-  // For AOT-compilation of an app, we may use a shortened boot class path that excludes
-  // some runtime modules. Prevent definition of classes in app class loader that could clash
-  // with these modules as these classes could be resolved differently during execution.
-  if (class_loader != nullptr &&
-      Runtime::Current()->IsAotCompiler() &&
-      IsUpdatableBootClassPathDescriptor(descriptor)) {
-    ObjPtr<mirror::Throwable> pre_allocated =
-        Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
-    self->SetException(pre_allocated);
-    return sdc.Finish(nullptr);
-  }
-
   // For AOT-compilation of an app, we may use only a public SDK to resolve symbols. If the SDK
   // checks are configured (a non null SdkChecker) and the descriptor is not in the provided
   // public class path then we prevent the definition of the class.
@@ -10115,12 +10103,6 @@ ObjPtr<mirror::IfTable> ClassLinker::AllocIfTable(Thread* self, size_t ifcount) 
       mirror::IfTable::Alloc(self,
                              GetClassRoot<mirror::ObjectArray<mirror::Object>>(this),
                              ifcount * mirror::IfTable::kMax)));
-}
-
-bool ClassLinker::IsUpdatableBootClassPathDescriptor(const char* descriptor ATTRIBUTE_UNUSED) {
-  // Should not be called on ClassLinker, only on AotClassLinker that overrides this.
-  LOG(FATAL) << "UNREACHABLE";
-  UNREACHABLE();
 }
 
 bool ClassLinker::DenyAccessBasedOnPublicSdk(ArtMethod* art_method ATTRIBUTE_UNUSED) const
