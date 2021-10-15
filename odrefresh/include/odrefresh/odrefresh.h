@@ -22,6 +22,8 @@
 namespace art {
 namespace odrefresh {
 
+// Default directory to which artifacts are written. (Overridable via the --dalvik-cache command
+// line argument.)
 static constexpr const char* kOdrefreshArtifactDirectory =
     "/data/misc/apexdata/com.android.art/dalvik-cache";
 

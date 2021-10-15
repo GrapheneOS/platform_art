@@ -472,7 +472,7 @@ CompilerFilter CompilerFilterStringToAidl(const std::string& compiler_filter) {
 
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
     : OnDeviceRefresh(config,
-                      Concatenate({kOdrefreshArtifactDirectory, "/", kCacheInfoFile}),
+                      Concatenate({config.GetArtifactDirectory(), "/", kCacheInfoFile}),
                       std::make_unique<ExecUtils>(),
                       std::move(OdrDexopt::Create(config, std::make_unique<ExecUtils>()))) {}
 
@@ -700,11 +700,11 @@ WARN_UNUSED bool OnDeviceRefresh::RemoveArtifacts(const OdrArtifacts& artifacts)
 
 WARN_UNUSED bool OnDeviceRefresh::RemoveArtifactsDirectory() const {
   if (config_.GetDryRun()) {
-    LOG(INFO) << "Directory " << QuotePath(kOdrefreshArtifactDirectory)
+    LOG(INFO) << "Directory " << QuotePath(config_.GetArtifactDirectory())
               << " and contents would be removed (dry-run).";
     return true;
   }
-  return RemoveDirectory(kOdrefreshArtifactDirectory);
+  return RemoveDirectory(config_.GetArtifactDirectory());
 }
 
 WARN_UNUSED bool OnDeviceRefresh::BootExtensionArtifactsExist(

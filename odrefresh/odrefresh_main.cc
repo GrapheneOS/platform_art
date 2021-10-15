@@ -71,25 +71,6 @@ NO_RETURN void ArgumentError(const char* fmt, ...) {
   exit(EX_USAGE);
 }
 
-NO_RETURN void UsageHelp(const char* argv0) {
-  std::string name(android::base::Basename(argv0));
-  UsageError("Usage: %s ACTION", name.c_str());
-  UsageError("On-device refresh tool for boot class path extensions and system server");
-  UsageError("following an update of the ART APEX.");
-  UsageError("");
-  UsageError("Valid ACTION choices are:");
-  UsageError("");
-  UsageError(
-      "--check          Check compilation artifacts are up-to-date based on metadata (fast).");
-  UsageError("--compile        Compile boot class path extensions and system_server jars");
-  UsageError("                 when necessary.");
-  UsageError("--force-compile  Unconditionally compile the boot class path extensions and");
-  UsageError("                 system_server jars.");
-  UsageError("--verify         Verify artifacts are up-to-date with dexoptanalyzer (slow).");
-  UsageError("--help           Display this help information.");
-  exit(EX_USAGE);
-}
-
 bool ParseZygoteKind(const char* input, ZygoteKind* zygote_kind) {
   std::string_view z(input);
   if (z == "zygote32") {
@@ -133,6 +114,10 @@ bool InitializeCommonConfig(std::string_view argument, OdrConfig* config) {
     return true;
   }
   return false;
+}
+
+void CommonOptionsHelp() {
+  UsageError("--dry-run");
 }
 
 int InitializeHostConfig(int argc, char** argv, OdrConfig* config) {
@@ -181,6 +166,17 @@ int InitializeHostConfig(int argc, char** argv, OdrConfig* config) {
   return n;
 }
 
+void HostOptionsHelp() {
+  UsageError("--android-root");
+  UsageError("--android-art-root");
+  UsageError("--apex-info-list");
+  UsageError("--art-apex-data");
+  UsageError("--dex2oat-bootclasspath");
+  UsageError("--isa-root");
+  UsageError("--system-server-classpath");
+  UsageError("--zygote-arch");
+}
+
 int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
   config->SetApexInfoListFile("/apex/apex-info-list.xml");
   config->SetArtBinDir(art::GetArtBinDir());
@@ -206,11 +202,22 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
         ArgumentError("Failed to parse CID: %s", value.c_str());
       }
       config->SetCompilationOsAddress(cid);
+    } else if (ArgumentMatches(arg, "--dalvik-cache=", &value)) {
+      art::OverrideDalvikCacheSubDirectory(value);
+      config->SetArtifactDirectory(Concatenate(
+          {android::base::Dirname(art::odrefresh::kOdrefreshArtifactDirectory), "/", value}));
     } else if (!InitializeCommonConfig(arg, config)) {
       UsageError("Unrecognized argument: '%s'", arg);
     }
   }
   return n;
+}
+
+void TargetOptionsHelp() {
+  UsageError("--use-compilation-os=<CID>  Run compilation in the VM with the given CID.");
+  UsageError("                            (0 = do not use VM, -1 = use composd's VM)");
+  UsageError(
+      "--dalvik-cache=<DIR>        Write artifacts to .../<DIR> rather than .../dalvik-cache");
 }
 
 int InitializeConfig(int argc, char** argv, OdrConfig* config) {
@@ -219,6 +226,35 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
   } else {
     return InitializeHostConfig(argc, argv, config);
   }
+}
+
+NO_RETURN void UsageHelp(const char* argv0) {
+  std::string name(android::base::Basename(argv0));
+  UsageError("Usage: %s [OPTION...] ACTION", name.c_str());
+  UsageError("On-device refresh tool for boot class path extensions and system server");
+  UsageError("following an update of the ART APEX.");
+  UsageError("");
+  UsageError("Valid ACTION choices are:");
+  UsageError("");
+  UsageError(
+      "--check          Check compilation artifacts are up-to-date based on metadata (fast).");
+  UsageError("--compile        Compile boot class path extensions and system_server jars");
+  UsageError("                 when necessary.");
+  UsageError("--force-compile  Unconditionally compile the boot class path extensions and");
+  UsageError("                 system_server jars.");
+  UsageError("--verify         Verify artifacts are up-to-date with dexoptanalyzer (slow).");
+  UsageError("--help           Display this help information.");
+  UsageError("");
+  UsageError("Available OPTIONs are:");
+  UsageError("");
+  CommonOptionsHelp();
+  if (art::kIsTargetBuild) {
+    TargetOptionsHelp();
+  } else {
+    HostOptionsHelp();
+  }
+
+  exit(EX_USAGE);
 }
 
 }  // namespace
@@ -240,7 +276,7 @@ int main(int argc, char** argv) {
     UsageError("Expected 1 argument, but have %d.", argc);
   }
 
-  OdrMetrics metrics(art::odrefresh::kOdrefreshArtifactDirectory);
+  OdrMetrics metrics(config.GetArtifactDirectory());
   OnDeviceRefresh odr(config);
   for (int i = 0; i < argc; ++i) {
     std::string_view action(argv[i]);
