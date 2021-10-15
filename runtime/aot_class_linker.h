@@ -36,8 +36,6 @@ class AotClassLinker : public ClassLinker {
 static bool CanReferenceInBootImageExtension(ObjPtr<mirror::Class> klass, gc::Heap* heap)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool SetUpdatableBootClassPackages(const std::vector<std::string>& packages);
-
   void SetSdkChecker(std::unique_ptr<SdkChecker>&& sdk_checker_);
   const SdkChecker* GetSdkChecker() const;
 
@@ -74,11 +72,7 @@ static bool CanReferenceInBootImageExtension(ObjPtr<mirror::Class> klass, gc::He
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  bool IsUpdatableBootClassPathDescriptor(const char* descriptor) override;
-
  private:
-  std::vector<std::string> updatable_boot_class_path_descriptor_prefixes_;
-
   std::unique_ptr<SdkChecker> sdk_checker_;
 };
 
