@@ -328,13 +328,20 @@ bool PrepareBootClasspathFds(/*inout*/ std::vector<int>& boot_classpath_fds,
                              /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
                              const std::vector<std::string>& bcp_jars) {
   for (const std::string& jar : bcp_jars) {
-    std::unique_ptr<File> jar_file(OS::OpenFileForReading(jar.c_str()));
-    if (!jar_file || !jar_file->IsValid()) {
-      LOG(ERROR) << "Failed to open a BCP jar " << jar;
-      return false;
+    // Special treatment for Compilation OS. JARs in staged APEX may not be visible to Android, and
+    // may only be visible in the VM where the staged APEX is mounted. On the contrary, JARs in
+    // /system is not available by path in the VM, and can only made available via (remote) FDs.
+    if (StartsWith(jar, "/apex/")) {
+      boot_classpath_fds.emplace_back(-1);
+    } else {
+      std::unique_ptr<File> jar_file(OS::OpenFileForReading(jar.c_str()));
+      if (!jar_file || !jar_file->IsValid()) {
+        LOG(ERROR) << "Failed to open a BCP jar " << jar;
+        return false;
+      }
+      boot_classpath_fds.emplace_back(jar_file->Fd());
+      output_files.push_back(std::move(jar_file));
     }
-    boot_classpath_fds.emplace_back(jar_file->Fd());
-    output_files.push_back(std::move(jar_file));
   }
   return true;
 }
