@@ -17,7 +17,6 @@ soong_config_module_type_import {
     module_types: [
         "art_module_apex_defaults",
         "art_module_cc_defaults",
-        "art_module_genrule_defaults",
     ],
 }
 
@@ -478,17 +477,9 @@ art_check_apex_gen_stem = "$(location art-apex-tester)" +
 
 // The non-flattened APEXes are always checked, as they are always generated
 // (even when APEX flattening is enabled).
-art_module_genrule_defaults {
+genrule_defaults {
     name: "art-check-apex-gen-defaults",
-
-    // Enable if SOONG_CONFIG_art_module_source_build is true.
-    enabled: false,
-    soong_config_variables: {
-        source_build: {
-            enabled: true,
-        },
-    },
-
+    defaults: ["art_module_source_build_genrule_defaults"],
     tools: [
         "art-apex-tester",
         "deapexer",

@@ -69,6 +69,8 @@ soong_config_module_type_import {
         "art_module_art_global_defaults",
         "art_module_cc_defaults",
         "art_module_java_defaults",
+        "art_module_genrule_defaults",
+        "art_module_prebuilt_defaults",
     ],
 }
 
@@ -339,58 +341,6 @@ art_debug_defaults {
     min_sdk_version: "S",
 }
 
-// Use this to enable a cc_* module only when building ART from sources.
-// TODO(b/172480617): Clean up when sources are gone from the platform tree and
-// we no longer need to support sources present when prebuilts are used.
-art_module_cc_defaults {
-    name: "art_module_source_build_defaults",
-    defaults_visibility: [
-        "//art:__subpackages__",
-        "//libcore:__subpackages__",
-        "//libnativehelper:__subpackages__",
-    ],
-
-    enabled: false,
-    soong_config_variables: {
-        source_build: {
-            enabled: true,
-        },
-    },
-    target: {
-        windows: {
-            // Windows is disabled by default, but if we set enabled:true
-            // globally above we need to disable it explicitly.
-            enabled: false,
-        },
-    },
-}
-
-// Use this to enable a java_* module only when building ART from sources.
-// TODO(b/172480617): Clean up when sources are gone from the platform tree and
-// we no longer need to support sources present when prebuilts are used.
-art_module_java_defaults {
-    name: "art_module_source_build_java_defaults",
-    defaults_visibility: [
-        "//art:__subpackages__",
-        "//libcore:__subpackages__",
-        "//libnativehelper:__subpackages__",
-    ],
-
-    enabled: false,
-    soong_config_variables: {
-        source_build: {
-            enabled: true,
-        },
-    },
-    target: {
-        windows: {
-            // Windows is disabled by default, but if we set enabled:true
-            // globally above we need to disable it explicitly.
-            enabled: false,
-        },
-    },
-}
-
 // A version of conscrypt only for enabling the "-hostdex" version to test ART on host.
 java_library {
     // We need our own name to not clash with the conscrypt library.
@@ -431,6 +381,89 @@ java_library {
     target: {
         hostdex: {
             required: ["libicu_jni"],
+        },
+    },
+}
+
+// Defaults for different module types to enable them only when building ART
+// from sources. TODO(b/172480617): Clean up when sources are gone from the
+// platform tree and we no longer need to support sources present when prebuilts
+// are used.
+art_module_cc_defaults {
+    name: "art_module_source_build_defaults",
+    defaults_visibility: [
+        "//art:__subpackages__",
+        "//libcore:__subpackages__",
+        "//libnativehelper:__subpackages__",
+    ],
+    enabled: false,
+    soong_config_variables: {
+        source_build: {
+            enabled: true,
+        },
+    },
+    target: {
+        windows: {
+            // Windows is disabled by default, but if we set enabled:true
+            // globally above we need to disable it explicitly.
+            enabled: false,
+        },
+    },
+}
+art_module_java_defaults {
+    name: "art_module_source_build_java_defaults",
+    defaults_visibility: [
+        "//art:__subpackages__",
+        "//libcore:__subpackages__",
+        "//libnativehelper:__subpackages__",
+    ],
+    enabled: false,
+    soong_config_variables: {
+        source_build: {
+            enabled: true,
+        },
+    },
+    target: {
+        windows: {
+            enabled: false,
+        },
+    },
+}
+art_module_genrule_defaults {
+    name: "art_module_source_build_genrule_defaults",
+    defaults_visibility: [
+        "//art:__subpackages__",
+        "//libcore:__subpackages__",
+        "//libnativehelper:__subpackages__",
+    ],
+    enabled: false,
+    soong_config_variables: {
+        source_build: {
+            enabled: true,
+        },
+    },
+    target: {
+        windows: {
+            enabled: false,
+        },
+    },
+}
+art_module_prebuilt_defaults {
+    name: "art_module_source_build_prebuilt_defaults",
+    defaults_visibility: [
+        "//art:__subpackages__",
+        "//libcore:__subpackages__",
+        "//libnativehelper:__subpackages__",
+    ],
+    enabled: false,
+    soong_config_variables: {
+        source_build: {
+            enabled: true,
+        },
+    },
+    target: {
+        windows: {
+            enabled: false,
         },
     },
 }
