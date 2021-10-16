@@ -38,7 +38,7 @@ extern "C" void art_quick_implicit_suspend();
 
 namespace art {
 
-void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED,
+void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo,
                                              void* context,
                                              ArtMethod** out_method,
                                              uintptr_t* out_return_pc,
@@ -46,6 +46,14 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED
                                              bool* out_is_stack_overflow) {
   struct ucontext *uc = reinterpret_cast<struct ucontext *>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+
+  // SEGV_MTEAERR (Async MTE fault) is delivered at an arbitrary point after the actual fault.
+  // Register contents, including PC and SP, are unrelated to the fault and can only confuse ART
+  // signal handlers.
+  if (siginfo->si_signo == SIGSEGV && siginfo->si_code == SEGV_MTEAERR) {
+    return;
+  }
+
   *out_sp = static_cast<uintptr_t>(sc->sp);
   VLOG(signals) << "sp: " << *out_sp;
   if (*out_sp == 0) {
@@ -190,4 +198,3 @@ bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTR
   return true;
 }
 }       // namespace art
-
