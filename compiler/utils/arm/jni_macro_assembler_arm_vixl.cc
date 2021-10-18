@@ -68,10 +68,6 @@ static inline vixl::aarch32::Register AsVIXLRegisterPairHigh(ArmManagedRegister 
 }
 
 void ArmVIXLJNIMacroAssembler::FinalizeCode() {
-  for (const std::unique_ptr<
-      ArmVIXLJNIMacroAssembler::ArmException>& exception : exception_blocks_) {
-    EmitExceptionPoll(exception.get());
-  }
   asm_.FinalizeCode();
 }
 
@@ -986,21 +982,31 @@ void ArmVIXLJNIMacroAssembler::GetCurrentThread(FrameOffset dest_offset) {
   asm_.StoreToOffset(kStoreWord, tr, sp, dest_offset.Int32Value());
 }
 
-void ArmVIXLJNIMacroAssembler::ExceptionPoll(size_t stack_adjust) {
-  CHECK_ALIGNED(stack_adjust, kAapcsStackAlignment);
+void ArmVIXLJNIMacroAssembler::ExceptionPoll(JNIMacroLabel* label) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   vixl32::Register scratch = temps.Acquire();
-  exception_blocks_.emplace_back(
-      new ArmVIXLJNIMacroAssembler::ArmException(scratch, stack_adjust));
   asm_.LoadFromOffset(kLoadWord,
                       scratch,
                       tr,
                       Thread::ExceptionOffset<kArmPointerSize>().Int32Value());
 
   ___ Cmp(scratch, 0);
-  vixl32::Label* label = exception_blocks_.back()->Entry();
-  ___ BPreferNear(ne, label);
+  ___ BPreferNear(ne, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
   // TODO: think about using CBNZ here.
+}
+
+void ArmVIXLJNIMacroAssembler::DeliverPendingException() {
+  // Pass exception object as argument.
+  // Don't care about preserving r0 as this won't return.
+  // Note: The scratch register from `ExceptionPoll()` may have been clobbered.
+  asm_.LoadFromOffset(kLoadWord,
+                      r0,
+                      tr,
+                      Thread::ExceptionOffset<kArmPointerSize>().Int32Value());
+  ___ Ldr(lr,
+          MemOperand(tr,
+              QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pDeliverException).Int32Value()));
+  ___ Blx(lr);
 }
 
 std::unique_ptr<JNIMacroLabel> ArmVIXLJNIMacroAssembler::CreateLabel() {
@@ -1046,25 +1052,6 @@ void ArmVIXLJNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnary
 void ArmVIXLJNIMacroAssembler::Bind(JNIMacroLabel* label) {
   CHECK(label != nullptr);
   ___ Bind(ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
-}
-
-void ArmVIXLJNIMacroAssembler::EmitExceptionPoll(
-    ArmVIXLJNIMacroAssembler::ArmException* exception) {
-  ___ Bind(exception->Entry());
-  if (exception->stack_adjust_ != 0) {  // Fix up the frame.
-    DecreaseFrameSize(exception->stack_adjust_);
-  }
-
-  vixl32::Register scratch = exception->scratch_;
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  temps.Exclude(scratch);
-  // Pass exception object as argument.
-  // Don't care about preserving r0 as this won't return.
-  ___ Mov(r0, scratch);
-  ___ Ldr(lr,
-          MemOperand(tr,
-              QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pDeliverException).Int32Value()));
-  ___ Blx(lr);
 }
 
 void ArmVIXLJNIMacroAssembler::MemoryBarrier(ManagedRegister scratch ATTRIBUTE_UNUSED) {
