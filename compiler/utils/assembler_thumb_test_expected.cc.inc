@@ -152,9 +152,9 @@ const char* const VixlJniHelpersResults = {
   "     218: bd e8 e0 4d   pop.w {r5, r6, r7, r8, r10, r11, lr}\n"
   "     21c: d9 f8 24 80   ldr.w r8, [r9, #36]\n"
   "     220: 70 47         bx lr\n"
-  "     222: 60 46         mov r0, r12\n"
-  "     224: d9 f8 d0 e2   ldr.w lr, [r9, #720]\n"
-  "     228: f0 47         blx lr\n"
+  "     222: d9 f8 8c 00   ldr.w r0, [r9, #140]\n"
+  "     226: d9 f8 d0 e2   ldr.w lr, [r9, #720]\n"
+  "     22a: f0 47         blx lr\n"
 };
 
 const char* const VixlLoadFromOffsetResults = {

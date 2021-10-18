@@ -288,6 +288,8 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   // 5. Call into appropriate JniMethodStart passing Thread* so that transition out of Runnable
   //    can occur. We abuse the JNI calling convention here, that is guaranteed to support passing
   //    two pointer arguments.
+  std::unique_ptr<JNIMacroLabel> monitor_enter_exception_slow_path =
+      UNLIKELY(is_synchronized) ? __ CreateLabel() : nullptr;
   if (LIKELY(!is_critical_native)) {
     // Skip this for @CriticalNative methods. They do not call JniMethodStart.
     ThreadOffset<kPointerSize> jni_start =
@@ -328,7 +330,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
     method_register = ManagedRegister::NoRegister();  // Method register is clobbered.
     if (is_synchronized) {  // Check for exceptions from monitor enter.
-      __ ExceptionPoll(main_out_arg_size);
+      __ ExceptionPoll(monitor_enter_exception_slow_path.get());
     }
   }
 
@@ -602,8 +604,10 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
 
   // 17. Process pending exceptions from JNI call or monitor exit.
   //     @CriticalNative methods do not need exception poll in the stub.
+  std::unique_ptr<JNIMacroLabel> exception_slow_path =
+      LIKELY(!is_critical_native) ? __ CreateLabel() : nullptr;
   if (LIKELY(!is_critical_native)) {
-    __ ExceptionPoll(/* stack_adjust= */ 0);
+    __ ExceptionPoll(exception_slow_path.get());
   }
 
   // 18. Remove activation - need to restore callee save registers since the GC may have changed
@@ -673,7 +677,21 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
   }
 
-  // 20. Finalize code generation
+  // 20. Emit exception poll slow paths.
+  if (LIKELY(!is_critical_native)) {
+    if (UNLIKELY(is_synchronized)) {
+      __ Bind(monitor_enter_exception_slow_path.get());
+      if (main_out_arg_size != 0) {
+        jni_asm->cfi().AdjustCFAOffset(main_out_arg_size);
+        __ DecreaseFrameSize(main_out_arg_size);
+      }
+    }
+    DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(current_frame_size));
+    __ Bind(exception_slow_path.get());
+    __ DeliverPendingException();
+  }
+
+  // 21. Finalize code generation
   __ FinalizeCode();
   size_t cs = __ CodeSize();
   std::vector<uint8_t> managed_code(cs);
