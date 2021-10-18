@@ -642,21 +642,20 @@ void X86_64JNIMacroAssembler::GetCurrentThread(FrameOffset offset) {
   __ movq(Address(CpuRegister(RSP), offset), scratch);
 }
 
-// Slowpath entered when Thread::Current()->_exception is non-null
-class X86_64ExceptionSlowPath final : public SlowPath {
- public:
-  explicit X86_64ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
-  void Emit(Assembler *sp_asm) override;
- private:
-  const size_t stack_adjust_;
-};
-
-void X86_64JNIMacroAssembler::ExceptionPoll(size_t stack_adjust) {
-  X86_64ExceptionSlowPath* slow = new (__ GetAllocator()) X86_64ExceptionSlowPath(stack_adjust);
-  __ GetBuffer()->EnqueueSlowPath(slow);
+void X86_64JNIMacroAssembler::ExceptionPoll(JNIMacroLabel* label) {
   __ gs()->cmpl(Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>(), true),
                 Immediate(0));
-  __ j(kNotEqual, slow->Entry());
+  __ j(kNotEqual, X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+}
+
+void X86_64JNIMacroAssembler::DeliverPendingException() {
+  // Pass exception as argument in RDI
+  __ gs()->movq(CpuRegister(RDI),
+                Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>(), true));
+  __ gs()->call(
+      Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize, pDeliverException), true));
+  // this call should never return
+  __ int3();
 }
 
 std::unique_ptr<JNIMacroLabel> X86_64JNIMacroAssembler::CreateLabel() {
@@ -698,24 +697,6 @@ void X86_64JNIMacroAssembler::Bind(JNIMacroLabel* label) {
 }
 
 #undef __
-
-void X86_64ExceptionSlowPath::Emit(Assembler *sasm) {
-  X86_64Assembler* sp_asm = down_cast<X86_64Assembler*>(sasm);
-#define __ sp_asm->
-  __ Bind(&entry_);
-  // Note: the return value is dead
-  if (stack_adjust_ != 0) {  // Fix up the frame.
-    DecreaseFrameSizeImpl(stack_adjust_, sp_asm);
-  }
-  // Pass exception as argument in RDI
-  __ gs()->movq(CpuRegister(RDI),
-                Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>(), true));
-  __ gs()->call(
-      Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize, pDeliverException), true));
-  // this call should never return
-  __ int3();
-#undef __
-}
 
 }  // namespace x86_64
 }  // namespace art
