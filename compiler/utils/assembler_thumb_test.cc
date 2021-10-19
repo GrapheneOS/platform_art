@@ -99,7 +99,6 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
 
   const bool is_static = true;
   const bool is_synchronized = false;
-  const bool is_fast_native = false;
   const bool is_critical_native = false;
   const char* shorty = "IIFII";
 
@@ -107,7 +106,6 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
       JniCallingConvention::Create(&allocator,
                                    is_static,
                                    is_synchronized,
-                                   is_fast_native,
                                    is_critical_native,
                                    shorty,
                                    InstructionSet::kThumb2));

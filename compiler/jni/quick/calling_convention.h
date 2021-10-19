@@ -291,7 +291,6 @@ class JniCallingConvention : public CallingConvention {
   static std::unique_ptr<JniCallingConvention> Create(ArenaAllocator* allocator,
                                                       bool is_static,
                                                       bool is_synchronized,
-                                                      bool is_fast_native,
                                                       bool is_critical_native,
                                                       const char* shorty,
                                                       InstructionSet instruction_set);
@@ -349,10 +348,6 @@ class JniCallingConvention : public CallingConvention {
     return 4u;
   }
 
-  bool IsFastNative() const {
-    return is_fast_native_;
-  }
-
   bool IsCriticalNative() const {
     return is_critical_native_;
   }
@@ -381,10 +376,9 @@ class JniCallingConvention : public CallingConvention {
 
   // Does the transition back spill the return value in the stack frame?
   bool SpillsReturnValue() const {
-    // Exclude return value for @FastNative and @CriticalNative methods for optimization speed.
+    // Exclude return value for @CriticalNative methods for optimization speed.
     // References are passed directly to the "end method" and there is nothing to save for `void`.
-    return (!IsFastNative() && !IsCriticalNative()) &&
-           (!IsReturnAReference() && SizeOfReturnValue() != 0u);
+    return !IsCriticalNative() && !IsReturnAReference() && SizeOfReturnValue() != 0u;
   }
 
  protected:
@@ -396,12 +390,10 @@ class JniCallingConvention : public CallingConvention {
 
   JniCallingConvention(bool is_static,
                        bool is_synchronized,
-                       bool is_fast_native,
                        bool is_critical_native,
                        const char* shorty,
                        PointerSize frame_pointer_size)
       : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size),
-        is_fast_native_(is_fast_native),
         is_critical_native_(is_critical_native) {}
 
  protected:
@@ -434,7 +426,6 @@ class JniCallingConvention : public CallingConvention {
   // Is the current argument (at the iterator) an extra argument for JNI?
   bool IsCurrentArgExtraForJni() const;
 
-  const bool is_fast_native_;
   const bool is_critical_native_;
 
  private:
