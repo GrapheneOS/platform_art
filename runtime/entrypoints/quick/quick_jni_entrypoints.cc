@@ -41,6 +41,8 @@ namespace art {
 static_assert(sizeof(IRTSegmentState) == sizeof(uint32_t), "IRTSegmentState size unexpected");
 static_assert(std::is_trivial<IRTSegmentState>::value, "IRTSegmentState not trivial");
 
+static inline void GoToRunnableFast(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+
 extern void ReadBarrierJni(mirror::CompressedReference<mirror::Class>* declaring_class,
                            Thread* self ATTRIBUTE_UNUSED) {
   DCHECK(kUseReadBarrier);
@@ -55,6 +57,14 @@ extern void ReadBarrierJni(mirror::CompressedReference<mirror::Class>* declaring
   // Call the read barrier and update the handle.
   mirror::Class* to_ref = ReadBarrier::BarrierForRoot(declaring_class);
   declaring_class->Assign(to_ref);
+}
+
+// Called on entry to fast JNI, push a new local reference table only.
+extern void JniMethodFastStart(Thread* self) {
+  if (kIsDebugBuild) {
+    ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
+    CHECK(native_method->IsFastNative()) << native_method->PrettyMethod();
+  }
 }
 
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
@@ -81,6 +91,23 @@ static void GoToRunnable(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
   }
 
   self->TransitionFromSuspendedToRunnable();
+}
+
+ALWAYS_INLINE static inline void GoToRunnableFast(Thread* self) {
+  if (kIsDebugBuild) {
+    // Should only enter here if the method is @FastNative.
+    ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
+    CHECK(native_method->IsFastNative()) << native_method->PrettyMethod();
+  }
+
+  // When we are in @FastNative, we are already Runnable.
+  // Only do a suspend check on the way out of JNI.
+  if (UNLIKELY(self->TestAllFlags())) {
+    // In fast JNI mode we never transitioned out of runnable. Perform a suspend check if there
+    // is a flag raised.
+    DCHECK(Locks::mutator_lock_->IsSharedHeld(self));
+    self->CheckSuspend();
+  }
 }
 
 static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
@@ -123,24 +150,13 @@ extern void JniMethodEnd(Thread* self) {
   GoToRunnable(self);
 }
 
+extern void JniMethodFastEnd(Thread* self) {
+  GoToRunnableFast(self);
+}
+
 extern void JniMethodEndSynchronized(jobject locked, Thread* self) {
   GoToRunnable(self);
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
-}
-
-extern mirror::Object* JniDecodeReferenceResult(jobject result, Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(!self->IsExceptionPending());
-  ObjPtr<mirror::Object> o = self->DecodeJObject(result);
-  // Process result.
-  if (UNLIKELY(self->GetJniEnv()->IsCheckJniEnabled())) {
-    // CheckReferenceResult can resolve types.
-    StackHandleScope<1> hs(self);
-    HandleWrapperObjPtr<mirror::Object> h_obj(hs.NewHandleWrapper(&o));
-    CheckReferenceResult(h_obj, self);
-  }
-  VerifyObject(o);
-  return o.Ptr();
 }
 
 // Common result handling for EndWithReference.
@@ -160,6 +176,11 @@ static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result, Thr
   }
   VerifyObject(o);
   return o.Ptr();
+}
+
+extern mirror::Object* JniMethodFastEndWithReference(jobject result, Thread* self) {
+  GoToRunnableFast(self);
+  return JniMethodEndWithReferenceHandleResult(result, self);
 }
 
 extern mirror::Object* JniMethodEndWithReference(jobject result, Thread* self) {
@@ -192,14 +213,7 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
     MONITOR_JNI(PaletteNotifyEndJniInvocation);
     GoToRunnable(self);
   } else if (fast_native) {
-    // When we are in @FastNative, we are already Runnable.
-    DCHECK(Locks::mutator_lock_->IsSharedHeld(self));
-    // Only do a suspend check on the way out of JNI just like compiled stubs.
-    if (UNLIKELY(self->TestAllFlags())) {
-      // In fast JNI mode we never transitioned out of runnable. Perform a suspend check if there
-      // is a flag raised.
-      self->CheckSuspend();
-    }
+    GoToRunnableFast(self);
   }
   // We need the mutator lock (i.e., calling GoToRunnable()) before accessing the shorty or the
   // locked object.

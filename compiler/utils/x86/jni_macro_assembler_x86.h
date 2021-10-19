@@ -158,9 +158,6 @@ class X86JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86Assembler, Poi
   void Call(FrameOffset base, Offset offset) override;
   void CallFromThread(ThreadOffset32 offset) override;
 
-  // Generate suspend check and branch to `label` if there is a pending suspend request.
-  void SuspendCheck(JNIMacroLabel* label) override;
-
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to the `label` if it is.
   void ExceptionPoll(JNIMacroLabel* label) override;
