@@ -30,15 +30,6 @@ static Register GetScratchRegister() {
   return ECX;
 }
 
-// Slowpath entered when Thread::Current()->_exception is non-null
-class X86ExceptionSlowPath final : public SlowPath {
- public:
-  explicit X86ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
-  void Emit(Assembler *sp_asm) override;
- private:
-  const size_t stack_adjust_;
-};
-
 static dwarf::Reg DWARFReg(Register reg) {
   return dwarf::Reg::X86Core(static_cast<int>(reg));
 }
@@ -572,11 +563,17 @@ void X86JNIMacroAssembler::GetCurrentThread(FrameOffset offset) {
   __ movl(Address(ESP, offset), scratch);
 }
 
-void X86JNIMacroAssembler::ExceptionPoll(size_t stack_adjust) {
-  X86ExceptionSlowPath* slow = new (__ GetAllocator()) X86ExceptionSlowPath(stack_adjust);
-  __ GetBuffer()->EnqueueSlowPath(slow);
+void X86JNIMacroAssembler::ExceptionPoll(JNIMacroLabel* label) {
   __ fs()->cmpl(Address::Absolute(Thread::ExceptionOffset<kX86PointerSize>()), Immediate(0));
-  __ j(kNotEqual, slow->Entry());
+  __ j(kNotEqual, X86JNIMacroLabel::Cast(label)->AsX86());
+}
+
+void X86JNIMacroAssembler::DeliverPendingException() {
+  // Pass exception as argument in EAX
+  __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset<kX86PointerSize>()));
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86PointerSize, pDeliverException)));
+  // this call should never return
+  __ int3();
 }
 
 std::unique_ptr<JNIMacroLabel> X86JNIMacroAssembler::CreateLabel() {
@@ -617,22 +614,6 @@ void X86JNIMacroAssembler::Bind(JNIMacroLabel* label) {
 }
 
 #undef __
-
-void X86ExceptionSlowPath::Emit(Assembler *sasm) {
-  X86Assembler* sp_asm = down_cast<X86Assembler*>(sasm);
-#define __ sp_asm->
-  __ Bind(&entry_);
-  // Note: the return value is dead
-  if (stack_adjust_ != 0) {  // Fix up the frame.
-    DecreaseFrameSizeImpl(sp_asm, stack_adjust_);
-  }
-  // Pass exception as argument in EAX
-  __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset<kX86PointerSize>()));
-  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86PointerSize, pDeliverException)));
-  // this call should never return
-  __ int3();
-#undef __
-}
 
 }  // namespace x86
 }  // namespace art

@@ -34,12 +34,9 @@ namespace arm {
 
 class ArmVIXLJNIMacroAssembler final
     : public JNIMacroAssemblerFwd<ArmVIXLAssembler, PointerSize::k32> {
- private:
-  class ArmException;
  public:
   explicit ArmVIXLJNIMacroAssembler(ArenaAllocator* allocator)
-      : JNIMacroAssemblerFwd(allocator),
-        exception_blocks_(allocator->Adapter(kArenaAllocAssembler)) {}
+      : JNIMacroAssemblerFwd(allocator) {}
 
   virtual ~ArmVIXLJNIMacroAssembler() {}
   void FinalizeCode() override;
@@ -186,8 +183,10 @@ class ArmVIXLJNIMacroAssembler final
   void CallFromThread(ThreadOffset32 offset) override;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
-  // and branch to a ExceptionSlowPath if it is.
-  void ExceptionPoll(size_t stack_adjust) override;
+  // and branch to the `label` if it is.
+  void ExceptionPoll(JNIMacroLabel* label) override;
+  // Deliver pending exception.
+  void DeliverPendingException() override;
 
   // Create a new label that can be used with Jump/Bind calls.
   std::unique_ptr<JNIMacroLabel> CreateLabel() override;
@@ -200,31 +199,9 @@ class ArmVIXLJNIMacroAssembler final
 
   void MemoryBarrier(ManagedRegister scratch) override;
 
-  void EmitExceptionPoll(ArmVIXLJNIMacroAssembler::ArmException *exception);
   void Load(ArmManagedRegister dest, vixl32::Register base, int32_t offset, size_t size);
 
  private:
-  class ArmException {
-   private:
-    ArmException(vixl32::Register scratch, size_t stack_adjust)
-        : scratch_(scratch), stack_adjust_(stack_adjust) {}
-
-    vixl32::Label* Entry() { return &exception_entry_; }
-
-    // Register used for passing Thread::Current()->exception_ .
-    const vixl32::Register scratch_;
-
-    // Stack adjust for ExceptionPool.
-    const size_t stack_adjust_;
-
-    vixl32::Label exception_entry_;
-
-    friend class ArmVIXLJNIMacroAssembler;
-    DISALLOW_COPY_AND_ASSIGN(ArmException);
-  };
-
-  // List of exception blocks to generate at the end of the code cache.
-  ArenaVector<std::unique_ptr<ArmVIXLJNIMacroAssembler::ArmException>> exception_blocks_;
   // Used for testing.
   friend class ArmVIXLAssemblerTest_VixlLoadFromOffset_Test;
   friend class ArmVIXLAssemblerTest_VixlStoreToOffset_Test;

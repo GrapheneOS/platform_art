@@ -179,8 +179,10 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
   void CallFromThread(ThreadOffset64 offset) override;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
-  // and branch to a ExceptionSlowPath if it is.
-  void ExceptionPoll(size_t stack_adjust) override;
+  // and branch to the `label` if it is.
+  void ExceptionPoll(JNIMacroLabel* label) override;
+  // Deliver pending exception.
+  void DeliverPendingException() override;
 
   // Create a new label that can be used with Jump/Bind calls.
   std::unique_ptr<JNIMacroLabel> CreateLabel() override;
