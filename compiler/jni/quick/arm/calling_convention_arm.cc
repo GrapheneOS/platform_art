@@ -287,10 +287,12 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 ArmJniCallingConvention::ArmJniCallingConvention(bool is_static,
                                                  bool is_synchronized,
+                                                 bool is_fast_native,
                                                  bool is_critical_native,
                                                  const char* shorty)
     : JniCallingConvention(is_static,
                            is_synchronized,
+                           is_fast_native,
                            is_critical_native,
                            shorty,
                            kArmPointerSize) {
