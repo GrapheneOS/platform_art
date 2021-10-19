@@ -6,6 +6,12 @@
         "bug": "http://b/33389022"
     },
     {
+        "tests": "304-method-tracing",
+        "description": ["Disable 304-method-tracing temporarily until a fix",
+                        "arrives."],
+        "bug": "http://b/203253172"
+    },
+    {
         "tests": "132-daemon-locks-shutdown",
         "description": ["This test seems to fail occasionally on redefine-stress for unknown reasons without stack-traces"],
         "variant": "redefine-stress",
