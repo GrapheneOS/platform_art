@@ -2116,25 +2116,25 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
     }
   }
 
-  // Skip calling JniMethodStart for @CriticalNative and @FastNative.
-  if (LIKELY(normal_native)) {
+  // Skip calling JniMethodStart for @CriticalNative.
+  if (LIKELY(!critical_native)) {
     // Start JNI.
     if (called->IsSynchronized()) {
+      DCHECK(normal_native) << " @FastNative and synchronize is not supported";
       jobject lock = GetGenericJniSynchronizationObject(self, called);
       JniMethodStartSynchronized(lock, self);
       if (self->IsExceptionPending()) {
         return nullptr;  // Report error.
       }
     } else {
-      JniMethodStart(self);
+      if (fast_native) {
+        JniMethodFastStart(self);
+      } else {
+        DCHECK(normal_native);
+        JniMethodStart(self);
+      }
     }
-  } else {
-    DCHECK(!called->IsSynchronized())
-        << "@FastNative/@CriticalNative and synchronize is not supported";
-  }
 
-  // Skip pushing IRT frame for @CriticalNative.
-  if (LIKELY(!critical_native)) {
     // Push local reference frame.
     JNIEnvExt* env = self->GetJniEnv();
     DCHECK(env != nullptr);
