@@ -234,10 +234,16 @@ art_cc_defaults {
         "libnativehelper_header_only",
     ],
     static: {
-        whole_static_libs: ["libc++fs"],
+        whole_static_libs: [
+            "libc++fs",
+            "libprocinfo",
+        ],
     },
     shared: {
-        static_libs: ["libc++fs"],
+        static_libs: [
+            "libc++fs",
+            "libprocinfo",
+        ],
     },
 }
 
