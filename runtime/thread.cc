@@ -3477,6 +3477,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pJniMethodEndSynchronized)
   QUICK_ENTRY_POINT_INFO(pJniMethodEndWithReference)
   QUICK_ENTRY_POINT_INFO(pJniMethodEndWithReferenceSynchronized)
+  QUICK_ENTRY_POINT_INFO(pJniDecodeReferenceResult)
   QUICK_ENTRY_POINT_INFO(pQuickGenericJniTrampoline)
   QUICK_ENTRY_POINT_INFO(pLockObject)
   QUICK_ENTRY_POINT_INFO(pUnlockObject)
@@ -3586,9 +3587,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pReadBarrierMarkReg29)
   QUICK_ENTRY_POINT_INFO(pReadBarrierSlow)
   QUICK_ENTRY_POINT_INFO(pReadBarrierForRootSlow)
-
-  QUICK_ENTRY_POINT_INFO(pJniMethodFastStart)
-  QUICK_ENTRY_POINT_INFO(pJniMethodFastEnd)
 #undef QUICK_ENTRY_POINT_INFO
 
   os << offset;
