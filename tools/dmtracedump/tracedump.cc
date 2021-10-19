@@ -849,7 +849,7 @@ DataKeys* parseKeys(FILE* fp, int32_t verbose) {
     return nullptr;
   }
 
-  if (fread(pKeys->fileData, 1, pKeys->fileLen, fp) != (size_t)pKeys->fileLen) {
+  if (fread(pKeys->fileData, 1, pKeys->fileLen, fp) != static_cast<size_t>(pKeys->fileLen)) {
     fprintf(stderr, "ERROR: unable to read %" PRIu64 " bytes from trace file\n", pKeys->fileLen);
     freeDataKeys(pKeys);
     return nullptr;
