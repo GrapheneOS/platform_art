@@ -74,13 +74,15 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qp
 
   // JNI
   qpoints->pJniMethodStart = JniMethodStart;
+  qpoints->pJniMethodFastStart = JniMethodFastStart;
   qpoints->pJniMethodStartSynchronized = JniMethodStartSynchronized;
   qpoints->pJniMethodEnd = JniMethodEnd;
   qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronized;
   qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
+  qpoints->pJniMethodFastEndWithReference = JniMethodFastEndWithReference;
   qpoints->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
+  qpoints->pJniMethodFastEnd = JniMethodFastEnd;
   qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
-  qpoints->pJniDecodeReferenceResult = JniDecodeReferenceResult;
 
   // Locks
   if (UNLIKELY(VLOG_IS_ON(systrace_lock_logging))) {

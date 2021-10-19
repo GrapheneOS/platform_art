@@ -53,7 +53,6 @@ class X86JniCallingConvention final : public JniCallingConvention {
  public:
   X86JniCallingConvention(bool is_static,
                           bool is_synchronized,
-                          bool is_fast_native,
                           bool is_critical_native,
                           const char* shorty);
   ~X86JniCallingConvention() override {}
