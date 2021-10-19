@@ -243,8 +243,10 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void CallFromThread(ThreadOffset<kPointerSize> offset) = 0;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
-  // and branch to a ExceptionSlowPath if it is.
-  virtual void ExceptionPoll(size_t stack_adjust) = 0;
+  // and branch to the `label` if it is.
+  virtual void ExceptionPoll(JNIMacroLabel* label) = 0;
+  // Deliver pending exception.
+  virtual void DeliverPendingException() = 0;
 
   // Create a new label that can be used with Jump/Bind calls.
   virtual std::unique_ptr<JNIMacroLabel> CreateLabel() = 0;

@@ -43,8 +43,7 @@ namespace arm64 {
 class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler, PointerSize::k64> {
  public:
   explicit Arm64JNIMacroAssembler(ArenaAllocator* allocator)
-      : JNIMacroAssemblerFwd(allocator),
-        exception_blocks_(allocator->Adapter(kArenaAllocAssembler)) {}
+      : JNIMacroAssemblerFwd(allocator) {}
 
   ~Arm64JNIMacroAssembler();
 
@@ -168,8 +167,10 @@ class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler,
   void CallFromThread(ThreadOffset64 offset) override;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
-  // and branch to a ExceptionSlowPath if it is.
-  void ExceptionPoll(size_t stack_adjust) override;
+  // and branch to the `label` if it is.
+  void ExceptionPoll(JNIMacroLabel* label) override;
+  // Deliver pending exception.
+  void DeliverPendingException() override;
 
   // Create a new label that can be used with Jump/Bind calls.
   std::unique_ptr<JNIMacroLabel> CreateLabel() override;
@@ -181,28 +182,6 @@ class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler,
   void Bind(JNIMacroLabel* label) override;
 
  private:
-  class Arm64Exception {
-   public:
-    Arm64Exception(vixl::aarch64::Register scratch, size_t stack_adjust)
-        : scratch_(scratch), stack_adjust_(stack_adjust) {}
-
-    vixl::aarch64::Label* Entry() { return &exception_entry_; }
-
-    // Register used for passing Thread::Current()->exception_ .
-    const vixl::aarch64::Register scratch_;
-
-    // Stack adjust for ExceptionPool.
-    const size_t stack_adjust_;
-
-    vixl::aarch64::Label exception_entry_;
-
-   private:
-    DISALLOW_COPY_AND_ASSIGN(Arm64Exception);
-  };
-
-  // Emits Exception block.
-  void EmitExceptionPoll(Arm64Exception *exception);
-
   void StoreWToOffset(StoreOperandType type,
                       WRegister source,
                       XRegister base,
@@ -229,9 +208,6 @@ class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler,
                    XRegister rn,
                    int32_t value,
                    vixl::aarch64::Condition cond = vixl::aarch64::al);
-
-  // List of exception blocks to generate at the end of the code cache.
-  ArenaVector<std::unique_ptr<Arm64Exception>> exception_blocks_;
 };
 
 class Arm64JNIMacroLabel final

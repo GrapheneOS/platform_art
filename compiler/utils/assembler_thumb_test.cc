@@ -177,7 +177,8 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
   __ CreateJObject(method_register, FrameOffset(1025), scratch_register, true);
   __ CreateJObject(scratch_register, FrameOffset(1025), scratch_register, true);
 
-  __ ExceptionPoll(0);
+  std::unique_ptr<JNIMacroLabel> exception_slow_path = __ CreateLabel();
+  __ ExceptionPoll(exception_slow_path.get());
 
   // Push the target out of range of branch emitted by ExceptionPoll.
   for (int i = 0; i < 64; i++) {
@@ -187,6 +188,9 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
   __ DecreaseFrameSize(4096);
   __ DecreaseFrameSize(32);
   __ RemoveFrame(frame_size, callee_save_regs, /* may_suspend= */ true);
+
+  __ Bind(exception_slow_path.get());
+  __ DeliverPendingException();
 
   EmitAndCheck("VixlJniHelpers", VixlJniHelpersResults);
 }
