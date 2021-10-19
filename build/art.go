@@ -370,15 +370,15 @@ func init() {
 }
 
 func artApexBundleFactory() android.Module {
-	return apex.ApexBundleFactory(false /*testApex*/, true /*artApex*/)
+	return apex.ApexBundleFactory(false)
 }
 
 func artTestApexBundleFactory() android.Module {
-	return apex.ApexBundleFactory(true /*testApex*/, true /*artApex*/)
+	return apex.ApexBundleFactory(true)
 }
 
 func artHostTestApexBundleFactory() android.Module {
-	module := apex.ApexBundleFactory(true /*testApex*/, true /*artApex*/)
+	module := apex.ApexBundleFactory(true)
 	android.AddLoadHook(module, func(ctx android.LoadHookContext) {
 		if ctx.Config().IsEnvTrue("HOST_PREFER_32_BIT") {
 			type props struct {
