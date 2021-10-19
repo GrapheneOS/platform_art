@@ -177,12 +177,10 @@ FrameOffset X86ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 
 X86JniCallingConvention::X86JniCallingConvention(bool is_static,
                                                  bool is_synchronized,
-                                                 bool is_fast_native,
                                                  bool is_critical_native,
                                                  const char* shorty)
     : JniCallingConvention(is_static,
                            is_synchronized,
-                           is_fast_native,
                            is_critical_native,
                            shorty,
                            kX86PointerSize) {

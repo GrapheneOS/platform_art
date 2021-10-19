@@ -69,8 +69,7 @@ class JNICFITest : public CFITest {
         JniCallingConvention::Create(&allocator,
                                      is_static,
                                      is_synchronized,
-                                     /*is_fast_native=*/ false,
-                                     /*is_critical_native=*/ false,
+                                     /*is_critical_native*/false,
                                      shorty,
                                      isa));
     std::unique_ptr<ManagedRuntimeCallingConvention> mr_conv(
