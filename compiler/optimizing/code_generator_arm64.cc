@@ -1123,10 +1123,12 @@ void CodeGeneratorARM64::MaybeIncrementHotness(bool is_frame_entry) {
       __ Ldr(method, MemOperand(sp, 0));
     }
     __ Ldrh(counter, MemOperand(method, ArtMethod::HotnessCountOffset().Int32Value()));
-    __ Add(counter, counter, 1);
-    // Subtract one if the counter would overflow.
-    __ Sub(counter, counter, Operand(counter, LSR, 16));
+    vixl::aarch64::Label done;
+    DCHECK_EQ(0u, interpreter::kNterpHotnessValue);
+    __ Cbz(counter, &done);
+    __ Add(counter, counter, -1);
     __ Strh(counter, MemOperand(method, ArtMethod::HotnessCountOffset().Int32Value()));
+    __ Bind(&done);
   }
 
   if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
