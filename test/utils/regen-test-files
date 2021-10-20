@@ -115,6 +115,7 @@ known_failing_tests = [
   "178-app-image-native-method",
   "179-nonvirtual-jni",
   "450-checker-types",
+  "674-HelloWorld-Dm",
   "1900-track-alloc",
   "1901-get-bytecodes",
   "1902-suspend",

@@ -233,8 +233,8 @@ TEST_F(Dex2oatVdexTest, VerifyPublicSdkStubsWithDexFiles) {
   extra_args.push_back("--dm-file=" + dm_file);
 
   // Recompile again with the .dm file which contains a vdex with code.
-  // The compilation should fail.
-  ASSERT_FALSE(RunDex2oat(
+  // The compilation will pass, but dex2oat will not use the vdex file.
+  ASSERT_TRUE(RunDex2oat(
       dex_file->GetLocation(),
       GetOdex(dex_file, "v2"),
       /*public_sdk=*/ nullptr,
