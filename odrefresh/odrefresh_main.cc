@@ -226,10 +226,12 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
 }
 
 void TargetOptionsHelp() {
-  UsageError("--use-compilation-os=<CID>  Run compilation in the VM with the given CID.");
-  UsageError("                            (0 = do not use VM, -1 = use composd's VM)");
+  UsageError("--use-compilation-os=<CID>       Run compilation in the VM with the given CID.");
+  UsageError("                                 (0 = do not use VM, -1 = use composd's VM)");
   UsageError(
-      "--dalvik-cache=<DIR>        Write artifacts to .../<DIR> rather than .../dalvik-cache");
+      "--dalvik-cache=<DIR>             Write artifacts to .../<DIR> rather than .../dalvik-cache");
+  UsageError("--max-execution-seconds=<N>      Maximum timeout of all compilation combined");
+  UsageError("--max-child-process-seconds=<N>  Maximum timeout of each compilation task");
 }
 
 int InitializeConfig(int argc, char** argv, OdrConfig* config) {
