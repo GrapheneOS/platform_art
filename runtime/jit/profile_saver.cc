@@ -626,7 +626,6 @@ void ProfileSaver::GetClassesAndMethodsHelper::UpdateProfile(const std::set<std:
                                                              ProfileCompilationInfo* profile_info) {
   // Move members to local variables to allow the compiler to optimize this properly.
   const bool startup = startup_;
-  const uint32_t hot_method_sample_threshold = hot_method_sample_threshold_;
   const uint32_t base_flags =
       (startup ? Hotness::kFlagStartup : Hotness::kFlagPostStartup) | extra_flags_;
 
@@ -637,11 +636,10 @@ void ProfileSaver::GetClassesAndMethodsHelper::UpdateProfile(const std::set<std:
   auto get_method_flags = [&](ArtMethod& method) {
     // Mark methods as hot if they have more than hot_method_sample_threshold
     // samples. This means they will get compiled by the compiler driver.
-    const uint16_t counter = method.GetCounter();
-    if (method.PreviouslyWarm() || counter >= hot_method_sample_threshold) {
+    if (method.PreviouslyWarm() || method.CounterIsHot()) {
       ++number_of_hot_methods;
       return enum_cast<ProfileCompilationInfo::MethodHotness::Flag>(base_flags | Hotness::kFlagHot);
-    } else if (counter != 0u) {
+    } else if (method.CounterHasChanged()) {
       ++number_of_sampled_methods;
       return enum_cast<ProfileCompilationInfo::MethodHotness::Flag>(base_flags);
     } else {

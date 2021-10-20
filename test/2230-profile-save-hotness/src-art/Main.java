@@ -34,6 +34,8 @@ public class Main {
       return;
     }
 
+    String methodName = "$noinline$hotnessCount";
+    int initialValue = getHotnessCounter(Main.class, methodName);
     File file = null;
     try {
       file = createTempFile();
@@ -46,21 +48,22 @@ public class Main {
           VMRuntime.CODE_PATH_TYPE_PRIMARY_APK);
 
       // Test that the profile saves an app method with a profiling info.
-      $noinline$hotnessCountWithLoop(10000);
+      $noinline$hotnessCountWithLoop(100000);
       ensureProfileProcessing();
-      String methodName = "$noinline$hotnessCount";
       Method appMethod = Main.class.getDeclaredMethod(methodName);
       if (!presentInProfile(file.getPath(), appMethod)) {
         System.out.println("App method not hot in profile " +
                 getHotnessCounter(Main.class, methodName));
       }
-      if (getHotnessCounter(Main.class, methodName) == 0) {
-        System.out.println("Hotness should be non zero " +
+      // Hardcoded assumption that the hotness value is zero.
+      if (getHotnessCounter(Main.class, methodName) != 0) {
+        System.out.println("Hotness should be zero " +
                 getHotnessCounter(Main.class, methodName));
       }
       VMRuntime.resetJitCounters();
-      if (getHotnessCounter(Main.class, methodName) != 0) {
-        System.out.println("Hotness should be zero " + getHotnessCounter(Main.class, methodName));
+      if (getHotnessCounter(Main.class, methodName) != initialValue) {
+        System.out.println(
+            "Expected " + initialValue +", got " + + getHotnessCounter(Main.class, methodName));
       }
     } finally {
       if (file != null) {
