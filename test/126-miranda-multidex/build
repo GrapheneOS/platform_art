@@ -21,7 +21,7 @@ export ORIGINAL_JAVAC="$JAVAC"
 
 # Wrapper function for javac which invokes the compiler and applies
 # additional setup steps for the test.
-function javac_wrapper {
+cat >javac_wrapper.sh <<"EOF"
   set -e # Stop on error - the caller script may not have this set.
 
   if [[ "$*" != *"classes2"* ]]; then
@@ -33,11 +33,9 @@ function javac_wrapper {
     # secondary DEX so no compilation required.
     mv classes/MirandaInterface.class classes2
   fi
-  return $?
-}
-
-export -f javac_wrapper
-export JAVAC=javac_wrapper
+  exit $?
+EOF
+export JAVAC=./javac_wrapper.sh
 
 ######################################################################
 

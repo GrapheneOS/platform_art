@@ -23,12 +23,10 @@ set -e
 
 # Wrapper function for javac which for this test does nothing as the
 # test uses a pre-built DEX file.
-function javac_wrapper {
+cat >javac_wrapper.sh <<"EOF"
   return 0
-}
-
-export -f javac_wrapper
-export JAVAC=javac_wrapper
+EOF
+export JAVAC=./javac_wrapper.sh
 
 # Do not invoke D8 for this test.
 export D8=':'
