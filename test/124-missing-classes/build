@@ -22,7 +22,7 @@ export ORIGINAL_JAVAC="$JAVAC"
 # Wrapper function for javac which invokes the compiler and applies
 # additional setup steps for the test.
 
-function javac_wrapper {
+cat >javac_wrapper.sh <<"EOF"
   set -e # Stop on error - the caller script may not have this set.
 
   # Some classes are available at compile time...
@@ -30,10 +30,8 @@ function javac_wrapper {
 
   # ...but not at run time.
   rm 'classes/MissingClass.class' 'classes/Main$MissingInnerClass.class'
-}
-
-export -f javac_wrapper
-export JAVAC=javac_wrapper
+EOF
+export JAVAC=./javac_wrapper.sh
 
 ######################################################################
 

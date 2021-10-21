@@ -14,4 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DESUGAR=false ./default-build "$@"
+USE_DESUGAR=false ./default-build "$@"
