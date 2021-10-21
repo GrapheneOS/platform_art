@@ -1046,9 +1046,6 @@
       "name": "art-run-test-673-checker-throw-vmethod[com.google.android.art.apex]"
     },
     {
-      "name": "art-run-test-674-HelloWorld-Dm[com.google.android.art.apex]"
-    },
-    {
       "name": "art-run-test-676-proxy-jit-at-first-use[com.google.android.art.apex]"
     },
     {
@@ -2243,9 +2240,6 @@
     },
     {
       "name": "art-run-test-673-checker-throw-vmethod"
-    },
-    {
-      "name": "art-run-test-674-HelloWorld-Dm"
     },
     {
       "name": "art-run-test-676-proxy-jit-at-first-use"
