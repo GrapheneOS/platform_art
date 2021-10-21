@@ -968,8 +968,11 @@ void ArmVIXLJNIMacroAssembler::Call(FrameOffset base, Offset offset) {
   // TODO: place reference map on call
 }
 
-void ArmVIXLJNIMacroAssembler::CallFromThread(ThreadOffset32 offset ATTRIBUTE_UNUSED) {
-  UNIMPLEMENTED(FATAL);
+void ArmVIXLJNIMacroAssembler::CallFromThread(ThreadOffset32 offset) {
+  // Call *(TR + offset)
+  asm_.LoadFromOffset(kLoadWord, lr, tr, offset.Int32Value());
+  ___ Blx(lr);
+  // TODO: place reference map on call
 }
 
 void ArmVIXLJNIMacroAssembler::GetCurrentThread(ManagedRegister dest) {
@@ -980,6 +983,19 @@ void ArmVIXLJNIMacroAssembler::GetCurrentThread(ManagedRegister dest) {
 
 void ArmVIXLJNIMacroAssembler::GetCurrentThread(FrameOffset dest_offset) {
   asm_.StoreToOffset(kStoreWord, tr, sp, dest_offset.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  vixl32::Register scratch = temps.Acquire();
+  asm_.LoadFromOffset(kLoadUnsignedHalfword,
+                      scratch,
+                      tr,
+                      Thread::ThreadFlagsOffset<kArmPointerSize>().Int32Value());
+
+  ___ Cmp(scratch, 0);
+  ___ BPreferNear(ne, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+  // TODO: think about using CBNZ here.
 }
 
 void ArmVIXLJNIMacroAssembler::ExceptionPoll(JNIMacroLabel* label) {

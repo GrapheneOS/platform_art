@@ -642,6 +642,12 @@ void X86_64JNIMacroAssembler::GetCurrentThread(FrameOffset offset) {
   __ movq(Address(CpuRegister(RSP), offset), scratch);
 }
 
+void X86_64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
+  __ gs()->cmpw(Address::Absolute(Thread::ThreadFlagsOffset<kX86_64PointerSize>(), true),
+                Immediate(0));
+  __ j(kNotEqual, X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+}
+
 void X86_64JNIMacroAssembler::ExceptionPoll(JNIMacroLabel* label) {
   __ gs()->cmpl(Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>(), true),
                 Immediate(0));
