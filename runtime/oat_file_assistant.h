@@ -452,6 +452,10 @@ class OatFileAssistant {
   // it is out of date).
   OatFileInfo vdex_for_oat_;
 
+  // The vdex-only file next to the apk.
+  OatFileInfo dm_for_odex_;
+  OatFileInfo dm_for_oat_;
+
   // File descriptor corresponding to apk, dex file, or zip.
   int zip_fd_;
 

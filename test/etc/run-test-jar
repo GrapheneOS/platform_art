@@ -101,7 +101,8 @@ VDEX_ARGS=""
 EXTERNAL_LOG_TAGS="n" # if y respect externally set ANDROID_LOG_TAGS.
 DRY_RUN="n" # if y prepare to run the test but don't run it.
 TEST_VDEX="n"
-TEST_DM="n"
+TEST_DEX2OAT_DM="n"
+TEST_RUNTIME_DM="n"
 TEST_IS_NDEBUG="n"
 APP_IMAGE="y"
 SECONDARY_APP_IMAGE="y"
@@ -479,8 +480,11 @@ while true; do
     elif [ "x$1" = "x--vdex" ]; then
         TEST_VDEX="y"
         shift
-    elif [ "x$1" = "x--dm" ]; then
-        TEST_DM="y"
+    elif [ "x$1" = "x--dex2oat-dm" ]; then
+        TEST_DEX2OAT_DM="y"
+        shift
+    elif [ "x$1" = "x--runtime-dm" ]; then
+        TEST_RUNTIME_DM="y"
         shift
     elif [ "x$1" = "x--vdex-filter" ]; then
         shift
@@ -1085,10 +1089,13 @@ function write_dex2oat_cmdlines {
     else
       vdex_cmdline="${dex2oat_cmdline} ${VDEX_ARGS} --input-vdex=$DEX_LOCATION/oat/$ISA/$name.vdex"
     fi
-  elif [ "$TEST_DM" = "y" ]; then
+  elif [ "$TEST_DEX2OAT_DM" = "y" ]; then
+    vdex_cmdline="${dex2oat_cmdline} ${VDEX_ARGS} --dump-timings --dm-file=$DEX_LOCATION/oat/$ISA/$name.dm"
     dex2oat_cmdline="${dex2oat_cmdline} --copy-dex-files=false --output-vdex=$DEX_LOCATION/oat/$ISA/primary.vdex"
     dm_cmdline="zip -qj $DEX_LOCATION/oat/$ISA/$name.dm $DEX_LOCATION/oat/$ISA/primary.vdex"
-    vdex_cmdline="${dex2oat_cmdline} ${VDEX_ARGS} --dump-timings --dm-file=$DEX_LOCATION/oat/$ISA/$name.dm"
+  elif [ "$TEST_RUNTIME_DM" = "y" ]; then
+    dex2oat_cmdline="${dex2oat_cmdline} --copy-dex-files=false --output-vdex=$DEX_LOCATION/oat/$ISA/primary.vdex"
+    dm_cmdline="zip -qj $DEX_LOCATION/$name.dm $DEX_LOCATION/oat/$ISA/primary.vdex"
   fi
 }
 

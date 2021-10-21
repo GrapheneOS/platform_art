@@ -126,6 +126,9 @@ std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 // Returns the vdex filename for the given oat filename.
 std::string GetVdexFilename(const std::string& oat_filename);
 
+// Returns the dm filename for the given dex location.
+std::string GetDmFilename(const std::string& dex_location);
+
 // Returns the odex location on /system for a DEX file on /apex. The caller must make sure that
 // `location` is on /apex.
 std::string GetSystemOdexFilenameForApex(std::string_view location, InstructionSet isa);
