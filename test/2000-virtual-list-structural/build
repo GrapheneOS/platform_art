@@ -24,7 +24,7 @@ cp src-ex/java/util/AbstractCollection.bak src-ex/java/util/AbstractCollection.j
 # Patch the copied version.
 patch src-ex/java/util/AbstractCollection.java AbstractCollection.patch
 
-DESUGAR=false ./default-build "$@"
+USE_DESUGAR=false ./default-build "$@"
 
 # restore the symlink
 rm src-ex/java/util/AbstractCollection.java
