@@ -23,12 +23,12 @@ export ORIGINAL_JAVAC="$JAVAC"
 
 # Wrapper function for javac which invokes the compiler and applies
 # transforms to class files after compilation.
-function javac_wrapper {
+cat >javac_wrapper.sh <<"EOF"
   set -e # Stop on error - the caller script may not have this set.
 
   # Update arguments to add transformer and ASM to the compiler classpath.
-  local classpath="./transformer.jar:$ASM_JAR"
-  local args=(-cp $classpath)
+  classpath="./transformer.jar:$ASM_JAR"
+  args=(-cp $classpath)
   while [ $# -ne 0 ] ; do
     case $1 in
       -cp|-classpath|--class-path)
@@ -50,15 +50,13 @@ function javac_wrapper {
   mkdir classes
 
   # Transform intermediate classes.
-  local transformer_args="-cp ${ASM_JAR}:transformer.jar transformer.IndyTransformer"
+  transformer_args="-cp ${ASM_JAR}:transformer.jar transformer.IndyTransformer"
   for class in intermediate-classes/*.class ; do
-    local transformed_class=classes/$(basename ${class})
+    transformed_class=classes/$(basename ${class})
     ${JAVA:-java} ${transformer_args} $PWD/${class} ${transformed_class}
   done
-}
-
-export -f javac_wrapper
-export JAVAC=javac_wrapper
+EOF
+export JAVAC=./javac_wrapper.sh
 
 ######################################################################
 
@@ -69,4 +67,4 @@ ${SOONG_ZIP} --jar -o transformer.jar -C classes -D classes
 rm -rf classes
 
 # Use API level 28 for invoke-custom bytecode support.
-DESUGAR=false ./default-build "$@" --api-level 28
+USE_DESUGAR=false ./default-build "$@" --api-level 28
