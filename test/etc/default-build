@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env python3
 #
-# Copyright (C) 2008 The Android Open Source Project
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,543 +14,412 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Stop if something fails.
-set -e
+"""This is the default build script for run-tests.
 
-function fail() {
-  echo "$*" >&2
-  exit 1
-}
+It can be overwrite by specific run-tests if needed.
+It is used from soong build and not intended to be called directly.
+"""
 
-if [[ $# -le 0 ]]; then
-  echo 'Error:' '$0 should have the parameters from the "build" script forwarded to it' >&2
-  fail 'Error: An example of how do it correctly is ./default-build "$@"'
-  exit 1
-fi
+import argparse
+import functools
+import glob
+import os
+from os import path
+import shlex
+import shutil
+import subprocess
+import tempfile
+import zipfile
+
+if not os.sys.argv:
+  print(
+      'Error: default-build should have the parameters from the "build" script forwarded to it'
+  )
+  print('Error: An example of how do it correctly is ./default-build "$@"')
+  os.sys.exit(1)
+
+
+def parse_bool(text):
+  return {"true": True, "false": False}[text.lower()]
+
+
+TEST_NAME = os.environ["TEST_NAME"]
+ART_TEST_RUN_TEST_BOOTCLASSPATH = os.environ["ART_TEST_RUN_TEST_BOOTCLASSPATH"]
+NEED_DEX = parse_bool(os.environ["NEED_DEX"])
 
 # Set default values for directories.
-if [ -d smali ]; then
-  HAS_SMALI=true
-else
-  HAS_SMALI=false
-fi
-
-# .j files in jasmin get compiled into classes.jar
-if [ -d jasmin ]; then
-  HAS_JASMIN=true
-else
-  HAS_JASMIN=false
-fi
-
-if [ -d src ]; then
-  HAS_SRC=true
-else
-  HAS_SRC=false
-fi
-
-# .java files in src-art get compiled with libcore on the bootclasspath
-if [ -d src-art ]; then
-  HAS_SRC_ART=true
-else
-  HAS_SRC_ART=false
-fi
-
-if [ -d src2 ]; then
-  HAS_SRC2=true
-else
-  HAS_SRC2=false
-fi
-
-if [ -d src-multidex ]; then
-  HAS_SRC_MULTIDEX=true
-else
-  HAS_SRC_MULTIDEX=false
-fi
-
-if [ -d smali-multidex ]; then
-  HAS_SMALI_MULTIDEX=true
-else
-  HAS_SMALI_MULTIDEX=false
-fi
-
-# .j files in jasmin-multidex get compiled into classes2.jar
-if [ -d jasmin-multidex ]; then
-  HAS_JASMIN_MULTIDEX=true
-else
-  HAS_JASMIN_MULTIDEX=false
-fi
-
-if [ -d smali-ex ]; then
-  HAS_SMALI_EX=true
-else
-  HAS_SMALI_EX=false
-fi
-
-if [ -d src-ex ]; then
-  HAS_SRC_EX=true
-else
-  HAS_SRC_EX=false
-fi
-
-if [ -d src-ex2 ]; then
-  HAS_SRC_EX2=true
-else
-  HAS_SRC_EX2=false
-fi
-
-if [ -d src-dex2oat-unresolved ]; then
-  HAS_SRC_DEX2OAT_UNRESOLVED=true
-else
-  HAS_SRC_DEX2OAT_UNRESOLVED=false
-fi
-
-if [ -f hiddenapi-flags.csv ]; then
-  HAS_HIDDENAPI_SPEC=true
-else
-  HAS_HIDDENAPI_SPEC=false
-fi
+HAS_SMALI = path.exists("smali")
+HAS_JASMIN = path.exists("jasmin")
+HAS_SRC = path.exists("src")
+HAS_SRC_ART = path.exists("src-art")
+HAS_SRC2 = path.exists("src2")
+HAS_SRC_MULTIDEX = path.exists("src-multidex")
+HAS_SMALI_MULTIDEX = path.exists("smali-multidex")
+HAS_JASMIN_MULTIDEX = path.exists("jasmin-multidex")
+HAS_SMALI_EX = path.exists("smali-ex")
+HAS_SRC_EX = path.exists("src-ex")
+HAS_SRC_EX2 = path.exists("src-ex2")
+HAS_SRC_DEX2OAT_UNRESOLVED = path.exists("src-dex2oat-unresolved")
+HAS_HIDDENAPI_SPEC = path.exists("hiddenapi-flags.csv")
 
 # USE_HIDDENAPI=false run-test... will disable hiddenapi.
-if [ -z "${USE_HIDDENAPI}" ]; then
-  USE_HIDDENAPI=true
-fi
+USE_HIDDENAPI = parse_bool(os.environ.get("USE_HIDDENAPI", "true"))
 
-# DESUGAR=false run-test... will disable desugaring.
-if [[ "$DESUGAR" == false ]]; then
-  USE_DESUGAR=false
-fi
+# USE_DESUGAR=false run-test... will disable desugaring.
+USE_DESUGAR = parse_bool(os.environ.get("USE_DESUGAR", "true"))
+
+JAVAC_ARGS = shlex.split(os.environ.get("JAVAC_ARGS", ""))
+SMALI_ARGS = shlex.split(os.environ.get("SMALI_ARGS", ""))
+D8_FLAGS = shlex.split(os.environ.get("D8_FLAGS", ""))
 
 # Allow overriding ZIP_COMPRESSION_METHOD with e.g. 'store'
-ZIP_COMPRESSION_METHOD="deflate"
+ZIP_COMPRESSION_METHOD = "deflate"
 # Align every ZIP file made by calling $ZIPALIGN command?
-WITH_ZIP_ALIGN=false
-ZIP_ALIGN_BYTES="-1"
+ZIP_ALIGN_BYTES = None
 
-BUILD_MODE="target"
-DEV_MODE="no"
-
-DEFAULT_EXPERIMENT="no-experiment"
-
-# The key for default arguments if no experimental things are enabled.
-EXPERIMENTAL=$DEFAULT_EXPERIMENT
+DEV_MODE = False
+BUILD_MODE = "target"
+API_LEVEL = None
+DEFAULT_EXPERIMENT = "no-experiment"
+EXPERIMENTAL = DEFAULT_EXPERIMENT
 
 # Setup experimental API level mappings in a bash associative array.
-declare -A EXPERIMENTAL_API_LEVEL
-EXPERIMENTAL_API_LEVEL[${DEFAULT_EXPERIMENT}]="26"
-EXPERIMENTAL_API_LEVEL["default-methods"]="24"
-EXPERIMENTAL_API_LEVEL["parameter-annotations"]="25"
-EXPERIMENTAL_API_LEVEL["agents"]="26"
-EXPERIMENTAL_API_LEVEL["method-handles"]="26"
-EXPERIMENTAL_API_LEVEL["var-handles"]="28"
+EXPERIMENTAL_API_LEVEL = {}
+EXPERIMENTAL_API_LEVEL[DEFAULT_EXPERIMENT] = "26"
+EXPERIMENTAL_API_LEVEL["default-methods"] = "24"
+EXPERIMENTAL_API_LEVEL["parameter-annotations"] = "25"
+EXPERIMENTAL_API_LEVEL["agents"] = "26"
+EXPERIMENTAL_API_LEVEL["method-handles"] = "26"
+EXPERIMENTAL_API_LEVEL["var-handles"] = "28"
 
-while true; do
-  if [ "x$1" = "x--no-src" ]; then
-    HAS_SRC=false
-    shift
-  elif [ "x$1" = "x--no-src2" ]; then
-    HAS_SRC2=false
-    shift
-  elif [ "x$1" = "x--no-src-multidex" ]; then
-    HAS_SRC_MULTIDEX=false
-    shift
-  elif [ "x$1" = "x--no-smali-multidex" ]; then
-    HAS_SMALI_MULTIDEX=false
-    shift
-  elif [ "x$1" = "x--no-src-ex" ]; then
-    HAS_SRC_EX=false
-    shift
-  elif [ "x$1" = "x--no-src-ex2" ]; then
-    HAS_SRC_EX2=false
-    shift
-  elif [ "x$1" = "x--no-smali" ]; then
-    HAS_SMALI=false
-    shift
-  elif [ "x$1" = "x--no-jasmin" ]; then
-    HAS_JASMIN=false
-    shift
-  elif [ "x$1" = "x--api-level" ]; then
-    shift
-    EXPERIMENTAL_API_LEVEL[${EXPERIMENTAL}]=$1
-    shift
-  elif [ "x$1" = "x--experimental" ]; then
-    shift
-    # We have a specific experimental configuration so don't use the default.
-    EXPERIMENTAL="$1"
-    shift
-  elif [ "x$1" = "x--zip-compression-method" ]; then
-    # Allow using different zip compression method, e.g. 'store'
-    shift
-    ZIP_COMPRESSION_METHOD="$1"
-    shift
-  elif [ "x$1" = "x--zip-align" ]; then
-    # Align ZIP entries to some # of bytes.
-    shift
-    WITH_ZIP_ALIGN=true
-    ZIP_ALIGN_BYTES="$1"
-    shift
-  elif [ "x$1" = "x--host" ]; then
-    BUILD_MODE="host"
-    shift
-  elif [ "x$1" = "x--target" ]; then
-    BUILD_MODE="target"
-    shift
-  elif [ "x$1" = "x--jvm" ]; then
-    BUILD_MODE="jvm"
-    shift
-  elif [ "x$1" = "x--dev" ]; then
-    DEV_MODE="yes"
-    shift
-  elif expr "x$1" : "x--" >/dev/null 2>&1; then
-    fail "unknown $0 option: $1"
-  else
-    break
-  fi
-done
+# Parse command line arguments.
+opt_bool = argparse.BooleanOptionalAction  # Bool also accepts the --no- prefix.
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--src", dest="HAS_SRC", action=opt_bool)
+parser.add_argument("--src2", dest="HAS_SRC2", action=opt_bool)
+parser.add_argument("--src-multidex", dest="HAS_SRC_MULTIDEX", action=opt_bool)
+parser.add_argument(
+    "--smali-multidex", dest="HAS_SMALI_MULTIDEX", action=opt_bool)
+parser.add_argument("--src-ex", dest="HAS_SRC_EX", action=opt_bool)
+parser.add_argument("--src-ex2", dest="HAS_SRC_EX2", action=opt_bool)
+parser.add_argument("--smali", dest="HAS_SMALI", action=opt_bool)
+parser.add_argument("--jasmin", dest="HAS_JASMIN", action=opt_bool)
+parser.add_argument("--api-level", dest="API_LEVEL", type=int)
+parser.add_argument(
+    "--experimental", dest="EXPERIMENTAL", type=str)
+parser.add_argument(
+    "--zip-compression-method", dest="ZIP_COMPRESSION_METHOD", type=str)
+parser.add_argument("--zip-align", dest="ZIP_ALIGN_BYTES", type=int)
+parser.add_argument(
+    "--host", dest="BUILD_MODE", action="store_const", const="host")
+parser.add_argument(
+    "--target", dest="BUILD_MODE", action="store_const", const="target")
+parser.add_argument(
+    "--jvm", dest="BUILD_MODE", action="store_const", const="jvm")
+parser.add_argument("--dev", dest="DEV_MODE", action=opt_bool)
+# Update variables with command line arguments that were set.
+globals().update(
+    {k: v for k, v in parser.parse_args().__dict__.items() if v is not None})
 
-if [[ $BUILD_MODE == jvm ]]; then
-  # Does not need desugaring on jvm because it supports the latest functionality.
-  USE_DESUGAR=false
-  # Do not attempt to build src-art directories on jvm, it would fail without libcore.
-  HAS_SRC_ART=false
-fi
+if BUILD_MODE == "jvm":
+  # No desugaring on jvm because it supports the latest functionality.
+  USE_DESUGAR = False
+  # Do not attempt to build src-art directories on jvm,
+  # since it would fail without libcore.
+  HAS_SRC_ART = False
 
 # Set API level for smali and d8.
-API_LEVEL="${EXPERIMENTAL_API_LEVEL[${EXPERIMENTAL}]}"
+if not API_LEVEL:
+  API_LEVEL = EXPERIMENTAL_API_LEVEL[EXPERIMENTAL]
 
 # Add API level arguments to smali and dx
-SMALI_ARGS="${SMALI_ARGS} --api $API_LEVEL"
-D8_FLAGS="${D8_FLAGS} --min-api $API_LEVEL"
+SMALI_ARGS.extend(["--api", str(API_LEVEL)])
+D8_FLAGS.extend(["--min-api", str(API_LEVEL)])
 
-#########################################
 
-# Catch all commands to 'ZIP' and prepend extra flags.
-# Optionally, zipalign results to some alignment.
-function zip() {
-  local zip_target="$1"
-  local zip_args="-o $1 "
-  shift
-  if [[ $ZIP_COMPRESSION_METHOD = "store" ]]; then
-    zip_args+="-L 0 "
-  fi
-  for arg in "$@"; do
-    zip_args+="-f $arg "
-  done
+def run(executable, args):
+  cmd = shlex.split(executable) + args
+  if executable.endswith(".sh"):
+    cmd = ["/bin/bash"] + cmd
+  if DEV_MODE:
+    print("Run:", " ".join(cmd))
+  p = subprocess.run(cmd, check=True)
+  if p.returncode != 0:
+    raise Exception("Failed command: " + " ".join(cmd))
 
-  ${SOONG_ZIP} $zip_args
 
-  if "$WITH_ZIP_ALIGN"; then
+# Helper functions to execute tools.
+soong_zip = functools.partial(run, os.environ["SOONG_ZIP"])
+zipalign = functools.partial(run, os.environ["ZIPALIGN"])
+javac = functools.partial(run, os.environ["JAVAC"])
+jasmin = functools.partial(run, os.environ["JASMIN"])
+smali = functools.partial(run, os.environ["SMALI"])
+d8 = functools.partial(run, os.environ["D8"])
+hiddenapi = functools.partial(run, os.environ["HIDDENAPI"])
+
+
+def find(root, name):
+  return sorted(glob.glob(path.join(root, "**", name), recursive=True))
+
+
+def zip(zip_target, *files):
+  zip_args = ["-o", zip_target]
+  if ZIP_COMPRESSION_METHOD == "store":
+    zip_args.extend(["-L", "0"])
+  for f in files:
+    zip_args.extend(["-f", f])
+  soong_zip(zip_args)
+
+  if ZIP_ALIGN_BYTES:
     # zipalign does not operate in-place, so write results to a temp file.
-    local tmp_file="$(mktemp)"
-    "$ZIPALIGN" -f "$ZIP_ALIGN_BYTES" "$zip_target" "$tmp_file"
-    # replace original zip target with our temp file.
-    mv "$tmp_file" "$zip_target"
-  fi
-}
+    with tempfile.TemporaryDirectory(dir=".") as tmp_dir:
+      tmp_file = path.join(tmp_dir, "aligned.zip")
+      zipalign(["-f", str(ZIP_ALIGN_BYTES), zip_target, tmp_file])
+      # replace original zip target with our temp file.
+      os.rename(tmp_file, zip_target)
 
-function make_jasmin() {
-  local out_directory="$1"
-  shift
-  local jasmin_sources=("$@")
 
-  mkdir -p "$out_directory"
+def make_jasmin(out_directory, jasmin_sources):
+  os.makedirs(out_directory, exist_ok=True)
+  jasmin(["-d", out_directory] + sorted(jasmin_sources))
 
-  if [[ $DEV_MODE == yes ]]; then
-    echo ${JASMIN} -d "$out_directory" "${jasmin_sources[@]}"
-    ${JASMIN} -d "$out_directory" "${jasmin_sources[@]}"
-  else
-    ${JASMIN} -d "$out_directory" "${jasmin_sources[@]}" >/dev/null
-  fi
-}
 
 # Like regular javac but may include libcore on the bootclasspath.
-function javac_with_bootclasspath {
-  local helper_args="--mode=$BUILD_MODE"
+def javac_with_bootclasspath(args):
+  flags = JAVAC_ARGS + ["-encoding", "utf8"]
+  if BUILD_MODE != "jvm":
+    flags.extend(["-bootclasspath", ART_TEST_RUN_TEST_BOOTCLASSPATH])
+  javac(flags + args)
 
-  if [[ $DEV_MODE == yes ]]; then
-    helper_args="$helper_args --show-commands"
-  fi
 
-  # build with libcore for host and target, or openjdk for jvm
-  "$ANDROID_BUILD_TOP/art/tools/javac-helper.sh" --core-only $helper_args ${JAVAC_ARGS} "$@"
-}
-
-# Make a "dex" file given a directory of classes in $1. This will be
+# Make a "dex" file given a directory of classes. This will be
 # packaged in a jar file.
-function make_dex() {
-  local name="$1"
-  local d8_inputs=$(find $name -name '*.class' -type f | sort)
-  local d8_output=${name}.jar
-  local dex_output=${name}.dex
-  local d8_local_flags=""
-  if [[ "$USE_DESUGAR" = "true" ]]; then
-    if [[ ! -z ${ART_TEST_RUN_TEST_BOOTCLASSPATH} ]]; then
-      d8_local_flags="$d8_local_flags --lib ${ART_TEST_RUN_TEST_BOOTCLASSPATH}"
-    else
-      local boot_class_path_list=$($ANDROID_BUILD_TOP/art/tools/bootjars.sh --$BUILD_MODE --core --path)
-      for boot_class_path_element in $boot_class_path_list; do
-        d8_local_flags="$d8_local_flags --lib $boot_class_path_element"
-      done
-    fi
-  else
-    d8_local_flags="$d8_local_flags --no-desugaring"
-  fi
-  if [ "$DEV_MODE" = "yes" ]; then
-    echo ${D8} ${D8_FLAGS} $d8_local_flags --output $d8_output $d8_inputs
-  fi
-  ${D8} ${D8_FLAGS} $d8_local_flags --output $d8_output $d8_inputs
+def make_dex(name):
+  d8_inputs = find(name, "*.class")
+  d8_output = name + ".jar"
+  dex_output = name + ".dex"
+  if USE_DESUGAR:
+    flags = ["--lib", ART_TEST_RUN_TEST_BOOTCLASSPATH]
+  else:
+    flags = ["--no-desugaring"]
+  assert d8_inputs
+  d8(D8_FLAGS + flags + ["--output", d8_output] + d8_inputs)
 
   # D8 outputs to JAR files today rather than DEX files as DX used
   # to. To compensate, we extract the DEX from d8's output to meet the
   # expectations of make_dex callers.
-  if [ "$DEV_MODE" = "yes" ]; then
-    echo unzip -p $d8_output classes.dex \> $dex_output
-  fi
-  unzip -p $d8_output classes.dex > $dex_output
-}
+  with tempfile.TemporaryDirectory(dir=".") as tmp_dir:
+    zipfile.ZipFile(d8_output, "r").extractall(tmp_dir)
+    os.rename(path.join(tmp_dir, "classes.dex"), dex_output)
 
-# Merge all the dex files in $1..$N into $1. Skip non-existing files, but at least 1 file must exist.
-function make_dexmerge() {
+
+# Merge all the dex files.
+# Skip non-existing files, but at least 1 file must exist.
+def make_dexmerge(*dex_files_to_merge):
   # Dex file that acts as the destination.
-  local dst_file="$1"
-
-  # Dex files that act as the source.
-  local dex_files_to_merge=()
+  dst_file = dex_files_to_merge[0]
 
   # Skip any non-existing files.
-  while [[ $# -gt 0 ]]; do
-    if [[ -e "$1" ]]; then
-      dex_files_to_merge+=("$1")
-    fi
-    shift
-  done
+  dex_files_to_merge = list(filter(path.exists, dex_files_to_merge))
 
   # NB: We merge even if there is just single input.
   # It is useful to normalize non-deterministic smali output.
 
-  mkdir d8_merge_out
-  ${D8} --min-api $API_LEVEL --output ./d8_merge_out "${dex_files_to_merge[@]}"
+  with tempfile.TemporaryDirectory(dir=".") as tmp_dir:
+    d8(["--min-api", API_LEVEL, "--output", tmp_dir] + dex_files_to_merge)
+    assert not path.exists(path.join(tmp_dir, "classes2.dex"))
+    for input_dex in dex_files_to_merge:
+      os.remove(input_dex)
+    os.rename(path.join(tmp_dir, "classes.dex"), dst_file)
 
-  if [[ -e "./d8_merge_out/classes2.dex" ]]; then
-    fail "Cannot merge all dex files into a single dex"
-  fi
 
-  rm "${dex_files_to_merge[@]}"
-  mv ./d8_merge_out/classes.dex "$dst_file";
-  rmdir d8_merge_out
-}
+def make_hiddenapi(*dex_files):
+  args = ["encode"]
+  for dex_file in dex_files:
+    args.extend(["--input-dex=" + dex_file, "--output-dex=" + dex_file])
+  args.append("--api-flags=hiddenapi-flags.csv")
+  args.append("--no-force-assign-all")
+  hiddenapi(args)
 
-function make_hiddenapi() {
-  local args=( "encode" )
-  while [[ $# -gt 0 ]]; do
-    args+=("--input-dex=$1")
-    args+=("--output-dex=$1")
-    shift
-  done
-  args+=("--api-flags=hiddenapi-flags.csv")
-  args+=("--no-force-assign-all")
-  ${HIDDENAPI} "${args[@]}"
-}
 
-# Print the directory name only if it exists.
-function maybe_dir() {
-  local dirname="$1"
-  if [[ -d "$dirname" ]]; then
-    echo "$dirname"
-  fi
-}
+if path.exists("classes.dex"):
+  zip(TEST_NAME + ".jar", "classes.dex")
+  os.sys.exit(0)
 
-if [ -e classes.dex ]; then
-  zip $TEST_NAME.jar classes.dex
-  exit 0
-fi
 
-# Helper function for a common test. Evaluate with $(has_mutlidex).
-function has_multidex() {
-  echo [ ${HAS_SRC_MULTIDEX} = "true" \
-         -o ${HAS_JASMIN_MULTIDEX} = "true" \
-         -o ${HAS_SMALI_MULTIDEX} = "true" ]
-}
+def has_multidex():
+  return HAS_SRC_MULTIDEX or HAS_JASMIN_MULTIDEX or HAS_SMALI_MULTIDEX
 
-if [ ${HAS_SRC_DEX2OAT_UNRESOLVED} = "true" ]; then
-  mkdir -p classes
-  mkdir classes-ex
-  javac_with_bootclasspath -implicit:none -sourcepath src-dex2oat-unresolved -d classes `find src -name '*.java'`
-  javac_with_bootclasspath -implicit:none -sourcepath src -d classes-ex `find src-dex2oat-unresolved -name '*.java'`
-  if [ ${NEED_DEX} = "true" ]; then
-    make_dex classes-ex
-    mv classes-ex.dex classes.dex   # rename it so it shows up as "classes.dex" in the zip file.
-    zip ${TEST_NAME}-ex.jar classes.dex
-    make_dex classes
-  fi
-else
-  if [ "${HAS_SRC}" = "true" -a "${HAS_SRC_MULTIDEX}" = "true" ]; then
+
+if HAS_SRC_DEX2OAT_UNRESOLVED:
+  os.makedirs("classes", exist_ok=True)
+  os.makedirs("classes-ex")
+  javac_with_bootclasspath([
+      "-implicit:none", "-sourcepath", "src-dex2oat-unresolved", "-d", "classes"
+  ] + find("src", "*.java"))
+  javac_with_bootclasspath(
+      ["-implicit:none", "-sourcepath", "src", "-d", "classes-ex"] +
+      find("src-dex2oat-unresolved", "*.java"))
+  if NEED_DEX:
+    make_dex("classes-ex")
+    # rename it so it shows up as "classes.dex" in the zip file.
+    os.rename("classes-ex.dex", "classes.dex")
+    zip(TEST_NAME + "-ex.jar", "classes.dex")
+    make_dex("classes")
+else:
+  src_tmp_all = []
+  if HAS_SRC and HAS_SRC_MULTIDEX:
     # To allow circular references, compile src/ and src-multidex/ together
     # and pass the output as class path argument. Replacement sources
     # in src-art/ can replace symbols used by src-multidex but everything
     # needed to compile src-multidex should be present in src/.
-    mkdir classes-tmp-all
-    javac_with_bootclasspath -implicit:none -d classes-tmp-all \
-        `find src -name '*.java'` \
-        `find src-multidex -name '*.java'`
-    src_tmp_all="-cp classes-tmp-all"
-  fi
+    os.makedirs("classes-tmp-all")
+    javac_with_bootclasspath(["-implicit:none", "-d", "classes-tmp-all"] +
+                             find("src", "*.java") +
+                             find("src-multidex", "*.java"))
+    src_tmp_all = ["-cp", "classes-tmp-all"]
 
-  if [ "${HAS_SRC}" = "true" ]; then
-    mkdir -p classes
-    javac_with_bootclasspath -implicit:none $src_tmp_all -d classes `find src -name '*.java'`
-  fi
+  if HAS_SRC:
+    os.makedirs("classes", exist_ok=True)
+    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
+                             ["-d", "classes"] + find("src", "*.java"))
 
-  if [ "${HAS_SRC_ART}" = "true" ]; then
-    mkdir -p classes
-    javac_with_bootclasspath -implicit:none $src_tmp_all -d classes `find src-art -name '*.java'`
-  fi
+  if HAS_SRC_ART:
+    os.makedirs("classes", exist_ok=True)
+    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
+                             ["-d", "classes"] + find("src-art", "*.java"))
 
-  if [ "${HAS_SRC_MULTIDEX}" = "true" ]; then
-    mkdir classes2
-    javac_with_bootclasspath -implicit:none $src_tmp_all -d classes2 `find src-multidex -name '*.java'`
-    if [ ${NEED_DEX} = "true" ]; then
-      make_dex classes2
-    fi
-  fi
+  if HAS_SRC_MULTIDEX:
+    os.makedirs("classes2")
+    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
+                             ["-d", "classes2"] +
+                             find("src-multidex", "*.java"))
+    if NEED_DEX:
+      make_dex("classes2")
 
-  if [ "${HAS_SRC2}" = "true" ]; then
-    mkdir -p classes
-    javac_with_bootclasspath -classpath classes -d classes `find src2 -name '*.java'`
-  fi
+  if HAS_SRC2:
+    os.makedirs("classes", exist_ok=True)
+    javac_with_bootclasspath(["-classpath", "classes", "-d", "classes"] +
+                             find("src2", "*.java"))
 
-  # If the classes directory is not-empty, package classes in a DEX file. NB some
-  # tests provide classes rather than java files.
-  if [ "$(ls -A classes)" ]; then
-    if [ ${NEED_DEX} = "true" ]; then
-      make_dex classes
-    fi
-  fi
-fi
+  # If the classes directory is not-empty, package classes in a DEX file.
+  # NB: some tests provide classes rather than java files.
+  if find("classes", "*"):
+    if NEED_DEX:
+      make_dex("classes")
 
-if [[ "${HAS_JASMIN}" == true ]]; then
+if HAS_JASMIN:
   # Compile Jasmin classes as if they were part of the classes.dex file.
-  make_jasmin jasmin_classes $(find 'jasmin' -name '*.j')
-  if [[ "${NEED_DEX}" == "true" ]]; then
-    make_dex jasmin_classes
-    make_dexmerge classes.dex jasmin_classes.dex
-  else
-    # Move jasmin classes into classes directory so that they are picked up with -cp classes.
-    mkdir -p classes
-    cp -r jasmin_classes/* classes/
-  fi
-fi
+  make_jasmin("jasmin_classes", find("jasmin", "*.j"))
+  if NEED_DEX:
+    make_dex("jasmin_classes")
+    make_dexmerge("classes.dex", "jasmin_classes.dex")
+  else:
+    # Move jasmin classes into classes directory so that they are picked up
+    # with -cp classes.
+    os.makedirs("classes", exist_ok=True)
+    shutil.copytree("jasmin_classes", "classes", dirs_exist_ok=True)
 
-if [ "${HAS_SMALI}" = "true" -a ${NEED_DEX} = "true" ]; then
+if HAS_SMALI and NEED_DEX:
   # Compile Smali classes
-  ${SMALI} -JXmx512m assemble ${SMALI_ARGS} --output smali_classes.dex `find smali -name '*.smali'`
-  if [[ ! -s smali_classes.dex ]] ; then
-    fail "${SMALI} produced no output."
-  fi
-  # Merge smali files into classes.dex, this takes priority over any jasmin files.
-  make_dexmerge classes.dex smali_classes.dex
-fi
+  smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
+        ["--output", "smali_classes.dex"] + find("smali", "*.smali"))
+  assert path.exists("smali_classes.dex")
+  # Merge smali files into classes.dex,
+  # this takes priority over any jasmin files.
+  make_dexmerge("classes.dex", "smali_classes.dex")
 
-# Compile Jasmin classes in jasmin-multidex as if they were part of the classes2.jar
-if [[ "$HAS_JASMIN_MULTIDEX" == true ]]; then
-  make_jasmin jasmin_classes2 $(find 'jasmin-multidex' -name '*.j')
+# Compile Jasmin classes in jasmin-multidex as if they were part of
+# the classes2.jar
+if HAS_JASMIN_MULTIDEX:
+  make_jasmin("jasmin_classes2", find("jasmin-multidex", "*.j"))
 
-  if [[ "${NEED_DEX}" == "true" ]]; then
-    make_dex jasmin_classes2
-    make_dexmerge classes2.dex jasmin_classes2.dex
-  else
-    # Move jasmin classes into classes2 directory so that they are picked up with -cp classes2.
-    mkdir -p classes2
-    mv jasmin_classes2/* classes2
-  fi
-fi
+  if NEED_DEX:
+    make_dex("jasmin_classes2")
+    make_dexmerge("classes2.dex", "jasmin_classes2.dex")
+  else:
+    # Move jasmin classes into classes2 directory so that
+    # they are picked up with -cp classes2.
+    os.makedirs("classes2", exist_ok=True)
+    shutil.copytree("jasmin_classes2", "classes2", dirs_exist_ok=True)
+    shutil.rmtree("jasmin_classes2")
 
-if [ "${HAS_SMALI_MULTIDEX}" = "true" -a ${NEED_DEX} = "true" ]; then
+if HAS_SMALI_MULTIDEX and NEED_DEX:
   # Compile Smali classes
-  ${SMALI} -JXmx512m assemble ${SMALI_ARGS} --output smali_classes2.dex `find smali-multidex -name '*.smali'`
+  smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
+        ["--output", "smali_classes2.dex"] + find("smali-multidex", "*.smali"))
 
   # Merge smali_classes2.dex into classes2.dex
-  make_dexmerge classes2.dex smali_classes2.dex
-fi
+  make_dexmerge("classes2.dex", "smali_classes2.dex")
 
-if [ ${HAS_SRC_EX} = "true" -o ${HAS_SRC_EX2} = "true" ]; then
+if HAS_SRC_EX or HAS_SRC_EX2:
   # Build src-ex into classes-ex.
   # Includes 'src', 'src-art' and 'jasmin' source when compiling classes-ex,
   # but exclude their .class files.
-  if [ "${HAS_SRC}" = "true" -o "${HAS_SRC_ART}" = "true" -o "${HAS_JASMIN}" = "true" ]; then
-    mkdir -p classes-tmp-for-ex
-    src_tmp_for_ex="-cp classes-tmp-for-ex"
-  fi
-  if [ "${HAS_SRC}" = "true" -a "${HAS_SRC_MULTIDEX}" = "true" ]; then
-    javac_with_bootclasspath -d classes-tmp-for-ex \
-        `find src -name '*.java'` \
-        `find src-multidex -name '*.java'`
-  elif [[ "${HAS_SRC}" == "true" ]]; then
-    javac_with_bootclasspath -d classes-tmp-for-ex `find src -name '*.java'`
-  elif [[ "${HAS_SRC_MULTIDEX}" == "true" ]]; then
-    javac_with_bootclasspath -d classes-tmp-for-ex `find src-multidex -name '*.java'`
-  fi
-  if [[ "${HAS_SRC_ART}" == "true" ]]; then
-    javac_with_bootclasspath -d classes-tmp-for-ex `find src-art -name '*.java'`
-  fi
-  if [[ "${HAS_JASMIN}" == "true" ]]; then
-    make_jasmin classes-tmp-for-ex $(find 'jasmin' -name '*.j')
-  fi
-  mkdir -p classes-ex
-  if [ ${HAS_SRC_EX} = "true" ]; then
-    javac_with_bootclasspath -d classes-ex $src_tmp_for_ex `find src-ex -name '*.java'`
-    if [[ "x$src_tmp_for_ex" = "x" ]]; then
-      src_tmp_for_ex="-cp classes-ex"
-    else
-      src_tmp_for_ex="$src_tmp_for_ex:classes-ex"
-    fi
-  fi
-  if [ ${HAS_SRC_EX2} = "true" ]; then
-    javac_with_bootclasspath -d classes-ex $src_tmp_for_ex `find src-ex2 -name '*.java'`
-  fi
-fi
+  src_tmp_for_ex = []
+  if HAS_SRC or HAS_SRC_ART or HAS_JASMIN:
+    os.makedirs("classes-tmp-for-ex", exist_ok=True)
+    src_tmp_for_ex = ["-cp", "classes-tmp-for-ex"]
+  if HAS_SRC and HAS_SRC_MULTIDEX:
+    javac_with_bootclasspath(["-d", "classes-tmp-for-ex"] +
+                             find("src", "*.java") +
+                             find("src-multidex", "*.java"))
+  elif HAS_SRC:
+    javac_with_bootclasspath(["-d", "classes-tmp-for-ex"] +
+                             find("src", "*.java"))
+  elif HAS_SRC_MULTIDEX:
+    javac_with_bootclasspath(["-d", "classes-tmp-for-ex"] +
+                             find("src-multidex", "*.java"))
+  if HAS_SRC_ART:
+    javac_with_bootclasspath(["-d", "classes-tmp-for-ex"] +
+                             find("src-art", "*.java"))
+  if HAS_JASMIN:
+    make_jasmin("classes-tmp-for-ex", find("jasmin", "*.j"))
+  os.makedirs("classes-ex", exist_ok=True)
+  if HAS_SRC_EX:
+    javac_with_bootclasspath(["-d", "classes-ex"] + src_tmp_for_ex +
+                             find("src-ex", "*.java"))
+    if not src_tmp_for_ex:
+      src_tmp_for_ex = ["-cp", "classes-ex"]
+    else:
+      src_tmp_for_ex[-1] += ":classes-ex"
+  if HAS_SRC_EX2:
+    javac_with_bootclasspath(["-d", "classes-ex"] + src_tmp_for_ex +
+                             find("src-ex2", "*.java"))
 
-if [[ -d classes-ex ]] && [ ${NEED_DEX} = "true" ]; then
-  make_dex classes-ex
-fi
+if path.exists("classes-ex") and NEED_DEX:
+  make_dex("classes-ex")
 
-if [ "${HAS_SMALI_EX}" = "true" -a ${NEED_DEX} = "true" ]; then
+if HAS_SMALI_EX and NEED_DEX:
   # Compile Smali classes
-  ${SMALI} -JXmx512m assemble ${SMALI_ARGS} --output smali_classes-ex.dex `find smali-ex -name '*.smali'`
-  if [[ ! -s smali_classes-ex.dex ]] ; then
-    fail "${SMALI} produced no output."
-  fi
+  smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
+        ["--output", "smali_classes-ex.dex"] + find("smali-ex", "*.smali"))
+  assert path.exists("smali_classes-ex.dex")
   # Merge smali files into classes-ex.dex.
-  make_dexmerge classes-ex.dex smali_classes-ex.dex
-fi
+  make_dexmerge("classes-ex.dex", "smali_classes-ex.dex")
 
-if [[ -f classes-ex.dex ]]; then
+if path.exists("classes-ex.dex"):
   # Apply hiddenapi on the dex files if the test has API list file(s).
-  if [ ${USE_HIDDENAPI} = "true" -a ${HAS_HIDDENAPI_SPEC} = "true" ]; then
-    make_hiddenapi classes-ex.dex
-  fi
+  if USE_HIDDENAPI and HAS_HIDDENAPI_SPEC:
+    make_hiddenapi("classes-ex.dex")
 
   # quick shuffle so that the stored name is "classes.dex"
-  mv classes.dex classes-1.dex
-  mv classes-ex.dex classes.dex
-  zip $TEST_NAME-ex.jar classes.dex
-  mv classes.dex classes-ex.dex
-  mv classes-1.dex classes.dex
-fi
+  os.rename("classes.dex", "classes-1.dex")
+  os.rename("classes-ex.dex", "classes.dex")
+  zip(TEST_NAME + "-ex.jar", "classes.dex")
+  os.rename("classes.dex", "classes-ex.dex")
+  os.rename("classes-1.dex", "classes.dex")
 
 # Apply hiddenapi on the dex files if the test has API list file(s).
-if [ ${NEED_DEX} = "true" -a ${USE_HIDDENAPI} = "true" -a ${HAS_HIDDENAPI_SPEC} = "true" ]; then
-  if $(has_multidex); then
-    make_hiddenapi classes.dex classes2.dex
-  else
-    make_hiddenapi classes.dex
-  fi
-fi
+if NEED_DEX and USE_HIDDENAPI and HAS_HIDDENAPI_SPEC:
+  if has_multidex():
+    make_hiddenapi("classes.dex", "classes2.dex")
+  else:
+    make_hiddenapi("classes.dex")
 
 # Create a single dex jar with two dex files for multidex.
-if [ ${NEED_DEX} = "true" ]; then
-  if [ -f classes2.dex ] ; then
-    zip $TEST_NAME.jar classes.dex classes2.dex
-  else
-    zip $TEST_NAME.jar classes.dex
-  fi
-fi
+if NEED_DEX:
+  if path.exists("classes2.dex"):
+    zip(TEST_NAME + ".jar", "classes.dex", "classes2.dex")
+  else:
+    zip(TEST_NAME + ".jar", "classes.dex")
