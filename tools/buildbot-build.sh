@@ -119,6 +119,9 @@ if [[ $build_target == "yes" ]]; then
   # These are built to go into system/lib(64) to be part of the system linker
   # namespace.
   make_command+=" libbacktrace libnetd_client-target libprocinfo libtombstoned_client libunwindstack"
+  # Extract jars from other APEX SDKs for use by vogar. Note these go into
+  # out/target/common/obj/JAVA_LIBRARIES which isn't removed by "m installclean".
+  make_command+=" conscrypt core-icu4j"
   make_command+=" ${ANDROID_PRODUCT_OUT#"${ANDROID_BUILD_TOP}/"}/system/etc/public.libraries.txt"
   # Targets required to generate a linker configuration for device within the
   # chroot environment. The *.libraries.txt targets are required by
