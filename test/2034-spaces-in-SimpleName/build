@@ -26,4 +26,4 @@ mkdir ../classes && mv Main.class ../classes/Main.class
 cd ..
 
 # Use API level 10000 for spaces in SimpleName
-DESUGAR=false ./default-build "$@" --api-level 10000
+USE_DESUGAR=false ./default-build "$@" --api-level 10000
