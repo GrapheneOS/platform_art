@@ -72,9 +72,6 @@ inline MirrorType* ReadBarrier::Barrier(
       }
       AssertToSpaceInvariant(obj, offset, ref);
       return ref;
-    } else if (kUseBrooksReadBarrier) {
-      // To be implemented.
-      return ref_addr->template AsMirrorPtr<kIsVolatile>();
     } else if (kUseTableLookupReadBarrier) {
       MirrorType* ref = ref_addr->template AsMirrorPtr<kIsVolatile>();
       MirrorType* old_ref = ref;
@@ -123,9 +120,6 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
       }
       AssertToSpaceInvariant(gc_root_source, ref);
       return ref;
-    } else if (kUseBrooksReadBarrier) {
-      // To be implemented.
-      return ref;
     } else if (kUseTableLookupReadBarrier) {
       Thread* self = Thread::Current();
       if (self != nullptr &&
@@ -163,9 +157,6 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
       ref = reinterpret_cast<MirrorType*>(Mark(ref));
     }
     AssertToSpaceInvariant(gc_root_source, ref);
-    return ref;
-  } else if (with_read_barrier && kUseBrooksReadBarrier) {
-    // To be implemented.
     return ref;
   } else if (with_read_barrier && kUseTableLookupReadBarrier) {
     Thread* self = Thread::Current();

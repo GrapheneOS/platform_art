@@ -61,8 +61,8 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	}
 
 	if !ctx.Config().IsEnvFalse("ART_USE_READ_BARRIER") && ctx.Config().ArtUseReadBarrier() {
-		// Used to change the read barrier type. Valid values are BAKER, BROOKS,
-		// TABLELOOKUP. The default is BAKER.
+		// Used to change the read barrier type. Valid values are BAKER, TABLELOOKUP.
+		// The default is BAKER.
 		barrierType := ctx.Config().GetenvWithDefault("ART_READ_BARRIER_TYPE", "BAKER")
 		cflags = append(cflags,
 			"-DART_USE_READ_BARRIER=1",
