@@ -24,14 +24,12 @@
 // Global (C) part.
 
 // Uncomment one of the following two and the two fields in
-// Object.java (libcore) to enable baker, brooks (unimplemented), or
+// Object.java (libcore) to enable baker, or
 // table-lookup read barriers.
 
 #ifdef ART_USE_READ_BARRIER
 #if ART_READ_BARRIER_TYPE_IS_BAKER
 #define USE_BAKER_READ_BARRIER
-#elif ART_READ_BARRIER_TYPE_IS_BROOKS
-#define USE_BROOKS_READ_BARRIER
 #elif ART_READ_BARRIER_TYPE_IS_TABLELOOKUP
 #define USE_TABLE_LOOKUP_READ_BARRIER
 #else
@@ -39,16 +37,8 @@
 #endif
 #endif  // ART_USE_READ_BARRIER
 
-#if defined(USE_BAKER_READ_BARRIER) || defined(USE_BROOKS_READ_BARRIER)
-#define USE_BAKER_OR_BROOKS_READ_BARRIER
-#endif
-
-#if defined(USE_BAKER_READ_BARRIER) || defined(USE_BROOKS_READ_BARRIER) || defined(USE_TABLE_LOOKUP_READ_BARRIER)
+#if defined(USE_BAKER_READ_BARRIER) || defined(USE_TABLE_LOOKUP_READ_BARRIER)
 #define USE_READ_BARRIER
-#endif
-
-#if defined(USE_BAKER_READ_BARRIER) && defined(USE_BROOKS_READ_BARRIER)
-#error "Only one of Baker or Brooks can be enabled at a time."
 #endif
 
 
@@ -64,21 +54,13 @@ static constexpr bool kUseBakerReadBarrier = true;
 static constexpr bool kUseBakerReadBarrier = false;
 #endif
 
-#ifdef USE_BROOKS_READ_BARRIER
-static constexpr bool kUseBrooksReadBarrier = true;
-#else
-static constexpr bool kUseBrooksReadBarrier = false;
-#endif
-
 #ifdef USE_TABLE_LOOKUP_READ_BARRIER
 static constexpr bool kUseTableLookupReadBarrier = true;
 #else
 static constexpr bool kUseTableLookupReadBarrier = false;
 #endif
 
-static constexpr bool kUseBakerOrBrooksReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier;
-static constexpr bool kUseReadBarrier =
-    kUseBakerReadBarrier || kUseBrooksReadBarrier || kUseTableLookupReadBarrier;
+static constexpr bool kUseReadBarrier = kUseBakerReadBarrier || kUseTableLookupReadBarrier;
 
 // Debugging flag that forces the generation of read barriers, but
 // does not trigger the use of the concurrent copying GC.

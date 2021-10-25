@@ -75,7 +75,7 @@ ObjPtr<mirror::Reference> ReferenceQueue::DequeuePendingReference() {
 // This must be called whenever DequeuePendingReference is called.
 void ReferenceQueue::DisableReadBarrierForReference(ObjPtr<mirror::Reference> ref) {
   Heap* heap = Runtime::Current()->GetHeap();
-  if (kUseBakerOrBrooksReadBarrier && heap->CurrentCollectorType() == kCollectorTypeCC &&
+  if (kUseBakerReadBarrier && heap->CurrentCollectorType() == kCollectorTypeCC &&
       heap->ConcurrentCopyingCollector()->IsActive()) {
     // Change the gray ptr we left in ConcurrentCopying::ProcessMarkStackRef() to non-gray.
     // We check IsActive() above because we don't want to do this when the zygote compaction
