@@ -644,6 +644,12 @@ if [ "$USE_JVMTI" = "y" ]; then
     # We used to add flags here that made the runtime debuggable but that is not
     # needed anymore since the plugin can do it for us now.
     FLAGS="${FLAGS} -Xplugin:${plugin}"
+
+    # For jvmti tests, set the threshold of compilation to 0, so we jit on the first
+    # use to provide better test coverage for jvmti + jit. This means we won't run
+    # the default --jit configuration but it is not too important test scenario for
+    # jvmti tests. This is art specific flag, so don't use it with jvm.
+    FLAGS="${FLAGS} -Xjitthreshold:0"
   fi
 fi
 
