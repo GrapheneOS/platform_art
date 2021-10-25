@@ -77,11 +77,11 @@ class BitTableBase {
     return table_data_.Subregion(offset, NumColumnBits(column));
   }
 
-  size_t NumRows() const { return num_rows_; }
+  uint32_t NumRows() const { return num_rows_; }
 
   uint32_t NumRowBits() const { return column_offset_[kNumColumns]; }
 
-  constexpr size_t NumColumns() const { return kNumColumns; }
+  constexpr uint32_t NumColumns() const { return kNumColumns; }
 
   uint32_t NumColumnBits(uint32_t column) const {
     return column_offset_[column + 1] - column_offset_[column];
@@ -97,7 +97,7 @@ class BitTableBase {
 
  protected:
   BitMemoryRegion table_data_;
-  size_t num_rows_ = 0;
+  uint32_t num_rows_ = 0;
   uint16_t column_offset_[kNumColumns + 1] = {};
 };
 
