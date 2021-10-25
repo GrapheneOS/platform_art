@@ -71,7 +71,7 @@ class Throwable;
 static constexpr bool kCheckFieldAssignments = false;
 
 // Size of Object.
-static constexpr uint32_t kObjectHeaderSize = kUseBrooksReadBarrier ? 16 : 8;
+static constexpr uint32_t kObjectHeaderSize = 8;
 
 // C++ mirror of java.lang.Object
 class MANAGED LOCKABLE Object {
@@ -774,14 +774,6 @@ class MANAGED LOCKABLE Object {
   HeapReference<Class> klass_;
   // Monitor and hash code information.
   uint32_t monitor_;
-
-#ifdef USE_BROOKS_READ_BARRIER
-  // Note names use a 'x' prefix and the x_rb_ptr_ is of type int
-  // instead of Object to go with the alphabetical/by-type field order
-  // on the Java side.
-  uint32_t x_rb_ptr_;      // For the Brooks pointer.
-  uint32_t x_xpadding_;    // For 8-byte alignment. TODO: get rid of this.
-#endif
 
   friend class art::Monitor;
   friend struct art::ObjectOffsets;  // for verifying offset information
