@@ -2331,7 +2331,7 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
         // TODO: Temporary; remove this when this is no longer needed (b/116087961).
         << " runtime->sentinel=" << Runtime::Current()->GetSentinel().Read<kWithoutReadBarrier>();
   }
-#ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
+#ifdef USE_BAKER_READ_BARRIER
   mirror::Object* referent = nullptr;
   if (UNLIKELY((to_ref->GetClass<kVerifyNone, kWithoutReadBarrier>()->IsTypeOfReferenceClass() &&
                 (referent = to_ref->AsReference()->GetReferent<kWithoutReadBarrier>()) != nullptr &&
