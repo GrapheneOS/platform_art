@@ -141,6 +141,9 @@ fi
 if [[ $installclean == "yes" ]]; then
   echo "Perform installclean"
   ANDROID_QUIET_BUILD=true build/soong/soong_ui.bash --make-mode $extra_args installclean
+  # The common java library directory is not cleaned up by installclean. Do that
+  # explicitly to not overcache them in incremental builds.
+  rm -rf $java_libraries_dir
 else
   echo "WARNING: Missing --installclean argument to buildbot-build.sh"
   echo "WARNING: This is usually ok, but may cause rare odd failures."
