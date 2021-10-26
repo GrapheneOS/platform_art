@@ -314,17 +314,24 @@ class Jit {
   void MethodEntered(Thread* thread, ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void AddSamples(Thread* self, ArtMethod* method)
+  ALWAYS_INLINE void AddSamples(Thread* self,
+                                ArtMethod* method,
+                                uint16_t samples,
+                                bool with_backedges)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void NotifyInterpreterToCompiledCodeTransition(Thread* self, ArtMethod* caller)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    AddSamples(self, caller);
+    if (!IgnoreSamplesForMethod(caller)) {
+      AddSamples(self, caller, options_->GetInvokeTransitionWeight(), false);
+    }
   }
 
   void NotifyCompiledCodeToInterpreterTransition(Thread* self, ArtMethod* callee)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    AddSamples(self, callee);
+    if (!IgnoreSamplesForMethod(callee)) {
+      AddSamples(self, callee, options_->GetInvokeTransitionWeight(), false);
+    }
   }
 
   // Starts the profile saver if the config options allow profile recording.
@@ -353,6 +360,9 @@ class Jit {
 
   // Return whether we can invoke JIT code for `method`.
   bool CanInvokeCompiledCode(ArtMethod* method);
+
+  // Return whether the runtime should use a priority thread weight when sampling.
+  static bool ShouldUsePriorityThreadWeight(Thread* self);
 
   // Return the information required to do an OSR jump. Return null if the OSR
   // cannot be done.
@@ -443,7 +453,7 @@ class Jit {
 
   void EnqueueOptimizedCompilation(ArtMethod* method, Thread* self);
 
-  void EnqueueCompilation(ArtMethod* method, Thread* self)
+  void EnqueueCompilationFromNterp(ArtMethod* method, Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
@@ -462,6 +472,15 @@ class Jit {
                                 Handle<mirror::ClassLoader> class_loader,
                                 bool add_to_queue,
                                 bool compile_after_boot)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Compile the method if the number of samples passes a threshold.
+  // Returns false if we can not compile now - don't increment the counter and retry later.
+  bool MaybeCompileMethod(Thread* self,
+                          ArtMethod* method,
+                          uint32_t old_count,
+                          uint32_t new_count,
+                          bool with_backedges)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool BindCompilerMethods(std::string* error_msg);
