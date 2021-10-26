@@ -2612,6 +2612,16 @@ bool ClassLinker::FindClassInSharedLibraries(ScopedObjectAccessAlreadyRunnable& 
                                              /*out*/ ObjPtr<mirror::Class>* result) {
   ArtField* field =
       jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders);
+  return FindClassInSharedLibrariesHelper(soa, self, descriptor, hash, class_loader, field, result);
+}
+
+bool ClassLinker::FindClassInSharedLibrariesHelper(ScopedObjectAccessAlreadyRunnable& soa,
+                                                   Thread* self,
+                                                   const char* descriptor,
+                                                   size_t hash,
+                                                   Handle<mirror::ClassLoader> class_loader,
+                                                   ArtField* field,
+                                                   /*out*/ ObjPtr<mirror::Class>* result) {
   ObjPtr<mirror::Object> raw_shared_libraries = field->GetObject(class_loader.Get());
   if (raw_shared_libraries == nullptr) {
     return true;
@@ -2629,6 +2639,17 @@ bool ClassLinker::FindClassInSharedLibraries(ScopedObjectAccessAlreadyRunnable& 
         self);
   }
   return true;
+}
+
+bool ClassLinker::FindClassInSharedLibrariesAfter(ScopedObjectAccessAlreadyRunnable& soa,
+                                                  Thread* self,
+                                                  const char* descriptor,
+                                                  size_t hash,
+                                                  Handle<mirror::ClassLoader> class_loader,
+                                                  /*out*/ ObjPtr<mirror::Class>* result) {
+  ArtField* field = jni::DecodeArtField(
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter);
+  return FindClassInSharedLibrariesHelper(soa, self, descriptor, hash, class_loader, field, result);
 }
 
 bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
@@ -2665,6 +2686,10 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
         FindClassInBaseDexClassLoaderClassPath(soa, descriptor, hash, class_loader, result),
         *result,
         self);
+    RETURN_IF_UNRECOGNIZED_OR_FOUND_OR_EXCEPTION(
+        FindClassInSharedLibrariesAfter(soa, self, descriptor, hash, class_loader, result),
+        *result,
+        self);
     // We did not find a class, but the class loader chain was recognized, so we
     // return true.
     return true;
@@ -2684,6 +2709,10 @@ bool ClassLinker::FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnabl
         self);
     RETURN_IF_UNRECOGNIZED_OR_FOUND_OR_EXCEPTION(
         FindClassInBaseDexClassLoaderClassPath(soa, descriptor, hash, class_loader, result),
+        *result,
+        self);
+    RETURN_IF_UNRECOGNIZED_OR_FOUND_OR_EXCEPTION(
+        FindClassInSharedLibrariesAfter(soa, self, descriptor, hash, class_loader, result),
         *result,
         self);
 
@@ -9839,7 +9868,8 @@ ObjPtr<mirror::ClassLoader> ClassLinker::CreateWellKnownClassLoader(
     const std::vector<const DexFile*>& dex_files,
     Handle<mirror::Class> loader_class,
     Handle<mirror::ClassLoader> parent_loader,
-    Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries) {
+    Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries,
+    Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries_after) {
 
   StackHandleScope<5> hs(self);
 
@@ -9959,6 +9989,12 @@ ObjPtr<mirror::ClassLoader> ClassLinker::CreateWellKnownClassLoader(
   DCHECK(shared_libraries_field != nullptr);
   shared_libraries_field->SetObject<false>(h_class_loader.Get(), shared_libraries.Get());
 
+  ArtField* shared_libraries_after_field =
+        jni::DecodeArtField(
+        WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter);
+  DCHECK(shared_libraries_after_field != nullptr);
+  shared_libraries_after_field->SetObject<false>(h_class_loader.Get(),
+                                                 shared_libraries_after.Get());
   return h_class_loader.Get();
 }
 
@@ -9966,7 +10002,8 @@ jobject ClassLinker::CreateWellKnownClassLoader(Thread* self,
                                                 const std::vector<const DexFile*>& dex_files,
                                                 jclass loader_class,
                                                 jobject parent_loader,
-                                                jobject shared_libraries) {
+                                                jobject shared_libraries,
+                                                jobject shared_libraries_after) {
   CHECK(self->GetJniEnv()->IsSameObject(loader_class,
                                         WellKnownClasses::dalvik_system_PathClassLoader) ||
         self->GetJniEnv()->IsSameObject(loader_class,
@@ -9979,7 +10016,7 @@ jobject ClassLinker::CreateWellKnownClassLoader(Thread* self,
   ScopedObjectAccessUnchecked soa(self);
 
   // For now, create a libcore-level DexFile for each ART DexFile. This "explodes" multidex.
-  StackHandleScope<4> hs(self);
+  StackHandleScope<5> hs(self);
 
   Handle<mirror::Class> h_loader_class =
       hs.NewHandle<mirror::Class>(soa.Decode<mirror::Class>(loader_class));
@@ -9987,13 +10024,16 @@ jobject ClassLinker::CreateWellKnownClassLoader(Thread* self,
       hs.NewHandle<mirror::ClassLoader>(soa.Decode<mirror::ClassLoader>(parent_loader));
   Handle<mirror::ObjectArray<mirror::ClassLoader>> h_shared_libraries =
       hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::ClassLoader>>(shared_libraries));
+  Handle<mirror::ObjectArray<mirror::ClassLoader>> h_shared_libraries_after =
+        hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::ClassLoader>>(shared_libraries_after));
 
   ObjPtr<mirror::ClassLoader> loader = CreateWellKnownClassLoader(
       self,
       dex_files,
       h_loader_class,
       h_parent,
-      h_shared_libraries);
+      h_shared_libraries,
+      h_shared_libraries_after);
 
   // Make it a global ref and return.
   ScopedLocalRef<jobject> local_ref(
