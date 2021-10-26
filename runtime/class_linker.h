@@ -665,7 +665,8 @@ class ClassLinker {
                                      const std::vector<const DexFile*>& dex_files,
                                      jclass loader_class,
                                      jobject parent_loader,
-                                     jobject shared_libraries = nullptr)
+                                     jobject shared_libraries = nullptr,
+                                     jobject shared_libraries_after = nullptr)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
@@ -683,7 +684,8 @@ class ClassLinker {
       const std::vector<const DexFile*>& dex_files,
       Handle<mirror::Class> loader_class,
       Handle<mirror::ClassLoader> parent_loader,
-      Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries)
+      Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries,
+      Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries_after)
           REQUIRES_SHARED(Locks::mutator_lock_)
           REQUIRES(!Locks::dex_lock_);
 
@@ -1012,6 +1014,25 @@ class ClassLinker {
                                   size_t hash,
                                   Handle<mirror::ClassLoader> class_loader,
                                   /*out*/ ObjPtr<mirror::Class>* result)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_);
+
+  bool FindClassInSharedLibrariesHelper(ScopedObjectAccessAlreadyRunnable& soa,
+                                        Thread* self,
+                                        const char* descriptor,
+                                        size_t hash,
+                                        Handle<mirror::ClassLoader> class_loader,
+                                        ArtField* field,
+                                        /*out*/ ObjPtr<mirror::Class>* result)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_);
+
+  bool FindClassInSharedLibrariesAfter(ScopedObjectAccessAlreadyRunnable& soa,
+                                       Thread* self,
+                                       const char* descriptor,
+                                       size_t hash,
+                                       Handle<mirror::ClassLoader> class_loader,
+                                       /*out*/ ObjPtr<mirror::Class>* result)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
