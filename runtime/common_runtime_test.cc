@@ -255,7 +255,8 @@ jobject
 CommonRuntimeTestImpl::LoadDexInWellKnownClassLoader(const std::vector<std::string>& dex_names,
                                                      jclass loader_class,
                                                      jobject parent_loader,
-                                                     jobject shared_libraries) {
+                                                     jobject shared_libraries,
+                                                     jobject shared_libraries_after) {
   std::vector<const DexFile*> class_path;
   for (const std::string& dex_name : dex_names) {
     std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name.c_str());
@@ -273,7 +274,8 @@ CommonRuntimeTestImpl::LoadDexInWellKnownClassLoader(const std::vector<std::stri
       class_path,
       loader_class,
       parent_loader,
-      shared_libraries);
+      shared_libraries,
+      shared_libraries_after);
 
   {
     // Verify we build the correct chain.
@@ -301,19 +303,23 @@ CommonRuntimeTestImpl::LoadDexInWellKnownClassLoader(const std::vector<std::stri
 
 jobject CommonRuntimeTestImpl::LoadDexInPathClassLoader(const std::string& dex_name,
                                                         jobject parent_loader,
-                                                        jobject shared_libraries) {
+                                                        jobject shared_libraries,
+                                                        jobject shared_libraries_after) {
   return LoadDexInPathClassLoader(std::vector<std::string>{ dex_name },
                                   parent_loader,
-                                  shared_libraries);
+                                  shared_libraries,
+                                  shared_libraries_after);
 }
 
 jobject CommonRuntimeTestImpl::LoadDexInPathClassLoader(const std::vector<std::string>& names,
                                                         jobject parent_loader,
-                                                        jobject shared_libraries) {
+                                                        jobject shared_libraries,
+                                                        jobject shared_libraries_after) {
   return LoadDexInWellKnownClassLoader(names,
                                        WellKnownClasses::dalvik_system_PathClassLoader,
                                        parent_loader,
-                                       shared_libraries);
+                                       shared_libraries,
+                                       shared_libraries_after);
 }
 
 jobject CommonRuntimeTestImpl::LoadDexInDelegateLastClassLoader(const std::string& dex_name,
