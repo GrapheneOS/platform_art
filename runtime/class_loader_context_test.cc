@@ -77,6 +77,15 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
         classpath);
   }
 
+  void VerifyClassLoaderSharedLibraryPCLAfter(ClassLoaderContext* context,
+                                              size_t loader_index,
+                                              size_t shared_library_index,
+                                              const std::string& classpath) {
+    VerifyClassLoaderInfoSLAfter(
+        context, loader_index, shared_library_index, ClassLoaderContext::kPathClassLoader,
+        classpath);
+  }
+
   void VerifyClassLoaderSharedLibraryIMC(ClassLoaderContext* context,
                                          size_t loader_index,
                                          size_t shared_library_index,
@@ -356,7 +365,25 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
     ASSERT_GT(info.shared_libraries.size(), shared_library_index);
     const ClassLoaderContext::ClassLoaderInfo& sl =
         *info.shared_libraries[shared_library_index].get();
-    ASSERT_EQ(type, info.type);
+    ASSERT_EQ(type, sl.type);
+    std::vector<std::string> expected_classpath;
+    Split(classpath, ':', &expected_classpath);
+    ASSERT_EQ(expected_classpath, sl.classpath);
+  }
+
+  void VerifyClassLoaderInfoSLAfter(ClassLoaderContext* context,
+                               size_t loader_index,
+                               size_t shared_library_index,
+                               ClassLoaderContext::ClassLoaderType type,
+                               const std::string& classpath) {
+    ASSERT_TRUE(context != nullptr);
+    ASSERT_GT(context->GetParentChainSize(), loader_index);
+    const ClassLoaderContext::ClassLoaderInfo& info = *context->GetParent(loader_index);
+    ASSERT_GT(info.shared_libraries_after.size(), shared_library_index);
+
+    const ClassLoaderContext::ClassLoaderInfo& sl =
+        *info.shared_libraries_after[shared_library_index].get();
+    ASSERT_EQ(type, sl.type);
     std::vector<std::string> expected_classpath;
     Split(classpath, ':', &expected_classpath);
     ASSERT_EQ(expected_classpath, sl.classpath);
@@ -437,10 +464,13 @@ TEST_F(ClassLoaderContextTest, ParseValidContextChain) {
 
 TEST_F(ClassLoaderContextTest, ParseSharedLibraries) {
   std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create(
-      "PCL[a.dex:b.dex]{PCL[s1.dex]#PCL[s2.dex:s3.dex]};DLC[c.dex:d.dex]{DLC[s4.dex]}");
+      "PCL[a.dex:b.dex]{PCL[s1.dex]#PCL[s2.dex:s3.dex]#~PCL[s5.dex]#~PCL[s6.dex:s7.dex]};"
+      "DLC[c.dex:d.dex]{DLC[s4.dex]}");
   VerifyContextSize(context.get(), 2);
   VerifyClassLoaderSharedLibraryPCL(context.get(), 0, 0, "s1.dex");
   VerifyClassLoaderSharedLibraryPCL(context.get(), 0, 1, "s2.dex:s3.dex");
+  VerifyClassLoaderSharedLibraryPCLAfter(context.get(), 0, 0, "s5.dex");
+  VerifyClassLoaderSharedLibraryPCLAfter(context.get(), 0, 1, "s6.dex:s7.dex");
   VerifyClassLoaderDLC(context.get(), 1, "c.dex:d.dex");
   VerifyClassLoaderSharedLibraryDLC(context.get(), 1, 0, "s4.dex");
 }

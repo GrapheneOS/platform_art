@@ -82,7 +82,8 @@ static bool LoadDexFiles(const std::string& path,
       MakeNonOwningPointerVector(*dex_files),
       h_class,
       /* parent_loader= */ ScopedNullHandle<mirror::ClassLoader>(),
-      /* shared_libraries= */ ScopedNullHandle<mirror::ObjectArray<mirror::ClassLoader>>()));
+      /* shared_libraries= */ ScopedNullHandle<mirror::ObjectArray<mirror::ClassLoader>>(),
+      /* shared_libraries_after= */ ScopedNullHandle<mirror::ObjectArray<mirror::ClassLoader>>()));
   for (const auto& dex_file : *dex_files) {
     linker->RegisterDexFile(*dex_file.get(), h_loader.Get());
   }
