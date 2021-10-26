@@ -16,8 +16,8 @@
 
 public final class Main {
 
-  /// CHECK-START: void Main.main(String[]) builder (after)
-  /// CHECK: StaticFieldGet klass:Main[] exact: true
+  /// CHECK-START: void Main.main(java.lang.String[]) builder (after)
+  /// CHECK: StaticFieldGet klass:Main[] exact:true
   /// CHECK: ArrayGet klass:Main exact:true
   /// CHECK: BoundType klass:Main exact:true
   public static void main(String[] args) {
