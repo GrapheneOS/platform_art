@@ -32,7 +32,6 @@
 #include "dex/dex_file_structs.h"
 #include "dex/modifiers.h"
 #include "dex/primitive.h"
-#include "interpreter/mterp/nterp.h"
 #include "gc_root.h"
 #include "obj_ptr.h"
 #include "offsets.h"
@@ -76,7 +75,7 @@ class ArtMethod final {
   static constexpr uint32_t kRuntimeMethodDexMethodIndex = 0xFFFFFFFF;
 
   ArtMethod() : access_flags_(0), dex_method_index_(0),
-      method_index_(0), hotness_count_(interpreter::kNterpHotnessMask) { }
+      method_index_(0), hotness_count_(0) { }
 
   ArtMethod(ArtMethod* src, PointerSize image_pointer_size) {
     CopyFrom(src, image_pointer_size);
@@ -684,12 +683,9 @@ class ArtMethod final {
   void CopyFrom(ArtMethod* src, PointerSize image_pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void ResetCounter();
-  ALWAYS_INLINE void UpdateCounter(int32_t new_samples);
-  ALWAYS_INLINE void SetHotCounter();
-  ALWAYS_INLINE bool CounterIsHot();
+  ALWAYS_INLINE void SetCounter(uint16_t hotness_count);
+
   ALWAYS_INLINE uint16_t GetCounter();
-  ALWAYS_INLINE bool CounterHasChanged();
 
   ALWAYS_INLINE static constexpr uint16_t MaxCounter() {
     return std::numeric_limits<decltype(hotness_count_)>::max();
