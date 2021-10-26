@@ -143,6 +143,7 @@ struct WellKnownClasses {
 
   static jfieldID dalvik_system_BaseDexClassLoader_pathList;
   static jfieldID dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
+  static jfieldID dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
   static jfieldID dalvik_system_DexFile_cookie;
   static jfieldID dalvik_system_DexFile_fileName;
   static jfieldID dalvik_system_DexPathList_dexElements;
