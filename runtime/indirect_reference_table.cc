@@ -66,11 +66,59 @@ void IndirectReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
   }
 }
 
+// Mmap an "indirect ref table region. Table_bytes is a multiple of a page size.
+static inline MemMap NewIRTMap(size_t table_bytes, std::string* error_msg) {
+  MemMap result = MemMap::MapAnonymous("indirect ref table",
+                                       table_bytes,
+                                       PROT_READ | PROT_WRITE,
+                                       /*low_4gb=*/ false,
+                                       error_msg);
+  if (!result.IsValid() && error_msg->empty()) {
+      *error_msg = "Unable to map memory for indirect ref table";
+  }
+  return result;
+}
+
+SmallIrtAllocator::SmallIrtAllocator()
+    : small_irt_freelist_(nullptr), lock_("Small IRT table lock") {
+}
+
+// Allocate an IRT table for kSmallIrtEntries.
+IrtEntry* SmallIrtAllocator::Allocate(std::string* error_msg) {
+  MutexLock lock(Thread::Current(), lock_);
+  if (small_irt_freelist_ == nullptr) {
+    // Refill.
+    MemMap map = NewIRTMap(kPageSize, error_msg);
+    if (map.IsValid()) {
+      small_irt_freelist_ = reinterpret_cast<IrtEntry*>(map.Begin());
+      for (uint8_t* p = map.Begin(); p + kInitialIrtBytes < map.End(); p += kInitialIrtBytes) {
+        *reinterpret_cast<IrtEntry**>(p) = reinterpret_cast<IrtEntry*>(p + kInitialIrtBytes);
+      }
+      shared_irt_maps_.emplace_back(std::move(map));
+    }
+  }
+  if (small_irt_freelist_ == nullptr) {
+    return nullptr;
+  }
+  IrtEntry* result = small_irt_freelist_;
+  small_irt_freelist_ = *reinterpret_cast<IrtEntry**>(small_irt_freelist_);
+  // Clear pointer in first entry.
+  new(result) IrtEntry();
+  return result;
+}
+
+void SmallIrtAllocator::Deallocate(IrtEntry* unneeded) {
+  MutexLock lock(Thread::Current(), lock_);
+  *reinterpret_cast<IrtEntry**>(unneeded) = small_irt_freelist_;
+  small_irt_freelist_ = unneeded;
+}
+
 IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
                                                IndirectRefKind desired_kind,
                                                ResizableCapacity resizable,
                                                std::string* error_msg)
     : segment_state_(kIRTFirstSegment),
+      table_(nullptr),
       kind_(desired_kind),
       max_entries_(max_count),
       current_num_holes_(0),
@@ -81,28 +129,36 @@ IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
   // Overflow and maximum check.
   CHECK_LE(max_count, kMaxTableSizeInBytes / sizeof(IrtEntry));
 
-  const size_t table_bytes = RoundUp(max_count * sizeof(IrtEntry), kPageSize);
-  table_mem_map_ = MemMap::MapAnonymous("indirect ref table",
-                                        table_bytes,
-                                        PROT_READ | PROT_WRITE,
-                                        /*low_4gb=*/ false,
-                                        error_msg);
-  if (!table_mem_map_.IsValid() && error_msg->empty()) {
-    *error_msg = "Unable to map memory for indirect ref table";
+  if (max_entries_ <= kSmallIrtEntries) {
+    table_ = Runtime::Current()->GetSmallIrtAllocator()->Allocate(error_msg);
+    if (table_ != nullptr) {
+      max_entries_ = kSmallIrtEntries;
+      // table_mem_map_ remains invalid.
+    }
   }
+  if (table_ == nullptr) {
+    const size_t table_bytes = RoundUp(max_count * sizeof(IrtEntry), kPageSize);
+    table_mem_map_ = NewIRTMap(table_bytes, error_msg);
+    if (!table_mem_map_.IsValid() && error_msg->empty()) {
+      *error_msg = "Unable to map memory for indirect ref table";
+    }
 
-  if (table_mem_map_.IsValid()) {
-    table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
-  } else {
-    table_ = nullptr;
+    if (table_mem_map_.IsValid()) {
+      table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
+    } else {
+      table_ = nullptr;
+    }
+    // Take into account the actual length.
+    max_entries_ = table_bytes / sizeof(IrtEntry);
   }
   segment_state_ = kIRTFirstSegment;
   last_known_previous_state_ = kIRTFirstSegment;
-  // Take into account the actual length.
-  max_entries_ = table_bytes / sizeof(IrtEntry);
 }
 
 IndirectReferenceTable::~IndirectReferenceTable() {
+  if (table_ != nullptr && !table_mem_map_.IsValid()) {
+    Runtime::Current()->GetSmallIrtAllocator()->Deallocate(table_);
+  }
 }
 
 void IndirectReferenceTable::ConstexprChecks() {
@@ -134,7 +190,7 @@ void IndirectReferenceTable::ConstexprChecks() {
 }
 
 bool IndirectReferenceTable::IsValid() const {
-  return table_mem_map_.IsValid();
+  return table_ != nullptr;
 }
 
 // Holes:
@@ -226,16 +282,17 @@ bool IndirectReferenceTable::Resize(size_t new_size, std::string* error_msg) {
   // Note: the above check also ensures that there is no overflow below.
 
   const size_t table_bytes = RoundUp(new_size * sizeof(IrtEntry), kPageSize);
-  MemMap new_map = MemMap::MapAnonymous("indirect ref table",
-                                        table_bytes,
-                                        PROT_READ | PROT_WRITE,
-                                        /*low_4gb=*/ false,
-                                        error_msg);
+
+  MemMap new_map = NewIRTMap(table_bytes, error_msg);
   if (!new_map.IsValid()) {
     return false;
   }
 
-  memcpy(new_map.Begin(), table_mem_map_.Begin(), table_mem_map_.Size());
+  memcpy(new_map.Begin(), table_, max_entries_ * sizeof(IrtEntry));
+  if (!table_mem_map_.IsValid()) {
+    // Didn't have its own map; deallocate old table.
+    Runtime::Current()->GetSmallIrtAllocator()->Deallocate(table_);
+  }
   table_mem_map_ = std::move(new_map);
   table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
   const size_t real_new_size = table_bytes / sizeof(IrtEntry);
@@ -455,13 +512,19 @@ bool IndirectReferenceTable::Remove(IRTSegmentState previous_state, IndirectRef 
 
 void IndirectReferenceTable::Trim() {
   ScopedTrace trace(__PRETTY_FUNCTION__);
+  if (!table_mem_map_.IsValid()) {
+    // Small table; nothing to do here.
+    return;
+  }
   const size_t top_index = Capacity();
   uint8_t* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table_[top_index]), kPageSize);
   uint8_t* release_end = static_cast<uint8_t*>(table_mem_map_.BaseEnd());
   DCHECK_GE(reinterpret_cast<uintptr_t>(release_end), reinterpret_cast<uintptr_t>(release_start));
   DCHECK_ALIGNED(release_end, kPageSize);
   DCHECK_ALIGNED(release_end - release_start, kPageSize);
-  madvise(release_start, release_end - release_start, MADV_DONTNEED);
+  if (release_start != release_end) {
+    madvise(release_start, release_end - release_start, MADV_DONTNEED);
+  }
 }
 
 void IndirectReferenceTable::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
