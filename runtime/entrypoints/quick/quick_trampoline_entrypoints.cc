@@ -874,9 +874,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
     }
   } else if (instr->HasMethodExitListeners()) {
     instr->MethodExitEvent(self,
-                           soa.Decode<mirror::Object>(rcvr_jobj),
                            proxy_method,
-                           0,
                            {},
                            result);
   }

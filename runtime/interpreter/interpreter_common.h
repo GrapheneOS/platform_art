@@ -141,9 +141,7 @@ template <typename T> bool SendMethodExitEvents(
     Thread* self,
     const instrumentation::Instrumentation* instrumentation,
     ShadowFrame& frame,
-    ObjPtr<mirror::Object> thiz,
     ArtMethod* method,
-    uint32_t dex_pc,
     T& result) REQUIRES_SHARED(Locks::mutator_lock_);
 
 static inline ALWAYS_INLINE WARN_UNUSED bool
@@ -198,12 +196,10 @@ static inline ALWAYS_INLINE void PerformNonStandardReturn(
       ShadowFrame& frame,
       JValue& result,
       const instrumentation::Instrumentation* instrumentation,
-      uint16_t num_dex_inst,
-      uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_) {
+      uint16_t num_dex_inst) REQUIRES_SHARED(Locks::mutator_lock_) {
   static constexpr bool kMonitorCounting = (kMonitorState == MonitorState::kCountingMonitors);
   ObjPtr<mirror::Object> thiz(frame.GetThisObject(num_dex_inst));
   StackHandleScope<1u> hs(self);
-  Handle<mirror::Object> h_thiz(hs.NewHandle(thiz));
   if (UNLIKELY(self->IsExceptionPending())) {
     LOG(WARNING) << "Suppressing exception for non-standard method exit: "
                  << self->GetException()->Dump();
@@ -215,8 +211,7 @@ static inline ALWAYS_INLINE void PerformNonStandardReturn(
   DoMonitorCheckOnExit<kMonitorCounting>(self, &frame);
   result = JValue();
   if (UNLIKELY(NeedsMethodExitEvent(instrumentation))) {
-    SendMethodExitEvents(
-        self, instrumentation, frame, h_thiz.Get(), frame.GetMethod(), dex_pc, result);
+    SendMethodExitEvents(self, instrumentation, frame, frame.GetMethod(), result);
   }
 }
 
