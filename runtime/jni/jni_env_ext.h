@@ -37,10 +37,6 @@ namespace mirror {
 class Object;
 }  // namespace mirror
 
-// Number of local references in the indirect reference table. The value is arbitrary but
-// low enough that it forces integrity checks.
-static constexpr size_t kLocalsInitial = 512;
-
 class JNIEnvExt : public JNIEnv {
  public:
   // Creates a new JNIEnvExt. Returns null on error, in which case error_msg
