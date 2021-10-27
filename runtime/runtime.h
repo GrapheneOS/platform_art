@@ -107,6 +107,7 @@ class Plugin;
 struct RuntimeArgumentMap;
 class RuntimeCallbacks;
 class SignalCatcher;
+class SmallIrtAllocator;
 class StackOverflowHandler;
 class SuspensionHandler;
 class ThreadList;
@@ -322,6 +323,10 @@ class Runtime {
 
   ClassLinker* GetClassLinker() const {
     return class_linker_;
+  }
+
+  SmallIrtAllocator* GetSmallIrtAllocator() const {
+    return small_irt_allocator_;
   }
 
   jni::JniIdManager* GetJniIdManager() const {
@@ -1197,6 +1202,8 @@ class Runtime {
   ClassLinker* class_linker_;
 
   SignalCatcher* signal_catcher_;
+
+  SmallIrtAllocator* small_irt_allocator_;
 
   std::unique_ptr<jni::JniIdManager> jni_id_manager_;
 
