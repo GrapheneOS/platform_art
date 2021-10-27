@@ -347,12 +347,9 @@ void InlineInfo::Dump(VariableIndentationOutputStream* vios,
     ScopedObjectAccess soa(Thread::Current());
     vios->Stream() << ", method=" << GetArtMethod()->PrettyMethod();
   } else {
-    MethodInfo method_info = code_info.GetMethodInfoOf(*this);
-    vios->Stream() << std::dec << ", method_index=" << method_info.GetMethodIndex();
-    if (method_info.HasDexFileIndex()) {
-      vios->Stream() << std::dec
-                     << ", boot_class_path_dex_file_index=" << method_info.GetDexFileIndex();
-    }
+    vios->Stream()
+        << std::dec
+        << ", method_index=" << code_info.GetMethodIndexOf(*this);
   }
   vios->Stream() << ")\n";
   code_info.GetInlineDexRegisterMapOf(stack_map, *this).Dump(vios);
