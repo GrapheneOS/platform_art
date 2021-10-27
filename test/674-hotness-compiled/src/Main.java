@@ -29,25 +29,23 @@ public class Main {
     if (!isAotCompiled(Main.class, "main")) {
       return;
     }
-    int counter = getHotnessCounter(Main.class, "$noinline$hotnessCount");
     $noinline$hotnessCount();
-    int newCounter = getHotnessCounter(Main.class, "$noinline$hotnessCount");
-    if (counter == newCounter) {
+    int counter = getHotnessCounter(Main.class, "$noinline$hotnessCount");
+    if (counter == 0) {
       throw new Error("Expected hotness counter to be updated");
     }
 
-    counter = getHotnessCounter(Main.class, "$noinline$hotnessCountWithLoop");
     $noinline$hotnessCountWithLoop(1000);
-    newCounter = getHotnessCounter(Main.class, "$noinline$hotnessCountWithLoop");
-    if (newCounter == counter) {
-      throw new Error("Expected counter " + newCounter + " to be different than " + counter);
+    int newCounter = getHotnessCounter(Main.class, "$noinline$hotnessCountWithLoop");
+    if (newCounter <= counter) {
+      throw new Error("Expected counter " + newCounter + " to be larger than " + counter);
     }
     counter = newCounter;
 
     $noinline$hotnessCountWithLoop(65500);
     newCounter = getHotnessCounter(Main.class, "$noinline$hotnessCountWithLoop");
-    if (newCounter == counter) {
-      throw new Error("Expected counter " + newCounter + " to be different than " + counter);
+    if (newCounter <= counter) {
+      throw new Error("Expected counter " + newCounter + " to be larger than " + counter);
     }
   }
 
