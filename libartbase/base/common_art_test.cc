@@ -16,23 +16,23 @@
 
 #include "common_art_test.h"
 
-#include <cstdio>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <fcntl.h>
-#include <filesystem>
 #include <ftw.h>
 #include <libgen.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#include <cstdio>
+#include <filesystem>
+
 #include "android-base/file.h"
 #include "android-base/logging.h"
-#include "nativehelper/scoped_local_ref.h"
-
+#include "android-base/process.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android-base/unique_fd.h"
-
 #include "art_field-inl.h"
 #include "base/file_utils.h"
 #include "base/logging.h"
@@ -49,6 +49,8 @@
 #include "dex/dex_file_loader.h"
 #include "dex/primitive.h"
 #include "gtest/gtest.h"
+#include "nativehelper/scoped_local_ref.h"
+#include "procinfo/process.h"
 
 namespace art {
 
@@ -673,6 +675,21 @@ CommonArtTestImpl::ForkAndExecResult CommonArtTestImpl::ForkAndExec(
     *output += std::string(buf, len);
   };
   return ForkAndExec(argv, post_fork, string_collect_fn);
+}
+
+std::vector<pid_t> GetPidByName(const std::string& process_name) {
+  std::vector<pid_t> results;
+  for (pid_t pid : android::base::AllPids{}) {
+    android::procinfo::ProcessInfo process_info;
+    std::string error;
+    if (!android::procinfo::GetProcessInfo(pid, &process_info, &error)) {
+      continue;
+    }
+    if (process_info.name == process_name) {
+      results.push_back(pid);
+    }
+  }
+  return results;
 }
 
 }  // namespace art
