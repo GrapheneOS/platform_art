@@ -1286,6 +1286,18 @@ void CodeGeneratorX86_64::LoadIntrinsicDeclaringClass(CpuRegister reg, HInvoke* 
   }
 }
 
+void CodeGeneratorX86_64::LoadClassRootForIntrinsic(CpuRegister reg, ClassRoot class_root) {
+  if (GetCompilerOptions().IsBootImage()) {
+    ScopedObjectAccess soa(Thread::Current());
+    ObjPtr<mirror::Class> klass = GetClassRoot(class_root);
+    boot_image_type_patches_.emplace_back(&klass->GetDexFile(), klass->GetDexTypeIndex().index_);
+    __ Bind(&boot_image_type_patches_.back().label);
+  } else {
+    uint32_t boot_image_offset = GetBootImageOffset(class_root);
+    LoadBootImageAddress(reg, boot_image_offset);
+  }
+}
+
 // The label points to the end of the "movl" or another instruction but the literal offset
 // for method patch needs to point to the embedded constant which occupies the last 4 bytes.
 constexpr uint32_t kLabelPositionToLiteralOffsetAdjustment = 4u;
