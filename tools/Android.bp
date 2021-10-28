@@ -122,6 +122,6 @@ python_binary_host {
     },
     test_suites: [
         "general-tests",
-        "mts",
+        "mts-art",
     ],
 }
