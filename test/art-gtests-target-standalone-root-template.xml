@@ -14,7 +14,7 @@
      limitations under the License.
 -->
 <!-- Note: This test config file for {MODULE} is generated from a template. -->
-<configuration description="Runs {MODULE}.">
+<configuration description="Runs {MODULE} as root.">
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
