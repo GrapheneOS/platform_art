@@ -33,7 +33,10 @@ class Super implements Interface {
 
   public int $inline$h(boolean cond) {
     Super obj = (cond ? this : null);
-    return obj.hashCode();
+    return obj.$noinline$hashCode();
+  }
+  public int $noinline$hashCode() {
+    return hashCode();
   }
 }
 
@@ -686,7 +689,7 @@ public class Main {
   /// CHECK-DAG:     <<Null:l\d+>>  NullConstant
   /// CHECK-DAG:     <<Phi:l\d+>>   Phi [<<Arg>>,<<Null>>] klass:SubclassA
   /// CHECK-DAG:     <<NCPhi:l\d+>> NullCheck [<<Phi>>]
-  /// CHECK-DAG:                    InvokeStaticOrDirect [<<NCPhi>>] method_name:java.lang.Object.hashCode
+  /// CHECK-DAG:                    InvokeVirtual [<<NCPhi>>] method_name:Super.$noinline$hashCode
 
   public void testThisArgumentMoreSpecific(boolean cond) {
     // Inlining method from Super will build it with `this` typed as Super.
