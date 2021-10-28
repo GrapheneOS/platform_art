@@ -184,43 +184,25 @@ static void CreateIntToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) 
   locations->SetOut(Location::SameAsFirstInput());
 }
 
-static void GenReverseBytes(Location out,
-                            DataType::Type type,
-                            X86_64Assembler* assembler,
-                            CpuRegister temp = CpuRegister(kNoRegister)) {
-  switch (type) {
+static void GenReverseBytes(LocationSummary* locations,
+                            DataType::Type size,
+                            X86_64Assembler* assembler) {
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+
+  switch (size) {
     case DataType::Type::kInt16:
       // TODO: Can be done with an xchg of 8b registers. This is straight from Quick.
-      __ bswapl(out.AsRegister<CpuRegister>());
-      __ sarl(out.AsRegister<CpuRegister>(), Immediate(16));
-      break;
-    case DataType::Type::kUint16:
-      // TODO: Can be done with an xchg of 8b registers. This is straight from Quick.
-      __ bswapl(out.AsRegister<CpuRegister>());
-      __ shrl(out.AsRegister<CpuRegister>(), Immediate(16));
+      __ bswapl(out);
+      __ sarl(out, Immediate(16));
       break;
     case DataType::Type::kInt32:
-    case DataType::Type::kUint32:
-      __ bswapl(out.AsRegister<CpuRegister>());
+      __ bswapl(out);
       break;
     case DataType::Type::kInt64:
-    case DataType::Type::kUint64:
-      __ bswapq(out.AsRegister<CpuRegister>());
-      break;
-    case DataType::Type::kFloat32:
-      DCHECK_NE(temp.AsRegister(), kNoRegister);
-      __ movd(temp, out.AsFpuRegister<XmmRegister>(), /*is64bit=*/ false);
-      __ bswapl(temp);
-      __ movd(out.AsFpuRegister<XmmRegister>(), temp, /*is64bit=*/ false);
-      break;
-    case DataType::Type::kFloat64:
-      DCHECK_NE(temp.AsRegister(), kNoRegister);
-      __ movd(temp, out.AsFpuRegister<XmmRegister>(), /*is64bit=*/ true);
-      __ bswapq(temp);
-      __ movd(out.AsFpuRegister<XmmRegister>(), temp, /*is64bit=*/ true);
+      __ bswapq(out);
       break;
     default:
-      LOG(FATAL) << "Unexpected type for reverse-bytes: " << type;
+      LOG(FATAL) << "Unexpected size for reverse-bytes: " << size;
       UNREACHABLE();
   }
 }
@@ -230,7 +212,7 @@ void IntrinsicLocationsBuilderX86_64::VisitIntegerReverseBytes(HInvoke* invoke) 
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitIntegerReverseBytes(HInvoke* invoke) {
-  GenReverseBytes(invoke->GetLocations()->Out(), DataType::Type::kInt32, GetAssembler());
+  GenReverseBytes(invoke->GetLocations(), DataType::Type::kInt32, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitLongReverseBytes(HInvoke* invoke) {
@@ -238,7 +220,7 @@ void IntrinsicLocationsBuilderX86_64::VisitLongReverseBytes(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitLongReverseBytes(HInvoke* invoke) {
-  GenReverseBytes(invoke->GetLocations()->Out(), DataType::Type::kInt64, GetAssembler());
+  GenReverseBytes(invoke->GetLocations(), DataType::Type::kInt64, GetAssembler());
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitShortReverseBytes(HInvoke* invoke) {
@@ -246,7 +228,7 @@ void IntrinsicLocationsBuilderX86_64::VisitShortReverseBytes(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitShortReverseBytes(HInvoke* invoke) {
-  GenReverseBytes(invoke->GetLocations()->Out(), DataType::Type::kInt16, GetAssembler());
+  GenReverseBytes(invoke->GetLocations(), DataType::Type::kInt16, GetAssembler());
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
@@ -3220,45 +3202,9 @@ void IntrinsicCodeGeneratorX86_64::VisitMathMultiplyHigh(HInvoke* invoke) {
   __ imulq(y);
 }
 
-class VarHandleSlowPathX86_64 : public IntrinsicSlowPathX86_64 {
- public:
-  explicit VarHandleSlowPathX86_64(HInvoke* invoke)
-      : IntrinsicSlowPathX86_64(invoke) {
-  }
-
-  Label* GetByteArrayViewCheckLabel() {
-    return &byte_array_view_check_label_;
-  }
-
-  Label* GetNativeByteOrderLabel() {
-    return &native_byte_order_label_;
-  }
-
-  void EmitNativeCode(CodeGenerator* codegen) override {
-    if (GetByteArrayViewCheckLabel()->IsLinked()) {
-      EmitByteArrayViewCode(down_cast<CodeGeneratorX86_64*>(codegen));
-    }
-    IntrinsicSlowPathX86_64::EmitNativeCode(codegen);
-  }
-
- private:
-  HInvoke* GetInvoke() const {
-    return GetInstruction()->AsInvoke();
-  }
-
-  mirror::VarHandle::AccessModeTemplate GetAccessModeTemplate() const {
-    return mirror::VarHandle::GetAccessModeTemplateByIntrinsic(GetInvoke()->GetIntrinsic());
-  }
-
-  void EmitByteArrayViewCode(CodeGeneratorX86_64* codegen);
-
-  Label byte_array_view_check_label_;
-  Label native_byte_order_label_;
-};
-
 // Generate subtype check without read barriers.
 static void GenerateSubTypeObjectCheckNoReadBarrier(CodeGeneratorX86_64* codegen,
-                                                    VarHandleSlowPathX86_64* slow_path,
+                                                    SlowPathCode* slow_path,
                                                     CpuRegister object,
                                                     CpuRegister temp,
                                                     Address type_address,
@@ -3298,7 +3244,7 @@ static void GenerateSubTypeObjectCheckNoReadBarrier(CodeGeneratorX86_64* codegen
 // check without read barrier, so it can have false negatives which we handle in the slow path.
 static void GenerateVarHandleAccessModeAndVarTypeChecks(HInvoke* invoke,
                                                         CodeGeneratorX86_64* codegen,
-                                                        VarHandleSlowPathX86_64* slow_path,
+                                                        SlowPathCode* slow_path,
                                                         DataType::Type type) {
   X86_64Assembler* assembler = codegen->GetAssembler();
 
@@ -3350,7 +3296,7 @@ static void GenerateVarHandleAccessModeAndVarTypeChecks(HInvoke* invoke,
 
 static void GenerateVarHandleStaticFieldCheck(HInvoke* invoke,
                                               CodeGeneratorX86_64* codegen,
-                                              VarHandleSlowPathX86_64* slow_path) {
+                                              SlowPathCode* slow_path) {
   X86_64Assembler* assembler = codegen->GetAssembler();
 
   LocationSummary* locations = invoke->GetLocations();
@@ -3366,7 +3312,7 @@ static void GenerateVarHandleStaticFieldCheck(HInvoke* invoke,
 
 static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
                                                  CodeGeneratorX86_64* codegen,
-                                                 VarHandleSlowPathX86_64* slow_path) {
+                                                 SlowPathCode* slow_path) {
   VarHandleOptimizations optimizations(invoke);
   X86_64Assembler* assembler = codegen->GetAssembler();
 
@@ -3402,7 +3348,7 @@ static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
 
 static void GenerateVarHandleArrayChecks(HInvoke* invoke,
                                          CodeGeneratorX86_64* codegen,
-                                         VarHandleSlowPathX86_64* slow_path) {
+                                         SlowPathCode* slow_path) {
   VarHandleOptimizations optimizations(invoke);
   X86_64Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -3459,25 +3405,10 @@ static void GenerateVarHandleArrayChecks(HInvoke* invoke,
   __ testl(temp, temp);
   __ j(kZero, slow_path->GetEntryLabel());
 
-  // Check that the array component type matches the primitive type.
-  Label* slow_path_label;
-  if (primitive_type == Primitive::kPrimNot) {
-    slow_path_label = slow_path->GetEntryLabel();
-  } else {
-    // With the exception of `kPrimNot` (handled above), `kPrimByte` and `kPrimBoolean`,
-    // we shall check for a byte array view in the slow path.
-    // The check requires the ByteArrayViewVarHandle.class to be in the boot image,
-    // so we cannot emit that if we're JITting without boot image.
-    bool boot_image_available =
-        codegen->GetCompilerOptions().IsBootImage() ||
-        !Runtime::Current()->GetHeap()->GetBootImageSpaces().empty();
-    DCHECK(boot_image_available || codegen->GetCompilerOptions().IsJitCompiler());
-    bool can_be_view = (DataType::Size(value_type) != 1u) && boot_image_available;
-    slow_path_label =
-        can_be_view ? slow_path->GetByteArrayViewCheckLabel() : slow_path->GetEntryLabel();
-  }
+  // TODO: handle byte array views. Currently the check below always fails for them, so they fall
+  // back to slow path.
   __ cmpw(Address(temp, primitive_type_offset), Immediate(static_cast<uint16_t>(primitive_type)));
-  __ j(kNotEqual, slow_path_label);
+  __ j(kNotEqual, slow_path->GetEntryLabel());
 
   // Check for array index out of bounds.
   __ cmpl(index, Address(object, array_length_offset.Int32Value()));
@@ -3486,7 +3417,7 @@ static void GenerateVarHandleArrayChecks(HInvoke* invoke,
 
 static void GenerateVarHandleCoordinateChecks(HInvoke* invoke,
                                               CodeGeneratorX86_64* codegen,
-                                              VarHandleSlowPathX86_64* slow_path) {
+                                              SlowPathCode* slow_path) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   if (expected_coordinates_count == 0u) {
     GenerateVarHandleStaticFieldCheck(invoke, codegen, slow_path);
@@ -3498,11 +3429,11 @@ static void GenerateVarHandleCoordinateChecks(HInvoke* invoke,
   }
 }
 
-static VarHandleSlowPathX86_64* GenerateVarHandleChecks(HInvoke* invoke,
-                                                        CodeGeneratorX86_64* codegen,
-                                                        DataType::Type type) {
-  VarHandleSlowPathX86_64* slow_path =
-      new (codegen->GetScopedAllocator()) VarHandleSlowPathX86_64(invoke);
+static SlowPathCode* GenerateVarHandleChecks(HInvoke* invoke,
+                                             CodeGeneratorX86_64* codegen,
+                                             DataType::Type type) {
+  SlowPathCode* slow_path =
+      new (codegen->GetScopedAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen->AddSlowPath(slow_path);
 
   GenerateVarHandleAccessModeAndVarTypeChecks(invoke, codegen, slow_path, type);
@@ -3648,22 +3579,16 @@ static void CreateVarHandleGetLocations(HInvoke* invoke) {
   }
 }
 
-static void GenerateVarHandleGet(HInvoke* invoke,
-                                 CodeGeneratorX86_64* codegen,
-                                 bool byte_swap = false) {
+static void GenerateVarHandleGet(HInvoke* invoke, CodeGeneratorX86_64* codegen) {
   DataType::Type type = invoke->GetType();
   DCHECK_NE(type, DataType::Type::kVoid);
 
   LocationSummary* locations = invoke->GetLocations();
   X86_64Assembler* assembler = codegen->GetAssembler();
 
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
   VarHandleTarget target = GetVarHandleTarget(invoke);
-  VarHandleSlowPathX86_64* slow_path = nullptr;
-  if (!byte_swap) {
-    slow_path = GenerateVarHandleChecks(invoke, codegen, type);
-    GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
-  }
+  GenerateVarHandleTarget(invoke, target, codegen);
 
   // Load the value from the field
   Address src(CpuRegister(target.object), CpuRegister(target.offset), TIMES_1, 0);
@@ -3678,18 +3603,11 @@ static void GenerateVarHandleGet(HInvoke* invoke,
       __ movl(out.AsRegister<CpuRegister>(), src);
       __ MaybeUnpoisonHeapReference(out.AsRegister<CpuRegister>());
     }
-    DCHECK(!byte_swap);
   } else {
     codegen->LoadFromMemoryNoReference(type, out, src);
-    if (byte_swap) {
-      CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-      GenReverseBytes(out, type, assembler, temp);
-    }
   }
 
-  if (!byte_swap) {
-    __ Bind(slow_path->GetExitLabel());
-  }
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGet(HInvoke* invoke) {
@@ -3747,7 +3665,7 @@ static void GenerateVarHandleSet(HInvoke* invoke,
   uint32_t value_index = invoke->GetNumberOfArguments() - 1;
   DataType::Type value_type = GetDataTypeFromShorty(invoke, value_index);
 
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, value_type);
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, value_type);
   VarHandleTarget target = GetVarHandleTarget(invoke);
   GenerateVarHandleTarget(invoke, target, codegen);
 
@@ -3874,7 +3792,7 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   uint32_t new_value_index = number_of_arguments - 1;
   DataType::Type type = GetDataTypeFromShorty(invoke, expected_value_index);
 
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
   VarHandleTarget target = GetVarHandleTarget(invoke);
   GenerateVarHandleTarget(invoke, target, codegen);
 
@@ -4009,7 +3927,7 @@ static void GenerateVarHandleGetAndSet(HInvoke* invoke,
   uint32_t value_index = number_of_arguments - 1;
   DataType::Type type = invoke->GetType();
 
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
   VarHandleTarget target = GetVarHandleTarget(invoke);
   GenerateVarHandleTarget(invoke, target, codegen);
 
@@ -4185,7 +4103,7 @@ static void GenerateVarHandleGetAndAdd(HInvoke* invoke,
   uint32_t value_index = number_of_arguments - 1;
   DataType::Type type = invoke->GetType();
 
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
   VarHandleTarget target = GetVarHandleTarget(invoke);
   GenerateVarHandleTarget(invoke, target, codegen);
 
@@ -4342,7 +4260,7 @@ static void GenerateVarHandleGetAndBitwiseOp(HInvoke* invoke,
   uint32_t value_index = number_of_arguments - 1;
   DataType::Type type = invoke->GetType();
 
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+  SlowPathCode* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
   VarHandleTarget target = GetVarHandleTarget(invoke);
   GenerateVarHandleTarget(invoke, target, codegen);
 
@@ -4561,68 +4479,6 @@ void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseXorRelease(HInvoke
                                    GetAndBitwiseOp::kXor,
                                    /*need_any_store_barrier=*/ true,
                                    /*need_any_any_barrier=*/ false);
-}
-
-void VarHandleSlowPathX86_64::EmitByteArrayViewCode(CodeGeneratorX86_64* codegen) {
-  DCHECK(GetByteArrayViewCheckLabel()->IsLinked());
-  X86_64Assembler* assembler = codegen->GetAssembler();
-
-  HInvoke* invoke = GetInvoke();
-  LocationSummary* locations = invoke->GetLocations();
-  mirror::VarHandle::AccessModeTemplate access_mode_template = GetAccessModeTemplate();
-  DataType::Type value_type =
-      GetVarHandleExpectedValueType(invoke, /*expected_coordinates_count=*/ 2u);
-  DCHECK_NE(value_type, DataType::Type::kReference);
-  size_t size = DataType::Size(value_type);
-  DCHECK_GT(size, 1u);
-
-  CpuRegister varhandle = locations->InAt(0).AsRegister<CpuRegister>();
-  CpuRegister object = locations->InAt(1).AsRegister<CpuRegister>();
-  CpuRegister index = locations->InAt(2).AsRegister<CpuRegister>();
-  CpuRegister temp = locations->GetTemp(locations->GetTempCount() - 1).AsRegister<CpuRegister>();
-
-  MemberOffset class_offset = mirror::Object::ClassOffset();
-  MemberOffset array_length_offset = mirror::Array::LengthOffset();
-  MemberOffset data_offset = mirror::Array::DataOffset(Primitive::kPrimByte);
-  MemberOffset native_byte_order_offset = mirror::ByteArrayViewVarHandle::NativeByteOrderOffset();
-
-  VarHandleTarget target = GetVarHandleTarget(invoke);
-
-  __ Bind(GetByteArrayViewCheckLabel());
-
-  // The main path checked that the coordinateType0 is an array class that matches
-  // the class of the actual coordinate argument but it does not match the value type.
-  // Check if the `varhandle` references a ByteArrayViewVarHandle instance.
-  codegen->LoadClassRootForIntrinsic(temp, ClassRoot::kJavaLangInvokeByteArrayViewVarHandle);
-  assembler->MaybePoisonHeapReference(temp);
-  __ cmpl(temp, Address(varhandle, class_offset.Int32Value()));
-  __ j(kNotEqual, GetEntryLabel());
-
-  // Check for array index out of bounds.
-  __ movl(temp, Address(object, array_length_offset.Int32Value()));
-  // SUB sets flags in the same way as CMP.
-  __ subl(temp, index);
-  __ j(kBelowEqual, GetEntryLabel());
-  // The difference between index and array length must be enough for the `value_type` size.
-  __ cmpl(temp, Immediate(size));
-  __ j(kBelow, GetEntryLabel());
-
-  // Construct the target.
-  __ leal(CpuRegister(target.offset), Address(index, TIMES_1, data_offset.Int32Value()));
-
-  // Alignment check. For unaligned access, go to the runtime.
-  DCHECK(IsPowerOfTwo(size));
-  __ testl(CpuRegister(target.offset), Immediate(size - 1u));
-  __ j(kNotZero, GetEntryLabel());
-
-  // Byte order check. For native byte order return to the main path.
-  __ cmpl(Address(varhandle, native_byte_order_offset.Int32Value()), Immediate(0));
-  __ j(kNotEqual, GetNativeByteOrderLabel());
-
-  DCHECK(access_mode_template == mirror::VarHandle::AccessModeTemplate::kGet);
-  GenerateVarHandleGet(invoke, codegen, /*byte_swap=*/ true);
-
-  __ jmp(GetExitLabel());
 }
 
 UNIMPLEMENTED_INTRINSIC(X86_64, FloatIsInfinite)
