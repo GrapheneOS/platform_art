@@ -4457,7 +4457,7 @@ static void GenerateVarHandleArrayChecks(HInvoke* invoke,
         codegen->GetCompilerOptions().IsBootImage() ||
         !Runtime::Current()->GetHeap()->GetBootImageSpaces().empty();
     DCHECK(boot_image_available || codegen->GetCompilerOptions().IsJitCompiler());
-    size_t can_be_view = (DataType::Size(value_type) != 1u) && boot_image_available;
+    bool can_be_view = (DataType::Size(value_type) != 1u) && boot_image_available;
     vixl::aarch64::Label* slow_path_label =
         can_be_view ? slow_path->GetByteArrayViewCheckLabel() : slow_path->GetEntryLabel();
     __ Cmp(temp2, static_cast<uint16_t>(primitive_type));

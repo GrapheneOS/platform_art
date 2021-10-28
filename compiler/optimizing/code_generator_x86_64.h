@@ -488,6 +488,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   void LoadBootImageAddress(CpuRegister reg, uint32_t boot_image_reference);
   void LoadIntrinsicDeclaringClass(CpuRegister reg, HInvoke* invoke);
+  void LoadClassRootForIntrinsic(CpuRegister reg, ClassRoot class_root);
 
   void EmitLinkerPatches(ArenaVector<linker::LinkerPatch>* linker_patches) override;
 
