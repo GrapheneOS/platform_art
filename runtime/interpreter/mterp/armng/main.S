@@ -312,10 +312,12 @@ END \name
 2:
     ldr r0, [sp]
     ldrh r2, [r0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
-    cmp r2, #NTERP_HOTNESS_VALUE
-    beq NterpHandleHotnessOverflow
-    add r2, r2, #-1
+    add r2, r2, #1
+    ubfx r2, r2, #0, #NTERP_HOTNESS_BITS
     strh r2, [r0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
+    // If the counter overflows, handle this in the runtime.
+    cmp r2, #0
+    beq NterpHandleHotnessOverflow
     // Otherwise, do a suspend check.
     ldr r0, [rSELF, #THREAD_FLAGS_OFFSET]
     ands r0, r0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
@@ -449,10 +451,12 @@ END \name
 .macro START_EXECUTING_INSTRUCTIONS
     ldr r0, [sp]
     ldrh r2, [r0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
-    cmp r2, #NTERP_HOTNESS_VALUE
-    beq 2f
-    add r2, r2, #-1
+    add r2, r2, #1
+    ubfx r2, r2, #0, #NTERP_HOTNESS_BITS
     strh r2, [r0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
+    // If the counter overflows, handle this in the runtime.
+    cmp r2, #0
+    beq 2f
     ldr r0, [rSELF, #THREAD_FLAGS_OFFSET]
     tst r0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     bne 3f
