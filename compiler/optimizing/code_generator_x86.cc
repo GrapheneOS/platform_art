@@ -1109,9 +1109,10 @@ void CodeGeneratorX86::MaybeIncrementHotness(bool is_frame_entry) {
     }
     NearLabel overflow;
     __ cmpw(Address(reg, ArtMethod::HotnessCountOffset().Int32Value()),
-            Immediate(interpreter::kNterpHotnessValue));
+            Immediate(ArtMethod::MaxCounter()));
     __ j(kEqual, &overflow);
-    __ addw(Address(reg, ArtMethod::HotnessCountOffset().Int32Value()), Immediate(-1));
+    __ addw(Address(reg, ArtMethod::HotnessCountOffset().Int32Value()),
+            Immediate(1));
     __ Bind(&overflow);
     if (!is_frame_entry) {
       __ popl(EAX);
