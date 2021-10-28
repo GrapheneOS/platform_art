@@ -1828,10 +1828,10 @@ public class Main {
 
   /// CHECK-START: int Main.testExitMerge(boolean) load_store_elimination (before)
   /// CHECK-DAG: NewInstance
-  /// CHECK-DAG: InstanceFieldSet
-  /// CHECK-DAG: InstanceFieldGet
+  /// CHECK-DAG: InstanceFieldSet field_name:TestClass.i
+  /// CHECK-DAG: InstanceFieldGet field_name:TestClass.i
   /// CHECK-DAG: Return
-  /// CHECK-DAG: InstanceFieldSet
+  /// CHECK-DAG: InstanceFieldSet field_name:TestClass.i
   /// CHECK-DAG: Throw
 
   /// CHECK-START: int Main.testExitMerge(boolean) load_store_elimination (after)
@@ -1839,8 +1839,8 @@ public class Main {
   /// CHECK-DAG: Throw
 
   /// CHECK-START: int Main.testExitMerge(boolean) load_store_elimination (after)
-  /// CHECK-NOT: InstanceFieldSet
-  /// CHECK-NOT: InstanceFieldGet
+  /// CHECK-NOT: InstanceFieldSet field_name:TestClass.i
+  /// CHECK-NOT: InstanceFieldGet field_name:TestClass.i
 
   /// CHECK-START: int Main.testExitMerge(boolean) load_store_elimination (after)
   /// CHECK: NewInstance
