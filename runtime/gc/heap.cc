@@ -1556,6 +1556,7 @@ void Heap::TrimIndirectReferenceTables(Thread* self) {
   // Trim globals indirect reference table.
   vm->TrimGlobals();
   // Trim locals indirect reference tables.
+  // TODO: May also want to look for entirely empty pages maintained by SmallIrtAllocator.
   Barrier barrier(0);
   TrimIndirectReferenceTableClosure closure(&barrier);
   ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);

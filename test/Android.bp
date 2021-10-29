@@ -126,6 +126,15 @@ filegroup {
     ],
 }
 
+// Test configuration template for standalone ART gtests run as root on target (not bundled with
+// the ART APEX).
+filegroup {
+    name: "art-gtests-target-standalone-root-template",
+    srcs: [
+        "art-gtests-target-standalone-root-template.xml",
+    ],
+}
+
 art_cc_defaults {
     name: "art_standalone_test_defaults",
     defaults: [
