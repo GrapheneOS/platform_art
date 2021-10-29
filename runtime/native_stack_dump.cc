@@ -402,6 +402,10 @@ void DumpNativeStack(std::ostream& os,
         os << "???";
       }
       os << ")";
+      std::string build_id = map->GetBuildId(it->pc);
+      if (!build_id.empty()) {
+        os << " (BuildId: " << build_id << ")";
+      }
     }
     os << std::endl;
     if (try_addr2line && use_addr2line) {
