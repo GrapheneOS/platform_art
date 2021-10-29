@@ -18,6 +18,7 @@
 
 #include "arch/x86_64/jni_frame_x86_64.h"
 #include "art_method-inl.h"
+#include "class_root-inl.h"
 #include "class_table.h"
 #include "code_generator_utils.h"
 #include "compiled_method.h"
@@ -1282,6 +1283,18 @@ void CodeGeneratorX86_64::LoadIntrinsicDeclaringClass(CpuRegister reg, HInvoke* 
     __ Bind(&boot_image_type_patches_.back().label);
   } else {
     uint32_t boot_image_offset = GetBootImageOffsetOfIntrinsicDeclaringClass(invoke);
+    LoadBootImageAddress(reg, boot_image_offset);
+  }
+}
+
+void CodeGeneratorX86_64::LoadClassRootForIntrinsic(CpuRegister reg, ClassRoot class_root) {
+  if (GetCompilerOptions().IsBootImage()) {
+    ScopedObjectAccess soa(Thread::Current());
+    ObjPtr<mirror::Class> klass = GetClassRoot(class_root);
+    boot_image_type_patches_.emplace_back(&klass->GetDexFile(), klass->GetDexTypeIndex().index_);
+    __ Bind(&boot_image_type_patches_.back().label);
+  } else {
+    uint32_t boot_image_offset = GetBootImageOffset(class_root);
     LoadBootImageAddress(reg, boot_image_offset);
   }
 }
