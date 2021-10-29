@@ -95,7 +95,7 @@ bionic_targets=(
 
 echo building ${bionic_targets[*]}
 
-build/soong/soong_ui.bash --make-mode --skip-make $soong_args "$@" ${bionic_targets[*]}
+build/soong/soong_ui.bash --make-mode --skip-config --soong-only $soong_args "$@" ${bionic_targets[*]}
 ret=$?
 
 mv $tmp_soong_var $out_dir/soong/soong.variables
