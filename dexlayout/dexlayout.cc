@@ -1919,7 +1919,7 @@ bool DexLayout::ProcessDexFile(const char* file_name,
   if (output) {
     // Layout information about what strings and code items are hot. Used by the writing process
     // to generate the sections that are stored in the oat file.
-    bool do_layout = info_ != nullptr;
+    bool do_layout = info_ != nullptr && !info_->IsEmpty();
     if (do_layout) {
       LayoutOutputFile(dex_file);
     }
