@@ -108,8 +108,8 @@ fi
 
 if [ ${#MODULE_SDKS_AND_EXPORTS[*]} -gt 0 ]; then
   # Create multi-arch SDKs in a different out directory. The multi-arch script
-  # uses Soong in --skip-make mode which cannot use the same directory as normal
-  # mode with make.
+  # uses Soong in --soong-only mode which cannot use the same directory as
+  # normal mode with make.
   export OUT_DIR=${OUT_DIR}/aml
 
   # Put the build system in apps building mode so we don't trip on platform
