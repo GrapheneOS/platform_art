@@ -576,6 +576,12 @@ def build_template_dictionary(test_class, var_handle_kind, accessor, var_type):
     dictionary['lookup'] = var_handle_kind.get_lookup(dictionary)
     dictionary['field_declarations'] = ";\n".join(var_handle_kind.get_field_declarations(dictionary))
     dictionary['read_value'] = var_handle_kind.get_value(dictionary)
+
+    # For indexable types we need to check out-of-bounds access at negative index.
+    # We always generate the check, but comment it out for non-indexable types.
+    dictionary['coordinates_negative_index'] = coordinates.replace('index', '-16')
+    dictionary['indexable_only'] = "//" if not re.search('Array|ByteBuffer', var_handle_kind.name) else ""
+
     return dictionary
 
 def emit_accessor_test(var_handle_kind, accessor, var_type, output_path):
@@ -587,11 +593,21 @@ def emit_accessor_test(var_handle_kind, accessor, var_type, output_path):
     if accessor.access_mode_form == AccessModeForm.GET:
         test_template = Template("""
         ${var_type} value = (${var_type}) vh.${accessor_method}(${coordinates});
-        assertEquals(${initial_value}, value);""")
+        assertEquals(${initial_value}, value);
+        // Check for out of bounds access (for indexable types only).
+        ${indexable_only} try {
+        ${indexable_only}   value = (${var_type}) vh.${accessor_method}(${coordinates_negative_index});
+        ${indexable_only}   failUnreachable();
+        ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     elif accessor.access_mode_form == AccessModeForm.SET:
         test_template = Template("""
         vh.${accessor_method}(${coordinates}${updated_value});
-        assertEquals(${updated_value}, ${read_value});""")
+        assertEquals(${updated_value}, ${read_value});
+        // Check for out of bounds access (for indexable types only).
+        ${indexable_only} try {
+        ${indexable_only}   vh.${accessor_method}(${coordinates_negative_index}${updated_value});
+        ${indexable_only}   failUnreachable();
+        ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     elif accessor.access_mode_form == AccessModeForm.STRONG_COMPARE_AND_SET:
         test_template = Template("""
         assertEquals(${initial_value}, ${read_value});
@@ -602,7 +618,12 @@ def emit_accessor_test(var_handle_kind, accessor, var_type, output_path):
         // Test an update that should fail.
         applied = (boolean) vh.${accessor_method}(${coordinates}${initial_value}, ${initial_value});
         assertFalse(applied);
-        assertEquals(${updated_value}, ${read_value});""")
+        assertEquals(${updated_value}, ${read_value});
+        // Check for out of bounds access (for indexable types only).
+        ${indexable_only} try {
+        ${indexable_only}   applied = (boolean) vh.${accessor_method}(${coordinates_negative_index}${updated_value}, ${updated_value});
+        ${indexable_only}   failUnreachable();
+        ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     elif accessor.access_mode_form == AccessModeForm.WEAK_COMPARE_AND_SET:
         test_template = Template("""
         assertEquals(${initial_value}, ${read_value});
@@ -617,7 +638,12 @@ def emit_accessor_test(var_handle_kind, accessor, var_type, output_path):
         // Test an update that should fail.
         applied = (boolean) vh.${accessor_method}(${coordinates}${initial_value}, ${initial_value});
         assertFalse(applied);
-        assertEquals(${updated_value}, ${read_value});""")
+        assertEquals(${updated_value}, ${read_value});
+        // Check for out of bounds access (for indexable types only).
+        ${indexable_only} try {
+        ${indexable_only}   applied = (boolean) vh.${accessor_method}(${coordinates_negative_index}${updated_value}, ${updated_value});
+        ${indexable_only}   failUnreachable();
+        ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     elif accessor.access_mode_form == AccessModeForm.COMPARE_AND_EXCHANGE:
         test_template = Template("""
         // This update should succeed.
@@ -627,23 +653,43 @@ def emit_accessor_test(var_handle_kind, accessor, var_type, output_path):
         // This update should fail.
         witness_value = (${var_type}) vh.${accessor_method}(${coordinates}${initial_value}, ${initial_value});
         assertEquals(${updated_value}, witness_value);
-        assertEquals(${updated_value}, ${read_value});""")
+        assertEquals(${updated_value}, ${read_value});
+        // Check for out of bounds access (for indexable types only).
+        ${indexable_only} try {
+        ${indexable_only}   witness_value = (${var_type}) vh.${accessor_method}(${coordinates_negative_index}${updated_value}, ${updated_value});
+        ${indexable_only}   failUnreachable();
+        ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     elif accessor.access_mode_form == AccessModeForm.GET_AND_SET:
         test_template = Template("""
         ${var_type} old_value = (${var_type}) vh.${accessor_method}(${coordinates}${updated_value});
         assertEquals(${initial_value}, old_value);
-        assertEquals(${updated_value}, ${read_value});""")
+        assertEquals(${updated_value}, ${read_value});
+        // Check for out of bounds access (for indexable types only).
+        ${indexable_only} try {
+        ${indexable_only}   old_value = (${var_type}) vh.${accessor_method}(${coordinates_negative_index}${updated_value});
+        ${indexable_only}   failUnreachable();
+        ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     elif accessor.access_mode_form == AccessModeForm.GET_AND_UPDATE_BITWISE:
         if var_type.supports_bitwise == True:
             expansions['binop'] = accessor.get_java_bitwise_operator()
             test_template = Template("""
             ${var_type} old_value = (${var_type}) vh.${accessor_method}(${coordinates}${updated_value});
             assertEquals(${initial_value}, old_value);
-            assertEquals(${initial_value} ${binop} ${updated_value}, ${read_value});""")
+            assertEquals(${initial_value} ${binop} ${updated_value}, ${read_value});
+            // Check for out of bounds access (for indexable types only).
+            ${indexable_only} try {
+            ${indexable_only}   old_value = (${var_type}) vh.${accessor_method}(${coordinates_negative_index}${updated_value});
+            ${indexable_only}   failUnreachable();
+            ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
         else:
             test_template = Template("""
             vh.${accessor_method}(${coordinates}${initial_value}, ${updated_value});
-            failUnreachable();""")
+            failUnreachable();
+            // Check for out of bounds access (for indexable types only).
+            ${indexable_only} try {
+            ${indexable_only}   vh.${accessor_method}(${coordinates_negative_index}${updated_value}, ${updated_value});
+            ${indexable_only}   failUnreachable();
+            ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     elif accessor.access_mode_form == AccessModeForm.GET_AND_UPDATE_NUMERIC:
         if var_type.supports_numeric == True:
             expansions['binop'] = accessor.get_java_numeric_operator()
@@ -651,11 +697,21 @@ def emit_accessor_test(var_handle_kind, accessor, var_type, output_path):
             ${var_type} old_value = (${var_type}) vh.${accessor_method}(${coordinates}${updated_value});
             assertEquals(${initial_value}, old_value);
             ${var_type} expected_value = (${var_type}) (${initial_value} ${binop} ${updated_value});
-            assertEquals(expected_value, ${read_value});""")
+            assertEquals(expected_value, ${read_value});
+            // Check for out of bounds access (for indexable types only).
+            ${indexable_only} try {
+            ${indexable_only}   old_value = (${var_type}) vh.${accessor_method}(${coordinates_negative_index}${updated_value});
+            ${indexable_only}   failUnreachable();
+            ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
         else:
             test_template = Template("""
             vh.${accessor_method}(${coordinates}${initial_value}, ${updated_value});
-            failUnreachable();""")
+            failUnreachable();
+            // Check for out of bounds access (for indexable types only).
+            ${indexable_only} try {
+            ${indexable_only}   vh.${accessor_method}(${coordinates_negative_index}${updated_value}, ${updated_value});
+            ${indexable_only}   failUnreachable();
+            ${indexable_only} } catch (IndexOutOfBoundsException ex) {}""")
     else:
         raise ValueError(accessor.access_mode_form)
 
