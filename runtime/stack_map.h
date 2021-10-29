@@ -262,13 +262,10 @@ class RegisterMask : public BitTableAccessor<2> {
 
 // Method indices are not very dedup friendly.
 // Separating them greatly improves dedup efficiency of the other tables.
-class MethodInfo : public BitTableAccessor<2> {
+class MethodInfo : public BitTableAccessor<1> {
  public:
   BIT_TABLE_HEADER(MethodInfo)
   BIT_TABLE_COLUMN(0, MethodIndex)
-  BIT_TABLE_COLUMN(1, DexFileIndex)
-
-  static constexpr uint32_t kSameDexFile = -1;
 };
 
 /**
@@ -363,12 +360,8 @@ class CodeInfo {
     return stack_maps_.NumRows();
   }
 
-  MethodInfo GetMethodInfoOf(InlineInfo inline_info) const {
-    return method_infos_.GetRow(inline_info.GetMethodInfoIndex());
-  }
-
   uint32_t GetMethodIndexOf(InlineInfo inline_info) const {
-    return GetMethodInfoOf(inline_info).GetMethodIndex();
+    return method_infos_.GetRow(inline_info.GetMethodInfoIndex()).GetMethodIndex();
   }
 
   ALWAYS_INLINE DexRegisterMap GetDexRegisterMapOf(StackMap stack_map) const {
