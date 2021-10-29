@@ -17,14 +17,10 @@
 #include "stack_map_stream.h"
 
 #include <memory>
-#include <vector>
 
 #include "art_method-inl.h"
 #include "base/stl_util.h"
-#include "class_linker.h"
-#include "dex/dex_file.h"
 #include "dex/dex_file_types.h"
-#include "optimizing/nodes.h"
 #include "optimizing/optimizing_compiler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
@@ -215,26 +211,12 @@ void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
     entry[InlineInfo::kArtMethodHi] = High32Bits(reinterpret_cast<uintptr_t>(method));
     entry[InlineInfo::kArtMethodLo] = Low32Bits(reinterpret_cast<uintptr_t>(method));
   } else {
-    uint32_t bootclasspath_index = MethodInfo::kSameDexFile;
-    if (dex_pc != static_cast<uint32_t>(-1)) {
+    if (dex_pc != static_cast<uint32_t>(-1) && kIsDebugBuild) {
       ScopedObjectAccess soa(Thread::Current());
-      const DexFile* dex_file = method->GetDexFile();
-      if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
-        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-        const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
-        auto it = std::find_if(
-            boot_class_path.begin(), boot_class_path.end(), [dex_file](const DexFile* df) {
-              return IsSameDexFile(*df, *dex_file);
-            });
-        DCHECK(it != boot_class_path.end());
-        bootclasspath_index = std::distance(boot_class_path.begin(), it);
-      } else {
-        DCHECK(IsSameDexFile(*outer_dex_file, *dex_file));
-      }
+      DCHECK(IsSameDexFile(*outer_dex_file, *method->GetDexFile()));
     }
     uint32_t dex_method_index = method->GetDexMethodIndex();
-    entry[InlineInfo::kMethodInfoIndex] =
-        method_infos_.Dedup({dex_method_index, bootclasspath_index});
+    entry[InlineInfo::kMethodInfoIndex] = method_infos_.Dedup({dex_method_index});
   }
   current_inline_infos_.push_back(entry);
 
@@ -250,18 +232,7 @@ void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
       if (encode_art_method) {
         CHECK_EQ(inline_info.GetArtMethod(), method);
       } else {
-        MethodInfo method_info = code_info.GetMethodInfoOf(inline_info);
-        CHECK_EQ(method_info.GetMethodIndex(), method->GetDexMethodIndex());
-        if (inline_info.GetDexPc() != static_cast<uint32_t>(-1)) {
-          ScopedObjectAccess soa(Thread::Current());
-          if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
-            ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-            const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
-            DCHECK_LT(method_info.GetDexFileIndex(), boot_class_path.size());
-            CHECK(IsSameDexFile(*boot_class_path[method_info.GetDexFileIndex()],
-                                *method->GetDexFile()));
-          }
-        }
+        CHECK_EQ(code_info.GetMethodIndexOf(inline_info), method->GetDexMethodIndex());
       }
     });
   }
