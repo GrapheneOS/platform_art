@@ -89,6 +89,7 @@
 #include "handle_scope-inl.h"
 #include "hidden_api.h"
 #include "image-inl.h"
+#include "indirect_reference_table.h"
 #include "instrumentation.h"
 #include "intern_table-inl.h"
 #include "interpreter/interpreter.h"
@@ -497,6 +498,8 @@ Runtime::~Runtime() {
   monitor_pool_ = nullptr;
   delete class_linker_;
   class_linker_ = nullptr;
+  delete small_irt_allocator_;
+  small_irt_allocator_ = nullptr;
   delete heap_;
   heap_ = nullptr;
   delete intern_table_;
@@ -1657,6 +1660,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     low_4gb_arena_pool_.reset(new MemMapArenaPool(/* low_4gb= */ true));
   }
   linear_alloc_.reset(CreateLinearAlloc());
+
+  small_irt_allocator_ = new SmallIrtAllocator();
 
   BlockSignals();
   InitPlatformSignalHandlers();

@@ -29,6 +29,7 @@
 #include "base/locks.h"
 #include "base/macros.h"
 #include "base/mem_map.h"
+#include "base/mutex.h"
 #include "gc_root.h"
 #include "obj_ptr.h"
 #include "offsets.h"
@@ -216,6 +217,39 @@ bool inline operator!=(const IrtIterator& lhs, const IrtIterator& rhs) {
   return !lhs.equals(rhs);
 }
 
+// We initially allocate local reference tables with a very small number of entries, packing
+// multiple tables into a single page. If we need to expand one, we allocate them in units of
+// pages.
+// TODO: We should allocate all IRT tables as nonmovable Java objects, That in turn works better
+// if we break up each table into 2 parallel arrays, one for the Java reference, and one for the
+// serial number. The current scheme page-aligns regions containing IRT tables, and so allows them
+// to be identified and page-protected in the future.
+constexpr size_t kInitialIrtBytes = 512;  // Number of bytes in an initial local table.
+constexpr size_t kSmallIrtEntries = kInitialIrtBytes / sizeof(IrtEntry);
+static_assert(kPageSize % kInitialIrtBytes == 0);
+static_assert(kInitialIrtBytes % sizeof(IrtEntry) == 0);
+static_assert(kInitialIrtBytes % sizeof(void *) == 0);
+
+// A minimal stopgap allocator for initial small local IRT tables.
+class SmallIrtAllocator {
+ public:
+  SmallIrtAllocator();
+
+  // Allocate an IRT table for kSmallIrtEntries.
+  IrtEntry* Allocate(std::string* error_msg) REQUIRES(!lock_);
+
+  void Deallocate(IrtEntry* unneeded) REQUIRES(!lock_);
+
+ private:
+  // A free list of kInitialIrtBytes chunks linked through the first word.
+  IrtEntry* small_irt_freelist_;
+
+  // Repository of MemMaps used for small IRT tables.
+  std::vector<MemMap> shared_irt_maps_;
+
+  Mutex lock_;
+};
+
 class IndirectReferenceTable {
  public:
   enum class ResizableCapacity {
@@ -228,6 +262,8 @@ class IndirectReferenceTable {
   // construction has failed and the IndirectReferenceTable will be in an
   // invalid state. Use IsValid to check whether the object is in an invalid
   // state.
+  // Max_count is the minimum initial capacity (resizable), or minimum total capacity
+  // (not resizable). A value of 1 indicates an implementation-convenient small size.
   IndirectReferenceTable(size_t max_count,
                          IndirectRefKind kind,
                          ResizableCapacity resizable,
@@ -407,7 +443,8 @@ class IndirectReferenceTable {
   /// semi-public - read/write by jni down calls.
   IRTSegmentState segment_state_;
 
-  // Mem map where we store the indirect refs.
+  // Mem map where we store the indirect refs. If it's invalid, and table_ is non-null, then
+  // table_ is valid, but was allocated via allocSmallIRT();
   MemMap table_mem_map_;
   // bottom of the stack. Do not directly access the object references
   // in this as they are roots. Use Get() that has a read barrier.

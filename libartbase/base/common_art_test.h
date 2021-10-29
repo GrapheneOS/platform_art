@@ -17,15 +17,14 @@
 #ifndef ART_LIBARTBASE_BASE_COMMON_ART_TEST_H_
 #define ART_LIBARTBASE_BASE_COMMON_ART_TEST_H_
 
-#include <gtest/gtest.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include <functional>
 #include <string>
+#include <vector>
 
-#include <sys/wait.h>
-
-#include <android-base/logging.h>
-
+#include "android-base/logging.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/memory_tool.h"
@@ -33,8 +32,9 @@
 #include "base/os.h"
 #include "base/unix_file/fd_file.h"
 #include "dex/art_dex_file_loader.h"
-#include "dex/compact_dex_level.h"
 #include "dex/compact_dex_file.h"
+#include "dex/compact_dex_level.h"
+#include "gtest/gtest.h"
 
 namespace art {
 
@@ -286,6 +286,10 @@ using CommonArtTest = CommonArtTestBase<testing::Test>;
 
 template <typename Param>
 using CommonArtTestWithParam = CommonArtTestBase<testing::TestWithParam<Param>>;
+
+// Returns a list of PIDs of the processes whose process name (the name of the binary without path)
+// fully matches the given name.
+std::vector<pid_t> GetPidByName(const std::string& process_name);
 
 #define TEST_DISABLED_FOR_TARGET() \
   if (kIsTargetBuild) { \
