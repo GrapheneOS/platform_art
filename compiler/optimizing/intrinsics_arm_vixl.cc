@@ -4217,7 +4217,7 @@ static void GenerateVarHandleArrayChecks(HInvoke* invoke,
       codegen->GetCompilerOptions().IsBootImage() ||
       !Runtime::Current()->GetHeap()->GetBootImageSpaces().empty();
   DCHECK(boot_image_available || codegen->GetCompilerOptions().IsJitCompiler());
-  size_t can_be_view =
+  bool can_be_view =
       ((value_type != DataType::Type::kReference) && (DataType::Size(value_type) != 1u)) &&
       boot_image_available;
   vixl32::Label* slow_path_label =
