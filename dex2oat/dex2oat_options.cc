@@ -295,7 +295,7 @@ Parser CreateDex2oatArgumentParser() {
           .IntoKey(M::Watchdog)
       .Define("--watchdog-timeout=_")
           .WithType<int>()
-          .WithHelp("Set the watchdog timeout value in seconds.")
+          .WithHelp("Set the watchdog timeout value in milliseconds.")
           .IntoKey(M::WatchdogTimeout)
       .Define("-j_")
           .WithType<unsigned int>()
