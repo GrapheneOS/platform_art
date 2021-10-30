@@ -32,7 +32,7 @@ if [ ! -d art ]; then
 fi
 
 # TODO(b/194433871): Set MODULE_BUILD_FROM_SOURCE to disable prebuilt modules,
-# which Soong otherwise can create duplicate install rules for in --skip-make
+# which Soong otherwise can create duplicate install rules for in --soong-only
 # mode.
 soong_args="MODULE_BUILD_FROM_SOURCE=true"
 
@@ -95,4 +95,4 @@ rm $tmp_soong_var
 # Write a new build-number
 echo ${tmp_build_number}_SOONG_ONLY_BUILD > ${out_dir}/soong/build_number.txt
 
-build/soong/soong_ui.bash --make-mode --skip-make $soong_args $@
+build/soong/soong_ui.bash --make-mode --skip-config --soong-only $soong_args $@

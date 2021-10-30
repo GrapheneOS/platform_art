@@ -81,7 +81,6 @@ enum class MethodCompilationStat {
   kSimplifyThrowingInvoke,
   kInstructionSunk,
   kNotInlinedUnresolvedEntrypoint,
-  kNotInlinedBss,
   kNotInlinedDexCache,
   kNotInlinedStackMaps,
   kNotInlinedEnvironmentBudget,
