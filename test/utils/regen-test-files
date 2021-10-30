@@ -286,6 +286,8 @@ known_failing_tests = [
   # usually `arttestd` or `arttest)`, but the ART run-test TradeFed test runner
   # (`com.android.tradefed.testtype.ArtRunTest`) does not implement this yet.
   "826-infinite-loop",
+  # 832-cha-recursive: Dependency on `libarttest`.
+  "832-cha-recursive",
   "900-hello-plugin",
   "901-hello-ti-agent",
   "902-hello-transformation",
