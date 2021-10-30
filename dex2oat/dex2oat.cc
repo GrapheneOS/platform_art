@@ -390,8 +390,8 @@ class WatchDog {
       if (rc == EINTR) {
         continue;
       } else if (rc == ETIMEDOUT) {
-        Fatal(StringPrintf("dex2oat did not finish after %" PRId64 " seconds",
-                           timeout_in_milliseconds_/1000));
+        Fatal(StringPrintf("dex2oat did not finish after %" PRId64 " milliseconds",
+                           timeout_in_milliseconds_));
       } else if (rc != 0) {
         std::string message(StringPrintf("pthread_cond_timedwait failed: %s", strerror(rc)));
         Fatal(message);
