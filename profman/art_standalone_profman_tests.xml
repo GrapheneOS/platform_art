@@ -38,7 +38,7 @@
              processes but `LD_LIBRARY_PATH` is set to a directory of 32-bit libraries which make
              them fail to dynamically link to the expected (64-bit) libraries.
 
-             TODO(b/162834439): Investigate these failures and re-enable these tests. -->
+             TODO(b/204649079): Investigate these failures and re-enable these tests. -->
         <option name="exclude-filter" value="ProfileAssistantTest.TestProfileRoundTrip" />
         <option name="exclude-filter" value="ProfileAssistantTest.TestProfileRoundTripWithAnnotations" />
     </test>
