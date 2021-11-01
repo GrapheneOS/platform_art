@@ -2525,36 +2525,3 @@ ENTRY art_quick_compile_optimized
     // artCompileOptimized doesn't allow thread suspension.
     blx lr
 END art_quick_compile_optimized
-
-// On entry, method is at the bottom of the stack.
-ENTRY art_quick_method_entry_hook
-    SETUP_SAVE_EVERYTHING_FRAME r0
-    ldr r0, [sp, FRAME_SIZE_SAVE_EVERYTHING] @ pass ArtMethod
-    mov r1, rSELF                            @ pass Thread::Current
-    bl  artMethodEntryHook                   @ (ArtMethod*, Thread*)
-    RESTORE_SAVE_EVERYTHING_FRAME
-    REFRESH_MARKING_REGISTER
-    blx lr
-END art_quick_method_entry_hook
-
-ENTRY art_quick_method_exit_hook
-    SETUP_SAVE_EVERYTHING_FRAME r2
-
-    add r3, sp, #8                            @ store fpr_res pointer, in kSaveEverything frame
-    add r2, sp, #136                          @ store gpr_res pointer, in kSaveEverything frame
-    ldr r1, [sp, #FRAME_SIZE_SAVE_EVERYTHING] @ pass ArtMethod*
-    mov r0, rSELF                             @ pass Thread::Current
-    blx artMethodExitHook                     @ (Thread*, ArtMethod*, gpr_res*, fpr_res*)
-
-    .cfi_remember_state
-    cbnz r0, .Ldo_deliver_instrumentation_exception_exit @ Deliver exception
-
-    // Normal return.
-    RESTORE_SAVE_EVERYTHING_FRAME
-    REFRESH_MARKING_REGISTER
-    blx lr
-.Ldo_deliver_instrumentation_exception_exit:
-    .cfi_restore_state
-    .cfi_def_cfa sp, FRAME_SIZE_SAVE_EVERYTHING
-    DELIVER_PENDING_EXCEPTION_FRAME_READY
-END art_quick_method_exit_hook
