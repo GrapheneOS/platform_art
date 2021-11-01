@@ -259,6 +259,7 @@ art_cc_defaults {
     // not contain the "d" (debug) variants.
     shared_libs: [
         "libart",
+        "libart-compiler",
         "libart-disassembler",
         "libdexfile",
         "libprofile",
