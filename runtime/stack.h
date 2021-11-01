@@ -17,12 +17,14 @@
 #ifndef ART_RUNTIME_STACK_H_
 #define ART_RUNTIME_STACK_H_
 
-#include <optional>
 #include <stdint.h>
+
+#include <optional>
 #include <string>
 
 #include "base/locks.h"
 #include "base/macros.h"
+#include "deoptimization_kind.h"
 #include "obj_ptr.h"
 #include "quick/quick_method_frame_info.h"
 #include "stack_map.h"
@@ -295,6 +297,15 @@ class StackVisitor {
 
   QuickMethodFrameInfo GetCurrentQuickFrameInfo() const REQUIRES_SHARED(Locks::mutator_lock_);
 
+  void SetShouldDeoptimizeFlag(DeoptimizeFlagValue value) REQUIRES_SHARED(Locks::mutator_lock_) {
+    uint8_t* should_deoptimize_addr = GetShouldDeoptimizeFlagAddr();
+    *should_deoptimize_addr = *should_deoptimize_addr | static_cast<uint8_t>(value);
+  };
+
+  uint8_t GetShouldDeoptimizeFlag() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    return *GetShouldDeoptimizeFlagAddr();
+  }
+
  private:
   // Private constructor known in the case that num_frames_ has already been computed.
   StackVisitor(Thread* thread,
@@ -367,6 +378,8 @@ class StackVisitor {
   // Marked mutable since the cache fields are updated from const getters.
   mutable std::pair<const OatQuickMethodHeader*, CodeInfo> cur_inline_info_;
   mutable std::pair<uintptr_t, StackMap> cur_stack_map_;
+
+  uint8_t* GetShouldDeoptimizeFlagAddr() const REQUIRES_SHARED(Locks::mutator_lock_);
 
  protected:
   Context* const context_;

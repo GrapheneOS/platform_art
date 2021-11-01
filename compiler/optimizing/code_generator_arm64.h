@@ -388,6 +388,7 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
   void GenerateIntRemForConstDenom(HRem *instruction);
   void GenerateIntRemForPower2Denom(HRem *instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
+  void GenerateMethodEntryExitHook(HInstruction* instruction);
 
   // Helpers to set up locations for vector memory operations. Returns the memory operand and,
   // if used, sets the output parameter scratch to a temporary register used in this operand,
