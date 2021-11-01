@@ -80,7 +80,7 @@ static inline MemMap NewIRTMap(size_t table_bytes, std::string* error_msg) {
 }
 
 SmallIrtAllocator::SmallIrtAllocator()
-    : small_irt_freelist_(nullptr), lock_("Small IRT table lock") {
+    : small_irt_freelist_(nullptr), lock_("Small IRT table lock", LockLevel::kGenericBottomLock) {
 }
 
 // Allocate an IRT table for kSmallIrtEntries.
