@@ -965,31 +965,6 @@ class ReadBarrierForRootSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierForRootSlowPathX86_64);
 };
 
-class MethodEntryExitHooksSlowPathX86_64 : public SlowPathCode {
- public:
-  explicit MethodEntryExitHooksSlowPathX86_64(HInstruction* instruction)
-      : SlowPathCode(instruction) {}
-
-  void EmitNativeCode(CodeGenerator* codegen) override {
-    CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
-    LocationSummary* locations = instruction_->GetLocations();
-    QuickEntrypointEnum entry_point =
-        (instruction_->IsMethodEntryHook()) ? kQuickMethodEntryHook : kQuickMethodExitHook;
-    __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
-    x86_64_codegen->InvokeRuntime(entry_point, instruction_, instruction_->GetDexPc(), this);
-    RestoreLiveRegisters(codegen, locations);
-    __ jmp(GetExitLabel());
-  }
-
-  const char* GetDescription() const override {
-    return "MethodEntryExitHooksSlowPath";
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(MethodEntryExitHooksSlowPathX86_64);
-};
-
 #undef __
 // NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
 #define __ down_cast<X86_64Assembler*>(GetAssembler())->  // NOLINT
@@ -1517,68 +1492,6 @@ static dwarf::Reg DWARFReg(Register reg) {
 
 static dwarf::Reg DWARFReg(FloatRegister reg) {
   return dwarf::Reg::X86_64Fp(static_cast<int>(reg));
-}
-
-void LocationsBuilderX86_64::VisitMethodEntryHook(HMethodEntryHook* method_hook) {
-  new (GetGraph()->GetAllocator()) LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
-}
-
-void InstructionCodeGeneratorX86_64::GenerateMethodEntryExitHook(HInstruction* instruction) {
-  SlowPathCode* slow_path =
-      new (codegen_->GetScopedAllocator()) MethodEntryExitHooksSlowPathX86_64(instruction);
-  codegen_->AddSlowPath(slow_path);
-
-  uint64_t address = reinterpret_cast64<uint64_t>(Runtime::Current()->GetInstrumentation());
-  int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
-  __ movq(CpuRegister(TMP), Immediate(address + offset));
-  __ cmpw(Address(CpuRegister(TMP), 0), Immediate(0));
-  __ j(kNotEqual, slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
-}
-
-void InstructionCodeGeneratorX86_64::VisitMethodEntryHook(HMethodEntryHook* instruction) {
-  DCHECK(codegen_->GetCompilerOptions().IsJitCompiler() && GetGraph()->IsDebuggable());
-  DCHECK(codegen_->RequiresCurrentMethod());
-  GenerateMethodEntryExitHook(instruction);
-}
-
-void SetInForReturnValue(HInstruction* instr, LocationSummary* locations) {
-  switch (instr->InputAt(0)->GetType()) {
-    case DataType::Type::kReference:
-    case DataType::Type::kBool:
-    case DataType::Type::kUint8:
-    case DataType::Type::kInt8:
-    case DataType::Type::kUint16:
-    case DataType::Type::kInt16:
-    case DataType::Type::kInt32:
-    case DataType::Type::kInt64:
-      locations->SetInAt(0, Location::RegisterLocation(RAX));
-      break;
-
-    case DataType::Type::kFloat32:
-    case DataType::Type::kFloat64:
-      locations->SetInAt(0, Location::FpuRegisterLocation(XMM0));
-      break;
-
-    case DataType::Type::kVoid:
-      locations->SetInAt(0, Location::NoLocation());
-      break;
-
-    default:
-      LOG(FATAL) << "Unexpected return type " << instr->InputAt(0)->GetType();
-  }
-}
-
-void LocationsBuilderX86_64::VisitMethodExitHook(HMethodExitHook* method_hook) {
-  LocationSummary* locations = new (GetGraph()->GetAllocator())
-      LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
-  SetInForReturnValue(method_hook, locations);
-}
-
-void InstructionCodeGeneratorX86_64::VisitMethodExitHook(HMethodExitHook* instruction) {
-  DCHECK(codegen_->GetCompilerOptions().IsJitCompiler() && GetGraph()->IsDebuggable());
-  DCHECK(codegen_->RequiresCurrentMethod());
-  GenerateMethodEntryExitHook(instruction);
 }
 
 void CodeGeneratorX86_64::MaybeIncrementHotness(bool is_frame_entry) {
@@ -2629,7 +2542,26 @@ void InstructionCodeGeneratorX86_64::VisitReturnVoid(HReturnVoid* ret ATTRIBUTE_
 void LocationsBuilderX86_64::VisitReturn(HReturn* ret) {
   LocationSummary* locations =
       new (GetGraph()->GetAllocator()) LocationSummary(ret, LocationSummary::kNoCall);
-  SetInForReturnValue(ret, locations);
+  switch (ret->InputAt(0)->GetType()) {
+    case DataType::Type::kReference:
+    case DataType::Type::kBool:
+    case DataType::Type::kUint8:
+    case DataType::Type::kInt8:
+    case DataType::Type::kUint16:
+    case DataType::Type::kInt16:
+    case DataType::Type::kInt32:
+    case DataType::Type::kInt64:
+      locations->SetInAt(0, Location::RegisterLocation(RAX));
+      break;
+
+    case DataType::Type::kFloat32:
+    case DataType::Type::kFloat64:
+      locations->SetInAt(0, Location::FpuRegisterLocation(XMM0));
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected return type " << ret->InputAt(0)->GetType();
+  }
 }
 
 void InstructionCodeGeneratorX86_64::VisitReturn(HReturn* ret) {
