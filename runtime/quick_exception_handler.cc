@@ -599,10 +599,7 @@ void QuickExceptionHandler::DeoptimizeSingleFrame(DeoptimizationKind kind) {
               << GetDeoptimizationKindName(kind);
     DumpFramesWithType(self_, /* details= */ true);
   }
-  // When deoptimizing for debug support the optimized code is still valid and
-  // can be reused when debugging support (like breakpoints) are no longer
-  // needed fot this method.
-  if (Runtime::Current()->UseJitCompilation() && (kind != DeoptimizationKind::kDebugging)) {
+  if (Runtime::Current()->UseJitCompilation()) {
     Runtime::Current()->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
         deopt_method, visitor.GetSingleFrameDeoptQuickMethodHeader());
   } else {

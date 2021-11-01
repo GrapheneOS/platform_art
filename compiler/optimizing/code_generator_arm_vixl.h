@@ -431,7 +431,6 @@ class InstructionCodeGeneratorARMVIXL : public InstructionCodeGenerator {
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemConstantIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
-  void GenerateMethodEntryExitHook(HInstruction* instruction);
 
   vixl::aarch32::MemOperand VecAddress(
       HVecMemoryOperation* instruction,
