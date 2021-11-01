@@ -800,6 +800,21 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   return RuntimeCalleeSaveFrame::GetMethodFrameInfo(CalleeSaveType::kSaveRefsAndArgs);
 }
 
+uint8_t* StackVisitor::GetShouldDeoptimizeFlagAddr() const REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(GetCurrentOatQuickMethodHeader()->HasShouldDeoptimizeFlag());
+  QuickMethodFrameInfo frame_info = GetCurrentQuickFrameInfo();
+  size_t frame_size = frame_info.FrameSizeInBytes();
+  uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
+  size_t core_spill_size =
+      POPCOUNT(frame_info.CoreSpillMask()) * GetBytesPerGprSpillLocation(kRuntimeISA);
+  size_t fpu_spill_size =
+      POPCOUNT(frame_info.FpSpillMask()) * GetBytesPerFprSpillLocation(kRuntimeISA);
+  size_t offset = frame_size - core_spill_size - fpu_spill_size - kShouldDeoptimizeFlagSize;
+  uint8_t* should_deoptimize_addr = sp + offset;
+  DCHECK_EQ(*should_deoptimize_addr & ~static_cast<uint8_t>(DeoptimizeFlagValue::kAll), 0);
+  return should_deoptimize_addr;
+}
+
 template <StackVisitor::CountTransitions kCount>
 void StackVisitor::WalkStack(bool include_transitions) {
   if (check_suspended_) {
