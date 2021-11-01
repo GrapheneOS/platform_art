@@ -95,6 +95,14 @@ std::string GetEnvironmentVariableOrDie(const char* name) {
   return value;
 }
 
+std::string GetEnvironmentVariableOrDefault(const char* name, std::string default_value) {
+  const char* value = getenv(name);
+  if (value == nullptr) {
+    return default_value;
+  }
+  return value;
+}
+
 bool ArgumentMatches(std::string_view argument, std::string_view prefix, std::string* value) {
   if (android::base::StartsWith(argument, prefix)) {
     *value = std::string(argument.substr(prefix.size()));
@@ -162,6 +170,10 @@ int InitializeHostConfig(int argc, char** argv, OdrConfig* config) {
       config->SetIsa(art::GetInstructionSetFromString(value.c_str()));
     } else if (ArgumentMatches(arg, "--system-server-classpath=", &value)) {
       config->SetSystemServerClasspath(arg);
+    } else if (ArgumentMatches(arg, "--bootclasspath=", &value)) {
+      config->SetBootClasspath(arg);
+    } else if (ArgumentMatches(arg, "--standalone-system-server-jars=", &value)) {
+      config->SetStandaloneSystemServerJars(arg);
     } else if (ArgumentMatches(arg, "--zygote-arch=", &value)) {
       ZygoteKind zygote_kind;
       if (!ParseZygoteKind(value.c_str(), &zygote_kind)) {
@@ -184,6 +196,8 @@ void HostOptionsHelp() {
   UsageError("--isa-root");
   UsageError("--system-server-classpath");
   UsageError("--zygote-arch");
+  UsageError("--bootclasspath");
+  UsageError("--standalone-system-server-jars");
 }
 
 int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
@@ -192,6 +206,8 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
   config->SetBootClasspath(GetEnvironmentVariableOrDie("BOOTCLASSPATH"));
   config->SetDex2oatBootclasspath(GetEnvironmentVariableOrDie("DEX2OATBOOTCLASSPATH"));
   config->SetSystemServerClasspath(GetEnvironmentVariableOrDie("SYSTEMSERVERCLASSPATH"));
+  config->SetStandaloneSystemServerJars(
+      GetEnvironmentVariableOrDefault("STANDALONE_SYSTEMSERVER_JARS", /*default_value=*/""));
   config->SetIsa(art::kRuntimeISA);
 
   std::string zygote;
