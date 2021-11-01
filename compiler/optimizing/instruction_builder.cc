@@ -372,6 +372,9 @@ bool HInstructionBuilder::Build() {
     if (current_block_->IsEntryBlock()) {
       InitializeParameters();
       AppendInstruction(new (allocator_) HSuspendCheck(0u));
+      if (graph_->IsDebuggable() && code_generator_->GetCompilerOptions().IsJitCompiler()) {
+        AppendInstruction(new (allocator_) HMethodEntryHook(0u));
+      }
       AppendInstruction(new (allocator_) HGoto(0u));
       continue;
     } else if (current_block_->IsExitBlock()) {
@@ -822,10 +825,18 @@ void HInstructionBuilder::BuildReturn(const Instruction& instruction,
           compilation_stats_,
           MethodCompilationStat::kConstructorFenceGeneratedFinal);
     }
+    if (graph_->IsDebuggable() && code_generator_->GetCompilerOptions().IsJitCompiler()) {
+      // Return value is not used for void functions. We pass NullConstant to
+      // avoid special cases when generating code.
+      AppendInstruction(new (allocator_) HMethodExitHook(graph_->GetNullConstant(), dex_pc));
+    }
     AppendInstruction(new (allocator_) HReturnVoid(dex_pc));
   } else {
     DCHECK(!RequiresConstructorBarrier(dex_compilation_unit_));
     HInstruction* value = LoadLocal(instruction.VRegA(), type);
+    if (graph_->IsDebuggable() && code_generator_->GetCompilerOptions().IsJitCompiler()) {
+      AppendInstruction(new (allocator_) HMethodExitHook(value, dex_pc));
+    }
     AppendInstruction(new (allocator_) HReturn(value, dex_pc));
   }
   current_block_ = nullptr;

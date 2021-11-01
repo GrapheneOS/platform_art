@@ -219,27 +219,12 @@ class CHAStackVisitor final  : public StackVisitor {
     }
 
     // The compiled code on stack is not valid anymore. Need to deoptimize.
-    SetShouldDeoptimizeFlag();
+    SetShouldDeoptimizeFlag(DeoptimizeFlagValue::kCHA);
 
     return true;
   }
 
  private:
-  void SetShouldDeoptimizeFlag() REQUIRES_SHARED(Locks::mutator_lock_) {
-    QuickMethodFrameInfo frame_info = GetCurrentQuickFrameInfo();
-    size_t frame_size = frame_info.FrameSizeInBytes();
-    uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
-    size_t core_spill_size = POPCOUNT(frame_info.CoreSpillMask()) *
-        GetBytesPerGprSpillLocation(kRuntimeISA);
-    size_t fpu_spill_size = POPCOUNT(frame_info.FpSpillMask()) *
-        GetBytesPerFprSpillLocation(kRuntimeISA);
-    size_t offset = frame_size - core_spill_size - fpu_spill_size - kShouldDeoptimizeFlagSize;
-    uint8_t* should_deoptimize_addr = sp + offset;
-    // Set deoptimization flag to 1.
-    DCHECK(*should_deoptimize_addr == 0 || *should_deoptimize_addr == 1);
-    *should_deoptimize_addr = 1;
-  }
-
   // Set of method headers for compiled code that should be deoptimized.
   const std::unordered_set<OatQuickMethodHeader*>& method_headers_;
 
