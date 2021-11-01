@@ -101,7 +101,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
       UNREACHABLE();
     }
     DCHECK(!inlined_method->IsRuntimeMethod());
-    if (UNLIKELY(inlined_method->GetDexFile() != method->GetDexFile() &&
+    if (UNLIKELY(inlined_method->GetDexFile() != outer_method->GetDexFile() &&
                  !method_info.HasDexFileIndex())) {
       // TODO: We could permit inlining within a multi-dex oat file and the boot image,
       // even going back from boot image methods to the same oat file. However, this is
