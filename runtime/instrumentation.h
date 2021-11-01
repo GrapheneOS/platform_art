@@ -17,13 +17,12 @@
 #ifndef ART_RUNTIME_INSTRUMENTATION_H_
 #define ART_RUNTIME_INSTRUMENTATION_H_
 
-#include <stdint.h>
-
 #include <functional>
+#include <stdint.h>
 #include <list>
 #include <memory>
-#include <optional>
 #include <unordered_set>
+#include <optional>
 
 #include "arch/instruction_set.h"
 #include "base/enums.h"
@@ -31,7 +30,6 @@
 #include "base/macros.h"
 #include "base/safe_map.h"
 #include "gc_root.h"
-#include "offsets.h"
 
 namespace art {
 namespace mirror {
@@ -43,7 +41,6 @@ class ArtField;
 class ArtMethod;
 template <typename T> class Handle;
 template <typename T> class MutableHandle;
-struct NthCallerVisitor;
 union JValue;
 class SHARED_LOCKABLE ReaderWriterMutex;
 class ShadowFrame;
@@ -209,10 +206,6 @@ class Instrumentation {
   };
 
   Instrumentation();
-
-  static constexpr MemberOffset NeedsEntryExitHooksOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(Instrumentation, instrumentation_stubs_installed_));
-  }
 
   // Add a listener to be notified of the masked together sent of instrumentation events. This
   // suspend the runtime to install stubs. You are expected to hold the mutator lock as a proxy
@@ -492,14 +485,6 @@ class Instrumentation {
   void ExceptionHandledEvent(Thread* thread, ObjPtr<mirror::Throwable> exception_object) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  JValue GetReturnValue(Thread* self,
-                        ArtMethod* method,
-                        bool* is_ref,
-                        uint64_t* gpr_result,
-                        uint64_t* fpr_result) REQUIRES_SHARED(Locks::mutator_lock_);
-  bool ShouldDeoptimizeMethod(Thread* self, const NthCallerVisitor& visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Called when an instrumented method is entered. The intended link register (lr) is saved so
   // that returning causes a branch to the method exit stub. Generates method enter events.
   void PushInstrumentationStackFrame(Thread* self,
@@ -545,13 +530,10 @@ class Instrumentation {
                !GetDeoptimizedMethodsLock());
 
   // Install instrumentation exit stub on every method of the stack of the given thread.
-  // This is used by:
-  //  - the debugger to cause a deoptimization of the all frames in thread's stack (for
-  //    example, after updating local variables)
-  //  - to call method entry / exit hooks for tracing. For this we instrument
-  //    the stack frame to run entry / exit hooks but we don't need to deoptimize.
-  // deopt_all_frames indicates whether the frames need to deoptimize or not.
-  void InstrumentThreadStack(Thread* thread, bool deopt_all_frames) REQUIRES(Locks::mutator_lock_);
+  // This is used by the debugger to cause a deoptimization of the thread's stack after updating
+  // local variable(s).
+  void InstrumentThreadStack(Thread* thread)
+      REQUIRES(Locks::mutator_lock_);
 
   // Force all currently running frames to be deoptimized back to interpreter. This should only be
   // used in cases where basically all compiled code has been invalidated.
@@ -574,10 +556,6 @@ class Instrumentation {
   // Returns true if moving to the given instrumentation level requires the installation of stubs.
   // False otherwise.
   bool RequiresInstrumentationInstallation(InstrumentationLevel new_level) const;
-
-  // Returns true if we need entry exit stub to call entry hooks. JITed code
-  // directly call entry / exit hooks and don't need the stub.
-  bool CodeNeedsEntryExitStub(const void* code);
 
   // Does the job of installing or removing instrumentation code within methods.
   // In order to support multiple clients using instrumentation at the same time,
@@ -773,7 +751,7 @@ class Instrumentation {
 
   friend class InstrumentationTest;  // For GetCurrentInstrumentationLevel and ConfigureStubs.
   friend class InstrumentationStackPopper;  // For popping instrumentation frames.
-  friend void InstrumentationInstallStack(Thread*, void*, bool);
+  friend void InstrumentationInstallStack(Thread*, void*);
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };

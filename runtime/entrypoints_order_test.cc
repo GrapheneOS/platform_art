@@ -405,13 +405,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pReadBarrierMarkReg29, pReadBarrierSlow, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pReadBarrierSlow, pReadBarrierForRootSlow,
                          sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(
-        QuickEntryPoints, pReadBarrierForRootSlow, pMethodEntryHook, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pMethodEntryHook, pMethodExitHook, sizeof(void*));
 
-    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pMethodExitHook) + sizeof(void*) ==
-                sizeof(QuickEntryPoints),
-            QuickEntryPoints_all);
+    CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pReadBarrierForRootSlow)
+            + sizeof(void*) == sizeof(QuickEntryPoints), QuickEntryPoints_all);
   }
 };
 

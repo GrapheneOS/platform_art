@@ -492,12 +492,7 @@ void DeoptManager::DeoptimizeThread(art::Thread* target) {
                                          art::gc::GcCause::kGcCauseDebugger,
                                          art::gc::CollectorType::kCollectorTypeDebugger);
   art::ScopedSuspendAll ssa("Instrument thread stack");
-  // Prepare the stack so methods can be deoptimized as and when required.
-  // This by itself doesn't cause any methods to deoptimize but enables
-  // deoptimization on demand.
-  art::Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(
-      target,
-      /* deopt_all_frames= */ false);
+  art::Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(target);
 }
 
 extern DeoptManager* gDeoptManager;
