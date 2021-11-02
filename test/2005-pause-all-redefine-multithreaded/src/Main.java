@@ -14,8 +14,27 @@
  * limitations under the License.
  */
 
+import dalvik.annotation.optimization.FastNative;
+
 public class Main {
   public static void main(String[] args) throws Exception {
+    // Regression test for instrumentation installing exit handler for transition
+    // from the suspend check runtime frame to the JNI stub for @FastNative method.
+    Thread t = new Thread() {
+      public void run() {
+        Integer i = fastNativeSleepAndReturnInteger42();
+        if (i != 42) {
+          throw new Error("Expected 42, got " + i);
+        }
+      }
+    };
+    t.start();
+
     art.Test2005.run();
+
+    t.join();
   }
+
+  @FastNative
+  public static native Integer fastNativeSleepAndReturnInteger42();
 }

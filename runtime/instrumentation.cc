@@ -384,6 +384,15 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
                      << " dex pc: " << dex_pc;
           UNREACHABLE();
         }
+        if (m->IsRuntimeMethod()) {
+          size_t frame_size = GetCurrentQuickFrameInfo().FrameSizeInBytes();
+          ArtMethod** caller_frame = reinterpret_cast<ArtMethod**>(
+              reinterpret_cast<uint8_t*>(GetCurrentQuickFrame()) + frame_size);
+          if (*caller_frame != nullptr && (*caller_frame)->IsNative()) {
+            // Do not install instrumentation exit on return to JNI stubs.
+            return true;
+          }
+        }
         InstrumentationStackFrame instrumentation_frame(
             m->IsRuntimeMethod() ? nullptr : GetThisObject().Ptr(),
             m,
@@ -1481,8 +1490,9 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self,
   // suspension point below.
   ScopedAssertNoThreadSuspension ants(__FUNCTION__, method->IsRuntimeMethod());
   if (method->IsRuntimeMethod()) {
-    if (method != Runtime::Current()->GetCalleeSaveMethod(
-        CalleeSaveType::kSaveEverythingForClinit)) {
+    Runtime* runtime = Runtime::Current();
+    if (method != runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverythingForClinit) &&
+        method != runtime->GetCalleeSaveMethod(CalleeSaveType::kSaveEverythingForSuspendCheck)) {
       // If the caller is at an invocation point and the runtime method is not
       // for clinit, we need to pass return results to the caller.
       // We need the correct shorty to decide whether we need to pass the return
@@ -1516,6 +1526,9 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self,
   }
   if (is_ref) {
     // Take a handle to the return value so we won't lose it if we suspend.
+    // FIXME: The `is_ref` is often guessed wrong, so even object aligment
+    // assertion would fail for some tests. See b/204766614 .
+    // DCHECK_ALIGNED(return_value.GetL(), kObjectAlignment);
     res.Assign(return_value.GetL());
   }
   // TODO: improve the dex pc information here, requires knowledge of current PC as opposed to
