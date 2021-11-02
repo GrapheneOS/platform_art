@@ -20,6 +20,7 @@
 #include "nterp.h"
 
 #include "base/quasi_atomic.h"
+#include "class_linker-inl.h"
 #include "dex/dex_instruction_utils.h"
 #include "debugger.h"
 #include "entrypoints/entrypoint_utils-inl.h"
@@ -264,6 +265,7 @@ extern "C" const char* NterpGetShortyFromInvokeCustom(ArtMethod* caller, uint16_
   return dex_file->GetShorty(proto_idx);
 }
 
+FLATTEN
 extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, uint16_t* dex_pc_ptr)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
@@ -422,6 +424,7 @@ extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, uint16_t* dex_
   }
 }
 
+FLATTEN
 static ArtField* ResolveFieldWithAccessChecks(Thread* self,
                                               ClassLinker* class_linker,
                                               uint16_t field_index,
