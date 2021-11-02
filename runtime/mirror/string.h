@@ -160,6 +160,9 @@ class MANAGED String final : public Object {
   static ObjPtr<String> DoConcat(Thread* self, Handle<String> h_this, Handle<String> h_arg)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
+  static ObjPtr<String> DoRepeat(Thread* self, Handle<String> h_this, int32_t count)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
   static ObjPtr<String> AllocFromUtf16(Thread* self,
                                        int32_t utf16_length,
                                        const uint16_t* utf16_data_in)
