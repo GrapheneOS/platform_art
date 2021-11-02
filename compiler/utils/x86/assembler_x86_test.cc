@@ -1073,6 +1073,18 @@ TEST_F(AssemblerX86AVXTest, VPMAddWD) {
       RepeatFFF(&x86::X86Assembler::vpmaddwd, "vpmaddwd %{reg3}, %{reg2}, %{reg1}"), "vpmaddwd");
 }
 
+TEST_F(AssemblerX86AVXTest, VFMadd213SS) {
+  DriverStr(
+      RepeatFFF(&x86::X86Assembler::vfmadd213ss,
+                "vfmadd213ss %{reg3}, %{reg2}, %{reg1}"), "vfmadd213ss");
+}
+
+TEST_F(AssemblerX86AVXTest, VFMadd213SD) {
+  DriverStr(
+      RepeatFFF(&x86::X86Assembler::vfmadd213sd,
+                "vfmadd213sd %{reg3}, %{reg2}, %{reg1}"), "vfmadd213sd");
+}
+
 TEST_F(AssemblerX86Test, PHAddW) {
   DriverStr(RepeatFF(&x86::X86Assembler::phaddw, "phaddw %{reg2}, %{reg1}"), "phaddw");
 }
