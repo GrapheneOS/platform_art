@@ -247,7 +247,7 @@ class SmallIrtAllocator {
   // Repository of MemMaps used for small IRT tables.
   std::vector<MemMap> shared_irt_maps_;
 
-  Mutex lock_;
+  Mutex lock_;  // Level kGenericBottomLock; acquired before mem_map_lock_, which is a C++ mutex.
 };
 
 class IndirectReferenceTable {
