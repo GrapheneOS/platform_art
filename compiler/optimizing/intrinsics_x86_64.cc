@@ -3222,8 +3222,10 @@ void IntrinsicCodeGeneratorX86_64::VisitMathMultiplyHigh(HInvoke* invoke) {
 
 class VarHandleSlowPathX86_64 : public IntrinsicSlowPathX86_64 {
  public:
-  explicit VarHandleSlowPathX86_64(HInvoke* invoke)
-      : IntrinsicSlowPathX86_64(invoke) {
+  VarHandleSlowPathX86_64(HInvoke* invoke, bool is_atomic, bool is_volatile)
+      : IntrinsicSlowPathX86_64(invoke),
+        is_volatile_(is_volatile),
+        is_atomic_(is_atomic) {
   }
 
   Label* GetByteArrayViewCheckLabel() {
@@ -3254,6 +3256,10 @@ class VarHandleSlowPathX86_64 : public IntrinsicSlowPathX86_64 {
 
   Label byte_array_view_check_label_;
   Label native_byte_order_label_;
+
+  // Arguments forwarded to specific methods.
+  bool is_volatile_;
+  bool is_atomic_;
 };
 
 // Generate subtype check without read barriers.
@@ -3500,9 +3506,11 @@ static void GenerateVarHandleCoordinateChecks(HInvoke* invoke,
 
 static VarHandleSlowPathX86_64* GenerateVarHandleChecks(HInvoke* invoke,
                                                         CodeGeneratorX86_64* codegen,
-                                                        DataType::Type type) {
+                                                        DataType::Type type,
+                                                        bool is_volatile = false,
+                                                        bool is_atomic = false) {
   VarHandleSlowPathX86_64* slow_path =
-      new (codegen->GetScopedAllocator()) VarHandleSlowPathX86_64(invoke);
+      new (codegen->GetScopedAllocator()) VarHandleSlowPathX86_64(invoke, is_volatile, is_atomic);
   codegen->AddSlowPath(slow_path);
 
   GenerateVarHandleAccessModeAndVarTypeChecks(invoke, codegen, slow_path, type);
@@ -3589,11 +3597,13 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
   DCHECK_LE(expected_coordinates_count, 2u);  // Filtered by the `DoNotIntrinsify` flag above.
   if (expected_coordinates_count > 1u) {
-    // TODO: Add array support for all intrinsics.
-    // TODO: Add support for byte array views.
-    if (mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic()) !=
-        mirror::VarHandle::AccessModeTemplate::kGet) {
-      return false;
+    switch (mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic())) {
+      case mirror::VarHandle::AccessModeTemplate::kGet:
+      case mirror::VarHandle::AccessModeTemplate::kSet:
+        break;
+      default:
+        // TODO: Add support for all intrinsics.
+        return false;
     }
   }
 
@@ -3640,7 +3650,7 @@ static void CreateVarHandleGetLocations(HInvoke* invoke) {
     return;
   }
 
-  LocationSummary *locations = CreateVarHandleCommonLocations(invoke);
+  LocationSummary* locations = CreateVarHandleCommonLocations(invoke);
   if (DataType::IsFloatingPointType(invoke->GetType())) {
     locations->SetOut(Location::RequiresFpuRegister());
   } else {
@@ -3733,7 +3743,16 @@ static void CreateVarHandleSetLocations(HInvoke* invoke) {
   }
 
   LocationSummary* locations = CreateVarHandleCommonLocations(invoke);
-
+  if (GetExpectedVarHandleCoordinatesCount(invoke) > 1) {
+    // Ensure that the value is in register: for byte array views we may need to swap byte order
+    // inplace (and then swap it back).
+    uint32_t value_index = invoke->GetNumberOfArguments() - 1;
+    if (DataType::IsFloatingPointType(GetDataTypeFromShorty(invoke, value_index))) {
+      locations->SetInAt(value_index, Location::RequiresFpuRegister());
+    } else {
+      locations->SetInAt(value_index, Location::RequiresRegister());
+    }
+  }
   // Extra temporary is used for card in MarkGCCard and to move 64-bit constants to memory.
   locations->AddTemp(Location::RequiresRegister());
 }
@@ -3741,15 +3760,27 @@ static void CreateVarHandleSetLocations(HInvoke* invoke) {
 static void GenerateVarHandleSet(HInvoke* invoke,
                                  CodeGeneratorX86_64* codegen,
                                  bool is_volatile,
-                                 bool is_atomic) {
+                                 bool is_atomic,
+                                 bool byte_swap = false) {
   X86_64Assembler* assembler = codegen->GetAssembler();
+
+  LocationSummary* locations = invoke->GetLocations();
+  const uint32_t last_temp_index = locations->GetTempCount() - 1;
+  CpuRegister temp = locations->GetTemp(last_temp_index).AsRegister<CpuRegister>();
 
   uint32_t value_index = invoke->GetNumberOfArguments() - 1;
   DataType::Type value_type = GetDataTypeFromShorty(invoke, value_index);
 
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, value_type);
   VarHandleTarget target = GetVarHandleTarget(invoke);
-  GenerateVarHandleTarget(invoke, target, codegen);
+  VarHandleSlowPathX86_64* slow_path = nullptr;
+  if (!byte_swap) {
+    slow_path = GenerateVarHandleChecks(invoke, codegen, value_type, is_volatile, is_atomic);
+    GenerateVarHandleTarget(invoke, target, codegen);
+    __ Bind(slow_path->GetNativeByteOrderLabel());
+  } else {
+    // Swap bytes inplace in the input register (later we will restore it).
+    GenReverseBytes(locations->InAt(value_index), value_type, assembler, temp);
+  }
 
   switch (invoke->GetIntrinsic()) {
     case Intrinsics::kVarHandleSetRelease:
@@ -3763,7 +3794,6 @@ static void GenerateVarHandleSet(HInvoke* invoke,
       break;
   }
 
-  const uint32_t last_temp_index = invoke->GetLocations()->GetTempCount() - 1;
   Address dst(CpuRegister(target.object), CpuRegister(target.offset), TIMES_1, 0);
 
   // Store the value to the field.
@@ -3781,7 +3811,12 @@ static void GenerateVarHandleSet(HInvoke* invoke,
 
   // setVolatile needs kAnyAny barrier, but HandleFieldSet takes care of that.
 
-  __ Bind(slow_path->GetExitLabel());
+  if (!byte_swap) {
+    __ Bind(slow_path->GetExitLabel());
+  } else {
+    // Restore byte order in the input register.
+    GenReverseBytes(locations->InAt(value_index), value_type, assembler, temp);
+  }
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleSet(HInvoke* invoke) {
@@ -4616,11 +4651,27 @@ void VarHandleSlowPathX86_64::EmitByteArrayViewCode(CodeGeneratorX86_64* codegen
   __ j(kNotZero, GetEntryLabel());
 
   // Byte order check. For native byte order return to the main path.
+  if (access_mode_template == mirror::VarHandle::AccessModeTemplate::kSet &&
+      IsZeroBitPattern(invoke->InputAt(invoke->GetNumberOfArguments() - 1u))) {
+    // There is no reason to differentiate between native byte order and byte-swap
+    // for setting a zero bit pattern. Just return to the main path.
+    __ jmp(GetNativeByteOrderLabel());
+    return;
+  }
   __ cmpl(Address(varhandle, native_byte_order_offset.Int32Value()), Immediate(0));
   __ j(kNotEqual, GetNativeByteOrderLabel());
 
-  DCHECK(access_mode_template == mirror::VarHandle::AccessModeTemplate::kGet);
-  GenerateVarHandleGet(invoke, codegen, /*byte_swap=*/ true);
+  switch (access_mode_template) {
+    case mirror::VarHandle::AccessModeTemplate::kGet:
+      GenerateVarHandleGet(invoke, codegen, /*byte_swap=*/ true);
+      break;
+    case mirror::VarHandle::AccessModeTemplate::kSet:
+      GenerateVarHandleSet(invoke, codegen, is_volatile_, is_atomic_, /*byte_swap=*/ true);
+      break;
+    default:
+      DCHECK(false);
+      UNREACHABLE();
+  }
 
   __ jmp(GetExitLabel());
 }
