@@ -1983,6 +1983,14 @@ void UnstartedRuntime::UnstartedJNIUnsafeGetArrayIndexScaleForComponentType(
   UnstartedJNIJdkUnsafeGetArrayIndexScaleForComponentType(self, method, receiver, args, result);
 }
 
+void UnstartedRuntime::UnstartedJNIJdkUnsafeAddressSize(
+    Thread* self ATTRIBUTE_UNUSED,
+    ArtMethod* method ATTRIBUTE_UNUSED,
+    mirror::Object* receiver ATTRIBUTE_UNUSED,
+    uint32_t* args ATTRIBUTE_UNUSED,
+    JValue* result) {
+  result->SetI(sizeof(void*));
+}
 
 void UnstartedRuntime::UnstartedJNIJdkUnsafeCompareAndSwapInt(
     Thread* self,
