@@ -682,8 +682,10 @@ void Arm64JNIMacroAssembler::Call(FrameOffset base, Offset offs) {
   ___ Blr(lr);
 }
 
-void Arm64JNIMacroAssembler::CallFromThread(ThreadOffset64 offset ATTRIBUTE_UNUSED) {
-  UNIMPLEMENTED(FATAL) << "Unimplemented Call() variant";
+void Arm64JNIMacroAssembler::CallFromThread(ThreadOffset64 offset) {
+  // Call *(TR + offset)
+  ___ Ldr(lr, MEM_OP(reg_x(TR), offset.Int32Value()));
+  ___ Blr(lr);
 }
 
 void Arm64JNIMacroAssembler::CreateJObject(ManagedRegister m_out_reg,
@@ -732,6 +734,13 @@ void Arm64JNIMacroAssembler::CreateJObject(FrameOffset out_off,
     ___ Add(scratch, reg_x(SP), spilled_reference_offset.Int32Value());
   }
   ___ Str(scratch, MEM_OP(reg_x(SP), out_off.Int32Value()));
+}
+
+void Arm64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  Register scratch = temps.AcquireW();
+  ___ Ldrh(scratch, MEM_OP(reg_x(TR), Thread::ThreadFlagsOffset<kArm64PointerSize>().Int32Value()));
+  ___ Cbnz(scratch, Arm64JNIMacroLabel::Cast(label)->AsArm64());
 }
 
 void Arm64JNIMacroAssembler::ExceptionPoll(JNIMacroLabel* label) {

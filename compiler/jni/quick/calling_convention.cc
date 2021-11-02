@@ -134,6 +134,7 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamALong() {
 std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocator* allocator,
                                                                    bool is_static,
                                                                    bool is_synchronized,
+                                                                   bool is_fast_native,
                                                                    bool is_critical_native,
                                                                    const char* shorty,
                                                                    InstructionSet instruction_set) {
@@ -143,25 +144,25 @@ std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocato
     case InstructionSet::kThumb2:
       return std::unique_ptr<JniCallingConvention>(
           new (allocator) arm::ArmJniCallingConvention(
-              is_static, is_synchronized, is_critical_native, shorty));
+              is_static, is_synchronized, is_fast_native, is_critical_native, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     case InstructionSet::kArm64:
       return std::unique_ptr<JniCallingConvention>(
           new (allocator) arm64::Arm64JniCallingConvention(
-              is_static, is_synchronized, is_critical_native, shorty));
+              is_static, is_synchronized, is_fast_native, is_critical_native, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case InstructionSet::kX86:
       return std::unique_ptr<JniCallingConvention>(
           new (allocator) x86::X86JniCallingConvention(
-              is_static, is_synchronized, is_critical_native, shorty));
+              is_static, is_synchronized, is_fast_native, is_critical_native, shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case InstructionSet::kX86_64:
       return std::unique_ptr<JniCallingConvention>(
           new (allocator) x86_64::X86_64JniCallingConvention(
-              is_static, is_synchronized, is_critical_native, shorty));
+              is_static, is_synchronized, is_fast_native, is_critical_native, shorty));
 #endif
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
