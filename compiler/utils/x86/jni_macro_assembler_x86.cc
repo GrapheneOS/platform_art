@@ -317,35 +317,57 @@ void X86JNIMacroAssembler::ZeroExtend(ManagedRegister mreg, size_t size) {
 }
 
 void X86JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
-                                         ArrayRef<ArgumentLocation> srcs) {
-  DCHECK_EQ(dests.size(), srcs.size());
+                                         ArrayRef<ArgumentLocation> srcs,
+                                         ArrayRef<FrameOffset> refs) {
+  size_t arg_count = dests.size();
+  DCHECK_EQ(arg_count, srcs.size());
+  DCHECK_EQ(arg_count, refs.size());
+
+  // Store register args to stack slots. Convert processed references to `jobject`.
   bool found_hidden_arg = false;
-  for (size_t i = 0, arg_count = srcs.size(); i != arg_count; ++i) {
+  for (size_t i = 0; i != arg_count; ++i) {
     const ArgumentLocation& src = srcs[i];
     const ArgumentLocation& dest = dests[i];
-    DCHECK_EQ(src.GetSize(), dest.GetSize());
+    const FrameOffset ref = refs[i];
+    DCHECK_EQ(src.GetSize(), dest.GetSize());  // Even for references.
     if (src.IsRegister()) {
       if (UNLIKELY(dest.IsRegister())) {
         // Native ABI has only stack arguments but we may pass one "hidden arg" in register.
         CHECK(!found_hidden_arg);
         found_hidden_arg = true;
+        DCHECK_EQ(ref, kInvalidReferenceOffset);
         DCHECK(
             !dest.GetRegister().Equals(X86ManagedRegister::FromCpuRegister(GetScratchRegister())));
         Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
       } else {
+        if (ref != kInvalidReferenceOffset) {
+          Store(ref, srcs[i].GetRegister(), kObjectReferenceSize);
+          // Note: We can clobber `src` here as the register cannot hold more than one argument.
+          //       This overload of `CreateJObject()` currently does not use the scratch
+          //       register ECX, so this shall not clobber another argument.
+          CreateJObject(src.GetRegister(), ref, src.GetRegister(), /*null_allowed=*/ i != 0u);
+        }
         Store(dest.GetFrameOffset(), src.GetRegister(), dest.GetSize());
       }
     } else {
       // Delay copying until we have spilled all registers, including the scratch register ECX.
     }
   }
-  for (size_t i = 0, arg_count = srcs.size(); i != arg_count; ++i) {
+
+  // Copy incoming stack args. Convert processed references to `jobject`.
+  for (size_t i = 0; i != arg_count; ++i) {
     const ArgumentLocation& src = srcs[i];
     const ArgumentLocation& dest = dests[i];
-    DCHECK_EQ(src.GetSize(), dest.GetSize());
+    const FrameOffset ref = refs[i];
+    DCHECK_EQ(src.GetSize(), dest.GetSize());  // Even for references.
     if (!src.IsRegister()) {
       DCHECK(!dest.IsRegister());
-      Copy(dest.GetFrameOffset(), src.GetFrameOffset(), dest.GetSize());
+      if (ref != kInvalidReferenceOffset) {
+        DCHECK_EQ(srcs[i].GetFrameOffset(), refs[i]);
+        CreateJObject(dest.GetFrameOffset(), ref, /*null_allowed=*/ i != 0u);
+      } else {
+        Copy(dest.GetFrameOffset(), src.GetFrameOffset(), dest.GetSize());
+      }
     }
   }
 }
