@@ -250,13 +250,11 @@ NO_RETURN void UsageHelp(const char* argv0) {
   UsageError("");
   UsageError("Valid ACTION choices are:");
   UsageError("");
-  UsageError(
-      "--check          Check compilation artifacts are up-to-date based on metadata (fast).");
+  UsageError("--check          Check compilation artifacts are up-to-date based on metadata.");
   UsageError("--compile        Compile boot class path extensions and system_server jars");
   UsageError("                 when necessary.");
   UsageError("--force-compile  Unconditionally compile the boot class path extensions and");
   UsageError("                 system_server jars.");
-  UsageError("--verify         Verify artifacts are up-to-date with dexoptanalyzer (slow).");
   UsageError("--help           Display this help information.");
   UsageError("");
   UsageError("Available OPTIONs are:");
@@ -328,10 +326,6 @@ int main(int argc, char** argv) {
       return odr.Compile(metrics,
                          /*compile_boot_extensions=*/config.GetBootExtensionIsas(),
                          /*compile_system_server=*/true);
-    } else if (action == "--verify") {
-      // Slow determination of whether artifacts are up to date. These are too slow for checking
-      // during boot (b/181689036).
-      return odr.VerifyArtifactsAreUpToDate();
     } else if (action == "--help") {
       UsageHelp(argv[0]);
     } else {

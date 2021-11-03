@@ -56,16 +56,6 @@ class OnDeviceRefresh final {
                                const std::vector<InstructionSet>& compile_boot_extensions,
                                bool compile_system_server) const;
 
-  // Verify all artifacts are up-to-date.
-  //
-  // This method checks artifacts can be loaded by the runtime.
-  //
-  // Returns ExitCode::kOkay if artifacts are up-to-date, ExitCode::kCompilationRequired
-  // otherwise.
-  //
-  // NB This is the main function used by the --verify command-line option.
-  WARN_UNUSED ExitCode VerifyArtifactsAreUpToDate() const;
-
   WARN_UNUSED bool RemoveArtifactsDirectory() const;
 
  private:
@@ -128,26 +118,6 @@ class OnDeviceRefresh final {
       const std::vector<com::android::apex::ApexInfo>& apex_info_list,
       const std::optional<com::android::art::CacheInfo>& cache_info,
       /*out*/ bool* cleanup_required) const;
-
-  // Check the validity of boot class path extension artifacts.
-  //
-  // Returns true if artifacts exist and are valid according to dexoptanalyzer.
-  WARN_UNUSED bool VerifyBootExtensionArtifactsAreUpToDate(const InstructionSet isa,
-                                                           bool on_system) const;
-
-  // Verify whether boot extension artifacts for `isa` are valid on system partition or in
-  // apexdata. This method has the side-effect of removing boot classpath extension artifacts on
-  // /data, if there are valid artifacts on /system, or if the artifacts on /data are not valid.
-  // Returns true if valid boot externsion artifacts are valid.
-  WARN_UNUSED bool VerifyBootExtensionArtifactsAreUpToDate(InstructionSet isa) const;
-
-  WARN_UNUSED bool VerifySystemServerArtifactsAreUpToDate(bool on_system) const;
-
-  // Verify the validity of system server artifacts on both /system and /data.
-  // This method has the side-effect of removing system server artifacts on /data, if there are
-  // valid artifacts on /system, or if the artifacts on /data are not valid.
-  // Returns true if valid artifacts are found.
-  WARN_UNUSED bool VerifySystemServerArtifactsAreUpToDate() const;
 
   WARN_UNUSED bool CompileBootExtensionArtifacts(const InstructionSet isa,
                                                  const std::string& staging_dir,
