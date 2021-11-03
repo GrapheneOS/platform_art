@@ -56,6 +56,7 @@ class ArmJniCallingConvention final : public JniCallingConvention {
  public:
   ArmJniCallingConvention(bool is_static,
                           bool is_synchronized,
+                          bool is_fast_native,
                           bool is_critical_native,
                           const char* shorty);
   ~ArmJniCallingConvention() override {}

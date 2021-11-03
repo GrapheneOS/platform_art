@@ -84,5 +84,25 @@ Java_art_Test2005_UpdateFieldValuesAndResumeThreads(JNIEnv* env,
   jvmti_env->Deallocate(reinterpret_cast<unsigned char*>(objs));
 }
 
+extern "C" JNIEXPORT jobject JNICALL
+Java_Main_fastNativeSleepAndReturnInteger42(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  jclass integer_class = env->FindClass("java/lang/Integer");
+  CHECK(integer_class != nullptr);
+  jmethodID integer_value_of =
+      env->GetStaticMethodID(integer_class, "valueOf", "(I)Ljava/lang/Integer;");
+  CHECK(integer_value_of != nullptr);
+  jobject value = env->CallStaticObjectMethod(integer_class, integer_value_of, 42);
+  CHECK(value != nullptr);
+  // Sleep for 500ms, blocking thread suspension (this method is @FastNative).
+  // Except for some odd thread timing, this should ensure that the suspend
+  // request from the redefinition thread is seen by the suspend check in the
+  // JNI stub when we exit this function and then processed with the JNI stub
+  // still on the stack. The instrumentation previously erroneously
+  // intercepted returning to the JNI stub and the "instrumentation exit"
+  // handler treated the return value `jobject` as `mirror::Object*`.
+  usleep(500000);
+  return value;
+}
+
 }  // namespace Test2005PauseAllRedefineMultithreaded
 }  // namespace art
