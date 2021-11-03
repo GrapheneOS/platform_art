@@ -43,6 +43,7 @@ namespace {
   // jdk/internal/misc/Unsafe.java comments).
   bool ValidJniSizeArgument(jlong size) REQUIRES_SHARED(Locks::mutator_lock_) {
     const jlong maybe_truncated_size = static_cast<jlong>(static_cast<size_t>(size));
+    // size is nonnegative and fits into size_t
     if (LIKELY(size >= 0 && size == maybe_truncated_size)) {
       return true;
     }
@@ -346,19 +347,26 @@ static void Unsafe_putDoubleJD(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong addr
   *reinterpret_cast<jdouble*>(address) = value;
 }
 
-static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED, jlong src,
-                              jlong dst, jlong size) {
+static void Unsafe_copyMemory0(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED,
+                              jobject srcObj, jlong srcOffset,
+                              jobject dstObj, jlong dstOffset,
+                              jlong size) {
   ScopedFastNativeObjectAccess soa(env);
   if (size == 0) {
     return;
   }
-  // size is nonnegative and fits into size_t
   if (!ValidJniSizeArgument(size)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
   const size_t memcpy_size = static_cast<size_t>(size);
-  memcpy(reinterpret_cast<void *>(dst), reinterpret_cast<void *>(src), memcpy_size);
+  const size_t src_offset = static_cast<size_t>(srcOffset);
+  ObjPtr<mirror::Object> src = soa.Decode<mirror::Object>(srcObj);
+  const size_t dst_offset = static_cast<size_t>(dstOffset);
+  ObjPtr<mirror::Object> dst = soa.Decode<mirror::Object>(dstObj);
+  memcpy(reinterpret_cast<uint8_t*>(dst.Ptr()) + dst_offset,
+         reinterpret_cast<uint8_t*>(src.Ptr()) + src_offset,
+         memcpy_size);
 }
 
 static jboolean Unsafe_getBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
@@ -515,7 +523,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Unsafe, allocateMemory, "(J)J"),
   FAST_NATIVE_METHOD(Unsafe, freeMemory, "(J)V"),
   FAST_NATIVE_METHOD(Unsafe, setMemory, "(JJB)V"),
-  FAST_NATIVE_METHOD(Unsafe, copyMemory, "(JJJ)V"),
+  FAST_NATIVE_METHOD(Unsafe, copyMemory0, "(Ljava/lang/Object;JLjava/lang/Object;JJ)V"),
   FAST_NATIVE_METHOD(Unsafe, getBoolean, "(Ljava/lang/Object;J)Z"),
 
   FAST_NATIVE_METHOD(Unsafe, getByte, "(Ljava/lang/Object;J)B"),
