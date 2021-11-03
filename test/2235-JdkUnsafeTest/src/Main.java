@@ -70,7 +70,6 @@ public class Main {
     testCompareAndSet(unsafe);
     testGetAndPutVolatile(unsafe);
     testGetAcquireAndPutRelease(unsafe);
-    testCopyMemoryPrimitiveArrays(unsafe);
   }
 
   private static void testArrayBaseOffset(Unsafe unsafe) {
@@ -378,38 +377,6 @@ public class Main {
     check(unsafe.getObjectAcquire(tv, volatileObjectOffset),
           objectValue,
           "Unsafe.getObjectAcquire(Object, long)");
-  }
-
-  // Regression test for "copyMemory" operations hitting a DCHECK() for float/double arrays.
-  private static void testCopyMemoryPrimitiveArrays(Unsafe unsafe) {
-    int size = 4 * 1024;
-    long memory = jdkUnsafeTestMalloc(size);
-
-    int floatSize = 4;
-    float[] inputFloats = new float[size / floatSize];
-    for (int i = 0; i != inputFloats.length; ++i) {
-      inputFloats[i] = ((float)i) + 0.5f;
-    }
-    float[] outputFloats = new float[size / floatSize];
-    unsafe.copyMemoryFromPrimitiveArray(inputFloats, 0, memory, size);
-    unsafe.copyMemoryToPrimitiveArray(memory, outputFloats, 0, size);
-    for (int i = 0; i != inputFloats.length; ++i) {
-      check(inputFloats[i], outputFloats[i], "unsafe.copyMemory/float");
-    }
-
-    int doubleSize = 8;
-    double[] inputDoubles = new double[size / doubleSize];
-    for (int i = 0; i != inputDoubles.length; ++i) {
-      inputDoubles[i] = ((double)i) + 0.5;
-    }
-    double[] outputDoubles = new double[size / doubleSize];
-    unsafe.copyMemoryFromPrimitiveArray(inputDoubles, 0, memory, size);
-    unsafe.copyMemoryToPrimitiveArray(memory, outputDoubles, 0, size);
-    for (int i = 0; i != inputDoubles.length; ++i) {
-      check(inputDoubles[i], outputDoubles[i], "unsafe.copyMemory/double");
-    }
-
-    jdkUnsafeTestFree(memory);
   }
 
   private static class TestClass {
