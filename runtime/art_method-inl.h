@@ -291,7 +291,9 @@ inline const dex::ClassDef& ArtMethod::GetClassDef() {
 
 inline size_t ArtMethod::GetNumberOfParameters() {
   constexpr size_t return_type_count = 1u;
-  return strlen(GetShorty()) - return_type_count;
+  uint32_t shorty_length;
+  GetShorty(&shorty_length);
+  return shorty_length - return_type_count;
 }
 
 inline const char* ArtMethod::GetReturnTypeDescriptor() {
