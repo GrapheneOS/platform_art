@@ -38,6 +38,20 @@
 
 namespace art {
 
+namespace {
+  // Checks a JNI argument `size` fits inside a size_t and throws a RuntimeException if not (see
+  // jdk/internal/misc/Unsafe.java comments).
+  bool ValidJniSizeArgument(jlong size) REQUIRES_SHARED(Locks::mutator_lock_) {
+    const jlong maybe_truncated_size = static_cast<jlong>(static_cast<size_t>(size));
+    // size is nonnegative and fits into size_t
+    if (LIKELY(size >= 0 && size == maybe_truncated_size)) {
+      return true;
+    }
+    ThrowRuntimeException("Bad size: %" PRIu64, size);
+    return false;
+  }
+}  // namespace
+
 static jboolean Unsafe_compareAndSetInt(JNIEnv* env, jobject, jobject javaObj, jlong offset,
                                         jint expectedValue, jint newValue) {
   ScopedFastNativeObjectAccess soa(env);
@@ -253,17 +267,21 @@ static jint Unsafe_pageSize(JNIEnv* env ATTRIBUTE_UNUSED, jobject ob ATTRIBUTE_U
 
 static jlong Unsafe_allocateMemory(JNIEnv* env, jobject, jlong bytes) {
   ScopedFastNativeObjectAccess soa(env);
-  // bytes is nonnegative and fits into size_t
-  if (bytes < 0 || bytes != (jlong)(size_t) bytes) {
-    ThrowIllegalAccessException("wrong number of bytes");
+  if (bytes == 0) {
     return 0;
   }
-  void* mem = malloc(bytes);
+  // bytes is nonnegative and fits into size_t
+  if (!ValidJniSizeArgument(bytes)) {
+    DCHECK(soa.Self()->IsExceptionPending());
+    return 0;
+  }
+  const size_t malloc_bytes = static_cast<size_t>(bytes);
+  void* mem = malloc(malloc_bytes);
   if (mem == nullptr) {
     soa.Self()->ThrowOutOfMemoryError("native alloc");
     return 0;
   }
-  return (uintptr_t) mem;
+  return reinterpret_cast<uintptr_t>(mem);
 }
 
 static void Unsafe_freeMemory(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong address) {
@@ -329,117 +347,28 @@ static void Unsafe_putDoubleJD(JNIEnv* env ATTRIBUTE_UNUSED, jobject, jlong addr
   *reinterpret_cast<jdouble*>(address) = value;
 }
 
-static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED, jlong src,
-                              jlong dst, jlong size) {
+static void Unsafe_copyMemory0(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED,
+                              jobject srcObj, jlong srcOffset,
+                              jobject dstObj, jlong dstOffset,
+                              jlong size) {
+  ScopedFastNativeObjectAccess soa(env);
   if (size == 0) {
     return;
   }
-  // size is nonnegative and fits into size_t
-  if (size < 0 || size != (jlong)(size_t) size) {
-    ScopedFastNativeObjectAccess soa(env);
-    ThrowIllegalAccessException("wrong number of bytes");
-  }
-  size_t sz = (size_t)size;
-  memcpy(reinterpret_cast<void *>(dst), reinterpret_cast<void *>(src), sz);
-}
-
-template<typename T>
-static void copyToArray(jlong srcAddr,
-                        ObjPtr<mirror::PrimitiveArray<T>> array,
-                        size_t array_offset,
-                        size_t size)
-        REQUIRES_SHARED(Locks::mutator_lock_) {
-  const T* src = reinterpret_cast<T*>(srcAddr);
-  size_t sz = size / sizeof(T);
-  size_t of = array_offset / sizeof(T);
-  for (size_t i = 0; i < sz; ++i) {
-    array->Set(i + of, *(src + i));
-  }
-}
-
-template<typename T>
-static void copyFromArray(jlong dstAddr,
-                          ObjPtr<mirror::PrimitiveArray<T>> array,
-                          size_t array_offset,
-                          size_t size)
-        REQUIRES_SHARED(Locks::mutator_lock_) {
-  T* dst = reinterpret_cast<T*>(dstAddr);
-  size_t sz = size / sizeof(T);
-  size_t of = array_offset / sizeof(T);
-  for (size_t i = 0; i < sz; ++i) {
-    *(dst + i) = array->Get(i + of);
-  }
-}
-
-static void Unsafe_copyMemoryToPrimitiveArray(JNIEnv *env,
-                                              jobject unsafe ATTRIBUTE_UNUSED,
-                                              jlong srcAddr,
-                                              jobject dstObj,
-                                              jlong dstOffset,
-                                              jlong size) {
-  ScopedObjectAccess soa(env);
-  if (size == 0) {
+  if (!ValidJniSizeArgument(size)) {
+    DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
-  // size is nonnegative and fits into size_t
-  if (size < 0 || size != (jlong)(size_t) size) {
-    ThrowIllegalAccessException("wrong number of bytes");
-  }
-  size_t sz = (size_t)size;
-  size_t dst_offset = (size_t)dstOffset;
-  ObjPtr<mirror::Object> dst = soa.Decode<mirror::Object>(dstObj);
-  ObjPtr<mirror::Class> component_type = dst->GetClass()->GetComponentType();
-  if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
-    // Note: Treating BooleanArray as ByteArray.
-    copyToArray(srcAddr, ObjPtr<mirror::ByteArray>::DownCast(dst), dst_offset, sz);
-  } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
-    // Note: Treating CharArray as ShortArray.
-    copyToArray(srcAddr, ObjPtr<mirror::ShortArray>::DownCast(dst), dst_offset, sz);
-  } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
-    // Note: Treating FloatArray as IntArray.
-    copyToArray(srcAddr, ObjPtr<mirror::IntArray>::DownCast(dst), dst_offset, sz);
-  } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
-    // Note: Treating DoubleArray as LongArray.
-    copyToArray(srcAddr, ObjPtr<mirror::LongArray>::DownCast(dst), dst_offset, sz);
-  } else {
-    ThrowIllegalAccessException("not a primitive array");
-  }
-}
-
-static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
-                                                jobject unsafe ATTRIBUTE_UNUSED,
-                                                jobject srcObj,
-                                                jlong srcOffset,
-                                                jlong dstAddr,
-                                                jlong size) {
-  ScopedObjectAccess soa(env);
-  if (size == 0) {
-    return;
-  }
-  // size is nonnegative and fits into size_t
-  if (size < 0 || size != (jlong)(size_t) size) {
-    ThrowIllegalAccessException("wrong number of bytes");
-  }
-  size_t sz = (size_t)size;
-  size_t src_offset = (size_t)srcOffset;
+  const size_t memcpy_size = static_cast<size_t>(size);
+  const size_t src_offset = static_cast<size_t>(srcOffset);
   ObjPtr<mirror::Object> src = soa.Decode<mirror::Object>(srcObj);
-  ObjPtr<mirror::Class> component_type = src->GetClass()->GetComponentType();
-  if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
-    // Note: Treating BooleanArray as ByteArray.
-    copyFromArray(dstAddr, ObjPtr<mirror::ByteArray>::DownCast(src), src_offset, sz);
-  } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
-    // Note: Treating CharArray as ShortArray.
-    copyFromArray(dstAddr, ObjPtr<mirror::ShortArray>::DownCast(src), src_offset, sz);
-  } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
-    // Note: Treating FloatArray as IntArray.
-    copyFromArray(dstAddr, ObjPtr<mirror::IntArray>::DownCast(src), src_offset, sz);
-  } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
-    // Note: Treating DoubleArray as LongArray.
-    copyFromArray(dstAddr, ObjPtr<mirror::LongArray>::DownCast(src), src_offset, sz);
-  } else {
-    ThrowIllegalAccessException("not a primitive array");
-  }
+  const size_t dst_offset = static_cast<size_t>(dstOffset);
+  ObjPtr<mirror::Object> dst = soa.Decode<mirror::Object>(dstObj);
+  memcpy(reinterpret_cast<uint8_t*>(dst.Ptr()) + dst_offset,
+         reinterpret_cast<uint8_t*>(src.Ptr()) + src_offset,
+         memcpy_size);
 }
+
 static jboolean Unsafe_getBoolean(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(javaObj);
@@ -594,9 +523,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Unsafe, allocateMemory, "(J)J"),
   FAST_NATIVE_METHOD(Unsafe, freeMemory, "(J)V"),
   FAST_NATIVE_METHOD(Unsafe, setMemory, "(JJB)V"),
-  FAST_NATIVE_METHOD(Unsafe, copyMemory, "(JJJ)V"),
-  FAST_NATIVE_METHOD(Unsafe, copyMemoryToPrimitiveArray, "(JLjava/lang/Object;JJ)V"),
-  FAST_NATIVE_METHOD(Unsafe, copyMemoryFromPrimitiveArray, "(Ljava/lang/Object;JJJ)V"),
+  FAST_NATIVE_METHOD(Unsafe, copyMemory0, "(Ljava/lang/Object;JLjava/lang/Object;JJ)V"),
   FAST_NATIVE_METHOD(Unsafe, getBoolean, "(Ljava/lang/Object;J)Z"),
 
   FAST_NATIVE_METHOD(Unsafe, getByte, "(Ljava/lang/Object;J)B"),
