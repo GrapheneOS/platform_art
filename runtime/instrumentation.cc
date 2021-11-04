@@ -59,9 +59,7 @@ constexpr bool kVerboseInstrumentation = false;
 
 void InstrumentationListener::MethodExited(
     Thread* thread,
-    Handle<mirror::Object> this_object,
     ArtMethod* method,
-    uint32_t dex_pc,
     OptionalFrame frame,
     MutableHandle<mirror::Object>& return_value) {
   DCHECK_EQ(method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetReturnTypePrimitive(),
@@ -69,7 +67,7 @@ void InstrumentationListener::MethodExited(
   const void* original_ret = return_value.Get();
   JValue v;
   v.SetL(return_value.Get());
-  MethodExited(thread, this_object, method, dex_pc, frame, v);
+  MethodExited(thread, method, frame, v);
   DCHECK(original_ret == v.GetL()) << "Return value changed";
 }
 
@@ -307,7 +305,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
           instrumentation_stack_(thread_in->GetInstrumentationStack()),
           instrumentation_exit_pc_(instrumentation_exit_pc),
           reached_existing_instrumentation_frames_(false),
-          last_return_pc_(0),
           force_deopt_id_(force_deopt_id) {}
 
     bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -316,7 +313,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Skipping upcall. Frame " << GetFrameId();
         }
-        last_return_pc_ = 0;
         return true;  // Ignore upcalls.
       }
       if (GetCurrentQuickFrame() == nullptr) {
@@ -343,13 +339,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
         const InstrumentationStackFrame& frame = it->second;
         if (m->IsRuntimeMethod()) {
           if (frame.interpreter_entry_) {
-            // This instrumentation frame is for an interpreter bridge and is
-            // pushed when executing the instrumented interpreter bridge. So method
-            // enter event must have been reported. However we need to push a DEX pc
-            // into the dex_pcs_ list to match size of instrumentation stack.
-            uint32_t dex_pc = dex::kDexNoIndex;
-            dex_pcs_.push_back(dex_pc);
-            last_return_pc_ = frame.return_pc_;
             return true;
           }
         }
@@ -372,16 +361,10 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
           // inserted by the interpreter or runtime.
           std::string thread_name;
           GetThread()->GetThreadName(thread_name);
-          uint32_t dex_pc = dex::kDexNoIndex;
-          if (last_return_pc_ != 0 && GetCurrentOatQuickMethodHeader() != nullptr) {
-            dex_pc = GetCurrentOatQuickMethodHeader()->ToDexPc(
-                GetCurrentQuickFrame(), last_return_pc_);
-          }
           LOG(FATAL) << "While walking " << thread_name << " found unexpected non-runtime method"
                      << " without instrumentation exit return or interpreter frame."
                      << " method is " << GetMethod()->PrettyMethod()
-                     << " return_pc is " << std::hex << return_pc
-                     << " dex pc: " << dex_pc;
+                     << " return_pc is " << std::hex << return_pc;
           UNREACHABLE();
         }
         if (m->IsRuntimeMethod()) {
@@ -407,20 +390,12 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
         instrumentation_stack_->insert({GetReturnPcAddr(), instrumentation_frame});
         SetReturnPc(instrumentation_exit_pc_);
       }
-      uint32_t dex_pc = dex::kDexNoIndex;
-      if (last_return_pc_ != 0 && GetCurrentOatQuickMethodHeader() != nullptr) {
-        dex_pc = GetCurrentOatQuickMethodHeader()->ToDexPc(GetCurrentQuickFrame(), last_return_pc_);
-      }
-      dex_pcs_.push_back(dex_pc);
-      last_return_pc_ = return_pc;
       return true;  // Continue.
     }
     std::map<uintptr_t, InstrumentationStackFrame>* const instrumentation_stack_;
     std::vector<InstrumentationStackFrame> shadow_stack_;
-    std::vector<uint32_t> dex_pcs_;
     const uintptr_t instrumentation_exit_pc_;
     bool reached_existing_instrumentation_frames_;
-    uintptr_t last_return_pc_;
     uint64_t force_deopt_id_;
   };
   if (kVerboseInstrumentation) {
@@ -435,7 +410,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
   InstallStackVisitor visitor(
       thread, context.get(), instrumentation_exit_pc, instrumentation->current_force_deopt_id_);
   visitor.WalkStack(true);
-  CHECK_EQ(visitor.dex_pcs_.size(), thread->GetInstrumentationStack()->size());
 
   if (instrumentation->ShouldNotifyMethodEnterExitEvents()) {
     // Create method enter events for all methods currently on the thread's stack. We only do this
@@ -449,7 +423,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg)
         instrumentation->MethodEnterEvent(thread, (*ssi).method_);
         ++ssi;
       }
-      visitor.dex_pcs_.pop_back();
       if (!isi->second.interpreter_entry_ && !isi->second.method_->IsRuntimeMethod()) {
         instrumentation->MethodEnterEvent(thread, isi->second.method_);
       }
@@ -516,8 +489,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
           // Create the method exit events. As the methods didn't really exit the result is 0.
           // We only do this if no debugger is attached to prevent from posting events twice.
           JValue val;
-          instrumentation_->MethodExitEvent(thread_, instrumentation_frame.this_object_, m,
-                                            GetDexPc(), OptionalFrame{}, val);
+          instrumentation_->MethodExitEvent(thread_, m, OptionalFrame{}, val);
         }
         frames_removed_++;
       } else {
@@ -1198,43 +1170,35 @@ void Instrumentation::MethodEnterEventImpl(Thread* thread, ArtMethod* method) co
 
 template <>
 void Instrumentation::MethodExitEventImpl(Thread* thread,
-                                          ObjPtr<mirror::Object> this_object,
                                           ArtMethod* method,
-                                          uint32_t dex_pc,
                                           OptionalFrame frame,
                                           MutableHandle<mirror::Object>& return_value) const {
   if (HasMethodExitListeners()) {
-    Thread* self = Thread::Current();
-    StackHandleScope<1> hs(self);
-    Handle<mirror::Object> thiz(hs.NewHandle(this_object));
     for (InstrumentationListener* listener : method_exit_listeners_) {
       if (listener != nullptr) {
-        listener->MethodExited(thread, thiz, method, dex_pc, frame, return_value);
+        listener->MethodExited(thread, method, frame, return_value);
       }
     }
   }
 }
 
 template<> void Instrumentation::MethodExitEventImpl(Thread* thread,
-                                                     ObjPtr<mirror::Object> this_object,
                                                      ArtMethod* method,
-                                                     uint32_t dex_pc,
                                                      OptionalFrame frame,
                                                      JValue& return_value) const {
   if (HasMethodExitListeners()) {
     Thread* self = Thread::Current();
-    StackHandleScope<2> hs(self);
-    Handle<mirror::Object> thiz(hs.NewHandle(this_object));
+    StackHandleScope<1> hs(self);
     if (method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetReturnTypePrimitive() !=
         Primitive::kPrimNot) {
       for (InstrumentationListener* listener : method_exit_listeners_) {
         if (listener != nullptr) {
-          listener->MethodExited(thread, thiz, method, dex_pc, frame, return_value);
+          listener->MethodExited(thread, method, frame, return_value);
         }
       }
     } else {
       MutableHandle<mirror::Object> ret(hs.NewHandle(return_value.GetL()));
-      MethodExitEventImpl(thread, thiz.Get(), method, dex_pc, frame, ret);
+      MethodExitEventImpl(thread, method, frame, ret);
       return_value.SetL(ret.Get());
     }
   }
@@ -1531,14 +1495,9 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self,
     // DCHECK_ALIGNED(return_value.GetL(), kObjectAlignment);
     res.Assign(return_value.GetL());
   }
-  // TODO: improve the dex pc information here, requires knowledge of current PC as opposed to
-  //       return_pc.
-  uint32_t dex_pc = dex::kDexNoIndex;
   if (!method->IsRuntimeMethod() && !instrumentation_frame.interpreter_entry_) {
-    ObjPtr<mirror::Object> this_object = instrumentation_frame.this_object_;
     // Note that sending the event may change the contents of *return_pc_addr.
-    MethodExitEvent(
-        self, this_object, instrumentation_frame.method_, dex_pc, OptionalFrame{}, return_value);
+    MethodExitEvent(self, instrumentation_frame.method_, OptionalFrame{}, return_value);
   }
 
   // Deoptimize if the caller needs to continue execution in the interpreter. Do nothing if we get

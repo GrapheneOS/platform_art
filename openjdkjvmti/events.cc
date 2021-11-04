@@ -639,9 +639,7 @@ class JvmtiMethodTraceListener final : public art::instrumentation::Instrumentat
   // TODO Maybe try to combine this with below using templates?
   // Callback for when a method is exited with a reference return value.
   void MethodExited(art::Thread* self,
-                    art::Handle<art::mirror::Object> this_object ATTRIBUTE_UNUSED,
                     art::ArtMethod* method,
-                    uint32_t dex_pc ATTRIBUTE_UNUSED,
                     art::instrumentation::OptionalFrame frame,
                     art::MutableHandle<art::mirror::Object>& return_value)
       REQUIRES_SHARED(art::Locks::mutator_lock_) override {
@@ -694,9 +692,7 @@ class JvmtiMethodTraceListener final : public art::instrumentation::Instrumentat
 
   // Call-back for when a method is exited.
   void MethodExited(art::Thread* self,
-                    art::Handle<art::mirror::Object> this_object ATTRIBUTE_UNUSED,
                     art::ArtMethod* method,
-                    uint32_t dex_pc ATTRIBUTE_UNUSED,
                     art::instrumentation::OptionalFrame frame,
                     art::JValue& return_value) REQUIRES_SHARED(art::Locks::mutator_lock_) override {
     if (frame.has_value() &&
