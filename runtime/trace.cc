@@ -741,9 +741,7 @@ void Trace::MethodEntered(Thread* thread, ArtMethod* method) {
 }
 
 void Trace::MethodExited(Thread* thread,
-                         Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                          ArtMethod* method,
-                         uint32_t dex_pc ATTRIBUTE_UNUSED,
                          instrumentation::OptionalFrame frame ATTRIBUTE_UNUSED,
                          JValue& return_value ATTRIBUTE_UNUSED) {
   uint32_t thread_clock_diff = 0;
