@@ -64,5 +64,12 @@
   names: ["libcore.java.lang.ThreadTest#nativeThreadNames",
           "jsr166.ThreadLocalTest#testGenericITL"
   ]
+},
+{
+  description: "Time-sensitive test fails check of elapsed time with gcstress",
+  result: EXEC_FAILED,
+  modes: [host],
+  bug: 205007075,
+  names: ["jsr166.CompletableFutureTest#testCompleteOnTimeout_completed"]
 }
 ]
