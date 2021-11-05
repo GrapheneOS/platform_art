@@ -669,6 +669,8 @@ class HeapGraphDumper {
     }
 
     FillReferences(obj, klass, object_proto);
+
+    FillFieldValues(obj, klass, object_proto);
   }
 
   // Writes `*klass` into `writer`.
@@ -769,6 +771,31 @@ class HeapGraphDumper {
       }
     }
     return min_nonnull_ptr;
+  }
+
+  // Fills `*object_proto` with the value of a subset of potentially interesting fields of `*obj`
+  // (an object of type `*klass`).
+  void FillFieldValues(art::mirror::Object* obj,
+                       art::mirror::Class* klass,
+                       perfetto::protos::pbzero::HeapGraphObject* object_proto) const
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    if (obj->IsClass() || klass->IsClassClass()) {
+      return;
+    }
+
+    for (art::mirror::Class* cls = klass; cls != nullptr; cls = cls->GetSuperClass().Ptr()) {
+      if (cls->IsArrayClass()) {
+        continue;
+      }
+
+      if (cls->DescriptorEquals("Llibcore/util/NativeAllocationRegistry;")) {
+        art::ArtField* af = cls->FindDeclaredInstanceField(
+            "size", art::Primitive::Descriptor(art::Primitive::kPrimLong));
+        if (af) {
+          object_proto->set_native_allocation_registry_size_field(af->GetLong(obj));
+        }
+      }
+    }
   }
 
   // Returns true if `*obj` has a type that's supposed to be ignored.
