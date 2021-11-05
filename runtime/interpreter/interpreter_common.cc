@@ -92,21 +92,16 @@ template <typename T>
 bool SendMethodExitEvents(Thread* self,
                           const instrumentation::Instrumentation* instrumentation,
                           ShadowFrame& frame,
-                          ObjPtr<mirror::Object> thiz,
                           ArtMethod* method,
-                          uint32_t dex_pc,
                           T& result) {
   bool had_event = false;
   // We can get additional ForcePopFrame requests during handling of these events. We should
   // respect these and send additional instrumentation events.
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Object> h_thiz(hs.NewHandle(thiz));
   do {
     frame.SetForcePopFrame(false);
     if (UNLIKELY(instrumentation->HasMethodExitListeners() && !frame.GetSkipMethodExitEvents())) {
       had_event = true;
-      instrumentation->MethodExitEvent(
-          self, h_thiz.Get(), method, dex_pc, instrumentation::OptionalFrame{ frame }, result);
+      instrumentation->MethodExitEvent(self, method, instrumentation::OptionalFrame{frame}, result);
     }
     // We don't send method-exit if it's a pop-frame. We still send frame_popped though.
     if (UNLIKELY(frame.NeedsNotifyPop() && instrumentation->HasWatchedFramePopListeners())) {
@@ -125,18 +120,14 @@ template
 bool SendMethodExitEvents(Thread* self,
                           const instrumentation::Instrumentation* instrumentation,
                           ShadowFrame& frame,
-                          ObjPtr<mirror::Object> thiz,
                           ArtMethod* method,
-                          uint32_t dex_pc,
                           MutableHandle<mirror::Object>& result);
 
 template
 bool SendMethodExitEvents(Thread* self,
                           const instrumentation::Instrumentation* instrumentation,
                           ShadowFrame& frame,
-                          ObjPtr<mirror::Object> thiz,
                           ArtMethod* method,
-                          uint32_t dex_pc,
                           JValue& result);
 
 // We execute any instrumentation events that are triggered by this exception and change the
