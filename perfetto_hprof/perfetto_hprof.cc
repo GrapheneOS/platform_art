@@ -509,7 +509,8 @@ std::vector<std::pair<std::string, art::mirror::Object*>> GetReferences(art::mir
   std::vector<std::pair<std::string, art::mirror::Object*>> referred_objects;
   ReferredObjectsFinder objf(&referred_objects);
 
-  if (klass->GetClassFlags() != art::mirror::kClassFlagNormal) {
+  if (klass->GetClassFlags() != art::mirror::kClassFlagNormal &&
+      klass->GetClassFlags() != art::mirror::kClassFlagPhantomReference) {
     obj->VisitReferences(objf, art::VoidFunctor());
   } else {
     for (art::mirror::Class* cls = klass; cls != nullptr; cls = cls->GetSuperClass().Ptr()) {
@@ -725,7 +726,8 @@ class HeapGraphDumper {
     uint64_t base_obj_id = EncodeBaseObjId(referred_objects, min_nonnull_ptr);
 
     const bool emit_field_ids = klass->GetClassFlags() != art::mirror::kClassFlagObjectArray &&
-                                klass->GetClassFlags() != art::mirror::kClassFlagNormal;
+                                klass->GetClassFlags() != art::mirror::kClassFlagNormal &&
+                                klass->GetClassFlags() != art::mirror::kClassFlagPhantomReference;
 
     for (const auto& p : referred_objects) {
       const std::string& field_name = p.first;
