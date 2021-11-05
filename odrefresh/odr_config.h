@@ -127,11 +127,6 @@ class OdrConfig final {
     return art_bin_dir_ + '/' + prefix + suffix;
   }
 
-  std::string GetDexOptAnalyzer() const {
-    const char* dexoptanalyzer{UseDebugBinaries() ? "dexoptanalyzerd" : "dexoptanalyzer"};
-    return art_bin_dir_ + '/' + dexoptanalyzer;
-  }
-
   bool GetDryRun() const { return dry_run_; }
   const std::string& GetSystemServerClasspath() const {
     return system_server_classpath_;
