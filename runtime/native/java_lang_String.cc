@@ -109,10 +109,19 @@ static jcharArray String_toCharArray(JNIEnv* env, jobject java_this) {
   return soa.AddLocalReference<jcharArray>(mirror::String::ToCharArray(s, soa.Self()));
 }
 
+static jstring String_doRepeat(JNIEnv* env, jobject java_this, jint count) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::String> string = hs.NewHandle(soa.Decode<mirror::String>(java_this));
+  ObjPtr<mirror::String> result = mirror::String::DoRepeat(soa.Self(), string, count);
+  return soa.AddLocalReference<jstring>(result);
+}
+
 static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(String, charAt, "(I)C"),
   FAST_NATIVE_METHOD(String, compareTo, "(Ljava/lang/String;)I"),
   FAST_NATIVE_METHOD(String, concat, "(Ljava/lang/String;)Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(String, doRepeat, "(I)Ljava/lang/String;"),
   FAST_NATIVE_METHOD(String, doReplace, "(CC)Ljava/lang/String;"),
   FAST_NATIVE_METHOD(String, fastSubstring, "(II)Ljava/lang/String;"),
   FAST_NATIVE_METHOD(String, getCharsNoCheck, "(II[CI)V"),
