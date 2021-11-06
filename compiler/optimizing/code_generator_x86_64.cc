@@ -1591,10 +1591,10 @@ void CodeGeneratorX86_64::MaybeIncrementHotness(bool is_frame_entry) {
       __ movq(CpuRegister(method), Address(CpuRegister(RSP), kCurrentMethodStackOffset));
     }
     __ cmpw(Address(CpuRegister(method), ArtMethod::HotnessCountOffset().Int32Value()),
-            Immediate(ArtMethod::MaxCounter()));
+            Immediate(interpreter::kNterpHotnessValue));
     __ j(kEqual, &overflow);
     __ addw(Address(CpuRegister(method), ArtMethod::HotnessCountOffset().Int32Value()),
-            Immediate(1));
+            Immediate(-1));
     __ Bind(&overflow);
   }
 

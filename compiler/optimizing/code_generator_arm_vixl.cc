@@ -2186,10 +2186,12 @@ void CodeGeneratorARMVIXL::MaybeIncrementHotness(bool is_frame_entry) {
     }
     // Load with zero extend to clear the high bits for integer overflow check.
     __ Ldrh(temp, MemOperand(kMethodRegister, ArtMethod::HotnessCountOffset().Int32Value()));
-    __ Add(temp, temp, 1);
-    // Subtract one if the counter would overflow.
-    __ Sub(temp, temp, Operand(temp, ShiftType::LSR, 16));
+    vixl::aarch32::Label done;
+    DCHECK_EQ(0u, interpreter::kNterpHotnessValue);
+    __ CompareAndBranchIfZero(temp, &done, /* is_far_target= */ false);
+    __ Add(temp, temp, -1);
     __ Strh(temp, MemOperand(kMethodRegister, ArtMethod::HotnessCountOffset().Int32Value()));
+    __ Bind(&done);
     if (!is_frame_entry) {
       __ Pop(vixl32::Register(kMethodRegister));
       GetAssembler()->cfi().AdjustCFAOffset(-static_cast<int>(kArmWordSize));
