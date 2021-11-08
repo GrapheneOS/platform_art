@@ -18,6 +18,7 @@
 
 #include "base/casts.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "lock_word.h"
 #include "thread.h"
 #include "utils/assembler.h"
 
@@ -590,27 +591,37 @@ void X86JNIMacroAssembler::Jump(JNIMacroLabel* label) {
   __ jmp(X86JNIMacroLabel::Cast(label)->AsX86());
 }
 
-void X86JNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnaryCondition cond) {
-  CHECK(label != nullptr);
-
-  art::x86::Condition x86_cond;
+static Condition UnaryConditionToX86Condition(JNIMacroUnaryCondition cond) {
   switch (cond) {
     case JNIMacroUnaryCondition::kZero:
-      x86_cond = art::x86::kZero;
-      break;
+      return kZero;
     case JNIMacroUnaryCondition::kNotZero:
-      x86_cond = art::x86::kNotZero;
-      break;
+      return kNotZero;
     default:
       LOG(FATAL) << "Not implemented condition: " << static_cast<int>(cond);
       UNREACHABLE();
   }
+}
+
+void X86JNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnaryCondition cond) {
+  CHECK(label != nullptr);
 
   // CMP self->tls32_.is_gc_marking, 0
   // Jcc <Offset>
   DCHECK_EQ(Thread::IsGcMarkingSize(), 4u);
   __ fs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86PointerSize>()), Immediate(0));
-  __ j(x86_cond, X86JNIMacroLabel::Cast(label)->AsX86());
+  __ j(UnaryConditionToX86Condition(cond), X86JNIMacroLabel::Cast(label)->AsX86());
+}
+
+void X86JNIMacroAssembler::TestMarkBit(ManagedRegister mref,
+                                       JNIMacroLabel* label,
+                                       JNIMacroUnaryCondition cond) {
+  DCHECK(kUseBakerReadBarrier);
+  Register ref = mref.AsX86().AsCpuRegister();
+  static_assert(LockWord::kMarkBitStateSize == 1u);
+  __ testl(Address(ref, mirror::Object::MonitorOffset().SizeValue()),
+           Immediate(LockWord::kMarkBitStateMaskShifted));
+  __ j(UnaryConditionToX86Condition(cond), X86JNIMacroLabel::Cast(label)->AsX86());
 }
 
 void X86JNIMacroAssembler::Bind(JNIMacroLabel* label) {

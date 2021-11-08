@@ -257,6 +257,10 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void Jump(JNIMacroLabel* label) = 0;
   // Emit a conditional jump to the label by applying a unary condition test to the GC marking flag.
   virtual void TestGcMarking(JNIMacroLabel* label, JNIMacroUnaryCondition cond) = 0;
+  // Emit a conditional jump to the label by applying a unary condition test to object's mark bit.
+  virtual void TestMarkBit(ManagedRegister ref,
+                           JNIMacroLabel* label,
+                           JNIMacroUnaryCondition cond) = 0;
   // Code at this offset will serve as the target for the Jump call.
   virtual void Bind(JNIMacroLabel* label) = 0;
 

@@ -55,6 +55,9 @@ ENTRY art_jni_dlsym_lookup_stub
     pop    {r0, r1, r2, r3, pc}           @ restore regs and return to caller to handle exception
 END art_jni_dlsym_lookup_stub
 
+    /*
+     * Jni dlsym lookup stub for @CriticalNative.
+     */
 ENTRY art_jni_dlsym_lookup_critical_stub
     // The hidden arg holding the tagged method (bit 0 set means GenericJNI) is r4.
     // For Generic JNI we already have a managed frame, so we reuse the art_jni_dlsym_lookup_stub.
@@ -242,3 +245,30 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_jni_dlsym_lookup_critical_stub
+
+    /*
+     * Read barrier for the method's declaring class needed by JNI stub for static methods.
+     * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
+     */
+    .extern artReadBarrierJni
+ENTRY art_read_barrier_jni
+    // Note: Managed callee-save registers have been saved by the JNI stub.
+    // Save return address, managed GPR args and the method.
+    push  {r0-r3, lr}
+    .cfi_adjust_cfa_offset 20
+    .cfi_rel_offset lr, 16
+    // Increase frame: padding.
+    INCREASE_FRAME 12
+    // Save FPR args.
+    vpush {s0-s15}
+    .cfi_adjust_cfa_offset 64
+    // The method argument is already in r0.
+    bl    artReadBarrierJni  // (ArtMethod*)
+    // Restore FPR args.
+    vpop  {s0-s15}
+    .cfi_adjust_cfa_offset -64
+    // Remove padding.
+    DECREASE_FRAME 12
+    // Restore the method and managed args and return.
+    pop   {r0-r3, pc}
+END art_read_barrier_jni

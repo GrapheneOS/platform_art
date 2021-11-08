@@ -20,6 +20,7 @@
 #include <type_traits>
 
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "lock_word.h"
 #include "thread.h"
 
 using namespace vixl::aarch32;  // NOLINT(build/namespaces)
@@ -1058,6 +1059,29 @@ void ArmVIXLJNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnary
       break;
     case JNIMacroUnaryCondition::kNotZero:
       ___ CompareAndBranchIfNonZero(test_reg, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+      break;
+    default:
+      LOG(FATAL) << "Not implemented unary condition: " << static_cast<int>(cond);
+      UNREACHABLE();
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::TestMarkBit(ManagedRegister mref,
+                                           JNIMacroLabel* label,
+                                           JNIMacroUnaryCondition cond) {
+  DCHECK(kUseBakerReadBarrier);
+  vixl32::Register ref = AsVIXLRegister(mref.AsArm());
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  vixl32::Register scratch = temps.Acquire();
+  ___ Ldr(scratch, MemOperand(ref, mirror::Object::MonitorOffset().SizeValue()));
+  static_assert(LockWord::kMarkBitStateSize == 1u);
+  ___ Tst(scratch, LockWord::kMarkBitStateMaskShifted);
+  switch (cond) {
+    case JNIMacroUnaryCondition::kZero:
+      ___ B(eq, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+      break;
+    case JNIMacroUnaryCondition::kNotZero:
+      ___ B(ne, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
       break;
     default:
       LOG(FATAL) << "Not implemented unary condition: " << static_cast<int>(cond);
