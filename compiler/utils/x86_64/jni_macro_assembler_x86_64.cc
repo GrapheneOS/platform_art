@@ -19,6 +19,7 @@
 #include "base/casts.h"
 #include "base/memory_region.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "lock_word.h"
 #include "thread.h"
 
 namespace art {
@@ -673,28 +674,38 @@ void X86_64JNIMacroAssembler::Jump(JNIMacroLabel* label) {
   __ jmp(X86_64JNIMacroLabel::Cast(label)->AsX86_64());
 }
 
-void X86_64JNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnaryCondition cond) {
-  CHECK(label != nullptr);
-
-  art::x86_64::Condition x86_64_cond;
+static Condition UnaryConditionToX86_64Condition(JNIMacroUnaryCondition cond) {
   switch (cond) {
     case JNIMacroUnaryCondition::kZero:
-      x86_64_cond = art::x86_64::kZero;
-      break;
+      return kZero;
     case JNIMacroUnaryCondition::kNotZero:
-      x86_64_cond = art::x86_64::kNotZero;
-      break;
+      return kNotZero;
     default:
       LOG(FATAL) << "Not implemented condition: " << static_cast<int>(cond);
       UNREACHABLE();
   }
+}
+
+void X86_64JNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnaryCondition cond) {
+  CHECK(label != nullptr);
 
   // CMP self->tls32_.is_gc_marking, 0
   // Jcc <Offset>
   DCHECK_EQ(Thread::IsGcMarkingSize(), 4u);
   __ gs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86_64PointerSize>(), true),
                 Immediate(0));
-  __ j(x86_64_cond, X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+  __ j(UnaryConditionToX86_64Condition(cond), X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+}
+
+void X86_64JNIMacroAssembler::TestMarkBit(ManagedRegister mref,
+                                          JNIMacroLabel* label,
+                                          JNIMacroUnaryCondition cond) {
+  DCHECK(kUseBakerReadBarrier);
+  CpuRegister ref = mref.AsX86_64().AsCpuRegister();
+  static_assert(LockWord::kMarkBitStateSize == 1u);
+  __ testl(Address(ref, mirror::Object::MonitorOffset().SizeValue()),
+           Immediate(LockWord::kMarkBitStateMaskShifted));
+  __ j(UnaryConditionToX86_64Condition(cond), X86_64JNIMacroLabel::Cast(label)->AsX86_64());
 }
 
 void X86_64JNIMacroAssembler::Bind(JNIMacroLabel* label) {

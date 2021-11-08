@@ -76,6 +76,9 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_stub
     ret
 END_FUNCTION art_jni_dlsym_lookup_stub
 
+    /*
+     * Jni dlsym lookup stub for @CriticalNative.
+     */
 DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
     // The hidden arg holding the tagged method (bit 0 set means GenericJNI) is RAX.
     // For Generic JNI we already have a managed frame, so we reuse the art_jni_dlsym_lookup_stub.
@@ -309,3 +312,53 @@ DEFINE_FUNCTION art_jni_dlsym_lookup_critical_stub
 .Lcritical_deliver_exception:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_FUNCTION art_jni_dlsym_lookup_critical_stub
+
+    /*
+     * Read barrier for the method's declaring class needed by JNI stub for static methods.
+     * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
+     */
+DEFINE_FUNCTION art_read_barrier_jni
+    // Note: Managed callee-save registers have been saved by the JNI stub.
+    // Save managed GPR args.
+    PUSH_ARG r9
+    PUSH_ARG r8
+    PUSH_ARG rsi
+    PUSH_ARG rdx
+    PUSH_ARG rcx
+    // Save the method.
+    PUSH_ARG rdi
+    // Increase frame: FPR args save area (8 * 8), padding.
+    INCREASE_FRAME 8 * 8 + 8
+    // Save FPR args.
+    movq %xmm0, 0(%rsp)
+    movq %xmm1, 8(%rsp)
+    movq %xmm2, 16(%rsp)
+    movq %xmm3, 24(%rsp)
+    movq %xmm4, 32(%rsp)
+    movq %xmm5, 40(%rsp)
+    movq %xmm6, 48(%rsp)
+    movq %xmm7, 56(%rsp)
+    // The method argument is already in RDI.
+    call SYMBOL(artReadBarrierJni)  // (ArtMethod*)
+    // Restore FPR args.
+    movq 0(%rsp), %xmm0
+    movq 8(%rsp), %xmm1
+    movq 16(%rsp), %xmm2
+    movq 24(%rsp), %xmm3
+    movq 32(%rsp), %xmm4
+    movq 40(%rsp), %xmm5
+    movq 48(%rsp), %xmm6
+    movq 56(%rsp), %xmm7
+    // Remove FPR args save area, padding.
+    DECREASE_FRAME 8 * 8 + 8
+    // Restore the method.
+    POP_ARG rdi
+    // Restore managed args.
+    POP_ARG rcx
+    POP_ARG rdx
+    POP_ARG rsi
+    POP_ARG r8
+    POP_ARG r9
+    // Return.
+    ret
+END_FUNCTION art_read_barrier_jni
