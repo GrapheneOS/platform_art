@@ -173,7 +173,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pMemcpy = memcpy;
 
   // Read barrier.
-  qpoints->pReadBarrierJni = ReadBarrierJni;
+  qpoints->pReadBarrierJni = art_read_barrier_jni;
   UpdateReadBarrierEntrypoints(qpoints, /*is_active=*/ false);
   qpoints->pReadBarrierMarkReg12 = nullptr;  // Cannot use register 12 (IP) to pass arguments.
   qpoints->pReadBarrierMarkReg13 = nullptr;  // Cannot use register 13 (SP) to pass arguments.

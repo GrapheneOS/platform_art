@@ -114,6 +114,9 @@ extern "C" void art_quick_invoke_super_trampoline_with_access_check(uint32_t, vo
 
 extern "C" void art_quick_invoke_virtual_trampoline_with_access_check(uint32_t, void*);
 
+// JNI read barrier entrypoint.
+extern "C" void art_read_barrier_jni(art::ArtMethod* method);
+
 // Polymorphic invoke entrypoints.
 extern "C" void art_quick_invoke_polymorphic(uint32_t, void*);
 extern "C" void art_quick_invoke_custom(uint32_t, void*);
