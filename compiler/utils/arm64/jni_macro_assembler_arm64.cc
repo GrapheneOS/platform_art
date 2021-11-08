@@ -17,6 +17,7 @@
 #include "jni_macro_assembler_arm64.h"
 
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "lock_word.h"
 #include "managed_register_arm64.h"
 #include "offsets.h"
 #include "thread.h"
@@ -797,6 +798,28 @@ void Arm64JNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnaryCo
       break;
     case JNIMacroUnaryCondition::kNotZero:
       ___ Cbnz(test_reg, Arm64JNIMacroLabel::Cast(label)->AsArm64());
+      break;
+    default:
+      LOG(FATAL) << "Not implemented unary condition: " << static_cast<int>(cond);
+      UNREACHABLE();
+  }
+}
+
+void Arm64JNIMacroAssembler::TestMarkBit(ManagedRegister m_ref,
+                                         JNIMacroLabel* label,
+                                         JNIMacroUnaryCondition cond) {
+  DCHECK(kUseBakerReadBarrier);
+  Register ref = reg_x(m_ref.AsArm64().AsOverlappingXRegister());
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  Register scratch = temps.AcquireW();
+  ___ Ldr(scratch, MEM_OP(ref, mirror::Object::MonitorOffset().SizeValue()));
+  static_assert(LockWord::kMarkBitStateSize == 1u);
+  switch (cond) {
+    case JNIMacroUnaryCondition::kZero:
+      ___ Tbz(scratch, LockWord::kMarkBitStateShift, Arm64JNIMacroLabel::Cast(label)->AsArm64());
+      break;
+    case JNIMacroUnaryCondition::kNotZero:
+      ___ Tbnz(scratch, LockWord::kMarkBitStateShift, Arm64JNIMacroLabel::Cast(label)->AsArm64());
       break;
     default:
       LOG(FATAL) << "Not implemented unary condition: " << static_cast<int>(cond);

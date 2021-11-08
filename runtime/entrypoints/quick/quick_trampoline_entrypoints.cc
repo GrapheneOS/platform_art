@@ -1945,7 +1945,7 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
         auto* declaring_class = reinterpret_cast<mirror::CompressedReference<mirror::Class>*>(
             method->GetDeclaringClassAddressWithoutBarrier());
         if (kUseReadBarrier) {
-          ReadBarrierJni(declaring_class, self);
+          artReadBarrierJni(method);
         }
         sm_.AdvancePointer(declaring_class);
       }  // else "this" reference is already handled by QuickArgumentVisitor.

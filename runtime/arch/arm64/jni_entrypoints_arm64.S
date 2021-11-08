@@ -92,6 +92,9 @@ ENTRY art_jni_dlsym_lookup_stub
     ret             // restore regs and return to caller to handle exception.
 END art_jni_dlsym_lookup_stub
 
+    /*
+     * Jni dlsym lookup stub for @CriticalNative.
+     */
 ENTRY art_jni_dlsym_lookup_critical_stub
     // The hidden arg holding the tagged method (bit 0 set means GenericJNI) is x15.
     // For Generic JNI we already have a managed frame, so we reuse the art_jni_dlsym_lookup_stub.
@@ -321,11 +324,52 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     // Store ArtMethod* Runtime::callee_save_methods_[kSaveAllCalleeSaves] to the managed frame.
     LOAD_RUNTIME_INSTANCE xIP0
-    ldr xIP0, [xIP0, #RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET]
-    str xIP0, [x29]
+    ldr   xIP0, [xIP0, #RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET]
+    str   xIP0, [x29]
 
     // Place the managed frame SP in Thread::Current()->top_quick_frame.
-    str x29, [xSELF, #THREAD_TOP_QUICK_FRAME_OFFSET]
+    str   x29, [xSELF, #THREAD_TOP_QUICK_FRAME_OFFSET]
 
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_jni_dlsym_lookup_critical_stub
+
+    /*
+     * Read barrier for the method's declaring class needed by JNI stub for static methods.
+     * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
+     */
+    .extern artReadBarrierJni
+ENTRY art_read_barrier_jni
+    // Note: Managed callee-save registers have been saved by the JNI stub.
+    // Save the method and prepare space for other managed args and return address.
+    str   x0, [sp, #-144]!
+    .cfi_adjust_cfa_offset 144
+    // Save FPR args.
+    stp   d0, d1, [sp, #16]
+    stp   d2, d3, [sp, #32]
+    stp   d4, d5, [sp, #48]
+    stp   d6, d7, [sp, #64]
+    // Save GPR args and return address.
+    stp   x1, x2, [sp, #80]
+    stp   x3, x4, [sp, #96]
+    stp   x5, x6, [sp, #112]
+    stp   x7, lr, [sp, #128]
+    .cfi_rel_offset lr, 136
+    // The method argument is already in x0.
+    bl artReadBarrierJni  // (ArtMethod*)
+    // Restore FPR args.
+    ldp   d0, d1, [sp, #16]
+    ldp   d2, d3, [sp, #32]
+    ldp   d4, d5, [sp, #48]
+    ldp   d6, d7, [sp, #64]
+    // Restore GPR args and return address.
+    ldp   x1, x2, [sp, #80]
+    ldp   x3, x4, [sp, #96]
+    ldp   x5, x6, [sp, #112]
+    ldp   x7, lr, [sp, #128]
+    .cfi_restore lr
+    // Restore method and remove spill area.
+    ldr   x0, [sp], #144
+    .cfi_adjust_cfa_offset -144
+    // Return.
+    ret
+END art_read_barrier_jni
