@@ -425,6 +425,9 @@ while true; do
         shift
         CHROOT="$1"
         shift
+    elif [ "x$1" = "x--simpleperf" ]; then
+        SIMPLEPERF="yes"
+        shift
     elif [ "x$1" = "x--android-root" ]; then
         shift
         ANDROID_ROOT="$1"
@@ -1165,6 +1168,7 @@ fi
 # We set DumpNativeStackOnSigQuit to false to avoid stressing libunwind.
 # b/27185632
 # b/24664297
+
 dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ART_BIN_DIR/$DALVIKVM \
                   $GDB_ARGS \
                   $FLAGS \
@@ -1180,6 +1184,10 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ART_BIN_DIR/$DALVIKVM \
                   $TMP_DIR_OPTION \
                   -XX:DumpNativeStackOnSigQuit:false \
                   -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $MAIN $ARGS"
+
+if [ "x$SIMPLEPERF" == xyes ]; then
+  dalvikvm_cmdline="simpleperf record ${dalvikvm_cmdline} && simpleperf report"
+fi
 
 sanitize_dex2oat_cmdline() {
   local args=()
