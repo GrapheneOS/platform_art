@@ -16,6 +16,8 @@
 
 set -e
 
+. "$(dirname $0)/buildbot-utils.sh"
+
 shopt -s failglob
 
 if [ ! -d art ]; then
@@ -387,4 +389,6 @@ EOF
   rm -rf $linkerconfig_out
   mkdir -p $linkerconfig_out
   $ANDROID_HOST_OUT/bin/linkerconfig --target $linkerconfig_out --root $linkerconfig_root --vndk $platform_version
+  echo -e "${boldcyan}note:${nc} Don't be scared by \"Unable to access VNDK APEX\" message," \
+      " it's not fatal"
 fi
