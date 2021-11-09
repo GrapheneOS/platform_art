@@ -25,10 +25,7 @@ package {
 
 art_cc_binary {
     name: "create_minidebuginfo",
-    defaults: [
-        "art_debug_defaults",
-        "art_defaults",
-    ],
+    defaults: ["art_debug_defaults"],
     host_supported: true,
     device_supported: false,
     srcs: [
