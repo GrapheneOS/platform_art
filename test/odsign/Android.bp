@@ -35,6 +35,7 @@ java_test_host {
 
 cc_library_shared {
     name: "libOdsignTestAppJni",
+    defaults: ["art_defaults"],
     srcs: ["jni/**/*.cc"],
     shared_libs: [
         "libnativehelper_compat_libc++",
@@ -42,10 +43,6 @@ cc_library_shared {
     ],
     static_libs: [
         "libbase_ndk",
-    ],
-    cflags: [
-        "-Wall",
-        "-Werror",
     ],
     stl: "c++_static",
     sdk_version: "current",
