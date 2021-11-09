@@ -461,7 +461,7 @@ public class Main {
       "hello there".substring(9,14);
       fail();
     } catch (StringIndexOutOfBoundsException ex) {
-      assertEquals("length=11; index=14", ex.getMessage());
+      assertEquals("begin 9, end 14, length 11", ex.getMessage());
     }
   }
 }
