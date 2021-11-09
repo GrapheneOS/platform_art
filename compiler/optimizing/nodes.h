@@ -21,6 +21,7 @@
 #include <array>
 #include <type_traits>
 
+#include "art_method.h"
 #include "base/arena_allocator.h"
 #include "base/arena_bit_vector.h"
 #include "base/arena_containers.h"
@@ -32,7 +33,6 @@
 #include "base/quasi_atomic.h"
 #include "base/stl_util.h"
 #include "base/transform_array_ref.h"
-#include "art_method.h"
 #include "block_namer.h"
 #include "class_root.h"
 #include "compilation_kind.h"
@@ -680,7 +680,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   }
 
   bool HasShouldDeoptimizeFlag() const {
-    return number_of_cha_guards_ != 0;
+    return number_of_cha_guards_ != 0 || debuggable_;
   }
 
   bool HasTryCatch() const { return has_try_catch_; }
@@ -1530,6 +1530,8 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(LongConstant, Constant)                                             \
   M(Max, Instruction)                                                   \
   M(MemoryBarrier, Instruction)                                         \
+  M(MethodEntryHook, Instruction)                                       \
+  M(MethodExitHook, Instruction)                                        \
   M(Min, BinaryOperation)                                               \
   M(MonitorOperation, Instruction)                                      \
   M(Mul, BinaryOperation)                                               \
@@ -2992,6 +2994,38 @@ class HExpression<0> : public HInstruction {
 
  private:
   friend class SsaBuilder;
+};
+
+class HMethodEntryHook : public HExpression<0> {
+ public:
+  explicit HMethodEntryHook(uint32_t dex_pc)
+      : HExpression(kMethodEntryHook, SideEffects::All(), dex_pc) {}
+
+  bool NeedsEnvironment() const override {
+    return true;
+  }
+
+  DECLARE_INSTRUCTION(MethodEntryHook);
+
+ protected:
+  DEFAULT_COPY_CONSTRUCTOR(MethodEntryHook);
+};
+
+class HMethodExitHook : public HExpression<1> {
+ public:
+  HMethodExitHook(HInstruction* value, uint32_t dex_pc)
+      : HExpression(kMethodExitHook, SideEffects::All(), dex_pc) {
+    SetRawInputAt(0, value);
+  }
+
+  bool NeedsEnvironment() const override {
+    return true;
+  }
+
+  DECLARE_INSTRUCTION(MethodExitHook);
+
+ protected:
+  DEFAULT_COPY_CONSTRUCTOR(MethodExitHook);
 };
 
 // Represents dex's RETURN_VOID opcode. A HReturnVoid is a control flow

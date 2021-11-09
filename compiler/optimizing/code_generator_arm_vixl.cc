@@ -971,6 +971,31 @@ class ReadBarrierForRootSlowPathARMVIXL : public SlowPathCodeARMVIXL {
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierForRootSlowPathARMVIXL);
 };
 
+class MethodEntryExitHooksSlowPathARMVIXL : public SlowPathCodeARMVIXL {
+ public:
+  explicit MethodEntryExitHooksSlowPathARMVIXL(HInstruction* instruction)
+      : SlowPathCodeARMVIXL(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    LocationSummary* locations = instruction_->GetLocations();
+    CodeGeneratorARMVIXL* arm_codegen = down_cast<CodeGeneratorARMVIXL*>(codegen);
+    QuickEntrypointEnum entry_point =
+        (instruction_->IsMethodEntryHook()) ? kQuickMethodEntryHook : kQuickMethodExitHook;
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, locations);
+    arm_codegen->InvokeRuntime(entry_point, instruction_, instruction_->GetDexPc(), this);
+    RestoreLiveRegisters(codegen, locations);
+    __ B(GetExitLabel());
+  }
+
+  const char* GetDescription() const override {
+    return "MethodEntryExitHooksSlowPath";
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MethodEntryExitHooksSlowPathARMVIXL);
+};
+
 inline vixl32::Condition ARMCondition(IfCondition cond) {
   switch (cond) {
     case kCondEQ: return eq;
@@ -2109,6 +2134,44 @@ void CodeGeneratorARMVIXL::ComputeSpillMask() {
       fpu_spill_mask_ |= (1 << i);
     }
   }
+}
+
+void LocationsBuilderARMVIXL::VisitMethodExitHook(HMethodExitHook* method_hook) {
+  LocationSummary* locations = new (GetGraph()->GetAllocator())
+      LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
+  locations->SetInAt(0, parameter_visitor_.GetReturnLocation(method_hook->InputAt(0)->GetType()));
+}
+
+void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* instruction) {
+  UseScratchRegisterScope temps(GetVIXLAssembler());
+  vixl32::Register temp = temps.Acquire();
+
+  SlowPathCodeARMVIXL* slow_path =
+      new (codegen_->GetScopedAllocator()) MethodEntryExitHooksSlowPathARMVIXL(instruction);
+  codegen_->AddSlowPath(slow_path);
+
+  int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
+  uint32_t address = reinterpret_cast32<uint32_t>(Runtime::Current()->GetInstrumentation());
+  __ Mov(temp, address + offset);
+  __ Ldrh(temp, MemOperand(temp, 0));
+  __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitMethodExitHook(HMethodExitHook* instruction) {
+  DCHECK(codegen_->GetCompilerOptions().IsJitCompiler() && GetGraph()->IsDebuggable());
+  DCHECK(codegen_->RequiresCurrentMethod());
+  GenerateMethodEntryExitHook(instruction);
+}
+
+void LocationsBuilderARMVIXL::VisitMethodEntryHook(HMethodEntryHook* method_hook) {
+  new (GetGraph()->GetAllocator()) LocationSummary(method_hook, LocationSummary::kCallOnSlowPath);
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitMethodEntryHook(HMethodEntryHook* instruction) {
+  DCHECK(codegen_->GetCompilerOptions().IsJitCompiler() && GetGraph()->IsDebuggable());
+  DCHECK(codegen_->RequiresCurrentMethod());
+  GenerateMethodEntryExitHook(instruction);
 }
 
 void CodeGeneratorARMVIXL::MaybeIncrementHotness(bool is_frame_entry) {

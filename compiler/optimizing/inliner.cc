@@ -812,6 +812,11 @@ void HInliner::AddCHAGuard(HInstruction* invoke_instruction,
                            HBasicBlock* bb_cursor) {
   HShouldDeoptimizeFlag* deopt_flag = new (graph_->GetAllocator())
       HShouldDeoptimizeFlag(graph_->GetAllocator(), dex_pc);
+  // ShouldDeoptimizeFlag is used to perform a deoptimization because of a CHA
+  // invalidation or for debugging reasons. It is OK to just check for non-zero
+  // value here instead of the specific CHA value. When a debugging deopt is
+  // requested we deoptimize before we execute any code and hence we shouldn't
+  // see that case here.
   HInstruction* compare = new (graph_->GetAllocator()) HNotEqual(
       deopt_flag, graph_->GetIntConstant(0, dex_pc));
   HInstruction* deopt = new (graph_->GetAllocator()) HDeoptimize(
