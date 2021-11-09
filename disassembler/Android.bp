@@ -48,8 +48,7 @@ art_cc_defaults {
         "libbase",
     ],
     header_libs: [
-        "art_libartbase_headers",
-        "libart_runtime_headers_ndk",
+        "libart_headers",
     ],
     export_include_dirs: ["."],
 }
