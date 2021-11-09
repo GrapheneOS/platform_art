@@ -421,10 +421,11 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
                                             "Sampling profiler thread");
         the_trace_->interval_us_ = interval_us;
       } else {
-        runtime->GetInstrumentation()->AddListener(the_trace_,
-                                                   instrumentation::Instrumentation::kMethodEntered |
-                                                   instrumentation::Instrumentation::kMethodExited |
-                                                   instrumentation::Instrumentation::kMethodUnwind);
+        runtime->GetInstrumentation()->AddListener(
+            the_trace_,
+            instrumentation::Instrumentation::kMethodEntered |
+                instrumentation::Instrumentation::kMethodExited |
+                instrumentation::Instrumentation::kMethodUnwind);
         // TODO: In full-PIC mode, we don't need to fully deopt.
         // TODO: We can only use trampoline entrypoints if we are java-debuggable since in that case
         // we know that inlining and other problematic optimizations are disabled. We might just
@@ -480,9 +481,10 @@ void Trace::StopTracing(bool finish_tracing, bool flush_file) {
         runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
       } else {
         runtime->GetInstrumentation()->RemoveListener(
-            the_trace, instrumentation::Instrumentation::kMethodEntered |
-            instrumentation::Instrumentation::kMethodExited |
-            instrumentation::Instrumentation::kMethodUnwind);
+            the_trace,
+            instrumentation::Instrumentation::kMethodEntered |
+                instrumentation::Instrumentation::kMethodExited |
+                instrumentation::Instrumentation::kMethodUnwind);
         runtime->GetInstrumentation()->DisableMethodTracing(kTracerInstrumentationKey);
       }
     }
