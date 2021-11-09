@@ -388,6 +388,7 @@ art_cc_test {
 // static libraries (b/169779783).
 art_cc_library_static {
     name: "libdexfile_support",
+    defaults: ["art_defaults"],
     visibility: ["//visibility:public"],
     host_supported: true,
     srcs: [
@@ -409,7 +410,6 @@ art_cc_library_static {
         "com.android.media.swcodec",
         "com.android.runtime",
     ],
-    min_sdk_version: "S",
 }
 
 art_cc_defaults {
