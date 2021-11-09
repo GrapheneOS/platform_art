@@ -33,7 +33,7 @@ public class Main {
   }
 
   public native void resetTest();
-  public native void waitAndDeopt(Thread t);
+  public native void waitAndInstrumentStack(Thread t);
   public native void doSelfStackWalk();
 
   void testConcurrent() throws Exception {
@@ -41,7 +41,7 @@ public class Main {
     final Thread current = Thread.currentThread();
     Thread t = new Thread(() -> {
       try {
-        this.waitAndDeopt(current);
+        this.waitAndInstrumentStack(current);
       } catch (Exception e) {
         throw new Error("Fail!", e);
       }
