@@ -74,11 +74,11 @@ cc_defaults {
 
 cc_library_headers {
     name: "odrefresh_headers",
+    defaults: ["art_defaults"],
     export_include_dirs: ["include"],
     host_supported: true,
     stl: "none",
     system_shared_libs: [],
-    min_sdk_version: "29", // As part of mainline modules(APEX), it should support at least 29(Q).
     sdk_version: "minimum", // The minimum sdk version required by users of this module.
     apex_available: [
         "//apex_available:platform", // For odsign.

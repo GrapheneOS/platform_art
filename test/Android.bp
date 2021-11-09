@@ -491,7 +491,7 @@ java_defaults {
     host_required: [
         "art-run-test-checker",
     ],
-    min_sdk_version: "S",
+    min_sdk_version: "31",
 }
 
 art_cc_test_library {
