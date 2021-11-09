@@ -194,7 +194,6 @@ art_cc_defaults {
         "art_test_defaults",
         "art_gtest_common_defaults",
         "art_debug_defaults",
-        "art_defaults",
     ],
 
     test_suites: ["art-host-tests"],
