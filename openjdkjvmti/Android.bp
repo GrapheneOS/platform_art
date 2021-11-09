@@ -46,6 +46,7 @@ license {
 
 cc_library_headers {
     name: "libopenjdkjvmti_headers",
+    defaults: ["art_defaults"],
     visibility: ["//visibility:public"],
     header_libs: ["jni_headers"],
     host_supported: true,
@@ -58,7 +59,6 @@ cc_library_headers {
         "com.android.art",
         "com.android.art.debug",
     ],
-    min_sdk_version: "S",
 }
 
 cc_defaults {
