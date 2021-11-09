@@ -492,9 +492,6 @@ class ReleaseChecker:
     self._checker.check_native_library('libnativeloader')
 
     # Check internal libraries for ART.
-    self._checker.check_prefer64_library('artd-aidl-ndk')
-    self._checker.check_prefer64_library('artd-private-aidl-ndk')
-    self._checker.check_prefer64_library('libdexopt')
     self._checker.check_native_library('libadbconnection')
     self._checker.check_native_library('libart')
     self._checker.check_native_library('libart-compiler')
@@ -582,6 +579,9 @@ class ReleaseTargetChecker:
 
     # Check internal libraries for ART.
     self._checker.check_native_library('libperfetto_hprof')
+    self._checker.check_prefer64_library('artd-aidl-ndk')
+    self._checker.check_prefer64_library('artd-private-aidl-ndk')
+    self._checker.check_prefer64_library('libdexopt')
 
     # Check internal Java libraries
     self._checker.check_java_library("service-art")
