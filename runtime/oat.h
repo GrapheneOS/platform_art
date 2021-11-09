@@ -32,8 +32,8 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
-  // Last oat version changed reason: JNI: Rewrite read barrier slow path.
-  static constexpr std::array<uint8_t, 4> kOatVersion { { '2', '0', '8', '\0' } };
+  // Last oat version changed reason: reland new entry points for method entry / exit hooks.
+  static constexpr std::array<uint8_t, 4> kOatVersion{ {'2', '0', '9', '\0'} };
 
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDebuggableKey = "debuggable";
