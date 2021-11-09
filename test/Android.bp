@@ -775,14 +775,7 @@ cc_library_static {
     ],
     sdk_version: "current",
     stl: "c++_static",
-    header_libs: [
-        "jni_headers",
-        // This is needed to resolve the base/ header file in libdexfile. Unfortunately there are
-        // many problems with how we export headers that are making doing this the 'right' way
-        // difficult.
-        // TODO: move those headers to art/ rather than under runtime.
-        "libart_runtime_headers_ndk",
-    ],
+    header_libs: ["jni_headers"],
     export_include_dirs: ["ti-agent"],
 }
 
