@@ -35,9 +35,9 @@ inline uint32_t String::ClassSize(PointerSize pointer_size) {
   //   lambda$codePoints$1$CharSequence
   // which were virtual functions in standalone desugar, becomes
   // direct functions with D8 desugaring.
-  uint32_t vtable_entries = Object::kVTableLength + 55;
+  uint32_t vtable_entries = Object::kVTableLength + 58;
 #else
-  uint32_t vtable_entries = Object::kVTableLength + 57;
+  uint32_t vtable_entries = Object::kVTableLength + 60;
 #endif
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 1, 2, pointer_size);
 }
