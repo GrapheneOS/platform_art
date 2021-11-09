@@ -24,6 +24,8 @@
 #include "class_linker.h"
 #include "dex/dex_file.h"
 #include "dex/dex_file_types.h"
+#include "driver/compiler_options.h"
+#include "optimizing/code_generator.h"
 #include "optimizing/nodes.h"
 #include "optimizing/optimizing_compiler.h"
 #include "runtime.h"
@@ -199,7 +201,8 @@ void StackMapStream::EndStackMapEntry() {
 void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
                                           uint32_t dex_pc,
                                           uint32_t num_dex_registers,
-                                          const DexFile* outer_dex_file) {
+                                          const DexFile* outer_dex_file,
+                                          const CodeGenerator* codegen) {
   DCHECK(in_stack_map_) << "Call BeginStackMapEntry first";
   DCHECK(!in_inline_info_) << "Mismatched Begin/End calls";
   in_inline_info_ = true;
@@ -215,26 +218,35 @@ void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
     entry[InlineInfo::kArtMethodHi] = High32Bits(reinterpret_cast<uintptr_t>(method));
     entry[InlineInfo::kArtMethodLo] = Low32Bits(reinterpret_cast<uintptr_t>(method));
   } else {
-    uint32_t bootclasspath_index = MethodInfo::kSameDexFile;
+    uint32_t is_in_bootclasspath = MethodInfo::kKindNonBCP;
+    uint32_t dexfile_index = MethodInfo::kSameDexFile;
     if (dex_pc != static_cast<uint32_t>(-1)) {
       ScopedObjectAccess soa(Thread::Current());
       const DexFile* dex_file = method->GetDexFile();
-      if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
-        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-        const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
-        auto it = std::find_if(
-            boot_class_path.begin(), boot_class_path.end(), [dex_file](const DexFile* df) {
-              return IsSameDexFile(*df, *dex_file);
-            });
-        DCHECK(it != boot_class_path.end());
-        bootclasspath_index = std::distance(boot_class_path.begin(), it);
-      } else {
-        DCHECK(IsSameDexFile(*outer_dex_file, *dex_file));
+      if (!IsSameDexFile(*outer_dex_file, *dex_file)) {
+        if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
+          ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+          const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
+          auto it = std::find_if(
+              boot_class_path.begin(), boot_class_path.end(), [dex_file](const DexFile* df) {
+                return IsSameDexFile(*df, *dex_file);
+              });
+          is_in_bootclasspath = MethodInfo::kKindBCP;
+          dexfile_index = std::distance(boot_class_path.begin(), it);
+        } else {
+          const std::vector<const DexFile*>& dex_files =
+              codegen->GetCompilerOptions().GetDexFilesForOatFile();
+          auto it = std::find_if(dex_files.begin(), dex_files.end(), [dex_file](const DexFile* df) {
+            return IsSameDexFile(*df, *dex_file);
+          });
+          // No need to set is_in_bootclasspath since the default value works.
+          dexfile_index = std::distance(dex_files.begin(), it);
+        }
       }
     }
     uint32_t dex_method_index = method->GetDexMethodIndex();
     entry[InlineInfo::kMethodInfoIndex] =
-        method_infos_.Dedup({dex_method_index, bootclasspath_index});
+        method_infos_.Dedup({dex_method_index, is_in_bootclasspath, dexfile_index});
   }
   current_inline_infos_.push_back(entry);
 
@@ -252,14 +264,24 @@ void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
       } else {
         MethodInfo method_info = code_info.GetMethodInfoOf(inline_info);
         CHECK_EQ(method_info.GetMethodIndex(), method->GetDexMethodIndex());
-        if (inline_info.GetDexPc() != static_cast<uint32_t>(-1)) {
-          ScopedObjectAccess soa(Thread::Current());
+        CHECK(method_info.GetDexFileIndexKind() == MethodInfo::kKindNonBCP ||
+              method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP);
+        ScopedObjectAccess soa(Thread::Current());
+        if (inline_info.GetDexPc() != static_cast<uint32_t>(-1) &&
+            !IsSameDexFile(*outer_dex_file, *method->GetDexFile())) {
           if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
+            CHECK_EQ(method_info.GetDexFileIndexKind(), MethodInfo::kKindBCP);
             ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
             const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
             DCHECK_LT(method_info.GetDexFileIndex(), boot_class_path.size());
             CHECK(IsSameDexFile(*boot_class_path[method_info.GetDexFileIndex()],
                                 *method->GetDexFile()));
+          } else {
+            CHECK_EQ(method_info.GetDexFileIndexKind(), MethodInfo::kKindNonBCP);
+            const std::vector<const DexFile*>& dex_files =
+                codegen->GetCompilerOptions().GetDexFilesForOatFile();
+            DCHECK_LT(method_info.GetDexFileIndex(), dex_files.size());
+            CHECK(IsSameDexFile(*dex_files[method_info.GetDexFileIndex()], *method->GetDexFile()));
           }
         }
       }
