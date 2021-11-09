@@ -1703,24 +1703,35 @@ static inline Handle<T> NewHandleIfDifferent(ObjPtr<T> object, Handle<T> hint, H
 
 static bool CanEncodeInlinedMethodInStackMap(const DexFile& outer_dex_file,
                                              ArtMethod* callee,
+                                             const CodeGenerator* codegen,
                                              bool* out_needs_bss_check)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (!Runtime::Current()->IsAotCompiler()) {
     // JIT can always encode methods in stack maps.
     return true;
   }
-  if (IsSameDexFile(outer_dex_file, *callee->GetDexFile())) {
+  const DexFile* dex_file = callee->GetDexFile();
+  if (IsSameDexFile(outer_dex_file, *dex_file)) {
     return true;
   }
 
-  // Inline across dexfiles if the callee's DexFile is in the bootclasspath.
+  // Inline across dexfiles if the callee's DexFile is:
+  // 1) in the bootclasspath, or
   if (callee->GetDeclaringClass()->GetClassLoader() == nullptr) {
     *out_needs_bss_check = true;
     return true;
   }
 
-  // TODO(ngeoffray): Support more AOT cases for inlining:
-  // - methods in multidex
+  // 2) is a non-BCP dexfile with an OatDexFile.
+  const std::vector<const DexFile*>& dex_files =
+      codegen->GetCompilerOptions().GetDexFilesForOatFile();
+  if (std::find(dex_files.begin(), dex_files.end(), dex_file) != dex_files.end()) {
+    *out_needs_bss_check = true;
+    return true;
+  }
+
+  // TODO(solanes): Support more AOT cases for inlining:
+  // - methods in class loader context's DexFiles
   return false;
 }
 
@@ -1834,7 +1845,7 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
       total_number_of_dex_registers_ > kMaximumNumberOfCumulatedDexRegisters;
   bool needs_bss_check = false;
   const bool can_encode_in_stack_map = CanEncodeInlinedMethodInStackMap(
-      *outer_compilation_unit_.GetDexFile(), resolved_method, &needs_bss_check);
+      *outer_compilation_unit_.GetDexFile(), resolved_method, codegen_, &needs_bss_check);
   size_t number_of_instructions = 0;
   // Skip the entry block, it does not contain instructions that prevent inlining.
   for (HBasicBlock* block : callee_graph->GetReversePostOrderSkipEntryBlock()) {

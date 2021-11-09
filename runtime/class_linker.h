@@ -28,10 +28,10 @@
 
 #include "base/enums.h"
 #include "base/hash_map.h"
-#include "base/mutex.h"
 #include "base/intrusive_forward_list.h"
 #include "base/locks.h"
 #include "base/macros.h"
+#include "base/mutex.h"
 #include "dex/class_accessor.h"
 #include "dex/dex_file_types.h"
 #include "gc_root.h"
@@ -39,6 +39,7 @@
 #include "jni.h"
 #include "mirror/class.h"
 #include "mirror/object.h"
+#include "oat_file.h"
 #include "verifier/verifier_enums.h"
 
 namespace art {
@@ -501,6 +502,8 @@ class ClassLinker {
   ObjPtr<mirror::DexCache> FindDexCache(Thread* self, const DexFile& dex_file)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::DexCache> FindDexCache(Thread* self, const OatDexFile* const oat_dex_file)
+      REQUIRES(!Locks::dex_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   ClassTable* FindClassTable(Thread* self, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1119,8 +1122,9 @@ class ClassLinker {
       REQUIRES(Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
   const DexCacheData* FindDexCacheDataLocked(const DexFile& dex_file)
-      REQUIRES_SHARED(Locks::dex_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::dex_lock_);
+  const DexCacheData* FindDexCacheDataLocked(const OatDexFile* const oat_dex_file)
+      REQUIRES_SHARED(Locks::dex_lock_);
   static ObjPtr<mirror::DexCache> DecodeDexCacheLocked(Thread* self, const DexCacheData* data)
       REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_);
   bool IsSameClassLoader(ObjPtr<mirror::DexCache> dex_cache,

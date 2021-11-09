@@ -1547,7 +1547,8 @@ void CodeGenerator::EmitEnvironment(HEnvironment* environment,
     stack_map_stream->BeginInlineInfoEntry(environment->GetMethod(),
                                            environment->GetDexPc(),
                                            needs_vreg_info ? environment->Size() : 0,
-                                           &graph_->GetDexFile());
+                                           &graph_->GetDexFile(),
+                                           this);
   }
 
   if (needs_vreg_info) {
