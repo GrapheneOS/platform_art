@@ -173,11 +173,6 @@ art_module_art_global_defaults {
                 // "-marm",
                 // "-mapcs",
             ],
-            header_libs: [
-                // We optimize Thread::Current() with a direct TLS access. This requires access to a
-                //  platform specific Bionic header.
-                "bionic_libc_platform_headers",
-            ],
         },
         linux: {
             cflags: [
@@ -187,11 +182,6 @@ art_module_art_global_defaults {
             ],
         },
         linux_bionic: {
-            header_libs: [
-                // We optimize Thread::Current() with a direct TLS access. This requires access to a
-                //  platform specific Bionic header.
-                "bionic_libc_platform_headers",
-            ],
             strip: {
                 // Do not strip art libs when building for linux-bionic.
                 // Otherwise we can't get any symbols out of crashes.

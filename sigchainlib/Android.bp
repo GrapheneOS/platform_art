@@ -49,7 +49,12 @@ cc_library {
         },
 
         android: {
+            header_libs: ["bionic_libc_platform_headers"],
             static_libs: ["libasync_safe"],
+        },
+
+        linux_bionic: {
+            header_libs: ["bionic_libc_platform_headers"],
         },
     },
 
