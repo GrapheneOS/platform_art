@@ -78,6 +78,19 @@ cc_library_headers {
     header_libs: ["art_libartbase_headers"],
     export_header_lib_headers: ["art_libartbase_headers"],
 
+    // We optimize Thread::Current() with a direct TLS access. This requires
+    // access to a platform specific Bionic header.
+    target: {
+        android: {
+            header_libs: ["bionic_libc_platform_headers"],
+            export_header_lib_headers: ["bionic_libc_platform_headers"],
+        },
+        linux_bionic: {
+            header_libs: ["bionic_libc_platform_headers"],
+            export_header_lib_headers: ["bionic_libc_platform_headers"],
+        },
+    },
+
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
