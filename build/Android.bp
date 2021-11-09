@@ -307,6 +307,7 @@ cc_defaults {
 
 art_debug_defaults {
     name: "art_debug_defaults",
+    defaults: ["art_defaults"],
     visibility: ["//art:__subpackages__"],
     cflags: [
         "-DDYNAMIC_ANNOTATIONS_ENABLED=1",
@@ -327,8 +328,6 @@ art_debug_defaults {
             cflags: ["-Wno-frame-larger-than="],
         },
     },
-
-    min_sdk_version: "S",
 }
 
 // A version of conscrypt only for enabling the "-hostdex" version to test ART on host.
