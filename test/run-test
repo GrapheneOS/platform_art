@@ -346,6 +346,9 @@ while true; do
         chroot="$1"
         run_args+=(--chroot "$1")
         shift
+    elif [ "x$1" = "x--simpleperf" ]; then
+        run_args+=(--simpleperf)
+        shift
     elif [ "x$1" = "x--android-root" ]; then
         shift
         if [ "x$1" = "x" ]; then

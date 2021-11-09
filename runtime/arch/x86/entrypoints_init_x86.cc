@@ -97,7 +97,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pMemcpy = art_quick_memcpy;
 
   // Read barrier.
-  qpoints->pReadBarrierJni = ReadBarrierJni;
+  qpoints->pReadBarrierJni = art_read_barrier_jni;
   UpdateReadBarrierEntrypoints(qpoints, /*is_active=*/ false);
   qpoints->pReadBarrierMarkReg04 = nullptr;  // Cannot use register 4 (ESP) to pass arguments.
   // x86 has only 8 core registers.
