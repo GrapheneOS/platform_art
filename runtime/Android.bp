@@ -68,6 +68,7 @@ libart_cc_defaults {
 
 cc_library_headers {
     name: "libart_headers",
+    defaults: ["art_defaults"],
     host_supported: true,
 
     export_include_dirs: ["."],
@@ -95,7 +96,6 @@ cc_library_headers {
         "com.android.art",
         "com.android.art.debug",
     ],
-    min_sdk_version: "S",
 }
 
 libart_cc_defaults {
