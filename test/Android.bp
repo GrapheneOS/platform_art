@@ -35,6 +35,18 @@ soong_config_module_type_import {
 // Properties common to `art_test_defaults` and `art_standalone_test_defaults`.
 art_module_cc_defaults {
     name: "art_test_common_defaults",
+    defaults: ["art_defaults"],
+
+    // Override flags from art_defaults:
+    cflags: [
+        // gmock.h has incorrect unused markers.
+        "-Wno-used-but-marked-unused",
+        // gtest.h compares signed and unsigned.
+        "-Wno-sign-compare",
+        // gtest.h includes cxxabi.h which fails on this check.
+        "-Wno-deprecated-dynamic-exception-spec",
+    ],
+
     target: {
         darwin: {
             enabled: false,
@@ -148,7 +160,6 @@ art_cc_defaults {
     // eventually.
     host_supported: false,
     test_config_template: ":art-gtests-target-standalone-template",
-    min_sdk_version: "S",
 }
 
 // Properties common to `art_gtest_defaults` and `art_standalone_gtest_defaults`.
@@ -233,7 +244,6 @@ art_cc_defaults {
         // (including the Release ART APEX).
         "art_standalone_test_defaults",
         "art_gtest_common_defaults",
-        "art_defaults",
     ],
 
     test_suites: [
@@ -511,10 +521,7 @@ art_cc_test_library {
 
 art_cc_defaults {
     name: "libnativebridgetest-defaults",
-    defaults: [
-        "art_test_defaults",
-        "art_defaults",
-    ],
+    defaults: ["art_test_defaults"],
     header_libs: ["libnativebridge-headers"],
     srcs: ["115-native-bridge/nativebridge.cc"],
 }
@@ -540,10 +547,7 @@ art_cc_test_library {
 
 cc_defaults {
     name: "libartagent-defaults",
-    defaults: [
-        "art_test_internal_library_defaults",
-        "art_defaults",
-    ],
+    defaults: ["art_test_internal_library_defaults"],
     shared_libs: [
         "libbacktrace",
         "libbase",
@@ -581,11 +585,7 @@ art_cc_test_library {
 
 art_cc_defaults {
     name: "libtiagent-base-defaults",
-    defaults: [
-        "art_test_internal_library_defaults",
-        "art_defaults",
-        // Not derived from libartagent-defaults for NDK.
-    ],
+    defaults: ["art_test_internal_library_defaults"],
     srcs: [
         // These are the ART-independent parts.
         "ti-agent/agent_common.cc",
@@ -847,10 +847,7 @@ art_cc_test_library {
 
 cc_defaults {
     name: "libarttest-defaults",
-    defaults: [
-        "art_test_internal_library_defaults",
-        "art_defaults",
-    ],
+    defaults: ["art_test_internal_library_defaults"],
     srcs: [
         "004-JniTest/jni_test.cc",
         "004-ReferenceMap/stack_walk_refmap_jni.cc",
