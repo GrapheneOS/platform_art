@@ -257,7 +257,7 @@ art_module_art_global_defaults {
         "-extra-arg=-Wno-unreachable-code",
     ],
 
-    min_sdk_version: "S",
+    min_sdk_version: "31",
 }
 
 // Used to generate binaries that can be backed by transparent hugepages.
@@ -326,7 +326,7 @@ art_debug_defaults {
         },
     },
 
-    min_sdk_version: "S",
+    min_sdk_version: "31",
 }
 
 // Use this to enable a cc_* module only when building ART from sources.

@@ -102,7 +102,7 @@ cc_library_headers {
         "com.android.art.debug",
         "com.android.media",
     ],
-    min_sdk_version: "S",
+    min_sdk_version: "31",
     visibility: [
         "//art:__subpackages__",
         // TODO(b/133140750): Clean this up.
