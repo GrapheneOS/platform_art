@@ -89,7 +89,9 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
   void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset64 offs) override;
 
   // Copying routines
-  void MoveArguments(ArrayRef<ArgumentLocation> dests, ArrayRef<ArgumentLocation> srcs) override;
+  void MoveArguments(ArrayRef<ArgumentLocation> dests,
+                     ArrayRef<ArgumentLocation> srcs,
+                     ArrayRef<FrameOffset> refs) override;
 
   void Move(ManagedRegister dest, ManagedRegister src, size_t size) override;
 

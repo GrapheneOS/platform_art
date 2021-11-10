@@ -171,13 +171,15 @@ TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
   __ Move(hidden_arg_register, method_register, 4);
   __ VerifyObject(scratch_register, false);
 
-  __ CreateJObject(scratch_register, FrameOffset(48), scratch_register, true);
-  __ CreateJObject(scratch_register, FrameOffset(48), scratch_register, false);
-  __ CreateJObject(method_register, FrameOffset(48), scratch_register, true);
+  // Note: `CreateJObject()` may need the scratch register IP. Test with another high register.
+  const ManagedRegister high_register = ArmManagedRegister::FromCoreRegister(R11);
+  __ CreateJObject(high_register, FrameOffset(48), high_register, true);
+  __ CreateJObject(high_register, FrameOffset(48), high_register, false);
+  __ CreateJObject(method_register, FrameOffset(48), high_register, true);
   __ CreateJObject(FrameOffset(48), FrameOffset(64), true);
-  __ CreateJObject(method_register, FrameOffset(0), scratch_register, true);
-  __ CreateJObject(method_register, FrameOffset(1025), scratch_register, true);
-  __ CreateJObject(scratch_register, FrameOffset(1025), scratch_register, true);
+  __ CreateJObject(method_register, FrameOffset(0), high_register, true);
+  __ CreateJObject(method_register, FrameOffset(1028), high_register, true);
+  __ CreateJObject(high_register, FrameOffset(1028), high_register, true);
 
   std::unique_ptr<JNIMacroLabel> exception_slow_path = __ CreateLabel();
   __ ExceptionPoll(exception_slow_path.get());

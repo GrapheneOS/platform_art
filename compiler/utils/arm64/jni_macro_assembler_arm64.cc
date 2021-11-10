@@ -42,6 +42,9 @@ namespace arm64 {
 static constexpr size_t kAapcs64StackAlignment = 16u;
 static_assert(kAapcs64StackAlignment == kStackAlignment);
 
+// STP signed offset for W-register can encode any 4-byte aligned offset smaller than this cutoff.
+static constexpr size_t kStpWOffsetCutoff = 256u;
+
 Arm64JNIMacroAssembler::~Arm64JNIMacroAssembler() {
 }
 
@@ -364,8 +367,36 @@ void Arm64JNIMacroAssembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadO
 
 // Copying routines.
 void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
-                                           ArrayRef<ArgumentLocation> srcs) {
-  DCHECK_EQ(dests.size(), srcs.size());
+                                           ArrayRef<ArgumentLocation> srcs,
+                                           ArrayRef<FrameOffset> refs) {
+  size_t arg_count = dests.size();
+  DCHECK_EQ(arg_count, srcs.size());
+  DCHECK_EQ(arg_count, refs.size());
+
+  // Spill reference registers. Spill two references together with STP where possible.
+  for (size_t i = 0; i != arg_count; ++i) {
+    if (refs[i] != kInvalidReferenceOffset) {
+      DCHECK_EQ(srcs[i].GetSize(), kObjectReferenceSize);
+      if (srcs[i].IsRegister()) {
+        // Use STP if we're storing 2 consecutive references within the available STP range.
+        if (i + 1u != arg_count &&
+            refs[i + 1u].SizeValue() == refs[i].SizeValue() + kObjectReferenceSize &&
+            srcs[i + 1u].IsRegister() &&
+            refs[i].SizeValue() < kStpWOffsetCutoff) {
+          DCHECK_EQ(srcs[i + 1u].GetSize(), kObjectReferenceSize);
+          ___ Stp(reg_w(srcs[i].GetRegister().AsArm64().AsWRegister()),
+                  reg_w(srcs[i + 1u].GetRegister().AsArm64().AsWRegister()),
+                  MEM_OP(sp, refs[i].SizeValue()));
+          ++i;
+        } else {
+          Store(refs[i], srcs[i].GetRegister(), kObjectReferenceSize);
+        }
+      } else {
+        DCHECK_EQ(srcs[i].GetFrameOffset(), refs[i]);
+      }
+    }
+  }
+
   auto get_mask = [](ManagedRegister reg) -> uint64_t {
     Arm64ManagedRegister arm64_reg = reg.AsArm64();
     if (arm64_reg.IsXRegister()) {
@@ -387,25 +418,50 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
       return (UINT64_C(1) << 32u) << fp_reg_number;
     }
   };
+
   // Collect registers to move while storing/copying args to stack slots.
+  // Convert processed references to `jobject`.
   // More than 8 core or FP reg args are very rare, so we do not optimize
   // for that case by using LDP/STP.
-  // TODO: LDP/STP will be useful for normal and @FastNative where we need
+  // TODO: LDP/STP will be useful for normal native methods where we need
   // to spill even the leading arguments.
   uint64_t src_regs = 0u;
   uint64_t dest_regs = 0u;
-  for (size_t i = 0, arg_count = srcs.size(); i != arg_count; ++i) {
+  for (size_t i = 0; i != arg_count; ++i) {
     const ArgumentLocation& src = srcs[i];
     const ArgumentLocation& dest = dests[i];
-    DCHECK_EQ(src.GetSize(), dest.GetSize());
+    const FrameOffset ref = refs[i];
+    if (ref != kInvalidReferenceOffset) {
+      DCHECK_EQ(src.GetSize(), kObjectReferenceSize);
+      DCHECK_EQ(dest.GetSize(), static_cast<size_t>(kArm64PointerSize));
+    } else {
+      DCHECK_EQ(src.GetSize(), dest.GetSize());
+    }
     if (dest.IsRegister()) {
-      if (src.IsRegister() && src.GetRegister().Equals(dest.GetRegister())) {
+      // Note: For references, `Equals()` returns `false` for overlapping W and X registers.
+      if (ref != kInvalidReferenceOffset &&
+          src.IsRegister() &&
+          src.GetRegister().AsArm64().AsOverlappingXRegister() ==
+              dest.GetRegister().AsArm64().AsXRegister()) {
+        // Just convert to `jobject`. No further processing is needed.
+        CreateJObject(dest.GetRegister(), ref, src.GetRegister(), /*null_allowed=*/ i != 0u);
+      } else if (src.IsRegister() && src.GetRegister().Equals(dest.GetRegister())) {
         // Nothing to do.
       } else {
         if (src.IsRegister()) {
           src_regs |= get_mask(src.GetRegister());
         }
         dest_regs |= get_mask(dest.GetRegister());
+      }
+    } else if (ref != kInvalidReferenceOffset) {
+      if (src.IsRegister()) {
+        // Note: We can clobber `src` here as the register cannot hold more than one argument.
+        ManagedRegister src_x =
+            CoreRegisterWithSize(src.GetRegister(), static_cast<size_t>(kArm64PointerSize));
+        CreateJObject(src_x, ref, src.GetRegister(), /*null_allowed=*/ i != 0u);
+        Store(dest.GetFrameOffset(), src_x, dest.GetSize());
+      } else {
+        CreateJObject(dest.GetFrameOffset(), ref, /*null_allowed=*/ i != 0u);
       }
     } else {
       if (src.IsRegister()) {
@@ -419,9 +475,10 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   // There should be no cycles, so this simple algorithm should make progress.
   while (dest_regs != 0u) {
     uint64_t old_dest_regs = dest_regs;
-    for (size_t i = 0, arg_count = srcs.size(); i != arg_count; ++i) {
+    for (size_t i = 0; i != arg_count; ++i) {
       const ArgumentLocation& src = srcs[i];
       const ArgumentLocation& dest = dests[i];
+      const FrameOffset ref = refs[i];
       if (!dest.IsRegister()) {
         continue;  // Stored in first loop above.
       }
@@ -433,10 +490,19 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
         continue;  // Cannot clobber this register yet.
       }
       if (src.IsRegister()) {
-        Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
+        if (ref != kInvalidReferenceOffset) {
+          CreateJObject(dest.GetRegister(), ref, src.GetRegister(), /*null_allowed=*/ i != 0u);
+        } else {
+          Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
+        }
         src_regs &= ~get_mask(src.GetRegister());  // Allow clobbering source register.
       } else {
-        Load(dest.GetRegister(), src.GetFrameOffset(), dest.GetSize());
+        if (ref != kInvalidReferenceOffset) {
+          CreateJObject(
+              dest.GetRegister(), ref, ManagedRegister::NoRegister(), /*null_allowed=*/ i != 0u);
+        } else {
+          Load(dest.GetRegister(), src.GetFrameOffset(), dest.GetSize());
+        }
       }
       dest_regs &= ~get_mask(dest.GetRegister());  // Destination register was filled.
     }
@@ -695,23 +761,22 @@ void Arm64JNIMacroAssembler::CreateJObject(ManagedRegister m_out_reg,
                                            bool null_allowed) {
   Arm64ManagedRegister out_reg = m_out_reg.AsArm64();
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();
-  // For now we only hold stale handle scope entries in x registers.
-  CHECK(in_reg.IsNoRegister() || in_reg.IsXRegister()) << in_reg;
+  CHECK(in_reg.IsNoRegister() || in_reg.IsWRegister()) << in_reg;
   CHECK(out_reg.IsXRegister()) << out_reg;
   if (null_allowed) {
+    UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+    Register scratch = temps.AcquireX();
+
     // Null values get a jobject value null. Otherwise, the jobject is
     // the address of the spilled reference.
     // e.g. out_reg = (in == 0) ? 0 : (SP+spilled_reference_offset)
     if (in_reg.IsNoRegister()) {
-      LoadWFromOffset(kLoadWord, out_reg.AsOverlappingWRegister(), SP,
-                      spilled_reference_offset.Int32Value());
-      in_reg = out_reg;
+      in_reg = Arm64ManagedRegister::FromWRegister(out_reg.AsOverlappingWRegister());
+      LoadWFromOffset(kLoadWord, in_reg.AsWRegister(), SP, spilled_reference_offset.Int32Value());
     }
-    ___ Cmp(reg_w(in_reg.AsOverlappingWRegister()), 0);
-    if (!out_reg.Equals(in_reg)) {
-      LoadImmediate(out_reg.AsXRegister(), 0, eq);
-    }
-    AddConstant(out_reg.AsXRegister(), SP, spilled_reference_offset.Int32Value(), ne);
+    ___ Add(scratch, reg_x(SP), spilled_reference_offset.Int32Value());
+    ___ Cmp(reg_w(in_reg.AsWRegister()), 0);
+    ___ Csel(reg_x(out_reg.AsXRegister()), scratch, xzr, ne);
   } else {
     AddConstant(out_reg.AsXRegister(), SP, spilled_reference_offset.Int32Value(), al);
   }
