@@ -25,17 +25,18 @@ adb root
 adb wait-for-device
 
 if [[ -z "$ANDROID_BUILD_TOP" ]]; then
-  echo 'ANDROID_BUILD_TOP environment variable is empty; did you forget to run `lunch`?'
+  msgerror 'ANDROID_BUILD_TOP environment variable is empty; did you forget to run `lunch`?'
   exit 1
 fi
 
 if [[ -z "$ANDROID_PRODUCT_OUT" ]]; then
-  echo 'ANDROID_PRODUCT_OUT environment variable is empty; did you forget to run `lunch`?'
+  msgerror 'ANDROID_PRODUCT_OUT environment variable is empty; did you forget to run `lunch`?'
   exit 1
 fi
 
 if [[ -z "$ART_TEST_CHROOT" ]]; then
-  echo 'ART_TEST_CHROOT environment variable is empty; please set it before running this script.'
+  msgerror 'ART_TEST_CHROOT environment variable is empty; ' \
+      'please set it before running this script.'
   exit 1
 fi
 
@@ -51,7 +52,7 @@ fi
       # We sync the APEXes later.
       continue
     fi
-    echo -e "${green}Syncing $dir directory...${nc}"
+    msginfo "Syncing $dir directory..."
     adb shell mkdir -p "$ART_TEST_CHROOT/$dir"
     adb push $dir "$ART_TEST_CHROOT/$(dirname $dir)"
   done
@@ -88,16 +89,16 @@ activate_apex() {
       src_apex_file="${src_apex_path}.capex"
     fi
     if [ -z "${src_apex_file}" ]; then
-      echo -e "${red}Failed to find .apex or .capex file to extract for ${src_apex_path}${nc}"
+      msgerror "Failed to find .apex or .capex file to extract for ${src_apex_path}"
       exit 1
     fi
-    echo -e "${green}Extracting APEX ${src_apex_file}...${nc}"
+    msginfo "Extracting APEX ${src_apex_file}..."
     mkdir -p $src_apex_path
     $ANDROID_HOST_OUT/bin/deapexer --debugfs_path $ANDROID_HOST_OUT/bin/debugfs_static \
       extract ${src_apex_file} $src_apex_path
   fi
 
-  echo -e "${green}Activating APEX ${src_apex} as ${dst_apex}...${nc}"
+  msginfo "Activating APEX ${src_apex} as ${dst_apex}..."
   adb shell rm -rf "$ART_TEST_CHROOT/apex/${dst_apex}"
   adb push $src_apex_path "$ART_TEST_CHROOT/apex/${dst_apex}"
 }
