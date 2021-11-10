@@ -44,13 +44,13 @@ cc_defaults {
 
 cc_library_headers {
     name: "dexoptanalyzer_headers",
+    defaults: ["art_defaults"],
     export_include_dirs: ["."],
     host_supported: true,
     apex_available: [
         "com.android.art.debug",
         "com.android.art",
     ],
-    min_sdk_version: "S",
 }
 
 art_cc_binary {

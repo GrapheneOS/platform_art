@@ -39,6 +39,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/throwable.h"
 #include "nth_caller_visitor.h"
+#include "oat_file.h"
 #include "reflective_handle_scope-inl.h"
 #include "runtime.h"
 #include "stack_map.h"
@@ -83,16 +84,21 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
     MethodInfo method_info = code_info.GetMethodInfoOf(inline_info);
     uint32_t method_index = method_info.GetMethodIndex();
     ArtMethod* inlined_method;
+    ObjPtr<mirror::DexCache> dex_cache;
     if (method_info.HasDexFileIndex()) {
-      const DexFile* dex_file = class_linker->GetBootClassPath()[method_info.GetDexFileIndex()];
-      ObjPtr<mirror::DexCache> dex_cache = class_linker->FindDexCache(Thread::Current(), *dex_file);
-      // The class loader is always nullptr for this case so we can simplify the call.
-      DCHECK_EQ(dex_cache->GetClassLoader(), nullptr);
-      inlined_method = class_linker->LookupResolvedMethod(method_index, dex_cache, nullptr);
+      if (method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP) {
+        const DexFile* dex_file = class_linker->GetBootClassPath()[method_info.GetDexFileIndex()];
+        dex_cache = class_linker->FindDexCache(Thread::Current(), *dex_file);
+      } else {
+        auto oat_dex_files = method->GetDexFile()->GetOatDexFile()->GetOatFile()->GetOatDexFiles();
+        const OatDexFile* odf = oat_dex_files[method_info.GetDexFileIndex()];
+        dex_cache = class_linker->FindDexCache(Thread::Current(), odf);
+      }
     } else {
-      inlined_method = class_linker->LookupResolvedMethod(
-          method_index, outer_method->GetDexCache(), outer_method->GetClassLoader());
+      dex_cache = outer_method->GetDexCache();
     }
+    inlined_method =
+        class_linker->LookupResolvedMethod(method_index, dex_cache, dex_cache->GetClassLoader());
 
     if (UNLIKELY(inlined_method == nullptr)) {
       LOG(FATAL) << "Could not find an inlined method from an .oat file: "
@@ -101,26 +107,17 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
       UNREACHABLE();
     }
     DCHECK(!inlined_method->IsRuntimeMethod());
-    if (UNLIKELY(inlined_method->GetDexFile() != outer_method->GetDexFile() &&
-                 !method_info.HasDexFileIndex())) {
-      // TODO: We could permit inlining within a multi-dex oat file and the boot image,
-      // even going back from boot image methods to the same oat file. However, this is
-      // not currently implemented in the compiler. Therefore crossing dex file boundary
-      // indicates that the inlined definition is not the same as the one used at runtime.
-      bool target_sdk_at_least_p =
-          IsSdkVersionSetAndAtLeast(Runtime::Current()->GetTargetSdkVersion(), SdkVersion::kP);
-      LOG(target_sdk_at_least_p ? FATAL : WARNING)
-          << "Inlined method resolution crossed dex file boundary: from " << method->PrettyMethod()
-          << " in " << method->GetDexFile()->GetLocation() << "/"
-          << static_cast<const void*>(method->GetDexFile()) << " to "
-          << inlined_method->PrettyMethod() << " in " << inlined_method->GetDexFile()->GetLocation()
-          << "/" << static_cast<const void*>(inlined_method->GetDexFile()) << ". "
-          << "The outermost method in the chain is: " << outer_method->PrettyMethod() << " in "
-          << outer_method->GetDexFile()->GetLocation() << "/"
-          << static_cast<const void*>(outer_method->GetDexFile())
-          << "This must be due to duplicate classes or playing wrongly with class loaders. "
-          << "The runtime is in an unsafe state.";
-    }
+    DCHECK_EQ(inlined_method->GetDexFile() == outer_method->GetDexFile(),
+              method_info.GetDexFileIndex() == MethodInfo::kSameDexFile)
+        << "Inlined method: " << inlined_method->PrettyMethod() << " ("
+        << inlined_method->GetDexFile()->GetLocation() << "/"
+        << static_cast<const void*>(inlined_method->GetDexFile()) << ") in "
+        << method->PrettyMethod() << " (" << method->GetDexFile()->GetLocation() << "/"
+        << static_cast<const void*>(method->GetDexFile()) << ")."
+        << "The outermost method in the chain is: " << outer_method->PrettyMethod() << " ("
+        << outer_method->GetDexFile()->GetLocation() << "/"
+        << static_cast<const void*>(outer_method->GetDexFile());
+
     method = inlined_method;
   }
 

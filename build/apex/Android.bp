@@ -296,7 +296,7 @@ apex_defaults {
             enabled: false,
         },
     },
-    min_sdk_version: "S",
+    min_sdk_version: "31",
     // Indicates that pre-installed version of this apex can be compressed.
     // Whether it actually will be compressed is controlled on per-device basis.
     compressible: true,

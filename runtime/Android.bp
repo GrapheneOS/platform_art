@@ -66,6 +66,38 @@ libart_cc_defaults {
     },
 }
 
+cc_library_headers {
+    name: "libart_headers",
+    defaults: ["art_defaults"],
+    host_supported: true,
+
+    export_include_dirs: ["."],
+
+    // ART's macros.h depends on libbase's macros.h.
+    // Note: runtime_options.h depends on cmdline. But we don't really want to export this
+    //       generically. dex2oat takes care of it itself.
+    header_libs: ["art_libartbase_headers"],
+    export_header_lib_headers: ["art_libartbase_headers"],
+
+    // We optimize Thread::Current() with a direct TLS access. This requires
+    // access to a platform specific Bionic header.
+    target: {
+        android: {
+            header_libs: ["bionic_libc_platform_headers"],
+            export_header_lib_headers: ["bionic_libc_platform_headers"],
+        },
+        linux_bionic: {
+            header_libs: ["bionic_libc_platform_headers"],
+            export_header_lib_headers: ["bionic_libc_platform_headers"],
+        },
+    },
+
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
 libart_cc_defaults {
     name: "libart_defaults",
     defaults: ["art_defaults"],
@@ -423,8 +455,10 @@ libart_cc_defaults {
         "art_cmdlineparser_headers",
         "cpp-define-generator-definitions",
         "jni_platform_headers",
+        "libart_headers",
         "libnativehelper_header_only",
     ],
+    export_header_lib_headers: ["libart_headers"],
     whole_static_libs: [
         "libcpu_features",
     ],
@@ -454,12 +488,6 @@ libart_cc_defaults {
         //   manifest-art.json.
         "libjavacore",
     ],
-
-    export_include_dirs: ["."],
-    // ART's macros.h depends on libbase's macros.h.
-    // Note: runtime_options.h depends on cmdline. But we don't really want to export this
-    //       generically. dex2oat takes care of it itself.
-    export_shared_lib_headers: ["libbase"],
 }
 
 libart_static_cc_defaults {
@@ -864,19 +892,6 @@ art_cc_test {
         },
     },
     test_config: "art_standalone_runtime_compiler_tests.xml",
-}
-
-cc_library_headers {
-    name: "libart_runtime_headers_ndk",
-    host_supported: true,
-    export_include_dirs: ["."],
-    sdk_version: "current",
-
-    apex_available: [
-        "com.android.art",
-        "com.android.art.debug",
-    ],
-    min_sdk_version: "S",
 }
 
 genrule {

@@ -181,7 +181,6 @@ art_cc_library_static {
     host_supported: true,
     defaults: [
         "art_debug_defaults",
-        "art_defaults",
         "libartbased_static_defaults",
         "libartd-compiler_static_defaults",
         "libartd-dex2oat_static_defaults",

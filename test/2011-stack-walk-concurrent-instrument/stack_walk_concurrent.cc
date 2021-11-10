@@ -76,7 +76,9 @@ extern "C" JNIEXPORT void JNICALL Java_Main_doSelfStackWalk(JNIEnv*, jobject) {
   CHECK(sswv.found_g_);
   CHECK(sswv.found_h_);
 }
-extern "C" JNIEXPORT void JNICALL Java_Main_waitAndDeopt(JNIEnv*, jobject, jobject target) {
+extern "C" JNIEXPORT void JNICALL Java_Main_waitAndInstrumentStack(JNIEnv*,
+                                                                   jobject,
+                                                                   jobject target) {
   while (!instrument_waiting) {
   }
   bool timed_out = false;
@@ -85,7 +87,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitAndDeopt(JNIEnv*, jobject, jobje
   CHECK(!timed_out);
   CHECK(other != nullptr);
   ScopedSuspendAll ssa(__FUNCTION__);
-  Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(other);
+  Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(other,
+                                                                  /* deopt_all_frames= */ false);
   MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);
   bool updated = other->ModifySuspendCount(Thread::Current(), -1, nullptr, SuspendReason::kInternal);
   CHECK(updated);

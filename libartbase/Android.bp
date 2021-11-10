@@ -338,6 +338,7 @@ art_cc_test {
 
 cc_library_headers {
     name: "art_libartbase_headers",
+    defaults: ["art_defaults"],
     host_supported: true,
     export_include_dirs: ["."],
     shared_libs: ["libbase"],
@@ -347,5 +348,4 @@ cc_library_headers {
         "com.android.art",
         "com.android.art.debug",
     ],
-    min_sdk_version: "S",
 }
