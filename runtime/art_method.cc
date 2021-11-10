@@ -753,7 +753,9 @@ void ArtMethod::CopyFrom(ArtMethod* src, PointerSize image_pointer_size) {
     SetDataPtrSize(nullptr, image_pointer_size);
   }
   // Clear hotness to let the JIT properly decide when to compile this method.
-  hotness_count_ = 0;
+  if (!IsAbstract()) {
+    ResetCounter();
+  }
 }
 
 bool ArtMethod::IsImagePointerSize(PointerSize pointer_size) {
