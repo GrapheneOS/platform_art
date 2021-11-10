@@ -17,11 +17,7 @@
 # This script undoes (most of) the work done by tools/buildbot-setup-device.sh.
 # Make sure to keep these files in sync.
 
-if [ -t 1 ]; then
-  # Color sequences if terminal is a tty.
-  green='\033[0;32m'
-  nc='\033[0m'
-fi
+. "$(dirname $0)/buildbot-utils.sh"
 
 # Setup as root, as some actions performed here require it.
 adb root
