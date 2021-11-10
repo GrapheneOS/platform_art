@@ -30,7 +30,7 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
   if adb shell test -d "$ART_TEST_CHROOT"; then
     # Display users of the chroot dir.
 
-    echo -e "${green}List open files under chroot dir $ART_TEST_CHROOT${nc}"
+    msginfo "List open files under chroot dir $ART_TEST_CHROOT"
     adb shell lsof | grep "$ART_TEST_CHROOT"
 
     # for_all_chroot_process ACTION
@@ -60,12 +60,12 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
       echo "$cmdline (PID: $pid)"
     }
 
-    echo -e "${green}List processes running from binaries under chroot dir $ART_TEST_CHROOT${nc}"
+    msginfo "List processes running from binaries under chroot dir $ART_TEST_CHROOT"
     for_all_chroot_process display_process
 
     # Tear down the chroot dir.
 
-    echo -e "${green}Tear down the chroot set up in $ART_TEST_CHROOT${nc}"
+    msginfo "Tear down the chroot set up in $ART_TEST_CHROOT"
 
     # remove_filesystem_from_chroot DIR-IN-CHROOT FSTYPE REMOVE-DIR-IN-CHROOT
     # -----------------------------------------------------------------------
@@ -139,8 +139,8 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
       adb shell kill -9 "$pid"
     }
 
-    echo -e "${green}Kill processes still running from binaries under" \
-      "chroot dir $ART_TEST_CHROOT (if any)${nc} "
+    msginfo "Kill processes" \
+      "still running from binaries under chroot dir $ART_TEST_CHROOT (if any)"
     for_all_chroot_process kill_process
   fi
 fi
