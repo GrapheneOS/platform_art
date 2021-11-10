@@ -1956,6 +1956,9 @@ bool ClassLinker::AddImageSpace(
         const dex::CodeItem* code_item = method.GetDexFile()->GetCodeItem(
             reinterpret_cast32<uint32_t>(method.GetDataPtrSize(image_pointer_size_)));
         method.SetCodeItem(code_item);
+        // The hotness counter may have changed since we compiled the image, so
+        // reset it with the runtime value.
+        method.ResetCounter();
       }
       // Set image methods' entry point that point to the interpreter bridge to the
       // nterp entry point.
