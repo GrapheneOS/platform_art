@@ -23,7 +23,7 @@
     GOTO_OPCODE x10                     // jump to next instruction
     .elseif $is_object
     $load   w2, [x0, #$data_offset]     // w2<- vBB[vCC]
-    cbnz wMR, 2f
+    TEST_IF_MARKING 2f
 1:
     SET_VREG_OBJECT w2, w9              // vAA<- w2
     GOTO_OPCODE x10                     // jump to next instruction
