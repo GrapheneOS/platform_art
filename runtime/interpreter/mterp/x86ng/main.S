@@ -302,8 +302,16 @@ END_FUNCTION \name
     GOTO_NEXT
 3:
     movl (%esp), %eax
-    addw $$1, ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
-    andw $$(NTERP_HOTNESS_MASK), ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
+    movzwl ART_METHOD_HOTNESS_COUNT_OFFSET(%eax), %ecx
+#if (NTERP_HOTNESS_VALUE != 0)
+#error Expected 0 for hotness value
+#endif
+    // If the counter is at zero, handle this in the runtime.
+    testw %cx, %cx
+    je NterpHandleHotnessOverflow
+    // Update counter.
+    addl $$-1, %ecx
+    movw %cx, ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
     // If the counter overflows, handle this in the runtime.
     jz NterpHandleHotnessOverflow
     // Otherwise, do a suspend check.
@@ -965,8 +973,16 @@ END_FUNCTION \name
 // Increase method hotness and do suspend check before starting executing the method.
 .macro START_EXECUTING_INSTRUCTIONS
    movl (%esp), %eax
-   addw $$1, ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
-   andw $$(NTERP_HOTNESS_MASK), ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
+   movzwl ART_METHOD_HOTNESS_COUNT_OFFSET(%eax), %ecx
+#if (NTERP_HOTNESS_VALUE != 0)
+#error Expected 0 for hotness value
+#endif
+   // If the counter is at zero, handle this in the runtime.
+   testw %cx, %cx
+   je 2f
+   // Update counter.
+   addl $$-1, %ecx
+   movw %cx, ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
    jz 2f
    testl $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
    jz 1f
