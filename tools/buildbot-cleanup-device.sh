@@ -14,11 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if [ -t 1 ]; then
-  # Color sequences if terminal is a tty.
-  green='\033[0;32m'
-  nc='\033[0m'
-fi
+. "$(dirname $0)/buildbot-utils.sh"
 
 # Setup as root, as device cleanup requires it.
 adb root
