@@ -152,7 +152,16 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset<kPointerSize> offs) = 0;
 
   // Copying routines
-  virtual void MoveArguments(ArrayRef<ArgumentLocation> dests, ArrayRef<ArgumentLocation> srcs) = 0;
+
+  // Move arguments from `srcs` locations to `dests` locations.
+  //
+  // References shall be spilled to `refs` frame offsets (kInvalidReferenceOffset indicates
+  // a non-reference type) if they are in registers and corresponding `dests` shall be
+  // filled with `jobject` replacements. If the first argument is a reference, it is
+  // assumed to be `this` and cannot be null, all other reference arguments can be null.
+  virtual void MoveArguments(ArrayRef<ArgumentLocation> dests,
+                             ArrayRef<ArgumentLocation> srcs,
+                             ArrayRef<FrameOffset> refs) = 0;
 
   virtual void Move(ManagedRegister dest, ManagedRegister src, size_t size) = 0;
 
@@ -275,6 +284,8 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   void SetEmitRunTimeChecksInDebugMode(bool value) {
     emit_run_time_checks_in_debug_mode_ = value;
   }
+
+  static constexpr FrameOffset kInvalidReferenceOffset = FrameOffset(0);
 
  protected:
   JNIMacroAssembler() {}
