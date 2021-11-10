@@ -25,7 +25,6 @@ package {
 art_cc_binary {
     name: "artd",
     defaults: ["art_defaults"],
-    min_sdk_version: "S",
 
     srcs: [
         "artd.cc",

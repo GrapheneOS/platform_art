@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+set -e
+
 # Run ART APEX tests.
 
 SCRIPT_DIR=$(dirname $0)
@@ -41,13 +43,11 @@ function setup_die {
 [[ -n "$ANDROID_PRODUCT_OUT" ]] || setup_die
 [[ -n "$ANDROID_HOST_OUT" ]] || setup_die
 
-flattened_apex_p=$($ANDROID_BUILD_TOP/build/soong/soong_ui.bash \
-    --dumpvar-mode TARGET_FLATTEN_APEX) \
-  || setup_die
-
-compressed_apex_p=$($ANDROID_BUILD_TOP/build/soong/soong_ui.bash \
-    --dumpvar-mode PRODUCT_COMPRESSED_APEX) \
-  || setup_die
+vars="$($ANDROID_BUILD_TOP/build/soong/soong_ui.bash \
+        --dumpvars-mode --vars="TARGET_FLATTEN_APEX PRODUCT_COMPRESSED_APEX")"
+# Assign to a variable and eval that, since bash ignores any error status from
+# the command substitution if it's directly on the eval line.
+eval $vars
 
 # Switch the build system to unbundled mode in the reduced manifest branch.
 if [ ! -d $ANDROID_BUILD_TOP/frameworks/base ]; then
@@ -55,7 +55,7 @@ if [ ! -d $ANDROID_BUILD_TOP/frameworks/base ]; then
 fi
 
 have_deapexer_p=false
-if $flattened_apex_p; then :; else
+if [[ "$TARGET_FLATTEN_APEX" != true ]]; then
   if [ ! -e "$ANDROID_HOST_OUT/bin/deapexer" -o ! -e "$ANDROID_HOST_OUT/bin/debugfs_static" ] ; then
     say "Could not find deapexer and/or debugfs_static, building now."
     build/soong/soong_ui.bash --make-mode deapexer debugfs_static-host || \
@@ -82,12 +82,14 @@ applicable APEXes if none is given on the command line.
   -l, --list-files    list the contents of the ext4 image (\`find\`-like style)
   -t, --print-tree    list the contents of the ext4 image (\`tree\`-like style)
   -s, --print-sizes   print the size in bytes of each file when listing contents
+  --bitness=32|64|multilib|auto  passed on to art_apex_test.py
   -h, --help          display this help and exit
 
 EOF
   exit
 }
 
+global_art_apex_test_args=""
 apex_modules=()
 
 while [[ $# -gt 0 ]]; do
@@ -96,6 +98,7 @@ while [[ $# -gt 0 ]]; do
     (-l|--list-files)  list_image_files_p=true;;
     (-t|--print-tree)  print_image_tree_p=true;;
     (-s|--print-sizes) print_file_sizes_p=true;;
+    (--bitness=*)      global_art_apex_test_args="$global_art_apex_test_args $1";;
     (-h|--help) usage;;
     (-*) die "Unknown option: '$1'
 Try '$0 --help' for more information.";;
@@ -174,19 +177,19 @@ for apex_module in ${apex_modules[@]}; do
   work_dir=$(mktemp -d)
   trap finish EXIT
 
-  art_apex_test_args="--tmpdir $work_dir"
+  art_apex_test_args="$global_art_apex_test_args --tmpdir $work_dir"
   test_only_args=""
   if [[ $apex_module = *.host ]]; then
     apex_path="$ANDROID_HOST_OUT/apex/${apex_module}.zipapex"
     art_apex_test_args="$art_apex_test_args --host"
     test_only_args="--flavor debug"
   else
-    if $flattened_apex_p; then
+    if [[ "$TARGET_FLATTEN_APEX" = true ]]; then
       apex_path="$ANDROID_PRODUCT_OUT/system/apex/${apex_module}"
       art_apex_test_args="$art_apex_test_args --flattened"
     else
       # Note: The Testing ART APEX is never built as a Compressed APEX.
-      if $compressed_apex_p && [[ $apex_module != *.testing ]]; then
+      if [[ "$PRODUCT_COMPRESSED_APEX" = true && $apex_module != *.testing ]]; then
         apex_path="$ANDROID_PRODUCT_OUT/system/apex/${apex_module}.capex"
       else
         apex_path="$ANDROID_PRODUCT_OUT/system/apex/${apex_module}.apex"

@@ -25,6 +25,7 @@ package {
 
 cc_library_headers {
     name: "dt_fd_forward_export",
+    defaults: ["art_defaults"],
     export_include_dirs: ["."],
     host_supported: true,
     device_supported: true,
@@ -33,5 +34,4 @@ cc_library_headers {
         "com.android.art.debug",
         "com.android.art",
     ],
-    min_sdk_version: "S",
 }

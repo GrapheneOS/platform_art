@@ -54,24 +54,29 @@ static void InitializeArray(GcRoot<T>*) {
 
 template<typename T, size_t kMaxCacheSize>
 T* DexCache::AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t num) {
-  ReadBarrier::AssertToSpaceInvariant(this);
   num = std::min<size_t>(num, kMaxCacheSize);
   if (num == 0) {
     return nullptr;
+  }
+  mirror::DexCache* dex_cache = this;
+  if (kUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+    // Several code paths use DexCache without read-barrier for performance.
+    // We have to check the "to-space" object here to avoid allocating twice.
+    dex_cache = reinterpret_cast<DexCache*>(ReadBarrier::Mark(dex_cache));
   }
   Thread* self = Thread::Current();
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   LinearAlloc* alloc = linker->GetOrCreateAllocatorForClassLoader(GetClassLoader());
   MutexLock mu(self, *Locks::dex_cache_lock_);  // Avoid allocation by multiple threads.
-  T* array = GetFieldPtr64<T*>(obj_offset);
+  T* array = dex_cache->GetFieldPtr64<T*>(obj_offset);
   if (array != nullptr) {
     DCHECK(alloc->Contains(array));
     return array;  // Other thread just allocated the array.
   }
   array = reinterpret_cast<T*>(alloc->AllocAlign16(self, RoundUp(num * sizeof(T), 16)));
   InitializeArray(array);  // Ensure other threads see the array initialized.
-  SetField32Volatile<false, false>(num_offset, num);
-  SetField64Volatile<false, false>(obj_offset, reinterpret_cast64<uint64_t>(array));
+  dex_cache->SetField32Volatile<false, false>(num_offset, num);
+  dex_cache->SetField64Volatile<false, false>(obj_offset, reinterpret_cast64<uint64_t>(array));
   return array;
 }
 

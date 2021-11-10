@@ -30,6 +30,8 @@
 
 namespace art {
 
+class CodeGenerator;
+
 /**
  * Collects and builds stack maps for a method. All the stack maps
  * for a method are placed in a CodeInfo object.
@@ -80,7 +82,8 @@ class StackMapStream : public DeletableArenaObject<kArenaAllocStackMapStream> {
   void BeginInlineInfoEntry(ArtMethod* method,
                             uint32_t dex_pc,
                             uint32_t num_dex_registers,
-                            const DexFile* outer_dex_file = nullptr);
+                            const DexFile* outer_dex_file = nullptr,
+                            const CodeGenerator* codegen = nullptr);
   void EndInlineInfoEntry();
 
   size_t GetNumberOfStackMaps() const {

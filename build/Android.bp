@@ -173,11 +173,6 @@ art_module_art_global_defaults {
                 // "-marm",
                 // "-mapcs",
             ],
-            header_libs: [
-                // We optimize Thread::Current() with a direct TLS access. This requires access to a
-                //  platform specific Bionic header.
-                "bionic_libc_platform_headers",
-            ],
         },
         linux: {
             cflags: [
@@ -187,11 +182,6 @@ art_module_art_global_defaults {
             ],
         },
         linux_bionic: {
-            header_libs: [
-                // We optimize Thread::Current() with a direct TLS access. This requires access to a
-                //  platform specific Bionic header.
-                "bionic_libc_platform_headers",
-            ],
             strip: {
                 // Do not strip art libs when building for linux-bionic.
                 // Otherwise we can't get any symbols out of crashes.
@@ -269,7 +259,7 @@ art_module_art_global_defaults {
         "-extra-arg=-Wno-unreachable-code",
     ],
 
-    min_sdk_version: "S",
+    min_sdk_version: "31",
 }
 
 // Used to generate binaries that can be backed by transparent hugepages.
@@ -317,6 +307,7 @@ cc_defaults {
 
 art_debug_defaults {
     name: "art_debug_defaults",
+    defaults: ["art_defaults"],
     visibility: ["//art:__subpackages__"],
     cflags: [
         "-DDYNAMIC_ANNOTATIONS_ENABLED=1",
@@ -337,8 +328,6 @@ art_debug_defaults {
             cflags: ["-Wno-frame-larger-than="],
         },
     },
-
-    min_sdk_version: "S",
 }
 
 // A version of conscrypt only for enabling the "-hostdex" version to test ART on host.
