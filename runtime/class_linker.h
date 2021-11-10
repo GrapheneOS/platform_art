@@ -870,7 +870,7 @@ class ClassLinker {
 
  private:
   class LinkFieldsHelper;
-  class LinkInterfaceMethodsHelper;
+  class LinkMethodsHelper;
   class MethodTranslation;
   class VisiblyInitializedCallback;
 
@@ -1178,28 +1178,6 @@ class ClassLinker {
       const dex::MethodHandleItem& method_handle,
       ArtMethod* referrer) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Links the virtual methods for the given class and records any default methods that will need to
-  // be updated later.
-  //
-  // Arguments:
-  // * self - The current thread.
-  // * klass - class, whose vtable will be filled in.
-  // * default_translations - Vtable index to new method map.
-  //                          Any vtable entries that need to be updated with new default methods
-  //                          are stored into the default_translations map. The default_translations
-  //                          map is keyed on the vtable index that needs to be updated. We use this
-  //                          map because if we override a default method with another default
-  //                          method we need to update the vtable to point to the new method.
-  //                          Unfortunately since we copy the ArtMethod* we cannot just do a simple
-  //                          scan, we therefore store the vtable index's that might need to be
-  //                          updated with the method they will turn into.
-  // TODO This whole default_translations thing is very dirty. There should be a better way.
-  bool LinkVirtualMethods(
-        Thread* self,
-        Handle<mirror::Class> klass,
-        /*out*/HashMap<size_t, MethodTranslation>* default_translations)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Sets up the interface lookup table (IFTable) in the correct order to allow searching for
   // default methods.
   bool SetupInterfaceLookupTable(Thread* self,
@@ -1237,16 +1215,6 @@ class ClassLinker {
       ArtMethod* target_method,
       Handle<mirror::Class> klass,
       /*out*/ArtMethod** out_default_method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Sets the imt entries and fixes up the vtable for the given class by linking all the interface
-  // methods. See LinkVirtualMethods for an explanation of what default_translations is.
-  bool LinkInterfaceMethods(
-      Thread* self,
-      Handle<mirror::Class> klass,
-      const HashMap<size_t, MethodTranslation>& default_translations,
-      bool* out_new_conflict,
-      ArtMethod** out_imt)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool LinkStaticFields(Thread* self, Handle<mirror::Class> klass, size_t* class_size)
