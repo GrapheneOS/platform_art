@@ -2,8 +2,7 @@
    // Fast-path which gets the class from thread-local cache.
    EXPORT_PC
    FETCH_FROM_THREAD_CACHE r1, 3f
-   cmp     rMR, #0
-   bne     4f
+   TEST_IF_MARKING 4f
 1:
    lsr     r2, rINST, #8               // r2<- A
    GET_VREG r0, r2                     // r0<- vA (object)
@@ -30,8 +29,7 @@
    // Fast-path which gets the class from thread-local cache.
    EXPORT_PC
    FETCH_FROM_THREAD_CACHE r1, 3f
-   cmp     rMR, #0
-   bne     4f
+   TEST_IF_MARKING 4f
 1:
    lsr     r2, rINST, #12              // r2<- B
    GET_VREG r0, r2                     // r0<- vB (object)
@@ -85,8 +83,7 @@
    SET_VREG_WIDE_BY_ADDR r0, r1, r2    // fp[A] <- value
    .elseif $is_object
    $load   r0, [r3, r0]
-   cmp     rMR, #0
-   bne     .L${opcode}_read_barrier
+   TEST_IF_MARKING .L${opcode}_read_barrier
 .L${opcode}_resume_after_read_barrier:
    SET_VREG_OBJECT r0, r2              // fp[A] <- value
    .else
@@ -128,8 +125,7 @@
    $load   r0, [r3, r0]
    dmb     ish
    .if $is_object
-   cmp     rMR, #0
-   bne     .L${opcode}_read_barrier
+   TEST_IF_MARKING .L${opcode}_read_barrier
    SET_VREG_OBJECT r0, r2              // fp[A] <- value
    .else
    SET_VREG r0, r2                     // fp[A] <- value
@@ -258,8 +254,7 @@
    ldr     r1, [r0, #ART_FIELD_OFFSET_OFFSET]
    lsr     r2, rINST, #8               // r2 <- A
    ldr     r0, [r0, #ART_FIELD_DECLARING_CLASS_OFFSET]
-   cmp     rMR, #0
-   bne     .L${opcode}_read_barrier
+   TEST_IF_MARKING .L${opcode}_read_barrier
 .L${opcode}_resume_after_read_barrier:
    .if $wide
    add     r0, r0, r1
@@ -304,8 +299,7 @@
    ldr     r1, [r0, #ART_FIELD_OFFSET_OFFSET]
    lsr     r2, rINST, #8               // r2 <- A
    ldr     r0, [r0, #ART_FIELD_DECLARING_CLASS_OFFSET]
-   cmp     rMR, #0
-   bne     .L${opcode}_slow_path_read_barrier
+   TEST_IF_MARKING .L${opcode}_slow_path_read_barrier
 .L${opcode}_slow_path_resume_after_read_barrier:
    .if $wide
    add     ip, r0, r1
@@ -318,8 +312,7 @@
    $load   r0, [r0, r1]
    dmb     ish
    .if $is_object
-   cmp     rMR, #0
-   bne     .L${opcode}_mark_after_load
+   TEST_IF_MARKING .L${opcode}_mark_after_load
    SET_VREG_OBJECT r0, r2              // fp[A] <- value
    .else
    SET_VREG r0, r2                     // fp[A] <- value
@@ -364,8 +357,7 @@
 .L${opcode}_resume:
    ldr     r1, [r0, #ART_FIELD_OFFSET_OFFSET]
    ldr     r0, [r0, #ART_FIELD_DECLARING_CLASS_OFFSET]
-   cmp     rMR, #0
-   bne     .L${opcode}_read_barrier
+   TEST_IF_MARKING .L${opcode}_read_barrier
 .L${opcode}_resume_after_read_barrier:
    .if $wide
    lsr     r2, rINST, #8               // r2 <- A
@@ -405,8 +397,7 @@
    CLEAR_STATIC_VOLATILE_MARKER r0
    ldr     r1, [r0, #ART_FIELD_OFFSET_OFFSET]
    ldr     r0, [r0, #ART_FIELD_DECLARING_CLASS_OFFSET]
-   cmp     rMR, #0
-   bne     .L${opcode}_slow_path_read_barrier
+   TEST_IF_MARKING .L${opcode}_slow_path_read_barrier
 .L${opcode}_slow_path_resume_after_read_barrier:
    .if $wide
    lsr     r2, rINST, #8               // r2 <- A
@@ -440,8 +431,7 @@
    EXPORT_PC
    // Fast-path which gets the class from thread-local cache.
    FETCH_FROM_THREAD_CACHE r0, 2f
-   cmp     rMR, #0
-   bne     3f
+   TEST_IF_MARKING 3f
 4:
    ldr     lr, [rSELF, #THREAD_ALLOC_OBJECT_ENTRYPOINT_OFFSET]
    blx     lr
