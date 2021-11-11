@@ -325,6 +325,11 @@ END \name
     b 1b
 .endm
 
+.macro TEST_IF_MARKING label
+    cmp rMR, #0
+    bne \label
+.endm
+
 // Expects:
 // - ip and lr to be available.
 // Outputs:
@@ -1771,8 +1776,7 @@ NterpNewArray:
    EXPORT_PC
    // Fast-path which gets the class from thread-local cache.
    FETCH_FROM_THREAD_CACHE r0, 2f
-   cmp rMR, #0
-   bne 3f
+   TEST_IF_MARKING 3f
 1:
    lsr     r1, rINST, #12              // r1<- B
    GET_VREG r1, r1                     // r1<- vB (array length)

@@ -370,6 +370,10 @@ END \name
 5:
 .endm
 
+.macro TEST_IF_MARKING label
+    cbnz wMR, \label
+.endm
+
 // Setup the stack to start executing the method. Expects:
 // - x0 to contain the ArtMethod
 //
@@ -1756,7 +1760,7 @@ NterpNewArray:
    EXPORT_PC
    // Fast-path which gets the class from thread-local cache.
    FETCH_FROM_THREAD_CACHE x0, 2f
-   cbnz wMR, 3f
+   TEST_IF_MARKING 3f
 1:
    lsr     w1, wINST, #12              // w1<- B
    GET_VREG w1, w1                     // w1<- vB (array length)
