@@ -373,6 +373,11 @@ class CompilerOptions final {
     return initialize_app_image_classes_;
   }
 
+  bool WithinOatFile(const DexFile* dex_file) const {
+    return std::find(GetDexFilesForOatFile().begin(), GetDexFilesForOatFile().end(), dex_file) !=
+           GetDexFilesForOatFile().end();
+  }
+
  private:
   bool ParseDumpInitFailures(const std::string& option, std::string* error_msg);
   bool ParseRegisterAllocationStrategy(const std::string& option, std::string* error_msg);
