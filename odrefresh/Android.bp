@@ -47,7 +47,10 @@ cc_defaults {
         "libbase",
         "liblog",
     ],
-    static_libs: ["libtinyxml2"],
+    static_libs: [
+        "libc++fs",
+        "libtinyxml2",
+    ],
     tidy: true,
     tidy_flags: [
         "-format-style=file",

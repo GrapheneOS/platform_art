@@ -42,6 +42,8 @@ import java.util.regex.Matcher;
 public class OdrefreshHostTest extends BaseHostJUnit4Test {
     private static final String CACHE_INFO_FILE =
             OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME + "/cache-info.xml";
+    private static final String ODREFRESH_COMMAND =
+            "odrefresh --partial-compilation --no-refresh --compile";
 
     private static OdsignTestUtils sTestUtils;
 
@@ -70,7 +72,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public void verifyArtSamegradeUpdateTriggersCompilation() throws Exception {
         simulateArtApexUpgrade();
         long timeMs = getCurrentTimeMs();
-        getDevice().executeShellV2Command("odrefresh --compile");
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsModifiedAfter(sZygoteArtifacts, timeMs);
         assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
@@ -80,7 +82,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public void verifyOtherApexSamegradeUpdateTriggersCompilation() throws Exception {
         simulateApexUpgrade();
         long timeMs = getCurrentTimeMs();
-        getDevice().executeShellV2Command("odrefresh --compile");
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
         assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
@@ -90,7 +92,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public void verifyBootClasspathOtaTriggersCompilation() throws Exception {
         simulateBootClasspathOta();
         long timeMs = getCurrentTimeMs();
-        getDevice().executeShellV2Command("odrefresh --compile");
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsModifiedAfter(sZygoteArtifacts, timeMs);
         assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
@@ -100,7 +102,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public void verifySystemServerOtaTriggersCompilation() throws Exception {
         simulateSystemServerOta();
         long timeMs = getCurrentTimeMs();
-        getDevice().executeShellV2Command("odrefresh --compile");
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
         assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
@@ -110,7 +112,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public void verifyNoCompilationWhenCacheIsGood() throws Exception {
         sTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
-        getDevice().executeShellV2Command("odrefresh --compile");
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
         assertArtifactsNotModifiedAfter(sSystemServerArtifacts, timeMs);
