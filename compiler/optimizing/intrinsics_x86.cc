@@ -728,6 +728,17 @@ static void CreateFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invo
   locations->SetOut(Location::FpuRegisterLocation(XMM0));
 }
 
+static void CreateFPFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
+  LocationSummary* locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
 void IntrinsicLocationsBuilderX86::VisitMathAtan2(HInvoke* invoke) {
   CreateFPFPToFPCallLocations(allocator_, invoke);
 }
@@ -4733,6 +4744,44 @@ void IntrinsicCodeGeneratorX86::VisitVarHandleGetAndBitwiseAndRelease(HInvoke* i
   GenerateVarHandleGetAndBitwiseOp(invoke, codegen_);
 }
 
+static void GenerateMathFma(HInvoke* invoke, CodeGeneratorX86* codegen) {
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+  LocationSummary* locations = invoke->GetLocations();
+  DCHECK(locations->InAt(0).Equals(locations->Out()));
+  X86Assembler* assembler = codegen->GetAssembler();
+  XmmRegister left = locations->InAt(0).AsFpuRegister<XmmRegister>();
+  XmmRegister right = locations->InAt(1).AsFpuRegister<XmmRegister>();
+  XmmRegister accumulator = locations->InAt(2).AsFpuRegister<XmmRegister>();
+  if (invoke->GetType() == DataType::Type::kFloat32) {
+    __ vfmadd213ss(left, right, accumulator);
+  } else {
+    DCHECK_EQ(invoke->GetType(), DataType::Type::kFloat64);
+    __ vfmadd213sd(left, right, accumulator);
+  }
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathFmaDouble(HInvoke* invoke) {
+  DCHECK(codegen_->GetInstructionSetFeatures().HasAVX2());
+  GenerateMathFma(invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathFmaDouble(HInvoke* invoke) {
+  if (codegen_->GetInstructionSetFeatures().HasAVX2()) {
+    CreateFPFPFPToFPCallLocations(allocator_, invoke);
+  }
+}
+
+void IntrinsicCodeGeneratorX86::VisitMathFmaFloat(HInvoke* invoke) {
+  DCHECK(codegen_->GetInstructionSetFeatures().HasAVX2());
+  GenerateMathFma(invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86::VisitMathFmaFloat(HInvoke* invoke) {
+  if (codegen_->GetInstructionSetFeatures().HasAVX2()) {
+    CreateFPFPFPToFPCallLocations(allocator_, invoke);
+  }
+}
+
 UNIMPLEMENTED_INTRINSIC(X86, MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(X86, FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86, DoubleIsInfinite)
@@ -4775,6 +4824,7 @@ UNIMPLEMENTED_INTRINSIC(X86, StringBuilderLength);
 UNIMPLEMENTED_INTRINSIC(X86, StringBuilderToString);
 
 // 1.8.
+
 UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndAddInt)
 UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndAddLong)
 UNIMPLEMENTED_INTRINSIC(X86, UnsafeGetAndSetInt)

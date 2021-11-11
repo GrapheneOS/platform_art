@@ -528,6 +528,9 @@ class X86_64Assembler final : public Assembler {
   void vsubpd(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
   void vaddpd(XmmRegister dst, XmmRegister add_left, XmmRegister add_right);
 
+  void vfmadd213ss(XmmRegister accumulator, XmmRegister left, XmmRegister right);
+  void vfmadd213sd(XmmRegister accumulator, XmmRegister left, XmmRegister right);
+
   void movapd(XmmRegister dst, XmmRegister src);     // move
   void movapd(XmmRegister dst, const Address& src);  // load aligned
   void movupd(XmmRegister dst, const Address& src);  // load unaligned
