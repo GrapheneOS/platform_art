@@ -17,13 +17,7 @@
 # The work does by this script is (mostly) undone by tools/buildbot-teardown-device.sh.
 # Make sure to keep these files in sync.
 
-if [ -t 1 ]; then
-  # Color sequences if terminal is a tty.
-  red='\033[0;31m'
-  green='\033[0;32m'
-  yellow='\033[0;33m'
-  nc='\033[0m'
-fi
+. "$(dirname $0)/buildbot-utils.sh"
 
 if [ "$1" = --verbose ]; then
   verbose=true
@@ -35,10 +29,10 @@ fi
 adb root
 adb wait-for-device
 
-echo -e "${green}Date on host${nc}"
+msginfo "Date on host"
 date
 
-echo -e "${green}Date on device${nc}"
+msginfo "Date on device"
 adb shell date
 
 host_seconds_since_epoch=$(date -u +%s)
@@ -54,37 +48,37 @@ seconds_per_hour=3600
 # b/187295147 : Disable live-lock kill daemon.
 # It can confuse long running processes for issues and kill them.
 # This usually manifests as temporarily lost adb connection.
-echo -e "${green}Killing llkd, seen killing adb${nc}"
+msginfo "Killing llkd, seen killing adb"
 adb shell setprop ctl.stop llkd-0
 adb shell setprop ctl.stop llkd-1
 
 # Kill logd first, so that when we set the adb buffer size later in this file,
 # it is brought up again.
-echo -e "${green}Killing logd, seen leaking on fugu/N${nc}"
-adb shell pkill -9 -U logd logd && echo -e "${green}...logd killed${nc}"
+msginfo "Killing logd, seen leaking on fugu/N"
+adb shell pkill -9 -U logd logd && msginfo "...logd killed"
 
 # Update date on device if the difference with host is more than one hour.
 if [ $abs_time_difference_in_seconds -gt $seconds_per_hour ]; then
-  echo -e "${green}Update date on device${nc}"
+  msginfo "Update date on device"
   adb shell date -u @$host_seconds_since_epoch
 fi
 
-echo -e "${green}Turn off selinux${nc}"
+msginfo "Turn off selinux"
 adb shell setenforce 0
 $verbose && adb shell getenforce
 
-echo -e "${green}Setting local loopback${nc}"
+msginfo "Setting local loopback"
 adb shell ifconfig lo up
 $verbose && adb shell ifconfig
 
 if $verbose; then
-  echo -e "${green}List properties${nc}"
+  msginfo "List properties"
   adb shell getprop
 
-  echo -e "${green}Uptime${nc}"
+  msginfo "Uptime"
   adb shell uptime
 
-  echo -e "${green}Battery info${nc}"
+  msginfo "Battery info"
   adb shell dumpsys battery
 fi
 
@@ -97,19 +91,19 @@ else
   buffer_size=32MB
 fi
 
-echo -e "${green}Setting adb buffer size to ${buffer_size}${nc}"
+msginfo "Setting adb buffer size to ${buffer_size}"
 adb logcat -G ${buffer_size}
 $verbose && adb logcat -g
 
-echo -e "${green}Removing adb spam filter${nc}"
+msginfo "Removing adb spam filter"
 adb logcat -P ""
 $verbose && adb logcat -p
 
-echo -e "${green}Kill stalled dalvikvm processes${nc}"
+msginfo "Kill stalled dalvikvm processes"
 # 'ps' on M can sometimes hang.
 timeout 2s adb shell "ps" >/dev/null
 if [[ $? == 124 ]] && [[ "$ART_TEST_RUN_ON_ARM_FVP" != true ]]; then
-  echo -e "${green}Rebooting device to fix 'ps'${nc}"
+  msginfo "Rebooting device to fix 'ps'"
   adb reboot
   adb wait-for-device root
 else
@@ -122,7 +116,7 @@ fi
 
 if [[ -n "$ART_TEST_CHROOT" ]]; then
   # Prepare the chroot dir.
-  echo -e "${green}Prepare the chroot dir in $ART_TEST_CHROOT${nc}"
+  msginfo "Prepare the chroot dir in $ART_TEST_CHROOT"
 
   # Check that ART_TEST_CHROOT is correctly defined.
   [[ "x$ART_TEST_CHROOT" = x/* ]] || { echo "$ART_TEST_CHROOT is not an absolute path"; exit 1; }

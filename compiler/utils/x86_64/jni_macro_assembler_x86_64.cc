@@ -353,8 +353,12 @@ void X86_64JNIMacroAssembler::ZeroExtend(ManagedRegister mreg, size_t size) {
 }
 
 void X86_64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
-                                            ArrayRef<ArgumentLocation> srcs) {
-  DCHECK_EQ(dests.size(), srcs.size());
+                                            ArrayRef<ArgumentLocation> srcs,
+                                            ArrayRef<FrameOffset> refs) {
+  size_t arg_count = dests.size();
+  DCHECK_EQ(arg_count, srcs.size());
+  DCHECK_EQ(arg_count, refs.size());
+
   auto get_mask = [](ManagedRegister reg) -> uint32_t {
     X86_64ManagedRegister x86_64_reg = reg.AsX86_64();
     if (x86_64_reg.IsCpuRegister()) {
@@ -368,14 +372,32 @@ void X86_64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
       return (1u << 16u) << xmm_reg_number;
     }
   };
+
   // Collect registers to move while storing/copying args to stack slots.
+  // Convert all register references and copied stack references to `jobject`.
   uint32_t src_regs = 0u;
   uint32_t dest_regs = 0u;
-  for (size_t i = 0, arg_count = srcs.size(); i != arg_count; ++i) {
+  for (size_t i = 0; i != arg_count; ++i) {
     const ArgumentLocation& src = srcs[i];
     const ArgumentLocation& dest = dests[i];
-    DCHECK_EQ(src.GetSize(), dest.GetSize());
+    const FrameOffset ref = refs[i];
+    if (ref != kInvalidReferenceOffset) {
+      DCHECK_EQ(src.GetSize(), kObjectReferenceSize);
+      DCHECK_EQ(dest.GetSize(), static_cast<size_t>(kX86_64PointerSize));
+    } else {
+      DCHECK_EQ(src.GetSize(), dest.GetSize());
+    }
+    if (src.IsRegister() && ref != kInvalidReferenceOffset) {
+      Store(ref, src.GetRegister(), kObjectReferenceSize);
+      // Note: We can clobber `src` here as the register cannot hold more than one argument.
+      //       This overload of `CreateJObject()` is currently implemented as "test and branch";
+      //       if it was using a conditional move, it would be better to do this at move time.
+      CreateJObject(src.GetRegister(), ref, src.GetRegister(), /*null_allowed=*/ i != 0u);
+    }
     if (dest.IsRegister()) {
+      // Note: X86_64ManagedRegister makes no distinction between 32-bit and 64-bit core
+      // registers, so the following `Equals()` can return `true` for references; the
+      // reference has already been converted to `jobject` above.
       if (src.IsRegister() && src.GetRegister().Equals(dest.GetRegister())) {
         // Nothing to do.
       } else {
@@ -387,18 +409,22 @@ void X86_64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
     } else {
       if (src.IsRegister()) {
         Store(dest.GetFrameOffset(), src.GetRegister(), dest.GetSize());
+      } else if (ref != kInvalidReferenceOffset) {
+        CreateJObject(dest.GetFrameOffset(), ref, /*null_allowed=*/ i != 0u);
       } else {
         Copy(dest.GetFrameOffset(), src.GetFrameOffset(), dest.GetSize());
       }
     }
   }
-  // Fill destination registers.
+
+  // Fill destination registers. Convert loaded references to `jobject`.
   // There should be no cycles, so this simple algorithm should make progress.
   while (dest_regs != 0u) {
     uint32_t old_dest_regs = dest_regs;
-    for (size_t i = 0, arg_count = srcs.size(); i != arg_count; ++i) {
+    for (size_t i = 0; i != arg_count; ++i) {
       const ArgumentLocation& src = srcs[i];
       const ArgumentLocation& dest = dests[i];
+      const FrameOffset ref = refs[i];
       if (!dest.IsRegister()) {
         continue;  // Stored in first loop above.
       }
@@ -412,6 +438,9 @@ void X86_64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
       if (src.IsRegister()) {
         Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
         src_regs &= ~get_mask(src.GetRegister());  // Allow clobbering source register.
+      } else if (ref != kInvalidReferenceOffset) {
+        CreateJObject(
+            dest.GetRegister(), ref, ManagedRegister::NoRegister(), /*null_allowed=*/ i != 0u);
       } else {
         Load(dest.GetRegister(), src.GetFrameOffset(), dest.GetSize());
       }

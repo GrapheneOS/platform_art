@@ -423,9 +423,48 @@ inline CodeItemDebugInfoAccessor ArtMethod::DexInstructionDebugInfo() {
   return CodeItemDebugInfoAccessor(*GetDexFile(), GetCodeItem(), GetDexMethodIndex());
 }
 
-inline void ArtMethod::SetCounter(uint16_t hotness_count) {
+inline bool ArtMethod::CounterHasChanged() {
   DCHECK(!IsAbstract());
-  hotness_count_ = hotness_count;
+  return hotness_count_ != interpreter::kNterpHotnessMask;
+}
+
+inline void ArtMethod::ResetCounter() {
+  DCHECK(!IsAbstract());
+  // Avoid dirtying the value if possible.
+  if (hotness_count_ != interpreter::kNterpHotnessMask) {
+    hotness_count_ = interpreter::kNterpHotnessMask;
+  }
+}
+
+inline void ArtMethod::SetHotCounter() {
+  DCHECK(!IsAbstract());
+  // Avoid dirtying the value if possible.
+  if (hotness_count_ != 0) {
+    hotness_count_ = 0;
+  }
+}
+
+inline void ArtMethod::UpdateCounter(int32_t new_samples) {
+  DCHECK(!IsAbstract());
+  DCHECK_GT(new_samples, 0);
+  DCHECK_LE(new_samples, std::numeric_limits<uint16_t>::max());
+  uint16_t old_hotness_count = hotness_count_;
+  uint16_t new_count = (old_hotness_count <= new_samples) ? 0u : old_hotness_count - new_samples;
+  // Avoid dirtying the value if possible.
+  if (old_hotness_count != new_count) {
+    hotness_count_ = new_count;
+  }
+}
+
+inline bool ArtMethod::CounterIsHot() {
+  DCHECK(!IsAbstract());
+  return hotness_count_ == 0;
+}
+
+inline bool ArtMethod::CounterHasReached(uint16_t samples) {
+  DCHECK(!IsAbstract());
+  DCHECK_LE(samples, interpreter::kNterpHotnessMask);
+  return hotness_count_ <= (interpreter::kNterpHotnessMask - samples);
 }
 
 inline uint16_t ArtMethod::GetCounter() {
