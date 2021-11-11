@@ -745,6 +745,8 @@ if [ "$usage" = "yes" ]; then
         echo "                          Use the given binary as gdbserver."
         echo "    --gdb-arg             Pass an option to gdb or gdbserver."
         echo "    --gdb-dex2oat-args    Pass options separated by ';' to lldb for dex2oat."
+        echo "    --simpleperf          Wraps the dalvikvm invocation in 'simpleperf record ..."
+        echo "                          ... simpleperf report' and dumps stats to stdout."
         echo "    --temp-path [path]    Location where to execute the tests."
         echo "    --interpreter         Enable interpreter only mode (off by default)."
         echo "    --jit                 Enable jit (off by default)."

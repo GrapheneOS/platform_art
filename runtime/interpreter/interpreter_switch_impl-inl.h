@@ -245,7 +245,7 @@ class InstructionHandler {
       // Hotness update.
       jit::Jit* jit = Runtime::Current()->GetJit();
       if (jit != nullptr) {
-        jit->AddSamples(Self(), shadow_frame_.GetMethod(), 1, /*with_backedges=*/ true);
+        jit->AddSamples(Self(), shadow_frame_.GetMethod());
       }
       // Record new dex pc early to have consistent suspend point at loop header.
       shadow_frame_.SetDexPC(next_->GetDexPc(Insns()));
