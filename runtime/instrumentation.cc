@@ -168,7 +168,9 @@ bool InstrumentationStackPopper::PopFramesTo(uintptr_t stack_pointer,
 Instrumentation::Instrumentation()
     : current_force_deopt_id_(0),
       instrumentation_stubs_installed_(false),
-      instrumentation_level_(InstrumentationLevel::kInstrumentNothing),
+      entry_exit_stubs_installed_(false),
+      interpreter_stubs_installed_(false),
+      interpret_only_(false),
       forced_interpret_only_(false),
       have_method_entry_listeners_(false),
       have_method_exit_listeners_(false),
@@ -274,7 +276,7 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
     return;
   }
   const void* new_quick_code;
-  bool uninstall = (instrumentation_level_ == InstrumentationLevel::kInstrumentNothing);
+  bool uninstall = !entry_exit_stubs_installed_ && !interpreter_stubs_installed_;
   Runtime* const runtime = Runtime::Current();
   ClassLinker* const class_linker = runtime->GetClassLinker();
   bool is_class_initialized = method->GetDeclaringClass()->IsInitialized();
@@ -287,14 +289,15 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
       new_quick_code = GetQuickResolutionStub();
     }
   } else {  // !uninstall
-    if ((InterpretOnly() || IsDeoptimized(method)) && !method->IsNative()) {
+    if ((interpreter_stubs_installed_ || forced_interpret_only_ || IsDeoptimized(method)) &&
+        !method->IsNative()) {
       new_quick_code = GetQuickToInterpreterBridge();
     } else {
       // Do not overwrite resolution trampoline. When the trampoline initializes the method's
       // class, all its static methods code will be set to the instrumentation entry point.
       // For more details, see ClassLinker::FixupStaticTrampolines.
       if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-        if (EntryExitStubsInstalled()) {
+        if (entry_exit_stubs_installed_) {
           // This needs to be checked first since the instrumentation entrypoint will be able to
           // find the actual JIT compiled code that corresponds to this method.
           const void* code = method->GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
@@ -747,7 +750,13 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
 }
 
 Instrumentation::InstrumentationLevel Instrumentation::GetCurrentInstrumentationLevel() const {
-  return instrumentation_level_;
+  if (interpreter_stubs_installed_) {
+    return InstrumentationLevel::kInstrumentWithInterpreter;
+  } else if (entry_exit_stubs_installed_) {
+    return InstrumentationLevel::kInstrumentWithInstrumentationStubs;
+  } else {
+    return InstrumentationLevel::kInstrumentNothing;
+  }
 }
 
 bool Instrumentation::RequiresInstrumentationInstallation(InstrumentationLevel new_level) const {
@@ -789,10 +798,6 @@ void Instrumentation::EnableSingleThreadDeopt() {
   UpdateStubs();
 }
 
-void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_level) {
-  instrumentation_level_ = requested_level;
-}
-
 void Instrumentation::UpdateStubs() {
   // Look for the highest required instrumentation level.
   InstrumentationLevel requested_level = InstrumentationLevel::kInstrumentNothing;
@@ -805,6 +810,9 @@ void Instrumentation::UpdateStubs() {
       << "Use trampolines: " << can_use_instrumentation_trampolines_ << " level "
       << requested_level;
 
+  interpret_only_ = (requested_level == InstrumentationLevel::kInstrumentWithInterpreter) ||
+                    forced_interpret_only_;
+
   if (!RequiresInstrumentationInstallation(requested_level)) {
     // We're already set.
     return;
@@ -813,8 +821,15 @@ void Instrumentation::UpdateStubs() {
   Runtime* runtime = Runtime::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
-  UpdateInstrumentationLevel(requested_level);
   if (requested_level > InstrumentationLevel::kInstrumentNothing) {
+    if (requested_level == InstrumentationLevel::kInstrumentWithInterpreter) {
+      interpreter_stubs_installed_ = true;
+      entry_exit_stubs_installed_ = true;
+    } else {
+      CHECK_EQ(requested_level, InstrumentationLevel::kInstrumentWithInstrumentationStubs);
+      entry_exit_stubs_installed_ = true;
+      interpreter_stubs_installed_ = false;
+    }
     InstallStubsClassVisitor visitor(this);
     runtime->GetClassLinker()->VisitClasses(&visitor);
     instrumentation_stubs_installed_ = true;
@@ -823,6 +838,8 @@ void Instrumentation::UpdateStubs() {
       InstrumentThreadStack(thread, /* deopt_all_frames= */ false);
     }
   } else {
+    interpreter_stubs_installed_ = false;
+    entry_exit_stubs_installed_ = false;
     InstallStubsClassVisitor visitor(this);
     runtime->GetClassLinker()->VisitClasses(&visitor);
     // Restore stack only if there is no method currently deoptimized.
@@ -930,14 +947,14 @@ void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* quick
   if (LIKELY(!instrumentation_stubs_installed_)) {
     new_quick_code = quick_code;
   } else {
-    if ((InterpreterStubsInstalled() || IsDeoptimized(method)) && !method->IsNative()) {
+    if ((interpreter_stubs_installed_ || IsDeoptimized(method)) && !method->IsNative()) {
       new_quick_code = GetQuickToInterpreterBridge();
     } else {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       if (class_linker->IsQuickResolutionStub(quick_code) ||
           class_linker->IsQuickToInterpreterBridge(quick_code)) {
         new_quick_code = quick_code;
-      } else if (EntryExitStubsInstalled() &&
+      } else if (entry_exit_stubs_installed_ &&
                  // We need to make sure not to replace anything that InstallStubsForMethod
                  // wouldn't. Specifically we cannot stub out Proxy.<init> since subtypes copy the
                  // implementation directly and this will confuse the instrumentation trampolines.
@@ -959,7 +976,7 @@ void Instrumentation::UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const 
   // enter here on a soon-to-be deleted ArtMethod. Updating the entrypoint is OK though, as
   // the ArtMethod is still in memory.
   const void* new_quick_code = quick_code;
-  if (UNLIKELY(instrumentation_stubs_installed_) && EntryExitStubsInstalled()) {
+  if (UNLIKELY(instrumentation_stubs_installed_) && entry_exit_stubs_installed_) {
     new_quick_code = GetQuickInstrumentationEntryPoint();
   }
   UpdateEntrypoints(method, new_quick_code);
@@ -1030,7 +1047,7 @@ void Instrumentation::Deoptimize(ArtMethod* method) {
     CHECK(has_not_been_deoptimized) << "Method " << ArtMethod::PrettyMethod(method)
         << " is already deoptimized";
   }
-  if (!InterpreterStubsInstalled()) {
+  if (!interpreter_stubs_installed_) {
     UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint());
 
     // Install instrumentation exit stub and instrumentation frames. We may already have installed
@@ -1062,7 +1079,7 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
   }
 
   // Restore code and possibly stack only if we did not deoptimize everything.
-  if (!InterpreterStubsInstalled()) {
+  if (!interpreter_stubs_installed_) {
     // Restore its code or resolution trampoline.
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     if (method->IsStatic() && !method->IsConstructor() &&
@@ -1076,7 +1093,7 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
     }
 
     // If there is no deoptimized method left, we can restore the stack of each thread.
-    if (empty && !EntryExitStubsInstalled()) {
+    if (empty && !entry_exit_stubs_installed_) {
       MutexLock mu(self, *Locks::thread_list_lock_);
       Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
       instrumentation_stubs_installed_ = false;
@@ -1125,7 +1142,7 @@ bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
   if (!HasMethodEntryListeners() && !HasMethodExitListeners()) {
     return false;
   }
-  return !deoptimization_enabled_ && !InterpreterStubsInstalled();
+  return !deoptimization_enabled_ && !interpreter_stubs_installed_;
 }
 
 void Instrumentation::DeoptimizeEverything(const char* key) {
@@ -1134,7 +1151,7 @@ void Instrumentation::DeoptimizeEverything(const char* key) {
 }
 
 void Instrumentation::UndeoptimizeEverything(const char* key) {
-  CHECK(InterpreterStubsInstalled());
+  CHECK(interpreter_stubs_installed_);
   CHECK(deoptimization_enabled_);
   ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
 }
@@ -1157,7 +1174,7 @@ const void* Instrumentation::GetCodeForInvoke(ArtMethod* method) const {
   // This is called by instrumentation entry only and that should never be getting proxy methods.
   DCHECK(!method->IsProxyMethod()) << method->PrettyMethod();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (LIKELY(!InterpreterStubsInstalled())) {
+  if (LIKELY(!instrumentation_stubs_installed_ && !interpreter_stubs_installed_)) {
     // In general we just return whatever the method thinks its entrypoint is here. The only
     // exception is if it still has the instrumentation entrypoint. That means we are racing another
     // thread getting rid of instrumentation which is unexpected but possible. In that case we want
@@ -1166,18 +1183,24 @@ const void* Instrumentation::GetCodeForInvoke(ArtMethod* method) const {
     DCHECK(code != nullptr);
     if (code != GetQuickInstrumentationEntryPoint()) {
       return code;
+    } else if (method->IsNative()) {
+      return class_linker->GetQuickOatCodeFor(method);
     }
     // We don't know what it is. Fallthough to try to find the code from the JIT or Oat file.
-  }
-
-  if (method->IsNative()) {
+  } else if (method->IsNative()) {
     // TODO We could have JIT compiled native entrypoints. It might be worth it to find these.
     return class_linker->GetQuickOatCodeFor(method);
-  } else if (!NeedDebugVersionFor(method) || !InterpreterStubsInstalled()) {
-    return class_linker->GetQuickOatCodeFor(method);
-  } else {
+  } else if (UNLIKELY(interpreter_stubs_installed_)) {
     return GetQuickToInterpreterBridge();
   }
+  // Since the method cannot be native due to ifs above we can always fall back to interpreter
+  // bridge.
+  const void* result = GetQuickToInterpreterBridge();
+  if (!NeedDebugVersionFor(method)) {
+    // If we don't need a debug version we should see what the oat file/class linker has to say.
+    result = class_linker->GetQuickOatCodeFor(method);
+  }
+  return result;
 }
 
 const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, PointerSize pointer_size) const {
@@ -1520,7 +1543,7 @@ bool Instrumentation::ShouldDeoptimizeMethod(Thread* self, const NthCallerVisito
     }
   }
   return (visitor.caller != nullptr) &&
-         (InterpreterStubsInstalled() || IsDeoptimized(visitor.caller) ||
+         (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller) ||
           self->IsForceInterpreter() ||
           // NB Since structurally obsolete compiled methods might have the offsets of
           // methods/fields compiled in we need to go back to interpreter whenever we hit
