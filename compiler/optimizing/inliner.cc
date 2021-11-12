@@ -755,7 +755,7 @@ bool HInliner::TryInlineMonomorphicCall(
   dex::TypeIndex class_index = FindClassIndexIn(
       GetMonomorphicType(classes), caller_compilation_unit_);
   if (!class_index.IsValid()) {
-    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedDexCache)
+    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedDexCacheInaccessibleToCaller)
         << "Call to " << ArtMethod::PrettyMethod(invoke_instruction->GetResolvedMethod())
         << " from inline cache is not inlined because its class is not"
         << " accessible to the caller";
@@ -1342,7 +1342,7 @@ bool HInliner::IsInliningAllowed(ArtMethod* method, const CodeItemDataAccessor& 
   }
 
   if (!method->IsCompilable()) {
-    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedNotVerified)
+    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedNotCompilable)
         << "Method " << method->PrettyMethod()
         << " has soft failures un-handled by the compiler, so it cannot be inlined";
     return false;
@@ -1374,7 +1374,7 @@ bool HInliner::IsInliningSupported(const HInvoke* invoke_instruction,
   }
 
   if (accessor.TriesSize() != 0) {
-    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedTryCatch)
+    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedTryCatchCallee)
         << "Method " << method->PrettyMethod() << " is not inlined because of try block";
     return false;
   }
@@ -1383,7 +1383,7 @@ bool HInliner::IsInliningSupported(const HInvoke* invoke_instruction,
       invoke_instruction->AsInvokeStaticOrDirect()->IsStaticWithImplicitClinitCheck()) {
     // Case of a static method that cannot be inlined because it implicitly
     // requires an initialization check of its declaring class.
-    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedDexCache)
+    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedDexCacheClinitCheck)
         << "Method " << method->PrettyMethod()
         << " is not inlined because it is static and requires a clinit"
         << " check that cannot be emitted due to Dex cache limitations";
@@ -1811,7 +1811,7 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
     if (predecessor->GetLastInstruction()->IsThrow()) {
       if (target_block->IsTryBlock()) {
         // TODO(ngeoffray): Support adding HTryBoundary in Hgraph::InlineInto.
-        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedTryCatch)
+        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedTryCatchCaller)
             << "Method " << resolved_method->PrettyMethod()
             << " could not be inlined because one branch always throws and"
             << " caller is in a try/catch block";
