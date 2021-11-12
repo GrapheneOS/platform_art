@@ -468,6 +468,8 @@ bool MterpHandleIntrinsic(ShadowFrame* shadow_frame,
     INTRINSIC_CASE(MathAbsFloat)
     INTRINSIC_CASE(MathAbsLong)
     INTRINSIC_CASE(MathAbsInt)
+    UNIMPLEMENTED_CASE(MathFmaDouble /* (DDD)D */)
+    UNIMPLEMENTED_CASE(MathFmaFloat /* (FFF)F */)
     UNIMPLEMENTED_CASE(MathMinDoubleDouble /* (DD)D */)
     UNIMPLEMENTED_CASE(MathMinFloatFloat /* (FF)F */)
     INTRINSIC_CASE(MathMinLongLong)

@@ -43,7 +43,7 @@
 %def op_const_object(jumbo="0", helper="nterp_load_object"):
    // Fast-path which gets the object from thread-local cache.
    FETCH_FROM_THREAD_CACHE x0, 2f
-   cbnz wMR, 3f
+   TEST_IF_MARKING 3f
 1:
    lsr     w1, wINST, #8               // w1<- AA
    .if $jumbo
