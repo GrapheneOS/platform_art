@@ -71,7 +71,11 @@ using android::base::StringPrintf;
 static bool unstarted_initialized_ = false;
 
 CommonRuntimeTestImpl::CommonRuntimeTestImpl()
-    : class_linker_(nullptr), java_lang_dex_file_(nullptr) {
+    : class_linker_(nullptr),
+      java_lang_dex_file_(nullptr),
+      boot_class_path_(),
+      callbacks_(),
+      use_boot_image_(false) {
 }
 
 CommonRuntimeTestImpl::~CommonRuntimeTestImpl() {
@@ -94,6 +98,9 @@ void CommonRuntimeTestImpl::SetUp() {
 
   options.push_back(std::make_pair(boot_class_path_string, nullptr));
   options.push_back(std::make_pair(boot_class_path_locations_string, nullptr));
+  if (use_boot_image_) {
+    options.emplace_back("-Ximage:" + GetImageLocation(), nullptr);
+  }
   options.push_back(std::make_pair("-Xcheck:jni", nullptr));
   options.push_back(std::make_pair(min_heap_string, nullptr));
   options.push_back(std::make_pair(max_heap_string, nullptr));
@@ -107,7 +114,7 @@ void CommonRuntimeTestImpl::SetUp() {
 
   SetUpRuntimeOptions(&options);
 
-  // Install compiler-callbacks if SetupRuntimeOptions hasn't deleted them.
+  // Install compiler-callbacks if SetUpRuntimeOptions hasn't deleted them.
   if (callbacks_.get() != nullptr) {
     options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
   }

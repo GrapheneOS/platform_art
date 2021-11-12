@@ -207,6 +207,8 @@ class CommonRuntimeTestImpl : public CommonArtTestImpl {
 
   std::unique_ptr<CompilerCallbacks> callbacks_;
 
+  bool use_boot_image_;
+
   virtual void SetUp();
 
   virtual void TearDown();
