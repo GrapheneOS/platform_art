@@ -2215,8 +2215,15 @@ static void GenCompareAndSetOrExchangeInt(CodeGeneratorX86_64* codegen,
                                           DataType::Type type,
                                           Address field_addr,
                                           Location value,
-                                          bool is_cmpxchg) {
+                                          bool is_cmpxchg,
+                                          bool byte_swap) {
   X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
+  InstructionCodeGeneratorX86_64* instr_codegen = codegen->GetInstructionCodegen();
+
+  if (byte_swap) {
+    instr_codegen->Bswap(Location::RegisterLocation(RAX), type);
+    instr_codegen->Bswap(value, type);
+  }
 
   switch (type) {
     case DataType::Type::kBool:
@@ -2240,8 +2247,16 @@ static void GenCompareAndSetOrExchangeInt(CodeGeneratorX86_64* codegen,
   }
   // LOCK CMPXCHG has full barrier semantics, so we don't need barriers here.
 
+  if (byte_swap) {
+    // Restore byte order for value.
+    instr_codegen->Bswap(value, type);
+  }
+
   CpuRegister rax(RAX);
   if (is_cmpxchg) {
+    if (byte_swap) {
+      instr_codegen->Bswap(Location::RegisterLocation(RAX), type);
+    }
     // Sign-extend or zero-extend the result as necessary.
     switch (type) {
       case DataType::Type::kBool:
@@ -2271,15 +2286,27 @@ static void GenCompareAndSetOrExchangeFP(CodeGeneratorX86_64* codegen,
                                          Location expected,
                                          Location out,
                                          bool is64bit,
-                                         bool is_cmpxchg) {
+                                         bool is_cmpxchg,
+                                         bool byte_swap) {
   X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
+  InstructionCodeGeneratorX86_64* instr_codegen = codegen->GetInstructionCodegen();
+
+  Location rax_loc = Location::RegisterLocation(RAX);
+  Location temp_loc = Location::RegisterLocation(temp.AsRegister());
+
+  DataType::Type type = is64bit ? DataType::Type::kUint64 : DataType::Type::kUint32;
 
   // Copy `expected` to RAX (required by the CMPXCHG instruction).
-  codegen->Move(Location::RegisterLocation(RAX), expected);
+  codegen->Move(rax_loc, expected);
 
   // Copy value to some other register (ensure it's not RAX).
   DCHECK_NE(temp.AsRegister(), RAX);
-  codegen->Move(Location::RegisterLocation(temp.AsRegister()), value);
+  codegen->Move(temp_loc, value);
+
+  if (byte_swap) {
+    instr_codegen->Bswap(rax_loc, type);
+    instr_codegen->Bswap(temp_loc, type);
+  }
 
   if (is64bit) {
     __ LockCmpxchgq(field_addr, temp);
@@ -2287,8 +2314,12 @@ static void GenCompareAndSetOrExchangeFP(CodeGeneratorX86_64* codegen,
     __ LockCmpxchgl(field_addr, temp);
   }
   // LOCK CMPXCHG has full barrier semantics, so we don't need barriers here.
+  // No need to restore byte order for temporary register.
 
   if (is_cmpxchg) {
+    if (byte_swap) {
+      instr_codegen->Bswap(rax_loc, type);
+    }
     __ movd(out.AsFpuRegister<XmmRegister>(), CpuRegister(RAX), is64bit);
   } else {
     GenZFlagToResult(assembler, out.AsRegister<CpuRegister>());
@@ -2403,7 +2434,8 @@ static void GenCompareAndSetOrExchange(CodeGeneratorX86_64* codegen,
                                        Location new_value,
                                        Location expected,
                                        Location out,
-                                       bool is_cmpxchg) {
+                                       bool is_cmpxchg,
+                                       bool byte_swap) {
   LocationSummary* locations = invoke->GetLocations();
   Address field_address(base, offset, TIMES_1, 0);
 
@@ -2413,7 +2445,7 @@ static void GenCompareAndSetOrExchange(CodeGeneratorX86_64* codegen,
     DCHECK(RegsAreAllDifferent({base, offset, temp, CpuRegister(RAX)}));
 
     GenCompareAndSetOrExchangeFP(
-        codegen, field_address, temp, new_value, expected, out, is64bit, is_cmpxchg);
+        codegen, field_address, temp, new_value, expected, out, is64bit, is_cmpxchg, byte_swap);
   } else {
     // Both the expected value for CMPXCHG and the output are in RAX.
     DCHECK_EQ(RAX, expected.AsRegister<Register>());
@@ -2428,10 +2460,11 @@ static void GenCompareAndSetOrExchange(CodeGeneratorX86_64* codegen,
           : CpuRegister(kNoRegister);
       DCHECK(RegsAreAllDifferent({base, offset, temp1, temp2, temp3}));
 
+      DCHECK(!byte_swap);
       GenCompareAndSetOrExchangeRef(
           codegen, invoke, base, offset, new_value_reg, temp1, temp2, temp3, is_cmpxchg);
     } else {
-      GenCompareAndSetOrExchangeInt(codegen, type, field_address, new_value, is_cmpxchg);
+      GenCompareAndSetOrExchangeInt(codegen, type, field_address, new_value, is_cmpxchg, byte_swap);
     }
   }
 }
@@ -2449,7 +2482,8 @@ static void GenCAS(DataType::Type type, HInvoke* invoke, CodeGeneratorX86_64* co
                              /*new_value=*/ locations->InAt(4),
                              /*expected=*/ locations->InAt(3),
                              locations->Out(),
-                             /*is_cmpxchg=*/ false);
+                             /*is_cmpxchg=*/ false,
+                             /*byte_swap=*/ false);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASInt(HInvoke* invoke) {
@@ -3611,6 +3645,8 @@ static bool HasVarHandleIntrinsicImplementation(HInvoke* invoke) {
     switch (mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic())) {
       case mirror::VarHandle::AccessModeTemplate::kGet:
       case mirror::VarHandle::AccessModeTemplate::kSet:
+      case mirror::VarHandle::AccessModeTemplate::kCompareAndSet:
+      case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange:
         break;
       default:
         // TODO: Add support for all intrinsics.
@@ -3894,7 +3930,8 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke) {
 
 static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
                                                      CodeGeneratorX86_64* codegen,
-                                                     bool is_cmpxchg) {
+                                                     bool is_cmpxchg,
+                                                     bool byte_swap = false) {
   DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
 
   X86_64Assembler* assembler = codegen->GetAssembler();
@@ -3905,9 +3942,13 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   uint32_t new_value_index = number_of_arguments - 1;
   DataType::Type type = GetDataTypeFromShorty(invoke, expected_value_index);
 
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+  VarHandleSlowPathX86_64* slow_path = nullptr;
   VarHandleTarget target = GetVarHandleTarget(invoke);
-  GenerateVarHandleTarget(invoke, target, codegen);
+  if (!byte_swap) {
+    slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+    GenerateVarHandleTarget(invoke, target, codegen);
+    __ Bind(slow_path->GetNativeByteOrderLabel());
+  }
 
   uint32_t temp_count = locations->GetTempCount();
   GenCompareAndSetOrExchange(codegen,
@@ -3921,12 +3962,15 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
                              locations->InAt(new_value_index),
                              locations->InAt(expected_value_index),
                              locations->Out(),
-                             is_cmpxchg);
+                             is_cmpxchg,
+                             byte_swap);
 
   // We are using LOCK CMPXCHG in all cases because there is no CAS equivalent that has weak
   // failure semantics. LOCK CMPXCHG has full barrier semantics, so we don't need barriers.
 
-  __ Bind(slow_path->GetExitLabel());
+  if (!byte_swap) {
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleCompareAndSet(HInvoke* invoke) {
@@ -4663,6 +4707,14 @@ void VarHandleSlowPathX86_64::EmitByteArrayViewCode(CodeGeneratorX86_64* codegen
       break;
     case mirror::VarHandle::AccessModeTemplate::kSet:
       GenerateVarHandleSet(invoke, codegen, is_volatile_, is_atomic_, /*byte_swap=*/ true);
+      break;
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndSet:
+      GenerateVarHandleCompareAndSetOrExchange(
+          invoke, codegen, /*is_cmpxchg=*/ false, /*byte_swap=*/ true);
+      break;
+    case mirror::VarHandle::AccessModeTemplate::kCompareAndExchange:
+      GenerateVarHandleCompareAndSetOrExchange(
+          invoke, codegen, /*is_cmpxchg=*/ true, /*byte_swap=*/ true);
       break;
     default:
       DCHECK(false);
