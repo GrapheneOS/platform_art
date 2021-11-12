@@ -30,7 +30,7 @@ namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
 // Last change: Math.fma(double, double, double) intrinsic.
-const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '5', '\0' };
+const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '6', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_reservation_size,
                          uint32_t component_count,
