@@ -39,6 +39,11 @@ class PACKED(4) OatQuickMethodHeader {
 
   bool IsNterpMethodHeader() const;
 
+  static bool IsNterpPc(uintptr_t pc) {
+    return OatQuickMethodHeader::NterpMethodHeader != nullptr &&
+        OatQuickMethodHeader::NterpMethodHeader->Contains(pc);
+  }
+
   static OatQuickMethodHeader* FromCodePointer(const void* code_ptr) {
     uintptr_t code = reinterpret_cast<uintptr_t>(code_ptr);
     uintptr_t header = code - OFFSETOF_MEMBER(OatQuickMethodHeader, code_);
