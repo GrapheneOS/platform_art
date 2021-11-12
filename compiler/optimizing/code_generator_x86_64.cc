@@ -272,7 +272,8 @@ class LoadClassSlowPathX86_64 : public SlowPathCode {
 
     // Custom calling convention: RAX serves as both input and output.
     if (must_resolve_type) {
-      DCHECK(IsSameDexFile(cls_->GetDexFile(), x86_64_codegen->GetGraph()->GetDexFile()));
+      DCHECK(IsSameDexFile(cls_->GetDexFile(), x86_64_codegen->GetGraph()->GetDexFile()) ||
+             x86_64_codegen->GetCompilerOptions().WithinOatFile(&cls_->GetDexFile()));
       dex::TypeIndex type_index = cls_->GetTypeIndex();
       __ movl(CpuRegister(RAX), Immediate(type_index.index_));
       if (cls_->NeedsAccessCheck()) {
@@ -1228,7 +1229,8 @@ void CodeGeneratorX86_64::RecordBootImageMethodPatch(HInvoke* invoke) {
 }
 
 void CodeGeneratorX86_64::RecordMethodBssEntryPatch(HInvoke* invoke) {
-  DCHECK(IsSameDexFile(GetGraph()->GetDexFile(), *invoke->GetMethodReference().dex_file));
+  DCHECK(IsSameDexFile(GetGraph()->GetDexFile(), *invoke->GetMethodReference().dex_file) ||
+         GetCompilerOptions().WithinOatFile(invoke->GetMethodReference().dex_file));
   method_bss_entry_patches_.emplace_back(invoke->GetMethodReference().dex_file,
                                          invoke->GetMethodReference().index);
   __ Bind(&method_bss_entry_patches_.back().label);
@@ -1479,7 +1481,8 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetAllocator(), this),
-      assembler_(graph->GetAllocator()),
+      assembler_(graph->GetAllocator(),
+                 compiler_options.GetInstructionSetFeatures()->AsX86_64InstructionSetFeatures()),
       constant_area_start_(0),
       boot_image_method_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),
       method_bss_entry_patches_(graph->GetAllocator()->Adapter(kArenaAllocCodeGenerator)),

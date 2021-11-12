@@ -984,6 +984,43 @@ void X86_64Assembler::vdivps(XmmRegister dst, XmmRegister src1, XmmRegister src2
   EmitXmmRegisterOperand(dst.LowBits(), src2);
 }
 
+void X86_64Assembler::vfmadd213ss(XmmRegister acc, XmmRegister left, XmmRegister right) {
+  DCHECK(CpuHasAVXorAVX2FeatureFlag());
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  uint8_t ByteZero = 0x00, ByteOne = 0x00, ByteTwo = 0x00;
+  ByteZero = EmitVexPrefixByteZero(/*is_twobyte_form=*/ false);
+  X86_64ManagedRegister vvvv_reg =
+      X86_64ManagedRegister::FromXmmRegister(left.AsFloatRegister());
+  ByteOne = EmitVexPrefixByteOne(acc.NeedsRex(),
+                                 /*X=*/ false,
+                                 right.NeedsRex(),
+                                 SET_VEX_M_0F_38);
+  ByteTwo = EmitVexPrefixByteTwo(/*W=*/ false, vvvv_reg, SET_VEX_L_128, SET_VEX_PP_66);
+  EmitUint8(ByteZero);
+  EmitUint8(ByteOne);
+  EmitUint8(ByteTwo);
+  EmitUint8(0xA9);
+  EmitXmmRegisterOperand(acc.LowBits(), right);
+}
+
+void X86_64Assembler::vfmadd213sd(XmmRegister acc, XmmRegister left, XmmRegister right) {
+  DCHECK(CpuHasAVXorAVX2FeatureFlag());
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  uint8_t ByteZero = 0x00, ByteOne = 0x00, ByteTwo = 0x00;
+  ByteZero = EmitVexPrefixByteZero(/*is_twobyte_form=*/ false);
+  X86_64ManagedRegister vvvv_reg =
+      X86_64ManagedRegister::FromXmmRegister(left.AsFloatRegister());
+  ByteOne = EmitVexPrefixByteOne(acc.NeedsRex(),
+                                 /*X=*/ false,
+                                 right.NeedsRex(),
+                                 SET_VEX_M_0F_38);
+  ByteTwo = EmitVexPrefixByteTwo(/*W=*/ true, vvvv_reg, SET_VEX_L_128, SET_VEX_PP_66);
+  EmitUint8(ByteZero);
+  EmitUint8(ByteOne);
+  EmitUint8(ByteTwo);
+  EmitUint8(0xA9);
+  EmitXmmRegisterOperand(acc.LowBits(), right);
+}
 void X86_64Assembler::flds(const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xD9);

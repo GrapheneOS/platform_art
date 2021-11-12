@@ -29,8 +29,8 @@
 namespace art {
 
 const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-// Last change: added multiple kJdkUnsafe intrinsics
-const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '4', '\0' };
+// Last change: Math.fma(double, double, double) intrinsic.
+const uint8_t ImageHeader::kImageVersion[] = { '1', '0', '5', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_reservation_size,
                          uint32_t component_count,
