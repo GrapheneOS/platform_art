@@ -2259,6 +2259,22 @@ static void CreateFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invo
   locations->SetOut(calling_convention.GetReturnLocation(invoke->GetType()));
 }
 
+static void CreateFPFPFPToFPCallLocations(ArenaAllocator* allocator, HInvoke* invoke) {
+  DCHECK_EQ(invoke->GetNumberOfArguments(), 3U);
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(0)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(1)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->InputAt(2)->GetType()));
+  DCHECK(DataType::IsFloatingPointType(invoke->GetType()));
+
+  LocationSummary* const locations =
+      new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
+
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->SetInAt(1, Location::RequiresFpuRegister());
+  locations->SetInAt(2, Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+}
+
 static void GenFPToFPCall(HInvoke* invoke,
                           CodeGeneratorARM64* codegen,
                           QuickEntrypointEnum entry) {
@@ -4179,6 +4195,33 @@ void IntrinsicCodeGeneratorARM64::VisitMathMultiplyHigh(HInvoke* invoke) {
   __ Smulh(out, x, y);
 }
 
+static void GenerateMathFma(HInvoke* invoke, CodeGeneratorARM64* codegen) {
+  MacroAssembler* masm = codegen->GetVIXLAssembler();
+
+  VRegister n = helpers::InputFPRegisterAt(invoke, 0);
+  VRegister m = helpers::InputFPRegisterAt(invoke, 1);
+  VRegister a = helpers::InputFPRegisterAt(invoke, 2);
+  VRegister out = helpers::OutputFPRegister(invoke);
+
+  __ Fmadd(out, n, m, a);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitMathFmaDouble(HInvoke* invoke) {
+  CreateFPFPFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitMathFmaDouble(HInvoke* invoke) {
+  GenerateMathFma(invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitMathFmaFloat(HInvoke* invoke) {
+  CreateFPFPFPToFPCallLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitMathFmaFloat(HInvoke* invoke) {
+  GenerateMathFma(invoke, codegen_);
+}
+
 class VarHandleSlowPathARM64 : public IntrinsicSlowPathARM64 {
  public:
   VarHandleSlowPathARM64(HInvoke* invoke, std::memory_order order)
@@ -5597,9 +5640,6 @@ UNIMPLEMENTED_INTRINSIC(ARM64, StringBuilderLength);
 UNIMPLEMENTED_INTRINSIC(ARM64, StringBuilderToString);
 
 // 1.8.
-UNIMPLEMENTED_INTRINSIC(ARM64, MathFmaDouble)
-UNIMPLEMENTED_INTRINSIC(ARM64, MathFmaFloat)
-
 UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndAddInt)
 UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndAddLong)
 UNIMPLEMENTED_INTRINSIC(ARM64, UnsafeGetAndSetInt)
