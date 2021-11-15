@@ -45,6 +45,15 @@ static_assert(kAapcs64StackAlignment == kStackAlignment);
 // STP signed offset for W-register can encode any 4-byte aligned offset smaller than this cutoff.
 static constexpr size_t kStpWOffsetCutoff = 256u;
 
+// STP signed offset for X-register can encode any 8-byte aligned offset smaller than this cutoff.
+static constexpr size_t kStpXOffsetCutoff = 512u;
+
+// STP signed offset for S-register can encode any 4-byte aligned offset smaller than this cutoff.
+static constexpr size_t kStpSOffsetCutoff = 256u;
+
+// STP signed offset for D-register can encode any 8-byte aligned offset smaller than this cutoff.
+static constexpr size_t kStpDOffsetCutoff = 512u;
+
 Arm64JNIMacroAssembler::~Arm64JNIMacroAssembler() {
 }
 
@@ -419,12 +428,16 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
     }
   };
 
+  // More than 8 core or FP reg args are very rare, so we do not optimize for
+  // that case by using LDP/STP, except for situations that arise for normal
+  // native even with low number of arguments. We use STP for the non-reference
+  // spilling which also covers the initial spill for native reference register
+  // args as they are spilled as raw 32-bit values. We also optimize loading
+  // args to registers with LDP, whether references or not, except for the
+  // initial non-null reference which we do not need to load at all.
+
   // Collect registers to move while storing/copying args to stack slots.
   // Convert processed references to `jobject`.
-  // More than 8 core or FP reg args are very rare, so we do not optimize
-  // for that case by using LDP/STP.
-  // TODO: LDP/STP will be useful for normal native methods where we need
-  // to spill even the leading arguments.
   uint64_t src_regs = 0u;
   uint64_t dest_regs = 0u;
   for (size_t i = 0; i != arg_count; ++i) {
@@ -465,7 +478,47 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
       }
     } else {
       if (src.IsRegister()) {
-        Store(dest.GetFrameOffset(), src.GetRegister(), dest.GetSize());
+        static_assert(kStpWOffsetCutoff == kStpSOffsetCutoff);
+        static_assert(kStpXOffsetCutoff == kStpDOffsetCutoff);
+        if (i + 1u != arg_count &&
+            srcs[i + 1u].IsRegister() &&
+            srcs[i + 1u].GetSize() == dest.GetSize() &&
+            src.GetRegister().AsArm64().IsGPRegister() ==
+                srcs[i + 1u].GetRegister().AsArm64().IsGPRegister() &&
+            refs[i + 1u] == kInvalidReferenceOffset &&
+            !dests[i + 1u].IsRegister() &&
+            dests[i + 1u].GetFrameOffset().SizeValue() ==
+                dest.GetFrameOffset().SizeValue() + dest.GetSize() &&
+            IsAlignedParam(dest.GetFrameOffset().SizeValue(), dest.GetSize()) &&
+            dest.GetFrameOffset().SizeValue() <
+                (dest.GetSize() == 8u ? kStpXOffsetCutoff : kStpWOffsetCutoff)) {
+          DCHECK_EQ(dests[i + 1u].GetSize(), dest.GetSize());
+          Arm64ManagedRegister src_reg = src.GetRegister().AsArm64();
+          Arm64ManagedRegister src2_reg = srcs[i + 1u].GetRegister().AsArm64();
+          DCHECK_EQ(dest.GetSize() == 8u, src_reg.IsXRegister() || src_reg.IsDRegister());
+          DCHECK_EQ(dest.GetSize() == 8u, src2_reg.IsXRegister() || src2_reg.IsDRegister());
+          if (src_reg.IsWRegister()) {
+            ___ Stp(reg_w(src_reg.AsWRegister()),
+                    reg_w(src2_reg.AsWRegister()),
+                    MEM_OP(sp, dest.GetFrameOffset().SizeValue()));
+          } else if (src_reg.IsXRegister()) {
+            ___ Stp(reg_x(src_reg.AsXRegister()),
+                    reg_x(src2_reg.AsXRegister()),
+                    MEM_OP(sp, dest.GetFrameOffset().SizeValue()));
+          } else if (src_reg.IsSRegister()) {
+            ___ Stp(reg_s(src_reg.AsSRegister()),
+                    reg_s(src2_reg.AsSRegister()),
+                    MEM_OP(sp, dest.GetFrameOffset().SizeValue()));
+          } else {
+            DCHECK(src_reg.IsDRegister());
+            ___ Stp(reg_d(src_reg.AsDRegister()),
+                    reg_d(src2_reg.AsDRegister()),
+                    MEM_OP(sp, dest.GetFrameOffset().SizeValue()));
+          }
+          ++i;
+        } else {
+          Store(dest.GetFrameOffset(), src.GetRegister(), dest.GetSize());
+        }
       } else {
         Copy(dest.GetFrameOffset(), src.GetFrameOffset(), dest.GetSize());
       }
@@ -482,12 +535,18 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
       if (!dest.IsRegister()) {
         continue;  // Stored in first loop above.
       }
-      uint64_t dest_reg_mask = get_mask(dest.GetRegister());
-      if ((dest_reg_mask & dest_regs) == 0u) {
-        continue;  // Equals source, or already filled in one of previous iterations.
-      }
-      if ((dest_reg_mask & src_regs) != 0u) {
-        continue;  // Cannot clobber this register yet.
+      auto can_process = [&](ManagedRegister dest_reg) {
+        uint64_t dest_reg_mask = get_mask(dest_reg);
+        if ((dest_reg_mask & dest_regs) == 0u) {
+          return false;  // Equals source, or already filled in one of previous iterations.
+        }
+        if ((dest_reg_mask & src_regs) != 0u) {
+          return false;  // Cannot clobber this register yet.
+        }
+        return true;
+      };
+      if (!can_process(dest.GetRegister())) {
+        continue;
       }
       if (src.IsRegister()) {
         if (ref != kInvalidReferenceOffset) {
@@ -496,6 +555,58 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
           Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
         }
         src_regs &= ~get_mask(src.GetRegister());  // Allow clobbering source register.
+      } else if (i + 1u != arg_count &&
+                 (i != 0u || ref == kInvalidReferenceOffset) &&  // Not for non-null reference.
+                 dests[i + 1u].IsRegister() &&
+                 dest.GetRegister().AsArm64().IsGPRegister() ==
+                     dests[i + 1u].GetRegister().AsArm64().IsGPRegister() &&
+                 !srcs[i + 1u].IsRegister() &&
+                 srcs[i + 1u].GetSize() == src.GetSize() &&
+                 srcs[i + 1u].GetFrameOffset().SizeValue() ==
+                     src.GetFrameOffset().SizeValue() + src.GetSize() &&
+                 IsAlignedParam(src.GetFrameOffset().SizeValue(), src.GetSize()) &&
+                 can_process(dests[i + 1u].GetRegister())) {
+        Arm64ManagedRegister dest_reg = dest.GetRegister().AsArm64();
+        Arm64ManagedRegister dest2_reg = dests[i + 1u].GetRegister().AsArm64();
+        DCHECK(ref == kInvalidReferenceOffset || dest_reg.IsXRegister());
+        DCHECK(refs[i + 1u] == kInvalidReferenceOffset || dest2_reg.IsXRegister());
+        if (dest_reg.IsDRegister()) {
+          DCHECK_EQ(dest.GetSize(), 8u);
+          DCHECK_EQ(dests[i + 1u].GetSize(), 8u);
+          ___ Ldp(reg_d(dest_reg.AsDRegister()),
+                  reg_d(dest2_reg.AsDRegister()),
+                  MEM_OP(sp, src.GetFrameOffset().SizeValue()));
+        } else if (dest_reg.IsSRegister()) {
+          DCHECK_EQ(dest.GetSize(), 4u);
+          DCHECK_EQ(dests[i + 1u].GetSize(), 4u);
+          ___ Ldp(reg_s(dest_reg.AsSRegister()),
+                  reg_s(dest2_reg.AsSRegister()),
+                  MEM_OP(sp, src.GetFrameOffset().SizeValue()));
+        } else if (src.GetSize() == 8u) {
+          DCHECK_EQ(dest.GetSize(), 8u);
+          DCHECK_EQ(dests[i + 1u].GetSize(), 8u);
+          ___ Ldp(reg_x(dest_reg.AsXRegister()),
+                  reg_x(dest2_reg.AsXRegister()),
+                  MEM_OP(sp, src.GetFrameOffset().SizeValue()));
+        } else {
+          DCHECK_EQ(dest.GetSize(), ref != kInvalidReferenceOffset ? 8u : 4u);
+          DCHECK_EQ(dests[i + 1u].GetSize(), refs[i + 1u] != kInvalidReferenceOffset ? 8u : 4u);
+          auto to_w = [](Arm64ManagedRegister reg) {
+            return reg_w(reg.IsXRegister() ? reg.AsOverlappingWRegister() : reg.AsWRegister());
+          };
+          ___ Ldp(to_w(dest_reg), to_w(dest2_reg), MEM_OP(sp, src.GetFrameOffset().SizeValue()));
+          auto to_mr_w = [](Arm64ManagedRegister reg) {
+            return Arm64ManagedRegister::FromWRegister(reg.AsOverlappingWRegister());
+          };
+          if (ref != kInvalidReferenceOffset) {
+            CreateJObject(dest_reg, ref, to_mr_w(dest_reg), /*null_allowed=*/ true);
+          }
+          if (refs[i + 1u] != kInvalidReferenceOffset) {
+            CreateJObject(dest2_reg, refs[i + 1u], to_mr_w(dest2_reg), /*null_allowed=*/ true);
+          }
+        }
+        dest_regs &= ~get_mask(dest2_reg);  // Destination register was filled.
+        ++i;  // Proceed to mark the other destination register as filled.
       } else {
         if (ref != kInvalidReferenceOffset) {
           CreateJObject(
