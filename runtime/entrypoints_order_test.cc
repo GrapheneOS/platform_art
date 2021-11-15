@@ -126,7 +126,8 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                         sizeof(void*) * kNumRosAllocThreadLocalSizeBracketsInThread);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_top, thread_local_alloc_stack_end,
                         sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, held_mutexes, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, mutator_lock, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, mutator_lock, held_mutexes, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, held_mutexes, flip_function,
                         sizeof(void*) * kLockLevelCount);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, flip_function, method_verifier, sizeof(void*));
