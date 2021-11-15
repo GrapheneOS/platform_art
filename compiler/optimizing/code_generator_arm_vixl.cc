@@ -2154,7 +2154,7 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
   int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
   uint32_t address = reinterpret_cast32<uint32_t>(Runtime::Current()->GetInstrumentation());
   __ Mov(temp, address + offset);
-  __ Ldrh(temp, MemOperand(temp, 0));
+  __ Ldrb(temp, MemOperand(temp, 0));
   __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
