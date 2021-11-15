@@ -40,7 +40,9 @@ namespace art {
 
 class LoadStoreAnalysisTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  public:
-  LoadStoreAnalysisTest() {}
+  LoadStoreAnalysisTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
 
   AdjacencyListGraph SetupFromAdjacencyList(
       const std::string_view entry_name,

@@ -48,6 +48,10 @@ namespace art {
 template <typename SuperTest>
 class LoadStoreEliminationTestBase : public SuperTest, public OptimizingUnitTestHelper {
  public:
+  LoadStoreEliminationTestBase() {
+    this->use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void SetUp() override {
     SuperTest::SetUp();
     gLogVerbosity.compiler = true;
