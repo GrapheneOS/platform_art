@@ -207,6 +207,11 @@ class Instrumentation {
   Instrumentation();
 
   static constexpr MemberOffset NeedsEntryExitHooksOffset() {
+    // Assert that instrumentation_stubs_installed_ is 8bits wide. If the size changes
+    // update the compare instructions in the code generator when generating checks for
+    // MethodEntryExitHooks.
+    static_assert(sizeof(instrumentation_stubs_installed_) == 1,
+                  "instrumentation_stubs_installed_ isn't expected size");
     return MemberOffset(OFFSETOF_MEMBER(Instrumentation, instrumentation_stubs_installed_));
   }
 
@@ -231,7 +236,7 @@ class Instrumentation {
       REQUIRES(!GetDeoptimizedMethodsLock());
 
   bool AreAllMethodsDeoptimized() const {
-    return interpreter_stubs_installed_;
+    return InterpreterStubsInstalled();
   }
   bool ShouldNotifyMethodEnterExitEvents() const REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -327,13 +332,21 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ForceInterpretOnly() {
-    interpret_only_ = true;
     forced_interpret_only_ = true;
+  }
+
+  bool EntryExitStubsInstalled() const {
+    return instrumentation_level_ == InstrumentationLevel::kInstrumentWithInstrumentationStubs ||
+           instrumentation_level_ == InstrumentationLevel::kInstrumentWithInterpreter;
+  }
+
+  bool InterpreterStubsInstalled() const {
+    return instrumentation_level_ == InstrumentationLevel::kInstrumentWithInterpreter;
   }
 
   // Called by ArtMethod::Invoke to determine dispatch mechanism.
   bool InterpretOnly() const {
-    return interpret_only_;
+    return forced_interpret_only_ || InterpreterStubsInstalled();
   }
 
   bool IsForcedInterpretOnly() const {
@@ -573,6 +586,9 @@ class Instrumentation {
   // directly call entry / exit hooks and don't need the stub.
   bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method);
 
+  // Update the current instrumentation_level_.
+  void UpdateInstrumentationLevel(InstrumentationLevel level);
+
   // Does the job of installing or removing instrumentation code within methods.
   // In order to support multiple clients using instrumentation at the same time,
   // the caller must pass a unique key (a string) identifying it so we remind which
@@ -665,14 +681,11 @@ class Instrumentation {
   // Have we hijacked ArtMethod::code_ so that it calls instrumentation/interpreter code?
   bool instrumentation_stubs_installed_;
 
-  // Have we hijacked ArtMethod::code_ to reference the enter/exit stubs?
-  bool entry_exit_stubs_installed_;
-
-  // Have we hijacked ArtMethod::code_ to reference the enter interpreter stub?
-  bool interpreter_stubs_installed_;
-
-  // Do we need the fidelity of events that we only get from running within the interpreter?
-  bool interpret_only_;
+  // The required level of instrumentation. This could be one of the following values:
+  // kInstrumentNothing: no instrumentation support is needed
+  // kInstrumentWithInstrumentationStubs: needs support to call method entry/exit stubs.
+  // kInstrumentWithInterpreter: only execute with interpreter
+  Instrumentation::InstrumentationLevel instrumentation_level_;
 
   // Did the runtime request we only run in the interpreter? ie -Xint mode.
   bool forced_interpret_only_;
