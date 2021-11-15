@@ -27,6 +27,10 @@ namespace art {
 
 class JavaVmExtTest : public CommonRuntimeTest {
  protected:
+  JavaVmExtTest() {
+    this->use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void SetUp() override {
     CommonRuntimeTest::SetUp();
 
