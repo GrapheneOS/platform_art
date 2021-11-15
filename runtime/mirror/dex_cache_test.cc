@@ -30,7 +30,12 @@
 namespace art {
 namespace mirror {
 
-class DexCacheTest : public CommonRuntimeTest {};
+class DexCacheTest : public CommonRuntimeTest {
+ protected:
+  DexCacheTest() {
+    this->use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 class DexCacheMethodHandlesTest : public DexCacheTest {
  protected:

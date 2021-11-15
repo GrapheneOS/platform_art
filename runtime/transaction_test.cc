@@ -29,9 +29,8 @@ namespace art {
 
 class TransactionTest : public CommonRuntimeTest {
  protected:
-  void SetUpRuntimeOptions(/*out*/RuntimeOptions* options) override {
-    // Set up the image location.
-    options->emplace_back("-Ximage:" + GetImageLocation(), nullptr);
+  TransactionTest() {
+    this->use_boot_image_ = true;  // We need the boot image for this test.
   }
 
   // Tests failing class initialization due to native call with transaction rollback.

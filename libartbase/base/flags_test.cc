@@ -98,6 +98,10 @@ class TestFlag {
 
 class FlagsTests : public CommonRuntimeTest {
  protected:
+  FlagsTests() {
+    this->use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   // We need to initialize the flag after the ScratchDir is created
   // but before we configure the runtime options (so that we can get
   // the right name for the config).
