@@ -479,7 +479,7 @@ TEST_F(CmdlineParserTest, TestJitOptions) {
         MemoryKiB(16 * MB), "-Xjitmaxsize:16M", M::JITCodeCacheMaxCapacity);
   }
   {
-    EXPECT_SINGLE_PARSE_VALUE(12345u, "-Xjitthreshold:12345", M::JITCompileThreshold);
+    EXPECT_SINGLE_PARSE_VALUE(12345u, "-Xjitthreshold:12345", M::JITOptimizeThreshold);
   }
 }  // TEST_F
 
