@@ -2614,6 +2614,7 @@ extern "C" int artMethodExitHook(Thread* self,
       << "Enter instrumentation exit stub with pending exception " << self->GetException()->Dump();
 
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
+  DCHECK(instr->AreExitStubsInstalled());
   bool is_ref;
   JValue return_value = instr->GetReturnValue(self, method, &is_ref, gpr_result, fpr_result);
   bool deoptimize = false;
