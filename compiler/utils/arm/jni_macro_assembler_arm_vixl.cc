@@ -451,7 +451,6 @@ static inline bool NoSpillGap(const ArgumentLocation& loc1, const ArgumentLocati
   DCHECK(!loc2.IsRegister());
   uint32_t loc1_offset = loc1.GetFrameOffset().Uint32Value();
   uint32_t loc2_offset = loc2.GetFrameOffset().Uint32Value();
-  DCHECK_LT(loc1_offset, loc2_offset);
   return loc1_offset + loc1.GetSize() == loc2_offset;
 }
 
@@ -574,6 +573,7 @@ void ArmVIXLJNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   }
 
   // Convert reference registers to `jobject` values.
+  // TODO: Delay this for references that are copied to another register.
   for (size_t i = 0; i != arg_count; ++i) {
     if (refs[i] != kInvalidReferenceOffset && srcs[i].IsRegister()) {
       // Note: We can clobber `srcs[i]` here as the register cannot hold more than one argument.
@@ -583,17 +583,11 @@ void ArmVIXLJNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   }
 
   // Native ABI is soft-float, so all destinations should be core registers or stack offsets.
-  // And register locations should be first, followed by stack locations with increasing offset.
+  // And register locations should be first, followed by stack locations.
   auto is_register = [](const ArgumentLocation& loc) { return loc.IsRegister(); };
   DCHECK(std::is_partitioned(dests.begin(), dests.end(), is_register));
   size_t num_reg_dests =
       std::distance(dests.begin(), std::partition_point(dests.begin(), dests.end(), is_register));
-  DCHECK(std::is_sorted(
-      dests.begin() + num_reg_dests,
-      dests.end(),
-      [](const ArgumentLocation& lhs, const ArgumentLocation& rhs) {
-        return lhs.GetFrameOffset().Uint32Value() < rhs.GetFrameOffset().Uint32Value();
-      }));
 
   // Collect registers to move. No need to record FP regs as destinations are only core regs.
   uint32_t src_regs = 0u;
@@ -783,12 +777,14 @@ void ArmVIXLJNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   // opportunities to use LDRD/VMOV to fill 2 registers with one instruction.
   for (size_t i = 0, j; i != num_reg_dests; i = j) {
     j = i + 1u;
-    DCHECK(dests[i].IsRegister() && IsCoreRegisterOrPair(dests[i].GetRegister().AsArm()));
+    DCHECK(dests[i].IsRegister());
+    ArmManagedRegister dest_reg = dests[i].GetRegister().AsArm();
+    DCHECK(IsCoreRegisterOrPair(dest_reg));
     if (srcs[i].IsRegister() && IsCoreRegisterOrPair(srcs[i].GetRegister().AsArm())) {
       DCHECK_EQ(GetCoreRegisterMask(dests[i].GetRegister().AsArm()) & dest_regs, 0u);
       continue;  // Equals destination or moved above.
     }
-    DCHECK_NE(GetCoreRegisterMask(dests[i].GetRegister().AsArm()) & dest_regs, 0u);
+    DCHECK_NE(GetCoreRegisterMask(dest_reg) & dest_regs, 0u);
     if (dests[i].GetSize() == 4u) {
       // Find next register to load.
       while (j != num_reg_dests &&
@@ -803,8 +799,7 @@ void ArmVIXLJNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
                    MemOperand(sp, srcs[i].GetFrameOffset().Uint32Value()));
           if (refs[i] != kInvalidReferenceOffset) {
             DCHECK_EQ(refs[i], srcs[i].GetFrameOffset());
-            ManagedRegister dest_i_reg = dests[i].GetRegister();
-            CreateJObject(dest_i_reg, refs[i], dest_i_reg, /*null_allowed=*/ i != 0u);
+            CreateJObject(dest_reg, refs[i], dest_reg, /*null_allowed=*/ i != 0u);
           }
           if (refs[j] != kInvalidReferenceOffset) {
             DCHECK_EQ(refs[j], srcs[j].GetFrameOffset());
@@ -818,7 +813,7 @@ void ArmVIXLJNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
           uint32_t first_sreg = GetSRegisterNumber(srcs[i].GetRegister().AsArm());
           if (IsAligned<2u>(first_sreg) &&
               first_sreg + 1u == GetSRegisterNumber(srcs[j].GetRegister().AsArm())) {
-            ___ Vmov(AsVIXLRegister(dests[i].GetRegister().AsArm()),
+            ___ Vmov(AsVIXLRegister(dest_reg),
                      AsVIXLRegister(dests[j].GetRegister().AsArm()),
                      vixl32::DRegister(first_sreg / 2u));
             ++j;
@@ -830,10 +825,9 @@ void ArmVIXLJNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
     if (srcs[i].IsRegister()) {
       Move(dests[i].GetRegister(), srcs[i].GetRegister(), dests[i].GetSize());
     } else if (refs[i] != kInvalidReferenceOffset) {
-      ManagedRegister dest_i_reg = dests[i].GetRegister();
-      CreateJObject(dest_i_reg, refs[i], dest_i_reg, /*null_allowed=*/ i != 0u);
+      CreateJObject(dest_reg, refs[i], ManagedRegister::NoRegister(), /*null_allowed=*/ i != 0u);
     } else {
-      Load(dests[i].GetRegister(), srcs[i].GetFrameOffset(), dests[i].GetSize());
+      Load(dest_reg, srcs[i].GetFrameOffset(), dests[i].GetSize());
     }
   }
 }

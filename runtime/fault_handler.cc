@@ -25,8 +25,11 @@
 #include "base/safe_copy.h"
 #include "base/stl_util.h"
 #include "dex/dex_file_types.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "mirror/class.h"
 #include "mirror/object_reference.h"
+#include "oat_file.h"
 #include "oat_quick_method_header.h"
 #include "sigchain.h"
 #include "thread-current-inl.h"
@@ -265,6 +268,34 @@ void FaultManager::RemoveHandler(FaultHandler* handler) {
   LOG(FATAL) << "Attempted to remove non existent handler " << handler;
 }
 
+static bool IsKnownPc(uintptr_t pc, ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Check whether the pc is within nterp range.
+  if (OatQuickMethodHeader::IsNterpPc(pc)) {
+    return true;
+  }
+
+  // Check whether the pc is in the JIT code cache.
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr && jit->GetCodeCache()->ContainsPc(reinterpret_cast<const void*>(pc))) {
+    return true;
+  }
+
+  if (method->IsObsolete()) {
+    // Obsolete methods never happen on AOT code.
+    return false;
+  }
+
+  // Note: at this point, we trust it's truly an ArtMethod we found at the bottom of the stack,
+  // and we can find its oat file through it.
+  const OatDexFile* oat_dex_file = method->GetDeclaringClass()->GetDexFile().GetOatDexFile();
+  if (oat_dex_file != nullptr &&
+      oat_dex_file->GetOatFile()->Contains(reinterpret_cast<const void*>(pc))) {
+    return true;
+  }
+
+  return false;
+}
+
 // This function is called within the signal handler.  It checks that
 // the mutator_lock is held (shared).  No annotalysis is done.
 bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool check_dex_pc) {
@@ -326,6 +357,11 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
 
   if (!SafeVerifyClassClass(cls)) {
     VLOG(signals) << "not a class class";
+    return false;
+  }
+
+  if (!IsKnownPc(return_pc, method_obj)) {
+    VLOG(signals) << "PC not in Java code";
     return false;
   }
 

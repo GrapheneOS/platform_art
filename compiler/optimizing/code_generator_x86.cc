@@ -1166,8 +1166,8 @@ void InstructionCodeGeneratorX86::GenerateMethodEntryExitHook(HInstruction* inst
 
   uint64_t address = reinterpret_cast64<uint64_t>(Runtime::Current()->GetInstrumentation());
   int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
-  __ cmpw(Address::Absolute(address + offset), Immediate(0));
-  __ j(kEqual, slow_path->GetEntryLabel());
+  __ cmpb(Address::Absolute(address + offset), Immediate(0));
+  __ j(kNotEqual, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
 

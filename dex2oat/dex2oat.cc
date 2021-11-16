@@ -1409,8 +1409,6 @@ class Dex2Oat final {
       return dex2oat::ReturnCode::kOther;
     }
 
-    // Verification results are null since we don't know if we will need them yet as the compiler
-    // filter may change.
     callbacks_.reset(new QuickCompilerCallbacks(
         // For class verification purposes, boot image extension is the same as boot image.
         (IsBootImage() || IsBootImageExtension())
