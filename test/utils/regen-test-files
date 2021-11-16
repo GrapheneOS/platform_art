@@ -20,6 +20,7 @@
 # cases will be added later.
 
 import argparse
+import copy
 import collections
 import json
 import logging
@@ -396,6 +397,12 @@ art_gtest_eng_only_module_names = [
 # All supported ART gtests.
 art_gtest_module_names = sorted(art_gtest_user_module_names + art_gtest_eng_only_module_names)
 
+# ART gtests supported in MTS that do not need root access to the device.
+art_gtest_mts_user_module_names = copy.copy(art_gtest_user_module_names)
+
+# ART gtests supported in Mainline presubmits.
+art_gtests_mainline_presubmit_module_names = copy.copy(art_gtest_module_names)
+
 
 # Is `run_test` a Checker test (i.e. a test containing Checker
 # assertions)?
@@ -547,7 +554,7 @@ class Generator:
     ]
     mainline_presubmit_run_tests = run_test_module_names[0:num_mainline_presubmit_run_tests]
     mainline_presubmit_tests = (mainline_other_presubmit_tests + mainline_presubmit_run_tests +
-                                art_gtest_module_names)
+                                art_gtests_mainline_presubmit_module_names)
     mainline_presubmit_tests_with_apex = [t + "[com.google.android.art.apex]"
                                           for t
                                           in mainline_presubmit_tests]
@@ -761,7 +768,7 @@ class Generator:
       # If needed, consider moving them to their own shard to increase
       # the parallelization of code coverage runs.
       if i + 1 == len(art_run_test_shards):
-        art_tests_shard_i_tests.extend(art_gtest_user_module_names)
+        art_tests_shard_i_tests.extend(art_gtest_mts_user_module_names)
       art_tests_shard_i = self.create_mts_test_shard(
           "ART run-tests", art_tests_shard_i_tests, i, 2020,
           ["TODO(rpl): Find a way to express this list in a more concise fashion."])
@@ -847,6 +854,9 @@ class Generator:
     expected_succeeding_tests_percentage = int(
         len(expected_succeeding_tests) * 100 / len(run_tests))
 
+    mainline_presubmit_gtests_percentage = int(
+        len(art_gtests_mainline_presubmit_module_names) * 100 / len(art_gtest_module_names))
+
     num_postsubmit_tests = len(expected_succeeding_tests) - num_presubmit_run_tests
     postsubmit_tests_percentage = 100 - presubmit_tests_percentage
 
@@ -855,7 +865,8 @@ class Generator:
     for (num_tests, test_kind, tests_percentage, test_group_name) in [
         (num_mainline_presubmit_run_tests, "ART run-tests", mainline_presubmit_tests_percentage,
          "mainline-presubmit"),
-        (len(art_gtest_module_names), "ART gtests", 100, "mainline-presubmit"),
+        (len(art_gtests_mainline_presubmit_module_names), "ART gtests",
+         mainline_presubmit_gtests_percentage, "mainline-presubmit"),
         (num_presubmit_run_tests, "ART run-tests", presubmit_tests_percentage, "presubmit"),
         (len(art_gtest_module_names), "ART gtests", 100, "presubmit"),
         (num_postsubmit_tests, "ART run-tests", postsubmit_tests_percentage, "postsubmit"),
