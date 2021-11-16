@@ -1534,7 +1534,7 @@ void InstructionCodeGeneratorX86_64::GenerateMethodEntryExitHook(HInstruction* i
   uint64_t address = reinterpret_cast64<uint64_t>(Runtime::Current()->GetInstrumentation());
   int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
   __ movq(CpuRegister(TMP), Immediate(address + offset));
-  __ cmpw(Address(CpuRegister(TMP), 0), Immediate(0));
+  __ cmpb(Address(CpuRegister(TMP), 0), Immediate(0));
   __ j(kNotEqual, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -5117,6 +5117,48 @@ void LocationsBuilderX86_64::HandleFieldSet(HInstruction* instruction,
   }
 }
 
+void InstructionCodeGeneratorX86_64::Bswap(Location value,
+                                           DataType::Type type,
+                                           CpuRegister* temp) {
+  switch (type) {
+    case DataType::Type::kInt16:
+      // TODO: Can be done with an xchg of 8b registers. This is straight from Quick.
+      __ bswapl(value.AsRegister<CpuRegister>());
+      __ sarl(value.AsRegister<CpuRegister>(), Immediate(16));
+      break;
+    case DataType::Type::kUint16:
+      // TODO: Can be done with an xchg of 8b registers. This is straight from Quick.
+      __ bswapl(value.AsRegister<CpuRegister>());
+      __ shrl(value.AsRegister<CpuRegister>(), Immediate(16));
+      break;
+    case DataType::Type::kInt32:
+    case DataType::Type::kUint32:
+      __ bswapl(value.AsRegister<CpuRegister>());
+      break;
+    case DataType::Type::kInt64:
+    case DataType::Type::kUint64:
+      __ bswapq(value.AsRegister<CpuRegister>());
+      break;
+    case DataType::Type::kFloat32: {
+      DCHECK_NE(temp, nullptr);
+      __ movd(*temp, value.AsFpuRegister<XmmRegister>(), /*is64bit=*/ false);
+      __ bswapl(*temp);
+      __ movd(value.AsFpuRegister<XmmRegister>(), *temp, /*is64bit=*/ false);
+      break;
+    }
+    case DataType::Type::kFloat64: {
+      DCHECK_NE(temp, nullptr);
+      __ movd(*temp, value.AsFpuRegister<XmmRegister>(), /*is64bit=*/ true);
+      __ bswapq(*temp);
+      __ movd(value.AsFpuRegister<XmmRegister>(), *temp, /*is64bit=*/ true);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected type for reverse-bytes: " << type;
+      UNREACHABLE();
+  }
+}
+
 void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
                                                     uint32_t value_index,
                                                     uint32_t extra_temp_index,
@@ -5125,7 +5167,8 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
                                                     CpuRegister base,
                                                     bool is_volatile,
                                                     bool is_atomic,
-                                                    bool value_can_be_null) {
+                                                    bool value_can_be_null,
+                                                    bool byte_swap) {
   LocationSummary* locations = instruction->GetLocations();
   Location value = locations->InAt(value_index);
 
@@ -5135,38 +5178,80 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
 
   bool maybe_record_implicit_null_check_done = false;
 
-  switch (field_type) {
-    case DataType::Type::kBool:
-    case DataType::Type::kUint8:
-    case DataType::Type::kInt8: {
-      if (value.IsConstant()) {
+  if (value.IsConstant()) {
+    switch (field_type) {
+      case DataType::Type::kBool:
+      case DataType::Type::kUint8:
+      case DataType::Type::kInt8:
         __ movb(field_addr, Immediate(CodeGenerator::GetInt8ValueOf(value.GetConstant())));
-      } else {
-        __ movb(field_addr, value.AsRegister<CpuRegister>());
+        break;
+      case DataType::Type::kUint16:
+      case DataType::Type::kInt16: {
+        int16_t v = CodeGenerator::GetInt16ValueOf(value.GetConstant());
+        if (byte_swap) {
+          v = BSWAP(v);
+        }
+        __ movw(field_addr, Immediate(v));
+        break;
       }
-      break;
-    }
-
-    case DataType::Type::kUint16:
-    case DataType::Type::kInt16: {
-      if (value.IsConstant()) {
-        __ movw(field_addr, Immediate(CodeGenerator::GetInt16ValueOf(value.GetConstant())));
-      } else {
-        __ movw(field_addr, value.AsRegister<CpuRegister>());
-      }
-      break;
-    }
-
-    case DataType::Type::kInt32:
-    case DataType::Type::kReference: {
-      if (value.IsConstant()) {
+      case DataType::Type::kUint32:
+      case DataType::Type::kInt32:
+      case DataType::Type::kFloat32:
+      case DataType::Type::kReference: {
         int32_t v = CodeGenerator::GetInt32ValueOf(value.GetConstant());
+        if (byte_swap) {
+          v = BSWAP(v);
+        }
         // `field_type == DataType::Type::kReference` implies `v == 0`.
         DCHECK((field_type != DataType::Type::kReference) || (v == 0));
         // Note: if heap poisoning is enabled, no need to poison
         // (negate) `v` if it is a reference, as it would be null.
         __ movl(field_addr, Immediate(v));
-      } else {
+        break;
+      }
+      case DataType::Type::kUint64:
+      case DataType::Type::kInt64:
+      case DataType::Type::kFloat64: {
+        int64_t v = CodeGenerator::GetInt64ValueOf(value.GetConstant());
+        if (byte_swap) {
+          v = BSWAP(v);
+        }
+        if (is_atomic) {
+          // Move constant into a register, then atomically store the register to memory.
+          CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
+          __ movq(temp, Immediate(v));
+          __ movq(field_addr, temp);
+        } else {
+          Address field_addr2 = Address::displace(field_addr, sizeof(int32_t));
+          codegen_->MoveInt64ToAddress(field_addr, field_addr2, v, instruction);
+        }
+        maybe_record_implicit_null_check_done = true;
+        break;
+      }
+      case DataType::Type::kVoid:
+        LOG(FATAL) << "Unreachable type " << field_type;
+        UNREACHABLE();
+    }
+  } else {
+    if (byte_swap) {
+      // Swap byte order in-place in the input register (we will restore it later).
+      CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
+      Bswap(value, field_type, &temp);
+    }
+
+    switch (field_type) {
+      case DataType::Type::kBool:
+      case DataType::Type::kUint8:
+      case DataType::Type::kInt8:
+        __ movb(field_addr, value.AsRegister<CpuRegister>());
+        break;
+      case DataType::Type::kUint16:
+      case DataType::Type::kInt16:
+        __ movw(field_addr, value.AsRegister<CpuRegister>());
+        break;
+      case DataType::Type::kUint32:
+      case DataType::Type::kInt32:
+      case DataType::Type::kReference:
         if (kPoisonHeapReferences && field_type == DataType::Type::kReference) {
           CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
           __ movl(temp, value.AsRegister<CpuRegister>());
@@ -5175,67 +5260,27 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
         } else {
           __ movl(field_addr, value.AsRegister<CpuRegister>());
         }
-      }
-      break;
-    }
-
-    case DataType::Type::kInt64: {
-      if (value.IsConstant()) {
-        int64_t v = value.GetConstant()->AsLongConstant()->GetValue();
-        if (is_atomic) {
-          // Move constant into a register, then atomically store the register to memory.
-          CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
-          __ movq(temp, Immediate(v));
-          __ movq(field_addr, temp);
-        } else {
-          codegen_->MoveInt64ToAddress(field_addr,
-                                       Address::displace(field_addr, sizeof(int32_t)),
-                                       v,
-                                       instruction);
-        }
-        maybe_record_implicit_null_check_done = true;
-      } else {
+        break;
+      case DataType::Type::kUint64:
+      case DataType::Type::kInt64:
         __ movq(field_addr, value.AsRegister<CpuRegister>());
-      }
-      break;
-    }
-
-    case DataType::Type::kFloat32: {
-      if (value.IsConstant()) {
-        int32_t v = bit_cast<int32_t, float>(value.GetConstant()->AsFloatConstant()->GetValue());
-        __ movl(field_addr, Immediate(v));
-      } else {
+        break;
+      case DataType::Type::kFloat32:
         __ movss(field_addr, value.AsFpuRegister<XmmRegister>());
-      }
-      break;
-    }
-
-    case DataType::Type::kFloat64: {
-      if (value.IsConstant()) {
-        int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
-        if (is_atomic) {
-          // Move constant into a register, then atomically store the register to memory.
-          CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
-          __ movq(temp, Immediate(v));
-          __ movq(field_addr, temp);
-        } else {
-          codegen_->MoveInt64ToAddress(field_addr,
-                                       Address::displace(field_addr, sizeof(int32_t)),
-                                       v,
-                                       instruction);
-        }
-        maybe_record_implicit_null_check_done = true;
-      } else {
+        break;
+      case DataType::Type::kFloat64:
         __ movsd(field_addr, value.AsFpuRegister<XmmRegister>());
-      }
-      break;
+        break;
+      case DataType::Type::kVoid:
+        LOG(FATAL) << "Unreachable type " << field_type;
+        UNREACHABLE();
     }
 
-    case DataType::Type::kUint32:
-    case DataType::Type::kUint64:
-    case DataType::Type::kVoid:
-      LOG(FATAL) << "Unreachable type " << field_type;
-      UNREACHABLE();
+    if (byte_swap) {
+      // Restore byte order.
+      CpuRegister temp = locations->GetTemp(extra_temp_index).AsRegister<CpuRegister>();
+      Bswap(value, field_type, &temp);
+    }
   }
 
   if (!maybe_record_implicit_null_check_done) {

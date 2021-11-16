@@ -31,7 +31,12 @@
 namespace art {
 namespace verifier {
 
-class RegTypeTest : public CommonRuntimeTest {};
+class RegTypeTest : public CommonRuntimeTest {
+ public:
+  RegTypeTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 TEST_F(RegTypeTest, ConstLoHi) {
   // Tests creating primitive types types.

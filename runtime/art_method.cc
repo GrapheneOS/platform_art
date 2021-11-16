@@ -569,8 +569,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
     }
   }
 
-  if (OatQuickMethodHeader::NterpMethodHeader != nullptr &&
-      OatQuickMethodHeader::NterpMethodHeader->Contains(pc)) {
+  if (OatQuickMethodHeader::IsNterpPc(pc)) {
     return OatQuickMethodHeader::NterpMethodHeader;
   }
 
