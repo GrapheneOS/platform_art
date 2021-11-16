@@ -63,8 +63,8 @@ class OdrConfig final {
   int compilation_os_address_ = 0;
   std::string boot_classpath_;
   std::string artifact_dir_;
-  time_t max_execution_seconds_ = kMaxChildProcessSeconds;
-  time_t max_child_process_seconds_ = kMaximumExecutionSeconds;
+  time_t max_execution_seconds_ = kMaximumExecutionSeconds;
+  time_t max_child_process_seconds_ = kMaxChildProcessSeconds;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
