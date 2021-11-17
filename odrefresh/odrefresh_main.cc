@@ -35,7 +35,7 @@
 
 namespace {
 
-using ::art::InstructionSet;
+using ::art::odrefresh::CompilationOptions;
 using ::art::odrefresh::Concatenate;
 using ::art::odrefresh::ExitCode;
 using ::art::odrefresh::OdrCompilationLog;
@@ -301,15 +301,12 @@ int main(int argc, char** argv) {
   OnDeviceRefresh odr(config);
   for (int i = 0; i < argc; ++i) {
     std::string_view action(argv[i]);
-    std::vector<InstructionSet> compile_boot_extensions;
-    bool compile_system_server;
+    CompilationOptions compilation_options;
     if (action == "--check") {
       // Fast determination of whether artifacts are up to date.
-      return odr.CheckArtifactsAreUpToDate(
-          metrics, &compile_boot_extensions, &compile_system_server);
+      return odr.CheckArtifactsAreUpToDate(metrics, &compilation_options);
     } else if (action == "--compile") {
-      const ExitCode exit_code =
-          odr.CheckArtifactsAreUpToDate(metrics, &compile_boot_extensions, &compile_system_server);
+      const ExitCode exit_code = odr.CheckArtifactsAreUpToDate(metrics, &compilation_options);
       if (exit_code != ExitCode::kCompilationRequired) {
         return exit_code;
       }
@@ -319,8 +316,7 @@ int main(int argc, char** argv) {
         // Artifacts refreshed. Return `kCompilationFailed` so that odsign will sign them again.
         return ExitCode::kCompilationFailed;
       }
-      ExitCode compile_result =
-          odr.Compile(metrics, compile_boot_extensions, compile_system_server);
+      ExitCode compile_result = odr.Compile(metrics, compilation_options);
       compilation_log.Log(metrics.GetArtApexVersion(),
                           metrics.GetArtApexLastUpdateMillis(),
                           metrics.GetTrigger(),
@@ -333,8 +329,10 @@ int main(int argc, char** argv) {
         return ExitCode::kCleanupFailed;
       }
       return odr.Compile(metrics,
-                         /*compile_boot_extensions=*/config.GetBootExtensionIsas(),
-                         /*compile_system_server=*/true);
+                         CompilationOptions{
+                             .compile_boot_extensions_for_isas = config.GetBootExtensionIsas(),
+                             .system_server_jars_to_compile = odr.AllSystemServerJars(),
+                         });
     } else if (action == "--help") {
       UsageHelp(argv[0]);
     } else {
