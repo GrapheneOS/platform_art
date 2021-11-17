@@ -106,8 +106,11 @@ class BaseMutex {
   // Add this mutex to those owned by self, and perform appropriate checking.
   // For this call only, self may also be another suspended thread.
   void RegisterAsLocked(Thread* self);
+  void RegisterAsLockedImpl(Thread* self, LockLevel level);
 
   void RegisterAsUnlocked(Thread* self);
+  void RegisterAsUnlockedImpl(Thread* self, LockLevel level);
+
   void CheckSafeToWait(Thread* self);
 
   friend class ScopedContentionRecorder;
