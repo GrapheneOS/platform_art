@@ -65,10 +65,7 @@ class OdrCompilationLog {
   ~OdrCompilationLog();
 
   // Applies policy to compilation log to determine whether to recompile.
-  bool ShouldAttemptCompile(int64_t apex_version,
-                            int64_t last_update_millis,
-                            OdrMetrics::Trigger trigger,
-                            time_t now = 0) const;
+  bool ShouldAttemptCompile(OdrMetrics::Trigger trigger, time_t now = 0) const;
 
   // Returns the number of entries in the log. The log never exceeds `kMaxLoggedEntries`.
   size_t NumberOfEntries() const;

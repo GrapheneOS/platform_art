@@ -865,7 +865,7 @@ WARN_UNUSED bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
   for (const art_apex::ModuleInfo& module_info : cached_module_info_list->getModuleInfo()) {
     if (!module_info.hasName()) {
       LOG(INFO) << "Unexpected module info from cache-info. Missing module name.";
-      metrics.SetTrigger(OdrMetrics::Trigger::kUnknown);
+      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
       *cleanup_required = true;
       return false;
     }
@@ -1022,7 +1022,7 @@ WARN_UNUSED ExitCode OnDeviceRefresh::CheckArtifactsAreUpToDate(
     // compatible with an old cache-info file. Further up-to-date checks are not possible if it
     // does.
     PLOG(ERROR) << "Failed to parse cache-info file: " << QuotePath(cache_info_filename_);
-    metrics.SetTrigger(OdrMetrics::Trigger::kUnknown);
+    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
     return cleanup_and_compile_all();
   }
 

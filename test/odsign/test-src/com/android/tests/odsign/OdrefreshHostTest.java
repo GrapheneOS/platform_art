@@ -69,7 +69,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyArtSamegradeUpdateTriggersCompilation() throws Exception {
         simulateArtApexUpgrade();
-        sTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
@@ -80,7 +79,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyOtherApexSamegradeUpdateTriggersCompilation() throws Exception {
         simulateApexUpgrade();
-        sTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
@@ -91,7 +89,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyBootClasspathOtaTriggersCompilation() throws Exception {
         simulateBootClasspathOta();
-        sTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
@@ -102,7 +99,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifySystemServerOtaTriggersCompilation() throws Exception {
         simulateSystemServerOta();
-        sTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command("odrefresh --compile");
 
