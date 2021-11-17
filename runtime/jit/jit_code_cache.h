@@ -266,8 +266,7 @@ class JitCodeCache {
               bool is_full_debug_info,
               CompilationKind compilation_kind,
               bool has_should_deoptimize_flag,
-              const ArenaSet<ArtMethod*>& cha_single_implementation_list,
-              bool has_instrumentation_support)
+              const ArenaSet<ArtMethod*>& cha_single_implementation_list)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::jit_lock_);
 
@@ -331,13 +330,7 @@ class JitCodeCache {
       REQUIRES(!Locks::jit_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void InvalidateAllCompiledCodeWithLock()
-      REQUIRES(Locks::jit_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
   void InvalidateAllCompiledCode()
-      REQUIRES(!Locks::jit_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  void InvalidateAllCompiledCodeForInstrumentation(bool needs_instrumentation_support)
       REQUIRES(!Locks::jit_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -520,9 +513,6 @@ class JitCodeCache {
 
   // Condition to wait on for accessing inline caches.
   ConditionVariable inline_cache_cond_ GUARDED_BY(Locks::jit_lock_);
-
-  // Specifies if instrumentation support is required by JITed code.
-  bool needs_instrumentation_support_ GUARDED_BY(Locks::jit_lock_);
 
   // -------------- JIT memory regions ------------------------------------- //
 
