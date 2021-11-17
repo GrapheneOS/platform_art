@@ -3942,6 +3942,8 @@ public class Main {
   /// CHECK-START: int Main.$noinline$testPartialEscape1(TestClass, boolean) load_store_elimination (after)
   /// CHECK:         InstanceFieldSet
   //
+  // TODO: We should be able to remove this setter by realizing `i` only escapes in a branch.
+  /// CHECK:         InstanceFieldSet
   /// CHECK-NOT:     InstanceFieldSet
   //
   /// CHECK-START: int Main.$noinline$testPartialEscape1(TestClass, boolean) load_store_elimination (after)
