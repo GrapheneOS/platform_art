@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "android-base/result.h"
 #include "com_android_apex.h"
 #include "com_android_art.h"
 #include "exec_utils.h"
@@ -88,36 +89,47 @@ class OnDeviceRefresh final {
 
   std::string GetSystemServerImagePath(bool on_system, const std::string& jar_path) const;
 
-  WARN_UNUSED bool RemoveSystemServerArtifactsFromData() const;
-
-  // Remove boot extension artifacts from /data.
-  WARN_UNUSED bool RemoveBootExtensionArtifactsFromData(InstructionSet isa) const;
-
-  WARN_UNUSED bool RemoveArtifacts(const OdrArtifacts& artifacts) const;
+  // Loads artifacts to memory and writes them back. Also cleans up other files in the artifact
+  // directory. This essentially removes the existing artifacts from fs-verity so that odsign will
+  // not encounter "file exists" error when it adds the existing artifacts to fs-verity.
+  android::base::Result<void> RefreshExistingArtifactsAndCleanup(
+      const std::vector<std::string>& artifacts) const;
 
   // Checks whether all boot extension artifacts are present. Returns true if all are present, false
   // otherwise.
-  WARN_UNUSED bool BootExtensionArtifactsExist(bool on_system,
-                                               const InstructionSet isa,
-                                               /*out*/ std::string* error_msg) const;
+  // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
+  WARN_UNUSED bool BootExtensionArtifactsExist(
+      bool on_system,
+      const InstructionSet isa,
+      /*out*/ std::string* error_msg,
+      /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
 
   // Checks whether all system_server artifacts are present. The artifacts are checked in their
   // order of compilation. Returns true if all are present, false otherwise.
-  WARN_UNUSED bool SystemServerArtifactsExist(bool on_system,
-                                              /*out*/ std::string* error_msg) const;
+  // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
+  WARN_UNUSED bool SystemServerArtifactsExist(
+      bool on_system,
+      /*out*/ std::string* error_msg,
+      /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
 
+  // Checks whether all boot extension artifacts are up to date. Returns true if all are present,
+  // false otherwise.
+  // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
   WARN_UNUSED bool CheckBootExtensionArtifactsAreUpToDate(
       OdrMetrics& metrics,
       const InstructionSet isa,
       const com::android::apex::ApexInfo& art_apex_info,
       const std::optional<com::android::art::CacheInfo>& cache_info,
-      /*out*/ bool* cleanup_required) const;
+      /*out*/ std::vector<std::string>* checked_artifacts) const;
 
+  // Checks whether all system_server artifacts are up to date. The artifacts are checked in their
+  // order of compilation. Returns true if all are present, false otherwise.
+  // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
   WARN_UNUSED bool CheckSystemServerArtifactsAreUpToDate(
       OdrMetrics& metrics,
       const std::vector<com::android::apex::ApexInfo>& apex_info_list,
       const std::optional<com::android::art::CacheInfo>& cache_info,
-      /*out*/ bool* cleanup_required) const;
+      /*out*/ std::vector<std::string>* checked_artifacts) const;
 
   WARN_UNUSED bool CompileBootExtensionArtifacts(const InstructionSet isa,
                                                  const std::string& staging_dir,
