@@ -102,8 +102,18 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
 
     if (UNLIKELY(inlined_method == nullptr)) {
       LOG(FATAL) << "Could not find an inlined method from an .oat file: "
-                 << method->GetDexFile()->PrettyMethod(method_index) << " . "
-                 << "This must be due to duplicate classes or playing wrongly with class loaders";
+                 << dex_cache->GetDexFile()->PrettyMethod(method_index) << " ("
+                 << dex_cache->GetDexFile()->GetLocation() << "/"
+                 << static_cast<const void*>(dex_cache->GetDexFile()) << ") in "
+                 << method->PrettyMethod() << " (" << method->GetDexFile()->GetLocation() << "/"
+                 << static_cast<const void*>(method->GetDexFile())
+                 << "). The outermost method in the chain is: " << outer_method->PrettyMethod()
+                 << " (" << outer_method->GetDexFile()->GetLocation() << "/"
+                 << static_cast<const void*>(outer_method->GetDexFile())
+                 << "). MethodInfo: method_index=" << std::dec << method_index
+                 << ", is_in_bootclasspath=" << std::boolalpha
+                 << (method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP)
+                 << ", dex_file_index=" << std::dec << method_info.GetDexFileIndex() << ".";
       UNREACHABLE();
     }
     DCHECK(!inlined_method->IsRuntimeMethod());
