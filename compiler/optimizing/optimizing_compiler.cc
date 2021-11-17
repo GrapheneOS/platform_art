@@ -800,6 +800,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
     dead_reference_safe = false;
   }
 
+  bool is_instrumentation_enabled =
+      Runtime::Current()->GetInstrumentation()->NeedInstrumentationSupportForJIT();
   HGraph* graph = new (allocator) HGraph(
       allocator,
       arena_stack,
@@ -809,7 +811,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
       compiler_options.GetInstructionSet(),
       kInvalidInvokeType,
       dead_reference_safe,
-      compiler_options.GetDebuggable(),
+      compiler_options.GetDebuggable() || is_instrumentation_enabled,
       compilation_kind);
 
   if (method != nullptr) {
@@ -1296,7 +1298,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                             /* is_full_debug_info= */ compiler_options.GetGenerateDebugInfo(),
                             compilation_kind,
                             /* has_should_deoptimize_flag= */ false,
-                            cha_single_implementation_list)) {
+                            cha_single_implementation_list,
+                            /* has_instrumentation_support= */ false)) {
       code_cache->Free(self, region, reserved_code.data(), reserved_data.data());
       return false;
     }
@@ -1404,7 +1407,8 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                           /* is_full_debug_info= */ compiler_options.GetGenerateDebugInfo(),
                           compilation_kind,
                           codegen->GetGraph()->HasShouldDeoptimizeFlag(),
-                          codegen->GetGraph()->GetCHASingleImplementationList())) {
+                          codegen->GetGraph()->GetCHASingleImplementationList(),
+                          codegen->GetGraph()->IsDebuggable())) {
     code_cache->Free(self, region, reserved_code.data(), reserved_data.data());
     return false;
   }
