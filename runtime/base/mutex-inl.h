@@ -93,7 +93,12 @@ inline void BaseMutex::RegisterAsLocked(Thread* self) {
     CheckUnattachedThread(level_);
     return;
   }
-  LockLevel level = level_;
+  RegisterAsLockedImpl(self, level_);
+}
+
+inline void BaseMutex::RegisterAsLockedImpl(Thread* self, LockLevel level) {
+  DCHECK(self != nullptr);
+  DCHECK_EQ(level_, level);
   // It would be nice to avoid this condition checking in the non-debug case,
   // but that would make the various methods that check if a mutex is held not
   // work properly for thread wait locks. Since the vast majority of lock
@@ -159,8 +164,13 @@ inline void BaseMutex::RegisterAsUnlocked(Thread* self) {
     CheckUnattachedThread(level_);
     return;
   }
-  if (level_ != kMonitorLock) {
-    auto level = level_;
+  RegisterAsUnlockedImpl(self , level_);
+}
+
+inline void BaseMutex::RegisterAsUnlockedImpl(Thread* self, LockLevel level) {
+  DCHECK(self != nullptr);
+  DCHECK_EQ(level_, level);
+  if (level != kMonitorLock) {
     if (UNLIKELY(level == kThreadWaitLock) && self->GetHeldMutex(kThreadWaitWakeLock) == this) {
       level = kThreadWaitWakeLock;
     }
@@ -292,11 +302,11 @@ inline void ReaderWriterMutex::AssertWriterHeld(const Thread* self) const {
 
 inline void MutatorMutex::TransitionFromRunnableToSuspended(Thread* self) {
   AssertSharedHeld(self);
-  RegisterAsUnlocked(self);
+  RegisterAsUnlockedImpl(self, kMutatorLock);
 }
 
 inline void MutatorMutex::TransitionFromSuspendedToRunnable(Thread* self) {
-  RegisterAsLocked(self);
+  RegisterAsLockedImpl(self, kMutatorLock);
   AssertSharedHeld(self);
 }
 

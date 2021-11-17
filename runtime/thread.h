@@ -1346,6 +1346,11 @@ class Thread {
     return old_state;
   }
 
+  MutatorMutex* GetMutatorLock() RETURN_CAPABILITY(Locks::mutator_lock_) {
+    DCHECK_EQ(tlsPtr_.mutator_lock, Locks::mutator_lock_);
+    return tlsPtr_.mutator_lock;
+  }
+
   void VerifyStackImpl() REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DumpState(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1639,6 +1644,7 @@ class Thread {
                                thread_local_objects(0),
                                thread_local_alloc_stack_top(nullptr),
                                thread_local_alloc_stack_end(nullptr),
+                               mutator_lock(nullptr),
                                flip_function(nullptr),
                                method_verifier(nullptr),
                                thread_local_mark_stack(nullptr),
@@ -1781,6 +1787,10 @@ class Thread {
     // Thread-local allocation stack data/routines.
     StackReference<mirror::Object>* thread_local_alloc_stack_top;
     StackReference<mirror::Object>* thread_local_alloc_stack_end;
+
+    // Pointer to the mutator lock.
+    // This is the same as `Locks::mutator_lock_` but cached for faster state transitions.
+    MutatorMutex* mutator_lock;
 
     // Support for Mutex lock hierarchy bug detection.
     BaseMutex* held_mutexes[kLockLevelCount];
