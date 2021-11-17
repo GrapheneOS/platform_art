@@ -305,9 +305,8 @@ int main(int argc, char** argv) {
         return exit_code;
       }
       OdrCompilationLog compilation_log;
-      if (!compilation_log.ShouldAttemptCompile(metrics.GetArtApexVersion(),
-                                                metrics.GetArtApexLastUpdateMillis(),
-                                                metrics.GetTrigger())) {
+      if (!compilation_log.ShouldAttemptCompile(metrics.GetTrigger())) {
+        LOG(INFO) << "Compilation skipped because it was attempted recently";
         return ExitCode::kOkay;
       }
       ExitCode compile_result =
