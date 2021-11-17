@@ -3889,7 +3889,7 @@ bool LoadStoreElimination::Run(bool enable_partial_lse) {
                         stats_,
                         &allocator,
                         enable_partial_lse ? LoadStoreAnalysisType::kFull
-                                           : LoadStoreAnalysisType::kNoPredicatedInstructions);
+                                           : LoadStoreAnalysisType::kBasic);
   lsa.Run();
   const HeapLocationCollector& heap_location_collector = lsa.GetHeapLocationCollector();
   if (heap_location_collector.GetNumberOfHeapLocations() == 0) {
