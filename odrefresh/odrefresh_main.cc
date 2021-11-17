@@ -108,9 +108,16 @@ bool ArgumentEquals(std::string_view argument, std::string_view expected) {
 }
 
 bool InitializeCommonConfig(std::string_view argument, OdrConfig* config) {
-  static constexpr std::string_view kDryRunArgument{"--dry-run"};
-  if (ArgumentEquals(argument, kDryRunArgument)) {
+  if (ArgumentEquals(argument, "--dry-run")) {
     config->SetDryRun();
+    return true;
+  }
+  if (ArgumentEquals(argument, "--partial-compilation")) {
+    config->SetPartialCompilation(true);
+    return true;
+  }
+  if (ArgumentEquals(argument, "--no-refresh")) {
+    config->SetRefresh(false);
     return true;
   }
   return false;
@@ -118,6 +125,8 @@ bool InitializeCommonConfig(std::string_view argument, OdrConfig* config) {
 
 void CommonOptionsHelp() {
   UsageError("--dry-run");
+  UsageError("--partial-compilation  Only generate artifacts that are out-of-date or missing.");
+  UsageError("--no-refresh           Do not refresh existing artifacts.");
 }
 
 int InitializeHostConfig(int argc, char** argv, OdrConfig* config) {
@@ -307,7 +316,8 @@ int main(int argc, char** argv) {
       OdrCompilationLog compilation_log;
       if (!compilation_log.ShouldAttemptCompile(metrics.GetTrigger())) {
         LOG(INFO) << "Compilation skipped because it was attempted recently";
-        return ExitCode::kOkay;
+        // Artifacts refreshed. Return `kCompilationFailed` so that odsign will sign them again.
+        return ExitCode::kCompilationFailed;
       }
       ExitCode compile_result =
           odr.Compile(metrics, compile_boot_extensions, compile_system_server);

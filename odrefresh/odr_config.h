@@ -17,6 +17,7 @@
 #ifndef ART_ODREFRESH_ODR_CONFIG_H_
 #define ART_ODREFRESH_ODR_CONFIG_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,8 @@ class OdrConfig final {
   std::string dex2oat_;
   std::string dex2oat_boot_classpath_;
   bool dry_run_;
+  std::optional<bool> refresh_;
+  std::optional<bool> partial_compilation_;
   InstructionSet isa_;
   std::string program_name_;
   std::string system_server_classpath_;
@@ -128,6 +131,12 @@ class OdrConfig final {
   }
 
   bool GetDryRun() const { return dry_run_; }
+  bool GetPartialCompilation() const {
+    return partial_compilation_.value_or(true);
+  }
+  bool GetRefresh() const {
+    return refresh_.value_or(true);
+  }
   const std::string& GetSystemServerClasspath() const {
     return system_server_classpath_;
   }
@@ -151,6 +160,12 @@ class OdrConfig final {
   }
 
   void SetDryRun() { dry_run_ = true; }
+  void SetPartialCompilation(bool value) {
+    partial_compilation_ = value;
+  }
+  void SetRefresh(bool value) {
+    refresh_ = value;
+  }
   void SetIsa(const InstructionSet isa) { isa_ = isa; }
   void SetCompilationOsAddress(int address) { compilation_os_address_ = address; }
   void SetMaxExecutionSeconds(int seconds) { max_execution_seconds_ = seconds; }
