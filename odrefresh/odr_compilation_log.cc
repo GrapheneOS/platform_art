@@ -179,27 +179,15 @@ void OdrCompilationLog::Log(int64_t apex_version,
   Truncate();
 }
 
-bool OdrCompilationLog::ShouldAttemptCompile(int64_t apex_version,
-                                             int64_t last_update_millis,
-                                             OdrMetrics::Trigger trigger,
-                                             time_t now) const {
+bool OdrCompilationLog::ShouldAttemptCompile(OdrMetrics::Trigger trigger, time_t now) const {
   if (entries_.size() == 0) {
     // We have no history, try to compile.
     return true;
   }
 
-  if (apex_version != entries_.back().apex_version) {
-    // There is a new ART APEX, we should compile right away.
-    return true;
-  }
-
-    if (last_update_millis != entries_.back().last_update_millis) {
-    // There is a samegrade ART APEX update, we should compile right away.
-    return true;
-  }
-
-  if (trigger == OdrMetrics::Trigger::kDexFilesChanged) {
-    // The DEX files in the classpaths have changed, possibly an OTA has updated them.
+  if (trigger == OdrMetrics::Trigger::kApexVersionMismatch ||
+      trigger == OdrMetrics::Trigger::kDexFilesChanged) {
+    // Things have changed since the last run.
     return true;
   }
 
