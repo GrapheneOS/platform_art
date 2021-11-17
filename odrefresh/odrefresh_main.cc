@@ -194,13 +194,7 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
   config->SetSystemServerClasspath(GetEnvironmentVariableOrDie("SYSTEMSERVERCLASSPATH"));
   config->SetIsa(art::kRuntimeISA);
 
-  const std::string zygote = android::base::GetProperty("ro.zygote", {});
-  ZygoteKind zygote_kind;
-  if (!ParseZygoteKind(zygote.c_str(), &zygote_kind)) {
-    LOG(FATAL) << "Unknown zygote: " << QuotePath(zygote);
-  }
-  config->SetZygoteKind(zygote_kind);
-
+  std::string zygote;
   int n = 1;
   for (; n < argc - 1; ++n) {
     const char* arg = argv[n];
@@ -227,10 +221,23 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
         ArgumentError("Failed to parse integer: %s", value.c_str());
       }
       config->SetMaxChildProcessSeconds(seconds);
+    } else if (ArgumentMatches(arg, "--zygote-arch=", &value)) {
+      zygote = value;
     } else if (!InitializeCommonConfig(arg, config)) {
       UsageError("Unrecognized argument: '%s'", arg);
     }
   }
+
+  if (zygote.empty()) {
+    // Use ro.zygote by default, if not overridden by --zygote-arch flag.
+    zygote = android::base::GetProperty("ro.zygote", {});
+  }
+  ZygoteKind zygote_kind;
+  if (!ParseZygoteKind(zygote.c_str(), &zygote_kind)) {
+    LOG(FATAL) << "Unknown zygote: " << QuotePath(zygote);
+  }
+  config->SetZygoteKind(zygote_kind);
+
   return n;
 }
 
@@ -241,6 +248,7 @@ void TargetOptionsHelp() {
       "--dalvik-cache=<DIR>             Write artifacts to .../<DIR> rather than .../dalvik-cache");
   UsageError("--max-execution-seconds=<N>      Maximum timeout of all compilation combined");
   UsageError("--max-child-process-seconds=<N>  Maximum timeout of each compilation task");
+  UsageError("--zygote-arch=<STRING>           Zygote kind that overrides ro.zygote");
 }
 
 int InitializeConfig(int argc, char** argv, OdrConfig* config) {
