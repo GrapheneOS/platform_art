@@ -73,12 +73,11 @@
   V(AputObject, void, mirror::Array*, int32_t, mirror::Object*) \
 \
   V(JniMethodStart, void, Thread*) \
-  V(JniMethodStartSynchronized, void, jobject, Thread*) \
   V(JniMethodEnd, void, Thread*) \
-  V(JniMethodEndSynchronized, void, jobject, Thread*) \
   V(JniMethodEndWithReference, mirror::Object*, jobject, Thread*) \
-  V(JniMethodEndWithReferenceSynchronized, mirror::Object*, jobject, jobject, Thread*) \
   V(JniDecodeReferenceResult, mirror::Object*, jobject, Thread*) \
+  V(JniLockObject, void, mirror::Object*) \
+  V(JniUnlockObject, void, mirror::Object*) \
   V(QuickGenericJniTrampoline, void, ArtMethod*) \
 \
   V(LockObject, void, mirror::Object*) \

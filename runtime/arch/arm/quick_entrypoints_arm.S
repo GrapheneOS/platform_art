@@ -493,52 +493,66 @@ END art_quick_do_long_jump
      */
 TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
 
-    /*
-     * Entry from managed code that calls artLockObjectFromCode, may block for GC. r0 holds the
-     * possibly null object to lock.
-     */
-    .extern artLockObjectFromCode
-ENTRY art_quick_lock_object
-    ldr    r1, [rSELF, #THREAD_ID_OFFSET]
-    cbz    r0, .Lslow_lock
-.Lretry_lock:
-    ldrex  r2, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    eor    r3, r2, r1                 @ Prepare the value to store if unlocked
+.macro LOCK_OBJECT_FAST_PATH obj, tmp1, tmp2, tmp3, slow_lock, can_be_null
+    ldr    \tmp1, [rSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz \obj, \slow_lock
+    .endif
+1:
+    ldrex  \tmp2, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    eor    \tmp3, \tmp2, \tmp1        @ Prepare the value to store if unlocked
                                       @   (thread id, count of 0 and preserved read barrier bits),
                                       @ or prepare to compare thread id for recursive lock check
                                       @   (lock_word.ThreadId() ^ self->ThreadId()).
-    ands   ip, r2, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  @ Test the non-gc bits.
-    bne    .Lnot_unlocked             @ Check if unlocked.
-    @ unlocked case - store r3: original lock word plus thread id, preserved read barrier bits.
-    strex  r2, r3, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    cbnz   r2, .Llock_strex_fail      @ If store failed, retry.
+    ands   ip, \tmp2, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  @ Test the non-gc bits.
+    bne    2f                         @ Check if unlocked.
+    @ unlocked case - store tmp3: original lock word plus thread id, preserved read barrier bits.
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                   @ If store failed, retry.
     dmb    ish                        @ Full (LoadLoad|LoadStore) memory barrier.
     bx lr
-.Lnot_unlocked:  @ r2: original lock word, r1: thread_id, r3: r2 ^ r1
+2:  @ tmp2: original lock word, tmp1: thread_id, tmp3: tmp2 ^ tmp1
 #if LOCK_WORD_THIN_LOCK_COUNT_SHIFT + LOCK_WORD_THIN_LOCK_COUNT_SIZE != LOCK_WORD_GC_STATE_SHIFT
 #error "Expecting thin lock count and gc state in consecutive bits."
 #endif
-                                      @ Check lock word state and thread id together,
-    bfc    r3, #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, #(LOCK_WORD_THIN_LOCK_COUNT_SIZE + LOCK_WORD_GC_STATE_SIZE)
-    cbnz   r3, .Lslow_lock            @ if either of the top two bits are set, or the lock word's
+                                      @ Check lock word state and thread id together.
+    bfc    \tmp3, \
+           #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, \
+           #(LOCK_WORD_THIN_LOCK_COUNT_SIZE + LOCK_WORD_GC_STATE_SIZE)
+    cbnz   \tmp3, \slow_lock          @ if either of the top two bits are set, or the lock word's
                                       @ thread id did not match, go slow path.
-    add    r3, r2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  @ Increment the recursive lock count.
+    add    \tmp3, \tmp2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  @ Increment the recursive lock count.
                                       @ Extract the new thin lock count for overflow check.
-    ubfx   r2, r3, #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, #LOCK_WORD_THIN_LOCK_COUNT_SIZE
-    cbz    r2, .Lslow_lock            @ Zero as the new count indicates overflow, go slow path.
-    strex  r2, r3, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]  @ strex necessary for read barrier bits.
-    cbnz   r2, .Llock_strex_fail      @ If strex failed, retry.
+    ubfx   \tmp2, \tmp3, #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, #LOCK_WORD_THIN_LOCK_COUNT_SIZE
+    cbz    \tmp2, \slow_lock          @ Zero as the new count indicates overflow, go slow path.
+                                      @ strex necessary for read barrier bits.
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                  @ If strex failed, retry.
     bx lr
-.Llock_strex_fail:
-    b      .Lretry_lock               @ retry
-// Note: the slow path is actually the art_quick_lock_object_no_inline (tail call).
+3:
+    b      1b                         @ retry
+.endm
+
+    /*
+     * Entry from managed code that tries to lock the object in a fast path and
+     * calls `artLockObjectFromCode()` for the difficult cases, may block for GC.
+     * r0 holds the possibly null object to lock.
+     */
+ENTRY art_quick_lock_object
+    // Note: the slow path is actually the art_quick_lock_object_no_inline (tail call).
+    LOCK_OBJECT_FAST_PATH r0, r1, r2, r3, .Llock_object_slow, /*can_be_null*/ 1
 END art_quick_lock_object
 
+    /*
+     * Entry from managed code that calls `artLockObjectFromCode()`, may block for GC.
+     * r0 holds the possibly null object to lock.
+     */
+    .extern artLockObjectFromCode
 ENTRY art_quick_lock_object_no_inline
     // This is also the slow path for art_quick_lock_object. Note that we
     // need a local label, the assembler complains about target being out of
     // range if we try to jump to `art_quick_lock_object_no_inline`.
-.Lslow_lock:
+.Llock_object_slow:
     SETUP_SAVE_REFS_ONLY_FRAME r1     @ save callee saves in case we block
     mov    r1, rSELF                  @ pass Thread::Current
     bl     artLockObjectFromCode      @ (Object* obj, Thread*)
@@ -548,62 +562,78 @@ ENTRY art_quick_lock_object_no_inline
     DELIVER_PENDING_EXCEPTION
 END art_quick_lock_object_no_inline
 
-    /*
-     * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
-     * r0 holds the possibly null object to lock.
-     */
-    .extern artUnlockObjectFromCode
-ENTRY art_quick_unlock_object
-    ldr    r1, [rSELF, #THREAD_ID_OFFSET]
-    cbz    r0, .Lslow_unlock
-.Lretry_unlock:
+.macro UNLOCK_OBJECT_FAST_PATH obj, tmp1, tmp2, tmp3, slow_unlock, can_be_null
+    ldr    \tmp1, [rSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz    \obj, \slow_unlock
+    .endif
+1:
 #ifndef USE_READ_BARRIER
-    ldr    r2, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    ldr    \tmp2, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
 #else
                                       @ Need to use atomic instructions for read barrier.
-    ldrex  r2, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    ldrex  \tmp2, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
 #endif
-    eor    r3, r2, r1                 @ Prepare the value to store if simply locked
+    eor    \tmp3, \tmp2, \tmp1        @ Prepare the value to store if simply locked
                                       @   (mostly 0s, and preserved read barrier bits),
                                       @ or prepare to compare thread id for recursive lock check
                                       @   (lock_word.ThreadId() ^ self->ThreadId()).
-    ands   ip, r3, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  @ Test the non-gc bits.
-    bne    .Lnot_simply_locked        @ Locked recursively or by other thread?
+    ands   ip, \tmp3, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  @ Test the non-gc bits.
+    bne    2f                         @ Locked recursively or by other thread?
     @ Transition to unlocked.
     dmb    ish                        @ Full (LoadStore|StoreStore) memory barrier.
 #ifndef USE_READ_BARRIER
-    str    r3, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    str    \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
 #else
-    strex  r2, r3, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]  @ strex necessary for read barrier bits
-    cbnz   r2, .Lunlock_strex_fail    @ If the store failed, retry.
+                                      @ strex necessary for read barrier bits
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                  @ If the store failed, retry.
 #endif
     bx     lr
-.Lnot_simply_locked:  @ r2: original lock word, r1: thread_id, r3: r2 ^ r1
+2:  @ tmp2: original lock word, tmp1: thread_id, tmp3: tmp2 ^ tmp1
 #if LOCK_WORD_THIN_LOCK_COUNT_SHIFT + LOCK_WORD_THIN_LOCK_COUNT_SIZE != LOCK_WORD_GC_STATE_SHIFT
 #error "Expecting thin lock count and gc state in consecutive bits."
 #endif
                                       @ Check lock word state and thread id together,
-    bfc    r3, #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, #(LOCK_WORD_THIN_LOCK_COUNT_SIZE + LOCK_WORD_GC_STATE_SIZE)
-    cbnz   r3, .Lslow_unlock          @ if either of the top two bits are set, or the lock word's
+    bfc    \tmp3, \
+           #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, \
+           #(LOCK_WORD_THIN_LOCK_COUNT_SIZE + LOCK_WORD_GC_STATE_SIZE)
+    cbnz   \tmp3, \slow_unlock        @ if either of the top two bits are set, or the lock word's
                                       @ thread id did not match, go slow path.
-    sub    r3, r2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  @ Decrement recursive lock count.
+    sub    \tmp3, \tmp2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  @ Decrement recursive lock count.
 #ifndef USE_READ_BARRIER
-    str    r3, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    str    \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
 #else
-    strex  r2, r3, [r0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]  @ strex necessary for read barrier bits.
-    cbnz   r2, .Lunlock_strex_fail    @ If the store failed, retry.
+                                      @ strex necessary for read barrier bits.
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                  @ If the store failed, retry.
 #endif
     bx     lr
-.Lunlock_strex_fail:
-    b      .Lretry_unlock             @ retry
-// Note: the slow path is actually the art_quick_unlock_object_no_inline (tail call).
+3:
+    b      1b                         @ retry
+.endm
+
+    /*
+     * Entry from managed code that tries to unlock the object in a fast path and calls
+     * `artUnlockObjectFromCode()` for the difficult cases and delivers exception on failure.
+     * r0 holds the possibly null object to unlock.
+     */
+ENTRY art_quick_unlock_object
+    // Note: the slow path is actually the art_quick_unlock_object_no_inline (tail call).
+    UNLOCK_OBJECT_FAST_PATH r0, r1, r2, r3, .Lunlock_object_slow, /*can_be_null*/ 1
 END art_quick_unlock_object
 
+    /*
+     * Entry from managed code that calls `artUnlockObjectFromCode()`
+     * and delivers exception on failure.
+     * r0 holds the possibly null object to unlock.
+     */
+    .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object_no_inline
     // This is also the slow path for art_quick_unlock_object. Note that we
     // need a local label, the assembler complains about target being out of
     // range if we try to jump to `art_quick_unlock_object_no_inline`.
-.Lslow_unlock:
+.Lunlock_object_slow:
     @ save callee saves in case exception allocation triggers GC
     SETUP_SAVE_REFS_ONLY_FRAME r1
     mov    r1, rSELF                  @ pass Thread::Current
@@ -613,6 +643,80 @@ ENTRY art_quick_unlock_object_no_inline
     RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 END art_quick_unlock_object_no_inline
+
+    /*
+     * Entry from JNI stub that tries to lock the object in a fast path and
+     * calls `artLockObjectFromCode()` (the same as for managed code) for the
+     * difficult cases, may block for GC.
+     * Custom calling convention:
+     *     r4 holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     All argument registers need to be preserved.
+     */
+ENTRY art_quick_lock_object_jni
+    LOCK_OBJECT_FAST_PATH r4, r5, r6, r7, .Llock_object_jni_slow, /*can_be_null*/ 0
+
+.Llock_object_jni_slow:
+    // Save GPR args r0-r3 and return address. Also save r4 for stack alignment.
+    push   {r0-r4, lr}
+    .cfi_adjust_cfa_offset 24
+    .cfi_rel_offset lr, 20
+    // Save FPR args.
+    vpush  {s0-s15}
+    .cfi_adjust_cfa_offset 64
+    // Call `artLockObjectFromCode()`
+    mov    r0, r4                       @ Pass the object to lock.
+    mov    r1, rSELF                    @ Pass Thread::Current().
+    bl     artLockObjectFromCode        @ (Object* obj, Thread*)
+    // Restore FPR args.
+    vpop   {s0-s15}
+    .cfi_adjust_cfa_offset -64
+    // Check result.
+    cbnz   r0, 1f
+    // Restore GPR args and r4 and return.
+    pop    {r0-r4, pc}
+1:
+    // GPR args are irrelevant when throwing an exception but pop them anyway with the LR we need.
+    pop    {r0-r4, lr}
+    .cfi_adjust_cfa_offset -24
+    .cfi_restore lr
+    // Make a tail call to `artDeliverPendingExceptionFromCode()`.
+    // Rely on the JNI transition frame constructed in the JNI stub.
+    mov    r0, rSELF                           @ Pass Thread::Current().
+    b      artDeliverPendingExceptionFromCode  @ (Thread*)
+END art_quick_lock_object_jni
+
+    /*
+     * Entry from JNI stub that tries to unlock the object in a fast path and calls
+     * `artUnlockObjectFromJni()` for the difficult cases. Note that failure to unlock
+     * is fatal, so we do not need to check for exceptions in the slow path.
+     * Custom calling convention:
+     *     r4 holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     Return registers r0-r1 and s0-s1 need to be preserved.
+     */
+    .extern artLockObjectFromJni
+ENTRY art_quick_unlock_object_jni
+    UNLOCK_OBJECT_FAST_PATH r4, r5, r6, r7, .Lunlock_object_jni_slow, /*can_be_null*/ 0
+
+ .Lunlock_object_jni_slow:
+    // Save GPR return registers and return address. Also save r4 for stack alignment.
+    push   {r0-r1, r4, lr}
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset lr, 12
+    // Save FPR return registers.
+    vpush  {s0-s1}
+    .cfi_adjust_cfa_offset 8
+    // Call `artUnlockObjectFromJni()`
+    mov    r0, r4                       @ Pass the object to unlock.
+    mov    r1, rSELF                    @ Pass Thread::Current().
+    bl     artUnlockObjectFromJni       @ (Object* obj, Thread*)
+    // Restore FPR return registers.
+    vpop   {s0-s1}
+    .cfi_adjust_cfa_offset -8
+    // Restore GPR return registers and r4 and return.
+    pop    {r0-r1, r4, pc}
+END art_quick_unlock_object_jni
 
     /*
      * Entry from managed code that calls artInstanceOfFromCode and on failure calls
