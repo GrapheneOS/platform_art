@@ -99,6 +99,16 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         verifyGeneratedArtifactsLoaded();
     }
 
+    @Test
+    public void verifyGeneratedArtifactsLoadedAfterPartialCompilation() throws Exception {
+        Set<String> mappedArtifacts = sTestUtils.getSystemServerLoadedArtifacts();
+        // Delete an arbitrary artifact.
+        getDevice().deleteFile(mappedArtifacts.iterator().next());
+        sTestUtils.removeCompilationLogToAvoidBackoff();
+        sTestUtils.reboot();
+        verifyGeneratedArtifactsLoaded();
+    }
+
     private String[] getSystemServerClasspath() throws Exception {
         String systemServerClasspath =
                 getDevice().executeShellCommand("echo $SYSTEMSERVERCLASSPATH");
