@@ -263,6 +263,7 @@ JitCodeCache* JitCodeCache::Create(bool used_only_for_profile_data,
 JitCodeCache::JitCodeCache()
     : is_weak_access_enabled_(true),
       inline_cache_cond_("Jit inline cache condition variable", *Locks::jit_lock_),
+      needs_instrumentation_support_(Runtime::Current()->IsJavaDebuggable()),
       zygote_map_(&shared_region_),
       lock_cond_("Jit code cache condition variable", *Locks::jit_lock_),
       collection_in_progress_(false),
@@ -326,7 +327,13 @@ const void* JitCodeCache::GetSavedEntryPointOfPreCompiledMethod(ArtMethod* metho
   if (method->IsPreCompiled()) {
     const void* code_ptr = nullptr;
     if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
-      code_ptr = zygote_map_.GetCodeFor(method);
+      MutexLock mu(Thread::Current(), *Locks::jit_lock_);
+      // Don't use code from zygote_map_ if we need instrumentation support in
+      // the JITed code. When instrumentation support is needed we re-jit the
+      // code by generating code to call method entry / exit hooks.
+      if (!needs_instrumentation_support_) {
+        code_ptr = zygote_map_.GetCodeFor(method);
+      }
     } else {
       MutexLock mu(Thread::Current(), *Locks::jit_lock_);
       auto it = saved_compiled_methods_map_.find(method);
@@ -645,7 +652,8 @@ bool JitCodeCache::Commit(Thread* self,
                           bool is_full_debug_info,
                           CompilationKind compilation_kind,
                           bool has_should_deoptimize_flag,
-                          const ArenaSet<ArtMethod*>& cha_single_implementation_list) {
+                          const ArenaSet<ArtMethod*>& cha_single_implementation_list,
+                          bool has_instrumentation_support) {
   DCHECK(!method->IsNative() || (compilation_kind != CompilationKind::kOsr));
 
   if (!method->IsNative()) {
@@ -659,6 +667,16 @@ bool JitCodeCache::Commit(Thread* self,
   const uint8_t* stack_map_data = roots_data + root_table_size;
 
   MutexLock mu(self, *Locks::jit_lock_);
+
+  // Check if a non-native was compiled with the expected instrumentation support.
+  // TODO(mythria): Currently native methods still use entry / exit stubs and we
+  // don't compile them with instrumentation support. So this check can be
+  // omitted for native methods for now. Update native methods to stop using
+  // entry / exit stubs and update this check.
+  if (!method->IsNative() && needs_instrumentation_support_ != has_instrumentation_support) {
+    return false;
+  }
+
   // We need to make sure that there will be no jit-gcs going on and wait for any ongoing one to
   // finish.
   WaitForPotentialCollectionToCompleteRunnable(self);
@@ -1712,22 +1730,43 @@ void JitCodeCache::DoneCompiling(ArtMethod* method,
   }
 }
 
-void JitCodeCache::InvalidateAllCompiledCode() {
-  art::MutexLock mu(Thread::Current(), *Locks::jit_lock_);
+namespace {
+
+void RemoveCompiledCodeFromMethod(ArtMethod* method, ClassLinker* linker)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // We were compiled, so we must be warm.
+  ClearMethodCounter(method, /*was_warm=*/true);
+  if (method->IsObsolete()) {
+    linker->SetEntryPointsForObsoleteMethod(method);
+  } else {
+    linker->SetEntryPointsToInterpreter(method);
+  }
+}
+
+}  // namespace
+
+void JitCodeCache::InvalidateAllCompiledCodeWithLock() {
   VLOG(jit) << "Invalidating all compiled code";
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   for (auto it : method_code_map_) {
-    ArtMethod* meth = it.second;
-    // We were compiled, so we must be warm.
-    ClearMethodCounter(meth, /*was_warm=*/true);
-    if (meth->IsObsolete()) {
-      linker->SetEntryPointsForObsoleteMethod(meth);
-    } else {
-      linker->SetEntryPointsToInterpreter(meth);
-    }
+    RemoveCompiledCodeFromMethod(it.second, linker);
+  }
+  for (auto it : zygote_map_) {
+    RemoveCompiledCodeFromMethod(it.method, linker);
   }
   saved_compiled_methods_map_.clear();
   osr_code_map_.clear();
+}
+
+void JitCodeCache::InvalidateAllCompiledCodeForInstrumentation(bool needs_instrumentation_support) {
+  art::MutexLock mu(Thread::Current(), *Locks::jit_lock_);
+  InvalidateAllCompiledCodeWithLock();
+  needs_instrumentation_support_ = needs_instrumentation_support;
+}
+
+void JitCodeCache::InvalidateAllCompiledCode() {
+  art::MutexLock mu(Thread::Current(), *Locks::jit_lock_);
+  InvalidateAllCompiledCodeWithLock();
 }
 
 void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,

@@ -340,6 +340,10 @@ class Instrumentation {
            instrumentation_level_ == InstrumentationLevel::kInstrumentWithInterpreter;
   }
 
+  bool NeedInstrumentationSupportForJIT() const {
+    return instrumentation_level_ == InstrumentationLevel::kInstrumentWithInstrumentationStubs;
+  }
+
   bool InterpreterStubsInstalled() const {
     return instrumentation_level_ == InstrumentationLevel::kInstrumentWithInterpreter;
   }
@@ -586,8 +590,10 @@ class Instrumentation {
   // directly call entry / exit hooks and don't need the stub.
   bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method);
 
-  // Update the current instrumentation_level_.
-  void UpdateInstrumentationLevel(InstrumentationLevel level);
+  // Update the current instrumentation_level_. This takes care to discard JITed
+  // code when kInstrumentWithInstrumentationStubs is requested and JITed code
+  // isn't compiled with support for calling method entry / exit hooks.
+  void UpdateInstrumentationLevel(InstrumentationLevel level) REQUIRES(Locks::mutator_lock_);
 
   // Does the job of installing or removing instrumentation code within methods.
   // In order to support multiple clients using instrumentation at the same time,
