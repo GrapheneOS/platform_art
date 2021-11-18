@@ -52,6 +52,7 @@ cc_defaults {
         "libtinyxml2",
     ],
     tidy: true,
+    tidy_disabled_srcs: [":art-apex-cache-info"],
     tidy_flags: [
         "-format-style=file",
         "-header-filter=(art/odrefresh/|system/apex/)",
