@@ -1223,9 +1223,6 @@
       "name": "art_standalone_oatdump_tests[com.google.android.art.apex]"
     },
     {
-      "name": "art_standalone_odrefresh_tests[com.google.android.art.apex]"
-    },
-    {
       "name": "art_standalone_profman_tests[com.google.android.art.apex]"
     },
     {
