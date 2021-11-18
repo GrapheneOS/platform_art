@@ -241,9 +241,13 @@ Jit* Jit::Create(JitCodeCache* code_cache, JitOptions* options) {
   // With 'perf', we want a 1-1 mapping between an address and a method.
   // We aren't able to keep method pointers live during the instrumentation method entry trampoline
   // so we will just disable jit-gc if we are doing that.
+  // JitAtFirstUse compiles the methods synchronously on mutator threads. While this should work
+  // in theory it is causing deadlocks in some jvmti tests related to Jit GC. Hence, disabling
+  // Jit GC for now (b/147208992).
   if (code_cache->GetGarbageCollectCode()) {
     code_cache->SetGarbageCollectCode(!jit_compiler_->GenerateDebugInfo() &&
-        !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled());
+        !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
+        !jit->JitAtFirstUse());
   }
 
   VLOG(jit) << "JIT created with initial_capacity="
@@ -1640,8 +1644,12 @@ void Jit::PostForkChildAction(bool is_system_server, bool is_zygote) {
   jit_compiler_->ParseCompilerOptions();
 
   // Adjust the status of code cache collection: the status from zygote was to not collect.
+  // JitAtFirstUse compiles the methods synchronously on mutator threads. While this should work
+  // in theory it is causing deadlocks in some jvmti tests related to Jit GC. Hence, disabling
+  // Jit GC for now (b/147208992).
   code_cache_->SetGarbageCollectCode(!jit_compiler_->GenerateDebugInfo() &&
-      !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled());
+      !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
+      !JitAtFirstUse());
 
   if (is_system_server && HasImageWithProfile()) {
     // Disable garbage collection: we don't want it to delete methods we're compiling
