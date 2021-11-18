@@ -7,7 +7,6 @@ Language: Cpp
 AlignConsecutiveMacros: AcrossComments
 AllowShortBlocksOnASingleLine: Empty
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AttributeMacros: ['__', 'NO_RETURN']
