@@ -61,6 +61,7 @@ parcelable DexoptSystemServerArgs {
     String oatLocation;
     String[] classloaderContext;
     boolean isBootImageOnSystem;
+    boolean classloaderContextAsParent;
 
     // SECURITY: The server may accept the request to produce code for the specified architecture,
     // if supported.
