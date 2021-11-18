@@ -23,6 +23,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "android-base/result.h"
@@ -69,7 +70,7 @@ class OnDeviceRefresh final {
 
   // Returns a set of all system server jars.
   std::set<std::string> AllSystemServerJars() const {
-    return {systemserver_compilable_jars_.begin(), systemserver_compilable_jars_.end()};
+    return {all_systemserver_jars_.begin(), all_systemserver_jars_.end()};
   }
 
  private:
@@ -92,7 +93,7 @@ class OnDeviceRefresh final {
 
   std::vector<com::android::art::Component> GenerateBootExtensionCompilableComponents() const;
 
-  std::vector<com::android::art::Component> GenerateSystemServerComponents() const;
+  std::vector<com::android::art::SystemServerComponent> GenerateSystemServerComponents() const;
 
   std::string GetBootImageExtensionImage(bool on_system) const;
 
@@ -168,12 +169,17 @@ class OnDeviceRefresh final {
   // List of boot extension components that should be compiled.
   std::vector<std::string> boot_extension_compilable_jars_;
 
-  // List of system_server components that should be compiled.
-  std::vector<std::string> systemserver_compilable_jars_;
+  // Set of system_server components in SYSTEMSERVERCLASSPATH that should be compiled.
+  std::unordered_set<std::string> systemserver_classpath_jars_;
 
   // List of all boot classpath components. Used as the dependencies for compiling the
   // system_server.
   std::vector<std::string> boot_classpath_jars_;
+
+  // List of all system_server components, including those in SYSTEMSERVERCLASSPATH and those in
+  // STANDALONE_SYSTEMSERVER_JARS (jars that system_server loads dynamically using separate
+  // classloaders).
+  std::vector<std::string> all_systemserver_jars_;
 
   const time_t start_time_;
 

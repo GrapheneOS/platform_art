@@ -270,7 +270,7 @@ TEST_F(LibDexoptTest, AddDex2oatArgsFromSystemServerArgs) {
         Contains("--compiler-filter=verify")));
   }
 
-  // Test classloader context
+  // Test empty classloader context
   {
     auto args = default_system_server_args_;
     args.classloaderFds = {};
@@ -280,6 +280,15 @@ TEST_F(LibDexoptTest, AddDex2oatArgsFromSystemServerArgs) {
     EXPECT_THAT(cmdline, AllOf(
         Not(Contains(HasSubstr("--class-loader-context-fds"))),
         Contains("--class-loader-context=PCL[]")));
+  }
+
+  // Test classloader context as parent
+  {
+    auto args = default_system_server_args_;
+    args.classloaderContextAsParent = true;
+    std::vector<std::string> cmdline = Dex2oatArgsFromSystemServerArgs(args);
+
+    EXPECT_THAT(cmdline, Contains("--class-loader-context=PCL[];PCL[/cl/abc.jar:/cl/def.jar]"));
   }
 }
 
