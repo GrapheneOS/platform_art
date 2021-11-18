@@ -399,9 +399,23 @@ art_gtest_module_names = sorted(art_gtest_user_module_names + art_gtest_eng_only
 
 # ART gtests supported in MTS that do not need root access to the device.
 art_gtest_mts_user_module_names = copy.copy(art_gtest_user_module_names)
+# Temporarily disable `art_standalone_odrefresh_tests` in MTS,
+# as it is currently failing in Mainline testing
+# (b/206335809); a fix is in the works but may take some time
+# to land.
+#
+# TODO(b/206335809): Re-enable this test when the fix has landed.
+art_gtest_mts_user_module_names.remove("art_standalone_odrefresh_tests")
 
 # ART gtests supported in Mainline presubmits.
 art_gtests_mainline_presubmit_module_names = copy.copy(art_gtest_module_names)
+# Temporarily disable `art_standalone_odrefresh_tests` in Mainline
+# presubmits, as it is currently failing in Mainline testing
+# (b/206335809); a fix is in the works but may take some time to
+# land.
+#
+# TODO(b/206335809): Re-enable this test when the fix has landed.
+art_gtests_mainline_presubmit_module_names.remove("art_standalone_odrefresh_tests")
 
 
 # Is `run_test` a Checker test (i.e. a test containing Checker
