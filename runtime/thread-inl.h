@@ -75,7 +75,7 @@ inline void Thread::CheckEmptyCheckpointFromWeakRefAccess(BaseMutex* cond_var_mu
         for (int i = kLockLevelCount - 1; i >= 0; --i) {
           BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
           if (held_mutex != nullptr &&
-              held_mutex != Locks::mutator_lock_ &&
+              held_mutex != GetMutatorLock() &&
               held_mutex != cond_var_mutex) {
             CHECK(Locks::IsExpectedOnWeakRefAccess(held_mutex))
                 << "Holding unexpected mutex " << held_mutex->GetName()
@@ -150,7 +150,7 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
     if (check_locks) {
       bool bad_mutexes_held = false;
       for (int i = kLockLevelCount - 1; i >= 0; --i) {
-        // We expect no locks except the mutator_lock_. User code suspension lock is OK as long as
+        // We expect no locks except the mutator lock. User code suspension lock is OK as long as
         // we aren't going to be held suspended due to SuspendReason::kForUserCode.
         if (i != kMutatorLock && i != kUserCodeSuspensionLock) {
           BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));
@@ -234,8 +234,8 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   DCHECK_EQ(this, Thread::Current());
   // Change to non-runnable state, thereby appearing suspended to the system.
   TransitionToSuspendedAndRunCheckpoints(new_state);
-  // Mark the release of the share of the mutator_lock_.
-  Locks::mutator_lock_->TransitionFromRunnableToSuspended(this);
+  // Mark the release of the share of the mutator lock.
+  GetMutatorLock()->TransitionFromRunnableToSuspended(this);
   // Once suspended - check the active suspend barrier flag
   PassActiveSuspendBarriers();
 }
@@ -246,7 +246,7 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
   int16_t old_state = old_state_and_flags.as_struct.state;
   DCHECK_NE(static_cast<ThreadState>(old_state), kRunnable);
   do {
-    Locks::mutator_lock_->AssertNotHeld(this);  // Otherwise we starve GC..
+    GetMutatorLock()->AssertNotHeld(this);  // Otherwise we starve GC.
     old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
     DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
     if (LIKELY(old_state_and_flags.as_struct.flags == 0)) {
@@ -260,8 +260,8 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       if (LIKELY(tls32_.state_and_flags.as_atomic_int.CompareAndSetWeakAcquire(
                                                  old_state_and_flags.as_int,
                                                  new_state_and_flags.as_int))) {
-        // Mark the acquisition of a share of the mutator_lock_.
-        Locks::mutator_lock_->TransitionFromSuspendedToRunnable(this);
+        // Mark the acquisition of a share of the mutator lock.
+        GetMutatorLock()->TransitionFromSuspendedToRunnable(this);
         break;
       }
     } else if ((old_state_and_flags.as_struct.flags & kActiveSuspendBarrier) != 0) {
