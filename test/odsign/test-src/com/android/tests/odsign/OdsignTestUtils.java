@@ -40,6 +40,9 @@ public class OdsignTestUtils {
 
     public static final List<String> ZYGOTE_NAMES = List.of("zygote", "zygote64");
 
+    public static final List<String> APP_ARTIFACT_EXTENSIONS = List.of(".art", ".odex", ".vdex");
+    public static final List<String> BCP_ARTIFACT_EXTENSIONS = List.of(".art", ".oat", ".vdex");
+
     private static final String APEX_FILENAME = "test_com.android.art.apex";
 
     private static final String ODREFRESH_COMPILATION_LOG =
