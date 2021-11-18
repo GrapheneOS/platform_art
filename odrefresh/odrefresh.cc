@@ -205,6 +205,15 @@ std::vector<art_apex::ModuleInfo> GenerateModuleInfoList(
   return module_info_list;
 }
 
+// Returns a rewritten path based on ANDROID_ROOT if the path starts with "/system/".
+std::string AndroidRootRewrite(const std::string &path) {
+  if (StartsWith(path, "/system/")) {
+    return Concatenate({GetAndroidRoot(), path.substr(7)});
+  } else {
+    return path;
+  }
+}
+
 template <typename T>
 Result<void> CheckComponents(
     const std::vector<T>& expected_components,
@@ -273,16 +282,17 @@ std::vector<T> GenerateComponents(
 
   ArtDexFileLoader loader;
   for (const std::string& path : jars) {
+    std::string actual_path = AndroidRootRewrite(path);
     struct stat sb;
-    if (stat(path.c_str(), &sb) == -1) {
-      PLOG(ERROR) << "Failed to stat component: " << QuotePath(path);
+    if (stat(actual_path.c_str(), &sb) == -1) {
+      PLOG(ERROR) << "Failed to stat component: " << QuotePath(actual_path);
       return {};
     }
 
     std::vector<uint32_t> checksums;
     std::vector<std::string> dex_locations;
     std::string error_msg;
-    if (!loader.GetMultiDexChecksums(path.c_str(), &checksums, &dex_locations, &error_msg)) {
+    if (!loader.GetMultiDexChecksums(actual_path.c_str(), &checksums, &dex_locations, &error_msg)) {
       LOG(ERROR) << "Failed to get multi-dex checksums: " << error_msg;
       return {};
     }
@@ -389,9 +399,10 @@ bool PrepareBootClasspathFds(/*inout*/ std::vector<int>& boot_classpath_fds,
     if (StartsWith(jar, "/apex/")) {
       boot_classpath_fds.emplace_back(-1);
     } else {
-      std::unique_ptr<File> jar_file(OS::OpenFileForReading(jar.c_str()));
+      std::string actual_path = AndroidRootRewrite(jar);
+      std::unique_ptr<File> jar_file(OS::OpenFileForReading(actual_path.c_str()));
       if (!jar_file || !jar_file->IsValid()) {
-        LOG(ERROR) << "Failed to open a BCP jar " << jar;
+        LOG(ERROR) << "Failed to open a BCP jar " << actual_path;
         return false;
       }
       boot_classpath_fds.emplace_back(jar_file->Fd());
@@ -1200,7 +1211,8 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootExtensionArtifacts(
 
   // Add boot extensions to compile.
   for (const std::string& component : boot_extension_compilable_jars_) {
-    std::unique_ptr<File> file(OS::OpenFileForReading(component.c_str()));
+    std::string actual_path = AndroidRootRewrite(component);
+    std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
     dexopt_args.dexPaths.emplace_back(component);
     dexopt_args.dexFds.emplace_back(file->Fd());
     readonly_files_raii.push_back(std::move(file));
@@ -1312,7 +1324,8 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     DexoptSystemServerArgs dexopt_args;
     dexopt_args.isa = InstructionSetToAidlIsa(isa);
 
-    std::unique_ptr<File> dex_file(OS::OpenFileForReading(jar.c_str()));
+    std::string actual_jar_path = AndroidRootRewrite(jar);
+    std::unique_ptr<File> dex_file(OS::OpenFileForReading(actual_jar_path.c_str()));
 
     dexopt_args.dexPath = jar;
     dexopt_args.dexFd = dex_file->Fd();
@@ -1383,9 +1396,10 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     if (!classloader_context.empty()) {
       std::vector<int> fds;
       for (const std::string& path : classloader_context) {
-        std::unique_ptr<File> file(OS::OpenFileForReading(path.c_str()));
+        std::string actual_path = AndroidRootRewrite(path);
+        std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
         if (!file->IsValid()) {
-          PLOG(ERROR) << "Failed to open classloader context " << path;
+          PLOG(ERROR) << "Failed to open classloader context " << actual_path;
           metrics.SetStatus(OdrMetrics::Status::kIoError);
           return false;
         }
