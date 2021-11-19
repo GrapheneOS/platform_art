@@ -239,6 +239,8 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
       config->SetMaxChildProcessSeconds(seconds);
     } else if (ArgumentMatches(arg, "--zygote-arch=", &value)) {
       zygote = value;
+    } else if (ArgumentMatches(arg, "--staging-dir=", &value)) {
+      config->SetStagingDir(value);
     } else if (!InitializeCommonConfig(arg, config)) {
       UsageError("Unrecognized argument: '%s'", arg);
     }
