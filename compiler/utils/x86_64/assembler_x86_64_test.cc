@@ -2411,6 +2411,12 @@ TEST_F(AssemblerX86_64Test, Repecmpsq) {
   DriverStr(expected, "Repecmpsq");
 }
 
+TEST_F(AssemblerX86_64Test, Ud2) {
+  GetAssembler()->ud2();
+  const char* expected = "ud2\n";
+  DriverStr(expected, "Ud2");
+}
+
 TEST_F(AssemblerX86_64Test, Cmpb) {
   DriverStr(RepeatAI(&x86_64::X86_64Assembler::cmpb,
                      /*imm_bytes*/ 1U,
