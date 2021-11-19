@@ -312,7 +312,11 @@ Result<void> AddDex2oatArgsFromSystemServerArgs(const DexoptSystemServerArgs& ar
     cmdline.emplace_back("--class-loader-context=PCL[]");
   } else {
     const std::string context_path = android::base::Join(args.classloaderContext, ':');
-    cmdline.emplace_back("--class-loader-context=PCL[" + context_path + "]");
+    if (args.classloaderContextAsParent) {
+      cmdline.emplace_back("--class-loader-context=PCL[];PCL[" + context_path + "]");
+    } else {
+      cmdline.emplace_back("--class-loader-context=PCL[" + context_path + "]");
+    }
     cmdline.emplace_back("--class-loader-context-fds=" +
                          android::base::Join(args.classloaderFds, ':'));
   }

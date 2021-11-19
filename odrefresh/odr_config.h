@@ -68,6 +68,7 @@ class OdrConfig final {
   std::string artifact_dir_;
   time_t max_execution_seconds_ = kMaximumExecutionSeconds;
   time_t max_child_process_seconds_ = kMaxChildProcessSeconds;
+  std::string standalone_system_server_jars_;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
@@ -183,6 +184,14 @@ class OdrConfig final {
 
   void SetStagingDir(const std::string& staging_dir) {
     staging_dir_ = staging_dir;
+  }
+
+  const std::string& GetStandaloneSystemServerJars() const {
+    return standalone_system_server_jars_;
+  }
+
+  void SetStandaloneSystemServerJars(const std::string& jars) {
+    standalone_system_server_jars_ = jars;
   }
 
  private:

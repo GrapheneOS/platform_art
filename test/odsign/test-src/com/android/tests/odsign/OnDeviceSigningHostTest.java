@@ -28,9 +28,11 @@ import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 /**
@@ -105,10 +107,12 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         verifyGeneratedArtifactsLoaded();
     }
 
-    private String[] getSystemServerClasspath() throws Exception {
-        String systemServerClasspath =
-                getDevice().executeShellCommand("echo $SYSTEMSERVERCLASSPATH");
-        return systemServerClasspath.trim().split(":");
+    private String[] getListFromEnvironmentVariable(String name) throws Exception {
+        String systemServerClasspath = getDevice().executeShellCommand("echo $" + name).trim();
+        if (!systemServerClasspath.isEmpty()) {
+            return systemServerClasspath.split(":");
+        }
+        return new String[0];
     }
 
     private String getSystemServerIsa(String mappedArtifact) {
@@ -121,8 +125,12 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     }
 
     private void verifySystemServerLoadedArtifacts() throws Exception {
-        String[] classpathElements = getSystemServerClasspath();
+        String[] classpathElements = getListFromEnvironmentVariable("SYSTEMSERVERCLASSPATH");
         assertTrue("SYSTEMSERVERCLASSPATH is empty", classpathElements.length > 0);
+        String[] standaloneJars = getListFromEnvironmentVariable("STANDALONE_SYSTEMSERVER_JARS");
+        String[] allSystemServerJars = Stream
+                .concat(Arrays.stream(classpathElements), Arrays.stream(standaloneJars))
+                .toArray(String[]::new);
 
         final Set<String> mappedArtifacts = sTestUtils.getSystemServerLoadedArtifacts();
         assertTrue(
@@ -133,7 +141,7 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
                 String.format("%s/%s", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME, isa);
 
         // Check components in the system_server classpath have mapped artifacts.
-        for (String element : classpathElements) {
+        for (String element : allSystemServerJars) {
           String escapedPath = element.substring(1).replace('/', '@');
           for (String extension : OdsignTestUtils.APP_ARTIFACT_EXTENSIONS) {
             final String fullArtifactPath =
