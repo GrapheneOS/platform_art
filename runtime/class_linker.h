@@ -502,7 +502,7 @@ class ClassLinker {
   ObjPtr<mirror::DexCache> FindDexCache(Thread* self, const DexFile& dex_file)
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  ObjPtr<mirror::DexCache> FindDexCache(Thread* self, const OatDexFile* const oat_dex_file)
+  ObjPtr<mirror::DexCache> FindDexCache(Thread* self, const OatDexFile& oat_dex_file)
       REQUIRES(!Locks::dex_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   ClassTable* FindClassTable(Thread* self, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES(!Locks::dex_lock_)
@@ -1123,7 +1123,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_);
   const DexCacheData* FindDexCacheDataLocked(const DexFile& dex_file)
       REQUIRES_SHARED(Locks::dex_lock_);
-  const DexCacheData* FindDexCacheDataLocked(const OatDexFile* const oat_dex_file)
+  const DexCacheData* FindDexCacheDataLocked(const OatDexFile& oat_dex_file)
       REQUIRES_SHARED(Locks::dex_lock_);
   static ObjPtr<mirror::DexCache> DecodeDexCacheLocked(Thread* self, const DexCacheData* data)
       REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_);
