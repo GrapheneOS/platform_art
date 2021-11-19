@@ -1178,6 +1178,9 @@
       "name": "art-run-test-828-partial-lse[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-834-lse[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-963-default-range-smali[com.google.android.art.apex]"
     },
     {
@@ -2420,6 +2423,9 @@
     },
     {
       "name": "art-run-test-828-partial-lse"
+    },
+    {
+      "name": "art-run-test-834-lse"
     },
     {
       "name": "art-run-test-963-default-range-smali"
