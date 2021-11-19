@@ -4174,114 +4174,6 @@ static void GenerateVarHandleGetAndSet(CodeGeneratorX86_64* codegen,
   }
 }
 
-static void CreateVarHandleGetAndAddLocations(HInvoke* invoke) {
-  if (!HasVarHandleIntrinsicImplementation(invoke)) {
-    return;
-  }
-
-  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
-  uint32_t new_value_index = number_of_arguments - 1;
-  DataType::Type type = invoke->GetType();
-  DCHECK_EQ(type, GetDataTypeFromShorty(invoke, new_value_index));
-
-  LocationSummary* locations = CreateVarHandleCommonLocations(invoke);
-
-  if (DataType::IsFloatingPointType(type)) {
-    locations->SetOut(Location::RequiresFpuRegister());
-    // Require that the new FP value is in a register (and not a constant) for ADDSS/ADDSD.
-    locations->SetInAt(new_value_index, Location::RequiresFpuRegister());
-    // CMPXCHG clobbers RAX.
-    locations->AddTemp(Location::RegisterLocation(RAX));
-    // A temporary to hold the new value for CMPXCHG.
-    locations->AddTemp(Location::RequiresRegister());
-    // An FP temporary to load the old value from the field and perform FP addition.
-    locations->AddTemp(Location::RequiresFpuRegister());
-  } else {
-    DCHECK_NE(type, DataType::Type::kReference);
-    // Use the same register for both the new value and output to take advantage of XADD.
-    // It doesn't have to be RAX, but we need to choose some to make sure it's the same.
-    locations->SetOut(Location::RegisterLocation(RAX));
-    locations->SetInAt(new_value_index, Location::RegisterLocation(RAX));
-  }
-}
-
-static void GenerateVarHandleGetAndAdd(CodeGeneratorX86_64* codegen,
-                                       LocationSummary* locations,
-                                       uint32_t value_index,
-                                       DataType::Type type,
-                                       Address field_addr) {
-  X86_64Assembler* assembler = codegen->GetAssembler();
-
-  Location value = locations->InAt(value_index);
-  Location out = locations->Out();
-  uint32_t temp_count = locations->GetTempCount();
-
-  if (DataType::IsFloatingPointType(type)) {
-    // `getAndAdd` for floating-point types: load the old FP value into a temporary FP register and
-    // in RAX for CMPXCHG, add the new FP value to the old one, move it to a non-FP temporary for
-    // CMPXCHG and loop until CMPXCHG succeeds. Move the result from RAX to the output FP register.
-    bool is64bit = (type == DataType::Type::kFloat64);
-    XmmRegister fptemp = locations->GetTemp(temp_count - 1).AsFpuRegister<XmmRegister>();
-    CpuRegister temp = locations->GetTemp(temp_count - 2).AsRegister<CpuRegister>();
-
-    NearLabel retry;
-    __ Bind(&retry);
-    if (is64bit) {
-      __ movsd(fptemp, field_addr);
-      __ movd(CpuRegister(RAX), fptemp, is64bit);
-      __ addsd(fptemp, value.AsFpuRegister<XmmRegister>());
-      __ movd(temp, fptemp, is64bit);
-      __ LockCmpxchgq(field_addr, temp);
-    } else {
-      __ movss(fptemp, field_addr);
-      __ movd(CpuRegister(RAX), fptemp, is64bit);
-      __ addss(fptemp, value.AsFpuRegister<XmmRegister>());
-      __ movd(temp, fptemp, is64bit);
-      __ LockCmpxchgl(field_addr, temp);
-    }
-    __ j(kNotZero, &retry);
-
-    // The old value is in RAX.
-    __ movd(out.AsFpuRegister<XmmRegister>(), CpuRegister(RAX), is64bit);
-  } else {
-    // `getAndAdd` for integral types: atomically exchange the new value with the field and add the
-    // old value to the field. Output register is the same as the one holding new value. Do sign
-    // extend / zero extend as needed.
-    CpuRegister valreg = value.AsRegister<CpuRegister>();
-    DCHECK_EQ(valreg, out.AsRegister<CpuRegister>());
-    switch (type) {
-      case DataType::Type::kBool:
-      case DataType::Type::kUint8:
-        __ LockXaddb(field_addr, valreg);
-        __ movzxb(valreg, valreg);
-        break;
-      case DataType::Type::kInt8:
-        __ LockXaddb(field_addr, valreg);
-        __ movsxb(valreg, valreg);
-        break;
-      case DataType::Type::kUint16:
-        __ LockXaddw(field_addr, valreg);
-        __ movzxw(valreg, valreg);
-        break;
-      case DataType::Type::kInt16:
-        __ LockXaddw(field_addr, valreg);
-        __ movsxw(valreg, valreg);
-        break;
-      case DataType::Type::kInt32:
-      case DataType::Type::kUint32:
-        __ LockXaddl(field_addr, valreg);
-        break;
-      case DataType::Type::kInt64:
-      case DataType::Type::kUint64:
-        __ LockXaddq(field_addr, valreg);
-        break;
-      default:
-        DCHECK(false) << "unexpected type in getAndAdd intrinsic";
-        UNREACHABLE();
-    }
-  }
-}
-
 static void CreateVarHandleGetAndBitwiseOpLocations(HInvoke* invoke) {
   if (!HasVarHandleIntrinsicImplementation(invoke)) {
     return;
@@ -4399,6 +4291,114 @@ static void GenerateVarHandleGetAndBitwiseOp(CodeGeneratorX86_64* codegen,
       break;
     default:
       break;
+  }
+}
+
+static void CreateVarHandleGetAndAddLocations(HInvoke* invoke) {
+  if (!HasVarHandleIntrinsicImplementation(invoke)) {
+    return;
+  }
+
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  uint32_t new_value_index = number_of_arguments - 1;
+  DataType::Type type = invoke->GetType();
+  DCHECK_EQ(type, GetDataTypeFromShorty(invoke, new_value_index));
+
+  LocationSummary* locations = CreateVarHandleCommonLocations(invoke);
+
+  if (DataType::IsFloatingPointType(type)) {
+    locations->SetOut(Location::RequiresFpuRegister());
+    // Require that the new FP value is in a register (and not a constant) for ADDSS/ADDSD.
+    locations->SetInAt(new_value_index, Location::RequiresFpuRegister());
+    // CMPXCHG clobbers RAX.
+    locations->AddTemp(Location::RegisterLocation(RAX));
+    // A temporary to hold the new value for CMPXCHG.
+    locations->AddTemp(Location::RequiresRegister());
+    // An FP temporary to load the old value from the field and perform FP addition.
+    locations->AddTemp(Location::RequiresFpuRegister());
+  } else {
+    DCHECK_NE(type, DataType::Type::kReference);
+    // Use the same register for both the new value and output to take advantage of XADD.
+    // It doesn't have to be RAX, but we need to choose some to make sure it's the same.
+    locations->SetOut(Location::RegisterLocation(RAX));
+    locations->SetInAt(new_value_index, Location::RegisterLocation(RAX));
+  }
+}
+
+static void GenerateVarHandleGetAndAdd(CodeGeneratorX86_64* codegen,
+                                       LocationSummary* locations,
+                                       uint32_t value_index,
+                                       DataType::Type type,
+                                       Address field_addr) {
+  X86_64Assembler* assembler = codegen->GetAssembler();
+
+  Location value = locations->InAt(value_index);
+  Location out = locations->Out();
+  uint32_t temp_count = locations->GetTempCount();
+
+  if (DataType::IsFloatingPointType(type)) {
+    // `getAndAdd` for floating-point types: load the old FP value into a temporary FP register and
+    // in RAX for CMPXCHG, add the new FP value to the old one, move it to a non-FP temporary for
+    // CMPXCHG and loop until CMPXCHG succeeds. Move the result from RAX to the output FP register.
+    bool is64bit = (type == DataType::Type::kFloat64);
+    XmmRegister fptemp = locations->GetTemp(temp_count - 1).AsFpuRegister<XmmRegister>();
+    CpuRegister temp = locations->GetTemp(temp_count - 2).AsRegister<CpuRegister>();
+
+    NearLabel retry;
+    __ Bind(&retry);
+    if (is64bit) {
+      __ movsd(fptemp, field_addr);
+      __ movd(CpuRegister(RAX), fptemp, is64bit);
+      __ addsd(fptemp, value.AsFpuRegister<XmmRegister>());
+      __ movd(temp, fptemp, is64bit);
+      __ LockCmpxchgq(field_addr, temp);
+    } else {
+      __ movss(fptemp, field_addr);
+      __ movd(CpuRegister(RAX), fptemp, is64bit);
+      __ addss(fptemp, value.AsFpuRegister<XmmRegister>());
+      __ movd(temp, fptemp, is64bit);
+      __ LockCmpxchgl(field_addr, temp);
+    }
+    __ j(kNotZero, &retry);
+
+    // The old value is in RAX.
+    __ movd(out.AsFpuRegister<XmmRegister>(), CpuRegister(RAX), is64bit);
+  } else {
+    // `getAndAdd` for integral types: atomically exchange the new value with the field and add the
+    // old value to the field. Output register is the same as the one holding new value. Do sign
+    // extend / zero extend as needed.
+    CpuRegister valreg = value.AsRegister<CpuRegister>();
+    DCHECK_EQ(valreg, out.AsRegister<CpuRegister>());
+    switch (type) {
+      case DataType::Type::kBool:
+      case DataType::Type::kUint8:
+        __ LockXaddb(field_addr, valreg);
+        __ movzxb(valreg, valreg);
+        break;
+      case DataType::Type::kInt8:
+        __ LockXaddb(field_addr, valreg);
+        __ movsxb(valreg, valreg);
+        break;
+      case DataType::Type::kUint16:
+        __ LockXaddw(field_addr, valreg);
+        __ movzxw(valreg, valreg);
+        break;
+      case DataType::Type::kInt16:
+        __ LockXaddw(field_addr, valreg);
+        __ movsxw(valreg, valreg);
+        break;
+      case DataType::Type::kInt32:
+      case DataType::Type::kUint32:
+        __ LockXaddl(field_addr, valreg);
+        break;
+      case DataType::Type::kInt64:
+      case DataType::Type::kUint64:
+        __ LockXaddq(field_addr, valreg);
+        break;
+      default:
+        DCHECK(false) << "unexpected type in getAndAdd intrinsic";
+        UNREACHABLE();
+    }
   }
 }
 
