@@ -1470,5 +1470,10 @@
         "variant": "redefine-stress & jit | jvmti-stress & jit",
         "description": ["Test expects few methods to be interpreted but jvmti enables",
 		        "jit-on-first-use which breaks this expectation"]
+    },
+    {
+        "tests": ["667-jit-jni-stub"],
+        "variant": "jit-on-first-use",
+        "description": ["jit-on-first-use disables jit GC but this test requires jit GC"]
     }
 ]
