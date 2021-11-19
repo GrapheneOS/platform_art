@@ -991,6 +991,26 @@ class MethodEntryExitHooksSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(MethodEntryExitHooksSlowPathX86_64);
 };
 
+class CompileOptimizedSlowPathX86_64 : public SlowPathCode {
+ public:
+  CompileOptimizedSlowPathX86_64() : SlowPathCode(/* instruction= */ nullptr) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
+    __ Bind(GetEntryLabel());
+    x86_64_codegen->GenerateInvokeRuntime(
+        GetThreadOffset<kX86_64PointerSize>(kQuickCompileOptimized).Int32Value());
+    __ jmp(GetExitLabel());
+  }
+
+  const char* GetDescription() const override {
+    return "CompileOptimizedSlowPath";
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathX86_64);
+};
+
 #undef __
 // NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
 #define __ down_cast<X86_64Assembler*>(GetAssembler())->  // NOLINT
@@ -1602,37 +1622,22 @@ void CodeGeneratorX86_64::MaybeIncrementHotness(bool is_frame_entry) {
   }
 
   if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
-    ScopedProfilingInfoUse spiu(
-        Runtime::Current()->GetJit(), GetGraph()->GetArtMethod(), Thread::Current());
-    ProfilingInfo* info = spiu.GetProfilingInfo();
-    if (info != nullptr) {
-      uint64_t address = reinterpret_cast64<uint64_t>(info);
-      NearLabel done;
-      __ movq(CpuRegister(TMP), Immediate(address));
-      __ addw(Address(CpuRegister(TMP), ProfilingInfo::BaselineHotnessCountOffset().Int32Value()),
-              Immediate(1));
-      __ andw(Address(CpuRegister(TMP), ProfilingInfo::BaselineHotnessCountOffset().Int32Value()),
-              Immediate(interpreter::kTieredHotnessMask));
-      __ j(kNotZero, &done);
-      if (HasEmptyFrame()) {
-        CHECK(is_frame_entry);
-        // Frame alignment, and the stub expects the method on the stack.
-        __ pushq(CpuRegister(RDI));
-        __ cfi().AdjustCFAOffset(kX86_64WordSize);
-        __ cfi().RelOffset(DWARFReg(RDI), 0);
-      } else if (!RequiresCurrentMethod()) {
-        CHECK(is_frame_entry);
-        __ movq(Address(CpuRegister(RSP), kCurrentMethodStackOffset), CpuRegister(RDI));
-      }
-      GenerateInvokeRuntime(
-          GetThreadOffset<kX86_64PointerSize>(kQuickCompileOptimized).Int32Value());
-      if (HasEmptyFrame()) {
-        __ popq(CpuRegister(RDI));
-        __ cfi().AdjustCFAOffset(-static_cast<int>(kX86_64WordSize));
-        __ cfi().Restore(DWARFReg(RDI));
-      }
-      __ Bind(&done);
-    }
+    SlowPathCode* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathX86_64();
+    AddSlowPath(slow_path);
+    ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+    DCHECK(info != nullptr);
+    CHECK(!HasEmptyFrame());
+    uint64_t address = reinterpret_cast64<uint64_t>(info);
+    // Note: if the address was in the 32bit range, we could use
+    // Address::Absolute and avoid this movq.
+    __ movq(CpuRegister(TMP), Immediate(address));
+    // With multiple threads, this can overflow. This is OK, we will eventually get to see
+    // it reaching 0. Also, at this point we have no register available to look
+    // at the counter directly.
+    __ addw(Address(CpuRegister(TMP), ProfilingInfo::BaselineHotnessCountOffset().Int32Value()),
+            Immediate(-1));
+    __ j(kEqual, slow_path->GetEntryLabel());
+    __ Bind(slow_path->GetExitLabel());
   }
 }
 
@@ -2903,21 +2908,18 @@ void CodeGeneratorX86_64::MaybeGenerateInlineCacheCheck(HInstruction* instructio
   if (!instruction->GetLocations()->Intrinsified() &&
       GetGraph()->IsCompilingBaseline() &&
       !Runtime::Current()->IsAotCompiler()) {
-    ScopedProfilingInfoUse spiu(
-        Runtime::Current()->GetJit(), GetGraph()->GetArtMethod(), Thread::Current());
-    ProfilingInfo* info = spiu.GetProfilingInfo();
-    if (info != nullptr) {
-      InlineCache* cache = info->GetInlineCache(instruction->GetDexPc());
-      uint64_t address = reinterpret_cast64<uint64_t>(cache);
-      NearLabel done;
-      __ movq(CpuRegister(TMP), Immediate(address));
-      // Fast path for a monomorphic cache.
-      __ cmpl(Address(CpuRegister(TMP), InlineCache::ClassesOffset().Int32Value()), klass);
-      __ j(kEqual, &done);
-      GenerateInvokeRuntime(
-          GetThreadOffset<kX86_64PointerSize>(kQuickUpdateInlineCache).Int32Value());
-      __ Bind(&done);
-    }
+    ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+    DCHECK(info != nullptr);
+    InlineCache* cache = info->GetInlineCache(instruction->GetDexPc());
+    uint64_t address = reinterpret_cast64<uint64_t>(cache);
+    NearLabel done;
+    __ movq(CpuRegister(TMP), Immediate(address));
+    // Fast path for a monomorphic cache.
+    __ cmpl(Address(CpuRegister(TMP), InlineCache::ClassesOffset().Int32Value()), klass);
+    __ j(kEqual, &done);
+    GenerateInvokeRuntime(
+        GetThreadOffset<kX86_64PointerSize>(kQuickUpdateInlineCache).Int32Value());
+    __ Bind(&done);
   }
 }
 
