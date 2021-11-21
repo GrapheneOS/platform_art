@@ -486,6 +486,7 @@ class MANAGED Class final : public Object {
 
   size_t GetComponentSize() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template<ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
   size_t GetComponentSizeShift() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsObjectClass() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -495,7 +496,8 @@ class MANAGED Class final : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsInstantiable() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
   ALWAYS_INLINE bool IsObjectArrayClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>

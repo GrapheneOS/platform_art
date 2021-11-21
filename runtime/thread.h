@@ -1027,17 +1027,14 @@ class Thread {
   }
 
   uint32_t GetDisableThreadFlipCount() const {
-    CHECK(kUseReadBarrier);
     return tls32_.disable_thread_flip_count;
   }
 
   void IncrementDisableThreadFlipCount() {
-    CHECK(kUseReadBarrier);
     ++tls32_.disable_thread_flip_count;
   }
 
   void DecrementDisableThreadFlipCount() {
-    CHECK(kUseReadBarrier);
     DCHECK_GT(tls32_.disable_thread_flip_count, 0U);
     --tls32_.disable_thread_flip_count;
   }
@@ -1205,6 +1202,10 @@ class Thread {
     tlsPtr_.thread_local_end += bytes;
     DCHECK_LE(tlsPtr_.thread_local_end, tlsPtr_.thread_local_limit);
   }
+
+  // Called from Concurrent mark-compact GC to slide the TLAB pointers backwards
+  // to adjust to post-compact addresses.
+  void AdjustTlab(size_t slide_bytes);
 
   // Doesn't check that there is room.
   mirror::Object* AllocTlab(size_t bytes);

@@ -388,6 +388,11 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
 void ModUnionTableReferenceCache::VisitObjects(ObjectCallback callback, void* arg) {
   CardTable* const card_table = heap_->GetCardTable();
   ContinuousSpaceBitmap* live_bitmap = space_->GetLiveBitmap();
+  // Use an unordered_set for constant time search of card in the second loop.
+  // We don't want to change cleared_cards_ to unordered so that traversals are
+  // sequential in address order.
+  // TODO: Optimize this.
+  std::unordered_set<const uint8_t*> card_lookup_map;
   for (uint8_t* card : cleared_cards_) {
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
     uintptr_t end = start + CardTable::kCardSize;
@@ -396,10 +401,13 @@ void ModUnionTableReferenceCache::VisitObjects(ObjectCallback callback, void* ar
                                   [callback, arg](mirror::Object* obj) {
       callback(obj, arg);
     });
+    card_lookup_map.insert(card);
   }
-  // This may visit the same card twice, TODO avoid this.
   for (const auto& pair : references_) {
     const uint8_t* card = pair.first;
+    if (card_lookup_map.find(card) != card_lookup_map.end()) {
+      continue;
+    }
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
     uintptr_t end = start + CardTable::kCardSize;
     live_bitmap->VisitMarkedRange(start,

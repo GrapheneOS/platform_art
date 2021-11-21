@@ -1077,10 +1077,9 @@ inline size_t Class::GetComponentSize() {
   return 1U << GetComponentSizeShift();
 }
 
+template <ReadBarrierOption kReadBarrierOption>
 inline size_t Class::GetComponentSizeShift() {
-  // No read barrier is needed for reading a constant primitive field through
-  // constant reference field. See ReadBarrierOption.
-  return GetComponentType<kDefaultVerifyFlags, kWithoutReadBarrier>()->GetPrimitiveTypeSizeShift();
+  return GetComponentType<kDefaultVerifyFlags, kReadBarrierOption>()->GetPrimitiveTypeSizeShift();
 }
 
 inline bool Class::IsObjectClass() {
@@ -1106,11 +1105,9 @@ inline bool Class::IsArrayClass() {
   return GetComponentType<kVerifyFlags, kWithoutReadBarrier>() != nullptr;
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Class::IsObjectArrayClass() {
-  // We do not need a read barrier here as the primitive type is constant,
-  // both from-space and to-space component type classes shall yield the same result.
-  const ObjPtr<Class> component_type = GetComponentType<kVerifyFlags, kWithoutReadBarrier>();
+  const ObjPtr<Class> component_type = GetComponentType<kVerifyFlags, kReadBarrierOption>();
   constexpr VerifyObjectFlags kNewFlags = RemoveThisFlags(kVerifyFlags);
   return component_type != nullptr && !component_type->IsPrimitive<kNewFlags>();
 }

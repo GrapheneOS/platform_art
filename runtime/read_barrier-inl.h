@@ -21,6 +21,7 @@
 
 #include "gc/accounting/read_barrier_table.h"
 #include "gc/collector/concurrent_copying-inl.h"
+#include "gc/collector/mark_compact.h"
 #include "gc/heap.h"
 #include "mirror/object-readbarrier-inl.h"
 #include "mirror/object_reference.h"
@@ -91,10 +92,12 @@ inline MirrorType* ReadBarrier::Barrier(
       LOG(FATAL) << "Unexpected read barrier type";
       UNREACHABLE();
     }
-  } else if (with_read_barrier) {
-    // TODO: invoke MarkCompact's function which translates a pre-compact
-    // address to from-space address, if we are in the compaction phase.
-    return ref_addr->template AsMirrorPtr<kIsVolatile>();
+  } else if (kReadBarrierOption == kWithFromSpaceBarrier) {
+    CHECK(kUseUserfaultfd);
+    MirrorType* old = ref_addr->template AsMirrorPtr<kIsVolatile>();
+    mirror::Object* ref =
+        Runtime::Current()->GetHeap()->MarkCompactCollector()->GetFromSpaceAddrFromBarrier(old);
+    return reinterpret_cast<MirrorType*>(ref);
   } else {
     // No read barrier.
     return ref_addr->template AsMirrorPtr<kIsVolatile>();

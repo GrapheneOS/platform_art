@@ -17,11 +17,13 @@
 #ifndef ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_WALK_INL_H_
 #define ART_RUNTIME_GC_SPACE_BUMP_POINTER_SPACE_WALK_INL_H_
 
-#include "bump_pointer_space.h"
+#include "bump_pointer_space-inl.h"
 
 #include "base/bit_utils.h"
 #include "mirror/object-inl.h"
 #include "thread-current-inl.h"
+
+#include <memory>
 
 namespace art {
 namespace gc {
@@ -32,6 +34,7 @@ inline void BumpPointerSpace::Walk(Visitor&& visitor) {
   uint8_t* pos = Begin();
   uint8_t* end = End();
   uint8_t* main_end = pos;
+  std::unique_ptr<std::vector<size_t>> block_sizes_copy;
   // Internal indirection w/ NO_THREAD_SAFETY_ANALYSIS. Optimally, we'd like to have an annotation
   // like
   //   REQUIRES_AS(visitor.operator(mirror::Object*))
@@ -49,15 +52,17 @@ inline void BumpPointerSpace::Walk(Visitor&& visitor) {
     MutexLock mu(Thread::Current(), block_lock_);
     // If we have 0 blocks then we need to update the main header since we have bump pointer style
     // allocation into an unbounded region (actually bounded by Capacity()).
-    if (num_blocks_ == 0) {
+    if (block_sizes_.empty()) {
       UpdateMainBlock();
     }
     main_end = Begin() + main_block_size_;
-    if (num_blocks_ == 0) {
+    if (block_sizes_.empty()) {
       // We don't have any other blocks, this means someone else may be allocating into the main
       // block. In this case, we don't want to try and visit the other blocks after the main block
       // since these could actually be part of the main block.
       end = main_end;
+    } else {
+      block_sizes_copy.reset(new std::vector<size_t>(block_sizes_.begin(), block_sizes_.end()));
     }
   }
   // Walk all of the objects in the main block first.
@@ -66,31 +71,33 @@ inline void BumpPointerSpace::Walk(Visitor&& visitor) {
     // No read barrier because obj may not be a valid object.
     if (obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() == nullptr) {
       // There is a race condition where a thread has just allocated an object but not set the
-      // class. We can't know the size of this object, so we don't visit it and exit the function
-      // since there is guaranteed to be not other blocks.
-      return;
+      // class. We can't know the size of this object, so we don't visit it and break the loop
+      pos = main_end;
+      break;
     } else {
       no_thread_safety_analysis_visit(obj);
       pos = reinterpret_cast<uint8_t*>(GetNextObject(obj));
     }
   }
   // Walk the other blocks (currently only TLABs).
-  while (pos < end) {
-    BlockHeader* header = reinterpret_cast<BlockHeader*>(pos);
-    size_t block_size = header->size_;
-    pos += sizeof(BlockHeader);  // Skip the header so that we know where the objects
-    mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
-    const mirror::Object* end_obj = reinterpret_cast<const mirror::Object*>(pos + block_size);
-    CHECK_LE(reinterpret_cast<const uint8_t*>(end_obj), End());
-    // We don't know how many objects are allocated in the current block. When we hit a null class
-    // assume its the end. TODO: Have a thread update the header when it flushes the block?
-    // No read barrier because obj may not be a valid object.
-    while (obj < end_obj && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
-      no_thread_safety_analysis_visit(obj);
-      obj = GetNextObject(obj);
+  if (block_sizes_copy != nullptr) {
+    for (size_t block_size : *block_sizes_copy) {
+      mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
+      const mirror::Object* end_obj = reinterpret_cast<const mirror::Object*>(pos + block_size);
+      CHECK_LE(reinterpret_cast<const uint8_t*>(end_obj), End());
+      // We don't know how many objects are allocated in the current block. When we hit a null class
+      // assume it's the end. TODO: Have a thread update the header when it flushes the block?
+      // No read barrier because obj may not be a valid object.
+      while (obj < end_obj && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
+        no_thread_safety_analysis_visit(obj);
+        obj = GetNextObject(obj);
+      }
+      pos += block_size;
     }
-    pos += block_size;
+  } else {
+    CHECK_EQ(end, main_end);
   }
+  CHECK_EQ(pos, end);
 }
 
 }  // namespace space

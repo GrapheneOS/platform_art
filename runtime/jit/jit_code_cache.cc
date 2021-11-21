@@ -422,7 +422,6 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
         // TODO: Do not use IsMarked for j.l.Class, and adjust once we move this method
         // out of the weak access/creation pause. b/32167580
         if (new_object != nullptr && new_object != object) {
-          DCHECK(new_object->IsString());
           roots[i] = GcRoot<mirror::Object>(new_object);
         }
       } else {

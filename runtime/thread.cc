@@ -3851,7 +3851,11 @@ class ReferenceMapVisitor : public StackVisitor {
         // We are visiting the references in compiled frames, so we do not need
         // to know the inlined frames.
       : StackVisitor(thread, context, StackVisitor::StackWalkKind::kSkipInlinedFrames),
-        visitor_(visitor) {}
+        visitor_(visitor) {
+    gc::Heap* const heap = Runtime::Current()->GetHeap();
+    visit_declaring_class_ = heap->CurrentCollectorType() != gc::CollectorType::kCollectorTypeCMC
+                             || !heap->MarkCompactCollector()->IsCompacting();
+  }
 
   bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
     if (false) {
@@ -3896,6 +3900,9 @@ class ReferenceMapVisitor : public StackVisitor {
   void VisitDeclaringClass(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_)
       NO_THREAD_SAFETY_ANALYSIS {
+    if (!visit_declaring_class_) {
+      return;
+    }
     ObjPtr<mirror::Class> klass = method->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
     // klass can be null for runtime methods.
     if (klass != nullptr) {
@@ -4189,6 +4196,7 @@ class ReferenceMapVisitor : public StackVisitor {
 
   // Visitor for when we visit a root.
   RootVisitor& visitor_;
+  bool visit_declaring_class_;
 };
 
 class RootCallbackVisitor {
@@ -4429,6 +4437,15 @@ bool Thread::HasTlab() const {
     DCHECK(tlsPtr_.thread_local_start == nullptr && tlsPtr_.thread_local_end == nullptr);
   }
   return has_tlab;
+}
+
+void Thread::AdjustTlab(size_t slide_bytes) {
+  if (HasTlab()) {
+    tlsPtr_.thread_local_start -= slide_bytes;
+    tlsPtr_.thread_local_pos -= slide_bytes;
+    tlsPtr_.thread_local_end -= slide_bytes;
+    tlsPtr_.thread_local_limit -= slide_bytes;
+  }
 }
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {

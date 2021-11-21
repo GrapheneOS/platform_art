@@ -653,7 +653,7 @@ class MANAGED LOCKABLE Object {
   template <bool kFetchObjSize = true,
             bool kVisitNativeRoots = true,
             VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
-            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            ReadBarrierOption kReadBarrierOption = kWithFromSpaceBarrier,
             typename Visitor>
   size_t VisitRefsForCompaction(const Visitor& visitor,
                                 MemberOffset begin,
