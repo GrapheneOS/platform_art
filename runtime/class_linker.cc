@@ -4117,8 +4117,7 @@ ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self, const DexFile& 
   UNREACHABLE();
 }
 
-ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self,
-                                                   const OatDexFile* const oat_dex_file) {
+ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self, const OatDexFile& oat_dex_file) {
   ReaderMutexLock mu(self, *Locks::dex_lock_);
   const DexCacheData* dex_cache_data = FindDexCacheDataLocked(oat_dex_file);
   ObjPtr<mirror::DexCache> dex_cache = DecodeDexCacheLocked(self, dex_cache_data);
@@ -4132,7 +4131,7 @@ ObjPtr<mirror::DexCache> ClassLinker::FindDexCache(Thread* self,
       LOG(FATAL_WITHOUT_ABORT) << "Registered dex file " << entry.first->GetLocation();
     }
   }
-  LOG(FATAL) << "Failed to find DexCache for OatDexFile " << oat_dex_file->GetDexFileLocation()
+  LOG(FATAL) << "Failed to find DexCache for OatDexFile " << oat_dex_file.GetDexFileLocation()
              << " " << &oat_dex_file;
   UNREACHABLE();
 }
@@ -4154,12 +4153,9 @@ ClassTable* ClassLinker::FindClassTable(Thread* self, ObjPtr<mirror::DexCache> d
 }
 
 const ClassLinker::DexCacheData* ClassLinker::FindDexCacheDataLocked(
-    const OatDexFile* const oat_dex_file) {
-  // DexFiles are not guaranteed to have an non-null OatDexFile*. If we pass a nullptr as parameter,
-  // we might not get back the DexCacheData we are expecting.
-  DCHECK_NE(oat_dex_file, nullptr);
-  auto it = std::find_if(dex_caches_.begin(), dex_caches_.end(), [oat_dex_file](const auto& entry) {
-    return entry.first->GetOatDexFile() == oat_dex_file;
+    const OatDexFile& oat_dex_file) {
+  auto it = std::find_if(dex_caches_.begin(), dex_caches_.end(), [&](const auto& entry) {
+    return entry.first->GetOatDexFile() == &oat_dex_file;
   });
   return it != dex_caches_.end() ? &it->second : nullptr;
 }
