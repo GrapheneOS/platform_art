@@ -72,6 +72,10 @@ class Arm64JniCallingConvention final : public JniCallingConvention {
     return HasSmallReturnType();
   }
 
+  // Locking argument register, used to pass the synchronization object for calls
+  // to `JniLockObject()` and `JniUnlockObject()`.
+  ManagedRegister LockingArgumentRegister() const override;
+
   // Hidden argument register, used to pass the method pointer for @CriticalNative call.
   ManagedRegister HiddenArgumentRegister() const override;
 

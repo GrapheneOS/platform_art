@@ -39,6 +39,7 @@
 #include "mirror/stack_trace_element-inl.h"
 #include "nativehelper/ScopedLocalRef.h"
 #include "nativeloader/native_loader.h"
+#include "oat_quick_method_header.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
@@ -388,44 +389,41 @@ class JniCompilerTest : public CommonCompilerTest {
   jmethodID jmethod_;
 
  private:
+  // Helper class that overrides original entrypoints with alternative versions
+  // that check that the object (`this` or class) is locked.
   class ScopedSynchronizedEntryPointOverrides {
    public:
     ScopedSynchronizedEntryPointOverrides() {
       QuickEntryPoints* qpoints = &Thread::Current()->tlsPtr_.quick_entrypoints;
-      jni_method_start_synchronized_original_ = qpoints->pJniMethodStartSynchronized;
-      qpoints->pJniMethodStartSynchronized = JniMethodStartSynchronizedOverride;
-      jni_method_end_synchronized_original_ = qpoints->pJniMethodEndSynchronized;
-      qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronizedOverride;
-      jni_method_end_with_reference_synchronized_original_ =
-          qpoints->pJniMethodEndWithReferenceSynchronized;
-      qpoints->pJniMethodEndWithReferenceSynchronized =
-          JniMethodEndWithReferenceSynchronizedOverride;
+      jni_method_start_original_ = qpoints->pJniMethodStart;
+      qpoints->pJniMethodStart = JniMethodStartSynchronizedOverride;
+      jni_method_end_original_ = qpoints->pJniMethodEnd;
+      qpoints->pJniMethodEnd = JniMethodEndSynchronizedOverride;
+      jni_method_end_with_reference_original_ = qpoints->pJniMethodEndWithReference;
+      qpoints->pJniMethodEndWithReference = JniMethodEndWithReferenceSynchronizedOverride;
     }
 
     ~ScopedSynchronizedEntryPointOverrides() {
       QuickEntryPoints* qpoints = &Thread::Current()->tlsPtr_.quick_entrypoints;
-      qpoints->pJniMethodStartSynchronized = jni_method_start_synchronized_original_;
-      qpoints->pJniMethodEndSynchronized = jni_method_end_synchronized_original_;
-      qpoints->pJniMethodEndWithReferenceSynchronized =
-          jni_method_end_with_reference_synchronized_original_;
+      qpoints->pJniMethodStart = jni_method_start_original_;
+      qpoints->pJniMethodEnd = jni_method_end_original_;
+      qpoints->pJniMethodEndWithReference = jni_method_end_with_reference_original_;
     }
   };
 
-  static void JniMethodStartSynchronizedOverride(jobject to_lock, Thread* self);
-  static void JniMethodEndSynchronizedOverride(jobject locked, Thread* self);
+  static void AssertCallerObjectLocked(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
+  static void JniMethodStartSynchronizedOverride(Thread* self);
+  static void JniMethodEndSynchronizedOverride(Thread* self);
   static mirror::Object* JniMethodEndWithReferenceSynchronizedOverride(
-      jobject result,
-      jobject locked,
-      Thread* self);
+      jobject result, Thread* self);
 
-  using StartSynchronizedType = void (*)(jobject, Thread*);
-  using EndSynchronizedType = void (*)(jobject, Thread*);
-  using EndWithReferenceSynchronizedType = mirror::Object* (*)(jobject, jobject, Thread*);
+  using JniStartType = void (*)(Thread*);
+  using JniEndType = void (*)(Thread*);
+  using JniEndWithReferenceType = mirror::Object* (*)(jobject, Thread*);
 
-  static StartSynchronizedType jni_method_start_synchronized_original_;
-  static EndSynchronizedType jni_method_end_synchronized_original_;
-  static EndWithReferenceSynchronizedType jni_method_end_with_reference_synchronized_original_;
-  static jobject locked_object_;
+  static JniStartType jni_method_start_original_;
+  static JniEndType jni_method_end_original_;
+  static JniEndWithReferenceType jni_method_end_with_reference_original_;
 
   bool check_generic_jni_;
 };
@@ -433,28 +431,49 @@ class JniCompilerTest : public CommonCompilerTest {
 jclass JniCompilerTest::jklass_;
 jobject JniCompilerTest::jobj_;
 jobject JniCompilerTest::class_loader_;
-JniCompilerTest::StartSynchronizedType JniCompilerTest::jni_method_start_synchronized_original_;
-JniCompilerTest::EndSynchronizedType JniCompilerTest::jni_method_end_synchronized_original_;
-JniCompilerTest::EndWithReferenceSynchronizedType
-    JniCompilerTest::jni_method_end_with_reference_synchronized_original_;
-jobject JniCompilerTest::locked_object_;
+JniCompilerTest::JniStartType JniCompilerTest::jni_method_start_original_;
+JniCompilerTest::JniEndType JniCompilerTest::jni_method_end_original_;
+JniCompilerTest::JniEndWithReferenceType JniCompilerTest::jni_method_end_with_reference_original_;
 
-void JniCompilerTest::JniMethodStartSynchronizedOverride(jobject to_lock, Thread* self) {
-  locked_object_ = to_lock;
-  jni_method_start_synchronized_original_(to_lock, self);
+void JniCompilerTest::AssertCallerObjectLocked(Thread* self) {
+  ArtMethod** caller_frame = self->GetManagedStack()->GetTopQuickFrame();
+  CHECK(caller_frame != nullptr);
+  ArtMethod* caller = *caller_frame;
+  CHECK(caller != nullptr);
+  CHECK(caller->IsNative());
+  CHECK(!caller->IsFastNative());
+  CHECK(!caller->IsCriticalNative());
+  CHECK(caller->IsSynchronized());
+  ObjPtr<mirror::Object> lock;
+  if (caller->IsStatic()) {
+    lock = caller->GetDeclaringClass();
+  } else {
+    uint8_t* sp = reinterpret_cast<uint8_t*>(caller_frame);
+    const void* code_ptr = EntryPointToCodePointer(caller->GetEntryPointFromQuickCompiledCode());
+    OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
+    size_t frame_size = method_header->GetFrameSizeInBytes();
+    StackReference<mirror::Object>* this_ref = reinterpret_cast<StackReference<mirror::Object>*>(
+        sp + frame_size + static_cast<size_t>(kRuntimePointerSize));
+    lock = this_ref->AsMirrorPtr();
+  }
+  CHECK_EQ(Monitor::GetLockOwnerThreadId(lock), self->GetThreadId());
 }
 
-void JniCompilerTest::JniMethodEndSynchronizedOverride(jobject locked, Thread* self) {
-  EXPECT_EQ(locked_object_, locked);
-  jni_method_end_synchronized_original_(locked, self);
+void JniCompilerTest::JniMethodStartSynchronizedOverride(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+  AssertCallerObjectLocked(self);
+  jni_method_start_original_(self);
+}
+
+void JniCompilerTest::JniMethodEndSynchronizedOverride(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+  jni_method_end_original_(self);
+  AssertCallerObjectLocked(self);
 }
 
 mirror::Object* JniCompilerTest::JniMethodEndWithReferenceSynchronizedOverride(
-    jobject result,
-    jobject locked,
-    Thread* self) {
-  EXPECT_EQ(locked_object_, locked);
-  return jni_method_end_with_reference_synchronized_original_(result, locked, self);
+    jobject result, Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+  mirror::Object* raw_result = jni_method_end_with_reference_original_(result, self);
+  AssertCallerObjectLocked(self);
+  return raw_result;
 }
 
 // Test the normal compiler and normal generic JNI only.

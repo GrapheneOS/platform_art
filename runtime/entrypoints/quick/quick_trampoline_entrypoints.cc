@@ -2062,11 +2062,14 @@ void BuildGenericJniFrameVisitor::Visit() {
  * needed and return to the stub.
  *
  * The return value is the pointer to the native code, null on failure.
+ *
+ * NO_THREAD_SAFETY_ANALYSIS: Depending on the use case, the trampoline may
+ * or may not lock a synchronization object and transition out of Runnable.
  */
 extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
                                                     ArtMethod** managed_sp,
                                                     uintptr_t* reserved_area)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS {
   // Note: We cannot walk the stack properly until fixed up below.
   ArtMethod* called = *managed_sp;
   DCHECK(called->IsNative()) << called->PrettyMethod(true);
@@ -2121,14 +2124,14 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
   if (LIKELY(normal_native)) {
     // Start JNI.
     if (called->IsSynchronized()) {
-      jobject lock = GetGenericJniSynchronizationObject(self, called);
-      JniMethodStartSynchronized(lock, self);
+      ObjPtr<mirror::Object> lock = GetGenericJniSynchronizationObject(self, called);
+      DCHECK(lock != nullptr);
+      lock->MonitorEnter(self);
       if (self->IsExceptionPending()) {
         return nullptr;  // Report error.
       }
-    } else {
-      JniMethodStart(self);
     }
+    JniMethodStart(self);
   } else {
     DCHECK(!called->IsSynchronized())
         << "@FastNative/@CriticalNative and synchronize is not supported";
