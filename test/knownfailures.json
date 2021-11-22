@@ -1473,7 +1473,7 @@
     },
     {
         "tests": ["667-jit-jni-stub"],
-        "variant": "jit-on-first-use",
+        "variant": "jit-on-first-use | redefine-stress",
         "description": ["jit-on-first-use disables jit GC but this test requires jit GC"]
     }
 ]
