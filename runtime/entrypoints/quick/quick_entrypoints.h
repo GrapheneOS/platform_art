@@ -55,34 +55,18 @@ struct PACKED(4) QuickEntryPoints {
 // JNI entrypoints.
 // TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
 extern void JniMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodStartSynchronized(jobject to_lock, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern void JniMethodEnd(Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodEndSynchronized(jobject locked, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern mirror::Object* JniMethodEndWithReference(jobject result, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
-                                                             jobject locked,
-                                                             Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern mirror::Object* JniDecodeReferenceResult(jobject result, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 // JNI entrypoints when monitoring entry/exit.
 extern void JniMonitoredMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMonitoredMethodStartSynchronized(jobject to_lock, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern void JniMonitoredMethodEnd(Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMonitoredMethodEndSynchronized(jobject locked, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 extern mirror::Object* JniMonitoredMethodEndWithReference(jobject result, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMonitoredMethodEndWithReferenceSynchronized(jobject result,
-                                                                      jobject locked,
-                                                                      Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
 
 
@@ -92,6 +76,8 @@ extern "C" mirror::String* artStringBuilderAppend(uint32_t format,
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
 
 extern "C" void artReadBarrierJni(ArtMethod* method)
+    REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
+extern "C" void artUnlockObjectFromJni(mirror::Object* locked, Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
 
 // Read barrier entrypoints.
