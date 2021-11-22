@@ -130,7 +130,7 @@ void CommonRuntimeTestImpl::SetUp() {
 
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we
   // Runtime::Start, give it away now and then switch to a more managable ScopedObjectAccess.
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  Thread::Current()->TransitionFromRunnableToSuspended(ThreadState::kNative);
 
   // Get the boot class path from the runtime so it can be used in tests.
   boot_class_path_ = class_linker_->GetBootClassPath();

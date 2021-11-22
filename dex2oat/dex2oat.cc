@@ -2680,7 +2680,7 @@ class Dex2Oat final {
 
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
     // Runtime::Start, give it away now so that we don't starve GC.
-    self->TransitionFromRunnableToSuspended(kNative);
+    self->TransitionFromRunnableToSuspended(ThreadState::kNative);
 
     WatchDog::SetRuntime(runtime_.get());
 

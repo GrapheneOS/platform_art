@@ -25,12 +25,18 @@ namespace art {
 // When we refer to "a suspended state", or when function names mention "ToSuspended" or
 // "FromSuspended", we mean any state other than kRunnable, i.e. any state in which the thread is
 // guaranteed not to access the Java heap. The kSuspended state is merely one of these.
-enum ThreadState {
+enum class ThreadState : uint8_t {
+  // `kRunnable` was previously 67 but it is now set to 0 so that we do not need to extract
+  // flags from the thread's `state_and_flags` to check for any flag being set while Runnable.
+  // Note: All atomic accesses for a location should use the same data size,
+  // so the incorrect old approach of reading just 16 bits has been rewritten.
+
   //                                   Java
   //                                   Thread.State   JDWP state
   kTerminated = 66,                 // TERMINATED     TS_ZOMBIE    Thread.run has returned, but Thread* still around
-  kRunnable,                        // RUNNABLE       TS_RUNNING   runnable
-  kTimedWaiting,                    // TIMED_WAITING  TS_WAIT      in Object.wait() with a timeout
+  kRunnable = 0,                    // RUNNABLE       TS_RUNNING   runnable
+  kObsoleteRunnable = 67,           // ---            ---          obsolete value
+  kTimedWaiting = 68,               // TIMED_WAITING  TS_WAIT      in Object.wait() with a timeout
   kSleeping,                        // TIMED_WAITING  TS_SLEEPING  in Thread.sleep()
   kBlocked,                         // BLOCKED        TS_MONITOR   blocked on a monitor
   kWaiting,                         // WAITING        TS_WAIT      in Object.wait()

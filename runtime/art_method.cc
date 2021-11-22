@@ -319,7 +319,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
-    CHECK_EQ(kRunnable, self->GetState());
+    CHECK_EQ(ThreadState::kRunnable, self->GetState());
     CHECK_STREQ(GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(), shorty);
   }
 

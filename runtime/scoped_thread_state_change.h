@@ -55,12 +55,12 @@ class ScopedThreadStateChange : public ValueObject {
   ScopedThreadStateChange() {}
 
   Thread* const self_ = nullptr;
-  const ThreadState thread_state_ = kTerminated;
+  const ThreadState thread_state_ = ThreadState::kTerminated;
 
  private:
   void ScopedThreadChangeDestructorCheck();
 
-  ThreadState old_thread_state_ = kTerminated;
+  ThreadState old_thread_state_ = ThreadState::kTerminated;
   const bool expected_has_no_thread_ = true;
 
   friend class ScopedObjectAccessUnchecked;

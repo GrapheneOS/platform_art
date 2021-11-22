@@ -284,7 +284,7 @@ class DexoptAnalyzer final {
     }
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
     // Runtime::Start. Give it away now.
-    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+    Thread::Current()->TransitionFromRunnableToSuspended(ThreadState::kNative);
 
     return true;
   }

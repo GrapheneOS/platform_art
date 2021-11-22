@@ -42,7 +42,7 @@ static bool do_checks(ArtMethod* method, ScopedObjectAccess& soa)
       header = OatQuickMethodHeader::FromEntryPoint(pc);
       break;
     } else {
-      ScopedThreadSuspension sts(soa.Self(), kSuspended);
+      ScopedThreadSuspension sts(soa.Self(), ThreadState::kSuspended);
       // Sleep to yield to the compiler thread.
       usleep(1000);
     }

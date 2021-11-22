@@ -318,7 +318,7 @@ END \name
     strh r2, [r0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
     // Otherwise, do a suspend check.
     ldr r0, [rSELF, #THREAD_FLAGS_OFFSET]
-    ands r0, r0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
+    tst r0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     beq 1b
     EXPORT_PC
     bl    art_quick_test_suspend
