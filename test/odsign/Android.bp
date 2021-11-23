@@ -50,6 +50,7 @@ cc_library_shared {
 
 android_test_helper_app {
     name: "odsign_e2e_test_app",
+    defaults: ["art_module_source_build_java_defaults"],
     manifest: "AndroidManifest.xml",
     srcs: ["src/**/*.java"],
     jni_libs: [
