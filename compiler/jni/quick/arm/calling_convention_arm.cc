@@ -531,10 +531,10 @@ FrameOffset ArmJniCallingConvention::CurrentParamStackOffset() {
   return FrameOffset(offset);
 }
 
-// R4 is neither managed callee-save, nor argument register. It is suitable for use as the
-// locking argument for synchronized methods and hidden argument for @CriticalNative methods.
-// (It is native callee-save but the value coming from managed code can be clobbered.)
-static void AssertR4IsNeitherCalleeSaveNorArgumentRegister() {
+ManagedRegister ArmJniCallingConvention::HiddenArgumentRegister() const {
+  CHECK(IsCriticalNative());
+  // R4 is neither managed callee-save, nor argument register, nor scratch register.
+  // (It is native callee-save but the value coming from managed code can be clobbered.)
   // TODO: Change to static_assert; std::none_of should be constexpr since C++20.
   DCHECK(std::none_of(kCalleeSaveRegisters,
                       kCalleeSaveRegisters + std::size(kCalleeSaveRegisters),
@@ -543,20 +543,7 @@ static void AssertR4IsNeitherCalleeSaveNorArgumentRegister() {
                       }));
   DCHECK(std::none_of(kJniArgumentRegisters,
                       kJniArgumentRegisters + std::size(kJniArgumentRegisters),
-                      [](Register arg) { return arg == R4; }));
-}
-
-ManagedRegister ArmJniCallingConvention::LockingArgumentRegister() const {
-  DCHECK(!IsFastNative());
-  DCHECK(!IsCriticalNative());
-  DCHECK(IsSynchronized());
-  AssertR4IsNeitherCalleeSaveNorArgumentRegister();
-  return ArmManagedRegister::FromCoreRegister(R4);
-}
-
-ManagedRegister ArmJniCallingConvention::HiddenArgumentRegister() const {
-  CHECK(IsCriticalNative());
-  AssertR4IsNeitherCalleeSaveNorArgumentRegister();
+                      [](Register reg) { return reg == R4; }));
   return ArmManagedRegister::FromCoreRegister(R4);
 }
 
