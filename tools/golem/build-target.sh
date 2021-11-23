@@ -273,6 +273,8 @@ if [[ $mode == "golem" ]]; then
   if [ ! -d frameworks/base ]; then
     setenv TARGET_BUILD_UNBUNDLED true
   fi
+  # Skip the boot image profile, to make the compiled boot image more consistent.
+  setenv WITH_DEX_PREOPT_GENERATE_PROFILE false
   # Golem may be missing tools such as javac from its path.
   setenv_escape PATH "/usr/lib/jvm/java-8-openjdk-amd64/bin/:$PATH" '/usr/lib/jvm/java-8-openjdk-amd64/bin/:$PATH'
 else
