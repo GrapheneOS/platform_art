@@ -74,12 +74,13 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qp
 
   // JNI
   qpoints->pJniMethodStart = JniMethodStart;
+  qpoints->pJniMethodStartSynchronized = JniMethodStartSynchronized;
   qpoints->pJniMethodEnd = JniMethodEnd;
+  qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronized;
   qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
+  qpoints->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
   qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
   qpoints->pJniDecodeReferenceResult = JniDecodeReferenceResult;
-  qpoints->pJniLockObject = art_quick_lock_object_jni;
-  qpoints->pJniUnlockObject = art_quick_unlock_object_jni;
 
   // Locks
   if (UNLIKELY(VLOG_IS_ON(systrace_lock_logging))) {
@@ -136,8 +137,12 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qp
   PaletteShouldReportJniInvocations(&should_report);
   if (should_report) {
     qpoints->pJniMethodStart = JniMonitoredMethodStart;
+    qpoints->pJniMethodStartSynchronized = JniMonitoredMethodStartSynchronized;
     qpoints->pJniMethodEnd = JniMonitoredMethodEnd;
+    qpoints->pJniMethodEndSynchronized = JniMonitoredMethodEndSynchronized;
     qpoints->pJniMethodEndWithReference = JniMonitoredMethodEndWithReference;
+    qpoints->pJniMethodEndWithReferenceSynchronized =
+        JniMonitoredMethodEndWithReferenceSynchronized;
   }
 }
 

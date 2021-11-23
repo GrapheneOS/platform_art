@@ -388,6 +388,7 @@ void X86_64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
       DCHECK_EQ(src.GetSize(), dest.GetSize());
     }
     if (src.IsRegister() && ref != kInvalidReferenceOffset) {
+      Store(ref, src.GetRegister(), kObjectReferenceSize);
       // Note: We can clobber `src` here as the register cannot hold more than one argument.
       //       This overload of `CreateJObject()` is currently implemented as "test and branch";
       //       if it was using a conditional move, it would be better to do this at move time.
