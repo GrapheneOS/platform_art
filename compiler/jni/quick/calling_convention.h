@@ -363,6 +363,10 @@ class JniCallingConvention : public CallingConvention {
     return !IsCriticalNative();
   }
 
+  // Locking argument register, used to pass the synchronization object for calls
+  // to `JniLockObject()` and `JniUnlockObject()`.
+  virtual ManagedRegister LockingArgumentRegister() const = 0;
+
   // Hidden argument register, used to pass the method pointer for @CriticalNative call.
   virtual ManagedRegister HiddenArgumentRegister() const = 0;
 
