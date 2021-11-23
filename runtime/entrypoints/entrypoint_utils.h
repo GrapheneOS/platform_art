@@ -217,7 +217,7 @@ bool NeedsClinitCheckBeforeCall(ArtMethod* method) REQUIRES_SHARED(Locks::mutato
 // Returns the synchronization object for a native method for a GenericJni frame
 // we have just created or are about to exit. The synchronization object is
 // the class object for static methods and the `this` object otherwise.
-jobject GetGenericJniSynchronizationObject(Thread* self, ArtMethod* called)
+ObjPtr<mirror::Object> GetGenericJniSynchronizationObject(Thread* self, ArtMethod* called)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Update .bss method entrypoint if the `callee_reference` has an associated oat file
