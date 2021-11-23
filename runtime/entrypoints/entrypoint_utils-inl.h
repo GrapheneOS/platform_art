@@ -19,6 +19,8 @@
 
 #include "entrypoint_utils.h"
 
+#include <sstream>
+
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
@@ -87,12 +89,38 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
     ObjPtr<mirror::DexCache> dex_cache;
     if (method_info.HasDexFileIndex()) {
       if (method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP) {
-        const DexFile* dex_file = class_linker->GetBootClassPath()[method_info.GetDexFileIndex()];
+        ArrayRef<const DexFile* const> bcp_dex_files(class_linker->GetBootClassPath());
+        const DexFile* dex_file = bcp_dex_files[method_info.GetDexFileIndex()];
         dex_cache = class_linker->FindDexCache(Thread::Current(), *dex_file);
       } else {
-        auto oat_dex_files = method->GetDexFile()->GetOatDexFile()->GetOatFile()->GetOatDexFiles();
+        ArrayRef<const OatDexFile* const> oat_dex_files(
+            method->GetDexFile()->GetOatDexFile()->GetOatFile()->GetOatDexFiles());
+        // TODO(solanes, 206992606): Remove check when bug is solved.
+        const uint32_t index = method_info.GetDexFileIndex();
+        if (UNLIKELY(index >= oat_dex_files.size())) {
+          std::stringstream error_ss;
+
+          error_ss << "Wanted to retrieve DexFile index " << method_info.GetDexFileIndex()
+                   << " from the oat_dex_files vector {";
+          for (const OatDexFile* odf_value : oat_dex_files) {
+            error_ss << odf_value << ",";
+          }
+          error_ss << "}. The outer method is: " << method->PrettyMethod() << " ("
+                   << method->GetDexFile()->GetLocation() << "/"
+                   << static_cast<const void*>(method->GetDexFile())
+                   << "). The outermost method in the chain is: " << outer_method->PrettyMethod()
+                   << " (" << outer_method->GetDexFile()->GetLocation() << "/"
+                   << static_cast<const void*>(outer_method->GetDexFile())
+                   << "). MethodInfo: method_index=" << std::dec << method_index
+                   << ", is_in_bootclasspath=" << std::boolalpha
+                   << (method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP)
+                   << ", dex_file_index=" << std::dec << method_info.GetDexFileIndex() << ".";
+          LOG(FATAL) << error_ss.str();
+          UNREACHABLE();
+        }
         const OatDexFile* odf = oat_dex_files[method_info.GetDexFileIndex()];
-        dex_cache = class_linker->FindDexCache(Thread::Current(), odf);
+        DCHECK(odf != nullptr);
+        dex_cache = class_linker->FindDexCache(Thread::Current(), *odf);
       }
     } else {
       dex_cache = outer_method->GetDexCache();
@@ -777,23 +805,27 @@ inline bool NeedsClinitCheckBeforeCall(ArtMethod* method) {
   return method->IsStatic() && !method->IsConstructor();
 }
 
-inline jobject GetGenericJniSynchronizationObject(Thread* self, ArtMethod* called)
+inline ObjPtr<mirror::Object> GetGenericJniSynchronizationObject(Thread* self, ArtMethod* called)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(!called->IsCriticalNative());
   DCHECK(!called->IsFastNative());
   DCHECK(self->GetManagedStack()->GetTopQuickFrame() != nullptr);
   DCHECK_EQ(*self->GetManagedStack()->GetTopQuickFrame(), called);
+  // We do not need read barriers here.
+  // On method entry, all reference arguments are to-space references and we mark the
+  // declaring class of a static native method if needed. When visiting thread roots at
+  // the start of a GC, we visit all these references to ensure they point to the to-space.
   if (called->IsStatic()) {
     // Static methods synchronize on the declaring class object.
-    // The `jclass` is a pointer to the method's declaring class.
-    return reinterpret_cast<jobject>(called->GetDeclaringClassAddressWithoutBarrier());
+    return called->GetDeclaringClass<kWithoutReadBarrier>();
   } else {
     // Instance methods synchronize on the `this` object.
     // The `this` reference is stored in the first out vreg in the caller's frame.
-    // The `jobject` is a pointer to the spill slot.
     uint8_t* sp = reinterpret_cast<uint8_t*>(self->GetManagedStack()->GetTopQuickFrame());
     size_t frame_size = RuntimeCalleeSaveFrame::GetFrameSize(CalleeSaveType::kSaveRefsAndArgs);
-    return reinterpret_cast<jobject>(sp + frame_size + static_cast<size_t>(kRuntimePointerSize));
+    StackReference<mirror::Object>* this_ref = reinterpret_cast<StackReference<mirror::Object>*>(
+        sp + frame_size + static_cast<size_t>(kRuntimePointerSize));
+    return this_ref->AsMirrorPtr();
   }
 }
 
