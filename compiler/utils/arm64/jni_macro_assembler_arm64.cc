@@ -382,30 +382,6 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   DCHECK_EQ(arg_count, srcs.size());
   DCHECK_EQ(arg_count, refs.size());
 
-  // Spill reference registers. Spill two references together with STP where possible.
-  for (size_t i = 0; i != arg_count; ++i) {
-    if (refs[i] != kInvalidReferenceOffset) {
-      DCHECK_EQ(srcs[i].GetSize(), kObjectReferenceSize);
-      if (srcs[i].IsRegister()) {
-        // Use STP if we're storing 2 consecutive references within the available STP range.
-        if (i + 1u != arg_count &&
-            refs[i + 1u].SizeValue() == refs[i].SizeValue() + kObjectReferenceSize &&
-            srcs[i + 1u].IsRegister() &&
-            refs[i].SizeValue() < kStpWOffsetCutoff) {
-          DCHECK_EQ(srcs[i + 1u].GetSize(), kObjectReferenceSize);
-          ___ Stp(reg_w(srcs[i].GetRegister().AsArm64().AsWRegister()),
-                  reg_w(srcs[i + 1u].GetRegister().AsArm64().AsWRegister()),
-                  MEM_OP(sp, refs[i].SizeValue()));
-          ++i;
-        } else {
-          Store(refs[i], srcs[i].GetRegister(), kObjectReferenceSize);
-        }
-      } else {
-        DCHECK_EQ(srcs[i].GetFrameOffset(), refs[i]);
-      }
-    }
-  }
-
   auto get_mask = [](ManagedRegister reg) -> uint64_t {
     Arm64ManagedRegister arm64_reg = reg.AsArm64();
     if (arm64_reg.IsXRegister()) {
@@ -429,12 +405,12 @@ void Arm64JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   };
 
   // More than 8 core or FP reg args are very rare, so we do not optimize for
-  // that case by using LDP/STP, except for situations that arise for normal
-  // native even with low number of arguments. We use STP for the non-reference
-  // spilling which also covers the initial spill for native reference register
-  // args as they are spilled as raw 32-bit values. We also optimize loading
-  // args to registers with LDP, whether references or not, except for the
-  // initial non-null reference which we do not need to load at all.
+  // that case by using LDP/STP, except for situations that arise even with low
+  // number of arguments. We use STP for the non-reference spilling which also
+  // covers the initial spill for native reference register args as they are
+  // spilled as raw 32-bit values. We also optimize loading args to registers
+  // with LDP, whether references or not, except for the initial non-null
+  // reference which we do not need to load at all.
 
   // Collect registers to move while storing/copying args to stack slots.
   // Convert processed references to `jobject`.

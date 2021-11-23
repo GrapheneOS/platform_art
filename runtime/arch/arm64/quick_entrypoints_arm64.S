@@ -881,42 +881,52 @@ ENTRY art_quick_do_long_jump
     br  xIP1
 END art_quick_do_long_jump
 
-    /*
-     * Entry from managed code that calls artLockObjectFromCode, may block for GC. x0 holds the
-     * possibly null object to lock.
-     *
-     * Derived from arm32 code.
-     */
-    .extern artLockObjectFromCode
-ENTRY art_quick_lock_object
-    ldr    w1, [xSELF, #THREAD_ID_OFFSET]
-    cbz    w0, art_quick_lock_object_no_inline
+.macro LOCK_OBJECT_FAST_PATH obj, slow_lock, can_be_null
+    // Use scratch registers x8-x11 as temporaries.
+    ldr    w9, [xSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz    \obj, \slow_lock
+    .endif
                                       // Exclusive load/store has no immediate anymore.
-    add    x4, x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET
-.Lretry_lock:
-    ldaxr  w2, [x4]                   // Acquire needed only in most common case.
-    eor    w3, w2, w1                 // Prepare the value to store if unlocked
+    add    x8, \obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET
+1:
+    ldaxr  w10, [x8]                  // Acquire needed only in most common case.
+    eor    w11, w10, w9               // Prepare the value to store if unlocked
                                       //   (thread id, count of 0 and preserved read barrier bits),
                                       // or prepare to compare thread id for recursive lock check
                                       //   (lock_word.ThreadId() ^ self->ThreadId()).
-    tst    w2, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  // Test the non-gc bits.
-    b.ne   .Lnot_unlocked             // Check if unlocked.
-    // unlocked case - store w3: original lock word plus thread id, preserved read barrier bits.
-    stxr   w2, w3, [x4]
-    cbnz   w2, .Lretry_lock           // If the store failed, retry.
+    tst    w10, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  // Test the non-gc bits.
+    b.ne   2f                         // Check if unlocked.
+    // Unlocked case - store w11: original lock word plus thread id, preserved read barrier bits.
+    stxr   w10, w11, [x8]
+    cbnz   w10, 1b                    // If the store failed, retry.
     ret
-.Lnot_unlocked:  // w2: original lock word, w1: thread id, w3: w2 ^ w1
+2:  // w10: original lock word, w9: thread id, w11: w10 ^ w11
                                       // Check lock word state and thread id together,
-    tst    w3, #(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED)
-    b.ne   art_quick_lock_object_no_inline
-    add    w3, w2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // Increment the recursive lock count.
-    tst    w3, #LOCK_WORD_THIN_LOCK_COUNT_MASK_SHIFTED  // Test the new thin lock count.
-    b.eq   art_quick_lock_object_no_inline  // Zero as the new count indicates overflow, go slow path.
-    stxr   w2, w3, [x4]
-    cbnz   w2, .Lretry_lock           // If the store failed, retry.
+    tst    w11, #(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED)
+    b.ne   \slow_lock
+    add    w11, w10, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // Increment the recursive lock count.
+    tst    w11, #LOCK_WORD_THIN_LOCK_COUNT_MASK_SHIFTED  // Test the new thin lock count.
+    b.eq   \slow_lock                 // Zero as the new count indicates overflow, go slow path.
+    stxr   w10, w11, [x8]
+    cbnz   w10, 1b                    // If the store failed, retry.
     ret
+.endm
+
+    /*
+     * Entry from managed code that tries to lock the object in a fast path and
+     * calls `artLockObjectFromCode()` for the difficult cases, may block for GC.
+     * x0 holds the possibly null object to lock.
+     */
+ENTRY art_quick_lock_object
+    LOCK_OBJECT_FAST_PATH x0, art_quick_lock_object_no_inline, /*can_be_null*/ 1
 END art_quick_lock_object
 
+    /*
+     * Entry from managed code that calls `artLockObjectFromCode()`, may block for GC.
+     * x0 holds the possibly null object to lock.
+     */
+    .extern artLockObjectFromCode
 ENTRY art_quick_lock_object_no_inline
     // This is also the slow path for art_quick_lock_object.
     SETUP_SAVE_REFS_ONLY_FRAME        // save callee saves in case we block
@@ -927,52 +937,63 @@ ENTRY art_quick_lock_object_no_inline
     RETURN_IF_W0_IS_ZERO_OR_DELIVER
 END art_quick_lock_object_no_inline
 
-    /*
-     * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
-     * x0 holds the possibly null object to lock.
-     *
-     * Derived from arm32 code.
-     */
-    .extern artUnlockObjectFromCode
-ENTRY art_quick_unlock_object
-    ldr    w1, [xSELF, #THREAD_ID_OFFSET]
-    cbz    x0, art_quick_unlock_object_no_inline
+.macro UNLOCK_OBJECT_FAST_PATH obj, slow_unlock, can_be_null
+    // Use scratch registers x8-x11 as temporaries.
+    ldr    w9, [xSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz    \obj, \slow_unlock
+    .endif
                                       // Exclusive load/store has no immediate anymore.
-    add    x4, x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET
-.Lretry_unlock:
+    add    x8, \obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET
+1:
 #ifndef USE_READ_BARRIER
-    ldr    w2, [x4]
+    ldr    w10, [x8]
 #else
-    ldxr   w2, [x4]                   // Need to use atomic instructions for read barrier.
+    ldxr   w10, [x8]                  // Need to use atomic instructions for read barrier.
 #endif
-    eor    w3, w2, w1                 // Prepare the value to store if simply locked
+    eor    w11, w10, w9               // Prepare the value to store if simply locked
                                       //   (mostly 0s, and preserved read barrier bits),
                                       // or prepare to compare thread id for recursive lock check
                                       //   (lock_word.ThreadId() ^ self->ThreadId()).
-    tst    w3, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  // Test the non-gc bits.
-    b.ne   .Lnot_simply_locked        // Locked recursively or by other thread?
+    tst    w11, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  // Test the non-gc bits.
+    b.ne   2f                         // Locked recursively or by other thread?
     // Transition to unlocked.
 #ifndef USE_READ_BARRIER
-    stlr   w3, [x4]
+    stlr   w11, [x8]
 #else
-    stlxr  w2, w3, [x4]               // Need to use atomic instructions for read barrier.
-    cbnz   w2, .Lretry_unlock         // If the store failed, retry.
+    stlxr  w10, w11, [x8]             // Need to use atomic instructions for read barrier.
+    cbnz   w10, 1b                    // If the store failed, retry.
 #endif
     ret
-.Lnot_simply_locked:
-                                      // Check lock word state and thread id together,
-    tst    w3, #(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED)
-    b.ne   art_quick_unlock_object_no_inline
-    sub    w3, w2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // decrement count
+2:
+                                      // Check lock word state and thread id together.
+    tst    w11, #(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED)
+    b.ne   \slow_unlock
+    sub    w11, w10, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // decrement count
 #ifndef USE_READ_BARRIER
-    str    w3, [x4]
+    str    w11, [x8]
 #else
-    stxr   w2, w3, [x4]               // Need to use atomic instructions for read barrier.
-    cbnz   w2, .Lretry_unlock         // If the store failed, retry.
+    stxr   w10, w11, [x8]             // Need to use atomic instructions for read barrier.
+    cbnz   w10, 1b                    // If the store failed, retry.
 #endif
     ret
+.endm
+
+    /*
+     * Entry from managed code that tries to unlock the object in a fast path and calls
+     * `artUnlockObjectFromCode()` for the difficult cases and delivers exception on failure.
+     * x0 holds the possibly null object to unlock.
+     */
+ENTRY art_quick_unlock_object
+    UNLOCK_OBJECT_FAST_PATH x0, art_quick_unlock_object_no_inline, /*can_be_null*/ 1
 END art_quick_unlock_object
 
+    /*
+     * Entry from managed code that calls `artUnlockObjectFromCode()`
+     * and delivers exception on failure.
+     * x0 holds the possibly null object to unlock.
+     */
+    .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object_no_inline
     // This is also the slow path for art_quick_unlock_object.
     SETUP_SAVE_REFS_ONLY_FRAME        // save callee saves in case exception allocation triggers GC
@@ -982,6 +1003,91 @@ ENTRY art_quick_unlock_object_no_inline
     REFRESH_MARKING_REGISTER
     RETURN_IF_W0_IS_ZERO_OR_DELIVER
 END art_quick_unlock_object_no_inline
+
+    /*
+     * Entry from JNI stub that tries to lock the object in a fast path and
+     * calls `artLockObjectFromCode()` (the same as for managed code) for the
+     * difficult cases, may block for GC.
+     * Custom calling convention:
+     *     x15 holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     All argument registers need to be preserved.
+     */
+ENTRY art_quick_lock_object_jni
+    LOCK_OBJECT_FAST_PATH x15, .Llock_object_jni_slow, /*can_be_null*/ 0
+
+.Llock_object_jni_slow:
+    // Save register args x0-x7, d0-d7 and return address.
+    stp    x0, x1, [sp, #-(8 * 8 + 8 * 8 + /*padding*/ 8 + 8)]!
+    .cfi_adjust_cfa_offset (8 * 8 + 8 * 8 + /*padding*/ 8 + 8)
+    stp    x2, x3, [sp, #16]
+    stp    x4, x5, [sp, #32]
+    stp    x6, x7, [sp, #48]
+    stp    d0, d1, [sp, #64]
+    stp    d2, d3, [sp, #80]
+    stp    d4, d5, [sp, #96]
+    stp    d6, d7, [sp, #112]
+    str    lr, [sp, #136]
+    .cfi_rel_offset lr, 136
+    // Call `artLockObjectFromCode()`
+    mov    x0, x15                    // Pass the object to lock.
+    mov    x1, xSELF                  // Pass Thread::Current().
+    bl     artLockObjectFromCode      // (Object* obj, Thread*)
+    // Restore return address.
+    ldr    lr, [sp, #136]
+    .cfi_restore lr
+    // Check result.
+    cbnz   x0, 1f
+    // Restore register args x0-x7, d0-d7 and return.
+    ldp    x2, x3, [sp, #16]
+    ldp    x4, x5, [sp, #32]
+    ldp    x6, x7, [sp, #48]
+    ldp    d0, d1, [sp, #64]
+    ldp    d2, d3, [sp, #80]
+    ldp    d4, d5, [sp, #96]
+    ldp    d6, d7, [sp, #112]
+    ldp    x0, x1, [sp], #(8 * 8 + 8 * 8 + /*padding*/ 8 + 8)
+    .cfi_adjust_cfa_offset -(8 * 8 + 8 * 8 + /*padding*/ 8 + 8)
+    ret
+    .cfi_adjust_cfa_offset (8 * 8 + 8 * 8 + /*padding*/ 8 + 8)
+1:
+    // All args are irrelevant when throwing an exception. Remove the spill area.
+    DECREASE_FRAME (8 * 8 + 8 * 8 + /*padding*/ 8 + 8)
+    // Make a tail call to `artDeliverPendingExceptionFromCode()`.
+    // Rely on the JNI transition frame constructed in the JNI stub.
+    mov    x0, xSELF                           // Pass Thread::Current().
+    b      artDeliverPendingExceptionFromCode  // (Thread*)
+END art_quick_lock_object_jni
+
+    /*
+     * Entry from JNI stub that tries to unlock the object in a fast path and calls
+     * `artUnlockObjectFromJni()` for the difficult cases. Note that failure to unlock
+     * is fatal, so we do not need to check for exceptions in the slow path.
+     * Custom calling convention:
+     *     x15 holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     Return registers r0 and d0 need to be preserved.
+     */
+ENTRY art_quick_unlock_object_jni
+    UNLOCK_OBJECT_FAST_PATH x15, .Lunlock_object_jni_slow, /*can_be_null*/ 0
+
+ .Lunlock_object_jni_slow:
+    // Save return registers and return address.
+    stp    x0, lr, [sp, #-32]!
+    .cfi_adjust_cfa_offset 32
+    .cfi_rel_offset lr, 8
+    str    d0, [sp, #16]
+    // Call `artUnlockObjectFromJni()`
+    mov    x0, x15                    // Pass the object to unlock.
+    mov    x1, xSELF                  // Pass Thread::Current().
+    bl     artUnlockObjectFromJni     // (Object* obj, Thread*)
+    // Restore return registers and return.
+    ldr    d0, [sp, #16]
+    ldp    x0, lr, [sp], #32
+    .cfi_adjust_cfa_offset -32
+    .cfi_restore lr
+    ret
+END art_quick_unlock_object_jni
 
     /*
      * Entry from managed code that calls artInstanceOfFromCode and on failure calls
