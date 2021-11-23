@@ -4037,6 +4037,14 @@ void IntrinsicCodeGeneratorX86_64::VisitVarHandleCompareAndExchangeRelease(HInvo
   GenerateVarHandleCompareAndSetOrExchange(invoke, codegen_, /*is_cmpxchg=*/ true);
 }
 
+enum class GetAndUpdateOp {
+  kSet,
+  kAdd,
+  kBitwiseAnd,
+  kBitwiseOr,
+  kBitwiseXor
+};
+
 static void CreateVarHandleGetAndSetLocations(HInvoke* invoke) {
   if (!HasVarHandleIntrinsicImplementation(invoke)) {
     return;
@@ -4071,32 +4079,18 @@ static void CreateVarHandleGetAndSetLocations(HInvoke* invoke) {
   }
 }
 
-static void GenerateVarHandleGetAndSet(HInvoke* invoke,
-                                       CodeGeneratorX86_64* codegen,
-                                       bool need_any_store_barrier,
-                                       bool need_any_any_barrier) {
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
-
+static void GenerateVarHandleGetAndSet(CodeGeneratorX86_64* codegen,
+                                       HInvoke* invoke,
+                                       LocationSummary* locations,
+                                       uint32_t value_index,
+                                       DataType::Type type,
+                                       Address field_addr,
+                                       CpuRegister ref) {
   X86_64Assembler* assembler = codegen->GetAssembler();
-  LocationSummary* locations = invoke->GetLocations();
 
-  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
-  uint32_t value_index = number_of_arguments - 1;
-  DataType::Type type = invoke->GetType();
-
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
-  VarHandleTarget target = GetVarHandleTarget(invoke);
-  GenerateVarHandleTarget(invoke, target, codegen);
-
-  CpuRegister ref(target.object);
-  Address field_addr(ref, CpuRegister(target.offset), TIMES_1, 0);
   Location value = locations->InAt(value_index);
   Location out = locations->Out();
   uint32_t temp_count = locations->GetTempCount();
-
-  if (need_any_store_barrier) {
-    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-  }
 
   if (DataType::IsFloatingPointType(type)) {
     // `getAndSet` for floating-point types: move the new FP value into a register, atomically
@@ -4121,7 +4115,7 @@ static void GenerateVarHandleGetAndSet(HInvoke* invoke,
       codegen->GenerateReferenceLoadWithBakerReadBarrier(
           invoke,
           locations->GetTemp(temp_count - 3),
-          CpuRegister(target.object),
+          ref,
           field_addr,
           /*needs_null_check=*/ false,
           /*always_update_field=*/ true,
@@ -4178,42 +4172,6 @@ static void GenerateVarHandleGetAndSet(HInvoke* invoke,
         UNREACHABLE();
     }
   }
-
-  if (need_any_any_barrier) {
-    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-  }
-
-  __ Bind(slow_path->GetExitLabel());
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndSet(HInvoke* invoke) {
-  CreateVarHandleGetAndSetLocations(invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndSet(HInvoke* invoke) {
-  // `getAndSet` has `getVolatile` + `setVolatile` semantics, so it needs both barriers.
-  GenerateVarHandleGetAndSet(
-      invoke, codegen_, /*need_any_store_barrier=*/ true, /*need_any_any_barrier=*/ true);
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndSetAcquire(HInvoke* invoke) {
-  CreateVarHandleGetAndSetLocations(invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndSetAcquire(HInvoke* invoke) {
-  // `getAndSetAcquire` has `getAcquire` + `set` semantics, so it doesn't need any barriers.
-  GenerateVarHandleGetAndSet(
-      invoke, codegen_, /*need_any_store_barrier=*/ false, /*need_any_any_barrier=*/ false);
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndSetRelease(HInvoke* invoke) {
-  CreateVarHandleGetAndSetLocations(invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndSetRelease(HInvoke* invoke) {
-  // `getAndSetRelease` has `get` + `setRelease` semantics, so it needs `kAnyStore` barrier.
-  GenerateVarHandleGetAndSet(
-      invoke, codegen_, /*need_any_store_barrier=*/ true, /*need_any_any_barrier=*/ false);
 }
 
 static void CreateVarHandleGetAndAddLocations(HInvoke* invoke) {
@@ -4247,32 +4205,16 @@ static void CreateVarHandleGetAndAddLocations(HInvoke* invoke) {
   }
 }
 
-static void GenerateVarHandleGetAndAdd(HInvoke* invoke,
-                                       CodeGeneratorX86_64* codegen,
-                                       bool need_any_store_barrier,
-                                       bool need_any_any_barrier) {
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
-
+static void GenerateVarHandleGetAndAdd(CodeGeneratorX86_64* codegen,
+                                       LocationSummary* locations,
+                                       uint32_t value_index,
+                                       DataType::Type type,
+                                       Address field_addr) {
   X86_64Assembler* assembler = codegen->GetAssembler();
-  LocationSummary* locations = invoke->GetLocations();
 
-  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
-  uint32_t value_index = number_of_arguments - 1;
-  DataType::Type type = invoke->GetType();
-
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
-  VarHandleTarget target = GetVarHandleTarget(invoke);
-  GenerateVarHandleTarget(invoke, target, codegen);
-
-  CpuRegister ref(target.object);
-  Address field_addr(ref, CpuRegister(target.offset), TIMES_1, 0);
   Location value = locations->InAt(value_index);
   Location out = locations->Out();
   uint32_t temp_count = locations->GetTempCount();
-
-  if (need_any_store_barrier) {
-    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-  }
 
   if (DataType::IsFloatingPointType(type)) {
     // `getAndAdd` for floating-point types: load the old FP value into a temporary FP register and
@@ -4338,49 +4280,7 @@ static void GenerateVarHandleGetAndAdd(HInvoke* invoke,
         UNREACHABLE();
     }
   }
-
-  if (need_any_any_barrier) {
-    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-  }
-
-  __ Bind(slow_path->GetExitLabel());
 }
-
-void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndAdd(HInvoke* invoke) {
-  CreateVarHandleGetAndAddLocations(invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndAdd(HInvoke* invoke) {
-  // `getAndAdd` has `getVolatile` + `setVolatile` semantics, so it needs both barriers.
-  GenerateVarHandleGetAndAdd(
-      invoke, codegen_, /*need_any_store_barrier=*/ true, /*need_any_any_barrier=*/ true);
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndAddAcquire(HInvoke* invoke) {
-  CreateVarHandleGetAndAddLocations(invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndAddAcquire(HInvoke* invoke) {
-  // `getAndAddAcquire` has `getAcquire` + `set` semantics, so it doesn't need any barriers.
-  GenerateVarHandleGetAndAdd(
-      invoke, codegen_, /*need_any_store_barrier=*/ false, /*need_any_any_barrier=*/ false);
-}
-
-void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndAddRelease(HInvoke* invoke) {
-  CreateVarHandleGetAndAddLocations(invoke);
-}
-
-void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndAddRelease(HInvoke* invoke) {
-  // `getAndAddRelease` has `get` + `setRelease` semantics, so it needs `kAnyStore` barrier.
-  GenerateVarHandleGetAndAdd(
-      invoke, codegen_, /*need_any_store_barrier=*/ true, /*need_any_any_barrier=*/ false);
-}
-
-enum class GetAndBitwiseOp {
-  kAnd,
-  kOr,
-  kXor
-};
 
 static void CreateVarHandleGetAndBitwiseOpLocations(HInvoke* invoke) {
   if (!HasVarHandleIntrinsicImplementation(invoke)) {
@@ -4403,35 +4303,19 @@ static void CreateVarHandleGetAndBitwiseOpLocations(HInvoke* invoke) {
   locations->SetOut(Location::RegisterLocation(RAX));
 }
 
-static void GenerateVarHandleGetAndBitwiseOp(HInvoke* invoke,
-                                             CodeGeneratorX86_64* codegen,
-                                             GetAndBitwiseOp get_and_bitwise_op,
-                                             bool need_any_store_barrier,
-                                             bool need_any_any_barrier) {
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
-
+static void GenerateVarHandleGetAndBitwiseOp(CodeGeneratorX86_64* codegen,
+                                             LocationSummary* locations,
+                                             uint32_t value_index,
+                                             DataType::Type type,
+                                             Address field_addr,
+                                             GetAndUpdateOp get_and_update_op) {
   X86_64Assembler* assembler = codegen->GetAssembler();
-  LocationSummary* locations = invoke->GetLocations();
 
-  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
-  uint32_t value_index = number_of_arguments - 1;
-  DataType::Type type = invoke->GetType();
-
-  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
-  VarHandleTarget target = GetVarHandleTarget(invoke);
-  GenerateVarHandleTarget(invoke, target, codegen);
-
-  CpuRegister ref(target.object);
-  Address field_addr(ref, CpuRegister(target.offset), TIMES_1, 0);
   Location value = locations->InAt(value_index);
   Location temp_loc = locations->GetTemp(locations->GetTempCount() - 1);
   CpuRegister temp = temp_loc.AsRegister<CpuRegister>();
   CpuRegister rax = locations->Out().AsRegister<CpuRegister>();
   DCHECK_EQ(rax.AsRegister(), RAX);
-
-  if (need_any_store_barrier) {
-    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
-  }
 
   NearLabel retry;
   __ Bind(&retry);
@@ -4446,28 +4330,31 @@ static void GenerateVarHandleGetAndBitwiseOp(HInvoke* invoke,
   // operation is symmetric and we need the old value in RAX for CMPXCHG. Use 32-bit registers for
   // 8/16/32-bit types to save on the REX prefix that might be needed for 64 bits.
   bool is64Bit = DataType::Is64BitType(type);
-  switch (get_and_bitwise_op) {
-    case GetAndBitwiseOp::kAnd:
+  switch (get_and_update_op) {
+    case GetAndUpdateOp::kBitwiseAnd:
       if (is64Bit) {
         __ andq(temp, rax);
       } else {
         __ andl(temp, rax);
       }
       break;
-    case GetAndBitwiseOp::kOr:
+    case GetAndUpdateOp::kBitwiseOr:
       if (is64Bit) {
         __ orq(temp, rax);
       } else {
         __ orl(temp, rax);
       }
       break;
-    case GetAndBitwiseOp::kXor:
+    case GetAndUpdateOp::kBitwiseXor:
       if (is64Bit) {
         __ xorq(temp, rax);
       } else {
         __ xorl(temp, rax);
       }
       break;
+    default:
+      DCHECK(false) <<  "expected bitwise operation";
+      UNREACHABLE();
   }
 
   switch (type) {
@@ -4495,10 +4382,6 @@ static void GenerateVarHandleGetAndBitwiseOp(HInvoke* invoke,
 
   __ j(kNotZero, &retry);
 
-  if (need_any_any_barrier) {
-    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
-  }
-
   // Sign-extend or zero-extend the result if necessary. Output is in RAX after CMPXCHG.
   switch (type) {
     case DataType::Type::kBool:
@@ -4517,8 +4400,131 @@ static void GenerateVarHandleGetAndBitwiseOp(HInvoke* invoke,
     default:
       break;
   }
+}
+
+static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
+                                          CodeGeneratorX86_64* codegen,
+                                          GetAndUpdateOp get_and_update_op,
+                                          bool need_any_store_barrier,
+                                          bool need_any_any_barrier) {
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  X86_64Assembler* assembler = codegen->GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+  uint32_t value_index = number_of_arguments - 1;
+  DataType::Type type = invoke->GetType();
+
+  VarHandleSlowPathX86_64* slow_path = GenerateVarHandleChecks(invoke, codegen, type);
+  VarHandleTarget target = GetVarHandleTarget(invoke);
+  GenerateVarHandleTarget(invoke, target, codegen);
+
+  CpuRegister ref(target.object);
+  Address field_addr(ref, CpuRegister(target.offset), TIMES_1, 0);
+
+  if (need_any_store_barrier) {
+    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+  }
+
+  switch (get_and_update_op) {
+    case GetAndUpdateOp::kSet:
+      GenerateVarHandleGetAndSet(codegen, invoke, locations, value_index, type, field_addr, ref);
+      break;
+    case GetAndUpdateOp::kAdd:
+      GenerateVarHandleGetAndAdd(codegen, locations, value_index, type, field_addr);
+      break;
+    case GetAndUpdateOp::kBitwiseAnd:
+    case GetAndUpdateOp::kBitwiseOr:
+    case GetAndUpdateOp::kBitwiseXor:
+      GenerateVarHandleGetAndBitwiseOp(
+          codegen, locations, value_index, type, field_addr, get_and_update_op);
+      break;
+  }
+
+  if (need_any_any_barrier) {
+    codegen->GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  }
 
   __ Bind(slow_path->GetExitLabel());
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndSet(HInvoke* invoke) {
+  CreateVarHandleGetAndSetLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndSet(HInvoke* invoke) {
+  // `getAndSet` has `getVolatile` + `setVolatile` semantics, so it needs both barriers.
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kSet,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ true);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndSetAcquire(HInvoke* invoke) {
+  CreateVarHandleGetAndSetLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndSetAcquire(HInvoke* invoke) {
+  // `getAndSetAcquire` has `getAcquire` + `set` semantics, so it doesn't need any barriers.
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kSet,
+                                /*need_any_store_barrier=*/ false,
+                                /*need_any_any_barrier=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndSetRelease(HInvoke* invoke) {
+  CreateVarHandleGetAndSetLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndSetRelease(HInvoke* invoke) {
+  // `getAndSetRelease` has `get` + `setRelease` semantics, so it needs `kAnyStore` barrier.
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kSet,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndAdd(HInvoke* invoke) {
+  CreateVarHandleGetAndAddLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndAdd(HInvoke* invoke) {
+  // `getAndAdd` has `getVolatile` + `setVolatile` semantics, so it needs both barriers.
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kAdd,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ true);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndAddAcquire(HInvoke* invoke) {
+  CreateVarHandleGetAndAddLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndAddAcquire(HInvoke* invoke) {
+  // `getAndAddAcquire` has `getAcquire` + `set` semantics, so it doesn't need any barriers.
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kAdd,
+                                /*need_any_store_barrier=*/ false,
+                                /*need_any_any_barrier=*/ false);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndAddRelease(HInvoke* invoke) {
+  CreateVarHandleGetAndAddLocations(invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndAddRelease(HInvoke* invoke) {
+  // `getAndAddRelease` has `get` + `setRelease` semantics, so it needs `kAnyStore` barrier.
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kAdd,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseAnd(HInvoke* invoke) {
@@ -4527,11 +4533,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseAnd(HInvoke* in
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseAnd(HInvoke* invoke) {
   // `getAndBitwiseAnd` has `getVolatile` + `setVolatile` semantics, so it needs both barriers.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kAnd,
-                                   /*need_any_store_barrier=*/ true,
-                                   /*need_any_any_barrier=*/ true);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseAnd,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ true);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseAndAcquire(HInvoke* invoke) {
@@ -4540,11 +4546,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseAndAcquire(HInv
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseAndAcquire(HInvoke* invoke) {
   // `getAndBitwiseAndAcquire` has `getAcquire` + `set` semantics, so it doesn't need any barriers.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kAnd,
-                                   /*need_any_store_barrier=*/ false,
-                                   /*need_any_any_barrier=*/ false);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseAnd,
+                                /*need_any_store_barrier=*/ false,
+                                /*need_any_any_barrier=*/ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseAndRelease(HInvoke* invoke) {
@@ -4553,11 +4559,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseAndRelease(HInv
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseAndRelease(HInvoke* invoke) {
   // `getAndBitwiseAndRelease` has `get` + `setRelease` semantics, so it needs `kAnyStore` barrier.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kAnd,
-                                   /*need_any_store_barrier=*/ true,
-                                   /*need_any_any_barrier=*/ false);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseAnd,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseOr(HInvoke* invoke) {
@@ -4566,11 +4572,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseOr(HInvoke* inv
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseOr(HInvoke* invoke) {
   // `getAndBitwiseOr` has `getVolatile` + `setVolatile` semantics, so it needs both barriers.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kOr,
-                                   /*need_any_store_barrier=*/ true,
-                                   /*need_any_any_barrier=*/ true);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseOr,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ true);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseOrAcquire(HInvoke* invoke) {
@@ -4579,11 +4585,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseOrAcquire(HInvo
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseOrAcquire(HInvoke* invoke) {
   // `getAndBitwiseOrAcquire` has `getAcquire` + `set` semantics, so it doesn't need any barriers.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kOr,
-                                   /*need_any_store_barrier=*/ false,
-                                   /*need_any_any_barrier=*/ false);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseOr,
+                                /*need_any_store_barrier=*/ false,
+                                /*need_any_any_barrier=*/ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseOrRelease(HInvoke* invoke) {
@@ -4592,11 +4598,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseOrRelease(HInvo
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseOrRelease(HInvoke* invoke) {
   // `getAndBitwiseOrRelease` has `get` + `setRelease` semantics, so it needs `kAnyStore` barrier.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kOr,
-                                   /*need_any_store_barrier=*/ true,
-                                   /*need_any_any_barrier=*/ false);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseOr,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseXor(HInvoke* invoke) {
@@ -4605,11 +4611,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseXor(HInvoke* in
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseXor(HInvoke* invoke) {
   // `getAndBitwiseXor` has `getVolatile` + `setVolatile` semantics, so it needs both barriers.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kXor,
-                                   /*need_any_store_barrier=*/ true,
-                                   /*need_any_any_barrier=*/ true);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseXor,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ true);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseXorAcquire(HInvoke* invoke) {
@@ -4618,11 +4624,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseXorAcquire(HInv
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseXorAcquire(HInvoke* invoke) {
   // `getAndBitwiseXorAcquire` has `getAcquire` + `set` semantics, so it doesn't need any barriers.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kXor,
-                                   /*need_any_store_barrier=*/ false,
-                                   /*need_any_any_barrier=*/ false);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseXor,
+                                /*need_any_store_barrier=*/ false,
+                                /*need_any_any_barrier=*/ false);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseXorRelease(HInvoke* invoke) {
@@ -4631,11 +4637,11 @@ void IntrinsicLocationsBuilderX86_64::VisitVarHandleGetAndBitwiseXorRelease(HInv
 
 void IntrinsicCodeGeneratorX86_64::VisitVarHandleGetAndBitwiseXorRelease(HInvoke* invoke) {
   // `getAndBitwiseXorRelease` has `get` + `setRelease` semantics, so it needs `kAnyStore` barrier.
-  GenerateVarHandleGetAndBitwiseOp(invoke,
-                                   codegen_,
-                                   GetAndBitwiseOp::kXor,
-                                   /*need_any_store_barrier=*/ true,
-                                   /*need_any_any_barrier=*/ false);
+  GenerateVarHandleGetAndUpdate(invoke,
+                                codegen_,
+                                GetAndUpdateOp::kBitwiseXor,
+                                /*need_any_store_barrier=*/ true,
+                                /*need_any_any_barrier=*/ false);
 }
 
 void VarHandleSlowPathX86_64::EmitByteArrayViewCode(CodeGeneratorX86_64* codegen) {
