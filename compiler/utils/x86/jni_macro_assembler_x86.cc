@@ -332,6 +332,10 @@ void X86JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
     DCHECK_EQ(src.GetSize(), dest.GetSize());  // Even for references.
     if (src.IsRegister()) {
       if (UNLIKELY(dest.IsRegister())) {
+        if (dest.GetRegister().Equals(src.GetRegister())) {
+          // JNI compiler sometimes adds a no-op move.
+          continue;
+        }
         // Native ABI has only stack arguments but we may pass one "hidden arg" in register.
         CHECK(!found_hidden_arg);
         found_hidden_arg = true;
@@ -341,7 +345,6 @@ void X86JNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
         Move(dest.GetRegister(), src.GetRegister(), dest.GetSize());
       } else {
         if (ref != kInvalidReferenceOffset) {
-          Store(ref, srcs[i].GetRegister(), kObjectReferenceSize);
           // Note: We can clobber `src` here as the register cannot hold more than one argument.
           //       This overload of `CreateJObject()` currently does not use the scratch
           //       register ECX, so this shall not clobber another argument.
