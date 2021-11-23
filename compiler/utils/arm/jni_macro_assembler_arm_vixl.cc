@@ -546,6 +546,32 @@ void ArmVIXLJNIMacroAssembler::MoveArguments(ArrayRef<ArgumentLocation> dests,
   DCHECK_EQ(arg_count, srcs.size());
   DCHECK_EQ(arg_count, refs.size());
 
+  // Spill reference registers. Spill two references together with STRD where possible.
+  for (size_t i = 0; i != arg_count; ++i) {
+    if (refs[i] != kInvalidReferenceOffset) {
+      DCHECK_EQ(srcs[i].GetSize(), kObjectReferenceSize);
+      if (srcs[i].IsRegister()) {
+        DCHECK_EQ(srcs[i].GetSize(), kObjectReferenceSize);
+        // Use STRD if we're storing 2 consecutive references within the available STRD range.
+        if (i + 1u != arg_count &&
+            refs[i + 1u] != kInvalidReferenceOffset &&
+            srcs[i + 1u].IsRegister() &&
+            refs[i].SizeValue() < kStrdOffsetCutoff) {
+          DCHECK_EQ(srcs[i + 1u].GetSize(), kObjectReferenceSize);
+          DCHECK_EQ(refs[i + 1u].SizeValue(), refs[i].SizeValue() + kObjectReferenceSize);
+          ___ Strd(AsVIXLRegister(srcs[i].GetRegister().AsArm()),
+                   AsVIXLRegister(srcs[i + 1u].GetRegister().AsArm()),
+                   MemOperand(sp, refs[i].SizeValue()));
+          ++i;
+        } else {
+          Store(refs[i], srcs[i].GetRegister(), kObjectReferenceSize);
+        }
+      } else {
+        DCHECK_EQ(srcs[i].GetFrameOffset(), refs[i]);
+      }
+    }
+  }
+
   // Convert reference registers to `jobject` values.
   // TODO: Delay this for references that are copied to another register.
   for (size_t i = 0; i != arg_count; ++i) {
