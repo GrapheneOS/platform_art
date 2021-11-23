@@ -18,7 +18,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
-import java.lang.invoke.VarHandle;
 import java.lang.invoke.WrongMethodTypeException;
 
 public class Main {
@@ -718,38 +717,6 @@ public class Main {
     if (intValue != 78452) {
       fail("Unexpected value: " + intValue);
     }
-
-    class Locals {
-        public int intValue;
-    };
-
-    MethodHandle setter1 = MethodHandles.lookup().findSetter(Locals.class, "intValue", int.class);
-    Locals locals = new Locals();
-    setter1.invoke(locals, 1);
-    assertEquals(1, locals.intValue);
-
-    MethodHandle setter2 =
-        MethodHandles.insertArguments(setter1.bindTo(locals), 0, Integer.valueOf(2));
-    setter2.invoke();
-    assertEquals(2, locals.intValue);
-
-    VarHandle vh = MethodHandles.lookup().findVarHandle(Locals.class,  "intValue", int.class);
-    MethodHandle setter3 = vh.toMethodHandle(VarHandle.AccessMode.GET_AND_SET);
-    assertEquals(setter3.type().toString(),
-                 MethodType.methodType(int.class, Locals.class, int.class).toString());
-    assertEquals(2, (int) setter3.invoke(locals, 3));
-
-    MethodHandle setter4 =
-        MethodHandles.varHandleInvoker(VarHandle.AccessMode.GET_AND_SET,
-                                       MethodType.methodType(int.class, Locals.class, int.class));
-    assertEquals(3, (int) setter4.invoke(vh, locals, 4));
-
-    MethodHandle setter5 = setter4.bindTo(vh);
-    assertEquals(4, (int) setter5.invoke(locals, 5));
-
-    MethodHandle setter6 = MethodHandles.insertArguments(setter5, 0, locals, 6);
-    assertEquals(5, (int) setter6.invoke());
-    assertEquals(locals.intValue, 6);
   }
 
   public static String filterReturnValue_target(int a) {
