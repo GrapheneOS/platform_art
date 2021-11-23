@@ -16,24 +16,20 @@
 
 #include "method_handles-inl.h"
 
-#include "android-base/macros.h"
 #include "android-base/stringprintf.h"
+
 #include "class_root-inl.h"
 #include "common_dex_operations.h"
 #include "common_throws.h"
 #include "interpreter/shadow_frame-inl.h"
-#include "interpreter/shadow_frame.h"
 #include "jvalue-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/emulated_stack_frame-inl.h"
-#include "mirror/emulated_stack_frame.h"
 #include "mirror/method_handle_impl-inl.h"
-#include "mirror/method_handle_impl.h"
 #include "mirror/method_type-inl.h"
 #include "mirror/var_handle.h"
 #include "reflection-inl.h"
 #include "reflection.h"
-#include "thread.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -406,7 +402,7 @@ static inline size_t GetInsForProxyOrNativeMethod(ArtMethod* method)
 // Returns true iff. the callsite type for a polymorphic invoke is transformer
 // like, i.e that it has a single input argument whose type is
 // dalvik.system.EmulatedStackFrame.
-static inline bool InvokedFromTransform(Handle<mirror::MethodType> callsite_type)
+static inline bool IsCallerTransformer(Handle<mirror::MethodType> callsite_type)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::ObjectArray<mirror::Class>> param_types(callsite_type->GetPTypes());
   if (param_types->GetLength() == 1) {
@@ -478,7 +474,7 @@ static inline bool MethodHandleInvokeMethod(ArtMethod* called_method,
       // a single argument of type dalvik.system.EmulatedStackFrame. In that
       // case, we'll have to unmarshal the EmulatedStackFrame into the
       // new_shadow_frame and perform argument conversions on it.
-      if (InvokedFromTransform(callsite_type)) {
+      if (IsCallerTransformer(callsite_type)) {
         is_caller_transformer = true;
         // The emulated stack frame is the first and only argument when we're coming
         // through from a transformer.
@@ -586,7 +582,7 @@ static inline bool MethodHandleInvokeTransform(ArtMethod* called_method,
 
   StackHandleScope<1> hs(self);
   MutableHandle<mirror::EmulatedStackFrame> sf(hs.NewHandle<mirror::EmulatedStackFrame>(nullptr));
-  if (InvokedFromTransform(callsite_type)) {
+  if (IsCallerTransformer(callsite_type)) {
     // If we're entering this transformer from another transformer, we can pass
     // through the handle directly to the callee, instead of having to
     // instantiate a new stack frame based on the shadow frame.
@@ -661,7 +657,7 @@ ArtMethod* RefineTargetMethod(Thread* self,
     // For virtual and interface methods ensure target_method points to
     // the actual method to invoke.
     ObjPtr<mirror::Object> receiver(shadow_frame.GetVRegReference(receiver_reg));
-    if (InvokedFromTransform(callsite_type)) {
+    if (IsCallerTransformer(callsite_type)) {
       // The current receiver is an emulated stack frame, the method's
       // receiver needs to be fetched from there as the emulated frame
       // will be unpacked into a new frame.
@@ -1166,7 +1162,7 @@ static inline bool MethodHandleInvokeExactInternal(
 
   // Slow-path check.
   if (IsInvokeTransform(handle_kind) ||
-      InvokedFromTransform(callsite_type)) {
+      IsCallerTransformer(callsite_type)) {
     return DoInvokePolymorphicMethod(self,
                                      shadow_frame,
                                      method_handle,
@@ -1183,7 +1179,7 @@ static inline bool MethodHandleInvokeExactInternal(
                                         result);
   }
 
-  // On the fast-path. This is equivalent to DoCallPolymorphic without the conversion paths.
+  // On the fast-path. This is equivalent to DoCallPolymoprhic without the conversion paths.
   ArtMethod* target_method = method_handle->GetTargetMethod();
   uint32_t receiver_reg = (operands->GetNumberOfOperands() > 0) ? operands->GetOperand(0) : 0u;
   ArtMethod* called_method = RefineTargetMethod(self,
@@ -1242,86 +1238,31 @@ static inline bool MethodHandleInvokeExactInternal(
   return true;
 }
 
-template <typename T>
-bool InvokeInContext(Thread* self,
-                     ShadowFrame& shadow_frame,
-                     Handle<mirror::MethodHandle> method_handle,
-                     Handle<mirror::MethodType> callsite_type,
-                     const InstructionOperands* const operands,
-                     JValue* result,
-                     T invoker) REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (!InvokedFromTransform(callsite_type) || IsInvokeTransform(method_handle->GetHandleKind())) {
-    return invoker(self, shadow_frame, method_handle, callsite_type, operands, result);
-  }
-
-  // The MethodHandle invocation has occurred within a Transformer that has created an emulated
-  // stack frame as context with which to invoke the MethodHandle. We need to unpack this, then
-  // invoke the MethodHandle in the provided context.
-  StackHandleScope<2> hs(self);
-  size_t first_argument_vreg = operands->GetOperand(0);
-  Handle<mirror::EmulatedStackFrame> emulated_stack_frame =
-      hs.NewHandle(ObjPtr<mirror::EmulatedStackFrame>::DownCast(
-          shadow_frame.GetVRegReference(first_argument_vreg)));
-  Handle<mirror::MethodType> effective_callsite_type =
-      hs.NewHandle(emulated_stack_frame->GetType());
-  uint16_t num_vregs = effective_callsite_type->NumberOfVRegs();
-
-  RangeInstructionOperands effective_operands(0, num_vregs);
-  ArtMethod* called_method = method_handle->GetTargetMethod();  // invoke / invokeExact.
-  // Create a shadow frame
-  ShadowFrameAllocaUniquePtr effective_frame =
-      CREATE_SHADOW_FRAME(num_vregs, &shadow_frame, called_method, shadow_frame.GetDexPC());
-  if (UNLIKELY(effective_operands.GetNumberOfOperands() != 0 &&
-               !emulated_stack_frame->WriteToShadowFrame(self,
-                                                         effective_callsite_type,
-                                                         effective_operands.GetOperand(0),
-                                                         effective_frame.get()))) {
-    DCHECK(self->IsExceptionPending());
-    result->SetL(nullptr);
-    return false;
-  }
-
-  ScopedStackedShadowFramePusher pusher(
-      self, effective_frame.get(), StackedShadowFrameType::kShadowFrameUnderConstruction);
-
-  // Invoke MethodHandle in newly created context
-  bool success = invoker(self,
-                         *effective_frame.get(),
-                         method_handle,
-                         effective_callsite_type,
-                         &effective_operands,
-                         result);
-  if (success) {
-    emulated_stack_frame->SetReturnValue(self, *result);
-  }
-  return success;
-}
-
 }  // namespace
 
 bool MethodHandleInvoke(Thread* self,
-                        ShadowFrame& shadow_frame,
-                        Handle<mirror::MethodHandle> method_handle,
-                        Handle<mirror::MethodType> callsite_type,
-                        const InstructionOperands* const operands,
-                        JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
-  auto invoke = [](Thread* self,
-                   ShadowFrame& shadow_frame,
-                   Handle<mirror::MethodHandle> method_handle,
-                   Handle<mirror::MethodType> callsite_type,
-                   const InstructionOperands* const operands,
-                   JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (UNLIKELY(callsite_type->IsExactMatch(method_handle->GetMethodType()))) {
-      // A non-exact invoke that can be invoked exactly.
-      return MethodHandleInvokeExactInternal(
-          self, shadow_frame, method_handle, callsite_type, operands, result);
-    } else {
-      return MethodHandleInvokeInternal(
-          self, shadow_frame, method_handle, callsite_type, operands, result);
-    }
-  };
-  return InvokeInContext(
-      self, shadow_frame, method_handle, callsite_type, operands, result, invoke);
+                       ShadowFrame& shadow_frame,
+                       Handle<mirror::MethodHandle> method_handle,
+                       Handle<mirror::MethodType> callsite_type,
+                       const InstructionOperands* const operands,
+                       JValue* result)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (UNLIKELY(callsite_type->IsExactMatch(method_handle->GetMethodType()))) {
+    // A non-exact invoke that can be invoked exactly.
+    return MethodHandleInvokeExactInternal(self,
+                                           shadow_frame,
+                                           method_handle,
+                                           callsite_type,
+                                           operands,
+                                           result);
+  } else {
+    return MethodHandleInvokeInternal(self,
+                                      shadow_frame,
+                                      method_handle,
+                                      callsite_type,
+                                      operands,
+                                      result);
+  }
 }
 
 bool MethodHandleInvokeExact(Thread* self,
@@ -1331,33 +1272,32 @@ bool MethodHandleInvokeExact(Thread* self,
                              const InstructionOperands* const operands,
                              JValue* result)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  auto invoke = [](Thread* self,
-                   ShadowFrame& shadow_frame,
-                   Handle<mirror::MethodHandle> method_handle,
-                   Handle<mirror::MethodType> callsite_type,
-                   const InstructionOperands* const operands,
-                   JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
-    // We need to check the nominal type of the handle in addition to the
-    // real type. The "nominal" type is present when MethodHandle.asType is
-    // called any handle, and results in the declared type of the handle
-    // changing.
-    ObjPtr<mirror::MethodType> nominal_type(method_handle->GetNominalType());
-    if (UNLIKELY(nominal_type != nullptr)) {
-      if (UNLIKELY(!callsite_type->IsExactMatch(nominal_type.Ptr()))) {
-        ThrowWrongMethodTypeException(nominal_type.Ptr(), callsite_type.Get());
-        return false;
-      }
-      if (LIKELY(!nominal_type->IsExactMatch(method_handle->GetMethodType()))) {
-        // Different nominal type means we have to treat as non-exact.
-        return MethodHandleInvokeInternal(
-            self, shadow_frame, method_handle, callsite_type, operands, result);
-      }
+  // We need to check the nominal type of the handle in addition to the
+  // real type. The "nominal" type is present when MethodHandle.asType is
+  // called any handle, and results in the declared type of the handle
+  // changing.
+  ObjPtr<mirror::MethodType> nominal_type(method_handle->GetNominalType());
+  if (UNLIKELY(nominal_type != nullptr)) {
+    if (UNLIKELY(!callsite_type->IsExactMatch(nominal_type.Ptr()))) {
+      ThrowWrongMethodTypeException(nominal_type.Ptr(), callsite_type.Get());
+      return false;
     }
-    return MethodHandleInvokeExactInternal(
-        self, shadow_frame, method_handle, callsite_type, operands, result);
-  };
-  return InvokeInContext(
-      self, shadow_frame, method_handle, callsite_type, operands, result, invoke);
+    if (LIKELY(!nominal_type->IsExactMatch(method_handle->GetMethodType()))) {
+      // Different nominal type means we have to treat as non-exact.
+      return MethodHandleInvokeInternal(self,
+                                        shadow_frame,
+                                        method_handle,
+                                        callsite_type,
+                                        operands,
+                                        result);
+    }
+  }
+  return MethodHandleInvokeExactInternal(self,
+                                         shadow_frame,
+                                         method_handle,
+                                         callsite_type,
+                                         operands,
+                                         result);
 }
 
 }  // namespace art
