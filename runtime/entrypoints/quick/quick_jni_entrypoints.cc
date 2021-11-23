@@ -69,6 +69,11 @@ extern void JniMethodStart(Thread* self) {
   self->TransitionFromRunnableToSuspended(kNative);
 }
 
+extern void JniMethodStartSynchronized(jobject to_lock, Thread* self) {
+  self->DecodeJObject(to_lock)->MonitorEnter(self);
+  JniMethodStart(self);
+}
+
 // TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
 static void GoToRunnable(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
   if (kIsDebugBuild) {
@@ -90,11 +95,8 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
 }
 
 // TODO: annotalysis disabled as monitor semantics are maintained in Java code.
-extern "C" void artUnlockObjectFromJni(mirror::Object* locked, Thread* self)
+static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS REQUIRES(!Roles::uninterruptible_) {
-  // Note: No thread suspension is allowed for successful unlocking, otherwise plain
-  // `mirror::Object*` return value saved by the assembly stub would need to be updated.
-  uintptr_t old_poison_object_cookie = kIsDebugBuild ? self->GetPoisonObjectCookie() : 0u;
   // Save any pending exception over monitor exit call.
   ObjPtr<mirror::Throwable> saved_exception = nullptr;
   if (UNLIKELY(self->IsExceptionPending())) {
@@ -102,21 +104,16 @@ extern "C" void artUnlockObjectFromJni(mirror::Object* locked, Thread* self)
     self->ClearException();
   }
   // Decode locked object and unlock, before popping local references.
-  locked->MonitorExit(self);
+  self->DecodeJObject(locked)->MonitorExit(self);
   if (UNLIKELY(self->IsExceptionPending())) {
-    LOG(FATAL) << "Exception during implicit MonitorExit for synchronized native method:\n"
-        << self->GetException()->Dump()
-        << (saved_exception != nullptr
-               ? "\nAn exception was already pending:\n" + saved_exception->Dump()
-               : "");
-    UNREACHABLE();
+    LOG(FATAL) << "Synchronized JNI code returning with an exception:\n"
+        << saved_exception->Dump()
+        << "\nEncountered second exception during implicit MonitorExit:\n"
+        << self->GetException()->Dump();
   }
   // Restore pending exception.
   if (saved_exception != nullptr) {
     self->SetException(saved_exception);
-  }
-  if (kIsDebugBuild) {
-    DCHECK_EQ(old_poison_object_cookie, self->GetPoisonObjectCookie());
   }
 }
 
@@ -125,6 +122,11 @@ extern "C" void artUnlockObjectFromJni(mirror::Object* locked, Thread* self)
 
 extern void JniMethodEnd(Thread* self) {
   GoToRunnable(self);
+}
+
+extern void JniMethodEndSynchronized(jobject locked, Thread* self) {
+  GoToRunnable(self);
+  UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
 }
 
 extern mirror::Object* JniDecodeReferenceResult(jobject result, Thread* self)
@@ -166,6 +168,14 @@ extern mirror::Object* JniMethodEndWithReference(jobject result, Thread* self) {
   return JniMethodEndWithReferenceHandleResult(result, self);
 }
 
+extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
+                                                             jobject locked,
+                                                             Thread* self) {
+  GoToRunnable(self);
+  UnlockJniSynchronizedMethod(locked, self);
+  return JniMethodEndWithReferenceHandleResult(result, self);
+}
+
 extern uint64_t GenericJniMethodEnd(Thread* self,
                                     uint32_t saved_local_ref_cookie,
                                     jvalue result,
@@ -196,9 +206,9 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
   // locked object.
   if (called->IsSynchronized()) {
     DCHECK(normal_native) << "@FastNative/@CriticalNative and synchronize is not supported";
-    ObjPtr<mirror::Object> lock = GetGenericJniSynchronizationObject(self, called);
+    jobject lock = GetGenericJniSynchronizationObject(self, called);
     DCHECK(lock != nullptr);
-    artUnlockObjectFromJni(lock.Ptr(), self);
+    UnlockJniSynchronizedMethod(lock, self);
   }
   char return_shorty_char = called->GetShorty()[0];
   if (return_shorty_char == 'L') {
@@ -248,14 +258,32 @@ extern void JniMonitoredMethodStart(Thread* self) {
   MONITOR_JNI(PaletteNotifyBeginJniInvocation);
 }
 
+extern void JniMonitoredMethodStartSynchronized(jobject to_lock, Thread* self) {
+  JniMethodStartSynchronized(to_lock, self);
+  MONITOR_JNI(PaletteNotifyBeginJniInvocation);
+}
+
 extern void JniMonitoredMethodEnd(Thread* self) {
   MONITOR_JNI(PaletteNotifyEndJniInvocation);
   JniMethodEnd(self);
 }
 
+extern void JniMonitoredMethodEndSynchronized(jobject locked, Thread* self) {
+  MONITOR_JNI(PaletteNotifyEndJniInvocation);
+  JniMethodEndSynchronized(locked, self);
+}
+
 extern mirror::Object* JniMonitoredMethodEndWithReference(jobject result, Thread* self) {
   MONITOR_JNI(PaletteNotifyEndJniInvocation);
   return JniMethodEndWithReference(result, self);
+}
+
+extern mirror::Object* JniMonitoredMethodEndWithReferenceSynchronized(
+    jobject result,
+    jobject locked,
+    Thread* self) {
+  MONITOR_JNI(PaletteNotifyEndJniInvocation);
+  return JniMethodEndWithReferenceSynchronized(result, locked, self);
 }
 
 }  // namespace art
