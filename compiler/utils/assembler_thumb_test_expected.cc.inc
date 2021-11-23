@@ -153,7 +153,7 @@ const char* const VixlJniHelpersResults = {
   "     21c: d9 f8 24 80   ldr.w r8, [r9, #36]\n"
   "     220: 70 47         bx lr\n"
   "     222: d9 f8 8c 00   ldr.w r0, [r9, #140]\n"
-  "     226: d9 f8 c4 e2   ldr.w lr, [r9, #708]\n"
+  "     226: d9 f8 c8 e2   ldr.w lr, [r9, #712]\n"
   "     22a: f0 47         blx lr\n"
 };
 
