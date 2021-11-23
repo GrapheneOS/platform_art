@@ -67,6 +67,9 @@ static constexpr size_t kMaximumNumberOfRecursiveCalls = 4;
 // Controls the use of inline caches in AOT mode.
 static constexpr bool kUseAOTInlineCaches = true;
 
+// Enables the use of cross-dex inlining in AOT mode.
+static constexpr bool kEnableAotCrossDexInlining = false;
+
 // We check for line numbers to make sure the DepthString implementation
 // aligns the output nicely.
 #define LOG_INTERNAL(msg) \
@@ -1714,6 +1717,10 @@ static bool CanEncodeInlinedMethodInStackMap(const DexFile& outer_dex_file,
   const DexFile* dex_file = callee->GetDexFile();
   if (IsSameDexFile(outer_dex_file, *dex_file)) {
     return true;
+  }
+
+  if (!kEnableAotCrossDexInlining) {
+    return false;
   }
 
   // Inline across dexfiles if the callee's DexFile is:
