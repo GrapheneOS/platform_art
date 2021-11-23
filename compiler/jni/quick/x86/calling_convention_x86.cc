@@ -294,15 +294,6 @@ FrameOffset X86JniCallingConvention::CurrentParamStackOffset() {
       FrameOffset(displacement_.Int32Value() - OutFrameSize() + (itr_slots_ * kFramePointerSize));
 }
 
-ManagedRegister X86JniCallingConvention::LockingArgumentRegister() const {
-  DCHECK(!IsFastNative());
-  DCHECK(!IsCriticalNative());
-  DCHECK(IsSynchronized());
-  // The callee-save register is EBP is suitable as a locking argument.
-  static_assert(kCalleeSaveRegisters[0].Equals(X86ManagedRegister::FromCpuRegister(EBP)));
-  return X86ManagedRegister::FromCpuRegister(EBP);
-}
-
 ManagedRegister X86JniCallingConvention::HiddenArgumentRegister() const {
   CHECK(IsCriticalNative());
   // EAX is neither managed callee-save, nor argument register, nor scratch register.
