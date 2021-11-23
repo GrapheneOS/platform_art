@@ -51,7 +51,7 @@ art_runtime_base_binaries_first_on_device = [
 // `art/Android.mk`.
 // TODO(b/121117762): Remove this note when both the ART Buildbot and Golem use
 // the ART APEX.
-art_runtime_base_native_shared_libs = [
+art_runtime_base_native_shared_libs_minus_libart = [
     // External API (having APEX stubs).
     "libdexfile",
     "libnativebridge",
@@ -63,7 +63,6 @@ art_runtime_base_native_shared_libs = [
     "libadbconnection",
     // TODO(b/124476339): Clean up the following libraries once "required"
     // dependencies work with APEX libraries.
-    "libart",
     "libart-compiler",
     "libartservice",
     "libdt_fd_forward",
@@ -76,6 +75,12 @@ art_runtime_base_native_shared_libs = [
     // when such a target exists
     "libarttools",
 ]
+// Actual version of ART runtime base libs, used in non-test ART APEXes.
+art_runtime_base_native_shared_libs = ["libart"] +
+    art_runtime_base_native_shared_libs_minus_libart
+// "Broken" version of ART runtime base libs, used for testing purposes.
+art_runtime_base_broken_native_shared_libs = ["libart-broken"] +
+    art_runtime_base_native_shared_libs_minus_libart
 
 art_runtime_base_native_device_only_shared_libs = [
     "libperfetto_hprof",
@@ -330,6 +335,28 @@ apex_test {
     file_contexts: ":com.android.art.debug-file_contexts",
     certificate: ":com.android.art.certificate",
     installable: false,
+}
+
+// "Broken" test APEX, only used for testing, including module
+// `libart-broken` instead of `libart`.
+apex_test {
+    name: "test_broken_com.android.art",
+    defaults: ["com.android.art-defaults"],
+
+    // Only include native libraries in this test APEX. Don't include
+    // binaries (and maybe other artifacts) for now, as they pull
+    // the "non-broken" `libart` module into this test APEX and
+    // overwrite `libart-broken`. Maybe consider creating "broken"
+    // variants of binaries (and other artifacts)?
+    native_shared_libs: art_runtime_base_broken_native_shared_libs,
+    compile_multilib: "both",
+
+    key: "com.android.art.key",
+    manifest: "test_apex_manifest.json",
+    file_contexts: ":com.android.art-file_contexts",
+    certificate: ":com.android.art.certificate",
+    installable: false,
+    min_sdk_version: "31",
 }
 
 // Release version of the ART APEX module (not containing debug
