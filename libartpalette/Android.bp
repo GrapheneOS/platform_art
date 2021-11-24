@@ -144,4 +144,6 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_libartpalette_tests_defaults",
     ],
+    test_config_template: ":art-gtests-target-standalone-cts-template",
+    test_suites: ["cts"],
 }
