@@ -615,7 +615,7 @@ static void ClearMethodCounter(ArtMethod* method, bool was_warm)
   if (was_warm) {
     method->SetPreviouslyWarm();
   }
-  method->ResetCounter();
+  method->ResetCounter(Runtime::Current()->GetJITOptions()->GetWarmupThreshold());
   // We add one sample so that the profile knows that the method was executed at least once.
   // This is required for layout purposes.
   method->UpdateCounter(/* new_samples= */ 1);
@@ -1289,6 +1289,7 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
     // hotness count is zero.
     // Note that these methods may be in thread stack or concurrently revived
     // between. That's OK, as the thread executing it will mark it.
+    uint16_t warmup_threshold = Runtime::Current()->GetJITOptions()->GetWarmupThreshold();
     for (auto it : profiling_infos_) {
       ProfilingInfo* info = it.second;
       if (info->GetBaselineHotnessCount() == 0) {
@@ -1297,7 +1298,7 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
           OatQuickMethodHeader* method_header =
               OatQuickMethodHeader::FromEntryPoint(entry_point);
           if (CodeInfo::IsBaseline(method_header->GetOptimizedCodeInfoPtr())) {
-            info->GetMethod()->ResetCounter();
+            info->GetMethod()->ResetCounter(warmup_threshold);
             info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
           }
         }
