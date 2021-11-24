@@ -1050,6 +1050,35 @@ void ArmVIXLJNIMacroAssembler::GetCurrentThread(FrameOffset dest_offset) {
   asm_.StoreToOffset(kStoreWord, tr, sp, dest_offset.Int32Value());
 }
 
+void ArmVIXLJNIMacroAssembler::TryToTransitionFromRunnableToNative(
+    JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs) {
+  constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
+  constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
+  constexpr ThreadOffset32 thread_flags_offset = Thread::ThreadFlagsOffset<kArmPointerSize>();
+  constexpr ThreadOffset32 thread_held_mutex_mutator_lock_offset =
+      Thread::HeldMutexOffset<kArmPointerSize>(kMutatorLock);
+
+  DCHECK_GE(scratch_regs.size(), 2u);
+  vixl32::Register scratch = AsVIXLRegister(scratch_regs[0].AsArm());
+  vixl32::Register scratch2 = AsVIXLRegister(scratch_regs[1].AsArm());
+
+  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  vixl32::Label retry;
+  ___ Bind(&retry);
+  ___ Ldrex(scratch, MemOperand(tr, thread_flags_offset.Int32Value()));
+  ___ Mov(scratch2, kNativeStateValue);
+  // If any flags are set, go to the slow path.
+  ___ Cmp(scratch, kRunnableStateValue);
+  ___ B(ne, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+  ___ Strex(scratch, scratch2, MemOperand(tr, thread_flags_offset.Int32Value()));
+  ___ Cmp(scratch, 0);
+  ___ B(ne, &retry);
+  ___ Dmb(DmbOptions::ISH);  // Memory barrier "load-any" for the "acquire" operation.
+
+  // Clear `self->tlsPtr_.held_mutexes[kMutatorLock]`; `scratch` holds 0 at this point.
+  ___ Str(scratch, MemOperand(tr, thread_held_mutex_mutator_lock_offset.Int32Value()));
+}
+
 void ArmVIXLJNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   vixl32::Register scratch = temps.Acquire();

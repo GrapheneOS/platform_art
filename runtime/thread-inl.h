@@ -235,6 +235,12 @@ inline void Thread::PassActiveSuspendBarriers() {
 }
 
 inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
+  // Note: JNI stubs inline a fast path of this method that transitions to suspended if
+  // there are no flags set and then clears the `held_mutexes[kMutatorLock]` (this comes
+  // from a specialized `BaseMutex::RegisterAsLockedImpl(., kMutatorLock)` inlined from
+  // the `GetMutatorLock()->TransitionFromRunnableToSuspended(this)` below).
+  // Therefore any code added here (other than debug build assertions) should be gated
+  // on some flag being set, so that the JNI stub can take the slow path to get here.
   AssertThreadSuspensionIsAllowable();
   PoisonObjectPointersIfDebug();
   DCHECK_EQ(this, Thread::Current());

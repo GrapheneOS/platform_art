@@ -40,6 +40,22 @@
     .endif
 .endm
 
+.macro JNI_SAVE_MANAGED_ARGS_TRAMPOLINE name, cxx_name, arg1 = "none"
+    .extern \cxx_name
+ENTRY \name
+    // Note: Managed callee-save registers have been saved by the JNI stub.
+    // Save managed args, r4 (for stack alignment) and LR.
+    SAVE_MANAGED_ARGS_R4_LR_INCREASE_FRAME
+    // Call `cxx_name()`.
+    .ifnc \arg1, none
+        mov r0, \arg1                     @ Pass arg1.
+    .endif
+    bl    \cxx_name                       @ Call cxx_name(...).
+    // Restore args and R4 and return.
+    RESTORE_MANAGED_ARGS_R4_AND_RETURN /*restore_cfa*/ 0
+END \name
+.endm
+
     /*
      * Jni dlsym lookup stub.
      */
@@ -274,16 +290,19 @@ END art_jni_dlsym_lookup_critical_stub
      * Read barrier for the method's declaring class needed by JNI stub for static methods.
      * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
      */
-    .extern artJniReadBarrier
-ENTRY art_jni_read_barrier
-    // Note: Managed callee-save registers have been saved by the JNI stub.
-    // Save managed args, r4 (for stack alignment) and LR.
-    SAVE_MANAGED_ARGS_R4_LR_INCREASE_FRAME
-    // The method argument is already in r0.
-    bl    artJniReadBarrier  // (ArtMethod*)
-    // Restore args and return.
-    RESTORE_MANAGED_ARGS_R4_AND_RETURN /*restore_cfa*/ 0
-END art_jni_read_barrier
+// The method argument is already in r0 for call to `artJniReadBarrier(ArtMethod*)`.
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_read_barrier, artJniReadBarrier
+
+    /*
+     * Trampoline to `artJniMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_start, artJniMethodStart, rSELF
+
+
+    /*
+     * Trampoline to `artJniMonitoredMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_monitored_method_start, artJniMonitoredMethodStart, rSELF
 
     /*
      * Entry from JNI stub that tries to lock the object in a fast path and
