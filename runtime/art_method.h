@@ -76,7 +76,7 @@ class ArtMethod final {
   static constexpr uint32_t kRuntimeMethodDexMethodIndex = 0xFFFFFFFF;
 
   ArtMethod() : access_flags_(0), dex_method_index_(0),
-      method_index_(0), hotness_count_(interpreter::kNterpHotnessMask) { }
+      method_index_(0), hotness_count_(0) { }
 
   ArtMethod(ArtMethod* src, PointerSize image_pointer_size) {
     CopyFrom(src, image_pointer_size);
@@ -684,13 +684,13 @@ class ArtMethod final {
   void CopyFrom(ArtMethod* src, PointerSize image_pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void ResetCounter();
+  ALWAYS_INLINE void ResetCounter(uint16_t new_value);
   ALWAYS_INLINE void UpdateCounter(int32_t new_samples);
   ALWAYS_INLINE void SetHotCounter();
   ALWAYS_INLINE bool CounterIsHot();
-  ALWAYS_INLINE bool CounterHasReached(uint16_t samples);
+  ALWAYS_INLINE bool CounterHasReached(uint16_t samples, uint16_t threshold);
   ALWAYS_INLINE uint16_t GetCounter();
-  ALWAYS_INLINE bool CounterHasChanged();
+  ALWAYS_INLINE bool CounterHasChanged(uint16_t threshold);
 
   ALWAYS_INLINE static constexpr uint16_t MaxCounter() {
     return std::numeric_limits<decltype(hotness_count_)>::max();

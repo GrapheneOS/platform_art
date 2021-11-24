@@ -32,7 +32,7 @@ inline void Jit::AddSamples(Thread* self, ArtMethod* method) {
     return;
   }
   if (method->CounterIsHot()) {
-    method->ResetCounter();
+    method->ResetCounter(Runtime::Current()->GetJITOptions()->GetWarmupThreshold());
     EnqueueCompilation(method, self);
   } else {
     method->UpdateCounter(1);

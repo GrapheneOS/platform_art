@@ -33,8 +33,6 @@ bool IsNterpSupported();
 bool CanRuntimeUseNterp();
 const void* GetNterpEntryPoint();
 
-// The hotness threshold where we trigger JIT compilation or OSR.
-constexpr uint16_t kNterpHotnessMask = 0xffff;
 constexpr uint16_t kNterpHotnessValue = 0;
 
 // The hotness threshold for the baseline compiler to trigger optimized
