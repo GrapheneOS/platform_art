@@ -47,15 +47,14 @@ public class Main {
     return OtherDex.returnIntMethod();
   }
 
-  /// CHECK-START: int Main.dontInlineOtherDexStatic() inliner (before)
-  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
+  /// CHECK-START: int Main.inlineOtherDexStatic() inliner (before)
+  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect method_name:OtherDex.returnOtherDexStatic
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  /// CHECK-START: int Main.dontInlineOtherDexStatic() inliner (after)
-  /// CHECK-DAG:     <<Invoke:i\d+>>  InvokeStaticOrDirect
-  /// CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: int Main.inlineOtherDexStatic() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect method_name:OtherDex.returnOtherDexStatic
 
-  public static int dontInlineOtherDexStatic() {
+  public static int inlineOtherDexStatic() {
     return OtherDex.returnOtherDexStatic();
   }
 
@@ -86,28 +85,25 @@ public class Main {
     return OtherDex.recursiveCall();
   }
 
-  /// CHECK-START: java.lang.String Main.dontInlineReturnString() inliner (before)
-  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-START: java.lang.String Main.inlineReturnString() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect method_name:OtherDex.returnString
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  /// CHECK-START: java.lang.String Main.dontInlineReturnString() inliner (after)
-  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  /// CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.String Main.inlineReturnString() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect method_name:OtherDex.returnString
 
-  public static String dontInlineReturnString() {
+  public static String inlineReturnString() {
     return OtherDex.returnString();
   }
 
-
-  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClass() inliner (before)
-  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-START: java.lang.Class Main.inlineOtherDexClass() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect method_name:OtherDex.returnOtherDexClass
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClass() inliner (after)
-  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  /// CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.inlineOtherDexClass() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect method_name:OtherDex.returnOtherDexClass
 
-  public static Class<?> dontInlineOtherDexClass() {
+  public static Class<?> inlineOtherDexClass() {
     return OtherDex.returnOtherDexClass();
   }
 
@@ -128,15 +124,14 @@ public class Main {
     return OtherDex.returnMainClass();
   }
 
-  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClassStaticCall() inliner (before)
-  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
+  /// CHECK-START: java.lang.Class Main.inlineOtherDexClassStaticCall() inliner (before)
+  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect method_name:OtherDex.returnOtherDexClassStaticCall
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  /// CHECK-START: java.lang.Class Main.dontInlineOtherDexClassStaticCall() inliner (after)
-  /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
-  /// CHECK-DAG:                      Return [<<Invoke>>]
+  /// CHECK-START: java.lang.Class Main.inlineOtherDexClassStaticCall() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect method_name:OtherDex.returnOtherDexClassStaticCall
 
-  public static Class<?> dontInlineOtherDexClassStaticCall() {
+  public static Class<?> inlineOtherDexClassStaticCall() {
     return OtherDex.returnOtherDexClassStaticCall();
   }
 
@@ -167,7 +162,7 @@ public class Main {
       throw new Error("Expected 38");
     }
 
-    if (dontInlineOtherDexStatic() != 1) {
+    if (inlineOtherDexStatic() != 1) {
       throw new Error("Expected 1");
     }
 
@@ -175,15 +170,15 @@ public class Main {
       throw new Error("Expected 42");
     }
 
-    if (dontInlineReturnString() != "OtherDex") {
+    if (inlineReturnString() != "OtherDex") {
       throw new Error("Expected OtherDex");
     }
 
-    if (dontInlineOtherDexClass() != OtherDex.class) {
+    if (inlineOtherDexClass() != OtherDex.class) {
       throw new Error("Expected " + OtherDex.class);
     }
 
-    if (dontInlineOtherDexClassStaticCall() != OtherDex.class) {
+    if (inlineOtherDexClassStaticCall() != OtherDex.class) {
       throw new Error("Expected " + OtherDex.class);
     }
 
