@@ -1229,6 +1229,13 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
     return JNI_ERR;
   }
 
+  // When `ART_CRASH_RUNTIME_DELIBERATELY` is defined (which happens only in the
+  // case of a test APEX), we crash the runtime here on purpose, to test the
+  // behavior of rollbacks following a failed ART Mainline Module update.
+#ifdef ART_CRASH_RUNTIME_DELIBERATELY
+  LOG(FATAL) << "Runtime crashing deliberately for testing purposes.";
+#endif
+
   // Initialize native loader. This step makes sure we have
   // everything set up before we start using JNI.
   android::InitializeNativeLoader();
