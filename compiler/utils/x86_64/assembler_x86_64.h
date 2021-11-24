@@ -982,6 +982,8 @@ class X86_64Assembler final : public Assembler {
   void repe_cmpsq();
   void rep_movsw();
 
+  void ud2();
+
   //
   // Macros for High-level operations.
   //

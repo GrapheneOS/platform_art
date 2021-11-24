@@ -40,14 +40,16 @@ public class Main {
   //   java.lang.StringFactory.newStringFromChars(char[] data)
   //
   // which contains a call to the former (non-public) native method.
-  // After the inliner runs, we can see the inlined call and check
-  // that the compiler intrinsifies it.
+  // However, this call will not be inlined (because it is a method in
+  // another Dex file and which contains a call, which needs an
+  // environment), so we cannot use Checker here to ensure the native
+  // call was intrinsified either.
 
   /// CHECK-START: void Main.testNewStringFromChars() builder (after)
   /// CHECK-DAG:     InvokeStaticOrDirect method_name:java.lang.StringFactory.newStringFromChars intrinsic:None
 
   /// CHECK-START: void Main.testNewStringFromChars() inliner (after)
-  /// CHECK-DAG:     InvokeStaticOrDirect method_name:java.lang.StringFactory.newStringFromChars intrinsic:StringNewStringFromChars
+  /// CHECK-DAG:     InvokeStaticOrDirect method_name:java.lang.StringFactory.newStringFromChars intrinsic:None
 
   public static void testNewStringFromChars() {
     char[] chars = { 'b', 'a', 'r' };

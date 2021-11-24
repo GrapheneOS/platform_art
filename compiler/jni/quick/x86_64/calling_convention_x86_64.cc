@@ -299,6 +299,15 @@ FrameOffset X86_64JniCallingConvention::CurrentParamStackOffset() {
   return FrameOffset(offset);
 }
 
+ManagedRegister X86_64JniCallingConvention::LockingArgumentRegister() const {
+  DCHECK(!IsFastNative());
+  DCHECK(!IsCriticalNative());
+  DCHECK(IsSynchronized());
+  // The callee-save register is RBX is suitable as a locking argument.
+  static_assert(kCalleeSaveRegisters[0].Equals(X86_64ManagedRegister::FromCpuRegister(RBX)));
+  return X86_64ManagedRegister::FromCpuRegister(RBX);
+}
+
 ManagedRegister X86_64JniCallingConvention::HiddenArgumentRegister() const {
   CHECK(IsCriticalNative());
   // RAX is neither managed callee-save, nor argument register, nor scratch register.

@@ -5268,6 +5268,11 @@ void X86_64Assembler::repe_cmpsq() {
   EmitUint8(0xA7);
 }
 
+void X86_64Assembler::ud2() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x0B);
+}
 
 void X86_64Assembler::LoadDoubleConstant(XmmRegister dst, double value) {
   // TODO: Need to have a code constants table.
