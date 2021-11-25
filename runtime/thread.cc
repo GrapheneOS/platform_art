@@ -1003,8 +1003,8 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, PeerAction peer_
 
   self->InitStringEntryPoints();
 
-  CHECK_NE(self->GetState(), kRunnable);
-  self->SetState(kNative);
+  CHECK_NE(self->GetState(), ThreadState::kRunnable);
+  self->SetState(ThreadState::kNative);
 
   // Run the action that is acting on the peer.
   if (!peer_action(self)) {
@@ -1444,7 +1444,7 @@ bool Thread::ModifySuspendCountInternal(Thread* self,
     return false;
   }
 
-  uint16_t flags = kSuspendRequest;
+  uint32_t flags = enum_cast<uint32_t>(ThreadFlag::kSuspendRequest);
   if (delta > 0 && suspend_barrier != nullptr) {
     uint32_t available_barrier = kMaxSuspendBarriers;
     for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
@@ -1458,7 +1458,7 @@ bool Thread::ModifySuspendCountInternal(Thread* self,
       return false;
     }
     tlsPtr_.active_suspend_barriers[available_barrier] = suspend_barrier;
-    flags |= kActiveSuspendBarrier;
+    flags |= enum_cast<uint32_t>(ThreadFlag::kActiveSuspendBarrier);
   }
 
   tls32_.suspend_count += delta;
@@ -1471,10 +1471,10 @@ bool Thread::ModifySuspendCountInternal(Thread* self,
   }
 
   if (tls32_.suspend_count == 0) {
-    AtomicClearFlag(kSuspendRequest);
+    AtomicClearFlag(ThreadFlag::kSuspendRequest);
   } else {
     // Two bits might be set simultaneously.
-    tls32_.state_and_flags.as_atomic_int.fetch_or(flags, std::memory_order_seq_cst);
+    tls32_.state_and_flags.fetch_or(flags, std::memory_order_seq_cst);
     TriggerSuspend();
   }
   return true;
@@ -1488,7 +1488,7 @@ bool Thread::PassActiveSuspendBarriers(Thread* self) {
   AtomicInteger* pass_barriers[kMaxSuspendBarriers];
   {
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-    if (!ReadFlag(kActiveSuspendBarrier)) {
+    if (!ReadFlag(ThreadFlag::kActiveSuspendBarrier)) {
       // quick exit test: the barriers have already been claimed - this is
       // possible as there may be a race to claim and it doesn't matter
       // who wins.
@@ -1503,7 +1503,7 @@ bool Thread::PassActiveSuspendBarriers(Thread* self) {
       pass_barriers[i] = tlsPtr_.active_suspend_barriers[i];
       tlsPtr_.active_suspend_barriers[i] = nullptr;
     }
-    AtomicClearFlag(kActiveSuspendBarrier);
+    AtomicClearFlag(ThreadFlag::kActiveSuspendBarrier);
   }
 
   uint32_t barrier_count = 0;
@@ -1530,7 +1530,7 @@ bool Thread::PassActiveSuspendBarriers(Thread* self) {
 }
 
 void Thread::ClearSuspendBarrier(AtomicInteger* target) {
-  CHECK(ReadFlag(kActiveSuspendBarrier));
+  CHECK(ReadFlag(ThreadFlag::kActiveSuspendBarrier));
   bool clear_flag = true;
   for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
     AtomicInteger* ptr = tlsPtr_.active_suspend_barriers[i];
@@ -1541,7 +1541,7 @@ void Thread::ClearSuspendBarrier(AtomicInteger* target) {
     }
   }
   if (LIKELY(clear_flag)) {
-    AtomicClearFlag(kActiveSuspendBarrier);
+    AtomicClearFlag(ThreadFlag::kActiveSuspendBarrier);
   }
 }
 
@@ -1559,7 +1559,7 @@ void Thread::RunCheckpointFunction() {
     } else {
       // No overflow checkpoints. Clear the kCheckpointRequest flag
       tlsPtr_.checkpoint_function = nullptr;
-      AtomicClearFlag(kCheckpointRequest);
+      AtomicClearFlag(ThreadFlag::kCheckpointRequest);
     }
   }
   // Outside the lock, run the checkpoint function.
@@ -1570,24 +1570,22 @@ void Thread::RunCheckpointFunction() {
 
 void Thread::RunEmptyCheckpoint() {
   DCHECK_EQ(Thread::Current(), this);
-  AtomicClearFlag(kEmptyCheckpointRequest);
+  AtomicClearFlag(ThreadFlag::kEmptyCheckpointRequest);
   Runtime::Current()->GetThreadList()->EmptyCheckpointBarrier()->Pass(this);
 }
 
 bool Thread::RequestCheckpoint(Closure* function) {
-  union StateAndFlags old_state_and_flags;
-  old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
-  if (old_state_and_flags.as_struct.state != kRunnable) {
+  StateAndFlags old_state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+  if (old_state_and_flags.GetState() != ThreadState::kRunnable) {
     return false;  // Fail, thread is suspended and so can't run a checkpoint.
   }
 
   // We must be runnable to request a checkpoint.
-  DCHECK_EQ(old_state_and_flags.as_struct.state, kRunnable);
-  union StateAndFlags new_state_and_flags;
-  new_state_and_flags.as_int = old_state_and_flags.as_int;
-  new_state_and_flags.as_struct.flags |= kCheckpointRequest;
-  bool success = tls32_.state_and_flags.as_atomic_int.CompareAndSetStrongSequentiallyConsistent(
-      old_state_and_flags.as_int, new_state_and_flags.as_int);
+  DCHECK_EQ(old_state_and_flags.GetState(), ThreadState::kRunnable);
+  StateAndFlags new_state_and_flags = old_state_and_flags;
+  new_state_and_flags.SetFlag(ThreadFlag::kCheckpointRequest);
+  bool success = tls32_.state_and_flags.CompareAndSetStrongSequentiallyConsistent(
+      old_state_and_flags.GetValue(), new_state_and_flags.GetValue());
   if (success) {
     // Succeeded setting checkpoint flag, now insert the actual checkpoint.
     if (tlsPtr_.checkpoint_function == nullptr) {
@@ -1595,28 +1593,26 @@ bool Thread::RequestCheckpoint(Closure* function) {
     } else {
       checkpoint_overflow_.push_back(function);
     }
-    CHECK_EQ(ReadFlag(kCheckpointRequest), true);
+    CHECK(ReadFlag(ThreadFlag::kCheckpointRequest));
     TriggerSuspend();
   }
   return success;
 }
 
 bool Thread::RequestEmptyCheckpoint() {
-  union StateAndFlags old_state_and_flags;
-  old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
-  if (old_state_and_flags.as_struct.state != kRunnable) {
+  StateAndFlags old_state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+  if (old_state_and_flags.GetState() != ThreadState::kRunnable) {
     // If it's not runnable, we don't need to do anything because it won't be in the middle of a
     // heap access (eg. the read barrier).
     return false;
   }
 
   // We must be runnable to request a checkpoint.
-  DCHECK_EQ(old_state_and_flags.as_struct.state, kRunnable);
-  union StateAndFlags new_state_and_flags;
-  new_state_and_flags.as_int = old_state_and_flags.as_int;
-  new_state_and_flags.as_struct.flags |= kEmptyCheckpointRequest;
-  bool success = tls32_.state_and_flags.as_atomic_int.CompareAndSetStrongSequentiallyConsistent(
-      old_state_and_flags.as_int, new_state_and_flags.as_int);
+  DCHECK_EQ(old_state_and_flags.GetState(), ThreadState::kRunnable);
+  StateAndFlags new_state_and_flags = old_state_and_flags;
+  new_state_and_flags.SetFlag(ThreadFlag::kEmptyCheckpointRequest);
+  bool success = tls32_.state_and_flags.CompareAndSetStrongSequentiallyConsistent(
+      old_state_and_flags.GetValue(), new_state_and_flags.GetValue());
   if (success) {
     TriggerSuspend();
   }
@@ -1776,7 +1772,7 @@ void Thread::FullSuspendCheck() {
   VLOG(threads) << this << " self-suspending";
   // Make thread appear suspended to other threads, release mutator_lock_.
   // Transition to suspended and back to runnable, re-acquire share on mutator_lock_.
-  ScopedThreadSuspension(this, kSuspended);  // NOLINT
+  ScopedThreadSuspension(this, ThreadState::kSuspended);  // NOLINT
   VLOG(threads) << this << " self-reviving";
 }
 
@@ -1879,10 +1875,15 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
 
   if (thread != nullptr) {
     auto suspend_log_fn = [&]() REQUIRES(Locks::thread_suspend_count_lock_) {
+      StateAndFlags state_and_flags(
+          thread->tls32_.state_and_flags.load(std::memory_order_relaxed));
+      static_assert(
+          static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
+      state_and_flags.SetState(ThreadState::kRunnable);  // Clear state bits.
       os << "  | group=\"" << group_name << "\""
          << " sCount=" << thread->tls32_.suspend_count
          << " ucsCount=" << thread->tls32_.user_code_suspend_count
-         << " flags=" << thread->tls32_.state_and_flags.as_struct.flags
+         << " flags=" << state_and_flags.GetValue()
          << " obj=" << reinterpret_cast<void*>(thread->tlsPtr_.opeer)
          << " self=" << reinterpret_cast<const void*>(thread) << "\n";
     };
@@ -2058,11 +2059,11 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* msg;
     switch (state) {
-      case kBlocked:
+      case ThreadState::kBlocked:
         msg = "  - waiting to lock ";
         break;
 
-      case kWaitingForLockInflation:
+      case ThreadState::kWaitingForLockInflation:
         msg = "  - waiting for lock inflation of ";
         break;
 
@@ -2116,12 +2117,14 @@ static bool ShouldShowNativeStack(const Thread* thread)
   ThreadState state = thread->GetState();
 
   // In native code somewhere in the VM (one of the kWaitingFor* states)? That's interesting.
-  if (state > kWaiting && state < kStarting) {
+  if (state > ThreadState::kWaiting && state < ThreadState::kStarting) {
     return true;
   }
 
   // In an Object.wait variant or Thread.sleep? That's not interesting.
-  if (state == kTimedWaiting || state == kSleeping || state == kWaiting) {
+  if (state == ThreadState::kTimedWaiting ||
+      state == ThreadState::kSleeping ||
+      state == ThreadState::kWaiting) {
     return false;
   }
 
@@ -2305,8 +2308,10 @@ Thread::Thread(bool daemon)
 
   static_assert((sizeof(Thread) % 4) == 0U,
                 "art::Thread has a size which is not a multiple of 4.");
-  tls32_.state_and_flags.as_struct.flags = 0;
-  tls32_.state_and_flags.as_struct.state = kNative;
+  DCHECK_EQ(tls32_.state_and_flags.load(std::memory_order_relaxed), 0u);
+  StateAndFlags state_and_flags(0u);
+  state_and_flags.SetState(ThreadState::kNative);
+  tls32_.state_and_flags.store(state_and_flags.GetValue(), std::memory_order_relaxed);
   tls32_.interrupted.store(false, std::memory_order_relaxed);
   // Initialize with no permit; if the java Thread was unparked before being
   // started, it will unpark itself before calling into java code.
@@ -2462,9 +2467,9 @@ Thread::~Thread() {
     delete tlsPtr_.jni_env;
     tlsPtr_.jni_env = nullptr;
   }
-  CHECK_NE(GetState(), kRunnable);
-  CHECK(!ReadFlag(kCheckpointRequest));
-  CHECK(!ReadFlag(kEmptyCheckpointRequest));
+  CHECK_NE(GetState(), ThreadState::kRunnable);
+  CHECK(!ReadFlag(ThreadFlag::kCheckpointRequest));
+  CHECK(!ReadFlag(ThreadFlag::kEmptyCheckpointRequest));
   CHECK(tlsPtr_.checkpoint_function == nullptr);
   CHECK_EQ(checkpoint_overflow_.size(), 0u);
   CHECK(tlsPtr_.flip_function == nullptr);
@@ -2476,7 +2481,7 @@ Thread::~Thread() {
       "Not all deoptimized frames have been consumed by the debugger.";
 
   // We may be deleting a still born thread.
-  SetStateUnsafe(kTerminated);
+  SetStateUnsafe(ThreadState::kTerminated);
 
   delete wait_cond_;
   delete wait_mutex_;
@@ -2503,7 +2508,7 @@ void Thread::HandleUncaughtExceptions(ScopedObjectAccessAlreadyRunnable& soa) {
     return;
   }
   ScopedLocalRef<jobject> peer(tlsPtr_.jni_env, soa.AddLocalReference<jobject>(tlsPtr_.opeer));
-  ScopedThreadStateChange tsc(this, kNative);
+  ScopedThreadStateChange tsc(this, ThreadState::kNative);
 
   // Get and clear the exception.
   ScopedLocalRef<jthrowable> exception(tlsPtr_.jni_env, tlsPtr_.jni_env->ExceptionOccurred());
@@ -2526,7 +2531,7 @@ void Thread::RemoveFromThreadGroup(ScopedObjectAccessAlreadyRunnable& soa) {
   if (ogroup != nullptr) {
     ScopedLocalRef<jobject> group(soa.Env(), soa.AddLocalReference<jobject>(ogroup));
     ScopedLocalRef<jobject> peer(soa.Env(), soa.AddLocalReference<jobject>(tlsPtr_.opeer));
-    ScopedThreadStateChange tsc(soa.Self(), kNative);
+    ScopedThreadStateChange tsc(soa.Self(), ThreadState::kNative);
     tlsPtr_.jni_env->CallVoidMethod(group.get(),
                                     WellKnownClasses::java_lang_ThreadGroup_removeThread,
                                     peer.get());
@@ -4470,7 +4475,7 @@ bool Thread::IsSystemDaemon() const {
 
 std::string Thread::StateAndFlagsAsHexString() const {
   std::stringstream result_stream;
-  result_stream << std::hex << tls32_.state_and_flags.as_atomic_int.load();
+  result_stream << std::hex << tls32_.state_and_flags.load(std::memory_order_relaxed);
   return result_stream.str();
 }
 

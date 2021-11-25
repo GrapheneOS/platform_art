@@ -29,7 +29,7 @@ inline ScopedFastNativeObjectAccess::ScopedFastNativeObjectAccess(JNIEnv* env)
   Locks::mutator_lock_->AssertSharedHeld(Self());
   DCHECK((*Self()->GetManagedStack()->GetTopQuickFrame())->IsFastNative());
   // Don't work with raw objects in non-runnable states.
-  DCHECK_EQ(Self()->GetState(), kRunnable);
+  DCHECK_EQ(Self()->GetState(), ThreadState::kRunnable);
 }
 
 }  // namespace art

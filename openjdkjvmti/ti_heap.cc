@@ -1403,7 +1403,7 @@ jvmtiError HeapUtil::FollowReferences(jvmtiEnv* env,
   {
     art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
     art::jni::ScopedEnableSuspendAllJniIdQueries sjni;  // make sure we can get JNI ids.
-    art::ScopedThreadSuspension sts(self, art::kWaitingForVisitObjects);
+    art::ScopedThreadSuspension sts(self, art::ThreadState::kWaitingForVisitObjects);
     art::ScopedSuspendAll ssa("FollowReferences");
 
     art::ObjPtr<art::mirror::Class> class_filter = klass == nullptr

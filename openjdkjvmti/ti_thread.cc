@@ -174,7 +174,7 @@ void ThreadUtil::VMInitEventSent() {
 
 static void WaitForSystemDaemonStart(art::Thread* self) REQUIRES_SHARED(art::Locks::mutator_lock_) {
   {
-    art::ScopedThreadStateChange strc(self, art::kNative);
+    art::ScopedThreadStateChange strc(self, art::ThreadState::kNative);
     JNIEnv* jni = self->GetJniEnv();
     jni->CallStaticVoidMethod(art::WellKnownClasses::java_lang_Daemons,
                               art::WellKnownClasses::java_lang_Daemons_waitForDaemonStart);
@@ -487,6 +487,7 @@ static jint GetJvmtiThreadStateFromInternal(const InternalThreadState& state) {
       jvmti_state |= (JVMTI_THREAD_STATE_WAITING |
                       JVMTI_THREAD_STATE_WAITING_INDEFINITELY);
       break;
+    case art::ThreadState::kObsoleteRunnable:  // Obsolete value.
     case art::ThreadState::kStarting:
     case art::ThreadState::kTerminated:
       // We only call this if we are alive so we shouldn't see either of these states.
@@ -539,6 +540,9 @@ static jint GetJavaStateFromInternal(const InternalThreadState& state) {
     case art::ThreadState::kWaitingForGcThreadFlip:
     case art::ThreadState::kNativeForAbort:
       return JVMTI_JAVA_LANG_THREAD_STATE_WAITING;
+
+    case art::ThreadState::kObsoleteRunnable:
+      break;  // Obsolete value.
   }
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();

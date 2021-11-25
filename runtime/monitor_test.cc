@@ -265,7 +265,7 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
   }
 
   // Need to drop the mutator lock to allow barriers.
-  ScopedThreadSuspension sts(soa.Self(), kNative);
+  ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
   ThreadPool thread_pool(pool_name, 3);
   thread_pool.AddTask(self, new CreateTask(test, create_sleep, c_millis, c_expected));
   if (interrupt) {
@@ -361,7 +361,7 @@ TEST_F(MonitorTest, TestTryLock) {
     // Test failure case.
     thread_pool.AddTask(self, new TryLockTask(obj1));
     thread_pool.StartWorkers(self);
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     thread_pool.Wait(Thread::Current(), /*do_work=*/false, /*may_hold_locks=*/false);
   }
   // Test that the trylock actually locks the object.

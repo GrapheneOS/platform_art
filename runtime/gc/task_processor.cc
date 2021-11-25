@@ -39,14 +39,14 @@ TaskProcessor::~TaskProcessor() {
 }
 
 void TaskProcessor::AddTask(Thread* self, HeapTask* task) {
-  ScopedThreadStateChange tsc(self, kWaitingForTaskProcessor);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForTaskProcessor);
   MutexLock mu(self, lock_);
   tasks_.insert(task);
   cond_.Signal(self);
 }
 
 HeapTask* TaskProcessor::GetTask(Thread* self) {
-  ScopedThreadStateChange tsc(self, kWaitingForTaskProcessor);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForTaskProcessor);
   MutexLock mu(self, lock_);
   while (true) {
     if (tasks_.empty()) {

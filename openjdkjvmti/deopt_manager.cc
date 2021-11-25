@@ -219,14 +219,14 @@ bool DeoptManager::MethodHasBreakpointsLocked(art::ArtMethod* method) {
 
 void DeoptManager::RemoveDeoptimizeAllMethods() {
   art::Thread* self = art::Thread::Current();
-  art::ScopedThreadSuspension sts(self, art::kSuspended);
+  art::ScopedThreadSuspension sts(self, art::ThreadState::kSuspended);
   deoptimization_status_lock_.ExclusiveLock(self);
   RemoveDeoptimizeAllMethodsLocked(self);
 }
 
 void DeoptManager::AddDeoptimizeAllMethods() {
   art::Thread* self = art::Thread::Current();
-  art::ScopedThreadSuspension sts(self, art::kSuspended);
+  art::ScopedThreadSuspension sts(self, art::ThreadState::kSuspended);
   deoptimization_status_lock_.ExclusiveLock(self);
   AddDeoptimizeAllMethodsLocked(self);
 }
@@ -240,7 +240,7 @@ void DeoptManager::AddMethodBreakpoint(art::ArtMethod* method) {
   method = method->GetCanonicalMethod();
   bool is_default = method->IsDefault();
 
-  art::ScopedThreadSuspension sts(self, art::kSuspended);
+  art::ScopedThreadSuspension sts(self, art::ThreadState::kSuspended);
   deoptimization_status_lock_.ExclusiveLock(self);
   {
     breakpoint_status_lock_.ExclusiveLock(self);
@@ -280,7 +280,7 @@ void DeoptManager::RemoveMethodBreakpoint(art::ArtMethod* method) {
   method = method->GetCanonicalMethod();
   bool is_default = method->IsDefault();
 
-  art::ScopedThreadSuspension sts(self, art::kSuspended);
+  art::ScopedThreadSuspension sts(self, art::ThreadState::kSuspended);
   // Ideally we should do a ScopedSuspendAll right here to get the full mutator_lock_ that we might
   // need but since that is very heavy we will instead just use a condition variable to make sure we
   // don't race with ourselves.
@@ -452,7 +452,7 @@ jvmtiError DeoptManager::RemoveDeoptimizeThreadMethods(art::ScopedObjectAccessUn
 
 void DeoptManager::RemoveDeoptimizationRequester() {
   art::Thread* self = art::Thread::Current();
-  art::ScopedThreadStateChange sts(self, art::kSuspended);
+  art::ScopedThreadStateChange sts(self, art::ThreadState::kSuspended);
   deoptimization_status_lock_.ExclusiveLock(self);
   DCHECK_GT(deopter_count_, 0u) << "Removing deoptimization requester without any being present";
   deopter_count_--;
@@ -468,7 +468,7 @@ void DeoptManager::RemoveDeoptimizationRequester() {
 
 void DeoptManager::AddDeoptimizationRequester() {
   art::Thread* self = art::Thread::Current();
-  art::ScopedThreadStateChange stsc(self, art::kSuspended);
+  art::ScopedThreadStateChange stsc(self, art::ThreadState::kSuspended);
   deoptimization_status_lock_.ExclusiveLock(self);
   deopter_count_++;
   if (deopter_count_ == 1) {
@@ -487,7 +487,7 @@ void DeoptManager::AddDeoptimizationRequester() {
 void DeoptManager::DeoptimizeThread(art::Thread* target) {
   // We might or might not be running on the target thread (self) so get Thread::Current
   // directly.
-  art::ScopedThreadSuspension sts(art::Thread::Current(), art::kSuspended);
+  art::ScopedThreadSuspension sts(art::Thread::Current(), art::ThreadState::kSuspended);
   art::gc::ScopedGCCriticalSection sgccs(art::Thread::Current(),
                                          art::gc::GcCause::kGcCauseDebugger,
                                          art::gc::CollectorType::kCollectorTypeDebugger);

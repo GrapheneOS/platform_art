@@ -368,7 +368,7 @@ struct ClassCallback : public art::ClassLoadCallback {
       heap->IncrementDisableMovingGC(self);
     }
     {
-      art::ScopedThreadSuspension sts(self, art::kWaitingForVisitObjects);
+      art::ScopedThreadSuspension sts(self, art::ThreadState::kWaitingForVisitObjects);
       art::ScopedSuspendAll ssa("FixupTempClass");
 
       art::mirror::Class* input = temp_klass.Get();

@@ -6699,7 +6699,8 @@ void InstructionCodeGeneratorX86::GenerateSuspendCheck(HSuspendCheck* instructio
     DCHECK_EQ(slow_path->GetSuccessor(), successor);
   }
 
-  __ fs()->cmpw(Address::Absolute(Thread::ThreadFlagsOffset<kX86PointerSize>().Int32Value()),
+  static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
+  __ fs()->cmpl(Address::Absolute(Thread::ThreadFlagsOffset<kX86PointerSize>().Int32Value()),
                 Immediate(0));
   if (successor == nullptr) {
     __ j(kNotEqual, slow_path->GetEntryLabel());

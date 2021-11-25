@@ -268,7 +268,7 @@ void Dbg::DdmBroadcast(bool connect) {
   VLOG(jdwp) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
 
   Thread* self = Thread::Current();
-  if (self->GetState() != kRunnable) {
+  if (self->GetState() != ThreadState::kRunnable) {
     LOG(ERROR) << "DDM broadcast in thread state " << self->GetState();
     /* try anyway? */
   }
@@ -747,7 +747,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
         context.SetChunkOverhead(0);
         // Need to acquire the mutator lock before the heap bitmap lock with exclusive access since
         // RosAlloc's internal logic doesn't know to release and reacquire the heap bitmap lock.
-        ScopedThreadSuspension sts(self, kSuspended);
+        ScopedThreadSuspension sts(self, ThreadState::kSuspended);
         ScopedSuspendAll ssa(__FUNCTION__);
         ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
@@ -759,7 +759,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
       } else if (space->IsRegionSpace()) {
         heap->IncrementDisableMovingGC(self);
         {
-          ScopedThreadSuspension sts(self, kSuspended);
+          ScopedThreadSuspension sts(self, ThreadState::kSuspended);
           ScopedSuspendAll ssa(__FUNCTION__);
           ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
           context.SetChunkOverhead(0);
