@@ -185,7 +185,11 @@ known_failing_tests = frozenset([
   "1978-regular-obsolete-then-structural-obsolescence",
   "1979-threaded-structural-transformation",
   "1980-obsolete-object-cleared",
+  # 1981-structural-redef-private-method-handles: Custom `run` script.
+  "1981-structural-redef-private-method-handles",
   "1982-no-virtuals-structural-redefinition",
+  # 1983-structural-redefinition-failures: Custom `run` script.
+  "1983-structural-redefinition-failures",
   "1984-structural-redefine-field-trace",
   "1985-structural-redefine-stack-scope",
   "1986-structural-redefine-multi-thread-stack-scope",
@@ -344,6 +348,7 @@ known_failing_tests = frozenset([
   "985-re-obsolete",
   "986-native-method-bind",
   "987-agent-bind",
+  # 988-method-trace: Custom `run` script.
   "988-method-trace",
   "989-method-trace-throw",
   "990-field-trace",
