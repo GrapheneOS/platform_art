@@ -81,7 +81,6 @@ void CheckNterpAsmConstants() {
       LOG(FATAL) << "ERROR: unexpected asm interp size " << interp_size
                  << "(did an instruction handler exceed " << width << " bytes?)";
   }
-  static_assert(IsPowerOfTwo(kNterpHotnessMask + 1), "Hotness mask must be a (power of 2) - 1");
   static_assert(IsPowerOfTwo(kTieredHotnessMask + 1),
                 "Tiered hotness mask must be a (power of 2) - 1");
 }
@@ -727,8 +726,9 @@ extern "C" mirror::Object* NterpFilledNewArrayRange(Thread* self,
 extern "C" jit::OsrData* NterpHotMethod(ArtMethod* method, uint16_t* dex_pc_ptr, uint32_t* vregs)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension sants("In nterp");
-  method->ResetCounter();
-  jit::Jit* jit = Runtime::Current()->GetJit();
+  Runtime* runtime = Runtime::Current();
+  method->ResetCounter(runtime->GetJITOptions()->GetWarmupThreshold());
+  jit::Jit* jit = runtime->GetJit();
   if (jit != nullptr && jit->UseJitCompilation()) {
     // Nterp passes null on entry where we don't want to OSR.
     if (dex_pc_ptr != nullptr) {
