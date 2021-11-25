@@ -17,6 +17,9 @@
       "name": "art-run-test-004-InterfaceTest[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-004-NativeAllocations[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-004-checker-UnsafeTest18[com.google.android.art.apex]"
     },
     {
@@ -215,6 +218,9 @@
       "name": "art-run-test-100-reflect2[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-1000-non-moving-space-stress[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-1004-checker-volatile-ref-load[com.google.android.art.apex]"
     },
     {
@@ -284,6 +290,9 @@
       "name": "art-run-test-133-static-invoke-super[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-1338-gc-no-los[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-140-dce-regression[com.google.android.art.apex]"
     },
     {
@@ -294,6 +303,9 @@
     },
     {
       "name": "art-run-test-144-static-field-sigquit[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-145-alloc-tracking-stress[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-151-OpenFileLimit[com.google.android.art.apex]"
@@ -908,7 +920,13 @@
       "name": "art-run-test-579-inline-infinite[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-580-checker-fp16[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-580-checker-round[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-580-checker-string-fact-intrinsics[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-580-crc32[com.google.android.art.apex]"
@@ -1061,6 +1079,9 @@
       "name": "art-run-test-658-fp-read-barrier[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-659-unpadded-array[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-660-checker-sad[com.google.android.art.apex]"
     },
     {
@@ -1101,6 +1122,9 @@
     },
     {
       "name": "art-run-test-677-fsi2[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-678-quickening[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-680-sink-regression[com.google.android.art.apex]"
@@ -1268,6 +1292,9 @@
     },
     {
       "name": "art-run-test-004-InterfaceTest"
+    },
+    {
+      "name": "art-run-test-004-NativeAllocations"
     },
     {
       "name": "art-run-test-004-checker-UnsafeTest18"
@@ -1468,6 +1495,9 @@
       "name": "art-run-test-100-reflect2"
     },
     {
+      "name": "art-run-test-1000-non-moving-space-stress"
+    },
+    {
       "name": "art-run-test-1004-checker-volatile-ref-load"
     },
     {
@@ -1537,6 +1567,9 @@
       "name": "art-run-test-133-static-invoke-super"
     },
     {
+      "name": "art-run-test-1338-gc-no-los"
+    },
+    {
       "name": "art-run-test-140-dce-regression"
     },
     {
@@ -1547,6 +1580,9 @@
     },
     {
       "name": "art-run-test-144-static-field-sigquit"
+    },
+    {
+      "name": "art-run-test-145-alloc-tracking-stress"
     },
     {
       "name": "art-run-test-151-OpenFileLimit"
@@ -2161,7 +2197,13 @@
       "name": "art-run-test-579-inline-infinite"
     },
     {
+      "name": "art-run-test-580-checker-fp16"
+    },
+    {
       "name": "art-run-test-580-checker-round"
+    },
+    {
+      "name": "art-run-test-580-checker-string-fact-intrinsics"
     },
     {
       "name": "art-run-test-580-crc32"
@@ -2314,6 +2356,9 @@
       "name": "art-run-test-658-fp-read-barrier"
     },
     {
+      "name": "art-run-test-659-unpadded-array"
+    },
+    {
       "name": "art-run-test-660-checker-sad"
     },
     {
@@ -2354,6 +2399,9 @@
     },
     {
       "name": "art-run-test-677-fsi2"
+    },
+    {
+      "name": "art-run-test-678-quickening"
     },
     {
       "name": "art-run-test-680-sink-regression"
