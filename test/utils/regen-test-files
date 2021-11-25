@@ -86,6 +86,8 @@ NUM_MTS_ART_RUN_TEST_SHARDS = 1
 # TODO(rpl): Investigate and address the causes of failures.
 known_failing_tests = frozenset([
   "004-SignalTest",
+  # 004-ThreadStress: Custom `run` script + dependency on `libarttest` + custom `check` script.
+  "004-ThreadStress",
   "004-UnsafeTest",
   "030-bad-finalizer",
   "034-call-null",
@@ -96,6 +98,8 @@ known_failing_tests = frozenset([
   "086-null-super",
   "087-gc-after-link",
   "096-array-copy-concurrent-gc",
+  # 1002-notify-startup: Dependency on `libarttest` + custom `check` script.
+  "1002-notify-startup",
   "115-native-bridge",
   "116-nodex2oat",
   "1336-short-finalizer-timeout",
@@ -108,6 +112,8 @@ known_failing_tests = frozenset([
   "149-suspend-all-stress",
   "150-loadlibrary",
   "154-gc-loop",
+  # 157-void-class: Custom `run` script + dependency on `libarttest`.
+  "157-void-class",
   "158-app-image-class-table",
   "169-threadgroup-jni",
   "172-app-image-twice",
@@ -211,6 +217,8 @@ known_failing_tests = frozenset([
   "2005-pause-all-redefine-multithreaded",
   "2008-redefine-then-old-reflect-field",
   "2011-stack-walk-concurrent-instrument",
+  # 2012-structural-redefinition-failures-jni-id: Custom `run` script.
+  "2012-structural-redefinition-failures-jni-id",
   # 2040-huge-native-alloc: Fails with:
   #
   #   Test command execution failed with status FAILED: CommandResult: exit code=1, out=, err=Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: length=0; index=0
@@ -223,6 +231,8 @@ known_failing_tests = frozenset([
   "2033-shutdown-mechanics",
   "2036-jni-filechannel",
   "2037-thread-name-inherit",
+  # 2230-profile-save-hotness: Custom `run` script + dependency on `libarttest`.
+  "2230-profile-save-hotness",
   "2235-JdkUnsafeTest",
   "305-other-fault-handler",
   # 449-checker-bce: Dependency on `libarttest`.
@@ -235,6 +245,8 @@ known_failing_tests = frozenset([
   "555-UnsafeGetLong-regression",
   "566-polymorphic-inlining",
   "595-profile-saving",
+  # 596-monitor-inflation: Dependency on `libarttest`.
+  "596-monitor-inflation",
   "597-deopt-busy-loop",
   "597-deopt-invoke-stub",
   "597-deopt-new-string",
@@ -272,6 +284,8 @@ known_failing_tests = frozenset([
   # 707-checker-invalid-profile: Custom `run` script + custom `check` script.
   "707-checker-invalid-profile",
   "708-jit-cache-churn",
+  # 716-jli-jit-samples: Dependency on `libarttest`.
+  "716-jli-jit-samples",
   "717-integer-value-of",
   "720-thread-priority",
   # 728-imt-conflict-zygote: Custom `run` script + dependency on `libarttest`.
@@ -306,9 +320,13 @@ known_failing_tests = frozenset([
   "905-object-free",
   "906-iterate-heap",
   "907-get-loaded-classes",
+  # 909-attach-agent: Custom `run` script + dependency on `libarttest`.
+  "909-attach-agent",
   "908-gc-start-finish",
   "910-methods",
   "911-get-stack-trace",
+  # 912-classes: Custom `run` script + dependency on `libtiagent`.
+  "912-classes",
   "913-heaps",
   "914-hello-obsolescence",
   "915-obsolete-2",
@@ -342,6 +360,8 @@ known_failing_tests = frozenset([
   "949-in-memory-transform",
   "950-redefine-intrinsic",
   "951-threaded-obsolete",
+  # 981-dedup-original-dex: Custom `run` script + dependency on `libtiagent`.
+  "981-dedup-original-dex",
   "982-ok-no-retransform",
   "983-source-transform-verify",
   "984-obsolete-invoke",
