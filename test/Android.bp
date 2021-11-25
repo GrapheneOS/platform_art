@@ -133,18 +133,21 @@ art_cc_defaults {
 // Test configuration template for standalone ART gtests on target (not bundled with the ART APEX).
 filegroup {
     name: "art-gtests-target-standalone-template",
-    srcs: [
-        "art-gtests-target-standalone-template.xml",
-    ],
+    srcs: ["art-gtests-target-standalone-template.xml"],
+}
+
+// Test configuration template for standalone ART gtests on target (not bundled with the ART APEX)
+// which are part of CTS.
+filegroup {
+    name: "art-gtests-target-standalone-cts-template",
+    srcs: ["art-gtests-target-standalone-cts-template.xml"],
 }
 
 // Test configuration template for standalone ART gtests run as root on target (not bundled with
 // the ART APEX).
 filegroup {
     name: "art-gtests-target-standalone-root-template",
-    srcs: [
-        "art-gtests-target-standalone-root-template.xml",
-    ],
+    srcs: ["art-gtests-target-standalone-root-template.xml"],
 }
 
 art_cc_defaults {

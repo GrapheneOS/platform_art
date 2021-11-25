@@ -1231,7 +1231,7 @@ static inline bool MethodHandleInvokeExactInternal(
       called_method, called_method->GetEntryPointFromQuickCompiledCode());
   PerformCall(self,
               accessor,
-              shadow_frame.GetMethod(),
+              called_method,
               first_dest_reg,
               new_shadow_frame,
               result,
