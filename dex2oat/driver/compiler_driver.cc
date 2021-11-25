@@ -1426,7 +1426,7 @@ class ParallelCompilationManager {
 
     // Ensure we're suspended while we're blocked waiting for the other threads to finish (worker
     // thread destructor's called below perform join).
-    CHECK_NE(self->GetState(), kRunnable);
+    CHECK_NE(self->GetState(), ThreadState::kRunnable);
 
     // Wait for all the worker threads to finish.
     thread_pool_->Wait(self, true, false);
@@ -2537,7 +2537,7 @@ static void CompileDexFile(CompilerDriver* driver,
     }
 
     // Go to native so that we don't block GC during compilation.
-    ScopedThreadSuspension sts(soa.Self(), kNative);
+    ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
 
     // Compile direct and virtual methods.
     int64_t previous_method_idx = -1;

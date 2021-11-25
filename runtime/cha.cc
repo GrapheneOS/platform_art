@@ -249,7 +249,7 @@ class CHACheckpoint final : public Closure {
 
   void WaitForThreadsToRunThroughCheckpoint(size_t threads_running_checkpoint) {
     Thread* self = Thread::Current();
-    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+    ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
     barrier_.Increment(self, threads_running_checkpoint);
   }
 

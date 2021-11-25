@@ -66,7 +66,7 @@ extern void JniMethodStart(Thread* self) {
   }
 
   // Transition out of runnable.
-  self->TransitionFromRunnableToSuspended(kNative);
+  self->TransitionFromRunnableToSuspended(ThreadState::kNative);
 }
 
 // TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.

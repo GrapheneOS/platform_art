@@ -788,7 +788,7 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods(bool startup) {
     // Release the mutator lock. We shall need to re-acquire the lock for a moment to
     // destroy the `VariableSizedHandleScope` inside the `helper` which shall be
     // conveniently handled by destroying `sts`, then `helper` and then `soa`.
-    ScopedThreadSuspension sts(self, kNative);
+    ScopedThreadSuspension sts(self, ThreadState::kNative);
     // Get back to the previous thread priority. We shall not increase the priority
     // for the short time we need to re-acquire mutator lock for `helper` destructor.
     sdp.reset();

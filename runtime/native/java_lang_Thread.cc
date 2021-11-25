@@ -71,41 +71,43 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
   const jint kJavaTerminated = 5;
 
   ScopedObjectAccess soa(env);
-  ThreadState internal_thread_state = (has_been_started ? kTerminated : kStarting);
+  ThreadState internal_thread_state =
+      (has_been_started ? ThreadState::kTerminated : ThreadState::kStarting);
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != nullptr) {
     internal_thread_state = thread->GetState();
   }
   switch (internal_thread_state) {
-    case kTerminated:                     return kJavaTerminated;
-    case kRunnable:                       return kJavaRunnable;
-    case kTimedWaiting:                   return kJavaTimedWaiting;
-    case kSleeping:                       return kJavaTimedWaiting;
-    case kBlocked:                        return kJavaBlocked;
-    case kWaiting:                        return kJavaWaiting;
-    case kStarting:                       return kJavaNew;
-    case kNative:                         return kJavaRunnable;
-    case kWaitingForTaskProcessor:        return kJavaWaiting;
-    case kWaitingForLockInflation:        return kJavaWaiting;
-    case kWaitingForGcToComplete:         return kJavaWaiting;
-    case kWaitingPerformingGc:            return kJavaWaiting;
-    case kWaitingForCheckPointsToRun:     return kJavaWaiting;
-    case kWaitingForDebuggerSend:         return kJavaWaiting;
-    case kWaitingForDebuggerToAttach:     return kJavaWaiting;
-    case kWaitingInMainDebuggerLoop:      return kJavaWaiting;
-    case kWaitingForDebuggerSuspension:   return kJavaWaiting;
-    case kWaitingForDeoptimization:       return kJavaWaiting;
-    case kWaitingForGetObjectsAllocated:  return kJavaWaiting;
-    case kWaitingForJniOnLoad:            return kJavaWaiting;
-    case kWaitingForSignalCatcherOutput:  return kJavaWaiting;
-    case kWaitingInMainSignalCatcherLoop: return kJavaWaiting;
-    case kWaitingForMethodTracingStart:   return kJavaWaiting;
-    case kWaitingForVisitObjects:         return kJavaWaiting;
-    case kWaitingWeakGcRootRead:          return kJavaRunnable;
-    case kWaitingForGcThreadFlip:         return kJavaWaiting;
-    case kNativeForAbort:                 return kJavaWaiting;
-    case kSuspended:                      return kJavaRunnable;
+    case ThreadState::kTerminated:                     return kJavaTerminated;
+    case ThreadState::kRunnable:                       return kJavaRunnable;
+    case ThreadState::kObsoleteRunnable:               break;  // Obsolete value.
+    case ThreadState::kTimedWaiting:                   return kJavaTimedWaiting;
+    case ThreadState::kSleeping:                       return kJavaTimedWaiting;
+    case ThreadState::kBlocked:                        return kJavaBlocked;
+    case ThreadState::kWaiting:                        return kJavaWaiting;
+    case ThreadState::kStarting:                       return kJavaNew;
+    case ThreadState::kNative:                         return kJavaRunnable;
+    case ThreadState::kWaitingForTaskProcessor:        return kJavaWaiting;
+    case ThreadState::kWaitingForLockInflation:        return kJavaWaiting;
+    case ThreadState::kWaitingForGcToComplete:         return kJavaWaiting;
+    case ThreadState::kWaitingPerformingGc:            return kJavaWaiting;
+    case ThreadState::kWaitingForCheckPointsToRun:     return kJavaWaiting;
+    case ThreadState::kWaitingForDebuggerSend:         return kJavaWaiting;
+    case ThreadState::kWaitingForDebuggerToAttach:     return kJavaWaiting;
+    case ThreadState::kWaitingInMainDebuggerLoop:      return kJavaWaiting;
+    case ThreadState::kWaitingForDebuggerSuspension:   return kJavaWaiting;
+    case ThreadState::kWaitingForDeoptimization:       return kJavaWaiting;
+    case ThreadState::kWaitingForGetObjectsAllocated:  return kJavaWaiting;
+    case ThreadState::kWaitingForJniOnLoad:            return kJavaWaiting;
+    case ThreadState::kWaitingForSignalCatcherOutput:  return kJavaWaiting;
+    case ThreadState::kWaitingInMainSignalCatcherLoop: return kJavaWaiting;
+    case ThreadState::kWaitingForMethodTracingStart:   return kJavaWaiting;
+    case ThreadState::kWaitingForVisitObjects:         return kJavaWaiting;
+    case ThreadState::kWaitingWeakGcRootRead:          return kJavaRunnable;
+    case ThreadState::kWaitingForGcThreadFlip:         return kJavaWaiting;
+    case ThreadState::kNativeForAbort:                 return kJavaWaiting;
+    case ThreadState::kSuspended:                      return kJavaRunnable;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }
   LOG(ERROR) << "Unexpected thread state: " << internal_thread_state;
@@ -180,7 +182,7 @@ static void Thread_setPriority0(JNIEnv* env, jobject java_thread, jint new_prior
 static void Thread_sleep(JNIEnv* env, jclass, jobject java_lock, jlong ms, jint ns) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::Object> lock = soa.Decode<mirror::Object>(java_lock);
-  Monitor::Wait(Thread::Current(), lock.Ptr(), ms, ns, true, kSleeping);
+  Monitor::Wait(Thread::Current(), lock.Ptr(), ms, ns, true, ThreadState::kSleeping);
 }
 
 /*

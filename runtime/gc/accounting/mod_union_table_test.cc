@@ -188,7 +188,7 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
       "other space", 128 * KB, 4 * MB, 4 * MB, /*can_move_objects=*/ false));
   ASSERT_TRUE(other_space.get() != nullptr);
   {
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     ScopedSuspendAll ssa("Add image space");
     heap->AddSpace(other_space.get());
   }
@@ -260,7 +260,7 @@ void ModUnionTableTest::RunTest(ModUnionTableFactory::TableType type) {
   std::ostringstream oss2;
   table->Dump(oss2);
   // Remove the space we added so it doesn't persist to the next test.
-  ScopedThreadSuspension sts(self, kSuspended);
+  ScopedThreadSuspension sts(self, ThreadState::kSuspended);
   ScopedSuspendAll ssa("Add image space");
   heap->RemoveSpace(other_space.get());
 }

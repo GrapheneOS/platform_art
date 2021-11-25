@@ -266,7 +266,9 @@ class ConcurrentCopying::ActivateReadBarrierEntrypointsCheckpoint : public Closu
   void Run(Thread* thread) override NO_THREAD_SAFETY_ANALYSIS {
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
-    DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
+    DCHECK(thread == self ||
+           thread->IsSuspended() ||
+           thread->GetState() == ThreadState::kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
     // Switch to the read barrier entrypoints.
     thread->SetReadBarrierEntrypoints();
@@ -307,7 +309,7 @@ void ConcurrentCopying::ActivateReadBarrierEntrypoints() {
   if (barrier_count == 0) {
     return;
   }
-  ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
   gc_barrier_->Increment(self, barrier_count);
 }
 
@@ -462,7 +464,9 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor 
   void Run(Thread* thread) override REQUIRES_SHARED(Locks::mutator_lock_) {
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
-    CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
+    CHECK(thread == self ||
+          thread->IsSuspended() ||
+          thread->GetState() == ThreadState::kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
     thread->SetIsGcMarkingAndUpdateEntrypoints(true);
     if (use_tlab_ && thread->HasTlab()) {
@@ -768,7 +772,7 @@ void ConcurrentCopying::FlipThreadRoots() {
       &thread_flip_visitor, &flip_callback, this, GetHeap()->GetGcPauseListener());
 
   {
-    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+    ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
     gc_barrier_->Increment(self, barrier_count);
   }
   is_asserting_to_space_invariant_ = true;
@@ -980,7 +984,9 @@ class ConcurrentCopying::RevokeThreadLocalMarkStackCheckpoint : public Closure {
   void Run(Thread* thread) override NO_THREAD_SAFETY_ANALYSIS {
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* const self = Thread::Current();
-    CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
+    CHECK(thread == self ||
+          thread->IsSuspended() ||
+          thread->GetState() == ThreadState::kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
     // Revoke thread local mark stacks.
     {
@@ -1047,7 +1053,7 @@ void ConcurrentCopying::CaptureThreadRootsForMarking() {
   }
   Locks::mutator_lock_->SharedUnlock(self);
   {
-    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+    ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
     gc_barrier_->Increment(self, barrier_count);
   }
   Locks::mutator_lock_->SharedLock(self);
@@ -1718,7 +1724,9 @@ class ConcurrentCopying::DisableMarkingCheckpoint : public Closure {
   void Run(Thread* thread) override NO_THREAD_SAFETY_ANALYSIS {
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
-    DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
+    DCHECK(thread == self ||
+           thread->IsSuspended() ||
+           thread->GetState() == ThreadState::kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
     // Disable the thread-local is_gc_marking flag.
     // Note a thread that has just started right before this checkpoint may have already this flag
@@ -1771,7 +1779,7 @@ void ConcurrentCopying::IssueDisableMarkingCheckpoint() {
   // Release locks then wait for all mutator threads to pass the barrier.
   Locks::mutator_lock_->SharedUnlock(self);
   {
-    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+    ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
     gc_barrier_->Increment(self, barrier_count);
   }
   Locks::mutator_lock_->SharedLock(self);
@@ -2075,7 +2083,7 @@ void ConcurrentCopying::RevokeThreadLocalMarkStacks(bool disable_weak_ref_access
     }
     Locks::mutator_lock_->SharedUnlock(self);
     {
-      ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+      ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
       gc_barrier_->Increment(self, barrier_count);
     }
     Locks::mutator_lock_->SharedLock(self);

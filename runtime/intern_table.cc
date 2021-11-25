@@ -187,7 +187,7 @@ void InternTable::BroadcastForNewInterns() {
 void InternTable::WaitUntilAccessible(Thread* self) {
   Locks::intern_table_lock_->ExclusiveUnlock(self);
   {
-    ScopedThreadSuspension sts(self, kWaitingWeakGcRootRead);
+    ScopedThreadSuspension sts(self, ThreadState::kWaitingWeakGcRootRead);
     MutexLock mu(self, *Locks::intern_table_lock_);
     while ((!kUseReadBarrier && weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) ||
            (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {

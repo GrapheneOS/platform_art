@@ -46,7 +46,7 @@ class SpaceTest : public Super {
       heap->RevokeAllThreadLocalBuffers();
     }
     {
-      ScopedThreadStateChange sts(Thread::Current(), kSuspended);
+      ScopedThreadStateChange sts(Thread::Current(), ThreadState::kSuspended);
       ScopedSuspendAll ssa("Add image space");
       heap->AddSpace(space);
     }
@@ -237,7 +237,7 @@ void SpaceTest<Super>::SizeFootPrintGrowthLimitAndTrimBody(MallocSpace* space,
   size_t free_increment = 96;
   while (true) {
     {
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       // Give the space a haircut.
       space->Trim();
     }

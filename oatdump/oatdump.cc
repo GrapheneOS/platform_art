@@ -1831,7 +1831,7 @@ class ImageDumper {
       // Since FlushAllocStack() above resets the (active) allocation
       // stack. Need to revoke the thread-local allocation stacks that
       // point into it.
-      ScopedThreadSuspension sts(self, kNative);
+      ScopedThreadSuspension sts(self, ThreadState::kNative);
       ScopedSuspendAll ssa(__FUNCTION__);
       heap->RevokeAllThreadLocalAllocationStacks(self);
     }
