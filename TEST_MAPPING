@@ -311,6 +311,9 @@
       "name": "art-run-test-159-app-image-fields[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-160-read-barrier-stress[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-163-app-image-methods[com.google.android.art.apex]"
     },
     {
@@ -1142,6 +1145,9 @@
       "name": "art-run-test-711-checker-type-conversion[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-713-varhandle-invokers[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-718-zipfile-finalizer[com.google.android.art.apex]"
     },
     {
@@ -1556,6 +1562,9 @@
     },
     {
       "name": "art-run-test-159-app-image-fields"
+    },
+    {
+      "name": "art-run-test-160-read-barrier-stress"
     },
     {
       "name": "art-run-test-163-app-image-methods"
@@ -2387,6 +2396,9 @@
     },
     {
       "name": "art-run-test-711-checker-type-conversion"
+    },
+    {
+      "name": "art-run-test-713-varhandle-invokers"
     },
     {
       "name": "art-run-test-718-zipfile-finalizer"
