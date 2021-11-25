@@ -879,7 +879,7 @@ ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& val
   }
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  DCHECK_EQ(soa.Self()->GetState(), kRunnable);
+  DCHECK_EQ(soa.Self()->GetState(), ThreadState::kRunnable);
 
   ArgArray arg_array(shorty, 2);
   JValue result;

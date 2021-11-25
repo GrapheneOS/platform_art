@@ -892,7 +892,8 @@ void Arm64JNIMacroAssembler::CreateJObject(FrameOffset out_off,
 void Arm64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   Register scratch = temps.AcquireW();
-  ___ Ldrh(scratch, MEM_OP(reg_x(TR), Thread::ThreadFlagsOffset<kArm64PointerSize>().Int32Value()));
+  ___ Ldr(scratch, MEM_OP(reg_x(TR), Thread::ThreadFlagsOffset<kArm64PointerSize>().Int32Value()));
+  static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
   ___ Cbnz(scratch, Arm64JNIMacroLabel::Cast(label)->AsArm64());
 }
 

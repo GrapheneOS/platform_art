@@ -1043,7 +1043,7 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
     // All signature polymorphic methods are native.
     DCHECK(method == nullptr || !method->IsSignaturePolymorphic());
     // Go to native so that we don't block GC during compilation.
-    ScopedThreadSuspension sts(soa.Self(), kNative);
+    ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
     // Try to compile a fully intrinsified implementation.
     if (method != nullptr && UNLIKELY(method->IsIntrinsic())) {
       DCHECK(compiler_options.IsBootImage());
@@ -1159,7 +1159,7 @@ CompiledMethod* OptimizingCompiler::JniCompile(uint32_t access_flags,
           compiling_class);
       CodeVectorAllocator code_allocator(&allocator);
       // Go to native so that we don't block GC during compilation.
-      ScopedThreadSuspension sts(soa.Self(), kNative);
+      ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
       std::unique_ptr<CodeGenerator> codegen(
           TryCompileIntrinsic(&allocator,
                               &arena_stack,
@@ -1328,7 +1328,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
         compiling_class);
 
     // Go to native so that we don't block GC during compilation.
-    ScopedThreadSuspension sts(self, kNative);
+    ScopedThreadSuspension sts(self, ThreadState::kNative);
     codegen.reset(
         TryCompile(&allocator,
                    &arena_stack,

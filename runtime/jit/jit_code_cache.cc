@@ -568,7 +568,7 @@ void JitCodeCache::WaitUntilInlineCacheAccessible(Thread* self) {
   if (IsWeakAccessEnabled(self)) {
     return;
   }
-  ScopedThreadSuspension sts(self, kWaitingWeakGcRootRead);
+  ScopedThreadSuspension sts(self, ThreadState::kWaitingWeakGcRootRead);
   MutexLock mu(self, *Locks::jit_lock_);
   while (!IsWeakAccessEnabled(self)) {
     inline_cache_cond_.Wait(self);
@@ -625,7 +625,7 @@ void JitCodeCache::WaitForPotentialCollectionToCompleteRunnable(Thread* self) {
   while (collection_in_progress_) {
     Locks::jit_lock_->Unlock(self);
     {
-      ScopedThreadSuspension sts(self, kSuspended);
+      ScopedThreadSuspension sts(self, ThreadState::kSuspended);
       MutexLock mu(self, *Locks::jit_lock_);
       WaitForPotentialCollectionToComplete(self);
     }
@@ -943,7 +943,7 @@ bool JitCodeCache::Reserve(Thread* self,
   while (true) {
     bool at_max_capacity = false;
     {
-      ScopedThreadSuspension sts(self, kSuspended);
+      ScopedThreadSuspension sts(self, ThreadState::kSuspended);
       MutexLock mu(self, *Locks::jit_lock_);
       WaitForPotentialCollectionToComplete(self);
       ScopedCodeCacheWrite ccw(*region);
@@ -1069,7 +1069,7 @@ void JitCodeCache::MarkCompiledCodeOnThreadStacks(Thread* self) {
   threads_running_checkpoint = Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
   // Now that we have run our checkpoint, move to a suspended state and wait
   // for other threads to run the checkpoint.
-  ScopedThreadSuspension sts(self, kSuspended);
+  ScopedThreadSuspension sts(self, ThreadState::kSuspended);
   if (threads_running_checkpoint != 0) {
     barrier.Increment(self, threads_running_checkpoint);
   }
@@ -1100,7 +1100,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
   ScopedTrace trace(__FUNCTION__);
   // Wait for an existing collection, or let everyone know we are starting one.
   {
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     MutexLock mu(self, *Locks::jit_lock_);
     if (!garbage_collect_code_) {
       private_region_.IncreaseCodeCacheCapacity();

@@ -263,7 +263,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
             // Add image space has a race condition since other threads could be reading from the
             // spaces array.
             {
-              ScopedThreadSuspension sts(self, kSuspended);
+              ScopedThreadSuspension sts(self, ThreadState::kSuspended);
               gc::ScopedGCCriticalSection gcs(self,
                                               gc::kGcCauseAddRemoveAppImageSpace,
                                               gc::kCollectorTypeAddRemoveAppImageSpace);
@@ -290,7 +290,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
               LOG(INFO) << "Failed to add image file " << temp_error_msg;
               dex_files.clear();
               {
-                ScopedThreadSuspension sts(self, kSuspended);
+                ScopedThreadSuspension sts(self, ThreadState::kSuspended);
                 gc::ScopedGCCriticalSection gcs(self,
                                                 gc::kGcCauseAddRemoveAppImageSpace,
                                                 gc::kCollectorTypeAddRemoveAppImageSpace);

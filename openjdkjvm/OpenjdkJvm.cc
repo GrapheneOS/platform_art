@@ -367,7 +367,8 @@ JNIEXPORT void JVM_Sleep(JNIEnv* env, jclass threadClass ATTRIBUTE_UNUSED,
                          jobject java_lock, jlong millis) {
   art::ScopedFastNativeObjectAccess soa(env);
   art::ObjPtr<art::mirror::Object> lock = soa.Decode<art::mirror::Object>(java_lock);
-  art::Monitor::Wait(art::Thread::Current(), lock.Ptr(), millis, 0, true, art::kSleeping);
+  art::Monitor::Wait(
+      art::Thread::Current(), lock.Ptr(), millis, 0, true, art::ThreadState::kSleeping);
 }
 
 JNIEXPORT jobject JVM_CurrentThread(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED) {

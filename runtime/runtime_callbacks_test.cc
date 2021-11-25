@@ -55,7 +55,7 @@ class RuntimeCallbacksTest : public CommonRuntimeTest {
 
     Thread* self = Thread::Current();
     ScopedObjectAccess soa(self);
-    ScopedThreadSuspension sts(self, kWaitingForDebuggerToAttach);
+    ScopedThreadSuspension sts(self, ThreadState::kWaitingForDebuggerToAttach);
     ScopedSuspendAll ssa("RuntimeCallbacksTest SetUp");
     AddListener();
   }
@@ -64,7 +64,7 @@ class RuntimeCallbacksTest : public CommonRuntimeTest {
     {
       Thread* self = Thread::Current();
       ScopedObjectAccess soa(self);
-      ScopedThreadSuspension sts(self, kWaitingForDebuggerToAttach);
+      ScopedThreadSuspension sts(self, ThreadState::kWaitingForDebuggerToAttach);
       ScopedSuspendAll ssa("RuntimeCallbacksTest TearDown");
       RemoveListener();
     }
@@ -523,7 +523,7 @@ TEST_F(MonitorWaitCallbacksTest, WaitUnlocked) {
           /*ms=*/0,
           /*ns=*/0,
           /*interruptShouldThrow=*/false,
-          /*why=*/kWaiting);
+          /*why=*/ThreadState::kWaiting);
     }
   }
   ASSERT_TRUE(cb_.saw_wait_start_);

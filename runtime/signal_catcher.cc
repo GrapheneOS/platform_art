@@ -104,7 +104,7 @@ bool SignalCatcher::ShouldHalt() {
 }
 
 void SignalCatcher::Output(const std::string& s) {
-  ScopedThreadStateChange tsc(Thread::Current(), kWaitingForSignalCatcherOutput);
+  ScopedThreadStateChange tsc(Thread::Current(), ThreadState::kWaitingForSignalCatcherOutput);
   palette_status_t status = PaletteWriteCrashThreadStacks(s.data(), s.size());
   if (status == PALETTE_STATUS_OK) {
     LOG(INFO) << "Wrote stack traces to tombstoned";
@@ -149,7 +149,7 @@ void SignalCatcher::HandleSigUsr1() {
 }
 
 int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals) {
-  ScopedThreadStateChange tsc(self, kWaitingInMainSignalCatcherLoop);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingInMainSignalCatcherLoop);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition
@@ -177,7 +177,7 @@ void* SignalCatcher::Run(void* arg) {
                                      !runtime->IsAotCompiler()));
 
   Thread* self = Thread::Current();
-  DCHECK_NE(self->GetState(), kRunnable);
+  DCHECK_NE(self->GetState(), ThreadState::kRunnable);
   {
     MutexLock mu(self, signal_catcher->lock_);
     signal_catcher->thread_ = self;

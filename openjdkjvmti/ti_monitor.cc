@@ -376,39 +376,42 @@ jvmtiError MonitorUtil::GetCurrentContendedMonitor(jvmtiEnv* env ATTRIBUTE_UNUSE
       switch (target_thread->GetState()) {
         // These three we are actually currently waiting on a monitor and have sent the appropriate
         // events (if anyone is listening).
-        case art::kBlocked:
-        case art::kTimedWaiting:
-        case art::kWaiting: {
+        case art::ThreadState::kBlocked:
+        case art::ThreadState::kTimedWaiting:
+        case art::ThreadState::kWaiting: {
           out_ = art::GcRoot<art::mirror::Object>(art::Monitor::GetContendedMonitor(target_thread));
           return;
         }
-        case art::kTerminated:
-        case art::kRunnable:
-        case art::kSleeping:
-        case art::kWaitingForLockInflation:
-        case art::kWaitingForTaskProcessor:
-        case art::kWaitingForGcToComplete:
-        case art::kWaitingForCheckPointsToRun:
-        case art::kWaitingPerformingGc:
-        case art::kWaitingForDebuggerSend:
-        case art::kWaitingForDebuggerToAttach:
-        case art::kWaitingInMainDebuggerLoop:
-        case art::kWaitingForDebuggerSuspension:
-        case art::kWaitingForJniOnLoad:
-        case art::kWaitingForSignalCatcherOutput:
-        case art::kWaitingInMainSignalCatcherLoop:
-        case art::kWaitingForDeoptimization:
-        case art::kWaitingForMethodTracingStart:
-        case art::kWaitingForVisitObjects:
-        case art::kWaitingForGetObjectsAllocated:
-        case art::kWaitingWeakGcRootRead:
-        case art::kWaitingForGcThreadFlip:
-        case art::kNativeForAbort:
-        case art::kStarting:
-        case art::kNative:
-        case art::kSuspended: {
+        case art::ThreadState::kTerminated:
+        case art::ThreadState::kRunnable:
+        case art::ThreadState::kSleeping:
+        case art::ThreadState::kWaitingForLockInflation:
+        case art::ThreadState::kWaitingForTaskProcessor:
+        case art::ThreadState::kWaitingForGcToComplete:
+        case art::ThreadState::kWaitingForCheckPointsToRun:
+        case art::ThreadState::kWaitingPerformingGc:
+        case art::ThreadState::kWaitingForDebuggerSend:
+        case art::ThreadState::kWaitingForDebuggerToAttach:
+        case art::ThreadState::kWaitingInMainDebuggerLoop:
+        case art::ThreadState::kWaitingForDebuggerSuspension:
+        case art::ThreadState::kWaitingForJniOnLoad:
+        case art::ThreadState::kWaitingForSignalCatcherOutput:
+        case art::ThreadState::kWaitingInMainSignalCatcherLoop:
+        case art::ThreadState::kWaitingForDeoptimization:
+        case art::ThreadState::kWaitingForMethodTracingStart:
+        case art::ThreadState::kWaitingForVisitObjects:
+        case art::ThreadState::kWaitingForGetObjectsAllocated:
+        case art::ThreadState::kWaitingWeakGcRootRead:
+        case art::ThreadState::kWaitingForGcThreadFlip:
+        case art::ThreadState::kNativeForAbort:
+        case art::ThreadState::kStarting:
+        case art::ThreadState::kNative:
+        case art::ThreadState::kSuspended: {
           // We aren't currently (explicitly) waiting for a monitor so just return null.
           return;
+        case art::ThreadState::kObsoleteRunnable:
+          LOG(FATAL) << "UNREACHABLE";  // Obsolete value.
+          UNREACHABLE();
         }
       }
     }

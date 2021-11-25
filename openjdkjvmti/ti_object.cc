@@ -91,7 +91,7 @@ jvmtiError ObjectUtil::GetObjectMonitorUsage(
   std::vector<jthread> notify_wait;
   {
     art::ScopedObjectAccess soa(self);      // Now we know we have the shared lock.
-    art::ScopedThreadSuspension sts(self, art::kNative);
+    art::ScopedThreadSuspension sts(self, art::ThreadState::kNative);
     art::ScopedSuspendAll ssa("GetObjectMonitorUsage", /*long_suspend=*/false);
     art::ObjPtr<art::mirror::Object> target(self->DecodeJObject(obj));
     // This gets the list of threads trying to lock or wait on the monitor.
