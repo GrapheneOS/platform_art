@@ -127,7 +127,7 @@ static Runtime* StartRuntime(const char* boot_image_location,
 
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now and then switch to a more manageable ScopedObjectAccess.
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  Thread::Current()->TransitionFromRunnableToSuspended(ThreadState::kNative);
 
   return Runtime::Current();
 }

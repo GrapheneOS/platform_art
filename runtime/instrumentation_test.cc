@@ -187,7 +187,7 @@ class InstrumentationTest : public CommonRuntimeTest {
   void CheckConfigureStubs(const char* key, Instrumentation::InstrumentationLevel level) {
     ScopedObjectAccess soa(Thread::Current());
     instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
-    ScopedThreadSuspension sts(soa.Self(), kSuspended);
+    ScopedThreadSuspension sts(soa.Self(), ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(soa.Self(),
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
@@ -216,7 +216,7 @@ class InstrumentationTest : public CommonRuntimeTest {
     instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
     TestInstrumentationListener listener;
     {
-      ScopedThreadSuspension sts(soa.Self(), kSuspended);
+      ScopedThreadSuspension sts(soa.Self(), ThreadState::kSuspended);
       ScopedSuspendAll ssa("Add instrumentation listener");
       instr->AddListener(&listener, instrumentation_event);
     }
@@ -240,7 +240,7 @@ class InstrumentationTest : public CommonRuntimeTest {
 
     listener.Reset();
     {
-      ScopedThreadSuspension sts(soa.Self(), kSuspended);
+      ScopedThreadSuspension sts(soa.Self(), ThreadState::kSuspended);
       ScopedSuspendAll ssa("Remove instrumentation listener");
       instr->RemoveListener(&listener, instrumentation_event);
     }
@@ -263,7 +263,7 @@ class InstrumentationTest : public CommonRuntimeTest {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(self,
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
@@ -279,7 +279,7 @@ class InstrumentationTest : public CommonRuntimeTest {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(self,
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
@@ -294,7 +294,7 @@ class InstrumentationTest : public CommonRuntimeTest {
         REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(self,
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
@@ -309,7 +309,7 @@ class InstrumentationTest : public CommonRuntimeTest {
         REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(self,
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
@@ -324,7 +324,7 @@ class InstrumentationTest : public CommonRuntimeTest {
         REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(self,
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
@@ -336,7 +336,7 @@ class InstrumentationTest : public CommonRuntimeTest {
         REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     gc::ScopedGCCriticalSection gcs(self,
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);

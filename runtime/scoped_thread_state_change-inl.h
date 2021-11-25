@@ -34,7 +34,7 @@ inline ScopedThreadStateChange::ScopedThreadStateChange(Thread* self, ThreadStat
     : self_(self), thread_state_(new_thread_state), expected_has_no_thread_(false) {
   if (UNLIKELY(self_ == nullptr)) {
     // Value chosen arbitrarily and won't be used in the destructor since thread_ == null.
-    old_thread_state_ = kTerminated;
+    old_thread_state_ = ThreadState::kTerminated;
     Runtime* runtime = Runtime::Current();
     CHECK(runtime == nullptr || !runtime->IsStarted() || runtime->IsShuttingDown(self_));
   } else {
@@ -43,9 +43,9 @@ inline ScopedThreadStateChange::ScopedThreadStateChange(Thread* self, ThreadStat
     // in the suspend count (this will be handled in the runnable transitions).
     old_thread_state_ = self->GetState();
     if (old_thread_state_ != new_thread_state) {
-      if (new_thread_state == kRunnable) {
+      if (new_thread_state == ThreadState::kRunnable) {
         self_->TransitionFromSuspendedToRunnable();
-      } else if (old_thread_state_ == kRunnable) {
+      } else if (old_thread_state_ == ThreadState::kRunnable) {
         self_->TransitionFromRunnableToSuspended(new_thread_state);
       } else {
         // A suspended transition to another effectively suspended transition, ok to use Unsafe.
@@ -60,9 +60,9 @@ inline ScopedThreadStateChange::~ScopedThreadStateChange() {
     ScopedThreadChangeDestructorCheck();
   } else {
     if (old_thread_state_ != thread_state_) {
-      if (old_thread_state_ == kRunnable) {
+      if (old_thread_state_ == ThreadState::kRunnable) {
         self_->TransitionFromSuspendedToRunnable();
-      } else if (thread_state_ == kRunnable) {
+      } else if (thread_state_ == ThreadState::kRunnable) {
         self_->TransitionFromRunnableToSuspended(old_thread_state_);
       } else {
         // A suspended transition to another effectively suspended transition, ok to use Unsafe.
@@ -90,7 +90,7 @@ inline ObjPtr<T> ScopedObjectAccessAlreadyRunnable::Decode(jobject obj) const {
 }
 
 inline bool ScopedObjectAccessAlreadyRunnable::IsRunnable() const {
-  return self_->GetState() == kRunnable;
+  return self_->GetState() == ThreadState::kRunnable;
 }
 
 inline ScopedObjectAccessAlreadyRunnable::ScopedObjectAccessAlreadyRunnable(JNIEnv* env)
@@ -102,13 +102,13 @@ inline ScopedObjectAccessAlreadyRunnable::ScopedObjectAccessAlreadyRunnable(Thre
       vm_(env_ != nullptr ? env_->GetVm() : nullptr) {}
 
 inline ScopedObjectAccessUnchecked::ScopedObjectAccessUnchecked(JNIEnv* env)
-    : ScopedObjectAccessAlreadyRunnable(env), tsc_(Self(), kRunnable) {
+    : ScopedObjectAccessAlreadyRunnable(env), tsc_(Self(), ThreadState::kRunnable) {
   Self()->VerifyStack();
   Locks::mutator_lock_->AssertSharedHeld(Self());
 }
 
 inline ScopedObjectAccessUnchecked::ScopedObjectAccessUnchecked(Thread* self)
-    : ScopedObjectAccessAlreadyRunnable(self), tsc_(self, kRunnable) {
+    : ScopedObjectAccessAlreadyRunnable(self), tsc_(self, ThreadState::kRunnable) {
   Self()->VerifyStack();
   Locks::mutator_lock_->AssertSharedHeld(Self());
 }

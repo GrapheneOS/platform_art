@@ -309,7 +309,7 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
   }
 
   ThreadState state = thread->GetState();
-  if (state != kRunnable) {
+  if (state != ThreadState::kRunnable) {
     VLOG(signals) << "not runnable";
     return false;
   }

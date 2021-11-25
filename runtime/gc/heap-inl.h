@@ -57,7 +57,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     CheckPreconditionsForAllocObject(klass, byte_count);
     // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
     // done in the runnable state where suspension is expected.
-    CHECK_EQ(self->GetState(), kRunnable);
+    CHECK_EQ(self->GetState(), ThreadState::kRunnable);
     self->AssertThreadSuspensionIsAllowable();
     self->AssertNoPendingException();
     // Make sure to preserve klass.

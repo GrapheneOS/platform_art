@@ -309,8 +309,8 @@ END \name
     add x2, x2, #-1
     strh w2, [x0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
     // Otherwise, do a suspend check.
-    ldr x0, [xSELF, #THREAD_FLAGS_OFFSET]
-    ands x0, x0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
+    ldr w0, [xSELF, #THREAD_FLAGS_OFFSET]
+    tst w0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.eq 1b
     EXPORT_PC
     bl    art_quick_test_suspend
@@ -435,8 +435,8 @@ END \name
     cbz w2, 2f
     add x2, x2, #-1
     strh w2, [x0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
-    ldr x0, [xSELF, #THREAD_FLAGS_OFFSET]
-    tst x0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
+    ldr w0, [xSELF, #THREAD_FLAGS_OFFSET]
+    tst w0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
     b.ne 3f
 1:
     FETCH_INST

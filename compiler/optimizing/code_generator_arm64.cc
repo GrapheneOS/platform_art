@@ -1994,7 +1994,8 @@ void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruct
   UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
   Register temp = temps.AcquireW();
 
-  __ Ldrh(temp, MemOperand(tr, Thread::ThreadFlagsOffset<kArm64PointerSize>().SizeValue()));
+  __ Ldr(temp, MemOperand(tr, Thread::ThreadFlagsOffset<kArm64PointerSize>().SizeValue()));
+  static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
   if (successor == nullptr) {
     __ Cbnz(temp, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
