@@ -78,8 +78,9 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qp
   qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
   qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
   qpoints->pJniDecodeReferenceResult = JniDecodeReferenceResult;
-  qpoints->pJniLockObject = art_quick_lock_object_jni;
-  qpoints->pJniUnlockObject = art_quick_unlock_object_jni;
+  qpoints->pJniLockObject = art_jni_lock_object;
+  qpoints->pJniUnlockObject = art_jni_unlock_object;
+  qpoints->pJniReadBarrier = art_jni_read_barrier;
 
   // Locks
   if (UNLIKELY(VLOG_IS_ON(systrace_lock_logging))) {

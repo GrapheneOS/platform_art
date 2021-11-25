@@ -409,4 +409,78 @@ MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
+// Locking is needed for both managed code and JNI stubs.
+MACRO4(LOCK_OBJECT_FAST_PATH, obj, tmp, saved_eax, slow_lock)
+1:
+    movl MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj)), %eax  // EAX := lock word
+    movl %fs:THREAD_ID_OFFSET, REG_VAR(tmp)  // tmp: thread id.
+    xorl %eax, REG_VAR(tmp)               // tmp: thread id with count 0 + read barrier bits.
+    testl LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED), %eax  // Test the non-gc bits.
+    jnz  2f                               // Check if unlocked.
+    // Unlocked case - store tmp: original lock word plus thread id, preserved read barrier bits.
+                                          // EAX: old val, tmp: new val.
+    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
+    jnz  1b                               // cmpxchg failed retry
+    .ifnc \saved_eax, none
+        movl REG_VAR(saved_eax), %eax     // Restore EAX.
+    .endif
+    ret
+2:  // EAX: original lock word, tmp: thread id ^ EAX
+                                          // Check lock word state and thread id together,
+    testl LITERAL(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED), \
+          REG_VAR(tmp)
+    jne  \slow_lock                       // Slow path if either of the two high bits are set.
+                                          // Increment the recursive lock count.
+    leal LOCK_WORD_THIN_LOCK_COUNT_ONE(%eax), REG_VAR(tmp)
+    testl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_MASK_SHIFTED), REG_VAR(tmp)
+    jz   \slow_lock                       // If count overflowed, go to slow lock.
+    // Update lockword for recursive lock, cmpxchg necessary for read barrier bits.
+                                          // EAX: old val, tmp: new val.
+    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
+    jnz  1b                               // cmpxchg failed retry
+    .ifnc \saved_eax, none
+        movl REG_VAR(saved_eax), %eax     // Restore EAX.
+    .endif
+    ret
+END_MACRO
+
+// Unlocking is needed for both managed code and JNI stubs.
+MACRO4(UNLOCK_OBJECT_FAST_PATH, obj, tmp, saved_eax, slow_unlock)
+1:
+    movl MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj)), %eax  // EAX := lock word
+    movl %fs:THREAD_ID_OFFSET, REG_VAR(tmp)  // tmp := thread id
+    xorl %eax, REG_VAR(tmp)               // tmp := thread id ^ lock word
+    test LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED), REG_VAR(tmp)
+    jnz  2f                               // Check if simply locked.
+    // Transition to unlocked.
+#ifndef USE_READ_BARRIER
+    movl REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
+#else
+    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
+    jnz  1b                               // cmpxchg failed retry
+#endif
+    .ifnc \saved_eax, none
+        movl REG_VAR(saved_eax), %eax     // Restore EAX.
+    .endif
+    ret
+2:  // EAX: original lock word, tmp: lock_word ^ thread id
+                                          // Check lock word state and thread id together.
+    testl LITERAL(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED), \
+          REG_VAR(tmp)
+    jnz  \slow_unlock
+    // Update lockword for recursive unlock, cmpxchg necessary for read barrier bits.
+                                          // tmp: new lock word with decremented count.
+    leal -LOCK_WORD_THIN_LOCK_COUNT_ONE(%eax), REG_VAR(tmp)
+#ifndef USE_READ_BARRIER
+    movl REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
+#else
+    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
+    jnz  1b                               // cmpxchg failed retry
+#endif
+    .ifnc \saved_eax, none
+        movl REG_VAR(saved_eax), %eax     // Restore EAX.
+    .endif
+    ret
+END_MACRO
+
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_

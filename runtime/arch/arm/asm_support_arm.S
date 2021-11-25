@@ -409,4 +409,97 @@
     .cfi_adjust_cfa_offset -28
 .endm
 
+// Locking is needed for both managed code and JNI stubs.
+.macro LOCK_OBJECT_FAST_PATH obj, tmp1, tmp2, tmp3, slow_lock, can_be_null
+    ldr    \tmp1, [rSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz \obj, \slow_lock
+    .endif
+1:
+    ldrex  \tmp2, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    eor    \tmp3, \tmp2, \tmp1        @ Prepare the value to store if unlocked
+                                      @   (thread id, count of 0 and preserved read barrier bits),
+                                      @ or prepare to compare thread id for recursive lock check
+                                      @   (lock_word.ThreadId() ^ self->ThreadId()).
+    ands   ip, \tmp2, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  @ Test the non-gc bits.
+    bne    2f                         @ Check if unlocked.
+    @ unlocked case - store tmp3: original lock word plus thread id, preserved read barrier bits.
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                   @ If store failed, retry.
+    dmb    ish                        @ Full (LoadLoad|LoadStore) memory barrier.
+    bx lr
+2:  @ tmp2: original lock word, tmp1: thread_id, tmp3: tmp2 ^ tmp1
+#if LOCK_WORD_THIN_LOCK_COUNT_SHIFT + LOCK_WORD_THIN_LOCK_COUNT_SIZE != LOCK_WORD_GC_STATE_SHIFT
+#error "Expecting thin lock count and gc state in consecutive bits."
+#endif
+                                      @ Check lock word state and thread id together.
+    bfc    \tmp3, \
+           #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, \
+           #(LOCK_WORD_THIN_LOCK_COUNT_SIZE + LOCK_WORD_GC_STATE_SIZE)
+    cbnz   \tmp3, \slow_lock          @ if either of the top two bits are set, or the lock word's
+                                      @ thread id did not match, go slow path.
+    add    \tmp3, \tmp2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  @ Increment the recursive lock count.
+                                      @ Extract the new thin lock count for overflow check.
+    ubfx   \tmp2, \tmp3, #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, #LOCK_WORD_THIN_LOCK_COUNT_SIZE
+    cbz    \tmp2, \slow_lock          @ Zero as the new count indicates overflow, go slow path.
+                                      @ strex necessary for read barrier bits.
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                  @ If strex failed, retry.
+    bx lr
+3:
+    b      1b                         @ retry
+.endm
+
+// Unlocking is needed for both managed code and JNI stubs.
+.macro UNLOCK_OBJECT_FAST_PATH obj, tmp1, tmp2, tmp3, slow_unlock, can_be_null
+    ldr    \tmp1, [rSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz    \obj, \slow_unlock
+    .endif
+1:
+#ifndef USE_READ_BARRIER
+    ldr    \tmp2, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+#else
+                                      @ Need to use atomic instructions for read barrier.
+    ldrex  \tmp2, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+#endif
+    eor    \tmp3, \tmp2, \tmp1        @ Prepare the value to store if simply locked
+                                      @   (mostly 0s, and preserved read barrier bits),
+                                      @ or prepare to compare thread id for recursive lock check
+                                      @   (lock_word.ThreadId() ^ self->ThreadId()).
+    ands   ip, \tmp3, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  @ Test the non-gc bits.
+    bne    2f                         @ Locked recursively or by other thread?
+    @ Transition to unlocked.
+    dmb    ish                        @ Full (LoadStore|StoreStore) memory barrier.
+#ifndef USE_READ_BARRIER
+    str    \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+#else
+                                      @ strex necessary for read barrier bits
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                  @ If the store failed, retry.
+#endif
+    bx     lr
+2:  @ tmp2: original lock word, tmp1: thread_id, tmp3: tmp2 ^ tmp1
+#if LOCK_WORD_THIN_LOCK_COUNT_SHIFT + LOCK_WORD_THIN_LOCK_COUNT_SIZE != LOCK_WORD_GC_STATE_SHIFT
+#error "Expecting thin lock count and gc state in consecutive bits."
+#endif
+                                      @ Check lock word state and thread id together,
+    bfc    \tmp3, \
+           #LOCK_WORD_THIN_LOCK_COUNT_SHIFT, \
+           #(LOCK_WORD_THIN_LOCK_COUNT_SIZE + LOCK_WORD_GC_STATE_SIZE)
+    cbnz   \tmp3, \slow_unlock        @ if either of the top two bits are set, or the lock word's
+                                      @ thread id did not match, go slow path.
+    sub    \tmp3, \tmp2, #LOCK_WORD_THIN_LOCK_COUNT_ONE  @ Decrement recursive lock count.
+#ifndef USE_READ_BARRIER
+    str    \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+#else
+                                      @ strex necessary for read barrier bits.
+    strex  \tmp2, \tmp3, [\obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    cbnz   \tmp2, 3f                  @ If the store failed, retry.
+#endif
+    bx     lr
+3:
+    b      1b                         @ retry
+.endm
+
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_
