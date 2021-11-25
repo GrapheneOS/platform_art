@@ -494,16 +494,12 @@ class Generator:
     if os.path.isfile(os.path.join(run_test_path, "build")):
       if not self.can_ignore_build_script(os.path.join(run_test_path, "build")):
         return False
-    # Skip tests with no `src` directory.
-    if not os.path.isdir(os.path.join(run_test_path, "src")):
-      return False
     # Skip tests with sources outside the `src` directory.
     for subdir in ["jasmin",
                    "jasmin-multidex",
                    "smali",
                    "smali-ex",
                    "smali-multidex",
-                   "src-art",
                    "src-dex2oat-unresolved",
                    "src-ex",
                    "src-ex2",
@@ -511,6 +507,14 @@ class Generator:
                    "src2"]:
       if os.path.isdir(os.path.join(run_test_path, subdir)):
         return False
+    # Skip tests that have both an `src` directory and an `src-art` directory.
+    if os.path.isdir(os.path.join(run_test_path, "src")) and \
+       os.path.isdir(os.path.join(run_test_path, "src-art")):
+        return False
+    # Skip tests that have neither an `src` directory nor an `src-art` directory.
+    if not os.path.isdir(os.path.join(run_test_path, "src")) and \
+       not os.path.isdir(os.path.join(run_test_path, "src-art")):
+      return False
     # Skip test with a copy of `sun.misc.Unsafe`.
     if os.path.isfile(os.path.join(run_test_path, "src", "sun", "misc", "Unsafe.java")):
       return False
@@ -534,7 +538,8 @@ class Generator:
   def regen_bp_file(self, run_test):
     """Regenerate Blueprint file for an ART run-test."""
 
-    bp_file = os.path.join(self.art_test_dir, run_test, "Android.bp")
+    run_test_path = os.path.join(self.art_test_dir, run_test)
+    bp_file = os.path.join(run_test_path, "Android.bp")
 
     run_test_module_name = ART_RUN_TEST_MODULE_NAME_PREFIX + run_test
 
@@ -551,6 +556,13 @@ class Generator:
           include_srcs: true,"""
     else:
       include_src = ""
+
+    # The default source directory is `src`, except if `src-art` exists.
+    if os.path.isdir(os.path.join(run_test_path, "src-art")):
+      source_dir = "src-art"
+    else:
+      source_dir = "src"
+
     with open(bp_file, "w") as f:
       logging.debug(f"Writing `{bp_file}`.")
       f.write(textwrap.dedent(f"""\
@@ -572,7 +584,7 @@ class Generator:
           name: "{run_test_module_name}",
           defaults: ["art-run-test-defaults"],
           test_config_template: ":{test_config_template}",
-          srcs: ["src/**/*.java"],
+          srcs: ["{source_dir}/**/*.java"],
           data: [
               ":{run_test_module_name}-expected-stdout",
               ":{run_test_module_name}-expected-stderr",
