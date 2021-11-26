@@ -35,7 +35,7 @@ ObjectLock<T>::~ObjectLock() {
 
 template <typename T>
 void ObjectLock<T>::WaitIgnoringInterrupts() {
-  Monitor::Wait(self_, obj_.Get(), 0, 0, false, kWaiting);
+  Monitor::Wait(self_, obj_.Get(), 0, 0, false, ThreadState::kWaiting);
 }
 
 template <typename T>

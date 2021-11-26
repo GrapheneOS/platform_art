@@ -50,7 +50,7 @@ inline void Heap::VisitObjects(Visitor&& visitor) {
     // IncrementDisableMovingGC() and threads are suspended.
     IncrementDisableMovingGC(self);
     {
-      ScopedThreadSuspension sts(self, kWaitingForVisitObjects);
+      ScopedThreadSuspension sts(self, ThreadState::kWaitingForVisitObjects);
       ScopedSuspendAll ssa(__FUNCTION__);
       VisitObjectsInternalRegionSpace(visitor);
       VisitObjectsInternal(visitor);

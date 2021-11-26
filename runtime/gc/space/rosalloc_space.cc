@@ -396,7 +396,7 @@ void RosAllocSpace::InspectAllRosAlloc(void (*callback)(void *start, void *end, 
     // The mutators are not suspended yet and we have a shared access
     // to the mutator lock. Temporarily release the shared access by
     // transitioning to the suspend state, and suspend the mutators.
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     InspectAllRosAllocWithSuspendAll(callback, arg, do_null_callback_at_end);
   } else {
     // The mutators are not suspended yet. Suspend the mutators.

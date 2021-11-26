@@ -61,7 +61,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       jobject jresult;
       {
-        ScopedThreadStateChange tsc(self, kNative);
+        ScopedThreadStateChange tsc(self, ThreadState::kNative);
         jresult = fn(soa.Env(), klass.get());
       }
       result->SetL(soa.Decode<mirror::Object>(jresult));
@@ -70,28 +70,28 @@ static void InterpreterJni(Thread* self,
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       fn(soa.Env(), klass.get());
     } else if (shorty == "Z") {
       using fntype = jboolean(JNIEnv*, jclass);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetZ(fn(soa.Env(), klass.get()));
     } else if (shorty == "BI") {
       using fntype = jbyte(JNIEnv*, jclass, jint);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetB(fn(soa.Env(), klass.get(), args[0]));
     } else if (shorty == "II") {
       using fntype = jint(JNIEnv*, jclass, jint);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetI(fn(soa.Env(), klass.get(), args[0]));
     } else if (shorty == "LL") {
       using fntype = jobject(JNIEnv*, jclass, jobject);
@@ -102,7 +102,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jobject>(ObjArg(args[0])));
       jobject jresult;
       {
-        ScopedThreadStateChange tsc(self, kNative);
+        ScopedThreadStateChange tsc(self, ThreadState::kNative);
         jresult = fn(soa.Env(), klass.get(), arg0.get());
       }
       result->SetL(soa.Decode<mirror::Object>(jresult));
@@ -111,7 +111,7 @@ static void InterpreterJni(Thread* self,
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetI(fn(soa.Env(), klass.get(), args[0], args[1]));
     } else if (shorty == "ILI") {
       using fntype = jint(JNIEnv*, jclass, jobject, jint);
@@ -121,7 +121,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
                                    soa.AddLocalReference<jobject>(ObjArg(args[0])));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetI(fn(soa.Env(), klass.get(), arg0.get(), args[1]));
     } else if (shorty == "SIZ") {
       using fntype = jshort(JNIEnv*, jclass, jint, jboolean);
@@ -129,14 +129,14 @@ static void InterpreterJni(Thread* self,
           reinterpret_cast<fntype*>(const_cast<void*>(method->GetEntryPointFromJni()));
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetS(fn(soa.Env(), klass.get(), args[0], args[1]));
     } else if (shorty == "VIZ") {
       using fntype = void(JNIEnv*, jclass, jint, jboolean);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       fn(soa.Env(), klass.get(), args[0], args[1]);
     } else if (shorty == "ZLL") {
       using fntype = jboolean(JNIEnv*, jclass, jobject, jobject);
@@ -147,7 +147,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jobject>(ObjArg(args[0])));
       ScopedLocalRef<jobject> arg1(soa.Env(),
                                    soa.AddLocalReference<jobject>(ObjArg(args[1])));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetZ(fn(soa.Env(), klass.get(), arg0.get(), arg1.get()));
     } else if (shorty == "ZILL") {
       using fntype = jboolean(JNIEnv*, jclass, jint, jobject, jobject);
@@ -158,7 +158,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jobject>(ObjArg(args[1])));
       ScopedLocalRef<jobject> arg2(soa.Env(),
                                    soa.AddLocalReference<jobject>(ObjArg(args[2])));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetZ(fn(soa.Env(), klass.get(), args[0], arg1.get(), arg2.get()));
     } else if (shorty == "VILII") {
       using fntype = void(JNIEnv*, jclass, jint, jobject, jint, jint);
@@ -167,7 +167,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg1(soa.Env(),
                                    soa.AddLocalReference<jobject>(ObjArg(args[1])));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       fn(soa.Env(), klass.get(), args[0], arg1.get(), args[2], args[3]);
     } else if (shorty == "VLILII") {
       using fntype = void(JNIEnv*, jclass, jobject, jint, jobject, jint, jint);
@@ -178,7 +178,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jobject>(ObjArg(args[0])));
       ScopedLocalRef<jobject> arg2(soa.Env(),
                                    soa.AddLocalReference<jobject>(ObjArg(args[2])));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       fn(soa.Env(), klass.get(), arg0.get(), args[1], arg2.get(), args[3], args[4]);
     } else {
       LOG(FATAL) << "Do something with static native method: " << method->PrettyMethod()
@@ -192,7 +192,7 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jobject>(receiver));
       jobject jresult;
       {
-        ScopedThreadStateChange tsc(self, kNative);
+        ScopedThreadStateChange tsc(self, ThreadState::kNative);
         jresult = fn(soa.Env(), rcvr.get());
       }
       result->SetL(soa.Decode<mirror::Object>(jresult));
@@ -201,7 +201,7 @@ static void InterpreterJni(Thread* self,
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       fn(soa.Env(), rcvr.get());
     } else if (shorty == "LL") {
       using fntype = jobject(JNIEnv*, jobject, jobject);
@@ -212,17 +212,17 @@ static void InterpreterJni(Thread* self,
                                    soa.AddLocalReference<jobject>(ObjArg(args[0])));
       jobject jresult;
       {
-        ScopedThreadStateChange tsc(self, kNative);
+        ScopedThreadStateChange tsc(self, ThreadState::kNative);
         jresult = fn(soa.Env(), rcvr.get(), arg0.get());
       }
       result->SetL(soa.Decode<mirror::Object>(jresult));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
     } else if (shorty == "III") {
       using fntype = jint(JNIEnv*, jobject, jint, jint);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
-      ScopedThreadStateChange tsc(self, kNative);
+      ScopedThreadStateChange tsc(self, ThreadState::kNative);
       result->SetI(fn(soa.Env(), rcvr.get(), args[0], args[1]));
     } else {
       LOG(FATAL) << "Do something with native method: " << method->PrettyMethod()

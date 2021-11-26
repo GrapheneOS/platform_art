@@ -55,7 +55,7 @@ static ResultT GetThreadStack(const ScopedFastNativeObjectAccess& soa,
       return nullptr;
     }
     // Suspend thread to build stack trace.
-    ScopedThreadSuspension sts(soa.Self(), kNative);
+    ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     bool timed_out;
     Thread* thread = thread_list->SuspendThreadByPeer(peer,

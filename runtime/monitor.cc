@@ -515,7 +515,8 @@ void Monitor::Lock(Thread* self) {
   }
   self->SetMonitorEnterObject(GetObject().Ptr());
   {
-    ScopedThreadSuspension tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
+    // Change to blocked and give up mutator_lock_.
+    ScopedThreadSuspension tsc(self, ThreadState::kBlocked);
 
     // Acquire monitor_lock_ without mutator_lock_, expecting to block this time.
     // We already tried spinning above. The shutdown procedure currently assumes we stop
@@ -827,7 +828,9 @@ void Monitor::SignalWaiterAndReleaseMonitorLock(Thread* self) {
 void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why) {
   DCHECK(self != nullptr);
-  DCHECK(why == kTimedWaiting || why == kWaiting || why == kSleeping);
+  DCHECK(why == ThreadState::kTimedWaiting ||
+         why == ThreadState::kWaiting ||
+         why == ThreadState::kSleeping);
 
   // Make sure that we hold the lock.
   if (owner_.load(std::memory_order_relaxed) != self) {
@@ -837,8 +840,8 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
 
   // We need to turn a zero-length timed wait into a regular wait because
   // Object.wait(0, 0) is defined as Object.wait(0), which is defined as Object.wait().
-  if (why == kTimedWaiting && (ms == 0 && ns == 0)) {
-    why = kWaiting;
+  if (why == ThreadState::kTimedWaiting && (ms == 0 && ns == 0)) {
+    why = ThreadState::kWaiting;
   }
 
   // Enforce the timeout range.
@@ -900,10 +903,10 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
       was_interrupted = true;
     } else {
       // Wait for a notification or a timeout to occur.
-      if (why == kWaiting) {
+      if (why == ThreadState::kWaiting) {
         self->GetWaitConditionVariable()->Wait(self);
       } else {
-        DCHECK(why == kTimedWaiting || why == kSleeping) << why;
+        DCHECK(why == ThreadState::kTimedWaiting || why == ThreadState::kSleeping) << why;
         timed_out = self->GetWaitConditionVariable()->TimedWait(self, ms, ns);
       }
       was_interrupted = self->IsInterrupted();
@@ -1065,7 +1068,7 @@ void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWo
     bool timed_out;
     Thread* owner;
     {
-      ScopedThreadSuspension sts(self, kWaitingForLockInflation);
+      ScopedThreadSuspension sts(self, ThreadState::kWaitingForLockInflation);
       owner = thread_list->SuspendThreadByThreadId(owner_thread_id,
                                                    SuspendReason::kInternal,
                                                    &timed_out);
@@ -1388,9 +1391,9 @@ ThreadState Monitor::FetchState(const Thread* thread,
   ThreadState state = thread->GetState();
 
   switch (state) {
-    case kWaiting:
-    case kTimedWaiting:
-    case kSleeping:
+    case ThreadState::kWaiting:
+    case ThreadState::kTimedWaiting:
+    case ThreadState::kSleeping:
     {
       Thread* self = Thread::Current();
       MutexLock mu(self, *thread->GetWaitMutex());
@@ -1401,8 +1404,8 @@ ThreadState Monitor::FetchState(const Thread* thread,
     }
     break;
 
-    case kBlocked:
-    case kWaitingForLockInflation:
+    case ThreadState::kBlocked:
+    case ThreadState::kWaitingForLockInflation:
     {
       ObjPtr<mirror::Object> lock_object = thread->GetMonitorEnterObject();
       if (lock_object != nullptr) {
