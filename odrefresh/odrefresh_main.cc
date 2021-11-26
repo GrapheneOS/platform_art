@@ -339,8 +339,7 @@ int main(int argc, char** argv) {
       OdrCompilationLog compilation_log;
       if (!compilation_log.ShouldAttemptCompile(metrics.GetTrigger())) {
         LOG(INFO) << "Compilation skipped because it was attempted recently";
-        // Artifacts refreshed. Return `kCompilationFailed` so that odsign will sign them again.
-        return ExitCode::kCompilationFailed;
+        return ExitCode::kOkay;
       }
       ExitCode compile_result = odr.Compile(metrics, compilation_options);
       compilation_log.Log(metrics.GetArtApexVersion(),
