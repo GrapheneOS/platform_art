@@ -26,7 +26,7 @@
 #include "mirror/string.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "verification.h"
+#include "verification-inl.h"
 
 namespace art {
 namespace gc {
@@ -76,11 +76,11 @@ TEST_F(VerificationTest, IsValidClassOrNotInHeap) {
   Handle<mirror::String> string(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "test")));
   const Verification* const v = Runtime::Current()->GetHeap()->GetVerification();
-  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<const void*>(1)));
-  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<const void*>(4)));
+  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<mirror::Class*>(1)));
+  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<mirror::Class*>(4)));
   EXPECT_FALSE(v->IsValidClass(nullptr));
   EXPECT_TRUE(v->IsValidClass(string->GetClass()));
-  EXPECT_FALSE(v->IsValidClass(string.Get()));
+  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<mirror::Class*>(string.Get())));
 }
 
 TEST_F(VerificationTest, IsValidClassInHeap) {
@@ -95,9 +95,9 @@ TEST_F(VerificationTest, IsValidClassInHeap) {
   Handle<mirror::String> string(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "test")));
   const Verification* const v = Runtime::Current()->GetHeap()->GetVerification();
-  const uintptr_t uint_klass = reinterpret_cast<uintptr_t>(string->GetClass());
-  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<const void*>(uint_klass - kObjectAlignment)));
-  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<const void*>(&uint_klass)));
+  uintptr_t uint_klass = reinterpret_cast<uintptr_t>(string->GetClass());
+  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<mirror::Class*>(uint_klass - kObjectAlignment)));
+  EXPECT_FALSE(v->IsValidClass(reinterpret_cast<mirror::Class*>(&uint_klass)));
 }
 
 TEST_F(VerificationTest, DumpInvalidObjectInfo) {

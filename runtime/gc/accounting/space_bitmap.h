@@ -207,6 +207,9 @@ class SpaceBitmap {
 
   std::string Dump() const;
 
+  // Dump three bitmap words around obj.
+  std::string DumpMemAround(mirror::Object* obj) const;
+
   // Helper function for computing bitmap size based on a 64 bit capacity.
   static size_t ComputeBitmapSize(uint64_t capacity);
   static size_t ComputeHeapSize(uint64_t bitmap_bytes);

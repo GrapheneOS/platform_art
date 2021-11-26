@@ -16,6 +16,9 @@
 
 #include "space_bitmap-inl.h"
 
+#include <iomanip>
+#include <sstream>
+
 #include "android-base/stringprintf.h"
 
 #include "art_field-inl.h"
@@ -111,6 +114,37 @@ template<size_t kAlignment>
 std::string SpaceBitmap<kAlignment>::Dump() const {
   return StringPrintf("%s: %p-%p", name_.c_str(), reinterpret_cast<void*>(HeapBegin()),
                       reinterpret_cast<void*>(HeapLimit()));
+}
+
+template <size_t kAlignment>
+std::string SpaceBitmap<kAlignment>::DumpMemAround(mirror::Object* obj) const {
+  uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+  DCHECK_GE(addr, heap_begin_);
+  DCHECK(HasAddress(obj)) << obj;
+  const uintptr_t offset = addr - heap_begin_;
+  const size_t index = OffsetToIndex(offset);
+  const uintptr_t mask = OffsetToMask(offset);
+  size_t num_entries = bitmap_size_ / sizeof(uintptr_t);
+  DCHECK_LT(index, num_entries) << " bitmap_size_ = " << bitmap_size_;
+  Atomic<uintptr_t>* atomic_entry = &bitmap_begin_[index];
+  uintptr_t prev = 0;
+  uintptr_t next = 0;
+  if (index > 0) {
+    prev = (atomic_entry - 1)->load(std::memory_order_relaxed);
+  }
+  uintptr_t curr = atomic_entry->load(std::memory_order_relaxed);
+  if (index < num_entries - 1) {
+    next = (atomic_entry + 1)->load(std::memory_order_relaxed);
+  }
+  std::ostringstream oss;
+  oss << " offset: " << offset
+      << " index: " << index
+      << " mask: " << std::hex << std::setfill('0') << std::setw(16) << mask
+      << " words {" << std::hex << std::setfill('0') << std::setw(16) << prev
+      << ", " << std::hex << std::setfill('0') << std::setw(16) << curr
+      << ", " << std::hex <<std::setfill('0') << std::setw(16) << next
+      << "}";
+  return oss.str();
 }
 
 template<size_t kAlignment>

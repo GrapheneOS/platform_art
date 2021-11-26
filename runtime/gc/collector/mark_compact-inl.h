@@ -180,6 +180,32 @@ uint32_t MarkCompact::LiveWordsBitmap<kAlignment>::FindNthLiveWordOffset(size_t 
 inline void MarkCompact::UpdateRef(mirror::Object* obj, MemberOffset offset) {
   mirror::Object* old_ref = obj->GetFieldObject<
       mirror::Object, kVerifyNone, kWithoutReadBarrier, /*kIsVolatile*/false>(offset);
+  if (kIsDebugBuild) {
+    if (live_words_bitmap_->HasAddress(old_ref)
+        && reinterpret_cast<uint8_t*>(old_ref) < black_allocations_begin_
+        && !current_space_bitmap_->Test(old_ref)) {
+      mirror::Object* from_ref = GetFromSpaceAddr(old_ref);
+      std::ostringstream oss;
+      heap_->DumpSpaces(oss);
+      MemMap::DumpMaps(oss, /* terse= */ true);
+      LOG(FATAL) << "Not marked in the bitmap ref=" << old_ref
+                 << " from_ref=" << from_ref
+                 << " offset=" << offset
+                 << " obj=" << obj
+                 << " obj-validity=" << IsValidObject(obj)
+                 << " from-space=" << static_cast<void*>(from_space_begin_)
+                 << " bitmap= " << current_space_bitmap_->DumpMemAround(old_ref)
+                 << " from_ref "
+                 << heap_->GetVerification()->DumpRAMAroundAddress(
+                     reinterpret_cast<uintptr_t>(from_ref), 128)
+                 << " obj "
+                 << heap_->GetVerification()->DumpRAMAroundAddress(
+                     reinterpret_cast<uintptr_t>(obj), 128)
+                 << " old_ref " << heap_->GetVerification()->DumpRAMAroundAddress(
+                     reinterpret_cast<uintptr_t>(old_ref), 128)
+                 << " maps\n" << oss.str();
+    }
+  }
   mirror::Object* new_ref = PostCompactAddress(old_ref);
   if (new_ref != old_ref) {
     obj->SetFieldObjectWithoutWriteBarrier<
@@ -194,7 +220,6 @@ inline bool MarkCompact::VerifyRootSingleUpdate(void* root,
                                                 const RootInfo& info) {
   void* stack_end = stack_end_;
   void* stack_addr = stack_addr_;
-
   if (!live_words_bitmap_->HasAddress(old_ref)) {
     return false;
   }
@@ -287,6 +312,23 @@ inline mirror::Object* MarkCompact::PostCompactOldObjAddr(mirror::Object* old_re
 inline mirror::Object* MarkCompact::PostCompactAddressUnchecked(mirror::Object* old_ref) const {
   if (reinterpret_cast<uint8_t*>(old_ref) >= black_allocations_begin_) {
     return PostCompactBlackObjAddr(old_ref);
+  }
+  if (kIsDebugBuild) {
+    mirror::Object* from_ref = GetFromSpaceAddr(old_ref);
+    DCHECK(live_words_bitmap_->Test(old_ref))
+         << "ref=" << old_ref;
+    if (!current_space_bitmap_->Test(old_ref)) {
+      std::ostringstream oss;
+      Runtime::Current()->GetHeap()->DumpSpaces(oss);
+      MemMap::DumpMaps(oss, /* terse= */ true);
+      LOG(FATAL) << "ref=" << old_ref
+                 << " from_ref=" << from_ref
+                 << " from-space=" << static_cast<void*>(from_space_begin_)
+                 << " bitmap= " << current_space_bitmap_->DumpMemAround(old_ref)
+                 << heap_->GetVerification()->DumpRAMAroundAddress(
+                         reinterpret_cast<uintptr_t>(from_ref), 128)
+                 << " maps\n" << oss.str();
+    }
   }
   return PostCompactOldObjAddr(old_ref);
 }
