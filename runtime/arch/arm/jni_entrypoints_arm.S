@@ -295,8 +295,23 @@ END art_jni_read_barrier
      *     All argument registers need to be preserved.
      */
 ENTRY art_jni_lock_object
+    // Note: the slow path is actually the art_jni_lock_object_no_inline (tail call).
     LOCK_OBJECT_FAST_PATH r4, r5, r6, r7, .Llock_object_jni_slow, /*can_be_null*/ 0
+END art_jni_lock_object
 
+    /*
+     * Entry from JNI stub that calls `artLockObjectFromCode()`
+     * (the same as for managed code), may block for GC.
+     * Custom calling convention:
+     *     r4 holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     All argument registers need to be preserved.
+     */
+    .extern artLockObjectFromCode
+ENTRY art_jni_lock_object_no_inline
+    // This is also the slow path for art_jni_lock_object.
+    // Note that we need a local label as the assembler emits bad instructions
+    // for CBZ/CBNZ if we try to jump to `art_jni_lock_object_no_inline`.
 .Llock_object_jni_slow:
     // Save managed args, r4 (for stack alignment) and LR.
     SAVE_MANAGED_ARGS_R4_LR_INCREASE_FRAME
@@ -318,7 +333,7 @@ ENTRY art_jni_lock_object
     // Rely on the JNI transition frame constructed in the JNI stub.
     mov    r0, rSELF                           @ Pass Thread::Current().
     b      artDeliverPendingExceptionFromCode  @ (Thread*)
-END art_jni_lock_object
+END art_jni_lock_object_no_inline
 
     /*
      * Entry from JNI stub that tries to unlock the object in a fast path and calls
@@ -329,11 +344,25 @@ END art_jni_lock_object
      *     Callee-save registers have been saved and can be used as temporaries.
      *     Return registers r0-r1 and s0-s1 need to be preserved.
      */
-    .extern artJniLockObject
 ENTRY art_jni_unlock_object
+    // Note: the slow path is actually the art_jni_unlock_object_no_inline (tail call).
     UNLOCK_OBJECT_FAST_PATH r4, r5, r6, r7, .Lunlock_object_jni_slow, /*can_be_null*/ 0
+END art_jni_unlock_object
 
- .Lunlock_object_jni_slow:
+    /*
+     * Entry from JNI stub that calls `artJniUnlockObject()`. Note that failure to
+     * unlock is fatal, so we do not need to check for exceptions.
+     * Custom calling convention:
+     *     r4 holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries.
+     *     Return registers r0-r1 and s0-s1 need to be preserved.
+     */
+    .extern artJniUnlockObject
+ENTRY art_jni_unlock_object_no_inline
+    // This is also the slow path for art_jni_unlock_object.
+    // Note that we need a local label as the assembler emits bad instructions
+    // for CBZ/CBNZ if we try to jump to `art_jni_unlock_object_no_inline`.
+.Lunlock_object_jni_slow:
     // Save GPR return registers and return address. Also save r4 for stack alignment.
     push   {r0-r1, r4, lr}
     .cfi_adjust_cfa_offset 16
@@ -350,4 +379,4 @@ ENTRY art_jni_unlock_object
     .cfi_adjust_cfa_offset -8
     // Restore GPR return registers and r4 and return.
     pop    {r0-r1, r4, pc}
-END art_jni_unlock_object
+END art_jni_unlock_object_no_inline
