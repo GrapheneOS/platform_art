@@ -187,7 +187,6 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pMemcpy = memcpy;
 
   // Read barrier.
-  qpoints->pReadBarrierJni = art_read_barrier_jni;
   qpoints->pReadBarrierMarkReg16 = nullptr;  // IP0 is used as a temp by the asm stub.
   UpdateReadBarrierEntrypoints(qpoints, /*is_active=*/ false);
   qpoints->pReadBarrierSlow = artReadBarrierSlow;

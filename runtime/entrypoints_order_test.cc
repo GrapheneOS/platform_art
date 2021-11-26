@@ -336,9 +336,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pUpdateInlineCache, pCompileOptimized,
                          sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pCompileOptimized, pReadBarrierJni,
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pCompileOptimized, pJniReadBarrier,
                          sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pReadBarrierJni, pReadBarrierMarkReg00,
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniReadBarrier, pReadBarrierMarkReg00,
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pReadBarrierMarkReg00, pReadBarrierMarkReg01,
                          sizeof(void*));
