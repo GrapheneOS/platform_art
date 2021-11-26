@@ -16,7 +16,6 @@
 
 #include "odrefresh.h"
 
-#include <sys/system_properties.h>
 #include <unistd.h>
 
 #include <functional>
@@ -310,18 +309,28 @@ TEST_F(OdRefreshTest, MissingStandaloneSystemServerJars) {
 }
 
 TEST_F(OdRefreshTest, CompileSetsCompilerFilter) {
-  // This test depends on a system property that doesn't exist on old platforms. Since the whole
-  // odrefresh program is for S and later, we don't need to run the test on old platforms.
-  if (__system_property_find("dalvik.vm.systemservercompilerfilter") == nullptr) {
-    return;
+  {
+    // Check if the system property can be written.
+    auto guard = ScopedSetProperty("dalvik.vm.systemservercompilerfilter", "foo");
+    if (android::base::GetProperty("dalvik.vm.systemservercompilerfilter", /*default_value=*/{}) !=
+        "foo") {
+      // This test depends on a system property that doesn't exist on old platforms. Since the whole
+      // odrefresh program is for S and later, we don't need to run the test on old platforms.
+      return;
+    }
   }
 
   {
     auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
-    ON_CALL(*mock_odr_dexopt, DoDexoptSystemServer(_)).WillByDefault(Return(0));
 
     // Test setup: default compiler filter should be "speed".
     auto guard = ScopedSetProperty("dalvik.vm.systemservercompilerfilter", "");
+
+    // Uninteresting calls.
+    EXPECT_CALL(*mock_odr_dexopt, DoDexoptSystemServer(_))
+        .Times(odrefresh->AllSystemServerJars().size() - 2)
+        .WillRepeatedly(Return(0))
+        .RetiresOnSaturation();
 
     EXPECT_CALL(*mock_odr_dexopt,
                 DoDexoptSystemServer(AllOf(
@@ -349,6 +358,12 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilter) {
     // Test setup: with "speed-profile" compiler filter in the request, only apply if there is a
     // profile, otherwise fallback to speed.
     auto guard = ScopedSetProperty("dalvik.vm.systemservercompilerfilter", "speed-profile");
+
+    // Uninteresting calls.
+    EXPECT_CALL(*mock_odr_dexopt, DoDexoptSystemServer(_))
+        .Times(odrefresh->AllSystemServerJars().size() - 2)
+        .WillRepeatedly(Return(0))
+        .RetiresOnSaturation();
 
     // services.jar has a profile, while location.provider.jar does not.
     EXPECT_CALL(
@@ -378,6 +393,12 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilter) {
 
     // Test setup: "verify" compiler filter should be simply applied.
     auto guard = ScopedSetProperty("dalvik.vm.systemservercompilerfilter", "verify");
+
+    // Uninteresting calls.
+    EXPECT_CALL(*mock_odr_dexopt, DoDexoptSystemServer(_))
+        .Times(odrefresh->AllSystemServerJars().size() - 2)
+        .WillRepeatedly(Return(0))
+        .RetiresOnSaturation();
 
     EXPECT_CALL(*mock_odr_dexopt,
                 DoDexoptSystemServer(AllOf(
