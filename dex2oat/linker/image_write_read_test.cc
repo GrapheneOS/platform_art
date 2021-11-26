@@ -80,7 +80,7 @@ void ImageWriteReadTest::TestWriteRead(ImageHeader::StorageMode storage_mode,
   runtime_.reset(Runtime::Current());
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now and then switch to a more managable ScopedObjectAccess.
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  Thread::Current()->TransitionFromRunnableToSuspended(ThreadState::kNative);
   ScopedObjectAccess soa(Thread::Current());
   ASSERT_TRUE(runtime_.get() != nullptr);
   class_linker_ = runtime_->GetClassLinker();

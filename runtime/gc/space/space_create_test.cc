@@ -168,7 +168,7 @@ TEST_P(SpaceCreateTest, ZygoteSpaceTestBody) {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   space::Space* old_space = space;
   {
-    ScopedThreadSuspension sts(self, kSuspended);
+    ScopedThreadSuspension sts(self, ThreadState::kSuspended);
     ScopedSuspendAll ssa("Add image space");
     heap->RemoveSpace(old_space);
   }

@@ -536,9 +536,9 @@ mirror::Object* JniCompilerTest::JniMethodEndWithReferenceSynchronizedOverride(
 static void expectValidThreadState() {
   // Normal JNI always transitions to "Native". Other JNIs stay in the "Runnable" state.
   if (IsCurrentJniNormal()) {
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
+    EXPECT_EQ(ThreadState::kNative, Thread::Current()->GetState());
   } else {
-    EXPECT_EQ(kRunnable, Thread::Current()->GetState());
+    EXPECT_EQ(ThreadState::kRunnable, Thread::Current()->GetState());
   }
 }
 

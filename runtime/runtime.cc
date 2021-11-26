@@ -654,7 +654,7 @@ void Runtime::Abort(const char* msg) {
   {
     // Ensure that we don't have multiple threads trying to abort at once,
     // which would result in significantly worse diagnostics.
-    ScopedThreadStateChange tsc(Thread::Current(), kNativeForAbort);
+    ScopedThreadStateChange tsc(Thread::Current(), ThreadState::kNativeForAbort);
     Locks::abort_lock_->ExclusiveLock(Thread::Current());
   }
 
@@ -718,7 +718,7 @@ void Runtime::PostZygoteFork() {
 
 void Runtime::CallExitHook(jint status) {
   if (exit_ != nullptr) {
-    ScopedThreadStateChange tsc(Thread::Current(), kNative);
+    ScopedThreadStateChange tsc(Thread::Current(), ThreadState::kNative);
     exit_(status);
     LOG(WARNING) << "Exit hook returned instead of exiting!";
   }
@@ -883,7 +883,7 @@ bool Runtime::Start() {
   // Restore main thread state to kNative as expected by native code.
   Thread* self = Thread::Current();
 
-  self->TransitionFromRunnableToSuspended(kNative);
+  self->TransitionFromRunnableToSuspended(ThreadState::kNative);
 
   started_ = true;
 
@@ -990,7 +990,7 @@ bool Runtime::Start() {
   finished_starting_ = true;
 
   if (trace_config_.get() != nullptr && trace_config_->trace_file != "") {
-    ScopedThreadStateChange tsc(self, kWaitingForMethodTracingStart);
+    ScopedThreadStateChange tsc(self, ThreadState::kWaitingForMethodTracingStart);
     Trace::Start(trace_config_->trace_file.c_str(),
                  static_cast<int>(trace_config_->trace_file_size),
                  0,
@@ -1195,7 +1195,7 @@ void Runtime::StartDaemonThreads() {
   Thread* self = Thread::Current();
 
   // Must be in the kNative state for calling native methods.
-  CHECK_EQ(self->GetState(), kNative);
+  CHECK_EQ(self->GetState(), ThreadState::kNative);
 
   JNIEnv* env = self->GetJniEnv();
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
@@ -2086,7 +2086,7 @@ void Runtime::InitNativeMethods() {
   JNIEnv* env = self->GetJniEnv();
 
   // Must be in the kNative state for calling native methods (JNI_OnLoad code).
-  CHECK_EQ(self->GetState(), kNative);
+  CHECK_EQ(self->GetState(), ThreadState::kNative);
 
   // Set up the native methods provided by the runtime itself.
   RegisterRuntimeNativeMethods(env);

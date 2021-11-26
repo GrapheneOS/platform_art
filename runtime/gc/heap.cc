@@ -942,7 +942,7 @@ bool Heap::IsCompilingBoot() const {
 void Heap::IncrementDisableMovingGC(Thread* self) {
   // Need to do this holding the lock to prevent races where the GC is about to run / running when
   // we attempt to disable it.
-  ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
   ++disable_moving_gc_count_;
   if (IsMovingGc(collector_type_running_)) {
@@ -966,7 +966,7 @@ void Heap::IncrementDisableThreadFlip(Thread* self) {
     // counter. The global counter is incremented only once for a thread for the outermost enter.
     return;
   }
-  ScopedThreadStateChange tsc(self, kWaitingForGcThreadFlip);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForGcThreadFlip);
   MutexLock mu(self, *thread_flip_lock_);
   thread_flip_cond_->CheckSafeToWait(self);
   bool has_waited = false;
@@ -1013,7 +1013,7 @@ void Heap::ThreadFlipBegin(Thread* self) {
   // Supposed to be called by GC. Set thread_flip_running_ to be true. If disable_thread_flip_count_
   // > 0, block. Otherwise, go ahead.
   CHECK(kUseReadBarrier);
-  ScopedThreadStateChange tsc(self, kWaitingForGcThreadFlip);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForGcThreadFlip);
   MutexLock mu(self, *thread_flip_lock_);
   thread_flip_cond_->CheckSafeToWait(self);
   bool has_waited = false;
@@ -1559,7 +1559,7 @@ void Heap::TrimIndirectReferenceTables(Thread* self) {
   // TODO: May also want to look for entirely empty pages maintained by SmallIrtAllocator.
   Barrier barrier(0);
   TrimIndirectReferenceTableClosure closure(&barrier);
-  ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForCheckPointsToRun);
   size_t barrier_count = Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
   if (barrier_count != 0) {
     barrier.Increment(self, barrier_count);
@@ -1569,7 +1569,7 @@ void Heap::TrimIndirectReferenceTables(Thread* self) {
 void Heap::StartGC(Thread* self, GcCause cause, CollectorType collector_type) {
   // Need to do this before acquiring the locks since we don't want to get suspended while
   // holding any locks.
-  ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
   // Ensure there is only one GC at a time.
   WaitForGcToCompleteLocked(cause, self);
@@ -2000,7 +2000,7 @@ void Heap::SetTargetHeapUtilization(float target) {
 
 size_t Heap::GetObjectsAllocated() const {
   Thread* const self = Thread::Current();
-  ScopedThreadStateChange tsc(self, kWaitingForGetObjectsAllocated);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForGetObjectsAllocated);
   // Prevent GC running during GetObjectsAllocated since we may get a checkpoint request that tells
   // us to suspend while we are doing SuspendAll. b/35232978
   gc::ScopedGCCriticalSection gcs(Thread::Current(),
@@ -2085,10 +2085,10 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   // Inc requested homogeneous space compaction.
   count_requested_homogeneous_space_compaction_++;
   // Store performed homogeneous space compaction at a new request arrival.
-  ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
   {
-    ScopedThreadStateChange tsc2(self, kWaitingForGcToComplete);
+    ScopedThreadStateChange tsc2(self, ThreadState::kWaitingForGcToComplete);
     MutexLock mu(self, *gc_complete_lock_);
     // Ensure there is only one GC at a time.
     WaitForGcToCompleteLocked(kGcCauseHomogeneousSpaceCompact, self);
@@ -2641,7 +2641,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
       // here is full GC.
     }
   }
-  ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
   if (self->IsHandlingStackOverflow()) {
     // If we are throwing a stack overflow error we probably don't have enough remaining stack
@@ -2653,7 +2653,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
   bool compacting_gc;
   {
     gc_complete_lock_->AssertNotHeld(self);
-    ScopedThreadStateChange tsc2(self, kWaitingForGcToComplete);
+    ScopedThreadStateChange tsc2(self, ThreadState::kWaitingForGcToComplete);
     MutexLock mu(self, *gc_complete_lock_);
     // Ensure there is only one GC at a time.
     WaitForGcToCompleteLocked(gc_cause, self);
@@ -3437,7 +3437,7 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
   // reachable objects.
   if (verify_pre_sweeping_heap_) {
     TimingLogger::ScopedTiming t2("(Paused)PostSweepingVerifyHeapReferences", timings);
-    CHECK_NE(self->GetState(), kRunnable);
+    CHECK_NE(self->GetState(), ThreadState::kRunnable);
     {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // Swapping bound bitmaps does nothing.
@@ -3501,7 +3501,7 @@ void Heap::RosAllocVerification(TimingLogger* timings, const char* name) {
 }
 
 collector::GcType Heap::WaitForGcToComplete(GcCause cause, Thread* self) {
-  ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
+  ScopedThreadStateChange tsc(self, ThreadState::kWaitingForGcToComplete);
   MutexLock mu(self, *gc_complete_lock_);
   return WaitForGcToCompleteLocked(cause, self);
 }

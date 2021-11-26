@@ -100,7 +100,7 @@ inline void Object::NotifyAll(Thread* self) {
 }
 
 inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
-  Monitor::Wait(self, this, ms, ns, true, kTimedWaiting);
+  Monitor::Wait(self, this, ms, ns, true, ThreadState::kTimedWaiting);
 }
 
 inline uint32_t Object::GetMarkBit() {

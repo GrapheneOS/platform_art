@@ -605,7 +605,7 @@ public class Main {
   /// CHECK:     subs
   /// CHECK:     add
   /// CHECK:     adds
-  /// CHECK:     ldrh
+  /// CHECK:     ldr
   /// CHECK:     cmp
   /// CHECK:     beq
 
@@ -613,7 +613,7 @@ public class Main {
   /// CHECK:     sub
   /// CHECK:     add
   /// CHECK:     add
-  /// CHECK:     ldrh
+  /// CHECK:     ldr
   /// CHECK:     cbz
   private static void testCrossItersDependencies() {
     int[] data = {1, 2, 3, 0};

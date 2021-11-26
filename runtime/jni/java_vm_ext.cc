@@ -285,7 +285,7 @@ class Libraries {
     const char* shorty = m->GetShorty();
     {
       // Go to suspended since dlsym may block for a long time if other threads are using dlopen.
-      ScopedThreadSuspension sts(self, kNative);
+      ScopedThreadSuspension sts(self, ThreadState::kNative);
       void* native_code = FindNativeMethodInternal(self,
                                                    declaring_class_loader_allocator,
                                                    shorty,
@@ -353,7 +353,7 @@ class Libraries {
         }
       }
     }
-    ScopedThreadSuspension sts(self, kNative);
+    ScopedThreadSuspension sts(self, ThreadState::kNative);
     // Do this without holding the jni libraries lock to prevent possible deadlocks.
     UnloadLibraries(self->GetJniEnv()->GetVm(), unload_libraries);
     for (auto library : unload_libraries) {
@@ -575,7 +575,7 @@ void JavaVMExt::JniAbort(const char* jni_function_name, const char* msg) {
     check_jni_abort_hook_(check_jni_abort_hook_data_, os.str());
   } else {
     // Ensure that we get a native stack trace for this thread.
-    ScopedThreadSuspension sts(self, kNative);
+    ScopedThreadSuspension sts(self, ThreadState::kNative);
     LOG(FATAL) << os.str();
     UNREACHABLE();
   }

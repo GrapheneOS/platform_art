@@ -47,16 +47,16 @@ bool MonitorObjectsStackVisitor::VisitFrame() {
                                             &monitor_object,
                                             &lock_owner_tid);
     switch (state) {
-      case kWaiting:
-      case kTimedWaiting:
+      case ThreadState::kWaiting:
+      case ThreadState::kTimedWaiting:
         VisitWaitingObject(monitor_object, state);
         break;
-      case kSleeping:
+      case ThreadState::kSleeping:
         VisitSleepingObject(monitor_object);
         break;
 
-      case kBlocked:
-      case kWaitingForLockInflation:
+      case ThreadState::kBlocked:
+      case ThreadState::kWaitingForLockInflation:
         VisitBlockedOnObject(monitor_object, state, lock_owner_tid);
         break;
 
