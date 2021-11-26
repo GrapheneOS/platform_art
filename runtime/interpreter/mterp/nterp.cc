@@ -725,6 +725,10 @@ extern "C" mirror::Object* NterpFilledNewArrayRange(Thread* self,
 
 extern "C" jit::OsrData* NterpHotMethod(ArtMethod* method, uint16_t* dex_pc_ptr, uint32_t* vregs)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  // It is important this method is not suspended because it can be called on
+  // method entry and async deoptimization does not expect runtime methods other than the
+  // suspend entrypoint before executing the first instruction of a Java
+  // method.
   ScopedAssertNoThreadSuspension sants("In nterp");
   Runtime* runtime = Runtime::Current();
   method->ResetCounter(runtime->GetJITOptions()->GetWarmupThreshold());

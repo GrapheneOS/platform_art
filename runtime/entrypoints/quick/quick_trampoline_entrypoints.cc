@@ -644,7 +644,7 @@ static void HandleDeoptimization(JValue* result,
                                               deopt_frame,
                                               result,
                                               from_code,
-                                              DeoptimizationMethodType::kDefault);
+                                              method_type);
 }
 
 extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self, ArtMethod** sp)
