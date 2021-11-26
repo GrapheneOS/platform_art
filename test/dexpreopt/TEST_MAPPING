@@ -1,7 +1,0 @@
-{
-  "presubmit": [
-    {
-      "name": "art_standalone_dexpreopt_tests"
-    }
-  ]
-}
