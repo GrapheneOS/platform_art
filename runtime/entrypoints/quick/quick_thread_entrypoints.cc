@@ -30,6 +30,12 @@ extern "C" void artTestSuspendFromCode(Thread* self) REQUIRES_SHARED(Locks::muta
 extern "C" void artCompileOptimized(ArtMethod* method, Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
+  // It is important this method is not suspended due to:
+  // * It is called on entry, and object parameters are in locations that are
+  //   not marked in the stack map.
+  // * Async deoptimization does not expect runtime methods other than the
+  //   suspend entrypoint before executing the first instruction of a Java
+  //   method.
   ScopedAssertNoThreadSuspension sants("Enqueuing optimized compilation");
   Runtime::Current()->GetJit()->EnqueueOptimizedCompilation(method, self);
 }
