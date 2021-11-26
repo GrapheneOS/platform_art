@@ -509,9 +509,9 @@ END art_quick_lock_object
      */
     .extern artLockObjectFromCode
 ENTRY art_quick_lock_object_no_inline
-    // This is also the slow path for art_quick_lock_object. Note that we
-    // need a local label, the assembler complains about target being out of
-    // range if we try to jump to `art_quick_lock_object_no_inline`.
+    // This is also the slow path for art_quick_lock_object.
+    // Note that we need a local label as the assembler emits bad instructions
+    // for CBZ/CBNZ if we try to jump to `art_quick_lock_object_no_inline`.
 .Llock_object_slow:
     SETUP_SAVE_REFS_ONLY_FRAME r1     @ save callee saves in case we block
     mov    r1, rSELF                  @ pass Thread::Current
@@ -539,9 +539,9 @@ END art_quick_unlock_object
      */
     .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object_no_inline
-    // This is also the slow path for art_quick_unlock_object. Note that we
-    // need a local label, the assembler complains about target being out of
-    // range if we try to jump to `art_quick_unlock_object_no_inline`.
+    // This is also the slow path for art_quick_unlock_object.
+    // Note that we need a local label as the assembler emits bad instructions
+    // for CBZ/CBNZ if we try to jump to `art_quick_unlock_object_no_inline`.
 .Lunlock_object_slow:
     @ save callee saves in case exception allocation triggers GC
     SETUP_SAVE_REFS_ONLY_FRAME r1

@@ -377,9 +377,19 @@ END_FUNCTION art_jni_read_barrier
      *     All argument registers need to be preserved.
      */
 DEFINE_FUNCTION art_jni_lock_object
-    LOCK_OBJECT_FAST_PATH rbx, ebp, .Llock_object_jni_slow
+    LOCK_OBJECT_FAST_PATH rbx, ebp, art_jni_lock_object_no_inline
+END_FUNCTION art_jni_lock_object
 
-.Llock_object_jni_slow:
+    /*
+     * Entry from JNI stub that calls `artLockObjectFromCode()`
+     * (the same as for managed code), may block for GC.
+     * Custom calling convention:
+     *     RBX holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
+     *     All argument registers need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_lock_object_no_inline
+    // This is also the slow path for art_jni_lock_object.
     // Save register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and align stack.
     SAVE_MANAGED_ARGS_INCREASE_FRAME
     // Call `artLockObjectFromCode()`
@@ -399,7 +409,7 @@ DEFINE_FUNCTION art_jni_lock_object
     // Rely on the JNI transition frame constructed in the JNI stub.
     movq %gs:THREAD_SELF_OFFSET, %rdi     // Pass Thread::Current().
     jmp  SYMBOL(artDeliverPendingExceptionFromCode)  // (Thread*); tail call.
-END_FUNCTION art_jni_lock_object
+END_FUNCTION art_jni_lock_object_no_inline
 
     /*
      * Entry from JNI stub that tries to unlock the object in a fast path and calls
@@ -415,8 +425,22 @@ DEFINE_FUNCTION art_jni_unlock_object
     UNLOCK_OBJECT_FAST_PATH rbx, ebp, /*saved_rax*/ r12, .Lunlock_object_jni_slow
 
  .Lunlock_object_jni_slow:
+    movq %r12, %rax                       // Restore RAX.
+    jmp  SYMBOL(art_jni_unlock_object_no_inline)
+END_FUNCTION art_jni_unlock_object
+
+    /*
+     * Entry from JNI stub that calls `artJniUnlockObject()`. Note that failure to
+     * unlock is fatal, so we do not need to check for exceptions.
+     * Custom calling convention:
+     *     RBX holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
+     *     Return registers RAX and mmx0 need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_unlock_object_no_inline
+    // This is also the slow path for art_jni_unlock_object.
     // Save return registers and return address.
-    PUSH_ARG r12  // Original contents of RAX.
+    PUSH_ARG rax
     INCREASE_FRAME /*mmx0*/ 8 + /*padding*/ 8
     movsd %xmm0, 0(%rsp)
     // Call `artJniUnlockObject()`.
@@ -428,4 +452,4 @@ DEFINE_FUNCTION art_jni_unlock_object
     DECREASE_FRAME /*mmx0*/ 8 + /*padding*/ 8
     POP_ARG rax
     ret
-END_FUNCTION art_jni_unlock_object
+END_FUNCTION art_jni_unlock_object_no_inline
