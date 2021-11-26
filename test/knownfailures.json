@@ -1058,7 +1058,6 @@
           "954-invoke-polymorphic-verifier",
           "955-methodhandles-smali",
           "956-methodhandles",
-          "957-methodhandle-transforms",
           "958-methodhandle-stackframe",
           "972-default-imt-collision",
           "972-iface-super-multidex",

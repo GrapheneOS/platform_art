@@ -950,11 +950,19 @@ public class Main {
 
     MethodHandle exactInvoker = MethodHandles.exactInvoker(target.type());
     assertEquals("barbar", (String) exactInvoker.invoke(target, "bar", "bar"));
+    assertEquals("barbar", (String) exactInvoker.invoke(target, (Object) returnBar(), "bar"));
     try {
-      String foo = (String) exactInvoker.invoke(target, (Object) returnBar(), "bar");
+      assertEquals("barbar", (String) invoker.invoke(target, (Object) Integer.valueOf(7), "bar"));
       fail();
-    } catch (WrongMethodTypeException expected) {
+    } catch (ClassCastException expected) {
     }
+    try {
+      assertEquals("barbar", (String) invoker.invoke(target, (Object) null, "bar"));
+      fail();
+    } catch (NullPointerException expected) {
+    }
+    exactInvoker.invoke(target, (Object) returnBar(), "bar");
+
     try {
       String foo = (String) exactInvoker.invoke(target, "bar", "bar", 24);
       fail();
