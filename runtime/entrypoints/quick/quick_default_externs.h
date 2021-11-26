@@ -119,7 +119,9 @@ extern "C" void art_jni_read_barrier(art::ArtMethod* method);
 
 // JNI lock/unlock entrypoints. Note: Custom calling convention.
 extern "C" void art_jni_lock_object(art::mirror::Object*);
+extern "C" void art_jni_lock_object_no_inline(art::mirror::Object*);
 extern "C" void art_jni_unlock_object(art::mirror::Object*);
+extern "C" void art_jni_unlock_object_no_inline(art::mirror::Object*);
 
 // Polymorphic invoke entrypoints.
 extern "C" void art_quick_invoke_polymorphic(uint32_t, void*);
