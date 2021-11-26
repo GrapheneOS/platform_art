@@ -41,7 +41,7 @@ namespace art {
 static_assert(sizeof(IRTSegmentState) == sizeof(uint32_t), "IRTSegmentState size unexpected");
 static_assert(std::is_trivial<IRTSegmentState>::value, "IRTSegmentState not trivial");
 
-extern "C" void artReadBarrierJni(ArtMethod* method) {
+extern "C" void artJniReadBarrier(ArtMethod* method) {
   DCHECK(kUseReadBarrier);
   mirror::CompressedReference<mirror::Object>* declaring_class =
       method->GetDeclaringClassAddressWithoutBarrier();
@@ -90,7 +90,7 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
 }
 
 // TODO: annotalysis disabled as monitor semantics are maintained in Java code.
-extern "C" void artUnlockObjectFromJni(mirror::Object* locked, Thread* self)
+extern "C" void artJniUnlockObject(mirror::Object* locked, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS REQUIRES(!Roles::uninterruptible_) {
   // Note: No thread suspension is allowed for successful unlocking, otherwise plain
   // `mirror::Object*` return value saved by the assembly stub would need to be updated.
@@ -198,7 +198,7 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
     DCHECK(normal_native) << "@FastNative/@CriticalNative and synchronize is not supported";
     ObjPtr<mirror::Object> lock = GetGenericJniSynchronizationObject(self, called);
     DCHECK(lock != nullptr);
-    artUnlockObjectFromJni(lock.Ptr(), self);
+    artJniUnlockObject(lock.Ptr(), self);
   }
   char return_shorty_char = called->GetShorty()[0];
   if (return_shorty_char == 'L') {

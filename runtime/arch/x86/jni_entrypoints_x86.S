@@ -16,6 +16,38 @@
 
 #include "asm_support_x86.S"
 
+#define MANAGED_ARGS_SAVE_SIZE /*xmm0-xmm3*/ 4 * 8 + /*padding*/ 4 + /* GPR args */ 4 * 4
+
+// Save register args and adds space for outgoing arguments.
+// With `call_args_space = 0`, the ESP shall be 8-byte aligned but not 16-byte aligned,
+// so either the `call_args_space` should be 8 (or 24, 40, ...) or the user of the macro
+// needs to adjust the ESP explicitly afterwards.
+MACRO2(SAVE_MANAGED_ARGS_INCREASE_FRAME, eax_value, call_args_space)
+    // Return address is on the stack.
+    PUSH_ARG ebx
+    PUSH_ARG edx
+    PUSH_ARG ecx
+    PUSH_ARG \eax_value
+    // Make xmm<n> spill slots 8-byte aligned.
+    INCREASE_FRAME (\call_args_space + /*FPRs*/ 4 * 8 + /*padding*/ 4)
+    movsd %xmm0, \call_args_space + 0(%esp)
+    movsd %xmm1, \call_args_space + 8(%esp)
+    movsd %xmm2, \call_args_space + 16(%esp)
+    movsd %xmm3, \call_args_space + 24(%esp)
+END_MACRO
+
+MACRO1(RESTORE_MANAGED_ARGS_DECREASE_FRAME, call_args_space)
+    movsd \call_args_space + 0(%esp), %xmm0
+    movsd \call_args_space + 8(%esp), %xmm1
+    movsd \call_args_space + 16(%esp), %xmm2
+    movsd \call_args_space + 24(%esp), %xmm3
+    DECREASE_FRAME \call_args_space + /*FPR args*/ 4 * 8 + /*padding*/ 4
+    POP_ARG eax
+    POP_ARG ecx
+    POP_ARG edx
+    POP_ARG ebx
+END_MACRO
+
     /*
      * Jni dlsym lookup stub.
      */
@@ -207,37 +239,87 @@ END_FUNCTION art_jni_dlsym_lookup_critical_stub
      * Read barrier for the method's declaring class needed by JNI stub for static methods.
      * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
      */
-DEFINE_FUNCTION art_read_barrier_jni
+DEFINE_FUNCTION art_jni_read_barrier
     // Note: Managed callee-save registers have been saved by the JNI stub.
-    // Save managed GPR args.
-    PUSH_ARG ebx
-    PUSH_ARG edx
-    PUSH_ARG ecx
-    // Save the method.
-    PUSH_ARG eax
-    // Increase frame: argument (4), padding (4), aligned FPR args save area (4 * 8), padding (4).
-    INCREASE_FRAME 4 + 4 + 4 * 8 + 4
-    // Save FPR args.
-    movsd %xmm0, 8(%esp)
-    movsd %xmm1, 16(%esp)
-    movsd %xmm2, 24(%esp)
-    movsd %xmm3, 32(%esp)
+    // Save register args EAX, ECX, EDX, EBX, mmx0-mmx3, add argument space and padding.
+    SAVE_MANAGED_ARGS_INCREASE_FRAME eax, /*argument*/ 4 + /*padding*/ 4
     // Pass the method argument.
     movl %eax, (%esp);
-    call SYMBOL(artReadBarrierJni)  // (ArtMethod*)
-    // Restore FPR args.
-    movsd 8(%esp), %xmm0
-    movsd 16(%esp), %xmm1
-    movsd 24(%esp), %xmm2
-    movsd 32(%esp), %xmm3
-    // Remove arg space, FPR args save area and padding.
-    DECREASE_FRAME 4 + 4 + 4 * 8 + 4
-    // Restore the method.
-    POP_ARG eax
-    // Restore managed args.
-    POP_ARG ecx
-    POP_ARG edx
-    POP_ARG ebx
-    // Return.
+    call SYMBOL(artJniReadBarrier)  // (ArtMethod*)
+    // Restore register args EAX, ECX, EDX, EBX, mmx0-mmx3 and return.
+    RESTORE_MANAGED_ARGS_DECREASE_FRAME /*argument*/ 4 + /*padding*/ 4
     ret
-END_FUNCTION art_read_barrier_jni
+END_FUNCTION art_jni_read_barrier
+
+    /*
+     * Entry from JNI stub that tries to lock the object in a fast path and
+     * calls `artLockObjectFromCode()` (the same as for managed code) for the
+     * difficult cases, may block for GC.
+     * Custom calling convention:
+     *     EBP holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries (except EBP).
+     *     All argument registers need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_lock_object
+    movl %eax, %edi                       // Preserve EAX in a callee-save register.
+    LOCK_OBJECT_FAST_PATH ebp, esi, /*saved_eax*/ edi .Llock_object_jni_slow
+
+.Llock_object_jni_slow:
+    // Save register args EAX, ECX, EDX, EBX, mmx0-mmx3; original value of EAX is in EDI.
+    SAVE_MANAGED_ARGS_INCREASE_FRAME edi, /*call_args_space*/ 0
+    // Note: The stack is not 16-byte aligned here but it shall be after pushing args for the call.
+    // Call `artLockObjectFromCode()`
+    pushl %fs:THREAD_SELF_OFFSET          // Pass Thread::Current().
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH_ARG ebp                          // Pass the object to lock.
+    call SYMBOL(artLockObjectFromCode)    // (object, Thread*)
+    // Check result.
+    testl %eax, %eax
+    jnz   1f
+    // Restore register args EAX, ECX, EDX, EBX, mmx0-mmx3 and return.
+    RESTORE_MANAGED_ARGS_DECREASE_FRAME /*call_args_space*/ 8
+    ret
+    .cfi_adjust_cfa_offset (/*call args*/ 8 + MANAGED_ARGS_SAVE_SIZE)
+1:
+    // All args are irrelevant when throwing an exception.
+    // Remove the spill area except for new padding to align stack.
+    DECREASE_FRAME (/*call args*/ 8 + MANAGED_ARGS_SAVE_SIZE - /*new padding*/ 8)
+    // Rely on the JNI transition frame constructed in the JNI stub.
+    pushl %fs:THREAD_SELF_OFFSET          // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    call SYMBOL(artDeliverPendingExceptionFromCode)  // (Thread*)
+    UNREACHABLE
+END_FUNCTION art_jni_lock_object
+
+    /*
+     * Entry from JNI stub that tries to unlock the object in a fast path and calls
+     * `artJniUnlockObject()` for the difficult cases. Note that failure to unlock
+     * is fatal, so we do not need to check for exceptions in the slow path.
+     * Custom calling convention:
+     *     EBP holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries (except EBP).
+     *     Return registers EAX, EDX and mmx0 need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_unlock_object
+    movl %eax, %edi                       // Preserve EAX in a different register.
+    UNLOCK_OBJECT_FAST_PATH ebp, esi, /*saved_eax*/ edi, .Lunlock_object_jni_slow
+
+ .Lunlock_object_jni_slow:
+    // Save return registers.
+    PUSH_ARG edx
+    PUSH_ARG edi  // Original contents of EAX.
+    INCREASE_FRAME /*mmx0*/ 8 + /*padding*/ 4
+    movsd %xmm0, 0(%esp)
+    // Note: The stack is not 16-byte aligned here but it shall be after pushing args for the call.
+    // Call `artJniUnlockObject()`.
+    pushl %fs:THREAD_SELF_OFFSET          // Pass Thread::Current().
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH_ARG ebp                          // Pass the object to unlock.
+    call SYMBOL(artJniUnlockObject)       // (object, Thread*)
+    // Restore return registers and return.
+    movsd 8(%esp), %xmm0
+    DECREASE_FRAME /*call args*/ 8 + /*xmm0*/ 8 + /*padding*/ 4
+    POP_ARG eax
+    POP_ARG edx
+    ret
+END_FUNCTION art_jni_unlock_object

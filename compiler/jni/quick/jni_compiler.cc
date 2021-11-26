@@ -683,7 +683,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     //
     // For baker read barrier, do a fast check whether the class is already marked.
     //
-    // Call into the runtime's `art_read_barrier_jni` and have it fix up
+    // Call into the runtime's `art_jni_read_barrier` and have it fix up
     // the class address if it was moved.
     //
     // The entrypoint preserves the method register and argument registers.
@@ -702,7 +702,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
 
     ThreadOffset<kPointerSize> read_barrier = QUICK_ENTRYPOINT_OFFSET(kPointerSize,
-                                                                      pReadBarrierJni);
+                                                                      pJniReadBarrier);
     __ CallFromThread(read_barrier);
 
     // Return to main path.

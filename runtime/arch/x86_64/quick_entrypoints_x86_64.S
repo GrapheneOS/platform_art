@@ -1068,33 +1068,6 @@ ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromC
 
 TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 
-MACRO3(LOCK_OBJECT_FAST_PATH, obj, tmp, slow_lock)
-1:
-    movl MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj)), %eax  // EAX := lock word
-    movl %gs:THREAD_ID_OFFSET, REG_VAR(tmp)  // tmp: thread id.
-    xorl %eax, REG_VAR(tmp)               // tmp: thread id with count 0 + read barrier bits.
-    testl LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED), %eax  // Test the non-gc bits.
-    jnz  2f                               // Check if unlocked.
-    // Unlocked case - store tmp: original lock word plus thread id, preserved read barrier bits.
-    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
-    jnz  1b                               // cmpxchg failed retry
-    ret
-2:  // EAX: original lock word, tmp: thread id ^ EAX
-                                          // Check lock word state and thread id together,
-    testl LITERAL(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED), \
-          REG_VAR(tmp)
-    jne  \slow_lock                       // Slow path if either of the two high bits are set.
-                                          // Increment the recursive lock count.
-    leal LOCK_WORD_THIN_LOCK_COUNT_ONE(%eax), REG_VAR(tmp)
-    testl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_MASK_SHIFTED), REG_VAR(tmp)
-    je   \slow_lock                       // If count overflowed, go to slow lock.
-    // Update lockword for recursive lock, cmpxchg necessary for read barrier bits.
-                                          // EAX: old val, tmp: new val.
-    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
-    jnz  1b                               // cmpxchg failed retry
-    ret
-END_MACRO
-
     /*
      * Entry from managed code that tries to lock the object in a fast path and
      * calls `artLockObjectFromCode()` for the difficult cases, may block for GC.
@@ -1118,45 +1091,6 @@ DEFINE_FUNCTION art_quick_lock_object_no_inline
     RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_lock_object_no_inline
-
-MACRO4(UNLOCK_OBJECT_FAST_PATH, obj, tmp, saved_rax, slow_unlock)
-1:
-    movl MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj)), %eax  // EAX := lock word
-    movl %gs:THREAD_ID_OFFSET, REG_VAR(tmp)  // tmp := thread id
-    xorl %eax, REG_VAR(tmp)               // tmp := thread id ^ lock word
-    test LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED), REG_VAR(tmp)
-    jnz  2f                               // Check if simply locked.
-    // Transition to unlocked.
-#ifndef USE_READ_BARRIER
-    movl REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
-#else
-    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
-    jnz  1b                               // cmpxchg failed retry
-#endif
-    .ifnc \saved_rax, none
-        movq REG_VAR(saved_rax), %rax     // Restore RAX.
-    .endif
-    ret
-2:  // EAX: original lock word, tmp: lock_word ^ thread id
-                                          // Check lock word state and thread id together.
-    testl LITERAL(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED), \
-          REG_VAR(tmp)
-    jnz  \slow_unlock
-    // Update lockword for recursive unlock, cmpxchg necessary for read barrier bits.
-                                          // tmp: new lock word with decremented count.
-    leal -LOCK_WORD_THIN_LOCK_COUNT_ONE(%eax), REG_VAR(tmp)
-#ifndef USE_READ_BARRIER
-                                          // EAX: new lock word with decremented count.
-    movl REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
-#else
-    lock cmpxchg REG_VAR(tmp), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(obj))
-    jnz  1b                               // cmpxchg failed retry
-#endif
-    .ifnc \saved_rax, none
-        movq REG_VAR(saved_rax), %rax     // Restore RAX.
-    .endif
-    ret
-END_MACRO
 
     /*
      * Entry from managed code that tries to unlock the object in a fast path and calls
@@ -1182,97 +1116,6 @@ DEFINE_FUNCTION art_quick_unlock_object_no_inline
     RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object_no_inline
-
-    /*
-     * Entry from JNI stub that tries to lock the object in a fast path and
-     * calls `artLockObjectFromCode()` (the same as for managed code) for the
-     * difficult cases, may block for GC.
-     * Custom calling convention:
-     *     RBX holds the non-null object to lock.
-     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
-     *     All argument registers need to be preserved.
-     */
-DEFINE_FUNCTION art_quick_lock_object_jni
-    LOCK_OBJECT_FAST_PATH rbx, ebp, .Llock_object_jni_slow
-
-.Llock_object_jni_slow:
-    // Save register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and align stack.
-    PUSH_ARG r9
-    PUSH_ARG r8
-    PUSH_ARG rcx
-    PUSH_ARG rdx
-    PUSH_ARG rsi
-    PUSH_ARG rdi
-    INCREASE_FRAME (/*FPRs*/ 8 * 8 + /*padding*/ 8)
-    movsd %xmm0, 0(%rsp)
-    movsd %xmm1, 8(%rsp)
-    movsd %xmm2, 16(%rsp)
-    movsd %xmm3, 24(%rsp)
-    movsd %xmm4, 32(%rsp)
-    movsd %xmm5, 40(%rsp)
-    movsd %xmm6, 48(%rsp)
-    movsd %xmm7, 56(%rsp)
-    // Call `artLockObjectFromCode()`
-    movq %rbx, %rdi                       // Pass the object to lock.
-    movq %gs:THREAD_SELF_OFFSET, %rsi     // Pass Thread::Current().
-    call SYMBOL(artLockObjectFromCode)    // (object, Thread*)
-    // Check result.
-    testl %eax, %eax
-    jnz   1f
-    // Restore register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and return.
-    movsd 0(%esp), %xmm0
-    movsd 8(%esp), %xmm1
-    movsd 16(%esp), %xmm2
-    movsd 24(%esp), %xmm3
-    movsd 32(%esp), %xmm4
-    movsd 40(%esp), %xmm5
-    movsd 48(%esp), %xmm6
-    movsd 56(%esp), %xmm7
-    DECREASE_FRAME /*FPR args*/ 8 * 8 + /*padding*/ 8
-    POP_ARG rdi
-    POP_ARG rsi
-    POP_ARG rdx
-    POP_ARG rcx
-    POP_ARG r8
-    POP_ARG r9
-    ret
-    .cfi_adjust_cfa_offset (/*FPRs*/ 8 * 8 + /*padding*/ 8 + /*GPRs*/ 6 * 8)
-1:
-    // All args are irrelevant when throwing an exception. Remove the spill area.
-    DECREASE_FRAME (/*FPRs*/ 8 * 8 + /*padding*/ 8 + /*GPRs*/ 6 * 8)
-    // Rely on the JNI transition frame constructed in the JNI stub.
-    movq %gs:THREAD_SELF_OFFSET, %rdi     // Pass Thread::Current().
-    jmp  SYMBOL(artDeliverPendingExceptionFromCode)  // (Thread*); tail call.
-END_FUNCTION art_quick_lock_object_jni
-
-    /*
-     * Entry from JNI stub that tries to unlock the object in a fast path and calls
-     * `artUnlockObjectFromJni()` for the difficult cases. Note that failure to unlock
-     * is fatal, so we do not need to check for exceptions in the slow path.
-     * Custom calling convention:
-     *     RBX holds the non-null object to unlock.
-     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
-     *     Return registers RAX and mmx0 need to be preserved.
-     */
-DEFINE_FUNCTION art_quick_unlock_object_jni
-    movq %rax, %r12                       // Preserve RAX in a different register.
-    UNLOCK_OBJECT_FAST_PATH rbx, ebp, /*saved_rax*/ r12, .Lunlock_object_jni_slow
-
- .Lunlock_object_jni_slow:
-    // Save return registers and return address.
-    PUSH_ARG r12  // Original contents of RAX.
-    INCREASE_FRAME /*mmx0*/ 8 + /*padding*/ 8
-    movsd %xmm0, 0(%rsp)
-    // Call `artUnlockObjectFromJni()`
-    movq %rbx, %rdi                       // Pass the object to unlock.
-    movq %gs:THREAD_SELF_OFFSET, %rsi     // Pass Thread::Current().
-    call SYMBOL(artUnlockObjectFromJni)   // (object, Thread*)
-    // Restore return registers and return.
-    movsd 0(%rsp), %xmm0
-    DECREASE_FRAME /*mmx0*/ 8 + /*padding*/ 8
-    POP_ARG rax
-    ret
-END_FUNCTION art_quick_unlock_object_jni
 
 DEFINE_FUNCTION art_quick_check_instance_of
     // Type check using the bit string passes null as the target class. In that case just throw.
