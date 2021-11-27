@@ -75,9 +75,9 @@ extern "C" mirror::String* artStringBuilderAppend(uint32_t format,
                                                   Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
 
-extern "C" void artReadBarrierJni(ArtMethod* method)
+extern "C" void artJniReadBarrier(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
-extern "C" void artUnlockObjectFromJni(mirror::Object* locked, Thread* self)
+extern "C" void artJniUnlockObject(mirror::Object* locked, Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
 
 // Read barrier entrypoints.
