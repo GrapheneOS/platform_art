@@ -16,6 +16,45 @@
 
 #include "asm_support_x86_64.S"
 
+#define MANAGED_ARGS_SAVE_SIZE /*xmm0-xmm7*/ 8 * 8 + /*padding*/ 8 + /* GPR args */ 6 * 8
+
+MACRO0(SAVE_MANAGED_ARGS_INCREASE_FRAME)
+    // Return address is on the stack.
+    PUSH_ARG r9
+    PUSH_ARG r8
+    PUSH_ARG rcx
+    PUSH_ARG rdx
+    PUSH_ARG rsi
+    PUSH_ARG rdi
+    INCREASE_FRAME (/*FPRs*/ 8 * 8 + /*padding*/ 8)
+    movsd %xmm0, 0(%rsp)
+    movsd %xmm1, 8(%rsp)
+    movsd %xmm2, 16(%rsp)
+    movsd %xmm3, 24(%rsp)
+    movsd %xmm4, 32(%rsp)
+    movsd %xmm5, 40(%rsp)
+    movsd %xmm6, 48(%rsp)
+    movsd %xmm7, 56(%rsp)
+END_MACRO
+
+MACRO0(RESTORE_MANAGED_ARGS_DECREASE_FRAME)
+    movsd 0(%rsp), %xmm0
+    movsd 8(%rsp), %xmm1
+    movsd 16(%rsp), %xmm2
+    movsd 24(%rsp), %xmm3
+    movsd 32(%rsp), %xmm4
+    movsd 40(%rsp), %xmm5
+    movsd 48(%rsp), %xmm6
+    movsd 56(%rsp), %xmm7
+    DECREASE_FRAME (/*FPRs*/ 8 * 8 + /*padding*/ 8)
+    POP_ARG rdi
+    POP_ARG rsi
+    POP_ARG rdx
+    POP_ARG rcx
+    POP_ARG r8
+    POP_ARG r9
+END_MACRO
+
     /*
      * Jni dlsym lookup stub.
      */
@@ -317,48 +356,100 @@ END_FUNCTION art_jni_dlsym_lookup_critical_stub
      * Read barrier for the method's declaring class needed by JNI stub for static methods.
      * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
      */
-DEFINE_FUNCTION art_read_barrier_jni
+DEFINE_FUNCTION art_jni_read_barrier
     // Note: Managed callee-save registers have been saved by the JNI stub.
-    // Save managed GPR args.
-    PUSH_ARG r9
-    PUSH_ARG r8
-    PUSH_ARG rsi
-    PUSH_ARG rdx
-    PUSH_ARG rcx
-    // Save the method.
-    PUSH_ARG rdi
-    // Increase frame: FPR args save area (8 * 8), padding.
-    INCREASE_FRAME 8 * 8 + 8
-    // Save FPR args.
-    movq %xmm0, 0(%rsp)
-    movq %xmm1, 8(%rsp)
-    movq %xmm2, 16(%rsp)
-    movq %xmm3, 24(%rsp)
-    movq %xmm4, 32(%rsp)
-    movq %xmm5, 40(%rsp)
-    movq %xmm6, 48(%rsp)
-    movq %xmm7, 56(%rsp)
+    // Save register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and align stack.
+    SAVE_MANAGED_ARGS_INCREASE_FRAME
     // The method argument is already in RDI.
-    call SYMBOL(artReadBarrierJni)  // (ArtMethod*)
-    // Restore FPR args.
-    movq 0(%rsp), %xmm0
-    movq 8(%rsp), %xmm1
-    movq 16(%rsp), %xmm2
-    movq 24(%rsp), %xmm3
-    movq 32(%rsp), %xmm4
-    movq 40(%rsp), %xmm5
-    movq 48(%rsp), %xmm6
-    movq 56(%rsp), %xmm7
-    // Remove FPR args save area, padding.
-    DECREASE_FRAME 8 * 8 + 8
-    // Restore the method.
-    POP_ARG rdi
-    // Restore managed args.
-    POP_ARG rcx
-    POP_ARG rdx
-    POP_ARG rsi
-    POP_ARG r8
-    POP_ARG r9
-    // Return.
+    call SYMBOL(artJniReadBarrier)  // (ArtMethod*)
+    // Restore register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and return.
+    RESTORE_MANAGED_ARGS_DECREASE_FRAME
     ret
-END_FUNCTION art_read_barrier_jni
+END_FUNCTION art_jni_read_barrier
+
+    /*
+     * Entry from JNI stub that tries to lock the object in a fast path and
+     * calls `artLockObjectFromCode()` (the same as for managed code) for the
+     * difficult cases, may block for GC.
+     * Custom calling convention:
+     *     RBX holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
+     *     All argument registers need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_lock_object
+    LOCK_OBJECT_FAST_PATH rbx, ebp, art_jni_lock_object_no_inline
+END_FUNCTION art_jni_lock_object
+
+    /*
+     * Entry from JNI stub that calls `artLockObjectFromCode()`
+     * (the same as for managed code), may block for GC.
+     * Custom calling convention:
+     *     RBX holds the non-null object to lock.
+     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
+     *     All argument registers need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_lock_object_no_inline
+    // This is also the slow path for art_jni_lock_object.
+    // Save register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and align stack.
+    SAVE_MANAGED_ARGS_INCREASE_FRAME
+    // Call `artLockObjectFromCode()`
+    movq %rbx, %rdi                       // Pass the object to lock.
+    movq %gs:THREAD_SELF_OFFSET, %rsi     // Pass Thread::Current().
+    call SYMBOL(artLockObjectFromCode)    // (object, Thread*)
+    // Check result.
+    testl %eax, %eax
+    jnz   1f
+    // Restore register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and return.
+    RESTORE_MANAGED_ARGS_DECREASE_FRAME
+    ret
+    .cfi_adjust_cfa_offset MANAGED_ARGS_SAVE_SIZE
+1:
+    // All args are irrelevant when throwing an exception. Remove the spill area.
+    DECREASE_FRAME MANAGED_ARGS_SAVE_SIZE
+    // Rely on the JNI transition frame constructed in the JNI stub.
+    movq %gs:THREAD_SELF_OFFSET, %rdi     // Pass Thread::Current().
+    jmp  SYMBOL(artDeliverPendingExceptionFromCode)  // (Thread*); tail call.
+END_FUNCTION art_jni_lock_object_no_inline
+
+    /*
+     * Entry from JNI stub that tries to unlock the object in a fast path and calls
+     * `artJniUnlockObject()` for the difficult cases. Note that failure to unlock
+     * is fatal, so we do not need to check for exceptions in the slow path.
+     * Custom calling convention:
+     *     RBX holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
+     *     Return registers RAX and mmx0 need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_unlock_object
+    movq %rax, %r12                       // Preserve RAX in a different register.
+    UNLOCK_OBJECT_FAST_PATH rbx, ebp, /*saved_rax*/ r12, .Lunlock_object_jni_slow
+
+ .Lunlock_object_jni_slow:
+    movq %r12, %rax                       // Restore RAX.
+    jmp  SYMBOL(art_jni_unlock_object_no_inline)
+END_FUNCTION art_jni_unlock_object
+
+    /*
+     * Entry from JNI stub that calls `artJniUnlockObject()`. Note that failure to
+     * unlock is fatal, so we do not need to check for exceptions.
+     * Custom calling convention:
+     *     RBX holds the non-null object to unlock.
+     *     Callee-save registers have been saved and can be used as temporaries (except RBX).
+     *     Return registers RAX and mmx0 need to be preserved.
+     */
+DEFINE_FUNCTION art_jni_unlock_object_no_inline
+    // This is also the slow path for art_jni_unlock_object.
+    // Save return registers and return address.
+    PUSH_ARG rax
+    INCREASE_FRAME /*mmx0*/ 8 + /*padding*/ 8
+    movsd %xmm0, 0(%rsp)
+    // Call `artJniUnlockObject()`.
+    movq %rbx, %rdi                       // Pass the object to unlock.
+    movq %gs:THREAD_SELF_OFFSET, %rsi     // Pass Thread::Current().
+    call SYMBOL(artJniUnlockObject)       // (object, Thread*)
+    // Restore return registers and return.
+    movsd 0(%rsp), %xmm0
+    DECREASE_FRAME /*mmx0*/ 8 + /*padding*/ 8
+    POP_ARG rax
+    ret
+END_FUNCTION art_jni_unlock_object_no_inline

@@ -644,7 +644,7 @@ static void HandleDeoptimization(JValue* result,
                                               deopt_frame,
                                               result,
                                               from_code,
-                                              DeoptimizationMethodType::kDefault);
+                                              method_type);
 }
 
 extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self, ArtMethod** sp)
@@ -1948,7 +1948,7 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
         auto* declaring_class = reinterpret_cast<mirror::CompressedReference<mirror::Class>*>(
             method->GetDeclaringClassAddressWithoutBarrier());
         if (kUseReadBarrier) {
-          artReadBarrierJni(method);
+          artJniReadBarrier(method);
         }
         sm_.AdvancePointer(declaring_class);
       }  // else "this" reference is already handled by QuickArgumentVisitor.

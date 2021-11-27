@@ -372,4 +372,80 @@
     RETURN_OR_DELIVER_PENDING_EXCEPTION_REG xIP0
 .endm
 
+// Locking is needed for both managed code and JNI stubs.
+.macro LOCK_OBJECT_FAST_PATH obj, slow_lock, can_be_null
+    // Use scratch registers x8-x11 as temporaries.
+    ldr    w9, [xSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz    \obj, \slow_lock
+    .endif
+                                      // Exclusive load/store has no immediate anymore.
+    add    x8, \obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET
+1:
+    ldaxr  w10, [x8]                  // Acquire needed only in most common case.
+    eor    w11, w10, w9               // Prepare the value to store if unlocked
+                                      //   (thread id, count of 0 and preserved read barrier bits),
+                                      // or prepare to compare thread id for recursive lock check
+                                      //   (lock_word.ThreadId() ^ self->ThreadId()).
+    tst    w10, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  // Test the non-gc bits.
+    b.ne   2f                         // Check if unlocked.
+    // Unlocked case - store w11: original lock word plus thread id, preserved read barrier bits.
+    stxr   w10, w11, [x8]
+    cbnz   w10, 1b                    // If the store failed, retry.
+    ret
+2:  // w10: original lock word, w9: thread id, w11: w10 ^ w11
+                                      // Check lock word state and thread id together,
+    tst    w11, #(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED)
+    b.ne   \slow_lock
+    add    w11, w10, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // Increment the recursive lock count.
+    tst    w11, #LOCK_WORD_THIN_LOCK_COUNT_MASK_SHIFTED  // Test the new thin lock count.
+    b.eq   \slow_lock                 // Zero as the new count indicates overflow, go slow path.
+    stxr   w10, w11, [x8]
+    cbnz   w10, 1b                    // If the store failed, retry.
+    ret
+.endm
+
+// Unlocking is needed for both managed code and JNI stubs.
+.macro UNLOCK_OBJECT_FAST_PATH obj, slow_unlock, can_be_null
+    // Use scratch registers x8-x11 as temporaries.
+    ldr    w9, [xSELF, #THREAD_ID_OFFSET]
+    .if \can_be_null
+        cbz    \obj, \slow_unlock
+    .endif
+                                      // Exclusive load/store has no immediate anymore.
+    add    x8, \obj, #MIRROR_OBJECT_LOCK_WORD_OFFSET
+1:
+#ifndef USE_READ_BARRIER
+    ldr    w10, [x8]
+#else
+    ldxr   w10, [x8]                  // Need to use atomic instructions for read barrier.
+#endif
+    eor    w11, w10, w9               // Prepare the value to store if simply locked
+                                      //   (mostly 0s, and preserved read barrier bits),
+                                      // or prepare to compare thread id for recursive lock check
+                                      //   (lock_word.ThreadId() ^ self->ThreadId()).
+    tst    w11, #LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED  // Test the non-gc bits.
+    b.ne   2f                         // Locked recursively or by other thread?
+    // Transition to unlocked.
+#ifndef USE_READ_BARRIER
+    stlr   w11, [x8]
+#else
+    stlxr  w10, w11, [x8]             // Need to use atomic instructions for read barrier.
+    cbnz   w10, 1b                    // If the store failed, retry.
+#endif
+    ret
+2:
+                                      // Check lock word state and thread id together.
+    tst    w11, #(LOCK_WORD_STATE_MASK_SHIFTED | LOCK_WORD_THIN_LOCK_OWNER_MASK_SHIFTED)
+    b.ne   \slow_unlock
+    sub    w11, w10, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // decrement count
+#ifndef USE_READ_BARRIER
+    str    w11, [x8]
+#else
+    stxr   w10, w11, [x8]             // Need to use atomic instructions for read barrier.
+    cbnz   w10, 1b                    // If the store failed, retry.
+#endif
+    ret
+.endm
+
 #endif  // ART_RUNTIME_ARCH_ARM64_ASM_SUPPORT_ARM64_S_
