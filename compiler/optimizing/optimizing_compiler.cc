@@ -103,8 +103,7 @@ class PassObserver : public ValueObject {
   PassObserver(HGraph* graph,
                CodeGenerator* codegen,
                std::ostream* visualizer_output,
-               const CompilerOptions& compiler_options,
-               Mutex& dump_mutex)
+               const CompilerOptions& compiler_options)
       : graph_(graph),
         last_seen_graph_size_(0),
         cached_method_name_(),
@@ -116,7 +115,6 @@ class PassObserver : public ValueObject {
         visualizer_enabled_(!compiler_options.GetDumpCfgFileName().empty()),
         visualizer_(&visualizer_oss_, graph, codegen),
         codegen_(codegen),
-        visualizer_dump_mutex_(dump_mutex),
         graph_in_bad_state_(false) {
     if (timing_logger_enabled_ || visualizer_enabled_) {
       if (!IsVerboseMethod(compiler_options, GetMethodName())) {
@@ -143,6 +141,7 @@ class PassObserver : public ValueObject {
   void DumpDisassembly() {
     if (visualizer_enabled_) {
       visualizer_.DumpGraphWithDisassembly();
+      FlushVisualizer();
     }
   }
 
@@ -162,14 +161,14 @@ class PassObserver : public ValueObject {
     // Dump graph first, then start timer.
     if (visualizer_enabled_) {
       visualizer_.DumpGraph(pass_name, /* is_after_pass= */ false, graph_in_bad_state_);
+      FlushVisualizer();
     }
     if (timing_logger_enabled_) {
       timing_logger_.StartTiming(pass_name);
     }
   }
 
-  void FlushVisualizer() REQUIRES(!visualizer_dump_mutex_) {
-    MutexLock mu(Thread::Current(), visualizer_dump_mutex_);
+  void FlushVisualizer() {
     *visualizer_output_ << visualizer_oss_.str();
     visualizer_output_->flush();
     visualizer_oss_.str("");
@@ -183,6 +182,7 @@ class PassObserver : public ValueObject {
     }
     if (visualizer_enabled_) {
       visualizer_.DumpGraph(pass_name, /* is_after_pass= */ true, graph_in_bad_state_);
+      FlushVisualizer();
     }
 
     // Validate the HGraph if running in debug mode.
@@ -231,7 +231,6 @@ class PassObserver : public ValueObject {
   bool visualizer_enabled_;
   HGraphVisualizer visualizer_;
   CodeGenerator* codegen_;
-  Mutex& visualizer_dump_mutex_;
 
   // Flag to be set by the compiler if the pass failed and the graph is not
   // expected to validate.
@@ -406,8 +405,6 @@ class OptimizingCompiler final : public Compiler {
 
   std::unique_ptr<std::ostream> visualizer_output_;
 
-  mutable Mutex dump_mutex_;  // To synchronize visualizer writing.
-
   DISALLOW_COPY_AND_ASSIGN(OptimizingCompiler);
 };
 
@@ -415,8 +412,7 @@ static const int kMaximumCompilationTimeBeforeWarning = 100; /* ms */
 
 OptimizingCompiler::OptimizingCompiler(const CompilerOptions& compiler_options,
                                        CompiledMethodStorage* storage)
-    : Compiler(compiler_options, storage, kMaximumCompilationTimeBeforeWarning),
-      dump_mutex_("Visualizer dump lock") {
+    : Compiler(compiler_options, storage, kMaximumCompilationTimeBeforeWarning) {
   // Enable C1visualizer output.
   const std::string& cfg_file_name = compiler_options.GetDumpCfgFileName();
   if (!cfg_file_name.empty()) {
@@ -829,8 +825,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
   PassObserver pass_observer(graph,
                              codegen.get(),
                              visualizer_output_.get(),
-                             compiler_options,
-                             dump_mutex_);
+                             compiler_options);
 
   {
     VLOG(compiler) << "Building " << pass_observer.GetMethodName();
@@ -953,8 +948,7 @@ CodeGenerator* OptimizingCompiler::TryCompileIntrinsic(
   PassObserver pass_observer(graph,
                              codegen.get(),
                              visualizer_output_.get(),
-                             compiler_options,
-                             dump_mutex_);
+                             compiler_options);
 
   {
     VLOG(compiler) << "Building intrinsic graph " << pass_observer.GetMethodName();
