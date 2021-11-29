@@ -1213,11 +1213,6 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                                     CompilationKind compilation_kind,
                                     jit::JitLogger* jit_logger) {
   const CompilerOptions& compiler_options = GetCompilerOptions();
-  // If the baseline flag was explicitly passed, change the compilation kind
-  // from optimized to baseline.
-  if (compiler_options.IsBaseline() && compilation_kind == CompilationKind::kOptimized) {
-    compilation_kind = CompilationKind::kBaseline;
-  }
   DCHECK(compiler_options.IsJitCompiler());
   DCHECK_EQ(compiler_options.IsJitCompilerForSharedCode(), code_cache->IsSharedRegion(*region));
   StackHandleScope<3> hs(self);

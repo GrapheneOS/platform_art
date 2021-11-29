@@ -1670,7 +1670,8 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method,
     }
     return new_compilation;
   } else {
-    if (CanAllocateProfilingInfo() && (compilation_kind == CompilationKind::kBaseline)) {
+    if (compilation_kind == CompilationKind::kBaseline) {
+      DCHECK(CanAllocateProfilingInfo());
       bool has_profiling_info = false;
       {
         MutexLock mu(self, *Locks::jit_lock_);
