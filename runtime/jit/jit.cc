@@ -273,6 +273,19 @@ bool Jit::CompileMethod(ArtMethod* method,
   DCHECK(Runtime::Current()->UseJitCompilation());
   DCHECK(!method->IsRuntimeMethod());
 
+  // If the baseline flag was explicitly passed in the compiler options, change the compilation kind
+  // from optimized to baseline.
+  if (jit_compiler_->IsBaselineCompiler() && compilation_kind == CompilationKind::kOptimized) {
+    compilation_kind = CompilationKind::kBaseline;
+  }
+
+  // If we're asked to compile baseline, but we cannot allocate profiling infos,
+  // change the compilation kind to optimized.
+  if ((compilation_kind == CompilationKind::kBaseline) &&
+      !GetCodeCache()->CanAllocateProfilingInfo()) {
+    compilation_kind = CompilationKind::kOptimized;
+  }
+
   RuntimeCallbacks* cb = Runtime::Current()->GetRuntimeCallbacks();
   // Don't compile the method if it has breakpoints.
   if (cb->IsMethodBeingInspected(method) && !cb->IsMethodSafeToJit(method)) {
