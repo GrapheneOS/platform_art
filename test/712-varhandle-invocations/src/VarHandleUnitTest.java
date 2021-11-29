@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import java.lang.invoke.WrongMethodTypeException;
+
 // Base class for VarHandle unit tests for accessor operations
 public abstract class VarHandleUnitTest {
     public static VarHandleUnitTestCollector DEFAULT_COLLECTOR = new VarHandleUnitTestCollector();
@@ -91,6 +93,41 @@ public abstract class VarHandleUnitTest {
             return;
         }
         failNotEquals("Failed assertion (expected != actual)", expected, actual);
+    }
+
+    interface AccessorAccess {
+        void apply() throws Exception;
+    }
+
+    void assertThrows(Class expectedException, AccessorAccess access) {
+        try {
+            access.apply();
+            fail("Expected a " + expectedException + ", but not raised");
+        } catch (Exception e) {
+            if (!expectedException.isInstance(e)) {
+                fail("Expected a " + expectedException + ", but got a " + e.getClass(), e);
+            }
+        }
+    }
+
+    public final void assertThrowsAIOBE(AccessorAccess access) {
+        assertThrows(ArrayIndexOutOfBoundsException.class, access);
+    }
+
+    public final void assertThrowsASE(AccessorAccess access) {
+        assertThrows(ArrayStoreException.class, access);
+    }
+
+    public final void assertThrowsCCE(AccessorAccess access) {
+        assertThrows(ClassCastException.class, access);
+    }
+
+    public final void assertThrowsNPE(AccessorAccess access) {
+        assertThrows(NullPointerException.class, access);
+    }
+
+    public final void assertThrowsWMTE(AccessorAccess access) {
+        assertThrows(WrongMethodTypeException.class, access);
     }
 
     public final void failUnreachable() {
