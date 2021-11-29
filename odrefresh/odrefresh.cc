@@ -1030,10 +1030,10 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
   return true;
 }
 
-Result<void> OnDeviceRefresh::RefreshExistingArtifactsAndCleanup(
-    const std::vector<std::string>& artifacts) const {
+Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
+    const std::vector<std::string>& artifacts_to_keep) const {
   const std::string& artifact_dir = config_.GetArtifactDirectory();
-  std::unordered_set<std::string> artifact_set{artifacts.begin(), artifacts.end()};
+  std::unordered_set<std::string> artifact_set{artifacts_to_keep.begin(), artifacts_to_keep.end()};
 
   // When anything unexpected happens, remove all artifacts.
   auto remove_artifact_dir = android::base::make_scope_guard([&]() {
@@ -1049,7 +1049,6 @@ Result<void> OnDeviceRefresh::RefreshExistingArtifactsAndCleanup(
     // undefined behavior;
     entries.push_back(entry);
   }
-
   if (ec) {
     return Errorf("Failed to iterate over entries in the artifact directory: {}", ec.message());
   }
@@ -1057,25 +1056,7 @@ Result<void> OnDeviceRefresh::RefreshExistingArtifactsAndCleanup(
   for (const std::filesystem::directory_entry& entry : entries) {
     std::string path = entry.path().string();
     if (entry.is_regular_file()) {
-      if (ContainsElement(artifact_set, path)) {
-        if (!config_.GetRefresh()) {
-          continue;
-        }
-        LOG(INFO) << "Refreshing " << path;
-        std::string content;
-        if (!android::base::ReadFileToString(path, &content)) {
-          return Errorf("Failed to read file {}", QuotePath(path));
-        }
-        if (unlink(path.c_str()) != 0) {
-          return ErrnoErrorf("Failed to remove file {}", QuotePath(path));
-        }
-        if (!android::base::WriteStringToFile(content, path)) {
-          return Errorf("Failed to write file {}", QuotePath(path));
-        }
-        if (chmod(path.c_str(), kFileMode) != 0) {
-          return ErrnoErrorf("Failed to chmod file {}", QuotePath(path));
-        }
-      } else {
+      if (!ContainsElement(artifact_set, path)) {
         LOG(INFO) << "Removing " << path;
         if (unlink(path.c_str()) != 0) {
           return ErrnoErrorf("Failed to remove file {}", QuotePath(path));
@@ -1091,6 +1072,48 @@ Result<void> OnDeviceRefresh::RefreshExistingArtifactsAndCleanup(
   }
 
   remove_artifact_dir.Disable();
+  return {};
+}
+
+Result<void> OnDeviceRefresh::RefreshExistingArtifacts() const {
+  const std::string& artifact_dir = config_.GetArtifactDirectory();
+  if (!OS::DirectoryExists(artifact_dir.c_str())) {
+    return {};
+  }
+
+  std::vector<std::filesystem::directory_entry> entries;
+  std::error_code ec;
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(artifact_dir, ec)) {
+    // Save the entries and use them later because modifications during the iteration will result in
+    // undefined behavior;
+    entries.push_back(entry);
+  }
+  if (ec) {
+    return Errorf("Failed to iterate over entries in the artifact directory: {}", ec.message());
+  }
+
+  for (const std::filesystem::directory_entry& entry : entries) {
+    std::string path = entry.path().string();
+    if (entry.is_regular_file()) {
+      // Unexpected files are already removed by `CleanupArtifactDirectory`. We can safely assume
+      // that all the remaining files are good.
+      LOG(INFO) << "Refreshing " << path;
+      std::string content;
+      if (!android::base::ReadFileToString(path, &content)) {
+        return Errorf("Failed to read file {}", QuotePath(path));
+      }
+      if (unlink(path.c_str()) != 0) {
+        return ErrnoErrorf("Failed to remove file {}", QuotePath(path));
+      }
+      if (!android::base::WriteStringToFile(content, path)) {
+        return Errorf("Failed to write file {}", QuotePath(path));
+      }
+      if (chmod(path.c_str(), kFileMode) != 0) {
+        return ErrnoErrorf("Failed to chmod file {}", QuotePath(path));
+      }
+    }
+  }
+
   return {};
 }
 
@@ -1171,7 +1194,7 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
     if (!config_.GetPartialCompilation()) {
       return cleanup_and_compile_all();
     }
-    Result<void> result = RefreshExistingArtifactsAndCleanup(checked_artifacts);
+    Result<void> result = CleanupArtifactDirectory(checked_artifacts);
     if (!result.ok()) {
       LOG(ERROR) << result.error();
       return ExitCode::kCleanupFailed;
@@ -1453,6 +1476,14 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
                                               const CompilationOptions& compilation_options) const {
   const char* staging_dir = nullptr;
   metrics.SetStage(OdrMetrics::Stage::kPreparation);
+
+  if (config_.GetRefresh()) {
+    Result<void> result = RefreshExistingArtifacts();
+    if (!result.ok()) {
+      LOG(ERROR) << "Failed to refresh existing artifacts: " << result.error();
+      return ExitCode::kCleanupFailed;
+    }
+  }
 
   if (!config_.GetStagingDir().empty()) {
     staging_dir = config_.GetStagingDir().c_str();
