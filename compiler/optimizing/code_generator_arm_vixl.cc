@@ -7168,12 +7168,12 @@ void InstructionCodeGeneratorARMVIXL::GenerateSuspendCheck(HSuspendCheck* instru
   vixl32::Register temp = temps.Acquire();
   GetAssembler()->LoadFromOffset(
       kLoadWord, temp, tr, Thread::ThreadFlagsOffset<kArmPointerSize>().Int32Value());
-  static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
+  __ Tst(temp, Thread::SuspendOrCheckpointRequestFlags());
   if (successor == nullptr) {
-    __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
+    __ B(ne, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
   } else {
-    __ CompareAndBranchIfZero(temp, codegen_->GetLabelOf(successor));
+    __ B(eq, codegen_->GetLabelOf(successor));
     __ B(slow_path->GetEntryLabel());
   }
 }
