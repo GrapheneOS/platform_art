@@ -208,5 +208,9 @@ bool JitCompiler::CompileMethod(
   return success;
 }
 
+bool JitCompiler::IsBaselineCompiler() const {
+  return compiler_options_->IsBaseline();
+}
+
 }  // namespace jit
 }  // namespace art
