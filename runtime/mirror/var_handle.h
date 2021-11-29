@@ -270,13 +270,17 @@ class MANAGED StaticFieldVarHandle : public FieldVarHandle {
 // The corresponding managed class in libart java.lang.invoke.ArrayElementVarHandle.
 class MANAGED ArrayElementVarHandle : public VarHandle {
  public:
-    bool Access(AccessMode access_mode,
-                ShadowFrame* shadow_frame,
-                const InstructionOperands* const operands,
-                JValue* result)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  bool Access(AccessMode access_mode,
+              ShadowFrame* shadow_frame,
+              const InstructionOperands* const operands,
+              JValue* result) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
+  static bool CheckArrayStore(AccessMode access_mode,
+                              ShadowFrameGetter getter,
+                              ObjPtr<ObjectArray<Object>> array)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   friend class VarHandleTest;
   DISALLOW_IMPLICIT_CONSTRUCTORS(ArrayElementVarHandle);
 };
