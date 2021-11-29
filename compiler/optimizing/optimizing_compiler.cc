@@ -812,6 +812,14 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
     graph->SetArtMethod(method);
   }
 
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    ProfilingInfo* info = jit->GetCodeCache()->GetProfilingInfo(method, Thread::Current());
+    DCHECK(compilation_kind != CompilationKind::kBaseline || info != nullptr)
+        << "Compiling a method baseline should always have a ProfilingInfo";
+    graph->SetProfilingInfo(info);
+  }
+
   std::unique_ptr<CodeGenerator> codegen(
       CodeGenerator::Create(graph,
                             compiler_options,

@@ -621,9 +621,7 @@ HInliner::InlineCacheType HInliner::GetInlineCacheJIT(
   ArtMethod* caller = graph_->GetArtMethod();
   // Under JIT, we should always know the caller.
   DCHECK(caller != nullptr);
-  ScopedProfilingInfoUse spiu(Runtime::Current()->GetJit(), caller, Thread::Current());
-  ProfilingInfo* profiling_info = spiu.GetProfilingInfo();
-
+  ProfilingInfo* profiling_info = graph_->GetProfilingInfo();
   if (profiling_info == nullptr) {
     return kInlineCacheNoData;
   }
@@ -1994,6 +1992,11 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
       graph_->GetCompilationKind(),
       /* start_instruction_id= */ caller_instruction_counter);
   callee_graph->SetArtMethod(resolved_method);
+
+  ScopedProfilingInfoUse spiu(Runtime::Current()->GetJit(), resolved_method, Thread::Current());
+  if (Runtime::Current()->GetJit() != nullptr) {
+    callee_graph->SetProfilingInfo(spiu.GetProfilingInfo());
+  }
 
   // When they are needed, allocate `inline_stats_` on the Arena instead
   // of on the stack, as Clang might produce a stack frame too large

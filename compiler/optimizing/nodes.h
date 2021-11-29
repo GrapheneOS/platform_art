@@ -75,6 +75,7 @@ class HTryBoundary;
 class FieldInfo;
 class LiveInterval;
 class LocationSummary;
+class ProfilingInfo;
 class SlowPathCode;
 class SsaBuilder;
 
@@ -704,6 +705,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   ArtMethod* GetArtMethod() const { return art_method_; }
   void SetArtMethod(ArtMethod* method) { art_method_ = method; }
 
+  void SetProfilingInfo(ProfilingInfo* info) { profiling_info_ = info; }
+  ProfilingInfo* GetProfilingInfo() const { return profiling_info_; }
+
   // Returns an instruction with the opposite Boolean value from 'cond'.
   // The instruction has been inserted into the graph, either as a constant, or
   // before cursor.
@@ -869,6 +873,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // for example for methods whose declaring class could not be resolved
   // (such as when the superclass could not be found).
   ArtMethod* art_method_;
+
+  // The `ProfilingInfo` associated with the method being compiled.
+  ProfilingInfo* profiling_info_;
 
   // How we are compiling the graph: either optimized, osr, or baseline.
   // For osr, we will make all loops seen as irreducible and emit special
