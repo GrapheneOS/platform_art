@@ -969,6 +969,9 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer,
             LOG(WARNING) << "Suspended thread state_and_flags: "
                          << suspended_thread->StateAndFlagsAsHexString()
                          << ", self_suspend_count = " << self_suspend_count;
+            // Explicitly release thread_suspend_count_lock_; we haven't held it for long, so
+            // seeing threads blocked on it is not informative.
+            Locks::thread_suspend_count_lock_->Unlock(self);
             ThreadSuspendByPeerWarning(self,
                                        ::android::base::FATAL,
                                        "Thread suspension timed out",
