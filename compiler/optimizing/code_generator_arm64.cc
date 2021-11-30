@@ -848,6 +848,29 @@ class MethodEntryExitHooksSlowPathARM64 : public SlowPathCodeARM64 {
   DISALLOW_COPY_AND_ASSIGN(MethodEntryExitHooksSlowPathARM64);
 };
 
+class CompileOptimizedSlowPathARM64 : public SlowPathCodeARM64 {
+ public:
+  CompileOptimizedSlowPathARM64() : SlowPathCodeARM64(/* instruction= */ nullptr) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) override {
+    uint32_t entrypoint_offset =
+        GetThreadOffset<kArm64PointerSize>(kQuickCompileOptimized).Int32Value();
+    __ Bind(GetEntryLabel());
+    __ Ldr(lr, MemOperand(tr, entrypoint_offset));
+    // Note: we don't record the call here (and therefore don't generate a stack
+    // map), as the entrypoint should never be suspended.
+    __ Blr(lr);
+    __ B(GetExitLabel());
+  }
+
+  const char* GetDescription() const override {
+    return "CompileOptimizedSlowPath";
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CompileOptimizedSlowPathARM64);
+};
+
 #undef __
 
 Location InvokeDexCallingConventionVisitorARM64::GetNextLocation(DataType::Type type) {
@@ -1199,46 +1222,22 @@ void CodeGeneratorARM64::MaybeIncrementHotness(bool is_frame_entry) {
   }
 
   if (GetGraph()->IsCompilingBaseline() && !Runtime::Current()->IsAotCompiler()) {
-    ScopedProfilingInfoUse spiu(
-        Runtime::Current()->GetJit(), GetGraph()->GetArtMethod(), Thread::Current());
-    ProfilingInfo* info = spiu.GetProfilingInfo();
-    if (info != nullptr) {
-      uint64_t address = reinterpret_cast64<uint64_t>(info);
-      vixl::aarch64::Label done;
-      UseScratchRegisterScope temps(masm);
-      Register temp = temps.AcquireX();
-      Register counter = temps.AcquireW();
-      __ Mov(temp, address);
-      __ Ldrh(counter, MemOperand(temp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
-      __ Add(counter, counter, 1);
-      __ And(counter, counter, interpreter::kTieredHotnessMask);
-      __ Strh(counter, MemOperand(temp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
-      __ Cbnz(counter, &done);
-      if (is_frame_entry) {
-        if (HasEmptyFrame()) {
-          // The entrypoint expects the method at the bottom of the stack. We
-          // claim stack space necessary for alignment.
-          IncreaseFrame(kStackAlignment);
-          __ Stp(kArtMethodRegister, lr, MemOperand(sp, 0));
-        } else if (!RequiresCurrentMethod()) {
-          __ Str(kArtMethodRegister, MemOperand(sp, 0));
-        }
-      } else {
-        CHECK(RequiresCurrentMethod());
-      }
-      uint32_t entrypoint_offset =
-          GetThreadOffset<kArm64PointerSize>(kQuickCompileOptimized).Int32Value();
-      __ Ldr(lr, MemOperand(tr, entrypoint_offset));
-      // Note: we don't record the call here (and therefore don't generate a stack
-      // map), as the entrypoint should never be suspended.
-      __ Blr(lr);
-      if (HasEmptyFrame()) {
-        CHECK(is_frame_entry);
-        __ Ldr(lr, MemOperand(sp, 8));
-        DecreaseFrame(kStackAlignment);
-      }
-      __ Bind(&done);
-    }
+    SlowPathCodeARM64* slow_path = new (GetScopedAllocator()) CompileOptimizedSlowPathARM64();
+    AddSlowPath(slow_path);
+    ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+    DCHECK(info != nullptr);
+    DCHECK(!HasEmptyFrame());
+    uint64_t address = reinterpret_cast64<uint64_t>(info);
+    vixl::aarch64::Label done;
+    UseScratchRegisterScope temps(masm);
+    Register temp = temps.AcquireX();
+    Register counter = temps.AcquireW();
+    __ Ldr(temp, DeduplicateUint64Literal(address));
+    __ Ldrh(counter, MemOperand(temp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
+    __ Cbz(counter, slow_path->GetEntryLabel());
+    __ Add(counter, counter, -1);
+    __ Strh(counter, MemOperand(temp, ProfilingInfo::BaselineHotnessCountOffset().Int32Value()));
+    __ Bind(slow_path->GetExitLabel());
   }
 }
 
@@ -4458,21 +4457,18 @@ void CodeGeneratorARM64::MaybeGenerateInlineCacheCheck(HInstruction* instruction
       GetGraph()->IsCompilingBaseline() &&
       !Runtime::Current()->IsAotCompiler()) {
     DCHECK(!instruction->GetEnvironment()->IsFromInlinedInvoke());
-    ScopedProfilingInfoUse spiu(
-        Runtime::Current()->GetJit(), GetGraph()->GetArtMethod(), Thread::Current());
-    ProfilingInfo* info = spiu.GetProfilingInfo();
-    if (info != nullptr) {
-      InlineCache* cache = info->GetInlineCache(instruction->GetDexPc());
-      uint64_t address = reinterpret_cast64<uint64_t>(cache);
-      vixl::aarch64::Label done;
-      __ Mov(x8, address);
-      __ Ldr(x9, MemOperand(x8, InlineCache::ClassesOffset().Int32Value()));
-      // Fast path for a monomorphic cache.
-      __ Cmp(klass, x9);
-      __ B(eq, &done);
-      InvokeRuntime(kQuickUpdateInlineCache, instruction, instruction->GetDexPc());
-      __ Bind(&done);
-    }
+    ProfilingInfo* info = GetGraph()->GetProfilingInfo();
+    DCHECK(info != nullptr);
+    InlineCache* cache = info->GetInlineCache(instruction->GetDexPc());
+    uint64_t address = reinterpret_cast64<uint64_t>(cache);
+    vixl::aarch64::Label done;
+    __ Mov(x8, address);
+    __ Ldr(x9, MemOperand(x8, InlineCache::ClassesOffset().Int32Value()));
+    // Fast path for a monomorphic cache.
+    __ Cmp(klass, x9);
+    __ B(eq, &done);
+    InvokeRuntime(kQuickUpdateInlineCache, instruction, instruction->GetDexPc());
+    __ Bind(&done);
   }
 }
 

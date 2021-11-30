@@ -664,6 +664,28 @@ public class Main {
       assertEquals(Object.class, objMH.type().returnType());
       assertEquals(null, objMH.invoke());
     }
+
+    // Applying asType() twice.
+    {
+      MethodHandle valueOfMH = MethodHandles.lookup().findStatic(Integer.class, "valueOf",
+          MethodType.methodType(Integer.class, int.class));
+      MethodHandle atMH = valueOfMH.asType(MethodType.methodType(int.class, Object.class));
+      MethodHandle at2MH = atMH.asType(MethodType.methodType(Integer.class, int.class));
+      assertEquals(valueOfMH.type(), at2MH.type());
+      assertEquals(Integer.valueOf(2), (Integer) valueOfMH.invokeExact(2));
+      assertEquals(12345678, (int) atMH.invokeExact((Object) Integer.valueOf(12345678)));
+      assertEquals(Integer.valueOf(987654321), (Integer) at2MH.invokeExact(987654321));
+    }
+    {
+      MethodHandle valueOfMH = MethodHandles.lookup().findStatic(Double.class, "valueOf",
+          MethodType.methodType(Double.class, double.class));
+      MethodHandle atMH = valueOfMH.asType(MethodType.methodType(double.class, Object.class));
+      MethodHandle at2MH = atMH.asType(MethodType.methodType(Double.class, double.class));
+      assertEquals(valueOfMH.type(), at2MH.type());
+      assertEquals(Double.valueOf(1.125e3), (Double) valueOfMH.invokeExact(1.125e3));
+      assertEquals(2.5e-3, (double) atMH.invokeExact((Object) Double.valueOf(2.5e-3)));
+      assertEquals(Double.valueOf(3.125e-2), (Double) at2MH.invokeExact(3.125e-2));
+    }
   }
 
   public static void assertTrue(boolean value) {

@@ -22,6 +22,7 @@
 #include "base/macros.h"
 #include "base/value_object.h"
 #include "gc_root.h"
+#include "interpreter/mterp/nterp.h"
 #include "offsets.h"
 
 namespace art {
@@ -106,8 +107,12 @@ class ProfilingInfo {
     return MemberOffset(OFFSETOF_MEMBER(ProfilingInfo, baseline_hotness_count_));
   }
 
-  void SetBaselineHotnessCount(uint16_t count) {
-    baseline_hotness_count_ = count;
+  void ResetCounter() {
+    baseline_hotness_count_ = interpreter::kTieredHotnessMask;
+  }
+
+  bool CounterHasChanged() const {
+    return baseline_hotness_count_ != interpreter::kTieredHotnessMask;
   }
 
   uint16_t GetBaselineHotnessCount() const {

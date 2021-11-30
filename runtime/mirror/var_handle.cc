@@ -1697,6 +1697,29 @@ bool FieldVarHandle::Access(AccessMode access_mode,
   UNREACHABLE();
 }
 
+bool ArrayElementVarHandle::CheckArrayStore(AccessMode access_mode,
+                                            ShadowFrameGetter getter,
+                                            ObjPtr<ObjectArray<Object>> array) {
+  // This method checks the element being inserted into the array is correctly assignable.
+  // NB This method assumes it is called from `ArrayElementVarHandle::Access()` and `getter`
+  // has already consumed the array and index arguments.
+  ObjPtr<Object> new_element;
+  switch (GetAccessModeTemplate(access_mode)) {
+    case AccessModeTemplate::kGet:
+      return true;  // Not a store.
+    case AccessModeTemplate::kCompareAndExchange:
+    case AccessModeTemplate::kCompareAndSet:
+      getter.GetReference();  // Skip the comperand.
+      new_element = getter.GetReference();
+      break;
+    case AccessModeTemplate::kGetAndUpdate:
+    case AccessModeTemplate::kSet:
+      new_element = getter.GetReference();
+      break;
+  }
+  return array->CheckAssignable(new_element);
+}
+
 bool ArrayElementVarHandle::Access(AccessMode access_mode,
                                    ShadowFrame* shadow_frame,
                                    const InstructionOperands* const operands,
@@ -1710,7 +1733,7 @@ bool ArrayElementVarHandle::Access(AccessMode access_mode,
     return false;
   }
 
-  ObjPtr<Array> target_array(raw_array->AsArray());
+  ObjPtr<Array> target_array = raw_array->AsArray();
 
   // The target array element is the second co-ordinate type preceeding var type arguments.
   const int target_element = getter.Get();
@@ -1722,8 +1745,12 @@ bool ArrayElementVarHandle::Access(AccessMode access_mode,
   const Primitive::Type primitive_type = GetVarType()->GetPrimitiveType();
   switch (primitive_type) {
     case Primitive::Type::kPrimNot: {
-      MemberOffset target_element_offset =
-          target_array->AsObjectArray<Object>()->OffsetOfElement(target_element);
+      ObjPtr<ObjectArray<Object>> object_array = target_array->AsObjectArray<Object>();
+      if (!CheckArrayStore(access_mode, getter, object_array)) {
+        DCHECK(Thread::Current()->IsExceptionPending());
+        return false;
+      }
+      MemberOffset target_element_offset = object_array->OffsetOfElement(target_element);
       return FieldAccessor<ObjPtr<Object>>::Dispatch(access_mode,
                                                      target_array,
                                                      target_element_offset,

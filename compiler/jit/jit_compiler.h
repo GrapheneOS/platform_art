@@ -48,6 +48,8 @@ class JitCompiler : public JitCompilerInterface {
     return *compiler_options_.get();
   }
 
+  bool IsBaselineCompiler() const override;
+
   bool GenerateDebugInfo() override;
 
   void ParseCompilerOptions() override;
