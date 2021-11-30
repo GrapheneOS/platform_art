@@ -167,7 +167,7 @@ extern "C" size_t artCriticalNativeFrameSize(ArtMethod* method, uintptr_t caller
     uint32_t dex_pc = inline_infos.empty() ? stack_map.GetDexPc() : inline_infos.back().GetDexPc();
 
     // Get the callee shorty.
-    const DexFile* dex_file = method->GetDexFile();
+    const DexFile* dex_file = caller->GetDexFile();
     uint32_t method_idx = GetInvokeStaticMethodIndex(caller, dex_pc);
     uint32_t shorty_len;
     const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx), &shorty_len);
