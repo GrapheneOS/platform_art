@@ -997,6 +997,11 @@ bool DoVarHandleInvokeTranslationUnchecked(Thread* self,
   DCHECK_EQ(operands->GetNumberOfOperands(), static_cast<uint32_t>(vh_type->GetNumberOfPTypes()));
   DCHECK_EQ(operands->GetNumberOfOperands(),
             static_cast<uint32_t>(callsite_type->GetNumberOfPTypes()));
+  if (!vh->IsAccessModeSupported(access_mode)) {
+    ThrowUnsupportedOperationException();
+    return false;
+  }
+
   const size_t vreg_count = vh_type->NumberOfVRegs();
   ShadowFrameAllocaUniquePtr accessor_frame =
       CREATE_SHADOW_FRAME(vreg_count, nullptr, shadow_frame.GetMethod(), shadow_frame.GetDexPC());
