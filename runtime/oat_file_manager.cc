@@ -344,6 +344,18 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
       }
 
       if (oat_file != nullptr) {
+        VdexFile* vdex_file = oat_file->GetVdexFile();
+        if (vdex_file != nullptr) {
+          // Opened vdex file from an oat file, madvise it to its loaded state.
+          // TODO(b/196052575): Unify dex and vdex madvise knobs and behavior.
+          const size_t madvise_size_limit = Runtime::Current()->GetMadviseWillNeedSizeVdex();
+          Runtime::MadviseFileForRange(madvise_size_limit,
+                                       vdex_file->Size(),
+                                       vdex_file->Begin(),
+                                       vdex_file->End(),
+                                       vdex_file->GetName());
+        }
+
         VLOG(class_linker) << "Registering " << oat_file->GetLocation();
         *out_oat_file = RegisterOatFile(std::move(oat_file));
       }
