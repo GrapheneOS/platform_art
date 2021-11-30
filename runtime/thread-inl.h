@@ -40,10 +40,7 @@ static inline Thread* ThreadForEnv(JNIEnv* env) {
 }
 
 inline void Thread::AllowThreadSuspension() {
-  DCHECK_EQ(Thread::Current(), this);
-  if (UNLIKELY(TestAllFlags())) {
-    CheckSuspend();
-  }
+  CheckSuspend();
   // Invalidate the current thread's object pointers (ObjPtr) to catch possible moving GC bugs due
   // to missing handles.
   PoisonObjectPointers();
@@ -51,16 +48,17 @@ inline void Thread::AllowThreadSuspension() {
 
 inline void Thread::CheckSuspend() {
   DCHECK_EQ(Thread::Current(), this);
-  for (;;) {
+  while (true) {
     StateAndFlags state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
-    if (state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest)) {
+    if (LIKELY(!state_and_flags.IsAnyOfFlagsSet(SuspendOrCheckpointRequestFlags()))) {
+      break;
+    } else if (state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest)) {
       RunCheckpointFunction();
     } else if (state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest)) {
       FullSuspendCheck();
-    } else if (state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest)) {
-      RunEmptyCheckpoint();
     } else {
-      break;
+      DCHECK(state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest));
+      RunEmptyCheckpoint();
     }
   }
 }
@@ -256,11 +254,12 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
     GetMutatorLock()->AssertNotHeld(this);  // Otherwise we starve GC.
     // Optimize for the return from native code case - this is the fast path.
     // Atomically change from suspended to runnable if no suspend request pending.
-    StateAndFlags new_state_and_flags = old_state_and_flags;
-    new_state_and_flags.SetState(ThreadState::kRunnable);
-    static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
-    if (LIKELY(new_state_and_flags.GetValue() == 0u)) {  // No flags set?
+    constexpr uint32_t kCheckedFlags =
+        SuspendOrCheckpointRequestFlags() | enum_cast<uint32_t>(ThreadFlag::kActiveSuspendBarrier);
+    if (LIKELY(!old_state_and_flags.IsAnyOfFlagsSet(kCheckedFlags))) {
       // CAS the value with a memory barrier.
+      StateAndFlags new_state_and_flags = old_state_and_flags;
+      new_state_and_flags.SetState(ThreadState::kRunnable);
       if (LIKELY(tls32_.state_and_flags.CompareAndSetWeakAcquire(old_state_and_flags.GetValue(),
                                                                  new_state_and_flags.GetValue()))) {
         // Mark the acquisition of a share of the mutator lock.
@@ -272,10 +271,14 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
     } else if (UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest) ||
                         old_state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest))) {
       // Impossible
+      StateAndFlags flags = old_state_and_flags;
+      static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
+      flags.SetState(ThreadState::kRunnable);  // Note: Keeping unused bits.
       LOG(FATAL) << "Transitioning to runnable with checkpoint flag, "
-                 << " flags=" << new_state_and_flags.GetValue()  // State set to kRunnable = 0.
+                 << " flags=" << flags.GetValue()  // State set to kRunnable = 0.
                  << " state=" << old_state_and_flags.GetState();
-    } else if (old_state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest)) {
+    } else {
+      DCHECK(old_state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest));
       // Wait while our suspend count is non-zero.
 
       // We pass null to the MutexLock as we may be in a situation where the
