@@ -101,11 +101,14 @@ class OnDeviceRefresh final {
 
   std::string GetSystemServerImagePath(bool on_system, const std::string& jar_path) const;
 
-  // Loads artifacts to memory and writes them back. Also cleans up other files in the artifact
-  // directory. This essentially removes the existing artifacts from fs-verity so that odsign will
-  // not encounter "file exists" error when it adds the existing artifacts to fs-verity.
-  android::base::Result<void> RefreshExistingArtifactsAndCleanup(
-      const std::vector<std::string>& artifacts) const;
+  // Removes files that are not in the list.
+  android::base::Result<void> CleanupArtifactDirectory(
+      const std::vector<std::string>& artifacts_to_keep) const;
+
+  // Loads artifacts to memory and writes them back. This essentially removes the existing artifacts
+  // from fs-verity so that odsign will not encounter "file exists" error when it adds the existing
+  // artifacts to fs-verity.
+  android::base::Result<void> RefreshExistingArtifacts() const;
 
   // Checks whether all boot extension artifacts are present. Returns true if all are present, false
   // otherwise.

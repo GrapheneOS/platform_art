@@ -1157,7 +1157,7 @@ void JitCodeCache::GarbageCollectCache(Thread* self) {
       // Start polling the liveness of compiled code to prepare for the next full collection.
       if (next_collection_will_be_full) {
         for (auto it : profiling_infos_) {
-          it.second->SetBaselineHotnessCount(0);
+          it.second->ResetCounter();
         }
 
         // Change entry points of native methods back to the GenericJNI entrypoint.
@@ -1280,19 +1280,38 @@ bool JitCodeCache::IsMethodBeingCompiled(ArtMethod* method) {
       ContainsElement(current_baseline_compilations_, method);
 }
 
+ProfilingInfo* JitCodeCache::GetProfilingInfo(ArtMethod* method, Thread* self) {
+  MutexLock mu(self, *Locks::jit_lock_);
+  DCHECK(IsMethodBeingCompiled(method))
+      << "GetProfilingInfo should only be called when the method is being compiled";
+  auto it = profiling_infos_.find(method);
+  if (it == profiling_infos_.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
+void JitCodeCache::ResetHotnessCounter(ArtMethod* method, Thread* self) {
+  MutexLock mu(self, *Locks::jit_lock_);
+  auto it = profiling_infos_.find(method);
+  DCHECK(it != profiling_infos_.end());
+  it->second->ResetCounter();
+}
+
+
 void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
   ScopedTrace trace(__FUNCTION__);
   {
     MutexLock mu(self, *Locks::jit_lock_);
 
     // Update to interpreter the methods that have baseline entrypoints and whose baseline
-    // hotness count is zero.
+    // hotness count hasn't changed.
     // Note that these methods may be in thread stack or concurrently revived
     // between. That's OK, as the thread executing it will mark it.
     uint16_t warmup_threshold = Runtime::Current()->GetJITOptions()->GetWarmupThreshold();
     for (auto it : profiling_infos_) {
       ProfilingInfo* info = it.second;
-      if (info->GetBaselineHotnessCount() == 0) {
+      if (!info->CounterHasChanged()) {
         const void* entry_point = info->GetMethod()->GetEntryPointFromQuickCompiledCode();
         if (ContainsPc(entry_point)) {
           OatQuickMethodHeader* method_header =
@@ -1651,7 +1670,8 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method,
     }
     return new_compilation;
   } else {
-    if (CanAllocateProfilingInfo() && (compilation_kind == CompilationKind::kBaseline)) {
+    if (compilation_kind == CompilationKind::kBaseline) {
+      DCHECK(CanAllocateProfilingInfo());
       bool has_profiling_info = false;
       {
         MutexLock mu(self, *Locks::jit_lock_);
