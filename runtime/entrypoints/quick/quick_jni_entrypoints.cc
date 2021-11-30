@@ -186,11 +186,7 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
     // When we are in @FastNative, we are already Runnable.
     DCHECK(Locks::mutator_lock_->IsSharedHeld(self));
     // Only do a suspend check on the way out of JNI just like compiled stubs.
-    if (UNLIKELY(self->TestAllFlags())) {
-      // In fast JNI mode we never transitioned out of runnable. Perform a suspend check if there
-      // is a flag raised.
-      self->CheckSuspend();
-    }
+    self->CheckSuspend();
   }
   // We need the mutator lock (i.e., calling GoToRunnable()) before accessing the shorty or the
   // locked object.
