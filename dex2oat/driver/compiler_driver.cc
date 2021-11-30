@@ -1911,8 +1911,11 @@ class VerifyClassVisitor : public CompilationVisitor {
         } else if (klass->IsVerifiedNeedsAccessChecks()) {
           DCHECK_EQ(failure_kind, verifier::FailureKind::kAccessChecksFailure);
         } else if (klass->ShouldVerifyAtRuntime()) {
-          DCHECK(failure_kind == verifier::FailureKind::kSoftFailure ||
-                 failure_kind == verifier::FailureKind::kTypeChecksFailure);
+          DCHECK_NE(failure_kind, verifier::FailureKind::kHardFailure);
+          // This could either be due to:
+          // - kTypeChecksFailure, or
+          // - kSoftFailure, or
+          // - the superclass or interfaces not being verified.
         } else {
           DCHECK_EQ(failure_kind, verifier::FailureKind::kHardFailure);
         }
