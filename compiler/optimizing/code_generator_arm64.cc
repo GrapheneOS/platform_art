@@ -1994,12 +1994,12 @@ void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruct
   Register temp = temps.AcquireW();
 
   __ Ldr(temp, MemOperand(tr, Thread::ThreadFlagsOffset<kArm64PointerSize>().SizeValue()));
-  static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
+  __ Tst(temp, Thread::SuspendOrCheckpointRequestFlags());
   if (successor == nullptr) {
-    __ Cbnz(temp, slow_path->GetEntryLabel());
+    __ B(ne, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
   } else {
-    __ Cbz(temp, codegen_->GetLabelOf(successor));
+    __ B(eq, codegen_->GetLabelOf(successor));
     __ B(slow_path->GetEntryLabel());
     // slow_path will return to GetLabelOf(successor).
   }
