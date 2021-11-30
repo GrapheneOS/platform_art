@@ -1110,13 +1110,6 @@ class Thread {
     return state_and_flags.IsFlagSet(flag);
   }
 
-  bool TestAllFlags() const {
-    StateAndFlags state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
-    static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
-    state_and_flags.SetState(ThreadState::kRunnable);  // Clear state bits.
-    return state_and_flags.GetValue() != 0u;
-  }
-
   void AtomicSetFlag(ThreadFlag flag) {
     tls32_.state_and_flags.fetch_or(enum_cast<uint32_t>(flag), std::memory_order_seq_cst);
   }
@@ -1316,6 +1309,17 @@ class Thread {
     return WhichPowerOf2(InterpreterCache::kSize);
   }
 
+  static constexpr uint32_t AllThreadFlags() {
+    return enum_cast<uint32_t>(ThreadFlag::kLastFlag) |
+           (enum_cast<uint32_t>(ThreadFlag::kLastFlag) - 1u);
+  }
+
+  static constexpr uint32_t SuspendOrCheckpointRequestFlags() {
+    return enum_cast<uint32_t>(ThreadFlag::kSuspendRequest) |
+           enum_cast<uint32_t>(ThreadFlag::kCheckpointRequest) |
+           enum_cast<uint32_t>(ThreadFlag::kEmptyCheckpointRequest);
+  }
+
  private:
   explicit Thread(bool daemon);
   ~Thread() REQUIRES(!Locks::mutator_lock_, !Locks::thread_suspend_count_lock_);
@@ -1480,6 +1484,11 @@ class Thread {
 
     void SetValue(uint32_t value) {
       value_ = value;
+    }
+
+    bool IsAnyOfFlagsSet(uint32_t flags) const {
+      DCHECK_EQ(flags & ~AllThreadFlags(), 0u);
+      return (value_ & flags) != 0u;
     }
 
     bool IsFlagSet(ThreadFlag flag) const {

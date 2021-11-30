@@ -6683,14 +6683,13 @@ void InstructionCodeGeneratorX86::GenerateSuspendCheck(HSuspendCheck* instructio
     DCHECK_EQ(slow_path->GetSuccessor(), successor);
   }
 
-  static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
-  __ fs()->cmpl(Address::Absolute(Thread::ThreadFlagsOffset<kX86PointerSize>().Int32Value()),
-                Immediate(0));
+  __ fs()->testl(Address::Absolute(Thread::ThreadFlagsOffset<kX86PointerSize>().Int32Value()),
+                 Immediate(Thread::SuspendOrCheckpointRequestFlags()));
   if (successor == nullptr) {
-    __ j(kNotEqual, slow_path->GetEntryLabel());
+    __ j(kNotZero, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
   } else {
-    __ j(kEqual, codegen_->GetLabelOf(successor));
+    __ j(kZero, codegen_->GetLabelOf(successor));
     __ jmp(slow_path->GetEntryLabel());
   }
 }
