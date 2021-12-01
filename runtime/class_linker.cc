@@ -223,7 +223,7 @@ static void UpdateClassAfterVerification(Handle<mirror::Class> klass,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  if (failure_kind == verifier::FailureKind::kNoFailure) {
+  if (klass->IsVerified() && (failure_kind == verifier::FailureKind::kNoFailure)) {
     klass->SetSkipAccessChecksFlagOnAllMethods(pointer_size);
   }
 
@@ -4720,7 +4720,6 @@ verifier::FailureKind ClassLinker::VerifyClass(Thread* self,
       // Regardless of our own verification result, we need to verify the class
       // at runtime if the super class is not verified. This is required in case
       // we generate an app/boot image.
-      verifier_failure = verifier::FailureKind::kSoftFailure;
       mirror::Class::SetStatus(klass, ClassStatus::kRetryVerificationAtRuntime, self);
     } else if (verifier_failure == verifier::FailureKind::kNoFailure) {
       mirror::Class::SetStatus(klass, ClassStatus::kVerified, self);
