@@ -1058,8 +1058,7 @@ void ArmVIXLJNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
                       tr,
                       Thread::ThreadFlagsOffset<kArmPointerSize>().Int32Value());
 
-  static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
-  ___ Cmp(scratch, 0);
+  ___ Tst(scratch, Thread::SuspendOrCheckpointRequestFlags());
   ___ BPreferNear(ne, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
   // TODO: think about using CBNZ here.
 }

@@ -352,7 +352,8 @@ void InlineInfo::Dump(VariableIndentationOutputStream* vios,
     if (method_info.HasDexFileIndex()) {
       vios->Stream() << ", is_in_bootclasspath=" << std::boolalpha
                      << (method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP)
-                     << ", dex_file_index=" << std::dec << method_info.GetDexFileIndex();
+                     << std::noboolalpha << ", dex_file_index=" << std::dec
+                     << method_info.GetDexFileIndex();
     }
   }
   vios->Stream() << ")\n";
