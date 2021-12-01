@@ -166,10 +166,13 @@ def ci_builder(name, category, short_name):
         },
         service_account = "art-ci-builder@chops-service-accounts.iam.gserviceaccount.com",
 
-        # We have a limited set of runners, so put the expiration time close to
-        # the time it takes to run all steps on most builders.
-        expiration_timeout = 10 * time.hour,
-        execution_timeout = 37 * time.hour,
+        # Maximum delay between scheduling a build and the build actually starting.
+        # In a healthy state (enough free/idle devices), the delay is fairly small,
+        # but if enough devices are offline, this timeout will cause INFRA_FAILURE.
+        # Set the value reasonably high to prefer delayed builds over failing ones.
+        # NB: LUCI also enforces (expiration_timeout + execution_timeout <= 47).
+        expiration_timeout = 17 * time.hour,
+        execution_timeout = 30 * time.hour,
         build_numbers = True,
         properties = {
             "builder_group": "client.art",
