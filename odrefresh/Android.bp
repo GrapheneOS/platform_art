@@ -118,6 +118,17 @@ art_cc_binary {
     ],
 }
 
+// A no-op version of the odrefresh binary.
+art_cc_binary {
+    name: "odrefresh_broken",
+    defaults: ["art_defaults"],
+    stem: "odrefresh",
+    local_include_dirs: ["include"],
+    header_libs: ["libbase_headers"],
+    srcs: ["odrefresh_broken.cc"],
+    apex_available: ["test_jitzygote_com.android.art"],
+}
+
 art_cc_binary {
     name: "odrefreshd",
     defaults: [
