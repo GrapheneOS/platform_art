@@ -428,6 +428,20 @@ public final class Main {
             } catch (WrongMethodTypeException expected) {
                 assertEquals(16.0f, floatsArray[2]);
             }
+
+            try {
+                MethodHandle unsupportedInvoker =
+                        MethodHandles.varHandleInvoker(
+                                VarHandle.AccessMode.GET_AND_BITWISE_OR,
+                                MethodType.methodType(
+                                        float.class, float[].class, int.class, float.class));
+                old =
+                        (float)
+                                unsupportedInvoker.invoke(
+                                    floatsArrayVarHandle, floatsArray, 0, 2.71f);
+                assertUnreachable();
+            } catch (UnsupportedOperationException expected) {
+            }
         }
     }
 

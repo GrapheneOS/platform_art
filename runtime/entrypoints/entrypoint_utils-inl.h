@@ -96,7 +96,7 @@ inline std::string GetResolvedMethodErrorString(ClassLinker* class_linker,
            << static_cast<const void*>(outer_method->GetDexFile())
            << "). MethodInfo: method_index=" << std::dec << method_index
            << ", is_in_bootclasspath=" << std::boolalpha
-           << (method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP)
+           << (method_info.GetDexFileIndexKind() == MethodInfo::kKindBCP) << std::noboolalpha
            << ", dex_file_index=" << std::dec << method_info.GetDexFileIndex() << ".";
   return error_ss.str();
 }
