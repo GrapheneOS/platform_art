@@ -34,11 +34,6 @@ art_runtime_base_binaries_first_on_device_first_on_host = [
     "dexoptanalyzer",
     "profman",
 ]
-// - Base requirements (binaries for which the "first" version is preferred on device
-//  (likely 64-bit).
-art_runtime_base_binaries_first_on_device = [
-    "odrefresh",
-]
 
 // - Base requirements (libraries).
 //
@@ -258,7 +253,7 @@ art_module_apex_defaults {
 
 // Default values shared by device ART APEXes.
 apex_defaults {
-    name: "com.android.art-device-defaults",
+    name: "com.android.art-device-defaults-minus-odrefresh",
     defaults: ["com.android.art-defaults"],
     compile_multilib: "both",
     manifest: "manifest-art.json",
@@ -279,7 +274,6 @@ apex_defaults {
         },
         first: {
             binaries: art_runtime_base_binaries_first_on_device_first_on_host +
-                art_runtime_base_binaries_first_on_device +
                 art_tools_common_binaries +
                 art_tools_device_only_binaries,
         },
@@ -305,6 +299,16 @@ apex_defaults {
     // Indicates that pre-installed version of this apex can be compressed.
     // Whether it actually will be compressed is controlled on per-device basis.
     compressible: true,
+}
+
+apex_defaults {
+    name: "com.android.art-device-defaults",
+    defaults: ["com.android.art-device-defaults-minus-odrefresh"],
+    multilib: {
+        first: {
+           binaries: ["odrefresh"],
+        },
+    },
 }
 
 // Default values shared by (device) Debug and Testing ART APEXes.
@@ -351,6 +355,22 @@ apex_test {
     native_shared_libs: art_runtime_base_broken_native_shared_libs,
     compile_multilib: "both",
 
+    key: "com.android.art.key",
+    manifest: "test_apex_manifest.json",
+    file_contexts: ":com.android.art-file_contexts",
+    certificate: ":com.android.art.certificate",
+    installable: false,
+    min_sdk_version: "31",
+}
+
+apex_test {
+    name: "test_jitzygote_com.android.art",
+    defaults: ["com.android.art-device-defaults-minus-odrefresh"],
+    multilib: {
+        first: {
+           binaries: ["odrefresh_broken"],
+        },
+    },
     key: "com.android.art.key",
     manifest: "test_apex_manifest.json",
     file_contexts: ":com.android.art-file_contexts",
