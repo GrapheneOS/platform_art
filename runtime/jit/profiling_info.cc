@@ -26,7 +26,7 @@
 namespace art {
 
 ProfilingInfo::ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries)
-      : baseline_hotness_count_(interpreter::kTieredHotnessMask),
+      : baseline_hotness_count_(GetOptimizeThreshold()),
         method_(method),
         number_of_inline_caches_(entries.size()),
         current_inline_uses_(0) {
@@ -34,6 +34,10 @@ ProfilingInfo::ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& ent
   for (size_t i = 0; i < number_of_inline_caches_; ++i) {
     cache_[i].dex_pc_ = entries[i];
   }
+}
+
+uint16_t ProfilingInfo::GetOptimizeThreshold() {
+  return Runtime::Current()->GetJITOptions()->GetOptimizeThreshold();
 }
 
 ProfilingInfo* ProfilingInfo::Create(Thread* self, ArtMethod* method) {
