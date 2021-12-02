@@ -23,8 +23,10 @@
 
 #include "android-base/file.h"
 #include "arch/instruction_set.h"
+#include "base/file_utils.h"
 #include "base/globals.h"
 #include "log/log.h"
+#include "odr_common.h"
 #include "odrefresh/odrefresh.h"
 
 namespace art {
@@ -79,7 +81,7 @@ class OdrConfig final {
     : dry_run_(false),
       isa_(InstructionSet::kNone),
       program_name_(android::base::Basename(program_name)),
-      artifact_dir_(kOdrefreshArtifactDirectory) {
+      artifact_dir_(GetApexDataDalvikCacheDirectory(InstructionSet::kNone)) {
   }
 
   const std::string& GetApexInfoListFile() const { return apex_info_list_file_; }
