@@ -108,11 +108,11 @@ class ProfilingInfo {
   }
 
   void ResetCounter() {
-    baseline_hotness_count_ = interpreter::kTieredHotnessMask;
+    baseline_hotness_count_ = GetOptimizeThreshold();
   }
 
   bool CounterHasChanged() const {
-    return baseline_hotness_count_ != interpreter::kTieredHotnessMask;
+    return baseline_hotness_count_ != GetOptimizeThreshold();
   }
 
   uint16_t GetBaselineHotnessCount() const {
@@ -121,6 +121,8 @@ class ProfilingInfo {
 
  private:
   ProfilingInfo(ArtMethod* method, const std::vector<uint32_t>& entries);
+
+  static uint16_t GetOptimizeThreshold();
 
   // Hotness count for methods compiled with the JIT baseline compiler. Once
   // a threshold is hit (currentily the maximum value of uint16_t), we will
