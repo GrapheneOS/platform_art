@@ -451,7 +451,7 @@ bool GetDalvikCacheFilename(const char* location,
   return GetLocationEncodedFilename(location, cache_location, filename, error_msg);
 }
 
-static std::string GetApexDataDalvikCacheDirectory(InstructionSet isa) {
+std::string GetApexDataDalvikCacheDirectory(InstructionSet isa) {
   if (isa != InstructionSet::kNone) {
     return GetDalvikCacheDirectory(GetArtApexData(), GetInstructionSetString(isa));
   }

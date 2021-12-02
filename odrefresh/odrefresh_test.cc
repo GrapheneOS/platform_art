@@ -223,13 +223,6 @@ class OdRefreshTest : public CommonArtTest {
   std::string boot_profile_file_;
 };
 
-TEST_F(OdRefreshTest, OdrefreshArtifactDirectory) {
-  // odrefresh.h defines kOdrefreshArtifactDirectory for external callers of odrefresh. This is
-  // where compilation artifacts end up.
-  ScopedUnsetEnvironmentVariable no_env("ART_APEX_DATA");
-  EXPECT_EQ(kOdrefreshArtifactDirectory, GetArtApexData() + "/dalvik-cache");
-}
-
 TEST_F(OdRefreshTest, AllSystemServerJars) {
   auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
 

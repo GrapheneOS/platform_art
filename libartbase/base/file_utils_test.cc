@@ -178,6 +178,14 @@ TEST_F(FileUtilsTest, ReplaceFileExtension) {
   EXPECT_EQ("/.directory/file.vdex", ReplaceFileExtension("/.directory/file", "vdex"));
 }
 
+TEST_F(FileUtilsTest, ArtApexDataPath) {
+  ScopedUnsetEnvironmentVariable no_env("ART_APEX_DATA");
+  EXPECT_EQ(kArtApexDataDefaultPath, GetArtApexData());
+
+  setenv("ART_APEX_DATA", "/path/from/env", /* overwrite */ 1);
+  EXPECT_EQ("/path/from/env", GetArtApexData());
+}
+
 TEST_F(FileUtilsTest, GetApexDataOatFilename) {
   ScopedUnsetEnvironmentVariable android_root("ANDROID_ROOT");
   ScopedUnsetEnvironmentVariable i18n_root("ANDROID_I18N_ROOT");
