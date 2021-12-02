@@ -224,7 +224,7 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
     } else if (ArgumentMatches(arg, "--dalvik-cache=", &value)) {
       art::OverrideDalvikCacheSubDirectory(value);
       config->SetArtifactDirectory(Concatenate(
-          {android::base::Dirname(art::odrefresh::kOdrefreshArtifactDirectory), "/", value}));
+          {GetApexDataDalvikCacheDirectory(art::InstructionSet::kNone), "/", value}));
     } else if (ArgumentMatches(arg, "--max-execution-seconds=", &value)) {
       int seconds;
       if (!android::base::ParseInt(value, &seconds)) {
