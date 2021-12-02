@@ -22,36 +22,34 @@
 namespace art {
 namespace odrefresh {
 
-// Default directory to which artifacts are written. (Overridable via the --dalvik-cache command
-// line argument.)
-static constexpr const char* kOdrefreshArtifactDirectory =
-    "/data/misc/apexdata/com.android.art/dalvik-cache";
-
 //
 // Exit codes from the odrefresh process (in addition to standard exit codes in sysexits.h).
 //
 // NB if odrefresh crashes, then the caller should not sign any artifacts and should remove any
-// unsigned artifacts under `kOdrefreshArtifactDirectory`.
+// unsigned artifacts under the output artifact directory.
+//
+// The output artifact directory is `$ART_APEX_DATA/dalvik-cache` by default, and is overridable via
+// the --dalvik-cache command argument.
 //
 enum ExitCode : int {
   // No compilation required, all artifacts look good or there is insufficient space to compile.
-  // For ART APEX in the system image, there may be no artifacts present under
-  // `kOdrefreshArtifactDirectory`.
+  // For ART APEX in the system image, there may be no artifacts present under the output artifact
+  // directory.
   kOkay = EX_OK,
 
   // Compilation required (only returned for --check). Re-run program with --compile on the
-  // command-line to generate + new artifacts under `kOdrefreshArtifactDirectory`.
+  // command-line to generate + new artifacts under the output artifact directory.
   kCompilationRequired = EX__MAX + 1,
 
-  // New artifacts successfully generated under `kOdrefreshArtifactDirectory`.
+  // New artifacts successfully generated under the output artifact directory.
   kCompilationSuccess = EX__MAX + 2,
 
-  // Compilation failed. Any artifacts under `kOdrefreshArtifactDirectory` are valid and should not
+  // Compilation failed. Any artifacts under the output artifact directory are valid and should not
   // be removed. This may happen, for example, if compilation of boot extensions succeeds, but the
   // compilation of the system_server jars fails due to lack of storage space.
   kCompilationFailed = EX__MAX + 3,
 
-  // Removal of existing artifacts (or files under `kOdrefreshArtifactDirectory`) failed. Artifacts
+  // Removal of existing artifacts (or files under the output artifact directory) failed. Artifacts
   // should be treated as invalid and should be removed if possible.
   kCleanupFailed = EX__MAX + 4,
 

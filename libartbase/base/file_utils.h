@@ -96,6 +96,10 @@ void GetDalvikCache(const char* subdir, bool create_if_absent, std::string* dalv
 bool GetDalvikCacheFilename(const char* location, const char* cache_location,
                             std::string* filename, std::string* error_msg);
 
+// Returns the absolute dalvik-cache path. The path may include the instruction set sub-directory
+// if specified.
+std::string GetApexDataDalvikCacheDirectory(InstructionSet isa);
+
 // Gets the oat location in the ART APEX data directory for a DEX file installed anywhere other
 // than in an APEX. Returns the oat filename if `location` is valid, empty string otherwise.
 std::string GetApexDataOatFilename(std::string_view location, InstructionSet isa);
