@@ -275,15 +275,18 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(
   }
   HLoadClass::LoadKind load_kind = codegen->GetSupportedLoadClassKind(desired_load_kind);
 
+  // If we cannot reference this class due to .bss requirements, we're forced to bail.
   if (!IsSameDexFile(load_class->GetDexFile(), *dex_compilation_unit.GetDexFile())) {
-    if (load_kind == HLoadClass::LoadKind::kRuntimeCall ||
-        load_kind == HLoadClass::LoadKind::kBssEntry ||
+    if (load_kind == HLoadClass::LoadKind::kRuntimeCall) {
+      return HLoadClass::LoadKind::kInvalid;
+    }
+
+    if (load_kind == HLoadClass::LoadKind::kBssEntry ||
         load_kind == HLoadClass::LoadKind::kBssEntryPublic ||
         load_kind == HLoadClass::LoadKind::kBssEntryPackage) {
-      // We actually cannot reference this class, we're forced to bail.
-      // We cannot reference this class with Bss, as the entrypoint will lookup the class
-      // in the caller's dex file, but that dex file does not reference the class.
-      return HLoadClass::LoadKind::kInvalid;
+      if (!codegen->GetCompilerOptions().WithinOatFile(&load_class->GetDexFile())) {
+        return HLoadClass::LoadKind::kInvalid;
+      }
     }
   }
   return load_kind;
