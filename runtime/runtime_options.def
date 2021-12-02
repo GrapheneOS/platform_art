@@ -92,7 +92,6 @@ RUNTIME_OPTIONS_KEY (JniIdType,           OpaqueJniIds,                   JniIdT
 RUNTIME_OPTIONS_KEY (bool,                AutoPromoteOpaqueJniIds,        true)  // testing use only. -Xauto-promote-opaque-jni-ids:{true, false}
 RUNTIME_OPTIONS_KEY (unsigned int,        JITOptimizeThreshold)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITWarmupThreshold)
-RUNTIME_OPTIONS_KEY (unsigned int,        JITOsrThreshold)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITPriorityThreadWeight)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITInvokeTransitionWeight)
 RUNTIME_OPTIONS_KEY (int,                 JITPoolThreadPthreadPriority,   jit::kJitPoolThreadPthreadDefaultPriority)
