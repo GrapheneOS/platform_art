@@ -61,6 +61,7 @@
  *   reg nick      purpose
  *   x19  xSELF     self (Thread) pointer
  *   x20  wMR       marking register
+ *   x21  xSUSPEND  suspend check register
  *   x29  xFP       interpreted frame pointer, used for accessing locals and args
  *   x22  xPC       interpreted program counter, used for fetching instructions
  *   x23  xINST     first 16-bit code unit of current instruction
@@ -74,7 +75,6 @@
 */
 
 /* single-purpose registers, given names for clarity */
-#define xSELF    x19
 #define CFI_DEX  22 // DWARF register number of the register holding dex-pc (xPC).
 #define CFI_TMP  0  // DWARF register number of the first argument register (r0).
 #define xPC      x22
@@ -470,8 +470,9 @@ END \name
 
     // GP callee-saves.
     // No need to restore x19 (it's always the thread), and
-    // don't restore x20 (the marking register) as it may have been updated.
-    RESTORE_TWO_REGS x21, x22, 80
+    // don't restore x20 (the marking register) as it may have been updated,
+    // don't restore x21 (the suspend check register) as it may have been updated.
+    RESTORE_REG      x22, 88
     RESTORE_TWO_REGS x23, x24, 96
     RESTORE_TWO_REGS x25, x26, 112
     RESTORE_TWO_REGS x27, x28, 128
@@ -1606,12 +1607,12 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
     sub ip2, ip, x15
     ldr w26, [x0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
-    lsl x21, ip2, #2 // x21 is now the offset for inputs into the registers array.
+    lsl x27, ip2, #2 // x27 is now the offset for inputs into the registers array.
 
     tbz w26, #ART_METHOD_NTERP_ENTRY_POINT_FAST_PATH_FLAG_BIT, .Lsetup_slow_path
     // Setup pointer to inputs in FP and pointer to inputs in REFS
-    add x10, xFP, x21
-    add x11, xREFS, x21
+    add x10, xFP, x27
+    add x11, xREFS, x27
     mov x12, #0
     SETUP_REFERENCE_PARAMETER_IN_GPR w1, x10, x11, w15, x12, .Lxmm_setup_finished
     SETUP_REFERENCE_PARAMETER_IN_GPR w2, x10, x11, w15, x12, .Lxmm_setup_finished
@@ -1628,8 +1629,8 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
     // If the method is not static and there is one argument ('this'), we don't need to fetch the
     // shorty.
     tbnz w26, #ART_METHOD_IS_STATIC_FLAG_BIT, .Lsetup_with_shorty
-    str w1, [xFP, x21]
-    str w1, [xREFS, x21]
+    str w1, [xFP, x27]
+    str w1, [xREFS, x27]
     cmp w15, #1
     b.eq .Lxmm_setup_finished
 
@@ -1642,8 +1643,8 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
     RESTORE_ALL_ARGUMENTS
 
     // Setup pointer to inputs in FP and pointer to inputs in REFS
-    add x10, xFP, x21
-    add x11, xREFS, x21
+    add x10, xFP, x27
+    add x11, xREFS, x27
     mov x12, #0
 
     add x9, xIBASE, #1  // shorty + 1  ; ie skip return arg character

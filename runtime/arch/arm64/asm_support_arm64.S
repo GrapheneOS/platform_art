@@ -41,6 +41,9 @@
 #define wMR w20
 #endif
 
+// Implicit suspend check register.
+#define xSUSPEND x21
+
 .macro CFI_EXPRESSION_BREG n, b, offset
     .if (-0x40 <= (\offset)) && ((\offset) < 0x40)
         CFI_EXPRESSION_BREG_1(\n, \b, \offset)
@@ -172,6 +175,19 @@
 #if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
     ldr wMR, [xSELF, #THREAD_IS_GC_MARKING_OFFSET]
 #endif
+.endm
+
+// Macro to refresh the suspend check register.
+//
+// We do not refresh `xSUSPEND` after every transition to Runnable, so there is
+// a chance that an implicit suspend check loads null to xSUSPEND but before
+// causing a SIGSEGV at the next implicit suspend check we make a runtime call
+// that performs the suspend check explicitly. This can cause a spurious fault
+// without a pending suspend check request but it should be rare and the fault
+// overhead was already expected when we triggered the suspend check, we just
+// pay the price later than expected.
+.macro REFRESH_SUSPEND_CHECK_REGISTER
+    ldr xSUSPEND, [xSELF, #THREAD_SUSPEND_TRIGGER_OFFSET]
 .endm
 
     /*
