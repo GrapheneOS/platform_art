@@ -361,10 +361,11 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 
 
 .macro INVOKE_STUB_CREATE_FRAME
-SAVE_SIZE=6*8   // x4, x5, x19, x20, FP, LR saved.
+SAVE_SIZE=8*8   // x4, x5, <padding>, x19, x20, x21, FP, LR saved.
     SAVE_TWO_REGS_INCREASE_FRAME x4, x5, SAVE_SIZE
-    SAVE_TWO_REGS x19, x20, 16
-    SAVE_TWO_REGS xFP, xLR, 32
+    SAVE_REG      x19,      24
+    SAVE_TWO_REGS x20, x21, 32
+    SAVE_TWO_REGS xFP, xLR, 48
 
     mov xFP, sp                            // Use xFP for frame pointer, as it's callee-saved.
     .cfi_def_cfa_register xFP
@@ -401,6 +402,7 @@ SAVE_SIZE=6*8   // x4, x5, x19, x20, FP, LR saved.
 .macro INVOKE_STUB_CALL_AND_RETURN
 
     REFRESH_MARKING_REGISTER
+    REFRESH_SUSPEND_CHECK_REGISTER
 
     // load method-> METHOD_QUICK_CODE_OFFSET
     ldr x9, [x0, #ART_METHOD_QUICK_CODE_OFFSET_64]
@@ -412,8 +414,9 @@ SAVE_SIZE=6*8   // x4, x5, x19, x20, FP, LR saved.
     .cfi_def_cfa_register sp
 
     // Restore saved registers including value address and shorty address.
-    RESTORE_TWO_REGS x19, x20, 16
-    RESTORE_TWO_REGS xFP, xLR, 32
+    RESTORE_REG      x19,      24
+    RESTORE_TWO_REGS x20, x21, 32
+    RESTORE_TWO_REGS xFP, xLR, 48
     RESTORE_TWO_REGS_DECREASE_FRAME x4, x5, SAVE_SIZE
 
     // Store result (w0/x0/s0/d0) appropriately, depending on resultType.
@@ -765,6 +768,7 @@ ENTRY art_quick_osr_stub
 
     mov xSELF, x5                         // Move thread pointer into SELF register.
     REFRESH_MARKING_REGISTER
+    REFRESH_SUSPEND_CHECK_REGISTER
 
     INCREASE_FRAME 16
     str xzr, [sp]                         // Store null for ArtMethod* slot
@@ -877,6 +881,7 @@ ENTRY art_quick_do_long_jump
     mov sp, xIP0
 
     REFRESH_MARKING_REGISTER
+    REFRESH_SUSPEND_CHECK_REGISTER
 
     br  xIP1
 END art_quick_do_long_jump
@@ -1606,21 +1611,29 @@ GENERATE_ALLOC_ARRAY_TLAB art_quick_alloc_array_resolved64_tlab, artAllocArrayFr
      */
     .extern artTestSuspendFromCode
 ENTRY art_quick_test_suspend
-    SETUP_SAVE_EVERYTHING_FRAME RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET  // save callee saves for stack crawl
+                                        // Save callee saves for stack crawl.
+    SETUP_SAVE_EVERYTHING_FRAME RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET
     mov    x0, xSELF
-    bl     artTestSuspendFromCode             // (Thread*)
+    bl     artTestSuspendFromCode       // (Thread*)
     RESTORE_SAVE_EVERYTHING_FRAME
     REFRESH_MARKING_REGISTER
+    REFRESH_SUSPEND_CHECK_REGISTER
     ret
 END art_quick_test_suspend
 
+    /*
+     * Redirection point from implicit suspend check fault handler.
+     */
+    .extern artTestSuspendFromCode
 ENTRY art_quick_implicit_suspend
+                                        // Save callee saves for stack crawl.
+    SETUP_SAVE_EVERYTHING_FRAME RUNTIME_SAVE_EVERYTHING_FOR_SUSPEND_CHECK_METHOD_OFFSET
     mov    x0, xSELF
-    SETUP_SAVE_REFS_ONLY_FRAME                // save callee saves for stack crawl
-    bl     artTestSuspendFromCode             // (Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME
+    bl     artTestSuspendFromCode       // (Thread*)
+    RESTORE_SAVE_EVERYTHING_FRAME
     REFRESH_MARKING_REGISTER
-    ret
+    REFRESH_SUSPEND_CHECK_REGISTER
+    br     lr  // Do not use RET as we do not enter the entrypoint with "BL".
 END art_quick_implicit_suspend
 
      /*
