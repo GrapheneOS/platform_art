@@ -25,8 +25,11 @@
 namespace art {
 namespace odrefresh {
 
+static constexpr const char* kOdrefreshArtifactDirectory = "/test/dir";
+
 TEST(OdrArtifactsTest, ForBootImageExtension) {
   ScopedUnsetEnvironmentVariable no_env("ART_APEX_DATA");
+  setenv("ART_APEX_DATA", kOdrefreshArtifactDirectory, /* overwrite */ 1);
 
   const std::string image_location = GetApexDataBootImage("/system/framework/framework.jar");
   EXPECT_TRUE(StartsWith(image_location, GetArtApexData()));
@@ -35,16 +38,17 @@ TEST(OdrArtifactsTest, ForBootImageExtension) {
       GetSystemImageFilename(image_location.c_str(), InstructionSet::kArm64);
 
   const auto artifacts = OdrArtifacts::ForBootImageExtension(image_filename);
-  CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/arm64/boot-framework.art",
+  CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/arm64/boot-framework.art",
            artifacts.ImagePath());
-  CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/arm64/boot-framework.oat",
+  CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/arm64/boot-framework.oat",
            artifacts.OatPath());
-  CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/arm64/boot-framework.vdex",
+  CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/arm64/boot-framework.vdex",
            artifacts.VdexPath());
 }
 
 TEST(OdrArtifactsTest, ForSystemServer) {
   ScopedUnsetEnvironmentVariable no_env("ART_APEX_DATA");
+  setenv("ART_APEX_DATA", kOdrefreshArtifactDirectory, /* overwrite */ 1);
 
   const std::string image_location = GetApexDataImage("/system/framework/services.jar");
   EXPECT_TRUE(StartsWith(image_location, GetArtApexData()));
@@ -53,13 +57,13 @@ TEST(OdrArtifactsTest, ForSystemServer) {
       GetSystemImageFilename(image_location.c_str(), InstructionSet::kX86);
   const auto artifacts = OdrArtifacts::ForSystemServer(image_filename);
   CHECK_EQ(
-      std::string(kOdrefreshArtifactDirectory) + "/x86/system@framework@services.jar@classes.art",
+      std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/x86/system@framework@services.jar@classes.art",
       artifacts.ImagePath());
   CHECK_EQ(
-      std::string(kOdrefreshArtifactDirectory) + "/x86/system@framework@services.jar@classes.odex",
+      std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/x86/system@framework@services.jar@classes.odex",
       artifacts.OatPath());
   CHECK_EQ(
-      std::string(kOdrefreshArtifactDirectory) + "/x86/system@framework@services.jar@classes.vdex",
+      std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/x86/system@framework@services.jar@classes.vdex",
       artifacts.VdexPath());
 }
 

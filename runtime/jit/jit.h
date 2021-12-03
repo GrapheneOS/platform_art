@@ -78,10 +78,6 @@ class JitOptions {
     return warmup_threshold_;
   }
 
-  uint16_t GetOsrThreshold() const {
-    return osr_threshold_;
-  }
-
   uint16_t GetPriorityThreadWeight() const {
     return priority_thread_weight_;
   }
@@ -163,7 +159,6 @@ class JitOptions {
   size_t code_cache_max_capacity_;
   uint32_t optimize_threshold_;
   uint32_t warmup_threshold_;
-  uint32_t osr_threshold_;
   uint16_t priority_thread_weight_;
   uint16_t invoke_transition_weight_;
   bool dump_info_on_shutdown_;
@@ -179,7 +174,6 @@ class JitOptions {
         code_cache_max_capacity_(0),
         optimize_threshold_(0),
         warmup_threshold_(0),
-        osr_threshold_(0),
         priority_thread_weight_(0),
         invoke_transition_weight_(0),
         dump_info_on_shutdown_(false),
@@ -277,10 +271,6 @@ class Jit {
 
   int GetThreadPoolPthreadPriority() const {
     return options_->GetThreadPoolPthreadPriority();
-  }
-
-  uint16_t OSRMethodThreshold() const {
-    return options_->GetOsrThreshold();
   }
 
   uint16_t HotMethodThreshold() const {
