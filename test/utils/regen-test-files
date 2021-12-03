@@ -97,7 +97,6 @@ known_failing_tests = frozenset([
   "054-uncaught",
   "086-null-super",
   "087-gc-after-link",
-  "096-array-copy-concurrent-gc",
   # 1002-notify-startup: Dependency on `libarttest` + custom `check` script.
   "1002-notify-startup",
   "115-native-bridge",
