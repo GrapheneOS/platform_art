@@ -83,7 +83,7 @@ class OnDeviceRefresh final {
   // Gets the `ApexInfo` for active APEXes.
   std::optional<std::vector<com::android::apex::ApexInfo>> GetApexInfoList() const;
 
-  // Reads the ART APEX cache information (if any) found in `kOdrefreshArtifactDirectory`.
+  // Reads the ART APEX cache information (if any) found in the output artifact directory.
   std::optional<com::android::art::CacheInfo> ReadCacheInfo() const;
 
   // Write ART APEX cache information to `kOnDeviceRefreshOdrefreshArtifactDirectory`.
