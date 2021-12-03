@@ -2629,16 +2629,21 @@ extern "C" int artMethodExitHook(Thread* self,
       res.Assign(return_value.GetL());
     }
     DCHECK(!method->IsRuntimeMethod());
-    instr->MethodExitEvent(self,
-                           method,
-                           /* frame= */ {},
-                           return_value);
 
     // Deoptimize if the caller needs to continue execution in the interpreter. Do nothing if we get
     // back to an upcall.
     NthCallerVisitor visitor(self, 1, true);
     visitor.WalkStack(true);
     deoptimize = instr->ShouldDeoptimizeMethod(self, visitor);
+
+    // If we need a deoptimization MethodExitEvent will be called by the interpreter when it
+    // re-executes the return instruction.
+    if (!deoptimize) {
+      instr->MethodExitEvent(self,
+                             method,
+                             /* frame= */ {},
+                             return_value);
+    }
 
     if (is_ref) {
       // Restore the return value if it's a reference since it might have moved.
