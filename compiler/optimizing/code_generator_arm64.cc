@@ -1974,8 +1974,22 @@ void CodeGeneratorARM64::GenerateMemoryBarrier(MemBarrierKind kind) {
   __ Dmb(InnerShareable, type);
 }
 
+bool CodeGeneratorARM64::CanUseImplicitSuspendCheck() const {
+  // Use implicit suspend checks if requested in compiler options unless there are SIMD
+  // instructions in the graph. The implicit suspend check saves all FP registers as
+  // 64-bit (in line with the calling convention) but SIMD instructions can use 128-bit
+  // registers, so they need to be saved in an explicit slow path.
+  return GetCompilerOptions().GetImplicitSuspendChecks() && !GetGraph()->HasSIMD();
+}
+
 void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruction,
                                                          HBasicBlock* successor) {
+  if (codegen_->CanUseImplicitSuspendCheck()) {
+    __ Ldr(kImplicitSuspendCheckRegister, MemOperand(kImplicitSuspendCheckRegister));
+    codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+    return;
+  }
+
   SuspendCheckSlowPathARM64* slow_path =
       down_cast<SuspendCheckSlowPathARM64*>(instruction->GetSlowPath());
   if (slow_path == nullptr) {
@@ -3569,7 +3583,9 @@ void InstructionCodeGeneratorARM64::HandleGoto(HInstruction* got, HBasicBlock* s
   if (info != nullptr && info->IsBackEdge(*block) && info->HasSuspendCheck()) {
     codegen_->MaybeIncrementHotness(/* is_frame_entry= */ false);
     GenerateSuspendCheck(info->GetSuspendCheck(), successor);
-    return;
+    if (!codegen_->CanUseImplicitSuspendCheck()) {
+      return;  // `GenerateSuspendCheck()` emitted the jump.
+    }
   }
   if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
     GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);

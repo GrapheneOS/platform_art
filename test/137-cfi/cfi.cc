@@ -209,7 +209,7 @@ static constexpr int kMaxTotalSleepTimeMicroseconds = 10000000;  // 10 seconds
 int wait_for_sigstop(pid_t tid, int* total_sleep_time_usec, bool* detach_failed ATTRIBUTE_UNUSED) {
   for (;;) {
     int status;
-    pid_t n = TEMP_FAILURE_RETRY(waitpid(tid, &status, __WALL | WNOHANG));
+    pid_t n = TEMP_FAILURE_RETRY(waitpid(tid, &status, __WALL | WNOHANG | WUNTRACED));
     if (n == -1) {
       PLOG(WARNING) << "waitpid failed: tid " << tid;
       break;
@@ -240,20 +240,23 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(JNIEnv*, jcla
 #if __linux__
   pid_t pid = static_cast<pid_t>(pid_int);
 
-  // SEIZE is like ATTACH, but it does not stop the process (we let it stop itself).
-  if (ptrace(PTRACE_SEIZE, pid, 0, 0)) {
-    // Were not able to attach, bad.
-    printf("Failed to attach to other process.\n");
-    PLOG(ERROR) << "Failed to attach.";
-    kill(pid, SIGKILL);
-    return JNI_FALSE;
-  }
-
+  // We wait for the SIGSTOP while the child process is untraced (using
+  // `WUNTRACED` in `wait_for_sigstop()`) to avoid a SIGSEGV for implicit
+  // suspend check stopping the process because it's being traced.
   bool detach_failed = false;
   int total_sleep_time_usec = 0;
   int signal = wait_for_sigstop(pid, &total_sleep_time_usec, &detach_failed);
   if (signal != SIGSTOP) {
     printf("wait_for_sigstop failed.\n");
+    return JNI_FALSE;
+  }
+
+  // SEIZE is like ATTACH, but it does not stop the process (it has already stopped itself).
+  if (ptrace(PTRACE_SEIZE, pid, 0, 0)) {
+    // Were not able to attach, bad.
+    printf("Failed to attach to other process.\n");
+    PLOG(ERROR) << "Failed to attach.";
+    kill(pid, SIGKILL);
     return JNI_FALSE;
   }
 
