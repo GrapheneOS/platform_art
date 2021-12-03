@@ -3012,6 +3012,8 @@ class HMethodEntryHook : public HExpression<0> {
     return true;
   }
 
+  bool CanThrow() const override { return true; }
+
   DECLARE_INSTRUCTION(MethodEntryHook);
 
  protected:
@@ -3028,6 +3030,8 @@ class HMethodExitHook : public HExpression<1> {
   bool NeedsEnvironment() const override {
     return true;
   }
+
+  bool CanThrow() const override { return true; }
 
   DECLARE_INSTRUCTION(MethodExitHook);
 
