@@ -57,6 +57,8 @@ ASM_DEFINE(THREAD_SUSPEND_REQUEST,
            static_cast<uint32_t>(art::ThreadFlag::kSuspendRequest))
 ASM_DEFINE(THREAD_TOP_QUICK_FRAME_OFFSET,
            art::Thread::TopOfManagedStackOffset<art::kRuntimePointerSize>().Int32Value())
+ASM_DEFINE(THREAD_SUSPEND_TRIGGER_OFFSET,
+           art::Thread::ThreadSuspendTriggerOffset<art::kRuntimePointerSize>().Int32Value())
 ASM_DEFINE(THREAD_ALLOC_OBJECT_ENTRYPOINT_OFFSET,
            art::GetThreadOffset<art::kRuntimePointerSize>(art::kQuickAllocObjectInitialized)
                .Int32Value())
