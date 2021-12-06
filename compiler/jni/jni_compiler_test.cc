@@ -337,6 +337,8 @@ class JniCompilerTest : public CommonCompilerTest {
   static jobject jobj_;
   static jobject class_loader_;
 
+  static LockWord GetLockWord(jobject obj);
+
  protected:
   // We have to list the methods here so we can share them between default and generic JNI.
   void CompileAndRunNoArgMethodImpl();
@@ -474,6 +476,11 @@ mirror::Object* JniCompilerTest::JniMethodEndWithReferenceSynchronizedOverride(
   mirror::Object* raw_result = jni_method_end_with_reference_original_(result, self);
   AssertCallerObjectLocked(self);
   return raw_result;
+}
+
+LockWord JniCompilerTest::GetLockWord(jobject obj) {
+  ScopedObjectAccess soa(Thread::Current());
+  return soa.Decode<mirror::Object>(obj)->GetLockWord(/*as_volatile=*/ false);
 }
 
 // Test the normal compiler and normal generic JNI only.
@@ -896,6 +903,48 @@ void JniCompilerTest::CompileAndRun_fooJJ_synchronizedImpl() {
   EXPECT_EQ(a | b, result);
   EXPECT_EQ(1, gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni]);
 
+  // Exercise recursive thin locking/unlocking.
+  // Note: Thin lock count 0 means locked once.
+  env_->MonitorEnter(jobj_);
+  LockWord lock_word = GetLockWord(jobj_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kThinLocked);
+  ASSERT_EQ(lock_word.ThinLockCount(), 0u);
+  result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, a, b);
+  EXPECT_EQ(a | b, result);
+  EXPECT_EQ(2, gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni]);
+  lock_word = GetLockWord(jobj_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kThinLocked);
+  ASSERT_EQ(lock_word.ThinLockCount(), 0u);
+  env_->MonitorExit(jobj_);
+  lock_word = GetLockWord(jobj_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kUnlocked);
+
+  // Exercise lock inflation due to thin lock count overflow.
+  constexpr uint32_t kMaxThinLockRecursiveLocks = 1u << LockWord::kThinLockCountSize;
+  for (uint32_t i = 0; i != kMaxThinLockRecursiveLocks; ++i) {
+    env_->MonitorEnter(jobj_);
+    lock_word = GetLockWord(jobj_);
+    ASSERT_EQ(lock_word.GetState(), LockWord::kThinLocked);
+    ASSERT_EQ(lock_word.ThinLockCount(), i);
+  }
+  result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, a, b);
+  EXPECT_EQ(a | b, result);
+  EXPECT_EQ(3, gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni]);
+  lock_word = GetLockWord(jobj_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kFatLocked);
+  for (uint32_t i = 0; i != kMaxThinLockRecursiveLocks; ++i) {
+    env_->MonitorExit(jobj_);  // Remains "fat-locked" even if actually unlocked.
+  }
+
+  // Exercise locking for "fat-locked".
+  lock_word = GetLockWord(jobj_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kFatLocked);
+  result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, a, b);
+  EXPECT_EQ(a | b, result);
+  EXPECT_EQ(4, gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni]);
+  lock_word = GetLockWord(jobj_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kFatLocked);
+
   gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni] = 0;
 }
 
@@ -1213,6 +1262,47 @@ void JniCompilerTest::CompileAndRunStaticSynchronizedIntObjectObjectMethodImpl()
   result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, nullptr);
   EXPECT_TRUE(env_->IsSameObject(nullptr, result));
   EXPECT_EQ(7, gJava_MyClassNatives_fooSSIOO_calls[gCurrentJni]);
+
+  // Exercise recursive thin locking/unlocking.
+  // Note: Thin lock count 0 means locked once.
+  env_->MonitorEnter(jklass_);
+  LockWord lock_word = GetLockWord(jklass_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kThinLocked);
+  ASSERT_EQ(lock_word.ThinLockCount(), 0u);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, nullptr);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
+  EXPECT_EQ(8, gJava_MyClassNatives_fooSSIOO_calls[gCurrentJni]);
+  lock_word = GetLockWord(jklass_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kThinLocked);
+  ASSERT_EQ(lock_word.ThinLockCount(), 0u);
+  env_->MonitorExit(jklass_);
+  lock_word = GetLockWord(jklass_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kUnlocked);
+
+  // Exercise lock inflation due to thin lock count overflow.
+  constexpr uint32_t kMaxThinLockRecursiveLocks = 1u << LockWord::kThinLockCountSize;
+  for (uint32_t i = 0; i != kMaxThinLockRecursiveLocks; ++i) {
+    env_->MonitorEnter(jklass_);
+    lock_word = GetLockWord(jklass_);
+    ASSERT_EQ(lock_word.GetState(), LockWord::kThinLocked);
+    ASSERT_EQ(lock_word.ThinLockCount(), i);
+  }
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, nullptr);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
+  EXPECT_EQ(9, gJava_MyClassNatives_fooSSIOO_calls[gCurrentJni]);
+  lock_word = GetLockWord(jklass_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kFatLocked);
+  for (uint32_t i = 0; i != kMaxThinLockRecursiveLocks; ++i) {
+    env_->MonitorExit(jklass_);  // Remains "fat-locked" even if actually unlocked.
+  }
+
+  // Exercise locking for "fat-locked".
+  lock_word = GetLockWord(jklass_);
+  result = env_->CallStaticObjectMethod(jklass_, jmethod_, 2, jobj_, nullptr);
+  EXPECT_TRUE(env_->IsSameObject(nullptr, result));
+  EXPECT_EQ(10, gJava_MyClassNatives_fooSSIOO_calls[gCurrentJni]);
+  lock_word = GetLockWord(jklass_);
+  ASSERT_EQ(lock_word.GetState(), LockWord::kFatLocked);
 
   gJava_MyClassNatives_fooSSIOO_calls[gCurrentJni] = 0;
 }
