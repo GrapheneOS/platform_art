@@ -1302,6 +1302,11 @@ static void DecideVarHandleIntrinsic(HInvoke* invoke) {
       if (IsVarHandleGetAndAdd(invoke) &&
           (value_type == DataType::Type::kReference || value_type == DataType::Type::kBool)) {
         // We should only add numerical types.
+        //
+        // For byte array views floating-point types are not allowed, see javadoc comments for
+        // java.lang.invoke.MethodHandles.byteArrayViewVarHandle(). But ART treats them as numeric
+        // types in ByteArrayViewVarHandle::Access(). Consequently we do generate intrinsic code,
+        // but it always fails access mode check at runtime.
         optimizations.SetDoNotIntrinsify();
         return;
       } else if (IsVarHandleGetAndBitwiseOp(invoke) && !DataType::IsIntegralType(value_type)) {
