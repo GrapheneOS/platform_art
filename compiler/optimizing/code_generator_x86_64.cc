@@ -5124,12 +5124,12 @@ void InstructionCodeGeneratorX86_64::Bswap(Location value,
                                            CpuRegister* temp) {
   switch (type) {
     case DataType::Type::kInt16:
-      // TODO: Can be done with an xchg of 8b registers. This is straight from Quick.
+      // This should sign-extend, even if reimplemented with an XCHG of 8-bit registers.
       __ bswapl(value.AsRegister<CpuRegister>());
       __ sarl(value.AsRegister<CpuRegister>(), Immediate(16));
       break;
     case DataType::Type::kUint16:
-      // TODO: Can be done with an xchg of 8b registers. This is straight from Quick.
+      // TODO: Can be done with an XCHG of 8-bit registers. This is straight from Quick.
       __ bswapl(value.AsRegister<CpuRegister>());
       __ shrl(value.AsRegister<CpuRegister>(), Immediate(16));
       break;
