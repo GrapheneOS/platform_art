@@ -297,6 +297,12 @@ std::vector<pid_t> GetPidByName(const std::string& process_name);
     return; \
   }
 
+#define TEST_DISABLED_FOR_HOST() \
+  if (!kIsTargetBuild) { \
+    printf("WARNING: TEST DISABLED FOR HOST\n"); \
+    return; \
+  }
+
 #define TEST_DISABLED_FOR_NON_STATIC_HOST_BUILDS() \
   if (!kHostStaticBuildEnabled) { \
     printf("WARNING: TEST DISABLED FOR NON-STATIC HOST BUILDS\n"); \
