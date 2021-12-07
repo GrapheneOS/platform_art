@@ -787,7 +787,8 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   DCHECK(method->IsNative());
   if (kIsDebugBuild && !method->IsCriticalNative()) {
     ClassLinker* class_linker = runtime->GetClassLinker();
-    const void* entry_point = runtime->GetInstrumentation()->GetCodeForInvoke(method);
+    const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(method,
+                                                                             kRuntimePointerSize);
     CHECK(class_linker->IsQuickGenericJniStub(entry_point) ||
           // The current entrypoint (after filtering out trampolines) may have changed
           // from GenericJNI to JIT-compiled stub since we have entered this frame.
