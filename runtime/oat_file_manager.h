@@ -140,6 +140,8 @@ class OatFileManager {
   // Maximum number of anonymous vdex files kept in the process' data folder.
   static constexpr size_t kAnonymousVdexCacheSize = 8u;
 
+  bool ContainsPc(const void* pc) REQUIRES(!Locks::oat_file_manager_lock_);
+
  private:
   std::vector<std::unique_ptr<const DexFile>> OpenDexFilesFromOat_Impl(
       std::vector<MemMap>&& dex_mem_maps,
