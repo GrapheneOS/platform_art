@@ -48,6 +48,20 @@ MACRO1(RESTORE_MANAGED_ARGS_DECREASE_FRAME, call_args_space)
     POP_ARG ebx
 END_MACRO
 
+MACRO3(JNI_SAVE_MANAGED_ARGS_TRAMPOLINE, name, cxx_name, arg1)
+DEFINE_FUNCTION \name
+    // Note: Managed callee-save registers have been saved by the JNI stub.
+    // Save register args EAX, ECX, EDX, EBX, mmx0-mmx3, add and padding above `arg1`.
+    SAVE_MANAGED_ARGS_INCREASE_FRAME /*padding*/ 4
+    // Call `cxx_name()`.
+    PUSH_ARG RAW_VAR(arg1)        // Pass arg1.
+    call CALLVAR(cxx_name)        // Call cxx_name(...).
+    // Restore register args EAX, ECX, EDX, EBX, mmx0-mmx3 and return.
+    RESTORE_MANAGED_ARGS_DECREASE_FRAME /*arg1*/ 4 + /*padding*/ 4
+    ret
+END_FUNCTION \name
+END_MACRO
+
     /*
      * Jni dlsym lookup stub.
      */
@@ -239,17 +253,18 @@ END_FUNCTION art_jni_dlsym_lookup_critical_stub
      * Read barrier for the method's declaring class needed by JNI stub for static methods.
      * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
      */
-DEFINE_FUNCTION art_jni_read_barrier
-    // Note: Managed callee-save registers have been saved by the JNI stub.
-    // Save register args EAX, ECX, EDX, EBX, mmx0-mmx3, add argument space and padding.
-    SAVE_MANAGED_ARGS_INCREASE_FRAME /*argument*/ 4 + /*padding*/ 4
-    // Pass the method argument.
-    movl %eax, (%esp);
-    call SYMBOL(artJniReadBarrier)  // (ArtMethod*)
-    // Restore register args EAX, ECX, EDX, EBX, mmx0-mmx3 and return.
-    RESTORE_MANAGED_ARGS_DECREASE_FRAME /*argument*/ 4 + /*padding*/ 4
-    ret
-END_FUNCTION art_jni_read_barrier
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_read_barrier, artJniReadBarrier, eax
+
+    /*
+     * Trampoline to `artJniMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_start, artJniMethodStart, fs:THREAD_SELF_OFFSET
+
+    /*
+     * Trampoline to `artJniMonitoredMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE \
+    art_jni_monitored_method_start, artJniMonitoredMethodStart, fs:THREAD_SELF_OFFSET
 
     /*
      * Entry from JNI stub that tries to lock the object in a fast path and

@@ -73,12 +73,14 @@ void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
   qpoints->pReadBarrierMarkReg15 = is_active ? art_quick_read_barrier_mark_reg15 : nullptr;
 }
 
-void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
+void InitEntryPoints(JniEntryPoints* jpoints,
+                     QuickEntryPoints* qpoints,
+                     bool monitor_jni_entry_exit) {
 #if defined(__APPLE__)
   UNUSED(jpoints, qpoints);
   UNIMPLEMENTED(FATAL);
 #else
-  DefaultInitEntryPoints(jpoints, qpoints);
+  DefaultInitEntryPoints(jpoints, qpoints, monitor_jni_entry_exit);
 
   // Cast
   qpoints->pInstanceofNonTrivial = art_quick_instance_of;
