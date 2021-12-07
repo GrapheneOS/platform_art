@@ -2117,7 +2117,7 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
     }
   }
 
-  // Skip calling JniMethodStart for @CriticalNative and @FastNative.
+  // Skip calling `artJniMethodStart()` for @CriticalNative and @FastNative.
   if (LIKELY(normal_native)) {
     // Start JNI.
     if (called->IsSynchronized()) {
@@ -2128,7 +2128,7 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
         return nullptr;  // Report error.
       }
     }
-    JniMethodStart(self);
+    artJniMethodStart(self);
   } else {
     DCHECK(!called->IsSynchronized())
         << "@FastNative/@CriticalNative and synchronize is not supported";
