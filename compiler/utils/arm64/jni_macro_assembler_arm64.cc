@@ -889,6 +889,34 @@ void Arm64JNIMacroAssembler::CreateJObject(FrameOffset out_off,
   ___ Str(scratch, MEM_OP(reg_x(SP), out_off.Int32Value()));
 }
 
+void Arm64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
+    JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs ATTRIBUTE_UNUSED) {
+  constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
+  constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
+  constexpr ThreadOffset64 thread_flags_offset = Thread::ThreadFlagsOffset<kArm64PointerSize>();
+  constexpr ThreadOffset64 thread_held_mutex_mutator_lock_offset =
+      Thread::HeldMutexOffset<kArm64PointerSize>(kMutatorLock);
+
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  Register scratch = temps.AcquireW();
+  Register scratch2 = temps.AcquireW();
+
+  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  vixl::aarch64::Label retry;
+  ___ Bind(&retry);
+  static_assert(thread_flags_offset.Int32Value() == 0);  // LDAXR/STXR require exact address.
+  ___ Ldaxr(scratch, MEM_OP(reg_x(TR)));
+  ___ Mov(scratch2, kNativeStateValue);
+  // If any flags are set, go to the slow path.
+  static_assert(kRunnableStateValue == 0u);
+  ___ Cbnz(scratch, Arm64JNIMacroLabel::Cast(label)->AsArm64());
+  ___ Stxr(scratch, scratch2, MEM_OP(reg_x(TR)));
+  ___ Cbnz(scratch, &retry);
+
+  // Clear `self->tlsPtr_.held_mutexes[kMutatorLock]`.
+  ___ Str(xzr, MEM_OP(reg_x(TR), thread_held_mutex_mutator_lock_offset.Int32Value()));
+}
+
 void Arm64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   Register scratch = temps.AcquireW();

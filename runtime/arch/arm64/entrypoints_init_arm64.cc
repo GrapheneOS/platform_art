@@ -131,8 +131,10 @@ void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
   qpoints->pReadBarrierMarkReg16 = is_active ? art_quick_read_barrier_mark_introspection : nullptr;
 }
 
-void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
-  DefaultInitEntryPoints(jpoints, qpoints);
+void InitEntryPoints(JniEntryPoints* jpoints,
+                     QuickEntryPoints* qpoints,
+                     bool monitor_jni_entry_exit) {
+  DefaultInitEntryPoints(jpoints, qpoints, monitor_jni_entry_exit);
 
   // Cast
   qpoints->pInstanceofNonTrivial = artInstanceOfFromCode;

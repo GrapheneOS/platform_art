@@ -55,6 +55,22 @@ MACRO0(RESTORE_MANAGED_ARGS_DECREASE_FRAME)
     POP_ARG r9
 END_MACRO
 
+MACRO3(JNI_SAVE_MANAGED_ARGS_TRAMPOLINE, name, cxx_name, arg1)
+DEFINE_FUNCTION \name
+    // Note: Managed callee-save registers have been saved by the JNI stub.
+    // Save register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and align stack.
+    SAVE_MANAGED_ARGS_INCREASE_FRAME
+    // Call `cxx_name()`.
+    .ifnc \arg1, none
+        mov REG_VAR(arg1), %rdi     // Pass arg1.
+    .endif
+    call CALLVAR(cxx_name)          // Call cxx_name(...).
+    // Restore register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and return.
+    RESTORE_MANAGED_ARGS_DECREASE_FRAME
+    ret
+END_FUNCTION \name
+END_MACRO
+
     /*
      * Jni dlsym lookup stub.
      */
@@ -356,16 +372,18 @@ END_FUNCTION art_jni_dlsym_lookup_critical_stub
      * Read barrier for the method's declaring class needed by JNI stub for static methods.
      * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
      */
-DEFINE_FUNCTION art_jni_read_barrier
-    // Note: Managed callee-save registers have been saved by the JNI stub.
-    // Save register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and align stack.
-    SAVE_MANAGED_ARGS_INCREASE_FRAME
-    // The method argument is already in RDI.
-    call SYMBOL(artJniReadBarrier)  // (ArtMethod*)
-    // Restore register args RDI, RSI, RDX, RCX, R8, R9, mmx0-mmx7 and return.
-    RESTORE_MANAGED_ARGS_DECREASE_FRAME
-    ret
-END_FUNCTION art_jni_read_barrier
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_read_barrier, artJniReadBarrier, none
+
+    /*
+     * Trampoline to `artJniMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_start, artJniMethodStart, gs:THREAD_SELF_OFFSET
+
+    /*
+     * Trampoline to `artJniMonitoredMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE \
+    art_jni_monitored_method_start, artJniMonitoredMethodStart, gs:THREAD_SELF_OFFSET
 
     /*
      * Entry from JNI stub that tries to lock the object in a fast path and

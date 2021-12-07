@@ -572,7 +572,7 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
 
   collector->GetHeap()->ThreadFlipEnd(self);
 
-  // Run the closure on the other threads and let them resume.
+  // Run the closure on the other threads.
   {
     TimingLogger::ScopedTiming split3("FlipOtherThreads", collector->GetTimings());
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
