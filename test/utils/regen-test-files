@@ -82,6 +82,35 @@ ART_RUN_TEST_MODULE_NAME_PREFIX = "art-run-test-"
 # Number of shards used to declare ART run-tests in the sharded ART MTS test plan.
 NUM_MTS_ART_RUN_TEST_SHARDS = 1
 
+# Curated list of tests that have a custom `run` script, but that are
+# known to work fine with the default test execution strategy (i.e.
+# when ignoring their `run` script), even if not exactly as they would
+# with the original ART run-test harness.
+runnable_test_exceptions = frozenset([
+  "055-enum-performance",
+  "059-finalizer-throw",
+  "080-oom-throw",
+  "1004-checker-volatile-ref-load",
+  "133-static-invoke-super",
+  "1338-gc-no-los",
+  "151-OpenFileLimit",
+  "159-app-image-fields",
+  "160-read-barrier-stress",
+  "163-app-image-methods",
+  "165-lock-owner-proxy",
+  "168-vmstack-annotated",
+  "176-app-image-string",
+  "2232-write-metrics-to-log",
+  "304-method-tracing",
+  "628-vdex",
+  "643-checker-bogus-ic",
+  "676-proxy-jit-at-first-use",
+  "677-fsi2",
+  "678-quickening",
+  "818-clinit-nterp",
+  "821-madvise-willneed",
+])
+
 # Known failing ART run-tests.
 # TODO(rpl): Investigate and address the causes of failures.
 known_failing_tests = frozenset([
@@ -436,10 +465,6 @@ art_gtests_mainline_presubmit_module_names.remove("art_standalone_odrefresh_test
 def is_checker_test(run_test):
   return re.match("^[0-9]+-checker-", run_test)
 
-# Is `run_test` expected to succeed?
-def is_expected_succeeding(run_test):
-  return run_test not in known_failing_tests
-
 
 class Generator:
   def __init__(self, top_dir):
@@ -532,6 +557,25 @@ class Generator:
     # All other tests are considered buildable.
     return True
 
+  # Is (successfully) running `run_test` supported?
+  # TODO(b/147812905): Add run-time support for more tests.
+  def is_runnable(self, run_test):
+    run_test_path = os.path.join(self.art_test_dir, run_test)
+    # Unconditionally consider some identified tests that have a
+    # (not-yet-handled) custom `run` script as runnable.
+    # TODO(rpl): Get rid of this exception mechanism by supporting
+    # these tests' `run` scripts properly.
+    if run_test in runnable_test_exceptions:
+      return True
+    # Skip tests with a custom `run` script.
+    if os.path.isfile(os.path.join(run_test_path, "run")):
+      return False
+    # Skip tests known to fail.
+    if run_test in known_failing_tests:
+      return False
+    # All other tests are considered runnable.
+    return True
+
   def regen_bp_files(self, run_tests, buildable_tests):
     for run_test in run_tests:
       # Remove any previously generated file.
@@ -551,7 +595,7 @@ class Generator:
 
     run_test_module_name = ART_RUN_TEST_MODULE_NAME_PREFIX + run_test
 
-    if is_expected_succeeding(run_test):
+    if self.is_runnable(run_test):
       test_config_template = "art-run-test-target-template"
     else:
       test_config_template = "art-run-test-target-no-test-suite-tag-template"
@@ -880,12 +924,12 @@ class Generator:
     # which a Blueprint file is to be generated.
     buildable_tests = list(filter(self.is_buildable, run_tests))
 
-    # Create a list of the tests that can be built and are expected to
-    # succeed. These tests are to be added to ART's `TEST_MAPPING`
-    # file and also tagged as part of TradeFed's `art-target-run-test`
-    # test suite via the `test-suite-tag` option in their
-    # configuration file.
-    expected_succeeding_tests = list(filter(is_expected_succeeding, buildable_tests))
+    # Create a list of the tests that can be built and run
+    # (successfully). These tests are to be added to ART's
+    # `TEST_MAPPING` file and also tagged as part of TradeFed's
+    # `art-target-run-test` test suite via the `test-suite-tag` option
+    # in their configuration file.
+    expected_succeeding_tests = list(filter(self.is_runnable, buildable_tests))
 
     # Regenerate Blueprint files.
     # ---------------------------
