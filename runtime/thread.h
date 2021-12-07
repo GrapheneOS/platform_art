@@ -133,8 +133,12 @@ enum class ThreadFlag : uint32_t {
   // Register that at least 1 suspend barrier needs to be passed.
   kActiveSuspendBarrier = 1u << 3,
 
+  // Request that compiled JNI stubs do not transition to Native or Runnable with
+  // inlined code, but take a slow path for monitoring method entry and exit events.
+  kMonitorJniEntryExit = 1u << 4,
+
   // Indicates the last flag. Used for checking that the flags do not overlap thread state.
-  kLastFlag = kActiveSuspendBarrier
+  kLastFlag = kMonitorJniEntryExit
 };
 
 enum class StackedShadowFrameType {
@@ -926,6 +930,13 @@ class Thread {
                                                                 top_handle_scope));
   }
 
+  template<PointerSize pointer_size>
+  static constexpr ThreadOffset<pointer_size> HeldMutexOffset(LockLevel level) {
+    DCHECK_LT(enum_cast<size_t>(level), arraysize(tlsPtr_.held_mutexes));
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
+                                                                held_mutexes[level]));
+  }
+
   BaseReflectiveHandleScope* GetTopReflectiveHandleScope() {
     return tlsPtr_.top_reflective_handle_scope;
   }
@@ -1320,6 +1331,10 @@ class Thread {
            enum_cast<uint32_t>(ThreadFlag::kEmptyCheckpointRequest);
   }
 
+  static constexpr uint32_t StoredThreadStateValue(ThreadState state) {
+    return StateAndFlags::EncodeState(state);
+  }
+
  private:
   explicit Thread(bool daemon);
   ~Thread() REQUIRES(!Locks::mutator_lock_, !Locks::thread_suspend_count_lock_);
@@ -1514,8 +1529,13 @@ class Thread {
       value_ = ThreadStateField::Update(state, value_);
     }
 
+    static constexpr uint32_t EncodeState(ThreadState state) {
+      ValidateThreadState(state);
+      return ThreadStateField::Encode(state);
+    }
+
    private:
-    static void ValidateThreadState(ThreadState state) {
+    static constexpr void ValidateThreadState(ThreadState state) {
       if (kIsDebugBuild && state != ThreadState::kRunnable) {
         CHECK_GE(state, ThreadState::kTerminated);
         CHECK_LE(state, ThreadState::kSuspended);

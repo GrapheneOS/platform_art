@@ -40,47 +40,47 @@ class BitField {
   static_assert(size + position <= sizeof(uintptr_t) * kBitsPerByte, "Invalid position + size.");
 
   // Tells whether the provided value fits into the bit field.
-  static bool IsValid(T value) {
+  static constexpr bool IsValid(T value) {
     return (static_cast<uintptr_t>(value) & ~((kUintPtrTOne << size) - 1)) == 0;
   }
 
   // Returns a uword mask of the bit field.
-  static uintptr_t Mask() {
+  static constexpr uintptr_t Mask() {
     return (kUintPtrTOne << size) - 1;
   }
 
   // Returns a uword mask of the bit field which can be applied directly to
   // the raw unshifted bits.
-  static uintptr_t MaskInPlace() {
+  static constexpr uintptr_t MaskInPlace() {
     return ((kUintPtrTOne << size) - 1) << position;
   }
 
   // Returns the shift count needed to right-shift the bit field to
   // the least-significant bits.
-  static int Shift() {
+  static constexpr int Shift() {
     return position;
   }
 
   // Returns the size of the bit field.
-  static int BitSize() {
+  static constexpr int BitSize() {
     return size;
   }
 
   // Returns a uword with the bit field value encoded.
-  static uintptr_t Encode(T value) {
+  static constexpr uintptr_t Encode(T value) {
     DCHECK(IsValid(value));
     return static_cast<uintptr_t>(value) << position;
   }
 
   // Extracts the bit field from the value.
-  static T Decode(uintptr_t value) {
+  static constexpr T Decode(uintptr_t value) {
     return static_cast<T>((value >> position) & ((kUintPtrTOne << size) - 1));
   }
 
   // Returns a uword with the bit field value encoded based on the
   // original value. Only the bits corresponding to this bit field
   // will be changed.
-  static uintptr_t Update(T value, uintptr_t original) {
+  static constexpr uintptr_t Update(T value, uintptr_t original) {
     DCHECK(IsValid(value));
     return (static_cast<uintptr_t>(value) << position) |
         (~MaskInPlace() & original);

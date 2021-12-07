@@ -251,6 +251,10 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void Call(FrameOffset base, Offset offset) = 0;
   virtual void CallFromThread(ThreadOffset<kPointerSize> offset) = 0;
 
+  // Generate fast-path for transition to Native. Go to `label` if any thread flag is set.
+  virtual void TryToTransitionFromRunnableToNative(
+      JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs) = 0;
+
   // Generate suspend check and branch to `label` if there is a pending suspend request.
   virtual void SuspendCheck(JNIMacroLabel* label) = 0;
 
