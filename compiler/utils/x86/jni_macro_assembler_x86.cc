@@ -602,7 +602,7 @@ void X86JNIMacroAssembler::TryToTransitionFromRunnableToNative(
   Register saved_eax = scratch_regs[0].AsX86().AsCpuRegister();
   Register scratch = scratch_regs[1].AsX86().AsCpuRegister();
 
-  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  // CAS release, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
   __ movl(saved_eax, EAX);  // Save EAX.
   static_assert(kRunnableStateValue == 0u);
   __ xorl(EAX, EAX);

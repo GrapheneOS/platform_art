@@ -1062,7 +1062,7 @@ void ArmVIXLJNIMacroAssembler::TryToTransitionFromRunnableToNative(
   vixl32::Register scratch = AsVIXLRegister(scratch_regs[0].AsArm());
   vixl32::Register scratch2 = AsVIXLRegister(scratch_regs[1].AsArm());
 
-  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  // CAS release, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
   vixl32::Label retry;
   ___ Bind(&retry);
   ___ Ldrex(scratch, MemOperand(tr, thread_flags_offset.Int32Value()));
@@ -1070,10 +1070,10 @@ void ArmVIXLJNIMacroAssembler::TryToTransitionFromRunnableToNative(
   // If any flags are set, go to the slow path.
   ___ Cmp(scratch, kRunnableStateValue);
   ___ B(ne, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+  ___ Dmb(DmbOptions::ISH);  // Memory barrier "any-store" for the "release" operation.
   ___ Strex(scratch, scratch2, MemOperand(tr, thread_flags_offset.Int32Value()));
   ___ Cmp(scratch, 0);
   ___ B(ne, &retry);
-  ___ Dmb(DmbOptions::ISH);  // Memory barrier "load-any" for the "acquire" operation.
 
   // Clear `self->tlsPtr_.held_mutexes[kMutatorLock]`; `scratch` holds 0 at this point.
   ___ Str(scratch, MemOperand(tr, thread_held_mutex_mutator_lock_offset.Int32Value()));
