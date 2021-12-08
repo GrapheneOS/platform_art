@@ -158,7 +158,9 @@ static void UnimplementedEntryPoint() {
   UNIMPLEMENTED(FATAL);
 }
 
-void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints);
+void InitEntryPoints(JniEntryPoints* jpoints,
+                     QuickEntryPoints* qpoints,
+                     bool monitor_jni_entry_exit);
 void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active);
 
 void Thread::SetIsGcMarkingAndUpdateEntrypoints(bool is_marking) {
@@ -176,7 +178,12 @@ void Thread::InitTlsEntryPoints() {
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
-  InitEntryPoints(&tlsPtr_.jni_entrypoints, &tlsPtr_.quick_entrypoints);
+  bool monitor_jni_entry_exit = false;
+  PaletteShouldReportJniInvocations(&monitor_jni_entry_exit);
+  if (monitor_jni_entry_exit) {
+    AtomicSetFlag(ThreadFlag::kMonitorJniEntryExit);
+  }
+  InitEntryPoints(&tlsPtr_.jni_entrypoints, &tlsPtr_.quick_entrypoints, monitor_jni_entry_exit);
 }
 
 void Thread::ResetQuickAllocEntryPointsForThread() {

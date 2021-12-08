@@ -671,6 +671,33 @@ void X86_64JNIMacroAssembler::GetCurrentThread(FrameOffset offset) {
   __ movq(Address(CpuRegister(RSP), offset), scratch);
 }
 
+void X86_64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
+    JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs ATTRIBUTE_UNUSED) {
+  constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
+  constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
+  constexpr ThreadOffset64 thread_flags_offset = Thread::ThreadFlagsOffset<kX86_64PointerSize>();
+  constexpr ThreadOffset64 thread_held_mutex_mutator_lock_offset =
+      Thread::HeldMutexOffset<kX86_64PointerSize>(kMutatorLock);
+
+  CpuRegister rax(RAX);  // RAX can be freely clobbered. It does not hold any argument.
+  CpuRegister scratch = GetScratchRegister();
+
+  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  static_assert(kRunnableStateValue == 0u);
+  __ xorl(rax, rax);
+  __ movl(scratch, Immediate(kNativeStateValue));
+  __ gs()->LockCmpxchgl(Address::Absolute(thread_flags_offset.Uint32Value(), /*no_rip=*/ true),
+                        scratch);
+  // LOCK CMPXCHG has full barrier semantics, so we don't need barriers here.
+  // If any flags are set, go to the slow path.
+  __ j(kNotZero, X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+
+  // Clear `self->tlsPtr_.held_mutexes[kMutatorLock]`.
+  __ gs()->movq(
+      Address::Absolute(thread_held_mutex_mutator_lock_offset.Uint32Value(), /*no_rip=*/ true),
+      Immediate(0));
+}
+
 void X86_64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
   __ gs()->testl(Address::Absolute(Thread::ThreadFlagsOffset<kX86_64PointerSize>(), true),
                  Immediate(Thread::SuspendOrCheckpointRequestFlags()));

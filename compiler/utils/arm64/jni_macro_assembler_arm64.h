@@ -168,6 +168,10 @@ class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler,
   void Call(FrameOffset base, Offset offset) override;
   void CallFromThread(ThreadOffset64 offset) override;
 
+  // Generate fast-path for transition to Native. Go to `label` if any thread flag is set.
+  void TryToTransitionFromRunnableToNative(
+      JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs) override;
+
   // Generate suspend check and branch to `label` if there is a pending suspend request.
   void SuspendCheck(JNIMacroLabel* label) override;
 

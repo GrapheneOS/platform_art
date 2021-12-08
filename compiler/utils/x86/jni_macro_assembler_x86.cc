@@ -589,6 +589,35 @@ void X86JNIMacroAssembler::GetCurrentThread(FrameOffset offset) {
   __ movl(Address(ESP, offset), scratch);
 }
 
+void X86JNIMacroAssembler::TryToTransitionFromRunnableToNative(
+    JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs) {
+  constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
+  constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
+  constexpr ThreadOffset32 thread_flags_offset = Thread::ThreadFlagsOffset<kX86PointerSize>();
+  constexpr ThreadOffset32 thread_held_mutex_mutator_lock_offset =
+      Thread::HeldMutexOffset<kX86PointerSize>(kMutatorLock);
+
+  // We need to preserve managed argument EAX.
+  DCHECK_GE(scratch_regs.size(), 2u);
+  Register saved_eax = scratch_regs[0].AsX86().AsCpuRegister();
+  Register scratch = scratch_regs[1].AsX86().AsCpuRegister();
+
+  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  __ movl(saved_eax, EAX);  // Save EAX.
+  static_assert(kRunnableStateValue == 0u);
+  __ xorl(EAX, EAX);
+  __ movl(scratch, Immediate(kNativeStateValue));
+  __ fs()->LockCmpxchgl(Address::Absolute(thread_flags_offset.Uint32Value()), scratch);
+  // LOCK CMPXCHG has full barrier semantics, so we don't need barriers here.
+  __ movl(EAX, saved_eax);  // Restore EAX; MOV does not change flags.
+  // If any flags are set, go to the slow path.
+  __ j(kNotZero, X86JNIMacroLabel::Cast(label)->AsX86());
+
+  // Clear `self->tlsPtr_.held_mutexes[kMutatorLock]`.
+  __ fs()->movl(Address::Absolute(thread_held_mutex_mutator_lock_offset.Uint32Value()),
+                Immediate(0));
+}
+
 void X86JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
   __ fs()->testl(Address::Absolute(Thread::ThreadFlagsOffset<kX86PointerSize>()),
                  Immediate(Thread::SuspendOrCheckpointRequestFlags()));
