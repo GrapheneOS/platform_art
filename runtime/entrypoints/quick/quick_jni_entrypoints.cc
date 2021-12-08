@@ -59,7 +59,7 @@ extern "C" void artJniReadBarrier(ArtMethod* method) {
 }
 
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
-extern void JniMethodStart(Thread* self) {
+extern "C" void artJniMethodStart(Thread* self) {
   if (kIsDebugBuild) {
     ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
     CHECK(!native_method->IsFastNative()) << native_method->PrettyMethod();
@@ -239,8 +239,8 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
   }
 }
 
-extern void JniMonitoredMethodStart(Thread* self) {
-  JniMethodStart(self);
+extern "C" void artJniMonitoredMethodStart(Thread* self) {
+  artJniMethodStart(self);
   MONITOR_JNI(PaletteNotifyBeginJniInvocation);
 }
 

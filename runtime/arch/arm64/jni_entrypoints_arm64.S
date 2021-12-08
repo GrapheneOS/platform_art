@@ -43,6 +43,26 @@
     .cfi_adjust_cfa_offset -(ALL_ARGS_SIZE + \extra_space)
 .endm
 
+.macro JNI_SAVE_MANAGED_ARGS_TRAMPOLINE name, cxx_name, arg1 = "none"
+    .extern cxx_name
+ENTRY \name
+    // Save args and LR.
+    SAVE_ALL_ARGS_INCREASE_FRAME /*padding*/ 8 + /*LR*/ 8
+    str   lr, [sp, #(ALL_ARGS_SIZE + /*padding*/ 8)]
+    .cfi_rel_offset lr, ALL_ARGS_SIZE + /*padding*/ 8
+    // Call `cxx_name()`.
+    .ifnc \arg1, none
+        mov x0, \arg1                          // Pass arg1.
+    .endif
+    bl    \cxx_name                            // Call cxx_name(...).
+    // Restore LR and args and return.
+    ldr   lr, [sp, #(ALL_ARGS_SIZE + /*padding*/ 8)]
+    .cfi_restore lr
+    RESTORE_ALL_ARGS_DECREASE_FRAME /*padding*/ 8 + /*LR*/ 8
+    ret
+END \name
+.endm
+
     /*
      * Jni dlsym lookup stub.
      */
@@ -315,22 +335,18 @@ END art_jni_dlsym_lookup_critical_stub
      * Read barrier for the method's declaring class needed by JNI stub for static methods.
      * (We're using a pointer to the declaring class in `ArtMethod` as `jclass`.)
      */
-    .extern artJniReadBarrier
-ENTRY art_jni_read_barrier
-    // Note: Managed callee-save registers have been saved by the JNI stub.
-    // Save args and LR.
-    SAVE_ALL_ARGS_INCREASE_FRAME /*padding*/ 8 + /*LR*/ 8
-    str   lr, [sp, #(ALL_ARGS_SIZE + /*padding*/ 8)]
-    .cfi_rel_offset lr, ALL_ARGS_SIZE + /*padding*/ 8
-    // The method argument is already in x0.
-    bl artJniReadBarrier  // (ArtMethod*)
-    // Restore LR and args.
-    ldr   lr, [sp, #(ALL_ARGS_SIZE + /*padding*/ 8)]
-    .cfi_restore lr
-    RESTORE_ALL_ARGS_DECREASE_FRAME /*padding*/ 8 + /*LR*/ 8
-    // Return.
-    ret
-END art_jni_read_barrier
+// The method argument is already in x0 for call to `artJniReadBarrier(ArtMethod*)`.
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_read_barrier, artJniReadBarrier
+
+    /*
+     * Trampoline to `artJniMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_start, artJniMethodStart, xSELF
+
+    /*
+     * Trampoline to `artJniMonitoredMethodStart()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_monitored_method_start, artJniMonitoredMethodStart, xSELF
 
     /*
      * Entry from JNI stub that tries to lock the object in a fast path and
