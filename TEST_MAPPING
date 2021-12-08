@@ -1285,6 +1285,9 @@
       "name": "ComposHostTestCases"
     },
     {
+      "name": "art_standalone_dexpreopt_tests"
+    },
+    {
       "name": "art-run-test-001-HelloWorld"
     },
     {
