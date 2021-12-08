@@ -698,6 +698,52 @@ void X86_64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
       Immediate(0));
 }
 
+void X86_64JNIMacroAssembler::TryToTransitionFromNativeToRunnable(
+    JNIMacroLabel* label,
+    ArrayRef<const ManagedRegister> scratch_regs,
+    ManagedRegister return_reg) {
+  constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
+  constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
+  constexpr ThreadOffset64 thread_flags_offset = Thread::ThreadFlagsOffset<kX86_64PointerSize>();
+  constexpr ThreadOffset64 thread_held_mutex_mutator_lock_offset =
+      Thread::HeldMutexOffset<kX86_64PointerSize>(kMutatorLock);
+  constexpr ThreadOffset64 thread_mutator_lock_offset =
+      Thread::MutatorLockOffset<kX86_64PointerSize>();
+
+  DCHECK_GE(scratch_regs.size(), 2u);
+  DCHECK(!scratch_regs[0].AsX86_64().Overlaps(return_reg.AsX86_64()));
+  CpuRegister scratch = scratch_regs[0].AsX86_64().AsCpuRegister();
+  DCHECK(!scratch_regs[1].AsX86_64().Overlaps(return_reg.AsX86_64()));
+  CpuRegister saved_rax = scratch_regs[1].AsX86_64().AsCpuRegister();
+  CpuRegister rax(RAX);
+  bool preserve_rax = return_reg.AsX86_64().Overlaps(X86_64ManagedRegister::FromCpuRegister(RAX));
+
+  // CAS acquire, old_value = kNativeStateValue, new_value = kRunnableStateValue, no flags.
+  if (preserve_rax) {
+    __ movq(saved_rax, rax);  // Save RAX.
+  }
+  __ movl(rax, Immediate(kNativeStateValue));
+  static_assert(kRunnableStateValue == 0u);
+  __ xorl(scratch, scratch);
+  __ gs()->LockCmpxchgl(Address::Absolute(thread_flags_offset.Uint32Value(), /*no_rip=*/ true),
+                        scratch);
+  // LOCK CMPXCHG has full barrier semantics, so we don't need barriers here.
+  if (preserve_rax) {
+    __ movq(rax, saved_rax);  // Restore RAX; MOV does not change flags.
+  }
+  // If any flags are set, or the state is not Native, go to the slow path.
+  // (While the thread can theoretically transition between different Suspended states,
+  // it would be very unexpected to see a state other than Native at this point.)
+  __ j(kNotZero, X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+
+  // Set `self->tlsPtr_.held_mutexes[kMutatorLock]` to the mutator lock.
+  __ gs()->movq(scratch,
+                Address::Absolute(thread_mutator_lock_offset.Uint32Value(), /*no_rip=*/ true));
+  __ gs()->movq(
+      Address::Absolute(thread_held_mutex_mutator_lock_offset.Uint32Value(), /*no_rip=*/ true),
+      scratch);
+}
+
 void X86_64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
   __ gs()->testl(Address::Absolute(Thread::ThreadFlagsOffset<kX86_64PointerSize>(), true),
                  Immediate(Thread::SuspendOrCheckpointRequestFlags()));

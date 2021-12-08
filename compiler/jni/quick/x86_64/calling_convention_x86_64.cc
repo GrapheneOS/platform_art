@@ -26,8 +26,13 @@
 namespace art {
 namespace x86_64 {
 
-static constexpr Register kCoreArgumentRegisters[] = {
-    RDI, RSI, RDX, RCX, R8, R9
+static constexpr ManagedRegister kCoreArgumentRegisters[] = {
+    X86_64ManagedRegister::FromCpuRegister(RDI),
+    X86_64ManagedRegister::FromCpuRegister(RSI),
+    X86_64ManagedRegister::FromCpuRegister(RDX),
+    X86_64ManagedRegister::FromCpuRegister(RCX),
+    X86_64ManagedRegister::FromCpuRegister(R8),
+    X86_64ManagedRegister::FromCpuRegister(R9),
 };
 static_assert(kMaxIntLikeRegisterArguments == arraysize(kCoreArgumentRegisters));
 
@@ -99,6 +104,19 @@ ArrayRef<const ManagedRegister> X86_64JniCallingConvention::CalleeSaveScratchReg
   return ArrayRef<const ManagedRegister>(kNativeCalleeSaveRegisters);
 }
 
+ArrayRef<const ManagedRegister> X86_64JniCallingConvention::ArgumentScratchRegisters() const {
+  DCHECK(!IsCriticalNative());
+  ArrayRef<const ManagedRegister> scratch_regs(kCoreArgumentRegisters);
+  if (kIsDebugBuild) {
+    X86_64ManagedRegister return_reg = ReturnRegister().AsX86_64();
+    auto return_reg_overlaps = [return_reg](ManagedRegister reg) {
+      return return_reg.Overlaps(reg.AsX86_64());
+    };
+    CHECK(std::none_of(scratch_regs.begin(), scratch_regs.end(), return_reg_overlaps));
+  }
+  return scratch_regs;
+}
+
 static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni ATTRIBUTE_UNUSED) {
   if (shorty[0] == 'F' || shorty[0] == 'D') {
     return X86_64ManagedRegister::FromXmmRegister(XMM0);
@@ -111,15 +129,15 @@ static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni ATTR
   }
 }
 
-ManagedRegister X86_64ManagedRuntimeCallingConvention::ReturnRegister() {
+ManagedRegister X86_64ManagedRuntimeCallingConvention::ReturnRegister() const {
   return ReturnRegisterForShorty(GetShorty(), false);
 }
 
-ManagedRegister X86_64JniCallingConvention::ReturnRegister() {
+ManagedRegister X86_64JniCallingConvention::ReturnRegister() const {
   return ReturnRegisterForShorty(GetShorty(), true);
 }
 
-ManagedRegister X86_64JniCallingConvention::IntReturnRegister() {
+ManagedRegister X86_64JniCallingConvention::IntReturnRegister() const {
   return X86_64ManagedRegister::FromCpuRegister(RAX);
 }
 
@@ -150,8 +168,7 @@ ManagedRegister X86_64ManagedRuntimeCallingConvention::CurrentParamRegister() {
     return X86_64ManagedRegister::FromXmmRegister(fp_reg);
   } else {
     size_t non_fp_arg_number = itr_args_ - itr_float_and_doubles_;
-    Register core_reg = kCoreArgumentRegisters[/* method */ 1u + non_fp_arg_number];
-    return X86_64ManagedRegister::FromCpuRegister(core_reg);
+    return kCoreArgumentRegisters[/* method */ 1u + non_fp_arg_number];
   }
 }
 
@@ -188,7 +205,6 @@ size_t X86_64JniCallingConvention::FrameSize() const {
   if (is_critical_native_) {
     CHECK(!SpillsMethod());
     CHECK(!HasLocalReferenceSegmentState());
-    CHECK(!SpillsReturnValue());
     return 0u;  // There is no managed frame for @CriticalNative.
   }
 
@@ -201,13 +217,6 @@ size_t X86_64JniCallingConvention::FrameSize() const {
 
   DCHECK(HasLocalReferenceSegmentState());
   // Cookie is saved in one of the spilled registers.
-
-  // Plus return value spill area size
-  if (SpillsReturnValue()) {
-    // No padding between the method pointer and the return value on arm64.
-    DCHECK_EQ(ReturnValueSaveLocation().SizeValue(), method_ptr_size);
-    total_size += SizeOfReturnValue();
-  }
 
   return RoundUp(total_size, kStackAlignment);
 }
