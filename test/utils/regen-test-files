@@ -473,6 +473,7 @@ class Generator:
         "BootImageProfileTest",
         "ArtServiceTests",
         "ComposHostTestCases",
+        "art_standalone_dexpreopt_tests",
     ]
     presubmit_tests = other_presubmit_tests + run_test_module_names + art_gtest_module_names
     presubmit_tests_dict = [{"name": t} for t in presubmit_tests]
