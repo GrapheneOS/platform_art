@@ -1268,6 +1268,12 @@ void Java_MyClassNatives_throwException(JNIEnv* env, jobject) {
   env->ThrowNew(c, "hello");
 }
 
+void Java_MyClassNatives_synchronizedThrowException(JNIEnv* env, jobject) {
+  JniCompilerTest::AssertCallerObjectLocked(env);
+  jclass c = env->FindClass("java/lang/RuntimeException");
+  env->ThrowNew(c, "hello");
+}
+
 void JniCompilerTest::ExceptionHandlingImpl() {
   {
     ASSERT_FALSE(runtime_->IsStarted());
@@ -1277,7 +1283,9 @@ void JniCompilerTest::ExceptionHandlingImpl() {
     // all compilation needs to happen before Runtime::Start
     CompileForTestWithCurrentJni(class_loader_, false, "foo", "()V");
     CompileForTestWithCurrentJni(class_loader_, false, "throwException", "()V");
-    CompileForTestWithCurrentJni(class_loader_, false, "foo", "()V");
+    if (gCurrentJni == enum_cast<uint32_t>(JniKind::kNormal)) {
+      CompileForTestWithCurrentJni(class_loader_, false, "synchronizedThrowException", "()V");
+    }
   }
   // Start runtime to avoid re-initialization in SetupForTest.
   Thread::Current()->TransitionFromSuspendedToRunnable();
@@ -1298,16 +1306,38 @@ void JniCompilerTest::ExceptionHandlingImpl() {
                CURRENT_JNI_WRAPPER(Java_MyClassNatives_throwException));
   // Call Java_MyClassNatives_throwException (JNI method that throws exception)
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
-  EXPECT_EQ(1, gJava_MyClassNatives_foo_calls[gCurrentJni]);
   EXPECT_TRUE(env_->ExceptionCheck() == JNI_TRUE);
   ScopedLocalRef<jthrowable> exception(env_, env_->ExceptionOccurred());
   env_->ExceptionClear();
   EXPECT_TRUE(env_->IsInstanceOf(exception.get(), jlre.get()));
 
   // Check a single call of a JNI method is ok
+  EXPECT_EQ(1, gJava_MyClassNatives_foo_calls[gCurrentJni]);
   SetUpForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(2, gJava_MyClassNatives_foo_calls[gCurrentJni]);
+
+  if (gCurrentJni == enum_cast<uint32_t>(JniKind::kNormal)) {
+    SetUpForTest(false, "synchronizedThrowException", "()V",
+                 CURRENT_JNI_WRAPPER(Java_MyClassNatives_synchronizedThrowException));
+    LockWord lock_word = GetLockWord(jobj_);
+    ASSERT_EQ(lock_word.GetState(), LockWord::kUnlocked);
+    // Call Java_MyClassNatives_synchronizedThrowException (synchronized JNI method
+    // that throws exception) to check that we correctly unlock the object.
+    env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
+    EXPECT_TRUE(env_->ExceptionCheck() == JNI_TRUE);
+    ScopedLocalRef<jthrowable> exception2(env_, env_->ExceptionOccurred());
+    env_->ExceptionClear();
+    EXPECT_TRUE(env_->IsInstanceOf(exception2.get(), jlre.get()));
+    lock_word = GetLockWord(jobj_);
+    EXPECT_EQ(lock_word.GetState(), LockWord::kUnlocked);
+
+    // Check a single call of a JNI method is ok
+    EXPECT_EQ(2, gJava_MyClassNatives_foo_calls[gCurrentJni]);
+    SetUpForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
+    env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
+    EXPECT_EQ(3, gJava_MyClassNatives_foo_calls[gCurrentJni]);
+  }
 
   gJava_MyClassNatives_foo_calls[gCurrentJni] = 0;
 }
