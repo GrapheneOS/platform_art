@@ -283,5 +283,11 @@
           "libcore.javax.net.ssl.DefaultHostnameVerifierTest#testSubjectWithWildAltNamesCert",
           "libcore.javax.net.ssl.DefaultHostnameVerifierTest#testWildAltNameOnlyCert"],
   bug: 166619732
+},
+{
+  description: "Failure due to new test (updated in aosp/1904011) running against old ICU prebuilts. ",
+  result: EXEC_FAILED,
+  names: ["org.apache.harmony.tests.java.lang.CharacterTest#test_getType_I"],
+  bug: 209995834
 }
 ]
