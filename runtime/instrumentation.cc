@@ -255,6 +255,14 @@ bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method
   return true;
 }
 
+static bool CanHandleInitializationCheck(const void* code) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  return class_linker->IsQuickResolutionStub(code) ||
+         class_linker->IsQuickToInterpreterBridge(code) ||
+         class_linker->IsQuickGenericJniStub(code) ||
+         (code == GetQuickInstrumentationEntryPoint());
+}
+
 void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   if (!method->IsInvokable() || method->IsProxyMethod()) {
     // Do not change stubs for these methods.
@@ -277,44 +285,41 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   bool uninstall = (instrumentation_level_ == InstrumentationLevel::kInstrumentNothing);
   Runtime* const runtime = Runtime::Current();
   ClassLinker* const class_linker = runtime->GetClassLinker();
-  bool is_class_initialized = method->GetDeclaringClass()->IsInitialized();
+  bool needs_clinit =
+      NeedsClinitCheckBeforeCall(method) && !method->GetDeclaringClass()->IsVisiblyInitialized();
   if (uninstall) {
     if ((forced_interpret_only_ || IsDeoptimized(method)) && !method->IsNative()) {
       new_quick_code = GetQuickToInterpreterBridge();
-    } else if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-      new_quick_code = GetCodeForInvoke(method);
-    } else {
+    } else if (needs_clinit) {
       new_quick_code = GetQuickResolutionStub();
+    } else {
+      new_quick_code = GetCodeForInvoke(method);
     }
   } else {  // !uninstall
     if ((InterpretOnly() || IsDeoptimized(method)) && !method->IsNative()) {
       new_quick_code = GetQuickToInterpreterBridge();
     } else {
-      // Do not overwrite resolution trampoline. When the trampoline initializes the method's
-      // class, all its static methods code will be set to the instrumentation entry point.
-      // For more details, see ClassLinker::FixupStaticTrampolines.
-      if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-        if (EntryExitStubsInstalled()) {
-          // This needs to be checked first since the instrumentation entrypoint will be able to
-          // find the actual JIT compiled code that corresponds to this method.
-          const void* code = method->GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
-          if (CodeNeedsEntryExitStub(code, method)) {
-            new_quick_code = GetQuickInstrumentationEntryPoint();
-          } else {
-            new_quick_code = code;
-          }
-        } else if (NeedDebugVersionFor(method)) {
-          // It would be great to search the JIT for its implementation here but we cannot due to
-          // the locks we hold. Instead just set to the interpreter bridge and that code will search
-          // the JIT when it gets called and replace the entrypoint then.
-          new_quick_code = GetQuickToInterpreterBridge();
+      if (EntryExitStubsInstalled()) {
+        // This needs to be checked first since the instrumentation entrypoint will be able to
+        // find the actual JIT compiled code that corresponds to this method.
+        const void* code = method->GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
+        if (CodeNeedsEntryExitStub(code, method)) {
+          new_quick_code = GetQuickInstrumentationEntryPoint();
         } else {
-          new_quick_code = class_linker->GetQuickOatCodeFor(method);
+          new_quick_code = code;
         }
+      } else if (NeedDebugVersionFor(method)) {
+        // It would be great to search the JIT for its implementation here but we cannot due to
+        // the locks we hold. Instead just set to the interpreter bridge and that code will search
+        // the JIT when it gets called and replace the entrypoint then.
+        new_quick_code = GetQuickToInterpreterBridge();
       } else {
-        new_quick_code = GetQuickResolutionStub();
+        new_quick_code = class_linker->GetQuickOatCodeFor(method);
       }
     }
+  }
+  if (kIsDebugBuild && needs_clinit) {
+    CHECK(CanHandleInitializationCheck(method->GetEntryPointFromQuickCompiledCode()));
   }
   UpdateEntrypoints(method, new_quick_code);
 }
