@@ -845,6 +845,10 @@ jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject, jlong x, jlon
   return x | y;
 }
 
+void InitEntryPoints(JniEntryPoints* jpoints,
+                     QuickEntryPoints* qpoints,
+                     bool monitor_jni_entry_exit);
+
 void JniCompilerTest::CompileAndRun_fooJJ_synchronizedImpl() {
   SetUpForTest(false, "fooJJ_synchronized", "(JJ)J",
                CURRENT_JNI_WRAPPER(Java_MyClassNatives_fooJJ_synchronized));
@@ -897,6 +901,22 @@ void JniCompilerTest::CompileAndRun_fooJJ_synchronizedImpl() {
   EXPECT_EQ(4, gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni]);
   lock_word = GetLockWord(jobj_);
   ASSERT_EQ(lock_word.GetState(), LockWord::kFatLocked);
+
+  // Exercise locking/unocking for "fat-locked" through the "no_inline" path.
+  // These entrypoints are selected with verbose "systrace_lock_logging".
+  Thread* self = Thread::Current();
+  ASSERT_FALSE(gLogVerbosity.systrace_lock_logging);
+  gLogVerbosity.systrace_lock_logging = true;
+  InitEntryPoints(&self->tlsPtr_.jni_entrypoints,
+                  &self->tlsPtr_.quick_entrypoints,
+                  self->ReadFlag(ThreadFlag::kMonitorJniEntryExit));
+  result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, a, b);
+  EXPECT_EQ(a | b, result);
+  EXPECT_EQ(5, gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni]);
+  gLogVerbosity.systrace_lock_logging = false;
+  InitEntryPoints(&self->tlsPtr_.jni_entrypoints,
+                  &self->tlsPtr_.quick_entrypoints,
+                  self->ReadFlag(ThreadFlag::kMonitorJniEntryExit));
 
   gJava_MyClassNatives_fooJJ_synchronized_calls[gCurrentJni] = 0;
 }
