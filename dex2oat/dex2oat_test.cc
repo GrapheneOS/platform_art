@@ -14,27 +14,26 @@
  * limitations under the License.
  */
 
+#include <sys/wait.h>
+#include <unistd.h>
+
 #include <algorithm>
+#include <iterator>
 #include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include <sys/wait.h>
-#include <unistd.h>
-
-#include <android-base/logging.h>
-#include <android-base/macros.h>
-#include <android-base/stringprintf.h>
-
-#include "common_runtime_test.h"
-
+#include "android-base/logging.h"
+#include "android-base/macros.h"
+#include "android-base/stringprintf.h"
 #include "arch/instruction_set_features.h"
 #include "base/macros.h"
 #include "base/mutex-inl.h"
 #include "base/string_view_cpp20.h"
 #include "base/utils.h"
 #include "base/zip_archive.h"
+#include "common_runtime_test.h"
 #include "dex/art_dex_file_loader.h"
 #include "dex/base64_test_util.h"
 #include "dex/bytecode_utils.h"
@@ -611,10 +610,20 @@ class Dex2oatLayoutTest : public Dex2oatTest {
   }
 
   // Emits a profile with a single dex file with the given location and classes ranging
-  // from 0 to num_classes.
+  // from `class_offset` to `class_offset + num_classes`.
   void GenerateProfile(const std::string& test_profile,
-                       const DexFile* dex,
-                       size_t num_classes) {
+                       const std::string& dex_location,
+                       size_t num_classes,
+                       size_t class_offset = 0) {
+    const char* location = dex_location.c_str();
+    std::string error_msg;
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    const ArtDexFileLoader dex_file_loader;
+    ASSERT_TRUE(dex_file_loader.Open(
+        location, location, /*verify=*/true, /*verify_checksum=*/true, &error_msg, &dex_files));
+    EXPECT_EQ(dex_files.size(), 1U);
+    std::unique_ptr<const DexFile>& dex_file = dex_files[0];
+
     int profile_test_fd = open(test_profile.c_str(),
                                O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC,
                                0644);
@@ -623,33 +632,26 @@ class Dex2oatLayoutTest : public Dex2oatTest {
     ProfileCompilationInfo info;
     std::vector<dex::TypeIndex> classes;;
     for (size_t i = 0; i < num_classes; ++i) {
-      classes.push_back(dex::TypeIndex(1 + i));
+      classes.push_back(dex::TypeIndex(class_offset + 1 + i));
     }
-    info.AddClassesForDex(dex, classes.begin(), classes.end());
+    info.AddClassesForDex(dex_file.get(), classes.begin(), classes.end());
     bool result = info.Save(profile_test_fd);
     close(profile_test_fd);
     ASSERT_TRUE(result);
   }
 
+  // Compiles a dex file with profiles.
   void CompileProfileOdex(const std::string& dex_location,
                           const std::string& odex_location,
                           const std::string& app_image_file_name,
                           bool use_fd,
-                          size_t num_profile_classes,
+                          const std::vector<std::string>& profile_locations,
                           const std::vector<std::string>& extra_args = {},
                           bool expect_success = true) {
-    const std::string profile_location = GetScratchDir() + "/primary.prof";
-    const char* location = dex_location.c_str();
-    std::string error_msg;
-    std::vector<std::unique_ptr<const DexFile>> dex_files;
-    const ArtDexFileLoader dex_file_loader;
-    ASSERT_TRUE(dex_file_loader.Open(
-        location, location, /*verify=*/ true, /*verify_checksum=*/ true, &error_msg, &dex_files));
-    EXPECT_EQ(dex_files.size(), 1U);
-    std::unique_ptr<const DexFile>& dex_file = dex_files[0];
-    GenerateProfile(profile_location, dex_file.get(), num_profile_classes);
     std::vector<std::string> copy(extra_args);
-    copy.push_back("--profile-file=" + profile_location);
+    for (const std::string& profile_location : profile_locations) {
+      copy.push_back("--profile-file=" + profile_location);
+    }
     std::unique_ptr<File> app_image_file;
     if (!app_image_file_name.empty()) {
       if (use_fd) {
@@ -668,6 +670,26 @@ class Dex2oatLayoutTest : public Dex2oatTest {
     if (app_image_file != nullptr) {
       ASSERT_EQ(app_image_file->FlushCloseOrErase(), 0) << "Could not flush and close art file";
     }
+  }
+
+  // Same as above, but generates the profile internally with classes ranging from 0 to
+  // `num_profile_classes`.
+  void CompileProfileOdex(const std::string& dex_location,
+                          const std::string& odex_location,
+                          const std::string& app_image_file_name,
+                          bool use_fd,
+                          size_t num_profile_classes,
+                          const std::vector<std::string>& extra_args = {},
+                          bool expect_success = true) {
+    const std::string profile_location = GetScratchDir() + "/primary.prof";
+    GenerateProfile(profile_location, dex_location, num_profile_classes);
+    CompileProfileOdex(dex_location,
+                       odex_location,
+                       app_image_file_name,
+                       use_fd,
+                       {profile_location},
+                       extra_args,
+                       expect_success);
   }
 
   uint64_t GetImageObjectSectionSize(const std::string& image_file_name) {
@@ -848,6 +870,45 @@ TEST_F(Dex2oatLayoutTest, TestLayout) {
 
 TEST_F(Dex2oatLayoutTest, TestLayoutAppImage) {
   RunTest(/*app_image=*/ true);
+}
+
+TEST_F(Dex2oatLayoutTest, TestLayoutMultipleProfiles) {
+  std::string dex_location = GetScratchDir() + "/DexNoOat.jar";
+  std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
+  std::string app_image_file = GetOdexDir() + "/DexOdexNoOat.art";
+  Copy(GetDexSrc2(), dex_location);
+
+  const std::string profile1_location = GetScratchDir() + "/primary.prof";
+  GenerateProfile(profile1_location, dex_location, /*num_classes=*/1, /*class_offset=*/0);
+  CompileProfileOdex(dex_location,
+                     odex_location,
+                     app_image_file,
+                     /*use_fd=*/false,
+                     {profile1_location});
+  uint64_t image_file_size_profile1 = GetImageObjectSectionSize(app_image_file);
+
+  const std::string profile2_location = GetScratchDir() + "/secondary.prof";
+  GenerateProfile(profile2_location, dex_location, /*num_classes=*/1, /*class_offset=*/1);
+  CompileProfileOdex(dex_location,
+                     odex_location,
+                     app_image_file,
+                     /*use_fd=*/false,
+                     {profile2_location});
+  uint64_t image_file_size_profile2 = GetImageObjectSectionSize(app_image_file);
+
+  CompileProfileOdex(dex_location,
+                     odex_location,
+                     app_image_file,
+                     /*use_fd=*/false,
+                     {profile1_location, profile2_location});
+  uint64_t image_file_size_multiple_profiles = GetImageObjectSectionSize(app_image_file);
+
+  CheckCompilerFilter(dex_location, odex_location, CompilerFilter::Filter::kSpeedProfile);
+
+  // The image file generated with multiple profiles should be larger than any image file generated
+  // with each profile.
+  ASSERT_GT(image_file_size_multiple_profiles, image_file_size_profile1);
+  ASSERT_GT(image_file_size_multiple_profiles, image_file_size_profile2);
 }
 
 TEST_F(Dex2oatLayoutTest, TestVdexLayout) {

@@ -40,21 +40,21 @@
 #endif
 
 #include "android-base/parseint.h"
+#include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android-base/unique_fd.h"
-
 #include "aot_class_linker.h"
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
 #include "base/callee_save_type.h"
 #include "base/dumpable.h"
+#include "base/fast_exit.h"
 #include "base/file_utils.h"
 #include "base/leb128.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/os.h"
-#include "base/fast_exit.h"
 #include "base/scoped_flock.h"
 #include "base/stl_util.h"
 #include "base/time_utils.h"
@@ -505,49 +505,47 @@ class OatKeyValueStore : public SafeMap<std::string, std::string> {
 
 class Dex2Oat final {
  public:
-  explicit Dex2Oat(TimingLogger* timings) :
-      compiler_kind_(Compiler::kOptimizing),
-      // Take the default set of instruction features from the build.
-      key_value_store_(nullptr),
-      verification_results_(nullptr),
-      runtime_(nullptr),
-      thread_count_(sysconf(_SC_NPROCESSORS_CONF)),
-      start_ns_(NanoTime()),
-      start_cputime_ns_(ProcessCpuNanoTime()),
-      strip_(false),
-      oat_fd_(-1),
-      input_vdex_fd_(-1),
-      output_vdex_fd_(-1),
-      input_vdex_file_(nullptr),
-      dm_fd_(-1),
-      zip_fd_(-1),
-      image_fd_(-1),
-      have_multi_image_arg_(false),
-      multi_image_(false),
-      image_base_(0U),
-      image_storage_mode_(ImageHeader::kStorageModeUncompressed),
-      passes_to_run_filename_(nullptr),
-      dirty_image_objects_filename_(nullptr),
-      dirty_image_objects_fd_(-1),
-      is_host_(false),
-      elf_writers_(),
-      oat_writers_(),
-      rodata_(),
-      image_writer_(nullptr),
-      driver_(nullptr),
-      opened_dex_files_maps_(),
-      opened_dex_files_(),
-      avoid_storing_invocation_(false),
-      swap_fd_(File::kInvalidFd),
-      app_image_fd_(File::kInvalidFd),
-      profile_file_fd_(File::kInvalidFd),
-      timings_(timings),
-      force_determinism_(false),
-      check_linkage_conditions_(false),
-      crash_on_linkage_violation_(false),
-      compile_individually_(false),
-      profile_load_attempted_(false)
-      {}
+  explicit Dex2Oat(TimingLogger* timings)
+      : compiler_kind_(Compiler::kOptimizing),
+        // Take the default set of instruction features from the build.
+        key_value_store_(nullptr),
+        verification_results_(nullptr),
+        runtime_(nullptr),
+        thread_count_(sysconf(_SC_NPROCESSORS_CONF)),
+        start_ns_(NanoTime()),
+        start_cputime_ns_(ProcessCpuNanoTime()),
+        strip_(false),
+        oat_fd_(-1),
+        input_vdex_fd_(-1),
+        output_vdex_fd_(-1),
+        input_vdex_file_(nullptr),
+        dm_fd_(-1),
+        zip_fd_(-1),
+        image_fd_(-1),
+        have_multi_image_arg_(false),
+        multi_image_(false),
+        image_base_(0U),
+        image_storage_mode_(ImageHeader::kStorageModeUncompressed),
+        passes_to_run_filename_(nullptr),
+        dirty_image_objects_filename_(nullptr),
+        dirty_image_objects_fd_(-1),
+        is_host_(false),
+        elf_writers_(),
+        oat_writers_(),
+        rodata_(),
+        image_writer_(nullptr),
+        driver_(nullptr),
+        opened_dex_files_maps_(),
+        opened_dex_files_(),
+        avoid_storing_invocation_(false),
+        swap_fd_(File::kInvalidFd),
+        app_image_fd_(File::kInvalidFd),
+        timings_(timings),
+        force_determinism_(false),
+        check_linkage_conditions_(false),
+        crash_on_linkage_violation_(false),
+        compile_individually_(false),
+        profile_load_attempted_(false) {}
 
   ~Dex2Oat() {
     // Log completion time before deleting the runtime_, because this accesses
@@ -788,10 +786,10 @@ class Dex2Oat final {
       Usage("--single-image not specified for --image-fd");
     }
 
-    const bool have_profile_file = !profile_file_.empty();
-    const bool have_profile_fd = profile_file_fd_ != File::kInvalidFd;
+    const bool have_profile_file = !profile_files_.empty();
+    const bool have_profile_fd = !profile_file_fds_.empty();
     if (have_profile_file && have_profile_fd) {
-      Usage("Profile file should not be specified with both --profile-file-fd and --profile-file");
+      Usage("Profile files should not be specified with both --profile-file-fd and --profile-file");
     }
 
     if (!parser_options->oat_symbols.empty()) {
@@ -1069,8 +1067,8 @@ class Dex2Oat final {
     AssignIfExists(args, M::Passes, &passes_to_run_filename_);
     AssignIfExists(args, M::BootImage, &parser_options->boot_image_filename);
     AssignIfExists(args, M::AndroidRoot, &android_root_);
-    AssignIfExists(args, M::Profile, &profile_file_);
-    AssignIfExists(args, M::ProfileFd, &profile_file_fd_);
+    AssignIfExists(args, M::Profile, &profile_files_);
+    AssignIfExists(args, M::ProfileFd, &profile_file_fds_);
     AssignIfExists(args, M::RuntimeOptions, &runtime_args_);
     AssignIfExists(args, M::SwapFile, &swap_file_name_);
     AssignIfExists(args, M::SwapFileFd, &swap_fd_);
@@ -2301,9 +2299,7 @@ class Dex2Oat final {
     return is_host_;
   }
 
-  bool HasProfileInput() const {
-    return profile_file_fd_ != -1 || !profile_file_.empty();
-  }
+  bool HasProfileInput() const { return !profile_file_fds_.empty() || !profile_files_.empty(); }
 
   // Must be called after the profile is loaded.
   bool DoProfileGuidedOptimizations() const {
@@ -2344,29 +2340,37 @@ class Dex2Oat final {
     // runtime).
     bool for_boot_image = IsBootImage() || IsBootImageExtension();
     profile_compilation_info_.reset(new ProfileCompilationInfo(for_boot_image));
+
+    // Cleanup profile compilation info if we encounter any error when reading profiles.
+    auto cleanup = android::base::ScopeGuard([&]() { profile_compilation_info_.reset(nullptr); });
+
     // Dex2oat only uses the reference profile and that is not updated concurrently by the app or
     // other processes. So we don't need to lock (as we have to do in profman or when writing the
     // profile info).
-    std::unique_ptr<File> profile_file;
-    if (profile_file_fd_ != -1) {
-      profile_file.reset(new File(DupCloexec(profile_file_fd_),
-                                  "profile",
-                                  /* check_usage= */ false,
-                                  /* read_only_mode= */ true));
-    } else if (profile_file_ != "") {
-      profile_file.reset(OS::OpenFileForReading(profile_file_.c_str()));
+    if (!profile_file_fds_.empty()) {
+      for (int fd : profile_file_fds_) {
+        std::unique_ptr<File> profile_file(new File(DupCloexec(fd),
+                                                    "profile",
+                                                    /* check_usage= */ false,
+                                                    /* read_only_mode= */ true));
+        if (!profile_compilation_info_->Load(profile_file->Fd())) {
+          return false;
+        }
+      }
+    } else {
+      for (const std::string& file : profile_files_) {
+        std::unique_ptr<File> profile_file(OS::OpenFileForReading(file.c_str()));
+        if (profile_file.get() == nullptr) {
+          PLOG(ERROR) << "Cannot open profiles";
+          return false;
+        }
+        if (!profile_compilation_info_->Load(profile_file->Fd())) {
+          return false;
+        }
+      }
     }
 
-    if (profile_file.get() == nullptr) {
-      PLOG(ERROR) << "Cannot lock profiles";
-      return false;
-    }
-
-    if (!profile_compilation_info_->Load(profile_file->Fd())) {
-      profile_compilation_info_.reset(nullptr);
-      return false;
-    }
-
+    cleanup.Disable();
     return true;
   }
 
@@ -2900,8 +2904,8 @@ class Dex2Oat final {
   size_t very_large_threshold_ = std::numeric_limits<size_t>::max();
   std::string app_image_file_name_;
   int app_image_fd_;
-  std::string profile_file_;
-  int profile_file_fd_;
+  std::vector<std::string> profile_files_;
+  std::vector<int> profile_file_fds_;
   std::unique_ptr<ProfileCompilationInfo> profile_compilation_info_;
   TimingLogger* timings_;
   std::vector<std::vector<const DexFile*>> dex_files_per_oat_file_;
