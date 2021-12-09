@@ -901,16 +901,16 @@ void Arm64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
   Register scratch = temps.AcquireW();
   Register scratch2 = temps.AcquireW();
 
-  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  // CAS release, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
   vixl::aarch64::Label retry;
   ___ Bind(&retry);
-  static_assert(thread_flags_offset.Int32Value() == 0);  // LDAXR/STXR require exact address.
-  ___ Ldaxr(scratch, MEM_OP(reg_x(TR)));
+  static_assert(thread_flags_offset.Int32Value() == 0);  // LDXR/STLXR require exact address.
+  ___ Ldxr(scratch, MEM_OP(reg_x(TR)));
   ___ Mov(scratch2, kNativeStateValue);
   // If any flags are set, go to the slow path.
   static_assert(kRunnableStateValue == 0u);
   ___ Cbnz(scratch, Arm64JNIMacroLabel::Cast(label)->AsArm64());
-  ___ Stxr(scratch, scratch2, MEM_OP(reg_x(TR)));
+  ___ Stlxr(scratch, scratch2, MEM_OP(reg_x(TR)));
   ___ Cbnz(scratch, &retry);
 
   // Clear `self->tlsPtr_.held_mutexes[kMutatorLock]`.
