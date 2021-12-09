@@ -682,7 +682,7 @@ void X86_64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
   CpuRegister rax(RAX);  // RAX can be freely clobbered. It does not hold any argument.
   CpuRegister scratch = GetScratchRegister();
 
-  // CAS acquire, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
+  // CAS release, old_value = kRunnableStateValue, new_value = kNativeStateValue, no flags.
   static_assert(kRunnableStateValue == 0u);
   __ xorl(rax, rax);
   __ movl(scratch, Immediate(kNativeStateValue));
