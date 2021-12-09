@@ -450,6 +450,8 @@ jvmtiError DeoptManager::RemoveDeoptimizeThreadMethods(art::ScopedObjectAccessUn
   return OK;
 }
 
+static constexpr const char* kInstrumentationKey = "JVMTI_DeoptRequester";
+
 void DeoptManager::RemoveDeoptimizationRequester() {
   art::Thread* self = art::Thread::Current();
   art::ScopedThreadStateChange sts(self, art::ThreadState::kSuspended);
@@ -458,8 +460,7 @@ void DeoptManager::RemoveDeoptimizationRequester() {
   deopter_count_--;
   if (deopter_count_ == 0) {
     ScopedDeoptimizationContext sdc(self, this);
-    // TODO Give this a real key.
-    art::Runtime::Current()->GetInstrumentation()->DisableDeoptimization("");
+    art::Runtime::Current()->GetInstrumentation()->DisableDeoptimization(kInstrumentationKey);
     return;
   } else {
     deoptimization_status_lock_.ExclusiveUnlock(self);
@@ -478,7 +479,7 @@ void DeoptManager::AddDeoptimizationRequester() {
     // Enable deoptimization
     instrumentation->EnableDeoptimization();
     // Tell instrumentation we will be deopting single threads.
-    instrumentation->EnableSingleThreadDeopt();
+    instrumentation->EnableSingleThreadDeopt(kInstrumentationKey);
   } else {
     deoptimization_status_lock_.ExclusiveUnlock(self);
   }
