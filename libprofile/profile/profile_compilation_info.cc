@@ -2494,9 +2494,10 @@ ProfileCompilationInfo::ProfileLoadStatus ProfileCompilationInfo::DexFileData::R
         *error = "Remapped type index out of range.";
         return ProfileLoadStatus::kMergeError;
       }
-      type_index = num_type_ids + new_extra_descriptor_index;
+      class_set.insert(dex::TypeIndex(num_type_ids + new_extra_descriptor_index));
+    } else {
+      class_set.insert(dex::TypeIndex(type_index));
     }
-    class_set.insert(dex::TypeIndex(type_index));
   }
   return ProfileLoadStatus::kSuccess;
 }
@@ -2790,9 +2791,10 @@ ProfileCompilationInfo::ProfileLoadStatus ProfileCompilationInfo::DexFileData::R
                 *error = "Remapped inline cache type index out of range.";
                 return ProfileLoadStatus::kMergeError;
               }
-              type_index = num_type_ids + new_extra_descriptor_index;
+              dex_pc_data->AddClass(dex::TypeIndex(num_type_ids + new_extra_descriptor_index));
+            } else {
+              dex_pc_data->AddClass(dex::TypeIndex(type_index));
             }
-            dex_pc_data->AddClass(dex::TypeIndex(type_index));
           }
         }
       }
