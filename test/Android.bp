@@ -1314,6 +1314,11 @@ art_cc_test {
     ],
 }
 
+csuite_test {
+    name: "csuite-app-compile-launch",
+    test_config_template: "csuite-app-compile-launch.xml",
+}
+
 // Install run-test data in the output directory.
 prebuilt_etc_host {
     name: "art-run-test-host-data",
