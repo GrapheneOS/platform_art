@@ -350,7 +350,7 @@ DEFINE_FUNCTION art_jni_unlock_object_no_inline
     // This is also the slow path for art_jni_unlock_object.
     // Save return registers.
     PUSH_ARG edx
-    PUSH_ARG edi  // Original contents of EAX.
+    PUSH_ARG eax
     INCREASE_FRAME /*mmx0*/ 8 + /*padding*/ 4
     movsd %xmm0, 0(%esp)
     // Note: The stack is not 16-byte aligned here but it shall be after pushing args for the call.
