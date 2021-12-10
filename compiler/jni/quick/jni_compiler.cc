@@ -524,22 +524,8 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     current_frame_size -= current_out_arg_size;
   }
 
-  // 7.2. Process pending exceptions from JNI call or monitor exit.
-  //      @CriticalNative methods do not need exception poll in the stub.
-  //      @FastNative methods with reference return emit the exception poll earlier.
-  if (LIKELY(!is_critical_native) && (LIKELY(!is_fast_native) || !reference_return)) {
-    __ ExceptionPoll(exception_slow_path.get());
-  }
-
-  // 7.3. For @FastNative, we never transitioned out of runnable, so there is no transition back.
-  //      Perform a suspend check if there is a flag raised, unless we have done that above
-  //      for reference return.
-  if (UNLIKELY(is_fast_native) && !reference_return) {
-    __ SuspendCheck(suspend_check_slow_path.get());
-    __ Bind(suspend_check_resume.get());
-  }
-
-  // 7.4 Unlock the synchronization object for synchronized methods.
+  // 7.2 Unlock the synchronization object for synchronized methods.
+  //     Do this before exception poll to avoid extra unlocking in the exception slow path.
   if (UNLIKELY(is_synchronized)) {
     ManagedRegister to_lock = main_jni_conv->LockingArgumentRegister();
     mr_conv->ResetIterator(FrameOffset(current_frame_size));
@@ -556,6 +542,21 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
       __ Load(to_lock, mr_conv->CurrentParamStackOffset(), kObjectReferenceSize);
     }
     __ CallFromThread(QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniUnlockObject));
+  }
+
+  // 7.3. Process pending exceptions from JNI call or monitor exit.
+  //      @CriticalNative methods do not need exception poll in the stub.
+  //      @FastNative methods with reference return emit the exception poll earlier.
+  if (LIKELY(!is_critical_native) && (LIKELY(!is_fast_native) || !reference_return)) {
+    __ ExceptionPoll(exception_slow_path.get());
+  }
+
+  // 7.4. For @FastNative, we never transitioned out of runnable, so there is no transition back.
+  //      Perform a suspend check if there is a flag raised, unless we have done that above
+  //      for reference return.
+  if (UNLIKELY(is_fast_native) && !reference_return) {
+    __ SuspendCheck(suspend_check_slow_path.get());
+    __ Bind(suspend_check_resume.get());
   }
 
   // 7.5. Remove activation - need to restore callee save registers since the GC
