@@ -544,10 +544,9 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
     MutexLock mu(self, *Locks::thread_list_lock_);
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     --suspend_all_count_;
-    for (const auto& thread : list_) {
-      // Set the flip function for all threads because Thread::DumpState/DumpJavaStack() (invoked by
-      // a checkpoint) may cause the flip function to be run for a runnable/suspended thread before
-      // a runnable thread runs it for itself or we run it for a suspended thread below.
+    for (Thread* thread : list_) {
+      // Set the flip function for all threads because once we start resuming any threads,
+      // they may need to run the flip function on behalf of other threads, even this one.
       thread->SetFlipFunction(thread_flip_visitor);
       if (thread == self) {
         continue;
@@ -572,21 +571,17 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
 
   collector->GetHeap()->ThreadFlipEnd(self);
 
-  // Run the closure on the other threads.
+  // Try to run the closure on the other threads.
   {
     TimingLogger::ScopedTiming split3("FlipOtherThreads", collector->GetTimings());
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
-    for (const auto& thread : other_threads) {
-      Closure* flip_func = thread->GetFlipFunction();
-      if (flip_func != nullptr) {
-        flip_func->Run(thread);
-      }
+    for (Thread* thread : other_threads) {
+      thread->EnsureFlipFunctionStarted(self);
+      DCHECK(!thread->ReadFlag(ThreadFlag::kPendingFlipFunction));
     }
-    // Run it for self.
-    Closure* flip_func = self->GetFlipFunction();
-    if (flip_func != nullptr) {
-      flip_func->Run(self);
-    }
+    // Try to run the flip function for self.
+    self->EnsureFlipFunctionStarted(self);
+    DCHECK(!self->ReadFlag(ThreadFlag::kPendingFlipFunction));
   }
 
   // Resume other threads.

@@ -49,7 +49,7 @@ inline void Thread::AllowThreadSuspension() {
 inline void Thread::CheckSuspend() {
   DCHECK_EQ(Thread::Current(), this);
   while (true) {
-    StateAndFlags state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+    StateAndFlags state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
     if (LIKELY(!state_and_flags.IsAnyOfFlagsSet(SuspendOrCheckpointRequestFlags()))) {
       break;
     } else if (state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest)) {
@@ -113,11 +113,10 @@ inline ThreadState Thread::SetState(ThreadState new_state) {
   }
 
   while (true) {
-    StateAndFlags old_state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+    StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
     CHECK_NE(old_state_and_flags.GetState(), ThreadState::kRunnable)
         << new_state << " " << *this << " " << *Thread::Current();
-    StateAndFlags new_state_and_flags = old_state_and_flags;
-    new_state_and_flags.SetState(new_state);
+    StateAndFlags new_state_and_flags = old_state_and_flags.WithState(new_state);
     bool done =
         tls32_.state_and_flags.CompareAndSetWeakRelaxed(old_state_and_flags.GetValue(),
                                                         new_state_and_flags.GetValue());
@@ -191,7 +190,7 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
 inline void Thread::TransitionToSuspendedAndRunCheckpoints(ThreadState new_state) {
   DCHECK_NE(new_state, ThreadState::kRunnable);
   while (true) {
-    StateAndFlags old_state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+    StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
     DCHECK_EQ(old_state_and_flags.GetState(), ThreadState::kRunnable);
     if (UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest))) {
       RunCheckpointFunction();
@@ -204,8 +203,7 @@ inline void Thread::TransitionToSuspendedAndRunCheckpoints(ThreadState new_state
     // Change the state but keep the current flags (kCheckpointRequest is clear).
     DCHECK(!old_state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest));
     DCHECK(!old_state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest));
-    StateAndFlags new_state_and_flags = old_state_and_flags;
-    new_state_and_flags.SetState(new_state);
+    StateAndFlags new_state_and_flags = old_state_and_flags.WithState(new_state);
 
     // CAS the value, ensuring that prior memory operations are visible to any thread
     // that observes that we are suspended.
@@ -220,7 +218,7 @@ inline void Thread::TransitionToSuspendedAndRunCheckpoints(ThreadState new_state
 
 inline void Thread::PassActiveSuspendBarriers() {
   while (true) {
-    StateAndFlags state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+    StateAndFlags state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
     if (LIKELY(!state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest) &&
                !state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest) &&
                !state_and_flags.IsFlagSet(ThreadFlag::kActiveSuspendBarrier))) {
@@ -253,7 +251,7 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
 }
 
 inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
-  StateAndFlags old_state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+  StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
   ThreadState old_state = old_state_and_flags.GetState();
   DCHECK_NE(old_state, ThreadState::kRunnable);
   while (true) {
@@ -261,11 +259,12 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
     // Optimize for the return from native code case - this is the fast path.
     // Atomically change from suspended to runnable if no suspend request pending.
     constexpr uint32_t kCheckedFlags =
-        SuspendOrCheckpointRequestFlags() | enum_cast<uint32_t>(ThreadFlag::kActiveSuspendBarrier);
+        SuspendOrCheckpointRequestFlags() |
+        enum_cast<uint32_t>(ThreadFlag::kActiveSuspendBarrier) |
+        FlipFunctionFlags();
     if (LIKELY(!old_state_and_flags.IsAnyOfFlagsSet(kCheckedFlags))) {
       // CAS the value with a memory barrier.
-      StateAndFlags new_state_and_flags = old_state_and_flags;
-      new_state_and_flags.SetState(ThreadState::kRunnable);
+      StateAndFlags new_state_and_flags = old_state_and_flags.WithState(ThreadState::kRunnable);
       if (LIKELY(tls32_.state_and_flags.CompareAndSetWeakAcquire(old_state_and_flags.GetValue(),
                                                                  new_state_and_flags.GetValue()))) {
         // Mark the acquisition of a share of the mutator lock.
@@ -276,15 +275,13 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       PassActiveSuspendBarriers(this);
     } else if (UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest) ||
                         old_state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest))) {
-      // Impossible
-      StateAndFlags flags = old_state_and_flags;
+      // Checkpoint flags should not be set while in suspended state.
       static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
-      flags.SetState(ThreadState::kRunnable);  // Note: Keeping unused bits.
-      LOG(FATAL) << "Transitioning to runnable with checkpoint flag, "
-                 << " flags=" << flags.GetValue()  // State set to kRunnable = 0.
+      LOG(FATAL) << "Transitioning to Runnable with checkpoint flag,"
+                 // Note: Keeping unused flags. If they are set, it points to memory corruption.
+                 << " flags=" << old_state_and_flags.WithState(ThreadState::kRunnable).GetValue()
                  << " state=" << old_state_and_flags.GetState();
-    } else {
-      DCHECK(old_state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest));
+    } else if (old_state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest)) {
       // Wait while our suspend count is non-zero.
 
       // We pass null to the MutexLock as we may be in a situation where the
@@ -299,25 +296,43 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       MutexLock mu(thread_to_pass, *Locks::thread_suspend_count_lock_);
       ScopedTransitioningToRunnable scoped_transitioning_to_runnable(this);
       // Reload state and flags after locking the mutex.
-      old_state_and_flags.SetValue(tls32_.state_and_flags.load(std::memory_order_relaxed));
+      old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
       DCHECK_EQ(old_state, old_state_and_flags.GetState());
       while (old_state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest)) {
         // Re-check when Thread::resume_cond_ is notified.
         Thread::resume_cond_->Wait(thread_to_pass);
         // Reload state and flags after waiting.
-        old_state_and_flags.SetValue(tls32_.state_and_flags.load(std::memory_order_relaxed));
+        old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
         DCHECK_EQ(old_state, old_state_and_flags.GetState());
       }
       DCHECK_EQ(GetSuspendCount(), 0);
+    } else if (UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kRunningFlipFunction)) ||
+               UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kWaitingForFlipFunction))) {
+      // The thread should be suspended while another thread is running the flip function.
+      static_assert(static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
+      LOG(FATAL) << "Transitioning to Runnable while another thread is running the flip function,"
+                 // Note: Keeping unused flags. If they are set, it points to memory corruption.
+                 << " flags=" << old_state_and_flags.WithState(ThreadState::kRunnable).GetValue()
+                 << " state=" << old_state_and_flags.GetState();
+    } else {
+      DCHECK(old_state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction));
+      // CAS the value with a memory barrier.
+      // Do not set `ThreadFlag::kRunningFlipFunction` as no other thread can run
+      // the flip function for a thread that is not suspended.
+      StateAndFlags new_state_and_flags = old_state_and_flags.WithState(ThreadState::kRunnable)
+          .WithoutFlag(ThreadFlag::kPendingFlipFunction);
+      if (LIKELY(tls32_.state_and_flags.CompareAndSetWeakAcquire(old_state_and_flags.GetValue(),
+                                                                 new_state_and_flags.GetValue()))) {
+        // Mark the acquisition of a share of the mutator lock.
+        GetMutatorLock()->TransitionFromSuspendedToRunnable(this);
+        // Run the flip function.
+        RunFlipFunction(this, /*notify=*/ false);
+        break;
+      }
     }
     // Reload state and flags.
-    old_state_and_flags.SetValue(tls32_.state_and_flags.load(std::memory_order_relaxed));
+    old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
     DCHECK_EQ(old_state, old_state_and_flags.GetState());
-  }
-  // Run the flip function, if set.
-  Closure* flip_func = GetFlipFunction();
-  if (flip_func != nullptr) {
-    flip_func->Run(this);
   }
   return static_cast<ThreadState>(old_state);
 }
