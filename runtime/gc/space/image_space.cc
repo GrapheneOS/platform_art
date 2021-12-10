@@ -137,7 +137,6 @@ bool ImageSpace::FindImageFilename(const char* image_location,
                                    const InstructionSet image_isa,
                                    std::string* system_filename,
                                    bool* has_system) {
-  std::string dalvik_cache_unused;
   return FindImageFilenameImpl(image_location,
                                image_isa,
                                has_system,

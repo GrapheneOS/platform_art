@@ -85,7 +85,7 @@ class ImageSpace : public MemMapSpace {
   // should be used to search for that component's boot image extension.
   //
   // The actual filename shall be derived from the specified locations using
-  // `GetSystemImageFilename()` or `GetDalvikCacheFilename()`.
+  // `GetSystemImageFilename()`.
   //
   // Example image locations:
   //     /system/framework/boot.art
@@ -167,7 +167,7 @@ class ImageSpace : public MemMapSpace {
   }
 
   // Actual filename where image was loaded from.
-  // For example: /data/dalvik-cache/arm/system@framework@boot.art
+  // For example: /system/framework/arm64/boot.art
   const std::string GetImageFilename() const {
     return GetName();
   }
@@ -210,7 +210,7 @@ class ImageSpace : public MemMapSpace {
   // Returns the filename of the image corresponding to
   // requested image_location, or the filename where a new image
   // should be written if one doesn't exist. Looks for a generated
-  // image in the specified location and then in the dalvik-cache.
+  // image in the specified location.
   //
   // Returns true if an image was found, false otherwise.
   static bool FindImageFilename(const char* image_location,
@@ -287,9 +287,8 @@ class ImageSpace : public MemMapSpace {
   // Tries to initialize an ImageSpace from the given image path, returning null on error.
   //
   // If validate_oat_file is false (for /system), do not verify that image's OatFile is up-to-date
-  // relative to its DexFile inputs. Otherwise (for /data), validate the inputs and generate the
-  // OatFile in /data/dalvik-cache if necessary. If the oat_file is null, it uses the oat file from
-  // the image.
+  // relative to its DexFile inputs. Otherwise, validate `oat_file` and abandon it if the validation
+  // fails. If the oat_file is null, it uses the oat file from the image.
   static std::unique_ptr<ImageSpace> Init(const char* image_filename,
                                           const char* image_location,
                                           bool validate_oat_file,
