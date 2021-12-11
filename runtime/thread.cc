@@ -1553,6 +1553,25 @@ void Thread::ClearSuspendBarrier(AtomicInteger* target) {
 }
 
 void Thread::RunCheckpointFunction() {
+  // If this thread is suspended and another thread is running the checkpoint on its behalf,
+  // we may have a pending flip function that we need to run for the sake of those checkpoints
+  // that need to walk the stack. We should not see the flip function flags when the thread
+  // is running the checkpoint on its own.
+  StateAndFlags state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
+  if (UNLIKELY(state_and_flags.IsAnyOfFlagsSet(FlipFunctionFlags()))) {
+    DCHECK(IsSuspended());
+    Thread* self = Thread::Current();
+    DCHECK(self != this);
+    if (state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction)) {
+      EnsureFlipFunctionStarted(self);
+      state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
+      DCHECK(!state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction));
+    }
+    if (state_and_flags.IsFlagSet(ThreadFlag::kRunningFlipFunction)) {
+      WaitForFlipFunction(self);
+    }
+  }
+
   // Grab the suspend_count lock, get the next checkpoint and update all the checkpoint fields. If
   // there are no more checkpoints we will also clear the kCheckpointRequest flag.
   Closure* checkpoint;
@@ -1576,13 +1595,15 @@ void Thread::RunCheckpointFunction() {
 }
 
 void Thread::RunEmptyCheckpoint() {
+  // Note: Empty checkpoint does not access the thread's stack,
+  // so we do not need to check for the flip function.
   DCHECK_EQ(Thread::Current(), this);
   AtomicClearFlag(ThreadFlag::kEmptyCheckpointRequest);
   Runtime::Current()->GetThreadList()->EmptyCheckpointBarrier()->Pass(this);
 }
 
 bool Thread::RequestCheckpoint(Closure* function) {
-  StateAndFlags old_state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+  StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
   if (old_state_and_flags.GetState() != ThreadState::kRunnable) {
     return false;  // Fail, thread is suspended and so can't run a checkpoint.
   }
@@ -1607,7 +1628,7 @@ bool Thread::RequestCheckpoint(Closure* function) {
 }
 
 bool Thread::RequestEmptyCheckpoint() {
-  StateAndFlags old_state_and_flags(tls32_.state_and_flags.load(std::memory_order_relaxed));
+  StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
   if (old_state_and_flags.GetState() != ThreadState::kRunnable) {
     // If it's not runnable, we don't need to do anything because it won't be in the middle of a
     // heap access (eg. the read barrier).
@@ -1755,23 +1776,89 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function, ThreadState suspend
   }
 }
 
-Closure* Thread::GetFlipFunction() {
-  Atomic<Closure*>* atomic_func = reinterpret_cast<Atomic<Closure*>*>(&tlsPtr_.flip_function);
-  Closure* func;
-  do {
-    func = atomic_func->load(std::memory_order_relaxed);
-    if (func == nullptr) {
-      return nullptr;
-    }
-  } while (!atomic_func->CompareAndSetWeakSequentiallyConsistent(func, nullptr));
-  DCHECK(func != nullptr);
-  return func;
+void Thread::SetFlipFunction(Closure* function) {
+  // This is called with all threads suspended, except for the calling thread.
+  DCHECK(IsSuspended() || Thread::Current() == this);
+  DCHECK(function != nullptr);
+  DCHECK(tlsPtr_.flip_function == nullptr);
+  tlsPtr_.flip_function = function;
+  DCHECK(!GetStateAndFlags(std::memory_order_relaxed).IsAnyOfFlagsSet(FlipFunctionFlags()));
+  AtomicSetFlag(ThreadFlag::kPendingFlipFunction, std::memory_order_release);
 }
 
-void Thread::SetFlipFunction(Closure* function) {
-  CHECK(function != nullptr);
-  Atomic<Closure*>* atomic_func = reinterpret_cast<Atomic<Closure*>*>(&tlsPtr_.flip_function);
-  atomic_func->store(function, std::memory_order_seq_cst);
+void Thread::EnsureFlipFunctionStarted(Thread* self) {
+  while (true) {
+    StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
+    if (!old_state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction)) {
+      return;
+    }
+    DCHECK(!old_state_and_flags.IsFlagSet(ThreadFlag::kRunningFlipFunction));
+    StateAndFlags new_state_and_flags =
+        old_state_and_flags.WithFlag(ThreadFlag::kRunningFlipFunction)
+                           .WithoutFlag(ThreadFlag::kPendingFlipFunction);
+    if (tls32_.state_and_flags.CompareAndSetWeakAcquire(old_state_and_flags.GetValue(),
+                                                        new_state_and_flags.GetValue())) {
+      RunFlipFunction(self, /*notify=*/ true);
+      DCHECK(!GetStateAndFlags(std::memory_order_relaxed).IsAnyOfFlagsSet(FlipFunctionFlags()));
+      return;
+    }
+  }
+}
+
+void Thread::RunFlipFunction(Thread* self, bool notify) {
+  // This function is called for suspended threads and by the thread running
+  // `ThreadList::FlipThreadRoots()` after we've successfully set the flag
+  // `ThreadFlag::kRunningFlipFunction`. This flag is not set if the thread is
+  // running the flip function right after transitioning to Runnable as
+  // no other thread may run checkpoints on a thread that's actually Runnable.
+  DCHECK_EQ(notify, ReadFlag(ThreadFlag::kRunningFlipFunction));
+
+  Closure* flip_function = tlsPtr_.flip_function;
+  tlsPtr_.flip_function = nullptr;
+  DCHECK(flip_function != nullptr);
+  flip_function->Run(this);
+
+  if (notify) {
+    // Clear the `ThreadFlag::kRunningFlipFunction` and `ThreadFlag::kWaitingForFlipFunction`.
+    // Check if the latter was actually set, indicating that there is at least one waiting thread.
+    constexpr uint32_t kFlagsToClear = enum_cast<uint32_t>(ThreadFlag::kRunningFlipFunction) |
+                                       enum_cast<uint32_t>(ThreadFlag::kWaitingForFlipFunction);
+    StateAndFlags old_state_and_flags(
+        tls32_.state_and_flags.fetch_and(~kFlagsToClear, std::memory_order_release));
+    if (old_state_and_flags.IsFlagSet(ThreadFlag::kWaitingForFlipFunction)) {
+      // Notify all threads that are waiting for completion (at least one).
+      // TODO: Should we create a separate mutex and condition variable instead
+      // of piggy-backing on the `thread_suspend_count_lock_` and `resume_cond_`?
+      MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+      resume_cond_->Broadcast(self);
+    }
+  }
+}
+
+void Thread::WaitForFlipFunction(Thread* self) {
+  // Another thread is running the flip function. Wait for it to complete.
+  // Check the flag while holding the mutex so that we do not miss the broadcast.
+  // Repeat the check after waiting to guard against spurious wakeups (and because
+  // we share the `thread_suspend_count_lock_` and `resume_cond_` with other code).
+  MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+  while (true) {
+    StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_acquire);
+    DCHECK(!old_state_and_flags.IsFlagSet(ThreadFlag::kPendingFlipFunction));
+    if (!old_state_and_flags.IsFlagSet(ThreadFlag::kRunningFlipFunction)) {
+      DCHECK(!old_state_and_flags.IsAnyOfFlagsSet(FlipFunctionFlags()));
+      break;
+    }
+    if (!old_state_and_flags.IsFlagSet(ThreadFlag::kWaitingForFlipFunction)) {
+      // Mark that there is a waiting thread.
+      StateAndFlags new_state_and_flags =
+          old_state_and_flags.WithFlag(ThreadFlag::kWaitingForFlipFunction);
+      if (!tls32_.state_and_flags.CompareAndSetWeakRelaxed(old_state_and_flags.GetValue(),
+                                                           new_state_and_flags.GetValue())) {
+        continue;  // Retry.
+      }
+    }
+    resume_cond_->Wait(self);
+  }
 }
 
 void Thread::FullSuspendCheck() {
@@ -1809,26 +1896,11 @@ static std::string GetSchedulerGroupName(pid_t tid) {
   return "";
 }
 
-
 void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   std::string group_name;
   int priority;
   bool is_daemon = false;
   Thread* self = Thread::Current();
-
-  // If flip_function is not null, it means we have run a checkpoint
-  // before the thread wakes up to execute the flip function and the
-  // thread roots haven't been forwarded.  So the following access to
-  // the roots (opeer or methods in the frames) would be bad. Run it
-  // here. TODO: clean up.
-  if (thread != nullptr) {
-    ScopedObjectAccessUnchecked soa(self);
-    Thread* this_thread = const_cast<Thread*>(thread);
-    Closure* flip_func = this_thread->GetFlipFunction();
-    if (flip_func != nullptr) {
-      flip_func->Run(this_thread);
-    }
-  }
 
   // Don't do this if we are aborting since the GC may have all the threads suspended. This will
   // cause ScopedObjectAccessUnchecked to deadlock.
@@ -1882,8 +1954,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
 
   if (thread != nullptr) {
     auto suspend_log_fn = [&]() REQUIRES(Locks::thread_suspend_count_lock_) {
-      StateAndFlags state_and_flags(
-          thread->tls32_.state_and_flags.load(std::memory_order_relaxed));
+      StateAndFlags state_and_flags = thread->GetStateAndFlags(std::memory_order_relaxed);
       static_assert(
           static_cast<std::underlying_type_t<ThreadState>>(ThreadState::kRunnable) == 0u);
       state_and_flags.SetState(ThreadState::kRunnable);  // Clear state bits.
@@ -2149,19 +2220,6 @@ static bool ShouldShowNativeStack(const Thread* thread)
 }
 
 void Thread::DumpJavaStack(std::ostream& os, bool check_suspended, bool dump_locks) const {
-  // If flip_function is not null, it means we have run a checkpoint
-  // before the thread wakes up to execute the flip function and the
-  // thread roots haven't been forwarded.  So the following access to
-  // the roots (locks or methods in the frames) would be bad. Run it
-  // here. TODO: clean up.
-  {
-    Thread* this_thread = const_cast<Thread*>(this);
-    Closure* flip_func = this_thread->GetFlipFunction();
-    if (flip_func != nullptr) {
-      flip_func->Run(this_thread);
-    }
-  }
-
   // Dumping the Java stack involves the verifier for locks. The verifier operates under the
   // assumption that there is no exception pending on entry. Thus, stash any pending exception.
   // Thread::Current() instead of this in case a thread is dumping the stack of another suspended
@@ -2315,9 +2373,8 @@ Thread::Thread(bool daemon)
 
   static_assert((sizeof(Thread) % 4) == 0U,
                 "art::Thread has a size which is not a multiple of 4.");
-  DCHECK_EQ(tls32_.state_and_flags.load(std::memory_order_relaxed), 0u);
-  StateAndFlags state_and_flags(0u);
-  state_and_flags.SetState(ThreadState::kNative);
+  DCHECK_EQ(GetStateAndFlags(std::memory_order_relaxed).GetValue(), 0u);
+  StateAndFlags state_and_flags = StateAndFlags(0u).WithState(ThreadState::kNative);
   tls32_.state_and_flags.store(state_and_flags.GetValue(), std::memory_order_relaxed);
   tls32_.interrupted.store(false, std::memory_order_relaxed);
   // Initialize with no permit; if the java Thread was unparked before being
@@ -3043,20 +3100,6 @@ jobjectArray Thread::CreateAnnotatedStackTrace(const ScopedObjectAccessAlreadyRu
   // This code allocates. Do not allow it to operate with a pending exception.
   if (IsExceptionPending()) {
     return nullptr;
-  }
-
-  // If flip_function is not null, it means we have run a checkpoint
-  // before the thread wakes up to execute the flip function and the
-  // thread roots haven't been forwarded.  So the following access to
-  // the roots (locks or methods in the frames) would be bad. Run it
-  // here. TODO: clean up.
-  // Note: copied from DumpJavaStack.
-  {
-    Thread* this_thread = const_cast<Thread*>(this);
-    Closure* flip_func = this_thread->GetFlipFunction();
-    if (flip_func != nullptr) {
-      flip_func->Run(this_thread);
-    }
   }
 
   class CollectFramesAndLocksStackVisitor : public MonitorObjectsStackVisitor {
@@ -4482,7 +4525,7 @@ bool Thread::IsSystemDaemon() const {
 
 std::string Thread::StateAndFlagsAsHexString() const {
   std::stringstream result_stream;
-  result_stream << std::hex << tls32_.state_and_flags.load(std::memory_order_relaxed);
+  result_stream << std::hex << GetStateAndFlags(std::memory_order_relaxed).GetValue();
   return result_stream.str();
 }
 

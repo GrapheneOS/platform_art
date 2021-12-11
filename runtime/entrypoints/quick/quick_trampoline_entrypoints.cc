@@ -1065,8 +1065,21 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
   RememberForGcArgumentVisitor visitor(sp, is_static, shorty, shorty_len, &soa);
   visitor.VisitArguments();
 
+  StackHandleScope<2> hs(self);
+  Handle<mirror::Object> h_object(hs.NewHandle(is_static ? nullptr : this_object));
+  Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
+
+  // Ensure that the called method's class is initialized.
+  if (NeedsClinitCheckBeforeCall(method) && !h_class->IsVisiblyInitialized()) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
+      visitor.FixupReferences();
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
+    }
+  }
+
   instrumentation->PushInstrumentationStackFrame(self,
-                                                 is_static ? nullptr : this_object,
+                                                 is_static ? nullptr : h_object.Get(),
                                                  method,
                                                  reinterpret_cast<uintptr_t>(
                                                      QuickArgumentVisitor::GetCallingPcAddr(sp)),
