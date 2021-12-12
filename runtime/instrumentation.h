@@ -545,7 +545,7 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Sets up instrumentation to allow single thread deoptimization using ForceInterpreterCount.
-  void EnableSingleThreadDeopt()
+  void EnableSingleThreadDeopt(const char* key)
       REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
       REQUIRES(!Locks::thread_list_lock_,
                !Locks::classlinker_classes_lock_,
@@ -600,11 +600,6 @@ class Instrumentation {
                !Locks::thread_list_lock_,
                !Locks::classlinker_classes_lock_);
   void UpdateStubs() REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
-      REQUIRES(!GetDeoptimizedMethodsLock(),
-               !Locks::thread_list_lock_,
-               !Locks::classlinker_classes_lock_);
-  void UpdateInstrumentationLevels(InstrumentationLevel level)
-      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
       REQUIRES(!GetDeoptimizedMethodsLock(),
                !Locks::thread_list_lock_,
                !Locks::classlinker_classes_lock_);
@@ -770,11 +765,6 @@ class Instrumentation {
   // to prevent races with the GC where the GC relies on thread suspension only see
   // alloc_entrypoints_instrumented_ change during suspend points.
   bool alloc_entrypoints_instrumented_;
-
-  // If we can use instrumentation trampolines. After the first time we instrument something with
-  // the interpreter we can no longer use trampolines because it can lead to stack corruption.
-  // TODO Figure out a way to remove the need for this.
-  bool can_use_instrumentation_trampolines_;
 
   friend class InstrumentationTest;  // For GetCurrentInstrumentationLevel and ConfigureStubs.
   friend class InstrumentationStackPopper;  // For popping instrumentation frames.
