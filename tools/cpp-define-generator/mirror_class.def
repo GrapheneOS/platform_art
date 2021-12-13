@@ -44,3 +44,8 @@ ASM_DEFINE(MIRROR_CLASS_IMT_PTR_OFFSET_32,
            art::mirror::Class::ImtPtrOffset(art::PointerSize::k32).Int32Value())
 ASM_DEFINE(MIRROR_CLASS_IMT_PTR_OFFSET_64,
            art::mirror::Class::ImtPtrOffset(art::PointerSize::k64).Int32Value())
+ASM_DEFINE(MIRROR_CLASS_SUPER_CLASS_OFFSET,
+           art::mirror::Class::SuperClassOffset().Int32Value())
+ASM_DEFINE(MIRROR_CLASS_IS_INTERFACE_FLAG, art::kAccInterface)
+ASM_DEFINE(MIRROR_CLASS_IS_INTERFACE_FLAG_BIT,
+           art::WhichPowerOf2(art::kAccInterface))
