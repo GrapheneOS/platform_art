@@ -1036,24 +1036,21 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
       << "Proxy method " << method->PrettyMethod()
       << " (declaring class: " << method->GetDeclaringClass()->PrettyClass() << ")"
       << " should not hit instrumentation entrypoint.";
-  if (instrumentation->IsDeoptimized(method)) {
-    result = GetQuickToInterpreterBridge();
-  } else {
-    // This will get the entry point either from the oat file, the JIT or the appropriate bridge
-    // method if none of those can be found.
-    result = instrumentation->GetCodeForInvoke(method);
-    jit::Jit* jit = Runtime::Current()->GetJit();
-    DCHECK_NE(result, GetQuickInstrumentationEntryPoint()) << method->PrettyMethod();
-    DCHECK(jit == nullptr ||
-           // Native methods come through here in Interpreter entrypoints. We might not have
-           // disabled jit-gc but that is fine since we won't return jit-code for native methods.
-           method->IsNative() ||
-           !jit->GetCodeCache()->GetGarbageCollectCode());
-    DCHECK(!method->IsNative() ||
-           jit == nullptr ||
-           !jit->GetCodeCache()->ContainsPc(result))
-        << method->PrettyMethod() << " code will jump to possibly cleaned up jit code!";
-  }
+  DCHECK(!instrumentation->IsDeoptimized(method));
+  // This will get the entry point either from the oat file, the JIT or the appropriate bridge
+  // method if none of those can be found.
+  result = instrumentation->GetCodeForInvoke(method);
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  DCHECK_NE(result, GetQuickInstrumentationEntryPoint()) << method->PrettyMethod();
+  DCHECK(jit == nullptr ||
+         // Native methods come through here in Interpreter entrypoints. We might not have
+         // disabled jit-gc but that is fine since we won't return jit-code for native methods.
+         method->IsNative() ||
+         !jit->GetCodeCache()->GetGarbageCollectCode());
+  DCHECK(!method->IsNative() ||
+         jit == nullptr ||
+         !jit->GetCodeCache()->ContainsPc(result))
+      << method->PrettyMethod() << " code will jump to possibly cleaned up jit code!";
 
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());
   bool is_static = method->IsStatic();
@@ -1391,15 +1388,8 @@ extern "C" const void* artQuickResolutionTrampoline(
       success = linker->EnsureInitialized(soa.Self(), h_called_class, true, true);
     }
     if (success) {
-      code = called->GetEntryPointFromQuickCompiledCode();
-      if (linker->IsQuickResolutionStub(code)) {
-        DCHECK_EQ(invoke_type, kStatic);
-        // Go to JIT or oat and grab code.
-        code = linker->GetQuickOatCodeFor(called);
-      }
-      if (linker->ShouldUseInterpreterEntrypoint(called, code)) {
-        code = GetQuickToInterpreterBridge();
-      }
+      instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+      code = instrumentation->GetCodeForInvoke(called);
     } else {
       DCHECK(called_class->IsErroneous());
       DCHECK(self->IsExceptionPending());
