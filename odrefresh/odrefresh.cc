@@ -1166,7 +1166,6 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
 
   InstructionSet system_server_isa = config_.GetSystemServerIsa();
   std::vector<std::string> checked_artifacts;
-  checked_artifacts.push_back(cache_info_filename_);
 
   for (const InstructionSet isa : config_.GetBootExtensionIsas()) {
     if (!CheckBootExtensionArtifactsAreUpToDate(
@@ -1190,15 +1189,21 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   bool compilation_required = (!compilation_options->compile_boot_extensions_for_isas.empty() ||
                                !compilation_options->system_server_jars_to_compile.empty());
 
-  if (compilation_required) {
-    if (!config_.GetPartialCompilation()) {
-      return cleanup_and_compile_all();
-    }
-    Result<void> result = CleanupArtifactDirectory(checked_artifacts);
-    if (!result.ok()) {
-      LOG(ERROR) << result.error();
-      return ExitCode::kCleanupFailed;
-    }
+  // If partial compilation is disabled, we should compile everything regardless of what's in
+  // `compilation_options`.
+  if (compilation_required && !config_.GetPartialCompilation()) {
+    return cleanup_and_compile_all();
+  }
+
+  // We should only keep the cache info if we have artifacts on /data.
+  if (!checked_artifacts.empty()) {
+    checked_artifacts.push_back(cache_info_filename_);
+  }
+
+  Result<void> result = CleanupArtifactDirectory(checked_artifacts);
+  if (!result.ok()) {
+    LOG(ERROR) << result.error();
+    return ExitCode::kCleanupFailed;
   }
 
   return compilation_required ? ExitCode::kCompilationRequired : ExitCode::kOkay;
