@@ -132,6 +132,7 @@ class Redefiner {
       dex_file_ = std::move(other.dex_file_);
       class_sig_ = std::move(other.class_sig_);
       original_dex_file_ = other.original_dex_file_;
+      lock_acquired_ = other.lock_acquired_;
       other.driver_ = nullptr;
       return *this;
     }
@@ -142,7 +143,8 @@ class Redefiner {
           klass_(other.klass_),
           dex_file_(std::move(other.dex_file_)),
           class_sig_(std::move(other.class_sig_)),
-          original_dex_file_(other.original_dex_file_) {
+          original_dex_file_(other.original_dex_file_),
+          lock_acquired_(other.lock_acquired_) {
       other.driver_ = nullptr;
     }
 
@@ -286,6 +288,7 @@ class Redefiner {
     bool added_fields_ = false;
     bool added_methods_ = false;
     bool has_virtuals_ = false;
+    bool lock_acquired_ = false;
   };
 
   ArtJvmTiEnv* env_;
