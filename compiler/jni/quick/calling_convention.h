@@ -46,7 +46,7 @@ class CallingConvention : public DeletableArenaObject<kArenaAllocCallingConventi
   }
 
   // Register that holds result of this method invocation.
-  virtual ManagedRegister ReturnRegister() = 0;
+  virtual ManagedRegister ReturnRegister() const = 0;
 
   // Iterator interface
 
@@ -305,11 +305,8 @@ class JniCallingConvention : public CallingConvention {
   virtual size_t OutFrameSize() const = 0;
   // Number of references in stack indirect reference table
   size_t ReferenceCount() const;
-  // Location where the return value of a call can be squirreled if another
-  // call is made following the native call
-  FrameOffset ReturnValueSaveLocation() const;
   // Register that holds result if it is integer.
-  virtual ManagedRegister IntReturnRegister() = 0;
+  virtual ManagedRegister IntReturnRegister() const = 0;
   // Whether the compiler needs to ensure zero-/sign-extension of a small result type
   virtual bool RequiresSmallResultTypeExtension() const = 0;
 
@@ -321,6 +318,10 @@ class JniCallingConvention : public CallingConvention {
   // These should not include special purpose registers such as thread register.
   // JNI compiler currently requires at least 3 callee save scratch registers.
   virtual ArrayRef<const ManagedRegister> CalleeSaveScratchRegisters() const = 0;
+
+  // Subset of core argument registers that can be used for arbitrary purposes after
+  // calling the native function. These should exclude the return register(s).
+  virtual ArrayRef<const ManagedRegister> ArgumentScratchRegisters() const = 0;
 
   // Spill mask values
   virtual uint32_t CoreSpillMask() const = 0;
@@ -381,14 +382,6 @@ class JniCallingConvention : public CallingConvention {
            return_type == Primitive::kPrimShort ||
            return_type == Primitive::kPrimBoolean ||
            return_type == Primitive::kPrimChar;
-  }
-
-  // Does the transition back spill the return value in the stack frame?
-  bool SpillsReturnValue() const {
-    // Exclude return value for @FastNative and @CriticalNative methods for optimization speed.
-    // References are passed directly to the "end method" and there is nothing to save for `void`.
-    return (!IsFastNative() && !IsCriticalNative()) &&
-           (!IsReturnAReference() && SizeOfReturnValue() != 0u);
   }
 
  protected:

@@ -251,6 +251,12 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
 }
 
 inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
+  // Note: JNI stubs inline a fast path of this method that transitions to Runnable if
+  // there are no flags set and then stores the mutator lock to `held_mutexes[kMutatorLock]`
+  // (this comes from a specialized `BaseMutex::RegisterAsUnlockedImpl(., kMutatorLock)`
+  // inlined from the `GetMutatorLock()->TransitionFromSuspendedToRunnable(this)` below).
+  // Therefore any code added here (other than debug build assertions) should be gated
+  // on some flag being set, so that the JNI stub can take the slow path to get here.
   StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
   ThreadState old_state = old_state_and_flags.GetState();
   DCHECK_NE(old_state, ThreadState::kRunnable);

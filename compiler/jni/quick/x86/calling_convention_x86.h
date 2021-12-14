@@ -33,7 +33,7 @@ class X86ManagedRuntimeCallingConvention final : public ManagedRuntimeCallingCon
         gpr_arg_count_(1u) {}  // Skip EAX for ArtMethod*
   ~X86ManagedRuntimeCallingConvention() override {}
   // Calling convention
-  ManagedRegister ReturnRegister() override;
+  ManagedRegister ReturnRegister() const override;
   void ResetIterator(FrameOffset displacement) override;
   // Managed runtime calling convention
   ManagedRegister MethodRegister() override;
@@ -58,13 +58,14 @@ class X86JniCallingConvention final : public JniCallingConvention {
                           const char* shorty);
   ~X86JniCallingConvention() override {}
   // Calling convention
-  ManagedRegister ReturnRegister() override;
-  ManagedRegister IntReturnRegister() override;
+  ManagedRegister ReturnRegister() const override;
+  ManagedRegister IntReturnRegister() const override;
   // JNI calling convention
   size_t FrameSize() const override;
   size_t OutFrameSize() const override;
   ArrayRef<const ManagedRegister> CalleeSaveRegisters() const override;
   ArrayRef<const ManagedRegister> CalleeSaveScratchRegisters() const override;
+  ArrayRef<const ManagedRegister> ArgumentScratchRegisters() const override;
   uint32_t CoreSpillMask() const override;
   uint32_t FpSpillMask() const override;
   bool IsCurrentParamInRegister() override;
