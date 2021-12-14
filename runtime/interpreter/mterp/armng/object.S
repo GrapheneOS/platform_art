@@ -1,57 +1,141 @@
 %def op_check_cast():
+%  slow_path = add_helper(lambda: op_check_cast_slow_path())
    // Fast-path which gets the class from thread-local cache.
-   EXPORT_PC
-   FETCH_FROM_THREAD_CACHE r1, 3f
-   TEST_IF_MARKING 4f
+   FETCH_FROM_THREAD_CACHE r1, 2f
 1:
    lsr     r2, rINST, #8               // r2<- A
    GET_VREG r0, r2                     // r0<- vA (object)
    cmp     r0, #0
-   beq     2f
-   bl      art_quick_check_instance_of
-2:
+   beq     .L${opcode}_resume
+   ldr     r2, [r0, #MIRROR_OBJECT_CLASS_OFFSET]
+   // Fast path: do a comparison without read barrier.
+   cmp     r1, r2
+   bne     ${slow_path}
+.L${opcode}_resume:
    FETCH_ADVANCE_INST 2
    GET_INST_OPCODE ip
    GOTO_OPCODE ip
-3:
+2:
+   EXPORT_PC
    mov     r0, rSELF
    ldr     r1, [sp]
    mov     r2, rPC
    bl      nterp_get_class_or_allocate_object
    mov     r1, r0
    b       1b
+
+%def op_check_cast_slow_path():
+   ldr     r3, [r1, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
+   tst     r3, #MIRROR_CLASS_IS_INTERFACE_FLAG
+   bne     2f
+   ldr     r3, [r1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   cmp     r3, #0
+   bne     5f
+1:
+   ldr     r2, [r2, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   cmp     r1, r2
+   beq     .L${opcode}_resume
+   cmp     r2, #0
+   bne     1b
+2:
+   TEST_IF_MARKING 4f
+3:
+   EXPORT_PC
+   bl      art_quick_check_instance_of
+   b       .L${opcode}_resume
 4:
    bl      art_quick_read_barrier_mark_reg01
-   b       1b
+   b       3b
+5:
+   // Class in r1 is an array, r3 is the component type.
+   ldr     r2, [r2, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   // Check if object is an array.
+   cmp     r2, #0
+   beq     2b
+   ldr     r4, [r3, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   cmp     r4, #0
+   // If the super class of the component type is not null, go slow path.
+   bne     2b
+   ldrh    r3, [r3, #MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET]
+   // Check if the object is a primitive array.
+   ldrh    r2, [r2, #MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET]
+   orrs    r2, r3
+   beq     .L${opcode}_resume
+   // Go slow path for throwing the exception.
+   b 2b
 
 %def op_instance_of():
+%  slow_path = add_helper(lambda: op_instance_of_slow_path())
    /* instance-of vA, vB, class@CCCC */
    // Fast-path which gets the class from thread-local cache.
-   EXPORT_PC
-   FETCH_FROM_THREAD_CACHE r1, 3f
-   TEST_IF_MARKING 4f
+   FETCH_FROM_THREAD_CACHE r1, 2f
 1:
    lsr     r2, rINST, #12              // r2<- B
    GET_VREG r0, r2                     // r0<- vB (object)
    cmp     r0, #0
-   beq     2f
-   bl      artInstanceOfFromCode
-2:
+   beq     .L${opcode}_resume
+   ldr     r2, [r0, #MIRROR_OBJECT_CLASS_OFFSET]
+   // Fast path: do a comparison without read barrier.
+   cmp     r1, r2
+   bne     ${slow_path}
+.L${opcode}_set_one:
+   mov     r0, #1
+.L${opcode}_resume:
    ubfx    r1, rINST, #8, #4           // r1<- A
    SET_VREG r0, r1
    FETCH_ADVANCE_INST 2
    GET_INST_OPCODE ip
    GOTO_OPCODE ip
-3:
+2:
+   EXPORT_PC
    mov     r0, rSELF
    ldr     r1, [sp]
    mov     r2, rPC
    bl      nterp_get_class_or_allocate_object
    mov     r1, r0
    b       1b
+
+%def op_instance_of_slow_path():
+   // Go slow path if we are marking. Checking now allows
+   // not going to slow path if the super class hierarchy check fails.
+   TEST_IF_MARKING 4f
+   ldr     r3, [r1, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
+   tst     r3, #MIRROR_CLASS_IS_INTERFACE_FLAG
+   bne     4f
+   ldr     r3, [r1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   cmp     r3, #0
+   bne     3f
+1:
+   ldr     r2, [r2, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   cmp     r1, r2
+   beq     .L${opcode}_set_one
+   cmp     r2, #0
+   bne     1b
+2:
+   mov     r0, #0
+   b       .L${opcode}_resume
+3:
+   // Class in r1 is an array, r3 is the component type.
+   ldr     r2, [r2, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
+   // Check if object is an array.
+   cmp     r2, #0
+   beq     2b
+   ldr     r4, [r3, #MIRROR_CLASS_SUPER_CLASS_OFFSET]
+   cmp     r4, #0
+   bne     5f
+   ldrh    r3, [r3, #MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET]
+   // Check if the object is a primitive array.
+   ldrh    r2, [r2, #MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET]
+   orr     r0, r2, r3
+   clz     r0, r0
+   lsrs    r0, r0, #5
+   b       .L${opcode}_resume
 4:
    bl      art_quick_read_barrier_mark_reg01
-   b       1b
+5:
+   EXPORT_PC
+   bl      artInstanceOfFromCode
+   b       .L${opcode}_resume
 
 %def op_iget_boolean():
 %  op_iget(load="ldrb", wide="0", is_object="0")

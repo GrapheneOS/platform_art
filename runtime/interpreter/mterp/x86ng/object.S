@@ -1,8 +1,91 @@
 %def op_check_cast():
-  jmp NterpCheckCast
+%  slow_path = add_helper(lambda: op_check_cast_slow_path())
+   // Fast-path which gets the class from thread-local cache.
+   FETCH_FROM_THREAD_CACHE %ecx, 3f
+1:
+   GET_VREG %eax, rINST
+   testl %eax, %eax
+   je .L${opcode}_resume
+   // Fast path without read barriers.
+   cmpl MIRROR_OBJECT_CLASS_OFFSET(%eax), %ecx
+   jne ${slow_path}
+.L${opcode}_resume:
+   ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
+3:
+   EXPORT_PC
+   movl rSELF:THREAD_SELF_OFFSET, ARG0
+   movl 0(%esp), ARG1
+   movl rPC, ARG2
+   call nterp_get_class_or_allocate_object
+   movl %eax, %ecx
+   jmp 1b
+
+%def op_check_cast_slow_path():
+   cmpl $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
+   jne 2f
+1:
+   EXPORT_PC
+   call art_quick_check_instance_of
+   RESTORE_IBASE
+   jmp .L${opcode}_resume
+2:
+   // 01 is %ecx
+   call art_quick_read_barrier_mark_reg01
+   jmp 1b
 
 %def op_instance_of():
-   jmp NterpInstanceOf
+%  slow_path = add_helper(lambda: op_instance_of_slow_path())
+   /* instance-of vA, vB, class@CCCC */
+   // Fast-path which gets the class from thread-local cache.
+   FETCH_FROM_THREAD_CACHE %ecx, 2f
+1:
+   movzbl  rINSTbl, %eax
+   sarl    $$4,%eax                          # eax<- B
+   GET_VREG %eax %eax                        # eax<- vB (object)
+   testl %eax, %eax
+   je .L${opcode}_resume
+   // Fast path without read barriers.
+   cmpl MIRROR_OBJECT_CLASS_OFFSET(%eax), %ecx
+   jne ${slow_path}
+.L${opcode}_set_one:
+   movl $$1, %eax
+.L${opcode}_resume:
+   andb    $$0xf,rINSTbl                     # rINST<- A
+   SET_VREG %eax, rINST                      # fp[A] <- value
+   ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
+2:
+   EXPORT_PC
+   movl rSELF:THREAD_SELF_OFFSET, ARG0
+   movl 0(%esp), ARG1
+   movl rPC, ARG2
+   call nterp_get_class_or_allocate_object
+   movl %eax, %ecx
+   jmp 1b
+
+%def op_instance_of_slow_path():
+   cmpl $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
+   jne 2f
+   testl $$MIRROR_CLASS_IS_INTERFACE_FLAG, MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%ecx)
+   jne 3f
+   cmpl $$0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%ecx)
+   jne 3f
+   movl MIRROR_OBJECT_CLASS_OFFSET(%eax), %eax
+1:
+   movl MIRROR_CLASS_SUPER_CLASS_OFFSET(%eax), %eax
+   cmpl %eax, %ecx
+   je .L${opcode}_set_one
+   testl %eax, %eax
+   jne 1b
+   jmp .L${opcode}_resume
+2:
+   // 01 is %ecx
+   call art_quick_read_barrier_mark_reg01
+3:
+   EXPORT_PC
+   call art_quick_instance_of
+   RESTORE_IBASE
+   FETCH_INST_CLEAR_OPCODE
+   jmp .L${opcode}_resume
 
 %def op_iget_boolean():
    jmp NterpGetBooleanInstanceField
