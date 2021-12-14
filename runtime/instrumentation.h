@@ -305,12 +305,19 @@ class Instrumentation {
                !Locks::runtime_shutdown_lock_);
   void ResetQuickAllocEntryPoints() REQUIRES(Locks::runtime_shutdown_lock_);
 
+  // Returns a string representation of the given entry point.
+  static std::string EntryPointString(const void* code);
+
+  // Initialize the entrypoint of the method .`aot_code` is the AOT code.
+  void InitializeMethodsCode(ArtMethod* method, const void* aot_code)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Update the code of a method respecting any installed stubs.
-  void UpdateMethodsCode(ArtMethod* method, const void* quick_code)
+  void UpdateMethodsCode(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Update the code of a native method to a JITed stub.
-  void UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const void* quick_code)
+  void UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Update the code of a method to the interpreter respecting any installed stubs from debugger.
@@ -318,7 +325,7 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Update the code of a method respecting any installed stubs from debugger.
-  void UpdateMethodsCodeForJavaDebuggable(ArtMethod* method, const void* quick_code)
+  void UpdateMethodsCodeForJavaDebuggable(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Return the code that we can execute for an invoke including from the JIT.
@@ -650,7 +657,7 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_, GetDeoptimizedMethodsLock());
   bool IsDeoptimizedMethodsEmpty() const
       REQUIRES_SHARED(Locks::mutator_lock_, GetDeoptimizedMethodsLock());
-  void UpdateMethodsCodeImpl(ArtMethod* method, const void* quick_code)
+  void UpdateMethodsCodeImpl(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   ReaderWriterMutex* GetDeoptimizedMethodsLock() const {
