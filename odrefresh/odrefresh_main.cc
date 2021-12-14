@@ -223,8 +223,7 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
       config->SetCompilationOsAddress(cid);
     } else if (ArgumentMatches(arg, "--dalvik-cache=", &value)) {
       art::OverrideDalvikCacheSubDirectory(value);
-      config->SetArtifactDirectory(Concatenate(
-          {GetApexDataDalvikCacheDirectory(art::InstructionSet::kNone), "/", value}));
+      config->SetArtifactDirectory(GetApexDataDalvikCacheDirectory(art::InstructionSet::kNone));
     } else if (ArgumentMatches(arg, "--max-execution-seconds=", &value)) {
       int seconds;
       if (!android::base::ParseInt(value, &seconds)) {
@@ -262,10 +261,12 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
 void TargetOptionsHelp() {
   UsageError("--use-compilation-os=<CID>       Run compilation in the VM with the given CID.");
   UsageError("                                 (0 = do not use VM, -1 = use composd's VM)");
-  UsageError(
-      "--dalvik-cache=<DIR>             Write artifacts to .../<DIR> rather than .../dalvik-cache");
+  UsageError("--dalvik-cache=<DIR>             Write artifacts to .../<DIR> rather than");
+  UsageError("                                 .../dalvik-cache");
   UsageError("--max-execution-seconds=<N>      Maximum timeout of all compilation combined");
   UsageError("--max-child-process-seconds=<N>  Maximum timeout of each compilation task");
+  UsageError("--staging-dir=<DIR>              Write temporary artifacts to <DIR> rather than");
+  UsageError("                                 .../staging");
   UsageError("--zygote-arch=<STRING>           Zygote kind that overrides ro.zygote");
 }
 
