@@ -74,19 +74,6 @@ static std::unique_ptr<JNIMacroAssembler<kPointerSize>> GetMacroAssembler(
   return JNIMacroAssembler<kPointerSize>::Create(allocator, isa, features);
 }
 
-template <PointerSize kPointerSize>
-static ThreadOffset<kPointerSize> GetJniMethodEndThreadOffset(bool reference_return) {
-  ThreadOffset<kPointerSize> jni_end(-1);
-  if (reference_return) {
-    // Pass result.
-    jni_end = QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndWithReference);
-  } else {
-    jni_end = QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEnd);
-  }
-
-  return jni_end;
-}
-
 
 // Generate the JNI bridge for the given method, general contract:
 // - Arguments are in the managed runtime format, either on stack or in
@@ -422,25 +409,8 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
   }
 
-  // 5. Transition to Runnable (if normal native).
-
-  // 5.1. Spill or move the return value if needed.
-  // TODO: Use `callee_save_temp` instead of stack slot when possible.
-  bool spill_return_value = main_jni_conv->SpillsReturnValue();
-  FrameOffset return_save_location =
-      spill_return_value ? main_jni_conv->ReturnValueSaveLocation() : FrameOffset(0);
-  if (spill_return_value) {
-    DCHECK(!is_critical_native);
-    // For normal JNI, store the return value on the stack because the call to
-    // JniMethodEnd will clobber the return value. It will be restored in (13).
-    CHECK_LT(return_save_location.Uint32Value(), current_frame_size);
-    __ Store(return_save_location,
-             main_jni_conv->ReturnRegister(),
-             main_jni_conv->SizeOfReturnValue());
-  } else if (UNLIKELY(is_fast_native || is_critical_native) &&
-             main_jni_conv->SizeOfReturnValue() != 0) {
-    // For @FastNative and @CriticalNative only,
-    // move the JNI return register into the managed return register (if they don't match).
+  // 4.6. Move the JNI return register into the managed return register (if they don't match).
+  if (main_jni_conv->SizeOfReturnValue() != 0) {
     ManagedRegister jni_return_reg = main_jni_conv->ReturnRegister();
     ManagedRegister mr_return_reg = mr_conv->ReturnRegister();
 
@@ -460,11 +430,27 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
   }
 
-  // 5.2. For @FastNative that returns a reference, do an early exception check so that the
+  // 5. Transition to Runnable (if normal native).
+
+  // 5.1. Try transitioning to Runnable with a fast-path implementation.
+  //      If fast-path fails, make a slow-path call to `JniMethodEnd()`.
+  std::unique_ptr<JNIMacroLabel> transition_to_runnable_slow_path;
+  std::unique_ptr<JNIMacroLabel> transition_to_runnable_resume;
+  if (LIKELY(!is_critical_native && !is_fast_native)) {
+    transition_to_runnable_slow_path = __ CreateLabel();
+    transition_to_runnable_resume = __ CreateLabel();
+    __ TryToTransitionFromNativeToRunnable(transition_to_runnable_slow_path.get(),
+                                           main_jni_conv->ArgumentScratchRegisters(),
+                                           mr_conv->ReturnRegister());
+    __ Bind(transition_to_runnable_resume.get());
+  }
+
+  // 5.2. For methods that return a reference, do an early exception check so that the
   //      `JniDecodeReferenceResult()` in the main path does not need to check for exceptions.
   std::unique_ptr<JNIMacroLabel> exception_slow_path =
       LIKELY(!is_critical_native) ? __ CreateLabel() : nullptr;
-  if (UNLIKELY(is_fast_native) && reference_return) {
+  if (reference_return) {
+    DCHECK(!is_critical_native);
     __ ExceptionPoll(exception_slow_path.get());
   }
 
@@ -479,33 +465,23 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     __ Bind(suspend_check_resume.get());
   }
 
-  if (LIKELY(!is_critical_native)) {
-    // 5.4. Call JniMethodEnd for normal native.
-    //      For @FastNative with reference return, decode the `jobject`.
-    //      We abuse the JNI calling convention here, that is guaranteed to support passing
-    //      two pointer arguments, `JNIEnv*` and `jclass`/`jobject`, enough for all cases.
+  // 5.4 For methods with reference return, decode the `jobject` with `JniDecodeReferenceResult()`.
+  if (reference_return) {
+    DCHECK(!is_critical_native);
+    // We abuse the JNI calling convention here, that is guaranteed to support passing
+    // two pointer arguments, `JNIEnv*` and `jclass`/`jobject`.
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
-    if (LIKELY(!is_fast_native) || reference_return) {
-      ThreadOffset<kPointerSize> jni_end = is_fast_native
-          ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniDecodeReferenceResult)
-          : GetJniMethodEndThreadOffset<kPointerSize>(reference_return);
-      if (reference_return) {
-        // Pass result.
-        SetNativeParameter(jni_asm.get(), main_jni_conv.get(), main_jni_conv->ReturnRegister());
-        main_jni_conv->Next();
-      }
-      if (main_jni_conv->IsCurrentParamInRegister()) {
-        __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
-        __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_end));
-      } else {
-        __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset());
-        __ CallFromThread(jni_end);
-      }
-    }
-
-    // 5.5. Reload return value if it was spilled.
-    if (spill_return_value) {
-      __ Load(mr_conv->ReturnRegister(), return_save_location, mr_conv->SizeOfReturnValue());
+    ThreadOffset<kPointerSize> jni_decode_reference_result =
+        QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniDecodeReferenceResult);
+    // Pass result.
+    SetNativeParameter(jni_asm.get(), main_jni_conv.get(), mr_conv->ReturnRegister());
+    main_jni_conv->Next();
+    if (main_jni_conv->IsCurrentParamInRegister()) {
+      __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
+      __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_decode_reference_result));
+    } else {
+      __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset());
+      __ CallFromThread(jni_decode_reference_result);
     }
   }  // if (!is_critical_native)
 
@@ -546,8 +522,8 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
 
   // 7.3. Process pending exceptions from JNI call or monitor exit.
   //      @CriticalNative methods do not need exception poll in the stub.
-  //      @FastNative methods with reference return emit the exception poll earlier.
-  if (LIKELY(!is_critical_native) && (LIKELY(!is_fast_native) || !reference_return)) {
+  //      Methods with reference return emit the exception poll earlier.
+  if (LIKELY(!is_critical_native) && !reference_return) {
     __ ExceptionPoll(exception_slow_path.get());
   }
 
@@ -614,7 +590,14 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     __ Jump(transition_to_native_resume.get());
   }
 
-  // 8.3. Suspend check slow path.
+  // 8.3. Slow path for transition to Runnable.
+  if (LIKELY(!is_critical_native && !is_fast_native)) {
+    __ Bind(transition_to_runnable_slow_path.get());
+    __ CallFromThread(QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEnd));
+    __ Jump(transition_to_runnable_resume.get());
+  }
+
+  // 8.4. Suspend check slow path.
   if (UNLIKELY(is_fast_native)) {
     __ Bind(suspend_check_slow_path.get());
     if (reference_return && main_out_arg_size != 0) {
@@ -634,10 +617,10 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     __ Jump(suspend_check_resume.get());
   }
 
-  // 8.4. Exception poll slow path(s).
+  // 8.5. Exception poll slow path(s).
   if (LIKELY(!is_critical_native)) {
     __ Bind(exception_slow_path.get());
-    if (UNLIKELY(is_fast_native) && reference_return) {
+    if (reference_return) {
       // We performed the exception check early, so we need to adjust SP and pop IRT frame.
       if (main_out_arg_size != 0) {
         jni_asm->cfi().AdjustCFAOffset(main_out_arg_size);
