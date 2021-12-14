@@ -3309,37 +3309,6 @@ uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
                                          image_pointer_size_);
 }
 
-// Special case to get oat code without overwriting a trampoline.
-const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
-  CHECK(method->IsInvokable()) << method->PrettyMethod();
-  if (method->IsProxyMethod()) {
-    return GetQuickProxyInvokeHandler();
-  }
-  const void* code = method->GetOatMethodQuickCode(GetImagePointerSize());
-  if (code != nullptr) {
-    return code;
-  }
-
-  jit::Jit* jit = Runtime::Current()->GetJit();
-  if (jit != nullptr) {
-    code = jit->GetCodeCache()->GetSavedEntryPointOfPreCompiledMethod(method);
-    if (code != nullptr) {
-      return code;
-    }
-  }
-
-  if (method->IsNative()) {
-    // No code and native? Use generic trampoline.
-    return GetQuickGenericJniStub();
-  }
-
-  if (interpreter::CanRuntimeUseNterp() && CanMethodUseNterp(method)) {
-    return interpreter::GetNterpEntryPoint();
-  }
-
-  return GetQuickToInterpreterBridge();
-}
-
 bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code) {
   ScopedAssertNoThreadSuspension sants(__FUNCTION__);
   if (UNLIKELY(method->IsNative() || method->IsProxyMethod())) {
