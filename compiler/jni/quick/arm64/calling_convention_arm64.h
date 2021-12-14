@@ -32,7 +32,7 @@ class Arm64ManagedRuntimeCallingConvention final : public ManagedRuntimeCallingC
                                         PointerSize::k64) {}
   ~Arm64ManagedRuntimeCallingConvention() override {}
   // Calling convention
-  ManagedRegister ReturnRegister() override;
+  ManagedRegister ReturnRegister() const override;
   // Managed runtime calling convention
   ManagedRegister MethodRegister() override;
   bool IsCurrentParamInRegister() override;
@@ -53,13 +53,14 @@ class Arm64JniCallingConvention final : public JniCallingConvention {
                             const char* shorty);
   ~Arm64JniCallingConvention() override {}
   // Calling convention
-  ManagedRegister ReturnRegister() override;
-  ManagedRegister IntReturnRegister() override;
+  ManagedRegister ReturnRegister() const override;
+  ManagedRegister IntReturnRegister() const override;
   // JNI calling convention
   size_t FrameSize() const override;
   size_t OutFrameSize() const override;
   ArrayRef<const ManagedRegister> CalleeSaveRegisters() const override;
   ArrayRef<const ManagedRegister> CalleeSaveScratchRegisters() const override;
+  ArrayRef<const ManagedRegister> ArgumentScratchRegisters() const override;
   uint32_t CoreSpillMask() const override;
   uint32_t FpSpillMask() const override;
   bool IsCurrentParamInRegister() override;

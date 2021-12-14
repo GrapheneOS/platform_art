@@ -53,31 +53,23 @@ struct PACKED(4) QuickEntryPoints {
 
 
 // JNI entrypoints.
-// TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
-extern "C" void artJniMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMethodEnd(Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMethodEndWithReference(jobject result, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+extern "C" void artJniMethodStart(Thread* self) UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
+extern "C" void artJniMethodEnd(Thread* self) SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern mirror::Object* JniDecodeReferenceResult(jobject result, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-
-// JNI entrypoints when monitoring entry/exit.
-extern "C" void artJniMonitoredMethodStart(Thread* self) NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern void JniMonitoredMethodEnd(Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-extern mirror::Object* JniMonitoredMethodEndWithReference(jobject result, Thread* self)
-    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
-
-
-extern "C" mirror::String* artStringBuilderAppend(uint32_t format,
-                                                  const uint32_t* args,
-                                                  Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
-
 extern "C" void artJniReadBarrier(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
 extern "C" void artJniUnlockObject(mirror::Object* locked, Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
+
+// JNI entrypoints when monitoring entry/exit.
+extern "C" void artJniMonitoredMethodStart(Thread* self) UNLOCK_FUNCTION(Locks::mutator_lock_);
+extern "C" void artJniMonitoredMethodEnd(Thread* self) SHARED_LOCK_FUNCTION(Locks::mutator_lock_);
+
+// StringAppend pattern entrypoint.
+extern "C" mirror::String* artStringBuilderAppend(uint32_t format,
+                                                  const uint32_t* args,
+                                                  Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) HOT_ATTR;
 
 // Read barrier entrypoints.

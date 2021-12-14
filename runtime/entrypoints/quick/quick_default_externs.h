@@ -120,6 +120,8 @@ extern "C" void art_jni_read_barrier(art::ArtMethod* method);
 // JNI method start entrypoint. Note: Custom calling convention.
 extern "C" void art_jni_method_start();
 extern "C" void art_jni_monitored_method_start();
+extern "C" void art_jni_method_end();
+extern "C" void art_jni_monitored_method_end();
 
 // JNI lock/unlock entrypoints. Note: Custom calling convention.
 extern "C" void art_jni_lock_object(art::mirror::Object*);
