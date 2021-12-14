@@ -2134,7 +2134,11 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
         return nullptr;  // Report error.
       }
     }
-    artJniMethodStart(self);
+    if (UNLIKELY(self->ReadFlag(ThreadFlag::kMonitorJniEntryExit))) {
+      artJniMonitoredMethodStart(self);
+    } else {
+      artJniMethodStart(self);
+    }
   } else {
     DCHECK(!called->IsSynchronized())
         << "@FastNative/@CriticalNative and synchronize is not supported";
