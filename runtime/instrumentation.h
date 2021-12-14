@@ -322,14 +322,7 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Return the code that we can execute for an invoke including from the JIT.
-  const void* GetCodeForInvoke(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Get the quick code for the given method. More efficient than asking the class linker as it
-  // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
-  // installed.
-  const void* GetQuickCodeFor(ArtMethod* method, PointerSize pointer_size) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  const void* GetCodeForInvoke(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ForceInterpretOnly() {
     forced_interpret_only_ = true;
@@ -348,15 +341,11 @@ class Instrumentation {
   bool InterpretOnly() const {
     return forced_interpret_only_ || InterpreterStubsInstalled();
   }
+  bool InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsForcedInterpretOnly() const {
     return forced_interpret_only_;
   }
-
-  // Code is in boot image oat file which isn't compiled as debuggable.
-  // Need debug version (interpreter or jitted) if that's the case.
-  bool NeedDebugVersionFor(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool AreExitStubsInstalled() const {
     return instrumentation_stubs_installed_;
