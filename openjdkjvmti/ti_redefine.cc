@@ -538,11 +538,11 @@ Redefiner::ClassRedefinition::ClassRedefinition(
       dex_file_(redefined_dex_file),
       class_sig_(class_sig),
       original_dex_file_(orig_dex_file) {
-  GetMirrorClass()->MonitorEnter(driver_->self_);
+  lock_acquired_ = GetMirrorClass()->MonitorTryEnter(driver_->self_) != nullptr;
 }
 
 Redefiner::ClassRedefinition::~ClassRedefinition() {
-  if (driver_ != nullptr) {
+  if (driver_ != nullptr && lock_acquired_) {
     GetMirrorClass()->MonitorExit(driver_->self_);
   }
 }
@@ -1078,6 +1078,15 @@ bool Redefiner::ClassRedefinition::CheckClass() {
   const art::dex::ClassDef& def = dex_file_->GetClassDef(0);
   // Get the class as it is now.
   art::Handle<art::mirror::Class> current_class(hs.NewHandle(GetMirrorClass()));
+
+  // Check whether the class object has been successfully acquired.
+  if (!lock_acquired_) {
+      std::string storage;
+      RecordFailure(ERR(INTERNAL),
+                    StringPrintf("Failed to lock class object '%s'",
+                                 current_class->GetDescriptor(&storage)));
+      return false;
+  }
 
   // Check the access flags didn't change.
   if (def.GetJavaAccessFlags() != (current_class->GetAccessFlags() & art::kAccValidClassFlags)) {

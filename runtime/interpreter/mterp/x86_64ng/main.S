@@ -2170,64 +2170,6 @@ NterpGetWideInstanceField:
 NterpGetInstanceField:
   OP_IGET load="movl", wide=0
 
-NterpInstanceOf:
-    /* instance-of vA, vB, class@CCCC */
-   // Fast-path which gets the class from thread-local cache.
-   EXPORT_PC
-   FETCH_FROM_THREAD_CACHE %rsi, 2f
-   cmpq $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
-   jne 5f
-1:
-   movzbl  rINSTbl,%edi
-   sarl    $$4,%edi                          # edi<- B
-   GET_VREG %edi %rdi                        # edi<- vB (object)
-   andb    $$0xf,rINSTbl                     # rINST<- A
-   testl %edi, %edi
-   je 3f
-   call art_quick_instance_of
-   SET_VREG %eax, rINSTq            # fp[A] <- value
-4:
-   ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
-3:
-   SET_VREG %edi, rINSTq            # fp[A] <-0
-   jmp 4b
-2:
-   movq rSELF:THREAD_SELF_OFFSET, %rdi
-   movq 0(%rsp), %rsi
-   movq rPC, %rdx
-   call nterp_get_class_or_allocate_object
-   movq %rax, %rsi
-   jmp 1b
-5:
-   // 06 is %rsi
-   call art_quick_read_barrier_mark_reg06
-   jmp 1b
-
-NterpCheckCast:
-   // Fast-path which gets the class from thread-local cache.
-   EXPORT_PC
-   FETCH_FROM_THREAD_CACHE %rsi, 3f
-   cmpq $$0, rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
-   jne 4f
-1:
-   GET_VREG %edi, rINSTq
-   testl %edi, %edi
-   je 2f
-   call art_quick_check_instance_of
-2:
-   ADVANCE_PC_FETCH_AND_GOTO_NEXT 2
-3:
-   movq rSELF:THREAD_SELF_OFFSET, %rdi
-   movq 0(%rsp), %rsi
-   movq rPC, %rdx
-   call nterp_get_class_or_allocate_object
-   movq %rax, %rsi
-   jmp 1b
-4:
-   // 06 is %rsi
-   call art_quick_read_barrier_mark_reg06
-   jmp 1b
-
 NterpHandleHotnessOverflow:
     leaq (rPC, rINSTq, 2), %rsi
     movq rFP, %rdx
