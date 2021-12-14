@@ -1181,6 +1181,9 @@
       "name": "art-run-test-660-checker-simd-sad[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-661-checker-simd-cf-loops[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-661-checker-simd-reduc[com.google.android.art.apex]"
     },
     {
@@ -2598,6 +2601,9 @@
     },
     {
       "name": "art-run-test-660-checker-simd-sad"
+    },
+    {
+      "name": "art-run-test-661-checker-simd-cf-loops"
     },
     {
       "name": "art-run-test-661-checker-simd-reduc"

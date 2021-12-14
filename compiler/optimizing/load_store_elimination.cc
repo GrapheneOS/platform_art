@@ -1080,10 +1080,12 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   void VisitVecLoad(HVecLoad* instruction) override {
+    DCHECK(!instruction->IsPredicated());
     VisitGetLocation(instruction, heap_location_collector_.GetArrayHeapLocation(instruction));
   }
 
   void VisitVecStore(HVecStore* instruction) override {
+    DCHECK(!instruction->IsPredicated());
     size_t idx = heap_location_collector_.GetArrayHeapLocation(instruction);
     VisitSetLocation(instruction, idx, instruction->GetValue());
   }
@@ -4038,6 +4040,13 @@ bool LoadStoreElimination::Run(bool enable_partial_lse) {
   const HeapLocationCollector& heap_location_collector = lsa.GetHeapLocationCollector();
   if (heap_location_collector.GetNumberOfHeapLocations() == 0) {
     // No HeapLocation information from LSA, skip this optimization.
+    return false;
+  }
+
+  // Currently load_store analysis can't handle predicated load/stores; specifically pairs of
+  // memory operations with different predicates.
+  // TODO: support predicated SIMD.
+  if (graph_->HasPredicatedSIMD()) {
     return false;
   }
 
