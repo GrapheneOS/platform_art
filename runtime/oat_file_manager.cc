@@ -849,4 +849,15 @@ void OatFileManager::DumpForSigQuit(std::ostream& os) {
   }
 }
 
+bool OatFileManager::ContainsPc(const void* code) {
+  ReaderMutexLock mu(Thread::Current(), *Locks::oat_file_manager_lock_);
+  std::vector<const OatFile*> boot_oat_files = GetBootOatFiles();
+  for (const std::unique_ptr<const OatFile>& oat_file : oat_files_) {
+    if (oat_file->Contains(code)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace art
