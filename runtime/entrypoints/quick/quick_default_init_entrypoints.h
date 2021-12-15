@@ -75,8 +75,7 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints,
 
   // JNI
   qpoints->pJniMethodStart = art_jni_method_start;
-  qpoints->pJniMethodEnd = JniMethodEnd;
-  qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
+  qpoints->pJniMethodEnd = art_jni_method_end;
   qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
   qpoints->pJniDecodeReferenceResult = JniDecodeReferenceResult;
   qpoints->pJniReadBarrier = art_jni_read_barrier;
@@ -138,8 +137,7 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints,
 
   if (monitor_jni_entry_exit) {
     qpoints->pJniMethodStart = art_jni_monitored_method_start;
-    qpoints->pJniMethodEnd = JniMonitoredMethodEnd;
-    qpoints->pJniMethodEndWithReference = JniMonitoredMethodEndWithReference;
+    qpoints->pJniMethodEnd = art_jni_monitored_method_end;
   }
 }
 

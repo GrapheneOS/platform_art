@@ -958,6 +958,12 @@ class Thread {
   }
 
   template<PointerSize pointer_size>
+  static constexpr ThreadOffset<pointer_size> MutatorLockOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
+                                                                mutator_lock));
+  }
+
+  template<PointerSize pointer_size>
   static constexpr ThreadOffset<pointer_size> HeldMutexOffset(LockLevel level) {
     DCHECK_LT(enum_cast<size_t>(level), arraysize(tlsPtr_.held_mutexes));
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,

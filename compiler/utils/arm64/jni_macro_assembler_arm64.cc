@@ -917,6 +917,42 @@ void Arm64JNIMacroAssembler::TryToTransitionFromRunnableToNative(
   ___ Str(xzr, MEM_OP(reg_x(TR), thread_held_mutex_mutator_lock_offset.Int32Value()));
 }
 
+void Arm64JNIMacroAssembler::TryToTransitionFromNativeToRunnable(
+    JNIMacroLabel* label,
+    ArrayRef<const ManagedRegister> scratch_regs ATTRIBUTE_UNUSED,
+    ManagedRegister return_reg ATTRIBUTE_UNUSED) {
+  constexpr uint32_t kNativeStateValue = Thread::StoredThreadStateValue(ThreadState::kNative);
+  constexpr uint32_t kRunnableStateValue = Thread::StoredThreadStateValue(ThreadState::kRunnable);
+  constexpr ThreadOffset64 thread_flags_offset = Thread::ThreadFlagsOffset<kArm64PointerSize>();
+  constexpr ThreadOffset64 thread_held_mutex_mutator_lock_offset =
+      Thread::HeldMutexOffset<kArm64PointerSize>(kMutatorLock);
+  constexpr ThreadOffset64 thread_mutator_lock_offset =
+      Thread::MutatorLockOffset<kArm64PointerSize>();
+
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  Register scratch = temps.AcquireW();
+  Register scratch2 = temps.AcquireW();
+
+  // CAS acquire, old_value = kNativeStateValue, new_value = kRunnableStateValue, no flags.
+  vixl::aarch64::Label retry;
+  ___ Bind(&retry);
+  static_assert(thread_flags_offset.Int32Value() == 0);  // LDAXR/STXR require exact address.
+  ___ Ldaxr(scratch, MEM_OP(reg_x(TR)));
+  ___ Mov(scratch2, kNativeStateValue);
+  // If any flags are set, or the state is not Native, go to the slow path.
+  // (While the thread can theoretically transition between different Suspended states,
+  // it would be very unexpected to see a state other than Native at this point.)
+  ___ Cmp(scratch, scratch2);
+  ___ B(ne, Arm64JNIMacroLabel::Cast(label)->AsArm64());
+  static_assert(kRunnableStateValue == 0u);
+  ___ Stxr(scratch, wzr, MEM_OP(reg_x(TR)));
+  ___ Cbnz(scratch, &retry);
+
+  // Set `self->tlsPtr_.held_mutexes[kMutatorLock]` to the mutator lock.
+  ___ Ldr(scratch.X(), MEM_OP(reg_x(TR), thread_mutator_lock_offset.Int32Value()));
+  ___ Str(scratch.X(), MEM_OP(reg_x(TR), thread_held_mutex_mutator_lock_offset.Int32Value()));
+}
+
 void Arm64JNIMacroAssembler::SuspendCheck(JNIMacroLabel* label) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   Register scratch = temps.AcquireW();

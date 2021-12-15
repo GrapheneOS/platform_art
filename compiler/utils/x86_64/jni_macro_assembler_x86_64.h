@@ -181,8 +181,17 @@ class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assemble
   void CallFromThread(ThreadOffset64 offset) override;
 
   // Generate fast-path for transition to Native. Go to `label` if any thread flag is set.
+  // The implementation can use `scratch_regs` which should be callee save core registers
+  // (already saved before this call) and must preserve all argument registers.
   void TryToTransitionFromRunnableToNative(
       JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs) override;
+
+  // Generate fast-path for transition to Runnable. Go to `label` if any thread flag is set.
+  // The implementation can use `scratch_regs` which should be core argument registers
+  // not used as return registers and it must preserve the `return_reg` if any.
+  void TryToTransitionFromNativeToRunnable(JNIMacroLabel* label,
+                                           ArrayRef<const ManagedRegister> scratch_regs,
+                                           ManagedRegister return_reg) override;
 
   // Generate suspend check and branch to `label` if there is a pending suspend request.
   void SuspendCheck(JNIMacroLabel* label) override;

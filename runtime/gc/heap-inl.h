@@ -160,11 +160,14 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
           if (!self->IsExceptionPending()) {
             // Since we are restarting, allow thread suspension.
             ScopedAllowThreadSuspension ats;
+            // Get the new class size in case class redefinition changed the class size since alloc
+            // started.
+            int new_byte_count = klass->IsVariableSize()? byte_count : klass->GetObjectSize();
             // AllocObject will pick up the new allocator type, and instrumented as true is the safe
             // default.
             return AllocObjectWithAllocator</*kInstrumented=*/true>(self,
                                                                     klass,
-                                                                    byte_count,
+                                                                    new_byte_count,
                                                                     GetUpdatedAllocator(allocator),
                                                                     pre_fence_visitor);
           }

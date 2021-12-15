@@ -3531,7 +3531,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pAputObject)
   QUICK_ENTRY_POINT_INFO(pJniMethodStart)
   QUICK_ENTRY_POINT_INFO(pJniMethodEnd)
-  QUICK_ENTRY_POINT_INFO(pJniMethodEndWithReference)
   QUICK_ENTRY_POINT_INFO(pJniDecodeReferenceResult)
   QUICK_ENTRY_POINT_INFO(pJniLockObject)
   QUICK_ENTRY_POINT_INFO(pJniUnlockObject)
