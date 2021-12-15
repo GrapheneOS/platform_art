@@ -702,11 +702,6 @@ class Dex2Oat final {
       Usage("--oat-fd should not be used with --image");
     }
 
-    if ((input_vdex_fd_ != -1 || !input_vdex_.empty()) &&
-        (dm_fd_ != -1 || !dm_file_location_.empty())) {
-      Usage("An input vdex should not be passed with a .dm file");
-    }
-
     if (!parser_options->oat_symbols.empty() &&
         parser_options->oat_symbols.size() != oat_filenames_.size()) {
       Usage("--oat-file arguments do not match --oat-symbols arguments");
@@ -1323,39 +1318,44 @@ class Dex2Oat final {
     }
 
     if (dm_file_ != nullptr) {
-      DCHECK(input_vdex_file_ == nullptr);
-      std::string error_msg;
-      static const char* kDexMetadata = "DexMetadata";
-      std::unique_ptr<ZipEntry> zip_entry(dm_file_->Find(VdexFile::kVdexNameInDmFile, &error_msg));
-      if (zip_entry == nullptr) {
-        LOG(INFO) << "No " << VdexFile::kVdexNameInDmFile << " file in DexMetadata archive. "
-                  << "Not doing fast verification.";
-      } else {
-        MemMap input_file = zip_entry->MapDirectlyOrExtract(
-            VdexFile::kVdexNameInDmFile,
-            kDexMetadata,
-            &error_msg,
-            alignof(VdexFile));
-        if (!input_file.IsValid()) {
-          LOG(WARNING) << "Could not open vdex file in DexMetadata archive: " << error_msg;
+      // If we have a dm file and a vdex file, we (arbitrarily) pick the vdex file.
+      // In theory the files should be the same.
+      if (input_vdex_file_ == nullptr) {
+        std::string error_msg;
+        static const char* kDexMetadata = "DexMetadata";
+        std::unique_ptr<ZipEntry> zip_entry(dm_file_->Find(VdexFile::kVdexNameInDmFile, &error_msg));
+        if (zip_entry == nullptr) {
+          LOG(INFO) << "No " << VdexFile::kVdexNameInDmFile << " file in DexMetadata archive. "
+                    << "Not doing fast verification.";
         } else {
-          input_vdex_file_ = std::make_unique<VdexFile>(std::move(input_file));
-          if (!input_vdex_file_->IsValid()) {
-            // Ideally we would do this validation at the framework level but the framework
-            // has not knowledge of the .vdex format and adding new APIs just for it is
-            // overkill.
-            // TODO(calin): include this in dex2oat metrics.
-            LOG(WARNING) << "The dex metadata .vdex is not valid. Ignoring it.";
-            input_vdex_file_ = nullptr;
+          MemMap input_file = zip_entry->MapDirectlyOrExtract(
+              VdexFile::kVdexNameInDmFile,
+              kDexMetadata,
+              &error_msg,
+              alignof(VdexFile));
+          if (!input_file.IsValid()) {
+            LOG(WARNING) << "Could not open vdex file in DexMetadata archive: " << error_msg;
           } else {
-            if (input_vdex_file_->HasDexSection()) {
-              LOG(ERROR) << "The dex metadata is not allowed to contain dex files";
-              android_errorWriteLog(0x534e4554, "178055795");  // Report to SafetyNet.
-              return false;
+            input_vdex_file_ = std::make_unique<VdexFile>(std::move(input_file));
+            if (!input_vdex_file_->IsValid()) {
+              // Ideally we would do this validation at the framework level but the framework
+              // has not knowledge of the .vdex format and adding new APIs just for it is
+              // overkill.
+              // TODO(calin): include this in dex2oat metrics.
+              LOG(WARNING) << "The dex metadata .vdex is not valid. Ignoring it.";
+              input_vdex_file_ = nullptr;
+            } else {
+              if (input_vdex_file_->HasDexSection()) {
+                LOG(ERROR) << "The dex metadata is not allowed to contain dex files";
+                android_errorWriteLog(0x534e4554, "178055795");  // Report to SafetyNet.
+                return false;
+              }
+              VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
             }
-            VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
           }
         }
+      } else {
+        LOG(INFO) << "Ignoring vdex file in dex metadata due to vdex file already being passed";
       }
     }
 
