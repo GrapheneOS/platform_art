@@ -174,19 +174,6 @@ size_t JniCallingConvention::ReferenceCount() const {
   return NumReferenceArgs() + (IsStatic() ? 1 : 0);
 }
 
-FrameOffset JniCallingConvention::ReturnValueSaveLocation() const {
-  // The saved return value goes at a properly aligned slot after the method pointer.
-  DCHECK(SpillsReturnValue());
-  size_t return_value_offset = static_cast<size_t>(frame_pointer_size_);
-  const size_t return_value_size = SizeOfReturnValue();
-  DCHECK(return_value_size == 4u || return_value_size == 8u) << return_value_size;
-  DCHECK_ALIGNED(return_value_offset, 4u);
-  if (return_value_size == 8u) {
-    return_value_offset = RoundUp(return_value_offset, 8u);
-  }
-  return FrameOffset(displacement_.SizeValue() + return_value_offset);
-}
-
 bool JniCallingConvention::HasNext() {
   if (IsCurrentArgExtraForJni()) {
     return true;

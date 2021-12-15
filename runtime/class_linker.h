@@ -589,10 +589,6 @@ class ClassLinker {
                                          jobjectArray throws)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Get the oat code for a method when its class isn't yet initialized.
-  const void* GetQuickOatCodeFor(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   pid_t GetClassesLockOwner();  // For SignalCatcher.
   pid_t GetDexLockOwner();  // For SignalCatcher.
 

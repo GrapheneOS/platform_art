@@ -252,8 +252,17 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void CallFromThread(ThreadOffset<kPointerSize> offset) = 0;
 
   // Generate fast-path for transition to Native. Go to `label` if any thread flag is set.
+  // The implementation can use `scratch_regs` which should be callee save core registers
+  // (already saved before this call) and must preserve all argument registers.
   virtual void TryToTransitionFromRunnableToNative(
       JNIMacroLabel* label, ArrayRef<const ManagedRegister> scratch_regs) = 0;
+
+  // Generate fast-path for transition to Runnable. Go to `label` if any thread flag is set.
+  // The implementation can use `scratch_regs` which should be core argument registers
+  // not used as return registers and it must preserve the `return_reg` if any.
+  virtual void TryToTransitionFromNativeToRunnable(JNIMacroLabel* label,
+                                                   ArrayRef<const ManagedRegister> scratch_regs,
+                                                   ManagedRegister return_reg) = 0;
 
   // Generate suspend check and branch to `label` if there is a pending suspend request.
   virtual void SuspendCheck(JNIMacroLabel* label) = 0;
