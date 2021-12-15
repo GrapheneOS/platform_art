@@ -16,6 +16,7 @@
 
 package com.android.tests.odsign;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.android.tradefed.invoker.TestInformation;
@@ -132,6 +133,15 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
         assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
         assertArtifactsNotModifiedAfter(sSystemServerArtifacts, timeMs);
+    }
+
+    @Test
+    public void verifyUnexpectedFilesAreCleanedUp() throws Exception {
+        String unexpected = OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME + "/unexpected";
+        getDevice().pushString(/*contents=*/"", unexpected);
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        assertFalse(getDevice().doesFileExist(unexpected));
     }
 
     /**
