@@ -288,10 +288,15 @@
   description: "Failure due to new test (updated in aosp/1904011) running against old ICU prebuilts. ",
   result: EXEC_FAILED,
   names: ["org.apache.harmony.tests.java.lang.CharacterTest#test_getType_I",
+          "org.apache.harmony.tests.java.text.NumberFormatTest#test_getIntegerInstanceLjava_util_Locale",
+          "org.apache.harmony.tests.java.util.ScannerTest#test_nextFloat",
           "libcore.libcore.icu.DateIntervalFormatTest#test_formatDateInterval",
           "libcore.libcore.icu.LocaleDataTest#test_ru_RU",
+          "libcore.java.nio.charset.StandardCharsetsEncoderTest#testCharset",
+          "libcore.java.text.OldNumberFormatTest#test_getIntegerInstanceLjava_util_Locale",
           "libcore.java.text.SimpleDateFormatTest#testFormatUtcLong",
-          "libcore.java.text.SimpleDateFormatTest#testParseUtcLong"],
+          "libcore.java.text.SimpleDateFormatTest#testParseUtcLong",
+          "test.java.time.format.TestDateTimeFormatterBuilder#test_getLocalizedDateTimePattern"],
   bug: 209995834
 }
 ]
