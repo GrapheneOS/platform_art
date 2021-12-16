@@ -112,21 +112,32 @@ void ThrowNullPointerExceptionForCoordinate() REQUIRES_SHARED(Locks::mutator_loc
 }
 
 bool CheckElementIndex(Primitive::Type type,
-                       int32_t relative_index,
+                       int32_t index,
                        int32_t start,
-                       int32_t limit) REQUIRES_SHARED(Locks::mutator_lock_) {
-  int64_t index = start + relative_index;
-  int64_t max_index = limit - Primitive::ComponentSize(type);
-  if (index < start || index > max_index) {
-    ThrowIndexOutOfBoundsException(index, limit - start);
+                       int32_t length) REQUIRES_SHARED(Locks::mutator_lock_) {
+  // The underlying memory may be shared and offset from the start of allocated region,
+  // ie buffers can be created via ByteBuffer.split().
+  //
+  // `type` is the type of the value the caller is attempting to read / write.
+  // `index` represents the position the caller is trying to access in the underlying ByteBuffer
+  //         or byte array. This is an offset from from `start` in bytes.
+  // `start` represents where the addressable memory begins relative to the base of the
+  //         the underlying ByteBuffer or byte array.
+  // `length` represents the length of the addressable region.
+  //
+  // Thus the region being operated on is:
+  //    `base` + `start` + `index` to `base` + `start` + `index` + `sizeof(type)`
+  int32_t max_index = length - start - Primitive::ComponentSize(type);
+  if (index < 0 || index > max_index) {
+    ThrowIndexOutOfBoundsException(index, length - start);
     return false;
   }
   return true;
 }
 
-bool CheckElementIndex(Primitive::Type type, int32_t index, int32_t range_limit)
+bool CheckElementIndex(Primitive::Type type, int32_t index, int32_t length)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return CheckElementIndex(type, index, 0, range_limit);
+  return CheckElementIndex(type, index, 0, length);
 }
 
 // Returns true if access_mode only entails a memory read. False if
@@ -1945,9 +1956,10 @@ bool ByteBufferViewVarHandle::Access(AccessMode access_mode,
   }
   const int32_t byte_buffer_limit = byte_buffer->GetField32(
       GetMemberOffset(WellKnownClasses::java_nio_ByteBuffer_limit));
+  const int32_t byte_buffer_length = byte_buffer_offset + byte_buffer_limit;
 
   const Primitive::Type primitive_type = GetVarType()->GetPrimitiveType();
-  if (!CheckElementIndex(primitive_type, byte_index, byte_buffer_offset, byte_buffer_limit)) {
+  if (!CheckElementIndex(primitive_type, byte_index, byte_buffer_offset, byte_buffer_length)) {
     return false;
   }
   const int32_t checked_offset32 = byte_buffer_offset + byte_index;

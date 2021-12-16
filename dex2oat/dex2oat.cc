@@ -705,11 +705,6 @@ class Dex2Oat final {
       Usage("--oat-fd should not be used with --image");
     }
 
-    if ((input_vdex_fd_ != -1 || !input_vdex_.empty()) &&
-        (dm_fd_ != -1 || !dm_file_location_.empty())) {
-      Usage("An input vdex should not be passed with a .dm file");
-    }
-
     if (!parser_options->oat_symbols.empty() &&
         parser_options->oat_symbols.size() != oat_filenames_.size()) {
       Usage("--oat-file arguments do not match --oat-symbols arguments");
@@ -1348,11 +1343,16 @@ class Dex2Oat final {
       }
     }
 
+    // If we have a dm file and a vdex file, we (arbitrarily) pick the vdex file.
+    // In theory the files should be the same.
     if (dm_file_ != nullptr) {
-      DCHECK(input_vdex_file_ == nullptr);
-      input_vdex_file_ = VdexFile::OpenFromDm(dm_file_location_, *dm_file_);
-      if (input_vdex_file_ != nullptr) {
-        VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
+      if (input_vdex_file_ == nullptr) {
+        input_vdex_file_ = VdexFile::OpenFromDm(dm_file_location_, *dm_file_);
+        if (input_vdex_file_ != nullptr) {
+          VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
+        }
+      } else {
+        LOG(INFO) << "Ignoring vdex file in dex metadata due to vdex file already being passed";
       }
     }
 
