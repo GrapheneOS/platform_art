@@ -564,6 +564,8 @@ public class VarHandleBadCoordinateTests {
     }
 
     public static class ByteBufferViewOutOfBoundsIndexTest extends VarHandleUnitTest {
+        private final static int BYTES_PER_FLOAT = Float.SIZE / Byte.SIZE;
+
         private static final VarHandle vh;
 
         static {
@@ -583,27 +585,12 @@ public class VarHandleBadCoordinateTests {
                         ByteBuffer.wrap(new byte[27], 3, 27 - 3)
                     };
             for (ByteBuffer buffer : buffers) {
-                try {
-                    vh.get(buffer, -1);
-                    failUnreachable();
-                } catch (IndexOutOfBoundsException ex) {
-                }
-                try {
-                    vh.get(buffer, buffer.limit());
-                    failUnreachable();
-                } catch (IndexOutOfBoundsException ex) {
-                }
-                try {
-                    vh.get(buffer, Integer.MAX_VALUE - 1);
-                    failUnreachable();
-                } catch (IndexOutOfBoundsException ex) {
-                }
-                try {
-                    vh.get(buffer, buffer.limit() - Integer.SIZE / 8 + 1);
-                    failUnreachable();
-                } catch (IndexOutOfBoundsException ex) {
-                }
-                vh.get(buffer, buffer.limit() - Integer.SIZE / 8);
+                assertThrowsIOOBE(() -> vh.get(buffer, -1));
+                assertThrowsIOOBE(() -> vh.get(buffer, Integer.MIN_VALUE));
+                assertThrowsIOOBE(() -> vh.get(buffer, Integer.MAX_VALUE));
+                assertThrowsIOOBE(() -> vh.get(buffer, buffer.limit()));
+                assertThrowsIOOBE(() -> vh.get(buffer, buffer.limit() - BYTES_PER_FLOAT + 1));
+                vh.get(buffer, buffer.limit() - BYTES_PER_FLOAT);
             }
         }
 

@@ -24,6 +24,8 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
+#include <algorithm>
+#include <iterator>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -42,16 +44,26 @@ namespace art {
 
 using ::testing::IsSubsetOf;
 
-android::base::Result<std::vector<std::string>> GetSystemServerArtifacts() {
-  const char* env_value = getenv("SYSTEMSERVERCLASSPATH");
-  if (env_value == nullptr) {
-    return Errorf("Environment variable `SYSTEMSERVERCLASSPATH` is not defined");
+std::vector<std::string> GetListFromEnv(const std::string& name) {
+  const char* env_value = getenv(name.c_str());
+  if (env_value == nullptr || strlen(env_value) == 0) {
+    return {};
   }
+  return android::base::Split(env_value, ":");
+}
+
+android::base::Result<std::vector<std::string>> GetSystemServerArtifacts() {
+  std::vector<std::string> jars = GetListFromEnv("SYSTEMSERVERCLASSPATH");
+  if (jars.empty()) {
+    return Errorf("Environment variable `SYSTEMSERVERCLASSPATH` is not defined or empty");
+  }
+  std::vector<std::string> standalone_jars = GetListFromEnv("STANDALONE_SYSTEMSERVER_JARS");
+  std::move(standalone_jars.begin(), standalone_jars.end(), std::back_inserter(jars));
   if (kRuntimeISA == InstructionSet::kNone) {
     return Errorf("Unable to get system server ISA");
   }
   std::vector<std::string> artifacts;
-  for (const std::string& jar : android::base::Split(env_value, ":")) {
+  for (const std::string& jar : jars) {
     std::string error_msg;
     std::string odex_file;
 
