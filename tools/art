@@ -520,6 +520,12 @@ else
   echo "Warning: Android Compiler not found as either $DEX2OAT_BINARY_TARGET_PATH or $DEX2OAT_BINARY_HOST_PATH"
 fi
 
+# Ensure the ART binary is present on PATH, in case we're in a chroot on a
+# sufficiently old device OS (b/210859761).
+if [[ ":$PATH:" != *:$ANDROID_ART_ROOT/bin:* ]]; then
+  export PATH="$PATH:$ANDROID_ART_ROOT/bin"
+fi
+
 ######################################
 # Main program
 ######################################
