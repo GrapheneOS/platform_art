@@ -989,9 +989,6 @@ void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* quick
   }
 
   if (CodeNeedsEntryExitStub(quick_code, method)) {
-    DCHECK(method->GetEntryPointFromQuickCompiledCode() == GetQuickInstrumentationEntryPoint() ||
-        class_linker->IsQuickToInterpreterBridge(method->GetEntryPointFromQuickCompiledCode()))
-              << EntrypointString(method->GetEntryPointFromQuickCompiledCode());
     // If the code we want to update the method with still needs entry/exit stub, just skip.
     return;
   }
