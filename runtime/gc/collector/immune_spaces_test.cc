@@ -46,7 +46,7 @@ class FakeImageSpace : public space::ImageSpace {
                  MemMap&& oat_map)
       : ImageSpace("FakeImageSpace",
                    /*image_location=*/"",
-                   /*profile_file=*/"",
+                   /*profile_file=*/{},
                    std::move(map),
                    std::move(live_bitmap),
                    map.End()),
