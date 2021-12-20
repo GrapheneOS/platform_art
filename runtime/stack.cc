@@ -682,7 +682,6 @@ static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
   uintptr_t code_start = reinterpret_cast<uintptr_t>(code);
   CHECK(code_start <= pc && pc <= (code_start + code_size))
       << method->PrettyMethod()
-      << " " << Runtime::Current()->GetInstrumentation()->EntryPointString(code)
       << " pc=" << std::hex << pc
       << " code_start=" << code_start
       << " code_size=" << code_size;

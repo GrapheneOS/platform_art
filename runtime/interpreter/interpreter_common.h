@@ -127,8 +127,7 @@ template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result);
 
-// Called by the switch interpreter to know if we can stay in it.
-bool ShouldStayInSwitchInterpreter(ArtMethod* method)
+bool UseFastInterpreterToInterpreterInvoke(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Throws exception if we are getting close to the end of the stack.
