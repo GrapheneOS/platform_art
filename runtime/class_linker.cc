@@ -3309,6 +3309,66 @@ uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
                                          image_pointer_size_);
 }
 
+bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code) {
+  ScopedAssertNoThreadSuspension sants(__FUNCTION__);
+  if (UNLIKELY(method->IsNative() || method->IsProxyMethod())) {
+    return false;
+  }
+
+  if (quick_code == nullptr) {
+    return true;
+  }
+
+  Runtime* runtime = Runtime::Current();
+  instrumentation::Instrumentation* instr = runtime->GetInstrumentation();
+  if (instr->InterpretOnly()) {
+    return true;
+  }
+
+  if (runtime->GetClassLinker()->IsQuickToInterpreterBridge(quick_code)) {
+    // Doing this check avoids doing compiled/interpreter transitions.
+    return true;
+  }
+
+  if (Thread::Current()->IsForceInterpreter()) {
+    // Force the use of interpreter when it is required by the debugger.
+    return true;
+  }
+
+  if (Thread::Current()->IsAsyncExceptionPending()) {
+    // Force use of interpreter to handle async-exceptions
+    return true;
+  }
+
+  if (quick_code == GetQuickInstrumentationEntryPoint()) {
+    const void* instr_target = instr->GetCodeForInvoke(method);
+    DCHECK_NE(instr_target, GetQuickInstrumentationEntryPoint()) << method->PrettyMethod();
+    return ShouldUseInterpreterEntrypoint(method, instr_target);
+  }
+
+  if (runtime->IsJavaDebuggable()) {
+    // For simplicity, we ignore precompiled code and go to the interpreter
+    // assuming we don't already have jitted code.
+    // We could look at the oat file where `quick_code` is being defined,
+    // and check whether it's been compiled debuggable, but we decided to
+    // only rely on the JIT for debuggable apps.
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    return (jit == nullptr) || !jit->GetCodeCache()->ContainsPc(quick_code);
+  }
+
+  if (runtime->IsNativeDebuggable()) {
+    DCHECK(runtime->UseJitCompilation() && runtime->GetJit()->JitAtFirstUse());
+    // If we are doing native debugging, ignore application's AOT code,
+    // since we want to JIT it (at first use) with extra stackmaps for native
+    // debugging. We keep however all AOT code from the boot image,
+    // since the JIT-at-first-use is blocking and would result in non-negligible
+    // startup performance impact.
+    return !runtime->GetHeap()->IsInBootImageOatFile(quick_code);
+  }
+
+  return false;
+}
+
 void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> klass) {
   ScopedAssertNoThreadSuspension sants(__FUNCTION__);
   DCHECK(klass->IsVisiblyInitialized()) << klass->PrettyDescriptor();
@@ -3335,12 +3395,17 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
     }
   }
   Runtime* runtime = Runtime::Current();
-  if (runtime->IsAotCompiler()) {
-    // We should not update entrypoints when running the transactional
-    // interpreter.
-    return;
+  if (!runtime->IsStarted()) {
+    if (runtime->IsAotCompiler() || runtime->GetHeap()->HasBootImageSpace()) {
+      return;  // OAT file unavailable.
+    }
   }
 
+  const DexFile& dex_file = klass->GetDexFile();
+  bool has_oat_class;
+  OatFile::OatClass oat_class = OatFile::FindOatClass(dex_file,
+                                                      klass->GetDexClassDefIndex(),
+                                                      &has_oat_class);
   // Link the code of methods skipped by LinkCode.
   for (size_t method_index = 0; method_index < num_direct_methods; ++method_index) {
     ArtMethod* method = klass->GetDirectMethod(method_index, pointer_size);
@@ -3348,8 +3413,42 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
       // Only update static methods.
       continue;
     }
-    instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-    instrumentation->UpdateMethodsCode(method, instrumentation->GetCodeForInvoke(method));
+    const void* quick_code = nullptr;
+
+    // In order:
+    // 1) Check if we have AOT Code.
+    // 2) Check if we have JIT Code.
+    // 3) Check if we can use Nterp.
+    if (has_oat_class) {
+      OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
+      quick_code = oat_method.GetQuickCode();
+    }
+
+    jit::Jit* jit = runtime->GetJit();
+    if (quick_code == nullptr && jit != nullptr) {
+      quick_code = jit->GetCodeCache()->GetSavedEntryPointOfPreCompiledMethod(method);
+    }
+
+    if (quick_code == nullptr &&
+        interpreter::CanRuntimeUseNterp() &&
+        CanMethodUseNterp(method)) {
+      quick_code = interpreter::GetNterpEntryPoint();
+    }
+
+    // Check whether the method is native, in which case it's generic JNI.
+    if (quick_code == nullptr && method->IsNative()) {
+      quick_code = GetQuickGenericJniStub();
+    } else if (ShouldUseInterpreterEntrypoint(method, quick_code)) {
+      // Use interpreter entry point.
+      if (IsQuickToInterpreterBridge(method->GetEntryPointFromQuickCompiledCode())) {
+        // If we have the trampoline or the bridge already, no need to update.
+        // This saves in not dirtying boot image memory.
+        continue;
+      }
+      quick_code = GetQuickToInterpreterBridge();
+    }
+    CHECK(quick_code != nullptr);
+    runtime->GetInstrumentation()->UpdateMethodsCode(method, quick_code);
   }
   // Ignore virtual methods on the iterator.
 }
@@ -3378,7 +3477,6 @@ static void LinkCode(ClassLinker* class_linker,
 
   // Method shouldn't have already been linked.
   DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
-  DCHECK(!method->GetDeclaringClass()->IsVisiblyInitialized());  // Actually ClassStatus::Idx.
 
   if (!method->IsInvokable()) {
     EnsureThrowsInvocationError(class_linker, method);
@@ -3392,13 +3490,46 @@ static void LinkCode(ClassLinker* class_linker,
     const OatFile::OatMethod oat_method = oat_class->GetOatMethod(class_def_method_index);
     quick_code = oat_method.GetQuickCode();
   }
-  runtime->GetInstrumentation()->InitializeMethodsCode(method, quick_code);
+
+  bool enter_interpreter = class_linker->ShouldUseInterpreterEntrypoint(method, quick_code);
+
+  // Note: this mimics the logic in image_writer.cc that installs the resolution
+  // stub only if we have compiled code and the method needs a class initialization
+  // check.
+  if (quick_code == nullptr) {
+    if (method->IsNative()) {
+      method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniStub());
+    } else {
+      // Note we cannot use the nterp entrypoint because we do not know if the
+      // method will need the slow interpreter for lock verification. This will
+      // be updated in EnsureSkipAccessChecksMethods.
+      method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+    }
+  } else if (enter_interpreter) {
+    method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+  } else if (NeedsClinitCheckBeforeCall(method)) {
+    DCHECK(!method->GetDeclaringClass()->IsVisiblyInitialized());  // Actually ClassStatus::Idx.
+    // If we do have code but the method needs a class initialization check before calling
+    // that code, install the resolution stub that will perform the check.
+    // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
+    // after initializing class (see ClassLinker::InitializeClass method).
+    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
+  } else {
+    method->SetEntryPointFromQuickCompiledCode(quick_code);
+  }
 
   if (method->IsNative()) {
     // Set up the dlsym lookup stub. Do not go through `UnregisterNative()`
     // as the extra processing for @CriticalNative is not needed yet.
     method->SetEntryPointFromJni(
         method->IsCriticalNative() ? GetJniDlsymLookupCriticalStub() : GetJniDlsymLookupStub());
+
+    if (enter_interpreter || quick_code == nullptr) {
+      // We have a native method here without code. Then it should have the generic JNI
+      // trampoline as entrypoint.
+      // TODO: this doesn't handle all the cases where trampolines may be installed.
+      DCHECK(class_linker->IsQuickGenericJniStub(method->GetEntryPointFromQuickCompiledCode()));
+    }
   }
 }
 
