@@ -718,6 +718,9 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  static bool ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                 ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);

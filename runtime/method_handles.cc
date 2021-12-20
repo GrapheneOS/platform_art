@@ -514,13 +514,15 @@ static inline bool MethodHandleInvokeMethod(ArtMethod* called_method,
     }
   }
 
+  bool use_interpreter_entrypoint = ClassLinker::ShouldUseInterpreterEntrypoint(
+      called_method, called_method->GetEntryPointFromQuickCompiledCode());
   PerformCall(self,
               accessor,
               shadow_frame.GetMethod(),
               first_dest_reg,
               new_shadow_frame,
               result,
-              interpreter::ShouldStayInSwitchInterpreter(called_method));
+              use_interpreter_entrypoint);
   if (self->IsExceptionPending()) {
     return false;
   }
@@ -609,13 +611,15 @@ static inline bool MethodHandleInvokeTransform(ArtMethod* called_method,
   new_shadow_frame->SetVRegReference(0, receiver.Get());
   new_shadow_frame->SetVRegReference(1, sf.Get());
 
+  bool use_interpreter_entrypoint = ClassLinker::ShouldUseInterpreterEntrypoint(
+      called_method, called_method->GetEntryPointFromQuickCompiledCode());
   PerformCall(self,
               accessor,
               shadow_frame.GetMethod(),
               0 /* first destination register */,
               new_shadow_frame,
               result,
-              interpreter::ShouldStayInSwitchInterpreter(called_method));
+              use_interpreter_entrypoint);
   if (self->IsExceptionPending()) {
     return false;
   }
@@ -1228,13 +1232,15 @@ static inline bool MethodHandleInvokeExactInternal(
                                first_dest_reg);
   self->EndAssertNoThreadSuspension(old_cause);
 
+  bool use_interpreter_entrypoint = ClassLinker::ShouldUseInterpreterEntrypoint(
+      called_method, called_method->GetEntryPointFromQuickCompiledCode());
   PerformCall(self,
               accessor,
               called_method,
               first_dest_reg,
               new_shadow_frame,
               result,
-              interpreter::ShouldStayInSwitchInterpreter(called_method));
+              use_interpreter_entrypoint);
   if (self->IsExceptionPending()) {
     return false;
   }

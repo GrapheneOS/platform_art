@@ -174,8 +174,9 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isAotCompiled(JNIEnv* env,
     return false;
   }
   const void* actual_code = method->GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
-  bool interpreter = (actual_code == interpreter::GetNterpEntryPoint()) ||
-      Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(actual_code);
+  bool interpreter =
+      Runtime::Current()->GetClassLinker()->ShouldUseInterpreterEntrypoint(method, actual_code) ||
+      (actual_code == interpreter::GetNterpEntryPoint());
   return !interpreter;
 }
 
