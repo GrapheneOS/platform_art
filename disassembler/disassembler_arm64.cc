@@ -18,6 +18,8 @@
 
 #include <inttypes.h>
 
+#include <regex>
+
 #include <sstream>
 
 #include "android-base/logging.h"
@@ -58,9 +60,34 @@ void CustomDisassembler::AppendRegisterNameToOutput(const Instruction* instr,
   Disassembler::AppendRegisterNameToOutput(instr, reg);
 }
 
-void CustomDisassembler::VisitLoadLiteral(const Instruction* instr) {
-  Disassembler::VisitLoadLiteral(instr);
+void CustomDisassembler::Visit(vixl::aarch64::Metadata* metadata, const Instruction* instr) {
+  vixl::aarch64::Disassembler::Visit(metadata, instr);
+  const std::string& form = (*metadata)["form"];
 
+  // These regexs are long, but it is an attempt to match the mapping entry keys in the
+  // #define DEFAULT_FORM_TO_VISITOR_MAP(VISITORCLASS) in the file
+  // external/vixl/src/aarch64/decoder-visitor-map-aarch64.h
+  // for the ::VisitLoadLiteralInstr, ::VisitLoadStoreUnsignedOffset or ::VisitUnconditionalBranch
+  // function addresess key values.
+  // N.B. the mapping are many to one.
+  if (std::regex_match(form, std::regex("(ldrsw|ldr|prfm)_(32|64|d|b|h|q|s)_loadlit"))) {
+    VisitLoadLiteralInstr(instr);
+    return;
+  }
+
+  if (std::regex_match(form, std::regex(
+      "(ldrb|ldrh|ldrsb|ldrsh|ldrsw|ldr|prfm|strb|strh|str)_(32|64|d|b|h|q|s)_ldst_pos"))) {
+    VisitLoadStoreUnsignedOffsetInstr(instr);
+    return;
+  }
+
+  if (std::regex_match(form, std::regex("(bl|b)_only_branch_imm"))) {
+    VisitUnconditionalBranchInstr(instr);
+    return;
+  }
+}
+
+void CustomDisassembler::VisitLoadLiteralInstr(const Instruction* instr) {
   if (!read_literals_) {
     return;
   }
@@ -69,6 +96,7 @@ void CustomDisassembler::VisitLoadLiteral(const Instruction* instr) {
   // avoid trying to fetch invalid literals (we can encounter this when
   // interpreting raw data as instructions).
   void* data_address = instr->GetLiteralAddress<void*>();
+
   if (data_address < base_address_ || data_address >= end_address_) {
     AppendToOutput(" (?)");
     return;
@@ -97,17 +125,13 @@ void CustomDisassembler::VisitLoadLiteral(const Instruction* instr) {
   }
 }
 
-void CustomDisassembler::VisitLoadStoreUnsignedOffset(const Instruction* instr) {
-  Disassembler::VisitLoadStoreUnsignedOffset(instr);
-
+void CustomDisassembler::VisitLoadStoreUnsignedOffsetInstr(const Instruction* instr) {
   if (instr->GetRn() == TR) {
     AppendThreadOfsetName(instr);
   }
 }
 
-void CustomDisassembler::VisitUnconditionalBranch(const Instruction* instr) {
-  Disassembler::VisitUnconditionalBranch(instr);
-
+void CustomDisassembler::VisitUnconditionalBranchInstr(const Instruction* instr) {
   if (instr->Mask(UnconditionalBranchMask) == BL) {
     const Instruction* target = instr->GetImmPCOffsetTarget();
     if (target >= base_address_ &&
