@@ -67,25 +67,36 @@ bool CheckStackOverflow(Thread* self, size_t frame_size)
   return true;
 }
 
-bool UseFastInterpreterToInterpreterInvoke(ArtMethod* method) {
-  Runtime* runtime = Runtime::Current();
-  const void* quick_code = method->GetEntryPointFromQuickCompiledCode();
-  if (!runtime->GetClassLinker()->IsQuickToInterpreterBridge(quick_code)) {
+bool ShouldStayInSwitchInterpreter(ArtMethod* method)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (!Runtime::Current()->IsStarted()) {
+    // For unstarted runtimes, always use the interpreter entrypoint. This fixes the case where
+    // we are doing cross compilation. Note that GetEntryPointFromQuickCompiledCode doesn't use
+    // the image pointer size here and this may case an overflow if it is called from the
+    // compiler. b/62402160
+    return true;
+  }
+
+  if (UNLIKELY(method->IsNative() || method->IsProxyMethod())) {
     return false;
   }
-  if (!method->SkipAccessChecks() || method->IsNative() || method->IsProxyMethod()) {
-    return false;
+
+  if (Thread::Current()->IsForceInterpreter()) {
+    // Force the use of interpreter when it is required by the debugger.
+    return true;
   }
-  if (method->IsIntrinsic()) {
-    return false;
+
+  if (Thread::Current()->IsAsyncExceptionPending()) {
+    // Force use of interpreter to handle async-exceptions
+    return true;
   }
-  if (method->GetDeclaringClass()->IsStringClass() && method->IsConstructor()) {
-    return false;
+
+  const void* code = method->GetEntryPointFromQuickCompiledCode();
+  if (code == GetQuickInstrumentationEntryPoint()) {
+    code = Runtime::Current()->GetInstrumentation()->GetCodeForInvoke(method);
   }
-  if (method->IsStatic() && !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-    return false;
-  }
-  return true;
+
+  return Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(code);
 }
 
 template <typename T>
@@ -1216,13 +1227,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   // PerformCall. A deoptimization could occur at any time, and we shouldn't change which
   // entrypoint to use once we start building the shadow frame.
 
-  // For unstarted runtimes, always use the interpreter entrypoint. This fixes the case where we are
-  // doing cross compilation. Note that GetEntryPointFromQuickCompiledCode doesn't use the image
-  // pointer size here and this may case an overflow if it is called from the compiler. b/62402160
-  const bool use_interpreter_entrypoint = !Runtime::Current()->IsStarted() ||
-      ClassLinker::ShouldUseInterpreterEntrypoint(
-          called_method,
-          called_method->GetEntryPointFromQuickCompiledCode());
+  const bool use_interpreter_entrypoint = ShouldStayInSwitchInterpreter(called_method);
   if (LIKELY(accessor.HasCodeItem())) {
     // When transitioning to compiled code, space only needs to be reserved for the input registers.
     // The rest of the frame gets discarded. This also prevents accessing the called method's code
