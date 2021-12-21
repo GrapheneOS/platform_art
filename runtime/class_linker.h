@@ -863,6 +863,7 @@ class ClassLinker {
 
  private:
   class LinkFieldsHelper;
+  template <PointerSize kPointerSize>
   class LinkMethodsHelper;
   class MethodTranslation;
   class VisiblyInitializedCallback;
