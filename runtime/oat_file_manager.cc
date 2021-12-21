@@ -497,7 +497,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat_
     vdex_file = VdexFile::Open(vdex_path,
                                /* writable= */ false,
                                /* low_4gb= */ false,
-                               /* unquicken= */ false,
                                &error_msg);
     if (vdex_file == nullptr) {
       LOG(WARNING) << "Failed to open vdex " << vdex_path << ": " << error_msg;
