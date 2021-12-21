@@ -15,16 +15,15 @@
  */
 
 #include <inttypes.h>
+#include <log/log.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include "base/memory_tool.h"
 
 #include <forward_list>
 #include <fstream>
 #include <iostream>
 #include <limits>
-#include <log/log.h>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -51,8 +50,10 @@
 #include "base/dumpable.h"
 #include "base/fast_exit.h"
 #include "base/file_utils.h"
+#include "base/globals.h"
 #include "base/leb128.h"
 #include "base/macros.h"
+#include "base/memory_tool.h"
 #include "base/mutex.h"
 #include "base/os.h"
 #include "base/scoped_flock.h"
@@ -770,8 +771,11 @@ class Dex2Oat final {
       // Use the default, i.e. multi-image for boot image and boot image extension.
       multi_image_ = IsBootImage() || IsBootImageExtension();  // Shall pass checks below.
     }
-    if (IsBootImage() && !multi_image_) {
-      Usage("--single-image specified for primary boot image");
+    // On target we support generating a single image for the primary boot image.
+    if (!kIsTargetBuild) {
+      if (IsBootImage() && !multi_image_) {
+        Usage("--single-image specified for primary boot image on host");
+      }
     }
     if (IsAppImage() && multi_image_) {
       Usage("--multi-image specified for app image");

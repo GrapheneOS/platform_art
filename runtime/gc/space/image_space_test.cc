@@ -19,11 +19,11 @@
 #include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
-
+#include "base/globals.h"
 #include "base/stl_util.h"
 #include "class_linker.h"
-#include "dexopt_test.h"
 #include "dex/utf.h"
+#include "dexopt_test.h"
 #include "intern_table-inl.h"
 #include "noop_compiler_callbacks.h"
 #include "oat_file.h"
@@ -371,7 +371,7 @@ TEST_F(DexoptTest, Checksums) {
   }
 }
 
-template <bool kImage, bool kRelocate>
+template <bool kImage, bool kRelocate, bool kProfile>
 class ImageSpaceLoadingTest : public CommonRuntimeTest {
  protected:
   void SetUpRuntimeOptions(RuntimeOptions* options) override {
@@ -379,6 +379,21 @@ class ImageSpaceLoadingTest : public CommonRuntimeTest {
     if (!kImage) {
       missing_image_base_ = std::make_unique<ScratchFile>();
       image_location = missing_image_base_->GetFilename() + ".art";
+    }
+    // Compiling the primary boot image into a single image is not allowed on host.
+    if (kProfile && kIsTargetBuild) {
+      std::vector<std::string> dex_files(GetLibCoreDexFileNames());
+      profile1_ = std::make_unique<ScratchFile>();
+      GenerateBootProfile(ArrayRef<const std::string>(dex_files),
+                          profile1_->GetFile(),
+                          /*method_frequency=*/6,
+                          /*type_frequency=*/6);
+      profile2_ = std::make_unique<ScratchFile>();
+      GenerateBootProfile(ArrayRef<const std::string>(dex_files),
+                          profile2_->GetFile(),
+                          /*method_frequency=*/8,
+                          /*type_frequency=*/8);
+      image_location += "!" + profile1_->GetFilename() + "!" + profile2_->GetFilename();
     }
     options->emplace_back(android::base::StringPrintf("-Ximage:%s", image_location.c_str()),
                           nullptr);
@@ -410,17 +425,45 @@ class ImageSpaceLoadingTest : public CommonRuntimeTest {
 
  private:
   std::unique_ptr<ScratchFile> missing_image_base_;
+  std::unique_ptr<ScratchFile> profile1_;
+  std::unique_ptr<ScratchFile> profile2_;
   UniqueCPtr<const char[]> old_dex2oat_bcp_;
 };
 
-using ImageSpaceNoDex2oatTest = ImageSpaceLoadingTest<true, true>;
+using ImageSpaceNoDex2oatTest =
+    ImageSpaceLoadingTest</*kImage=*/true, /*kRelocate=*/true, /*kProfile=*/false>;
 TEST_F(ImageSpaceNoDex2oatTest, Test) {
   EXPECT_FALSE(Runtime::Current()->GetHeap()->GetBootImageSpaces().empty());
 }
 
-using ImageSpaceNoRelocateNoDex2oatTest = ImageSpaceLoadingTest<true, false>;
+using ImageSpaceNoRelocateNoDex2oatTest =
+    ImageSpaceLoadingTest</*kImage=*/true, /*kRelocate=*/false, /*kProfile=*/false>;
 TEST_F(ImageSpaceNoRelocateNoDex2oatTest, Test) {
   EXPECT_FALSE(Runtime::Current()->GetHeap()->GetBootImageSpaces().empty());
+}
+
+using ImageSpaceNoImageNoProfileTest =
+    ImageSpaceLoadingTest</*kImage=*/false, /*kRelocate=*/true, /*kProfile=*/false>;
+TEST_F(ImageSpaceNoImageNoProfileTest, Test) {
+  // Imageless mode.
+  EXPECT_TRUE(Runtime::Current()->GetHeap()->GetBootImageSpaces().empty());
+}
+
+using ImageSpaceNoImageTest =
+    ImageSpaceLoadingTest</*kImage=*/false, /*kRelocate=*/true, /*kProfile=*/true>;
+TEST_F(ImageSpaceNoImageTest, Test) {
+  // Compiling the primary boot image into a single image is not allowed on host.
+  TEST_DISABLED_FOR_HOST();
+
+  const std::vector<ImageSpace*>& image_spaces =
+      Runtime::Current()->GetHeap()->GetBootImageSpaces();
+  ASSERT_FALSE(image_spaces.empty());
+
+  const OatFile* oat_file = image_spaces[0]->GetOatFile();
+  ASSERT_TRUE(oat_file != nullptr);
+
+  // Compiled by JIT Zygote.
+  EXPECT_EQ(oat_file->GetCompilerFilter(), CompilerFilter::Filter::kVerify);
 }
 
 }  // namespace space
