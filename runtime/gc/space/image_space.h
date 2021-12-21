@@ -278,6 +278,16 @@ class ImageSpace : public MemMapSpace {
   // This function is exposed for testing purposes.
   static bool ValidateOatFile(const OatFile& oat_file, std::string* error_msg);
 
+  // Same as above, but allows to use `dex_filenames` and `dex_fds` to find the dex files instead of
+  // using the dex filenames in the header of the oat file. This overload is useful when the actual
+  // dex filenames are different from what's in the header (e.g., when we run dex2oat on host), or
+  // when the runtime can only access files through FDs (e.g., when we run dex2oat on target in a
+  // restricted SELinux domain).
+  static bool ValidateOatFile(const OatFile& oat_file,
+                              std::string* error_msg,
+                              ArrayRef<const std::string> dex_filenames,
+                              ArrayRef<const int> dex_fds);
+
   // Return the end of the image which includes non-heap objects such as ArtMethods and ArtFields.
   uint8_t* GetImageEnd() const {
     return Begin() + GetImageHeader().GetImageSize();
