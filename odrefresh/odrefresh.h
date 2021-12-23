@@ -43,8 +43,8 @@ struct CompilationOptions {
   // If true, update the cache info only and do not compile anything.
   bool update_cache_info_only = false;
 
-  // If not empty, compile the bootclasspath extensions for ISAs in the list.
-  std::vector<InstructionSet> compile_boot_extensions_for_isas;
+  // If not empty, compile the bootclasspath jars for ISAs in the list.
+  std::vector<InstructionSet> compile_boot_classpath_for_isas;
 
   // If not empty, compile the system server jars in the list.
   std::set<std::string> system_server_jars_to_compile;
@@ -60,8 +60,7 @@ class OnDeviceRefresh final {
                   std::unique_ptr<ExecUtils> exec_utils,
                   std::unique_ptr<OdrDexopt> odr_dexopt);
 
-  // Returns the exit code, a list of ISAs that boot extensions should be compiled for, and a
-  // boolean indicating whether the system server should be compiled.
+  // Returns the exit code and specifies what should be compiled in `compilation_options`.
   WARN_UNUSED ExitCode
   CheckArtifactsAreUpToDate(OdrMetrics& metrics,
                             /*out*/ CompilationOptions* compilation_options) const;
@@ -94,13 +93,23 @@ class OnDeviceRefresh final {
 
   std::vector<com::android::art::Component> GenerateBootClasspathComponents() const;
 
-  std::vector<com::android::art::Component> GenerateBootExtensionCompilableComponents() const;
+  std::vector<com::android::art::Component> GenerateBootClasspathCompilableComponents() const;
 
   std::vector<com::android::art::SystemServerComponent> GenerateSystemServerComponents() const;
 
-  std::string GetBootImageExtensionImage(bool on_system) const;
+  // Returns the symbolic boot image location (without ISA).
+  std::string GetBootImage(bool on_system) const;
 
-  std::string GetBootImageExtensionImagePath(bool on_system, const InstructionSet isa) const;
+  // Returns the real boot image location (with ISA).
+  std::string GetBootImagePath(bool on_system, const InstructionSet isa) const;
+
+  // Returns the symbolic boot image extension location (without ISA). Note that this only applies
+  // to boot images on /system.
+  std::string GetSystemBootImageExtension() const;
+
+  // Returns the real boot image location extension (with ISA). Note that this only applies to boot
+  // images on /system.
+  std::string GetSystemBootImageExtensionPath(const InstructionSet isa) const;
 
   std::string GetSystemServerImagePath(bool on_system, const std::string& jar_path) const;
 
@@ -113,10 +122,10 @@ class OnDeviceRefresh final {
   // artifacts to fs-verity.
   android::base::Result<void> RefreshExistingArtifacts() const;
 
-  // Checks whether all boot extension artifacts are present. Returns true if all are present, false
+  // Checks whether all boot classpath artifacts are present. Returns true if all are present, false
   // otherwise.
   // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
-  WARN_UNUSED bool BootExtensionArtifactsExist(
+  WARN_UNUSED bool BootClasspathArtifactsExist(
       bool on_system,
       const InstructionSet isa,
       /*out*/ std::string* error_msg,
@@ -132,10 +141,10 @@ class OnDeviceRefresh final {
       /*out*/ std::set<std::string>* jars_missing_artifacts,
       /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
 
-  // Checks whether all boot extension artifacts are up to date. Returns true if all are present,
+  // Checks whether all boot classpath artifacts are up to date. Returns true if all are present,
   // false otherwise.
   // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
-  WARN_UNUSED bool CheckBootExtensionArtifactsAreUpToDate(
+  WARN_UNUSED bool CheckBootClasspathArtifactsAreUpToDate(
       OdrMetrics& metrics,
       const InstructionSet isa,
       const com::android::apex::ApexInfo& art_apex_info,
@@ -153,7 +162,7 @@ class OnDeviceRefresh final {
       /*out*/ std::set<std::string>* jars_to_compile,
       /*out*/ std::vector<std::string>* checked_artifacts) const;
 
-  WARN_UNUSED bool CompileBootExtensionArtifacts(const InstructionSet isa,
+  WARN_UNUSED bool CompileBootClasspathArtifacts(const InstructionSet isa,
                                                  const std::string& staging_dir,
                                                  OdrMetrics& metrics,
                                                  const std::function<void()>& on_dex2oat_success,
@@ -172,8 +181,8 @@ class OnDeviceRefresh final {
   // Path to cache information file that is used to speed up artifact checking.
   const std::string cache_info_filename_;
 
-  // List of boot extension components that should be compiled.
-  std::vector<std::string> boot_extension_compilable_jars_;
+  // List of boot classpath components that should be compiled.
+  std::vector<std::string> boot_classpath_compilable_jars_;
 
   // Set of system_server components in SYSTEMSERVERCLASSPATH that should be compiled.
   std::unordered_set<std::string> systemserver_classpath_jars_;

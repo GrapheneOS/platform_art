@@ -159,8 +159,12 @@ class OdRefreshTest : public CommonArtTest {
 
     std::string system_etc_dir = Concatenate({android_root_path, "/etc"});
     ASSERT_TRUE(EnsureDirectoryExists(system_etc_dir));
-    boot_profile_file_ = system_etc_dir + "/boot-image.prof";
-    CreateEmptyFile(boot_profile_file_);
+    framework_profile_ = system_etc_dir + "/boot-image.prof";
+    CreateEmptyFile(framework_profile_);
+    std::string art_etc_dir = Concatenate({android_art_root_path, "/etc"});
+    ASSERT_TRUE(EnsureDirectoryExists(art_etc_dir));
+    art_profile_ = art_etc_dir + "/boot-image.prof";
+    CreateEmptyFile(art_profile_);
 
     framework_dir_ = android_root_path + "/framework";
     framework_jar_ = framework_dir_ + "/framework.jar";
@@ -169,8 +173,8 @@ class OdRefreshTest : public CommonArtTest {
     services_foo_jar_ = framework_dir_ + "/services-foo.jar";
     services_bar_jar_ = framework_dir_ + "/services-bar.jar";
     std::string services_jar_prof = framework_dir_ + "/services.jar.prof";
-    std::string javalib_dir = android_art_root_path + "/javalib";
-    std::string boot_art = javalib_dir + "/boot.art";
+    art_javalib_dir_ = android_art_root_path + "/javalib";
+    core_oj_jar_ = art_javalib_dir_ + "/core-oj.jar";
 
     // Create placeholder files.
     ASSERT_TRUE(EnsureDirectoryExists(framework_dir_ + "/x86_64"));
@@ -180,16 +184,16 @@ class OdRefreshTest : public CommonArtTest {
     CreateEmptyFile(services_foo_jar_);
     CreateEmptyFile(services_bar_jar_);
     CreateEmptyFile(services_jar_prof);
-    ASSERT_TRUE(EnsureDirectoryExists(javalib_dir));
-    CreateEmptyFile(boot_art);
+    ASSERT_TRUE(EnsureDirectoryExists(art_javalib_dir_));
+    CreateEmptyFile(core_oj_jar_);
 
     std::string apex_info_filename = Concatenate({temp_dir_path, "/apex-info-list.xml"});
     WriteFakeApexInfoList(apex_info_filename);
     config_.SetApexInfoListFile(apex_info_filename);
 
     config_.SetArtBinDir(Concatenate({temp_dir_path, "/bin"}));
-    config_.SetBootClasspath(framework_jar_);
-    config_.SetDex2oatBootclasspath(framework_jar_);
+    config_.SetBootClasspath(Concatenate({core_oj_jar_, ":", framework_jar_}));
+    config_.SetDex2oatBootclasspath(Concatenate({core_oj_jar_, ":", framework_jar_}));
     config_.SetSystemServerClasspath(Concatenate({location_provider_jar_, ":", services_jar_}));
     config_.SetStandaloneSystemServerJars(Concatenate({services_foo_jar_, ":", services_bar_jar_}));
     config_.SetIsa(InstructionSet::kX86_64);
@@ -230,6 +234,7 @@ class OdRefreshTest : public CommonArtTest {
   std::unique_ptr<ScopedUnsetEnvironmentVariable> art_apex_data_env_;
   OdrConfig config_;
   std::unique_ptr<OdrMetrics> metrics_;
+  std::string core_oj_jar_;
   std::string framework_jar_;
   std::string location_provider_jar_;
   std::string services_jar_;
@@ -237,8 +242,31 @@ class OdRefreshTest : public CommonArtTest {
   std::string services_bar_jar_;
   std::string dalvik_cache_dir_;
   std::string framework_dir_;
-  std::string boot_profile_file_;
+  std::string art_javalib_dir_;
+  std::string framework_profile_;
+  std::string art_profile_;
 };
+
+TEST_F(OdRefreshTest, BootClasspathJars) {
+  auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
+
+  EXPECT_CALL(*mock_odr_dexopt,
+              DoDexoptBcpExtension(AllOf(
+                  Field(&DexoptBcpExtArgs::dexPaths, ElementsAre(core_oj_jar_, framework_jar_)),
+                  AllOf(Field(&DexoptBcpExtArgs::dexFds,
+                              ElementsAre(FdOf(core_oj_jar_), FdOf(framework_jar_))),
+                        Field(&DexoptBcpExtArgs::profileFds,
+                              ElementsAre(FdOf(art_profile_), FdOf(framework_profile_))),
+                        Field(&DexoptBcpExtArgs::oatLocation,
+                              Eq(dalvik_cache_dir_ + "/x86_64/boot.oat"))))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh->Compile(*metrics_,
+                               CompilationOptions{
+                                   .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
+                               }),
+            ExitCode::kCompilationSuccess);
+}
 
 TEST_F(OdRefreshTest, AllSystemServerJars) {
   auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
@@ -442,7 +470,7 @@ TEST_F(OdRefreshTest, OutputFilesAndIsa) {
   EXPECT_EQ(
       odrefresh->Compile(*metrics_,
                          CompilationOptions{
-                             .compile_boot_extensions_for_isas = {InstructionSet::kX86_64},
+                             .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
                              .system_server_jars_to_compile = odrefresh->AllSystemServerJars(),
                          }),
       ExitCode::kCompilationSuccess);
@@ -453,21 +481,20 @@ TEST_F(OdRefreshTest, CompileChoosesBootImage) {
     auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
 
     // Boot image is on /data.
-    OdrArtifacts artifacts =
-        OdrArtifacts::ForBootImageExtension(dalvik_cache_dir_ + "/x86_64/boot-framework.art");
+    OdrArtifacts artifacts = OdrArtifacts::ForBootImage(dalvik_cache_dir_ + "/x86_64/boot.art");
     auto file1 = ScopedCreateEmptyFile(artifacts.ImagePath());
     auto file2 = ScopedCreateEmptyFile(artifacts.VdexPath());
     auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
 
-    EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(Field(&DexoptSystemServerArgs::isBootImageOnSystem, Eq(false)),
-                                   Field(&DexoptSystemServerArgs::bootClasspathImageFds,
-                                         Contains(FdOf(artifacts.ImagePath()))),
-                                   Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
-                                         Contains(FdOf(artifacts.VdexPath()))),
-                                   Field(&DexoptSystemServerArgs::bootClasspathOatFds,
-                                         Contains(FdOf(artifacts.OatPath()))))))
+    EXPECT_CALL(*mock_odr_dexopt,
+                DoDexoptSystemServer(AllOf(
+                    Field(&DexoptSystemServerArgs::bootImage, Eq(dalvik_cache_dir_ + "/boot.art")),
+                    Field(&DexoptSystemServerArgs::bootClasspathImageFds,
+                          Contains(FdOf(artifacts.ImagePath()))),
+                    Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
+                          Contains(FdOf(artifacts.VdexPath()))),
+                    Field(&DexoptSystemServerArgs::bootClasspathOatFds,
+                          Contains(FdOf(artifacts.OatPath()))))))
         .Times(odrefresh->AllSystemServerJars().size())
         .WillRepeatedly(Return(0));
     EXPECT_EQ(
@@ -483,20 +510,23 @@ TEST_F(OdRefreshTest, CompileChoosesBootImage) {
 
     // Boot image is on /system.
     OdrArtifacts artifacts =
-        OdrArtifacts::ForBootImageExtension(framework_dir_ + "/x86_64/boot-framework.art");
+        OdrArtifacts::ForBootImage(framework_dir_ + "/x86_64/boot-framework.art");
     auto file1 = ScopedCreateEmptyFile(artifacts.ImagePath());
     auto file2 = ScopedCreateEmptyFile(artifacts.VdexPath());
     auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
 
-    EXPECT_CALL(
-        *mock_odr_dexopt,
-        DoDexoptSystemServer(AllOf(Field(&DexoptSystemServerArgs::isBootImageOnSystem, Eq(true)),
-                                   Field(&DexoptSystemServerArgs::bootClasspathImageFds,
-                                         Contains(FdOf(artifacts.ImagePath()))),
-                                   Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
-                                         Contains(FdOf(artifacts.VdexPath()))),
-                                   Field(&DexoptSystemServerArgs::bootClasspathOatFds,
-                                         Contains(FdOf(artifacts.OatPath()))))))
+    EXPECT_CALL(*mock_odr_dexopt,
+                DoDexoptSystemServer(
+                    AllOf(Field(&DexoptSystemServerArgs::bootImage,
+                                Eq(android::base::StringPrintf("%s/boot.art:%s/boot-framework.art",
+                                                               art_javalib_dir_.c_str(),
+                                                               framework_dir_.c_str()))),
+                          Field(&DexoptSystemServerArgs::bootClasspathImageFds,
+                                Contains(FdOf(artifacts.ImagePath()))),
+                          Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
+                                Contains(FdOf(artifacts.VdexPath()))),
+                          Field(&DexoptSystemServerArgs::bootClasspathOatFds,
+                                Contains(FdOf(artifacts.OatPath()))))))
         .Times(odrefresh->AllSystemServerJars().size())
         .WillRepeatedly(Return(0));
     EXPECT_EQ(
