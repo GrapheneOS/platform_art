@@ -316,7 +316,8 @@ class JitCodeCache {
   // Create a 'ProfileInfo' for 'method'.
   ProfilingInfo* AddProfilingInfo(Thread* self,
                                   ArtMethod* method,
-                                  const std::vector<uint32_t>& entries)
+                                  const std::vector<uint32_t>& inline_cache_entries,
+                                  const std::vector<uint32_t>& branch_cache_entries)
       REQUIRES(!Locks::jit_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -423,7 +424,8 @@ class JitCodeCache {
 
   ProfilingInfo* AddProfilingInfoInternal(Thread* self,
                                           ArtMethod* method,
-                                          const std::vector<uint32_t>& entries)
+                                          const std::vector<uint32_t>& inline_cache_entries,
+                                          const std::vector<uint32_t>& branch_cache_entries)
       REQUIRES(Locks::jit_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

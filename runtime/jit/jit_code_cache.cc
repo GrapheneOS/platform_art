@@ -447,8 +447,9 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
   // Walk over inline caches to clear entries containing unloaded classes.
   for (auto it : profiling_infos_) {
     ProfilingInfo* info = it.second;
+    InlineCache* caches = info->GetInlineCaches();
     for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
-      InlineCache* cache = &info->cache_[i];
+      InlineCache* cache = &caches[i];
       for (size_t j = 0; j < InlineCache::kIndividualCacheSize; ++j) {
         mirror::Class* klass = cache->classes_[j].Read<kWithoutReadBarrier>();
         if (klass != nullptr) {
@@ -1492,25 +1493,28 @@ OatQuickMethodHeader* JitCodeCache::LookupOsrMethodHeader(ArtMethod* method) {
 
 ProfilingInfo* JitCodeCache::AddProfilingInfo(Thread* self,
                                               ArtMethod* method,
-                                              const std::vector<uint32_t>& entries) {
+                                              const std::vector<uint32_t>& inline_cache_entries,
+                                              const std::vector<uint32_t>& branch_cache_entries) {
   DCHECK(CanAllocateProfilingInfo());
   ProfilingInfo* info = nullptr;
   {
     MutexLock mu(self, *Locks::jit_lock_);
-    info = AddProfilingInfoInternal(self, method, entries);
+    info = AddProfilingInfoInternal(self, method, inline_cache_entries, branch_cache_entries);
   }
 
   if (info == nullptr) {
     GarbageCollectCache(self);
     MutexLock mu(self, *Locks::jit_lock_);
-    info = AddProfilingInfoInternal(self, method, entries);
+    info = AddProfilingInfoInternal(self, method, inline_cache_entries, branch_cache_entries);
   }
   return info;
 }
 
-ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
-                                                      ArtMethod* method,
-                                                      const std::vector<uint32_t>& entries) {
+ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(
+    Thread* self,
+    ArtMethod* method,
+    const std::vector<uint32_t>& inline_cache_entries,
+    const std::vector<uint32_t>& branch_cache_entries) {
   ScopedDebugDisallowReadBarriers sddrb(self);
   // Check whether some other thread has concurrently created it.
   auto it = profiling_infos_.find(method);
@@ -1518,16 +1522,16 @@ ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self,
     return it->second;
   }
 
-  size_t profile_info_size = RoundUp(
-      sizeof(ProfilingInfo) + sizeof(InlineCache) * entries.size(),
-      sizeof(void*));
+  size_t profile_info_size =
+      ProfilingInfo::ComputeSize(inline_cache_entries.size(), branch_cache_entries.size());
 
   const uint8_t* data = private_region_.AllocateData(profile_info_size);
   if (data == nullptr) {
     return nullptr;
   }
   uint8_t* writable_data = private_region_.GetWritableDataAddress(data);
-  ProfilingInfo* info = new (writable_data) ProfilingInfo(method, entries);
+  ProfilingInfo* info =
+      new (writable_data) ProfilingInfo(method, inline_cache_entries, branch_cache_entries);
 
   profiling_infos_.Put(method, info);
   histogram_profiling_info_memory_use_.AddValue(profile_info_size);
@@ -1574,7 +1578,7 @@ void JitCodeCache::GetProfiledMethods(const std::set<std::string>& dex_base_loca
 
     for (size_t i = 0; i < info->number_of_inline_caches_; ++i) {
       std::vector<TypeReference> profile_classes;
-      const InlineCache& cache = info->cache_[i];
+      const InlineCache& cache = info->GetInlineCaches()[i];
       ArtMethod* caller = info->GetMethod();
       bool is_missing_types = false;
       for (size_t k = 0; k < InlineCache::kIndividualCacheSize; k++) {

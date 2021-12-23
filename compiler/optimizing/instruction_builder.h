@@ -116,8 +116,8 @@ class HInstructionBuilder : public ValueObject {
   template<typename T>
   void Binop_22s(const Instruction& instruction, bool reverse, uint32_t dex_pc);
 
-  template<typename T> void If_21t(const Instruction& instruction, uint32_t dex_pc);
-  template<typename T> void If_22t(const Instruction& instruction, uint32_t dex_pc);
+  template<typename T, bool kCompareWithZero>
+  void If_21_22t(const Instruction& instruction, uint32_t dex_pc);
 
   void Conversion_12x(const Instruction& instruction,
                       DataType::Type input_type,

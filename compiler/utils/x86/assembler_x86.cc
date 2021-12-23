@@ -3213,6 +3213,14 @@ void X86Assembler::addw(const Address& address, const Immediate& imm) {
 }
 
 
+void X86Assembler::addw(Register reg, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_uint16() || imm.is_int16()) << imm.value();
+  EmitUint8(0x66);
+  EmitComplex(0, Operand(reg), imm, /* is_16_op= */ true);
+}
+
+
 void X86Assembler::adcl(Register reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitComplex(2, Operand(reg), imm);

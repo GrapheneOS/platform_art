@@ -665,22 +665,31 @@ void HInstructionBuilder::InitializeParameters() {
   }
 }
 
-template<typename T>
-void HInstructionBuilder::If_22t(const Instruction& instruction, uint32_t dex_pc) {
-  HInstruction* first = LoadLocal(instruction.VRegA(), DataType::Type::kInt32);
-  HInstruction* second = LoadLocal(instruction.VRegB(), DataType::Type::kInt32);
-  T* comparison = new (allocator_) T(first, second, dex_pc);
-  AppendInstruction(comparison);
-  AppendInstruction(new (allocator_) HIf(comparison, dex_pc));
-  current_block_ = nullptr;
-}
-
-template<typename T>
-void HInstructionBuilder::If_21t(const Instruction& instruction, uint32_t dex_pc) {
+template<typename T, bool kCompareWithZero>
+void HInstructionBuilder::If_21_22t(const Instruction& instruction, uint32_t dex_pc) {
   HInstruction* value = LoadLocal(instruction.VRegA(), DataType::Type::kInt32);
-  T* comparison = new (allocator_) T(value, graph_->GetIntConstant(0, dex_pc), dex_pc);
+  T* comparison = nullptr;
+  if (kCompareWithZero) {
+    comparison = new (allocator_) T(value, graph_->GetIntConstant(0, dex_pc), dex_pc);
+  } else {
+    HInstruction* second = LoadLocal(instruction.VRegB(), DataType::Type::kInt32);
+    comparison = new (allocator_) T(value, second, dex_pc);
+  }
   AppendInstruction(comparison);
-  AppendInstruction(new (allocator_) HIf(comparison, dex_pc));
+  HIf* if_instr = new (allocator_) HIf(comparison, dex_pc);
+
+  ProfilingInfo* info = graph_->GetProfilingInfo();
+  if (info != nullptr && !graph_->IsCompilingBaseline()) {
+    BranchCache* cache = info->GetBranchCache(dex_pc);
+    if (cache != nullptr) {
+      if_instr->SetTrueCount(cache->GetTrue());
+      if_instr->SetFalseCount(cache->GetFalse());
+    }
+  }
+
+  // Append after setting true/false count, so that the builder knows if the
+  // instruction needs an environment.
+  AppendInstruction(if_instr);
   current_block_ = nullptr;
 }
 
@@ -2879,8 +2888,12 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     }
 
 #define IF_XX(comparison, cond) \
-    case Instruction::IF_##cond: If_22t<comparison>(instruction, dex_pc); break; \
-    case Instruction::IF_##cond##Z: If_21t<comparison>(instruction, dex_pc); break
+    case Instruction::IF_##cond: \
+      If_21_22t<comparison, /* kCompareWithZero= */ false>(instruction, dex_pc); \
+      break; \
+    case Instruction::IF_##cond##Z: \
+      If_21_22t<comparison, /* kCompareWithZero= */ true>(instruction, dex_pc); \
+      break;
 
     IF_XX(HEqual, EQ);
     IF_XX(HNotEqual, NE);
