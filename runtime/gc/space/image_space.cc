@@ -25,7 +25,6 @@
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android-base/unique_fd.h"
-
 #include "arch/instruction_set.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -1514,6 +1513,12 @@ class ImageSpace::BootImageLayout {
                       const char* file_description,
                       /*out*/std::string* error_msg);
 
+  bool ValidateOatFile(const std::string& base_location,
+                       const std::string& base_filename,
+                       size_t bcp_index,
+                       size_t component_count,
+                       /*out*/std::string* error_msg);
+
   bool ReadHeader(const std::string& base_location,
                   const std::string& base_filename,
                   size_t bcp_index,
@@ -1820,6 +1825,68 @@ bool ImageSpace::BootImageLayout::ValidateHeader(const ImageHeader& header,
   return true;
 }
 
+bool ImageSpace::BootImageLayout::ValidateOatFile(
+    const std::string& base_location,
+    const std::string& base_filename,
+    size_t bcp_index,
+    size_t component_count,
+    /*out*/std::string* error_msg) {
+  std::string art_filename = ExpandLocation(base_filename, bcp_index);
+  std::string art_location = ExpandLocation(base_location, bcp_index);
+  std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(art_filename);
+  std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(art_location);
+  int oat_fd =
+      bcp_index < boot_class_path_oat_fds_.size() ? boot_class_path_oat_fds_[bcp_index] : -1;
+  int vdex_fd =
+      bcp_index < boot_class_path_vdex_fds_.size() ? boot_class_path_vdex_fds_[bcp_index] : -1;
+  auto dex_filenames =
+      ArrayRef<const std::string>(boot_class_path_).SubArray(bcp_index, component_count);
+  auto dex_fds =
+      bcp_index + component_count < boot_class_path_fds_.size() ?
+          ArrayRef<const int>(boot_class_path_fds_).SubArray(bcp_index, component_count) :
+          ArrayRef<const int>();
+  // We open the oat file here only for validating that it's up-to-date. We don't open it as
+  // executable or mmap it to a reserved space. This `OatFile` object will be dropped after
+  // validation, and will not go into the `ImageSpace`.
+  std::unique_ptr<OatFile> oat_file;
+  DCHECK_EQ(oat_fd >= 0, vdex_fd >= 0);
+  if (oat_fd >= 0) {
+    oat_file.reset(OatFile::Open(
+        /*zip_fd=*/ -1,
+        vdex_fd,
+        oat_fd,
+        oat_location,
+        /*executable=*/ false,
+        /*low_4gb=*/ false,
+        dex_filenames,
+        dex_fds,
+        /*reservation=*/ nullptr,
+        error_msg));
+  } else {
+    oat_file.reset(OatFile::Open(
+        /*zip_fd=*/ -1,
+        oat_filename,
+        oat_location,
+        /*executable=*/ false,
+        /*low_4gb=*/ false,
+        dex_filenames,
+        dex_fds,
+        /*reservation=*/ nullptr,
+        error_msg));
+  }
+  if (oat_file == nullptr) {
+    *error_msg = StringPrintf("Failed to open oat file '%s' when validating it for image '%s': %s",
+                              oat_filename.c_str(),
+                              art_location.c_str(),
+                              error_msg->c_str());
+    return false;
+  }
+  if (!ImageSpace::ValidateOatFile(*oat_file, error_msg, dex_filenames, dex_fds)) {
+    return false;
+  }
+  return true;
+}
+
 bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
                                              const std::string& base_filename,
                                              size_t bcp_index,
@@ -1846,6 +1913,15 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
   const char* file_description = actual_filename.c_str();
   if (!ValidateHeader(header, bcp_index, file_description, error_msg)) {
     return false;
+  }
+
+  // Validate oat files. We do it here so that the boot image will be re-compiled in memory if it's
+  // outdated.
+  size_t component_count = (header.GetImageSpaceCount() == 1u) ? header.GetComponentCount() : 1u;
+  for (size_t i = 0; i < header.GetImageSpaceCount(); i++) {
+    if (!ValidateOatFile(base_location, base_filename, bcp_index + i, component_count, error_msg)) {
+      return false;
+    }
   }
 
   if (chunks_.empty()) {
@@ -3221,6 +3297,8 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
     return false;
   }
 
+  // Load the image. We don't validate oat files in this stage because they have been validated
+  // before.
   if (!LoadImage(layout,
                  /*validate_oat_file=*/ false,
                  extra_reservation_size,
@@ -3378,20 +3456,32 @@ void ImageSpace::Dump(std::ostream& os) const {
 }
 
 bool ImageSpace::ValidateOatFile(const OatFile& oat_file, std::string* error_msg) {
-  const ArtDexFileLoader dex_file_loader;
-  for (const OatDexFile* oat_dex_file : oat_file.GetOatDexFiles()) {
-    const std::string& dex_file_location = oat_dex_file->GetDexFileLocation();
+  return ValidateOatFile(oat_file, error_msg, ArrayRef<const std::string>(), ArrayRef<const int>());
+}
 
+bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
+                                 std::string* error_msg,
+                                 ArrayRef<const std::string> dex_filenames,
+                                 ArrayRef<const int> dex_fds) {
+  const ArtDexFileLoader dex_file_loader;
+  size_t dex_file_index = 0;
+  for (const OatDexFile* oat_dex_file : oat_file.GetOatDexFiles()) {
     // Skip multidex locations - These will be checked when we visit their
     // corresponding primary non-multidex location.
-    if (DexFileLoader::IsMultiDexLocation(dex_file_location.c_str())) {
+    if (DexFileLoader::IsMultiDexLocation(oat_dex_file->GetDexFileLocation().c_str())) {
       continue;
     }
+
+    DCHECK(dex_filenames.empty() || dex_file_index < dex_filenames.size());
+    const std::string& dex_file_location =
+        dex_filenames.empty() ? oat_dex_file->GetDexFileLocation() : dex_filenames[dex_file_index];
+    int dex_fd = dex_file_index < dex_fds.size() ? dex_fds[dex_file_index] : -1;
+    dex_file_index++;
 
     std::vector<uint32_t> checksums;
     std::vector<std::string> dex_locations_ignored;
     if (!dex_file_loader.GetMultiDexChecksums(
-        dex_file_location.c_str(), &checksums, &dex_locations_ignored, error_msg)) {
+            dex_file_location.c_str(), &checksums, &dex_locations_ignored, error_msg, dex_fd)) {
       *error_msg = StringPrintf("ValidateOatFile failed to get checksums of dex file '%s' "
                                 "referenced by oat file %s: %s",
                                 dex_file_location.c_str(),
