@@ -877,25 +877,23 @@ class Dex2Oat final {
       }
     }
 
-    // Trim the boot image location to not include any specified profile. Note
-    // that the logic below will include the first boot image extension, but not
-    // the ones that could be listed after the profile of that extension. This
-    // works for our current top use case:
-    // boot.art:/system/framework/boot-framework.art
-    // But this would need to be adjusted if we had to support different use
-    // cases.
-    size_t profile_separator_pos = boot_image_filename_.find(ImageSpace::kProfileSeparator);
-    if (profile_separator_pos != std::string::npos) {
-      DCHECK(!IsBootImage());  // For primary boot image the boot_image_filename_ is empty.
-      if (IsBootImageExtension()) {
-        Usage("Unsupported profile specification in boot image location (%s) for extension.",
-              boot_image_filename_.c_str());
+    // Prune profile specifications of the boot image location.
+    std::vector<std::string> boot_images =
+        android::base::Split(boot_image_filename_, {ImageSpace::kComponentSeparator});
+    bool boot_image_filename_pruned = false;
+    for (std::string& boot_image : boot_images) {
+      size_t profile_separator_pos = boot_image.find(ImageSpace::kProfileSeparator);
+      if (profile_separator_pos != std::string::npos) {
+        boot_image.resize(profile_separator_pos);
+        boot_image_filename_pruned = true;
       }
-      VLOG(compiler)
-          << "Truncating boot image location " << boot_image_filename_
-          << " because it contains profile specification. Truncated: "
-          << boot_image_filename_.substr(/*pos*/ 0u, /*length*/ profile_separator_pos);
-      boot_image_filename_.resize(profile_separator_pos);
+    }
+    if (boot_image_filename_pruned) {
+      std::string new_boot_image_filename =
+          android::base::Join(boot_images, ImageSpace::kComponentSeparator);
+      VLOG(compiler) << "Pruning profile specifications of the boot image location. Before: "
+                     << boot_image_filename_ << ", After: " << new_boot_image_filename;
+      boot_image_filename_ = std::move(new_boot_image_filename);
     }
 
     compiler_options_->passes_to_run_ = passes_to_run_.get();
