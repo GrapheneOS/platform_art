@@ -509,6 +509,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime,
       weak_globals_add_condition_("weak globals add condition",
                                   (CHECK(Locks::jni_weak_globals_lock_ != nullptr),
                                    *Locks::jni_weak_globals_lock_)),
+      env_hooks_lock_("environment hooks lock", art::kGenericBottomLock),
       env_hooks_(),
       enable_allocation_tracking_delta_(
           runtime_options.GetOrDefault(RuntimeArgumentMap::GlobalRefAllocStackTraceLimit)),
@@ -536,7 +537,12 @@ std::unique_ptr<JavaVMExt> JavaVMExt::Create(Runtime* runtime,
 }
 
 jint JavaVMExt::HandleGetEnv(/*out*/void** env, jint version) {
-  for (GetEnvHook hook : env_hooks_) {
+  std::vector<GetEnvHook> env_hooks;
+  {
+    ReaderMutexLock rmu(Thread::Current(), env_hooks_lock_);
+    env_hooks.assign(env_hooks_.begin(), env_hooks_.end());
+  }
+  for (GetEnvHook hook : env_hooks) {
     jint res = hook(this, env, version);
     if (res == JNI_OK) {
       return JNI_OK;
@@ -552,6 +558,7 @@ jint JavaVMExt::HandleGetEnv(/*out*/void** env, jint version) {
 // Add a hook to handle getting environments from the GetEnv call.
 void JavaVMExt::AddEnvironmentHook(GetEnvHook hook) {
   CHECK(hook != nullptr) << "environment hooks shouldn't be null!";
+  WriterMutexLock wmu(Thread::Current(), env_hooks_lock_);
   env_hooks_.push_back(hook);
 }
 
