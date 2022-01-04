@@ -1174,6 +1174,13 @@ class Dex2Oat final {
       LOG(WARNING) << "Option --updatable-bcp-packages-fd is deprecated and no longer takes effect";
     }
 
+    if (args.Exists(M::ForceJitZygote)) {
+      if (!parser_options->boot_image_filename.empty()) {
+        Usage("Option --boot-image and --force-jit-zygote cannot be specified together");
+      }
+      parser_options->boot_image_filename = "boot.art:/nonx/boot-framework.art";
+    }
+
     // If we have a profile, change the default compiler filter to speed-profile
     // before reading compiler options.
     static_assert(CompilerFilter::kDefaultCompilerFilter == CompilerFilter::kSpeed);
@@ -1554,12 +1561,6 @@ class Dex2Oat final {
       };
       if (std::any_of(bcp_dex_files.begin(), bcp_dex_files.end() - dex_files.size(), lacks_image)) {
         LOG(ERROR) << "Missing required boot image(s) for boot image extension.";
-        return dex2oat::ReturnCode::kOther;
-      }
-    } else {
-      // Check that we loaded at least the primary boot image for app compilation.
-      if (runtime_->GetHeap()->GetBootImageSpaces().empty()) {
-        LOG(ERROR) << "Missing primary boot image for app compilation.";
         return dex2oat::ReturnCode::kOther;
       }
     }
