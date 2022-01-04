@@ -22,6 +22,6 @@
         <option name="jar" value="art-apex-update-rollback.jar" />
     </test>
 
-    <!--- Only run tests if the device under test is SDK version 31 (Android 12) or above. -->
+    <!-- Only run tests if the device under test is SDK version 31 (Android 12) or above. -->
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
 </configuration>
