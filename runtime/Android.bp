@@ -591,7 +591,6 @@ art_cc_defaults {
         "libart_defaults",
         "libart_nativeunwind_defaults",
         "art_hugepage_defaults",
-        "art_pgo_defaults",
     ],
     whole_static_libs: [
     ],
@@ -623,6 +622,7 @@ art_cc_library {
         "com.android.art",
         "com.android.art.debug",
     ],
+    afdo: true,
 }
 
 // "Broken" version of the ART runtime library, used only for testing.
