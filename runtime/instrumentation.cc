@@ -184,7 +184,6 @@ Instrumentation::Instrumentation()
       have_exception_handled_listeners_(false),
       deoptimized_methods_lock_(new ReaderWriterMutex("deoptimized methods lock",
                                                       kGenericBottomLock)),
-      deoptimization_enabled_(false),
       interpreter_handler_table_(kMainHandlerTable),
       quick_alloc_entry_points_instrumentation_counter_(0),
       alloc_entrypoints_instrumented_(false) {
@@ -1219,20 +1218,10 @@ bool Instrumentation::IsDeoptimized(ArtMethod* method) {
   return IsDeoptimizedMethod(method);
 }
 
-void Instrumentation::EnableDeoptimization() {
-  ReaderMutexLock mu(Thread::Current(), *GetDeoptimizedMethodsLock());
-  CHECK(IsDeoptimizedMethodsEmpty());
-  CHECK_EQ(deoptimization_enabled_, false);
-  deoptimization_enabled_ = true;
-}
 
 void Instrumentation::DisableDeoptimization(const char* key) {
-  CHECK_EQ(deoptimization_enabled_, true);
-  // If we deoptimized everything, undo it.
-  InstrumentationLevel level = GetCurrentInstrumentationLevel();
-  if (level == InstrumentationLevel::kInstrumentWithInterpreter) {
-    UndeoptimizeEverything(key);
-  }
+  // Remove any instrumentation support added for deoptimization.
+  ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
   // Undeoptimized selected methods.
   while (true) {
     ArtMethod* method;
@@ -1246,7 +1235,6 @@ void Instrumentation::DisableDeoptimization(const char* key) {
     }
     Undeoptimize(method);
   }
-  deoptimization_enabled_ = false;
 }
 
 // Indicates if instrumentation should notify method enter/exit events to the listeners.
@@ -1254,17 +1242,15 @@ bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
   if (!HasMethodEntryListeners() && !HasMethodExitListeners()) {
     return false;
   }
-  return !deoptimization_enabled_ && !InterpreterStubsInstalled();
+  return !InterpreterStubsInstalled();
 }
 
 void Instrumentation::DeoptimizeEverything(const char* key) {
-  CHECK(deoptimization_enabled_);
   ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInterpreter);
 }
 
 void Instrumentation::UndeoptimizeEverything(const char* key) {
   CHECK(InterpreterStubsInstalled());
-  CHECK(deoptimization_enabled_);
   ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
 }
 
