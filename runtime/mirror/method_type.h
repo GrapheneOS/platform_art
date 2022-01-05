@@ -67,6 +67,11 @@ class MANAGED MethodType : public Object {
   // iff. they have convertible return types and parameter types.
   bool IsConvertible(ObjPtr<MethodType> target) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns true iff. |this| can be converted to match |target| method type within the
+  // current frame of the current MethodType. This limits conversions to assignability check
+  // for references and between scalar 32-bit types.
+  bool IsInPlaceConvertible(ObjPtr<MethodType> target) REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Returns the pretty descriptor for this method type, suitable for display in
   // exception messages and the like.
   std::string PrettyDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
