@@ -225,6 +225,13 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasJitCompiledCode(JNIEnv* env,
 static void ForceJitCompiled(Thread* self,
                              ArtMethod* method,
                              CompilationKind kind) REQUIRES(!Locks::mutator_lock_) {
+  // TODO(mythria): Update this check once we support method entry / exit hooks directly from
+  // JIT code instead of installing EntryExit stubs.
+  if (Runtime::Current()->GetInstrumentation()->EntryExitStubsInstalled() &&
+      (method->IsNative() || !Runtime::Current()->IsJavaDebuggable())) {
+    return;
+  }
+
   {
     ScopedObjectAccess soa(self);
     if (!Runtime::Current()->GetRuntimeCallbacks()->IsMethodSafeToJit(method)) {

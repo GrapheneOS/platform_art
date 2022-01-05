@@ -1669,7 +1669,8 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Change the implicit checks flags based on runtime architecture.
   switch (kRuntimeISA) {
     case InstructionSet::kArm64:
-      implicit_suspend_checks_ = true;
+      // TODO: Investigate implicit suspend check regressions. Bug: 209235730, 213121241.
+      implicit_suspend_checks_ = false;
       FALLTHROUGH_INTENDED;
     case InstructionSet::kArm:
     case InstructionSet::kThumb2:
