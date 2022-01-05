@@ -533,7 +533,7 @@ OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
     : OnDeviceRefresh(config,
                       Concatenate({config.GetArtifactDirectory(), "/", kCacheInfoFile}),
                       std::make_unique<ExecUtils>(),
-                      OdrDexopt::Create(config, std::make_unique<ExecUtils>())) {}
+                      std::make_unique<OdrDexopt>(config, std::make_unique<ExecUtils>())) {}
 
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config,
                                  const std::string& cache_info_filename,
