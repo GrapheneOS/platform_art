@@ -226,10 +226,6 @@ class Instrumentation {
   void RemoveListener(InstrumentationListener* listener, uint32_t events)
       REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_);
 
-  // Deoptimization.
-  void EnableDeoptimization()
-      REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!GetDeoptimizedMethodsLock());
   // Calls UndeoptimizeEverything which may visit class linker classes through ConfigureStubs.
   void DisableDeoptimization(const char* key)
       REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
@@ -239,10 +235,6 @@ class Instrumentation {
     return InterpreterStubsInstalled();
   }
   bool ShouldNotifyMethodEnterExitEvents() const REQUIRES_SHARED(Locks::mutator_lock_);
-
-  bool CanDeoptimize() {
-    return deoptimization_enabled_;
-  }
 
   // Executes everything with interpreter.
   void DeoptimizeEverything(const char* key)
@@ -748,7 +740,6 @@ class Instrumentation {
   // only.
   mutable std::unique_ptr<ReaderWriterMutex> deoptimized_methods_lock_ BOTTOM_MUTEX_ACQUIRED_AFTER;
   std::unordered_set<ArtMethod*> deoptimized_methods_ GUARDED_BY(GetDeoptimizedMethodsLock());
-  bool deoptimization_enabled_;
 
   // Current interpreter handler table. This is updated each time the thread state flags are
   // modified.
