@@ -7174,6 +7174,7 @@ void ClassLinker::FillImtFromSuperClass(Handle<mirror::Class> klass,
   }
 }
 
+template <PointerSize kPointerSize>
 class ClassLinker::LinkMethodsHelper {
  public:
   LinkMethodsHelper(ClassLinker* class_linker,
@@ -7182,8 +7183,6 @@ class ClassLinker::LinkMethodsHelper {
                     Runtime* runtime)
       : class_linker_(class_linker),
         klass_(klass),
-        method_alignment_(ArtMethod::Alignment(class_linker->GetImagePointerSize())),
-        method_size_(ArtMethod::Size(class_linker->GetImagePointerSize())),
         self_(self),
         stack_(runtime->GetLinearAlloc()->GetArenaPool()),
         allocator_(&stack_),
@@ -7218,6 +7217,9 @@ class ClassLinker::LinkMethodsHelper {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
+  bool LinkJavaLangObjectVirtualMethods(Thread* self, Handle<mirror::Class> klass)
+      REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
   ArtMethod* FindOrCreateImplementationMethod(
       ArtMethod* interface_method,
       MethodNameAndSignatureComparator& interface_name_comparator,
@@ -7247,7 +7249,6 @@ class ClassLinker::LinkMethodsHelper {
 
   void CheckNoStaleMethodsInDexCache() REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild) {
-      PointerSize pointer_size = class_linker_->GetImagePointerSize();
       // Check that there are no stale methods are in the dex cache array.
       ObjPtr<mirror::DexCache> dex_cache = klass_->GetDexCache();
       auto* resolved_methods = dex_cache->GetResolvedMethods();
@@ -7258,11 +7259,11 @@ class ClassLinker::LinkMethodsHelper {
         CHECK(move_table_.find(m) == move_table_.end() ||
               // The original versions of copied methods will still be present so allow those too.
               // Note that if the first check passes this might fail to GetDeclaringClass().
-              std::find_if(m->GetDeclaringClass()->GetMethods(pointer_size).begin(),
-                           m->GetDeclaringClass()->GetMethods(pointer_size).end(),
+              std::find_if(m->GetDeclaringClass()->GetMethods(kPointerSize).begin(),
+                           m->GetDeclaringClass()->GetMethods(kPointerSize).end(),
                            [m] (ArtMethod& meth) {
                              return &meth == m;
-                           }) != m->GetDeclaringClass()->GetMethods(pointer_size).end())
+                           }) != m->GetDeclaringClass()->GetMethods(kPointerSize).end())
             << "Obsolete method " << m->PrettyMethod() << " is in dex cache!";
       }
     }
@@ -7281,8 +7282,8 @@ class ClassLinker::LinkMethodsHelper {
                                         gc::kGcCauseClassLinker,
                                         gc::kCollectorTypeClassLinker);
         const size_t old_size = LengthPrefixedArray<ArtMethod>::ComputeSize(old_methods->size(),
-                                                                            method_size_,
-                                                                            method_alignment_);
+                                                                            kMethodSize,
+                                                                            kMethodAlignment);
         memset(old_methods, 0xFEu, old_size);
       }
     }
@@ -7312,10 +7313,11 @@ class ClassLinker::LinkMethodsHelper {
                        << overriding_default_conflict_methods_.size();
   }
 
+  static constexpr size_t kMethodAlignment = ArtMethod::Alignment(kPointerSize);
+  static constexpr size_t kMethodSize = ArtMethod::Size(kPointerSize);
+
   ClassLinker* class_linker_;
   Handle<mirror::Class> klass_;
-  size_t method_alignment_;
-  size_t method_size_;
   Thread* const self_;
 
   // These are allocated on the heap to begin, we then transfer to linear alloc when we re-create
@@ -7353,7 +7355,8 @@ class ClassLinker::LinkMethodsHelper {
   ScopedArenaUnorderedMap<ArtMethod*, ArtMethod*> move_table_;
 };
 
-ArtMethod* ClassLinker::LinkMethodsHelper::FindOrCreateImplementationMethod(
+template <PointerSize kPointerSize>
+ArtMethod* ClassLinker::LinkMethodsHelper<kPointerSize>::FindOrCreateImplementationMethod(
     ArtMethod* interface_method,
     MethodNameAndSignatureComparator& interface_name_comparator,
     ArtMethod* vtable_impl) {
@@ -7382,7 +7385,7 @@ ArtMethod* ClassLinker::LinkMethodsHelper::FindOrCreateImplementationMethod(
           // Note that we do this even if we are an interface since we need to create this and
           // cannot reuse another classes.
           // Create a new conflict method for this to use.
-          default_conflict_method = reinterpret_cast<ArtMethod*>(allocator_.Alloc(method_size_));
+          default_conflict_method = reinterpret_cast<ArtMethod*>(allocator_.Alloc(kMethodSize));
           new(default_conflict_method) ArtMethod(interface_method,
                                                  class_linker_->GetImagePointerSize());
           if (vtable_impl == nullptr) {
@@ -7445,7 +7448,8 @@ ArtMethod* ClassLinker::LinkMethodsHelper::FindOrCreateImplementationMethod(
   return current_method;
 }
 
-ArtMethod* ClassLinker::LinkMethodsHelper::GetOrCreateMirandaMethod(
+template <PointerSize kPointerSize>
+ArtMethod* ClassLinker::LinkMethodsHelper<kPointerSize>::GetOrCreateMirandaMethod(
     ArtMethod* interface_method,
     MethodNameAndSignatureComparator& interface_name_comparator) {
   // Find out if there is already a miranda method we can use.
@@ -7453,7 +7457,7 @@ ArtMethod* ClassLinker::LinkMethodsHelper::GetOrCreateMirandaMethod(
                                                        miranda_methods_);
   if (miranda_method == nullptr) {
     DCHECK(interface_method->IsAbstract()) << interface_method->PrettyMethod();
-    miranda_method = reinterpret_cast<ArtMethod*>(allocator_.Alloc(method_size_));
+    miranda_method = reinterpret_cast<ArtMethod*>(allocator_.Alloc(kMethodSize));
     CHECK(miranda_method != nullptr);
     // Point the interface table at a phantom slot.
     new(miranda_method) ArtMethod(interface_method, class_linker_->GetImagePointerSize());
@@ -7462,7 +7466,8 @@ ArtMethod* ClassLinker::LinkMethodsHelper::GetOrCreateMirandaMethod(
   return miranda_method;
 }
 
-void ClassLinker::LinkMethodsHelper::ReallocMethods() {
+template <PointerSize kPointerSize>
+void ClassLinker::LinkMethodsHelper<kPointerSize>::ReallocMethods() {
   LogNewVirtuals();
 
   const size_t old_method_count = klass_->NumMethods();
@@ -7478,37 +7483,36 @@ void ClassLinker::LinkMethodsHelper::ReallocMethods() {
   //
   // TODO We should maybe move some of this into mirror::Class or at least into another method.
   const size_t old_size = LengthPrefixedArray<ArtMethod>::ComputeSize(old_method_count,
-                                                                      method_size_,
-                                                                      method_alignment_);
+                                                                      kMethodSize,
+                                                                      kMethodAlignment);
   const size_t new_size = LengthPrefixedArray<ArtMethod>::ComputeSize(new_method_count,
-                                                                      method_size_,
-                                                                      method_alignment_);
+                                                                      kMethodSize,
+                                                                      kMethodAlignment);
   const size_t old_methods_ptr_size = (old_methods != nullptr) ? old_size : 0;
   auto* methods = reinterpret_cast<LengthPrefixedArray<ArtMethod>*>(
       class_linker_->GetAllocatorForClassLoader(klass_->GetClassLoader())->Realloc(
           self_, old_methods, old_methods_ptr_size, new_size));
   CHECK(methods != nullptr);  // Native allocation failure aborts.
 
-  PointerSize pointer_size = class_linker_->GetImagePointerSize();
   if (methods != old_methods) {
     // Maps from heap allocated miranda method to linear alloc miranda method.
-    StrideIterator<ArtMethod> out = methods->begin(method_size_, method_alignment_);
+    StrideIterator<ArtMethod> out = methods->begin(kMethodSize, kMethodAlignment);
     // Copy over the old methods.
-    for (auto& m : klass_->GetMethods(pointer_size)) {
+    for (auto& m : klass_->GetMethods(kPointerSize)) {
       move_table_.emplace(&m, &*out);
       // The CopyFrom is only necessary to not miss read barriers since Realloc won't do read
       // barriers when it copies.
-      out->CopyFrom(&m, pointer_size);
+      out->CopyFrom(&m, kPointerSize);
       ++out;
     }
   }
-  StrideIterator<ArtMethod> out(methods->begin(method_size_, method_alignment_) + old_method_count);
+  StrideIterator<ArtMethod> out(methods->begin(kMethodSize, kMethodAlignment) + old_method_count);
   // Copy over miranda methods before copying vtable since CopyOf may cause thread suspension and
   // we want the roots of the miranda methods to get visited.
   for (size_t i = 0; i < miranda_methods_.size(); ++i) {
     ArtMethod* mir_method = miranda_methods_[i];
     ArtMethod& new_method = *out;
-    new_method.CopyFrom(mir_method, pointer_size);
+    new_method.CopyFrom(mir_method, kPointerSize);
     uint32_t access_flags = new_method.GetAccessFlags();
     DCHECK_EQ(access_flags & kAccIntrinsic, 0u) << "Miranda method should not be an intrinsic!";
     DCHECK_EQ(access_flags & kAccDefault, 0u) << "Miranda method should not be a default method!";
@@ -7533,7 +7537,7 @@ void ClassLinker::LinkMethodsHelper::ReallocMethods() {
     for (size_t i = 0; i < methods_vec->size(); ++i) {
       ArtMethod* def_method = (*methods_vec)[i];
       ArtMethod& new_method = *out;
-      new_method.CopyFrom(def_method, pointer_size);
+      new_method.CopyFrom(def_method, kPointerSize);
       // Clear the kAccSkipAccessChecks flag if it is present. Since this class hasn't been
       // verified yet it shouldn't have methods that are skipping access checks.
       // TODO This is rather arbitrary. We should maybe support classes where only some of its
@@ -7556,7 +7560,7 @@ void ClassLinker::LinkMethodsHelper::ReallocMethods() {
     for (size_t i = 0; i < methods_vec->size(); ++i) {
       ArtMethod* conf_method = (*methods_vec)[i];
       ArtMethod& new_method = *out;
-      new_method.CopyFrom(conf_method, pointer_size);
+      new_method.CopyFrom(conf_method, kPointerSize);
       // This is a type of default method (there are default method impls, just a conflict) so
       // mark this as a default. We use the `kAccAbstract` flag to distinguish it from invokable
       // copied default method without using a separate access flag but the default conflicting
@@ -7589,7 +7593,8 @@ void ClassLinker::LinkMethodsHelper::ReallocMethods() {
   class_linker_->UpdateClassMethods(klass_.Get(), methods);
 }
 
-ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper::UpdateVtable(
+template <PointerSize kPointerSize>
+ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper<kPointerSize>::UpdateVtable(
     Handle<mirror::PointerArray> old_vtable) {
   // Update the vtable to the new method structures. We can skip this for interfaces since they
   // do not have vtables.
@@ -7607,7 +7612,6 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper::UpdateVtable(
   }
 
   size_t vtable_pos = old_vtable_count;
-  PointerSize pointer_size = class_linker_->GetImagePointerSize();
   // Update all the newly copied method's indexes so they denote their placement in the vtable.
   for (const ScopedArenaVector<ArtMethod*>& methods_vec : {default_methods_,
                                                            default_conflict_methods_,
@@ -7618,7 +7622,7 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper::UpdateVtable(
       // fields are references into the dex file the method was defined in. Since the ArtMethod
       // does not store that information it uses declaring_class_->dex_cache_.
       new_vtable_method->SetMethodIndex(0xFFFF & vtable_pos);
-      vtable->SetElementPtrSize(vtable_pos, new_vtable_method, pointer_size);
+      vtable->SetElementPtrSize(vtable_pos, new_vtable_method, kPointerSize);
       ++vtable_pos;
     }
   }
@@ -7627,14 +7631,14 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper::UpdateVtable(
   // Update old vtable methods. We use the `default_translations_` map to figure out what each
   // vtable entry should be updated to, if they need to be at all.
   for (size_t i = 0; i < old_vtable_count; ++i) {
-    ArtMethod* translated_method = vtable->GetElementPtrSize<ArtMethod*>(i, pointer_size);
+    ArtMethod* translated_method = vtable->GetElementPtrSize<ArtMethod*>(i, kPointerSize);
     // Try and find what we need to change this method to.
     auto translation_it = default_translations_.find(i);
     if (translation_it != default_translations_.end()) {
       if (translation_it->second.IsInConflict()) {
         // Find which conflict method we are to use for this method.
         MethodNameAndSignatureComparator old_method_comparator(
-            translated_method->GetInterfaceMethodIfProxy(pointer_size));
+            translated_method->GetInterfaceMethodIfProxy(kPointerSize));
         // We only need to look through overriding_default_conflict_methods since this is an
         // overridden method we are fixing up here.
         ArtMethod* new_conflict_method = FindSameNameAndSignature(
@@ -7644,7 +7648,7 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper::UpdateVtable(
       } else if (translation_it->second.IsAbstract()) {
         // Find which miranda method we are to use for this method.
         MethodNameAndSignatureComparator old_method_comparator(
-            translated_method->GetInterfaceMethodIfProxy(pointer_size));
+            translated_method->GetInterfaceMethodIfProxy(kPointerSize));
         ArtMethod* miranda_method = FindSameNameAndSignature(old_method_comparator,
                                                              miranda_methods_);
         DCHECK(miranda_method != nullptr);
@@ -7667,40 +7671,41 @@ ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper::UpdateVtable(
       if (translated_method->GetMethodIndexDuringLinking() != i) {
         if (kIsDebugBuild) {
           auto* methods = klass_->GetMethodsPtr();
-          CHECK_LE(reinterpret_cast<uintptr_t>(&*methods->begin(method_size_, method_alignment_)),
+          CHECK_LE(reinterpret_cast<uintptr_t>(&*methods->begin(kMethodSize, kMethodAlignment)),
                    reinterpret_cast<uintptr_t>(translated_method));
           CHECK_LT(reinterpret_cast<uintptr_t>(translated_method),
-                   reinterpret_cast<uintptr_t>(&*methods->end(method_size_, method_alignment_)));
+                   reinterpret_cast<uintptr_t>(&*methods->end(kMethodSize, kMethodAlignment)));
         }
         translated_method->SetMethodIndex(0xFFFF & i);
       }
-      vtable->SetElementPtrSize(i, translated_method, pointer_size);
+      vtable->SetElementPtrSize(i, translated_method, kPointerSize);
     }
   }
   klass_->SetVTable(vtable);
   return vtable;
 }
 
-void ClassLinker::LinkMethodsHelper::UpdateIfTable(Handle<mirror::IfTable> iftable) {
-  PointerSize pointer_size = class_linker_->GetImagePointerSize();
+template <PointerSize kPointerSize>
+void ClassLinker::LinkMethodsHelper<kPointerSize>::UpdateIfTable(Handle<mirror::IfTable> iftable) {
   const size_t ifcount = klass_->GetIfTableCount();
   // Go fix up all the stale iftable pointers.
   for (size_t i = 0; i < ifcount; ++i) {
     for (size_t j = 0, count = iftable->GetMethodArrayCount(i); j < count; ++j) {
       ObjPtr<mirror::PointerArray> method_array = iftable->GetMethodArray(i);
-      ArtMethod* m = method_array->GetElementPtrSize<ArtMethod*>(j, pointer_size);
+      ArtMethod* m = method_array->GetElementPtrSize<ArtMethod*>(j, kPointerSize);
       DCHECK(m != nullptr) << klass_->PrettyClass();
       auto it = move_table_.find(m);
       if (it != move_table_.end()) {
         auto* new_m = it->second;
         DCHECK(new_m != nullptr) << klass_->PrettyClass();
-        method_array->SetElementPtrSize(j, new_m, pointer_size);
+        method_array->SetElementPtrSize(j, new_m, kPointerSize);
       }
     }
   }
 }
 
-void ClassLinker::LinkMethodsHelper::UpdateIMT(ArtMethod** out_imt) {
+template <PointerSize kPointerSize>
+void ClassLinker::LinkMethodsHelper<kPointerSize>::UpdateIMT(ArtMethod** out_imt) {
   // Fix up IMT next.
   for (size_t i = 0; i < ImTable::kSize; ++i) {
     auto it = move_table_.find(out_imt[i]);
@@ -7710,10 +7715,11 @@ void ClassLinker::LinkMethodsHelper::UpdateIMT(ArtMethod** out_imt) {
   }
 }
 
-bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
+template <PointerSize kPointerSize>
+FLATTEN
+bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkVirtualMethods(
     Thread* self,
     Handle<mirror::Class> klass) {
-  const PointerSize image_pointer_size = class_linker_->GetImagePointerSize();
   const size_t num_virtual_methods = klass->NumVirtualMethods();
   if (klass->IsInterface()) {
     // No vtable.
@@ -7724,7 +7730,7 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
     bool has_defaults = false;
     // Assign each method an IMT index and set the default flag.
     for (size_t i = 0; i < num_virtual_methods; ++i) {
-      ArtMethod* m = klass->GetVirtualMethodDuringLinking(i, image_pointer_size);
+      ArtMethod* m = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
       m->SetMethodIndex(i);
       if (!m->IsAbstract()) {
         // If the dex file does not support default methods, throw ClassFormatError.
@@ -7751,7 +7757,7 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
       klass->SetHasDefaultMethods();
     }
     return true;
-  } else if (klass->HasSuperClass()) {
+  } else if (LIKELY(klass->HasSuperClass())) {
     const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
     const size_t max_count = num_virtual_methods + super_vtable_length;
     StackHandleScope<3> hs(self);
@@ -7765,7 +7771,7 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
       }
       for (size_t i = 0; i < super_vtable_length; i++) {
         vtable->SetElementPtrSize(
-            i, super_class->GetEmbeddedVTableEntry(i, image_pointer_size), image_pointer_size);
+            i, super_class->GetEmbeddedVTableEntry(i, kPointerSize), kPointerSize);
       }
       // We might need to change vtable if we have new virtual methods or new interfaces (since that
       // might give us new default methods). If no new interfaces then we can skip the rest since
@@ -7815,18 +7821,18 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
       hash_heap_storage.reset(new uint32_t[hash_table_size]);
       hash_table_ptr = hash_heap_storage.get();
     }
-    LinkVirtualHashTable hash_table(klass, hash_table_size, hash_table_ptr, image_pointer_size);
+    LinkVirtualHashTable hash_table(klass, hash_table_size, hash_table_ptr, kPointerSize);
     // Add virtual methods to the hash table.
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       DCHECK(klass->GetVirtualMethodDuringLinking(
-          i, image_pointer_size)->GetDeclaringClass() != nullptr);
+          i, kPointerSize)->GetDeclaringClass() != nullptr);
       hash_table.Add(i);
     }
     // Loop through each super vtable method and see if they are overridden by a method we added to
     // the hash table.
     for (size_t j = 0; j < super_vtable_length; ++j) {
       // Search the hash table to see if we are overridden by any method.
-      ArtMethod* super_method = vtable->GetElementPtrSize<ArtMethod*>(j, image_pointer_size);
+      ArtMethod* super_method = vtable->GetElementPtrSize<ArtMethod*>(j, kPointerSize);
       if (!klass->CanAccessMember(super_method->GetDeclaringClass(),
                                   super_method->GetAccessFlags())) {
         // Continue on to the next method since this one is package private
@@ -7835,7 +7841,7 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
         continue;
       }
       MethodNameAndSignatureComparator super_method_name_comparator(
-          super_method->GetInterfaceMethodIfProxy(image_pointer_size));
+          super_method->GetInterfaceMethodIfProxy(kPointerSize));
       // We remove the method so that subsequent lookups will be faster by making the hash-map
       // smaller as we go on.
       uint32_t hash = (j < mirror::Object::kVTableLength)
@@ -7843,15 +7849,14 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
           : ComputeModifiedUtf8Hash(super_method_name_comparator.GetNameView());
       uint32_t hash_index = hash_table.FindAndRemove(&super_method_name_comparator, hash);
       if (hash_index != hash_table.GetNotFoundIndex()) {
-        ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(
-            hash_index, image_pointer_size);
+        ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(hash_index, kPointerSize);
         if (super_method->IsFinal()) {
           ThrowLinkageError(klass.Get(), "Method %s overrides final method in class %s",
                             virtual_method->PrettyMethod().c_str(),
                             super_method->GetDeclaringClassDescriptor());
           return false;
         }
-        vtable->SetElementPtrSize(j, virtual_method, image_pointer_size);
+        vtable->SetElementPtrSize(j, virtual_method, kPointerSize);
         virtual_method->SetMethodIndex(j);
       } else if (super_method->IsOverridableByDefaultMethod()) {
         // We didn't directly override this method but we might through default methods...
@@ -7909,13 +7914,13 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
     size_t actual_count = super_vtable_length;
     // Add the non-overridden methods at the end.
     for (size_t i = 0; i < num_virtual_methods; ++i) {
-      ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i, image_pointer_size);
+      ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
       size_t method_idx = local_method->GetMethodIndexDuringLinking();
       if (method_idx < super_vtable_length &&
-          local_method == vtable->GetElementPtrSize<ArtMethod*>(method_idx, image_pointer_size)) {
+          local_method == vtable->GetElementPtrSize<ArtMethod*>(method_idx, kPointerSize)) {
         continue;
       }
-      vtable->SetElementPtrSize(actual_count, local_method, image_pointer_size);
+      vtable->SetElementPtrSize(actual_count, local_method, kPointerSize);
       local_method->SetMethodIndex(actual_count);
       ++actual_count;
     }
@@ -7935,40 +7940,46 @@ bool ClassLinker::LinkMethodsHelper::LinkVirtualMethods(
     }
     klass->SetVTable(vtable.Get());
   } else {
-    CHECK_EQ(klass.Get(), GetClassRoot<mirror::Object>(class_linker_));
-    if (!IsUint<16>(num_virtual_methods)) {
-      ThrowClassFormatError(klass.Get(), "Too many methods: %d",
-                            static_cast<int>(num_virtual_methods));
-      return false;
-    }
-    ObjPtr<mirror::PointerArray> vtable =
-        class_linker_->AllocPointerArray(self, num_virtual_methods);
-    if (UNLIKELY(vtable == nullptr)) {
-      self->AssertPendingOOMException();
-      return false;
-    }
-    for (size_t i = 0; i < num_virtual_methods; ++i) {
-      ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i, image_pointer_size);
-      vtable->SetElementPtrSize(i, virtual_method, image_pointer_size);
-      virtual_method->SetMethodIndex(i & 0xFFFF);
-    }
-    klass->SetVTable(vtable);
-    InitializeObjectVirtualMethodHashes(
-        klass.Get(),
-        image_pointer_size,
-        ArrayRef<uint32_t>(class_linker_->object_virtual_method_hashes_));
+    return LinkJavaLangObjectVirtualMethods(self, klass);
   }
   return true;
 }
 
+template <PointerSize kPointerSize>
+bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkJavaLangObjectVirtualMethods(
+    Thread* self,
+    Handle<mirror::Class> klass) {
+  DCHECK_EQ(klass.Get(), GetClassRoot<mirror::Object>(class_linker_));
+  DCHECK_EQ(klass->NumVirtualMethods(), mirror::Object::kVTableLength);
+  static_assert(IsUint<16>(mirror::Object::kVTableLength));
+  ObjPtr<mirror::PointerArray> vtable =
+      class_linker_->AllocPointerArray(self, mirror::Object::kVTableLength);
+  if (UNLIKELY(vtable == nullptr)) {
+    self->AssertPendingOOMException();
+    return false;
+  }
+  for (size_t i = 0; i < mirror::Object::kVTableLength; ++i) {
+    ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
+    vtable->SetElementPtrSize(i, virtual_method, kPointerSize);
+    virtual_method->SetMethodIndex(i);
+  }
+  klass->SetVTable(vtable);
+  InitializeObjectVirtualMethodHashes(
+      klass.Get(),
+      kPointerSize,
+      ArrayRef<uint32_t>(class_linker_->object_virtual_method_hashes_));
+  return true;
+}
+
 // TODO This method needs to be split up into several smaller methods.
-bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
+template <PointerSize kPointerSize>
+FLATTEN
+bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkInterfaceMethods(
     Thread* self,
     Handle<mirror::Class> klass,
     Runtime* runtime,
     bool* out_new_conflict,
     ArtMethod** out_imt) {
-  const PointerSize image_pointer_size = class_linker_->GetImagePointerSize();
   StackHandleScope<3> hs(self);
 
   const bool is_interface = klass->IsInterface();
@@ -8035,7 +8046,7 @@ bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
         // If we are overwriting a super class interface, try to only virtual methods instead of the
         // whole vtable.
         using_virtuals = true;
-        input_virtual_methods = klass->GetDeclaredVirtualMethodsSlice(image_pointer_size);
+        input_virtual_methods = klass->GetDeclaredVirtualMethodsSlice(kPointerSize);
         input_array_length = input_virtual_methods.size();
       } else {
         // For a new interface, however, we need the whole vtable in case a new
@@ -8048,9 +8059,9 @@ bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
 
       // For each method in interface
       for (size_t j = 0; j < num_methods; ++j) {
-        auto* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j, image_pointer_size);
+        auto* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j, kPointerSize);
         MethodNameAndSignatureComparator interface_name_comparator(
-            interface_method->GetInterfaceMethodIfProxy(image_pointer_size));
+            interface_method->GetInterfaceMethodIfProxy(kPointerSize));
         uint32_t imt_index = interface_method->GetImtIndex();
         ArtMethod** imt_ptr = &out_imt[imt_index];
         // For each method listed in the interface's method list, find the
@@ -8068,9 +8079,9 @@ bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
         for (int32_t k = input_array_length - 1; k >= 0; --k) {
           ArtMethod* vtable_method = using_virtuals ?
               &input_virtual_methods[k] :
-              input_vtable_array->GetElementPtrSize<ArtMethod*>(k, image_pointer_size);
+              input_vtable_array->GetElementPtrSize<ArtMethod*>(k, kPointerSize);
           ArtMethod* vtable_method_for_name_comparison =
-              vtable_method->GetInterfaceMethodIfProxy(image_pointer_size);
+              vtable_method->GetInterfaceMethodIfProxy(kPointerSize);
           DCHECK(!vtable_method->IsStatic()) << vtable_method->PrettyMethod();
           if (interface_name_comparator.HasSameNameAndSignature(
               vtable_method_for_name_comparison)) {
@@ -8094,7 +8105,7 @@ bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
             } else {
               found_impl = true;
               if (LIKELY(fill_tables)) {
-                method_array->SetElementPtrSize(j, vtable_method, image_pointer_size);
+                method_array->SetElementPtrSize(j, vtable_method, kPointerSize);
                 // Place method in imt if entry is empty, place conflict otherwise.
                 class_linker_->SetIMTRef(unimplemented_method,
                                          imt_conflict_method,
@@ -8125,7 +8136,7 @@ bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
           // TODO This is rather dirty but it is faster than searching through the entire vtable
           //      every time.
           ArtMethod* supers_method =
-              method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size);
+              method_array->GetElementPtrSize<ArtMethod*>(j, kPointerSize);
           DCHECK(supers_method != nullptr);
           DCHECK(interface_name_comparator.HasSameNameAndSignature(supers_method));
           if (LIKELY(!supers_method->IsOverridableByDefaultMethod())) {
@@ -8161,7 +8172,7 @@ bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
 
           if (current_method != nullptr) {
             // We found a default method implementation. Record it in the iftable and IMT.
-            method_array->SetElementPtrSize(j, current_method, image_pointer_size);
+            method_array->SetElementPtrSize(j, current_method, kPointerSize);
             class_linker_->SetIMTRef(unimplemented_method,
                                      imt_conflict_method,
                                      current_method,
@@ -8198,7 +8209,7 @@ bool ClassLinker::LinkMethodsHelper::LinkInterfaceMethods(
     self->EndAssertNoThreadSuspension(old_cause);
   }
   if (kIsDebugBuild && !is_interface) {
-    CheckVTable(self, klass, image_pointer_size);
+    CheckVTable(self, klass, kPointerSize);
   }
   return true;
 }
@@ -8217,9 +8228,17 @@ bool ClassLinker::LinkMethods(Thread* self,
   }
   // Link virtual methods then interface methods.
   Runtime* const runtime = Runtime::Current();
-  LinkMethodsHelper helper(this, klass, self, runtime);
-  return helper.LinkVirtualMethods(self, klass) &&
-         helper.LinkInterfaceMethods(self, klass, runtime, out_new_conflict, out_imt);
+  if (LIKELY(GetImagePointerSize() == kRuntimePointerSize)) {
+    LinkMethodsHelper<kRuntimePointerSize> helper(this, klass, self, runtime);
+    return helper.LinkVirtualMethods(self, klass) &&
+           helper.LinkInterfaceMethods(self, klass, runtime, out_new_conflict, out_imt);
+  } else {
+    constexpr PointerSize kOtherPointerSize =
+        (kRuntimePointerSize == PointerSize::k64) ? PointerSize::k32 : PointerSize::k64;
+    LinkMethodsHelper<kOtherPointerSize> helper(this, klass, self, runtime);
+    return helper.LinkVirtualMethods(self, klass) &&
+           helper.LinkInterfaceMethods(self, klass, runtime, out_new_conflict, out_imt);
+  }
 }
 
 class ClassLinker::LinkFieldsHelper {
