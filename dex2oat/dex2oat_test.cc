@@ -1762,7 +1762,6 @@ TEST_F(Dex2oatTest, DontExtract) {
     std::unique_ptr<VdexFile> vdex(VdexFile::Open(vdex_location.c_str(),
                                                   /*writable=*/ false,
                                                   /*low_4gb=*/ false,
-                                                  /*unquicken=*/ false,
                                                   &error_msg));
     ASSERT_TRUE(vdex != nullptr);
     EXPECT_FALSE(vdex->HasDexSection()) << output_;
