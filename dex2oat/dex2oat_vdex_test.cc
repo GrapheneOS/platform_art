@@ -73,7 +73,6 @@ class Dex2oatVdexTest : public Dex2oatEnvironmentTest {
     std::unique_ptr<VdexFile> vdex(VdexFile::Open(vdex_location.c_str(),
                                                   /*writable=*/ false,
                                                   /*low_4gb=*/ false,
-                                                  /*unquicken=*/ false,
                                                   &error_msg_));
     // Check the vdex doesn't have dex.
     if (vdex->HasDexSection()) {
