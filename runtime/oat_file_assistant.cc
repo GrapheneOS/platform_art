@@ -877,6 +877,7 @@ const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
                                 filename_,
                                 /*writable=*/ false,
                                 /*low_4gb=*/ false,
+                                /*unquicken=*/ false,
                                 &error_msg);
         }
       }
@@ -884,6 +885,7 @@ const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
       vdex = VdexFile::Open(filename_,
                             /*writable=*/ false,
                             /*low_4gb=*/ false,
+                            /*unquicken=*/ false,
                             &error_msg);
     }
     if (vdex == nullptr) {
