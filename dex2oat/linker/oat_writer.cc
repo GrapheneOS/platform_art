@@ -683,7 +683,7 @@ bool OatWriter::MayHaveCompiledMethods() const {
 bool OatWriter::WriteAndOpenDexFiles(
     File* vdex_file,
     bool verify,
-    bool update_input_vdex,
+    bool use_existing_vdex,
     CopyOption copy_dex_files,
     /*out*/ std::vector<MemMap>* opened_dex_files_map,
     /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
@@ -697,7 +697,7 @@ bool OatWriter::WriteAndOpenDexFiles(
   // Write DEX files into VDEX, mmap and open them.
   std::vector<MemMap> dex_files_map;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  if (!WriteDexFiles(vdex_file, update_input_vdex, copy_dex_files, &dex_files_map) ||
+  if (!WriteDexFiles(vdex_file, use_existing_vdex, copy_dex_files, &dex_files_map) ||
       !OpenDexFiles(vdex_file, verify, &dex_files_map, &dex_files)) {
     return false;
   }
@@ -3103,7 +3103,7 @@ bool OatWriter::RecordOatDataOffset(OutputStream* out) {
 }
 
 bool OatWriter::WriteDexFiles(File* file,
-                              bool update_input_vdex,
+                              bool use_existing_vdex,
                               CopyOption copy_dex_files,
                               /*out*/ std::vector<MemMap>* opened_dex_files_map) {
   TimingLogger::ScopedTiming split("Write Dex files", timings_);
@@ -3136,8 +3136,8 @@ bool OatWriter::WriteDexFiles(File* file,
     if (profile_compilation_info_ != nullptr ||
         compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
       for (OatDexFile& oat_dex_file : oat_dex_files_) {
-        // update_input_vdex disables compact dex and layout.
-        CHECK(!update_input_vdex)
+        // use_existing_vdex should not be used with compact dex and layout.
+        CHECK(!use_existing_vdex)
             << "We should never update the input vdex when doing dexlayout or compact dex";
         if (!LayoutDexFile(&oat_dex_file)) {
           return false;
@@ -3202,7 +3202,7 @@ bool OatWriter::WriteDexFiles(File* file,
     // Extend the file and include the full page at the end as we need to write
     // additional data there and do not want to mmap that page twice.
     size_t page_aligned_size = RoundUp(vdex_size_with_dex_files, kPageSize);
-    if (!update_input_vdex) {
+    if (!use_existing_vdex) {
       if (file->SetLength(page_aligned_size) != 0) {
         PLOG(ERROR) << "Failed to resize vdex file " << file->GetPath();
         return false;
@@ -3233,7 +3233,7 @@ bool OatWriter::WriteDexFiles(File* file,
       vdex_size_ = RoundUp(vdex_size_, 4u);
       size_dex_file_alignment_ += vdex_size_ - old_vdex_size;
       // Write the actual dex file.
-      if (!WriteDexFile(file, &oat_dex_file, update_input_vdex)) {
+      if (!WriteDexFile(file, &oat_dex_file, use_existing_vdex)) {
         return false;
       }
     }
@@ -3241,27 +3241,27 @@ bool OatWriter::WriteDexFiles(File* file,
     // Write shared dex file data section and fix up the dex file headers.
     if (shared_data_size != 0u) {
       DCHECK_EQ(RoundUp(vdex_size_, 4u), vdex_dex_shared_data_offset_);
-      if (!update_input_vdex) {
+      if (!use_existing_vdex) {
         memset(vdex_begin_ + vdex_size_, 0, vdex_dex_shared_data_offset_ - vdex_size_);
       }
       size_dex_file_alignment_ += vdex_dex_shared_data_offset_ - vdex_size_;
       vdex_size_ = vdex_dex_shared_data_offset_;
 
       if (dex_container_ != nullptr) {
-        CHECK(!update_input_vdex) << "Update input vdex should have empty dex container";
+        CHECK(!use_existing_vdex) << "Use existing vdex should have empty dex container";
         CHECK(compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone);
         DexContainer::Section* const section = dex_container_->GetDataSection();
         DCHECK_EQ(shared_data_size, section->Size());
         memcpy(vdex_begin_ + vdex_size_, section->Begin(), shared_data_size);
         section->Clear();
         dex_container_.reset();
-      } else if (!update_input_vdex) {
+      } else if (!use_existing_vdex) {
         // If we are not updating the input vdex, write out the shared data section.
         memcpy(vdex_begin_ + vdex_size_, raw_dex_file_shared_data_begin, shared_data_size);
       }
       vdex_size_ += shared_data_size;
       size_dex_file_ += shared_data_size;
-      if (!update_input_vdex) {
+      if (!use_existing_vdex) {
         // Fix up the dex headers to have correct offsets to the data section.
         for (OatDexFile& oat_dex_file : oat_dex_files_) {
           DexFile::Header* header =
@@ -3297,22 +3297,22 @@ void OatWriter::CloseSources() {
 
 bool OatWriter::WriteDexFile(File* file,
                              OatDexFile* oat_dex_file,
-                             bool update_input_vdex) {
+                             bool use_existing_vdex) {
   DCHECK_EQ(vdex_size_, oat_dex_file->dex_file_offset_);
   if (oat_dex_file->source_.IsZipEntry()) {
-    DCHECK(!update_input_vdex);
+    DCHECK(!use_existing_vdex);
     if (!WriteDexFile(file, oat_dex_file, oat_dex_file->source_.GetZipEntry())) {
       return false;
     }
   } else if (oat_dex_file->source_.IsRawFile()) {
-    DCHECK(!update_input_vdex);
+    DCHECK(!use_existing_vdex);
     if (!WriteDexFile(file, oat_dex_file, oat_dex_file->source_.GetRawFile())) {
       return false;
     }
   } else {
     DCHECK(oat_dex_file->source_.IsRawData());
     const uint8_t* raw_data = oat_dex_file->source_.GetRawData();
-    if (!WriteDexFile(oat_dex_file, raw_data, update_input_vdex)) {
+    if (!WriteDexFile(oat_dex_file, raw_data, use_existing_vdex)) {
       return false;
     }
   }
@@ -3447,14 +3447,14 @@ bool OatWriter::WriteDexFile(File* file,
 
 bool OatWriter::WriteDexFile(OatDexFile* oat_dex_file,
                              const uint8_t* dex_file,
-                             bool update_input_vdex) {
+                             bool use_existing_vdex) {
   // Note: The raw data has already been checked to contain the header
   // and all the data that the header specifies as the file size.
   DCHECK(dex_file != nullptr);
   DCHECK(ValidateDexFileHeader(dex_file, oat_dex_file->GetLocation()));
   DCHECK_EQ(oat_dex_file->dex_file_size_, AsUnalignedDexFileHeader(dex_file)->file_size_);
 
-  if (update_input_vdex) {
+  if (use_existing_vdex) {
     // The vdex already contains the dex code, no need to write it again.
   } else {
     uint8_t* raw_output = vdex_begin_ + oat_dex_file->dex_file_offset_;
