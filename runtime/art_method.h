@@ -669,13 +669,13 @@ class ArtMethod final {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Size of an instance of this native class.
-  static size_t Size(PointerSize pointer_size) {
+  static constexpr size_t Size(PointerSize pointer_size) {
     return PtrSizedFieldsOffset(pointer_size) +
         (sizeof(PtrSizedFields) / sizeof(void*)) * static_cast<size_t>(pointer_size);
   }
 
   // Alignment of an instance of this native class.
-  static size_t Alignment(PointerSize pointer_size) {
+  static constexpr size_t Alignment(PointerSize pointer_size) {
     // The ArtMethod alignment is the same as image pointer size. This differs from
     // alignof(ArtMethod) if cross-compiling with pointer_size != sizeof(void*).
     return static_cast<size_t>(pointer_size);

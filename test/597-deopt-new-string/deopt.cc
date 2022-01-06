@@ -36,12 +36,6 @@ extern "C" JNIEXPORT void JNICALL Java_Main_deoptimizeAll(
                                   gc::kCollectorTypeInstrumentation);
   // We need to suspend mutator threads first.
   ScopedSuspendAll ssa(__FUNCTION__);
-  static bool first = true;
-  if (first) {
-    // We need to enable deoptimization once in order to call DeoptimizeEverything().
-    Runtime::Current()->GetInstrumentation()->EnableDeoptimization();
-    first = false;
-  }
   Runtime::Current()->GetInstrumentation()->DeoptimizeEverything("test");
 }
 

@@ -286,7 +286,17 @@ class HashSet {
           value_type* buffer,
           size_t buffer_size,
           const allocator_type& alloc)
+      : HashSet(min_load_factor, max_load_factor, HashFn(), Pred(), buffer, buffer_size, alloc) {}
+  HashSet(double min_load_factor,
+          double max_load_factor,
+          const HashFn& hashfn,
+          const Pred& pred,
+          value_type* buffer,
+          size_t buffer_size,
+          const allocator_type& alloc)
       : allocfn_(alloc),
+        hashfn_(hashfn),
+        pred_(pred),
         num_elements_(0u),
         num_buckets_(buffer_size),
         elements_until_expand_(buffer_size * max_load_factor),

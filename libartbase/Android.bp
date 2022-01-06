@@ -165,7 +165,6 @@ art_cc_library {
     defaults: [
         "libartbase_defaults",
         "libart_nativeunwind_defaults",
-        "art_pgo_defaults",
     ],
     visibility: [
         // TODO(b/183483755): Please visibility checks when the prebuilt
@@ -195,6 +194,7 @@ art_cc_library {
             },
         },
     },
+    afdo: true,
 }
 
 art_cc_library {
