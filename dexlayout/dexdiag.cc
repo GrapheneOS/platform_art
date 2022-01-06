@@ -330,6 +330,7 @@ static bool DisplayMappingIfFromVdexFile(ProcMemInfo& proc, const Vma& vma, Prin
   std::unique_ptr<VdexFile> vdex(VdexFile::Open(vdex_name,
                                                 /*writable=*/ false,
                                                 /*low_4gb=*/ false,
+                                                /*unquicken= */ false,
                                                 &error_msg /*out*/));
   if (vdex == nullptr) {
     std::cerr << "Could not open vdex file "
