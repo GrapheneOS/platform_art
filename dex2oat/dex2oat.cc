@@ -1237,6 +1237,7 @@ class Dex2Oat final {
           input_vdex_file_ = VdexFile::Open(input_vdex_,
                                             /* writable */ false,
                                             /* low_4gb */ false,
+                                            DoEagerUnquickeningOfVdex(),
                                             &error_msg);
         }
 
@@ -1245,8 +1246,8 @@ class Dex2Oat final {
             ? ReplaceFileExtension(oat_filename, "vdex")
             : output_vdex_;
         if (vdex_filename == input_vdex_ && output_vdex_.empty()) {
-          use_existing_vdex_ = true;
-          std::unique_ptr<File> vdex_file(OS::OpenFileForReading(vdex_filename.c_str()));
+          update_input_vdex_ = true;
+          std::unique_ptr<File> vdex_file(OS::OpenFileReadWrite(vdex_filename.c_str()));
           vdex_files_.push_back(std::move(vdex_file));
         } else {
           std::unique_ptr<File> vdex_file(OS::CreateEmptyFile(vdex_filename.c_str()));
@@ -1288,6 +1289,7 @@ class Dex2Oat final {
                                             "vdex",
                                             /* writable */ false,
                                             /* low_4gb */ false,
+                                            DoEagerUnquickeningOfVdex(),
                                             &error_msg);
           // If there's any problem with the passed vdex, just warn and proceed
           // without it.
@@ -1299,20 +1301,15 @@ class Dex2Oat final {
 
       DCHECK_NE(output_vdex_fd_, -1);
       std::string vdex_location = ReplaceFileExtension(oat_location_, "vdex");
-      if (input_vdex_file_ != nullptr && output_vdex_fd_ == input_vdex_fd_) {
-        use_existing_vdex_ = true;
-      }
-
-      std::unique_ptr<File> vdex_file(new File(DupCloexec(output_vdex_fd_),
-                                               vdex_location,
-                                               /* check_usage= */ true,
-                                               /* read_only_mode= */ use_existing_vdex_));
+      std::unique_ptr<File> vdex_file(new File(
+          DupCloexec(output_vdex_fd_), vdex_location, /* check_usage */ true));
       if (!vdex_file->IsOpened()) {
         PLOG(ERROR) << "Failed to create vdex file: " << vdex_location;
         return false;
       }
-
-      if (!use_existing_vdex_) {
+      if (input_vdex_file_ != nullptr && output_vdex_fd_ == input_vdex_fd_) {
+        update_input_vdex_ = true;
+      } else {
         if (vdex_file->SetLength(0) != 0) {
           PLOG(ERROR) << "Truncating vdex file " << vdex_location << " failed.";
           vdex_file->Erase();
@@ -1322,6 +1319,26 @@ class Dex2Oat final {
       vdex_files_.push_back(std::move(vdex_file));
 
       oat_filenames_.push_back(oat_location_);
+    }
+
+    // If we're updating in place a vdex file, be defensive and put an invalid vdex magic in case
+    // dex2oat gets killed.
+    // Note: we're only invalidating the magic data in the file, as dex2oat needs the rest of
+    // the information to remain valid.
+    if (update_input_vdex_) {
+      File* vdex_file = vdex_files_.back().get();
+      if (!vdex_file->PwriteFully(&VdexFile::VdexFileHeader::kVdexInvalidMagic,
+                                  arraysize(VdexFile::VdexFileHeader::kVdexInvalidMagic),
+                                  /*offset=*/ 0u)) {
+        PLOG(ERROR) << "Failed to invalidate vdex header. File: " << vdex_file->GetPath();
+        return false;
+      }
+
+      if (vdex_file->Flush() != 0) {
+        PLOG(ERROR) << "Failed to flush stream after invalidating header of vdex file."
+                    << " File: " << vdex_file->GetPath();
+        return false;
+      }
     }
 
     if (dm_fd_ != -1 || !dm_file_location_.empty()) {
@@ -1372,12 +1389,9 @@ class Dex2Oat final {
   void EraseOutputFiles() {
     for (auto& files : { &vdex_files_, &oat_files_ }) {
       for (size_t i = 0; i < files->size(); ++i) {
-        auto& file = (*files)[i];
-        if (file != nullptr) {
-          if (!file->ReadOnlyMode()) {
-            file->Erase();
-          }
-          file.reset();
+        if ((*files)[i].get() != nullptr) {
+          (*files)[i]->Erase();
+          (*files)[i].reset();
         }
       }
     }
@@ -1441,7 +1455,7 @@ class Dex2Oat final {
         if (!oat_writers_[i]->WriteAndOpenDexFiles(
             vdex_files_[i].get(),
             verify,
-            use_existing_vdex_,
+            update_input_vdex_,
             copy_dex_files_,
             &opened_dex_files_map,
             &opened_dex_files)) {
@@ -1690,15 +1704,12 @@ class Dex2Oat final {
     }
 
     // Setup VerifierDeps for compilation and report if we fail to parse the data.
-    // When we do profile guided optimizations, the compiler currently needs to run
-    // full verification.
-    if (!DoProfileGuidedOptimizations() && input_vdex_file_ != nullptr) {
+    if (!DoEagerUnquickeningOfVdex() && input_vdex_file_ != nullptr) {
       std::unique_ptr<verifier::VerifierDeps> verifier_deps(
           new verifier::VerifierDeps(dex_files, /*output_only=*/ false));
       if (!verifier_deps->ParseStoredData(dex_files, input_vdex_file_->GetVerifierDepsData())) {
         return dex2oat::ReturnCode::kOther;
       }
-      // We can do fast verification.
       callbacks_->SetVerifierDeps(verifier_deps.release());
     } else {
       // Create the main VerifierDeps, here instead of in the compiler since we want to aggregate
@@ -1781,7 +1792,7 @@ class Dex2Oat final {
     // This means extract, no-vdex verify, and quicken, will use the individual compilation
     // mode (to reduce RAM used by the compiler).
     return compile_individually_ &&
-           (!IsImage() && !use_existing_vdex_ &&
+           (!IsImage() && !update_input_vdex_ &&
             compiler_options_->dex_files_for_oat_file_.size() > 1 &&
             !CompilerFilter::IsAotCompilationEnabled(compiler_options_->GetCompilerFilter()));
   }
@@ -2058,7 +2069,7 @@ class Dex2Oat final {
       oat_writer->Initialize(driver_.get(), image_writer_.get(), dex_files);
     }
 
-    if (!use_existing_vdex_) {
+    {
       TimingLogger::ScopedTiming t2("dex2oat Write VDEX", timings_);
       DCHECK(IsBootImage() || IsBootImageExtension() || oat_files_.size() == 1u);
       verifier::VerifierDeps* verifier_deps = callbacks_->GetVerifierDeps();
@@ -2312,6 +2323,16 @@ class Dex2Oat final {
 
   bool DoOatLayoutOptimizations() const {
     return DoProfileGuidedOptimizations();
+  }
+
+  bool MayInvalidateVdexMetadata() const {
+    // DexLayout can invalidate the vdex metadata if changing the class def order is enabled, so
+    // we need to unquicken the vdex file eagerly, before passing it to dexlayout.
+    return DoDexLayoutOptimizations();
+  }
+
+  bool DoEagerUnquickeningOfVdex() const {
+    return MayInvalidateVdexMetadata() && dm_file_ == nullptr;
   }
 
   bool LoadProfile() {
@@ -2908,7 +2929,7 @@ class Dex2Oat final {
   std::string classpath_dir_;
 
   // Whether the given input vdex is also the output.
-  bool use_existing_vdex_ = false;
+  bool update_input_vdex_ = false;
 
   // By default, copy the dex to the vdex file only if dex files are
   // compressed in APK.
