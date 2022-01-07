@@ -36,7 +36,6 @@
 namespace {
 
 using ::art::odrefresh::CompilationOptions;
-using ::art::odrefresh::Concatenate;
 using ::art::odrefresh::ExitCode;
 using ::art::odrefresh::OdrCompilationLog;
 using ::art::odrefresh::OdrConfig;
@@ -115,93 +114,7 @@ bool ArgumentEquals(std::string_view argument, std::string_view expected) {
   return argument == expected;
 }
 
-bool InitializeCommonConfig(std::string_view argument, OdrConfig* config) {
-  if (ArgumentEquals(argument, "--dry-run")) {
-    config->SetDryRun();
-    return true;
-  }
-  if (ArgumentEquals(argument, "--partial-compilation")) {
-    config->SetPartialCompilation(true);
-    return true;
-  }
-  if (ArgumentEquals(argument, "--no-refresh")) {
-    config->SetRefresh(false);
-    return true;
-  }
-  return false;
-}
-
-void CommonOptionsHelp() {
-  UsageError("--dry-run");
-  UsageError("--partial-compilation  Only generate artifacts that are out-of-date or missing.");
-  UsageError("--no-refresh           Do not refresh existing artifacts.");
-}
-
-int InitializeHostConfig(int argc, char** argv, OdrConfig* config) {
-  __android_log_set_logger(__android_log_stderr_logger);
-
-  std::string current_binary;
-  if (argv[0][0] == '/') {
-    current_binary = argv[0];
-  } else {
-    std::vector<char> buf(PATH_MAX);
-    if (getcwd(buf.data(), buf.size()) == nullptr) {
-      PLOG(FATAL) << "Failed getwd()";
-    }
-    current_binary = Concatenate({buf.data(), "/", argv[0]});
-  }
-  config->SetArtBinDir(android::base::Dirname(current_binary));
-
-  int n = 1;
-  for (; n < argc - 1; ++n) {
-    const char* arg = argv[n];
-    std::string value;
-    if (ArgumentMatches(arg, "--android-root=", &value)) {
-      setenv("ANDROID_ROOT", value.c_str(), 1);
-    } else if (ArgumentMatches(arg, "--android-art-root=", &value)) {
-      setenv("ANDROID_ART_ROOT", value.c_str(), 1);
-    } else if (ArgumentMatches(arg, "--apex-info-list=", &value)) {
-      config->SetApexInfoListFile(value);
-    } else if (ArgumentMatches(arg, "--art-apex-data=", &value)) {
-      setenv("ART_APEX_DATA", value.c_str(), 1);
-    } else if (ArgumentMatches(arg, "--dex2oat-bootclasspath=", &value)) {
-      config->SetDex2oatBootclasspath(value);
-    } else if (ArgumentMatches(arg, "--isa=", &value)) {
-      config->SetIsa(art::GetInstructionSetFromString(value.c_str()));
-    } else if (ArgumentMatches(arg, "--system-server-classpath=", &value)) {
-      config->SetSystemServerClasspath(arg);
-    } else if (ArgumentMatches(arg, "--bootclasspath=", &value)) {
-      config->SetBootClasspath(arg);
-    } else if (ArgumentMatches(arg, "--standalone-system-server-jars=", &value)) {
-      config->SetStandaloneSystemServerJars(arg);
-    } else if (ArgumentMatches(arg, "--zygote-arch=", &value)) {
-      ZygoteKind zygote_kind;
-      if (!ParseZygoteKind(value.c_str(), &zygote_kind)) {
-        ArgumentError("Unrecognized zygote kind: '%s'", value.c_str());
-      }
-      config->SetZygoteKind(zygote_kind);
-    } else if (!InitializeCommonConfig(arg, config)) {
-      UsageError("Unrecognized argument: '%s'", arg);
-      exit(EX_USAGE);
-    }
-  }
-  return n;
-}
-
-void HostOptionsHelp() {
-  UsageError("--android-root");
-  UsageError("--android-art-root");
-  UsageError("--apex-info-list");
-  UsageError("--art-apex-data");
-  UsageError("--dex2oat-bootclasspath");
-  UsageError("--isa-root");
-  UsageError("--system-server-classpath");
-  UsageError("--zygote-arch");
-  UsageError("--bootclasspath");
-  UsageError("--standalone-system-server-jars");
-}
-
-int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
+int InitializeConfig(int argc, char** argv, OdrConfig* config) {
   config->SetApexInfoListFile("/apex/apex-info-list.xml");
   config->SetArtBinDir(art::GetArtBinDir());
   config->SetBootClasspath(GetEnvironmentVariableOrDie("BOOTCLASSPATH"));
@@ -241,7 +154,13 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
       zygote = value;
     } else if (ArgumentMatches(arg, "--staging-dir=", &value)) {
       config->SetStagingDir(value);
-    } else if (!InitializeCommonConfig(arg, config)) {
+    } else if (ArgumentEquals(arg, "--dry-run")) {
+      config->SetDryRun();
+    } else if (ArgumentEquals(arg, "--partial-compilation")) {
+      config->SetPartialCompilation(true);
+    } else if (ArgumentEquals(arg, "--no-refresh")) {
+      config->SetRefresh(false);
+    } else {
       UsageError("Unrecognized argument: '%s'", arg);
     }
   }
@@ -259,7 +178,11 @@ int InitializeTargetConfig(int argc, char** argv, OdrConfig* config) {
   return n;
 }
 
-void TargetOptionsHelp() {
+void OptionsHelp() {
+  UsageError("--dry-run");
+  UsageError("--partial-compilation            Only generate artifacts that are out-of-date or");
+  UsageError("                                 missing.");
+  UsageError("--no-refresh                     Do not refresh existing artifacts.");
   UsageError("--use-compilation-os=<CID>       Run compilation in the VM with the given CID.");
   UsageError("                                 (0 = do not use VM, -1 = use composd's VM)");
   UsageError("--dalvik-cache=<DIR>             Write artifacts to .../<DIR> rather than");
@@ -269,14 +192,6 @@ void TargetOptionsHelp() {
   UsageError("--staging-dir=<DIR>              Write temporary artifacts to <DIR> rather than");
   UsageError("                                 .../staging");
   UsageError("--zygote-arch=<STRING>           Zygote kind that overrides ro.zygote");
-}
-
-int InitializeConfig(int argc, char** argv, OdrConfig* config) {
-  if (art::kIsTargetBuild) {
-    return InitializeTargetConfig(argc, argv, config);
-  } else {
-    return InitializeHostConfig(argc, argv, config);
-  }
 }
 
 NO_RETURN void UsageHelp(const char* argv0) {
@@ -296,12 +211,7 @@ NO_RETURN void UsageHelp(const char* argv0) {
   UsageError("");
   UsageError("Available OPTIONs are:");
   UsageError("");
-  CommonOptionsHelp();
-  if (art::kIsTargetBuild) {
-    TargetOptionsHelp();
-  } else {
-    HostOptionsHelp();
-  }
+  OptionsHelp();
 
   exit(EX_USAGE);
 }
