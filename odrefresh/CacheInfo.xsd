@@ -24,6 +24,8 @@
     `/data/misc/apexdata/com.android.art/dalvik-cache` -->
   <xs:element name="cacheInfo">
     <xs:complexType>
+    <!-- True if the cache info is generated in the Compilation OS. -->
+    <xs:attribute name="compilationOsMode" type="xs:boolean" />
     <xs:sequence>
       <xs:element name="artModuleInfo" minOccurs="1" maxOccurs="1" type="t:moduleInfo" />
       <xs:element name="moduleInfoList" minOccurs="1" maxOccurs="1" type="t:moduleInfoList" />
@@ -49,8 +51,9 @@
     <xs:attribute name="versionCode" type="xs:long" use="required" />
     <!-- Module versionName for the active APEX from `/apex/apex-info-list.xml`. -->
     <xs:attribute name="versionName" type="xs:string" use="required" />
-    <!-- Module lastUpdateMillis for the active APEX from `/apex/apex-info-list.xml`. -->
-    <xs:attribute name="lastUpdateMillis" type="xs:long" use="required" />
+    <!-- Module lastUpdateMillis for the active APEX from `/apex/apex-info-list.xml`. This field is
+      not set if the cache info is generated in Compilation OS. -->
+    <xs:attribute name="lastUpdateMillis" type="xs:long" />
   </xs:complexType>
 
   <!-- Components of a classpath. -->
