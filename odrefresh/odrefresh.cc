@@ -583,11 +583,25 @@ std::optional<std::vector<apex::ApexInfo>> OnDeviceRefresh::GetApexInfoList() co
     return std::nullopt;
   }
 
+  // We are only interested in active APEXes that contain compilable JARs.
+  std::unordered_set<std::string_view> relevant_apexes;
+  relevant_apexes.reserve(info_list->getApexInfo().size());
+  for (const std::vector<std::string>* jar_list : { &boot_extension_compilable_jars_,
+      &all_systemserver_jars_, &boot_classpath_jars_}) {
+    for (auto& jar : *jar_list) {
+      std::string_view apex = ApexNameFromLocation(jar);
+      if (!apex.empty()) {
+        relevant_apexes.insert(apex);
+      }
+    }
+  }
+
   std::vector<apex::ApexInfo> filtered_info_list;
   std::copy_if(info_list->getApexInfo().begin(),
                info_list->getApexInfo().end(),
                std::back_inserter(filtered_info_list),
-               [](const apex::ApexInfo& info) { return info.getIsActive(); });
+               [&](const apex::ApexInfo& info) { return info.getIsActive()
+                     && relevant_apexes.count(info.getModuleName()) != 0; });
   return filtered_info_list;
 }
 
@@ -914,11 +928,15 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
     cached_module_info_map[module_info.getName()] = &module_info;
   }
 
+  // Note that apex_info_list may omit APEXes that are included in cached_module_info - e.g. if an
+  // apex used to be compilable, but now isn't. That won't be detected by this loop, but will be
+  // detected below in CheckComponents.
   for (const apex::ApexInfo& current_apex_info : apex_info_list) {
-    auto it = cached_module_info_map.find(current_apex_info.getModuleName());
+    auto& apex_name = current_apex_info.getModuleName();
+
+    auto it = cached_module_info_map.find(apex_name);
     if (it == cached_module_info_map.end()) {
-      LOG(INFO) << "Missing APEX info from cache-info (" << current_apex_info.getModuleName()
-                << ").";
+      LOG(INFO) << "Missing APEX info from cache-info (" << apex_name << ").";
       metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
       return compile_all();
     }
@@ -926,7 +944,7 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
     const art_apex::ModuleInfo* cached_module_info = it->second;
 
     if (cached_module_info->getVersionCode() != current_apex_info.getVersionCode()) {
-      LOG(INFO) << "APEX (" << current_apex_info.getModuleName() << ") version code mismatch ("
+      LOG(INFO) << "APEX (" << apex_name << ") version code mismatch ("
                 << cached_module_info->getVersionCode()
                 << " != " << current_apex_info.getVersionCode() << ").";
       metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
@@ -934,7 +952,7 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
     }
 
     if (cached_module_info->getVersionName() != current_apex_info.getVersionName()) {
-      LOG(INFO) << "APEX (" << current_apex_info.getModuleName() << ") version name mismatch ("
+      LOG(INFO) << "APEX (" << apex_name << ") version name mismatch ("
                 << cached_module_info->getVersionName()
                 << " != " << current_apex_info.getVersionName() << ").";
       metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
@@ -943,7 +961,7 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
 
     if (!cached_module_info->hasLastUpdateMillis() ||
         cached_module_info->getLastUpdateMillis() != current_apex_info.getLastUpdateMillis()) {
-      LOG(INFO) << "APEX (" << current_apex_info.getModuleName() << ") last update time mismatch ("
+      LOG(INFO) << "APEX (" << apex_name << ") last update time mismatch ("
                 << cached_module_info->getLastUpdateMillis()
                 << " != " << current_apex_info.getLastUpdateMillis() << ").";
       metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);

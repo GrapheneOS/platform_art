@@ -330,4 +330,15 @@ TEST_F(FileUtilsTest, GetSystemOdexFilenameForApex) {
       GetSystemOdexFilenameForApex(apex_jar.c_str(), InstructionSet::kArm));
 }
 
+TEST_F(FileUtilsTest, ApexNameFromLocation) {
+  EXPECT_EQ("", ApexNameFromLocation(""));
+  EXPECT_EQ("", ApexNameFromLocation("/apex/com.android.foo"));
+  EXPECT_EQ("", ApexNameFromLocation("/apex//something"));
+  EXPECT_EQ("com.android.foo", ApexNameFromLocation("/apex/com.android.foo/"));
+  EXPECT_EQ("", ApexNameFromLocation("apex/com.android.foo/"));
+  EXPECT_EQ("foo", ApexNameFromLocation("/apex/foo/something.jar"));
+  EXPECT_EQ("", ApexNameFromLocation("/bar/foo/baz"));
+  EXPECT_EQ("", ApexNameFromLocation("/apexx/foo/baz"));
+}
+
 }  // namespace art

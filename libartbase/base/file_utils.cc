@@ -661,6 +661,18 @@ bool LocationIsOnApex(std::string_view full_path) {
   return android::base::StartsWith(full_path, kApexDefaultPath);
 }
 
+std::string_view ApexNameFromLocation(std::string_view full_path) {
+  if (!android::base::StartsWith(full_path, kApexDefaultPath)) {
+    return {};
+  }
+  size_t start = strlen(kApexDefaultPath);
+  size_t end = full_path.find('/', start);
+  if (end == std::string_view::npos) {
+    return {};
+  }
+  return full_path.substr(start, end - start);
+}
+
 bool LocationIsOnSystem(const std::string& location) {
 #ifdef _WIN32
   UNUSED(location);
