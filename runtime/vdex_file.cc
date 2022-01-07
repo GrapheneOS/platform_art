@@ -23,6 +23,7 @@
 #include <unordered_set>
 
 #include <android-base/logging.h>
+#include <android-base/stringprintf.h>
 
 #include "base/bit_utils.h"
 #include "base/leb128.h"
@@ -43,6 +44,8 @@
 #include "verifier/verifier_deps.h"
 
 namespace art {
+
+using android::base::StringPrintf;
 
 constexpr uint8_t VdexFile::VdexFileHeader::kVdexInvalidMagic[4];
 constexpr uint8_t VdexFile::VdexFileHeader::kVdexMagic[4];
@@ -119,9 +122,10 @@ std::unique_ptr<VdexFile> VdexFile::OpenAtAddress(uint8_t* mmap_addr,
                                                   bool unquicken,
                                                   std::string* error_msg) {
   if (mmap_addr != nullptr && mmap_size < vdex_length) {
-    LOG(WARNING) << "Insufficient pre-allocated space to mmap vdex.";
-    mmap_addr = nullptr;
-    mmap_reuse = false;
+    *error_msg = StringPrintf("Insufficient pre-allocated space to mmap vdex: %zu and %zu",
+                              mmap_size,
+                              vdex_length);
+    return nullptr;
   }
   CHECK(!mmap_reuse || mmap_addr != nullptr);
   CHECK(!(writable && unquicken)) << "We don't want to be writing unquickened files out to disk!";
