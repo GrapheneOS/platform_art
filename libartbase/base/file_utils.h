@@ -168,6 +168,10 @@ bool LocationIsOnSystemExtFramework(std::string_view location);
 // Return whether the location is on /apex/.
 bool LocationIsOnApex(std::string_view location);
 
+// If the given location is /apex/<apexname>/..., return <apexname>, otherwise return an empty
+// string. Note that the result is a view into full_path and is valid only as long as it is.
+std::string_view ApexNameFromLocation(std::string_view full_path);
+
 // Returns whether the location is trusted for loading oat files. Trusted locations are protected
 // by dm-verity or fs-verity. The recognized locations are on /system or
 // /data/misc/apexdata/com.android.art.
