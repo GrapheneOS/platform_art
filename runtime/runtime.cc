@@ -1281,16 +1281,8 @@ static inline void CreatePreAllocatedException(Thread* self,
 void Runtime::InitializeApexVersions() {
   std::vector<std::string_view> bcp_apexes;
   for (std::string_view jar : Runtime::Current()->GetBootClassPathLocations()) {
-    if (LocationIsOnApex(jar)) {
-      size_t start = jar.find('/', 1);
-      if (start == std::string::npos) {
-        continue;
-      }
-      size_t end = jar.find('/', start + 1);
-      if (end == std::string::npos) {
-        continue;
-      }
-      std::string_view apex = jar.substr(start + 1, end - start - 1);
+    std::string_view apex = ApexNameFromLocation(jar);
+    if (!apex.empty()) {
       bcp_apexes.push_back(apex);
     }
   }
