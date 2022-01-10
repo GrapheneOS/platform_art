@@ -2546,7 +2546,8 @@ void Redefiner::ClassRedefinition::UpdateMethods(art::ObjPtr<art::mirror::Class>
     linker->SetEntryPointsToInterpreter(&method);
     if (method.HasCodeItem()) {
       method.SetCodeItem(
-          dex_file_->GetCodeItem(dex_file_->FindCodeItemOffset(class_def, dex_method_idx)));
+          dex_file_->GetCodeItem(dex_file_->FindCodeItemOffset(class_def, dex_method_idx)),
+          dex_file_->IsCompactDexFile());
     }
     // Clear all the intrinsics related flags.
     method.SetNotIntrinsic();
