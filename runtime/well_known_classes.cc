@@ -43,6 +43,7 @@ namespace art {
 
 jclass WellKnownClasses::dalvik_annotation_optimization_CriticalNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
+jclass WellKnownClasses::dalvik_annotation_optimization_NeverCompile;
 jclass WellKnownClasses::dalvik_system_BaseDexClassLoader;
 jclass WellKnownClasses::dalvik_system_DelegateLastClassLoader;
 jclass WellKnownClasses::dalvik_system_DexClassLoader;
@@ -336,6 +337,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   dalvik_annotation_optimization_CriticalNative =
       CacheClass(env, "dalvik/annotation/optimization/CriticalNative");
   dalvik_annotation_optimization_FastNative = CacheClass(env, "dalvik/annotation/optimization/FastNative");
+  dalvik_annotation_optimization_NeverCompile =
+      CacheClass(env, "dalvik/annotation/optimization/NeverCompile");
   dalvik_system_BaseDexClassLoader = CacheClass(env, "dalvik/system/BaseDexClassLoader");
   dalvik_system_DelegateLastClassLoader = CacheClass(env, "dalvik/system/DelegateLastClassLoader");
   dalvik_system_DexClassLoader = CacheClass(env, "dalvik/system/DexClassLoader");
@@ -539,6 +542,7 @@ void WellKnownClasses::HandleJniIdTypeChange(JNIEnv* env) {
 void WellKnownClasses::Clear() {
   dalvik_annotation_optimization_CriticalNative = nullptr;
   dalvik_annotation_optimization_FastNative = nullptr;
+  dalvik_annotation_optimization_NeverCompile = nullptr;
   dalvik_system_BaseDexClassLoader = nullptr;
   dalvik_system_DelegateLastClassLoader = nullptr;
   dalvik_system_DexClassLoader = nullptr;

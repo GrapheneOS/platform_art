@@ -389,6 +389,7 @@ com.android.org.kxml2.io.KXmlSerializer
 com.sun.security.cert.internal.x509.X509V1CertImpl
 dalvik.annotation.optimization.CriticalNative
 dalvik.annotation.optimization.FastNative
+dalvik.annotation.optimization.NeverCompile
 dalvik.system.BaseDexClassLoader$Reporter
 dalvik.system.BaseDexClassLoader
 dalvik.system.BlockGuard$1
