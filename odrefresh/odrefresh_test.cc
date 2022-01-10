@@ -28,6 +28,7 @@
 #include "aidl/com/android/art/DexoptBcpExtArgs.h"
 #include "aidl/com/android/art/DexoptSystemServerArgs.h"
 #include "aidl/com/android/art/Isa.h"
+#include "android-base/file.h"
 #include "android-base/parseint.h"
 #include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
@@ -107,6 +108,25 @@ MATCHER_P(FdOf, matcher, "") {
   return ExplainMatchResult(matcher, path_str, result_listener);
 }
 
+void WriteFakeApexInfoList(const std::string& filename) {
+  std::string content = R"xml(
+<?xml version="1.0" encoding="utf-8"?>
+<apex-info-list>
+  <apex-info
+      moduleName="com.android.art"
+      modulePath="/data/apex/active/com.android.art@319999900.apex"
+      preinstalledModulePath="/system/apex/com.android.art.capex"
+      versionCode="319999900"
+      versionName=""
+      isFactory="false"
+      isActive="true"
+      lastUpdateMillis="12345678">
+  </apex-info>
+</apex-info-list>
+)xml";
+  android::base::WriteStringToFile(content, filename);
+}
+
 class OdRefreshTest : public CommonArtTest {
  public:
   OdRefreshTest() : config_("odrefresh") {}
@@ -163,7 +183,10 @@ class OdRefreshTest : public CommonArtTest {
     ASSERT_TRUE(EnsureDirectoryExists(javalib_dir));
     CreateEmptyFile(boot_art);
 
-    config_.SetApexInfoListFile(Concatenate({temp_dir_path, "/apex-info-list.xml"}));
+    std::string apex_info_filename = Concatenate({temp_dir_path, "/apex-info-list.xml"});
+    WriteFakeApexInfoList(apex_info_filename);
+    config_.SetApexInfoListFile(apex_info_filename);
+
     config_.SetArtBinDir(Concatenate({temp_dir_path, "/bin"}));
     config_.SetBootClasspath(framework_jar_);
     config_.SetDex2oatBootclasspath(framework_jar_);
@@ -172,6 +195,7 @@ class OdRefreshTest : public CommonArtTest {
     config_.SetIsa(InstructionSet::kX86_64);
     config_.SetZygoteKind(ZygoteKind::kZygote64_32);
     config_.SetSystemServerCompilerFilter("speed");  // specify a default
+    config_.SetArtifactDirectory(dalvik_cache_dir_);
 
     std::string staging_dir = dalvik_cache_dir_ + "/staging";
     ASSERT_TRUE(EnsureDirectoryExists(staging_dir));
@@ -286,6 +310,7 @@ TEST_F(OdRefreshTest, PartialSystemServerJars) {
 TEST_F(OdRefreshTest, MissingStandaloneSystemServerJars) {
   config_.SetStandaloneSystemServerJars("");
   auto [odrefresh, mock_odr_dexopt] = CreateOdRefresh();
+  EXPECT_CALL(*mock_odr_dexopt, DoDexoptSystemServer).WillRepeatedly(Return(0));
   EXPECT_EQ(
       odrefresh->Compile(*metrics_,
                          CompilationOptions{
