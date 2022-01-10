@@ -191,8 +191,10 @@ class PassObserver : public ValueObject {
         GraphChecker checker(graph_, codegen_);
         last_seen_graph_size_ = checker.Run(pass_change, last_seen_graph_size_);
         if (!checker.IsValid()) {
+          std::ostringstream stream;
+          graph_->Dump(stream, codegen_);
           LOG(FATAL_WITHOUT_ABORT) << "Error after " << pass_name << "(" << graph_->PrettyMethod()
-                                   << "): " << *graph_;
+                                   << "): " << stream.str();
           LOG(FATAL) << "(" << pass_name <<  "): " << Dumpable<GraphChecker>(checker);
         }
       }
