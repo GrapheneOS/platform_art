@@ -2014,8 +2014,9 @@ std::ostream& operator<<(std::ostream& os, const HUseList<HEnvironment*>& lst) {
 }
 
 std::ostream& HGraph::Dump(std::ostream& os,
+                           CodeGenerator* codegen,
                            std::optional<std::reference_wrapper<const BlockNamer>> namer) {
-  HGraphVisualizer vis(&os, this, nullptr, namer);
+  HGraphVisualizer vis(&os, this, codegen, namer);
   vis.DumpGraphDebug();
   return os;
 }
