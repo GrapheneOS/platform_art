@@ -72,6 +72,7 @@ class OdrConfig final {
   time_t max_execution_seconds_ = kMaximumExecutionSeconds;
   time_t max_child_process_seconds_ = kMaxChildProcessSeconds;
   std::string standalone_system_server_jars_;
+  bool compilation_os_mode_;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
@@ -154,6 +155,7 @@ class OdrConfig final {
   }
   time_t GetMaxExecutionSeconds() const { return max_execution_seconds_; }
   time_t GetMaxChildProcessSeconds() const { return max_child_process_seconds_; }
+  bool GetCompilationOsMode() const { return compilation_os_mode_; }
 
   void SetApexInfoListFile(const std::string& file_path) { apex_info_list_file_ = file_path; }
   void SetArtBinDir(const std::string& art_bin_dir) { art_bin_dir_ = art_bin_dir; }
@@ -203,6 +205,8 @@ class OdrConfig final {
   void SetStandaloneSystemServerJars(const std::string& jars) {
     standalone_system_server_jars_ = jars;
   }
+
+  void SetCompilationOsMode(bool value) { compilation_os_mode_ = value; }
 
  private:
   // Returns a pair for the possible instruction sets for the configured instruction set
