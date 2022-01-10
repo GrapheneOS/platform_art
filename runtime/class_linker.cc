@@ -3673,6 +3673,9 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     access_flags |= annotations::GetNativeMethodAnnotationAccessFlags(
         dex_file, dst->GetClassDef(), dex_method_idx);
   }
+  if (annotations::MethodIsNeverCompile(dex_file, dst->GetClassDef(), dex_method_idx)) {
+    access_flags |= kAccCompileDontBother;
+  }
   dst->SetAccessFlags(access_flags);
   // Must be done after SetAccessFlags since IsAbstract depends on it.
   if (klass->IsInterface() && dst->IsAbstract()) {
