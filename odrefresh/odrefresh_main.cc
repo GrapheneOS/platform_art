@@ -135,6 +135,8 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
         ArgumentError("Failed to parse CID: %s", value.c_str());
       }
       config->SetCompilationOsAddress(cid);
+    } else if (ArgumentEquals(arg, "--compilation-os-mode")) {
+      config->SetCompilationOsMode(true);
     } else if (ArgumentMatches(arg, "--dalvik-cache=", &value)) {
       art::OverrideDalvikCacheSubDirectory(value);
       config->SetArtifactDirectory(GetApexDataDalvikCacheDirectory(art::InstructionSet::kNone));
@@ -193,6 +195,8 @@ void OptionsHelp() {
   UsageError("--no-refresh                     Do not refresh existing artifacts.");
   UsageError("--use-compilation-os=<CID>       Run compilation in the VM with the given CID.");
   UsageError("                                 (0 = do not use VM, -1 = use composd's VM)");
+  UsageError("--compilation-os-mode            Indicate that odrefresh is running in Compilation");
+  UsageError("                                 OS.");
   UsageError("--dalvik-cache=<DIR>             Write artifacts to .../<DIR> rather than");
   UsageError("                                 .../dalvik-cache");
   UsageError("--max-execution-seconds=<N>      Maximum timeout of all compilation combined");
