@@ -7816,8 +7816,9 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
   DCHECK_GE(super_vtable_length, mirror::Object::kVTableLength);
   for (uint32_t i = 0; i != mirror::Object::kVTableLength; ++i) {
     size_t hash = class_linker_->object_virtual_method_hashes_[i];
-    bool inserted = super_vtable_signatures.InsertWithHash(i, hash).second;
-    DCHECK(inserted);  // No duplicate signatures in `java.lang.Object`.
+    // There are no duplicate signatures in `java.lang.Object`, so use `HashSet<>::PutWithHash()`.
+    // This avoids equality comparison for the three `java.lang.Object.wait()` overloads.
+    super_vtable_signatures.PutWithHash(i, hash);
   }
   // Insert the remaining indexes, check for duplicate signatures.
   if (super_vtable_length > mirror::Object::kVTableLength) {
