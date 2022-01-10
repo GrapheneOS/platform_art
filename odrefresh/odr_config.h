@@ -64,6 +64,7 @@ class OdrConfig final {
   InstructionSet isa_;
   std::string program_name_;
   std::string system_server_classpath_;
+  std::string system_server_compiler_filter_;
   ZygoteKind zygote_kind_;
   int compilation_os_address_ = 0;
   std::string boot_classpath_;
@@ -143,6 +144,9 @@ class OdrConfig final {
   const std::string& GetSystemServerClasspath() const {
     return system_server_classpath_;
   }
+  const std::string& GetSystemServerCompilerFilter() const {
+    return system_server_compiler_filter_;
+  }
   bool UseCompilationOs() const { return compilation_os_address_ != 0; }
   int GetCompilationOsAddress() const { return compilation_os_address_; }
   const std::string& GetStagingDir() const {
@@ -176,6 +180,10 @@ class OdrConfig final {
 
   void SetSystemServerClasspath(const std::string& classpath) {
     system_server_classpath_ = classpath;
+  }
+
+  void SetSystemServerCompilerFilter(const std::string& filter) {
+    system_server_compiler_filter_ = filter;
   }
 
   void SetZygoteKind(ZygoteKind zygote_kind) { zygote_kind_ = zygote_kind; }

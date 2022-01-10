@@ -210,7 +210,7 @@ art_cc_test {
         "libdexfiled",
         "libdexoptd",
     ],
-    test_config_template: "//art/test:art-gtests-target-standalone-root-template",
+    test_config_template: "//art/test:art-gtests-target-standalone-template",
 }
 
 // Standalone version of ART gtest `art_odrefresh_tests`, not bundled with the ART APEX on target.
@@ -224,7 +224,7 @@ art_cc_test {
         "libdexfile",
         "libdexopt",
     ],
-    test_config_template: "//art/test:art-gtests-target-standalone-root-template",
+    test_config_template: "//art/test:art-gtests-target-standalone-template",
 }
 
 genrule {
