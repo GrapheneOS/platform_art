@@ -250,6 +250,21 @@ art_gtests_mainline_presubmit_module_names = copy.copy(art_gtest_module_names)
 # TODO(b/206335809): Re-enable this test when the fix has landed.
 art_gtests_mainline_presubmit_module_names.remove("art_standalone_odrefresh_tests")
 
+# Tests exhibiting a flaky behavior, currently exluded from MTS for
+# the stake of stability / confidence (b/209958457).
+flaky_tests_excluded_from_mts = [
+    ("CtsLibcoreFileIOTestCases" +
+     " android.cts.FileChannelInterProcessLockTest#" + m) for m in [
+         "test_lockJJZ_Exclusive_syncChannel",
+         "test_lock_differentChannelTypes",
+    ]
+] + [
+    ("CtsLibcoreTestCases" +
+     " com.android.org.conscrypt.javax.net.ssl.SSLSocketVersionCompatibilityTest#" + m) for m in [
+         "test_SSLSocket_interrupt_read_withoutAutoClose",
+         "test_SSLSocket_setSoWriteTimeout",
+    ]
+]
 
 # Is `run_test` a Checker test (i.e. a test containing Checker
 # assertions)?
@@ -634,6 +649,19 @@ class Generator:
       include = root.createElement("include")
       include.setAttribute("name", f"mts-art-tests-list-user-shard-{s:02}")
       configuration.appendChild(include)
+
+    # Excluded flaky tests.
+    xml_comment = root.createComment(f" Excluded flaky tests (b/209958457). ")
+    configuration.appendChild(xml_comment)
+
+    def append_test_exclusion(test):
+      option = root.createElement("option")
+      option.setAttribute("name", "compatibility:exclude-filter")
+      option.setAttribute("value", test)
+      configuration.appendChild(option)
+
+    for t in flaky_tests_excluded_from_mts:
+      append_test_exclusion(t)
 
     xml_str = root.toprettyxml(indent = XML_INDENT, encoding = "utf-8")
 
