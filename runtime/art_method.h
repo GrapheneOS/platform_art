@@ -230,7 +230,6 @@ class ArtMethod final {
 
   bool IsPreCompiled() const {
     // kAccCompileDontBother and kAccPreCompiled overlap with kAccIntrinsicBits.
-    // Intrinsics should be compiled in primary boot image, not pre-compiled by JIT.
     static_assert((kAccCompileDontBother & kAccIntrinsicBits) != 0);
     static_assert((kAccPreCompiled & kAccIntrinsicBits) != 0);
     static constexpr uint32_t kMask = kAccIntrinsic | kAccCompileDontBother | kAccPreCompiled;
@@ -241,6 +240,13 @@ class ArtMethod final {
   void SetPreCompiled() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsInvokable());
     DCHECK(IsCompilable());
+    // kAccPreCompiled and kAccCompileDontBother overlaps with kAccIntrinsicBits.
+    // We don't mark the intrinsics as precompiled, which means in JIT zygote
+    // mode, compiled code for intrinsics will not be shared, and apps will
+    // compile intrinsics themselves if needed.
+    if (IsIntrinsic()) {
+      return;
+    }
     AddAccessFlags(kAccPreCompiled | kAccCompileDontBother);
   }
 
