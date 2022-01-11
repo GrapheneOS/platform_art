@@ -833,8 +833,7 @@ class Dex2Oat final {
     // Set the compilation target's implicit checks options.
     switch (compiler_options_->GetInstructionSet()) {
       case InstructionSet::kArm64:
-        // TODO: Investigate implicit suspend check regressions. Bug: 209235730, 213121241.
-        compiler_options_->implicit_suspend_checks_ = false;
+        compiler_options_->implicit_suspend_checks_ = true;
         FALLTHROUGH_INTENDED;
       case InstructionSet::kArm:
       case InstructionSet::kThumb2:
