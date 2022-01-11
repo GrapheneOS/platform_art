@@ -37,19 +37,24 @@ class OdrConfig;
 
 class OdrDexopt {
  public:
-  static std::unique_ptr<OdrDexopt> Create(const OdrConfig& confg,
-                                           std::unique_ptr<ExecUtils> exec_utils);
+  OdrDexopt(const OdrConfig& config, std::unique_ptr<ExecUtils> exec_utils);
+
+  OdrDexopt() {}  // Test only
 
   virtual ~OdrDexopt() {}
 
   virtual int DexoptBcpExtension(const DexoptBcpExtArgs& args,
                                  time_t timeout_secs,
                                  /*out*/ bool* timed_out,
-                                 /*out*/ std::string* error_msg) = 0;
+                                 /*out*/ std::string* error_msg);
   virtual int DexoptSystemServer(const DexoptSystemServerArgs& args,
                                  time_t timeout_secs,
                                  /*out*/ bool* timed_out,
-                                 /*out*/ std::string* error_msg) = 0;
+                                 /*out*/ std::string* error_msg);
+
+ private:
+  std::string dex2oat_path_;
+  std::unique_ptr<ExecUtils> exec_utils_;
 };
 
 }  // namespace odrefresh
