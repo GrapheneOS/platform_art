@@ -66,7 +66,6 @@ class OdrConfig final {
   std::string system_server_classpath_;
   std::string system_server_compiler_filter_;
   ZygoteKind zygote_kind_;
-  int compilation_os_address_ = 0;
   std::string boot_classpath_;
   std::string artifact_dir_;
   time_t max_execution_seconds_ = kMaximumExecutionSeconds;
@@ -148,8 +147,6 @@ class OdrConfig final {
   const std::string& GetSystemServerCompilerFilter() const {
     return system_server_compiler_filter_;
   }
-  bool UseCompilationOs() const { return compilation_os_address_ != 0; }
-  int GetCompilationOsAddress() const { return compilation_os_address_; }
   const std::string& GetStagingDir() const {
     return staging_dir_;
   }
@@ -176,7 +173,6 @@ class OdrConfig final {
     refresh_ = value;
   }
   void SetIsa(const InstructionSet isa) { isa_ = isa; }
-  void SetCompilationOsAddress(int address) { compilation_os_address_ = address; }
   void SetMaxExecutionSeconds(int seconds) { max_execution_seconds_ = seconds; }
   void SetMaxChildProcessSeconds(int seconds) { max_child_process_seconds_ = seconds; }
 
