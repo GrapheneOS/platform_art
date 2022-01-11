@@ -41,7 +41,7 @@ namespace odrefresh {
 
 struct CompilationOptions {
   // If true, update the cache info only and do not compile anything.
-  bool update_cache_info_only;
+  bool update_cache_info_only = false;
 
   // If not empty, compile the bootclasspath extensions for ISAs in the list.
   std::vector<InstructionSet> compile_boot_extensions_for_isas;
