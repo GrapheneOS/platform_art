@@ -129,13 +129,7 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
   for (; n < argc - 1; ++n) {
     const char* arg = argv[n];
     std::string value;
-    if (ArgumentMatches(arg, "--use-compilation-os=", &value)) {
-      int cid;
-      if (!android::base::ParseInt(value, &cid)) {
-        ArgumentError("Failed to parse CID: %s", value.c_str());
-      }
-      config->SetCompilationOsAddress(cid);
-    } else if (ArgumentEquals(arg, "--compilation-os-mode")) {
+    if (ArgumentEquals(arg, "--compilation-os-mode")) {
       config->SetCompilationOsMode(true);
     } else if (ArgumentMatches(arg, "--dalvik-cache=", &value)) {
       art::OverrideDalvikCacheSubDirectory(value);
@@ -209,8 +203,6 @@ NO_RETURN void UsageHelp(const char* argv0) {
   UsageMsg("--partial-compilation            Only generate artifacts that are out-of-date or");
   UsageMsg("                                 missing.");
   UsageMsg("--no-refresh                     Do not refresh existing artifacts.");
-  UsageMsg("--use-compilation-os=<CID>       Run compilation in the VM with the given CID.");
-  UsageMsg("                                 (0 = do not use VM, -1 = use composd's VM)");
   UsageMsg("--compilation-os-mode            Indicate that odrefresh is running in Compilation");
   UsageMsg("                                 OS.");
   UsageMsg("--dalvik-cache=<DIR>             Write artifacts to .../<DIR> rather than");
