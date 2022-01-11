@@ -387,6 +387,16 @@ class OatFile {
   // Returns whether an image (e.g. app image) is required to safely execute this OAT file.
   bool RequiresImage() const;
 
+  struct BssMappingInfo {
+    const IndexBssMapping* method_bss_mapping = nullptr;
+    const IndexBssMapping* type_bss_mapping = nullptr;
+    const IndexBssMapping* public_type_bss_mapping = nullptr;
+    const IndexBssMapping* package_type_bss_mapping = nullptr;
+    const IndexBssMapping* string_bss_mapping = nullptr;
+  };
+
+  std::vector<BssMappingInfo> bcp_bss_info;
+
  protected:
   OatFile(const std::string& filename, bool executable);
 
