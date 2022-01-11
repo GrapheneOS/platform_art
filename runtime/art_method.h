@@ -230,7 +230,6 @@ class ArtMethod final {
 
   bool IsPreCompiled() const {
     // kAccCompileDontBother and kAccPreCompiled overlap with kAccIntrinsicBits.
-    // Intrinsics should be compiled in primary boot image, not pre-compiled by JIT.
     static_assert((kAccCompileDontBother & kAccIntrinsicBits) != 0);
     static_assert((kAccPreCompiled & kAccIntrinsicBits) != 0);
     static constexpr uint32_t kMask = kAccIntrinsic | kAccCompileDontBother | kAccPreCompiled;
@@ -241,6 +240,13 @@ class ArtMethod final {
   void SetPreCompiled() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsInvokable());
     DCHECK(IsCompilable());
+    // kAccPreCompiled and kAccCompileDontBother overlaps with kAccIntrinsicBits.
+    // We don't mark the intrinsics as precompiled, which means in JIT zygote
+    // mode, compiled code for intrinsics will not be shared, and apps will
+    // compile intrinsics themselves if needed.
+    if (IsIntrinsic()) {
+      return;
+    }
     AddAccessFlags(kAccPreCompiled | kAccCompileDontBother);
   }
 
@@ -582,7 +588,10 @@ class ArtMethod final {
     return !IsRuntimeMethod() && !IsNative() && !IsProxyMethod() && !IsAbstract();
   }
 
-  void SetCodeItem(const dex::CodeItem* code_item) REQUIRES_SHARED(Locks::mutator_lock_);
+  // We need to explicitly indicate whether the code item is obtained from the compact dex file,
+  // because in JVMTI, we obtain the code item from the standard dex file to update the method.
+  void SetCodeItem(const dex::CodeItem* code_item, bool is_compact_dex_code_item)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Is this a hand crafted method used for something like describing callee saves?
   bool IsCalleeSaveMethod() REQUIRES_SHARED(Locks::mutator_lock_);

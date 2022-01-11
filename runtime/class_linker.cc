@@ -1968,7 +1968,7 @@ bool ClassLinker::AddImageSpace(
       if (method.HasCodeItem()) {
         const dex::CodeItem* code_item = method.GetDexFile()->GetCodeItem(
             reinterpret_cast32<uint32_t>(method.GetDataPtrSize(image_pointer_size_)));
-        method.SetCodeItem(code_item);
+        method.SetCodeItem(code_item, method.GetDexFile()->IsCompactDexFile());
         // The hotness counter may have changed since we compiled the image, so
         // reset it with the runtime value.
         method.ResetCounter(hotness_threshold);
@@ -3683,7 +3683,8 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     if (Runtime::Current()->IsAotCompiler()) {
       dst->SetDataPtrSize(reinterpret_cast32<void*>(method.GetCodeItemOffset()), image_pointer_size_);
     } else {
-      dst->SetCodeItem(dst->GetDexFile()->GetCodeItem(method.GetCodeItemOffset()));
+      dst->SetCodeItem(dst->GetDexFile()->GetCodeItem(method.GetCodeItemOffset()),
+                       dst->GetDexFile()->IsCompactDexFile());
     }
   } else {
     dst->SetDataPtrSize(nullptr, image_pointer_size_);
@@ -7816,8 +7817,9 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
   DCHECK_GE(super_vtable_length, mirror::Object::kVTableLength);
   for (uint32_t i = 0; i != mirror::Object::kVTableLength; ++i) {
     size_t hash = class_linker_->object_virtual_method_hashes_[i];
-    bool inserted = super_vtable_signatures.InsertWithHash(i, hash).second;
-    DCHECK(inserted);  // No duplicate signatures in `java.lang.Object`.
+    // There are no duplicate signatures in `java.lang.Object`, so use `HashSet<>::PutWithHash()`.
+    // This avoids equality comparison for the three `java.lang.Object.wait()` overloads.
+    super_vtable_signatures.PutWithHash(i, hash);
   }
   // Insert the remaining indexes, check for duplicate signatures.
   if (super_vtable_length > mirror::Object::kVTableLength) {

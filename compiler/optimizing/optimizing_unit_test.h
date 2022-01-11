@@ -203,7 +203,7 @@ class AdjacencyListGraph {
       const AdjacencyListGraph& alg_;
     };
     Namer namer(*this);
-    return graph_->Dump(os, namer);
+    return graph_->Dump(os, /* codegen_= */ nullptr, namer);
   }
 
  private:
