@@ -709,7 +709,9 @@ void Runtime::PostZygoteFork() {
     // Ensure that the threads in the JIT pool have been created with the right
     // priority.
     if (kIsDebugBuild && jit->GetThreadPool() != nullptr) {
-      jit->GetThreadPool()->CheckPthreadPriority(jit->GetThreadPoolPthreadPriority());
+      jit->GetThreadPool()->CheckPthreadPriority(
+          IsZygote() ? jit->GetZygoteThreadPoolPthreadPriority()
+                     : jit->GetThreadPoolPthreadPriority());
     }
   }
   // Reset all stats.
