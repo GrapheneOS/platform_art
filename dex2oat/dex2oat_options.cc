@@ -243,7 +243,11 @@ static void AddCompilerMappings(Builder& builder) {
           .IntoKey(M::Passes)
       .Define("--profile-file=_")
           .WithType<std::vector<std::string>>().AppendValues()
-          .WithHelp("Specify profiler output file to use for compilation using a filename.")
+          .WithHelp("Specify profiler output file to use for compilation using a filename.\n"
+                    "When multiple profiles are used, the order matters: If multiple profiles \n"
+                    "contain classes and methods of the same dex file with different checksums, \n"
+                    "only the classes and methods from the first profile will be used for that \n"
+                    "particular dex file.")
           .IntoKey(M::Profile)
       .Define("--profile-file-fd=_")
           .WithType<std::vector<int>>().AppendValues()
