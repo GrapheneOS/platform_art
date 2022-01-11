@@ -210,6 +210,11 @@ art_cc_test {
         "libdexfiled",
         "libdexoptd",
     ],
+    // The test config template is needed even though it's not used by the test
+    // runner. Otherwise, Soong will generate a test config, which is adding
+    // `art-host-test` as a test tag, while this test does not support running
+    // on host.
+    // TODO(b/214016626): Remove this line once the bug is fixed.
     test_config_template: "//art/test:art-gtests-target-standalone-template",
 }
 
@@ -224,7 +229,6 @@ art_cc_test {
         "libdexfile",
         "libdexopt",
     ],
-    test_config_template: "//art/test:art-gtests-target-standalone-template",
 }
 
 genrule {
