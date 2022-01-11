@@ -16,6 +16,8 @@
 
 package com.android.tests.odsign;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -142,6 +144,20 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertFalse(getDevice().doesFileExist(unexpected));
+    }
+
+    @Test
+    public void verifyCacheInfoOmitsIrrelevantApexes() throws Exception {
+        String cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
+
+        // cacheInfo should list all APEXes that have compilable JARs and
+        // none that do not.
+
+        // This should always contain classpath JARs, that's the reason it exists.
+        assertThat(cacheInfo).contains("name=\"com.android.sdkext\"");
+
+        // This should never contain classpath JARs, it's the native runtime.
+        assertThat(cacheInfo).doesNotContain("name=\"com.android.runtime\"");
     }
 
     /**
