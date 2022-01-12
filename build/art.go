@@ -288,7 +288,7 @@ func testInstall(ctx android.InstallHookContext) {
 	defer artTestMutex.Unlock()
 
 	tests := testMap[name]
-	tests = append(tests, ctx.Path().ToMakePath().String())
+	tests = append(tests, ctx.Path().String())
 	testMap[name] = tests
 }
 
@@ -315,7 +315,7 @@ func addTestcasesFile(ctx android.InstallHookContext) {
 	defer artTestMutex.Unlock()
 
 	src := ctx.SrcPath().String()
-	path := strings.Split(ctx.Path().ToMakePath().String(), "/")
+	path := strings.Split(ctx.Path().String(), "/")
 	// Keep last two parts of the install path (e.g. bin/dex2oat).
 	dst := strings.Join(path[len(path)-2:], "/")
 	if oldSrc, ok := testcasesContent[dst]; ok {
