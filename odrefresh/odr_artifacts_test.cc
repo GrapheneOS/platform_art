@@ -27,7 +27,7 @@ namespace odrefresh {
 
 static constexpr const char* kOdrefreshArtifactDirectory = "/test/dir";
 
-TEST(OdrArtifactsTest, ForBootImageExtension) {
+TEST(OdrArtifactsTest, ForBootImage) {
   ScopedUnsetEnvironmentVariable no_env("ART_APEX_DATA");
   setenv("ART_APEX_DATA", kOdrefreshArtifactDirectory, /* overwrite */ 1);
 
@@ -37,7 +37,7 @@ TEST(OdrArtifactsTest, ForBootImageExtension) {
   const std::string image_filename =
       GetSystemImageFilename(image_location.c_str(), InstructionSet::kArm64);
 
-  const auto artifacts = OdrArtifacts::ForBootImageExtension(image_filename);
+  const auto artifacts = OdrArtifacts::ForBootImage(image_filename);
   CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/arm64/boot-framework.art",
            artifacts.ImagePath());
   CHECK_EQ(std::string(kOdrefreshArtifactDirectory) + "/dalvik-cache/arm64/boot-framework.oat",
