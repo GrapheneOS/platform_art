@@ -58,7 +58,7 @@ class LibDexoptTest : public CommonArtTest {
     default_bcp_ext_args_.bootClasspaths = android::base::Split(
         GetEnvironmentVariableOrDie("DEX2OATBOOTCLASSPATH"), ":");  // from art_artd_tests.xml
     default_bcp_ext_args_.bootClasspathFds = {21, 22};
-    default_bcp_ext_args_.profileFd = 30;
+    default_bcp_ext_args_.profileFds = {30, 31};
     default_bcp_ext_args_.dirtyImageObjectsFd = 31;
     default_bcp_ext_args_.imageFd = 90;
     default_bcp_ext_args_.vdexFd = 91;
@@ -90,7 +90,7 @@ class LibDexoptTest : public CommonArtTest {
     default_system_server_args_.compilerFilter = CompilerFilter::SPEED_PROFILE;
     default_system_server_args_.cpuSet = {0, 1};
     default_system_server_args_.threads = 42;
-    default_system_server_args_.isBootImageOnSystem = true;
+    default_system_server_args_.bootImage = "/path/to/boot.art";
     ASSERT_EQ(default_system_server_args_.bootClasspaths.size(),
               default_system_server_args_.bootClasspathFds.size());
   }
@@ -134,32 +134,35 @@ TEST_F(LibDexoptTest, AddDex2oatArgsFromBcpExtensionArgs) {
   {
     std::vector<std::string> cmdline = Dex2oatArgsFromBcpExtensionArgs(default_bcp_ext_args_);
 
-    EXPECT_THAT(cmdline, AllOf(
-        Contains("--dex-fd=10"),
-        Contains("--dex-fd=11"),
-        Contains("--dex-file=/path/to/foo.jar"),
-        Contains("--dex-file=/path/to/bar.jar"),
-        Contains(HasSubstr("-Xbootclasspath:")),
-        Contains("-Xbootclasspathfds:21:22"),
+    EXPECT_THAT(cmdline,
+                AllOf(Contains("--dex-fd=10"),
+                      Contains("--dex-fd=11"),
+                      Contains("--dex-file=/path/to/foo.jar"),
+                      Contains("--dex-file=/path/to/bar.jar"),
+                      Contains(HasSubstr("-Xbootclasspath:")),
+                      Contains("-Xbootclasspathfds:21:22"),
 
-        Contains("--profile-file-fd=30"),
-        Contains("--compiler-filter=speed-profile"),
+                      Contains("--profile-file-fd=30"),
+                      Contains("--profile-file-fd=31"),
+                      Contains("--compiler-filter=speed-profile"),
 
-        Contains("--image-fd=90"),
-        Contains("--output-vdex-fd=91"),
-        Contains("--oat-fd=92"),
-        Contains("--oat-location=/oat/location/bar.odex"),
+                      Contains("--image-fd=90"),
+                      Contains("--output-vdex-fd=91"),
+                      Contains("--oat-fd=92"),
+                      Contains("--oat-location=/oat/location/bar.odex"),
 
-        Contains("--dirty-image-objects-fd=31"),
-        Contains("--instruction-set=x86_64"),
-        Contains("--cpu-set=0,1"),
-        Contains("-j42")));
+                      Contains("--dirty-image-objects-fd=31"),
+                      Contains("--instruction-set=x86_64"),
+                      Contains("--cpu-set=0,1"),
+                      Contains("-j42"),
+
+                      Contains(HasSubstr("--base="))));
   }
 
   // No profile
   {
     auto args = default_bcp_ext_args_;
-    args.profileFd = -1;
+    args.profileFds = {};
     std::vector<std::string> cmdline = Dex2oatArgsFromBcpExtensionArgs(args);
 
     EXPECT_THAT(cmdline, AllOf(
@@ -224,29 +227,31 @@ TEST_F(LibDexoptTest, AddDex2oatArgsFromSystemServerArgs) {
   {
     std::vector<std::string> cmdline = Dex2oatArgsFromSystemServerArgs(default_system_server_args_);
 
-    EXPECT_THAT(cmdline, AllOf(
-        Contains("--dex-fd=10"),
-        Contains("--dex-file=/path/to/foo.jar"),
-        Contains(HasSubstr("-Xbootclasspath:")),
-        Contains("-Xbootclasspathfds:21:22:23"),
-        Contains("-Xbootclasspathimagefds:-1:31:-1"),
-        Contains("-Xbootclasspathvdexfds:-1:32:-1"),
-        Contains("-Xbootclasspathoatfds:-1:33:-1"),
+    EXPECT_THAT(cmdline,
+                AllOf(Contains("--dex-fd=10"),
+                      Contains("--dex-file=/path/to/foo.jar"),
+                      Contains(HasSubstr("-Xbootclasspath:")),
+                      Contains("-Xbootclasspathfds:21:22:23"),
+                      Contains("-Xbootclasspathimagefds:-1:31:-1"),
+                      Contains("-Xbootclasspathvdexfds:-1:32:-1"),
+                      Contains("-Xbootclasspathoatfds:-1:33:-1"),
 
-        Contains("--profile-file-fd=11"),
-        Contains("--compiler-filter=speed-profile"),
+                      Contains("--profile-file-fd=11"),
+                      Contains("--compiler-filter=speed-profile"),
 
-        Contains("--app-image-fd=90"),
-        Contains("--output-vdex-fd=91"),
-        Contains("--oat-fd=92"),
-        Contains("--oat-location=/oat/location/bar.odex"),
+                      Contains("--app-image-fd=90"),
+                      Contains("--output-vdex-fd=91"),
+                      Contains("--oat-fd=92"),
+                      Contains("--oat-location=/oat/location/bar.odex"),
 
-        Contains("--class-loader-context-fds=40:41"),
-        Contains("--class-loader-context=PCL[/cl/abc.jar:/cl/def.jar]"),
+                      Contains("--class-loader-context-fds=40:41"),
+                      Contains("--class-loader-context=PCL[/cl/abc.jar:/cl/def.jar]"),
 
-        Contains("--instruction-set=x86_64"),
-        Contains("--cpu-set=0,1"),
-        Contains("-j42")));
+                      Contains("--instruction-set=x86_64"),
+                      Contains("--cpu-set=0,1"),
+                      Contains("-j42"),
+
+                      Contains("--boot-image=/path/to/boot.art")));
   }
 
   // Test different compiler filters
