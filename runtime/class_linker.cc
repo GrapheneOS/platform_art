@@ -3672,8 +3672,8 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     // Check if the native method is annotated with @FastNative or @CriticalNative.
     access_flags |= annotations::GetNativeMethodAnnotationAccessFlags(
         dex_file, dst->GetClassDef(), dex_method_idx);
-  }
-  if (annotations::MethodIsNeverCompile(dex_file, dst->GetClassDef(), dex_method_idx)) {
+  } else if ((access_flags & kAccAbstract) == 0u &&
+             annotations::MethodIsNeverCompile(dex_file, dst->GetClassDef(), dex_method_idx)) {
     access_flags |= kAccCompileDontBother;
   }
   dst->SetAccessFlags(access_flags);
