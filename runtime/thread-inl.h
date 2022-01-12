@@ -46,7 +46,7 @@ inline void Thread::AllowThreadSuspension() {
   PoisonObjectPointers();
 }
 
-inline void Thread::CheckSuspend() {
+inline void Thread::CheckSuspend(bool implicit) {
   DCHECK_EQ(Thread::Current(), this);
   while (true) {
     StateAndFlags state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
@@ -55,11 +55,17 @@ inline void Thread::CheckSuspend() {
     } else if (state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest)) {
       RunCheckpointFunction();
     } else if (state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest)) {
-      FullSuspendCheck();
+      FullSuspendCheck(implicit);
+      implicit = false;  // We do not need to `MadviseAwayAlternateSignalStack()` anymore.
     } else {
       DCHECK(state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest));
       RunEmptyCheckpoint();
     }
+  }
+  if (implicit) {
+    // For implicit suspend check we want to `madvise()` away
+    // the alternate signal stack to avoid wasting memory.
+    MadviseAwayAlternateSignalStack();
   }
 }
 
