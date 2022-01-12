@@ -28,7 +28,7 @@ namespace odrefresh {
 // A grouping of odrefresh generated artifacts.
 class OdrArtifacts {
  public:
-  static OdrArtifacts ForBootImageExtension(const std::string& image_path) {
+  static OdrArtifacts ForBootImage(const std::string& image_path) {
     return OdrArtifacts(image_path, "oat");
   }
 

@@ -87,7 +87,7 @@ class OdrConfig final {
 
   const std::string& GetApexInfoListFile() const { return apex_info_list_file_; }
 
-  std::vector<InstructionSet> GetBootExtensionIsas() const {
+  std::vector<InstructionSet> GetBootClasspathIsas() const {
     const auto [isa32, isa64] = GetPotentialInstructionSets();
     switch (zygote_kind_) {
       case ZygoteKind::kZygote32:
