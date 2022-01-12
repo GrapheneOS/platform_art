@@ -487,6 +487,9 @@ static void CompileMethodQuick(
       }
     } else if ((access_flags & kAccAbstract) != 0) {
       // Abstract methods don't have code.
+    } else if (annotations::MethodIsNeverCompile(dex_file, dex_file.GetClassDef(class_def_idx),
+                                                 method_idx)) {
+      // Method is annotated with @NeverCompile and should not be compiled.
     } else {
       const CompilerOptions& compiler_options = driver->GetCompilerOptions();
       const VerificationResults* results = compiler_options.GetVerificationResults();

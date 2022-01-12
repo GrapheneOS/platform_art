@@ -5,11 +5,13 @@ package com.android.art {
     ctor public CacheInfo();
     method public com.android.art.ModuleInfo getArtModuleInfo();
     method public com.android.art.Classpath getBootClasspath();
+    method public boolean getCompilationOsMode();
     method public com.android.art.Classpath getDex2oatBootClasspath();
     method public com.android.art.ModuleInfoList getModuleInfoList();
     method public com.android.art.SystemServerComponents getSystemServerComponents();
     method public void setArtModuleInfo(com.android.art.ModuleInfo);
     method public void setBootClasspath(com.android.art.Classpath);
+    method public void setCompilationOsMode(boolean);
     method public void setDex2oatBootClasspath(com.android.art.Classpath);
     method public void setModuleInfoList(com.android.art.ModuleInfoList);
     method public void setSystemServerComponents(com.android.art.SystemServerComponents);

@@ -10037,6 +10037,7 @@ Lcom/android/org/kxml2/io/KXmlSerializer;
 Lcom/sun/security/cert/internal/x509/X509V1CertImpl;
 Ldalvik/annotation/optimization/CriticalNative;
 Ldalvik/annotation/optimization/FastNative;
+Ldalvik/annotation/optimization/NeverCompile;
 Ldalvik/system/AppSpecializationHooks;
 Ldalvik/system/BaseDexClassLoader$Reporter;
 Ldalvik/system/BaseDexClassLoader;

@@ -184,24 +184,26 @@ std::optional<apex::ApexInfo> GetArtApexInfo(const std::vector<apex::ApexInfo>& 
 
 // Returns cache provenance information based on the current APEX version and filesystem
 // information.
-art_apex::ModuleInfo GenerateModuleInfo(const apex::ApexInfo& apex_info) {
+art_apex::ModuleInfo GenerateModuleInfo(const apex::ApexInfo& apex_info,
+                                        bool include_last_update_millis) {
   // The lastUpdateMillis is an addition to ApexInfoList.xsd to support samegrade installs.
   int64_t last_update_millis =
       apex_info.hasLastUpdateMillis() ? apex_info.getLastUpdateMillis() : 0;
-  return art_apex::ModuleInfo{apex_info.getModuleName(),
-                              apex_info.getVersionCode(),
-                              apex_info.getVersionName(),
-                              last_update_millis};
+  return art_apex::ModuleInfo{
+      apex_info.getModuleName(),
+      apex_info.getVersionCode(),
+      apex_info.getVersionName(),
+      include_last_update_millis ? std::make_optional(last_update_millis) : std::nullopt};
 }
 
 // Returns cache provenance information for all APEXes.
 std::vector<art_apex::ModuleInfo> GenerateModuleInfoList(
-    const std::vector<apex::ApexInfo>& apex_info_list) {
+    const std::vector<apex::ApexInfo>& apex_info_list, bool include_last_update_millis) {
   std::vector<art_apex::ModuleInfo> module_info_list;
   std::transform(apex_info_list.begin(),
                  apex_info_list.end(),
                  std::back_inserter(module_info_list),
-                 GenerateModuleInfo);
+                 std::bind(GenerateModuleInfo, std::placeholders::_1, include_last_update_millis));
   return module_info_list;
 }
 
@@ -531,7 +533,7 @@ OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config)
     : OnDeviceRefresh(config,
                       Concatenate({config.GetArtifactDirectory(), "/", kCacheInfoFile}),
                       std::make_unique<ExecUtils>(),
-                      OdrDexopt::Create(config, std::make_unique<ExecUtils>())) {}
+                      std::make_unique<OdrDexopt>(config, std::make_unique<ExecUtils>())) {}
 
 OnDeviceRefresh::OnDeviceRefresh(const OdrConfig& config,
                                  const std::string& cache_info_filename,
@@ -596,6 +598,9 @@ std::optional<std::vector<apex::ApexInfo>> OnDeviceRefresh::GetApexInfoList() co
       }
     }
   }
+  // The ART APEX is always relevant no matter it contains any compilable JAR or not, because it
+  // contains the runtime.
+  relevant_apexes.insert("com.android.art");
 
   std::vector<apex::ApexInfo> filtered_info_list;
   std::copy_if(info_list->getApexInfo().begin(),
@@ -610,64 +615,74 @@ std::optional<art_apex::CacheInfo> OnDeviceRefresh::ReadCacheInfo() const {
   return art_apex::read(cache_info_filename_.c_str());
 }
 
-void OnDeviceRefresh::WriteCacheInfo() const {
+Result<void> OnDeviceRefresh::WriteCacheInfo() const {
   if (OS::FileExists(cache_info_filename_.c_str())) {
     if (unlink(cache_info_filename_.c_str()) != 0) {
-      PLOG(ERROR) << "Failed to unlink() file " << QuotePath(cache_info_filename_);
+      return ErrnoErrorf("Failed to unlink() file {}", QuotePath(cache_info_filename_));
     }
   }
 
   const std::string dir_name = android::base::Dirname(cache_info_filename_);
   if (!EnsureDirectoryExists(dir_name)) {
-    LOG(ERROR) << "Could not create directory: " << QuotePath(dir_name);
-    return;
+    return Errorf("Could not create directory {}", QuotePath(dir_name));
   }
 
   std::optional<std::vector<apex::ApexInfo>> apex_info_list = GetApexInfoList();
   if (!apex_info_list.has_value()) {
-    LOG(ERROR) << "Could not update " << QuotePath(cache_info_filename_) << " : no APEX info";
-    return;
+    return Errorf("Could not update {}: no APEX info", QuotePath(cache_info_filename_));
   }
 
   std::optional<apex::ApexInfo> art_apex_info = GetArtApexInfo(apex_info_list.value());
   if (!art_apex_info.has_value()) {
-    LOG(ERROR) << "Could not update " << QuotePath(cache_info_filename_) << " : no ART APEX info";
-    return;
+    return Errorf("Could not update {}: no ART APEX info", QuotePath(cache_info_filename_));
   }
 
-  art_apex::ModuleInfo art_module_info = GenerateModuleInfo(art_apex_info.value());
+  // We don't write lastUpdateMillis to the cache info in Compilation OS because APEX timestamps
+  // inside the VM are different from those outside (b/211458160).
+  bool include_last_update_millis = !config_.GetCompilationOsMode();
+  art_apex::ModuleInfo art_module_info =
+      GenerateModuleInfo(art_apex_info.value(), include_last_update_millis);
   std::vector<art_apex::ModuleInfo> module_info_list =
-      GenerateModuleInfoList(apex_info_list.value());
+      GenerateModuleInfoList(apex_info_list.value(), include_last_update_millis);
 
   std::optional<std::vector<art_apex::Component>> bcp_components =
       GenerateBootClasspathComponents();
   if (!bcp_components.has_value()) {
-    LOG(ERROR) << "No boot classpath components.";
-    return;
+    return Errorf("No boot classpath components.");
   }
 
   std::optional<std::vector<art_apex::Component>> bcp_compilable_components =
       GenerateBootExtensionCompilableComponents();
   if (!bcp_compilable_components.has_value()) {
-    LOG(ERROR) << "No boot classpath extension compilable components.";
-    return;
+    return Errorf("No boot classpath extension compilable components.");
   }
 
   std::optional<std::vector<art_apex::SystemServerComponent>> system_server_components =
       GenerateSystemServerComponents();
   if (!system_server_components.has_value()) {
-    LOG(ERROR) << "No system_server extension components.";
-    return;
+    return Errorf("No system_server extension components.");
   }
 
   std::ofstream out(cache_info_filename_.c_str());
-  art_apex::CacheInfo info({art_module_info},
-                           {art_apex::ModuleInfoList(module_info_list)},
-                           {art_apex::Classpath(bcp_components.value())},
-                           {art_apex::Classpath(bcp_compilable_components.value())},
-                           {art_apex::SystemServerComponents(system_server_components.value())});
+  if (out.fail()) {
+    return Errorf("Cannot open {} for writing.", QuotePath(cache_info_filename_));
+  }
+
+  art_apex::CacheInfo info(
+      {art_module_info},
+      {art_apex::ModuleInfoList(module_info_list)},
+      {art_apex::Classpath(bcp_components.value())},
+      {art_apex::Classpath(bcp_compilable_components.value())},
+      {art_apex::SystemServerComponents(system_server_components.value())},
+      config_.GetCompilationOsMode() ? std::make_optional(true) : std::nullopt);
 
   art_apex::write(out, info);
+  out.close();
+  if (out.fail()) {
+    return Errorf("Cannot write to {}", QuotePath(cache_info_filename_));
+  }
+
+  return {};
 }
 
 static void ReportNextBootAnimationProgress(uint32_t current_compilation,
@@ -816,16 +831,21 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBootExtensionArtifactsAreUpToDate(
     return false;
   }
 
-  // Check lastUpdateMillis for samegrade installs. If `cached_art_info` is missing the
-  // lastUpdateMillis field then it is not current with the schema used by this binary so treat
-  // it as a samegrade update. Otherwise check whether the lastUpdateMillis changed.
-  const int64_t cached_art_last_update_millis =
-      cached_art_info->hasLastUpdateMillis() ? cached_art_info->getLastUpdateMillis() : -1;
-  if (cached_art_last_update_millis != art_apex_info.getLastUpdateMillis()) {
-    LOG(INFO) << "ART APEX last update time mismatch (" << cached_art_last_update_millis
-              << " != " << art_apex_info.getLastUpdateMillis() << ").";
-    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-    return false;
+  // We don't check lastUpdateMillis if the cache info is generated in Compilation OS because APEX
+  // timestamps inside the VM are different from those outside (b/211458160). The cache info will be
+  // updated in the `--compile` phase to fill this field.
+  if (!(cache_info->hasCompilationOsMode() && cache_info->getCompilationOsMode())) {
+    // Check lastUpdateMillis for samegrade installs. If `cached_art_info` is missing the
+    // lastUpdateMillis field then it is not current with the schema used by this binary so treat
+    // it as a samegrade update. Otherwise check whether the lastUpdateMillis changed.
+    const int64_t cached_art_last_update_millis =
+        cached_art_info->hasLastUpdateMillis() ? cached_art_info->getLastUpdateMillis() : -1;
+    if (cached_art_last_update_millis != art_apex_info.getLastUpdateMillis()) {
+      LOG(INFO) << "ART APEX last update time mismatch (" << cached_art_last_update_millis
+                << " != " << art_apex_info.getLastUpdateMillis() << ").";
+      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
+      return false;
+    }
   }
 
   // Check boot class components.
@@ -960,13 +980,15 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
       return compile_all();
     }
 
-    if (!cached_module_info->hasLastUpdateMillis() ||
-        cached_module_info->getLastUpdateMillis() != current_apex_info.getLastUpdateMillis()) {
-      LOG(INFO) << "APEX (" << apex_name << ") last update time mismatch ("
-                << cached_module_info->getLastUpdateMillis()
-                << " != " << current_apex_info.getLastUpdateMillis() << ").";
-      metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
-      return compile_all();
+    if (!(cache_info->hasCompilationOsMode() && cache_info->getCompilationOsMode())) {
+      if (!cached_module_info->hasLastUpdateMillis() ||
+          cached_module_info->getLastUpdateMillis() != current_apex_info.getLastUpdateMillis()) {
+        LOG(INFO) << "APEX (" << apex_name << ") last update time mismatch ("
+                  << cached_module_info->getLastUpdateMillis()
+                  << " != " << current_apex_info.getLastUpdateMillis() << ").";
+        metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
+        return compile_all();
+      }
     }
   }
 
@@ -1148,6 +1170,13 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
     return RemoveArtifactsDirectory() ? ExitCode::kCompilationRequired : ExitCode::kCleanupFailed;
   };
 
+  // Compilation OS cannot reuse the artifacts generated before because it cannot securely verify
+  // them (b/203630168). Therefore, we always compile everything in Compilation OS. This is fine
+  // because Compilation OS runs when the device is idling and it does not affact boot time.
+  if (config_.GetCompilationOsMode()) {
+    return cleanup_and_compile_all();
+  }
+
   std::optional<std::vector<apex::ApexInfo>> apex_info_list = GetApexInfoList();
   if (!apex_info_list.has_value()) {
     // This should never happen, further up-to-date checks are not possible if it does.
@@ -1223,6 +1252,18 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   if (!result.ok()) {
     LOG(ERROR) << result.error();
     return ExitCode::kCleanupFailed;
+  }
+
+  // If the cache info was genereted in Compilation OS, update it to fill the lastUpdateMillis
+  // field.
+  if (!compilation_required && cache_info->hasCompilationOsMode() &&
+      cache_info->getCompilationOsMode()) {
+    compilation_options->update_cache_info_only = true;
+    // Return `kCompilationRequired` though there is nothing to compile. This is needed so that
+    // odsign will invoke `odrefresh --compile` and therefore we can update the cache info in that
+    // phase. We cannot update the cache info here because `odrefresh --check` should not modify any
+    // file. Otherwise, it will break odsign's signature verification.
+    compilation_required = true;
   }
 
   return compilation_required ? ExitCode::kCompilationRequired : ExitCode::kOkay;
@@ -1508,6 +1549,18 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
     }
   }
 
+  // Emit cache info before compiling. This can be used to throttle compilation attempts later.
+  Result<void> result = WriteCacheInfo();
+  if (!result.ok()) {
+    LOG(ERROR) << result.error();
+    return ExitCode::kCleanupFailed;
+  }
+
+  if (compilation_options.update_cache_info_only) {
+    metrics.SetStage(OdrMetrics::Stage::kComplete);
+    return ExitCode::kCompilationSuccess;
+  }
+
   if (!config_.GetStagingDir().empty()) {
     staging_dir = config_.GetStagingDir().c_str();
   } else {
@@ -1517,9 +1570,6 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
       return ExitCode::kCleanupFailed;
     }
   }
-
-  // Emit cache info before compiling. This can be used to throttle compilation attempts later.
-  WriteCacheInfo();
 
   std::string error_msg;
 
