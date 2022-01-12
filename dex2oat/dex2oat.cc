@@ -2351,27 +2351,46 @@ class Dex2Oat final {
     // Dex2oat only uses the reference profile and that is not updated concurrently by the app or
     // other processes. So we don't need to lock (as we have to do in profman or when writing the
     // profile info).
+    std::vector<std::unique_ptr<File>> profile_files;
     if (!profile_file_fds_.empty()) {
       for (int fd : profile_file_fds_) {
-        std::unique_ptr<File> profile_file(new File(DupCloexec(fd),
-                                                    "profile",
-                                                    /* check_usage= */ false,
-                                                    /* read_only_mode= */ true));
-        if (!profile_compilation_info_->Load(profile_file->Fd())) {
-          return false;
-        }
+        profile_files.push_back(std::make_unique<File>(DupCloexec(fd),
+                                                       "profile",
+                                                       /*check_usage=*/ false,
+                                                       /*read_only_mode=*/ true));
       }
     } else {
       for (const std::string& file : profile_files_) {
-        std::unique_ptr<File> profile_file(OS::OpenFileForReading(file.c_str()));
-        if (profile_file.get() == nullptr) {
+        profile_files.emplace_back(OS::OpenFileForReading(file.c_str()));
+        if (profile_files.back().get() == nullptr) {
           PLOG(ERROR) << "Cannot open profiles";
           return false;
         }
-        if (!profile_compilation_info_->Load(profile_file->Fd())) {
-          return false;
-        }
       }
+    }
+
+    std::map<std::string, uint32_t> old_profile_keys, new_profile_keys;
+    auto filter_fn = [&](const std::string& profile_key, uint32_t checksum) {
+      auto it = old_profile_keys.find(profile_key);
+      if (it != old_profile_keys.end() && it->second != checksum) {
+        // Filter out this entry. We have already loaded data for the same profile key with a
+        // different checksum from an earlier profile file.
+        return false;
+      }
+      // Insert the new profile key and checksum.
+      // Note: If the profile contains the same key with different checksums, this insertion fails
+      // but we still return `true` and let the `ProfileCompilationInfo::Load()` report an error.
+      new_profile_keys.insert(std::make_pair(profile_key, checksum));
+      return true;
+    };
+    for (const std::unique_ptr<File>& profile_file : profile_files) {
+      if (!profile_compilation_info_->Load(profile_file->Fd(),
+                                           /*merge_classes=*/ true,
+                                           filter_fn)) {
+        return false;
+      }
+      old_profile_keys.merge(new_profile_keys);
+      new_profile_keys.clear();
     }
 
     cleanup.Disable();
