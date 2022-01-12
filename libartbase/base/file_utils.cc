@@ -283,9 +283,12 @@ std::string GetArtApexData() {
   return GetAndroidDir(kArtApexDataEnvVar, kArtApexDataDefaultPath, /*must_exist=*/false);
 }
 
+std::string GetPrebuiltPrimaryBootImageDir() {
+  return StringPrintf("%s/javalib", kAndroidArtApexDefaultPath);
+}
+
 std::string GetDefaultBootImageLocation(const std::string& android_root,
                                         bool deny_art_apex_data_files) {
-  constexpr static const char* kJavalibBootArt = "javalib/boot.art";
   constexpr static const char* kEtcBootImageProf = "etc/boot-image.prof";
 
   // If an update for the ART module has been been installed, a single boot image for the entire
@@ -307,12 +310,12 @@ std::string GetDefaultBootImageLocation(const std::string& android_root,
     }
   }
   // Boot image consists of two parts:
-  //  - the primary boot image in the ART APEX (contains the Core Libraries)
-  //  - the boot image extensions (contains framework libraries) on the system partition
-  // TODO(b/211973309): Update this once the primary boot image is moved.
-  return StringPrintf("%s/%s:%s/framework/boot-framework.art!%s/%s",
+  //  - the primary boot image (contains the Core Libraries)
+  //  - the boot image extensions (contains framework libraries)
+  return StringPrintf("%s/boot.art!%s/%s:%s/framework/boot-framework.art!%s/%s",
+                      GetPrebuiltPrimaryBootImageDir().c_str(),
                       kAndroidArtApexDefaultPath,
-                      kJavalibBootArt,
+                      kEtcBootImageProf,
                       android_root.c_str(),
                       android_root.c_str(),
                       kEtcBootImageProf);
