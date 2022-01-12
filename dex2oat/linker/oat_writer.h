@@ -157,11 +157,11 @@ class OatWriter {
   // Write raw dex files to the vdex file, mmap the file and open the dex files from it.
   // The `verify` setting dictates whether the dex file verifier should check the dex files.
   // This is generally the case, and should only be false for tests.
-  // If `update_input_vdex` is true, then this method won't actually write the dex files,
+  // If `use_existing_vdex` is true, then this method won't actually write the dex files,
   // and the compiler will just re-use the existing vdex file.
   bool WriteAndOpenDexFiles(File* vdex_file,
                             bool verify,
-                            bool update_input_vdex,
+                            bool use_existing_vdex,
                             CopyOption copy_dex_files,
                             /*out*/ std::vector<MemMap>* opened_dex_files_map,
                             /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
@@ -276,12 +276,12 @@ class OatWriter {
   // If `update_input_vdex` is true, then this method won't actually write the dex files,
   // and the compiler will just re-use the existing vdex file.
   bool WriteDexFiles(File* file,
-                     bool update_input_vdex,
+                     bool use_existing_vdex,
                      CopyOption copy_dex_files,
                      /*out*/ std::vector<MemMap>* opened_dex_files_map);
   bool WriteDexFile(File* file,
                     OatDexFile* oat_dex_file,
-                    bool update_input_vdex);
+                    bool use_existing_vdex);
   bool LayoutDexFile(OatDexFile* oat_dex_file);
   bool WriteDexFile(File* file,
                     OatDexFile* oat_dex_file,
@@ -291,7 +291,7 @@ class OatWriter {
                     File* dex_file);
   bool WriteDexFile(OatDexFile* oat_dex_file,
                     const uint8_t* dex_file,
-                    bool update_input_vdex);
+                    bool use_existing_vdex);
   bool OpenDexFiles(File* file,
                     bool verify,
                     /*inout*/ std::vector<MemMap>* opened_dex_files_map,
