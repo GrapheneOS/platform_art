@@ -118,8 +118,6 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     private String getSystemServerIsa(String mappedArtifact) {
         // Artifact path for system server artifacts has the form:
         //    ART_APEX_DALVIK_CACHE_DIRNAME + "/<arch>/system@framework@some.jar@classes.odex"
-        // `mappedArtifacts` may include other artifacts, such as boot-framework.oat that are not
-        // prefixed by the architecture.
         String[] pathComponents = mappedArtifact.split("/");
         return pathComponents[pathComponents.length - 2];
     }
@@ -161,13 +159,13 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
 
     private void verifyZygoteLoadedArtifacts(String zygoteName, Set<String> mappedArtifacts)
             throws Exception {
-        final String bootExtensionName = "boot-framework";
+        final String bootImageStem = "boot";
 
-        assertTrue("Expect 3 boot-framework artifacts", mappedArtifacts.size() == 3);
+        assertTrue("Expect 3 bootclasspath artifacts", mappedArtifacts.size() == 3);
 
         String allArtifacts = mappedArtifacts.stream().collect(Collectors.joining(","));
         for (String extension : OdsignTestUtils.BCP_ARTIFACT_EXTENSIONS) {
-            final String artifact = bootExtensionName + extension;
+            final String artifact = bootImageStem + extension;
             final boolean found = mappedArtifacts.stream().anyMatch(a -> a.endsWith(artifact));
             assertTrue(zygoteName + " " + artifact + " not found: '" + allArtifacts + "'", found);
         }

@@ -44,7 +44,7 @@ parcelable DexoptBcpExtArgs {
     // manually.
     String[] bootClasspaths;
     int[] bootClasspathFds;
-    int profileFd = -1;
+    int[] profileFds;
     int dirtyImageObjectsFd = -1;
     // Output file descriptors
     int oatFd = -1;
