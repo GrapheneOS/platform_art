@@ -75,7 +75,6 @@ std::unique_ptr<VdexFile> VdexFile::OpenAtAddress(uint8_t* mmap_addr,
                                                   const std::string& vdex_filename,
                                                   bool writable,
                                                   bool low_4gb,
-                                                  bool unquicken,
                                                   std::string* error_msg) {
   ScopedTrace trace(("VdexFile::OpenAtAddress " + vdex_filename).c_str());
   if (!OS::FileExists(vdex_filename.c_str())) {
@@ -109,7 +108,6 @@ std::unique_ptr<VdexFile> VdexFile::OpenAtAddress(uint8_t* mmap_addr,
                        vdex_filename,
                        writable,
                        low_4gb,
-                       unquicken,
                        error_msg);
 }
 
@@ -121,7 +119,6 @@ std::unique_ptr<VdexFile> VdexFile::OpenAtAddress(uint8_t* mmap_addr,
                                                   const std::string& vdex_filename,
                                                   bool writable,
                                                   bool low_4gb,
-                                                  bool unquicken,
                                                   std::string* error_msg) {
   if (mmap_addr != nullptr && mmap_size < vdex_length) {
     *error_msg = StringPrintf("Insufficient pre-allocated space to mmap vdex: %zu and %zu",
@@ -130,7 +127,6 @@ std::unique_ptr<VdexFile> VdexFile::OpenAtAddress(uint8_t* mmap_addr,
     return nullptr;
   }
   CHECK(!mmap_reuse || mmap_addr != nullptr);
-  CHECK(!(writable && unquicken)) << "We don't want to be writing unquickened files out to disk!";
   // Start as PROT_WRITE so we can mprotect back to it if we want to.
   MemMap mmap = MemMap::MapFileAtAddress(
       mmap_addr,
