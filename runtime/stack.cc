@@ -647,106 +647,65 @@ void StackVisitor::SetMethod(ArtMethod* method) {
   }
 }
 
-static void AssertPcIsWithinQuickCode(ArtMethod* method, uintptr_t pc)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (method->IsNative() || method->IsRuntimeMethod() || method->IsProxyMethod()) {
-    return;
-  }
-
-  if (pc == reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
-    return;
-  }
-
-  Runtime* runtime = Runtime::Current();
-  if (runtime->UseJitCompilation() &&
-      runtime->GetJit()->GetCodeCache()->ContainsPc(reinterpret_cast<const void*>(pc))) {
-    return;
-  }
-
-  const void* code = method->GetEntryPointFromQuickCompiledCode();
-  if (code == GetQuickInstrumentationEntryPoint() || code == GetInvokeObsoleteMethodStub()) {
-    return;
-  }
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (class_linker->IsQuickToInterpreterBridge(code) ||
-      class_linker->IsQuickResolutionStub(code)) {
-    return;
-  }
-
-  if (runtime->UseJitCompilation() && runtime->GetJit()->GetCodeCache()->ContainsPc(code)) {
-    return;
-  }
-
-  uint32_t code_size = OatQuickMethodHeader::FromEntryPoint(code)->GetCodeSize();
-  uintptr_t code_start = reinterpret_cast<uintptr_t>(code);
-  CHECK(code_start <= pc && pc <= (code_start + code_size))
-      << method->PrettyMethod()
-      << " " << Runtime::Current()->GetInstrumentation()->EntryPointString(code)
-      << " pc=" << std::hex << pc
-      << " code_start=" << code_start
-      << " code_size=" << code_size;
-}
-
 void StackVisitor::ValidateFrame() const {
-  if (kIsDebugBuild) {
-    ArtMethod* method = GetMethod();
-    ObjPtr<mirror::Class> declaring_class = method->GetDeclaringClass();
-    // Runtime methods have null declaring class.
-    if (!method->IsRuntimeMethod()) {
-      CHECK(declaring_class != nullptr);
-      CHECK_EQ(declaring_class->GetClass(), declaring_class->GetClass()->GetClass())
-          << declaring_class;
-    } else {
-      CHECK(declaring_class == nullptr);
-    }
-    Runtime* const runtime = Runtime::Current();
-    LinearAlloc* const linear_alloc = runtime->GetLinearAlloc();
-    if (!linear_alloc->Contains(method)) {
-      // Check class linker linear allocs.
-      // We get the canonical method as copied methods may have been allocated
-      // by a different class loader.
-      const PointerSize ptrSize = runtime->GetClassLinker()->GetImagePointerSize();
-      ArtMethod* canonical = method->GetCanonicalMethod(ptrSize);
-      ObjPtr<mirror::Class> klass = canonical->GetDeclaringClass();
-      LinearAlloc* const class_linear_alloc = (klass != nullptr)
-          ? runtime->GetClassLinker()->GetAllocatorForClassLoader(klass->GetClassLoader())
-          : linear_alloc;
-      if (!class_linear_alloc->Contains(canonical)) {
-        // Check image space.
-        bool in_image = false;
-        for (auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
-          if (space->IsImageSpace()) {
-            auto* image_space = space->AsImageSpace();
-            const auto& header = image_space->GetImageHeader();
-            const ImageSection& methods = header.GetMethodsSection();
-            const ImageSection& runtime_methods = header.GetRuntimeMethodsSection();
-            const size_t offset =  reinterpret_cast<const uint8_t*>(canonical) - image_space->Begin();
-            if (methods.Contains(offset) || runtime_methods.Contains(offset)) {
-              in_image = true;
-              break;
-            }
+  if (!kIsDebugBuild) {
+    return;
+  }
+  ArtMethod* method = GetMethod();
+  ObjPtr<mirror::Class> declaring_class = method->GetDeclaringClass();
+  // Runtime methods have null declaring class.
+  if (!method->IsRuntimeMethod()) {
+    CHECK(declaring_class != nullptr);
+    CHECK_EQ(declaring_class->GetClass(), declaring_class->GetClass()->GetClass())
+        << declaring_class;
+  } else {
+    CHECK(declaring_class == nullptr);
+  }
+  Runtime* const runtime = Runtime::Current();
+  LinearAlloc* const linear_alloc = runtime->GetLinearAlloc();
+  if (!linear_alloc->Contains(method)) {
+    // Check class linker linear allocs.
+    // We get the canonical method as copied methods may have been allocated
+    // by a different class loader.
+    const PointerSize ptrSize = runtime->GetClassLinker()->GetImagePointerSize();
+    ArtMethod* canonical = method->GetCanonicalMethod(ptrSize);
+    ObjPtr<mirror::Class> klass = canonical->GetDeclaringClass();
+    LinearAlloc* const class_linear_alloc = (klass != nullptr)
+        ? runtime->GetClassLinker()->GetAllocatorForClassLoader(klass->GetClassLoader())
+        : linear_alloc;
+    if (!class_linear_alloc->Contains(canonical)) {
+      // Check image space.
+      bool in_image = false;
+      for (auto& space : runtime->GetHeap()->GetContinuousSpaces()) {
+        if (space->IsImageSpace()) {
+          auto* image_space = space->AsImageSpace();
+          const auto& header = image_space->GetImageHeader();
+          const ImageSection& methods = header.GetMethodsSection();
+          const ImageSection& runtime_methods = header.GetRuntimeMethodsSection();
+          const size_t offset =  reinterpret_cast<const uint8_t*>(canonical) - image_space->Begin();
+          if (methods.Contains(offset) || runtime_methods.Contains(offset)) {
+            in_image = true;
+            break;
           }
         }
-        CHECK(in_image) << canonical->PrettyMethod() << " not in linear alloc or image";
       }
+      CHECK(in_image) << canonical->PrettyMethod() << " not in linear alloc or image";
     }
-    if (cur_quick_frame_ != nullptr) {
-      AssertPcIsWithinQuickCode(method, cur_quick_frame_pc_);
-      // Frame consistency checks.
-      size_t frame_size = GetCurrentQuickFrameInfo().FrameSizeInBytes();
-      CHECK_NE(frame_size, 0u);
-      // For compiled code, we could try to have a rough guess at an upper size we expect
-      // to see for a frame:
-      // 256 registers
-      // 2 words HandleScope overhead
-      // 3+3 register spills
-      // const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
-      const size_t kMaxExpectedFrameSize = interpreter::kNterpMaxFrame;
-      CHECK_LE(frame_size, kMaxExpectedFrameSize) << method->PrettyMethod();
-      size_t return_pc_offset = GetCurrentQuickFrameInfo().GetReturnPcOffset();
-      CHECK_LT(return_pc_offset, frame_size);
-    }
+  }
+  if (cur_quick_frame_ != nullptr) {
+    // Frame consistency checks.
+    size_t frame_size = GetCurrentQuickFrameInfo().FrameSizeInBytes();
+    CHECK_NE(frame_size, 0u);
+    // For compiled code, we could try to have a rough guess at an upper size we expect
+    // to see for a frame:
+    // 256 registers
+    // 2 words HandleScope overhead
+    // 3+3 register spills
+    // const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
+    const size_t kMaxExpectedFrameSize = interpreter::kNterpMaxFrame;
+    CHECK_LE(frame_size, kMaxExpectedFrameSize) << method->PrettyMethod();
+    size_t return_pc_offset = GetCurrentQuickFrameInfo().GetReturnPcOffset();
+    CHECK_LT(return_pc_offset, frame_size);
   }
 }
 
