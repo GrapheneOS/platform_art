@@ -234,7 +234,7 @@ static void ForceJitCompiled(Thread* self,
 
   {
     ScopedObjectAccess soa(self);
-    if (!Runtime::Current()->GetRuntimeCallbacks()->IsMethodSafeToJit(method)) {
+    if (Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method)) {
       std::string msg(method->PrettyMethod());
       msg += ": is not safe to jit!";
       ThrowIllegalStateException(msg.c_str());
