@@ -1987,6 +1987,9 @@ void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruct
   if (codegen_->CanUseImplicitSuspendCheck()) {
     __ Ldr(kImplicitSuspendCheckRegister, MemOperand(kImplicitSuspendCheckRegister));
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+    if (successor != nullptr) {
+      __ B(codegen_->GetLabelOf(successor));
+    }
     return;
   }
 
@@ -3583,9 +3586,7 @@ void InstructionCodeGeneratorARM64::HandleGoto(HInstruction* got, HBasicBlock* s
   if (info != nullptr && info->IsBackEdge(*block) && info->HasSuspendCheck()) {
     codegen_->MaybeIncrementHotness(/* is_frame_entry= */ false);
     GenerateSuspendCheck(info->GetSuspendCheck(), successor);
-    if (!codegen_->CanUseImplicitSuspendCheck()) {
-      return;  // `GenerateSuspendCheck()` emitted the jump.
-    }
+    return;  // `GenerateSuspendCheck()` emitted the jump.
   }
   if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
     GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
