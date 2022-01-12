@@ -1286,10 +1286,11 @@ ENTRY art_quick_test_suspend
     bx     lr
 END art_quick_test_suspend
 
+    .extern artImplicitSuspendFromCode
 ENTRY art_quick_implicit_suspend
     mov    r0, rSELF
     SETUP_SAVE_REFS_ONLY_FRAME r1             @ save callee saves for stack crawl
-    bl     artTestSuspendFromCode             @ (Thread*)
+    bl     artImplicitSuspendFromCode         @ (Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
     bx     lr
