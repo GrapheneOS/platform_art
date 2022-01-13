@@ -2639,7 +2639,7 @@ extern "C" int artMethodExitHook(Thread* self,
 
     // Deoptimize if the caller needs to continue execution in the interpreter. Do nothing if we get
     // back to an upcall.
-    NthCallerVisitor visitor(self, 1, true);
+    NthCallerVisitor visitor(self, 1, /*include_runtime_and_upcalls=*/false);
     visitor.WalkStack(true);
     deoptimize = instr->ShouldDeoptimizeMethod(self, visitor);
 
