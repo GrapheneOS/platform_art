@@ -80,7 +80,7 @@ class RuntimeCallbacksTest : public CommonRuntimeTest {
     PointerSize pointer_size = class_linker_->GetImagePointerSize();
     for (auto& m : klass->GetMethods(pointer_size)) {
       if (!m.IsAbstract()) {
-        class_linker_->SetEntryPointsToInterpreter(&m);
+        Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
       }
     }
   }
