@@ -606,9 +606,8 @@ void QuickExceptionHandler::DeoptimizeSingleFrame(DeoptimizationKind kind) {
     Runtime::Current()->GetJit()->GetCodeCache()->InvalidateCompiledCodeFor(
         deopt_method, visitor.GetSingleFrameDeoptQuickMethodHeader());
   } else {
-    // Transfer the code to interpreter.
-    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
-        deopt_method, GetQuickToInterpreterBridge());
+    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(
+        deopt_method, /*aot_code=*/ nullptr);
   }
 
   PrepareForLongJumpToInvokeStubOrInterpreterBridge();
