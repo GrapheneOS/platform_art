@@ -30,10 +30,7 @@ java_test_host {
         ":odsign_e2e_test_app",
     ],
     test_config: "odsign-e2e-tests.xml",
-    test_suites: [
-        "device-tests",
-        "cts",
-    ],
+    test_suites: ["device-tests"],
 }
 
 cc_library_shared {
