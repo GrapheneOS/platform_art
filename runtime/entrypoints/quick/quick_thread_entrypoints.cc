@@ -22,9 +22,15 @@
 namespace art {
 
 extern "C" void artTestSuspendFromCode(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
-  // Called when suspend count check value is 0 and thread->suspend_count_ != 0
+  // Called when there is a pending checkpoint or suspend request.
   ScopedQuickEntrypointChecks sqec(self);
   self->CheckSuspend();
+}
+
+extern "C" void artImplicitSuspendFromCode(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Called when there is a pending checkpoint or suspend request.
+  ScopedQuickEntrypointChecks sqec(self);
+  self->CheckSuspend(/*implicit=*/ true);
 }
 
 extern "C" void artCompileOptimized(ArtMethod* method, Thread* self)

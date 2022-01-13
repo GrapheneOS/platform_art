@@ -43,9 +43,9 @@ public class ArtifactsSignedTest {
     // Verifying that they are generated for the correct architectures is currently out of
     // scope for this test.
     private static final String[] REQUIRED_ARTIFACT_NAMES = {
-        "boot-framework.art",
-        "boot-framework.oat",
-        "boot-framework.vdex",
+        "boot.art",
+        "boot.oat",
+        "boot.vdex",
         "system@framework@services.jar@classes.vdex",
         "system@framework@services.jar@classes.odex",
         "system@framework@services.jar@classes.art",

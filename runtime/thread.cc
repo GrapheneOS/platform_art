@@ -1861,12 +1861,17 @@ void Thread::WaitForFlipFunction(Thread* self) {
   }
 }
 
-void Thread::FullSuspendCheck() {
+void Thread::FullSuspendCheck(bool implicit) {
   ScopedTrace trace(__FUNCTION__);
   VLOG(threads) << this << " self-suspending";
   // Make thread appear suspended to other threads, release mutator_lock_.
   // Transition to suspended and back to runnable, re-acquire share on mutator_lock_.
   ScopedThreadSuspension(this, ThreadState::kSuspended);  // NOLINT
+  if (implicit) {
+    // For implicit suspend check we want to `madvise()` away
+    // the alternate signal stack to avoid wasting memory.
+    MadviseAwayAlternateSignalStack();
+  }
   VLOG(threads) << this << " self-reviving";
 }
 

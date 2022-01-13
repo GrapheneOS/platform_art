@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <signal.h>
+#include <sys/mman.h>
+
 #include "thread.h"
 
 namespace art {
@@ -24,6 +27,14 @@ void Thread::SetUpAlternateSignalStack() {
 
 void Thread::TearDownAlternateSignalStack() {
   // Bionic does this for us.
+}
+
+void Thread::MadviseAwayAlternateSignalStack() {
+  stack_t old_ss;
+  int result = sigaltstack(nullptr, &old_ss);
+  CHECK_EQ(result, 0);
+  result = madvise(old_ss.ss_sp, old_ss.ss_size, MADV_FREE);
+  CHECK_EQ(result, 0);
 }
 
 }  // namespace art

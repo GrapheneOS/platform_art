@@ -99,7 +99,10 @@ class DexLayout {
 
   // Setting this to false disables class def layout entirely, which is stronger than strictly
   // necessary to ensure the partial order w.r.t. class derivation. TODO: Re-enable (b/68317550).
+  // This should never be set for a device build, as changing class defs ids
+  // conflict with profiles and verification passed by Play.
   static constexpr bool kChangeClassDefOrder = false;
+  static_assert(!(kIsTargetBuild && kChangeClassDefOrder), "Never set class reordering on target");
 
   DexLayout(Options& options,
             ProfileCompilationInfo* info,
