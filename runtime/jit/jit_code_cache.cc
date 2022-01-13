@@ -793,7 +793,8 @@ bool JitCodeCache::RemoveMethod(ArtMethod* method, bool release_memory) {
   }
 
   ClearMethodCounter(method, /* was_warm= */ false);
-  Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
+  Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+      method, GetQuickToInterpreterBridge());
   VLOG(jit)
       << "JIT removed (osr=" << std::boolalpha << osr << std::noboolalpha << ") "
       << ArtMethod::PrettyMethod(method) << "@" << method
@@ -1317,8 +1318,7 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
               OatQuickMethodHeader::FromEntryPoint(entry_point);
           if (CodeInfo::IsBaseline(method_header->GetOptimizedCodeInfoPtr())) {
             info->GetMethod()->ResetCounter(warmup_threshold);
-            Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(
-                info->GetMethod(), /*aot_code=*/ nullptr);
+            info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
           }
         }
       }
@@ -1744,7 +1744,7 @@ void JitCodeCache::InvalidateAllCompiledCode() {
     if (meth->IsObsolete()) {
       linker->SetEntryPointsForObsoleteMethod(meth);
     } else {
-      Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(meth, /*aot_code=*/ nullptr);
+      linker->SetEntryPointsToInterpreter(meth);
     }
   }
   saved_compiled_methods_map_.clear();
@@ -1761,7 +1761,8 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
   if (method_entrypoint == header->GetEntryPoint()) {
     // The entrypoint is the one to invalidate, so we just update it to the interpreter entry point
     // and clear the counter to get the method Jitted again.
-    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
+    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
+        method, GetQuickToInterpreterBridge());
     ClearMethodCounter(method, /*was_warm=*/ true);
   } else {
     MutexLock mu(Thread::Current(), *Locks::jit_lock_);
