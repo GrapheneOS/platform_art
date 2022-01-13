@@ -283,65 +283,33 @@ std::string GetArtApexData() {
   return GetAndroidDir(kArtApexDataEnvVar, kArtApexDataDefaultPath, /*must_exist=*/false);
 }
 
-static std::string GetFirstBootClasspathExtensionJar(const std::string& android_root) {
-  DCHECK(kIsTargetBuild);
-
-  // This method finds the first non-APEX DEX file in the boot class path as defined by the
-  // DEX2OATBOOTCLASSPATH environment variable. This corresponds to the first boot classpath
-  // extension (see IMAGE SECTION documentation in image.h). When on-device signing is used the
-  // boot class extensions are compiled together as a single image with a name derived from the
-  // first extension. This first boot classpath extension is usually
-  // '/system/framework/framework.jar'.
-  //
-  // DEX2OATBOOTCLASSPATH is generated at build time by in the init.environ.rc.in:
-  //   ${ANDROID_BUILD_TOP}/system/core/rootdir/Android.mk
-  // and initialized on Android by init in init.environ.rc:
-  //   ${ANDROID_BUILD_TOP}/system/core/rootdir/init.environ.rc.in.
-  // It is used by installd too.
-  const char* bcp = getenv("DEX2OATBOOTCLASSPATH");
-  const std::string kDefaultBcpExtensionJar = android_root + "/framework/framework.jar";
-  if (bcp != nullptr) {
-    for (std::string_view component : SplitString(bcp, ':')) {
-      if (component.empty()) {
-        continue;
-      }
-      if (!LocationIsOnApex(component)) {
-        return std::string{component};
-      }
-    }
-  }
-  return kDefaultBcpExtensionJar;
-}
-
 std::string GetDefaultBootImageLocation(const std::string& android_root,
                                         bool deny_art_apex_data_files) {
   constexpr static const char* kJavalibBootArt = "javalib/boot.art";
   constexpr static const char* kEtcBootImageProf = "etc/boot-image.prof";
 
-  // Boot image consists of two parts:
-  //  - the primary boot image in the ART APEX (contains the Core Libraries)
-  //  - the boot image extensions (contains framework libraries) on the system partition, or
-  //    in the ART APEX data directory, if an update for the ART module has been been installed.
+  // If an update for the ART module has been been installed, a single boot image for the entire
+  // bootclasspath is in the ART APEX data directory.
   if (kIsTargetBuild && !deny_art_apex_data_files) {
-    // If the ART APEX has been updated, the compiled boot image extension will be in the ART APEX
-    // data directory (assuming there is space and we trust the artifacts there). Otherwise, for a factory installed ART APEX it is
-    // under $ANDROID_ROOT/framework/.
-    const std::string first_extension_jar{GetFirstBootClasspathExtensionJar(android_root)};
-    const std::string boot_extension_image = GetApexDataBootImage(first_extension_jar);
-    const std::string boot_extension_filename =
-        GetSystemImageFilename(boot_extension_image.c_str(), kRuntimeISA);
-    if (OS::FileExists(boot_extension_filename.c_str(), /*check_file_type=*/true)) {
-      return StringPrintf("%s/%s:%s!%s/%s",
+    const std::string boot_image =
+        GetApexDataDalvikCacheDirectory(InstructionSet::kNone) + "/boot.art";
+    const std::string boot_image_filename = GetSystemImageFilename(boot_image.c_str(), kRuntimeISA);
+    if (OS::FileExists(boot_image_filename.c_str(), /*check_file_type=*/true)) {
+      return StringPrintf("%s!%s/%s!%s/%s",
+                          boot_image.c_str(),
                           kAndroidArtApexDefaultPath,
-                          kJavalibBootArt,
-                          boot_extension_image.c_str(),
+                          kEtcBootImageProf,
                           android_root.c_str(),
                           kEtcBootImageProf);
     } else if (errno == EACCES) {
       // Additional warning for potential SELinux misconfiguration.
-      PLOG(ERROR) << "Default boot image check failed, could not stat: " << boot_extension_image;
+      PLOG(ERROR) << "Default boot image check failed, could not stat: " << boot_image_filename;
     }
   }
+  // Boot image consists of two parts:
+  //  - the primary boot image in the ART APEX (contains the Core Libraries)
+  //  - the boot image extensions (contains framework libraries) on the system partition
+  // TODO(b/211973309): Update this once the primary boot image is moved.
   return StringPrintf("%s/%s:%s/framework/boot-framework.art!%s/%s",
                       kAndroidArtApexDefaultPath,
                       kJavalibBootArt,
@@ -356,18 +324,6 @@ std::string GetDefaultBootImageLocation(std::string* error_msg) {
     return "";
   }
   return GetDefaultBootImageLocation(android_root, /*deny_art_apex_data_files=*/false);
-}
-
-std::string GetBootImagePath(bool on_system, const std::string& jar_path) {
-  if (on_system) {
-    const std::string jar_name = android::base::Basename(jar_path);
-    const std::string image_name = ReplaceFileExtension(jar_name, "art");
-    // Typically "/system/framework/boot-framework.art".
-    return StringPrintf("%s/framework/boot-%s", GetAndroidRoot().c_str(), image_name.c_str());
-  } else {
-    // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot-framework.art".
-    return GetApexDataBootImage(jar_path);
-  }
 }
 
 static /*constinit*/ std::string_view dalvik_cache_sub_dir = "dalvik-cache";

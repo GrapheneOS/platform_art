@@ -71,7 +71,7 @@ class OdrConfig final {
   time_t max_execution_seconds_ = kMaximumExecutionSeconds;
   time_t max_child_process_seconds_ = kMaxChildProcessSeconds;
   std::string standalone_system_server_jars_;
-  bool compilation_os_mode_;
+  bool compilation_os_mode_ = false;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
@@ -87,7 +87,7 @@ class OdrConfig final {
 
   const std::string& GetApexInfoListFile() const { return apex_info_list_file_; }
 
-  std::vector<InstructionSet> GetBootExtensionIsas() const {
+  std::vector<InstructionSet> GetBootClasspathIsas() const {
     const auto [isa32, isa64] = GetPotentialInstructionSets();
     switch (zygote_kind_) {
       case ZygoteKind::kZygote32:

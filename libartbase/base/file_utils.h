@@ -77,9 +77,6 @@ std::string GetDefaultBootImageLocation(std::string* error_msg);
 std::string GetDefaultBootImageLocation(const std::string& android_root,
                                         bool deny_art_apex_data_files);
 
-// Returns the boot image path of the provided jar, on /system or /data.
-std::string GetBootImagePath(bool on_system, const std::string& jar_path);
-
 // Allows the name to be used for the dalvik cache directory (normally "dalvik-cache") to be
 // overridden with a new value.
 void OverrideDalvikCacheSubDirectory(std::string sub_dir);

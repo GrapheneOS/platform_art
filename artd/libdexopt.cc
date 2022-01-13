@@ -43,11 +43,6 @@ using aidl::com::android::art::Isa;
 using android::base::Error;
 using android::base::Result;
 
-std::string GetBootImage() {
-  // Typically "/apex/com.android.art/javalib/boot.art".
-  return art::GetArtRoot() + "/javalib/boot.art";
-}
-
 std::string GetEnvironmentVariableOrDie(const char* name) {
   const char* value = getenv(name);
   LOG_ALWAYS_FATAL_IF(value == nullptr, "%s is not defined.", name);
@@ -206,8 +201,10 @@ Result<void> AddDex2oatArgsFromBcpExtensionArgs(const DexoptBcpExtArgs& args,
 
   cmdline.emplace_back("--instruction-set=" + ToInstructionSetString(args.isa));
 
-  if (args.profileFd >= 0) {
-    cmdline.emplace_back(android::base::StringPrintf("--profile-file-fd=%d", args.profileFd));
+  if (!args.profileFds.empty()) {
+    for (int fd : args.profileFds) {
+      cmdline.emplace_back(android::base::StringPrintf("--profile-file-fd=%d", fd));
+    }
     cmdline.emplace_back("--compiler-filter=speed-profile");
   } else {
     cmdline.emplace_back("--compiler-filter=speed");
@@ -216,8 +213,7 @@ Result<void> AddDex2oatArgsFromBcpExtensionArgs(const DexoptBcpExtArgs& args,
   // Compile as a single image for fewer files and slightly less memory overhead.
   cmdline.emplace_back("--single-image");
 
-  // Set boot-image and expectation of compiling boot classpath extensions.
-  cmdline.emplace_back("--boot-image=" + GetBootImage());
+  cmdline.emplace_back(android::base::StringPrintf("--base=0x%08x", ART_BASE_ADDRESS));
 
   if (args.dirtyImageObjectsFd >= 0) {
     cmdline.emplace_back(android::base::StringPrintf("--dirty-image-objects-fd=%d",
@@ -321,23 +317,7 @@ Result<void> AddDex2oatArgsFromSystemServerArgs(const DexoptSystemServerArgs& ar
                          android::base::Join(args.classloaderFds, ':'));
   }
 
-  // Derive boot image
-  // b/197176583
-  // If the boot extension artifacts are not on /data, then boot extensions are not re-compiled
-  // and the artifacts must exist on /system.
-  std::vector<std::string> jar_paths = android::base::Split(GetDex2oatBootClasspath(), ":");
-  auto iter = std::find_if_not(jar_paths.begin(), jar_paths.end(), &LocationIsOnArtModule);
-  if (iter == jar_paths.end()) {
-    return Error() << "Missing BCP extension compatible JAR";
-  }
-  const std::string& first_boot_extension_compatible_jars = *iter;
-  // TODO(197176583): Support compiling against BCP extension in /system.
-  const std::string extension_image = GetBootImagePath(args.isBootImageOnSystem,
-                                                       first_boot_extension_compatible_jars);
-  if (extension_image.empty()) {
-    return Error() << "Can't identify the first boot extension compatible jar";
-  }
-  cmdline.emplace_back("--boot-image=" + GetBootImage() + ":" + extension_image);
+  cmdline.emplace_back("--boot-image=" + args.bootImage);
 
   AddDex2OatConcurrencyArguments(cmdline, args.threads, args.cpuSet);
 

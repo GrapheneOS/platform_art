@@ -709,7 +709,9 @@ void Runtime::PostZygoteFork() {
     // Ensure that the threads in the JIT pool have been created with the right
     // priority.
     if (kIsDebugBuild && jit->GetThreadPool() != nullptr) {
-      jit->GetThreadPool()->CheckPthreadPriority(jit->GetThreadPoolPthreadPriority());
+      jit->GetThreadPool()->CheckPthreadPriority(
+          IsZygote() ? jit->GetZygoteThreadPoolPthreadPriority()
+                     : jit->GetThreadPoolPthreadPriority());
     }
   }
   // Reset all stats.
@@ -1661,8 +1663,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Change the implicit checks flags based on runtime architecture.
   switch (kRuntimeISA) {
     case InstructionSet::kArm64:
-      // TODO: Investigate implicit suspend check regressions. Bug: 209235730, 213121241.
-      implicit_suspend_checks_ = false;
+      implicit_suspend_checks_ = true;
       FALLTHROUGH_INTENDED;
     case InstructionSet::kArm:
     case InstructionSet::kThumb2:

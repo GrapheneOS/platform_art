@@ -106,7 +106,7 @@ public class OdsignTestUtils {
         final String zygotePid = result.getStdout().trim().split("\\s+")[0];
         assertTrue(!zygotePid.isEmpty());
 
-        final String grepPattern = ART_APEX_DALVIK_CACHE_DIRNAME + ".*boot-framework";
+        final String grepPattern = ART_APEX_DALVIK_CACHE_DIRNAME + ".*boot";
         return Optional.of(getMappedArtifacts(zygotePid, grepPattern));
     }
 
