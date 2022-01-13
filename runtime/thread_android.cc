@@ -33,8 +33,10 @@ void Thread::MadviseAwayAlternateSignalStack() {
   stack_t old_ss;
   int result = sigaltstack(nullptr, &old_ss);
   CHECK_EQ(result, 0);
-  result = madvise(old_ss.ss_sp, old_ss.ss_size, MADV_FREE);
-  CHECK_EQ(result, 0);
+  // Note: We're testing and benchmarking ART on devices with old kernels
+  // which may not support `MADV_FREE`, so we do not check the result.
+  // It should succeed on devices with Android 12+.
+  madvise(old_ss.ss_sp, old_ss.ss_size, MADV_FREE);
 }
 
 }  // namespace art
