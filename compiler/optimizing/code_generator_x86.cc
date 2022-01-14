@@ -576,7 +576,6 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86 : public SlowPathCode {
     Register ref_reg = ref_.AsRegister<Register>();
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(ref_reg)) << ref_reg;
-    // This slow path is only used by the UnsafeCASObject intrinsic.
     DCHECK((instruction_->IsInvoke() && instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking and field updating slow path: "
         << instruction_->DebugName();
@@ -589,6 +588,7 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86 : public SlowPathCode {
         mirror::VarHandle::AccessModeTemplate::kCompareAndExchange;
     DCHECK(intrinsic == Intrinsics::kUnsafeCASObject ||
            intrinsic == Intrinsics::kJdkUnsafeCASObject ||
+           intrinsic == Intrinsics::kJdkUnsafeCompareAndSetObject ||
            mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAS ||
            mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleGetAndSet ||
            mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAX);
