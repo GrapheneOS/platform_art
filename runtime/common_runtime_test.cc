@@ -400,7 +400,7 @@ void CommonRuntimeTestImpl::SetUpRuntimeOptionsForFillHeap(RuntimeOptions *optio
 void CommonRuntimeTestImpl::MakeInterpreted(ObjPtr<mirror::Class> klass) {
   PointerSize pointer_size = class_linker_->GetImagePointerSize();
   for (ArtMethod& method : klass->GetMethods(pointer_size)) {
-    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(&method, /*aot_code=*/ nullptr);
+    class_linker_->SetEntryPointsToInterpreter(&method);
   }
 }
 
