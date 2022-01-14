@@ -149,18 +149,20 @@ const void* CommonCompilerTestImpl::MakeExecutable(ArrayRef<const uint8_t> code,
 void CommonCompilerTestImpl::MakeExecutable(ArtMethod* method,
                                             const CompiledMethod* compiled_method) {
   CHECK(method != nullptr);
-  const void* method_code = nullptr;
   // If the code size is 0 it means the method was skipped due to profile guided compilation.
   if (compiled_method != nullptr && compiled_method->GetQuickCode().size() != 0u) {
     const void* code_ptr = MakeExecutable(compiled_method->GetQuickCode(),
                                           compiled_method->GetVmapTable(),
                                           compiled_method->GetInstructionSet());
-    method_code =
+    const void* method_code =
         CompiledMethod::CodePointer(code_ptr, compiled_method->GetInstructionSet());
     LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
+    method->SetEntryPointFromQuickCompiledCode(method_code);
+  } else {
+    // No code? You must mean to go into the interpreter.
+    // Or the generic JNI...
+    GetClassLinker()->SetEntryPointsToInterpreter(method);
   }
-  Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(
-      method, /*aot_code=*/ method_code);
 }
 
 void CommonCompilerTestImpl::SetUp() {
