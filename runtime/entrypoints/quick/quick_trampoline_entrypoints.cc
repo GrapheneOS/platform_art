@@ -1052,7 +1052,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
          !jit->GetCodeCache()->ContainsPc(result))
       << method->PrettyMethod() << " code will jump to possibly cleaned up jit code!";
 
-  bool interpreter_entry = (result == GetQuickToInterpreterBridge());
+  bool interpreter_entry = Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result);
   bool is_static = method->IsStatic();
   uint32_t shorty_len;
   const char* shorty =
@@ -2639,7 +2639,7 @@ extern "C" int artMethodExitHook(Thread* self,
 
     // Deoptimize if the caller needs to continue execution in the interpreter. Do nothing if we get
     // back to an upcall.
-    NthCallerVisitor visitor(self, 1, true);
+    NthCallerVisitor visitor(self, 1, /*include_runtime_and_upcalls=*/false);
     visitor.WalkStack(true);
     deoptimize = instr->ShouldDeoptimizeMethod(self, visitor);
 
