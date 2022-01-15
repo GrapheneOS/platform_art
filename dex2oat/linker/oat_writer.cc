@@ -3241,8 +3241,9 @@ bool OatWriter::WriteDexFiles(File* file,
     // Write shared dex file data section and fix up the dex file headers.
     if (shared_data_size != 0u) {
       DCHECK_EQ(RoundUp(vdex_size_, 4u), vdex_dex_shared_data_offset_);
-      DCHECK(!use_existing_vdex);
-      memset(vdex_begin_ + vdex_size_, 0, vdex_dex_shared_data_offset_ - vdex_size_);
+      if (!use_existing_vdex) {
+        memset(vdex_begin_ + vdex_size_, 0, vdex_dex_shared_data_offset_ - vdex_size_);
+      }
       size_dex_file_alignment_ += vdex_dex_shared_data_offset_ - vdex_size_;
       vdex_size_ = vdex_dex_shared_data_offset_;
 
@@ -3254,7 +3255,7 @@ bool OatWriter::WriteDexFiles(File* file,
         memcpy(vdex_begin_ + vdex_size_, section->Begin(), shared_data_size);
         section->Clear();
         dex_container_.reset();
-      } else {
+      } else if (!use_existing_vdex) {
         memcpy(vdex_begin_ + vdex_size_, raw_dex_file_shared_data_begin, shared_data_size);
       }
       vdex_size_ += shared_data_size;

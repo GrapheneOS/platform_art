@@ -375,7 +375,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
   }
 
   // Special case if we need an initialization check.
-  if (NeedsClinitCheckBeforeCall(method) && !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+  if (NeedsClinitCheckBeforeCall(method)) {
     // If we have code but the method needs a class initialization check before calling
     // that code, install the resolution stub that will perform the check.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
@@ -397,17 +397,10 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
     return;
   }
 
-  // We check if the class is verified as we need the slow interpreter for lock verification.
-  // If the class is not verified, This will be updated in
-  // ClassLinker::UpdateClassAfterVerification.
-  if (interpreter::CanRuntimeUseNterp() &&
-      CanMethodUseNterp(method) &&
-      method->GetDeclaringClass()->IsVerified()) {
-    UpdateEntryPoints(method, interpreter::GetNterpEntryPoint());
-    return;
-  }
-
   // Use default entrypoints.
+  // Note we cannot use the nterp entrypoint because we do not know if the
+  // method will need the slow interpreter for lock verification. This will
+  // be updated in ClassLinker::UpdateClassAfterVerification.
   UpdateEntryPoints(
       method, method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
 }
@@ -1104,6 +1097,19 @@ void Instrumentation::UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const 
 
 void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* new_code) {
   DCHECK(method->GetDeclaringClass()->IsResolved());
+  UpdateMethodsCodeImpl(method, new_code);
+}
+
+void Instrumentation::UpdateMethodsCodeToInterpreterEntryPoint(ArtMethod* method) {
+  UpdateMethodsCodeImpl(method, GetQuickToInterpreterBridge());
+}
+
+void Instrumentation::UpdateMethodsCodeForJavaDebuggable(ArtMethod* method,
+                                                         const void* new_code) {
+  // When the runtime is set to Java debuggable, we may update the entry points of
+  // all methods of a class to the interpreter bridge. A method's declaring class
+  // might not be in resolved state yet in that case, so we bypass the DCHECK in
+  // UpdateMethodsCode.
   UpdateMethodsCodeImpl(method, new_code);
 }
 
