@@ -24,6 +24,7 @@
 #include "dex/dex_instruction_utils.h"
 #include "debugger.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "interpreter/interpreter_cache-inl.h"
 #include "interpreter/interpreter_common.h"
 #include "interpreter/interpreter_intrinsics.h"
 #include "interpreter/shadow_frame-inl.h"
@@ -93,12 +94,7 @@ inline void UpdateHotness(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock
 template<typename T>
 inline void UpdateCache(Thread* self, uint16_t* dex_pc_ptr, T value) {
   DCHECK(kUseReadBarrier) << "Nterp only works with read barriers";
-  // For simplicity, only update the cache if weak ref accesses are enabled. If
-  // they are disabled, this means the GC is processing the cache, and is
-  // reading it concurrently.
-  if (self->GetWeakRefAccessEnabled()) {
-    self->GetInterpreterCache()->Set(dex_pc_ptr, value);
-  }
+  self->GetInterpreterCache()->Set(self, dex_pc_ptr, value);
 }
 
 template<typename T>
@@ -252,7 +248,7 @@ extern "C" const char* NterpGetShortyFromInvokeCustom(ArtMethod* caller, uint16_
 }
 
 FLATTEN
-extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, uint16_t* dex_pc_ptr)
+extern "C" size_t NterpGetMethodSlowPath(Thread* self, ArtMethod* caller, uint16_t* dex_pc_ptr)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
@@ -410,6 +406,16 @@ extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, uint16_t* dex_
   }
 }
 
+extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, uint16_t* dex_pc_ptr)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  InterpreterCache* cache = self->GetInterpreterCache();
+  size_t cached_value;
+  if (LIKELY(cache->Get</*kSkipThreadLocal=*/true>(self, dex_pc_ptr, &cached_value))) {
+    return cached_value;
+  }
+  return NterpGetMethodSlowPath(self, caller, dex_pc_ptr);  // Tail call.
+}
+
 FLATTEN
 static ArtField* ResolveFieldWithAccessChecks(Thread* self,
                                               ClassLinker* class_linker,
@@ -459,10 +465,10 @@ static ArtField* ResolveFieldWithAccessChecks(Thread* self,
   return resolved_field;
 }
 
-extern "C" size_t NterpGetStaticField(Thread* self,
-                                      ArtMethod* caller,
-                                      uint16_t* dex_pc_ptr,
-                                      size_t resolve_field_type)  // Resolve if not zero
+extern "C" size_t NterpGetStaticFieldSlowPath(Thread* self,
+                                              ArtMethod* caller,
+                                              uint16_t* dex_pc_ptr,
+                                              size_t resolve_field_type)  // Resolve if not zero
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
@@ -502,10 +508,25 @@ extern "C" size_t NterpGetStaticField(Thread* self,
   }
 }
 
-extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
-                                                ArtMethod* caller,
-                                                uint16_t* dex_pc_ptr,
-                                                size_t resolve_field_type)  // Resolve if not zero
+extern "C" size_t NterpGetStaticField(Thread* self,
+                                      ArtMethod* caller,
+                                      uint16_t* dex_pc_ptr,
+                                      size_t resolve_field_type)  // Resolve if not zero
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  InterpreterCache* cache = self->GetInterpreterCache();
+  size_t cached_value;
+  if (LIKELY(cache->Get</*kSkipThreadLocal=*/true>(self, dex_pc_ptr, &cached_value))) {
+    return cached_value;
+  }
+  return NterpGetStaticFieldSlowPath(self, caller, dex_pc_ptr, resolve_field_type);
+}
+
+
+extern "C" uint32_t NterpGetInstanceFieldOffsetSlowPath(
+    Thread* self,
+    ArtMethod* caller,
+    uint16_t* dex_pc_ptr,
+    size_t resolve_field_type)  // Resolve if not zero
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
@@ -530,6 +551,19 @@ extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
   }
   UpdateCache(self, dex_pc_ptr, resolved_field->GetOffset().Uint32Value());
   return resolved_field->GetOffset().Uint32Value();
+}
+
+extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
+                                                ArtMethod* caller,
+                                                uint16_t* dex_pc_ptr,
+                                                size_t resolve_field_type)  // Resolve if not zero
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  InterpreterCache* cache = self->GetInterpreterCache();
+  size_t cached_value;
+  if (LIKELY(cache->Get</*kSkipThreadLocal=*/true>(self, dex_pc_ptr, &cached_value))) {
+    return cached_value;
+  }
+  return NterpGetInstanceFieldOffsetSlowPath(self, caller, dex_pc_ptr, resolve_field_type);
 }
 
 extern "C" mirror::Object* NterpGetClassOrAllocateObject(Thread* self,

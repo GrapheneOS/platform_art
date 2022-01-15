@@ -19,14 +19,30 @@
 
 namespace art {
 
-void InterpreterCache::Clear(Thread* owning_thread) {
-  DCHECK(owning_thread->GetInterpreterCache() == this);
-  DCHECK(owning_thread == Thread::Current() || owning_thread->IsSuspended());
-  data_.fill(Entry{});
+std::array<std::atomic<InterpreterCache::Entry>,
+           InterpreterCache::kSharedSize> InterpreterCache::shared_array_;
+
+InterpreterCache::InterpreterCache() {
+  // We can not use the ClearThreadLocal method since the constructor will not
+  // be called from the owning thread.
+  thread_local_array_.fill(Entry{});
 }
 
-bool InterpreterCache::IsCalledFromOwningThread() {
-  return Thread::Current()->GetInterpreterCache() == this;
+void InterpreterCache::ClearThreadLocal(Thread* owning_thread) {
+  // Must be called from the owning thread or when the owning thread is suspended.
+  DCHECK(owning_thread->GetInterpreterCache() == this);
+  DCHECK(owning_thread == Thread::Current() || owning_thread->IsSuspended());
+
+  thread_local_array_.fill(Entry{});
+}
+
+void InterpreterCache::ClearShared() {
+  // Can be called from any thread since the writes are atomic.
+  // The static shared cache isn't bound to specific thread in the first place.
+
+  for (std::atomic<Entry>& entry : shared_array_) {
+    AtomicPairStoreRelease(&entry, Entry{});
+  }
 }
 
 }  // namespace art
