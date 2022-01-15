@@ -201,6 +201,22 @@ static void HandleEarlierErroneousStateError(Thread* self,
   self->AssertPendingException();
 }
 
+static void ChangeInterpreterBridgeToNterp(ArtMethod* method, ClassLinker* class_linker)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  Runtime* runtime = Runtime::Current();
+  if (class_linker->IsQuickToInterpreterBridge(method->GetEntryPointFromQuickCompiledCode()) &&
+      CanMethodUseNterp(method)) {
+    if (method->GetDeclaringClass()->IsVisiblyInitialized() ||
+        !NeedsClinitCheckBeforeCall(method)) {
+      runtime->GetInstrumentation()->UpdateMethodsCode(method, interpreter::GetNterpEntryPoint());
+    } else {
+      // Put the resolution stub, which will initialize the class and then
+      // call the method with nterp.
+      runtime->GetInstrumentation()->UpdateMethodsCode(method, GetQuickResolutionStub());
+    }
+  }
+}
+
 static void UpdateClassAfterVerification(Handle<mirror::Class> klass,
                                          PointerSize pointer_size,
                                          verifier::FailureKind failure_kind)
@@ -215,9 +231,7 @@ static void UpdateClassAfterVerification(Handle<mirror::Class> klass,
   // to methods that currently use the switch interpreter.
   if (interpreter::CanRuntimeUseNterp()) {
     for (ArtMethod& m : klass->GetMethods(pointer_size)) {
-      if (class_linker->IsQuickToInterpreterBridge(m.GetEntryPointFromQuickCompiledCode())) {
-        runtime->GetInstrumentation()->InitializeMethodsCode(&m, /*aot_code=*/nullptr);
-      }
+      ChangeInterpreterBridgeToNterp(&m, class_linker);
     }
   }
 }
@@ -1959,11 +1973,10 @@ bool ClassLinker::AddImageSpace(
         // reset it with the runtime value.
         method.ResetCounter(hotness_threshold);
       }
+      // Set image methods' entry point that point to the interpreter bridge to the
+      // nterp entry point.
       if (method.GetEntryPointFromQuickCompiledCode() == nterp_trampoline_) {
         if (can_use_nterp) {
-          // Set image methods' entry point that point to the nterp trampoline to the
-          // nterp entry point. This allows taking the fast path when doing a
-          // nterp->nterp call.
           DCHECK(!NeedsClinitCheckBeforeCall(&method) ||
                  method.GetDeclaringClass()->IsVisiblyInitialized());
           method.SetEntryPointFromQuickCompiledCode(interpreter::GetNterpEntryPoint());
@@ -3340,7 +3353,6 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
     return;
   }
 
-  instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
   // Link the code of methods skipped by LinkCode.
   for (size_t method_index = 0; method_index < num_direct_methods; ++method_index) {
     ArtMethod* method = klass->GetDirectMethod(method_index, pointer_size);
@@ -3348,6 +3360,7 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
       // Only update static methods.
       continue;
     }
+    instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
     instrumentation->UpdateMethodsCode(method, instrumentation->GetCodeForInvoke(method));
   }
   // Ignore virtual methods on the iterator.
@@ -9641,6 +9654,14 @@ bool ClassLinker::IsJniDlsymLookupCriticalStub(const void* entry_point) const {
 
 const void* ClassLinker::GetRuntimeQuickGenericJniStub() const {
   return GetQuickGenericJniStub();
+}
+
+void ClassLinker::SetEntryPointsToInterpreter(ArtMethod* method) const {
+  if (!method->IsNative()) {
+    method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+  } else {
+    method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniStub());
+  }
 }
 
 void ClassLinker::SetEntryPointsForObsoleteMethod(ArtMethod* method) const {

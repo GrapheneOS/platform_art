@@ -312,6 +312,14 @@ class Instrumentation {
   void UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
+  // Update the code of a method to the interpreter respecting any installed stubs from debugger.
+  void UpdateMethodsCodeToInterpreterEntryPoint(ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
+
+  // Update the code of a method respecting any installed stubs from debugger.
+  void UpdateMethodsCodeForJavaDebuggable(ArtMethod* method, const void* new_code)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
+
   // Return the code that we can execute for an invoke including from the JIT.
   const void* GetCodeForInvoke(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
