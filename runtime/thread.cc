@@ -4240,27 +4240,28 @@ void Thread::VisitRoots(RootVisitor* visitor) {
 }
 #pragma GCC diagnostic pop
 
-void Thread::SweepInterpreterCache(IsMarkedVisitor* visitor) {
-  for (InterpreterCache::Entry& entry : GetInterpreterCache()->GetArray()) {
-    const Instruction* inst = reinterpret_cast<const Instruction*>(entry.first);
+void Thread::SweepInterpreterCaches(IsMarkedVisitor* visitor) {
+  Thread* self = Thread::Current();
+  auto visit = [visitor, self](const Instruction* inst, size_t& value) {
+    Locks::mutator_lock_->AssertSharedHeld(self);
     if (inst != nullptr) {
       if (inst->Opcode() == Instruction::NEW_INSTANCE ||
           inst->Opcode() == Instruction::CHECK_CAST ||
           inst->Opcode() == Instruction::INSTANCE_OF ||
           inst->Opcode() == Instruction::NEW_ARRAY ||
           inst->Opcode() == Instruction::CONST_CLASS) {
-        mirror::Class* cls = reinterpret_cast<mirror::Class*>(entry.second);
+        mirror::Class* cls = reinterpret_cast<mirror::Class*>(value);
         if (cls == nullptr || cls == Runtime::GetWeakClassSentinel()) {
           // Entry got deleted in a previous sweep.
-          continue;
+          return;
         }
         Runtime::ProcessWeakClass(
-            reinterpret_cast<GcRoot<mirror::Class>*>(&entry.second),
+            reinterpret_cast<GcRoot<mirror::Class>*>(&value),
             visitor,
             Runtime::GetWeakClassSentinel());
       } else if (inst->Opcode() == Instruction::CONST_STRING ||
                  inst->Opcode() == Instruction::CONST_STRING_JUMBO) {
-        mirror::Object* object = reinterpret_cast<mirror::Object*>(entry.second);
+        mirror::Object* object = reinterpret_cast<mirror::Object*>(value);
         mirror::Object* new_object = visitor->IsMarked(object);
         // We know the string is marked because it's a strongly-interned string that
         // is always alive (see b/117621117 for trying to make those strings weak).
@@ -4268,11 +4269,16 @@ void Thread::SweepInterpreterCache(IsMarkedVisitor* visitor) {
         // null for newly allocated objects, but we know those haven't moved. Therefore,
         // only update the entry if we get a different non-null string.
         if (new_object != nullptr && new_object != object) {
-          entry.second = reinterpret_cast<size_t>(new_object);
+          value = reinterpret_cast<size_t>(new_object);
         }
       }
     }
-  }
+  };
+  InterpreterCache::ForEachSharedEntry(visit);
+  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  Runtime::Current()->GetThreadList()->ForEach([&visit](Thread* thread) {
+    thread->GetInterpreterCache()->ForEachTheadLocalEntry(visit);
+  });
 }
 
 // FIXME: clang-r433403 reports the below function exceeds frame size limit.
@@ -4487,9 +4493,10 @@ void Thread::SetReadBarrierEntrypoints() {
 void Thread::ClearAllInterpreterCaches() {
   static struct ClearInterpreterCacheClosure : Closure {
     void Run(Thread* thread) override {
-      thread->GetInterpreterCache()->Clear(thread);
+      thread->GetInterpreterCache()->ClearThreadLocal(thread);
     }
   } closure;
+  InterpreterCache::ClearShared();
   Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
 }
 

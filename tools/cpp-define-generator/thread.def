@@ -30,11 +30,12 @@ ASM_DEFINE(THREAD_ID_OFFSET,
 ASM_DEFINE(THREAD_INTERPRETER_CACHE_OFFSET,
            art::Thread::InterpreterCacheOffset<art::kRuntimePointerSize>().Int32Value())
 ASM_DEFINE(THREAD_INTERPRETER_CACHE_SIZE_LOG2,
-           art::Thread::InterpreterCacheSizeLog2())
+           art::WhichPowerOf2(art::InterpreterCache::kThreadLocalSize))
 ASM_DEFINE(THREAD_INTERPRETER_CACHE_SIZE_MASK,
-           (sizeof(art::InterpreterCache::Entry) * (art::InterpreterCache::kSize - 1)))
+           (sizeof(art::InterpreterCache::Entry) * (art::InterpreterCache::kThreadLocalSize - 1)))
 ASM_DEFINE(THREAD_INTERPRETER_CACHE_SIZE_SHIFT,
-           2)
+           (art::WhichPowerOf2(sizeof(art::InterpreterCache::Entry)) -
+            art::InterpreterCache::kHashShift))
 ASM_DEFINE(THREAD_IS_GC_MARKING_OFFSET,
            art::Thread::IsGcMarkingOffset<art::kRuntimePointerSize>().Int32Value())
 ASM_DEFINE(THREAD_LOCAL_ALLOC_STACK_END_OFFSET,
