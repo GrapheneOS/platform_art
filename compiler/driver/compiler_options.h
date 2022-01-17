@@ -26,7 +26,6 @@
 #include "base/globals.h"
 #include "base/hash_set.h"
 #include "base/macros.h"
-#include "base/stl_util.h"
 #include "base/utils.h"
 #include "optimizing/register_allocator.h"
 
@@ -375,7 +374,8 @@ class CompilerOptions final {
   }
 
   bool WithinOatFile(const DexFile* dex_file) const {
-    return ContainsElement(GetDexFilesForOatFile(), dex_file);
+    return std::find(GetDexFilesForOatFile().begin(), GetDexFilesForOatFile().end(), dex_file) !=
+           GetDexFilesForOatFile().end();
   }
 
  private:
