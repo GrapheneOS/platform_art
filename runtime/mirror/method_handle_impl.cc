@@ -36,8 +36,8 @@ void MethodHandle::Initialize(uintptr_t art_field_or_method,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   CHECK(!Runtime::Current()->IsActiveTransaction());
   SetFieldObject<false>(CachedSpreadInvokerOffset(), nullptr);
-  SetFieldObject<false>(NominalTypeOffset(), nullptr);
   SetFieldObject<false>(MethodTypeOffset(), method_type.Get());
+  SetFieldObject<false>(AsTypeCacheOffset(), nullptr);
   SetField32<false>(HandleKindOffset(), static_cast<uint32_t>(kind));
   SetField64<false>(ArtFieldOrMethodOffset(), art_field_or_method);
 }
