@@ -1348,6 +1348,10 @@ class Thread {
     return ThreadOffset<pointer_size>(OFFSETOF_MEMBER(Thread, interpreter_cache_));
   }
 
+  static constexpr int InterpreterCacheSizeLog2() {
+    return WhichPowerOf2(InterpreterCache::kSize);
+  }
+
   static constexpr uint32_t AllThreadFlags() {
     return enum_cast<uint32_t>(ThreadFlag::kLastFlag) |
            (enum_cast<uint32_t>(ThreadFlag::kLastFlag) - 1u);
@@ -1522,8 +1526,7 @@ class Thread {
   template <bool kPrecise>
   void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static void SweepInterpreterCaches(IsMarkedVisitor* visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  void SweepInterpreterCache(IsMarkedVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsAotCompiler();
 

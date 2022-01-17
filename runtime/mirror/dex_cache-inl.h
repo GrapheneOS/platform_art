@@ -357,18 +357,32 @@ inline void DexCache::SetResolvedMethod(uint32_t method_idx, ArtMethod* method) 
 template <typename T>
 NativeDexCachePair<T> DexCache::GetNativePair(std::atomic<NativeDexCachePair<T>>* pair_array,
                                               size_t idx) {
-  auto* array = reinterpret_cast<std::atomic<AtomicPair<size_t>>*>(pair_array);
-  AtomicPair<size_t> value = AtomicPairLoadAcquire(&array[idx]);
-  return NativeDexCachePair<T>(reinterpret_cast<T*>(value.first), value.second);
+  if (kRuntimePointerSize == PointerSize::k64) {
+    auto* array = reinterpret_cast<std::atomic<ConversionPair64>*>(pair_array);
+    ConversionPair64 value = AtomicLoadRelaxed16B(&array[idx]);
+    return NativeDexCachePair<T>(reinterpret_cast64<T*>(value.first),
+                                 dchecked_integral_cast<size_t>(value.second));
+  } else {
+    auto* array = reinterpret_cast<std::atomic<ConversionPair32>*>(pair_array);
+    ConversionPair32 value = array[idx].load(std::memory_order_relaxed);
+    return NativeDexCachePair<T>(reinterpret_cast32<T*>(value.first), value.second);
+  }
 }
 
 template <typename T>
 void DexCache::SetNativePair(std::atomic<NativeDexCachePair<T>>* pair_array,
                              size_t idx,
                              NativeDexCachePair<T> pair) {
-  auto* array = reinterpret_cast<std::atomic<AtomicPair<size_t>>*>(pair_array);
-  AtomicPair<size_t> v(reinterpret_cast<size_t>(pair.object), pair.index);
-  AtomicPairStoreRelease(&array[idx], v);
+  if (kRuntimePointerSize == PointerSize::k64) {
+    auto* array = reinterpret_cast<std::atomic<ConversionPair64>*>(pair_array);
+    ConversionPair64 v(reinterpret_cast64<uint64_t>(pair.object), pair.index);
+    AtomicStoreRelease16B(&array[idx], v);
+  } else {
+    auto* array = reinterpret_cast<std::atomic<ConversionPair32>*>(pair_array);
+    ConversionPair32 v(reinterpret_cast32<uint32_t>(pair.object),
+                       dchecked_integral_cast<uint32_t>(pair.index));
+    array[idx].store(v, std::memory_order_release);
+  }
 }
 
 template <typename T,
