@@ -192,8 +192,11 @@ art_module_exports {
                 "veridex",
             ],
             native_libs: [
-                "libartpalette", // libdexfile dependency
-                "libartbase", // libdexfile dependency
+                // libdexfile dependencies for host tests.
+                // TODO(b/178691801): Support transitive internal library
+                // dependencies in module_export snapshots and clean this up.
+                "libartpalette",
+                "libartbase",
             ],
         },
 
