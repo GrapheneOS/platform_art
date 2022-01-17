@@ -28,6 +28,7 @@
 #include "base/locks.h"
 #include "base/logging.h"
 #include "jni.h"
+#include "runtime.h"
 #include "runtime_callbacks.h"
 #include "thread.h"
 #include "thread_state.h"
@@ -64,7 +65,10 @@ class Dbg {
   // the deoptimized frames.
   static bool IsForcedInterpreterNeededForException(Thread* thread)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (LIKELY(!thread->HasDebuggerShadowFrames())) {
+    // A quick check to avoid walking the stack. If there are no shadow frames or no method
+    // that needs to be deoptimized we can safely continue with optimized code.
+    if (LIKELY(!thread->HasDebuggerShadowFrames() &&
+               Runtime::Current()->GetInstrumentation()->IsDeoptimizedMethodsEmpty())) {
       return false;
     }
     return IsForcedInterpreterNeededForExceptionImpl(thread);
