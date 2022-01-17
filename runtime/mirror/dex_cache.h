@@ -149,7 +149,7 @@ class MANAGED DexCache final : public Object {
                 "String dex cache size is not a power of 2.");
 
   // Size of field dex cache. Needs to be a power of 2 for entrypoint assumptions to hold.
-  static constexpr size_t kDexCacheFieldCacheSize = 512;
+  static constexpr size_t kDexCacheFieldCacheSize = 1024;
   static_assert(IsPowerOfTwo(kDexCacheFieldCacheSize),
                 "Field dex cache size is not a power of 2.");
 
@@ -448,6 +448,19 @@ class MANAGED DexCache final : public Object {
   T* AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t num)
      REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // std::pair<> is not trivially copyable and as such it is unsuitable for atomic operations,
+  // so we use a custom pair class for loading and storing the NativeDexCachePair<>.
+  template <typename IntType>
+  struct PACKED(2 * sizeof(IntType)) ConversionPair {
+    ConversionPair(IntType f, IntType s) : first(f), second(s) { }
+    ConversionPair(const ConversionPair&) = default;
+    ConversionPair& operator=(const ConversionPair&) = default;
+    IntType first;
+    IntType second;
+  };
+  using ConversionPair32 = ConversionPair<uint32_t>;
+  using ConversionPair64 = ConversionPair<uint64_t>;
+
   // Visit instance fields of the dex cache as well as its associated arrays.
   template <bool kVisitNativeRoots,
             VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -455,6 +468,48 @@ class MANAGED DexCache final : public Object {
             typename Visitor>
   void VisitReferences(ObjPtr<Class> klass, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
+
+  // Due to lack of 16-byte atomics support, we use hand-crafted routines.
+#if defined(__aarch64__)
+  // 16-byte atomics are supported on aarch64.
+  ALWAYS_INLINE static ConversionPair64 AtomicLoadRelaxed16B(
+      std::atomic<ConversionPair64>* target) {
+    return target->load(std::memory_order_relaxed);
+  }
+
+  ALWAYS_INLINE static void AtomicStoreRelease16B(
+      std::atomic<ConversionPair64>* target, ConversionPair64 value) {
+    target->store(value, std::memory_order_release);
+  }
+#elif defined(__x86_64__)
+  ALWAYS_INLINE static ConversionPair64 AtomicLoadRelaxed16B(
+      std::atomic<ConversionPair64>* target) {
+    uint64_t first, second;
+    __asm__ __volatile__(
+        "lock cmpxchg16b (%2)"
+        : "=&a"(first), "=&d"(second)
+        : "r"(target), "a"(0), "d"(0), "b"(0), "c"(0)
+        : "cc");
+    return ConversionPair64(first, second);
+  }
+
+  ALWAYS_INLINE static void AtomicStoreRelease16B(
+      std::atomic<ConversionPair64>* target, ConversionPair64 value) {
+    uint64_t first, second;
+    __asm__ __volatile__ (
+        "movq (%2), %%rax\n\t"
+        "movq 8(%2), %%rdx\n\t"
+        "1:\n\t"
+        "lock cmpxchg16b (%2)\n\t"
+        "jnz 1b"
+        : "=&a"(first), "=&d"(second)
+        : "r"(target), "b"(value.first), "c"(value.second)
+        : "cc");
+  }
+#else
+  static ConversionPair64 AtomicLoadRelaxed16B(std::atomic<ConversionPair64>* target);
+  static void AtomicStoreRelease16B(std::atomic<ConversionPair64>* target, ConversionPair64 value);
+#endif
 
   HeapReference<ClassLoader> class_loader_;
   HeapReference<String> location_;
