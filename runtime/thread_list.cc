@@ -1407,13 +1407,6 @@ void ThreadList::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) const {
   }
 }
 
-void ThreadList::SweepInterpreterCaches(IsMarkedVisitor* visitor) const {
-  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-  for (const auto& thread : list_) {
-    thread->SweepInterpreterCache(visitor);
-  }
-}
-
 void ThreadList::VisitReflectiveTargets(ReflectiveValueVisitor *visitor) const {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (const auto& thread : list_) {
