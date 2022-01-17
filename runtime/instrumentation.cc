@@ -184,7 +184,6 @@ Instrumentation::Instrumentation()
       have_exception_handled_listeners_(false),
       deoptimized_methods_lock_(new ReaderWriterMutex("deoptimized methods lock",
                                                       kGenericBottomLock)),
-      interpreter_handler_table_(kMainHandlerTable),
       quick_alloc_entry_points_instrumentation_counter_(0),
       alloc_entrypoints_instrumented_(false) {
 }
@@ -784,7 +783,6 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
                            exception_handled_listeners_,
                            listener,
                            &have_exception_handled_listeners_);
-  UpdateInterpreterHandlerTable();
 }
 
 static void PotentiallyRemoveListenerFrom(Instrumentation::InstrumentationEvent event,
@@ -866,7 +864,6 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
                                 exception_handled_listeners_,
                                 listener,
                                 &have_exception_handled_listeners_);
-  UpdateInterpreterHandlerTable();
 }
 
 Instrumentation::InstrumentationLevel Instrumentation::GetCurrentInstrumentationLevel() const {

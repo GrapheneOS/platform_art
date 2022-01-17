@@ -469,8 +469,6 @@ TEST_F(InstrumentationTest, NoInstrumentation) {
   EXPECT_FALSE(instr->IsActive());
   EXPECT_FALSE(instr->ShouldNotifyMethodEnterExitEvents());
 
-  // Test interpreter table is the default one.
-  EXPECT_EQ(instrumentation::kMainHandlerTable, instr->GetInterpreterHandlerTable());
 
   // Check there is no registered listener.
   EXPECT_FALSE(instr->HasDexPcListeners());
