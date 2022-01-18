@@ -293,11 +293,11 @@ END_FUNCTION \name
 
 
 .macro BRANCH
+    leal    (rPC, rINST, 2), rPC
     // Update method counter and do a suspend check if the branch is negative or zero.
     testl rINST, rINST
     jle 3f
 2:
-    leal    (rPC, rINST, 2), rPC
     FETCH_INST
     GOTO_NEXT
 3:
@@ -2240,12 +2240,11 @@ NterpCallSuspend:
     call SYMBOL(art_quick_test_suspend)
     RESTORE_IBASE
     movl LOCAL0(%esp), rINST
-    leal    (rPC, rINST, 2), rPC
     FETCH_INST
     GOTO_NEXT
 
 NterpHandleHotnessOverflow:
-    leal (rPC, rINST, 2), %ecx
+    movl rPC, %ecx
     movl rFP, ARG2
     // Save next PC.
     movl %ecx, LOCAL0(%esp)

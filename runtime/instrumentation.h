@@ -52,13 +52,6 @@ enum class DeoptimizationMethodType;
 
 namespace instrumentation {
 
-// Interpreter handler tables.
-enum InterpreterHandlerTable {
-  kMainHandlerTable = 0,          // Main handler table: no suspend check, no instrumentation.
-  kAlternativeHandlerTable = 1,   // Alternative handler table: suspend check and/or instrumentation
-                                  // enabled.
-  kNumHandlerTables
-};
 
 // Do we want to deoptimize for method entry and exit listeners or just try to intercept
 // invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
@@ -282,10 +275,6 @@ class Instrumentation {
                !Locks::classlinker_classes_lock_,
                !GetDeoptimizedMethodsLock());
 
-  InterpreterHandlerTable GetInterpreterHandlerTable() const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    return interpreter_handler_table_;
-  }
 
   void InstrumentQuickAllocEntryPoints() REQUIRES(!Locks::instrument_entrypoints_lock_);
   void UninstrumentQuickAllocEntryPoints() REQUIRES(!Locks::instrument_entrypoints_lock_);
@@ -592,16 +581,6 @@ class Instrumentation {
                !Locks::thread_list_lock_,
                !Locks::classlinker_classes_lock_);
 
-  void UpdateInterpreterHandlerTable() REQUIRES(Locks::mutator_lock_) {
-    /*
-     * TUNING: Dalvik's mterp stashes the actual current handler table base in a
-     * tls field.  For Arm, this enables all suspend, debug & tracing checks to be
-     * collapsed into a single conditionally-executed ldw instruction.
-     * Move to Dalvik-style handler-table management for both the goto interpreter and
-     * mterp.
-     */
-    interpreter_handler_table_ = IsActive() ? kAlternativeHandlerTable : kMainHandlerTable;
-  }
 
   // No thread safety analysis to get around SetQuickAllocEntryPointsInstrumented requiring
   // exclusive access to mutator lock which you can't get if the runtime isn't started.
@@ -743,7 +722,6 @@ class Instrumentation {
 
   // Current interpreter handler table. This is updated each time the thread state flags are
   // modified.
-  InterpreterHandlerTable interpreter_handler_table_ GUARDED_BY(Locks::mutator_lock_);
 
   // Greater than 0 if quick alloc entry points instrumented.
   size_t quick_alloc_entry_points_instrumentation_counter_;
