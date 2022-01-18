@@ -1922,4 +1922,46 @@ public class Main {
       System.out.println("Got expected IAE when invoke-special on an abstract interface method");
     }
   }
+
+  private static int returnInput(int value) { return value; }
+  private static byte returnInput(byte value) { return value; }
+  private static char returnInput(char value) { return value; }
+
+  private static void testFastInvoke() throws Throwable {
+    // This tests use of invoke() that have different types and require widening, but do not
+    // require require an explicit asType() transform.
+    MethodHandle mh0 =
+        MethodHandles.lookup().findStatic(
+            Main.class, "returnInput", MethodType.methodType(int.class, int.class));
+    assertEquals((byte) 127, (byte) (int) mh0.invoke((byte) 127));
+    assertEquals((byte) -128, (byte) (int) mh0.invoke((byte) -128));
+    assertEquals((short) 127, (short) (int) mh0.invoke((byte) 127));
+    assertEquals((short) -128, (short) (int) mh0.invoke((byte) -128));
+    assertEquals((char) 127, (char) (int) mh0.invoke((byte) 127));
+    assertEquals((char) 65535, (char) (int) mh0.invoke((byte) -1));
+    assertEquals((char) 0, (char) (int) mh0.invoke((char) 0));
+    assertEquals((char) 65535, (char) (int) mh0.invoke((char) 65535));
+    assertEquals((short) 127, (short) (int) mh0.invoke((short) 127));
+    assertEquals((short) -128, (short) (int) mh0.invoke((short) -128));
+    assertEquals((int) 127, (int) mh0.invoke((byte) 127));
+    assertEquals((int) -128, (int) mh0.invoke((byte) -128));
+    assertEquals((int) 127, (int) mh0.invoke((short) 127));
+    assertEquals((int) -128, (int) mh0.invoke((short) -128));
+    assertEquals((int) 0, (int) mh0.invoke((char) 0));
+    assertEquals((int) 65535, (int) mh0.invoke((char) 65535));
+
+    MethodHandle mh1 =
+        MethodHandles.lookup().findStatic(
+            Main.class, "returnInput", MethodType.methodType(char.class, char.class));
+    assertEquals((int) 0, (int) mh1.invoke((char) 0));
+    assertEquals((int) 65535, (int) mh1.invoke((char) 65535));
+
+    MethodHandle mh2 =
+        MethodHandles.lookup().findStatic(
+            Main.class, "returnInput", MethodType.methodType(byte.class, byte.class));
+    assertEquals((int) -128, (int) mh2.invoke((byte) -128));
+    assertEquals((int) 127, (int) mh2.invoke((byte) 127));
+    assertEquals((short) -128, (short) mh2.invoke((byte) -128));
+    assertEquals((short) 127, (short) mh2.invoke((byte) 127));
+  }
 }

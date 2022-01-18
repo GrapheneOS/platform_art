@@ -290,11 +290,11 @@ END \name
 .endm
 
 .macro BRANCH
+    add     xPC, xPC, wINST, sxtw #1    // update xPC
     // Update method counter and do a suspend check if the branch is negative or zero.
     cmp wINST, #0
     b.le 2f
 1:
-    add     xPC, xPC, wINST, sxtw #1    // update xPC
     FETCH wINST, 0                      // load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
@@ -1783,11 +1783,10 @@ NterpNewArray:
    b 1b
 
 NterpHandleHotnessOverflow:
-    add x1, xPC, xINST, lsl #1
+    mov x1, xPC
     mov x2, xFP
     bl nterp_hot_method
     cbnz x0, 1f
-    add     xPC, xPC, wINST, sxtw #1    // update xPC
     FETCH wINST, 0                      // load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction

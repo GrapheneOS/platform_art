@@ -63,26 +63,15 @@ class MANAGED MethodHandle : public Object {
     kLastInvokeKind = kInvokeVarHandleExact
   };
 
-  Kind GetHandleKind() REQUIRES_SHARED(Locks::mutator_lock_) {
-    const int32_t handle_kind = GetField32(OFFSET_OF_OBJECT_MEMBER(MethodHandle, handle_kind_));
-    DCHECK(handle_kind >= 0 &&
-           handle_kind <= static_cast<int32_t>(Kind::kLastValidKind));
-    return static_cast<Kind>(handle_kind);
-  }
+  Kind GetHandleKind() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ObjPtr<mirror::MethodType> GetMethodType() REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::MethodType> GetMethodType() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ObjPtr<mirror::MethodType> GetNominalType() REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::MethodHandle> GetAsTypeCache() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtField* GetTargetField() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return reinterpret_cast<ArtField*>(
-        GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
-  }
+  ArtField* GetTargetField() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* GetTargetMethod() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return reinterpret_cast<ArtMethod*>(
-        GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
-  }
+  ArtMethod* GetTargetMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Gets the return type for a named invoke method, or nullptr if the invoke method is not
   // supported.
@@ -97,8 +86,8 @@ class MANAGED MethodHandle : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
+  HeapReference<mirror::MethodHandle> as_type_cache_;
   HeapReference<mirror::MethodHandle> cached_spread_invoker_;
-  HeapReference<mirror::MethodType> nominal_type_;
   HeapReference<mirror::MethodType> method_type_;
   uint32_t handle_kind_;
   uint64_t art_field_or_method_;
@@ -107,8 +96,8 @@ class MANAGED MethodHandle : public Object {
   static MemberOffset CachedSpreadInvokerOffset() {
     return MemberOffset(OFFSETOF_MEMBER(MethodHandle, cached_spread_invoker_));
   }
-  static MemberOffset NominalTypeOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(MethodHandle, nominal_type_));
+  static MemberOffset AsTypeCacheOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(MethodHandle, as_type_cache_));
   }
   static MemberOffset MethodTypeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(MethodHandle, method_type_));

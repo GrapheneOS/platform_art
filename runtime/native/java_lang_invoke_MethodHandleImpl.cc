@@ -23,7 +23,7 @@
 #include "jni/jni_internal.h"
 #include "mirror/field.h"
 #include "mirror/method.h"
-#include "mirror/method_handle_impl.h"
+#include "mirror/method_handle_impl-inl.h"
 #include "native_util.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"

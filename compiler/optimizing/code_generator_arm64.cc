@@ -686,6 +686,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
                intrinsic == Intrinsics::kJdkUnsafeGetObjectVolatile ||
                intrinsic == Intrinsics::kJdkUnsafeGetObjectAcquire ||
                intrinsic == Intrinsics::kJdkUnsafeCASObject ||
+               intrinsic == Intrinsics::kJdkUnsafeCompareAndSetObject ||
                mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
                    mirror::VarHandle::AccessModeTemplate::kGet ||
                mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
