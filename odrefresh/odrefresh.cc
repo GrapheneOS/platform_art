@@ -856,10 +856,12 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
   }
 
   if (!cache_info.has_value()) {
-    // If the cache info file does not exist, it means on-device compilation has not been done
-    // before.
+    // If the cache info file does not exist, it usually means on-device compilation has not been
+    // done before because the device was using the factory version of modules, or artifacts were
+    // cleared because an updated version was uninstalled. Set the trigger to be
+    // `kApexVersionMismatch` so that compilation will always be performed.
     PLOG(INFO) << "No prior cache-info file: " << QuotePath(cache_info_filename_);
-    metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
+    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
     return false;
   }
 
@@ -974,10 +976,12 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
   }
 
   if (!cache_info.has_value()) {
-    // If the cache info file does not exist, it means on-device compilation has not been done
-    // before.
+    // If the cache info file does not exist, it usually means on-device compilation has not been
+    // done before because the device was using the factory version of modules, or artifacts were
+    // cleared because an updated version was uninstalled. Set the trigger to be
+    // `kApexVersionMismatch` so that compilation will always be performed.
     PLOG(INFO) << "No prior cache-info file: " << QuotePath(cache_info_filename_);
-    metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
+    metrics.SetTrigger(OdrMetrics::Trigger::kApexVersionMismatch);
     if (artifacts_on_system_up_to_date) {
       *jars_to_compile = jars_missing_artifacts_on_system;
       return false;
