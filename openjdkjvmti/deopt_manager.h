@@ -60,12 +60,6 @@ struct JvmtiMethodInspectionCallback : public art::MethodInspectionCallback {
   bool IsMethodBeingInspected(art::ArtMethod* method)
       override REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-  bool IsMethodSafeToJit(art::ArtMethod* method)
-      override REQUIRES_SHARED(art::Locks::mutator_lock_);
-
-  bool MethodNeedsDebugVersion(art::ArtMethod* method)
-      override REQUIRES_SHARED(art::Locks::mutator_lock_);
-
  private:
   DeoptManager* manager_;
 };
