@@ -539,8 +539,6 @@ CompilerFilter CompilerFilterStringToAidl(const std::string& compiler_filter) {
   }
 }
 
-std::string GetArtBootImageDir() { return GetArtRoot() + "/javalib"; }
-
 std::string GetSystemBootImageDir() { return GetAndroidRoot() + "/framework"; }
 
 }  // namespace
@@ -726,9 +724,8 @@ std::vector<art_apex::SystemServerComponent> OnDeviceRefresh::GenerateSystemServ
 
 std::string OnDeviceRefresh::GetBootImage(bool on_system) const {
   if (on_system) {
-    // Typically "/apex/com.android.art/javalib/boot.art".
-    // TODO(b/211973309): Update this once the primary boot image is moved.
-    return GetArtBootImageDir() + "/" + kFirstBootImageBasename;
+    // Typically "/system/framework/boot.art".
+    return GetPrebuiltPrimaryBootImageDir() + "/" + kFirstBootImageBasename;
   } else {
     // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot.art".
     return config_.GetArtifactDirectory() + "/" + kFirstBootImageBasename;

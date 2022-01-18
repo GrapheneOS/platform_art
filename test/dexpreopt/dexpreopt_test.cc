@@ -106,8 +106,7 @@ android::base::Result<std::vector<std::string>> GetZygoteExpectedArtifacts(Instr
     const std::string& jar = jars[i];
     std::string basename =
         i == 0 ? "boot.oat" : "boot-" + ReplaceFileExtension(android::base::Basename(jar), "oat");
-    // TODO(b/211973309): Update this once the primary boot image is moved.
-    std::string dir = android::base::StartsWith(jar, art_root) ? art_root + "/javalib" :
+    std::string dir = android::base::StartsWith(jar, art_root) ? GetPrebuiltPrimaryBootImageDir() :
                                                                  android_root + "/framework";
     std::string oat_file = android::base::StringPrintf(
         "%s/%s/%s", dir.c_str(), GetInstructionSetString(isa), basename.c_str());
