@@ -110,6 +110,12 @@ namespace {
 // Name of cache info file in the ART Apex artifact cache.
 constexpr const char* kCacheInfoFile = "cache-info.xml";
 
+// Maximum execution time for odrefresh from start to end.
+constexpr time_t kMaximumExecutionSeconds = 300;
+
+// Maximum execution time for any child process spawned.
+constexpr time_t kMaxChildProcessSeconds = 90;
+
 constexpr mode_t kFileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 
 constexpr const char* kFirstBootImageBasename = "boot.art";
@@ -581,11 +587,11 @@ time_t OnDeviceRefresh::GetExecutionTimeUsed() const { return time(nullptr) - st
 
 time_t OnDeviceRefresh::GetExecutionTimeRemaining() const {
   return std::max(static_cast<time_t>(0),
-                  config_.GetMaxExecutionSeconds() - GetExecutionTimeUsed());
+                  kMaximumExecutionSeconds - GetExecutionTimeUsed());
 }
 
 time_t OnDeviceRefresh::GetSubprocessTimeout() const {
-  return std::min(GetExecutionTimeRemaining(), config_.GetMaxChildProcessSeconds());
+  return std::min(GetExecutionTimeRemaining(), kMaxChildProcessSeconds);
 }
 
 std::optional<std::vector<apex::ApexInfo>> OnDeviceRefresh::GetApexInfoList() const {
