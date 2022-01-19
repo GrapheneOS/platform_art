@@ -53,6 +53,9 @@ public class OdsignTestUtils {
     private final InstallUtilsHost mInstallUtils;
     private final TestInformation mTestInfo;
 
+    private boolean mWasAdbRoot = false;
+    private boolean mAdbRootEnabled = false;
+
     public OdsignTestUtils(TestInformation testInfo) throws Exception {
         assertNotNull(testInfo.getDevice());
         mInstallUtils = new InstallUtilsHost(testInfo);
@@ -142,5 +145,23 @@ public class OdsignTestUtils {
         boolean success =
                 mTestInfo.getDevice().waitForBootComplete(BOOT_COMPLETE_TIMEOUT.toMillis());
         assertWithMessage("Device didn't boot in %s", BOOT_COMPLETE_TIMEOUT).that(success).isTrue();
+    }
+
+    /**
+     * Enables adb root or skips the test if adb root is not supported.
+     */
+    public void enableAdbRootOrSkipTest() throws Exception {
+        mWasAdbRoot = mTestInfo.getDevice().isAdbRoot();
+        mAdbRootEnabled = mTestInfo.getDevice().enableAdbRoot();
+        assumeTrue("ADB root failed and required to get process maps", mAdbRootEnabled);
+    }
+
+    /**
+     * Restores the device to the state before {@link enableAdbRootOrSkipTest} was called.
+     */
+    public void restoreAdbRoot() throws Exception {
+        if (mAdbRootEnabled && !mWasAdbRoot) {
+            mTestInfo.getDevice().disableAdbRoot();
+        }
     }
 }
