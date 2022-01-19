@@ -552,10 +552,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  ObjPtr<mirror::IfTable> AllocIfTable(Thread* self, size_t ifcount)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Roles::uninterruptible_);
-
   ObjPtr<mirror::ObjectArray<mirror::StackTraceElement>> AllocStackTraceElementArray(Thread* self,
                                                                                      size_t length)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -1171,14 +1167,6 @@ class ClassLinker {
       Thread* self,
       const dex::MethodHandleItem& method_handle,
       ArtMethod* referrer) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Sets up the interface lookup table (IFTable) in the correct order to allow searching for
-  // default methods.
-  bool SetupInterfaceLookupTable(Thread* self,
-                                 Handle<mirror::Class> klass,
-                                 Handle<mirror::ObjectArray<mirror::Class>> interfaces)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
 
   enum class DefaultMethodSearchResult {
     kDefaultFound,
