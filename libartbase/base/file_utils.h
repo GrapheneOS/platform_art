@@ -69,6 +69,10 @@ std::string GetAndroidDataSafe(/*out*/ std::string* error_msg);
 // Find $ART_APEX_DATA, /data/misc/apexdata/com.android.art, or abort.
 std::string GetArtApexData();
 
+// Returns the directory that contains the prebuilt version of the primary boot image (i.e., the one
+// generated at build time).
+std::string GetPrebuiltPrimaryBootImageDir();
+
 // Returns the default boot image location (ANDROID_ROOT/framework/boot.art).
 // Returns an empty string if ANDROID_ROOT is not set.
 std::string GetDefaultBootImageLocation(std::string* error_msg);

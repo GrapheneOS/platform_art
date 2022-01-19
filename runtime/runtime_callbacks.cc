@@ -105,29 +105,9 @@ void RuntimeCallbacks::RemoveMethodInspectionCallback(MethodInspectionCallback* 
   Remove(cb, &method_inspection_callbacks_);
 }
 
-bool RuntimeCallbacks::IsMethodSafeToJit(ArtMethod* m) {
-  for (MethodInspectionCallback* cb : COPY(method_inspection_callbacks_)) {
-    if (!cb->IsMethodSafeToJit(m)) {
-      DCHECK(cb->IsMethodBeingInspected(m))
-          << "Contract requires that !IsMethodSafeToJit(m) -> IsMethodBeingInspected(m)";
-      return false;
-    }
-  }
-  return true;
-}
-
 bool RuntimeCallbacks::IsMethodBeingInspected(ArtMethod* m) {
   for (MethodInspectionCallback* cb : COPY(method_inspection_callbacks_)) {
     if (cb->IsMethodBeingInspected(m)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool RuntimeCallbacks::MethodNeedsDebugVersion(ArtMethod* m) {
-  for (MethodInspectionCallback* cb : COPY(method_inspection_callbacks_)) {
-    if (cb->MethodNeedsDebugVersion(m)) {
       return true;
     }
   }
