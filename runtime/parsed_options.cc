@@ -731,9 +731,10 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
       Usage("-Ximage and -Xforcejitzygote cannot be specified together\n");
       Exit(0);
     }
-    args.Set(
-        M::Image,
-        ParseStringList<':'>{{"boot.art", "/nonx/boot-framework.art!/system/etc/boot-image.prof"}});
+    // If `boot.art` exists in the ART APEX, it will be used. Otherwise, Everything will be JITed.
+    args.Set(M::Image,
+             ParseStringList<':'>{{"boot.art!/apex/com.android.art/etc/boot-image.prof",
+                                   "/nonx/boot-framework.art!/system/etc/boot-image.prof"}});
   }
 
   if (!args.Exists(M::CompilerCallbacksPtr) && !args.Exists(M::Image)) {

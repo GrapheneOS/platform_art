@@ -516,17 +516,17 @@ TEST_F(OdRefreshTest, CompileChoosesBootImage) {
     auto file3 = ScopedCreateEmptyFile(artifacts.OatPath());
 
     EXPECT_CALL(*mock_odr_dexopt,
-                DoDexoptSystemServer(
-                    AllOf(Field(&DexoptSystemServerArgs::bootImage,
-                                Eq(android::base::StringPrintf("%s/boot.art:%s/boot-framework.art",
-                                                               art_javalib_dir_.c_str(),
-                                                               framework_dir_.c_str()))),
-                          Field(&DexoptSystemServerArgs::bootClasspathImageFds,
-                                Contains(FdOf(artifacts.ImagePath()))),
-                          Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
-                                Contains(FdOf(artifacts.VdexPath()))),
-                          Field(&DexoptSystemServerArgs::bootClasspathOatFds,
-                                Contains(FdOf(artifacts.OatPath()))))))
+                DoDexoptSystemServer(AllOf(
+                    Field(&DexoptSystemServerArgs::bootImage,
+                          Eq(android::base::StringPrintf("%s/boot.art:%s/boot-framework.art",
+                                                         GetPrebuiltPrimaryBootImageDir().c_str(),
+                                                         framework_dir_.c_str()))),
+                    Field(&DexoptSystemServerArgs::bootClasspathImageFds,
+                          Contains(FdOf(artifacts.ImagePath()))),
+                    Field(&DexoptSystemServerArgs::bootClasspathVdexFds,
+                          Contains(FdOf(artifacts.VdexPath()))),
+                    Field(&DexoptSystemServerArgs::bootClasspathOatFds,
+                          Contains(FdOf(artifacts.OatPath()))))))
         .Times(odrefresh->AllSystemServerJars().size())
         .WillRepeatedly(Return(0));
     EXPECT_EQ(
