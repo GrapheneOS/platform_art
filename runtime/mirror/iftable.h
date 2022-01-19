@@ -46,8 +46,9 @@ class MANAGED IfTable final : public ObjectArray<Object> {
 
   void SetMethodArray(int32_t i, ObjPtr<PointerArray> arr) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  size_t Count() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetLength() / kMax;
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  ALWAYS_INLINE size_t Count() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return GetLength<kVerifyFlags>() / kMax;
   }
 
   enum {
