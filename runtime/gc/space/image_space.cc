@@ -2778,8 +2778,8 @@ class ImageSpace::BootImageLoader {
             main_patch_object_visitor.VisitPointerArray(vtable);
           }
           ObjPtr<mirror::IfTable> iftable = klass->GetIfTable<kVerifyNone, kWithoutReadBarrier>();
-          if (iftable != nullptr) {
-            int32_t ifcount = klass->GetIfTableCount<kVerifyNone>();
+          if (kExtension ? simple_relocate_visitor.InDest(iftable.Ptr()) : iftable != nullptr) {
+            int32_t ifcount = iftable->Count<kVerifyNone>();
             for (int32_t i = 0; i != ifcount; ++i) {
               ObjPtr<mirror::PointerArray> unpatched_ifarray =
                   iftable->GetMethodArrayOrNull<kVerifyNone, kWithoutReadBarrier>(i);
