@@ -23,7 +23,6 @@
     <!-- odsign runs on early boot, so multi-user doesn't apply. -->
     <option name="config-descriptor:metadata" key="parameter" value="not_secondary_user" />
 
-    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
     <test class="com.android.tradefed.testtype.HostTest" >
         <option name="jar" value="odsign_e2e_tests.jar" />
     </test>
