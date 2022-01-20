@@ -4105,6 +4105,8 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
       || bytes > kCheckImmediatelyThreshold) {
     CheckGCForNative(ThreadForEnv(env));
   }
+  // Heap profiler treats this as a Java allocation with a null object.
+  JHPCheckNonTlabSampleAllocation(Thread::Current(), nullptr, bytes);
 }
 
 void Heap::RegisterNativeFree(JNIEnv*, size_t bytes) {
@@ -4263,7 +4265,7 @@ void Heap::JHPCheckNonTlabSampleAllocation(Thread* self, mirror::Object* obj, si
   bool take_sample = false;
   size_t bytes_until_sample = 0;
   HeapSampler& prof_heap_sampler = GetHeapSampler();
-  if (obj != nullptr && prof_heap_sampler.IsEnabled()) {
+  if (prof_heap_sampler.IsEnabled()) {
     // An allocation occurred, sample it, even if non-Tlab.
     // In case take_sample is already set from the previous GetSampleOffset
     // because we tried the Tlab allocation first, we will not use this value.
@@ -4278,7 +4280,7 @@ void Heap::JHPCheckNonTlabSampleAllocation(Thread* self, mirror::Object* obj, si
     if (take_sample) {
       prof_heap_sampler.ReportSample(obj, alloc_size);
     }
-    VLOG(heap) << "JHP:NonTlab Non-moving or Large Allocation";
+    VLOG(heap) << "JHP:NonTlab Non-moving or Large Allocation or RegisterNativeAllocation";
   }
 }
 
