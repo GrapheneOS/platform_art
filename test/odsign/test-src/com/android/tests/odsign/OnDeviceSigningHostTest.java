@@ -25,6 +25,7 @@ import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -43,18 +44,24 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     private static final String TEST_APP_PACKAGE_NAME = "com.android.tests.odsign";
     private static final String TEST_APP_APK = "odsign_e2e_test_app.apk";
 
-    private static OdsignTestUtils sTestUtils;
+    private OdsignTestUtils mTestUtils;
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        sTestUtils = new OdsignTestUtils(testInfo);
-        sTestUtils.installTestApex();
+        OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
+        testUtils.installTestApex();
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
-        sTestUtils.uninstallTestApex();
-        sTestUtils.restoreAdbRoot();
+        OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
+        testUtils.uninstallTestApex();
+        testUtils.restoreAdbRoot();
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        mTestUtils = new OdsignTestUtils(getTestInformation());
     }
 
     @Test
@@ -78,10 +85,10 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyGeneratedArtifactsLoaded() throws Exception {
         // Checking zygote and system_server need the device have adb root to walk process maps.
-        sTestUtils.enableAdbRootOrSkipTest();
+        mTestUtils.enableAdbRootOrSkipTest();
 
         // Check there is a compilation log, we expect compilation to have occurred.
-        assertTrue("Compilation log not found", sTestUtils.haveCompilationLog());
+        assertTrue("Compilation log not found", mTestUtils.haveCompilationLog());
 
         // Check both zygote and system_server processes to see that they have loaded the
         // artifacts compiled and signed by odrefresh and odsign. We check both here rather than
@@ -93,21 +100,21 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyGeneratedArtifactsLoadedAfterReboot() throws Exception {
-        sTestUtils.enableAdbRootOrSkipTest();
+        mTestUtils.enableAdbRootOrSkipTest();
 
-        sTestUtils.reboot();
+        mTestUtils.reboot();
         verifyGeneratedArtifactsLoaded();
     }
 
     @Test
     public void verifyGeneratedArtifactsLoadedAfterPartialCompilation() throws Exception {
-        sTestUtils.enableAdbRootOrSkipTest();
+        mTestUtils.enableAdbRootOrSkipTest();
 
-        Set<String> mappedArtifacts = sTestUtils.getSystemServerLoadedArtifacts();
+        Set<String> mappedArtifacts = mTestUtils.getSystemServerLoadedArtifacts();
         // Delete an arbitrary artifact.
         getDevice().deleteFile(mappedArtifacts.iterator().next());
-        sTestUtils.removeCompilationLogToAvoidBackoff();
-        sTestUtils.reboot();
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+        mTestUtils.reboot();
         verifyGeneratedArtifactsLoaded();
     }
 
@@ -134,7 +141,7 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
                 .concat(Arrays.stream(classpathElements), Arrays.stream(standaloneJars))
                 .toArray(String[]::new);
 
-        final Set<String> mappedArtifacts = sTestUtils.getSystemServerLoadedArtifacts();
+        final Set<String> mappedArtifacts = mTestUtils.getSystemServerLoadedArtifacts();
         assertTrue(
                 "No mapped artifacts under " + OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME,
                 mappedArtifacts.size() > 0);
@@ -182,7 +189,7 @@ public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
         int zygoteCount = 0;
         for (String zygoteName : OdsignTestUtils.ZYGOTE_NAMES) {
             final Optional<Set<String>> mappedArtifacts =
-                    sTestUtils.getZygoteLoadedArtifacts(zygoteName);
+                    mTestUtils.getZygoteLoadedArtifacts(zygoteName);
             if (!mappedArtifacts.isPresent()) {
                 continue;
             }
