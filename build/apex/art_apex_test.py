@@ -552,8 +552,6 @@ class ReleaseTargetChecker:
     # Check internal libraries for ART.
     self._checker.check_native_library('libperfetto_hprof')
     self._checker.check_prefer64_library('artd-aidl-ndk')
-    self._checker.check_prefer64_library('artd-private-aidl-ndk')
-    self._checker.check_prefer64_library('libdexopt')
 
     # Check internal Java libraries
     self._checker.check_java_library("service-art")
@@ -684,15 +682,13 @@ class TestingTargetChecker:
     self._checker.check_art_test_executable('art_libdexfile_tests')
     self._checker.check_art_test_executable('art_libprofile_tests')
     self._checker.check_art_test_executable('art_oatdump_tests')
-    self._checker.check_art_test_executable('art_odrefresh_tests',
-                                            multilib=MULTILIB_FIRST)
+    self._checker.check_art_test_executable('art_odrefresh_tests')
     self._checker.check_art_test_executable('art_profman_tests')
     self._checker.check_art_test_executable('art_runtime_compiler_tests')
     self._checker.check_art_test_executable('art_runtime_tests')
     self._checker.check_art_test_executable('art_sigchain_tests')
 
     # Check ART test (internal) libraries.
-    self._checker.check_prefer64_library('libdexoptd')
     self._checker.check_native_library('libartd-gtest')
     self._checker.check_native_library('libartd-simulator-container')
 

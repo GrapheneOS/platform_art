@@ -32,7 +32,6 @@
 #include "exec_utils.h"
 #include "odr_artifacts.h"
 #include "odr_config.h"
-#include "odr_dexopt.h"
 #include "odr_metrics.h"
 #include "odrefresh/odrefresh.h"
 
@@ -57,8 +56,7 @@ class OnDeviceRefresh final {
   // Constructor with injections. For testing and internal use only.
   OnDeviceRefresh(const OdrConfig& config,
                   const std::string& cache_info_filename,
-                  std::unique_ptr<ExecUtils> exec_utils,
-                  std::unique_ptr<OdrDexopt> odr_dexopt);
+                  std::unique_ptr<ExecUtils> exec_utils);
 
   // Returns the exit code and specifies what should be compiled in `compilation_options`.
   WARN_UNUSED ExitCode
@@ -199,8 +197,6 @@ class OnDeviceRefresh final {
   const time_t start_time_;
 
   std::unique_ptr<ExecUtils> exec_utils_;
-
-  std::unique_ptr<OdrDexopt> odr_dexopt_;
 
   DISALLOW_COPY_AND_ASSIGN(OnDeviceRefresh);
 };
