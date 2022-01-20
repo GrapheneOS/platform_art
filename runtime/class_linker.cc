@@ -625,6 +625,16 @@ void ClassLinker::CheckSystemClass(Thread* self, Handle<mirror::Class> c1, const
   }
 }
 
+ObjPtr<mirror::IfTable> AllocIfTable(Thread* self,
+                                     size_t ifcount,
+                                     ObjPtr<mirror::Class> iftable_class)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(iftable_class->IsArrayClass());
+  DCHECK(iftable_class->GetComponentType()->IsObjectClass());
+  return ObjPtr<mirror::IfTable>::DownCast(ObjPtr<mirror::ObjectArray<mirror::Object>>(
+      mirror::IfTable::Alloc(self, iftable_class, ifcount * mirror::IfTable::kMax)));
+}
+
 bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path,
                                    std::string* error_msg) {
   VLOG(startup) << "ClassLinker::Init";
@@ -732,10 +742,10 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(ClassRoot::kJavaLangRefReference, java_lang_ref_Reference.Get());
 
   // Fill in the empty iftable. Needs to be done after the kObjectArrayClass root is set.
-  java_lang_Object->SetIfTable(AllocIfTable(self, 0));
+  java_lang_Object->SetIfTable(AllocIfTable(self, 0, object_array_class.Get()));
 
   // Create array interface entries to populate once we can load system classes.
-  object_array_class->SetIfTable(AllocIfTable(self, 2));
+  object_array_class->SetIfTable(AllocIfTable(self, 2, object_array_class.Get()));
   DCHECK_EQ(GetArrayIfTable(), object_array_class->GetIfTable());
 
   // Setup the primitive type classes.
@@ -6638,10 +6648,12 @@ void ClassLinker::FillIMTFromIfTable(ObjPtr<mirror::IfTable> if_table,
   }
 }
 
+namespace {
+
 // Simple helper function that checks that no subtypes of 'val' are contained within the 'classes'
 // set.
 static bool NotSubinterfaceOfAny(
-    const HashSet<mirror::Class*>& classes,
+    const ScopedArenaHashSet<mirror::Class*>& classes,
     ObjPtr<mirror::Class> val)
     REQUIRES(Roles::uninterruptible_)
     REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -6654,48 +6666,113 @@ static bool NotSubinterfaceOfAny(
   return true;
 }
 
-// Fills in and flattens the interface inheritance hierarchy.
+// We record new interfaces by the index of the direct interface and the index in the
+// direct interface's `IfTable`, or `dex::kDexNoIndex` if it's the direct interface itself.
+struct NewInterfaceReference {
+  uint32_t direct_interface_index;
+  uint32_t direct_interface_iftable_index;
+};
+
+class ProxyInterfacesAccessor {
+ public:
+  explicit ProxyInterfacesAccessor(Handle<mirror::ObjectArray<mirror::Class>> interfaces)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      : interfaces_(interfaces) {}
+
+  size_t GetLength() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return interfaces_->GetLength();
+  }
+
+  ObjPtr<mirror::Class> GetInterface(size_t index) REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK_LT(index, GetLength());
+    return interfaces_->GetWithoutChecks(index);
+  }
+
+ private:
+  Handle<mirror::ObjectArray<mirror::Class>> interfaces_;
+};
+
+class NonProxyInterfacesAccessor {
+ public:
+  NonProxyInterfacesAccessor(ClassLinker* class_linker, Handle<mirror::Class> klass)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      : interfaces_(klass->GetInterfaceTypeList()),
+        class_linker_(class_linker),
+        klass_(klass) {
+    DCHECK(!klass->IsProxyClass());
+  }
+
+  size_t GetLength() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return (interfaces_ != nullptr) ? interfaces_->Size() : 0u;
+  }
+
+  ObjPtr<mirror::Class> GetInterface(size_t index) REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK_LT(index, GetLength());
+    dex::TypeIndex type_index = interfaces_->GetTypeItem(index).type_idx_;
+    return class_linker_->LookupResolvedType(type_index, klass_.Get());
+  }
+
+ private:
+  const dex::TypeList* interfaces_;
+  ClassLinker* class_linker_;
+  Handle<mirror::Class> klass_;
+};
+
+// Finds new interfaces to add to the interface table in addition to superclass interfaces.
 //
-// By the end of this function all interfaces in the transitive closure of to_process are added to
-// the iftable and every interface precedes all of its sub-interfaces in this list.
+// Interfaces in the interface table must satisfy the following constraint:
+//     all I, J: Interface | I <: J implies J precedes I
+// (note A <: B means that A is a subtype of B). We order this backwards so that we do not need
+// to reorder superclass interfaces when new interfaces are added in subclass's interface tables.
 //
-// all I, J: Interface | I <: J implies J precedes I
-//
-// (note A <: B means that A is a subtype of B)
-//
-// This returns the total number of items in the iftable. The iftable might be resized down after
-// this call.
-//
-// We order this backwards so that we do not need to reorder superclass interfaces when new
-// interfaces are added in subclass's interface tables.
-//
-// Upon entry into this function iftable is a copy of the superclass's iftable with the first
-// super_ifcount entries filled in with the transitive closure of the interfaces of the superclass.
-// The other entries are uninitialized.  We will fill in the remaining entries in this function. The
-// iftable must be large enough to hold all interfaces without changing its size.
-static size_t FillIfTable(ObjPtr<mirror::Class> klass,
-                          ObjPtr<mirror::ObjectArray<mirror::Class>> interfaces,
-                          ObjPtr<mirror::IfTable> iftable,
-                          size_t super_ifcount,
-                          size_t num_interfaces)
+// This function returns a list of references for all interfaces in the transitive
+// closure of the direct interfaces that are not in the superclass interfaces.
+// The entries in the list are ordered to satisfy the interface table ordering
+// constraint and therefore the interface table formed by appending them to the
+// superclass interface table shall also satisfy that constraint.
+template <typename InterfaceAccessor>
+ALWAYS_INLINE
+static ArrayRef<const NewInterfaceReference> FindNewIfTableInterfaces(
+    ObjPtr<mirror::IfTable> super_iftable,
+    size_t super_ifcount,
+    ScopedArenaAllocator* allocator,
+    InterfaceAccessor&& interfaces,
+    ArrayRef<NewInterfaceReference> initial_storage,
+    /*out*/ScopedArenaVector<NewInterfaceReference>* supplemental_storage)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension nts(__FUNCTION__);
+
   // This is the set of all classes already in the iftable. Used to make checking
   // if a class has already been added quicker.
   constexpr size_t kBufferSize = 32;  // 256 bytes on 64-bit architectures.
   mirror::Class* buffer[kBufferSize];
-  HashSet<mirror::Class*> classes_in_iftable(buffer, kBufferSize);
+  ScopedArenaHashSet<mirror::Class*> classes_in_iftable(buffer, kBufferSize, allocator->Adapter());
   // The first super_ifcount elements are from the superclass. We note that they are already added.
   for (size_t i = 0; i < super_ifcount; i++) {
-    ObjPtr<mirror::Class> iface = iftable->GetInterface(i);
+    ObjPtr<mirror::Class> iface = super_iftable->GetInterface(i);
     DCHECK(NotSubinterfaceOfAny(classes_in_iftable, iface)) << "Bad ordering.";
-    classes_in_iftable.insert(iface.Ptr());
+    classes_in_iftable.Put(iface.Ptr());
   }
-  size_t filled_ifcount = super_ifcount;
-  const bool have_interfaces = interfaces != nullptr;
-  for (size_t i = 0; i != num_interfaces; ++i) {
-    ObjPtr<mirror::Class> interface =
-        have_interfaces ? interfaces->Get(i) : klass->GetDirectInterface(i);
+
+  ArrayRef<NewInterfaceReference> current_storage = initial_storage;
+  DCHECK_NE(current_storage.size(), 0u);
+  size_t num_new_interfaces = 0u;
+  auto insert_reference = [&](uint32_t direct_interface_index,
+                              uint32_t direct_interface_iface_index) {
+    if (UNLIKELY(num_new_interfaces == current_storage.size())) {
+      bool copy = current_storage.data() != supplemental_storage->data();
+      supplemental_storage->resize(2u * num_new_interfaces);
+      if (copy) {
+        std::copy_n(current_storage.data(), num_new_interfaces, supplemental_storage->data());
+      }
+      current_storage = ArrayRef<NewInterfaceReference>(*supplemental_storage);
+    }
+    current_storage[num_new_interfaces] = {direct_interface_index, direct_interface_iface_index};
+    ++num_new_interfaces;
+  };
+
+  for (size_t i = 0, num_interfaces = interfaces.GetLength(); i != num_interfaces; ++i) {
+    ObjPtr<mirror::Class> interface = interfaces.GetInterface(i);
 
     // Let us call the first filled_ifcount elements of iftable the current-iface-list.
     // At this point in the loop current-iface-list has the invariant that:
@@ -6710,34 +6787,128 @@ static size_t FillIfTable(ObjPtr<mirror::Class> klass,
       int32_t ifcount = interface->GetIfTableCount();
       for (int32_t j = 0; j < ifcount; j++) {
         ObjPtr<mirror::Class> super_interface = interface->GetIfTable()->GetInterface(j);
-        if (!ContainsElement(classes_in_iftable, super_interface)) {
+        if (classes_in_iftable.find(super_interface.Ptr()) == classes_in_iftable.end()) {
           DCHECK(NotSubinterfaceOfAny(classes_in_iftable, super_interface)) << "Bad ordering.";
-          classes_in_iftable.insert(super_interface.Ptr());
-          iftable->SetInterface(filled_ifcount, super_interface);
-          filled_ifcount++;
+          classes_in_iftable.Put(super_interface.Ptr());
+          insert_reference(i, j);
         }
       }
+      // Add this interface reference after all of its super-interfaces.
       DCHECK(NotSubinterfaceOfAny(classes_in_iftable, interface)) << "Bad ordering";
-      // Place this interface onto the current-iface-list after all of its super-interfaces.
-      classes_in_iftable.insert(interface.Ptr());
-      iftable->SetInterface(filled_ifcount, interface);
-      filled_ifcount++;
+      classes_in_iftable.Put(interface.Ptr());
+      insert_reference(i, dex::kDexNoIndex);
     } else if (kIsDebugBuild) {
       // Check all super-interfaces are already in the list.
       int32_t ifcount = interface->GetIfTableCount();
       for (int32_t j = 0; j < ifcount; j++) {
         ObjPtr<mirror::Class> super_interface = interface->GetIfTable()->GetInterface(j);
-        DCHECK(ContainsElement(classes_in_iftable, super_interface))
+        DCHECK(classes_in_iftable.find(super_interface.Ptr()) != classes_in_iftable.end())
             << "Iftable does not contain " << mirror::Class::PrettyClass(super_interface)
             << ", a superinterface of " << interface->PrettyClass();
       }
     }
   }
+  return ArrayRef<const NewInterfaceReference>(current_storage.data(), num_new_interfaces);
+}
+
+template <typename InterfaceAccessor>
+static ObjPtr<mirror::IfTable> SetupInterfaceLookupTable(
+    Thread* self,
+    Handle<mirror::Class> klass,
+    ScopedArenaAllocator* allocator,
+    InterfaceAccessor&& interfaces)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(klass->HasSuperClass());
+  ObjPtr<mirror::IfTable> super_iftable = klass->GetSuperClass()->GetIfTable();
+  const size_t super_ifcount = super_iftable->Count();
+  const size_t num_interfaces = interfaces.GetLength();
+
+  // If there are no new interfaces, we can recycle parent's interface table if the class
+  // inherits no interfaces from the superclass (this is always the case for interfaces as
+  // their superclass `java.lang.Object` does not implement any interface), or there are no
+  // new virtuals, or all interfaces inherited from the superclass are just marker interfaces.
+  auto is_marker_iface = [=](size_t index) REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
+    return super_iftable->GetMethodArrayCount(index) == 0;
+  };
+  auto can_reuse_super_iftable = [=]() REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE{
+    if (super_ifcount == 0u) {
+      return true;
+    }
+    DCHECK(!klass->IsInterface());
+    return klass->NumDeclaredVirtualMethods() == 0u ||
+           std::all_of(CountIter(0), CountIter(super_ifcount), is_marker_iface);
+  };
+  if (num_interfaces == 0 && can_reuse_super_iftable()) {
+    return super_iftable;
+  }
+
+  // Check that every class being implemented is an interface.
+  for (size_t i = 0; i != num_interfaces; ++i) {
+    ObjPtr<mirror::Class> interface = interfaces.GetInterface(i);
+    DCHECK(interface != nullptr);
+    if (UNLIKELY(!interface->IsInterface())) {
+      ThrowIncompatibleClassChangeError(klass.Get(),
+                                        "Class %s implements non-interface class %s",
+                                        klass->PrettyDescriptor().c_str(),
+                                        interface->PrettyDescriptor().c_str());
+      return nullptr;
+    }
+  }
+
+  static constexpr size_t kMaxStackReferences = 16;
+  NewInterfaceReference initial_storage[kMaxStackReferences];
+  ScopedArenaVector<NewInterfaceReference> supplemental_storage(allocator->Adapter());
+  ArrayRef<const NewInterfaceReference> new_interface_references =
+      FindNewIfTableInterfaces(
+          super_iftable,
+          super_ifcount,
+          allocator,
+          interfaces,
+          ArrayRef<NewInterfaceReference>(initial_storage),
+          &supplemental_storage);
+
+  // If all declared interfaces were already present in superclass interface table, we can
+  // re-check if other conditions of reusing the superclass interface table are satisfied.
+  if (UNLIKELY(num_interfaces != 0u && new_interface_references.empty())) {
+    DCHECK(!klass->IsInterface());
+    if (can_reuse_super_iftable()) {
+      return super_iftable;
+    }
+  }
+
+  // Create the interface table.
+  size_t ifcount = super_ifcount + new_interface_references.size();
+  ObjPtr<mirror::IfTable> iftable = AllocIfTable(self, ifcount, super_iftable->GetClass());
+  if (UNLIKELY(iftable == nullptr)) {
+    self->AssertPendingOOMException();
+    return nullptr;
+  }
+  // Fill in table with superclass's iftable.
+  if (super_ifcount != 0) {
+    // Reload `super_iftable` as it may have been clobbered by the allocation.
+    super_iftable = klass->GetSuperClass()->GetIfTable();
+    for (size_t i = 0; i < super_ifcount; i++) {
+      ObjPtr<mirror::Class> super_interface = super_iftable->GetInterface(i);
+      iftable->SetInterface(i, super_interface);
+    }
+  }
+  // Fill in the table with additional interfaces.
+  size_t current_index = super_ifcount;
+  for (NewInterfaceReference ref : new_interface_references) {
+    ObjPtr<mirror::Class> direct_interface = interfaces.GetInterface(ref.direct_interface_index);
+    ObjPtr<mirror::Class> new_interface = (ref.direct_interface_iftable_index != dex::kDexNoIndex)
+        ? direct_interface->GetIfTable()->GetInterface(ref.direct_interface_iftable_index)
+        : direct_interface;
+    iftable->SetInterface(current_index, new_interface);
+    ++current_index;
+  }
+  DCHECK_EQ(current_index, ifcount);
+
   if (kIsDebugBuild) {
     // Check that the iftable is ordered correctly.
-    for (size_t i = 0; i < filled_ifcount; i++) {
+    for (size_t i = 0; i < ifcount; i++) {
       ObjPtr<mirror::Class> if_a = iftable->GetInterface(i);
-      for (size_t j = i + 1; j < filled_ifcount; j++) {
+      for (size_t j = i + 1; j < ifcount; j++) {
         ObjPtr<mirror::Class> if_b = iftable->GetInterface(j);
         // !(if_a <: if_b)
         CHECK(!if_b->IsAssignableFrom(if_a))
@@ -6748,98 +6919,8 @@ static size_t FillIfTable(ObjPtr<mirror::Class> klass,
       }
     }
   }
-  return filled_ifcount;
-}
 
-bool ClassLinker::SetupInterfaceLookupTable(Thread* self,
-                                            Handle<mirror::Class> klass,
-                                            Handle<mirror::ObjectArray<mirror::Class>> interfaces) {
-  StackHandleScope<1> hs(self);
-  const bool has_superclass = klass->HasSuperClass();
-  const size_t super_ifcount = has_superclass ? klass->GetSuperClass()->GetIfTableCount() : 0U;
-  const bool have_interfaces = interfaces != nullptr;
-  const size_t num_interfaces =
-      have_interfaces ? interfaces->GetLength() : klass->NumDirectInterfaces();
-  if (num_interfaces == 0) {
-    if (super_ifcount == 0) {
-      if (LIKELY(has_superclass)) {
-        klass->SetIfTable(klass->GetSuperClass()->GetIfTable());
-      }
-      // Class implements no interfaces.
-      DCHECK_EQ(klass->GetIfTableCount(), 0);
-      return true;
-    }
-    // Class implements same interfaces as parent, are any of these not marker interfaces?
-    bool has_non_marker_interface = false;
-    ObjPtr<mirror::IfTable> super_iftable = klass->GetSuperClass()->GetIfTable();
-    for (size_t i = 0; i < super_ifcount; ++i) {
-      if (super_iftable->GetMethodArrayCount(i) > 0) {
-        has_non_marker_interface = true;
-        break;
-      }
-    }
-    // Class just inherits marker interfaces from parent so recycle parent's iftable.
-    if (!has_non_marker_interface) {
-      klass->SetIfTable(super_iftable);
-      return true;
-    }
-  }
-  size_t ifcount = super_ifcount + num_interfaces;
-  // Check that every class being implemented is an interface.
-  for (size_t i = 0; i < num_interfaces; i++) {
-    ObjPtr<mirror::Class> interface =
-        have_interfaces ? interfaces->GetWithoutChecks(i) : klass->GetDirectInterface(i);
-    DCHECK(interface != nullptr);
-    if (UNLIKELY(!interface->IsInterface())) {
-      std::string temp;
-      ThrowIncompatibleClassChangeError(klass.Get(),
-                                        "Class %s implements non-interface class %s",
-                                        klass->PrettyDescriptor().c_str(),
-                                        PrettyDescriptor(interface->GetDescriptor(&temp)).c_str());
-      return false;
-    }
-    ifcount += interface->GetIfTableCount();
-  }
-  // Create the interface function table.
-  MutableHandle<mirror::IfTable> iftable(hs.NewHandle(AllocIfTable(self, ifcount)));
-  if (UNLIKELY(iftable == nullptr)) {
-    self->AssertPendingOOMException();
-    return false;
-  }
-  // Fill in table with superclass's iftable.
-  if (super_ifcount != 0) {
-    ObjPtr<mirror::IfTable> super_iftable = klass->GetSuperClass()->GetIfTable();
-    for (size_t i = 0; i < super_ifcount; i++) {
-      ObjPtr<mirror::Class> super_interface = super_iftable->GetInterface(i);
-      iftable->SetInterface(i, super_interface);
-    }
-  }
-
-  // Note that AllowThreadSuspension is to thread suspension as pthread_testcancel is to pthread
-  // cancellation. That is it will suspend if one has a pending suspend request but otherwise
-  // doesn't really do anything.
-  self->AllowThreadSuspension();
-
-  const size_t new_ifcount =
-      FillIfTable(klass.Get(), interfaces.Get(), iftable.Get(), super_ifcount, num_interfaces);
-
-  self->AllowThreadSuspension();
-
-  // Shrink iftable in case duplicates were found
-  if (new_ifcount < ifcount) {
-    DCHECK_NE(num_interfaces, 0U);
-    iftable.Assign(ObjPtr<mirror::IfTable>::DownCast(
-        mirror::IfTable::CopyOf(iftable, self, new_ifcount * mirror::IfTable::kMax)));
-    if (UNLIKELY(iftable == nullptr)) {
-      self->AssertPendingOOMException();
-      return false;
-    }
-    ifcount = new_ifcount;
-  } else {
-    DCHECK_EQ(new_ifcount, ifcount);
-  }
-  klass->SetIfTable(iftable.Get());
-  return true;
+  return iftable;
 }
 
 // Finds the method with a name/signature that matches cmp in the given lists of methods. The list
@@ -6860,8 +6941,6 @@ static ArtMethod* FindSameNameAndSignature(MethodNameAndSignatureComparator& cmp
   }
   return FindSameNameAndSignature(cmp, rest...);
 }
-
-namespace {
 
 // Check that all vtable entries are present in this class's virtuals or are the same as a
 // superclasses vtable entry.
@@ -7126,6 +7205,7 @@ class ClassLinker::LinkMethodsHelper {
       : class_linker_(class_linker),
         klass_(klass),
         self_(self),
+        runtime_(runtime),
         stack_(runtime->GetLinearAlloc()->GetArenaPool()),
         allocator_(&stack_),
         default_translations_(default_translations_initial_buffer_,
@@ -7139,21 +7219,18 @@ class ClassLinker::LinkMethodsHelper {
         move_table_(allocator_.Adapter()) {
   }
 
-  // Links the virtual methods for the given class and records any default methods
-  // that will need to be updated later.
+  // Links the virtual and interface methods for the given class.
   //
   // Arguments:
   // * self - The current thread.
   // * klass - class, whose vtable will be filled in.
-  bool LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Sets the imt entries and fixes up the vtable for the given class by linking
-  // all the interface methods.
-  bool LinkInterfaceMethods(
+  // * interfaces - implemented interfaces for a proxy class, otherwise null.
+  // * out_new_conflict - whether there is a new conflict compared to the superclass.
+  // * out_imt - interface method table to fill.
+  bool LinkMethods(
       Thread* self,
       Handle<mirror::Class> klass,
-      Runtime* runtime,
+      Handle<mirror::ObjectArray<mirror::Class>> interfaces,
       bool* out_new_conflict,
       ArtMethod** out_imt)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -7167,8 +7244,17 @@ class ClassLinker::LinkMethodsHelper {
                              size_t num_virtual_methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool LinkJavaLangObjectVirtualMethods(Thread* self, Handle<mirror::Class> klass)
+  bool LinkJavaLangObjectMethods(Thread* self, Handle<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
+  // Sets the imt entries and fixes up the vtable for the given class by linking
+  // all the interface methods.
+  bool LinkInterfaceMethods(
+      Thread* self,
+      Handle<mirror::Class> klass,
+      bool* out_new_conflict,
+      ArtMethod** out_imt)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtMethod* FindOrCreateImplementationMethod(
       ArtMethod* interface_method,
@@ -7386,6 +7472,7 @@ class ClassLinker::LinkMethodsHelper {
   ClassLinker* class_linker_;
   Handle<mirror::Class> klass_;
   Thread* const self_;
+  Runtime* const runtime_;
 
   // These are allocated on the heap to begin, we then transfer to linear alloc when we re-create
   // the virtual methods array.
@@ -7905,9 +7992,12 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
 
 template <PointerSize kPointerSize>
 FLATTEN
-bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkVirtualMethods(
+bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     Thread* self,
-    Handle<mirror::Class> klass) {
+    Handle<mirror::Class> klass,
+    Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+    bool* out_new_conflict,
+    ArtMethod** out_imt) {
   const size_t num_virtual_methods = klass->NumVirtualMethods();
   if (klass->IsInterface()) {
     // No vtable.
@@ -7944,10 +8034,38 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkVirtualMethods(
     if (has_defaults) {
       klass->SetHasDefaultMethods();
     }
-    return true;
+    ObjPtr<mirror::IfTable> iftable = SetupInterfaceLookupTable(
+        self, klass, &allocator_, NonProxyInterfacesAccessor(class_linker_, klass));
+    if (UNLIKELY(iftable == nullptr)) {
+      self->AssertPendingException();
+      return false;
+    }
+    // TODO: Delay setting the interface table until we're sure we shall not throw an exception.
+    klass->SetIfTable(iftable);
+    return LinkInterfaceMethods(self, klass, out_new_conflict, out_imt);
   } else if (LIKELY(klass->HasSuperClass())) {
-    const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
+    // Copy IMT from superclass. It shall be updated later if needed.
+    class_linker_->FillImtFromSuperClass(klass,
+                                         runtime_->GetImtUnimplementedMethod(),
+                                         runtime_->GetImtConflictMethod(),
+                                         out_new_conflict,
+                                         out_imt);
+
+    // We set up the interface lookup table now because we need it to determine if we need
+    // to update any vtable entries with new default method implementations.
     StackHandleScope<3> hs(self);
+    Handle<mirror::IfTable> iftable = hs.NewHandle(UNLIKELY(klass->IsProxyClass())
+        ? SetupInterfaceLookupTable(self, klass, &allocator_, ProxyInterfacesAccessor(interfaces))
+        : SetupInterfaceLookupTable(
+              self, klass, &allocator_, NonProxyInterfacesAccessor(class_linker_, klass)));
+    if (UNLIKELY(iftable == nullptr)) {
+      self->AssertPendingException();
+      return false;
+    }
+    // TODO: Delay setting the interface table until we're sure we shall not throw an exception.
+    klass->SetIfTable(iftable.Get());
+
+    const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
     Handle<mirror::Class> super_class(hs.NewHandle(klass->GetSuperClass()));
 
     // If there are no new virtual methods and no new interfaces, we can simply reuse
@@ -7971,6 +8089,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkVirtualMethods(
         CHECK(super_vtable != nullptr) << super_class->PrettyClass();
         klass->SetVTable(super_vtable);
       }
+      // The interface table from superclass has also been reused by `SetupInterfaceLookupTable()`.
+      DCHECK(iftable.Get() == super_class->GetIfTable()) << klass->PrettyDescriptor();
       return true;
     }
 
@@ -7997,6 +8117,15 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkVirtualMethods(
     for (ArtMethod& virtual_method : klass->GetVirtualMethodsSliceUnchecked(kPointerSize)) {
       int32_t vtable_index = virtual_method.GetMethodIndexDuringLinking();
       vtable->SetElementPtrSize(vtable_index, &virtual_method, kPointerSize);
+    }
+
+    // Allocate method arrays, so that we can link interface methods without thread suspension,
+    // otherwise GC could miss visiting newly allocated copied methods.
+    // TODO: Do not allocate copied methods during linking, store only records about what
+    // we need to allocate and allocate it at the end. Start with superclass iftable and
+    // perform copy-on-write when needed to facilitate maximum memory sharing.
+    if (!class_linker_->AllocateIfTableMethodArrays(self, klass, iftable)) {
+      return false;
     }
 
     // For non-overridden vtable slots, copy a method from `super_class`.
@@ -8065,14 +8194,14 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkVirtualMethods(
     }
 
     klass->SetVTable(vtable.Get());
+    return LinkInterfaceMethods(self, klass, out_new_conflict, out_imt);
   } else {
-    return LinkJavaLangObjectVirtualMethods(self, klass);
+    return LinkJavaLangObjectMethods(self, klass);
   }
-  return true;
 }
 
 template <PointerSize kPointerSize>
-bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkJavaLangObjectVirtualMethods(
+bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkJavaLangObjectMethods(
     Thread* self,
     Handle<mirror::Class> klass) {
   DCHECK_EQ(klass.Get(), GetClassRoot<mirror::Object>(class_linker_));
@@ -8094,16 +8223,17 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkJavaLangObjectVirtualMeth
       klass.Get(),
       kPointerSize,
       ArrayRef<uint32_t>(class_linker_->object_virtual_method_hashes_));
+  // The interface table is already allocated but there are no interface methods to link.
+  DCHECK(klass->GetIfTable() != nullptr);
+  DCHECK_EQ(klass->GetIfTableCount(), 0);
   return true;
 }
 
 // TODO This method needs to be split up into several smaller methods.
 template <PointerSize kPointerSize>
-FLATTEN
 bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkInterfaceMethods(
     Thread* self,
     Handle<mirror::Class> klass,
-    Runtime* runtime,
     bool* out_new_conflict,
     ArtMethod** out_imt) {
   StackHandleScope<3> hs(self);
@@ -8117,23 +8247,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkInterfaceMethods(
   Handle<mirror::IfTable> iftable(hs.NewHandle(klass->GetIfTable()));
 
   MutableHandle<mirror::PointerArray> vtable(hs.NewHandle(klass->GetVTableDuringLinking()));
-  ArtMethod* const unimplemented_method = runtime->GetImtUnimplementedMethod();
-  ArtMethod* const imt_conflict_method = runtime->GetImtConflictMethod();
-  // Copy the IMT from the super class if possible.
-  if (has_superclass && fill_tables) {
-    class_linker_->FillImtFromSuperClass(klass,
-                                         unimplemented_method,
-                                         imt_conflict_method,
-                                         out_new_conflict,
-                                         out_imt);
-  }
-  // Allocate method arrays before since we don't want miss visiting miranda method roots due to
-  // thread suspension.
-  if (fill_tables) {
-    if (!class_linker_->AllocateIfTableMethodArrays(self, klass, iftable)) {
-      return false;
-    }
-  }
+  ArtMethod* const unimplemented_method = runtime_->GetImtUnimplementedMethod();
+  ArtMethod* const imt_conflict_method = runtime_->GetImtConflictMethod();
 
   auto* old_cause = self->StartAssertNoThreadSuspension(
       "Copying ArtMethods for LinkInterfaceMethods");
@@ -8345,23 +8460,16 @@ bool ClassLinker::LinkMethods(Thread* self,
                               bool* out_new_conflict,
                               ArtMethod** out_imt) {
   self->AllowThreadSuspension();
-  // We set up the interface lookup table first because we need it to determine if we need
-  // to update any vtable entries with new default method implementations.
-  if (!SetupInterfaceLookupTable(self, klass, interfaces)) {
-    return false;
-  }
   // Link virtual methods then interface methods.
   Runtime* const runtime = Runtime::Current();
   if (LIKELY(GetImagePointerSize() == kRuntimePointerSize)) {
     LinkMethodsHelper<kRuntimePointerSize> helper(this, klass, self, runtime);
-    return helper.LinkVirtualMethods(self, klass) &&
-           helper.LinkInterfaceMethods(self, klass, runtime, out_new_conflict, out_imt);
+    return helper.LinkMethods(self, klass, interfaces, out_new_conflict, out_imt);
   } else {
     constexpr PointerSize kOtherPointerSize =
         (kRuntimePointerSize == PointerSize::k64) ? PointerSize::k32 : PointerSize::k64;
     LinkMethodsHelper<kOtherPointerSize> helper(this, klass, self, runtime);
-    return helper.LinkVirtualMethods(self, klass) &&
-           helper.LinkInterfaceMethods(self, klass, runtime, out_new_conflict, out_imt);
+    return helper.LinkMethods(self, klass, interfaces, out_new_conflict, out_imt);
   }
 }
 
@@ -10061,13 +10169,6 @@ ObjPtr<mirror::Class> ClassLinker::GetHoldingClassOfCopiedMethod(ArtMethod* meth
   FindVirtualMethodHolderVisitor visitor(method, image_pointer_size_);
   VisitClasses(&visitor);
   return visitor.holder_;
-}
-
-ObjPtr<mirror::IfTable> ClassLinker::AllocIfTable(Thread* self, size_t ifcount) {
-  return ObjPtr<mirror::IfTable>::DownCast(ObjPtr<mirror::ObjectArray<mirror::Object>>(
-      mirror::IfTable::Alloc(self,
-                             GetClassRoot<mirror::ObjectArray<mirror::Object>>(this),
-                             ifcount * mirror::IfTable::kMax)));
 }
 
 bool ClassLinker::DenyAccessBasedOnPublicSdk(ArtMethod* art_method ATTRIBUTE_UNUSED) const
