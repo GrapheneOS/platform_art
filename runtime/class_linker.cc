@@ -7238,7 +7238,6 @@ class ClassLinker::LinkMethodsHelper {
  private:
   // Assign vtable indexes to declared virtual methods for a non-interface class other
   // than `java.lang.Object`. Returns the number of vtable entries on success, 0 on failure.
-  template <bool kEmbeddedSuperVTable>
   size_t AssignVtableIndexes(ObjPtr<mirror::Class> klass,
                              ObjPtr<mirror::Class> super_class,
                              size_t num_virtual_methods)
@@ -7359,57 +7358,52 @@ class ClassLinker::LinkMethodsHelper {
     }
   };
 
-  class VTableAccessorEmbedded {
-   public:
-    explicit VTableAccessorEmbedded(ObjPtr<mirror::Class> klass)
-        REQUIRES_SHARED(Locks::mutator_lock_)
-        : klass_(klass) {
-      DCHECK(klass->ShouldHaveEmbeddedVTable());
-    }
+  class VTableIndexCheckerDebug {
+   protected:
+    explicit VTableIndexCheckerDebug(size_t vtable_length)
+        : vtable_length_(vtable_length) {}
 
-    size_t GetVTableLength() const REQUIRES_SHARED(Locks::mutator_lock_) {
-      return dchecked_integral_cast<size_t>(klass_->GetEmbeddedVTableLength());
-    }
-
-    ArtMethod* GetVTableEntry(uint32_t index) const REQUIRES_SHARED(Locks::mutator_lock_) {
-      DCHECK_LT(index, GetVTableLength());
-      return klass_->GetEmbeddedVTableEntry(index, kPointerSize);
+    void CheckIndex(uint32_t index) const {
+      CHECK_LT(index, vtable_length_);
     }
 
    private:
-    ObjPtr<mirror::Class> klass_;
+    uint32_t vtable_length_;
   };
 
-  class VTableAccessorNotEmbedded {
-   public:
-    explicit VTableAccessorNotEmbedded(ObjPtr<mirror::Class> klass)
-        REQUIRES_SHARED(Locks::mutator_lock_)
-        : vtable_(klass->GetVTable()) {
-      DCHECK(!klass->ShouldHaveEmbeddedVTable());
-      DCHECK(vtable_ != nullptr);
-    }
+  class VTableIndexCheckerRelease {
+   protected:
+    explicit VTableIndexCheckerRelease(size_t vtable_length ATTRIBUTE_UNUSED) {}
+    void CheckIndex(uint32_t index ATTRIBUTE_UNUSED) const {}
+  };
 
-    size_t GetVTableLength() const REQUIRES_SHARED(Locks::mutator_lock_) {
-      return dchecked_integral_cast<size_t>(vtable_->GetLength());
-    }
+  using VTableIndexChecker =
+      std::conditional_t<kIsDebugBuild, VTableIndexCheckerDebug, VTableIndexCheckerRelease>;
+
+  class VTableAccessor : private VTableIndexChecker {
+   public:
+    VTableAccessor(uint8_t* raw_vtable, size_t vtable_length)
+        REQUIRES_SHARED(Locks::mutator_lock_)
+        : VTableIndexChecker(vtable_length),
+          raw_vtable_(raw_vtable) {}
 
     ArtMethod* GetVTableEntry(uint32_t index) const REQUIRES_SHARED(Locks::mutator_lock_) {
-      DCHECK_LT(index, GetVTableLength());
-      return vtable_->GetElementPtrSize<ArtMethod*, kPointerSize>(index);
+      this->CheckIndex(index);
+      uint8_t* entry = raw_vtable_ + static_cast<size_t>(kPointerSize) * index;
+      if (kPointerSize == PointerSize::k64) {
+        return reinterpret_cast64<ArtMethod*>(*reinterpret_cast<uint64_t*>(entry));
+      } else {
+        return reinterpret_cast32<ArtMethod*>(*reinterpret_cast<uint32_t*>(entry));
+      }
     }
 
    private:
-    ObjPtr<mirror::PointerArray> vtable_;
+    uint8_t* raw_vtable_;
   };
 
-  template <bool kEmbedded>
-  using VTableAccessor =
-      std::conditional_t<kEmbedded, VTableAccessorEmbedded, VTableAccessorNotEmbedded>;
-
-  template <bool kEmbedded>
   class VTableSignatureHash {
    public:
-    explicit VTableSignatureHash(VTableAccessor<kEmbedded> accessor)
+    explicit VTableSignatureHash(VTableAccessor accessor)
         REQUIRES_SHARED(Locks::mutator_lock_)
         : accessor_(accessor) {}
 
@@ -7424,13 +7418,12 @@ class ClassLinker::LinkMethodsHelper {
     }
 
    private:
-    VTableAccessor<kEmbedded> accessor_;
+    VTableAccessor accessor_;
   };
 
-  template <bool kEmbedded>
   class VTableSignatureEqual {
    public:
-    explicit VTableSignatureEqual(VTableAccessor<kEmbedded> accessor)
+    explicit VTableSignatureEqual(VTableAccessor accessor)
         REQUIRES_SHARED(Locks::mutator_lock_)
         : accessor_(accessor) {}
 
@@ -7457,14 +7450,11 @@ class ClassLinker::LinkMethodsHelper {
     }
 
    private:
-    VTableAccessor<kEmbedded> accessor_;
+    VTableAccessor accessor_;
   };
 
-  template <bool kEmbedded>
-  using VTableSignatureSet = ScopedArenaHashSet<uint32_t,
-                                                MethodIndexEmptyFn,
-                                                VTableSignatureHash<kEmbedded>,
-                                                VTableSignatureEqual<kEmbedded>>;
+  using VTableSignatureSet =
+      ScopedArenaHashSet<uint32_t, MethodIndexEmptyFn, VTableSignatureHash, VTableSignatureEqual>;
 
   static constexpr size_t kMethodAlignment = ArtMethod::Alignment(kPointerSize);
   static constexpr size_t kMethodSize = ArtMethod::Size(kPointerSize);
@@ -7870,23 +7860,34 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::UpdateIMT(ArtMethod** out_imt
 }
 
 template <PointerSize kPointerSize>
-template <bool kEmbeddedSuperVTable>
 size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
     ObjPtr<mirror::Class> klass, ObjPtr<mirror::Class> super_class, size_t num_virtual_methods) {
   DCHECK(!klass->IsInterface());
   DCHECK(klass->HasSuperClass());
   DCHECK(klass->GetSuperClass() == super_class);
-  DCHECK_EQ(kEmbeddedSuperVTable, super_class->ShouldHaveEmbeddedVTable());
 
   // There should be no thread suspension unless we want to throw an exception.
+  // (We are using `ObjPtr<>` and raw vtable pointers that are invalidated by thread suspension.)
   std::optional<ScopedAssertNoThreadSuspension> sants(__FUNCTION__);
 
   // Prepare a hash table with virtual methods from the superclass.
   // For the unlikely cases that there are multiple methods with the same signature
   // but different vtable indexes, keep an array with indexes of the previous
   // methods with the same signature (walked as singly-linked lists).
-  VTableAccessor<kEmbeddedSuperVTable> super_vtable_accessor(super_class);
-  const size_t super_vtable_length = super_vtable_accessor.GetVTableLength();
+  uint8_t* raw_super_vtable;
+  size_t super_vtable_length;
+  if (super_class->ShouldHaveEmbeddedVTable()) {
+    raw_super_vtable = reinterpret_cast<uint8_t*>(super_class.Ptr()) +
+                       mirror::Class::EmbeddedVTableOffset(kPointerSize).Uint32Value();
+    super_vtable_length = super_class->GetEmbeddedVTableLength();
+  } else {
+    ObjPtr<mirror::PointerArray> super_vtable = super_class->GetVTableDuringLinking();
+    DCHECK(super_vtable != nullptr);
+    raw_super_vtable = reinterpret_cast<uint8_t*>(super_vtable.Ptr()) +
+                       mirror::Array::DataOffset(static_cast<size_t>(kPointerSize)).Uint32Value();
+    super_vtable_length = super_vtable->GetLength();
+  }
+  VTableAccessor super_vtable_accessor(raw_super_vtable, super_vtable_length);
   static constexpr double kMinLoadFactor = 0.3;
   static constexpr double kMaxLoadFactor = 0.5;
   static constexpr size_t kMaxStackBuferSize = 250;
@@ -7894,11 +7895,11 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
   uint32_t* hash_table_ptr = (hash_table_size <= kMaxStackBuferSize)
       ? reinterpret_cast<uint32_t*>(alloca(hash_table_size * sizeof(*hash_table_ptr)))
       : allocator_.AllocArray<uint32_t>(hash_table_size);
-  VTableSignatureSet<kEmbeddedSuperVTable> super_vtable_signatures(
+  VTableSignatureSet super_vtable_signatures(
       kMinLoadFactor,
       kMaxLoadFactor,
-      VTableSignatureHash<kEmbeddedSuperVTable>(super_vtable_accessor),
-      VTableSignatureEqual<kEmbeddedSuperVTable>(super_vtable_accessor),
+      VTableSignatureHash(super_vtable_accessor),
+      VTableSignatureEqual(super_vtable_accessor),
       hash_table_ptr,
       hash_table_size,
       allocator_.Adapter());
@@ -8094,11 +8095,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
       return true;
     }
 
-    size_t final_vtable_size = super_class->ShouldHaveEmbeddedVTable()
-        ? AssignVtableIndexes</*kEmbeddedSuperVTable=*/ true>(
-              klass.Get(), super_class.Get(), num_virtual_methods)
-        : AssignVtableIndexes</*kEmbeddedSuperVTable=*/ false>(
-              klass.Get(), super_class.Get(), num_virtual_methods);
+    size_t final_vtable_size =
+        AssignVtableIndexes(klass.Get(), super_class.Get(), num_virtual_methods);
     if (final_vtable_size == 0u) {
       self->AssertPendingException();
       return false;
