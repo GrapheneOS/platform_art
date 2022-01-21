@@ -211,8 +211,8 @@ public class ProguardMap {
     BufferedReader reader = new BufferedReader(mapReader);
     String line = reader.readLine();
     while (line != null) {
-      // Comment lines start with '#'. Skip over them.
-      if (line.startsWith("#")) {
+      // Skip comment lines.
+      if (isCommentLine(line)) {
         line = reader.readLine();
         continue;
       }
@@ -234,14 +234,14 @@ public class ProguardMap {
       //   '    type clearName -> obfuscatedName'
       //   '# comment line'
       line = reader.readLine();
-      while (line != null && (line.startsWith("    ") || line.startsWith("#"))) {
-        // Comment lines start with '#' and may occur anywhere in the file.
+      while (line != null && (line.startsWith("    ") || isCommentLine(line))) {
+        String trimmed = line.trim();
+        // Comment lines may occur anywhere in the file.
         // Skip over them.
-        if (line.startsWith("#")) {
+        if (isCommentLine(trimmed)) {
           line = reader.readLine();
           continue;
         }
-        String trimmed = line.trim();
         int ws = trimmed.indexOf(' ');
         sep = trimmed.indexOf(" -> ");
         if (ws == -1 || sep == -1) {
@@ -307,6 +307,11 @@ public class ProguardMap {
       }
     }
     reader.close();
+  }
+
+  private boolean isCommentLine(String line) {
+      // Comment lines start with '#' and my have leading whitespaces.
+      return line.trim().startsWith("#");
   }
 
   /**
