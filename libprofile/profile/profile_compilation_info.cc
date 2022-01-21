@@ -968,10 +968,10 @@ bool ProfileCompilationInfo::Save(int fd) {
       methods_section_size;
   VLOG(profiler) << "Required capacity: " << total_uncompressed_size << " bytes.";
   if (total_uncompressed_size > GetSizeErrorThresholdBytes()) {
-    LOG(ERROR) << "Profile data size exceeds "
-               << GetSizeErrorThresholdBytes()
-               << " bytes. Profile will not be written to disk."
-               << " It requires " << total_uncompressed_size << " bytes.";
+    LOG(WARNING) << "Profile data size exceeds "
+                 << GetSizeErrorThresholdBytes()
+                 << " bytes. Profile will not be written to disk."
+                 << " It requires " << total_uncompressed_size << " bytes.";
     return false;
   }
 
