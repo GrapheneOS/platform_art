@@ -393,10 +393,6 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
-bool ArtMethod::IsOverridableByDefaultMethod() {
-  return GetDeclaringClass()->IsInterface();
-}
-
 bool ArtMethod::IsSignaturePolymorphic() {
   // Methods with a polymorphic signature have constraints that they
   // are native and varargs and belong to either MethodHandle or VarHandle.
