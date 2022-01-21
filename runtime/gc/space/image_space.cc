@@ -3455,34 +3455,6 @@ void ImageSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-bool ImageSpace::ValidateApexVersions(const OatFile& oat_file, std::string* error_msg) {
-  // For a boot image, the key value store only exists in the first OAT file. Skip other OAT files.
-  if (oat_file.GetOatHeader().GetKeyValueStoreSize() == 0) {
-    return true;
-  }
-
-  const char* oat_apex_versions =
-      oat_file.GetOatHeader().GetStoreValueByKey(OatHeader::kApexVersionsKey);
-  if (oat_apex_versions == nullptr) {
-    *error_msg = StringPrintf("ValidateApexVersions failed to get APEX versions from oat file '%s'",
-                              oat_file.GetLocation().c_str());
-    return false;
-  }
-  // For a boot image, it can be generated from a subset of the bootclasspath.
-  // For an app image, some dex files get compiled with a subset of the bootclasspath.
-  // For such cases, the OAT APEX versions will be a prefix of the runtime APEX versions.
-  if (!android::base::StartsWith(Runtime::Current()->GetApexVersions(), oat_apex_versions)) {
-    *error_msg = StringPrintf(
-        "ValidateApexVersions found APEX versions mismatch between oat file '%s' and the runtime "
-        "(Oat file: '%s', Runtime: '%s')",
-        oat_file.GetLocation().c_str(),
-        oat_apex_versions,
-        Runtime::Current()->GetApexVersions().c_str());
-    return false;
-  }
-  return true;
-}
-
 bool ImageSpace::ValidateOatFile(const OatFile& oat_file, std::string* error_msg) {
   return ValidateOatFile(oat_file, error_msg, ArrayRef<const std::string>(), ArrayRef<const int>());
 }
@@ -3491,10 +3463,6 @@ bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
                                  std::string* error_msg,
                                  ArrayRef<const std::string> dex_filenames,
                                  ArrayRef<const int> dex_fds) {
-  if (!ValidateApexVersions(oat_file, error_msg)) {
-    return false;
-  }
-
   const ArtDexFileLoader dex_file_loader;
   size_t dex_file_index = 0;
   for (const OatDexFile* oat_dex_file : oat_file.GetOatDexFiles()) {
