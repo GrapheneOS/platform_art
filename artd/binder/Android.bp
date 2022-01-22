@@ -51,27 +51,3 @@ aidl_interface {
         "//art:__subpackages__",
     ],
 }
-
-aidl_interface {
-    name: "artd-private-aidl",
-    srcs: [
-        "private/**/*.aidl",
-    ],
-    host_supported: true,
-    local_include_dir: "private",
-    backend: {
-        ndk: {
-            enabled: true,
-            apex_available: [
-                "com.android.art",
-                "com.android.art.debug",
-            ],
-            min_sdk_version: "31",
-        },
-    },
-    unstable: true,
-    visibility: [
-        "//system/tools/aidl/build",
-        "//art:__subpackages__",
-    ],
-}
