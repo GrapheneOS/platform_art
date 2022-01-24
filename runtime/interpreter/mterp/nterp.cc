@@ -47,9 +47,6 @@ bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
       !instr->InterpretOnly() &&
       !runtime->IsAotCompiler() &&
       !runtime->GetInstrumentation()->IsActive() &&
-      // nterp only knows how to deal with the normal exits. It cannot handle any of the
-      // non-standard force-returns.
-      !runtime->AreNonStandardExitsEnabled() &&
       // An async exception has been thrown. We need to go to the switch interpreter. nterp doesn't
       // know how to deal with these so we could end up never dealing with it if we are in an
       // infinite loop.
