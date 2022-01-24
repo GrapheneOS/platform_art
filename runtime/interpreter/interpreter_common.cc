@@ -58,7 +58,7 @@ void ThrowNullPointerExceptionFromInterpreter() {
 
 bool CheckStackOverflow(Thread* self, size_t frame_size)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   uint8_t* stack_end = self->GetStackEndForInterpreter(implicit_check);
   if (UNLIKELY(__builtin_frame_address(0) < stack_end + frame_size)) {
     ThrowStackOverflowError(self);
