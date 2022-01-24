@@ -786,11 +786,10 @@ void ThrowStackOverflowError(Thread* self) {
   create_and_throw();
   CHECK(self->IsExceptionPending());
 
-  bool explicit_overflow_check = Runtime::Current()->ExplicitStackOverflowChecks();
   self->ResetDefaultStackEnd();  // Return to default stack size.
 
   // And restore protection if implicit checks are on.
-  if (!explicit_overflow_check) {
+  if (Runtime::Current()->GetImplicitStackOverflowChecks()) {
     self->ProtectStack();
   }
 }
