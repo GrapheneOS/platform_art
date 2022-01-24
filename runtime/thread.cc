@@ -707,16 +707,16 @@ static size_t FixStackSize(size_t stack_size) {
     stack_size = PTHREAD_STACK_MIN;
   }
 
-  if (Runtime::Current()->ExplicitStackOverflowChecks()) {
-    // It's likely that callers are trying to ensure they have at least a certain amount of
-    // stack space, so we should add our reserved space on top of what they requested, rather
-    // than implicitly take it away from them.
-    stack_size += GetStackOverflowReservedBytes(kRuntimeISA);
-  } else {
+  if (Runtime::Current()->GetImplicitStackOverflowChecks()) {
     // If we are going to use implicit stack checks, allocate space for the protected
     // region at the bottom of the stack.
     stack_size += Thread::kStackOverflowImplicitCheckSize +
         GetStackOverflowReservedBytes(kRuntimeISA);
+  } else {
+    // It's likely that callers are trying to ensure they have at least a certain amount of
+    // stack space, so we should add our reserved space on top of what they requested, rather
+    // than implicitly take it away from them.
+    stack_size += GetStackOverflowReservedBytes(kRuntimeISA);
   }
 
   // Some systems require the stack size to be a multiple of the system page size, so round up.
@@ -1328,7 +1328,8 @@ bool Thread::InitStackHwm() {
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
 
   Runtime* runtime = Runtime::Current();
-  bool implicit_stack_check = !runtime->ExplicitStackOverflowChecks() && !runtime->IsAotCompiler();
+  bool implicit_stack_check =
+      runtime->GetImplicitStackOverflowChecks() && !runtime->IsAotCompiler();
 
   ResetDefaultStackEnd();
 
@@ -4327,7 +4328,7 @@ void Thread::SetStackEndForStackOverflow() {
   tlsPtr_.stack_end = tlsPtr_.stack_begin;
 
   // Remove the stack overflow protection if is it set up.
-  bool implicit_stack_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_stack_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (implicit_stack_check) {
     if (!UnprotectStack()) {
       LOG(ERROR) << "Unable to remove stack protection for stack overflow";

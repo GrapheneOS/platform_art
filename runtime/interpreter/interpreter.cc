@@ -343,7 +343,7 @@ void EnterInterpreterFromInvoke(Thread* self,
                                 JValue* result,
                                 bool stay_in_interpreter) {
   DCHECK_EQ(self, Thread::Current());
-  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return;
@@ -569,7 +569,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
 JValue EnterInterpreterFromEntryPoint(Thread* self, const CodeItemDataAccessor& accessor,
                                       ShadowFrame* shadow_frame) {
   DCHECK_EQ(self, Thread::Current());
-  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return JValue();
@@ -586,7 +586,7 @@ void ArtInterpreterToInterpreterBridge(Thread* self,
                                        const CodeItemDataAccessor& accessor,
                                        ShadowFrame* shadow_frame,
                                        JValue* result) {
-  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return;
