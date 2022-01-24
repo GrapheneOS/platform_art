@@ -616,11 +616,15 @@ void QuickExceptionHandler::DeoptimizeSingleFrame(DeoptimizationKind kind) {
 void QuickExceptionHandler::DeoptimizePartialFragmentFixup(uintptr_t return_pc) {
   // At this point, the instrumentation stack has been updated. We need to install
   // the real return pc on stack, in case instrumentation stub is stored there,
-  // so that the interpreter bridge code can return to the right place.
-  if (return_pc != 0) {
-    uintptr_t* pc_addr = reinterpret_cast<uintptr_t*>(handler_quick_frame_);
-    CHECK(pc_addr != nullptr);
-    pc_addr--;
+  // so that the interpreter bridge code can return to the right place. JITed
+  // frames in Java debuggable runtimes may not have an instrumentation stub, so
+  // update the PC only when required.
+  uintptr_t* pc_addr = reinterpret_cast<uintptr_t*>(handler_quick_frame_);
+  CHECK(pc_addr != nullptr);
+  pc_addr--;
+  if (return_pc != 0 &&
+      (*reinterpret_cast<uintptr_t*>(pc_addr)) ==
+          reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
     *reinterpret_cast<uintptr_t*>(pc_addr) = return_pc;
   }
 
