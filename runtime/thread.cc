@@ -2088,9 +2088,10 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
     m = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
     ObjPtr<mirror::DexCache> dex_cache = m->GetDexCache();
     int line_number = -1;
+    uint32_t dex_pc = GetDexPc(false);
     if (dex_cache != nullptr) {  // be tolerant of bad input
       const DexFile* dex_file = dex_cache->GetDexFile();
-      line_number = annotations::GetLineNumFromPC(dex_file, m, GetDexPc(false));
+      line_number = annotations::GetLineNumFromPC(dex_file, m, dex_pc);
     }
     if (line_number == last_line_number && last_method == m) {
       ++repetition_count;
@@ -2113,6 +2114,12 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
       os << "(Native method)";
     } else {
       const char* source_file(m->GetDeclaringClassSourceFile());
+      if (line_number == -1) {
+        // If we failed to map to a line number, use
+        // the dex pc as the line number and leave source file null
+        source_file = nullptr;
+        line_number = static_cast<int32_t>(dex_pc);
+      }
       os << "(" << (source_file != nullptr ? source_file : "unavailable")
                        << ":" << line_number << ")";
     }
