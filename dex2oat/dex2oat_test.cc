@@ -872,6 +872,21 @@ TEST_F(Dex2oatLayoutTest, TestLayoutAppImage) {
   RunTest(/*app_image=*/ true);
 }
 
+TEST_F(Dex2oatLayoutTest, TestLayoutAppImageMissingBootImage) {
+  std::string dex_location = GetScratchDir() + "/DexNoOat.jar";
+  std::string odex_location = GetOdexDir() + "/DexOdexNoOat.odex";
+  std::string app_image_file = GetOdexDir() + "/DexOdexNoOat.art";
+  Copy(GetDexSrc2(), dex_location);
+
+  CompileProfileOdex(dex_location,
+                     odex_location,
+                     app_image_file,
+                     /*use_fd=*/ false,
+                     /*num_profile_classes=*/ 1,
+                     /*extra_args=*/ {"--boot-image=/nonx/boot.art"},
+                     /*expect_success=*/ false);
+}
+
 TEST_F(Dex2oatLayoutTest, TestLayoutMultipleProfiles) {
   std::string dex_location = GetScratchDir() + "/Dex.jar";
   std::string odex_location = GetOdexDir() + "/Dex.odex";
