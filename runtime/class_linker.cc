@@ -1127,6 +1127,31 @@ static uint32_t ComputeMethodHash(ArtMethod* method) REQUIRES_SHARED(Locks::muta
   return ComputeModifiedUtf8Hash(name);
 }
 
+ALWAYS_INLINE
+static bool MethodSignatureEquals(ArtMethod* lhs, ArtMethod* rhs)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK(!lhs->IsRuntimeMethod());
+  DCHECK(!lhs->IsProxyMethod());
+  DCHECK(!lhs->IsObsolete());
+  DCHECK(!rhs->IsRuntimeMethod());
+  DCHECK(!rhs->IsProxyMethod());
+  DCHECK(!rhs->IsObsolete());
+  // Do not use `ArtMethod::GetDexFile()` to avoid unnecessary obsolete method checks.
+  // It is safe to avoid the read barrier here, see `ArtMethod::GetDexFile()`.
+  const DexFile& lhs_dex_file = lhs->GetDeclaringClass<kWithoutReadBarrier>()->GetDexFile();
+  const DexFile& rhs_dex_file = rhs->GetDeclaringClass<kWithoutReadBarrier>()->GetDexFile();
+  const dex::MethodId& lhs_mid = lhs_dex_file.GetMethodId(lhs->GetDexMethodIndex());
+  const dex::MethodId& rhs_mid = rhs_dex_file.GetMethodId(rhs->GetDexMethodIndex());
+  if (&lhs_dex_file == &rhs_dex_file) {
+    return lhs_mid.name_idx_ == rhs_mid.name_idx_ &&
+           lhs_mid.proto_idx_ == rhs_mid.proto_idx_;
+  } else {
+    return
+        lhs_dex_file.GetMethodNameView(lhs_mid) == rhs_dex_file.GetMethodNameView(rhs_mid) &&
+        lhs_dex_file.GetMethodSignature(lhs_mid) == rhs_dex_file.GetMethodSignature(rhs_mid);
+  }
+}
+
 static void InitializeObjectVirtualMethodHashes(ObjPtr<mirror::Class> java_lang_Object,
                                                 PointerSize pointer_size,
                                                 /*out*/ ArrayRef<uint32_t> virtual_method_hashes)
@@ -6405,9 +6430,9 @@ bool ClassLinker::AllocateIfTableMethodArrays(Thread* self,
                                               Handle<mirror::Class> klass,
                                               Handle<mirror::IfTable> iftable) {
   DCHECK(!klass->IsInterface());
-  const bool has_superclass = klass->HasSuperClass();
-  const size_t ifcount = klass->GetIfTableCount();
-  const size_t super_ifcount = has_superclass ? klass->GetSuperClass()->GetIfTableCount() : 0U;
+  DCHECK(klass->HasSuperClass());
+  const size_t ifcount = iftable->Count();
+  const size_t super_ifcount = klass->GetSuperClass()->GetIfTableCount();
   for (size_t i = 0; i < ifcount; ++i) {
     size_t num_methods = iftable->GetInterface(i)->NumDeclaredVirtualMethods();
     if (num_methods > 0) {
@@ -7238,7 +7263,7 @@ class ClassLinker::LinkMethodsHelper {
  private:
   // Assign vtable indexes to declared virtual methods for a non-interface class other
   // than `java.lang.Object`. Returns the number of vtable entries on success, 0 on failure.
-  size_t AssignVtableIndexes(ObjPtr<mirror::Class> klass,
+  size_t AssignVTableIndexes(ObjPtr<mirror::Class> klass,
                              ObjPtr<mirror::Class> super_class,
                              size_t num_virtual_methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -7429,19 +7454,7 @@ class ClassLinker::LinkMethodsHelper {
 
     // NO_THREAD_SAFETY_ANALYSIS: This is called from unannotated `HashSet<>` functions.
     bool operator()(uint32_t lhs_index, ArtMethod* rhs) const NO_THREAD_SAFETY_ANALYSIS {
-      ArtMethod* lhs = accessor_.GetVTableEntry(lhs_index);
-      const DexFile* lhs_dex_file = lhs->GetDexFile();
-      const DexFile* rhs_dex_file = rhs->GetDexFile();
-      const dex::MethodId& lhs_mid = lhs_dex_file->GetMethodId(lhs->GetDexMethodIndex());
-      const dex::MethodId& rhs_mid = rhs_dex_file->GetMethodId(rhs->GetDexMethodIndex());
-      if (lhs_dex_file == rhs_dex_file) {
-        return lhs_mid.name_idx_ == rhs_mid.name_idx_ &&
-               lhs_mid.proto_idx_ == rhs_mid.proto_idx_;
-      } else {
-        return
-            lhs_dex_file->GetMethodNameView(lhs_mid) == rhs_dex_file->GetMethodNameView(rhs_mid) &&
-            lhs_dex_file->GetMethodSignature(lhs_mid) == rhs_dex_file->GetMethodSignature(rhs_mid);
-      }
+      return MethodSignatureEquals(accessor_.GetVTableEntry(lhs_index), rhs);
     }
 
     // NO_THREAD_SAFETY_ANALYSIS: This is called from unannotated `HashSet<>` functions.
@@ -7860,7 +7873,7 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::UpdateIMT(ArtMethod** out_imt
 }
 
 template <PointerSize kPointerSize>
-size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
+size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
     ObjPtr<mirror::Class> klass, ObjPtr<mirror::Class> super_class, size_t num_virtual_methods) {
   DCHECK(!klass->IsInterface());
   DCHECK(klass->HasSuperClass());
@@ -7903,7 +7916,7 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
       hash_table_ptr,
       hash_table_size,
       allocator_.Adapter());
-  ScopedArenaVector<uint32_t> same_signature_virtual_methods_lists_(allocator_.Adapter());
+  ArrayRef<uint32_t> same_signature_vtable_lists;
   // Insert the first `mirror::Object::kVTableLength` indexes with pre-calculated hashes.
   DCHECK_GE(super_vtable_length, mirror::Object::kVTableLength);
   for (uint32_t i = 0; i != mirror::Object::kVTableLength; ++i) {
@@ -7922,11 +7935,13 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
       size_t hash = ComputeMethodHash(super_vtable_accessor.GetVTableEntry(i));
       auto [it, inserted] = super_vtable_signatures.InsertWithHash(i, hash);
       if (UNLIKELY(!inserted)) {
-        if (same_signature_virtual_methods_lists_.empty()) {
-          same_signature_virtual_methods_lists_.resize(super_vtable_length, dex::kDexNoIndex);
+        if (same_signature_vtable_lists.empty()) {
+          same_signature_vtable_lists = ArrayRef<uint32_t>(
+              allocator_.AllocArray<uint32_t>(super_vtable_length), super_vtable_length);
+          std::fill_n(same_signature_vtable_lists.data(), super_vtable_length, dex::kDexNoIndex);
         }
         DCHECK_LT(*it, i);
-        same_signature_virtual_methods_lists_[i] = *it;
+        same_signature_vtable_lists[i] = *it;
         *it = i;
       }
     }
@@ -7951,13 +7966,13 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVtableIndexes(
       // superclass method would have been incorrectly overridden.
       bool overrides = klass->CanAccessMember(super_method->GetDeclaringClass(),
                                               super_method->GetAccessFlags());
-      if (UNLIKELY(!same_signature_virtual_methods_lists_.empty())) {
+      if (UNLIKELY(!same_signature_vtable_lists.empty())) {
         // We override only the first accessible virtual method from superclass.
         // TODO: Override all methods that need to be overridden according to JLS. b/211854716
         size_t current_index = super_index;
-        while (same_signature_virtual_methods_lists_[current_index] != dex::kDexNoIndex) {
-          DCHECK_LT(same_signature_virtual_methods_lists_[current_index], current_index);
-          current_index = same_signature_virtual_methods_lists_[current_index];
+        while (same_signature_vtable_lists[current_index] != dex::kDexNoIndex) {
+          DCHECK_LT(same_signature_vtable_lists[current_index], current_index);
+          current_index = same_signature_vtable_lists[current_index];
           ArtMethod* current_method = super_vtable_accessor.GetVTableEntry(current_index);
           if (klass->CanAccessMember(current_method->GetDeclaringClass(),
                                      current_method->GetAccessFlags())) {
@@ -8063,15 +8078,14 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
       self->AssertPendingException();
       return false;
     }
-    // TODO: Delay setting the interface table until we're sure we shall not throw an exception.
-    klass->SetIfTable(iftable.Get());
 
     const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
     Handle<mirror::Class> super_class(hs.NewHandle(klass->GetSuperClass()));
 
     // If there are no new virtual methods and no new interfaces, we can simply reuse
     // the vtable from superclass. We may need to make a copy if it's embedded.
-    if (num_virtual_methods == 0 && super_class->GetIfTableCount() == klass->GetIfTableCount()) {
+    if (num_virtual_methods == 0 &&
+        static_cast<size_t>(super_class->GetIfTableCount()) == iftable->Count()) {
       if (super_class->ShouldHaveEmbeddedVTable()) {
         ObjPtr<mirror::PointerArray> vtable =
             class_linker_->AllocPointerArray(self, super_vtable_length);
@@ -8092,11 +8106,21 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
       }
       // The interface table from superclass has also been reused by `SetupInterfaceLookupTable()`.
       DCHECK(iftable.Get() == super_class->GetIfTable()) << klass->PrettyDescriptor();
+      klass->SetIfTable(iftable.Get());
       return true;
     }
 
+    // Allocate method arrays, so that we can link interface methods without thread suspension,
+    // otherwise GC could miss visiting newly allocated copied methods.
+    // TODO: Do not allocate copied methods during linking, store only records about what
+    // we need to allocate and allocate it at the end. Start with superclass iftable and
+    // perform copy-on-write when needed to facilitate maximum memory sharing.
+    if (!class_linker_->AllocateIfTableMethodArrays(self, klass, iftable)) {
+      return false;
+    }
+
     size_t final_vtable_size =
-        AssignVtableIndexes(klass.Get(), super_class.Get(), num_virtual_methods);
+        AssignVTableIndexes(klass.Get(), super_class.Get(), num_virtual_methods);
     if (final_vtable_size == 0u) {
       self->AssertPendingException();
       return false;
@@ -8117,14 +8141,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
       vtable->SetElementPtrSize(vtable_index, &virtual_method, kPointerSize);
     }
 
-    // Allocate method arrays, so that we can link interface methods without thread suspension,
-    // otherwise GC could miss visiting newly allocated copied methods.
-    // TODO: Do not allocate copied methods during linking, store only records about what
-    // we need to allocate and allocate it at the end. Start with superclass iftable and
-    // perform copy-on-write when needed to facilitate maximum memory sharing.
-    if (!class_linker_->AllocateIfTableMethodArrays(self, klass, iftable)) {
-      return false;
-    }
+    // Commit the `iftable`, we shall not throw an exception anymore.
+    klass->SetIfTable(iftable.Get());
 
     // For non-overridden vtable slots, copy a method from `super_class`.
     for (size_t j = 0; j != super_vtable_length; ++j) {
@@ -8362,8 +8380,12 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkInterfaceMethods(
           // by the class.
           //
           // See if we can use the superclasses method and skip searching everything else.
-          // Note: !found_impl && super_interface
-          //
+          // Note: The `super_interface` can be true only for non-interface classes and,
+          // if it is, we search only declared virtual methods which are not overridable
+          // by default methods, so `!found_impl` implies `vtable_impl == nullptr`.
+          DCHECK(!is_interface);
+          DCHECK(using_virtuals);
+          DCHECK(vtable_impl == nullptr);
           // If this is a super_interface method it is possible we shouldn't override it because a
           // superclass could have implemented it directly.  We get the method the superclass used
           // to implement this to know if we can override it with a default method. Doing this is
@@ -8387,11 +8409,6 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkInterfaceMethods(
             // to the vtable twice, causing corruption (vtable entries having inconsistent and
             // illegal states, incorrect vtable size, and incorrect or inconsistent iftable entries)
             // in this class and any subclasses.
-            DCHECK(vtable_impl == nullptr || vtable_impl == supers_method)
-                << "vtable_impl was " << ArtMethod::PrettyMethod(vtable_impl)
-                << " and not 'nullptr' or "
-                << supers_method->PrettyMethod()
-                << " as expected. IFTable appears to be corrupt!";
             vtable_impl = supers_method;
           }
         }
