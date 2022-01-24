@@ -1502,6 +1502,13 @@ class Dex2Oat final {
     if (!CreateRuntime(std::move(runtime_options))) {
       return dex2oat::ReturnCode::kCreateRuntime;
     }
+    if (runtime_->GetHeap()->GetBootImageSpaces().empty() &&
+        (IsBootImageExtension() || IsAppImage())) {
+      LOG(ERROR) << "Cannot create "
+                 << (IsBootImageExtension() ? "boot image extension" : "app image")
+                 << " without a primary boot image.";
+      return dex2oat::ReturnCode::kOther;
+    }
     ArrayRef<const DexFile* const> bcp_dex_files(runtime_->GetClassLinker()->GetBootClassPath());
     if (IsBootImage() || IsBootImageExtension()) {
       // Check boot class path dex files and, if compiling an extension, the images it depends on.
