@@ -1663,7 +1663,9 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Change the implicit checks flags based on runtime architecture.
   switch (kRuntimeISA) {
     case InstructionSet::kArm64:
-      implicit_suspend_checks_ = true;
+      // TODO: Implicit suspend checks are currently disabled to facilitate search
+      // for unrelated memory use regressions. Bug: 213757852.
+      implicit_suspend_checks_ = false;
       FALLTHROUGH_INTENDED;
     case InstructionSet::kArm:
     case InstructionSet::kThumb2:
@@ -3095,21 +3097,21 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
       if (Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
           !m.IsNative() &&
           !m.IsProxyMethod()) {
-        instrumentation_->UpdateMethodsCodeForJavaDebuggable(&m, GetQuickToInterpreterBridge());
+        instrumentation_->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
       }
 
       if (Runtime::Current()->GetJit() != nullptr &&
           Runtime::Current()->GetJit()->GetCodeCache()->IsInZygoteExecSpace(code) &&
           !m.IsNative()) {
         DCHECK(!m.IsProxyMethod());
-        instrumentation_->UpdateMethodsCodeForJavaDebuggable(&m, GetQuickToInterpreterBridge());
+        instrumentation_->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
       }
 
       if (m.IsPreCompiled()) {
         // Precompilation is incompatible with debuggable, so clear the flag
         // and update the entrypoint in case it has been compiled.
         m.ClearPreCompiled();
-        instrumentation_->UpdateMethodsCodeForJavaDebuggable(&m, GetQuickToInterpreterBridge());
+        instrumentation_->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
       }
     }
     return true;

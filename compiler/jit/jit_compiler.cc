@@ -68,6 +68,10 @@ void JitCompiler::ParseCompilerOptions() {
     compiler_options_->SetDebuggable(runtime->IsJavaDebuggable());
   }
 
+  compiler_options_->implicit_null_checks_ = runtime->GetImplicitNullChecks();
+  compiler_options_->implicit_so_checks_ = runtime->GetImplicitStackOverflowChecks();
+  compiler_options_->implicit_suspend_checks_ = runtime->GetImplicitSuspendChecks();
+
   const InstructionSet instruction_set = compiler_options_->GetInstructionSet();
   if (kRuntimeISA == InstructionSet::kArm) {
     DCHECK_EQ(instruction_set, InstructionSet::kThumb2);
