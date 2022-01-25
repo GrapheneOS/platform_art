@@ -1426,11 +1426,11 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   boot_class_path_vdex_fds_ = runtime_options.ReleaseOrDefault(Opt::BootClassPathVdexFds);
   boot_class_path_oat_fds_ = runtime_options.ReleaseOrDefault(Opt::BootClassPathOatFds);
   CHECK(boot_class_path_image_fds_.empty() ||
-        boot_class_path_image_fds_.size() == boot_class_path_fds_.size());
+        boot_class_path_image_fds_.size() == boot_class_path_.size());
   CHECK(boot_class_path_vdex_fds_.empty() ||
-        boot_class_path_vdex_fds_.size() == boot_class_path_fds_.size());
+        boot_class_path_vdex_fds_.size() == boot_class_path_.size());
   CHECK(boot_class_path_oat_fds_.empty() ||
-        boot_class_path_oat_fds_.size() == boot_class_path_fds_.size());
+        boot_class_path_oat_fds_.size() == boot_class_path_.size());
 
   class_path_string_ = runtime_options.ReleaseOrDefault(Opt::ClassPath);
   properties_ = runtime_options.ReleaseOrDefault(Opt::PropertiesList);
