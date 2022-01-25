@@ -631,8 +631,16 @@ class Runtime {
 
   void AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* arg_vector) const;
 
-  bool ExplicitStackOverflowChecks() const {
-    return !implicit_so_checks_;
+  bool GetImplicitStackOverflowChecks() const {
+    return implicit_so_checks_;
+  }
+
+  bool GetImplicitSuspendChecks() const {
+    return implicit_suspend_checks_;
+  }
+
+  bool GetImplicitNullChecks() const {
+    return implicit_null_checks_;
   }
 
   void DisableVerifier();

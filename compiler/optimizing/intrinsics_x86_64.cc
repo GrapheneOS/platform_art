@@ -208,6 +208,67 @@ void IntrinsicCodeGeneratorX86_64::VisitShortReverseBytes(HInvoke* invoke) {
   codegen_->GetInstructionCodegen()->Bswap(invoke->GetLocations()->Out(), DataType::Type::kInt16);
 }
 
+static void GenIsInfinite(LocationSummary* locations,
+                          bool is64bit,
+                          CodeGeneratorX86_64* codegen) {
+  X86_64Assembler* assembler = codegen->GetAssembler();
+
+  XmmRegister input = locations->InAt(0).AsFpuRegister<XmmRegister>();
+  CpuRegister output = locations->Out().AsRegister<CpuRegister>();
+
+  NearLabel done1, done2;
+
+  if (is64bit) {
+    double kPositiveInfinity = std::numeric_limits<double>::infinity();
+    double kNegativeInfinity = -1 * kPositiveInfinity;
+
+     __ xorq(output, output);
+     __ comisd(input, codegen->LiteralDoubleAddress(kPositiveInfinity));
+     __ j(kNotEqual, &done1);
+     __ j(kParityEven, &done2);
+     __ movq(output, Immediate(1));
+     __ jmp(&done2);
+     __ Bind(&done1);
+     __ comisd(input, codegen->LiteralDoubleAddress(kNegativeInfinity));
+     __ j(kNotEqual, &done2);
+     __ j(kParityEven, &done2);
+     __ movq(output, Immediate(1));
+     __ Bind(&done2);
+  } else {
+    float kPositiveInfinity = std::numeric_limits<float>::infinity();
+    float kNegativeInfinity = -1 * kPositiveInfinity;
+
+     __ xorl(output, output);
+     __ comiss(input, codegen->LiteralFloatAddress(kPositiveInfinity));
+     __ j(kNotEqual, &done1);
+     __ j(kParityEven, &done2);
+     __ movl(output, Immediate(1));
+     __ jmp(&done2);
+     __ Bind(&done1);
+     __ comiss(input, codegen->LiteralFloatAddress(kNegativeInfinity));
+     __ j(kNotEqual, &done2);
+     __ j(kParityEven, &done2);
+     __ movl(output, Immediate(1));
+     __ Bind(&done2);
+  }
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitFloatIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitFloatIsInfinite(HInvoke* invoke) {
+  GenIsInfinite(invoke->GetLocations(), /* is64bit=*/  false, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  GenIsInfinite(invoke->GetLocations(), /* is64bit=*/  true, codegen_);
+}
+
 static void CreateFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
@@ -4851,8 +4912,6 @@ void VarHandleSlowPathX86_64::EmitByteArrayViewCode(CodeGeneratorX86_64* codegen
   __ jmp(GetExitLabel());
 }
 
-UNIMPLEMENTED_INTRINSIC(X86_64, FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(X86_64, DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32Update)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32UpdateBytes)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32UpdateByteBuffer)

@@ -102,6 +102,13 @@ inline ObjPtr<mirror::Class> ArtMethod::ResolveClassFromTypeIndex(dex::TypeIndex
   return type;
 }
 
+inline bool ArtMethod::IsOverridableByDefaultMethod() {
+  // It is safe to avoid the read barrier here since the constant interface flag
+  // in the `Class` object is stored before creating the `ArtMethod` and storing
+  // the declaring class reference. See `ReadBarrierOption`.
+  return GetDeclaringClass<kWithoutReadBarrier>()->IsInterface();
+}
+
 inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
   switch (type) {
     case kStatic:

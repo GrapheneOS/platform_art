@@ -833,7 +833,9 @@ class Dex2Oat final {
     // Set the compilation target's implicit checks options.
     switch (compiler_options_->GetInstructionSet()) {
       case InstructionSet::kArm64:
-        compiler_options_->implicit_suspend_checks_ = true;
+        // TODO: Implicit suspend checks are currently disabled to facilitate search
+        // for unrelated memory use regressions. Bug: 213757852.
+        compiler_options_->implicit_suspend_checks_ = false;
         FALLTHROUGH_INTENDED;
       case InstructionSet::kArm:
       case InstructionSet::kThumb2:
@@ -1499,6 +1501,13 @@ class Dex2Oat final {
     }
     if (!CreateRuntime(std::move(runtime_options))) {
       return dex2oat::ReturnCode::kCreateRuntime;
+    }
+    if (runtime_->GetHeap()->GetBootImageSpaces().empty() &&
+        (IsBootImageExtension() || IsAppImage())) {
+      LOG(ERROR) << "Cannot create "
+                 << (IsBootImageExtension() ? "boot image extension" : "app image")
+                 << " without a primary boot image.";
+      return dex2oat::ReturnCode::kOther;
     }
     ArrayRef<const DexFile* const> bcp_dex_files(runtime_->GetClassLinker()->GetBootClassPath());
     if (IsBootImage() || IsBootImageExtension()) {

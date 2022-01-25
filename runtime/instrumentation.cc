@@ -209,6 +209,24 @@ static bool CanHandleInitializationCheck(const void* code) {
          (code == GetQuickInstrumentationEntryPoint());
 }
 
+static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Annoyingly this can be called before we have actually initialized WellKnownClasses so therefore
+  // we also need to check this based on the declaring-class descriptor. The check is valid because
+  // Proxy only has a single constructor.
+  ArtMethod* well_known_proxy_init = jni::DecodeArtMethod(
+      WellKnownClasses::java_lang_reflect_Proxy_init);
+  if (well_known_proxy_init == method) {
+    return true;
+  }
+
+  if (well_known_proxy_init != nullptr) {
+    return false;
+  }
+
+  return method->IsConstructor() &&
+      method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;");
+}
+
 static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (kIsDebugBuild) {
@@ -223,6 +241,9 @@ static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
         CHECK_EQ(reinterpret_cast<uintptr_t>(quick_code) & 1, 1u);
       }
     }
+    if (IsProxyInit(method)) {
+      CHECK_NE(quick_code, GetQuickInstrumentationEntryPoint());
+    }
   }
   // If the method is from a boot image, don't dirty it if the entrypoint
   // doesn't change.
@@ -231,7 +252,13 @@ static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
   }
 }
 
-bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method) {
+bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Proxy.init should never have entry/exit stubs.
+  if (IsProxyInit(method)) {
+    return false;
+  }
+
   // In some tests runtime isn't setup fully and hence the entry points could
   // be nullptr.
   if (code == nullptr) {
@@ -262,24 +289,6 @@ bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method
     return false;
   }
   return true;
-}
-
-static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
-  // Annoyingly this can be called before we have actually initialized WellKnownClasses so therefore
-  // we also need to check this based on the declaring-class descriptor. The check is valid because
-  // Proxy only has a single constructor.
-  ArtMethod* well_known_proxy_init = jni::DecodeArtMethod(
-      WellKnownClasses::java_lang_reflect_Proxy_init);
-  if (well_known_proxy_init == method) {
-    return true;
-  }
-
-  if (well_known_proxy_init != nullptr) {
-    return false;
-  }
-
-  return method->IsConstructor() &&
-      method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;");
 }
 
 bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -320,6 +329,12 @@ static bool CanUseAotCode(ArtMethod* method, const void* quick_code)
   return true;
 }
 
+static bool CanUseNterp(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
+  return interpreter::CanRuntimeUseNterp() &&
+      CanMethodUseNterp(method) &&
+      method->GetDeclaringClass()->IsVerified();
+}
+
 static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(!Runtime::Current()->GetInstrumentation()->InterpretOnly(method));
   CHECK(method->IsInvokable()) << method->PrettyMethod();
@@ -346,9 +361,7 @@ static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks:
   // We need to check if the class has been verified for setting up nterp, as
   // the verifier could punt the method to the switch interpreter in case we
   // need to do lock counting.
-  if (interpreter::CanRuntimeUseNterp() &&
-      CanMethodUseNterp(method) &&
-      method->GetDeclaringClass()->IsVerified()) {
+  if (CanUseNterp(method)) {
     return interpreter::GetNterpEntryPoint();
   }
 
@@ -358,7 +371,7 @@ static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks:
 void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_code)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Use instrumentation entrypoints if instrumentation is installed.
-  if (UNLIKELY(EntryExitStubsInstalled())) {
+  if (UNLIKELY(EntryExitStubsInstalled()) && !IsProxyInit(method)) {
     if (!method->IsNative() && InterpretOnly()) {
       UpdateEntryPoints(method, GetQuickToInterpreterBridge());
     } else {
@@ -374,15 +387,15 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
   }
 
   // Special case if we need an initialization check.
-  if (NeedsClinitCheckBeforeCall(method)) {
+  if (NeedsClinitCheckBeforeCall(method) && !method->GetDeclaringClass()->IsVisiblyInitialized()) {
     // If we have code but the method needs a class initialization check before calling
     // that code, install the resolution stub that will perform the check.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
     // after initializing class (see ClassLinker::InitializeClass method).
     // Note: this mimics the logic in image_writer.cc that installs the resolution
-    // stub only if we have compiled code and the method needs a class initialization
-    // check.
-    if (aot_code != nullptr || method->IsNative()) {
+    // stub only if we have compiled code or we can execute nterp, and the method needs a class
+    // initialization check.
+    if (aot_code != nullptr || method->IsNative() || CanUseNterp(method)) {
       UpdateEntryPoints(method, GetQuickResolutionStub());
     } else {
       UpdateEntryPoints(method, GetQuickToInterpreterBridge());
@@ -396,10 +409,15 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
     return;
   }
 
+  // We check if the class is verified as we need the slow interpreter for lock verification.
+  // If the class is not verified, This will be updated in
+  // ClassLinker::UpdateClassAfterVerification.
+  if (CanUseNterp(method)) {
+    UpdateEntryPoints(method, interpreter::GetNterpEntryPoint());
+    return;
+  }
+
   // Use default entrypoints.
-  // Note we cannot use the nterp entrypoint because we do not know if the
-  // method will need the slow interpreter for lock verification. This will
-  // be updated in ClassLinker::UpdateClassAfterVerification.
   UpdateEntryPoints(
       method, method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
 }
@@ -1094,19 +1112,6 @@ void Instrumentation::UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const 
 
 void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* new_code) {
   DCHECK(method->GetDeclaringClass()->IsResolved());
-  UpdateMethodsCodeImpl(method, new_code);
-}
-
-void Instrumentation::UpdateMethodsCodeToInterpreterEntryPoint(ArtMethod* method) {
-  UpdateMethodsCodeImpl(method, GetQuickToInterpreterBridge());
-}
-
-void Instrumentation::UpdateMethodsCodeForJavaDebuggable(ArtMethod* method,
-                                                         const void* new_code) {
-  // When the runtime is set to Java debuggable, we may update the entry points of
-  // all methods of a class to the interpreter bridge. A method's declaring class
-  // might not be in resolved state yet in that case, so we bypass the DCHECK in
-  // UpdateMethodsCode.
   UpdateMethodsCodeImpl(method, new_code);
 }
 

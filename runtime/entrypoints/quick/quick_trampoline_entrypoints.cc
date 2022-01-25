@@ -1052,7 +1052,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
          !jit->GetCodeCache()->ContainsPc(result))
       << method->PrettyMethod() << " code will jump to possibly cleaned up jit code!";
 
-  bool interpreter_entry = (result == GetQuickToInterpreterBridge());
+  bool interpreter_entry = Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result);
   bool is_static = method->IsStatic();
   uint32_t shorty_len;
   const char* shorty =
