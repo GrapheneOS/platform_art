@@ -1621,18 +1621,28 @@ void ConcurrentCopying::CopyingPhase() {
 
   {
     TimingLogger::ScopedTiming split7("Process mark stacks and References", GetTimings());
+
+    // Process the mark stack once in the thread local stack mode. This marks most of the live
+    // objects, aside from weak ref accesses with read barriers (Reference::GetReferent() and
+    // system weaks) that may happen concurrently while we are processing the mark stack and newly
+    // mark/gray objects and push refs on the mark stack.
+    ProcessMarkStack();
+
+    ReferenceProcessor* rp = GetHeap()->GetReferenceProcessor();
+    bool clear_soft_references = GetCurrentIteration()->GetClearSoftReferences();
+    rp->Setup(self, this, /*concurrent=*/ true, clear_soft_references);
+    if (!clear_soft_references) {
+      // Forward as many SoftReferences as possible before inhibiting reference access.
+      rp->ForwardSoftReferences(GetTimings());
+    }
+
     // We transition through three mark stack modes (thread-local, shared, GC-exclusive). The
-    // primary reasons are the fact that we need to use a checkpoint to process thread-local mark
+    // primary reasons are that we need to use a checkpoint to process thread-local mark
     // stacks, but after we disable weak refs accesses, we can't use a checkpoint due to a deadlock
     // issue because running threads potentially blocking at WaitHoldingLocks, and that once we
     // reach the point where we process weak references, we can avoid using a lock when accessing
     // the GC mark stack, which makes mark stack processing more efficient.
 
-    // Process the mark stack once in the thread local stack mode. This marks most of the live
-    // objects, aside from weak ref accesses with read barriers (Reference::GetReferent() and system
-    // weaks) that may happen concurrently while we processing the mark stack and newly mark/gray
-    // objects and push refs on the mark stack.
-    ProcessMarkStack();
     // Switch to the shared mark stack mode. That is, revoke and process thread-local mark stacks
     // for the last time before transitioning to the shared mark stack mode, which would process new
     // refs that may have been concurrently pushed onto the mark stack during the ProcessMarkStack()
@@ -1649,6 +1659,7 @@ void ConcurrentCopying::CopyingPhase() {
     // forever as the checkpoint never finishes (See runtime/mutator_gc_coord.md).
     SwitchToSharedMarkStackMode();
     CHECK(!self->GetWeakRefAccessEnabled());
+
     // Now that weak refs accesses are disabled, once we exhaust the shared mark stack again here
     // (which may be non-empty if there were refs found on thread-local mark stacks during the above
     // SwitchToSharedMarkStackMode() call), we won't have new refs to process, that is, mutators
@@ -1656,6 +1667,7 @@ void ConcurrentCopying::CopyingPhase() {
     // before we process weak refs below.
     ProcessMarkStack();
     CheckEmptyMarkStack();
+
     // Switch to the GC exclusive mark stack mode so that we can process the mark stack without a
     // lock from this point on.
     SwitchToGcExclusiveMarkStackMode();
@@ -1663,24 +1675,23 @@ void ConcurrentCopying::CopyingPhase() {
     if (kVerboseMode) {
       LOG(INFO) << "ProcessReferences";
     }
-    // Process weak references. This may produce new refs to process and have them processed via
-    // ProcessMarkStack (in the GC exclusive mark stack mode).
+    // Process weak references. This also marks through finalizers. Although
+    // reference processing is "disabled", some accesses will proceed once we've ensured that
+    // objects directly reachable by the mutator are marked, i.e. before we mark through
+    // finalizers.
     ProcessReferences(self);
     CheckEmptyMarkStack();
+    // JNI WeakGlobalRefs and most other system weaks cannot be processed until we're done marking
+    // through finalizers, since such references to finalizer-reachable objects must be preserved.
     if (kVerboseMode) {
       LOG(INFO) << "SweepSystemWeaks";
     }
     SweepSystemWeaks(self);
+    CheckEmptyMarkStack();
+    ReenableWeakRefAccess(self);
     if (kVerboseMode) {
       LOG(INFO) << "SweepSystemWeaks done";
     }
-    // Process the mark stack here one last time because the above SweepSystemWeaks() call may have
-    // marked some objects (strings alive) as hash_set::Erase() can call the hash function for
-    // arbitrary elements in the weak intern table in InternTable::Table::SweepWeaks().
-    ProcessMarkStack();
-    CheckEmptyMarkStack();
-    // Re-enable weak ref accesses.
-    ReenableWeakRefAccess(self);
     // Free data for class loaders that we unloaded.
     Runtime::Current()->GetClassLinker()->CleanupClassLoaders();
     // Marking is done. Disable marking.
@@ -3830,8 +3841,7 @@ void ConcurrentCopying::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
 void ConcurrentCopying::ProcessReferences(Thread* self) {
   // We don't really need to lock the heap bitmap lock as we use CAS to mark in bitmaps.
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetHeap()->GetReferenceProcessor()->ProcessReferences(
-      /*concurrent=*/ true, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(), this);
+  GetHeap()->GetReferenceProcessor()->ProcessReferences(self, GetTimings());
 }
 
 void ConcurrentCopying::RevokeAllThreadLocalBuffers() {
