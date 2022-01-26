@@ -90,17 +90,20 @@ class ReferenceQueue {
                                   collector::GarbageCollector* collector)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Walks the reference list marking any references subject to the reference clearing policy.
-  // References with a black referent are removed from the list.  References with white referents
-  // biased toward saving are blackened and also removed from the list.
-  // Returns the number of non-null soft references.
+  // Walks the reference list marking and dequeuing any references subject to the reference
+  // clearing policy.  References with a black referent are removed from the list.  References
+  // with white referents biased toward saving are blackened and also removed from the list.
+  // Returns the number of non-null soft references. May be called concurrently with
+  // AtomicEnqueueIfNotEnqueued().
   uint32_t ForwardSoftReferences(MarkObjectVisitor* visitor)
+      REQUIRES(!*lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Unlink the reference list clearing references objects with white referents. Cleared references
   // registered to a reference queue are scheduled for appending by the heap worker thread.
   void ClearWhiteReferences(ReferenceQueue* cleared_references,
-                            collector::GarbageCollector* collector)
+                            collector::GarbageCollector* collector,
+                            bool report_cleared = false)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_);
@@ -109,9 +112,12 @@ class ReferenceQueue {
   bool IsEmpty() const {
     return list_ == nullptr;
   }
+
+  // Clear this queue. Only safe after handing off the contents elsewhere for further processing.
   void Clear() {
     list_ = nullptr;
   }
+
   mirror::Reference* GetList() REQUIRES_SHARED(Locks::mutator_lock_) {
     return list_;
   }
@@ -124,8 +130,10 @@ class ReferenceQueue {
   // Lock, used for parallel GC reference enqueuing. It allows for multiple threads simultaneously
   // calling AtomicEnqueueIfNotEnqueued.
   Mutex* const lock_;
-  // The actual reference list. Only a root for the mark compact GC since it will be null for other
-  // GC types. Not an ObjPtr since it is accessed from multiple threads.
+  // The actual reference list. Only a root for the mark compact GC since it
+  // will be null during root marking for other GC types. Not an ObjPtr since it
+  // is accessed from multiple threads.  Points to a singly-linked circular list
+  // using the pendingNext field.
   mirror::Reference* list_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ReferenceQueue);

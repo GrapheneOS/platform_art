@@ -2517,8 +2517,8 @@ void IntrinsicCodeGeneratorARMVIXL::VisitReferenceGetReferent(HInvoke* invoke) {
     vixl32::Register temp = temps.Acquire();
     __ Ldr(temp,
            MemOperand(tr, Thread::WeakRefAccessEnabledOffset<kArmPointerSize>().Uint32Value()));
-    __ Cmp(temp, 0);
-    __ B(eq, slow_path->GetEntryLabel());
+    __ Cmp(temp, enum_cast<int32_t>(WeakRefAccessState::kVisiblyEnabled));
+    __ B(ne, slow_path->GetEntryLabel());
   }
 
   {
