@@ -23,7 +23,6 @@
 #include "obj_ptr-inl.h"
 #include "object_callbacks.h"
 #include "stack.h"
-#include "thread-inl.h"  // For GetWeakRefAccessEnabled().
 
 #include <android-base/properties.h>
 
