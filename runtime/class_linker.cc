@@ -6224,33 +6224,29 @@ class MethodNameAndSignatureComparator final : public ValueObject {
 //          is a subtype of iface.
 // - False: There is no method that matches the target comparator in any interface that is a subtype
 //          of iface.
-static bool ContainsOverridingMethodOf(Thread* self,
-                                       MethodNameAndSignatureComparator& target,
-                                       Handle<mirror::IfTable> iftable,
+static bool ContainsOverridingMethodOf(MethodNameAndSignatureComparator& target,
+                                       ObjPtr<mirror::IfTable> iftable,
                                        size_t ifstart,
-                                       Handle<mirror::Class> iface,
+                                       ObjPtr<mirror::Class> iface,
                                        PointerSize image_pointer_size)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(self != nullptr);
   DCHECK(iface != nullptr);
   DCHECK(iftable != nullptr);
   DCHECK_GE(ifstart, 0u);
   DCHECK_LT(ifstart, iftable->Count());
-  DCHECK_EQ(iface.Get(), iftable->GetInterface(ifstart));
+  DCHECK_EQ(iface, iftable->GetInterface(ifstart));
   DCHECK(iface->IsInterface());
 
   size_t iftable_count = iftable->Count();
-  StackHandleScope<1> hs(self);
-  MutableHandle<mirror::Class> current_iface(hs.NewHandle<mirror::Class>(nullptr));
   for (size_t k = ifstart + 1; k < iftable_count; k++) {
     // Skip ifstart since our current interface obviously cannot override itself.
-    current_iface.Assign(iftable->GetInterface(k));
+    ObjPtr<mirror::Class> current_iface = iftable->GetInterface(k);
     // Iterate through every method on this interface. The order does not matter.
     for (ArtMethod& current_method : current_iface->GetDeclaredVirtualMethods(image_pointer_size)) {
       if (UNLIKELY(target.HasSameNameAndSignature(
                       current_method.GetInterfaceMethodIfProxy(image_pointer_size)))) {
         // Check if the i'th interface is a subtype of this one.
-        if (iface->IsAssignableFrom(current_iface.Get())) {
+        if (current_iface->Implements(iface)) {
           return true;
         }
         break;
@@ -6265,11 +6261,9 @@ static bool ContainsOverridingMethodOf(Thread* self,
 // kAbstractFound and store nullptr into out_default_method. If an error occurs (such as a
 // default_method conflict) it will return kDefaultConflict.
 ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementation(
-    Thread* self,
     ArtMethod* target_method,
-    Handle<mirror::Class> klass,
+    ObjPtr<mirror::Class> klass,
     /*out*/ArtMethod** out_default_method) const {
-  DCHECK(self != nullptr);
   DCHECK(target_method != nullptr);
   DCHECK(out_default_method != nullptr);
 
@@ -6288,19 +6282,15 @@ ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementat
     return DefaultMethodSearchResult::kAbstractFound;
   }
 
-  StackHandleScope<3> hs(self);
-  MutableHandle<mirror::Class> chosen_iface(hs.NewHandle<mirror::Class>(nullptr));
-  MutableHandle<mirror::IfTable> iftable(hs.NewHandle(klass->GetIfTable()));
-  MutableHandle<mirror::Class> iface(hs.NewHandle<mirror::Class>(nullptr));
+  ObjPtr<mirror::IfTable> iftable = klass->GetIfTable();
+  ObjPtr<mirror::Class> chosen_iface = nullptr;
   MethodNameAndSignatureComparator target_name_comparator(
       target_method->GetInterfaceMethodIfProxy(image_pointer_size_));
   // Iterates over the klass's iftable in reverse
   for (size_t k = iftable_count; k != 0; ) {
     --k;
-
     DCHECK_LT(k, iftable->Count());
-
-    iface.Assign(iftable->GetInterface(k));
+    ObjPtr<mirror::Class> iface = iftable->GetInterface(k);
     // Iterate through every declared method on this interface. The order does not matter.
     for (auto& method_iter : iface->GetDeclaredVirtualMethods(image_pointer_size_)) {
       ArtMethod* current_method = &method_iter;
@@ -6323,9 +6313,8 @@ ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementat
         // We need to check if this possibly conflicting method is either a superclass of the chosen
         // default implementation or is overridden by a non-default interface method. In either case
         // there is no conflict.
-        if (!iface->IsAssignableFrom(chosen_iface.Get()) &&
-            !ContainsOverridingMethodOf(self,
-                                        target_name_comparator,
+        if (!chosen_iface->Implements(iface) &&
+            !ContainsOverridingMethodOf(target_name_comparator,
                                         iftable,
                                         k,
                                         iface,
@@ -6341,8 +6330,7 @@ ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementat
         }
       } else {
         // chosen_iface == null
-        if (!ContainsOverridingMethodOf(self,
-                                        target_name_comparator,
+        if (!ContainsOverridingMethodOf(target_name_comparator,
                                         iftable,
                                         k,
                                         iface,
@@ -6352,7 +6340,7 @@ ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementat
           // interface was abstract then we wouldn't select this interface as chosen anyway since
           // the abstract method masks it.
           *out_default_method = current_method;
-          chosen_iface.Assign(iface.Get());
+          chosen_iface = iface;
           // We should now finish traversing the graph to find if we have default methods that
           // conflict.
         } else {
@@ -7505,9 +7493,8 @@ ArtMethod* ClassLinker::LinkMethodsHelper<kPointerSize>::FindOrCreateImplementat
     MethodNameAndSignatureComparator& interface_name_comparator,
     ArtMethod* vtable_impl) {
   ArtMethod* current_method = nullptr;
-  switch (class_linker_->FindDefaultMethodImplementation(self_,
-                                                         interface_method,
-                                                         klass_,
+  switch (class_linker_->FindDefaultMethodImplementation(interface_method,
+                                                         klass_.Get(),
                                                          /*out*/&current_method)) {
     case DefaultMethodSearchResult::kDefaultConflict: {
       // Default method conflict.
@@ -8146,9 +8133,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
         // We didn't directly override this method but we might through default methods...
         // Check for default method update.
         ArtMethod* default_method = nullptr;
-        switch (class_linker_->FindDefaultMethodImplementation(self,
-                                                               super_method,
-                                                               klass,
+        switch (class_linker_->FindDefaultMethodImplementation(super_method,
+                                                               klass.Get(),
                                                                /*out*/&default_method)) {
           case DefaultMethodSearchResult::kDefaultConflict: {
             // A conflict was found looking for default methods. Note this (assuming it wasn't
