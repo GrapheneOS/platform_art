@@ -32,7 +32,6 @@
 #include "object_callbacks.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
-#include "thread-inl.h"
 
 namespace art {
 

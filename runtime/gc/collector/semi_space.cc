@@ -145,9 +145,8 @@ void SemiSpace::InitializePhase() {
 
 void SemiSpace::ProcessReferences(Thread* self) {
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  ReferenceProcessor* rp = GetHeap()->GetReferenceProcessor();
-  rp->Setup(self, this, /*concurrent=*/false, GetCurrentIteration()->GetClearSoftReferences());
-  rp->ProcessReferences(self, GetTimings());
+  GetHeap()->GetReferenceProcessor()->ProcessReferences(
+      false, GetTimings(), GetCurrentIteration()->GetClearSoftReferences(), this);
 }
 
 void SemiSpace::MarkingPhase() {
