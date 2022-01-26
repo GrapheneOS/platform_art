@@ -110,3 +110,20 @@ activate_apex com.android.runtime
 activate_apex com.android.tzdata
 activate_apex com.android.conscrypt
 activate_apex com.android.os.statsd
+
+# Generate primary boot images on device for testing.
+for b in {32,64}; do
+  basename="generate-boot-image$b"
+  bin_on_host="$ANDROID_PRODUCT_OUT/system/bin/$basename"
+  bin_on_device="/data/local/tmp/$basename"
+  output_dir="/data/local/tmp/art_boot_images"
+  if [ -f $bin_on_host ]; then
+    msginfo "Generating the primary boot image ($b-bit)..."
+    adb push "$bin_on_host" "$ART_TEST_CHROOT$bin_on_device"
+    adb shell mkdir -p "$ART_TEST_CHROOT$output_dir"
+    # `compiler-filter=speed-profile` is required because OatDumpTest checks the compiled code in
+    # the boot image.
+    adb shell chroot "$ART_TEST_CHROOT" \
+      "$bin_on_device" --output-dir=$output_dir --compiler-filter=speed-profile
+  fi
+done
