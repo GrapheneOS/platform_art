@@ -647,6 +647,9 @@ class MANAGED Class final : public Object {
   // to themselves. Classes for primitive types may not assign to each other.
   ALWAYS_INLINE bool IsAssignableFrom(ObjPtr<Class> src) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Check if this class implements a given interface.
+  bool Implements(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Checks if 'klass' is a redefined version of this.
   bool IsObsoleteVersionOf(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1370,7 +1373,6 @@ class MANAGED Class final : public Object {
                                 InvokeType throw_invoke_type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool Implements(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsArrayAssignableFromArray(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsAssignableFromArray(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
