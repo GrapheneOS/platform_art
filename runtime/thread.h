@@ -171,20 +171,6 @@ enum class DeoptimizationMethodType {
   kDefault     // dex pc may or may not advance depending on other conditions.
 };
 
-// For the CC colector, normal weak reference access can be disabled on a per-thread basis, while
-// processing references.  After finishing, the reference processor asynchronously sets the
-// per-thread flags back to kEnabled with release memory ordering semantics. Each mutator thread
-// should check its flag with acquire semantics before assuming that it is enabled. However,
-// that is often too expensive, so the reading thread sets it to kVisiblyEnabled after seeing it
-// kEnabled.  The Reference.get() intrinsic can thus read it in relaxed mode, and reread (by
-// resorting to the slow path) with acquire semantics if it sees a value of kEnabled rather than
-// kVisiblyEnabled.
-enum class WeakRefAccessState : int32_t {
-  kVisiblyEnabled = 0,  // Enabled, and previously read with acquire load by this thread.
-  kEnabled,
-  kDisabled
-};
-
 // This should match RosAlloc::kNumThreadLocalSizeBrackets.
 static constexpr size_t kNumRosAllocThreadLocalSizeBracketsInThread = 16;
 
@@ -1008,13 +994,14 @@ class Thread {
 
   void SetIsGcMarkingAndUpdateEntrypoints(bool is_marking);
 
-  bool GetWeakRefAccessEnabled() const;  // Only safe for current thread.
+  bool GetWeakRefAccessEnabled() const {
+    CHECK(kUseReadBarrier);
+    return tls32_.weak_ref_access_enabled;
+  }
 
   void SetWeakRefAccessEnabled(bool enabled) {
     CHECK(kUseReadBarrier);
-    WeakRefAccessState new_state = enabled ?
-        WeakRefAccessState::kEnabled : WeakRefAccessState::kDisabled;
-    tls32_.weak_ref_access_enabled.store(new_state, std::memory_order_release);
+    tls32_.weak_ref_access_enabled = enabled;
   }
 
   uint32_t GetDisableThreadFlipCount() const {
@@ -1685,7 +1672,7 @@ class Thread {
           thread_exit_check_count(0),
           is_transitioning_to_runnable(false),
           is_gc_marking(false),
-          weak_ref_access_enabled(WeakRefAccessState::kVisiblyEnabled),
+          weak_ref_access_enabled(true),
           disable_thread_flip_count(0),
           user_code_suspend_count(0),
           force_interpreter_count(0),
@@ -1741,17 +1728,14 @@ class Thread {
 
     AtomicInteger park_state_;
 
-    // Determines whether the thread is allowed to directly access a weak ref
-    // (Reference::GetReferent() and system weaks) and to potentially mark an object alive/gray.
-    // This is used for concurrent reference processing of the CC collector only. This is thread
-    // local so that we can enable/disable weak ref access by using a checkpoint and avoid a race
-    // around the time weak ref access gets disabled and concurrent reference processing begins
-    // (if weak ref access is disabled during a pause, this is not an issue.) Other collectors use
-    // Runtime::DisallowNewSystemWeaks() and ReferenceProcessor::EnableSlowPath().  Can be
-    // concurrently accessed by GetReferent() and set (by iterating over threads).
-    // Can be changed from kEnabled to kVisiblyEnabled by readers. No other concurrent access is
-    // possible when that happens.
-    mutable std::atomic<WeakRefAccessState> weak_ref_access_enabled;
+    // True if the thread is allowed to access a weak ref (Reference::GetReferent() and system
+    // weaks) and to potentially mark an object alive/gray. This is used for concurrent reference
+    // processing of the CC collector only. This is thread local so that we can enable/disable weak
+    // ref access by using a checkpoint and avoid a race around the time weak ref access gets
+    // disabled and concurrent reference processing begins (if weak ref access is disabled during a
+    // pause, this is not an issue.) Other collectors use Runtime::DisallowNewSystemWeaks() and
+    // ReferenceProcessor::EnableSlowPath().
+    bool32_t weak_ref_access_enabled;
 
     // A thread local version of Heap::disable_thread_flip_count_. This keeps track of how many
     // levels of (nested) JNI critical sections the thread is in and is used to detect a nested JNI
