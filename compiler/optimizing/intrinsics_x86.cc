@@ -2067,11 +2067,9 @@ void IntrinsicCodeGeneratorX86::VisitJdkUnsafePutLongRelease(HInvoke* invoke) {
 static void CreateIntIntIntIntIntToInt(ArenaAllocator* allocator,
                                        DataType::Type type,
                                        HInvoke* invoke) {
-  bool can_call = kEmitCompilerReadBarrier &&
-      kUseBakerReadBarrier &&
-      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCompareAndSetObject);
+  const bool can_call = kEmitCompilerReadBarrier &&
+                        kUseBakerReadBarrier &&
+                        IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call

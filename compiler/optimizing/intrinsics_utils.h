@@ -146,6 +146,44 @@ static inline bool IsVarHandleGetAndAdd(HInvoke* invoke) {
   }
 }
 
+static inline bool IsVarHandleGet(HInvoke* invoke) {
+  mirror::VarHandle::AccessModeTemplate access_mode =
+      mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
+  return access_mode == mirror::VarHandle::AccessModeTemplate::kGet;
+}
+
+static inline bool IsUnsafeGetObject(HInvoke* invoke) {
+  switch (invoke->GetIntrinsic()) {
+    case Intrinsics::kUnsafeGetObject:
+    case Intrinsics::kUnsafeGetObjectVolatile:
+    case Intrinsics::kJdkUnsafeGetObject:
+    case Intrinsics::kJdkUnsafeGetObjectVolatile:
+    case Intrinsics::kJdkUnsafeGetObjectAcquire:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static inline bool IsUnsafeCASObject(HInvoke* invoke) {
+  switch (invoke->GetIntrinsic()) {
+    case Intrinsics::kUnsafeCASObject:
+    case Intrinsics::kJdkUnsafeCASObject:
+    case Intrinsics::kJdkUnsafeCompareAndSetObject:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static inline bool IsVarHandleCASFamily(HInvoke* invoke) {
+  mirror::VarHandle::AccessModeTemplate access_mode =
+      mirror::VarHandle::GetAccessModeTemplateByIntrinsic(invoke->GetIntrinsic());
+  return access_mode == mirror::VarHandle::AccessModeTemplate::kCompareAndSet ||
+      access_mode == mirror::VarHandle::AccessModeTemplate::kGetAndUpdate ||
+      access_mode == mirror::VarHandle::AccessModeTemplate::kCompareAndExchange;
+}
+
 static inline DataType::Type GetVarHandleExpectedValueType(HInvoke* invoke,
                                                            size_t expected_coordinates_count) {
   DCHECK_EQ(expected_coordinates_count, GetExpectedVarHandleCoordinatesCount(invoke));
