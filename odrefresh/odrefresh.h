@@ -39,9 +39,6 @@ namespace art {
 namespace odrefresh {
 
 struct CompilationOptions {
-  // If true, update the cache info only and do not compile anything.
-  bool update_cache_info_only = false;
-
   // If not empty, compile the bootclasspath jars for ISAs in the list.
   std::vector<InstructionSet> compile_boot_classpath_for_isas;
 
