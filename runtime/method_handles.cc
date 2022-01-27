@@ -957,9 +957,8 @@ bool DoVarHandleInvokeTranslationUnchecked(Thread* self,
                                            const InstructionOperands* const operands,
                                            JValue* result)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK_EQ(operands->GetNumberOfOperands(), static_cast<uint32_t>(vh_type->GetNumberOfPTypes()));
-  DCHECK_EQ(operands->GetNumberOfOperands(),
-            static_cast<uint32_t>(callsite_type->GetNumberOfPTypes()));
+  DCHECK_EQ(operands->GetNumberOfOperands(), vh_type->NumberOfVRegs());
+  DCHECK_EQ(operands->GetNumberOfOperands(), callsite_type->NumberOfVRegs());
   if (!vh->IsAccessModeSupported(access_mode)) {
     ThrowUnsupportedOperationException();
     return false;
@@ -1041,8 +1040,6 @@ bool DoVarHandleInvokeTranslation(Thread* self,
   Handle<mirror::MethodType> callsite_type_without_varhandle =
       hs.NewHandle(mirror::MethodType::CloneWithoutLeadingParameter(self, callsite_type.Get()));
   NoReceiverInstructionOperands varhandle_operands(operands);
-  DCHECK_EQ(static_cast<int32_t>(varhandle_operands.GetNumberOfOperands()),
-            callsite_type_without_varhandle->GetPTypes()->GetLength());
   return DoVarHandleInvokeTranslationUnchecked(self,
                                                shadow_frame,
                                                access_mode,
