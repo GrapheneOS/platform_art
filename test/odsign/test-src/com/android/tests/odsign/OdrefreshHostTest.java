@@ -27,11 +27,13 @@ import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -49,29 +51,40 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     private static final String ODREFRESH_COMMAND =
             ODREFRESH_BIN + " --partial-compilation --no-refresh --compile";
 
-    private static OdsignTestUtils sTestUtils;
+    private static final String TAG = "OdrefreshHostTest";
+    private static final String ZYGOTE_ARTIFACTS_KEY = TAG + ":ZYGOTE_ARTIFACTS";
+    private static final String SYSTEM_SERVER_ARTIFACTS_KEY = TAG + ":SYSTEM_SERVER_ARTIFACTS";
 
-    private static Set<String> sZygoteArtifacts;
-    private static Set<String> sSystemServerArtifacts;
+    private OdsignTestUtils mTestUtils;
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        sTestUtils = new OdsignTestUtils(testInfo);
-        sTestUtils.installTestApex();
-        sTestUtils.enableAdbRootOrSkipTest();
+        OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
+        testUtils.installTestApex();
+        testUtils.enableAdbRootOrSkipTest();
 
-        sZygoteArtifacts = new HashSet<>();
-        for (String zygoteName : sTestUtils.ZYGOTE_NAMES) {
-            sZygoteArtifacts.addAll(
-                    sTestUtils.getZygoteLoadedArtifacts(zygoteName).orElse(new HashSet<>()));
+        HashSet<String> zygoteArtifacts = new HashSet<>();
+        for (String zygoteName : testUtils.ZYGOTE_NAMES) {
+            zygoteArtifacts.addAll(
+                    testUtils.getZygoteLoadedArtifacts(zygoteName).orElse(new HashSet<>()));
         }
-        sSystemServerArtifacts = sTestUtils.getSystemServerLoadedArtifacts();
+        Set<String> systemServerArtifacts = testUtils.getSystemServerLoadedArtifacts();
+
+        testInfo.properties().put(ZYGOTE_ARTIFACTS_KEY, String.join(":", zygoteArtifacts));
+        testInfo.properties()
+                .put(SYSTEM_SERVER_ARTIFACTS_KEY, String.join(":", systemServerArtifacts));
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
-        sTestUtils.uninstallTestApex();
-        sTestUtils.restoreAdbRoot();
+        OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
+        testUtils.uninstallTestApex();
+        testUtils.restoreAdbRoot();
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        mTestUtils = new OdsignTestUtils(getTestInformation());
     }
 
     @Test
@@ -80,8 +93,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
-        assertArtifactsModifiedAfter(sZygoteArtifacts, timeMs);
-        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
     }
 
     @Test
@@ -90,8 +103,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
-        assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
-        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
     }
 
     @Test
@@ -100,8 +113,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
-        assertArtifactsModifiedAfter(sZygoteArtifacts, timeMs);
-        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
     }
 
     @Test
@@ -110,19 +123,19 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
-        assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
-        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
     }
 
     @Test
     public void verifyMissingArtifactTriggersCompilation() throws Exception {
         Set<String> missingArtifacts = simulateMissingArtifacts();
         Set<String> remainingArtifacts = new HashSet<>();
-        remainingArtifacts.addAll(sZygoteArtifacts);
-        remainingArtifacts.addAll(sSystemServerArtifacts);
+        remainingArtifacts.addAll(getZygoteArtifacts());
+        remainingArtifacts.addAll(getSystemServerArtifacts());
         remainingArtifacts.removeAll(missingArtifacts);
 
-        sTestUtils.removeCompilationLogToAvoidBackoff();
+        mTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
@@ -132,12 +145,12 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyNoCompilationWhenCacheIsGood() throws Exception {
-        sTestUtils.removeCompilationLogToAvoidBackoff();
+        mTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
-        assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
-        assertArtifactsNotModifiedAfter(sSystemServerArtifacts, timeMs);
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
     }
 
     @Test
@@ -165,20 +178,20 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyCompilationOsMode() throws Exception {
-        sTestUtils.removeCompilationLogToAvoidBackoff();
+        mTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_BIN + " --compilation-os-mode --compile");
 
         // odrefresh should unconditionally compile everything in Compilation OS.
-        assertArtifactsModifiedAfter(sZygoteArtifacts, timeMs);
-        assertArtifactsModifiedAfter(sSystemServerArtifacts, timeMs);
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
 
         String cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
         assertThat(cacheInfo).contains("compilationOsMode=\"true\"");
         assertThat(cacheInfo).doesNotContain("lastUpdateMillis=");
 
         // Compilation OS does not write the compilation log to the host.
-        sTestUtils.removeCompilationLogToAvoidBackoff();
+        mTestUtils.removeCompilationLogToAvoidBackoff();
 
         // Simulate the odrefresh invocation on the next boot.
         timeMs = getCurrentTimeMs();
@@ -186,8 +199,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
         // odrefresh should not re-compile anything regardless of the missing `lastUpdateMillis`
         // field.
-        assertArtifactsNotModifiedAfter(sZygoteArtifacts, timeMs);
-        assertArtifactsNotModifiedAfter(sSystemServerArtifacts, timeMs);
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
 
         // The cache info should be updated.
         cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
@@ -269,7 +282,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
     private Set<String> simulateMissingArtifacts() throws Exception {
         Set<String> missingArtifacts = new HashSet<>();
-        String sample = sSystemServerArtifacts.iterator().next();
+        String sample = getSystemServerArtifacts().iterator().next();
         for (String extension : OdsignTestUtils.APP_ARTIFACT_EXTENSIONS) {
             String artifact = replaceExtension(sample, extension);
             getDevice().deleteFile(artifact);
@@ -336,5 +349,21 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         int index = filename.lastIndexOf(".");
         assertTrue("Extension not found in filename: " + filename, index != -1);
         return filename.substring(0, index) + extension;
+    }
+
+    private Set<String> getColonSeparatedSet(String key) {
+        String value = getTestInformation().properties().get(key);
+        if (value == null || value.isEmpty()) {
+            return new HashSet<>();
+        }
+        return new HashSet<>(Arrays.asList(value.split(":")));
+    }
+
+    private Set<String> getZygoteArtifacts() {
+        return getColonSeparatedSet(ZYGOTE_ARTIFACTS_KEY);
+    }
+
+    private Set<String> getSystemServerArtifacts() {
+        return getColonSeparatedSet(SYSTEM_SERVER_ARTIFACTS_KEY);
     }
 }
