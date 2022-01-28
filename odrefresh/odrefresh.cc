@@ -1216,13 +1216,6 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
     return RemoveArtifactsDirectory() ? ExitCode::kCompilationRequired : ExitCode::kCleanupFailed;
   };
 
-  // Compilation OS cannot reuse the artifacts generated before because it cannot securely verify
-  // them (b/203630168). Therefore, we always compile everything in Compilation OS. This is fine
-  // because Compilation OS runs when the device is idling and it does not affact boot time.
-  if (config_.GetCompilationOsMode()) {
-    return cleanup_and_compile_all();
-  }
-
   std::optional<std::vector<apex::ApexInfo>> apex_info_list = GetApexInfoList();
   if (!apex_info_list.has_value()) {
     // This should never happen, further up-to-date checks are not possible if it does.
