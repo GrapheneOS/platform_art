@@ -188,7 +188,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
         String cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
         assertThat(cacheInfo).contains("compilationOsMode=\"true\"");
-        assertThat(cacheInfo).doesNotContain("lastUpdateMillis=");
 
         // Compilation OS does not write the compilation log to the host.
         mTestUtils.removeCompilationLogToAvoidBackoff();
@@ -197,15 +196,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         timeMs = getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
-        // odrefresh should not re-compile anything regardless of the missing `lastUpdateMillis`
-        // field.
+        // odrefresh should not re-compile anything.
         assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
         assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
-
-        // The cache info should be updated.
-        cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
-        assertThat(cacheInfo).doesNotContain("compilationOsMode=\"true\"");
-        assertThat(cacheInfo).contains("lastUpdateMillis=");
     }
 
     /**
