@@ -546,7 +546,8 @@ class Dex2Oat final {
         check_linkage_conditions_(false),
         crash_on_linkage_violation_(false),
         compile_individually_(false),
-        profile_load_attempted_(false) {}
+        profile_load_attempted_(false),
+        should_report_dex2oat_compilation_(false) {}
 
   ~Dex2Oat() {
     // Log completion time before deleting the runtime_, because this accesses
@@ -1201,6 +1202,9 @@ class Dex2Oat final {
                 << ".";
       thread_count_ = 1;
     }
+
+    PaletteShouldReportDex2oatCompilation(&should_report_dex2oat_compilation_);
+    AssignTrueIfExists(args, M::ForcePaletteCompilationHooks, &should_report_dex2oat_compilation_);
 
     ProcessOptions(parser_options.get());
   }
@@ -2404,10 +2408,9 @@ class Dex2Oat final {
 
   class ScopedDex2oatReporting {
    public:
-    explicit ScopedDex2oatReporting(const Dex2Oat& dex2oat) {
-      bool should_report = false;
-      PaletteShouldReportDex2oatCompilation(&should_report);
-      if (should_report) {
+    explicit ScopedDex2oatReporting(const Dex2Oat& dex2oat) :
+        should_report_(dex2oat.should_report_dex2oat_compilation_) {
+      if (should_report_) {
         if (dex2oat.zip_fd_ != -1) {
           zip_dup_fd_.reset(DupCloexecOrError(dex2oat.zip_fd_));
           if (zip_dup_fd_ < 0) {
@@ -2439,9 +2442,7 @@ class Dex2Oat final {
 
     ~ScopedDex2oatReporting() {
       if (!error_reporting_) {
-        bool should_report = false;
-        PaletteShouldReportDex2oatCompilation(&should_report);
-        if (should_report) {
+        if (should_report_) {
           PaletteNotifyEndDex2oatCompilation(zip_dup_fd_,
                                              image_dup_fd_,
                                              oat_dup_fd_,
@@ -2466,6 +2467,7 @@ class Dex2Oat final {
     android::base::unique_fd zip_dup_fd_;
     android::base::unique_fd image_dup_fd_;
     bool error_reporting_ = false;
+    bool should_report_;
   };
 
  private:
@@ -2951,6 +2953,9 @@ class Dex2Oat final {
 
   // Whether or we attempted to load the profile (if given).
   bool profile_load_attempted_;
+
+  // Whether PaletteNotify{Start,End}Dex2oatCompilation should be called.
+  bool should_report_dex2oat_compilation_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
