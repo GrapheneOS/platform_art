@@ -71,12 +71,15 @@ static constexpr bool kIsTargetBuild = true;
 # if defined(ART_TARGET_LINUX)
 static constexpr bool kIsTargetLinux = true;
 static constexpr bool kIsTargetFuchsia = false;
+static constexpr bool kIsTargetAndroid = false;
 # elif defined(ART_TARGET_ANDROID)
 static constexpr bool kIsTargetLinux = false;
 static constexpr bool kIsTargetFuchsia = false;
+static constexpr bool kIsTargetAndroid = true;
 # elif defined(ART_TARGET_FUCHSIA)
 static constexpr bool kIsTargetLinux = false;
 static constexpr bool kIsTargetFuchsia = true;
+static constexpr bool kIsTargetAndroid = false;
 # else
 # error "Either ART_TARGET_LINUX, ART_TARGET_ANDROID or ART_TARGET_FUCHSIA " \
         "needs to be defined for target builds."
@@ -92,6 +95,7 @@ static constexpr bool kIsTargetBuild = false;
 # else
 static constexpr bool kIsTargetLinux = false;
 static constexpr bool kIsTargetFuchsia = false;
+static constexpr bool kIsTargetAndroid = false;
 # endif
 #endif
 
