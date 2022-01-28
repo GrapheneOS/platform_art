@@ -7329,8 +7329,14 @@ class ClassLinker::LinkMethodsHelper {
   }
 
   void LogNewVirtuals() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(!klass_->IsInterface() || (default_methods_.empty() && miranda_methods_.empty()))
-        << "Interfaces should only have default-conflict methods appended to them.";
+    if (kIsDebugBuild && klass_->IsInterface()) {
+      // Interfaces should only have default-conflict methods appended to them.
+      // There is also nothing to override in interfaces as they do not have a vtable.
+      CHECK(overriding_default_conflict_methods_.empty());
+      CHECK(miranda_methods_.empty());
+      CHECK(default_methods_.empty());
+      CHECK(overriding_default_methods_.empty());
+    }
     VLOG(class_linker) << mirror::Class::PrettyClass(klass_.Get()) << ": miranda_methods="
                        << miranda_methods_.size()
                        << " default_methods=" << default_methods_.size()
@@ -7515,6 +7521,8 @@ ArtMethod* ClassLinker::LinkMethodsHelper<kPointerSize>::FindOrCreateImplementat
             default_conflict_methods_.push_back(default_conflict_method);
           } else {
             // Save the conflict method but it is already in the vtable.
+            DCHECK(!klass_->IsInterface()) << klass_->PrettyDescriptor()
+                << " vm: " << (vtable_impl != nullptr ? vtable_impl->PrettyMethod() : "<null>");
             overriding_default_conflict_methods_.push_back(default_conflict_method);
           }
         }
@@ -8321,7 +8329,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkInterfaceMethods(
                   vtable_method->PrettyMethod().c_str(),
                   interface_method->PrettyMethod().c_str());
               return false;
-            } else if (UNLIKELY(vtable_method->IsOverridableByDefaultMethod())) {
+            } else if (!is_interface && UNLIKELY(vtable_method->IsOverridableByDefaultMethod())) {
               // We might have a newer, better, default method for this, so we just skip it. If we
               // are still using this we will select it again when scanning for default methods. To
               // obviate the need to copy the method again we will make a note that we already found
