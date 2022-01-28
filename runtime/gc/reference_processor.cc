@@ -32,6 +32,7 @@
 #include "reflection.h"
 #include "scoped_thread_state_change-inl.h"
 #include "task_processor.h"
+#include "thread-inl.h"
 #include "thread_pool.h"
 #include "well_known_classes.h"
 
@@ -42,7 +43,6 @@ static constexpr bool kAsyncReferenceQueueAdd = false;
 
 ReferenceProcessor::ReferenceProcessor()
     : collector_(nullptr),
-      preserving_references_(false),
       condition_("reference processor condition", *Locks::reference_processor_lock_) ,
       soft_reference_queue_(Locks::reference_queue_soft_references_lock_),
       weak_reference_queue_(Locks::reference_queue_weak_references_lock_),
@@ -89,17 +89,20 @@ void ReferenceProcessor::BroadcastForSlowPath(Thread* self) {
 
 ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
                                                        ObjPtr<mirror::Reference> reference) {
-  if (!kUseReadBarrier || self->GetWeakRefAccessEnabled()) {
-    // Under read barrier / concurrent copying collector, it's not safe to call GetReferent() when
-    // weak ref access is disabled as the call includes a read barrier which may push a ref onto the
-    // mark stack and interfere with termination of marking.
-    const ObjPtr<mirror::Object> referent = reference->GetReferent();
-    // If the referent is null then it is already cleared, we can just return null since there is no
-    // scenario where it becomes non-null during the reference processing phase.
-    if (UNLIKELY(!SlowPathEnabled()) || referent == nullptr) {
-      return referent;
-    }
+  auto slow_path_required = [this, self]() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return kUseReadBarrier ? !self->GetWeakRefAccessEnabled() : SlowPathEnabled();
+  };
+  if (!slow_path_required()) {
+    return reference->GetReferent();
   }
+  // If the referent is null then it is already cleared, we can just return null since there is no
+  // scenario where it becomes non-null during the reference processing phase.
+  // A read barrier may be unsafe here, and we use the result only when it's null or marked.
+  ObjPtr<mirror::Object> referent = reference->template GetReferent<kWithoutReadBarrier>();
+  if (referent.IsNull()) {
+    return referent;
+  }
+
   bool started_trace = false;
   uint64_t start_millis;
   auto finish_trace = [](uint64_t start_millis) {
@@ -112,50 +115,47 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
   };
 
   MutexLock mu(self, *Locks::reference_processor_lock_);
-  while ((!kUseReadBarrier && SlowPathEnabled()) ||
-         (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
-    ObjPtr<mirror::Object> referent = reference->GetReferent<kWithoutReadBarrier>();
-    // If the referent became cleared, return it. Don't need barrier since thread roots can't get
-    // updated until after we leave the function due to holding the mutator lock.
-    if (referent == nullptr) {
-      if (started_trace) {
-        finish_trace(start_millis);
+  // Keeping reference_processor_lock_ blocks the broadcast when we try to reenable the fast path.
+  while (slow_path_required()) {
+    DCHECK(collector_ != nullptr);
+    constexpr bool kOtherReadBarrier = kUseReadBarrier && !kUseBakerReadBarrier;
+    if (UNLIKELY(reference->IsFinalizerReferenceInstance()
+                 || rp_state_ == RpState::kStarting /* too early to determine mark state */
+                 || (kOtherReadBarrier && reference->IsPhantomReferenceInstance()))) {
+      // Odd cases in which it doesn't hurt to just wait, or the wait is likely to be very brief.
+
+      // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
+      // presence of threads blocking for weak ref access.
+      self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);
+      if (!started_trace) {
+        ATraceBegin("GetReferent blocked");
+        started_trace = true;
+        start_millis = MilliTime();
       }
-      return nullptr;
+      condition_.WaitHoldingLocks(self);
+      continue;
     }
-    // Try to see if the referent is already marked by using the is_marked_callback. We can return
-    // it to the mutator as long as the GC is not preserving references.
-    if (LIKELY(collector_ != nullptr)) {
-      // If it's null it means not marked, but it could become marked if the referent is reachable
-      // by finalizer referents. So we cannot return in this case and must block. Otherwise, we
-      // can return it to the mutator as long as the GC is not preserving references, in which
-      // case only black nodes can be safely returned. If the GC is preserving references, the
-      // mutator could take a white field from a grey or white node and move it somewhere else
-      // in the heap causing corruption since this field would get swept.
-      // Use the cached referent instead of calling GetReferent since other threads could call
-      // Reference.clear() after we did the null check resulting in a null pointer being
-      // incorrectly passed to IsMarked. b/33569625
-      ObjPtr<mirror::Object> forwarded_ref = collector_->IsMarked(referent.Ptr());
-      if (forwarded_ref != nullptr) {
-        // Non null means that it is marked.
-        if (!preserving_references_ ||
-           (LIKELY(!reference->IsFinalizerReferenceInstance()) && reference->IsUnprocessed())) {
-          if (started_trace) {
-            finish_trace(start_millis);
-          }
-          return forwarded_ref;
-        }
-      }
+    DCHECK(!reference->IsPhantomReferenceInstance());
+
+    if (rp_state_ == RpState::kInitClearingDone) {
+      // Reachable references have their final referent values.
+      break;
     }
-    // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
-    // presence of threads blocking for weak ref access.
-    self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);
-    if (!started_trace) {
-      ATraceBegin("GetReferent blocked");
-      started_trace = true;
-      start_millis = MilliTime();
+    // Although reference processing is not done, we can always predict the correct return value
+    // based on the current mark state. No additional marking from finalizers has been done, since
+    // we hold reference_processor_lock_, which is required to advance to kInitClearingDone.
+    DCHECK(rp_state_ == RpState::kInitMarkingDone);
+    // Re-load and re-check referent, since the current one may have been read before we acquired
+    // reference_lock. In particular a Reference.clear() call may have intervened. (b/33569625)
+    referent = reference->GetReferent<kWithoutReadBarrier>();
+    ObjPtr<mirror::Object> forwarded_ref =
+        referent.IsNull() ? nullptr : collector_->IsMarked(referent.Ptr());
+    // Either the referent was marked, and forwarded_ref is the correct return value, or it
+    // was not, and forwarded_ref == null, which is again the correct return value.
+    if (started_trace) {
+      finish_trace(start_millis);
     }
-    condition_.WaitHoldingLocks(self);
+    return forwarded_ref;
   }
   if (started_trace) {
     finish_trace(start_millis);
@@ -163,36 +163,64 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
   return reference->GetReferent();
 }
 
-void ReferenceProcessor::StartPreservingReferences(Thread* self) {
-  MutexLock mu(self, *Locks::reference_processor_lock_);
-  preserving_references_ = true;
+// Forward SoftReferences. Can be done before we disable Reference access. Only
+// invoked if we are not clearing SoftReferences.
+uint32_t ReferenceProcessor::ForwardSoftReferences(TimingLogger* timings) {
+  TimingLogger::ScopedTiming split(
+      concurrent_ ? "ForwardSoftReferences" : "(Paused)ForwardSoftReferences", timings);
+  // We used to argue that we should be smarter about doing this conditionally, but it's unclear
+  // that's actually better than the more predictable strategy of basically only clearing
+  // SoftReferences just before we would otherwise run out of memory.
+  uint32_t non_null_refs = soft_reference_queue_.ForwardSoftReferences(collector_);
+  if (ATraceEnabled()) {
+    static constexpr size_t kBufSize = 80;
+    char buf[kBufSize];
+    snprintf(buf, kBufSize, "Marking for %" PRIu32 " SoftReferences", non_null_refs);
+    ATraceBegin(buf);
+    collector_->ProcessMarkStack();
+    ATraceEnd();
+  } else {
+    collector_->ProcessMarkStack();
+  }
+  return non_null_refs;
 }
 
-void ReferenceProcessor::StopPreservingReferences(Thread* self) {
+void ReferenceProcessor::Setup(Thread* self,
+                               collector::GarbageCollector* collector,
+                               bool concurrent,
+                               bool clear_soft_references) {
+  DCHECK(collector != nullptr);
   MutexLock mu(self, *Locks::reference_processor_lock_);
-  preserving_references_ = false;
-  // We are done preserving references, some people who are blocked may see a marked referent.
-  condition_.Broadcast(self);
+  collector_ = collector;
+  rp_state_ = RpState::kStarting;
+  concurrent_ = concurrent;
+  clear_soft_references_ = clear_soft_references;
 }
 
 // Process reference class instances and schedule finalizations.
-void ReferenceProcessor::ProcessReferences(bool concurrent,
-                                           TimingLogger* timings,
-                                           bool clear_soft_references,
-                                           collector::GarbageCollector* collector) {
-  TimingLogger::ScopedTiming t(concurrent ? __FUNCTION__ : "(Paused)ProcessReferences", timings);
-  Thread* self = Thread::Current();
-  {
-    MutexLock mu(self, *Locks::reference_processor_lock_);
-    collector_ = collector;
-    if (!kUseReadBarrier) {
-      CHECK_EQ(SlowPathEnabled(), concurrent) << "Slow path must be enabled iff concurrent";
-    } else {
-      // Weak ref access is enabled at Zygote compaction by SemiSpace (concurrent == false).
-      CHECK_EQ(!self->GetWeakRefAccessEnabled(), concurrent);
+// We advance rp_state_ to signal partial completion for the benefit of GetReferent.
+void ReferenceProcessor::ProcessReferences(Thread* self, TimingLogger* timings) {
+  TimingLogger::ScopedTiming t(concurrent_ ? __FUNCTION__ : "(Paused)ProcessReferences", timings);
+  if (!clear_soft_references_) {
+    // Forward any additional SoftReferences we discovered late, now that reference access has been
+    // inhibited.
+    while (!soft_reference_queue_.IsEmpty()) {
+      ForwardSoftReferences(timings);
     }
   }
-  if (kIsDebugBuild && collector->IsTransactionActive()) {
+  {
+    MutexLock mu(self, *Locks::reference_processor_lock_);
+    if (!kUseReadBarrier) {
+      CHECK_EQ(SlowPathEnabled(), concurrent_) << "Slow path must be enabled iff concurrent";
+    } else {
+      // Weak ref access is enabled at Zygote compaction by SemiSpace (concurrent_ == false).
+      CHECK_EQ(!self->GetWeakRefAccessEnabled(), concurrent_);
+    }
+    DCHECK(rp_state_ == RpState::kStarting);
+    rp_state_ = RpState::kInitMarkingDone;
+    condition_.Broadcast(self);
+  }
+  if (kIsDebugBuild && collector_->IsTransactionActive()) {
     // In transaction mode, we shouldn't enqueue any Reference to the queues.
     // See DelayReferenceReferent().
     DCHECK(soft_reference_queue_.IsEmpty());
@@ -200,75 +228,84 @@ void ReferenceProcessor::ProcessReferences(bool concurrent,
     DCHECK(finalizer_reference_queue_.IsEmpty());
     DCHECK(phantom_reference_queue_.IsEmpty());
   }
-  // Unless required to clear soft references with white references, preserve some white referents.
-  if (!clear_soft_references) {
-    TimingLogger::ScopedTiming split(concurrent ? "ForwardSoftReferences" :
-        "(Paused)ForwardSoftReferences", timings);
-    if (concurrent) {
-      StartPreservingReferences(self);
-    }
-    // TODO: Add smarter logic for preserving soft references. The behavior should be a conditional
-    // mark if the SoftReference is supposed to be preserved.
-    uint32_t non_null_refs = soft_reference_queue_.ForwardSoftReferences(collector);
-    if (ATraceEnabled()) {
-      static constexpr size_t kBufSize = 80;
-      char buf[kBufSize];
-      snprintf(buf, kBufSize, "Marking for %" PRIu32 " SoftReferences", non_null_refs);
-      ATraceBegin(buf);
-      collector->ProcessMarkStack();
-      ATraceEnd();
-    } else {
-      collector->ProcessMarkStack();
-    }
-    if (concurrent) {
-      StopPreservingReferences(self);
-    }
-  }
   // Clear all remaining soft and weak references with white referents.
-  soft_reference_queue_.ClearWhiteReferences(&cleared_references_, collector);
-  weak_reference_queue_.ClearWhiteReferences(&cleared_references_, collector);
+  // This misses references only reachable through finalizers.
+  soft_reference_queue_.ClearWhiteReferences(&cleared_references_, collector_);
+  weak_reference_queue_.ClearWhiteReferences(&cleared_references_, collector_);
+  // Defer PhantomReference processing until we've finished marking through finalizers.
   {
-    TimingLogger::ScopedTiming t2(concurrent ? "EnqueueFinalizerReferences" :
-        "(Paused)EnqueueFinalizerReferences", timings);
-    if (concurrent) {
-      StartPreservingReferences(self);
-    }
+    // TODO: Capture mark state of some system weaks here. If the referent was marked here,
+    // then it is now safe to return, since it can only refer to marked objects. If it becomes
+    // marked below, that is no longer guaranteed.
+    MutexLock mu(self, *Locks::reference_processor_lock_);
+    rp_state_ = RpState::kInitClearingDone;
+    // At this point, all mutator-accessible data is marked (black). Objects enqueued for
+    // finalization will only be made available to the mutator via CollectClearedReferences after
+    // we're fully done marking. Soft and WeakReferences accessible to the mutator have been
+    // processed and refer only to black objects.  Thus there is no danger of the mutator getting
+    // access to non-black objects.  Weak reference processing is still nominally suspended,
+    // But many kinds of references, including all java.lang.ref ones, are handled normally from
+    // here on. See GetReferent().
+  }
+  {
+    TimingLogger::ScopedTiming t2(
+        concurrent_ ? "EnqueueFinalizerReferences" : "(Paused)EnqueueFinalizerReferences", timings);
     // Preserve all white objects with finalize methods and schedule them for finalization.
     FinalizerStats finalizer_stats =
-        finalizer_reference_queue_.EnqueueFinalizerReferences(&cleared_references_, collector);
+        finalizer_reference_queue_.EnqueueFinalizerReferences(&cleared_references_, collector_);
     if (ATraceEnabled()) {
       static constexpr size_t kBufSize = 80;
       char buf[kBufSize];
       snprintf(buf, kBufSize, "Marking from %" PRIu32 " / %" PRIu32 " finalizers",
                finalizer_stats.num_enqueued_, finalizer_stats.num_refs_);
       ATraceBegin(buf);
-      collector->ProcessMarkStack();
+      collector_->ProcessMarkStack();
       ATraceEnd();
     } else {
-      collector->ProcessMarkStack();
-    }
-    if (concurrent) {
-      StopPreservingReferences(self);
+      collector_->ProcessMarkStack();
     }
   }
-  // Clear all finalizer referent reachable soft and weak references with white referents.
-  soft_reference_queue_.ClearWhiteReferences(&cleared_references_, collector);
-  weak_reference_queue_.ClearWhiteReferences(&cleared_references_, collector);
-  // Clear all phantom references with white referents.
-  phantom_reference_queue_.ClearWhiteReferences(&cleared_references_, collector);
+
+  // Process all soft and weak references with white referents, where the references are reachable
+  // only from finalizers. It is unclear that there is any way to do this without slightly
+  // violating some language spec. We choose to apply normal Reference processing rules for these.
+  // This exposes the following issues:
+  // 1) In the case of an unmarked referent, we may end up enqueuing an "unreachable" reference.
+  //    This appears unavoidable, since we need to clear the reference for safety, unless we
+  //    mark the referent and undo finalization decisions for objects we encounter during marking.
+  //    (Some versions of the RI seem to do something along these lines.)
+  //    Or we could clear the reference without enqueuing it, which also seems strange and
+  //    unhelpful.
+  // 2) In the case of a marked referent, we will preserve a reference to objects that may have
+  //    been enqueued for finalization. Again fixing this would seem to involve at least undoing
+  //    previous finalization / reference clearing decisions. (This would also mean than an object
+  //    containing both a strong and a WeakReference to the same referent could see the
+  //    WeakReference cleared.)
+  // The treatment in (2) is potentially quite dangerous, since Reference.get() can e.g. return a
+  // finalized object containing pointers to native objects that have already been deallocated.
+  // But it can be argued that this is just an instance of the broader rule that it is not safe
+  // for finalizers to access otherwise inaccessible finalizable objects.
+  soft_reference_queue_.ClearWhiteReferences(&cleared_references_, collector_,
+                                             /*report_cleared=*/ true);
+  weak_reference_queue_.ClearWhiteReferences(&cleared_references_, collector_,
+                                             /*report_cleared=*/ true);
+
+  // Clear all phantom references with white referents. It's fine to do this just once here.
+  phantom_reference_queue_.ClearWhiteReferences(&cleared_references_, collector_);
+
   // At this point all reference queues other than the cleared references should be empty.
   DCHECK(soft_reference_queue_.IsEmpty());
   DCHECK(weak_reference_queue_.IsEmpty());
   DCHECK(finalizer_reference_queue_.IsEmpty());
   DCHECK(phantom_reference_queue_.IsEmpty());
+
   {
     MutexLock mu(self, *Locks::reference_processor_lock_);
     // Need to always do this since the next GC may be concurrent. Doing this for only concurrent
     // could result in a stale is_marked_callback_ being called before the reference processing
     // starts since there is a small window of time where slow_path_enabled_ is enabled but the
     // callback isn't yet set.
-    collector_ = nullptr;
-    if (!kUseReadBarrier && concurrent) {
+    if (!kUseReadBarrier && concurrent_) {
       // Done processing, disable the slow path and broadcast to the waiters.
       DisableSlowPath(self);
     }
