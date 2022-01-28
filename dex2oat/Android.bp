@@ -577,3 +577,19 @@ art_cc_test {
     ],
     test_config: "art_standalone_dex2oat_tests.xml",
 }
+
+// Counterpart to art_standalone_dex2oat_tests for tests that go into CTS.
+art_cc_test {
+    name: "art_standalone_dex2oat_cts_tests",
+    defaults: ["art_standalone_gtest_defaults"],
+    srcs: ["dex2oat_cts_test.cc"],
+    data: [
+        ":art-gtest-jars-Main",
+        ":art-gtest-jars-MainStripped",
+        ":art-gtest-jars-MultiDex",
+        ":art-gtest-jars-MultiDexModifiedSecondary",
+        ":art-gtest-jars-Nested",
+    ],
+    test_config: "art_standalone_dex2oat_cts_tests.xml",
+    test_suites: ["cts"],
+}

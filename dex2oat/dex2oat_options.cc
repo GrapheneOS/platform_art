@@ -437,7 +437,10 @@ Parser CreateDex2oatArgumentParser() {
           .IntoKey(M::ApexVersions)
       .Define("--force-jit-zygote")
           .WithHelp("Optimizes the app to be executed in an environment that uses JIT Zygote.")
-          .IntoKey(M::ForceJitZygote);
+          .IntoKey(M::ForceJitZygote)
+      .Define("--force-palette-compilation-hooks")
+          .WithHelp("Force PaletteNotify{Start,End}Dex2oatCompilation calls.")
+          .IntoKey(M::ForcePaletteCompilationHooks);
 
   AddCompilerOptionsArgumentParserOptions<Dex2oatArgumentMap>(*parser_builder);
 
