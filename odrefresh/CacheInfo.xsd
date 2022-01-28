@@ -51,9 +51,8 @@
     <xs:attribute name="versionCode" type="xs:long" use="required" />
     <!-- Module versionName for the active APEX from `/apex/apex-info-list.xml`. -->
     <xs:attribute name="versionName" type="xs:string" use="required" />
-    <!-- Module lastUpdateMillis for the active APEX from `/apex/apex-info-list.xml`. This field is
-      not set if the cache info is generated in Compilation OS. -->
-    <xs:attribute name="lastUpdateMillis" type="xs:long" />
+    <!-- Module lastUpdateMillis for the active APEX from `/apex/apex-info-list.xml`. -->
+    <xs:attribute name="lastUpdateMillis" type="xs:long" use="required" />
   </xs:complexType>
 
   <!-- Components of a classpath. -->
