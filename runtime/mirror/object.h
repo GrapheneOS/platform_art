@@ -651,7 +651,7 @@ class MANAGED LOCKABLE Object {
   // object so that portions of the object, like klass and length (for arrays),
   // can be accessed without causing cascading faults.
   template <bool kFetchObjSize = true,
-            bool kVisitNativeRoots = true,
+            bool kVisitNativeRoots = false,
             VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithFromSpaceBarrier,
             typename Visitor>
