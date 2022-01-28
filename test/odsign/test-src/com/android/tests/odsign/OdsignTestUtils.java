@@ -67,14 +67,12 @@ public class OdsignTestUtils {
         assumeTrue("Updating APEX is not supported", mInstallUtils.isApexUpdateSupported());
         mInstallUtils.installApexes(APEX_FILENAME);
         removeCompilationLogToAvoidBackoff();
-        reboot();
     }
 
     public void uninstallTestApex() throws Exception {
         ApexInfo apex = mInstallUtils.getApexInfo(mInstallUtils.getTestFile(APEX_FILENAME));
         mTestInfo.getDevice().uninstallPackage(apex.name);
         removeCompilationLogToAvoidBackoff();
-        reboot();
     }
 
     public Set<String> getMappedArtifacts(String pid, String grepPattern) throws Exception {
