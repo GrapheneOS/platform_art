@@ -6299,14 +6299,6 @@ ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementat
           !target_name_comparator.HasSameNameAndSignature(
               current_method->GetInterfaceMethodIfProxy(image_pointer_size_))) {
         continue;
-      } else if (!current_method->IsPublic()) {
-        // The verifier should have caught the non-public method for dex version 37. Just warn and
-        // skip it since this is from before default-methods so we don't really need to care that it
-        // has code.
-        LOG(WARNING) << "Interface method " << current_method->PrettyMethod()
-                     << " is not public! "
-                     << "This will be a fatal error in subsequent versions of android. "
-                     << "Continuing anyway.";
       }
       if (UNLIKELY(chosen_iface != nullptr)) {
         // We have multiple default impls of the same method. This is a potential default conflict.
@@ -7517,8 +7509,7 @@ ArtMethod* ClassLinker::LinkMethodsHelper<kPointerSize>::FindOrCreateImplementat
           // cannot reuse another classes.
           // Create a new conflict method for this to use.
           default_conflict_method = reinterpret_cast<ArtMethod*>(allocator_.Alloc(kMethodSize));
-          new(default_conflict_method) ArtMethod(interface_method,
-                                                 class_linker_->GetImagePointerSize());
+          new(default_conflict_method) ArtMethod(interface_method, kPointerSize);
           if (vtable_impl == nullptr) {
             // Save the conflict method. We need to add it to the vtable.
             default_conflict_methods_.push_back(default_conflict_method);
@@ -7591,7 +7582,7 @@ ArtMethod* ClassLinker::LinkMethodsHelper<kPointerSize>::GetOrCreateMirandaMetho
     miranda_method = reinterpret_cast<ArtMethod*>(allocator_.Alloc(kMethodSize));
     CHECK(miranda_method != nullptr);
     // Point the interface table at a phantom slot.
-    new(miranda_method) ArtMethod(interface_method, class_linker_->GetImagePointerSize());
+    new(miranda_method) ArtMethod(interface_method, kPointerSize);
     miranda_methods_.push_back(miranda_method);
   }
   return miranda_method;
@@ -8013,6 +8004,14 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
                                 "Dex file does not support default method '%s'",
                                 m->PrettyMethod().c_str());
           return false;
+        }
+        if (!m->IsPublic()) {
+          // The verifier should have caught the non-public method for dex version 37.
+          // Just warn and skip it since this is from before default-methods so we don't
+          // really need to care that it has code.
+          LOG(WARNING) << "Default interface method " << m->PrettyMethod() << " is not public! "
+                       << "This will be a fatal error in subsequent versions of android. "
+                       << "Continuing anyway.";
         }
         m->SetAccessFlags(m->GetAccessFlags() | kAccDefault);
         has_defaults = true;
