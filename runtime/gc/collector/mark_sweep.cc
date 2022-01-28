@@ -177,11 +177,7 @@ void MarkSweep::RunPhases() {
 
 void MarkSweep::ProcessReferences(Thread* self) {
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  GetHeap()->GetReferenceProcessor()->ProcessReferences(
-      true,
-      GetTimings(),
-      GetCurrentIteration()->GetClearSoftReferences(),
-      this);
+  GetHeap()->GetReferenceProcessor()->ProcessReferences(self, GetTimings());
 }
 
 void MarkSweep::PausePhase() {
@@ -213,7 +209,9 @@ void MarkSweep::PausePhase() {
   Runtime::Current()->DisallowNewSystemWeaks();
   // Enable the reference processing slow path, needs to be done with mutators paused since there
   // is no lock in the GetReferent fast path.
-  GetHeap()->GetReferenceProcessor()->EnableSlowPath();
+  ReferenceProcessor* rp = GetHeap()->GetReferenceProcessor();
+  rp->Setup(self, this, /*concurrent=*/true, GetCurrentIteration()->GetClearSoftReferences());
+  rp->EnableSlowPath();
 }
 
 void MarkSweep::PreCleanCards() {

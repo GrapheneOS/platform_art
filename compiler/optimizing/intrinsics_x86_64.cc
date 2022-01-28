@@ -2195,11 +2195,9 @@ void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafePutLongRelease(HInvoke* invoke)
 static void CreateUnsafeCASLocations(ArenaAllocator* allocator,
                                      DataType::Type type,
                                      HInvoke* invoke) {
-  bool can_call = kEmitCompilerReadBarrier &&
-      kUseBakerReadBarrier &&
-      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCompareAndSetObject);
+  const bool can_call = kEmitCompilerReadBarrier &&
+                        kUseBakerReadBarrier &&
+                        IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -3098,8 +3096,9 @@ void IntrinsicCodeGeneratorX86_64::VisitReferenceGetReferent(HInvoke* invoke) {
   if (kEmitCompilerReadBarrier) {
     // Check self->GetWeakRefAccessEnabled().
     ThreadOffset64 offset = Thread::WeakRefAccessEnabledOffset<kX86_64PointerSize>();
-    __ gs()->cmpl(Address::Absolute(offset, /* no_rip= */ true), Immediate(0));
-    __ j(kEqual, slow_path->GetEntryLabel());
+    __ gs()->cmpl(Address::Absolute(offset, /* no_rip= */ true),
+                  Immediate(enum_cast<int32_t>(WeakRefAccessState::kVisiblyEnabled)));
+    __ j(kNotEqual, slow_path->GetEntryLabel());
   }
 
   // Load the java.lang.ref.Reference class, use the output register as a temporary.

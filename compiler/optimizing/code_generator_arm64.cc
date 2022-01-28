@@ -36,6 +36,7 @@
 #include "interpreter/mterp/nterp.h"
 #include "intrinsics.h"
 #include "intrinsics_arm64.h"
+#include "intrinsics_utils.h"
 #include "linker/linker_patch.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
@@ -672,30 +673,16 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
             "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
         __ Add(index_reg, index_reg, Operand(offset_));
       } else {
-        // In the case of the UnsafeGetObject/UnsafeGetObjectVolatile/VarHandleGet
-        // intrinsics, `index_` is not shifted by a scale factor of 2
-        // (as in the case of ArrayGet), as it is actually an offset
-        // to an object field within an object.
+        // In the case of the following intrinsics `index_` is not shifted by a scale factor of 2
+        // (as in the case of ArrayGet), as it is actually an offset to an object field within an
+        // object.
         DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
-        Intrinsics intrinsic = instruction_->AsInvoke()->GetIntrinsic();
-        DCHECK(intrinsic == Intrinsics::kUnsafeGetObject ||
-               intrinsic == Intrinsics::kUnsafeGetObjectVolatile ||
-               intrinsic == Intrinsics::kUnsafeCASObject ||
-               intrinsic == Intrinsics::kJdkUnsafeGetObject ||
-               intrinsic == Intrinsics::kJdkUnsafeGetObjectVolatile ||
-               intrinsic == Intrinsics::kJdkUnsafeGetObjectAcquire ||
-               intrinsic == Intrinsics::kJdkUnsafeCASObject ||
-               intrinsic == Intrinsics::kJdkUnsafeCompareAndSetObject ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kGet ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kCompareAndSet ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kCompareAndExchange ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kGetAndUpdate)
-            << instruction_->AsInvoke()->GetIntrinsic();
+        HInvoke* invoke = instruction_->AsInvoke();
+        DCHECK(IsUnsafeGetObject(invoke) ||
+               IsVarHandleGet(invoke) ||
+               IsUnsafeCASObject(invoke) ||
+               IsVarHandleCASFamily(invoke)) << invoke->GetIntrinsic();
         DCHECK_EQ(offset_, 0u);
         DCHECK(index_.IsRegister());
       }

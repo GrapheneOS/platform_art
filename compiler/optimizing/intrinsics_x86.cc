@@ -2067,11 +2067,9 @@ void IntrinsicCodeGeneratorX86::VisitJdkUnsafePutLongRelease(HInvoke* invoke) {
 static void CreateIntIntIntIntIntToInt(ArenaAllocator* allocator,
                                        DataType::Type type,
                                        HInvoke* invoke) {
-  bool can_call = kEmitCompilerReadBarrier &&
-      kUseBakerReadBarrier &&
-      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCompareAndSetObject);
+  const bool can_call = kEmitCompilerReadBarrier &&
+                        kUseBakerReadBarrier &&
+                        IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -3346,8 +3344,9 @@ void IntrinsicCodeGeneratorX86::VisitReferenceGetReferent(HInvoke* invoke) {
   if (kEmitCompilerReadBarrier) {
     // Check self->GetWeakRefAccessEnabled().
     ThreadOffset32 offset = Thread::WeakRefAccessEnabledOffset<kX86PointerSize>();
-    __ fs()->cmpl(Address::Absolute(offset), Immediate(0));
-    __ j(kEqual, slow_path->GetEntryLabel());
+    __ fs()->cmpl(Address::Absolute(offset),
+                  Immediate(enum_cast<int32_t>(WeakRefAccessState::kVisiblyEnabled)));
+    __ j(kNotEqual, slow_path->GetEntryLabel());
   }
 
   // Load the java.lang.ref.Reference class, use the output register as a temporary.
