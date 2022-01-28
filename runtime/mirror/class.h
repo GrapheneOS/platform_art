@@ -64,6 +64,7 @@ class Signature;
 template<typename T> class StrideIterator;
 template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 class Thread;
+class DexCacheVisitor;
 
 namespace mirror {
 
@@ -1172,9 +1173,18 @@ class MANAGED Class final : public Object {
 
   // Visit native roots visits roots which are keyed off the native pointers such as ArtFields and
   // ArtMethods.
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+           bool kVisitProxyMethod = true,
+           class Visitor>
   void VisitNativeRoots(Visitor& visitor, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Visit obsolete dex caches possibly stored in ext_data_
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  void VisitObsoleteDexCaches(DexCacheVisitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
+  void VisitObsoleteClass(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit ArtMethods directly owned by this class.
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>

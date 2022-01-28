@@ -10205,6 +10205,18 @@ void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
   }
 }
 
+void ClassLinker::VisitDexCaches(DexCacheVisitor* visitor) const {
+  Thread* const self = Thread::Current();
+  for (const auto& it : dex_caches_) {
+    // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
+    ObjPtr<mirror::DexCache> dex_cache = ObjPtr<mirror::DexCache>::DownCast(
+        self->DecodeJObject(it.second.weak_root));
+    if (dex_cache != nullptr) {
+      visitor->Visit(dex_cache);
+    }
+  }
+}
+
 void ClassLinker::VisitAllocators(AllocatorVisitor* visitor) const {
   for (const ClassLoaderData& data : class_loaders_) {
     LinearAlloc* alloc = data.allocator;

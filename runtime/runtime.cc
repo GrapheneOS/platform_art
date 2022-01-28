@@ -776,12 +776,12 @@ void Runtime::CallExitHook(jint status) {
   }
 }
 
-void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor, const bool sweep_jit) {
+void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
   GetInternTable()->SweepInternTableWeaks(visitor);
   GetMonitorList()->SweepMonitorList(visitor);
   GetJavaVM()->SweepJniWeakGlobals(visitor);
   GetHeap()->SweepAllocationRecords(visitor);
-  if (sweep_jit && GetJit() != nullptr) {
+  if (GetJit() != nullptr) {
     // Visit JIT literal tables. Objects in these tables are classes and strings
     // and only classes can be affected by class unloading. The strings always
     // stay alive as they are strongly interned.

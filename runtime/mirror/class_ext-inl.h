@@ -23,6 +23,7 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/globals.h"
+#include "class_linker.h"
 #include "handle_scope.h"
 #include "jni/jni_internal.h"
 #include "jni_id_type.h"
@@ -148,8 +149,9 @@ inline ObjPtr<Throwable> ClassExt::GetErroneousStateError() {
   return GetFieldObject<Throwable>(OFFSET_OF_OBJECT_MEMBER(ClassExt, erroneous_state_error_));
 }
 
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline ObjPtr<ObjectArray<DexCache>> ClassExt::GetObsoleteDexCaches() {
-  return GetFieldObject<ObjectArray<DexCache>>(
+  return GetFieldObject<ObjectArray<DexCache>, kVerifyFlags, kReadBarrierOption>(
       OFFSET_OF_OBJECT_MEMBER(ClassExt, obsolete_dex_caches_));
 }
 
@@ -164,11 +166,23 @@ inline ObjPtr<Object> ClassExt::GetOriginalDexFile() {
   return GetFieldObject<Object>(OFFSET_OF_OBJECT_MEMBER(ClassExt, original_dex_file_));
 }
 
-template<ReadBarrierOption kReadBarrierOption, class Visitor>
+template<ReadBarrierOption kReadBarrierOption, bool kVisitProxyMethod, class Visitor>
 void ClassExt::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
   VisitMethods<kReadBarrierOption>([&](ArtMethod* method) {
-    method->VisitRoots<kReadBarrierOption>(visitor, pointer_size);
+    method->VisitRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
   }, pointer_size);
+}
+
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+void ClassExt::VisitDexCaches(DexCacheVisitor& visitor) {
+  ObjPtr<ObjectArray<DexCache>> arr(GetObsoleteDexCaches<kVerifyFlags, kReadBarrierOption>());
+  if (!arr.IsNull()) {
+    int32_t len = arr->GetLength();
+    for (int32_t i = 0; i < len; i++) {
+      ObjPtr<mirror::DexCache> dex_cache = arr->Get<kVerifyFlags, kReadBarrierOption>(i);
+      visitor.Visit(dex_cache);
+    }
+  }
 }
 
 template<ReadBarrierOption kReadBarrierOption, class Visitor>

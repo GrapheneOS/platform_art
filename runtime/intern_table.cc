@@ -405,7 +405,10 @@ void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor)
     if (new_object == nullptr) {
       it = set->erase(it);
     } else {
-      *it = GcRoot<mirror::String>(new_object->AsString());
+      // Don't use AsString as it does IsString check in debug builds which, in
+      // case of userfaultfd GC, is called when the object's content isn't
+      // thereyet.
+      *it = GcRoot<mirror::String>(ObjPtr<mirror::String>::DownCast(new_object));
       ++it;
     }
   }

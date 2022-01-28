@@ -127,6 +127,13 @@ class ClassLoaderVisitor {
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) = 0;
 };
 
+class DexCacheVisitor {
+ public:
+  virtual ~DexCacheVisitor() {}
+  virtual void Visit(ObjPtr<mirror::DexCache> dex_cache)
+      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_) = 0;
+};
+
 template <typename Func>
 class ClassLoaderFuncVisitor final : public ClassLoaderVisitor {
  public:
@@ -478,6 +485,11 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Visits only the classes in the boot class path.
+  template <typename Visitor>
+  inline void VisitBootClasses(Visitor* visitor)
+      REQUIRES_SHARED(Locks::classlinker_classes_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // Less efficient variant of VisitClasses that copies the class_table_ into secondary storage
   // so that it can visit individual classes without holding the doesn't hold the
   // Locks::classlinker_classes_lock_. As the Locks::classlinker_classes_lock_ isn't held this code
@@ -773,6 +785,10 @@ class ClassLinker {
   // Visit all of the class loaders in the class linker.
   void VisitClassLoaders(ClassLoaderVisitor* visitor) const
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
+
+  // Visit all of the dex caches in the class linker.
+  void VisitDexCaches(DexCacheVisitor* visitor) const
+      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_);
 
   // Checks that a class and its superclass from another class loader have the same virtual methods.
   bool ValidateSuperClassDescriptors(Handle<mirror::Class> klass)

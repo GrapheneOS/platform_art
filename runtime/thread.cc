@@ -3854,7 +3854,7 @@ class ReferenceMapVisitor : public StackVisitor {
         visitor_(visitor) {
     gc::Heap* const heap = Runtime::Current()->GetHeap();
     visit_declaring_class_ = heap->CurrentCollectorType() != gc::CollectorType::kCollectorTypeCMC
-                             || !heap->MarkCompactCollector()->IsCompacting();
+                             || !heap->MarkCompactCollector()->IsCompacting(Thread::Current());
   }
 
   bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {

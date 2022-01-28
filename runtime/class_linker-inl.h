@@ -24,6 +24,7 @@
 #include "art_method-inl.h"
 #include "base/mutex.h"
 #include "class_linker.h"
+#include "class_table-inl.h"
 #include "dex/dex_file.h"
 #include "dex/dex_file_structs.h"
 #include "gc_root-inl.h"
@@ -590,6 +591,11 @@ inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
     ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass, type, name);
   }
   return resolved;
+}
+
+template <typename Visitor>
+inline void ClassLinker::VisitBootClasses(Visitor* visitor) {
+  boot_class_table_->Visit(*visitor);
 }
 
 template <class Visitor>
