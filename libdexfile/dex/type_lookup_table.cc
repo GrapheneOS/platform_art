@@ -154,6 +154,7 @@ void TypeLookupTable::Dump(std::ostream& os) const {
       const char* first_checked_str = GetStringData(entry);
       os << i << ": " << std::string(first_checked_str);
     }
+    os << '\n';
   }
 }
 
