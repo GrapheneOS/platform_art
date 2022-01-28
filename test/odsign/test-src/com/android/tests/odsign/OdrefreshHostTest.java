@@ -61,6 +61,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
         testUtils.installTestApex();
+        testUtils.reboot();
         testUtils.enableAdbRootOrSkipTest();
 
         HashSet<String> zygoteArtifacts = new HashSet<>();
@@ -79,6 +80,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
         testUtils.uninstallTestApex();
+        testUtils.reboot();
         testUtils.restoreAdbRoot();
     }
 
