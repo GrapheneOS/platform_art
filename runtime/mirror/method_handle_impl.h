@@ -50,7 +50,6 @@ class MANAGED MethodHandle : public Object {
     kInvokeStatic,
     kInvokeInterface,
     kInvokeTransform,
-    kInvokeCallSiteTransform,
     kInvokeVarHandle,
     kInvokeVarHandleExact,
     kInstanceGet,
