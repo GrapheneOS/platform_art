@@ -71,6 +71,7 @@ OatHeader::OatHeader(InstructionSet instruction_set,
       instruction_set_features_bitmap_(instruction_set_features->AsBitmap()),
       dex_file_count_(dex_file_count),
       oat_dex_files_offset_(0),
+      bcp_bss_info_offset_(0),
       executable_offset_(0),
       jni_dlsym_lookup_trampoline_offset_(0),
       jni_dlsym_lookup_critical_trampoline_offset_(0),
@@ -181,6 +182,22 @@ void OatHeader::SetOatDexFilesOffset(uint32_t oat_dex_files_offset) {
   DCHECK_EQ(oat_dex_files_offset_, 0u);
 
   oat_dex_files_offset_ = oat_dex_files_offset;
+}
+
+uint32_t OatHeader::GetBcpBssInfoOffset() const {
+  DCHECK(IsValid());
+  DCHECK(bcp_bss_info_offset_ == 0u || bcp_bss_info_offset_ > sizeof(OatHeader))
+      << "bcp_bss_info_offset_: " << bcp_bss_info_offset_
+      << "sizeof(OatHeader): " << sizeof(OatHeader);
+  return bcp_bss_info_offset_;
+}
+
+void OatHeader::SetBcpBssInfoOffset(uint32_t bcp_info_offset) {
+  DCHECK_GT(bcp_info_offset, sizeof(OatHeader));
+  DCHECK(IsValid());
+  DCHECK_EQ(bcp_bss_info_offset_, 0u);
+
+  bcp_bss_info_offset_ = bcp_info_offset;
 }
 
 uint32_t OatHeader::GetExecutableOffset() const {

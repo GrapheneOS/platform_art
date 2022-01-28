@@ -1717,11 +1717,12 @@ static bool CanEncodeInlinedMethodInStackMap(const DexFile& outer_dex_file,
   // Inline across dexfiles if the callee's DexFile is:
   // 1) in the bootclasspath, or
   if (callee->GetDeclaringClass()->GetClassLoader() == nullptr) {
-    // There are cases in which the BCP DexFiles are within the OatFile as far as the compiler
-    // options are concerned, but they have their own OatWriter (and therefore not in the same
-    // OatFile). Then, we request the BSS check for all BCP DexFiles.
-    // TODO(solanes): Add .bss support for BCP.
-    *out_needs_bss_check = true;
+    // In multi-image, each BCP DexFile has their own OatWriter. Since they don't cooperate with
+    // each other, we request the BSS check for them.
+    // TODO(solanes): Add .bss support for BCP multi-image.
+    const bool is_multi_image = codegen->GetCompilerOptions().IsBootImage() ||
+                                codegen->GetCompilerOptions().IsBootImageExtension();
+    *out_needs_bss_check = is_multi_image;
     return true;
   }
 

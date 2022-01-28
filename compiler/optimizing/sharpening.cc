@@ -283,6 +283,7 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(
       // We actually cannot reference this class, we're forced to bail.
       // We cannot reference this class with Bss, as the entrypoint will lookup the class
       // in the caller's dex file, but that dex file does not reference the class.
+      // TODO(solanes, 154012332): Add the support for the cross-dex cases.
       return HLoadClass::LoadKind::kInvalid;
     }
   }
