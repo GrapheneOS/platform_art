@@ -62,8 +62,8 @@ include $(art_path)/build/Android.cpplint.mk
 ifneq ($(HOST_OS),darwin)
 include $(CLEAR_VARS)
 LOCAL_MODULE := art-tools
-LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0 SPDX-license-identifier-BSD SPDX-license-identifier-GPL-2.0
-LOCAL_LICENSE_CONDITIONS := notice restricted
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 LOCAL_IS_HOST_MODULE := true
 
@@ -388,8 +388,8 @@ art_apex_manifest_file :=
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := art-runtime
-LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0 SPDX-license-identifier-BSD SPDX-license-identifier-GPL-2.0
-LOCAL_LICENSE_CONDITIONS := notice restricted
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 
 # Reference the libraries and binaries in the appropriate APEX module, because
@@ -465,8 +465,8 @@ ifneq ($(HOST_OS),darwin)
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := art-libartd-libopenjdkd-host-dependency
-LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0 SPDX-license-identifier-BSD SPDX-license-identifier-GPL-2.0
-LOCAL_LICENSE_CONDITIONS := notice restricted
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 LOCAL_MULTILIB := both
 LOCAL_REQUIRED_MODULES := libopenjdkd
