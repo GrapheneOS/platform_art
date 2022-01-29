@@ -32,7 +32,7 @@
 
 namespace art {
 
-static void StoreObjectInBss(ArtMethod* outer_method,
+static void StoreObjectInBss(ArtMethod* caller,
                              const OatFile* oat_file,
                              size_t bss_offset,
                              ObjPtr<mirror::Object> object) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -58,7 +58,7 @@ static void StoreObjectInBss(ArtMethod* outer_method,
     static_assert(sizeof(*slot) == sizeof(*atomic_slot), "Size check");
     atomic_slot->store(GcRoot<mirror::Object>(object), std::memory_order_release);
     // We need a write barrier for the class loader that holds the GC roots in the .bss.
-    ObjPtr<mirror::ClassLoader> class_loader = outer_method->GetClassLoader();
+    ObjPtr<mirror::ClassLoader> class_loader = caller->GetClassLoader();
     Runtime* runtime = Runtime::Current();
     if (kIsDebugBuild) {
       ClassTable* class_table = runtime->GetClassLinker()->ClassTableForClassLoader(class_loader);
@@ -77,11 +77,11 @@ static void StoreObjectInBss(ArtMethod* outer_method,
   }
 }
 
-static inline void StoreTypeInBss(ArtMethod* outer_method,
+static inline void StoreTypeInBss(ArtMethod* caller,
                                   dex::TypeIndex type_idx,
                                   ObjPtr<mirror::Class> resolved_type)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  const DexFile* dex_file = outer_method->GetDexFile();
+  const DexFile* dex_file = caller->GetDexFile();
   DCHECK(dex_file != nullptr);
   const OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
   if (oat_dex_file != nullptr) {
@@ -91,7 +91,7 @@ static inline void StoreTypeInBss(ArtMethod* outer_method,
                                                               dex_file->NumTypeIds(),
                                                               sizeof(GcRoot<mirror::Class>));
       if (bss_offset != IndexBssMappingLookup::npos) {
-        StoreObjectInBss(outer_method, oat_dex_file->GetOatFile(), bss_offset, resolved_type);
+        StoreObjectInBss(caller, oat_dex_file->GetOatFile(), bss_offset, resolved_type);
       }
     };
     store(oat_dex_file->GetTypeBssMapping());
@@ -99,17 +99,17 @@ static inline void StoreTypeInBss(ArtMethod* outer_method,
       store(oat_dex_file->GetPublicTypeBssMapping());
     }
     if (resolved_type->IsPublic() ||
-        resolved_type->GetClassLoader() == outer_method->GetClassLoader()) {
+        resolved_type->GetClassLoader() == caller->GetClassLoader()) {
       store(oat_dex_file->GetPackageTypeBssMapping());
     }
   }
 }
 
-static inline void StoreStringInBss(ArtMethod* outer_method,
+static inline void StoreStringInBss(ArtMethod* caller,
                                     dex::StringIndex string_idx,
                                     ObjPtr<mirror::String> resolved_string)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  const DexFile* dex_file = outer_method->GetDexFile();
+  const DexFile* dex_file = caller->GetDexFile();
   DCHECK(dex_file != nullptr);
   const OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
   if (oat_dex_file != nullptr) {
@@ -118,7 +118,7 @@ static inline void StoreStringInBss(ArtMethod* outer_method,
                                                             dex_file->NumStringIds(),
                                                             sizeof(GcRoot<mirror::Class>));
     if (bss_offset != IndexBssMappingLookup::npos) {
-      StoreObjectInBss(outer_method, oat_dex_file->GetOatFile(), bss_offset, resolved_string);
+      StoreObjectInBss(caller, oat_dex_file->GetOatFile(), bss_offset, resolved_string);
     }
   }
 }
@@ -177,7 +177,7 @@ extern "C" mirror::Class* artResolveTypeFromCode(uint32_t type_idx, Thread* self
                                                         /* can_run_clinit= */ false,
                                                         /* verify_access= */ false);
   if (LIKELY(result != nullptr) && CanReferenceBss(caller_and_outer.outer_method, caller)) {
-    StoreTypeInBss(caller_and_outer.caller, dex::TypeIndex(type_idx), result);
+    StoreTypeInBss(caller, dex::TypeIndex(type_idx), result);
   }
   return result.Ptr();
 }
@@ -195,7 +195,7 @@ extern "C" mirror::Class* artResolveTypeAndVerifyAccessFromCode(uint32_t type_id
                                                         /* can_run_clinit= */ false,
                                                         /* verify_access= */ true);
   if (LIKELY(result != nullptr) && CanReferenceBss(caller_and_outer.outer_method, caller)) {
-    StoreTypeInBss(caller_and_outer.caller, dex::TypeIndex(type_idx), result);
+    StoreTypeInBss(caller, dex::TypeIndex(type_idx), result);
   }
   return result.Ptr();
 }
@@ -230,7 +230,7 @@ extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx, Thread* 
   ObjPtr<mirror::String> result =
       Runtime::Current()->GetClassLinker()->ResolveString(dex::StringIndex(string_idx), caller);
   if (LIKELY(result != nullptr) && CanReferenceBss(caller_and_outer.outer_method, caller)) {
-    StoreStringInBss(caller_and_outer.caller, dex::StringIndex(string_idx), result);
+    StoreStringInBss(caller, dex::StringIndex(string_idx), result);
   }
   return result.Ptr();
 }

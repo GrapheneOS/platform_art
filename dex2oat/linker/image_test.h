@@ -227,6 +227,7 @@ inline void ImageTest::DoCompile(ImageHeader::StorageMode storage_mode,
       SafeMap<std::string, std::string> key_value_store;
       key_value_store.Put(OatHeader::kBootClassPathKey,
                           android::base::Join(out_helper.dex_file_locations, ':'));
+      key_value_store.Put(OatHeader::kApexVersionsKey, Runtime::Current()->GetApexVersions());
 
       std::vector<std::unique_ptr<ElfWriter>> elf_writers;
       std::vector<std::unique_ptr<OatWriter>> oat_writers;
