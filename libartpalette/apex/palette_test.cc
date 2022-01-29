@@ -16,8 +16,10 @@
 
 #include "palette/palette.h"
 
-#include <unistd.h>
+#include <jni.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
+#include <unistd.h>
 
 #include "gtest/gtest.h"
 
@@ -54,4 +56,38 @@ TEST_F(PaletteClientTest, Trace) {
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteTraceBegin("Hello world!"));
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteTraceEnd());
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteTraceIntegerValue("Beans", /*value=*/ 3));
+}
+
+TEST_F(PaletteClientTest, Ashmem) {
+#ifndef ART_TARGET_ANDROID
+  GTEST_SKIP() << "ashmem is only supported on Android";
+#else
+  int fd;
+  EXPECT_EQ(PALETTE_STATUS_OK, PaletteAshmemCreateRegion("ashmem-test", 4096, &fd));
+  EXPECT_EQ(PALETTE_STATUS_OK, PaletteAshmemSetProtRegion(fd, PROT_READ | PROT_EXEC));
+  EXPECT_EQ(0, close(fd));
+#endif
+}
+
+TEST_F(PaletteClientTest, JniInvocation) {
+#ifndef ART_TARGET_ANDROID
+  GTEST_SKIP() << "Not starting a VM on host";
+#else
+  bool enabled;
+  EXPECT_EQ(PALETTE_STATUS_OK, PaletteShouldReportJniInvocations(&enabled));
+
+  JavaVMInitArgs init_args;
+  init_args.version = JNI_VERSION_1_6;
+  init_args.nOptions = 0;
+  init_args.options = nullptr;
+  init_args.ignoreUnrecognized = JNI_FALSE;
+  JavaVM* vm = nullptr;
+  JNIEnv* env = nullptr;
+  ASSERT_EQ(JNI_OK, JNI_CreateJavaVM(&vm, &env, &init_args));
+
+  PaletteNotifyBeginJniInvocation(env);
+  PaletteNotifyEndJniInvocation(env);
+
+  vm->DestroyJavaVM();
+#endif
 }
