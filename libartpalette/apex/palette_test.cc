@@ -68,26 +68,3 @@ TEST_F(PaletteClientTest, Ashmem) {
   EXPECT_EQ(0, close(fd));
 #endif
 }
-
-TEST_F(PaletteClientTest, JniInvocation) {
-#ifndef ART_TARGET_ANDROID
-  GTEST_SKIP() << "Not starting a VM on host";
-#else
-  bool enabled;
-  EXPECT_EQ(PALETTE_STATUS_OK, PaletteShouldReportJniInvocations(&enabled));
-
-  JavaVMInitArgs init_args;
-  init_args.version = JNI_VERSION_1_6;
-  init_args.nOptions = 0;
-  init_args.options = nullptr;
-  init_args.ignoreUnrecognized = JNI_FALSE;
-  JavaVM* vm = nullptr;
-  JNIEnv* env = nullptr;
-  ASSERT_EQ(JNI_OK, JNI_CreateJavaVM(&vm, &env, &init_args));
-
-  PaletteNotifyBeginJniInvocation(env);
-  PaletteNotifyEndJniInvocation(env);
-
-  vm->DestroyJavaVM();
-#endif
-}
