@@ -36,8 +36,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Test to check end-to-end odrefresh invocations, but without odsign, fs-verity, and ART runtime
@@ -181,10 +181,12 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyCompilationOsMode() throws Exception {
         mTestUtils.removeCompilationLogToAvoidBackoff();
+        simulateApexUpgrade();
         long timeMs = getCurrentTimeMs();
-        getDevice().executeShellV2Command(ODREFRESH_BIN + " --compilation-os-mode --compile");
+        getDevice().executeShellV2Command(
+                ODREFRESH_BIN + " --no-refresh --partial-compilation"
+                        + " --compilation-os-mode --compile");
 
-        // odrefresh should unconditionally compile everything in Compilation OS.
         assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
         assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
 
