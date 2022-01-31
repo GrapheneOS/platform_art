@@ -380,7 +380,8 @@ void ClassHierarchyAnalysis::CheckVirtualMethodSingleImplementationInfo(
     } else {
       // SUPER: abstract, VIRTUAL: non-abstract.
       // A non-abstract method overrides an abstract method.
-      if (method_in_super->GetSingleImplementation(pointer_size) == nullptr) {
+      if (!virtual_method->IsDefaultConflicting() &&
+          method_in_super->GetSingleImplementation(pointer_size) == nullptr) {
         // Abstract method_in_super has no implementation yet.
         // We need to grab cha_lock_ since there may be multiple class linking
         // going on that can check/modify the single-implementation flag/method
