@@ -134,12 +134,6 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type,
                                        ArtMethod* referrer)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(ArtMethod* method,
-                                                             ObjPtr<mirror::Class> target_class,
-                                                             ObjPtr<mirror::Object> this_object,
-                                                             ArtMethod* referrer)
-    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
-
 void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* interface_method,
                                                                 ObjPtr<mirror::Object> this_object,
                                                                 ArtMethod* referrer)
