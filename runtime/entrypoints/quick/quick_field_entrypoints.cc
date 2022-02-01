@@ -28,6 +28,48 @@
 
 namespace art {
 
+// Fast path field resolution that can't initialize classes or throw exceptions.
+inline ArtField* FindFieldFast(uint32_t field_idx,
+                               ArtMethod* referrer,
+                               FindFieldType type,
+                               size_t expected_size)
+    REQUIRES(!Roles::uninterruptible_)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  ArtField* resolved_field = referrer->GetDexCache()->GetResolvedField(field_idx);
+  if (UNLIKELY(resolved_field == nullptr)) {
+    return nullptr;
+  }
+  // Check for incompatible class change.
+  const bool is_primitive = (type & FindFieldFlags::PrimitiveBit) != 0;
+  const bool is_set = (type & FindFieldFlags::WriteBit) != 0;
+  const bool is_static = (type & FindFieldFlags::StaticBit) != 0;
+  if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
+    // Incompatible class change.
+    return nullptr;
+  }
+  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
+  if (is_static) {
+    // Check class is initialized else fail so that we can contend to initialize the class with
+    // other threads that may be racing to do this.
+    if (UNLIKELY(!fields_class->IsVisiblyInitialized())) {
+      return nullptr;
+    }
+  }
+  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
+  if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
+               !referring_class->CanAccessMember(fields_class, resolved_field->GetAccessFlags()) ||
+               (is_set && !resolved_field->CanBeChangedBy(referrer)))) {
+    // Illegal access.
+    return nullptr;
+  }
+  if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
+               resolved_field->FieldSize() != expected_size)) {
+    return nullptr;
+  }
+  return resolved_field;
+}
+
 // Helper function to do a null check after trying to resolve the field. Not for statics since obj
 // does not exist there. There is a suspend check, object is a double pointer to update the value
 // in the caller in case it moves.
