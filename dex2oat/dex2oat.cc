@@ -1568,8 +1568,6 @@ class Dex2Oat final {
       key_value_store_->Put(OatHeader::kCompilationReasonKey, compilation_reason_);
     }
 
-    Runtime* runtime = Runtime::Current();
-
     if (IsBootImage()) {
       // If we're compiling the boot image, store the boot classpath into the Key-Value store.
       // We use this when loading the boot image.
@@ -1577,6 +1575,7 @@ class Dex2Oat final {
     } else if (IsBootImageExtension()) {
       // Validate the boot class path and record the dependency on the loaded boot images.
       TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
+      Runtime* runtime = Runtime::Current();
       std::string full_bcp = android::base::Join(runtime->GetBootClassPathLocations(), ':');
       std::string extension_part = ":" + android::base::Join(dex_locations_, ':');
       if (!android::base::EndsWith(full_bcp, extension_part)) {
@@ -1595,12 +1594,18 @@ class Dex2Oat final {
     } else {
       if (CompilerFilter::DependsOnImageChecksum(original_compiler_filter)) {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
+        Runtime* runtime = Runtime::Current();
         key_value_store_->Put(OatHeader::kBootClassPathKey,
                               android::base::Join(runtime->GetBootClassPathLocations(), ':'));
         ArrayRef<ImageSpace* const> image_spaces(runtime->GetHeap()->GetBootImageSpaces());
         key_value_store_->Put(
             OatHeader::kBootClassPathChecksumsKey,
             gc::space::ImageSpace::GetBootClassPathChecksums(image_spaces, bcp_dex_files));
+
+        std::string versions = apex_versions_argument_.empty()
+            ? runtime->GetApexVersions()
+            : apex_versions_argument_;
+        key_value_store_->Put(OatHeader::kApexVersionsKey, versions);
       }
 
       // Open dex files for class path.
@@ -1640,14 +1645,6 @@ class Dex2Oat final {
           class_loader_context_->EncodeContextForOatFile(classpath_dir_,
                                                          stored_class_loader_context_.get());
       key_value_store_->Put(OatHeader::kClassPathKey, class_path_key);
-    }
-
-    if (IsBootImage() ||
-        IsBootImageExtension() ||
-        CompilerFilter::DependsOnImageChecksum(original_compiler_filter)) {
-      std::string versions =
-          apex_versions_argument_.empty() ? runtime->GetApexVersions() : apex_versions_argument_;
-      key_value_store_->Put(OatHeader::kApexVersionsKey, versions);
     }
 
     // Now that we have finalized key_value_store_, start writing the .rodata section.
