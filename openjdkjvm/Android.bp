@@ -35,7 +35,6 @@ license {
     name: "art_openjdkjvm_license",
     visibility: [":__subpackages__"],
     license_kinds: [
-        "SPDX-license-identifier-GPL-2.0",
         "SPDX-license-identifier-GPL-with-classpath-exception",
     ],
     license_text: [
