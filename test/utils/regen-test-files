@@ -255,14 +255,47 @@ art_gtests_mainline_presubmit_module_names.remove("art_standalone_odrefresh_test
 flaky_tests_excluded_from_mts = [
     ("CtsLibcoreFileIOTestCases" +
      " android.cts.FileChannelInterProcessLockTest#" + m) for m in [
+         "test_lockJJZ_Exclusive_asyncChannel",
          "test_lockJJZ_Exclusive_syncChannel",
          "test_lock_differentChannelTypes",
+         "test_lockJJZ_Shared_asyncChannel",
+         "test_lockJJZ_Shared_syncChannel",
     ]
 ] + [
     ("CtsLibcoreTestCases" +
      " com.android.org.conscrypt.javax.net.ssl.SSLSocketVersionCompatibilityTest#" + m) for m in [
          "test_SSLSocket_interrupt_read_withoutAutoClose",
          "test_SSLSocket_setSoWriteTimeout",
+    ]
+] + [
+    ("CtsLibcoreTestCases" +
+     " libcore.android.system.OsTest#" + m) for m in [
+         "test_socket_setSockoptTimeval_effective",
+    ]
+] + [
+    ("CtsLibcoreTestCases" +
+     " libcore.dalvik.system.DelegateLastClassLoaderTest#" + m) for m in [
+         "testLookupOrderNodelegate_getResource",
+         "testLookupOrder_getResource",
+    ]
+] + [
+    ("CtsLibcoreOjTestCases" +
+     " org.openjdk.tests.java.util.stream." + m) for m in [
+         "ExplodeOpTest#testOps",
+         "IntSliceOpTest#testLimitOps",
+         "IntSliceOpTest#testSkipOps",
+         "SequentialOpTest#testMixedSeqPar",
+         "SliceOpTest#testSkipLimitOps",
+         "SliceOpTest#testSkipOps",
+         "SortedOpTest#testDoubleStreamTooLarge",
+         "SortedOpTest#testSortSort",
+         "ToArrayOpTest#testDistinctAndSortedPermutations",
+         "ToArrayOpTest#testLongDistinctAndSortedPermutations",
+    ]
+] + [
+    ("CtsLibcoreOjTestCases" +
+     " test.java.lang.invoke.ExplicitCastArgumenstTest#" + m) for m in [
+         "testMultipleArgs",
     ]
 ]
 
