@@ -2,6 +2,9 @@
 #
 # Runner for an individual run-test.
 
+readonly local_path=$(dirname "$0")
+source "${local_path}/apex-bootclasspath-utils.sh"
+
 # Check how many colors the terminal can display.
 ncolors=$(tput colors 2>/dev/null)
 
@@ -735,43 +738,14 @@ if [ "$USE_JVM" = "y" ]; then
   exit
 fi
 
-# Note: This must start with the CORE_IMG_JARS in Android.common_path.mk
-# because that's what we use for compiling the boot.art image.
-# It may contain additional modules from TEST_CORE_JARS.
-bpath_modules="core-oj core-libart okhttp bouncycastle apache-xml core-icu4j conscrypt"
-bpath=""
-bpath_locations=""
-bpath_separator=""
-bpath_prefix=""
-bpath_location_prefix=""
-if [ "${HOST}" = "y" ]; then
-  bpath_prefix="${ANDROID_HOST_OUT}"
-  if [ "${ANDROID_HOST_OUT:0:${#ANDROID_BUILD_TOP}+1}" = "${ANDROID_BUILD_TOP}/" ]; then
-    bpath_location_prefix="${ANDROID_HOST_OUT:${#ANDROID_BUILD_TOP}+1}"
-  else
-    error_msg "ANDROID_BUILD_TOP/ is not a prefix of ANDROID_HOST_OUT"\
-              "\nANDROID_BUILD_TOP=${ANDROID_BUILD_TOP}"\
-              "\nANDROID_HOST_OUT=${ANDROID_HOST_OUT}"
-    exit
-  fi
-fi
-for bpath_module in ${bpath_modules}; do
-  apex_module="com.android.art"
-  case "$bpath_module" in
-    (conscrypt)  apex_module="com.android.conscrypt";;
-    (core-icu4j) apex_module="com.android.i18n";;
-    (*)          apex_module="com.android.art";;
-  esac
-  bpath_jar="/apex/${apex_module}/javalib/${bpath_module}.jar"
-  bpath+="${bpath_separator}${bpath_prefix}${bpath_jar}"
-  bpath_locations+="${bpath_separator}${bpath_location_prefix}${bpath_jar}"
-  bpath_separator=":"
-done
+readonly b_path=$(get_apex_bootclasspath ${HOST})
+readonly b_path_locations=$(get_apex_bootclasspath_locations ${HOST})
+
 # Pass down the bootclasspath
-FLAGS="${FLAGS} -Xbootclasspath:${bpath}"
-FLAGS="${FLAGS} -Xbootclasspath-locations:${bpath_locations}"
-COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xbootclasspath:${bpath}"
-COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xbootclasspath-locations:${bpath_locations}"
+FLAGS="${FLAGS} -Xbootclasspath:${b_path}"
+FLAGS="${FLAGS} -Xbootclasspath-locations:${b_path_locations}"
+COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xbootclasspath:${b_path}"
+COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xbootclasspath-locations:${b_path_locations}"
 
 if [ "$HAVE_IMAGE" = "n" ]; then
     # Disable image dex2oat - this will forbid the runtime to patch or compile an image.
