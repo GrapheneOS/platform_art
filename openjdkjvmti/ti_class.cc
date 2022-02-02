@@ -185,14 +185,18 @@ struct ClassCallback : public art::ClassLoadCallback {
       // mirror classes have been initialized and loaded. The runtime relies on these classes having
       // specific fields and methods present. Since PreDefine hooks don't need to abide by this
       // restriction we will simply not send the event for these classes.
-      LOG(WARNING) << "Ignoring load of class <" << descriptor << "> as it is being loaded during "
-                   << "runtime initialization.";
+      LOG(WARNING) << "Ignoring load of class <" << std::string(descriptor)
+                   << "> as it is being loaded during runtime initialization.";
       return;
     }
 
     art::Thread* self = art::Thread::Current();
     ArtClassDefinition def;
-    def.InitFirstLoad(descriptor, class_loader, initial_dex_file);
+    if (def.InitFirstLoad(descriptor, class_loader, initial_dex_file) != OK) {
+      LOG(WARNING) << "Failed to initialize class definition in jvmti for "
+                   << std::string(descriptor);
+      return;
+    }
 
     // Call all non-retransformable agents.
     Transformer::TransformSingleClassDirect<ArtJvmtiEvent::kClassFileLoadHookNonRetransformable>(
