@@ -32,8 +32,8 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
-  // Last oat version changed reason: ARM64: Disable implicit suspend checks, again.
-  static constexpr std::array<uint8_t, 4> kOatVersion { { '2', '2', '1', '\0' } };
+  // Last oat version changed reason: Revert "bss support for inlining BCP into non-BCP".
+  static constexpr std::array<uint8_t, 4> kOatVersion { { '2', '2', '3', '\0' } };
 
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDebuggableKey = "debuggable";
