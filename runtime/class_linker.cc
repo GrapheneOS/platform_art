@@ -7534,7 +7534,8 @@ ArtMethod* ClassLinker::LinkMethodsHelper<kPointerSize>::FindOrCreateImplementat
       DCHECK(current_method != nullptr);
       // Found a default method.
       if (vtable_impl != nullptr &&
-          current_method->GetDeclaringClass() == vtable_impl->GetDeclaringClass()) {
+          current_method->GetDeclaringClass() == vtable_impl->GetDeclaringClass() &&
+          !vtable_impl->IsDefaultConflicting()) {
         // We found a default method but it was the same one we already have from our
         // superclass. Don't bother adding it to our vtable again.
         current_method = vtable_impl;
@@ -8396,7 +8397,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkInterfaceMethods(
         ArtMethod* current_method = FindOrCreateImplementationMethod(
             interface_method, interface_name_comparator, vtable_impl);
         if (LIKELY(fill_tables)) {
-          if (current_method == nullptr && !super_interface) {
+          if (current_method == nullptr && (!super_interface || !vtable_impl->IsMiranda())) {
             // We could not find an implementation for this method and since it is a brand new
             // interface we searched the entire vtable (and all default methods) for an
             // implementation but couldn't find one. We therefore need to make a miranda method.

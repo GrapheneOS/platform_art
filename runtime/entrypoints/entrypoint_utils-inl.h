@@ -486,6 +486,66 @@ EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticPrimitiveWrite);
 #undef EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL
 #undef EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL
 
+template<bool access_check>
+ALWAYS_INLINE ArtMethod* FindSuperMethodToCall(uint32_t method_idx,
+                                              ArtMethod* resolved_method,
+                                              ArtMethod* referrer,
+                                              Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // TODO This lookup is quite slow.
+  // NB This is actually quite tricky to do any other way. We cannot use GetDeclaringClass since
+  //    that will actually not be what we want in some cases where there are miranda methods or
+  //    defaults. What we actually need is a GetContainingClass that says which classes virtuals
+  //    this method is coming from.
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  dex::TypeIndex type_idx = referrer->GetDexFile()->GetMethodId(method_idx).class_idx_;
+  ObjPtr<mirror::Class> referenced_class = linker->ResolveType(type_idx, referrer);
+  if (UNLIKELY(referenced_class == nullptr)) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  if (access_check) {
+    if (!referenced_class->IsAssignableFrom(referrer->GetDeclaringClass())) {
+      ThrowNoSuchMethodError(kSuper,
+                             resolved_method->GetDeclaringClass(),
+                             resolved_method->GetName(),
+                             resolved_method->GetSignature());
+      return nullptr;
+    }
+  }
+
+  if (referenced_class->IsInterface()) {
+    // TODO We can do better than this for a (compiled) fastpath.
+    ArtMethod* found_method = referenced_class->FindVirtualMethodForInterfaceSuper(
+        resolved_method, linker->GetImagePointerSize());
+    DCHECK(found_method != nullptr);
+    return found_method;
+  }
+
+  DCHECK(resolved_method->IsCopied() ||
+         !resolved_method->GetDeclaringClass()->IsInterface());
+
+  uint16_t vtable_index = resolved_method->GetMethodIndex();
+  ObjPtr<mirror::Class> super_class = referrer->GetDeclaringClass()->GetSuperClass();
+  if (access_check) {
+    DCHECK(super_class == nullptr || super_class->HasVTable());
+    // Check existence of super class.
+    if (super_class == nullptr ||
+        vtable_index >= static_cast<uint32_t>(super_class->GetVTableLength())) {
+      // Behavior to agree with that of the verifier.
+      ThrowNoSuchMethodError(kSuper,
+                             resolved_method->GetDeclaringClass(),
+                             resolved_method->GetName(),
+                             resolved_method->GetSignature());
+      return nullptr;  // Failure.
+    }
+  }
+  DCHECK(super_class != nullptr);
+  DCHECK(super_class->HasVTable());
+  return super_class->GetVTableEntry(vtable_index, linker->GetImagePointerSize());
+}
+
 // Follow virtual/interface indirections if applicable.
 // Will throw null-pointer exception the if the object is null.
 template<InvokeType type, bool access_check>
@@ -531,67 +591,7 @@ ALWAYS_INLINE ArtMethod* FindMethodToCall(uint32_t method_idx,
       return klass->GetVTableEntry(vtable_index, class_linker->GetImagePointerSize());
     }
     case kSuper: {
-      // TODO This lookup is quite slow.
-      // NB This is actually quite tricky to do any other way. We cannot use GetDeclaringClass since
-      //    that will actually not be what we want in some cases where there are miranda methods or
-      //    defaults. What we actually need is a GetContainingClass that says which classes virtuals
-      //    this method is coming from.
-      StackHandleScope<2> hs2(self);
-      HandleWrapperObjPtr<mirror::Object> h_this(hs2.NewHandleWrapper(this_object));
-      Handle<mirror::Class> h_referring_class(hs2.NewHandle(referrer->GetDeclaringClass()));
-      const dex::TypeIndex method_type_idx =
-          referrer->GetDexFile()->GetMethodId(method_idx).class_idx_;
-      ObjPtr<mirror::Class> method_reference_class =
-          class_linker->ResolveType(method_type_idx, referrer);
-      if (UNLIKELY(method_reference_class == nullptr)) {
-        // Bad type idx.
-        CHECK(self->IsExceptionPending());
-        return nullptr;
-      } else if (!method_reference_class->IsInterface()) {
-        // It is not an interface. If the referring class is in the class hierarchy of the
-        // referenced class in the bytecode, we use its super class. Otherwise, we throw
-        // a NoSuchMethodError.
-        ObjPtr<mirror::Class> super_class = nullptr;
-        if (method_reference_class->IsAssignableFrom(h_referring_class.Get())) {
-          super_class = h_referring_class->GetSuperClass();
-        }
-        uint16_t vtable_index = resolved_method->GetMethodIndex();
-        if (access_check) {
-          // Check existence of super class.
-          if (super_class == nullptr ||
-              !super_class->HasVTable() ||
-              vtable_index >= static_cast<uint32_t>(super_class->GetVTableLength())) {
-            // Behavior to agree with that of the verifier.
-            ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(),
-                                   resolved_method->GetName(), resolved_method->GetSignature());
-            return nullptr;  // Failure.
-          }
-        }
-        DCHECK(super_class != nullptr);
-        DCHECK(super_class->HasVTable());
-        return super_class->GetVTableEntry(vtable_index, class_linker->GetImagePointerSize());
-      } else {
-        // It is an interface.
-        if (access_check) {
-          if (!method_reference_class->IsAssignableFrom(h_this->GetClass())) {
-            ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(resolved_method,
-                                                                    method_reference_class,
-                                                                    h_this.Get(),
-                                                                    referrer);
-            return nullptr;  // Failure.
-          }
-        }
-        // TODO We can do better than this for a (compiled) fastpath.
-        ArtMethod* result = method_reference_class->FindVirtualMethodForInterfaceSuper(
-            resolved_method, class_linker->GetImagePointerSize());
-        // Throw an NSME if nullptr;
-        if (result == nullptr) {
-          ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(),
-                                 resolved_method->GetName(), resolved_method->GetSignature());
-        }
-        return result;
-      }
-      UNREACHABLE();
+      return FindSuperMethodToCall<access_check>(method_idx, resolved_method, referrer, self);
     }
     case kInterface: {
       size_t imt_index = resolved_method->GetImtIndex();
@@ -669,100 +669,6 @@ EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kInterface);
 
 #undef EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL
 #undef EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL
-
-// Fast path field resolution that can't initialize classes or throw exceptions.
-inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFieldType type,
-                               size_t expected_size) {
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  ArtField* resolved_field = referrer->GetDexCache()->GetResolvedField(field_idx);
-  if (UNLIKELY(resolved_field == nullptr)) {
-    return nullptr;
-  }
-  // Check for incompatible class change.
-  const bool is_primitive = (type & FindFieldFlags::PrimitiveBit) != 0;
-  const bool is_set = (type & FindFieldFlags::WriteBit) != 0;
-  const bool is_static = (type & FindFieldFlags::StaticBit) != 0;
-  if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
-    // Incompatible class change.
-    return nullptr;
-  }
-  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
-  if (is_static) {
-    // Check class is initialized else fail so that we can contend to initialize the class with
-    // other threads that may be racing to do this.
-    if (UNLIKELY(!fields_class->IsVisiblyInitialized())) {
-      return nullptr;
-    }
-  }
-  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
-  if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
-               !referring_class->CanAccessMember(fields_class, resolved_field->GetAccessFlags()) ||
-               (is_set && !resolved_field->CanBeChangedBy(referrer)))) {
-    // Illegal access.
-    return nullptr;
-  }
-  if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
-               resolved_field->FieldSize() != expected_size)) {
-    return nullptr;
-  }
-  return resolved_field;
-}
-
-// Fast path method resolution that can't throw exceptions.
-template <InvokeType type, bool access_check>
-inline ArtMethod* FindMethodFast(uint32_t method_idx,
-                                 ObjPtr<mirror::Object> this_object,
-                                 ArtMethod* referrer) {
-  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  if (UNLIKELY(this_object == nullptr && type != kStatic)) {
-    return nullptr;
-  }
-  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
-  ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
-  constexpr ClassLinker::ResolveMode resolve_mode = access_check
-      ? ClassLinker::ResolveMode::kCheckICCEAndIAE
-      : ClassLinker::ResolveMode::kNoChecks;
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  ArtMethod* resolved_method = linker->GetResolvedMethod<type, resolve_mode>(method_idx, referrer);
-  if (UNLIKELY(resolved_method == nullptr)) {
-    return nullptr;
-  }
-  if (type == kInterface) {  // Most common form of slow path dispatch.
-    return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method,
-                                                                  kRuntimePointerSize);
-  } else if (type == kStatic || type == kDirect) {
-    return resolved_method;
-  } else if (type == kSuper) {
-    // TODO This lookup is rather slow.
-    dex::TypeIndex method_type_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
-    ObjPtr<mirror::Class> method_reference_class = linker->LookupResolvedType(
-        method_type_idx, dex_cache, referrer->GetClassLoader());
-    if (method_reference_class == nullptr) {
-      // Need to do full type resolution...
-      return nullptr;
-    } else if (!method_reference_class->IsInterface()) {
-      // It is not an interface. If the referring class is in the class hierarchy of the
-      // referenced class in the bytecode, we use its super class. Otherwise, we cannot
-      // resolve the method.
-      if (!method_reference_class->IsAssignableFrom(referring_class)) {
-        return nullptr;
-      }
-      ObjPtr<mirror::Class> super_class = referring_class->GetSuperClass();
-      if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
-        // The super class does not have the method.
-        return nullptr;
-      }
-      return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), kRuntimePointerSize);
-    } else {
-      return method_reference_class->FindVirtualMethodForInterfaceSuper(
-          resolved_method, kRuntimePointerSize);
-    }
-  } else {
-    DCHECK(type == kVirtual);
-    return this_object->GetClass()->GetVTableEntry(
-        resolved_method->GetMethodIndex(), kRuntimePointerSize);
-  }
-}
 
 inline ObjPtr<mirror::Class> ResolveVerifyAndClinit(dex::TypeIndex type_idx,
                                                     ArtMethod* referrer,
