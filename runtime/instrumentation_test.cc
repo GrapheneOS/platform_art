@@ -466,7 +466,7 @@ TEST_F(InstrumentationTest, NoInstrumentation) {
 
   EXPECT_FALSE(instr->AreExitStubsInstalled());
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
-  EXPECT_FALSE(instr->IsActive());
+  EXPECT_FALSE(instr->NeedsSlowInterpreterForListeners());
   EXPECT_FALSE(instr->ShouldNotifyMethodEnterExitEvents());
 
 
@@ -478,7 +478,6 @@ TEST_F(InstrumentationTest, NoInstrumentation) {
   EXPECT_FALSE(instr->HasFieldWriteListeners());
   EXPECT_FALSE(instr->HasMethodEntryListeners());
   EXPECT_FALSE(instr->HasMethodExitListeners());
-  EXPECT_FALSE(instr->IsActive());
 }
 
 // Test instrumentation listeners for each event.

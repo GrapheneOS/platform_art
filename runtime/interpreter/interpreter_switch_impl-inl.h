@@ -95,8 +95,11 @@ class InstructionHandler {
     }
     bool skip_event = shadow_frame_.GetSkipNextExceptionEvent();
     shadow_frame_.SetSkipNextExceptionEvent(false);
-    if (!MoveToExceptionHandler(Self(), shadow_frame_, skip_event ? nullptr : Instrumentation())) {
-      /* Structured locking is to be enforced for abnormal termination, too. */
+    if (!MoveToExceptionHandler(Self(),
+                                shadow_frame_,
+                                /* skip_listeners= */ skip_event,
+                                /* skip_throw_listener= */ skip_event)) {
+      // Structured locking is to be enforced for abnormal termination, too.
       DoMonitorCheckOnExit<do_assignability_check>(Self(), &shadow_frame_);
       ctx_->result = JValue(); /* Handled in caller. */
       ExitInterpreterLoop();
