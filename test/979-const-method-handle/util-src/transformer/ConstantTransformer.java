@@ -215,7 +215,7 @@ class ConstantTransformer {
             ClassReader cr = new ClassReader(is);
             ConstantBuilder cb =
                     new ConstantBuilder(
-                            Opcodes.ASM6, cw, constantMethodHandles, constantMethodTypes);
+                            Opcodes.ASM7, cw, constantMethodHandles, constantMethodTypes);
             cr.accept(cb, 0);
         }
         try (OutputStream os = Files.newOutputStream(outputClassPath)) {
