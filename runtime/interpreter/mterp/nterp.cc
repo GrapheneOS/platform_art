@@ -46,7 +46,7 @@ bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
   return IsNterpSupported() &&
       !instr->InterpretOnly() &&
       !runtime->IsAotCompiler() &&
-      !runtime->GetInstrumentation()->IsActive() &&
+      !runtime->GetInstrumentation()->NeedsSlowInterpreterForListeners() &&
       // An async exception has been thrown. We need to go to the switch interpreter. nterp doesn't
       // know how to deal with these so we could end up never dealing with it if we are in an
       // infinite loop.
