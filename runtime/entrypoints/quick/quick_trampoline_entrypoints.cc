@@ -2198,13 +2198,75 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
   return GenericJniMethodEnd(self, cookie, result, result_f, called);
 }
 
+// Fast path method resolution that can't throw exceptions.
+template <InvokeType type>
+inline ArtMethod* FindMethodFast(uint32_t method_idx,
+                                 ObjPtr<mirror::Object> this_object,
+                                 ArtMethod* referrer)
+    REQUIRES_SHARED(Locks::mutator_lock_)
+    REQUIRES(!Roles::uninterruptible_) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+  if (UNLIKELY(this_object == nullptr && type != kStatic)) {
+    return nullptr;
+  }
+  ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
+  ObjPtr<mirror::DexCache> dex_cache = referrer->GetDexCache();
+  constexpr ClassLinker::ResolveMode resolve_mode = ClassLinker::ResolveMode::kCheckICCEAndIAE;
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  ArtMethod* resolved_method = linker->GetResolvedMethod<type, resolve_mode>(method_idx, referrer);
+  if (UNLIKELY(resolved_method == nullptr)) {
+    return nullptr;
+  }
+  if (type == kInterface) {  // Most common form of slow path dispatch.
+    return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method,
+                                                                  kRuntimePointerSize);
+  }
+  if (type == kStatic || type == kDirect) {
+    return resolved_method;
+  }
+
+  if (type == kSuper) {
+    // TODO This lookup is rather slow.
+    dex::TypeIndex method_type_idx = dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
+    ObjPtr<mirror::Class> method_reference_class = linker->LookupResolvedType(
+        method_type_idx, dex_cache, referrer->GetClassLoader());
+    if (method_reference_class == nullptr) {
+      // Need to do full type resolution...
+      return nullptr;
+    }
+
+    // If the referring class is in the class hierarchy of the
+    // referenced class in the bytecode, we use its super class. Otherwise, we cannot
+    // resolve the method.
+    if (!method_reference_class->IsAssignableFrom(referring_class)) {
+      return nullptr;
+    }
+
+    if (method_reference_class->IsInterface()) {
+      return method_reference_class->FindVirtualMethodForInterfaceSuper(
+          resolved_method, kRuntimePointerSize);
+    }
+
+    ObjPtr<mirror::Class> super_class = referring_class->GetSuperClass();
+    if (resolved_method->GetMethodIndex() >= super_class->GetVTableLength()) {
+      // The super class does not have the method.
+      return nullptr;
+    }
+    return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), kRuntimePointerSize);
+  }
+
+  DCHECK(type == kVirtual);
+  return this_object->GetClass()->GetVTableEntry(
+      resolved_method->GetMethodIndex(), kRuntimePointerSize);
+}
+
 // We use TwoWordReturn to optimize scalar returns. We use the hi value for code, and the lo value
 // for the method pointer.
 //
 // It is valid to use this, as at the usage points here (returns from C functions) we are assuming
 // to hold the mutator lock (see REQUIRES_SHARED(Locks::mutator_lock_) annotations).
 
-template <InvokeType type, bool access_check>
+template <InvokeType type>
 static TwoWordReturn artInvokeCommon(uint32_t method_idx,
                                      ObjPtr<mirror::Object> this_object,
                                      Thread* self,
@@ -2212,7 +2274,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
   ScopedQuickEntrypointChecks sqec(self);
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs));
   ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
-  ArtMethod* method = FindMethodFast<type, access_check>(method_idx, this_object, caller_method);
+  ArtMethod* method = FindMethodFast<type>(method_idx, this_object, caller_method);
   if (UNLIKELY(method == nullptr)) {
     const DexFile* dex_file = caller_method->GetDexFile();
     uint32_t shorty_len;
@@ -2222,10 +2284,8 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-      method = FindMethodFromCode<type, access_check>(method_idx,
-                                                      &this_object,
-                                                      caller_method,
-                                                      self);
+      method = FindMethodFromCode<type, /*access_check=*/true>(
+          method_idx, &this_object, caller_method, self);
       visitor.FixupReferences();
     }
 
@@ -2247,34 +2307,29 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
 }
 
 // Explicit artInvokeCommon template function declarations to please analysis tool.
-#define EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(type, access_check)                                \
-  template REQUIRES_SHARED(Locks::mutator_lock_)                                          \
-  TwoWordReturn artInvokeCommon<type, access_check>(                                            \
+#define EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(type)                                            \
+  template REQUIRES_SHARED(Locks::mutator_lock_)                                              \
+  TwoWordReturn artInvokeCommon<type>(                                                        \
       uint32_t method_idx, ObjPtr<mirror::Object> his_object, Thread* self, ArtMethod** sp)
 
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kVirtual, false);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kVirtual, true);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kInterface, false);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kInterface, true);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kDirect, false);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kDirect, true);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kStatic, false);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kStatic, true);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kSuper, false);
-EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kSuper, true);
+EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kVirtual);
+EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kInterface);
+EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kDirect);
+EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kStatic);
+EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL(kSuper);
 #undef EXPLICIT_INVOKE_COMMON_TEMPLATE_DECL
 
 // See comments in runtime_support_asm.S
 extern "C" TwoWordReturn artInvokeInterfaceTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return artInvokeCommon<kInterface, true>(method_idx, this_object, self, sp);
+  return artInvokeCommon<kInterface>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeDirectTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return artInvokeCommon<kDirect, true>(method_idx, this_object, self, sp);
+  return artInvokeCommon<kDirect>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeStaticTrampolineWithAccessCheck(
@@ -2284,19 +2339,19 @@ extern "C" TwoWordReturn artInvokeStaticTrampolineWithAccessCheck(
     ArtMethod** sp) REQUIRES_SHARED(Locks::mutator_lock_) {
   // For static, this_object is not required and may be random garbage. Don't pass it down so that
   // it doesn't cause ObjPtr alignment failure check.
-  return artInvokeCommon<kStatic, true>(method_idx, nullptr, self, sp);
+  return artInvokeCommon<kStatic>(method_idx, nullptr, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeSuperTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return artInvokeCommon<kSuper, true>(method_idx, this_object, self, sp);
+  return artInvokeCommon<kSuper>(method_idx, this_object, self, sp);
 }
 
 extern "C" TwoWordReturn artInvokeVirtualTrampolineWithAccessCheck(
     uint32_t method_idx, mirror::Object* this_object, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return artInvokeCommon<kVirtual, true>(method_idx, this_object, self, sp);
+  return artInvokeCommon<kVirtual>(method_idx, this_object, self, sp);
 }
 
 // Determine target of interface dispatch. The interface method and this object are known non-null.
