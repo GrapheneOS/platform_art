@@ -187,7 +187,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
                 ODREFRESH_BIN + " --no-refresh --partial-compilation"
                         + " --compilation-os-mode --compile");
 
-        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
         assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
 
         String cacheInfo = getDevice().pullFileContents(CACHE_INFO_FILE);
