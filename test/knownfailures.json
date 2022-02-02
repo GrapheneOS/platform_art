@@ -1474,5 +1474,11 @@
         "tests": ["667-jit-jni-stub"],
         "variant": "jit-on-first-use | redefine-stress",
         "description": ["jit-on-first-use disables jit GC but this test requires jit GC"]
+    },
+    {
+        "tests": ["181-default-methods"],
+        "variant": "no-image",
+        "bug": "b/217494697",
+        "description": ["Disabled due to CHA bug. b/217494697"]
     }
 ]
