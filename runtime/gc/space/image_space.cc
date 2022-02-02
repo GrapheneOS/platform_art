@@ -3484,7 +3484,7 @@ bool ImageSpace::ValidateApexVersions(const OatFile& oat_file, std::string* erro
   // The OAT files in the ART APEX is built on host, so they don't have the right APEX versions. It
   // is safe to assume that they are always up-to-date because they are shipped along with the
   // runtime and the dex files.
-  if (kIsTargetAndroid && android::base::StartsWith(oat_file.GetLocation(), GetArtRoot())) {
+  if (kIsTargetBuild && android::base::StartsWith(oat_file.GetLocation(), GetArtRoot())) {
     return true;
   }
 
