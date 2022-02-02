@@ -857,7 +857,6 @@ class ClassLinker {
   class LinkFieldsHelper;
   template <PointerSize kPointerSize>
   class LinkMethodsHelper;
-  class MethodTranslation;
   class VisiblyInitializedCallback;
 
   struct ClassLoaderData {
@@ -1163,36 +1162,6 @@ class ClassLinker {
       Thread* self,
       const dex::MethodHandleItem& method_handle,
       ArtMethod* referrer) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  enum class DefaultMethodSearchResult {
-    kDefaultFound,
-    kAbstractFound,
-    kDefaultConflict
-  };
-
-  // Find the default method implementation for 'interface_method' in 'klass', if one exists.
-  //
-  // Arguments:
-  // * self - The current thread.
-  // * target_method - The method we are trying to find a default implementation for.
-  // * klass - The class we are searching for a definition of target_method.
-  // * out_default_method - The pointer we will store the found default method to on success.
-  //
-  // Return value:
-  // * kDefaultFound - There were no conflicting method implementations found in the class while
-  //                   searching for target_method. The default method implementation is stored into
-  //                   out_default_method.
-  // * kAbstractFound - There were no conflicting method implementations found in the class while
-  //                   searching for target_method but no default implementation was found either.
-  //                   out_default_method is set to null and the method should be considered not
-  //                   implemented.
-  // * kDefaultConflict - Conflicting method implementations were found when searching for
-  //                      target_method. The value of *out_default_method is null.
-  DefaultMethodSearchResult FindDefaultMethodImplementation(
-      ArtMethod* target_method,
-      ObjPtr<mirror::Class> klass,
-      /*out*/ArtMethod** out_default_method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool LinkStaticFields(Thread* self, Handle<mirror::Class> klass, size_t* class_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
