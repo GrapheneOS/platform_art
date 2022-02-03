@@ -336,41 +336,12 @@ inline void CopyArgumentsFromCallerFrame(const ShadowFrame& caller_frame,
   }
 }
 
-inline bool ConvertAndCopyArgumentsFromCallerFrame(
-    Thread* self,
-    Handle<mirror::MethodType> callsite_type,
-    Handle<mirror::MethodType> callee_type,
-    const ShadowFrame& caller_frame,
-    uint32_t first_dest_reg,
-    const InstructionOperands* const operands,
-    ShadowFrame* callee_frame)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::ObjectArray<mirror::Class>> from_types(callsite_type->GetPTypes());
-  ObjPtr<mirror::ObjectArray<mirror::Class>> to_types(callee_type->GetPTypes());
-
-  const int32_t num_method_params = from_types->GetLength();
-  if (to_types->GetLength() != num_method_params) {
-    ThrowWrongMethodTypeException(callee_type.Get(), callsite_type.Get());
-    return false;
-  }
-
-  ShadowFrameGetter getter(caller_frame, operands);
-  ShadowFrameSetter setter(callee_frame, first_dest_reg);
-  return PerformConversions<ShadowFrameGetter, ShadowFrameSetter>(self,
-                                                                  callsite_type,
-                                                                  callee_type,
-                                                                  &getter,
-                                                                  &setter,
-                                                                  num_method_params);
-}
-
 inline bool IsInvoke(const mirror::MethodHandle::Kind handle_kind) {
   return handle_kind <= mirror::MethodHandle::Kind::kLastInvokeKind;
 }
 
 inline bool IsInvokeTransform(const mirror::MethodHandle::Kind handle_kind) {
-  return (handle_kind == mirror::MethodHandle::Kind::kInvokeTransform
-          || handle_kind == mirror::MethodHandle::Kind::kInvokeCallSiteTransform);
+  return (handle_kind == mirror::MethodHandle::Kind::kInvokeTransform);
 }
 
 inline bool IsInvokeVarHandle(const mirror::MethodHandle::Kind handle_kind) {
@@ -421,130 +392,31 @@ static inline bool InvokedFromTransform(Handle<mirror::MethodType> callsite_type
 }
 
 static inline bool MethodHandleInvokeMethod(ArtMethod* called_method,
-                                            Handle<mirror::MethodType> callsite_type,
-                                            Handle<mirror::MethodType> target_type,
                                             Thread* self,
-                                            ShadowFrame& shadow_frame,
-                                            const InstructionOperands* const operands,
+                                            ShadowFrame& caller_frame,
                                             JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
   // Compute method information.
   CodeItemDataAccessor accessor(called_method->DexInstructionData());
-
-  // Number of registers for the callee's call frame. Note that for non-exact
-  // invokes, we always derive this information from the callee method. We
-  // cannot guarantee during verification that the number of registers encoded
-  // in the invoke is equal to the number of ins for the callee. This is because
-  // some transformations (such as boxing a long -> Long or wideining an
-  // int -> long will change that number.
-  uint16_t num_regs;
-  size_t num_input_regs;
-  size_t first_dest_reg;
+  size_t first_dst_reg;
   if (LIKELY(accessor.HasCodeItem())) {
-    num_regs = accessor.RegistersSize();
-    first_dest_reg = num_regs - accessor.InsSize();
-    num_input_regs = accessor.InsSize();
+    uint16_t num_regs = accessor.RegistersSize();
+    first_dst_reg = num_regs - accessor.InsSize();
     // Parameter registers go at the end of the shadow frame.
-    DCHECK_NE(first_dest_reg, (size_t)-1);
+    DCHECK_NE(first_dst_reg, (size_t)-1);
   } else {
     // No local regs for proxy and native methods.
     DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
-    num_regs = num_input_regs = GetInsForProxyOrNativeMethod(called_method);
-    first_dest_reg = 0;
-  }
-
-  // Allocate shadow frame on the stack.
-  ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
-      CREATE_SHADOW_FRAME(num_regs, &shadow_frame, called_method, /* dex pc */ 0);
-  ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
-
-  // Whether this polymorphic invoke was issued by a transformer method.
-  bool is_caller_transformer = false;
-  // Thread might be suspended during PerformArgumentConversions due to the
-  // allocations performed during boxing.
-  {
-    ScopedStackedShadowFramePusher pusher(
-        self, new_shadow_frame, StackedShadowFrameType::kShadowFrameUnderConstruction);
-    if (callsite_type->IsExactMatch(target_type.Get())) {
-      // This is an exact invoke, we can take the fast path of just copying all
-      // registers without performing any argument conversions.
-      CopyArgumentsFromCallerFrame(shadow_frame,
-                                   new_shadow_frame,
-                                   operands,
-                                   first_dest_reg);
-    } else {
-      // This includes the case where we're entering this invoke-polymorphic
-      // from a transformer method. In that case, the callsite_type will contain
-      // a single argument of type dalvik.system.EmulatedStackFrame. In that
-      // case, we'll have to unmarshal the EmulatedStackFrame into the
-      // new_shadow_frame and perform argument conversions on it.
-      if (InvokedFromTransform(callsite_type)) {
-        is_caller_transformer = true;
-        // The emulated stack frame is the first and only argument when we're coming
-        // through from a transformer.
-        size_t first_arg_register = operands->GetOperand(0);
-        ObjPtr<mirror::EmulatedStackFrame> emulated_stack_frame(
-            ObjPtr<mirror::EmulatedStackFrame>::DownCast(
-                shadow_frame.GetVRegReference(first_arg_register)));
-        if (!emulated_stack_frame->WriteToShadowFrame(self,
-                                                      target_type,
-                                                      first_dest_reg,
-                                                      new_shadow_frame)) {
-          DCHECK(self->IsExceptionPending());
-          result->SetL(nullptr);
-          return false;
-        }
-      } else {
-        if (!callsite_type->IsConvertible(target_type.Get())) {
-          ThrowWrongMethodTypeException(target_type.Get(), callsite_type.Get());
-          return false;
-        }
-        if (!ConvertAndCopyArgumentsFromCallerFrame(self,
-                                                    callsite_type,
-                                                    target_type,
-                                                    shadow_frame,
-                                                    first_dest_reg,
-                                                    operands,
-                                                    new_shadow_frame)) {
-          DCHECK(self->IsExceptionPending());
-          result->SetL(nullptr);
-          return false;
-        }
-      }
-    }
+    first_dst_reg = 0;
   }
 
   PerformCall(self,
               accessor,
-              shadow_frame.GetMethod(),
-              first_dest_reg,
-              new_shadow_frame,
+              caller_frame.GetMethod(),
+              first_dst_reg,
+              &caller_frame,
               result,
               interpreter::ShouldStayInSwitchInterpreter(called_method));
-  if (self->IsExceptionPending()) {
-    return false;
-  }
-
-  // If the caller of this signature polymorphic method was a transformer,
-  // we need to copy the result back out to the emulated stack frame.
-  if (is_caller_transformer) {
-    StackHandleScope<2> hs(self);
-    size_t first_callee_register = operands->GetOperand(0);
-    Handle<mirror::EmulatedStackFrame> emulated_stack_frame(
-        hs.NewHandle(ObjPtr<mirror::EmulatedStackFrame>::DownCast(
-            shadow_frame.GetVRegReference(first_callee_register))));
-    Handle<mirror::MethodType> emulated_stack_type(hs.NewHandle(emulated_stack_frame->GetType()));
-    JValue local_result;
-    local_result.SetJ(result->GetJ());
-
-    if (ConvertReturnValue(emulated_stack_type, target_type, &local_result)) {
-      emulated_stack_frame->SetReturnValue(self, local_result);
-      return true;
-    }
-
-    DCHECK(self->IsExceptionPending());
-    return false;
-  }
-  return ConvertReturnValue(callsite_type, target_type, result);
+  return !self->IsExceptionPending();
 }
 
 static inline bool MethodHandleInvokeTransform(ArtMethod* called_method,
@@ -737,33 +609,16 @@ bool DoInvokePolymorphicMethod(Thread* self,
   }
 
   if (IsInvokeTransform(handle_kind)) {
-    // There are two cases here - method handles representing regular
-    // transforms and those representing call site transforms. Method
-    // handles for call site transforms adapt their MethodType to match
-    // the call site. For these, the |callee_type| is the same as the
-    // |callsite_type|. The VarargsCollector is such a tranform, its
-    // method type depends on the call site, ie. x(a) or x(a, b), or
-    // x(a, b, c). The VarargsCollector invokes a variable arity method
-    // with the arity arguments in an array.
-    Handle<mirror::MethodType> callee_type =
-        (handle_kind == mirror::MethodHandle::Kind::kInvokeCallSiteTransform) ? callsite_type
-        : handle_type;
     return MethodHandleInvokeTransform(called_method,
                                        callsite_type,
-                                       callee_type,
+                                       handle_type,
                                        self,
                                        shadow_frame,
                                        /* receiver= */ method_handle,
                                        operands,
                                        result);
   } else {
-    return MethodHandleInvokeMethod(called_method,
-                                    callsite_type,
-                                    handle_type,
-                                    self,
-                                    shadow_frame,
-                                    operands,
-                                    result);
+    return MethodHandleInvokeMethod(called_method, self, shadow_frame, result);
   }
 }
 
@@ -1112,18 +967,16 @@ static inline bool MethodHandleInvokeExactInternal(
   // Compute method information.
   CodeItemDataAccessor accessor(called_method->DexInstructionData());
   uint16_t num_regs;
-  size_t num_input_regs;
   size_t first_dest_reg;
   if (LIKELY(accessor.HasCodeItem())) {
     num_regs = accessor.RegistersSize();
     first_dest_reg = num_regs - accessor.InsSize();
-    num_input_regs = accessor.InsSize();
     // Parameter registers go at the end of the shadow frame.
     DCHECK_NE(first_dest_reg, (size_t)-1);
   } else {
     // No local regs for proxy and native methods.
     DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
-    num_regs = num_input_regs = GetInsForProxyOrNativeMethod(called_method);
+    num_regs = GetInsForProxyOrNativeMethod(called_method);
     first_dest_reg = 0;
   }
 
