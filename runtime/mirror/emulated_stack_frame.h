@@ -47,7 +47,7 @@ class MANAGED EmulatedStackFrame : public Object {
 
   // Writes the contents of this emulated stack frame to the |callee_frame|
   // whose type is |callee_type|, starting at |first_dest_reg|.
-  bool WriteToShadowFrame(
+  void WriteToShadowFrame(
       Thread* self,
       Handle<mirror::MethodType> callee_type,
       const uint32_t first_dest_reg,
