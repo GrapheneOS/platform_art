@@ -180,8 +180,7 @@ ObjPtr<mirror::EmulatedStackFrame> EmulatedStackFrame::CreateFromShadowFrameAndA
   // Step 4 : Copy arguments.
   ShadowFrameGetter getter(caller_frame, operands);
   EmulatedStackFrameAccessor setter(references, stack_frame, stack_frame->GetLength());
-  CopyArguments<ShadowFrameGetter, EmulatedStackFrameAccessor>(
-          self, caller_type, &getter, &setter);
+  CopyArguments<ShadowFrameGetter, EmulatedStackFrameAccessor>(self, caller_type, &getter, &setter);
 
   // Step 5: Construct the EmulatedStackFrame object.
   Handle<EmulatedStackFrame> sf(hs.NewHandle(
@@ -193,7 +192,7 @@ ObjPtr<mirror::EmulatedStackFrame> EmulatedStackFrame::CreateFromShadowFrameAndA
   return sf.Get();
 }
 
-bool EmulatedStackFrame::WriteToShadowFrame(Thread* self,
+void EmulatedStackFrame::WriteToShadowFrame(Thread* self,
                                             Handle<mirror::MethodType> callee_type,
                                             const uint32_t first_dest_reg,
                                             ShadowFrame* callee_frame) {
@@ -207,7 +206,6 @@ bool EmulatedStackFrame::WriteToShadowFrame(Thread* self,
   ShadowFrameSetter setter(callee_frame, first_dest_reg);
 
   CopyArguments<EmulatedStackFrameAccessor, ShadowFrameSetter>(self, callee_type, &getter, &setter);
-  return true;
 }
 
 void EmulatedStackFrame::GetReturnValue(Thread* self, JValue* value) {
