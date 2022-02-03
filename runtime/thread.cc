@@ -19,6 +19,7 @@
 #include <limits.h>  // for INT_MAX
 #include <pthread.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 
@@ -29,6 +30,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <bitset>
 #include <cerrno>
 #include <iostream>
@@ -1066,7 +1068,7 @@ Thread* Thread::Attach(const char* thread_name,
     } else {
       // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.
       if (thread_name != nullptr) {
-        self->tlsPtr_.name->assign(thread_name);
+        self->SetCachedThreadName(thread_name);
         ::art::SetThreadName(thread_name);
       } else if (self->GetJniEnv()->IsCheckJniEnabled()) {
         LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
@@ -1232,8 +1234,27 @@ void Thread::InitPeer(ScopedObjectAccessAlreadyRunnable& soa,
       SetInt<kTransactionActive>(peer, thread_priority);
 }
 
+void Thread::SetCachedThreadName(const char* name) {
+  DCHECK(name != kThreadNameDuringStartup);
+  const char* old_name = tlsPtr_.name.exchange(name == nullptr ? nullptr : strdup(name));
+  if (old_name != nullptr && old_name !=  kThreadNameDuringStartup) {
+    // Deallocate it, carefully. Note that the load has to be ordered wrt the store of the xchg.
+    for (uint32_t i = 0; UNLIKELY(tls32_.num_name_readers.load(std::memory_order_seq_cst) != 0);
+         ++i) {
+      static constexpr uint32_t kNumSpins = 1000;
+      // Ugly, but keeps us from having to do anything on the reader side.
+      if (i > kNumSpins) {
+        usleep(500);
+      }
+    }
+    // We saw the reader count drop to zero since we replaced the name; old one is now safe to
+    // deallocate.
+    free(const_cast<char *>(old_name));
+  }
+}
+
 void Thread::SetThreadName(const char* name) {
-  tlsPtr_.name->assign(name);
+  SetCachedThreadName(name);
   ::art::SetThreadName(name);
   Dbg::DdmSendThreadNotification(this, CHUNK_TYPE("THNM"));
 }
@@ -1359,11 +1380,14 @@ void Thread::ShortDump(std::ostream& os) const {
     os << GetThreadId()
        << ",tid=" << GetTid() << ',';
   }
+  tls32_.num_name_readers.fetch_add(1, std::memory_order_seq_cst);
+  const char* name = tlsPtr_.name.load();
   os << GetState()
      << ",Thread*=" << this
      << ",peer=" << tlsPtr_.opeer
-     << ",\"" << (tlsPtr_.name != nullptr ? *tlsPtr_.name : "null") << "\""
+     << ",\"" << (name == nullptr ? "null" : name) << "\""
      << "]";
+  tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
 }
 
 void Thread::Dump(std::ostream& os, bool dump_native_stack, BacktraceMap* backtrace_map,
@@ -1382,7 +1406,10 @@ ObjPtr<mirror::String> Thread::GetThreadName() const {
 }
 
 void Thread::GetThreadName(std::string& name) const {
-  name.assign(*tlsPtr_.name);
+  tls32_.num_name_readers.fetch_add(1, std::memory_order_seq_cst);
+  // The store part of the increment has to be ordered with respect to the following load.
+  name.assign(tlsPtr_.name.load(std::memory_order_seq_cst));
+  tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
 }
 
 uint64_t Thread::GetCpuMicroTime() const {
@@ -1941,7 +1968,9 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   }
 
   if (thread != nullptr) {
-    os << '"' << *thread->tlsPtr_.name << '"';
+    thread->tls32_.num_name_readers.fetch_add(1, std::memory_order_seq_cst);
+    os << '"' << thread->tlsPtr_.name.load() << '"';
+    thread->tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
     if (is_daemon) {
       os << " daemon";
     }
@@ -2382,7 +2411,7 @@ Thread::Thread(bool daemon)
   DCHECK(tlsPtr_.mutator_lock != nullptr);
   tlsPtr_.instrumentation_stack =
       new std::map<uintptr_t, instrumentation::InstrumentationStackFrame>;
-  tlsPtr_.name = new std::string(kThreadNameDuringStartup);
+  tlsPtr_.name.store(kThreadNameDuringStartup, std::memory_order_relaxed);
 
   static_assert((sizeof(Thread) % 4) == 0U,
                 "art::Thread has a size which is not a multiple of 4.");
@@ -2419,7 +2448,7 @@ bool Thread::IsStillStarting() const {
   // It turns out that the last thing to change is the thread name; that's a good proxy for "has
   // this thread _ever_ entered kRunnable".
   return (tlsPtr_.jpeer == nullptr && tlsPtr_.opeer == nullptr) ||
-      (*tlsPtr_.name == kThreadNameDuringStartup);
+      (tlsPtr_.name.load() == kThreadNameDuringStartup);
 }
 
 void Thread::AssertPendingException() const {
@@ -2572,7 +2601,7 @@ Thread::~Thread() {
   }
 
   delete tlsPtr_.instrumentation_stack;
-  delete tlsPtr_.name;
+  SetCachedThreadName(nullptr);  // Deallocate name.
   delete tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
 
   Runtime::Current()->GetHeap()->AssertThreadLocalBuffersAreRevoked(this);
