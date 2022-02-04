@@ -129,17 +129,8 @@ public class CompOsSigningHostTest extends ActivationTest {
         assertThat(actualChecksums).isNotEqualTo(originalChecksums);
     }
 
-    @Ignore("Implement timestamp check when possible. b/215589015")
-    public void verifyFileTimestamps() {}
-
-    @Ignore("Override base class. Due to b/211458160 and b/210998761.")
+    @Ignore("Override base class. Need to handle compilation log. b/208446270")
     public void verifyGeneratedArtifactsLoaded() {}
-
-    @Ignore("Override base class. Due to b/211458160 and b/210998761.")
-    public void verifyGeneratedArtifactsLoadedAfterPartialCompilation() {}
-
-    @Ignore("Override base class. Due to b/211458160 and b/210998761.")
-    public void verifyGeneratedArtifactsLoadedAfterReboot() {}
 
     private static String checksumDirectoryContentPartial(ITestDevice device, String path)
             throws Exception {
