@@ -542,6 +542,7 @@ class ArtMethod final {
     DCHECK(!IsNative());
     // Non-abstract method's single implementation is just itself.
     DCHECK(IsAbstract());
+    DCHECK(method == nullptr || method->IsInvokable());
     SetDataPtrSize(method, pointer_size);
   }
 

@@ -151,23 +151,15 @@ ObjPtr<mirror::EmulatedStackFrame> EmulatedStackFrame::CreateFromShadowFrameAndA
     const InstructionOperands* const operands) {
   StackHandleScope<6> hs(self);
 
-  // Step 1: We must throw a WrongMethodTypeException if there's a mismatch in the
-  // number of arguments between the caller and the callsite.
-  Handle<mirror::ObjectArray<mirror::Class>> from_types(hs.NewHandle(caller_type->GetPTypes()));
-  Handle<mirror::ObjectArray<mirror::Class>> to_types(hs.NewHandle(callee_type->GetPTypes()));
-
-  const int32_t num_method_params = from_types->GetLength();
-  if (to_types->GetLength() != num_method_params) {
-    ThrowWrongMethodTypeException(callee_type.Get(), caller_type.Get());
-    return nullptr;
-  }
+  DCHECK(callee_type->IsExactMatch(caller_type.Get()));
+  Handle<mirror::ObjectArray<mirror::Class>> p_types(hs.NewHandle(callee_type->GetPTypes()));
 
   // Step 2: Calculate the size of the reference / byte arrays in the emulated
   // stack frame.
   size_t frame_size = 0;
   size_t refs_size = 0;
   Handle<mirror::Class> r_type(hs.NewHandle(callee_type->GetRType()));
-  CalculateFrameAndReferencesSize(to_types.Get(), r_type.Get(), &frame_size, &refs_size);
+  CalculateFrameAndReferencesSize(p_types.Get(), r_type.Get(), &frame_size, &refs_size);
 
   // Step 3 : Allocate the arrays.
   ObjPtr<mirror::Class> array_class(GetClassRoot<mirror::ObjectArray<mirror::Object>>());
@@ -185,18 +177,14 @@ ObjPtr<mirror::EmulatedStackFrame> EmulatedStackFrame::CreateFromShadowFrameAndA
     return nullptr;
   }
 
-  // Step 4 : Perform argument conversions (if required).
+  // Step 4 : Copy arguments.
   ShadowFrameGetter getter(caller_frame, operands);
   EmulatedStackFrameAccessor setter(references, stack_frame, stack_frame->GetLength());
-  if (!PerformConversions<ShadowFrameGetter, EmulatedStackFrameAccessor>(
-          self, caller_type, callee_type, &getter, &setter, num_method_params)) {
-    return nullptr;
-  }
+  CopyArguments<ShadowFrameGetter, EmulatedStackFrameAccessor>(self, caller_type, &getter, &setter);
 
   // Step 5: Construct the EmulatedStackFrame object.
   Handle<EmulatedStackFrame> sf(hs.NewHandle(
       ObjPtr<EmulatedStackFrame>::DownCast(GetClassRoot<EmulatedStackFrame>()->AllocObject(self))));
-  sf->SetFieldObject<false>(CallsiteTypeOffset(), caller_type.Get());
   sf->SetFieldObject<false>(TypeOffset(), callee_type.Get());
   sf->SetFieldObject<false>(ReferencesOffset(), references.Get());
   sf->SetFieldObject<false>(StackFrameOffset(), stack_frame.Get());
@@ -204,29 +192,20 @@ ObjPtr<mirror::EmulatedStackFrame> EmulatedStackFrame::CreateFromShadowFrameAndA
   return sf.Get();
 }
 
-bool EmulatedStackFrame::WriteToShadowFrame(Thread* self,
+void EmulatedStackFrame::WriteToShadowFrame(Thread* self,
                                             Handle<mirror::MethodType> callee_type,
                                             const uint32_t first_dest_reg,
                                             ShadowFrame* callee_frame) {
-  ObjPtr<mirror::ObjectArray<mirror::Class>> from_types(GetType()->GetPTypes());
-  ObjPtr<mirror::ObjectArray<mirror::Class>> to_types(callee_type->GetPTypes());
-
-  const int32_t num_method_params = from_types->GetLength();
-  if (to_types->GetLength() != num_method_params) {
-    ThrowWrongMethodTypeException(callee_type.Get(), GetType());
-    return false;
-  }
+  DCHECK(callee_type->IsExactMatch(GetType()));
 
   StackHandleScope<3> hs(self);
-  Handle<mirror::MethodType> frame_callsite_type(hs.NewHandle(GetType()));
   Handle<mirror::ObjectArray<mirror::Object>> references(hs.NewHandle(GetReferences()));
   Handle<ByteArray> stack_frame(hs.NewHandle(GetStackFrame()));
 
   EmulatedStackFrameAccessor getter(references, stack_frame, stack_frame->GetLength());
   ShadowFrameSetter setter(callee_frame, first_dest_reg);
 
-  return PerformConversions<EmulatedStackFrameAccessor, ShadowFrameSetter>(
-      self, frame_callsite_type, callee_type, &getter, &setter, num_method_params);
+  CopyArguments<EmulatedStackFrameAccessor, ShadowFrameSetter>(self, callee_type, &getter, &setter);
 }
 
 void EmulatedStackFrame::GetReturnValue(Thread* self, JValue* value) {

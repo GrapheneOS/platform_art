@@ -491,7 +491,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
       const Instruction* instr = &accessor.InstructionAt(dex_pc);
       if (deopt_method_type == DeoptimizationMethodType::kKeepDexPc ||
           shadow_frame->GetForceRetryInstruction()) {
-        DCHECK(frame_cnt == 0 || (frame_cnt == 1 && shadow_frame->GetForceRetryInstruction()))
+        DCHECK(frame_cnt == 0 || shadow_frame->GetForceRetryInstruction())
             << "frame_cnt: " << frame_cnt
             << " force-retry: " << shadow_frame->GetForceRetryInstruction();
         // Need to re-execute the dex instruction.
