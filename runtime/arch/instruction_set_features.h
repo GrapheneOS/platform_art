@@ -130,6 +130,11 @@ class InstructionSetFeatures {
   static bool FindVariantInArray(const char* const variants[], size_t num_variants,
                                  const std::string& variant);
 
+  // Comma separates the variants and adds them to the `os` buffer.
+  static void CommaSeparateVariants(std::ostream& os,
+                                    const char* const variants[],
+                                    size_t num_variants);
+
   // Add architecture specific features in sub-classes.
   virtual std::unique_ptr<const InstructionSetFeatures>
       AddFeaturesFromSplitString(const std::vector<std::string>& features,
