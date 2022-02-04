@@ -248,7 +248,6 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
 
   // Call to address held at [base+offset]
   virtual void Call(ManagedRegister base, Offset offset) = 0;
-  virtual void Call(FrameOffset base, Offset offset) = 0;
   virtual void CallFromThread(ThreadOffset<kPointerSize> offset) = 0;
 
   // Generate fast-path for transition to Native. Go to `label` if any thread flag is set.

@@ -829,13 +829,6 @@ void Arm64JNIMacroAssembler::Call(ManagedRegister m_base, Offset offs) {
   ___ Blr(lr);
 }
 
-void Arm64JNIMacroAssembler::Call(FrameOffset base, Offset offs) {
-  // Call *(*(SP + base) + offset)
-  ___ Ldr(lr, MEM_OP(reg_x(SP), base.Int32Value()));
-  ___ Ldr(lr, MEM_OP(lr, offs.Int32Value()));
-  ___ Blr(lr);
-}
-
 void Arm64JNIMacroAssembler::CallFromThread(ThreadOffset64 offset) {
   // Call *(TR + offset)
   ___ Ldr(lr, MEM_OP(reg_x(TR), offset.Int32Value()));

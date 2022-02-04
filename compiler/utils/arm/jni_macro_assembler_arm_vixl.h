@@ -181,7 +181,6 @@ class ArmVIXLJNIMacroAssembler final
 
   // Call to address held at [base+offset].
   void Call(ManagedRegister base, Offset offset) override;
-  void Call(FrameOffset base, Offset offset) override;
   void CallFromThread(ThreadOffset32 offset) override;
 
   // Generate fast-path for transition to Native. Go to `label` if any thread flag is set.
