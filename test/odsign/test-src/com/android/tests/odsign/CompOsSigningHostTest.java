@@ -23,7 +23,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
-import static org.junit.Assume.assumeFalse;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
@@ -76,9 +75,6 @@ public class CompOsSigningHostTest extends ActivationTest {
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
         ITestDevice device = testInfo.getDevice();
-
-        // TODO(216321149): enable when the bug is fixed.
-        assumeFalse("VM fails to boot on user build", device.getBuildFlavor().endsWith("-user"));
 
         assumeCompOsPresent(device);
 
