@@ -147,7 +147,9 @@ Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromVariant(
     };
     if (!FindVariantInArray(arm64_known_variants, arraysize(arm64_known_variants), variant)) {
       std::ostringstream os;
-      os << "Unexpected CPU variant for Arm64: " << variant;
+      os << "Unexpected CPU variant for Arm64: " << variant << ".\n";
+      os << "Known variants: ";
+      CommaSeparateVariants(os, arm64_known_variants, arraysize(arm64_known_variants));
       *error_msg = os.str();
       return nullptr;
     }
