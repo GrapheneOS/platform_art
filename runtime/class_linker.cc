@@ -6576,8 +6576,8 @@ static ObjPtr<mirror::IfTable> SetupInterfaceLookupTable(
 
   // If there are no new interfaces, we can recycle parent's interface table if the class
   // inherits no interfaces from the superclass (this is always the case for interfaces as
-  // their superclass `java.lang.Object` does not implement any interface), or there are no
-  // new virtuals, or all interfaces inherited from the superclass are just marker interfaces.
+  // their superclass `java.lang.Object` does not implement any interface), or all interfaces
+  // inherited from the superclass are just marker interfaces.
   auto is_marker_iface = [=](size_t index) REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     return super_iftable->GetMethodArrayCount(index) == 0;
   };
@@ -6586,8 +6586,7 @@ static ObjPtr<mirror::IfTable> SetupInterfaceLookupTable(
       return true;
     }
     DCHECK(!klass->IsInterface());
-    return klass->NumDeclaredVirtualMethods() == 0u ||
-           std::all_of(CountIter(0), CountIter(super_ifcount), is_marker_iface);
+    return std::all_of(CountIter(0), CountIter(super_ifcount), is_marker_iface);
   };
   if (num_interfaces == 0 && can_reuse_super_iftable()) {
     return super_iftable;
@@ -8251,10 +8250,10 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
     Handle<mirror::Class> super_class(hs.NewHandle(klass->GetSuperClass()));
 
-    // If there are no new virtual methods and no new interfaces, we can simply reuse
-    // the vtable from superclass. We may need to make a copy if it's embedded.
-    if (num_virtual_methods == 0 &&
-        static_cast<size_t>(super_class->GetIfTableCount()) == iftable->Count()) {
+    // If there are no new virtual methods and no new interfaces and no non-marker
+    // interfaces in the superclass, we can simply reuse the vtable from superclass.
+    // We may need to make a copy if it's embedded.
+    if (num_virtual_methods == 0 && iftable.Get() == super_class->GetIfTable()) {
       if (super_class->ShouldHaveEmbeddedVTable()) {
         ObjPtr<mirror::PointerArray> vtable =
             class_linker_->AllocPointerArray(self, super_vtable_length);
@@ -8273,8 +8272,6 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
         CHECK(super_vtable != nullptr) << super_class->PrettyClass();
         klass->SetVTable(super_vtable);
       }
-      // The interface table from superclass has also been reused by `SetupInterfaceLookupTable()`.
-      DCHECK(iftable.Get() == super_class->GetIfTable()) << klass->PrettyDescriptor();
       klass->SetIfTable(iftable.Get());
       return true;
     }

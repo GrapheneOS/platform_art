@@ -22,6 +22,7 @@
 import argparse
 import copy
 import collections
+import itertools
 import json
 import logging
 import os
@@ -263,10 +264,19 @@ flaky_tests_excluded_from_mts = [
     ]
 ] + [
     ("CtsLibcoreTestCases" +
-     " com.android.org.conscrypt.javax.net.ssl.SSLSocketVersionCompatibilityTest#" + m) for m in [
-         "test_SSLSocket_interrupt_read_withoutAutoClose",
-         "test_SSLSocket_setSoWriteTimeout",
-    ]
+     " com.android.org.conscrypt.javax.net.ssl.SSLSocketVersionCompatibilityTest#" + m + c)
+    for (m, c) in itertools.product(
+         [
+             "test_SSLSocket_interrupt_read_withoutAutoClose",
+             "test_SSLSocket_setSoWriteTimeout",
+         ],
+         [
+             "[0: TLSv1.2 client, TLSv1.2 server]",
+             "[1: TLSv1.2 client, TLSv1.3 server]",
+             "[2: TLSv1.3 client, TLSv1.2 server]",
+             "[3: TLSv1.3 client, TLSv1.3 server]",
+         ]
+     )
 ] + [
     ("CtsLibcoreTestCases" +
      " libcore.android.system.OsTest#" + m) for m in [
