@@ -23,7 +23,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
-import static org.junit.Assume.assumeFalse;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
@@ -77,9 +76,6 @@ public class CompOsSigningHostTest extends ActivationTest {
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
         ITestDevice device = testInfo.getDevice();
 
-        // TODO(216321149): enable when the bug is fixed.
-        assumeFalse("VM fails to boot on user build", device.getBuildFlavor().endsWith("-user"));
-
         assumeCompOsPresent(device);
 
         testInfo.properties().put(ORIGINAL_CHECKSUMS_KEY,
@@ -129,17 +125,8 @@ public class CompOsSigningHostTest extends ActivationTest {
         assertThat(actualChecksums).isNotEqualTo(originalChecksums);
     }
 
-    @Ignore("Implement timestamp check when possible. b/215589015")
-    public void verifyFileTimestamps() {}
-
-    @Ignore("Override base class. Due to b/211458160 and b/210998761.")
+    @Ignore("Override base class. Need to handle compilation log. b/208446270")
     public void verifyGeneratedArtifactsLoaded() {}
-
-    @Ignore("Override base class. Due to b/211458160 and b/210998761.")
-    public void verifyGeneratedArtifactsLoadedAfterPartialCompilation() {}
-
-    @Ignore("Override base class. Due to b/211458160 and b/210998761.")
-    public void verifyGeneratedArtifactsLoadedAfterReboot() {}
 
     private static String checksumDirectoryContentPartial(ITestDevice device, String path)
             throws Exception {

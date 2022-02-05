@@ -279,11 +279,6 @@ flaky_tests_excluded_from_mts = [
      )
 ] + [
     ("CtsLibcoreTestCases" +
-     " libcore.android.system.OsTest#" + m) for m in [
-         "test_socket_setSockoptTimeval_effective",
-    ]
-] + [
-    ("CtsLibcoreTestCases" +
      " libcore.dalvik.system.DelegateLastClassLoaderTest#" + m) for m in [
          "testLookupOrderNodelegate_getResource",
          "testLookupOrder_getResource",
@@ -301,11 +296,6 @@ flaky_tests_excluded_from_mts = [
          "SortedOpTest#testSortSort",
          "ToArrayOpTest#testDistinctAndSortedPermutations",
          "ToArrayOpTest#testLongDistinctAndSortedPermutations",
-    ]
-] + [
-    ("CtsLibcoreOjTestCases" +
-     " test.java.lang.invoke.ExplicitCastArgumenstTest#" + m) for m in [
-         "testMultipleArgs",
     ]
 ]
 
