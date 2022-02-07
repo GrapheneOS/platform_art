@@ -1548,6 +1548,9 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Generational CC collection is currently only compatible with Baker read barriers.
   bool use_generational_cc = kUseBakerReadBarrier && xgc_option.generational_cc;
 
+  // Cache the apex versions.
+  InitializeApexVersions();
+
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
                        runtime_options.GetOrDefault(Opt::HeapGrowthLimit),
                        runtime_options.GetOrDefault(Opt::HeapMinFree),
@@ -1824,9 +1827,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   ArrayRef<const DexFile* const> bcp_dex_files(GetClassLinker()->GetBootClassPath());
   boot_class_path_checksums_ = gc::space::ImageSpace::GetBootClassPathChecksums(image_spaces,
                                                                                 bcp_dex_files);
-
-  // Cache the apex versions.
-  InitializeApexVersions();
 
   CHECK(class_linker_ != nullptr);
 
