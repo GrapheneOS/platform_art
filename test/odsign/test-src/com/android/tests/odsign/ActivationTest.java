@@ -67,12 +67,17 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void verifyGeneratedArtifactsLoaded() throws Exception {
-        // Checking zygote and system_server need the device have adb root to walk process maps.
+    public void verifyCompilationLogGenerated() throws Exception {
         mTestUtils.enableAdbRootOrSkipTest();
 
         // Check there is a compilation log, we expect compilation to have occurred.
         assertTrue("Compilation log not found", mTestUtils.haveCompilationLog());
+    }
+
+    @Test
+    public void verifyGeneratedArtifactsLoaded() throws Exception {
+        // Checking zygote and system_server need the device have adb root to walk process maps.
+        mTestUtils.enableAdbRootOrSkipTest();
 
         // Check both zygote and system_server processes to see that they have loaded the
         // artifacts compiled and signed by odrefresh and odsign. We check both here rather than
