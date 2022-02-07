@@ -267,16 +267,6 @@ bool InstructionSetFeatures::FindVariantInArray(const char* const variants[], si
   return std::find(begin, end, variant) != end;
 }
 
-void InstructionSetFeatures::CommaSeparateVariants(std::ostream& os,
-                                                   const char* const variants[],
-                                                   size_t num_variants) {
-  std::string separator = "";
-  for (size_t i = 0u; i < num_variants; ++i) {
-    os << separator << variants[i];
-    separator = ", ";
-  }
-}
-
 std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::AddRuntimeDetectedFeatures(
     const InstructionSetFeatures *features ATTRIBUTE_UNUSED) const {
   UNIMPLEMENTED(FATAL) << kRuntimeISA;
