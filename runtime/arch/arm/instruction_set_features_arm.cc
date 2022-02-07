@@ -29,6 +29,8 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 
+#include "base/array_ref.h"
+
 #include <cpu_features_macros.h>
 
 #ifdef CPU_FEATURES_ARCH_ARM
@@ -106,7 +108,19 @@ ArmFeaturesUniquePtr ArmInstructionSetFeatures::FromVariant(
     if (!FindVariantInArray(arm_variants_with_default_features,
                             arraysize(arm_variants_with_default_features),
                             variant)) {
-      *error_msg = StringPrintf("Attempt to use unsupported ARM variant: %s", variant.c_str());
+      std::ostringstream os;
+      os << "Unexpected CPU variant for Arm: " << variant << ".\n"
+         << "Known variants with armv8a support: "
+         << android::base::Join(ArrayRef<const char* const>(arm_variants_with_armv8a), ", ")
+         << ".\n"
+         << "Known variants with divide support: "
+         << android::base::Join(ArrayRef<const char* const>(arm_variants_with_div), ", ") << ".\n"
+         << "Known variants with LPAE support: "
+         << android::base::Join(ArrayRef<const char* const>(arm_variants_with_lpae), ", ") << ".\n"
+         << "Other known variants: "
+         << android::base::Join(ArrayRef<const char* const>(arm_variants_with_default_features),
+                                ", ");
+      *error_msg = os.str();
       return nullptr;
     } else {
       // Warn if we use the default features.
