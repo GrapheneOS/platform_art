@@ -126,23 +126,5 @@ ObjPtr<ClassLoader> DexCache::GetClassLoader() {
   return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(DexCache, class_loader_));
 }
 
-#if !defined(__aarch64__) && !defined(__x86_64__)
-static pthread_mutex_t dex_cache_slow_atomic_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-DexCache::ConversionPair64 DexCache::AtomicLoadRelaxed16B(std::atomic<ConversionPair64>* target) {
-  pthread_mutex_lock(&dex_cache_slow_atomic_mutex);
-  DexCache::ConversionPair64 value = *reinterpret_cast<ConversionPair64*>(target);
-  pthread_mutex_unlock(&dex_cache_slow_atomic_mutex);
-  return value;
-}
-
-void DexCache::AtomicStoreRelease16B(std::atomic<ConversionPair64>* target,
-                                     ConversionPair64 value) {
-  pthread_mutex_lock(&dex_cache_slow_atomic_mutex);
-  *reinterpret_cast<ConversionPair64*>(target) = value;
-  pthread_mutex_unlock(&dex_cache_slow_atomic_mutex);
-}
-#endif
-
 }  // namespace mirror
 }  // namespace art
