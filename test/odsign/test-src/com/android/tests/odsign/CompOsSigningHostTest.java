@@ -117,8 +117,8 @@ public class CompOsSigningHostTest extends ActivationTest {
         assertThat(actualChecksums).isNotEqualTo(originalChecksums);
     }
 
-    @Ignore("Override base class. Need to handle compilation log. b/208446270")
-    public void verifyGeneratedArtifactsLoaded() {}
+    @Ignore("Compilation log in CompOS isn't useful, and doesn't need to be generated")
+    public void verifyCompilationLogGenerated() {}
 
     private static String checksumDirectoryContentPartial(ITestDevice device, String path)
             throws Exception {
