@@ -397,7 +397,6 @@ static inline bool MethodHandleInvokeTransform(Thread* self,
   DCHECK_EQ(kNumRegsForTransform, accessor.RegistersSize());
   DCHECK_EQ(kNumRegsForTransform, accessor.InsSize());
 
-
   StackHandleScope<2> hs(self);
   Handle<mirror::MethodType> callee_type(hs.NewHandle(method_handle->GetMethodType()));
   Handle<mirror::EmulatedStackFrame> sf(
@@ -789,10 +788,7 @@ static bool DoMethodHandleInvokeMethod(Thread* self,
   ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
       CREATE_SHADOW_FRAME(num_regs, &shadow_frame, called_method, /* dex pc */ 0);
   ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
-  CopyArgumentsFromCallerFrame(shadow_frame,
-                               new_shadow_frame,
-                               operands,
-                               first_dest_reg);
+  CopyArgumentsFromCallerFrame(shadow_frame, new_shadow_frame, operands, first_dest_reg);
   self->EndAssertNoThreadSuspension(old_cause);
 
   PerformCall(self,
@@ -917,9 +913,10 @@ bool InvokeFromTransform(Thread* self,
   const RangeInstructionOperands operands(0, num_vregs);
 
   const char* old_cause = self->StartAssertNoThreadSuspension("InvokeFromTransform");
-  ArtMethod* called_method = method_handle->GetTargetMethod();  // invoke / invokeExact.
-  ShadowFrameAllocaUniquePtr shadow_frame =
-      CREATE_SHADOW_FRAME(num_vregs, &caller_frame, called_method, caller_frame.GetDexPC());
+  ShadowFrameAllocaUniquePtr shadow_frame = CREATE_SHADOW_FRAME(num_vregs,
+                                                                &caller_frame,
+                                                                caller_frame.GetMethod(),
+                                                                caller_frame.GetDexPC());
   if (num_vregs > 0) {
     emulated_frame->WriteToShadowFrame(
         self, callsite_type, operands.GetOperand(0), shadow_frame.get());
