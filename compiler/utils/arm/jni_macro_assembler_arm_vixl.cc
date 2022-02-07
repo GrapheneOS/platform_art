@@ -1025,14 +1025,6 @@ void ArmVIXLJNIMacroAssembler::Call(ManagedRegister mbase, Offset offset) {
   // TODO: place reference map on call.
 }
 
-void ArmVIXLJNIMacroAssembler::Call(FrameOffset base, Offset offset) {
-  // Call *(*(SP + base) + offset)
-  asm_.LoadFromOffset(kLoadWord, lr, sp, base.Int32Value());
-  asm_.LoadFromOffset(kLoadWord, lr, lr, offset.Int32Value());
-  ___ Blx(lr);
-  // TODO: place reference map on call
-}
-
 void ArmVIXLJNIMacroAssembler::CallFromThread(ThreadOffset32 offset) {
   // Call *(TR + offset)
   asm_.LoadFromOffset(kLoadWord, lr, tr, offset.Int32Value());
