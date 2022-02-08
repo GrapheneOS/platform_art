@@ -1302,11 +1302,13 @@ class Thread {
   void InitStringEntryPoints();
 
   void ModifyDebugDisallowReadBarrier(int8_t delta) {
-    debug_disallow_read_barrier_ += delta;
+    if (kCheckDebugDisallowReadBarrierCount) {
+      debug_disallow_read_barrier_ += delta;
+    }
   }
 
   uint8_t GetDebugDisallowReadBarrierCount() const {
-    return debug_disallow_read_barrier_;
+    return kCheckDebugDisallowReadBarrierCount ? debug_disallow_read_barrier_ : 0u;
   }
 
   // Gets the current TLSData associated with the key or nullptr if there isn't any. Note that users
