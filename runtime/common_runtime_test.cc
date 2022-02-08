@@ -460,6 +460,7 @@ bool CommonRuntimeTestImpl::CompileBootImage(const std::vector<std::string>& ext
     "-Xmx64m",
     "--runtime-arg",
     "-Xverify:softfail",
+    "--force-determinism",
   };
   CHECK_EQ(dex_files.size(), dex_locations.size());
   for (const std::string& dex_file : dex_files) {

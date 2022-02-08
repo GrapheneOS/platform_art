@@ -168,6 +168,7 @@ def get_vogar_command(test_name):
     cmd.append("--variant=" + args.variant)
   if args.gcstress:
     cmd.append("--vm-arg -Xgc:gcstress")
+    cmd.append('--vm-arg -Djsr166.delay.factor="1.50"')
   if args.debug:
     cmd.append("--vm-arg -XXlib:libartd.so --vm-arg -XX:SlowDebug=true")
 

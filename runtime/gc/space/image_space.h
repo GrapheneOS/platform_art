@@ -267,6 +267,9 @@ class ImageSpace : public MemMapSpace {
       const std::string& image_location,
       bool boot_image_extension = false);
 
+  // Returns true if the APEX versions in the OAT file match the current APEX versions.
+  static bool ValidateApexVersions(const OatFile& oat_file, std::string* error_msg);
+
   // Returns true if the dex checksums in the given oat file match the
   // checksums of the original dex files on disk. This is intended to be used
   // to validate the boot image oat file, which may contain dex entries from
