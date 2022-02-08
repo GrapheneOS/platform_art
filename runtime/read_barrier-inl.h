@@ -29,9 +29,6 @@
 
 namespace art {
 
-// Disabled for performance reasons.
-static constexpr bool kCheckDebugDisallowReadBarrierCount = false;
-
 template <typename MirrorType, bool kIsVolatile, ReadBarrierOption kReadBarrierOption,
           bool kAlwaysUpdateField>
 inline MirrorType* ReadBarrier::Barrier(

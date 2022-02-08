@@ -72,6 +72,9 @@ static constexpr bool kForceReadBarrier = false;
 // and replace it with kUseReadBarrier.
 static constexpr bool kEmitCompilerReadBarrier = kForceReadBarrier || kUseReadBarrier;
 
+// Disabled for performance reasons.
+static constexpr bool kCheckDebugDisallowReadBarrierCount = false;
+
 }  // namespace art
 
 #endif  // __cplusplus
