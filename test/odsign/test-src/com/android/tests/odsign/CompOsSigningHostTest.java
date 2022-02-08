@@ -30,7 +30,6 @@ import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.util.CommandResult;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -144,9 +143,6 @@ public class CompOsSigningHostTest extends ActivationTest {
                 getTestInformation().properties().get(TIMESTAMP_REBOOT_KEY));
         assertThat(numFiles).isEqualTo(0);
     }
-
-    @Ignore("Compilation log in CompOS isn't useful, and doesn't need to be generated")
-    public void verifyCompilationLogGenerated() {}
 
     private static String checksumDirectoryContentPartial(ITestDevice device, String path)
             throws Exception {
