@@ -21,6 +21,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include "common_runtime_test.h"
 #include "gtest/gtest.h"
 
 namespace {
@@ -67,4 +68,16 @@ TEST_F(PaletteClientTest, Ashmem) {
   EXPECT_EQ(PALETTE_STATUS_OK, PaletteAshmemSetProtRegion(fd, PROT_READ | PROT_EXEC));
   EXPECT_EQ(0, close(fd));
 #endif
+}
+
+class PaletteClientJniTest : public art::CommonRuntimeTest {};
+
+TEST_F(PaletteClientJniTest, JniInvocation) {
+  bool enabled;
+  EXPECT_EQ(PALETTE_STATUS_OK, PaletteShouldReportJniInvocations(&enabled));
+
+  JNIEnv* env = art::Thread::Current()->GetJniEnv();
+  ASSERT_NE(nullptr, env);
+  PaletteNotifyBeginJniInvocation(env);
+  PaletteNotifyEndJniInvocation(env);
 }
