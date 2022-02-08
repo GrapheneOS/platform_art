@@ -21,6 +21,20 @@
     <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer" />
     <target_preparer class="com.android.tradefed.targetprep.ArtChrootPreparer" />
 
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="append-bitness" value="true" />
+        <option name="push-file" key="generate-boot-image" value="/data/local/tmp/art-test-chroot/data/local/tmp/generate-boot-image" />
+    </target_preparer>
+
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="throw-if-cmd-fail" value="true" />
+        <option name="run-command" value="mkdir -p /data/local/tmp/art-test-chroot/data/local/tmp/art_boot_images" />
+        <!-- `compiler-filter=speed-profile` is required because OatDumpTest checks the compiled code in the boot image. -->
+        <option name="run-command" value="chroot /data/local/tmp/art-test-chroot /data/local/tmp/generate-boot-image --output-dir=/data/local/tmp/art_boot_images --compiler-filter=speed-profile" />
+        <option name="teardown-command" value="rm -rf /data/local/tmp/art-test-chroot/data/local/tmp/art_boot_images" />
+    </target_preparer>
+
     <test class="com.android.tradefed.testtype.ArtGTest" >
         <!-- TODO(b/147821328): These tests do not work since they need to write to /system -->
         <option name="exclude-filter" value="HiddenApiTest.DexDomain_System*:OatFileAssistantTest.SystemFrameworkDir" />

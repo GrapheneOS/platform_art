@@ -27,6 +27,19 @@
         <option name="push" value="art-gtest-jars-MyClassNatives.jar->/data/local/tmp/art_standalone_compiler_tests/art-gtest-jars-MyClassNatives.jar" />
     </target_preparer>
 
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="append-bitness" value="true" />
+        <option name="push-file" key="generate-boot-image" value="/data/local/tmp/art_standalone_compiler_tests/generate-boot-image" />
+    </target_preparer>
+
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="throw-if-cmd-fail" value="true" />
+        <option name="run-command" value="mkdir -p /data/local/tmp/art_standalone_compiler_tests/art_boot_images" />
+        <option name="run-command" value="/data/local/tmp/art_standalone_compiler_tests/generate-boot-image --output-dir=/data/local/tmp/art_standalone_compiler_tests/art_boot_images" />
+        <option name="teardown-command" value="rm -rf /data/local/tmp/art_standalone_compiler_tests/art_boot_images" />
+    </target_preparer>
+
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp/art_standalone_compiler_tests" />
         <option name="module-name" value="art_standalone_compiler_tests" />

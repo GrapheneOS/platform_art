@@ -84,4 +84,6 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_dexlist_tests_defaults",
     ],
+    data: [":generate-boot-image"],
+    test_config_template: ":art-gtests-target-standalone-with-boot-image-template",
 }
