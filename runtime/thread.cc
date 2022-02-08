@@ -3460,6 +3460,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
                << '"' << msg << '"'
                << " (VmSize " << GetProcessStatus("VmSize")
                << (tls32_.throwing_OutOfMemoryError ? ", recursive case)" : ")");
+  ScopedTrace trace("OutOfMemoryError");
   if (!tls32_.throwing_OutOfMemoryError) {
     tls32_.throwing_OutOfMemoryError = true;
     ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
