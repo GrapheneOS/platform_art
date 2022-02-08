@@ -1746,16 +1746,16 @@ void CompilerDriver::Verify(jobject jclass_loader,
   }
 
   // If there is no existing `verifier_deps` (because of non-existing vdex), or
-  // the existing `verifier_deps` is not valid anymore, create a new one for
-  // non boot image compilation. The verifier will need it to record the new dependencies.
-  // Then dex2oat can update the vdex file with these new dependencies.
-  if (!GetCompilerOptions().IsBootImage() && !GetCompilerOptions().IsBootImageExtension()) {
-    // Dex2oat creates the verifier deps.
-    // Create the main VerifierDeps, and set it to this thread.
-    verifier::VerifierDeps* verifier_deps =
-        Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
-    CHECK(verifier_deps != nullptr);
-    Thread::Current()->SetVerifierDeps(verifier_deps);
+  // the existing `verifier_deps` is not valid anymore, create a new one. The
+  // verifier will need it to record the new dependencies. Then dex2oat can update
+  // the vdex file with these new dependencies.
+  // Dex2oat creates the verifier deps.
+  // Create the main VerifierDeps, and set it to this thread.
+  verifier::VerifierDeps* main_verifier_deps =
+      Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
+  // Verifier deps can be null when unit testing.
+  if (main_verifier_deps != nullptr) {
+    Thread::Current()->SetVerifierDeps(main_verifier_deps);
     // Create per-thread VerifierDeps to avoid contention on the main one.
     // We will merge them after verification.
     for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
@@ -1779,14 +1779,13 @@ void CompilerDriver::Verify(jobject jclass_loader,
                   timings);
   }
 
-  if (!GetCompilerOptions().IsBootImage() && !GetCompilerOptions().IsBootImageExtension()) {
+  if (main_verifier_deps != nullptr) {
     // Merge all VerifierDeps into the main one.
-    verifier::VerifierDeps* verifier_deps = Thread::Current()->GetVerifierDeps();
     for (ThreadPoolWorker* worker : parallel_thread_pool_->GetWorkers()) {
       std::unique_ptr<verifier::VerifierDeps> thread_deps(worker->GetThread()->GetVerifierDeps());
       worker->GetThread()->SetVerifierDeps(nullptr);  // We just took ownership.
-      verifier_deps->MergeWith(std::move(thread_deps),
-                               GetCompilerOptions().GetDexFilesForOatFile());
+      main_verifier_deps->MergeWith(std::move(thread_deps),
+                                    GetCompilerOptions().GetDexFilesForOatFile());
     }
     Thread::Current()->SetVerifierDeps(nullptr);
   }

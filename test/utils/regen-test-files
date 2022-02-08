@@ -290,6 +290,7 @@ flaky_tests_excluded_from_mts = [
          "IntSliceOpTest#testLimitOps",
          "IntSliceOpTest#testSkipOps",
          "SequentialOpTest#testMixedSeqPar",
+         "SliceOpTest#testLimitOps",
          "SliceOpTest#testSkipLimitOps",
          "SliceOpTest#testSkipOps",
          "SortedOpTest#testDoubleStreamTooLarge",

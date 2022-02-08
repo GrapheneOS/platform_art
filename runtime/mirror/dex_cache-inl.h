@@ -23,6 +23,7 @@
 
 #include "art_field.h"
 #include "art_method.h"
+#include "base/atomic_pair.h"
 #include "base/casts.h"
 #include "base/enums.h"
 #include "class_linker.h"
@@ -357,32 +358,18 @@ inline void DexCache::SetResolvedMethod(uint32_t method_idx, ArtMethod* method) 
 template <typename T>
 NativeDexCachePair<T> DexCache::GetNativePair(std::atomic<NativeDexCachePair<T>>* pair_array,
                                               size_t idx) {
-  if (kRuntimePointerSize == PointerSize::k64) {
-    auto* array = reinterpret_cast<std::atomic<ConversionPair64>*>(pair_array);
-    ConversionPair64 value = AtomicLoadRelaxed16B(&array[idx]);
-    return NativeDexCachePair<T>(reinterpret_cast64<T*>(value.first),
-                                 dchecked_integral_cast<size_t>(value.second));
-  } else {
-    auto* array = reinterpret_cast<std::atomic<ConversionPair32>*>(pair_array);
-    ConversionPair32 value = array[idx].load(std::memory_order_relaxed);
-    return NativeDexCachePair<T>(reinterpret_cast32<T*>(value.first), value.second);
-  }
+  auto* array = reinterpret_cast<std::atomic<AtomicPair<uintptr_t>>*>(pair_array);
+  AtomicPair<uintptr_t> value = AtomicPairLoadAcquire(&array[idx]);
+  return NativeDexCachePair<T>(reinterpret_cast<T*>(value.first), value.second);
 }
 
 template <typename T>
 void DexCache::SetNativePair(std::atomic<NativeDexCachePair<T>>* pair_array,
                              size_t idx,
                              NativeDexCachePair<T> pair) {
-  if (kRuntimePointerSize == PointerSize::k64) {
-    auto* array = reinterpret_cast<std::atomic<ConversionPair64>*>(pair_array);
-    ConversionPair64 v(reinterpret_cast64<uint64_t>(pair.object), pair.index);
-    AtomicStoreRelease16B(&array[idx], v);
-  } else {
-    auto* array = reinterpret_cast<std::atomic<ConversionPair32>*>(pair_array);
-    ConversionPair32 v(reinterpret_cast32<uint32_t>(pair.object),
-                       dchecked_integral_cast<uint32_t>(pair.index));
-    array[idx].store(v, std::memory_order_release);
-  }
+  auto* array = reinterpret_cast<std::atomic<AtomicPair<uintptr_t>>*>(pair_array);
+  AtomicPair<uintptr_t> v(reinterpret_cast<size_t>(pair.object), pair.index);
+  AtomicPairStoreRelease(&array[idx], v);
 }
 
 template <typename T,
