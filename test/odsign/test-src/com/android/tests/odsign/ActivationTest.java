@@ -64,14 +64,6 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
     }
 
     @Test
-    public void verifyCompilationLogGenerated() throws Exception {
-        mTestUtils.enableAdbRootOrSkipTest();
-
-        // Check there is a compilation log, we expect compilation to have occurred.
-        assertTrue("Compilation log not found", mTestUtils.haveCompilationLog());
-    }
-
-    @Test
     public void verifyGeneratedArtifactsLoaded() throws Exception {
         // Checking zygote and system_server need the device have adb root to walk process maps.
         mTestUtils.enableAdbRootOrSkipTest();
