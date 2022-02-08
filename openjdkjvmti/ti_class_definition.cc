@@ -36,6 +36,7 @@
 #include "class_linker-inl.h"
 #include "class_root-inl.h"
 #include "dex/dex_file.h"
+#include "dex/art_dex_file_loader.h"
 #include "fixed_up_dex_file.h"
 #include "handle.h"
 #include "handle_scope-inl.h"
@@ -132,177 +133,6 @@ jvmtiError ArtClassDefinition::InitCommon(art::Thread* self, jclass klass) {
   return OK;
 }
 
-static void DequickenDexFile(const art::DexFile* dex_file,
-                             const char* descriptor,
-                             /*out*/std::vector<unsigned char>* dex_data)
-    REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  std::unique_ptr<FixedUpDexFile> fixed_dex_file(
-      FixedUpDexFile::Create(*dex_file, descriptor));
-  dex_data->resize(fixed_dex_file->Size());
-  memcpy(dex_data->data(), fixed_dex_file->Begin(), fixed_dex_file->Size());
-}
-
-// Gets the data surrounding the given class.
-static void GetDexDataForRetransformation(art::Handle<art::mirror::Class> klass,
-                                          /*out*/std::vector<unsigned char>* dex_data)
-    REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  art::StackHandleScope<3> hs(art::Thread::Current());
-  art::Handle<art::mirror::ClassExt> ext(hs.NewHandle(klass->GetExtData()));
-  const art::DexFile* dex_file = nullptr;
-  if (!ext.IsNull()) {
-    art::Handle<art::mirror::Object> orig_dex(hs.NewHandle(ext->GetOriginalDexFile()));
-    if (!orig_dex.IsNull()) {
-      if (orig_dex->IsArrayInstance()) {
-        DCHECK(orig_dex->GetClass()->GetComponentType()->IsPrimitiveByte());
-        art::Handle<art::mirror::ByteArray> orig_dex_bytes(hs.NewHandle(orig_dex->AsByteArray()));
-        dex_data->resize(orig_dex_bytes->GetLength());
-        memcpy(dex_data->data(), orig_dex_bytes->GetData(), dex_data->size());
-        return;
-      } else if (orig_dex->IsDexCache()) {
-        dex_file = orig_dex->AsDexCache()->GetDexFile();
-      } else {
-        DCHECK(orig_dex->GetClass()->DescriptorEquals("Ljava/lang/Long;"))
-            << "Expected java/lang/Long but found object of type "
-            << orig_dex->GetClass()->PrettyClass();
-        art::ObjPtr<art::mirror::Class> prim_long_class(
-            art::GetClassRoot(art::ClassRoot::kPrimitiveLong));
-        art::JValue val;
-        if (!art::UnboxPrimitiveForResult(orig_dex.Get(), prim_long_class, &val)) {
-          // This should never happen.
-          LOG(FATAL) << "Unable to unbox a primitive long value!";
-        }
-        dex_file = reinterpret_cast<const art::DexFile*>(static_cast<uintptr_t>(val.GetJ()));
-      }
-    }
-  }
-  if (dex_file == nullptr) {
-    dex_file = &klass->GetDexFile();
-  }
-  std::string storage;
-  DequickenDexFile(dex_file, klass->GetDescriptor(&storage), dex_data);
-}
-
-static bool DexNeedsDequickening(art::Handle<art::mirror::Class> klass,
-                                 /*out*/ bool* from_class_ext)
-    REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  art::ObjPtr<art::mirror::ClassExt> ext(klass->GetExtData());
-  if (ext.IsNull()) {
-    // We don't seem to have ever been redefined so be conservative and say we need de-quickening.
-    *from_class_ext = false;
-    return true;
-  }
-  art::ObjPtr<art::mirror::Object> orig_dex(ext->GetOriginalDexFile());
-  if (orig_dex.IsNull()) {
-    // We don't seem to have ever been redefined so be conservative and say we need de-quickening.
-    *from_class_ext = false;
-    return true;
-  } else if (!orig_dex->IsArrayInstance()) {
-    // We were redefined but the original is held in a dex-cache or dex file. This means that the
-    // original dex file is the one from the disk, which might be quickened.
-    DCHECK(orig_dex->IsDexCache() || orig_dex->GetClass()->DescriptorEquals("Ljava/lang/Long;"));
-    *from_class_ext = true;
-    return true;
-  } else {
-    // An array instance means the original-dex-file is from a redefineClasses which cannot have any
-    // quickening, so it's fine to use directly.
-    DCHECK(orig_dex->GetClass()->GetComponentType()->IsPrimitiveByte());
-    *from_class_ext = true;
-    return false;
-  }
-}
-
-static const art::DexFile* GetQuickenedDexFile(art::Handle<art::mirror::Class> klass)
-    REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  art::ObjPtr<art::mirror::ClassExt> ext(klass->GetExtData());
-  if (ext.IsNull() || ext->GetOriginalDexFile() == nullptr) {
-    return &klass->GetDexFile();
-  }
-
-  art::ObjPtr<art::mirror::Object> orig_dex(ext->GetOriginalDexFile());
-  DCHECK(!orig_dex->IsArrayInstance());
-  if (orig_dex->IsDexCache()) {
-    return orig_dex->AsDexCache()->GetDexFile();
-  }
-
-  DCHECK(orig_dex->GetClass()->DescriptorEquals("Ljava/lang/Long;"))
-      << "Expected java/lang/Long but found object of type "
-      << orig_dex->GetClass()->PrettyClass();
-  art::ObjPtr<art::mirror::Class> prim_long_class(
-      art::GetClassRoot(art::ClassRoot::kPrimitiveLong));
-  art::JValue val;
-  if (!art::UnboxPrimitiveForResult(orig_dex.Ptr(), prim_long_class, &val)) {
-    LOG(FATAL) << "Unable to unwrap a long value!";
-  }
-  return reinterpret_cast<const art::DexFile*>(static_cast<uintptr_t>(val.GetJ()));
-}
-
-template<typename GetOriginalDexFile>
-void ArtClassDefinition::InitWithDex(GetOriginalDexFile get_original,
-                                     const art::DexFile* quick_dex) {
-  art::Thread* self = art::Thread::Current();
-  DCHECK(quick_dex != nullptr);
-  if (art::MemMap::kCanReplaceMapping && kEnableOnDemandDexDequicken) {
-    size_t dequick_size = quick_dex->GetDequickenedSize();
-    std::string mmap_name("anon-mmap-for-redefine: ");
-    mmap_name += name_;
-    std::string error;
-    dex_data_mmap_ = art::MemMap::MapAnonymous(mmap_name.c_str(),
-                                               dequick_size,
-                                               PROT_NONE,
-                                               /*low_4gb=*/ false,
-                                               &error);
-    mmap_name += "-TEMP";
-    temp_mmap_ = art::MemMap::MapAnonymous(mmap_name.c_str(),
-                                           dequick_size,
-                                           PROT_READ | PROT_WRITE,
-                                           /*low_4gb=*/ false,
-                                           &error);
-    if (UNLIKELY(dex_data_mmap_.IsValid() && temp_mmap_.IsValid())) {
-      // Need to save the initial dexfile so we don't need to search for it in the fault-handler.
-      initial_dex_file_unquickened_ = quick_dex;
-      dex_data_ = art::ArrayRef<const unsigned char>(dex_data_mmap_.Begin(),
-                                                     dex_data_mmap_.Size());
-      if (from_class_ext_) {
-        // We got initial from class_ext so the current one must have undergone redefinition so no
-        // cdex or quickening stuff.
-        // We can only do this if it's not a first load.
-        DCHECK(klass_ != nullptr);
-        const art::DexFile& cur_dex = self->DecodeJObject(klass_)->AsClass()->GetDexFile();
-        current_dex_file_ = art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.Size());
-      } else {
-        // This class hasn't been redefined before. The dequickened current data is the same as the
-        // dex_data_mmap_ when it's filled it. We don't need to copy anything because the mmap will
-        // not be cleared until after everything is done.
-        current_dex_file_ = art::ArrayRef<const unsigned char>(dex_data_mmap_.Begin(),
-                                                               dequick_size);
-      }
-      return;
-    }
-  }
-  dex_data_mmap_.Reset();
-  temp_mmap_.Reset();
-  // Failed to mmap a large enough area (or on-demand dequickening was disabled). This is
-  // unfortunate. Since currently the size is just a guess though we might as well try to do it
-  // manually.
-  get_original(/*out*/&dex_data_memory_);
-  dex_data_ = art::ArrayRef<const unsigned char>(dex_data_memory_);
-  if (from_class_ext_) {
-    // We got initial from class_ext so the current one must have undergone redefinition so no
-    // cdex or quickening stuff.
-    // We can only do this if it's not a first load.
-    DCHECK(klass_ != nullptr);
-    const art::DexFile& cur_dex = self->DecodeJObject(klass_)->AsClass()->GetDexFile();
-    current_dex_file_ = art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.Size());
-  } else {
-    // No redefinition must have ever happened so the (dequickened) cur_dex is the same as the
-    // initial dex_data. We need to copy it into another buffer to keep it around if we have a
-    // real redefinition.
-    current_dex_memory_.resize(dex_data_.size());
-    memcpy(current_dex_memory_.data(), dex_data_.data(), current_dex_memory_.size());
-    current_dex_file_ = art::ArrayRef<const unsigned char>(current_dex_memory_);
-  }
-}
-
 jvmtiError ArtClassDefinition::Init(art::Thread* self, jclass klass) {
   jvmtiError res = InitCommon(self, klass);
   if (res != OK) {
@@ -311,31 +141,51 @@ jvmtiError ArtClassDefinition::Init(art::Thread* self, jclass klass) {
   art::ScopedObjectAccess soa(self);
   art::StackHandleScope<1> hs(self);
   art::Handle<art::mirror::Class> m_klass(hs.NewHandle(self->DecodeJObject(klass)->AsClass()));
-  if (!DexNeedsDequickening(m_klass, &from_class_ext_)) {
-    // We don't need to do any dequickening. We want to copy the data just so we don't need to deal
-    // with the GC moving it around.
-    art::ObjPtr<art::mirror::ByteArray> orig_dex(
-        m_klass->GetExtData()->GetOriginalDexFile()->AsByteArray());
-    dex_data_memory_.resize(orig_dex->GetLength());
-    memcpy(dex_data_memory_.data(), orig_dex->GetData(), dex_data_memory_.size());
-    dex_data_ = art::ArrayRef<const unsigned char>(dex_data_memory_);
+  art::ObjPtr<art::mirror::ClassExt> ext(m_klass->GetExtData());
+  if (!ext.IsNull()) {
+    art::ObjPtr<art::mirror::Object> orig_dex(ext->GetOriginalDexFile());
+    if (!orig_dex.IsNull()) {
+      if (orig_dex->IsArrayInstance()) {
+        // An array instance means the original-dex-file is from a redefineClasses which cannot have any
+        // compact dex, so it's fine to use directly.
+        art::ObjPtr<art::mirror::ByteArray> byte_array(orig_dex->AsByteArray());
+        dex_data_memory_.resize(byte_array->GetLength());
+        memcpy(dex_data_memory_.data(), byte_array->GetData(), dex_data_memory_.size());
+        dex_data_ = art::ArrayRef<const unsigned char>(dex_data_memory_);
 
-    // Since we are here we must not have any quickened instructions since we were redefined.
-    const art::DexFile& cur_dex = m_klass->GetDexFile();
-    DCHECK(from_class_ext_);
-    current_dex_file_ = art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.Size());
-    return OK;
+        const art::DexFile& cur_dex = m_klass->GetDexFile();
+        current_dex_file_ = art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.Size());
+        return OK;
+      }
+
+      if (orig_dex->IsDexCache()) {
+        res = Init(*orig_dex->AsDexCache()->GetDexFile());
+        if (res != OK) {
+          return res;
+        }
+      } else {
+        DCHECK(orig_dex->GetClass()->DescriptorEquals("Ljava/lang/Long;"))
+            << "Expected java/lang/Long but found object of type "
+            << orig_dex->GetClass()->PrettyClass();
+        art::ObjPtr<art::mirror::Class> prim_long_class(
+            art::GetClassRoot(art::ClassRoot::kPrimitiveLong));
+        art::JValue val;
+        if (!art::UnboxPrimitiveForResult(orig_dex.Ptr(), prim_long_class, &val)) {
+          // This should never happen.
+          LOG(FATAL) << "Unable to unbox a primitive long value!";
+        }
+        res = Init(*reinterpret_cast<const art::DexFile*>(static_cast<uintptr_t>(val.GetJ())));
+        if (res != OK) {
+          return res;
+        }
+      }
+      const art::DexFile& cur_dex = m_klass->GetDexFile();
+      current_dex_file_ = art::ArrayRef<const unsigned char>(cur_dex.Begin(), cur_dex.Size());
+      return OK;
+    }
   }
-
-  // We need to dequicken stuff. This is often super slow (10's of ms). Instead we will do it
-  // dynamically.
-  const art::DexFile* quick_dex = GetQuickenedDexFile(m_klass);
-  auto get_original = [&](/*out*/std::vector<unsigned char>* dex_data)
-      REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    GetDexDataForRetransformation(m_klass, dex_data);
-  };
-  InitWithDex(get_original, quick_dex);
-  return OK;
+  // No redefinition must have ever happened so we can use the class's dex file.
+  return Init(m_klass->GetDexFile());
 }
 
 jvmtiError ArtClassDefinition::Init(art::Thread* self, const jvmtiClassDefinition& def) {
@@ -350,9 +200,9 @@ jvmtiError ArtClassDefinition::Init(art::Thread* self, const jvmtiClassDefinitio
   return OK;
 }
 
-void ArtClassDefinition::InitFirstLoad(const char* descriptor,
-                                       art::Handle<art::mirror::ClassLoader> klass_loader,
-                                       const art::DexFile& dex_file) {
+jvmtiError ArtClassDefinition::InitFirstLoad(const char* descriptor,
+                                             art::Handle<art::mirror::ClassLoader> klass_loader,
+                                             const art::DexFile& dex_file) {
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
   initialized_ = true;
@@ -363,11 +213,47 @@ void ArtClassDefinition::InitFirstLoad(const char* descriptor,
   name_ = descriptor_str.substr(1, descriptor_str.size() - 2);
   // Android doesn't really have protection domains.
   protection_domain_ = nullptr;
-  auto get_original = [&](/*out*/std::vector<unsigned char>* dex_data)
-      REQUIRES_SHARED(art::Locks::mutator_lock_) {
-    DequickenDexFile(&dex_file, descriptor, dex_data);
-  };
-  InitWithDex(get_original, &dex_file);
+  return Init(dex_file);
+}
+
+jvmtiError ArtClassDefinition::Init(const art::DexFile& dex_file) {
+  if (dex_file.IsCompactDexFile()) {
+    std::string error_msg;
+    std::vector<std::unique_ptr<const art::DexFile>> dex_files;
+    const art::ArtDexFileLoader dex_file_loader;
+    if (!dex_file_loader.Open(dex_file.GetLocation().c_str(),
+                              dex_file.GetLocation().c_str(),
+                              /* verify= */ false,
+                              /* verify_checksum= */ false,
+                              &error_msg,
+                              &dex_files)) {
+      return ERR(INTERNAL);
+    }
+    const std::vector<const art::OatDexFile*>& oat_dex_files =
+        dex_file.GetOatDexFile()->GetOatFile()->GetOatDexFiles();
+    const art::DexFile* original_dex_file = nullptr;
+    for (uint32_t i = 0; i < oat_dex_files.size(); ++i) {
+      if (dex_file.GetOatDexFile() == oat_dex_files[i]) {
+        original_dex_file = dex_files[i].get();
+        break;
+      }
+    }
+    // Keep the dex_data alive.
+    dex_data_memory_.resize(original_dex_file->Size());
+    memcpy(dex_data_memory_.data(), original_dex_file->Begin(), original_dex_file->Size());
+    dex_data_ = art::ArrayRef<const unsigned char>(dex_data_memory_);
+
+    // In case dex_data gets re-used for redefinition, keep the dex file live
+    // with current_dex_memory.
+    current_dex_memory_.resize(dex_data_.size());
+    memcpy(current_dex_memory_.data(), dex_data_.data(), current_dex_memory_.size());
+    current_dex_file_ = art::ArrayRef<const unsigned char>(current_dex_memory_);
+  } else {
+    // Dex file will always stay live, use it directly.
+    dex_data_ = art::ArrayRef<const unsigned char>(dex_file.Begin(), dex_file.Size());
+    current_dex_file_ = dex_data_;
+  }
+  return OK;
 }
 
 }  // namespace openjdkjvmti

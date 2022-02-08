@@ -1203,6 +1203,12 @@ class Dex2Oat final {
       thread_count_ = 1;
     }
 
+    // For debuggable apps, we do not want to generate compact dex as class
+    // redefinition will want a proper dex file.
+    if (compiler_options_->GetDebuggable()) {
+      compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
+    }
+
     PaletteShouldReportDex2oatCompilation(&should_report_dex2oat_compilation_);
     AssignTrueIfExists(args, M::ForcePaletteCompilationHooks, &should_report_dex2oat_compilation_);
 
