@@ -38,7 +38,6 @@
 #include "base/macros.h"
 #include "base/mem_map.h"
 #include "base/os.h"
-#include "base/safe_map.h"
 #include "base/utils.h"
 #include "class_table.h"
 #include "gc/accounting/space_bitmap.h"
@@ -69,6 +68,7 @@ class CompilerOptions;
 template<class T> class Handle;
 class ImTable;
 class ImtConflictTable;
+class JavaVMExt;
 class TimingLogger;
 
 namespace linker {
@@ -361,9 +361,6 @@ class ImageWriter final {
     // Image bitmap which lets us know where the objects inside of the image reside.
     gc::accounting::ContinuousSpaceBitmap image_bitmap_;
 
-    // The start offsets of the dex cache arrays.
-    SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
-
     // Offset from oat_data_begin_ to the stubs.
     uint32_t stub_offsets_[kNumberOfStubTypes] = {};
 
@@ -521,9 +518,6 @@ class ImageWriter final {
   void TryAssignConflictTableOffset(ImtConflictTable* table, size_t oat_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Return true if klass is loaded by the boot class loader but not in the boot image.
-  bool IsBootClassLoaderNonImageClass(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Return true if `klass` depends on a class defined by the boot class path
   // we're compiling against but not present in the boot image spaces. We want
   // to prune these classes since we cannot guarantee that they will not be
@@ -536,6 +530,8 @@ class ImageWriter final {
                                bool* early_exit,
                                HashSet<mirror::Object*>* visited)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void PromoteWeakInternsToStrong(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsMultiImage() const {
     return image_infos_.size() > 1;
@@ -567,6 +563,14 @@ class ImageWriter final {
   ALWAYS_INLINE bool IsInBootImage(const void* obj) const {
     return reinterpret_cast<uintptr_t>(obj) - boot_image_begin_ < boot_image_size_;
   }
+
+  template <typename MirrorType>
+  static ObjPtr<MirrorType> DecodeGlobalWithoutRB(JavaVMExt* vm, jobject obj)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <typename MirrorType>
+  static ObjPtr<MirrorType> DecodeWeakGlobalWithoutRB(
+      JavaVMExt* vm, Thread* self, jobject obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the index of the oat file associated with the object.
   size_t GetOatIndex(mirror::Object* object) const REQUIRES_SHARED(Locks::mutator_lock_);
@@ -605,6 +609,10 @@ class ImageWriter final {
       REQUIRES_SHARED(Locks::mutator_lock_);
   template <typename ValueType>
   void CopyAndFixupPointer(void* object, MemberOffset offset, ValueType src_value)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE
+  static bool IsStronglyInternedString(ObjPtr<mirror::String> str)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
