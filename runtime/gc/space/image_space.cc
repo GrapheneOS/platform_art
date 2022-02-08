@@ -52,6 +52,7 @@
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/task_processor.h"
 #include "image-inl.h"
+#include "image.h"
 #include "intern_table-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/executable-inl.h"
@@ -2890,11 +2891,12 @@ class ImageSpace::BootImageLoader {
     size_t num_spaces = spaces.size();
     const ImageHeader& primary_header = spaces.front()->GetImageHeader();
     size_t primary_image_count = primary_header.GetImageSpaceCount();
+    size_t primary_image_component_count = primary_header.GetComponentCount();
     DCHECK_LE(primary_image_count, num_spaces);
     // The primary boot image can be generated with `--single-image` on device, when generated
     // in-memory or with odrefresh.
-    DCHECK(primary_image_count == primary_header.GetComponentCount() || primary_image_count == 1);
-    size_t component_count = primary_image_count;
+    DCHECK(primary_image_count == primary_image_component_count || primary_image_count == 1);
+    size_t component_count = primary_image_component_count;
     size_t space_pos = primary_image_count;
     while (space_pos != num_spaces) {
       const ImageHeader& current_header = spaces[space_pos]->GetImageHeader();
@@ -2905,7 +2907,7 @@ class ImageSpace::BootImageLoader {
       if (dependency_component_count < component_count) {
         // There shall be no duplicate strings with the components that this space depends on.
         // Find the end of the dependencies, i.e. start of non-dependency images.
-        size_t start_component_count = primary_image_count;
+        size_t start_component_count = primary_image_component_count;
         size_t start_pos = primary_image_count;
         while (start_component_count != dependency_component_count) {
           const ImageHeader& dependency_header = spaces[start_pos]->GetImageHeader();
@@ -3172,6 +3174,7 @@ class ImageSpace::BootImageLoader {
     std::vector<std::string> filenames =
         ExpandMultiImageLocations(requested_bcp_locations, chunk.base_filename, is_extension);
     DCHECK_EQ(locations.size(), filenames.size());
+    size_t max_dependency_count = spaces->size();
     for (size_t i = 0u, size = locations.size(); i != size; ++i) {
       spaces->push_back(Load(locations[i],
                              filenames[i],
@@ -3217,9 +3220,23 @@ class ImageSpace::BootImageLoader {
       }
     }
     DCHECK_GE(max_image_space_dependencies, chunk.boot_image_component_count);
+    size_t dependency_count = 0;
+    size_t dependency_component_count = 0;
+    while (dependency_component_count < chunk.boot_image_component_count &&
+           dependency_count < max_dependency_count) {
+      const ImageHeader& current_header = (*spaces)[dependency_count]->GetImageHeader();
+      dependency_component_count += current_header.GetComponentCount();
+      dependency_count += current_header.GetImageSpaceCount();
+    }
+    if (dependency_component_count != chunk.boot_image_component_count) {
+      *error_msg = StringPrintf(
+          "Unable to find dependencies from image spaces; boot_image_component_count: %u",
+          chunk.boot_image_component_count);
+      return false;
+    }
     ArrayRef<const std::unique_ptr<ImageSpace>> dependencies =
         ArrayRef<const std::unique_ptr<ImageSpace>>(*spaces).SubArray(
-            /*pos=*/ 0u, chunk.boot_image_component_count);
+            /*pos=*/ 0u, dependency_count);
     for (size_t i = 0u, size = locations.size(); i != size; ++i) {
       ImageSpace* space = (*spaces)[spaces->size() - chunk.image_space_count + i].get();
       size_t bcp_chunk_size = (chunk.image_space_count == 1u) ? chunk.component_count : 1u;
@@ -3809,9 +3826,14 @@ bool ImageSpace::VerifyBootClassPathChecksums(
     return false;
   }
   const size_t num_image_spaces = image_spaces.size();
-  if (num_image_spaces != oat_bcp_size) {
-    *error_msg = StringPrintf("Image header records more dependencies (%zu) than BCP (%zu)",
-                              num_image_spaces,
+  size_t dependency_component_count = 0;
+  for (const std::unique_ptr<ImageSpace>& space : image_spaces) {
+    dependency_component_count += space->GetComponentCount();
+  }
+  if (dependency_component_count != oat_bcp_size) {
+    *error_msg = StringPrintf("Image header records %s dependencies (%zu) than BCP (%zu)",
+                              dependency_component_count < oat_bcp_size ? "less" : "more",
+                              dependency_component_count,
                               oat_bcp_size);
     return false;
   }
@@ -3842,7 +3864,7 @@ bool ImageSpace::VerifyBootClassPathChecksums(
         CHECK(!DexFileLoader::IsMultiDexLocation(main_location.c_str()));
         size_t num_base_locations = 1u;
         for (size_t i = 1u; i != num_dex_files; ++i) {
-          if (DexFileLoader::IsMultiDexLocation(
+          if (!DexFileLoader::IsMultiDexLocation(
                   oat_file->GetOatDexFiles()[i]->GetDexFileLocation().c_str())) {
             CHECK_EQ(image_space_count, 1u);  // We can find base locations only for --single-image.
             ++num_base_locations;
