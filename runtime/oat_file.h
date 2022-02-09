@@ -197,7 +197,7 @@ class OatFile {
 
   class OatMethod final {
    public:
-    uint32_t GetCodeOffset() const;
+    uint32_t GetCodeOffset() const { return code_offset_; }
 
     const void* GetQuickCode() const;
 
@@ -232,14 +232,6 @@ class OatFile {
     }
 
    private:
-    template<class T>
-    T GetOatPointer(uint32_t offset) const {
-      if (offset == 0) {
-        return nullptr;
-      }
-      return reinterpret_cast<T>(begin_ + offset);
-    }
-
     const uint8_t* begin_;
     uint32_t code_offset_;
 
