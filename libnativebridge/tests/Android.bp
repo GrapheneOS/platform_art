@@ -146,6 +146,50 @@ cc_test {
     header_libs: ["libbase_headers"],
 }
 
+// Variant of libnativebridge-tests that is part of CTS to verify backed-by API
+// coverage.
+cc_test {
+    name: "art_libnativebridge_cts_tests",
+    defaults: [
+        "art_standalone_test_defaults",
+        "libnativebridge-tests-defaults",
+    ],
+
+    // TODO(b/189484095): Pick only a subset of the tests in
+    // libnativebridge-tests that don't require the native bridge lib to be
+    // loaded, to avoid the problems with test_per_src and pushing the extra
+    // libnativebridge*-test-case.so files to device through tradefed.
+    srcs: [
+        // ValidNameNativeBridge_test.cpp needs to be first due to global state
+        // had_error that isn't reset between tests.
+        "ValidNameNativeBridge_test.cpp",
+        "NeedsNativeBridge_test.cpp",
+        "UnavailableNativeBridge_test.cpp",
+    ],
+    shared_libs: [
+        "liblog",
+        "libnativebridge",
+    ],
+    header_libs: ["libbase_headers"],
+
+    // Support multilib variants (using different suffix per sub-architecture),
+    // which is needed on build targets with secondary architectures, as the CTS
+    // test suite packaging logic flattens all test artifacts into a single
+    // `testcases` directory.
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
+
+    test_config_template: ":art-gtests-target-standalone-cts-template",
+    test_suites: ["cts"],
+}
+
 cc_test {
     name: "libnativebridge-lazy-tests",
     defaults: ["libnativebridge-tests-defaults"],
