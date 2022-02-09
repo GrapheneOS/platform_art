@@ -65,7 +65,7 @@ LIBCORE_TEST_NAMES = [
   "libcore.highmemorytest.java.time.format.DateTimeFormatterTest",
   "libcore.highmemorytest.java.util.CalendarTest",
   "libcore.highmemorytest.java.util.CurrencyTest",
-  "libcore.highmemorytest.libcore.icu.LocaleDataTest",
+  "libcore.highmemorytest.libcore.icu.SimpleDateFormatDataTest",
   # All other tests in alphabetical order.
   "libcore.android.system",
   "libcore.build",
