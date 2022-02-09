@@ -1231,7 +1231,8 @@ class ImageSpace::Loader {
           DCHECK_LT(class_roots_index, image_roots->GetLength<kVerifyNone>());
           ObjPtr<mirror::ObjectArray<mirror::Class>> class_roots =
               ObjPtr<mirror::ObjectArray<mirror::Class>>::DownCast(boot_image.ToDest(
-                  image_roots->GetWithoutChecks<kVerifyNone>(class_roots_index).Ptr()));
+                  image_roots->GetWithoutChecks<kVerifyNone,
+                                                kWithoutReadBarrier>(class_roots_index).Ptr()));
           return GetClassRoot<mirror::Class, kWithoutReadBarrier>(class_roots);
         }();
         const auto& class_table_section = image_header->GetClassTableSection();
