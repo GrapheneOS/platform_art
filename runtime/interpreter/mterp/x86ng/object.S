@@ -1,5 +1,5 @@
 %def op_check_cast():
-%  slow_path = add_helper(lambda: op_check_cast_slow_path())
+%  slow_path = add_slow_path(op_check_cast_slow_path)
    // Fast-path which gets the class from thread-local cache.
    FETCH_FROM_THREAD_CACHE %ecx, 3f
 1:
@@ -34,7 +34,7 @@
    jmp 1b
 
 %def op_instance_of():
-%  slow_path = add_helper(lambda: op_instance_of_slow_path())
+%  slow_path = add_slow_path(op_instance_of_slow_path)
    /* instance-of vA, vB, class@CCCC */
    // Fast-path which gets the class from thread-local cache.
    FETCH_FROM_THREAD_CACHE %ecx, 2f
