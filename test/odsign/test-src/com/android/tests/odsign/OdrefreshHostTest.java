@@ -50,6 +50,8 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     private static final String ODREFRESH_BIN = "odrefresh";
     private static final String ODREFRESH_COMMAND =
             ODREFRESH_BIN + " --partial-compilation --no-refresh --compile";
+    private static final String ODREFRESH_MINIMAL_COMMAND =
+            ODREFRESH_BIN + " --partial-compilation --no-refresh --minimal --compile";
 
     private static final String TAG = "OdrefreshHostTest";
     private static final String ZYGOTE_ARTIFACTS_KEY = TAG + ":ZYGOTE_ARTIFACTS";
@@ -203,6 +205,48 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         // odrefresh should not re-compile anything.
         assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
         assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+    }
+
+    @Test
+    public void verifyMinimalCompilation() throws Exception {
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+        getDevice().executeShellV2Command(
+            "rm -rf " + OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME);
+        getDevice().executeShellV2Command(ODREFRESH_MINIMAL_COMMAND);
+
+        mTestUtils.restartZygote();
+
+        // The minimal boot image should be loaded.
+        Set<String> minimalZygoteArtifacts =
+                mTestUtils.verifyZygotesLoadedArtifacts("boot_minimal");
+
+        // Running the command again should not overwrite the minimal boot image.
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+        long timeMs = getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_MINIMAL_COMMAND);
+
+        assertArtifactsNotModifiedAfter(minimalZygoteArtifacts, timeMs);
+
+        // `odrefresh --check` should keep the minimal boot image.
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+        timeMs = getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_BIN + " --check");
+
+        assertArtifactsNotModifiedAfter(minimalZygoteArtifacts, timeMs);
+
+        // A normal odrefresh invocation should replace the minimal boot image with a full one.
+        mTestUtils.removeCompilationLogToAvoidBackoff();
+        timeMs = getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        for (String artifact : minimalZygoteArtifacts) {
+            assertFalse(
+                    String.format(
+                            "Artifact %s should be cleaned up while it still exists", artifact),
+                    getDevice().doesFileExist(artifact));
+        }
+
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
     }
 
     /**

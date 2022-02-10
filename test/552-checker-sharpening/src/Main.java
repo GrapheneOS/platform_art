@@ -224,3 +224,6 @@ public class Main {
 
 class Other {
 }
+
+class MainExtension extends Main {
+}

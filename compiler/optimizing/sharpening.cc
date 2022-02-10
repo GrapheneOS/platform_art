@@ -283,6 +283,12 @@ HLoadClass::LoadKind HSharpening::ComputeLoadClassKind(
       // We actually cannot reference this class, we're forced to bail.
       // We cannot reference this class with Bss, as the entrypoint will lookup the class
       // in the caller's dex file, but that dex file does not reference the class.
+      // TODO(solanes): We could theoretically enable this optimization for kBssEntry* but this
+      // requires some changes to the entrypoints, particularly artResolveTypeFromCode and
+      // artResolveTypeAndVerifyAccessFromCode. Currently, they assume that the `load_class`'s
+      // Dexfile and the `dex_compilation_unit` DexFile is the same and will try to use the type
+      // index in the incorrect DexFile by using the `caller`'s DexFile. A possibility is to add
+      // another parameter to it pointing to the correct DexFile to use.
       return HLoadClass::LoadKind::kInvalid;
     }
   }

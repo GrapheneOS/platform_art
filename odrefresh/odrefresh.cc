@@ -109,6 +109,7 @@ constexpr time_t kMaxChildProcessSeconds = 90;
 constexpr mode_t kFileMode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 
 constexpr const char* kFirstBootImageBasename = "boot.art";
+constexpr const char* kMinimalBootImageBasename = "boot_minimal.art";
 
 void EraseFiles(const std::vector<std::unique_ptr<File>>& files) {
   for (auto& file : files) {
@@ -728,19 +729,23 @@ std::vector<art_apex::SystemServerComponent> OnDeviceRefresh::GenerateSystemServ
       });
 }
 
-std::string OnDeviceRefresh::GetBootImage(bool on_system) const {
+std::string OnDeviceRefresh::GetBootImage(bool on_system, bool minimal) const {
+  DCHECK(!on_system || !minimal);
+  const char* basename = minimal ? kMinimalBootImageBasename : kFirstBootImageBasename;
   if (on_system) {
     // Typically "/system/framework/boot.art".
-    return GetPrebuiltPrimaryBootImageDir() + "/" + kFirstBootImageBasename;
+    return GetPrebuiltPrimaryBootImageDir() + "/" + basename;
   } else {
     // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot.art".
-    return config_.GetArtifactDirectory() + "/" + kFirstBootImageBasename;
+    return config_.GetArtifactDirectory() + "/" + basename;
   }
 }
 
-std::string OnDeviceRefresh::GetBootImagePath(bool on_system, const InstructionSet isa) const {
+std::string OnDeviceRefresh::GetBootImagePath(bool on_system,
+                                              bool minimal,
+                                              const InstructionSet isa) const {
   // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/<isa>/boot.art".
-  return GetSystemImageFilename(GetBootImage(on_system).c_str(), isa);
+  return GetSystemImageFilename(GetBootImage(on_system, minimal).c_str(), isa);
 }
 
 std::string OnDeviceRefresh::GetSystemBootImageExtension() const {
@@ -790,10 +795,11 @@ WARN_UNUSED bool OnDeviceRefresh::RemoveArtifactsDirectory() const {
 
 WARN_UNUSED bool OnDeviceRefresh::BootClasspathArtifactsExist(
     bool on_system,
+    bool minimal,
     const InstructionSet isa,
     /*out*/ std::string* error_msg,
     /*out*/ std::vector<std::string>* checked_artifacts) const {
-  std::string path = GetBootImagePath(on_system, isa);
+  std::string path = GetBootImagePath(on_system, minimal, isa);
   OdrArtifacts artifacts = OdrArtifacts::ForBootImage(path);
   if (!ArtifactsExist(artifacts, /*check_art_file=*/true, error_msg, checked_artifacts)) {
     return false;
@@ -841,7 +847,7 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
 
     // ART is not updated, so we can use the artifacts on /system. Check if they exist.
     std::string error_msg;
-    if (BootClasspathArtifactsExist(/*on_system=*/true, isa, &error_msg)) {
+    if (BootClasspathArtifactsExist(/*on_system=*/true, /*minimal=*/false, isa, &error_msg)) {
       return true;
     }
 
@@ -924,9 +930,17 @@ WARN_UNUSED bool OnDeviceRefresh::CheckBootClasspathArtifactsAreUpToDate(
 
   // Cache info looks good, check all compilation artifacts exist.
   std::string error_msg;
-  if (!BootClasspathArtifactsExist(/*on_system=*/false, isa, &error_msg, checked_artifacts)) {
+  if (!BootClasspathArtifactsExist(
+          /*on_system=*/false, /*minimal=*/false, isa, &error_msg, checked_artifacts)) {
     LOG(INFO) << "Incomplete boot classpath artifacts. " << error_msg;
     metrics.SetTrigger(OdrMetrics::Trigger::kMissingArtifacts);
+    // Add the minimal boot image to `checked_artifacts` if exists. This is to prevent the minimal
+    // boot image from being deleted. It does not affect the return value because we should still
+    // attempt to generate a full boot image even if the minimal one exists.
+    if (BootClasspathArtifactsExist(
+            /*on_system=*/false, /*minimal=*/true, isa, &error_msg, checked_artifacts)) {
+      LOG(INFO) << "Found minimal boot classpath artifacts.";
+    }
     return false;
   }
 
@@ -1301,6 +1315,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
     const std::string& staging_dir,
     OdrMetrics& metrics,
     const std::function<void()>& on_dex2oat_success,
+    bool minimal,
     std::string* error_msg) const {
   ScopedOdrCompilationTimer compilation_timer(metrics);
   std::vector<std::string> args;
@@ -1334,7 +1349,16 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   }
 
   // Add boot classpath jars to compile.
-  for (const std::string& component : boot_classpath_compilable_jars_) {
+  std::vector<std::string> jars_to_compile = boot_classpath_compilable_jars_;
+  if (minimal) {
+    auto end =
+        std::remove_if(jars_to_compile.begin(), jars_to_compile.end(), [](const std::string& jar) {
+          return !android::base::StartsWith(jar, GetArtRoot());
+        });
+    jars_to_compile.erase(end, jars_to_compile.end());
+  }
+
+  for (const std::string& component : jars_to_compile) {
     std::string actual_path = AndroidRootRewrite(component);
     args.emplace_back("--dex-file=" + component);
     std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
@@ -1343,13 +1367,12 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   }
 
   args.emplace_back("--runtime-arg");
-  args.emplace_back(Concatenate({"-Xbootclasspath:", config_.GetDex2oatBootClasspath()}));
-  auto bcp_jars = android::base::Split(config_.GetDex2oatBootClasspath(), ":");
-  if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
+  args.emplace_back(Concatenate({"-Xbootclasspath:", android::base::Join(jars_to_compile, ":")}));
+  if (!AddBootClasspathFds(args, readonly_files_raii, jars_to_compile)) {
     return false;
   }
 
-  const std::string image_location = GetBootImagePath(/*on_system=*/false, isa);
+  const std::string image_location = GetBootImagePath(/*on_system=*/false, minimal, isa);
   const OdrArtifacts artifacts = OdrArtifacts::ForBootImage(image_location);
 
   args.emplace_back("--oat-location=" + artifacts.OatPath());
@@ -1388,8 +1411,11 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
 
   const time_t timeout = GetSubprocessTimeout();
   const std::string cmd_line = android::base::Join(args, ' ');
-  LOG(INFO) << "Compiling boot classpath (" << isa << "): " << cmd_line << " [timeout " << timeout
-            << "s]";
+  LOG(INFO) << android::base::StringPrintf("Compiling boot classpath (%s%s): %s [timeout %lds]",
+                                           GetInstructionSetString(isa),
+                                           minimal ? ", minimal" : "",
+                                           cmd_line.c_str(),
+                                           timeout);
   if (config_.GetDryRun()) {
     LOG(INFO) << "Compilation skipped (dry-run).";
     return true;
@@ -1506,17 +1532,19 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     std::string unused_error_msg;
     // If the boot classpath artifacts are not on /data, then the boot classpath are not re-compiled
     // and the artifacts must exist on /system.
-    bool boot_image_on_system =
-        !BootClasspathArtifactsExist(/*on_system=*/false, isa, &unused_error_msg);
+    bool boot_image_on_system = !BootClasspathArtifactsExist(
+        /*on_system=*/false, /*minimal=*/false, isa, &unused_error_msg);
     AddCompiledBootClasspathFdsIfAny(
         args,
         readonly_files_raii,
         bcp_jars,
         isa,
         boot_image_on_system ? GetSystemBootImageDir() : config_.GetArtifactDirectory());
-    args.emplace_back(Concatenate({"--boot-image=", boot_image_on_system
-        ? GetBootImage(/*on_system=*/true) + ":" + GetSystemBootImageExtension()
-        : GetBootImage(/*on_system=*/false)}));
+    args.emplace_back(
+        Concatenate({"--boot-image=",
+                     boot_image_on_system ? GetBootImage(/*on_system=*/true, /*minimal=*/false) +
+                                                ":" + GetSystemBootImageExtension() :
+                                            GetBootImage(/*on_system=*/false, /*minimal=*/false)}));
 
     const std::string context_path = android::base::Join(classloader_context, ':');
     if (art::ContainsElement(systemserver_classpath_jars_, jar)) {
@@ -1616,25 +1644,63 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
 
   const auto& bcp_instruction_sets = config_.GetBootClasspathIsas();
   DCHECK(!bcp_instruction_sets.empty() && bcp_instruction_sets.size() <= 2);
+  bool full_compilation_failed = false;
   for (const InstructionSet isa : compilation_options.compile_boot_classpath_for_isas) {
     auto stage = (isa == bcp_instruction_sets.front()) ? OdrMetrics::Stage::kPrimaryBootClasspath :
                                                          OdrMetrics::Stage::kSecondaryBootClasspath;
     metrics.SetStage(stage);
-    if (!CheckCompilationSpace()) {
-      metrics.SetStatus(OdrMetrics::Status::kNoSpace);
-      // Return kCompilationFailed so odsign will keep and sign whatever we have been able to
-      // compile.
-      return ExitCode::kCompilationFailed;
+    if (!config_.GetMinimal()) {
+      if (CheckCompilationSpace()) {
+        if (CompileBootClasspathArtifacts(isa,
+                                          staging_dir,
+                                          metrics,
+                                          advance_animation_progress,
+                                          /*minimal=*/false,
+                                          &error_msg)) {
+          // Remove the minimal boot image only if the full boot image is successfully generated.
+          std::string path = GetBootImagePath(/*on_system=*/false, /*minimal=*/true, isa);
+          OdrArtifacts artifacts = OdrArtifacts::ForBootImage(path);
+          unlink(artifacts.ImagePath().c_str());
+          unlink(artifacts.OatPath().c_str());
+          unlink(artifacts.VdexPath().c_str());
+          continue;
+        }
+        LOG(ERROR) << "Compilation of BCP failed: " << error_msg;
+      } else {
+        metrics.SetStatus(OdrMetrics::Status::kNoSpace);
+      }
     }
 
-    if (!CompileBootClasspathArtifacts(
-            isa, staging_dir, metrics, advance_animation_progress, &error_msg)) {
-      LOG(ERROR) << "Compilation of BCP failed: " << error_msg;
-      if (!config_.GetDryRun() && !RemoveDirectory(staging_dir)) {
-        return ExitCode::kCleanupFailed;
-      }
-      return ExitCode::kCompilationFailed;
+    // Fall back to generating a minimal boot image.
+    // The compilation of the full boot image will be retried on later reboots with a backoff time,
+    // and the minimal boot image will be removed once the compilation of the full boot image
+    // succeeds.
+    full_compilation_failed = true;
+    std::string ignored_error_msg;
+    if (BootClasspathArtifactsExist(
+            /*on_system=*/false, /*minimal=*/true, isa, &ignored_error_msg)) {
+      continue;
     }
+    if (CompileBootClasspathArtifacts(isa,
+                                      staging_dir,
+                                      metrics,
+                                      advance_animation_progress,
+                                      /*minimal=*/true,
+                                      &error_msg)) {
+      continue;
+    }
+    LOG(ERROR) << "Compilation of minimal BCP failed: " << error_msg;
+    if (!config_.GetDryRun() && !RemoveDirectory(staging_dir)) {
+      return ExitCode::kCleanupFailed;
+    }
+    return ExitCode::kCompilationFailed;
+  }
+
+  if (full_compilation_failed) {
+    if (!config_.GetDryRun() && !RemoveDirectory(staging_dir)) {
+      return ExitCode::kCleanupFailed;
+    }
+    return ExitCode::kCompilationFailed;
   }
 
   if (!compilation_options.system_server_jars_to_compile.empty()) {

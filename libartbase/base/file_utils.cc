@@ -290,14 +290,18 @@ std::string GetPrebuiltPrimaryBootImageDir() {
 std::string GetDefaultBootImageLocation(const std::string& android_root,
                                         bool deny_art_apex_data_files) {
   constexpr static const char* kEtcBootImageProf = "etc/boot-image.prof";
+  constexpr static const char* kBootImageStem = "boot";
+  constexpr static const char* kMinimalBootImageStem = "boot_minimal";
 
   // If an update for the ART module has been been installed, a single boot image for the entire
   // bootclasspath is in the ART APEX data directory.
   if (kIsTargetBuild && !deny_art_apex_data_files) {
     const std::string boot_image =
-        GetApexDataDalvikCacheDirectory(InstructionSet::kNone) + "/boot.art";
+        GetApexDataDalvikCacheDirectory(InstructionSet::kNone) + "/" + kBootImageStem + ".art";
     const std::string boot_image_filename = GetSystemImageFilename(boot_image.c_str(), kRuntimeISA);
     if (OS::FileExists(boot_image_filename.c_str(), /*check_file_type=*/true)) {
+      // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot.art!/apex/com.android.art
+      // /etc/boot-image.prof!/system/etc/boot-image.prof".
       return StringPrintf("%s!%s/%s!%s/%s",
                           boot_image.c_str(),
                           kAndroidArtApexDefaultPath,
@@ -308,15 +312,42 @@ std::string GetDefaultBootImageLocation(const std::string& android_root,
       // Additional warning for potential SELinux misconfiguration.
       PLOG(ERROR) << "Default boot image check failed, could not stat: " << boot_image_filename;
     }
+
+    // odrefresh can generate a minimal boot image, which only includes code from BCP jars in the
+    // ART module, when it fails to generate a single boot image for the entire bootclasspath (i.e.,
+    // full boot image). Use it if it exists.
+    const std::string minimal_boot_image = GetApexDataDalvikCacheDirectory(InstructionSet::kNone) +
+                                           "/" + kMinimalBootImageStem + ".art";
+    const std::string minimal_boot_image_filename =
+        GetSystemImageFilename(minimal_boot_image.c_str(), kRuntimeISA);
+    if (OS::FileExists(minimal_boot_image_filename.c_str(), /*check_file_type=*/true)) {
+      // Typically "/data/misc/apexdata/com.android.art/dalvik-cache/boot_minimal.art!/apex
+      // /com.android.art/etc/boot-image.prof:/nonx/boot_minimal-framework.art!/system/etc
+      // /boot-image.prof".
+      return StringPrintf("%s!%s/%s:/nonx/%s-framework.art!%s/%s",
+                          minimal_boot_image.c_str(),
+                          kAndroidArtApexDefaultPath,
+                          kEtcBootImageProf,
+                          kMinimalBootImageStem,
+                          android_root.c_str(),
+                          kEtcBootImageProf);
+    } else if (errno == EACCES) {
+      // Additional warning for potential SELinux misconfiguration.
+      PLOG(ERROR) << "Minimal boot image check failed, could not stat: " << boot_image_filename;
+    }
   }
   // Boot image consists of two parts:
   //  - the primary boot image (contains the Core Libraries)
   //  - the boot image extensions (contains framework libraries)
-  return StringPrintf("%s/boot.art!%s/%s:%s/framework/boot-framework.art!%s/%s",
+  // Typically "/apex/com.android.art/javalib/boot.art!/apex/com.android.art/etc/boot-image.prof:
+  // /system/framework/boot-framework.art!/system/etc/boot-image.prof".
+  return StringPrintf("%s/%s.art!%s/%s:%s/framework/%s-framework.art!%s/%s",
                       GetPrebuiltPrimaryBootImageDir().c_str(),
+                      kBootImageStem,
                       kAndroidArtApexDefaultPath,
                       kEtcBootImageProf,
                       android_root.c_str(),
+                      kBootImageStem,
                       android_root.c_str(),
                       kEtcBootImageProf);
 }

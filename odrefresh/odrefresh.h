@@ -92,11 +92,13 @@ class OnDeviceRefresh final {
 
   std::vector<com::android::art::SystemServerComponent> GenerateSystemServerComponents() const;
 
-  // Returns the symbolic boot image location (without ISA).
-  std::string GetBootImage(bool on_system) const;
+  // Returns the symbolic boot image location (without ISA). If `minimal` is true, returns the
+  // symbolic location of the minimal boot image.
+  std::string GetBootImage(bool on_system, bool minimal) const;
 
-  // Returns the real boot image location (with ISA).
-  std::string GetBootImagePath(bool on_system, const InstructionSet isa) const;
+  // Returns the real boot image location (with ISA).  If `minimal` is true, returns the
+  // symbolic location of the minimal boot image.
+  std::string GetBootImagePath(bool on_system, bool minimal, const InstructionSet isa) const;
 
   // Returns the symbolic boot image extension location (without ISA). Note that this only applies
   // to boot images on /system.
@@ -119,9 +121,11 @@ class OnDeviceRefresh final {
 
   // Checks whether all boot classpath artifacts are present. Returns true if all are present, false
   // otherwise.
+  // If `minimal` is true, checks the minimal boot image.
   // If `checked_artifacts` is present, adds checked artifacts to `checked_artifacts`.
   WARN_UNUSED bool BootClasspathArtifactsExist(
       bool on_system,
+      bool minimal,
       const InstructionSet isa,
       /*out*/ std::string* error_msg,
       /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
@@ -157,10 +161,12 @@ class OnDeviceRefresh final {
       /*out*/ std::set<std::string>* jars_to_compile,
       /*out*/ std::vector<std::string>* checked_artifacts) const;
 
+  // Compiles boot classpath. If `minimal` is true, only compiles the jars in the ART module.
   WARN_UNUSED bool CompileBootClasspathArtifacts(const InstructionSet isa,
                                                  const std::string& staging_dir,
                                                  OdrMetrics& metrics,
                                                  const std::function<void()>& on_dex2oat_success,
+                                                 bool minimal,
                                                  std::string* error_msg) const;
 
   WARN_UNUSED bool CompileSystemServerArtifacts(
