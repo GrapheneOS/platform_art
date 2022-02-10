@@ -46,6 +46,8 @@
 
 #ifdef __cplusplus
 
+#include "base/globals.h"
+
 namespace art {
 
 #ifdef USE_BAKER_READ_BARRIER
@@ -73,7 +75,7 @@ static constexpr bool kForceReadBarrier = false;
 static constexpr bool kEmitCompilerReadBarrier = kForceReadBarrier || kUseReadBarrier;
 
 // Disabled for performance reasons.
-static constexpr bool kCheckDebugDisallowReadBarrierCount = false;
+static constexpr bool kCheckDebugDisallowReadBarrierCount = kIsDebugBuild;
 
 }  // namespace art
 
