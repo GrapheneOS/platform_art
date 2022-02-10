@@ -1,7 +1,7 @@
 %def op_check_cast():
 %  slow_path = add_slow_path(op_check_cast_slow_path)
    // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x1, 2f
+%  fetch_from_thread_cache("x1", miss_label="2f")
 1:
    lsr     w2, wINST, #8               // w2<- A
    GET_VREG w0, w2                     // w0<- vA (object)
@@ -68,7 +68,7 @@
 %  slow_path = add_slow_path(op_instance_of_slow_path)
    /* instance-of vA, vB, class@CCCC */
    // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x1, 2f
+%  fetch_from_thread_cache("x1", miss_label="2f")
 1:
    lsr     w2, wINST, #12              // w2<- B
    GET_VREG w0, w2                     // w0<- vB (object)
@@ -150,7 +150,7 @@
 %def op_iget(load="ldr", volatile_load="ldar", maybe_extend="", wide="0", is_object="0"):
 %  slow_path = add_slow_path(op_iget_slow_path, volatile_load, maybe_extend, wide, is_object)
    // Fast-path which gets the field from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, ${slow_path}
+%  fetch_from_thread_cache("x0", miss_label=slow_path)
 .L${opcode}_resume:
    lsr     w2, wINST, #12              // w2<- B
    GET_VREG w3, w2                     // w3<- object we're operating on
@@ -234,7 +234,7 @@
    GET_VREG w26, w1                    // w26 <- v[A]
    .endif
    // Fast-path which gets the field from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, ${slow_path}
+%  fetch_from_thread_cache("x0", miss_label=slow_path)
 .L${opcode}_resume:
    lsr     w2, wINST, #12              // w2<- B
    GET_VREG w2, w2                     // vB (object we're operating on)
@@ -302,7 +302,7 @@
 %def op_sget(load="ldr", volatile_load="ldar", maybe_extend="", wide="0", is_object="0"):
 %  slow_path = add_slow_path(op_sget_slow_path, volatile_load, maybe_extend, wide, is_object)
    // Fast-path which gets the field from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, ${slow_path}
+%  fetch_from_thread_cache("x0", miss_label=slow_path)
 .L${opcode}_resume:
    ldr     w1, [x0, #ART_FIELD_OFFSET_OFFSET]
    lsr     w2, wINST, #8               // w2 <- A
@@ -397,7 +397,7 @@
    GET_VREG w26, w2                    // w26 <- v[A]
    .endif
    // Fast-path which gets the field from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, ${slow_path}
+%  fetch_from_thread_cache("x0", miss_label=slow_path)
 .L${opcode}_resume:
    ldr     w1, [x0, #ART_FIELD_OFFSET_OFFSET]
    ldr     w0, [x0, #ART_FIELD_DECLARING_CLASS_OFFSET]
@@ -461,7 +461,7 @@
 %def op_new_instance():
    EXPORT_PC
    // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, 2f
+%  fetch_from_thread_cache("x0", miss_label="2f")
    TEST_IF_MARKING 3f
 4:
    ldr     lr, [xSELF, #THREAD_ALLOC_OBJECT_ENTRYPOINT_OFFSET]
