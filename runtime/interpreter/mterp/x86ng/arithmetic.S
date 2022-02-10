@@ -25,7 +25,7 @@
     jne     .L${opcode}_32
     movl    $special, $result
     jmp     .L${opcode}_finish
-%  add_helper(lambda: bindiv_helper(result, rem))
+%  add_slow_path(bindiv_helper, result, rem)
 
 %def bindiv_helper(result, rem):
 .L${opcode}_32:
@@ -72,7 +72,7 @@
     SET_VREG $result, rINST
     mov     LOCAL0(%esp), rIBASE
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
-%  add_helper(lambda: bindiv2addr_helper(result))
+%  add_slow_path(bindiv2addr_helper, result)
 
 %def bindiv2addr_helper(result):
 .L${opcode}_continue_div2addr:
@@ -307,7 +307,7 @@
     mov     %eax, VREG_REF_HIGH_ADDRESS(%ecx)
     .endif
     ADVANCE_PC_FETCH_AND_GOTO_NEXT 1
-%  add_helper(lambda: cvtfp_int_helper(tgtlong))
+%  add_slow_path(cvtfp_int_helper, tgtlong)
 
 %def cvtfp_int_helper(tgtlong):
 .L${opcode}_special_case:

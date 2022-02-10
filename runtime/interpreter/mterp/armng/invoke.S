@@ -74,7 +74,7 @@
    b NterpCommonInvokePolymorphicRange
 
 %def invoke_interface(range=""):
-%  slow_path = add_helper(lambda: op_invoke_interface_slow_path())
+%  slow_path = add_slow_path(op_invoke_interface_slow_path)
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
    FETCH_FROM_THREAD_CACHE r4, ${slow_path}
