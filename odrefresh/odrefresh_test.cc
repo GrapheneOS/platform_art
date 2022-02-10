@@ -50,6 +50,7 @@ using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::HasSubstr;
+using ::testing::Not;
 using ::testing::Return;
 
 constexpr int kReplace = 1;
@@ -266,6 +267,32 @@ TEST_F(OdRefreshTest, BootClasspathJars) {
                                     .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
                                 }),
             ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, BootClasspathJarsFallback) {
+  // Simulate the case where dex2oat fails when generating the full boot image.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", core_oj_jar_})),
+                                        Contains(Concatenate({"--dex-file=", framework_jar_})))))
+      .Times(2)
+      .WillRepeatedly(Return(1));
+
+  // It should fall back to generating a minimal boot image.
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", core_oj_jar_})),
+                                Not(Contains(Concatenate({"--dex-file=", framework_jar_}))))))
+      .Times(2)
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(
+      odrefresh_->Compile(
+          *metrics_,
+          CompilationOptions{
+              .compile_boot_classpath_for_isas = {InstructionSet::kX86, InstructionSet::kX86_64},
+              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
+          }),
+      ExitCode::kCompilationFailed);
 }
 
 TEST_F(OdRefreshTest, AllSystemServerJars) {
