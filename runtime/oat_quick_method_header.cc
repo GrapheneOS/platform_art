@@ -92,11 +92,9 @@ static inline OatQuickMethodHeader* GetNterpMethodHeader() {
   if (!interpreter::IsNterpSupported()) {
     return nullptr;
   }
-  uintptr_t nterp_entrypoint = reinterpret_cast<uintptr_t>(interpreter::GetNterpEntryPoint());
-  uintptr_t nterp_code_pointer = (kRuntimeISA == InstructionSet::kArm)
-      // Remove the Thumb mode bit if present on ARM.
-      ? nterp_entrypoint & ~static_cast<uintptr_t>(1)
-      : nterp_entrypoint;
+  const void* nterp_entrypoint = interpreter::GetNterpEntryPoint();
+  uintptr_t nterp_code_pointer =
+      reinterpret_cast<uintptr_t>(EntryPointToCodePointer(nterp_entrypoint));
   return reinterpret_cast<OatQuickMethodHeader*>(nterp_code_pointer - sizeof(OatQuickMethodHeader));
 }
 
