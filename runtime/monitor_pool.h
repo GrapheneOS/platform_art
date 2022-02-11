@@ -200,7 +200,7 @@ class MonitorPool {
   // should be large enough that we don't run out. We run out of address bits if it's > 512.
   // Currently we set it a bit smaller, to save half a page per process.  We make it tiny in
   // debug builds to catch growth errors. The only value we really expect to tune.
-  static constexpr size_t kInitialChunkStorage = kIsDebugBuild ? 1U : 256U;
+  static constexpr size_t kInitialChunkStorage = kIsDebugBuild ? 4U : 256U;
   static_assert(IsPowerOfTwo(kInitialChunkStorage), "kInitialChunkStorage must be power of 2");
   // The number of lists, each containing pointers to storage chunks.
   static constexpr size_t kMaxChunkLists = 8;  //  Dictated by 3 bit index. Don't increase above 8.
