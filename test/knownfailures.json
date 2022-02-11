@@ -1468,11 +1468,17 @@
         "tests": ["597-deopt-invoke-stub"],
         "variant": "redefine-stress & jit | jvmti-stress & jit",
         "description": ["Test expects few methods to be interpreted but jvmti enables",
-		        "jit-on-first-use which breaks this expectation"]
+                        "jit-on-first-use which breaks this expectation"]
     },
     {
         "tests": ["667-jit-jni-stub"],
         "variant": "jit-on-first-use | redefine-stress",
         "description": ["jit-on-first-use disables jit GC but this test requires jit GC"]
+    },
+    {
+        "tests": ["835-b216762268"],
+        "variant": "jit | optimizing",
+        "bug": "b/216762268",
+        "description": ["bug in the loop optimization"]
     }
 ]
