@@ -398,7 +398,7 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, PointerSize pointer_size) {
       // However, for proxies we need to keep the interface method alive, so we visit its roots.
       ArtMethod* interface_method = GetInterfaceMethodForProxyUnchecked(pointer_size);
       DCHECK(interface_method != nullptr);
-      interface_method->VisitRoots(visitor, pointer_size);
+      interface_method->VisitRoots<kReadBarrierOption>(visitor, pointer_size);
     }
   }
 }
