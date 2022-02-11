@@ -564,6 +564,7 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_dex2oat_tests_defaults",
     ],
+    data: [":generate-boot-image"],
     shared_libs: [
         "libartbase",
         "libart-compiler",
