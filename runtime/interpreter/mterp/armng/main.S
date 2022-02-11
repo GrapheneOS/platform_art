@@ -2000,14 +2000,13 @@ artNterpAsmInstructionEnd:
 artNterpAsmInstructionStart = .L_op_nop
     .text
 
-%def default_helper_prefix():
-%  return "nterp_"
-
+%def opcode_name_prefix():
+%   return "nterp_"
 %def opcode_start():
     NAME_START nterp_${opcode}
 %def opcode_end():
     NAME_END nterp_${opcode}
-%def helper_start(name):
+%def opcode_slow_path_start(name):
     NAME_START ${name}
-%def helper_end(name):
+%def opcode_slow_path_end(name):
     NAME_END ${name}
