@@ -1,5 +1,5 @@
 %def op_check_cast():
-%  slow_path = add_helper(lambda: op_check_cast_slow_path())
+%  slow_path = add_slow_path(op_check_cast_slow_path)
    // Fast-path which gets the class from thread-local cache.
    FETCH_FROM_THREAD_CACHE r1, 2f
 1:
@@ -65,7 +65,7 @@
    b 2b
 
 %def op_instance_of():
-%  slow_path = add_helper(lambda: op_instance_of_slow_path())
+%  slow_path = add_slow_path(op_instance_of_slow_path)
    /* instance-of vA, vB, class@CCCC */
    // Fast-path which gets the class from thread-local cache.
    FETCH_FROM_THREAD_CACHE r1, 2f
@@ -150,7 +150,7 @@
 %  op_iget(load="ldrsh", wide="0", is_object="0")
 
 %def op_iget(load="ldr", wide="0", is_object="0"):
-%  slow_path = add_helper(lambda: op_iget_slow_path(load, wide, is_object))
+%  slow_path = add_slow_path(op_iget_slow_path, load, wide, is_object)
    // Fast-path which gets the field from thread-local cache.
    FETCH_FROM_THREAD_CACHE r0, ${slow_path}
 .L${opcode}_resume:
@@ -238,10 +238,7 @@
 %  op_iput(store="strh", wide="0", is_object="0")
 
 %def op_iput(store="str", wide="0", is_object="0"):
-   // Share slow paths for boolean and byte (strb) and slow paths for char and short (strh).
-   // It does not matter to which `.L${opcode}_resume` the slow path returns.
-%  slow_path = "nterp_op_iput_helper_" + store + wide + is_object
-%  add_helper(lambda: op_iput_slow_path(store, wide, is_object), slow_path)
+%  slow_path = add_slow_path(op_iput_slow_path, store, wide, is_object)
    .if !$wide
    ubfx    r4, rINST, #8, #4           // r4<- A
    GET_VREG r4, r4                     // r4 <- v[A]
@@ -331,7 +328,7 @@
 %  op_sget(load="ldrsh", wide="0", is_object="0")
 
 %def op_sget(load="ldr", wide="0", is_object="0"):
-%  slow_path = add_helper(lambda: op_sget_slow_path(load, wide, is_object))
+%  slow_path = add_slow_path(op_sget_slow_path, load, wide, is_object)
    // Fast-path which gets the field from thread-local cache.
    FETCH_FROM_THREAD_CACHE r0, ${slow_path}
 .L${opcode}_resume:
@@ -428,10 +425,7 @@
 %  op_sput(store="strh", wide="0", is_object="0")
 
 %def op_sput(store="str", wide="0", is_object="0"):
-   // Share slow paths for boolean and byte (strb) and slow paths for char and short (strh).
-   // It does not matter to which `.L${opcode}_resume` the slow path returns.
-%  slow_path = "nterp_op_sput_helper_" + store + wide + is_object
-%  add_helper(lambda: op_sput_slow_path(store, wide, is_object), slow_path)
+%  slow_path = add_slow_path(op_sput_slow_path, store, wide, is_object)
    .if !$wide
    lsr     r4, rINST, #8               // r4 <- A
    GET_VREG r4, r4                     // r4 <- v[A]
