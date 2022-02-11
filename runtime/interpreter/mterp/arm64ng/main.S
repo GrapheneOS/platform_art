@@ -1420,17 +1420,6 @@ END \name
    .endif
 .endm
 
-// Fetch some information from the thread cache.
-// Uses ip and ip2 as temporaries.
-.macro FETCH_FROM_THREAD_CACHE dest_reg, slow_path
-   add      ip, xSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
-   ubfx     ip2, xPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
-   add      ip, ip, ip2, lsl #4            // entry address within the cache
-   ldp      ip, \dest_reg, [ip]           // entry key (pc) and value (offset)
-   cmp      ip, xPC
-   b.ne \slow_path
-.endm
-
 // Puts the next int/long/object parameter passed in physical register
 // in the expected dex register array entry, and in case of object in the
 // expected reference array entry.
@@ -1690,6 +1679,16 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
 %def helpers():
 
+%def fetch_from_thread_cache(dest_reg, miss_label):
+   // Fetch some information from the thread cache.
+   // Uses ip and ip2 as temporaries.
+   add      ip, xSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
+   ubfx     ip2, xPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
+   add      ip, ip, ip2, lsl #4            // entry address within the cache
+   ldp      ip, ${dest_reg}, [ip]          // entry key (pc) and value (offset)
+   cmp      ip, xPC
+   b.ne     ${miss_label}
+
 %def footer():
 /*
  * ===========================================================================
@@ -1760,7 +1759,7 @@ NterpNewArray:
    /* new-array vA, vB, class@CCCC */
    EXPORT_PC
    // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, 2f
+%  fetch_from_thread_cache("x0", miss_label="2f")
    TEST_IF_MARKING 3f
 1:
    lsr     w1, wINST, #12              // w1<- B
