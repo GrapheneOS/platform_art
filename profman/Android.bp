@@ -193,6 +193,7 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_profman_tests_defaults",
     ],
+    data: [":generate-boot-image"],
     shared_libs: [
         "libprofile",
     ],
