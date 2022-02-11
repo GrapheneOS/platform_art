@@ -235,5 +235,6 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_oatdump_tests_defaults",
     ],
+    data: [":generate-boot-image"],
     test_config: "art_standalone_oatdump_tests.xml",
 }
