@@ -11,7 +11,7 @@
 %def invoke_direct_or_super(helper="", range="", is_super=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, 2f
+%  fetch_from_thread_cache("x0", miss_label="2f")
 1:
    // Load the first argument (the 'this' pointer).
    FETCH w1, 2
@@ -72,7 +72,7 @@
 %def invoke_interface(range=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x26, 5f
+%  fetch_from_thread_cache("x26", miss_label="5f")
 1:
    // First argument is the 'this' pointer.
    FETCH w1, 2
@@ -128,7 +128,7 @@
 %def invoke_static(helper=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, 1f
+%  fetch_from_thread_cache("x0", miss_label="1f")
    b $helper
 1:
    mov x0, xSELF
@@ -146,7 +146,7 @@
 %def invoke_virtual(helper="", range=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x2, 2f
+%  fetch_from_thread_cache("x2", miss_label="2f")
 1:
    FETCH w1, 2
    .if !$range
