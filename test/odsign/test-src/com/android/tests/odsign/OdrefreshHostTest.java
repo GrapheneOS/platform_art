@@ -31,8 +31,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -94,7 +92,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyArtSamegradeUpdateTriggersCompilation() throws Exception {
         simulateArtApexUpgrade();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
@@ -104,7 +102,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyOtherApexSamegradeUpdateTriggersCompilation() throws Exception {
         simulateApexUpgrade();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
@@ -114,7 +112,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyBootClasspathOtaTriggersCompilation() throws Exception {
         simulateBootClasspathOta();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
@@ -124,7 +122,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifySystemServerOtaTriggersCompilation() throws Exception {
         simulateSystemServerOta();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
@@ -140,7 +138,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         remainingArtifacts.removeAll(missingArtifacts);
 
         mTestUtils.removeCompilationLogToAvoidBackoff();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsNotModifiedAfter(remainingArtifacts, timeMs);
@@ -150,7 +148,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyNoCompilationWhenCacheIsGood() throws Exception {
         mTestUtils.removeCompilationLogToAvoidBackoff();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
@@ -184,7 +182,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     public void verifyCompilationOsMode() throws Exception {
         mTestUtils.removeCompilationLogToAvoidBackoff();
         simulateApexUpgrade();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(
                 ODREFRESH_BIN + " --no-refresh --partial-compilation"
                         + " --compilation-os-mode --compile");
@@ -199,7 +197,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         mTestUtils.removeCompilationLogToAvoidBackoff();
 
         // Simulate the odrefresh invocation on the next boot.
-        timeMs = getCurrentTimeMs();
+        timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         // odrefresh should not re-compile anything.
@@ -222,21 +220,21 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
 
         // Running the command again should not overwrite the minimal boot image.
         mTestUtils.removeCompilationLogToAvoidBackoff();
-        long timeMs = getCurrentTimeMs();
+        long timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_MINIMAL_COMMAND);
 
         assertArtifactsNotModifiedAfter(minimalZygoteArtifacts, timeMs);
 
         // `odrefresh --check` should keep the minimal boot image.
         mTestUtils.removeCompilationLogToAvoidBackoff();
-        timeMs = getCurrentTimeMs();
+        timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_BIN + " --check");
 
         assertArtifactsNotModifiedAfter(minimalZygoteArtifacts, timeMs);
 
         // A normal odrefresh invocation should replace the minimal boot image with a full one.
         mTestUtils.removeCompilationLogToAvoidBackoff();
-        timeMs = getCurrentTimeMs();
+        timeMs = mTestUtils.getCurrentTimeMs();
         getDevice().executeShellV2Command(ODREFRESH_COMMAND);
 
         for (String artifact : minimalZygoteArtifacts) {
@@ -332,35 +330,9 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         return missingArtifacts;
     }
 
-    private long parseFormattedDateTime(String dateTimeStr) throws Exception {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(
-                "yyyy-MM-dd HH:mm:ss.nnnnnnnnn Z");
-        ZonedDateTime zonedDateTime = ZonedDateTime.parse(dateTimeStr, formatter);
-        return zonedDateTime.toInstant().toEpochMilli();
-    }
-
-    private long getModifiedTimeMs(String filename) throws Exception {
-        // We can't use the "-c '%.3Y'" flag when to get the timestamp because the Toybox's `stat`
-        // implementation truncates the timestamp to seconds, which is not accurate enough, so we
-        // use "-c '%%y'" and parse the time ourselves.
-        String dateTimeStr = getDevice()
-                .executeShellCommand(String.format("stat -c '%%y' '%s'", filename))
-                .trim();
-        return parseFormattedDateTime(dateTimeStr);
-    }
-
-    private long getCurrentTimeMs() throws Exception {
-        // We can't use getDevice().getDeviceDate() because it truncates the timestamp to seconds,
-        // which is not accurate enough.
-        String dateTimeStr = getDevice()
-                .executeShellCommand("date +'%Y-%m-%d %H:%M:%S.%N %z'")
-                .trim();
-        return parseFormattedDateTime(dateTimeStr);
-    }
-
     private void assertArtifactsModifiedAfter(Set<String> artifacts, long timeMs) throws Exception {
         for (String artifact : artifacts) {
-            long modifiedTime = getModifiedTimeMs(artifact);
+            long modifiedTime = mTestUtils.getModifiedTimeMs(artifact);
             assertTrue(
                     String.format(
                             "Artifact %s is not re-compiled. Modified time: %d, Reference time: %d",
@@ -374,7 +346,7 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     private void assertArtifactsNotModifiedAfter(Set<String> artifacts, long timeMs)
             throws Exception {
         for (String artifact : artifacts) {
-            long modifiedTime = getModifiedTimeMs(artifact);
+            long modifiedTime = mTestUtils.getModifiedTimeMs(artifact);
             assertTrue(
                     String.format(
                             "Artifact %s is unexpectedly re-compiled. " +

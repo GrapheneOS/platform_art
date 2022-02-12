@@ -133,6 +133,8 @@ if [[ $build_target == "yes" ]]; then
   make_command+=" event-log-tags"
   # Needed to extract prebuilt APEXes.
   make_command+=" deapexer"
+  # Needed to generate the primary boot image for testing.
+  make_command+=" generate-boot-image"
   # Build/install the required APEXes.
   make_command+=" ${apexes[*]}"
   make_command+=" ${specific_targets}"
