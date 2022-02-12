@@ -1483,19 +1483,6 @@ END \name
    LDREXD_STREXD_LOOP \addr, \tmp1, \tmp2, \store1, \store2, \tmp1, \label
 .endm
 
-// Fetch some information from the thread cache.
-// Uses ip and lr as temporaries.
-.macro FETCH_FROM_THREAD_CACHE dest_reg, slow_path
-   add      ip, rSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
-   ubfx     lr, rPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
-   add      ip, ip, lr, lsl #3             // entry address within the cache
-   // In T32, we would use `ldrd ip, \dest_reg, [ip]`
-   ldr      \dest_reg, [ip, #4]            // value (offset)
-   ldr      ip, [ip]                       // entry key (pc)
-   cmp      ip, rPC
-   bne \slow_path
-.endm
-
 // Puts the next int/long/object parameter passed in physical register
 // in the expected dex register array entry, and in case of object in the
 // expected reference array entry.
@@ -1705,6 +1692,18 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
 %def helpers():
 
+%def fetch_from_thread_cache(dest_reg, miss_label):
+   // Fetch some information from the thread cache.
+   // Uses ip and lr as temporaries.
+   add      ip, rSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
+   ubfx     lr, rPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
+   add      ip, ip, lr, lsl #3             // entry address within the cache
+   // In T32, we would use `ldrd ip, \dest_reg, [ip]`
+   ldr      ${dest_reg}, [ip, #4]          // value (offset)
+   ldr      ip, [ip]                       // entry key (pc)
+   cmp      ip, rPC
+   bne      ${miss_label}
+
 %def footer():
 /*
  * ===========================================================================
@@ -1775,7 +1774,7 @@ NterpNewArray:
    /* new-array vA, vB, class@CCCC */
    EXPORT_PC
    // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE r0, 2f
+%  fetch_from_thread_cache("r0", miss_label="2f")
    TEST_IF_MARKING 3f
 1:
    lsr     r1, rINST, #12              // r1<- B

@@ -30,7 +30,7 @@
 
 %def op_const_object(jumbo="0", helper="nterp_load_object"):
    // Fast-path which gets the object from thread-local cache.
-   FETCH_FROM_THREAD_CACHE %eax, 2f
+%  fetch_from_thread_cache("%eax", miss_label="2f")
    cmpl MACRO_LITERAL(0), rSELF:THREAD_READ_BARRIER_MARK_REG00_OFFSET
    jne 3f
 1:
