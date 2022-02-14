@@ -17,4 +17,7 @@
 public interface NotInAbstractInterface {
   // This method will be part of the public SDK.
   int methodPublicSdkNotInAbstractParent();
+
+  // This method will be unsupportedappusage.
+  int methodUnsupportedNotInAbstractParent();
 }
