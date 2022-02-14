@@ -37,107 +37,107 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints,
   ResetQuickAllocEntryPoints(qpoints);
 
   // Resolution and initialization
-  qpoints->pInitializeStaticStorage = art_quick_initialize_static_storage;
-  qpoints->pResolveTypeAndVerifyAccess = art_quick_resolve_type_and_verify_access;
-  qpoints->pResolveType = art_quick_resolve_type;
-  qpoints->pResolveMethodHandle = art_quick_resolve_method_handle;
-  qpoints->pResolveMethodType = art_quick_resolve_method_type;
-  qpoints->pResolveString = art_quick_resolve_string;
+  qpoints->SetInitializeStaticStorage(art_quick_initialize_static_storage);
+  qpoints->SetResolveTypeAndVerifyAccess(art_quick_resolve_type_and_verify_access);
+  qpoints->SetResolveType(art_quick_resolve_type);
+  qpoints->SetResolveMethodHandle(art_quick_resolve_method_handle);
+  qpoints->SetResolveMethodType(art_quick_resolve_method_type);
+  qpoints->SetResolveString(art_quick_resolve_string);
 
   // Field
-  qpoints->pSet8Instance = art_quick_set8_instance;
-  qpoints->pSet8Static = art_quick_set8_static;
-  qpoints->pSet16Instance = art_quick_set16_instance;
-  qpoints->pSet16Static = art_quick_set16_static;
-  qpoints->pSet32Instance = art_quick_set32_instance;
-  qpoints->pSet32Static = art_quick_set32_static;
-  qpoints->pSet64Instance = art_quick_set64_instance;
-  qpoints->pSet64Static = art_quick_set64_static;
-  qpoints->pSetObjInstance = art_quick_set_obj_instance;
-  qpoints->pSetObjStatic = art_quick_set_obj_static;
-  qpoints->pGetByteInstance = art_quick_get_byte_instance;
-  qpoints->pGetBooleanInstance = art_quick_get_boolean_instance;
-  qpoints->pGetShortInstance = art_quick_get_short_instance;
-  qpoints->pGetCharInstance = art_quick_get_char_instance;
-  qpoints->pGet32Instance = art_quick_get32_instance;
-  qpoints->pGet64Instance = art_quick_get64_instance;
-  qpoints->pGetObjInstance = art_quick_get_obj_instance;
-  qpoints->pGetByteStatic = art_quick_get_byte_static;
-  qpoints->pGetBooleanStatic = art_quick_get_boolean_static;
-  qpoints->pGetShortStatic = art_quick_get_short_static;
-  qpoints->pGetCharStatic = art_quick_get_char_static;
-  qpoints->pGet32Static = art_quick_get32_static;
-  qpoints->pGet64Static = art_quick_get64_static;
-  qpoints->pGetObjStatic = art_quick_get_obj_static;
+  qpoints->SetSet8Instance(art_quick_set8_instance);
+  qpoints->SetSet8Static(art_quick_set8_static);
+  qpoints->SetSet16Instance(art_quick_set16_instance);
+  qpoints->SetSet16Static(art_quick_set16_static);
+  qpoints->SetSet32Instance(art_quick_set32_instance);
+  qpoints->SetSet32Static(art_quick_set32_static);
+  qpoints->SetSet64Instance(art_quick_set64_instance);
+  qpoints->SetSet64Static(art_quick_set64_static);
+  qpoints->SetSetObjInstance(art_quick_set_obj_instance);
+  qpoints->SetSetObjStatic(art_quick_set_obj_static);
+  qpoints->SetGetByteInstance(art_quick_get_byte_instance);
+  qpoints->SetGetBooleanInstance(art_quick_get_boolean_instance);
+  qpoints->SetGetShortInstance(art_quick_get_short_instance);
+  qpoints->SetGetCharInstance(art_quick_get_char_instance);
+  qpoints->SetGet32Instance(art_quick_get32_instance);
+  qpoints->SetGet64Instance(art_quick_get64_instance);
+  qpoints->SetGetObjInstance(art_quick_get_obj_instance);
+  qpoints->SetGetByteStatic(art_quick_get_byte_static);
+  qpoints->SetGetBooleanStatic(art_quick_get_boolean_static);
+  qpoints->SetGetShortStatic(art_quick_get_short_static);
+  qpoints->SetGetCharStatic(art_quick_get_char_static);
+  qpoints->SetGet32Static(art_quick_get32_static);
+  qpoints->SetGet64Static(art_quick_get64_static);
+  qpoints->SetGetObjStatic(art_quick_get_obj_static);
 
   // Array
-  qpoints->pAputObject = art_quick_aput_obj;
+  qpoints->SetAputObject(art_quick_aput_obj);
 
   // JNI
-  qpoints->pJniMethodStart = art_jni_method_start;
-  qpoints->pJniMethodEnd = art_jni_method_end;
-  qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
-  qpoints->pJniDecodeReferenceResult = JniDecodeReferenceResult;
-  qpoints->pJniReadBarrier = art_jni_read_barrier;
+  qpoints->SetJniMethodStart(art_jni_method_start);
+  qpoints->SetJniMethodEnd(art_jni_method_end);
+  qpoints->SetQuickGenericJniTrampoline(art_quick_generic_jni_trampoline);
+  qpoints->SetJniDecodeReferenceResult(JniDecodeReferenceResult);
+  qpoints->SetJniReadBarrier(art_jni_read_barrier);
 
   // Locks
   if (UNLIKELY(VLOG_IS_ON(systrace_lock_logging))) {
-    qpoints->pJniLockObject = art_jni_lock_object_no_inline;
-    qpoints->pJniUnlockObject = art_jni_unlock_object_no_inline;
-    qpoints->pLockObject = art_quick_lock_object_no_inline;
-    qpoints->pUnlockObject = art_quick_unlock_object_no_inline;
+    qpoints->SetJniLockObject(art_jni_lock_object_no_inline);
+    qpoints->SetJniUnlockObject(art_jni_unlock_object_no_inline);
+    qpoints->SetLockObject(art_quick_lock_object_no_inline);
+    qpoints->SetUnlockObject(art_quick_unlock_object_no_inline);
   } else {
-    qpoints->pJniLockObject = art_jni_lock_object;
-    qpoints->pJniUnlockObject = art_jni_unlock_object;
-    qpoints->pLockObject = art_quick_lock_object;
-    qpoints->pUnlockObject = art_quick_unlock_object;
+    qpoints->SetJniLockObject(art_jni_lock_object);
+    qpoints->SetJniUnlockObject(art_jni_unlock_object);
+    qpoints->SetLockObject(art_quick_lock_object);
+    qpoints->SetUnlockObject(art_quick_unlock_object);
   }
 
   // Invocation
-  qpoints->pQuickImtConflictTrampoline = art_quick_imt_conflict_trampoline;
-  qpoints->pQuickResolutionTrampoline = art_quick_resolution_trampoline;
-  qpoints->pQuickToInterpreterBridge = art_quick_to_interpreter_bridge;
-  qpoints->pInvokeDirectTrampolineWithAccessCheck =
-      art_quick_invoke_direct_trampoline_with_access_check;
-  qpoints->pInvokeInterfaceTrampolineWithAccessCheck =
-      art_quick_invoke_interface_trampoline_with_access_check;
-  qpoints->pInvokeStaticTrampolineWithAccessCheck =
-      art_quick_invoke_static_trampoline_with_access_check;
-  qpoints->pInvokeSuperTrampolineWithAccessCheck =
-      art_quick_invoke_super_trampoline_with_access_check;
-  qpoints->pInvokeVirtualTrampolineWithAccessCheck =
-      art_quick_invoke_virtual_trampoline_with_access_check;
-  qpoints->pInvokePolymorphic = art_quick_invoke_polymorphic;
-  qpoints->pInvokeCustom = art_quick_invoke_custom;
+  qpoints->SetQuickImtConflictTrampoline(art_quick_imt_conflict_trampoline);
+  qpoints->SetQuickResolutionTrampoline(art_quick_resolution_trampoline);
+  qpoints->SetQuickToInterpreterBridge(art_quick_to_interpreter_bridge);
+  qpoints->SetInvokeDirectTrampolineWithAccessCheck(
+      art_quick_invoke_direct_trampoline_with_access_check);
+  qpoints->SetInvokeInterfaceTrampolineWithAccessCheck(
+      art_quick_invoke_interface_trampoline_with_access_check);
+  qpoints->SetInvokeStaticTrampolineWithAccessCheck(
+      art_quick_invoke_static_trampoline_with_access_check);
+  qpoints->SetInvokeSuperTrampolineWithAccessCheck(
+      art_quick_invoke_super_trampoline_with_access_check);
+  qpoints->SetInvokeVirtualTrampolineWithAccessCheck(
+      art_quick_invoke_virtual_trampoline_with_access_check);
+  qpoints->SetInvokePolymorphic(art_quick_invoke_polymorphic);
+  qpoints->SetInvokeCustom(art_quick_invoke_custom);
 
   // Thread
-  qpoints->pTestSuspend = art_quick_test_suspend;
+  qpoints->SetTestSuspend(art_quick_test_suspend);
 
   // Throws
-  qpoints->pDeliverException = art_quick_deliver_exception;
-  qpoints->pThrowArrayBounds = art_quick_throw_array_bounds;
-  qpoints->pThrowDivZero = art_quick_throw_div_zero;
-  qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
-  qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
-  qpoints->pThrowStringBounds = art_quick_throw_string_bounds;
+  qpoints->SetDeliverException(art_quick_deliver_exception);
+  qpoints->SetThrowArrayBounds(art_quick_throw_array_bounds);
+  qpoints->SetThrowDivZero(art_quick_throw_div_zero);
+  qpoints->SetThrowNullPointer(art_quick_throw_null_pointer_exception);
+  qpoints->SetThrowStackOverflow(art_quick_throw_stack_overflow);
+  qpoints->SetThrowStringBounds(art_quick_throw_string_bounds);
 
   // Deoptimize
-  qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_code;
+  qpoints->SetDeoptimize(art_quick_deoptimize_from_compiled_code);
 
   // StringBuilder append
-  qpoints->pStringBuilderAppend = art_quick_string_builder_append;
+  qpoints->SetStringBuilderAppend(art_quick_string_builder_append);
 
   // Tiered JIT support
-  qpoints->pUpdateInlineCache = art_quick_update_inline_cache;
-  qpoints->pCompileOptimized = art_quick_compile_optimized;
+  qpoints->SetUpdateInlineCache(art_quick_update_inline_cache);
+  qpoints->SetCompileOptimized(art_quick_compile_optimized);
 
   // Tracing hooks
-  qpoints->pMethodEntryHook = art_quick_method_entry_hook;
-  qpoints->pMethodExitHook = art_quick_method_exit_hook;
+  qpoints->SetMethodEntryHook(art_quick_method_entry_hook);
+  qpoints->SetMethodExitHook(art_quick_method_exit_hook);
 
   if (monitor_jni_entry_exit) {
-    qpoints->pJniMethodStart = art_jni_monitored_method_start;
-    qpoints->pJniMethodEnd = art_jni_monitored_method_end;
+    qpoints->SetJniMethodStart(art_jni_monitored_method_start);
+    qpoints->SetJniMethodEnd(art_jni_monitored_method_end);
   }
 }
 
