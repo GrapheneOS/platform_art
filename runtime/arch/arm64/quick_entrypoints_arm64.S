@@ -795,8 +795,7 @@ ENTRY art_quick_osr_stub
     ret
 
 .Losr_entry:
-    .cfi_restore_state                     // Reset unwind info so following code unwinds.
-    .cfi_def_cfa_offset (SAVE_SIZE+16)     // workaround for clang bug: 31975598
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, (SAVE_SIZE+16)
 
     mov x9, sp                             // Save stack pointer.
     .cfi_def_cfa_register x9
@@ -963,8 +962,7 @@ ENTRY art_quick_check_instance_of
     .cfi_remember_state
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
     ret
-    .cfi_restore_state                // Reset unwind info so following code unwinds.
-    .cfi_def_cfa_offset 32            // workaround for clang bug: 31975598
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
 
 .Lthrow_class_cast_exception:
     // Restore
@@ -1104,8 +1102,7 @@ ENTRY art_quick_aput_obj
     lsr x0, x0, #CARD_TABLE_CARD_SHIFT
     strb w3, [x3, x0]
     ret
-    .cfi_restore_state            // Reset unwind info so following code unwinds.
-    .cfi_def_cfa_offset 32        // workaround for clang bug: 31975598
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 32
 .Lthrow_array_store_exception:
     RESTORE_TWO_REGS x2, xLR, 16
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
@@ -1221,8 +1218,7 @@ ENTRY \name
     RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
     REFRESH_MARKING_REGISTER
     ret                        // return
-    .cfi_restore_state
-    .cfi_def_cfa_offset FRAME_SIZE_SAVE_EVERYTHING  // workaround for clang bug: 31975598
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
 1:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END \name
@@ -1846,8 +1842,7 @@ ENTRY art_quick_generic_jni_trampoline
     ret
 
     // Undo the unwinding information from above since it doesn't apply below.
-    .cfi_restore_state
-    .cfi_def_cfa x28, FRAME_SIZE_SAVE_REFS_AND_ARGS
+    CFI_RESTORE_STATE_AND_DEF_CFA x28, FRAME_SIZE_SAVE_REFS_AND_ARGS
 .Lexception_in_native:
     // Move to x1 then sp to please assembler.
     ldr x1, [xSELF, # THREAD_TOP_QUICK_FRAME_OFFSET]
@@ -2622,8 +2617,7 @@ ENTRY art_quick_method_exit_hook
     REFRESH_MARKING_REGISTER
     ret
 .Ldo_deliver_instrumentation_exception_exit:
-    .cfi_restore_state
-    .cfi_def_cfa sp, FRAME_SIZE_SAVE_EVERYTHING
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_quick_method_exit_hook
 
