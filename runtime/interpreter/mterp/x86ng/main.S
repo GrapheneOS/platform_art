@@ -1870,8 +1870,6 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
 %def opcode_pre():
 
-%def helpers():
-
 %def fetch_from_thread_cache(dest_reg, miss_label):
    // Fetch some information from the thread cache.
    // Uses eax, and ecx as temporaries.
@@ -2352,6 +2350,8 @@ SYMBOL(artNterpAsmInstructionStart) = .L_op_nop
     ENTRY nterp_${opcode}
 %def opcode_end():
     END nterp_${opcode}
+    // Advance to the end of this handler. Causes error if we are past that point.
+    .org nterp_${opcode} + NTERP_HANDLER_SIZE  // ${opcode} handler is too big!
 %def opcode_slow_path_start(name):
     ENTRY ${name}
 %def opcode_slow_path_end(name):

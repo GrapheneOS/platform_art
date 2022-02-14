@@ -50,7 +50,7 @@ slow_paths = {}
 
 # This method generates a slow path using the provided writer method and arguments.
 def add_slow_path(write_fn, *write_args, suffix="_slow_path"):
-  name = opcode_name_prefix() + opcode + suffix
+  name = opcode_name_prefix() + (opcode or "common") + suffix
   global out
   # The output is temporarily redirected to in-memory buffer.
   old_out = out
@@ -59,8 +59,10 @@ def add_slow_path(write_fn, *write_args, suffix="_slow_path"):
   write_fn(*write_args)
   opcode_slow_path_end(name)
   out.seek(0)
-  assert name not in slow_paths, "Use unique slow path name suffix"
-  slow_paths[name] = out.read()
+  code = out.read()
+  if name in slow_paths:
+    assert slow_paths[name] == code, "Non-matching redefinition of " + name
+  slow_paths[name] = code
   out = old_out
   return name
 
@@ -76,9 +78,8 @@ def generate(output_filename):
   balign()
   instruction_end()
 
-  for name, helper in sorted(slow_paths.items()):
-    out.write(helper)
-  helpers()
+  for name, slow_path in sorted(slow_paths.items()):
+    out.write(slow_path)
 
   footer()
 

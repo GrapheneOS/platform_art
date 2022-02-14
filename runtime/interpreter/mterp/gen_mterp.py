@@ -65,10 +65,11 @@ def generate_script(output_filename, input_filenames):
   for input_filename in sorted(input_filenames):
     lines = open(input_filename, "r").readlines()
     indent = ""
-    for line in lines:
+    for line_number, line in enumerate(lines, 1):
+      file_line = "{}:{}".format("/".join(input_filename.split("/")[-2:]), line_number)
       line = line.rstrip()
       if line.startswith("%"):
-        script.write(line.lstrip("%") + "\n")
+        script.write("{:80}  # {}\n".format(line.lstrip("%"), file_line))
         indent = indent_re.match(line).group(1)
         if line.endswith(":"):
           indent += "  "
