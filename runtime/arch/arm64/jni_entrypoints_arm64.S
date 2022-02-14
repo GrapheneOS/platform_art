@@ -296,8 +296,7 @@ ENTRY art_jni_dlsym_lookup_critical_stub
 
     // Do the tail call.
     br    x13
-    .cfi_restore_state
-    .cfi_def_cfa sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
 
 .Lcritical_deliver_exception:
     // The exception delivery checks that xSELF was saved but the SaveRefsAndArgs
