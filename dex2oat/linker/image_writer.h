@@ -83,6 +83,7 @@ class ImageWriter final {
               const HashMap<const DexFile*, size_t>& dex_file_oat_index_map,
               jobject class_loader,
               const HashSet<std::string>* dirty_image_objects);
+  ~ImageWriter();
 
   /*
    * Modifies the heap and collects information about objects and code so that
@@ -190,7 +191,8 @@ class ImageWriter final {
     // Likely-clean:
     kString,                      // [String] Almost always immutable (except for obj header).
     // Definitely clean:
-    kMethodPointerArray,          // ART internal vtables and interface method tables, int[]/long[].
+    kInternalClean,               // ART internal: image roots, boot image live objects, vtables
+                                  // and interface tables, Object[]/int[]/long[].
     // Add more bins here if we add more segregation code.
     // Non mirror fields must be below.
     // ArtFields should be always clean.
@@ -290,7 +292,7 @@ class ImageWriter final {
      * This function will return the total size of the covered sections as well
      * as a vector containing the individual ImageSection objects.
      */
-    std::pair<size_t, std::vector<ImageSection>> CreateImageSections() const;
+    std::pair<size_t, dchecked_vector<ImageSection>> CreateImageSections() const;
 
     size_t GetStubOffset(StubType stub_type) const {
       DCHECK_LT(static_cast<size_t>(stub_type), kNumberOfStubTypes);
@@ -387,7 +389,7 @@ class ImageWriter final {
     size_t num_string_references_ = 0;
 
     // Offsets into the image that indicate where string references are recorded.
-    std::vector<AppImageReferenceOffsetInfo> string_reference_offsets_;
+    dchecked_vector<AppImageReferenceOffsetInfo> string_reference_offsets_;
 
     // Intern table associated with this image for serialization.
     size_t intern_table_size_ = 0;
@@ -401,7 +403,7 @@ class ImageWriter final {
 
     // Padding offsets to ensure region alignment (if required).
     // Objects need to be added from the recorded offset until the end of the region.
-    std::vector<size_t> padding_offsets_;
+    dchecked_vector<size_t> padding_offsets_;
   };
 
   // We use the lock word to store the offset of the object in the image.
@@ -447,7 +449,7 @@ class ImageWriter final {
   void PruneNonImageClasses() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Find dex caches for pruning or preloading.
-  std::vector<ObjPtr<mirror::DexCache>> FindDexCaches(Thread* self)
+  dchecked_vector<ObjPtr<mirror::DexCache>> FindDexCaches(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
 
@@ -459,11 +461,7 @@ class ImageWriter final {
       REQUIRES_SHARED(Locks::mutator_lock_);
   void CreateHeader(size_t oat_index, size_t component_count)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  ObjPtr<mirror::ObjectArray<mirror::Object>> CollectDexCaches(Thread* self, size_t oat_index) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  ObjPtr<mirror::ObjectArray<mirror::Object>> CreateImageRoots(
-      size_t oat_index,
-      Handle<mirror::ObjectArray<mirror::Object>> boot_image_live_objects) const
+  bool CreateImageRoots()
       REQUIRES_SHARED(Locks::mutator_lock_);
   void CalculateObjectBinSlots(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -549,12 +547,6 @@ class ImageWriter final {
     size_t oat_index;
     uintptr_t offset;
     NativeObjectRelocationType type;
-
-    bool IsArtMethodRelocation() const {
-      return type == NativeObjectRelocationType::kArtMethodClean ||
-          type == NativeObjectRelocationType::kArtMethodDirty ||
-          type == NativeObjectRelocationType::kRuntimeMethod;
-    }
   };
 
   NativeObjectRelocation GetNativeRelocation(void* obj) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -595,7 +587,7 @@ class ImageWriter final {
   // Return true if there already exists a native allocation for an object.
   bool NativeRelocationAssigned(void* ptr) const;
 
-  // Copy a reference and record image relocation.
+  // Copy a reference, translating source pointer to the target pointer.
   template <typename DestType>
   void CopyAndFixupReference(DestType* dest, ObjPtr<mirror::Object> src)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -670,8 +662,11 @@ class ImageWriter final {
   // The application class loader. Null for boot image.
   jobject app_class_loader_;
 
-  // Boot image live objects, null for app image.
+  // Boot image live objects, invalid for app image.
   mirror::ObjectArray<mirror::Object>* boot_image_live_objects_;
+
+  // Image roots corresponding to individual image files.
+  dchecked_vector<jobject> image_roots_;
 
   // Which mode the image is stored as, see image.h
   const ImageHeader::StorageMode image_storage_mode_;
