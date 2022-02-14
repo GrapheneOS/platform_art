@@ -43,7 +43,7 @@ template<class MirrorType> class StackReference;
 class Thread;
 
 // Pointers to functions that are called by quick compiler generated code via thread-local storage.
-struct PACKED(4) QuickEntryPoints {
+struct QuickEntryPoints {
 #define ENTRYPOINT_ENUM(name, rettype, ...) rettype ( * p ## name )( __VA_ARGS__ );
 #include "quick_entrypoints_list.h"
   QUICK_ENTRYPOINT_LIST(ENTRYPOINT_ENUM)
