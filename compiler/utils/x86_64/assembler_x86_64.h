@@ -981,6 +981,8 @@ class X86_64Assembler final : public Assembler {
   void repe_cmpsl();
   void repe_cmpsq();
   void rep_movsw();
+  void rep_movsb();
+  void rep_movsl();
 
   void ud2();
 
