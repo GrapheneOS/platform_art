@@ -51,10 +51,7 @@ class ArtField final {
     return declaring_class_.AddressWithoutBarrier();
   }
 
-  uint32_t GetAccessFlags() REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (kIsDebugBuild) {
-      GetAccessFlagsDCheck();
-    }
+  uint32_t GetAccessFlags() {
     return access_flags_;
   }
 
@@ -242,7 +239,6 @@ class ArtField final {
   ObjPtr<mirror::Class> ProxyFindSystemClass(const char* descriptor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void GetAccessFlagsDCheck() REQUIRES_SHARED(Locks::mutator_lock_);
   void GetOffsetDCheck() REQUIRES_SHARED(Locks::mutator_lock_);
 
   GcRoot<mirror::Class> declaring_class_;
