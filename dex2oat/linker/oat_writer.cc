@@ -3490,7 +3490,10 @@ bool OatWriter::OpenDexFiles(
     for (OatDexFile& oat_dex_file : oat_dex_files_) {
       std::string error_msg;
       maps.emplace_back(oat_dex_file.source_.GetZipEntry()->MapDirectlyOrExtract(
-          oat_dex_file.dex_file_location_data_, "zipped dex", &error_msg, alignof(DexFile)));
+          oat_dex_file.dex_file_location_data_,
+          "zipped dex",
+          &error_msg,
+          alignof(DexFile::Header)));
       MemMap* map = &maps.back();
       if (!map->IsValid()) {
         LOG(ERROR) << error_msg;
