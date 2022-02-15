@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package unresolved;
 
-// Class with the same descriptor length as UnresolvedPublicClass.
-public class UnresolvedPublicClazz implements BcpExMarker {
+// Declaring a class as implementing this interface shall make the class unresolved
+// during AOT compilation. This interface shall be available only at runtime.
+public interface BcpExMarker {
+  // Marker interface: no methods.
 }
