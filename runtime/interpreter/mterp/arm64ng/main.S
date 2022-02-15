@@ -1677,8 +1677,6 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
 %def opcode_pre():
 
-%def helpers():
-
 %def fetch_from_thread_cache(dest_reg, miss_label):
    // Fetch some information from the thread cache.
    // Uses ip and ip2 as temporaries.
@@ -1754,32 +1752,6 @@ NterpHandleStringInit:
 
 NterpHandleStringInitRange:
    COMMON_INVOKE_RANGE is_string_init=1, suffix="stringInit"
-
-NterpNewArray:
-   /* new-array vA, vB, class@CCCC */
-   EXPORT_PC
-   // Fast-path which gets the class from thread-local cache.
-%  fetch_from_thread_cache("x0", miss_label="2f")
-   TEST_IF_MARKING 3f
-1:
-   lsr     w1, wINST, #12              // w1<- B
-   GET_VREG w1, w1                     // w1<- vB (array length)
-   ldr lr, [xSELF, #THREAD_ALLOC_ARRAY_ENTRYPOINT_OFFSET]
-   blr lr
-   ubfx    w1, wINST, #8, #4           // w1<- A
-   SET_VREG_OBJECT w0, w1
-   FETCH_ADVANCE_INST 2
-   GET_INST_OPCODE ip
-   GOTO_OPCODE ip
-2:
-   mov x0, xSELF
-   ldr x1, [sp, 0]
-   mov x2, xPC
-   bl nterp_get_class_or_allocate_object
-   b 1b
-3:
-   bl art_quick_read_barrier_mark_reg00
-   b 1b
 
 NterpHandleHotnessOverflow:
     mov x1, xPC
@@ -1931,6 +1903,8 @@ artNterpAsmInstructionStart = .L_op_nop
     NAME_START nterp_${opcode}
 %def opcode_end():
     NAME_END nterp_${opcode}
+    // Advance to the end of this handler. Causes error if we are past that point.
+    .org nterp_${opcode} + NTERP_HANDLER_SIZE  // ${opcode} handler is too big!
 %def opcode_slow_path_start(name):
     NAME_START ${name}
 %def opcode_slow_path_end(name):

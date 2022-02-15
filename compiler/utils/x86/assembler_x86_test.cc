@@ -464,6 +464,12 @@ TEST_F(AssemblerX86Test, RepMovsw) {
   DriverStr(expected, "rep_movsw");
 }
 
+TEST_F(AssemblerX86Test, RepMovsl) {
+  GetAssembler()->rep_movsl();
+  const char* expected = "rep movsl\n";
+  DriverStr(expected, "rep_movsl");
+}
+
 TEST_F(AssemblerX86Test, Blsmask) {
   DriverStr(RepeatRR(&x86::X86Assembler::blsmsk, "blsmsk %{reg2}, %{reg1}"), "blsmsk");
 }

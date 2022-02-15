@@ -3735,6 +3735,11 @@ void X86Assembler::rep_movsw() {
   EmitUint8(0xA5);
 }
 
+void X86Assembler::rep_movsl() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF3);
+  EmitUint8(0xA5);
+}
 
 X86Assembler* X86Assembler::lock() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);

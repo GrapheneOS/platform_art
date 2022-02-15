@@ -78,18 +78,18 @@ extern "C" int __aeabi_idivmod(int32_t, int32_t);  // [DIV|REM]_INT[_2ADDR|_LIT8
 extern "C" int64_t __aeabi_ldivmod(int64_t, int64_t);
 
 void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
-  qpoints->pReadBarrierMarkReg00 = is_active ? art_quick_read_barrier_mark_reg00 : nullptr;
-  qpoints->pReadBarrierMarkReg01 = is_active ? art_quick_read_barrier_mark_reg01 : nullptr;
-  qpoints->pReadBarrierMarkReg02 = is_active ? art_quick_read_barrier_mark_reg02 : nullptr;
-  qpoints->pReadBarrierMarkReg03 = is_active ? art_quick_read_barrier_mark_reg03 : nullptr;
-  qpoints->pReadBarrierMarkReg04 = is_active ? art_quick_read_barrier_mark_reg04 : nullptr;
-  qpoints->pReadBarrierMarkReg05 = is_active ? art_quick_read_barrier_mark_reg05 : nullptr;
-  qpoints->pReadBarrierMarkReg06 = is_active ? art_quick_read_barrier_mark_reg06 : nullptr;
-  qpoints->pReadBarrierMarkReg07 = is_active ? art_quick_read_barrier_mark_reg07 : nullptr;
-  qpoints->pReadBarrierMarkReg08 = is_active ? art_quick_read_barrier_mark_reg08 : nullptr;
-  qpoints->pReadBarrierMarkReg09 = is_active ? art_quick_read_barrier_mark_reg09 : nullptr;
-  qpoints->pReadBarrierMarkReg10 = is_active ? art_quick_read_barrier_mark_reg10 : nullptr;
-  qpoints->pReadBarrierMarkReg11 = is_active ? art_quick_read_barrier_mark_reg11 : nullptr;
+  qpoints->SetReadBarrierMarkReg00(is_active ? art_quick_read_barrier_mark_reg00 : nullptr);
+  qpoints->SetReadBarrierMarkReg01(is_active ? art_quick_read_barrier_mark_reg01 : nullptr);
+  qpoints->SetReadBarrierMarkReg02(is_active ? art_quick_read_barrier_mark_reg02 : nullptr);
+  qpoints->SetReadBarrierMarkReg03(is_active ? art_quick_read_barrier_mark_reg03 : nullptr);
+  qpoints->SetReadBarrierMarkReg04(is_active ? art_quick_read_barrier_mark_reg04 : nullptr);
+  qpoints->SetReadBarrierMarkReg05(is_active ? art_quick_read_barrier_mark_reg05 : nullptr);
+  qpoints->SetReadBarrierMarkReg06(is_active ? art_quick_read_barrier_mark_reg06 : nullptr);
+  qpoints->SetReadBarrierMarkReg07(is_active ? art_quick_read_barrier_mark_reg07 : nullptr);
+  qpoints->SetReadBarrierMarkReg08(is_active ? art_quick_read_barrier_mark_reg08 : nullptr);
+  qpoints->SetReadBarrierMarkReg09(is_active ? art_quick_read_barrier_mark_reg09 : nullptr);
+  qpoints->SetReadBarrierMarkReg10(is_active ? art_quick_read_barrier_mark_reg10 : nullptr);
+  qpoints->SetReadBarrierMarkReg11(is_active ? art_quick_read_barrier_mark_reg11 : nullptr);
 
   if (kUseReadBarrier && kUseBakerReadBarrier) {
     // For the alignment check, strip the Thumb mode bit.
@@ -120,8 +120,8 @@ void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active) {
     DCHECK_EQ(BAKER_MARK_INTROSPECTION_INTRINSIC_CAS_ENTRYPOINT_OFFSET, intrinsic_cas_diff);
     // The register 12, i.e. IP, is reserved, so there is no art_quick_read_barrier_mark_reg12.
     // We're using the entry to hold a pointer to the introspection entrypoint instead.
-    qpoints->pReadBarrierMarkReg12 =
-        is_active ? art_quick_read_barrier_mark_introspection : nullptr;
+    qpoints->SetReadBarrierMarkReg12(
+        is_active ? art_quick_read_barrier_mark_introspection : nullptr);
   }
 }
 
@@ -131,72 +131,72 @@ void InitEntryPoints(JniEntryPoints* jpoints,
   DefaultInitEntryPoints(jpoints, qpoints, monitor_jni_entry_exit);
 
   // Cast
-  qpoints->pInstanceofNonTrivial = artInstanceOfFromCode;
-  qpoints->pCheckInstanceOf = art_quick_check_instance_of;
+  qpoints->SetInstanceofNonTrivial(artInstanceOfFromCode);
+  qpoints->SetCheckInstanceOf(art_quick_check_instance_of);
 
   // Math
-  qpoints->pIdivmod = __aeabi_idivmod;
-  qpoints->pLdiv = __aeabi_ldivmod;
-  qpoints->pLmod = __aeabi_ldivmod;  // result returned in r2:r3
-  qpoints->pLmul = art_quick_mul_long;
-  qpoints->pShlLong = art_quick_shl_long;
-  qpoints->pShrLong = art_quick_shr_long;
-  qpoints->pUshrLong = art_quick_ushr_long;
-  qpoints->pFmod = art_quick_fmod;
-  qpoints->pFmodf = art_quick_fmodf;
-  qpoints->pD2l = art_quick_d2l;
-  qpoints->pF2l = art_quick_f2l;
-  qpoints->pL2f = art_quick_l2f;
+  qpoints->SetIdivmod(__aeabi_idivmod);
+  qpoints->SetLdiv(__aeabi_ldivmod);
+  qpoints->SetLmod(__aeabi_ldivmod);  // result returned in r2:r3
+  qpoints->SetLmul(art_quick_mul_long);
+  qpoints->SetShlLong(art_quick_shl_long);
+  qpoints->SetShrLong(art_quick_shr_long);
+  qpoints->SetUshrLong(art_quick_ushr_long);
+  qpoints->SetFmod(art_quick_fmod);
+  qpoints->SetFmodf(art_quick_fmodf);
+  qpoints->SetD2l(art_quick_d2l);
+  qpoints->SetF2l(art_quick_f2l);
+  qpoints->SetL2f(art_quick_l2f);
 
   // More math.
-  qpoints->pCos = cos;
-  qpoints->pSin = sin;
-  qpoints->pAcos = acos;
-  qpoints->pAsin = asin;
-  qpoints->pAtan = atan;
-  qpoints->pAtan2 = atan2;
-  qpoints->pPow = pow;
-  qpoints->pCbrt = cbrt;
-  qpoints->pCosh = cosh;
-  qpoints->pExp = exp;
-  qpoints->pExpm1 = expm1;
-  qpoints->pHypot = hypot;
-  qpoints->pLog = log;
-  qpoints->pLog10 = log10;
-  qpoints->pNextAfter = nextafter;
-  qpoints->pSinh = sinh;
-  qpoints->pTan = tan;
-  qpoints->pTanh = tanh;
+  qpoints->SetCos(cos);
+  qpoints->SetSin(sin);
+  qpoints->SetAcos(acos);
+  qpoints->SetAsin(asin);
+  qpoints->SetAtan(atan);
+  qpoints->SetAtan2(atan2);
+  qpoints->SetPow(pow);
+  qpoints->SetCbrt(cbrt);
+  qpoints->SetCosh(cosh);
+  qpoints->SetExp(exp);
+  qpoints->SetExpm1(expm1);
+  qpoints->SetHypot(hypot);
+  qpoints->SetLog(log);
+  qpoints->SetLog10(log10);
+  qpoints->SetNextAfter(nextafter);
+  qpoints->SetSinh(sinh);
+  qpoints->SetTan(tan);
+  qpoints->SetTanh(tanh);
 
   // Intrinsics
-  qpoints->pIndexOf = art_quick_indexof;
+  qpoints->SetIndexOf(art_quick_indexof);
   // The ARM StringCompareTo intrinsic does not call the runtime.
-  qpoints->pStringCompareTo = nullptr;
-  qpoints->pMemcpy = memcpy;
+  qpoints->SetStringCompareTo(nullptr);
+  qpoints->SetMemcpy(memcpy);
 
   // Read barrier.
   UpdateReadBarrierEntrypoints(qpoints, /*is_active=*/ false);
-  qpoints->pReadBarrierMarkReg12 = nullptr;  // Cannot use register 12 (IP) to pass arguments.
-  qpoints->pReadBarrierMarkReg13 = nullptr;  // Cannot use register 13 (SP) to pass arguments.
-  qpoints->pReadBarrierMarkReg14 = nullptr;  // Cannot use register 14 (LR) to pass arguments.
-  qpoints->pReadBarrierMarkReg15 = nullptr;  // Cannot use register 15 (PC) to pass arguments.
+  qpoints->SetReadBarrierMarkReg12(nullptr);  // Cannot use register 12 (IP) to pass arguments.
+  qpoints->SetReadBarrierMarkReg13(nullptr);  // Cannot use register 13 (SP) to pass arguments.
+  qpoints->SetReadBarrierMarkReg14(nullptr);  // Cannot use register 14 (LR) to pass arguments.
+  qpoints->SetReadBarrierMarkReg15(nullptr);  // Cannot use register 15 (PC) to pass arguments.
   // ARM has only 16 core registers.
-  qpoints->pReadBarrierMarkReg16 = nullptr;
-  qpoints->pReadBarrierMarkReg17 = nullptr;
-  qpoints->pReadBarrierMarkReg18 = nullptr;
-  qpoints->pReadBarrierMarkReg19 = nullptr;
-  qpoints->pReadBarrierMarkReg20 = nullptr;
-  qpoints->pReadBarrierMarkReg21 = nullptr;
-  qpoints->pReadBarrierMarkReg22 = nullptr;
-  qpoints->pReadBarrierMarkReg23 = nullptr;
-  qpoints->pReadBarrierMarkReg24 = nullptr;
-  qpoints->pReadBarrierMarkReg25 = nullptr;
-  qpoints->pReadBarrierMarkReg26 = nullptr;
-  qpoints->pReadBarrierMarkReg27 = nullptr;
-  qpoints->pReadBarrierMarkReg28 = nullptr;
-  qpoints->pReadBarrierMarkReg29 = nullptr;
-  qpoints->pReadBarrierSlow = artReadBarrierSlow;
-  qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;
+  qpoints->SetReadBarrierMarkReg16(nullptr);
+  qpoints->SetReadBarrierMarkReg17(nullptr);
+  qpoints->SetReadBarrierMarkReg18(nullptr);
+  qpoints->SetReadBarrierMarkReg19(nullptr);
+  qpoints->SetReadBarrierMarkReg20(nullptr);
+  qpoints->SetReadBarrierMarkReg21(nullptr);
+  qpoints->SetReadBarrierMarkReg22(nullptr);
+  qpoints->SetReadBarrierMarkReg23(nullptr);
+  qpoints->SetReadBarrierMarkReg24(nullptr);
+  qpoints->SetReadBarrierMarkReg25(nullptr);
+  qpoints->SetReadBarrierMarkReg26(nullptr);
+  qpoints->SetReadBarrierMarkReg27(nullptr);
+  qpoints->SetReadBarrierMarkReg28(nullptr);
+  qpoints->SetReadBarrierMarkReg29(nullptr);
+  qpoints->SetReadBarrierSlow(artReadBarrierSlow);
+  qpoints->SetReadBarrierForRootSlow(artReadBarrierForRootSlow);
 }
 
 }  // namespace art
