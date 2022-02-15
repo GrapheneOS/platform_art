@@ -67,8 +67,4 @@ std::string ArtField::PrettyField(bool with_type) {
   return result;
 }
 
-void ArtField::GetOffsetDCheck() {
-  CHECK(GetDeclaringClass()->IsResolved());
-}
-
 }  // namespace art
