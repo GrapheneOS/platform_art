@@ -28,6 +28,7 @@
 #include "heap_poisoning.h"
 #include "interpreter/mterp/nterp.h"
 #include "intrinsics.h"
+#include "intrinsics_utils.h"
 #include "intrinsics_x86.h"
 #include "jit/profiling_info.h"
 #include "linker/linker_patch.h"
@@ -576,22 +577,11 @@ class ReadBarrierMarkAndUpdateFieldSlowPathX86 : public SlowPathCode {
     Register ref_reg = ref_.AsRegister<Register>();
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(ref_reg)) << ref_reg;
-    // This slow path is only used by the UnsafeCASObject intrinsic.
     DCHECK((instruction_->IsInvoke() && instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking and field updating slow path: "
         << instruction_->DebugName();
-    DCHECK(instruction_->GetLocations()->Intrinsified());
-    Intrinsics intrinsic = instruction_->AsInvoke()->GetIntrinsic();
-    static constexpr auto kVarHandleCAS = mirror::VarHandle::AccessModeTemplate::kCompareAndSet;
-    static constexpr auto kVarHandleGetAndSet =
-        mirror::VarHandle::AccessModeTemplate::kGetAndUpdate;
-    static constexpr auto kVarHandleCAX =
-        mirror::VarHandle::AccessModeTemplate::kCompareAndExchange;
-    DCHECK(intrinsic == Intrinsics::kUnsafeCASObject ||
-           intrinsic == Intrinsics::kJdkUnsafeCASObject ||
-           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAS ||
-           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleGetAndSet ||
-           mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) == kVarHandleCAX);
+    HInvoke* invoke = instruction_->AsInvoke();
+    DCHECK(IsUnsafeCASObject(invoke) || IsVarHandleCASFamily(invoke)) << invoke->GetIntrinsic();
 
     __ Bind(GetEntryLabel());
     if (unpoison_ref_before_marking_) {

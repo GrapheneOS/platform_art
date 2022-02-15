@@ -1,7 +1,7 @@
 %def op_check_cast():
-%  slow_path = add_helper(lambda: op_check_cast_slow_path())
+%  slow_path = add_slow_path(op_check_cast_slow_path)
    // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE %rsi, 2f
+%  fetch_from_thread_cache("%rsi", miss_label="2f")
 1:
    GET_VREG %edi, rINSTq
    testl %edi, %edi
@@ -78,10 +78,10 @@
    jmp NterpGetWideInstanceField
 
 %def op_instance_of():
-%  slow_path = add_helper(lambda: op_instance_of_slow_path())
+%  slow_path = add_slow_path(op_instance_of_slow_path)
     /* instance-of vA, vB, class@CCCC */
    // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE %rsi, .L${opcode}_init
+%  fetch_from_thread_cache("%rsi", miss_label=".L"+opcode+"_init")
 .L${opcode}_start:
    movzbl  rINSTbl,%edi
    sarl    $$4,%edi                          # edi<- B

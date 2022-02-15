@@ -2517,8 +2517,8 @@ void IntrinsicCodeGeneratorARMVIXL::VisitReferenceGetReferent(HInvoke* invoke) {
     vixl32::Register temp = temps.Acquire();
     __ Ldr(temp,
            MemOperand(tr, Thread::WeakRefAccessEnabledOffset<kArmPointerSize>().Uint32Value()));
-    __ Cmp(temp, 0);
-    __ B(eq, slow_path->GetEntryLabel());
+    __ Cmp(temp, enum_cast<int32_t>(WeakRefAccessState::kVisiblyEnabled));
+    __ B(ne, slow_path->GetEntryLabel());
   }
 
   {
@@ -3446,6 +3446,8 @@ static void GenerateCompareAndSet(CodeGeneratorARMVIXL* codegen,
            (type == DataType::Type::kReference && expected.IsRegisterPair()));
     DCHECK(new_value.IsRegister());
     DCHECK(old_value.IsRegister());
+    // Make sure the unmarked old value for reference CAS slow path is not clobbered by STREX.
+    DCHECK(!expected.Contains(LocationFrom(store_result)));
   }
 
   ArmVIXLAssembler* assembler = codegen->GetAssembler();
@@ -3498,12 +3500,14 @@ static void GenerateCompareAndSet(CodeGeneratorARMVIXL* codegen,
   EmitStoreExclusive(codegen, type, ptr, store_result, new_value);
   if (strong) {
     // Instruction scheduling: Loading a constant between STREX* and using its result
-    // is essentially free, so prepare the success value here if needed.
-    if (success.IsValid()) {
-      DCHECK(!success.Is(store_result));
+    // is essentially free, so prepare the success value here if needed and possible.
+    if (success.IsValid() && !success.Is(store_result)) {
       __ Mov(success, 1);  // Indicate success if the store succeeds.
     }
     __ Cmp(store_result, 0);
+    if (success.IsValid() && success.Is(store_result)) {
+      __ Mov(LeaveFlags, success, 1);  // Indicate success if the store succeeds.
+    }
     __ B(ne, &loop_head, /*is_far_target=*/ false);
   } else {
     // Weak CAS (VarHandle.CompareAndExchange variants) always indicates success.
@@ -3650,9 +3654,7 @@ class ReadBarrierCasSlowPathARMVIXL : public SlowPathCodeARMVIXL {
 };
 
 static void CreateUnsafeCASLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  bool can_call = kEmitCompilerReadBarrier &&
-      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCASObject);
+  const bool can_call = kEmitCompilerReadBarrier && IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -3716,7 +3718,7 @@ static void GenUnsafeCas(HInvoke* invoke, DataType::Type type, CodeGeneratorARMV
             new_value,
             /*old_value=*/ tmp,
             /*old_value_temp=*/ out,
-            /*store_result=*/ tmp,
+            /*store_result=*/ out,
             /*success=*/ out,
             codegen);
     codegen->AddSlowPath(slow_path);
@@ -3752,6 +3754,28 @@ void IntrinsicLocationsBuilderARMVIXL::VisitUnsafeCASInt(HInvoke* invoke) {
 void IntrinsicLocationsBuilderARMVIXL::VisitUnsafeCASObject(HInvoke* invoke) {
   VisitJdkUnsafeCASObject(invoke);
 }
+
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCASInt(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCASObject(HInvoke* invoke) {
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetObject(invoke);
+}
+
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
+  CreateUnsafeCASLocations(allocator_, invoke);
+}
+void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers (b/173104084).
+  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
+    return;
+  }
+
+  CreateUnsafeCASLocations(allocator_, invoke);
+}
+
 void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeCASInt(HInvoke* invoke) {
   VisitJdkUnsafeCASInt(invoke);
 }
@@ -3759,29 +3783,23 @@ void IntrinsicCodeGeneratorARMVIXL::VisitUnsafeCASObject(HInvoke* invoke) {
   VisitJdkUnsafeCASObject(invoke);
 }
 
-void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCASInt(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, invoke);
-}
-void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCASObject(HInvoke* invoke) {
-  // The only read barrier implementation supporting the
-  // UnsafeCASObject intrinsic is the Baker-style read barriers. b/173104084
-  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
-    return;
-  }
-
-  CreateUnsafeCASLocations(allocator_, invoke);
-}
-void IntrinsicLocationsBuilderARMVIXL::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, invoke);
-}
 void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeCASInt(HInvoke* invoke) {
-  GenUnsafeCas(invoke, DataType::Type::kInt32, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
 }
 void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeCASObject(HInvoke* invoke) {
-  GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
+
 void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
   GenUnsafeCas(invoke, DataType::Type::kInt32, codegen_);
+}
+void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers (b/173104084).
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
 }
 
 enum class GetAndUpdateOp {
@@ -4877,6 +4895,8 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
     // The `old_value_temp` is used first for the marked `old_value` and then for the unmarked
     // reloaded old value for subsequent CAS in the slow path.
     vixl32::Register old_value_temp = store_result;
+    // The slow path store result must not clobber `old_value`.
+    vixl32::Register slow_path_store_result = return_success ? RegisterFrom(out) : store_result;
     ReadBarrierCasSlowPathARMVIXL* rb_slow_path =
         new (codegen->GetScopedAllocator()) ReadBarrierCasSlowPathARMVIXL(
             invoke,
@@ -4887,7 +4907,7 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
             RegisterFrom(new_value),
             RegisterFrom(old_value),
             old_value_temp,
-            store_result,
+            slow_path_store_result,
             success,
             codegen);
     codegen->AddSlowPath(rb_slow_path);
@@ -5546,7 +5566,6 @@ UNIMPLEMENTED_INTRINSIC(ARMVIXL, JdkUnsafeGetAndSetInt)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, JdkUnsafeGetAndSetLong)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, JdkUnsafeGetAndSetObject)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, JdkUnsafeCompareAndSetLong)
-UNIMPLEMENTED_INTRINSIC(ARMVIXL, JdkUnsafeCompareAndSetObject)
 
 UNREACHABLE_INTRINSICS(ARMVIXL)
 

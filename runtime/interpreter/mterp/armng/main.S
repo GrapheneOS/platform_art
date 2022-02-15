@@ -301,12 +301,12 @@ END \name
 .endm
 
 .macro BRANCH
+    add rPC, rPC, rINST, lsl #1
     // Update method counter and do a suspend check if the branch is negative or zero.
     cmp rINST, #0
     ble 2f
 1:
-    add r2, rINST, rINST                // r2<- byte offset
-    FETCH_ADVANCE_INST_RB r2            // update xPC, load rINST
+    FETCH_INST                          // load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     GOTO_OPCODE ip                      // jump to next instruction
 2:
@@ -1483,19 +1483,6 @@ END \name
    LDREXD_STREXD_LOOP \addr, \tmp1, \tmp2, \store1, \store2, \tmp1, \label
 .endm
 
-// Fetch some information from the thread cache.
-// Uses ip and lr as temporaries.
-.macro FETCH_FROM_THREAD_CACHE dest_reg, slow_path
-   add      ip, rSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
-   ubfx     lr, rPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
-   add      ip, ip, lr, lsl #3             // entry address within the cache
-   // In T32, we would use `ldrd ip, \dest_reg, [ip]`
-   ldr      \dest_reg, [ip, #4]            // value (offset)
-   ldr      ip, [ip]                       // entry key (pc)
-   cmp      ip, rPC
-   bne \slow_path
-.endm
-
 // Puts the next int/long/object parameter passed in physical register
 // in the expected dex register array entry, and in case of object in the
 // expected reference array entry.
@@ -1703,7 +1690,17 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
 %def opcode_pre():
 
-%def helpers():
+%def fetch_from_thread_cache(dest_reg, miss_label):
+   // Fetch some information from the thread cache.
+   // Uses ip and lr as temporaries.
+   add      ip, rSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
+   ubfx     lr, rPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
+   add      ip, ip, lr, lsl #3             // entry address within the cache
+   // In T32, we would use `ldrd ip, \dest_reg, [ip]`
+   ldr      ${dest_reg}, [ip, #4]          // value (offset)
+   ldr      ip, [ip]                       // entry key (pc)
+   cmp      ip, rPC
+   bne      ${miss_label}
 
 %def footer():
 /*
@@ -1771,41 +1768,14 @@ NterpHandleStringInit:
 NterpHandleStringInitRange:
    COMMON_INVOKE_RANGE is_string_init=1, suffix="stringInit"
 
-NterpNewArray:
-   /* new-array vA, vB, class@CCCC */
-   EXPORT_PC
-   // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE r0, 2f
-   TEST_IF_MARKING 3f
-1:
-   lsr     r1, rINST, #12              // r1<- B
-   GET_VREG r1, r1                     // r1<- vB (array length)
-   ldr lr, [rSELF, #THREAD_ALLOC_ARRAY_ENTRYPOINT_OFFSET]
-   blx lr
-   ubfx    r1, rINST, #8, #4           // r1<- A
-   SET_VREG_OBJECT r0, r1
-   FETCH_ADVANCE_INST 2
-   GET_INST_OPCODE ip
-   GOTO_OPCODE ip
-2:
-   mov r0, rSELF
-   ldr r1, [sp]
-   mov r2, rPC
-   bl nterp_get_class_or_allocate_object
-   b 1b
-3:
-   bl art_quick_read_barrier_mark_reg00
-   b 1b
-
 
 NterpHandleHotnessOverflow:
-    add r1, rPC, rINST, lsl #1
+    mov r1, rPC
     mov r2, rFP
     bl nterp_hot_method
     cmp r0, #0
     bne 1f
-    add r2, rINST, rINST                // w2<- byte offset
-    FETCH_ADVANCE_INST_RB r2            // update rPC, load rINST
+    FETCH_INST                          // load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     GOTO_OPCODE ip                      // jump to next instruction
 1:
@@ -2001,14 +1971,15 @@ artNterpAsmInstructionEnd:
 artNterpAsmInstructionStart = .L_op_nop
     .text
 
-%def default_helper_prefix():
-%  return "nterp_"
-
+%def opcode_name_prefix():
+%   return "nterp_"
 %def opcode_start():
     NAME_START nterp_${opcode}
 %def opcode_end():
     NAME_END nterp_${opcode}
-%def helper_start(name):
+    // Advance to the end of this handler. Causes error if we are past that point.
+    .org nterp_${opcode} + NTERP_HANDLER_SIZE  // ${opcode} handler is too big!
+%def opcode_slow_path_start(name):
     NAME_START ${name}
-%def helper_end(name):
+%def opcode_slow_path_end(name):
     NAME_END ${name}

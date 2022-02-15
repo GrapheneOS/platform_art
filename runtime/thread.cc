@@ -19,6 +19,7 @@
 #include <limits.h>  // for INT_MAX
 #include <pthread.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 
@@ -29,6 +30,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <bitset>
 #include <cerrno>
 #include <iostream>
@@ -707,16 +709,16 @@ static size_t FixStackSize(size_t stack_size) {
     stack_size = PTHREAD_STACK_MIN;
   }
 
-  if (Runtime::Current()->ExplicitStackOverflowChecks()) {
-    // It's likely that callers are trying to ensure they have at least a certain amount of
-    // stack space, so we should add our reserved space on top of what they requested, rather
-    // than implicitly take it away from them.
-    stack_size += GetStackOverflowReservedBytes(kRuntimeISA);
-  } else {
+  if (Runtime::Current()->GetImplicitStackOverflowChecks()) {
     // If we are going to use implicit stack checks, allocate space for the protected
     // region at the bottom of the stack.
     stack_size += Thread::kStackOverflowImplicitCheckSize +
         GetStackOverflowReservedBytes(kRuntimeISA);
+  } else {
+    // It's likely that callers are trying to ensure they have at least a certain amount of
+    // stack space, so we should add our reserved space on top of what they requested, rather
+    // than implicitly take it away from them.
+    stack_size += GetStackOverflowReservedBytes(kRuntimeISA);
   }
 
   // Some systems require the stack size to be a multiple of the system page size, so round up.
@@ -1066,7 +1068,7 @@ Thread* Thread::Attach(const char* thread_name,
     } else {
       // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.
       if (thread_name != nullptr) {
-        self->tlsPtr_.name->assign(thread_name);
+        self->SetCachedThreadName(thread_name);
         ::art::SetThreadName(thread_name);
       } else if (self->GetJniEnv()->IsCheckJniEnabled()) {
         LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
@@ -1232,8 +1234,27 @@ void Thread::InitPeer(ScopedObjectAccessAlreadyRunnable& soa,
       SetInt<kTransactionActive>(peer, thread_priority);
 }
 
+void Thread::SetCachedThreadName(const char* name) {
+  DCHECK(name != kThreadNameDuringStartup);
+  const char* old_name = tlsPtr_.name.exchange(name == nullptr ? nullptr : strdup(name));
+  if (old_name != nullptr && old_name !=  kThreadNameDuringStartup) {
+    // Deallocate it, carefully. Note that the load has to be ordered wrt the store of the xchg.
+    for (uint32_t i = 0; UNLIKELY(tls32_.num_name_readers.load(std::memory_order_seq_cst) != 0);
+         ++i) {
+      static constexpr uint32_t kNumSpins = 1000;
+      // Ugly, but keeps us from having to do anything on the reader side.
+      if (i > kNumSpins) {
+        usleep(500);
+      }
+    }
+    // We saw the reader count drop to zero since we replaced the name; old one is now safe to
+    // deallocate.
+    free(const_cast<char *>(old_name));
+  }
+}
+
 void Thread::SetThreadName(const char* name) {
-  tlsPtr_.name->assign(name);
+  SetCachedThreadName(name);
   ::art::SetThreadName(name);
   Dbg::DdmSendThreadNotification(this, CHUNK_TYPE("THNM"));
 }
@@ -1328,7 +1349,8 @@ bool Thread::InitStackHwm() {
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
 
   Runtime* runtime = Runtime::Current();
-  bool implicit_stack_check = !runtime->ExplicitStackOverflowChecks() && !runtime->IsAotCompiler();
+  bool implicit_stack_check =
+      runtime->GetImplicitStackOverflowChecks() && !runtime->IsAotCompiler();
 
   ResetDefaultStackEnd();
 
@@ -1358,11 +1380,14 @@ void Thread::ShortDump(std::ostream& os) const {
     os << GetThreadId()
        << ",tid=" << GetTid() << ',';
   }
+  tls32_.num_name_readers.fetch_add(1, std::memory_order_seq_cst);
+  const char* name = tlsPtr_.name.load();
   os << GetState()
      << ",Thread*=" << this
      << ",peer=" << tlsPtr_.opeer
-     << ",\"" << (tlsPtr_.name != nullptr ? *tlsPtr_.name : "null") << "\""
+     << ",\"" << (name == nullptr ? "null" : name) << "\""
      << "]";
+  tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
 }
 
 void Thread::Dump(std::ostream& os, bool dump_native_stack, BacktraceMap* backtrace_map,
@@ -1381,7 +1406,10 @@ ObjPtr<mirror::String> Thread::GetThreadName() const {
 }
 
 void Thread::GetThreadName(std::string& name) const {
-  name.assign(*tlsPtr_.name);
+  tls32_.num_name_readers.fetch_add(1, std::memory_order_seq_cst);
+  // The store part of the increment has to be ordered with respect to the following load.
+  name.assign(tlsPtr_.name.load(std::memory_order_seq_cst));
+  tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
 }
 
 uint64_t Thread::GetCpuMicroTime() const {
@@ -1861,12 +1889,17 @@ void Thread::WaitForFlipFunction(Thread* self) {
   }
 }
 
-void Thread::FullSuspendCheck() {
+void Thread::FullSuspendCheck(bool implicit) {
   ScopedTrace trace(__FUNCTION__);
   VLOG(threads) << this << " self-suspending";
   // Make thread appear suspended to other threads, release mutator_lock_.
   // Transition to suspended and back to runnable, re-acquire share on mutator_lock_.
   ScopedThreadSuspension(this, ThreadState::kSuspended);  // NOLINT
+  if (implicit) {
+    // For implicit suspend check we want to `madvise()` away
+    // the alternate signal stack to avoid wasting memory.
+    MadviseAwayAlternateSignalStack();
+  }
   VLOG(threads) << this << " self-reviving";
 }
 
@@ -1935,7 +1968,9 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   }
 
   if (thread != nullptr) {
-    os << '"' << *thread->tlsPtr_.name << '"';
+    thread->tls32_.num_name_readers.fetch_add(1, std::memory_order_seq_cst);
+    os << '"' << thread->tlsPtr_.name.load() << '"';
+    thread->tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
     if (is_daemon) {
       os << " daemon";
     }
@@ -2083,9 +2118,10 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
     m = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
     ObjPtr<mirror::DexCache> dex_cache = m->GetDexCache();
     int line_number = -1;
+    uint32_t dex_pc = GetDexPc(false);
     if (dex_cache != nullptr) {  // be tolerant of bad input
       const DexFile* dex_file = dex_cache->GetDexFile();
-      line_number = annotations::GetLineNumFromPC(dex_file, m, GetDexPc(false));
+      line_number = annotations::GetLineNumFromPC(dex_file, m, dex_pc);
     }
     if (line_number == last_line_number && last_method == m) {
       ++repetition_count;
@@ -2108,6 +2144,12 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
       os << "(Native method)";
     } else {
       const char* source_file(m->GetDeclaringClassSourceFile());
+      if (line_number == -1) {
+        // If we failed to map to a line number, use
+        // the dex pc as the line number and leave source file null
+        source_file = nullptr;
+        line_number = static_cast<int32_t>(dex_pc);
+      }
       os << "(" << (source_file != nullptr ? source_file : "unavailable")
                        << ":" << line_number << ")";
     }
@@ -2369,7 +2411,7 @@ Thread::Thread(bool daemon)
   DCHECK(tlsPtr_.mutator_lock != nullptr);
   tlsPtr_.instrumentation_stack =
       new std::map<uintptr_t, instrumentation::InstrumentationStackFrame>;
-  tlsPtr_.name = new std::string(kThreadNameDuringStartup);
+  tlsPtr_.name.store(kThreadNameDuringStartup, std::memory_order_relaxed);
 
   static_assert((sizeof(Thread) % 4) == 0U,
                 "art::Thread has a size which is not a multiple of 4.");
@@ -2406,7 +2448,7 @@ bool Thread::IsStillStarting() const {
   // It turns out that the last thing to change is the thread name; that's a good proxy for "has
   // this thread _ever_ entered kRunnable".
   return (tlsPtr_.jpeer == nullptr && tlsPtr_.opeer == nullptr) ||
-      (*tlsPtr_.name == kThreadNameDuringStartup);
+      (tlsPtr_.name.load() == kThreadNameDuringStartup);
 }
 
 void Thread::AssertPendingException() const {
@@ -2559,7 +2601,7 @@ Thread::~Thread() {
   }
 
   delete tlsPtr_.instrumentation_stack;
-  delete tlsPtr_.name;
+  SetCachedThreadName(nullptr);  // Deallocate name.
   delete tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
 
   Runtime::Current()->GetHeap()->AssertThreadLocalBuffersAreRevoked(this);
@@ -3418,6 +3460,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
                << '"' << msg << '"'
                << " (VmSize " << GetProcessStatus("VmSize")
                << (tls32_.throwing_OutOfMemoryError ? ", recursive case)" : ")");
+  ScopedTrace trace("OutOfMemoryError");
   if (!tls32_.throwing_OutOfMemoryError) {
     tls32_.throwing_OutOfMemoryError = true;
     ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
@@ -3659,7 +3702,9 @@ void Thread::QuickDeliverException() {
 
   ReadBarrier::MaybeAssertToSpaceInvariant(exception.Ptr());
 
-  // This is a real exception: let the instrumentation know about it.
+  // This is a real exception: let the instrumentation know about it. Exception throw listener
+  // could set a breakpoint or install listeners that might require a deoptimization. Hence the
+  // deoptimization check needs to happen after calling the listener.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (instrumentation->HasExceptionThrownListeners() &&
       IsExceptionThrownByCurrentMethod(exception)) {
@@ -4315,7 +4360,7 @@ void Thread::SetStackEndForStackOverflow() {
   tlsPtr_.stack_end = tlsPtr_.stack_begin;
 
   // Remove the stack overflow protection if is it set up.
-  bool implicit_stack_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_stack_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (implicit_stack_check) {
     if (!UnprotectStack()) {
       LOG(ERROR) << "Unable to remove stack protection for stack overflow";

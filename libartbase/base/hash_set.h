@@ -286,7 +286,17 @@ class HashSet {
           value_type* buffer,
           size_t buffer_size,
           const allocator_type& alloc)
+      : HashSet(min_load_factor, max_load_factor, HashFn(), Pred(), buffer, buffer_size, alloc) {}
+  HashSet(double min_load_factor,
+          double max_load_factor,
+          const HashFn& hashfn,
+          const Pred& pred,
+          value_type* buffer,
+          size_t buffer_size,
+          const allocator_type& alloc)
       : allocfn_(alloc),
+        hashfn_(hashfn),
+        pred_(pred),
         num_elements_(0u),
         num_buckets_(buffer_size),
         elements_until_expand_(buffer_size * max_load_factor),
@@ -519,6 +529,27 @@ class HashSet {
     return std::make_pair(iterator(this, index), find_failed);
   }
 
+  // Insert an element known not to be in the `HashSet<>`.
+  void Put(const T& element) {
+    return PutWithHash(element, hashfn_(element));
+  }
+  void Put(T&& element) {
+    return PutWithHash(std::move(element), hashfn_(element));
+  }
+
+  template <typename U, typename = typename std::enable_if<std::is_convertible<U, T>::value>::type>
+  void PutWithHash(U&& element, size_t hash) {
+    DCHECK_EQ(hash, hashfn_(element));
+    if (num_elements_ >= elements_until_expand_) {
+      Expand();
+      DCHECK_LT(num_elements_, elements_until_expand_);
+    }
+    auto find_fail_fn = [](size_t index) { return index; };
+    size_t index = FindIndexImpl</*kCanFind=*/ false>(element, hash, find_fail_fn);
+    data_[index] = std::forward<U>(element);
+    ++num_elements_;
+  }
+
   void swap(HashSet& other) {
     // Use argument-dependent lookup with fall-back to std::swap() for function objects.
     using std::swap;
@@ -675,7 +706,7 @@ class HashSet {
   }
 
   // Find the hash table slot for an element, or return an empty slot index if not found.
-  template <typename K, typename FailFn>
+  template <bool kCanFind = true, typename K, typename FailFn>
   size_t FindIndexImpl(const K& element, size_t hash, FailFn fail_fn) const {
     DCHECK_NE(NumBuckets(), 0u);
     DCHECK_EQ(hashfn_(element), hash);
@@ -685,7 +716,9 @@ class HashSet {
       if (emptyfn_.IsEmpty(slot)) {
         return fail_fn(index);
       }
-      if (pred_(slot, element)) {
+      if (!kCanFind) {
+        DCHECK(!pred_(slot, element));
+      } else if (pred_(slot, element)) {
         return index;
       }
       index = NextIndex(index);

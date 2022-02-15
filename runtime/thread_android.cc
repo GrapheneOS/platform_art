@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+#include <signal.h>
+#include <sys/mman.h>
+
+#include "base/globals.h"
+#include "base/bit_utils.h"
 #include "thread.h"
 
 namespace art {
@@ -24,6 +29,22 @@ void Thread::SetUpAlternateSignalStack() {
 
 void Thread::TearDownAlternateSignalStack() {
   // Bionic does this for us.
+}
+
+void Thread::MadviseAwayAlternateSignalStack() {
+  stack_t old_ss;
+  int result = sigaltstack(nullptr, &old_ss);
+  CHECK_EQ(result, 0);
+  // Only call `madvise()` on enabled page-aligned alternate signal stack. Processes can
+  // create different arbitrary alternate signal stacks and we do not want to erroneously
+  // `madvise()` away pages that may hold data other than the alternate signal stack.
+  if ((old_ss.ss_flags & SS_DISABLE) == 0 &&
+      IsAligned<kPageSize>(old_ss.ss_sp) &&
+      IsAligned<kPageSize>(old_ss.ss_size)) {
+    CHECK_EQ(old_ss.ss_flags & SS_ONSTACK, 0);
+    result = madvise(old_ss.ss_sp, old_ss.ss_size, MADV_DONTNEED);
+    CHECK_EQ(result, 0);
+  }
 }
 
 }  // namespace art

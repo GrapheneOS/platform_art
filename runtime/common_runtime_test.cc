@@ -400,7 +400,7 @@ void CommonRuntimeTestImpl::SetUpRuntimeOptionsForFillHeap(RuntimeOptions *optio
 void CommonRuntimeTestImpl::MakeInterpreted(ObjPtr<mirror::Class> klass) {
   PointerSize pointer_size = class_linker_->GetImagePointerSize();
   for (ArtMethod& method : klass->GetMethods(pointer_size)) {
-    class_linker_->SetEntryPointsToInterpreter(&method);
+    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(&method, /*aot_code=*/ nullptr);
   }
 }
 
@@ -454,6 +454,7 @@ bool CommonRuntimeTestImpl::CompileBootImage(const std::vector<std::string>& ext
     "-Xmx64m",
     "--runtime-arg",
     "-Xverify:softfail",
+    "--force-determinism",
   };
   CHECK_EQ(dex_files.size(), dex_locations.size());
   for (const std::string& dex_file : dex_files) {

@@ -144,6 +144,20 @@ uint32_t TypeLookupTable::Lookup(const char* str, uint32_t hash) const {
   return dex::kDexNoIndex;
 }
 
+void TypeLookupTable::Dump(std::ostream& os) const {
+  size_t size = 1u << mask_bits_;
+  for (uint32_t i = 0; i < size; i++) {
+    const Entry& entry = entries_[i];
+    if (entry.IsEmpty()) {
+      os << i << ": empty";
+    } else {
+      const char* first_checked_str = GetStringData(entry);
+      os << i << ": " << std::string(first_checked_str);
+    }
+    os << '\n';
+  }
+}
+
 uint32_t TypeLookupTable::RawDataLength(uint32_t num_class_defs) {
   return SupportedSize(num_class_defs) ? RoundUpToPowerOfTwo(num_class_defs) * sizeof(Entry) : 0u;
 }

@@ -57,6 +57,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread-current-inl.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 
 namespace art {
@@ -793,8 +794,7 @@ bool JitCodeCache::RemoveMethod(ArtMethod* method, bool release_memory) {
   }
 
   ClearMethodCounter(method, /* was_warm= */ false);
-  Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
-      method, GetQuickToInterpreterBridge());
+  Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
   VLOG(jit)
       << "JIT removed (osr=" << std::boolalpha << osr << std::noboolalpha << ") "
       << ArtMethod::PrettyMethod(method) << "@" << method
@@ -1318,7 +1318,8 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
               OatQuickMethodHeader::FromEntryPoint(entry_point);
           if (CodeInfo::IsBaseline(method_header->GetOptimizedCodeInfoPtr())) {
             info->GetMethod()->ResetCounter(warmup_threshold);
-            info->GetMethod()->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+            Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(
+                info->GetMethod(), /*aot_code=*/ nullptr);
           }
         }
       }
@@ -1744,7 +1745,7 @@ void JitCodeCache::InvalidateAllCompiledCode() {
     if (meth->IsObsolete()) {
       linker->SetEntryPointsForObsoleteMethod(meth);
     } else {
-      linker->SetEntryPointsToInterpreter(meth);
+      Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(meth, /*aot_code=*/ nullptr);
     }
   }
   saved_compiled_methods_map_.clear();
@@ -1761,8 +1762,7 @@ void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
   if (method_entrypoint == header->GetEntryPoint()) {
     // The entrypoint is the one to invalidate, so we just update it to the interpreter entry point
     // and clear the counter to get the method Jitted again.
-    Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(
-        method, GetQuickToInterpreterBridge());
+    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ nullptr);
     ClearMethodCounter(method, /*was_warm=*/ true);
   } else {
     MutexLock mu(Thread::Current(), *Locks::jit_lock_);

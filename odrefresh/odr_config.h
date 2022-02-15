@@ -32,12 +32,6 @@
 namespace art {
 namespace odrefresh {
 
-// Maximum execution time for odrefresh from start to end.
-constexpr time_t kMaximumExecutionSeconds = 300;
-
-// Maximum execution time for any child process spawned.
-constexpr time_t kMaxChildProcessSeconds = 90;
-
 // An enumeration of the possible zygote configurations on Android.
 enum class ZygoteKind : uint8_t {
   // 32-bit primary zygote, no secondary zygote.
@@ -64,13 +58,13 @@ class OdrConfig final {
   InstructionSet isa_;
   std::string program_name_;
   std::string system_server_classpath_;
+  std::string system_server_compiler_filter_;
   ZygoteKind zygote_kind_;
-  int compilation_os_address_ = 0;
   std::string boot_classpath_;
   std::string artifact_dir_;
-  time_t max_execution_seconds_ = kMaximumExecutionSeconds;
-  time_t max_child_process_seconds_ = kMaxChildProcessSeconds;
   std::string standalone_system_server_jars_;
+  bool compilation_os_mode_ = false;
+  bool minimal_ = false;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
@@ -86,7 +80,7 @@ class OdrConfig final {
 
   const std::string& GetApexInfoListFile() const { return apex_info_list_file_; }
 
-  std::vector<InstructionSet> GetBootExtensionIsas() const {
+  std::vector<InstructionSet> GetBootClasspathIsas() const {
     const auto [isa32, isa64] = GetPotentialInstructionSets();
     switch (zygote_kind_) {
       case ZygoteKind::kZygote32:
@@ -143,13 +137,14 @@ class OdrConfig final {
   const std::string& GetSystemServerClasspath() const {
     return system_server_classpath_;
   }
-  bool UseCompilationOs() const { return compilation_os_address_ != 0; }
-  int GetCompilationOsAddress() const { return compilation_os_address_; }
+  const std::string& GetSystemServerCompilerFilter() const {
+    return system_server_compiler_filter_;
+  }
   const std::string& GetStagingDir() const {
     return staging_dir_;
   }
-  time_t GetMaxExecutionSeconds() const { return max_execution_seconds_; }
-  time_t GetMaxChildProcessSeconds() const { return max_child_process_seconds_; }
+  bool GetCompilationOsMode() const { return compilation_os_mode_; }
+  bool GetMinimal() const { return minimal_; }
 
   void SetApexInfoListFile(const std::string& file_path) { apex_info_list_file_ = file_path; }
   void SetArtBinDir(const std::string& art_bin_dir) { art_bin_dir_ = art_bin_dir; }
@@ -170,12 +165,13 @@ class OdrConfig final {
     refresh_ = value;
   }
   void SetIsa(const InstructionSet isa) { isa_ = isa; }
-  void SetCompilationOsAddress(int address) { compilation_os_address_ = address; }
-  void SetMaxExecutionSeconds(int seconds) { max_execution_seconds_ = seconds; }
-  void SetMaxChildProcessSeconds(int seconds) { max_child_process_seconds_ = seconds; }
 
   void SetSystemServerClasspath(const std::string& classpath) {
     system_server_classpath_ = classpath;
+  }
+
+  void SetSystemServerCompilerFilter(const std::string& filter) {
+    system_server_compiler_filter_ = filter;
   }
 
   void SetZygoteKind(ZygoteKind zygote_kind) { zygote_kind_ = zygote_kind; }
@@ -195,6 +191,10 @@ class OdrConfig final {
   void SetStandaloneSystemServerJars(const std::string& jars) {
     standalone_system_server_jars_ = jars;
   }
+
+  void SetCompilationOsMode(bool value) { compilation_os_mode_ = value; }
+
+  void SetMinimal(bool value) { minimal_ = value; }
 
  private:
   // Returns a pair for the possible instruction sets for the configured instruction set

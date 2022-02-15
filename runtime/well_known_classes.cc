@@ -43,6 +43,7 @@ namespace art {
 
 jclass WellKnownClasses::dalvik_annotation_optimization_CriticalNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
+jclass WellKnownClasses::dalvik_annotation_optimization_NeverCompile;
 jclass WellKnownClasses::dalvik_system_BaseDexClassLoader;
 jclass WellKnownClasses::dalvik_system_DelegateLastClassLoader;
 jclass WellKnownClasses::dalvik_system_DexClassLoader;
@@ -103,6 +104,7 @@ jmethodID WellKnownClasses::java_lang_Double_valueOf;
 jmethodID WellKnownClasses::java_lang_Float_floatToRawIntBits;
 jmethodID WellKnownClasses::java_lang_Float_valueOf;
 jmethodID WellKnownClasses::java_lang_Integer_valueOf;
+jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_asType;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
 jmethodID WellKnownClasses::java_lang_Long_valueOf;
@@ -297,7 +299,7 @@ void Thread::InitStringEntryPoints() {
   #define SET_ENTRY_POINT(init_runtime_name, init_signature, new_runtime_name,              \
                           new_java_name, new_signature, entry_point_name)                   \
       DCHECK(!Runtime::Current()->IsStarted() || (new_runtime_name) != nullptr);            \
-      qpoints->p ## entry_point_name = reinterpret_cast<void(*)()>(new_runtime_name);
+      qpoints->p ## entry_point_name = reinterpret_cast<void*>(new_runtime_name);
       STRING_INIT_LIST(SET_ENTRY_POINT)
   #undef SET_ENTRY_POINT
 }
@@ -336,6 +338,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   dalvik_annotation_optimization_CriticalNative =
       CacheClass(env, "dalvik/annotation/optimization/CriticalNative");
   dalvik_annotation_optimization_FastNative = CacheClass(env, "dalvik/annotation/optimization/FastNative");
+  dalvik_annotation_optimization_NeverCompile =
+      CacheClass(env, "dalvik/annotation/optimization/NeverCompile");
   dalvik_system_BaseDexClassLoader = CacheClass(env, "dalvik/system/BaseDexClassLoader");
   dalvik_system_DelegateLastClassLoader = CacheClass(env, "dalvik/system/DelegateLastClassLoader");
   dalvik_system_DexClassLoader = CacheClass(env, "dalvik/system/DexClassLoader");
@@ -398,6 +402,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
   java_lang_Daemons_stop = CacheMethod(env, java_lang_Daemons, true, "stop", "()V");
   java_lang_Daemons_waitForDaemonStart = CacheMethod(env, java_lang_Daemons, true, "waitForDaemonStart", "()V");
+  java_lang_invoke_MethodHandle_asType = CacheMethod(env, "java/lang/invoke/MethodHandle", false, "asType", "(Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;");
   java_lang_invoke_MethodHandles_lookup = CacheMethod(env, "java/lang/invoke/MethodHandles", true, "lookup", "()Ljava/lang/invoke/MethodHandles$Lookup;");
   java_lang_invoke_MethodHandles_Lookup_findConstructor = CacheMethod(env, "java/lang/invoke/MethodHandles$Lookup", false, "findConstructor", "(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;");
 
@@ -539,6 +544,7 @@ void WellKnownClasses::HandleJniIdTypeChange(JNIEnv* env) {
 void WellKnownClasses::Clear() {
   dalvik_annotation_optimization_CriticalNative = nullptr;
   dalvik_annotation_optimization_FastNative = nullptr;
+  dalvik_annotation_optimization_NeverCompile = nullptr;
   dalvik_system_BaseDexClassLoader = nullptr;
   dalvik_system_DelegateLastClassLoader = nullptr;
   dalvik_system_DexClassLoader = nullptr;
@@ -597,6 +603,7 @@ void WellKnownClasses::Clear() {
   java_lang_Float_floatToRawIntBits = nullptr;
   java_lang_Float_valueOf = nullptr;
   java_lang_Integer_valueOf = nullptr;
+  java_lang_invoke_MethodHandle_asType = nullptr;
   java_lang_invoke_MethodHandles_lookup = nullptr;
   java_lang_invoke_MethodHandles_Lookup_findConstructor = nullptr;
   java_lang_Long_valueOf = nullptr;

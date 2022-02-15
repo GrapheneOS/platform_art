@@ -290,11 +290,11 @@ END \name
 .endm
 
 .macro BRANCH
+    add     xPC, xPC, wINST, sxtw #1    // update xPC
     // Update method counter and do a suspend check if the branch is negative or zero.
     cmp wINST, #0
     b.le 2f
 1:
-    add     xPC, xPC, wINST, sxtw #1    // update xPC
     FETCH wINST, 0                      // load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
@@ -1420,17 +1420,6 @@ END \name
    .endif
 .endm
 
-// Fetch some information from the thread cache.
-// Uses ip and ip2 as temporaries.
-.macro FETCH_FROM_THREAD_CACHE dest_reg, slow_path
-   add      ip, xSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
-   ubfx     ip2, xPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
-   add      ip, ip, ip2, lsl #4            // entry address within the cache
-   ldp      ip, \dest_reg, [ip]           // entry key (pc) and value (offset)
-   cmp      ip, xPC
-   b.ne \slow_path
-.endm
-
 // Puts the next int/long/object parameter passed in physical register
 // in the expected dex register array entry, and in case of object in the
 // expected reference array entry.
@@ -1688,7 +1677,15 @@ OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
 
 %def opcode_pre():
 
-%def helpers():
+%def fetch_from_thread_cache(dest_reg, miss_label):
+   // Fetch some information from the thread cache.
+   // Uses ip and ip2 as temporaries.
+   add      ip, xSELF, #THREAD_INTERPRETER_CACHE_OFFSET       // cache address
+   ubfx     ip2, xPC, #2, #THREAD_INTERPRETER_CACHE_SIZE_LOG2  // entry index
+   add      ip, ip, ip2, lsl #4            // entry address within the cache
+   ldp      ip, ${dest_reg}, [ip]          // entry key (pc) and value (offset)
+   cmp      ip, xPC
+   b.ne     ${miss_label}
 
 %def footer():
 /*
@@ -1756,38 +1753,11 @@ NterpHandleStringInit:
 NterpHandleStringInitRange:
    COMMON_INVOKE_RANGE is_string_init=1, suffix="stringInit"
 
-NterpNewArray:
-   /* new-array vA, vB, class@CCCC */
-   EXPORT_PC
-   // Fast-path which gets the class from thread-local cache.
-   FETCH_FROM_THREAD_CACHE x0, 2f
-   TEST_IF_MARKING 3f
-1:
-   lsr     w1, wINST, #12              // w1<- B
-   GET_VREG w1, w1                     // w1<- vB (array length)
-   ldr lr, [xSELF, #THREAD_ALLOC_ARRAY_ENTRYPOINT_OFFSET]
-   blr lr
-   ubfx    w1, wINST, #8, #4           // w1<- A
-   SET_VREG_OBJECT w0, w1
-   FETCH_ADVANCE_INST 2
-   GET_INST_OPCODE ip
-   GOTO_OPCODE ip
-2:
-   mov x0, xSELF
-   ldr x1, [sp, 0]
-   mov x2, xPC
-   bl nterp_get_class_or_allocate_object
-   b 1b
-3:
-   bl art_quick_read_barrier_mark_reg00
-   b 1b
-
 NterpHandleHotnessOverflow:
-    add x1, xPC, xINST, lsl #1
+    mov x1, xPC
     mov x2, xFP
     bl nterp_hot_method
     cbnz x0, 1f
-    add     xPC, xPC, wINST, sxtw #1    // update xPC
     FETCH wINST, 0                      // load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
@@ -1927,14 +1897,15 @@ artNterpAsmInstructionEnd:
 artNterpAsmInstructionStart = .L_op_nop
     .text
 
-%def default_helper_prefix():
-%  return "nterp_"
-
+%def opcode_name_prefix():
+%   return "nterp_"
 %def opcode_start():
     NAME_START nterp_${opcode}
 %def opcode_end():
     NAME_END nterp_${opcode}
-%def helper_start(name):
+    // Advance to the end of this handler. Causes error if we are past that point.
+    .org nterp_${opcode} + NTERP_HANDLER_SIZE  // ${opcode} handler is too big!
+%def opcode_slow_path_start(name):
     NAME_START ${name}
-%def helper_end(name):
+%def opcode_slow_path_end(name):
     NAME_END ${name}

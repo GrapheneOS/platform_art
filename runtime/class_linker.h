@@ -552,10 +552,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  ObjPtr<mirror::IfTable> AllocIfTable(Thread* self, size_t ifcount)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Roles::uninterruptible_);
-
   ObjPtr<mirror::ObjectArray<mirror::StackTraceElement>> AllocStackTraceElementArray(Thread* self,
                                                                                      size_t length)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -619,10 +615,6 @@ class ClassLinker {
   InternTable* GetInternTable() const {
     return intern_table_;
   }
-
-  // Set the entrypoints up for method to the enter the interpreter.
-  void SetEntryPointsToInterpreter(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Set the entrypoints up for an obsolete method.
   void SetEntryPointsForObsoleteMethod(ArtMethod* method) const
@@ -716,9 +708,6 @@ class ClassLinker {
   void InsertDexFileInToClassLoader(ObjPtr<mirror::Object> dex_file,
                                     ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  static bool ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
@@ -866,8 +855,8 @@ class ClassLinker {
 
  private:
   class LinkFieldsHelper;
+  template <PointerSize kPointerSize>
   class LinkMethodsHelper;
-  class MethodTranslation;
   class VisiblyInitializedCallback;
 
   struct ClassLoaderData {
@@ -1173,45 +1162,6 @@ class ClassLinker {
       Thread* self,
       const dex::MethodHandleItem& method_handle,
       ArtMethod* referrer) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Sets up the interface lookup table (IFTable) in the correct order to allow searching for
-  // default methods.
-  bool SetupInterfaceLookupTable(Thread* self,
-                                 Handle<mirror::Class> klass,
-                                 Handle<mirror::ObjectArray<mirror::Class>> interfaces)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-
-  enum class DefaultMethodSearchResult {
-    kDefaultFound,
-    kAbstractFound,
-    kDefaultConflict
-  };
-
-  // Find the default method implementation for 'interface_method' in 'klass', if one exists.
-  //
-  // Arguments:
-  // * self - The current thread.
-  // * target_method - The method we are trying to find a default implementation for.
-  // * klass - The class we are searching for a definition of target_method.
-  // * out_default_method - The pointer we will store the found default method to on success.
-  //
-  // Return value:
-  // * kDefaultFound - There were no conflicting method implementations found in the class while
-  //                   searching for target_method. The default method implementation is stored into
-  //                   out_default_method.
-  // * kAbstractFound - There were no conflicting method implementations found in the class while
-  //                   searching for target_method but no default implementation was found either.
-  //                   out_default_method is set to null and the method should be considered not
-  //                   implemented.
-  // * kDefaultConflict - Conflicting method implementations were found when searching for
-  //                      target_method. The value of *out_default_method is null.
-  DefaultMethodSearchResult FindDefaultMethodImplementation(
-      Thread* self,
-      ArtMethod* target_method,
-      Handle<mirror::Class> klass,
-      /*out*/ArtMethod** out_default_method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool LinkStaticFields(Thread* self, Handle<mirror::Class> klass, size_t* class_size)
       REQUIRES_SHARED(Locks::mutator_lock_);

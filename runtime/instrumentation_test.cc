@@ -259,7 +259,7 @@ class InstrumentationTest : public CommonRuntimeTest {
     EXPECT_FALSE(DidListenerReceiveEvent(listener, instrumentation_event, with_object));
   }
 
-  void DeoptimizeMethod(Thread* self, ArtMethod* method, bool enable_deoptimization)
+  void DeoptimizeMethod(Thread* self, ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
@@ -268,9 +268,6 @@ class InstrumentationTest : public CommonRuntimeTest {
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("Single method deoptimization");
-    if (enable_deoptimization) {
-      instrumentation->EnableDeoptimization();
-    }
     instrumentation->Deoptimize(method);
   }
 
@@ -290,7 +287,7 @@ class InstrumentationTest : public CommonRuntimeTest {
     }
   }
 
-  void DeoptimizeEverything(Thread* self, const char* key, bool enable_deoptimization)
+  void DeoptimizeEverything(Thread* self, const char* key)
         REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
@@ -299,9 +296,6 @@ class InstrumentationTest : public CommonRuntimeTest {
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa("Full deoptimization");
-    if (enable_deoptimization) {
-      instrumentation->EnableDeoptimization();
-    }
     instrumentation->DeoptimizeEverything(key);
   }
 
@@ -472,11 +466,9 @@ TEST_F(InstrumentationTest, NoInstrumentation) {
 
   EXPECT_FALSE(instr->AreExitStubsInstalled());
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
-  EXPECT_FALSE(instr->IsActive());
+  EXPECT_FALSE(instr->NeedsSlowInterpreterForListeners());
   EXPECT_FALSE(instr->ShouldNotifyMethodEnterExitEvents());
 
-  // Test interpreter table is the default one.
-  EXPECT_EQ(instrumentation::kMainHandlerTable, instr->GetInterpreterHandlerTable());
 
   // Check there is no registered listener.
   EXPECT_FALSE(instr->HasDexPcListeners());
@@ -486,7 +478,6 @@ TEST_F(InstrumentationTest, NoInstrumentation) {
   EXPECT_FALSE(instr->HasFieldWriteListeners());
   EXPECT_FALSE(instr->HasMethodEntryListeners());
   EXPECT_FALSE(instr->HasMethodExitListeners());
-  EXPECT_FALSE(instr->IsActive());
 }
 
 // Test instrumentation listeners for each event.
@@ -633,7 +624,7 @@ TEST_F(InstrumentationTest, DeoptimizeDirectMethod) {
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));
 
-  DeoptimizeMethod(soa.Self(), method_to_deoptimize, true);
+  DeoptimizeMethod(soa.Self(), method_to_deoptimize);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_TRUE(instr->AreExitStubsInstalled());
@@ -653,7 +644,7 @@ TEST_F(InstrumentationTest, FullDeoptimization) {
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
 
   constexpr const char* instrumentation_key = "FullDeoptimization";
-  DeoptimizeEverything(soa.Self(), instrumentation_key, true);
+  DeoptimizeEverything(soa.Self(), instrumentation_key);
 
   EXPECT_TRUE(instr->AreAllMethodsDeoptimized());
   EXPECT_TRUE(instr->AreExitStubsInstalled());
@@ -682,7 +673,7 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
   EXPECT_FALSE(instr->IsDeoptimized(method_to_deoptimize));
 
-  DeoptimizeMethod(soa.Self(), method_to_deoptimize, true);
+  DeoptimizeMethod(soa.Self(), method_to_deoptimize);
   // Deoptimizing a method does not change instrumentation level.
   EXPECT_EQ(Instrumentation::InstrumentationLevel::kInstrumentNothing,
             GetCurrentInstrumentationLevel());
@@ -691,7 +682,7 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
   EXPECT_TRUE(instr->IsDeoptimized(method_to_deoptimize));
 
   constexpr const char* instrumentation_key = "MixedDeoptimization";
-  DeoptimizeEverything(soa.Self(), instrumentation_key, false);
+  DeoptimizeEverything(soa.Self(), instrumentation_key);
   EXPECT_EQ(Instrumentation::InstrumentationLevel::kInstrumentWithInterpreter,
             GetCurrentInstrumentationLevel());
   EXPECT_TRUE(instr->AreAllMethodsDeoptimized());

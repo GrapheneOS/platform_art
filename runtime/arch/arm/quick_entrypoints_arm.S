@@ -457,8 +457,7 @@ ENTRY art_quick_osr_stub
     .cfi_adjust_cfa_offset -64
     pop    {r4, r5, r6, r7, r8, r9, r10, r11, pc}
 .Losr_entry:
-    .cfi_restore_state
-    .cfi_def_cfa r11, SAVE_SIZE            @ CFA = r11 + SAVE_SIZE
+    CFI_RESTORE_STATE_AND_DEF_CFA r11, SAVE_SIZE  @ CFA = r11 + SAVE_SIZE
     sub sp, sp, r10                        @ Reserve space for callee stack
     sub r10, r10, #4
     str lr, [sp, r10]                      @ Store link register per the compiler ABI
@@ -1286,10 +1285,11 @@ ENTRY art_quick_test_suspend
     bx     lr
 END art_quick_test_suspend
 
+    .extern artImplicitSuspendFromCode
 ENTRY art_quick_implicit_suspend
     mov    r0, rSELF
     SETUP_SAVE_REFS_ONLY_FRAME r1             @ save callee saves for stack crawl
-    bl     artTestSuspendFromCode             @ (Thread*)
+    bl     artImplicitSuspendFromCode         @ (Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
     bx     lr
@@ -1451,8 +1451,7 @@ ENTRY art_quick_generic_jni_trampoline
     bx lr      // ret
 
     // Undo the unwinding information from above since it doesn't apply below.
-    .cfi_restore_state
-    .cfi_def_cfa r10, FRAME_SIZE_SAVE_REFS_AND_ARGS
+    CFI_RESTORE_STATE_AND_DEF_CFA r10, FRAME_SIZE_SAVE_REFS_AND_ARGS
 .Lexception_in_native:
     ldr ip, [rSELF, #THREAD_TOP_QUICK_FRAME_OFFSET]
     add ip, ip, #-1  // Remove the GenericJNI tag. ADD/SUB writing directly to SP is UNPREDICTABLE.
@@ -2493,7 +2492,6 @@ ENTRY art_quick_method_exit_hook
     REFRESH_MARKING_REGISTER
     blx lr
 .Ldo_deliver_instrumentation_exception_exit:
-    .cfi_restore_state
-    .cfi_def_cfa sp, FRAME_SIZE_SAVE_EVERYTHING
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_quick_method_exit_hook

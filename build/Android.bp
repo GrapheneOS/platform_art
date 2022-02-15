@@ -28,23 +28,28 @@ bootstrap_go_package {
 }
 
 art_clang_tidy_errors = [
-    "android-cloexec-dup",
     "android-cloexec-open",
-    "bugprone-argument-comment",
     "bugprone-lambda-function-name",
     "bugprone-unused-raii", // Protect scoped things like MutexLock.
-    "bugprone-unused-return-value",
     "bugprone-virtual-near-miss",
     "modernize-use-bool-literals",
+    "performance-implicit-conversion-in-loop",
+    "performance-unnecessary-copy-initialization",
+]
+
+art_clang_tidy_allowed = [
+    // Many files have these warnings. Move them to art_clang_tidy_errors
+    // when all files are free of these warnings.
+    "android-cloexec-dup",
+    "bugprone-argument-comment",
+    "bugprone-unused-return-value",
+    "misc-unused-using-decls",
     "modernize-use-nullptr",
     "modernize-use-using",
     "performance-faster-string-find",
     "performance-for-range-copy",
-    "performance-implicit-conversion-in-loop",
     "performance-noexcept-move-constructor",
-    "performance-unnecessary-copy-initialization",
     "performance-unnecessary-value-param",
-    "misc-unused-using-decls",
 ]
 
 art_clang_tidy_disabled = [
@@ -241,7 +246,8 @@ art_module_art_global_defaults {
         },
     },
 
-    tidy_checks: art_clang_tidy_errors + art_clang_tidy_disabled,
+    tidy_checks: art_clang_tidy_errors + art_clang_tidy_allowed + art_clang_tidy_disabled,
+
     tidy_checks_as_errors: art_clang_tidy_errors,
 
     tidy_flags: [
@@ -271,36 +277,6 @@ cc_defaults {
         },
         x86_64: {
             ldflags: ["-z max-page-size=0x200000"],
-        },
-    },
-}
-
-cc_defaults {
-    name: "art_pgo_defaults",
-    visibility: ["//art:__subpackages__"],
-    pgo: {
-        sampling: true,
-    },
-    target: {
-        android_arm64: {
-            pgo: {
-                profile_file: "art/art_arm_arm64.profdata",
-            },
-        },
-        android_arm: {
-            pgo: {
-                profile_file: "art/art_arm_arm64.profdata",
-            },
-        },
-        android_x86_64: {
-            pgo: {
-                profile_file: "art/art_x86_x86_64.profdata",
-            },
-        },
-        android_x86: {
-            pgo: {
-                profile_file: "art/art_x86_x86_64.profdata",
-            },
         },
     },
 }
@@ -378,6 +354,7 @@ java_library {
 // from sources. TODO(b/172480617): Clean up when sources are gone from the
 // platform tree and we no longer need to support sources present when prebuilts
 // are used.
+
 art_module_cc_defaults {
     name: "art_module_source_build_defaults",
     defaults_visibility: [
@@ -399,6 +376,7 @@ art_module_cc_defaults {
         },
     },
 }
+
 art_module_java_defaults {
     name: "art_module_source_build_java_defaults",
     defaults_visibility: [
@@ -418,6 +396,7 @@ art_module_java_defaults {
         },
     },
 }
+
 art_module_genrule_defaults {
     name: "art_module_source_build_genrule_defaults",
     defaults_visibility: [
@@ -437,6 +416,7 @@ art_module_genrule_defaults {
         },
     },
 }
+
 art_module_prebuilt_defaults {
     name: "art_module_source_build_prebuilt_defaults",
     defaults_visibility: [

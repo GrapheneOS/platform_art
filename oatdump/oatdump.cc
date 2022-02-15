@@ -865,7 +865,6 @@ class OatDumper {
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
 
-    const uint8_t* const oat_file_begin = oat_dex_file.GetOatFile()->Begin();
     if (oat_dex_file.GetOatFile()->ContainsDexCode()) {
       const uint8_t* const vdex_file_begin = oat_dex_file.GetOatFile()->DexBegin();
 
@@ -892,11 +891,13 @@ class OatDumper {
     // Print lookup table, if it exists.
     if (oat_dex_file.GetLookupTableData() != nullptr) {
       uint32_t table_offset = dchecked_integral_cast<uint32_t>(
-          oat_dex_file.GetLookupTableData() - oat_file_begin);
+          oat_dex_file.GetLookupTableData() - oat_dex_file.GetOatFile()->DexBegin());
       uint32_t table_size = TypeLookupTable::RawDataLength(dex_file->NumClassDefs());
       os << StringPrintf("type-table: 0x%08x..0x%08x\n",
                          table_offset,
                          table_offset + table_size - 1);
+      const TypeLookupTable& lookup = oat_dex_file.GetTypeLookupTable();
+      lookup.Dump(os);
     }
 
     VariableIndentationOutputStream vios(&os);

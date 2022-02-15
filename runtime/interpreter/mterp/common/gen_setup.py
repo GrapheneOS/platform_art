@@ -46,21 +46,23 @@ def write_opcode(num, name, write_method):
   write_line("")
   opnum, opcode = None, None
 
-generated_helpers = {}
+slow_paths = {}
 
-# This method generates a helper using the provided writer method.
-# The output is temporarily redirected to in-memory buffer.
-def add_helper(write_helper, name = None):
-  if name == None:
-    name = default_helper_prefix() + opcode + "_helper"
+# This method generates a slow path using the provided writer method and arguments.
+def add_slow_path(write_fn, *write_args, suffix="_slow_path"):
+  name = opcode_name_prefix() + (opcode or "common") + suffix
   global out
+  # The output is temporarily redirected to in-memory buffer.
   old_out = out
   out = StringIO()
-  helper_start(name)
-  write_helper()
-  helper_end(name)
+  opcode_slow_path_start(name)
+  write_fn(*write_args)
+  opcode_slow_path_end(name)
   out.seek(0)
-  generated_helpers[name] = out.read()
+  code = out.read()
+  if name in slow_paths:
+    assert slow_paths[name] == code, "Non-matching redefinition of " + name
+  slow_paths[name] = code
   out = old_out
   return name
 
@@ -76,9 +78,8 @@ def generate(output_filename):
   balign()
   instruction_end()
 
-  for name, helper in sorted(generated_helpers.items()):
-    out.write(helper)
-  helpers()
+  for name, slow_path in sorted(slow_paths.items()):
+    out.write(slow_path)
 
   footer()
 

@@ -58,13 +58,13 @@ the module. It is also mutually exclusive with the other ones.
 3.  Build the module:
 
     ```
-    m
+    m apps_only dist
     ```
 
 4.  Install the module and reboot:
 
     ```
-    adb install out/target/product/module_<arch>/system/apex/com.android.art.apex
+    adb install out/dist/com.android.art.apex
     adb reboot
     ```
 
@@ -95,11 +95,11 @@ module build on `master-art` above (b/172480617).
     ```
 
 
-## Updating prebuilts
+## Prebuilts
 
 Prebuilts are used for the ART Module dependencies that have sources outside the
-`master-art` manifest. Conversely the ART Module is (normally) a prebuilt when
-used in platform builds of the base system image.
+`master-art` manifest. Conversely the ART Module may be a prebuilt when used in
+platform builds of the base system image.
 
 The locations of the prebuilts are:
 
@@ -110,24 +110,7 @@ The locations of the prebuilts are:
    [prebuilts/runtime/mainline/README.md](https://android.googlesource.com/platform/prebuilts/runtime/+/master/mainline/README.md)
    for instructions on how to update them.
 
-*  `packages/modules/ArtPrebuilt` for the ART Module APEX packages.
+*  `packages/modules/ArtPrebuilt` for the ART Module APEX packages, if present.
 
 *  `prebuilts/module_sdk/art` for the ART Module SDK and other tools, needed to
    build platform images and other modules that depend on the ART Module.
-
-To update the ART Module prebuilts in the two last locations:
-
-1.  Ensure the changes that need to go into the prebuilt are submitted.
-
-2.  Wait for a new build on branch `aosp-master-art`, target `aosp_art_module`.
-
-3.  In a full platform tree, run:
-
-    ```
-    packages/modules/ArtPrebuilt/update-art-module-prebuilts.py \
-      --build <build id> --upload
-    ```
-
-    This will download the prebuilts from the given `<build id>` (an integer
-    number), create a CL topic, and upload it to Gerrit. Get it reviewed and
-    submit. Please do not make any file changes locally.

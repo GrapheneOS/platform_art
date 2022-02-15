@@ -67,22 +67,10 @@ namespace openjdkjvmti {
 // has we only care about methods with active breakpoints on them. In the future we should probably
 // rewrite all of this to instead do this at the ShadowFrame or thread granularity.
 bool JvmtiMethodInspectionCallback::IsMethodBeingInspected(art::ArtMethod* method) {
-  // Non-java-debuggable runtimes we need to assume that any method might not be debuggable and
-  // therefore potentially being inspected (due to inlines). If we are debuggable we rely hard on
-  // inlining not being done since we don't keep track of which methods get inlined where and simply
-  // look to see if the method is breakpointed.
-  return !art::Runtime::Current()->IsJavaDebuggable() ||
-      manager_->HaveLocalsChanged() ||
-      manager_->MethodHasBreakpoints(method);
-}
-
-bool JvmtiMethodInspectionCallback::IsMethodSafeToJit(art::ArtMethod* method) {
-  return !manager_->MethodHasBreakpoints(method);
-}
-
-bool JvmtiMethodInspectionCallback::MethodNeedsDebugVersion(
-    art::ArtMethod* method ATTRIBUTE_UNUSED) {
-  return true;
+  // In non-java-debuggable runtimes the breakpoint check would miss if we have breakpoints on
+  // methods that are inlined. Since these features are best effort in non-java-debuggable
+  // runtimes it is OK to be less precise. For debuggable runtimes, inlining is disabled.
+  return manager_->HaveLocalsChanged() || manager_->MethodHasBreakpoints(method);
 }
 
 DeoptManager::DeoptManager()
@@ -476,8 +464,6 @@ void DeoptManager::AddDeoptimizationRequester() {
     ScopedDeoptimizationContext sdc(self, this);
     art::instrumentation::Instrumentation* instrumentation =
         art::Runtime::Current()->GetInstrumentation();
-    // Enable deoptimization
-    instrumentation->EnableDeoptimization();
     // Tell instrumentation we will be deopting single threads.
     instrumentation->EnableSingleThreadDeopt(kInstrumentationKey);
   } else {

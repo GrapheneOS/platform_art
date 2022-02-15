@@ -281,7 +281,7 @@ bool Jit::CompileMethod(ArtMethod* method,
 
   RuntimeCallbacks* cb = Runtime::Current()->GetRuntimeCallbacks();
   // Don't compile the method if it has breakpoints.
-  if (cb->IsMethodBeingInspected(method) && !cb->IsMethodSafeToJit(method)) {
+  if (cb->IsMethodBeingInspected(method)) {
     VLOG(jit) << "JIT not compiling " << method->PrettyMethod()
               << " due to not being safe to jit according to runtime-callbacks. For example, there"
               << " could be breakpoints in this method.";
@@ -920,26 +920,27 @@ class ZygoteTask final : public Task {
     Runtime* runtime = Runtime::Current();
     uint32_t added_to_queue = 0;
     for (gc::space::ImageSpace* space : Runtime::Current()->GetHeap()->GetBootImageSpaces()) {
-      const std::string& profile_file = space->GetProfileFile();
-      if (profile_file.empty()) {
-        continue;
-      }
-      LOG(INFO) << "JIT Zygote looking at profile " << profile_file;
-
       const std::vector<const DexFile*>& boot_class_path =
           runtime->GetClassLinker()->GetBootClassPath();
       ScopedNullHandle<mirror::ClassLoader> null_handle;
-      // We add to the queue for zygote so that we can fork processes in-between
-      // compilations.
+      // We avoid doing compilation at boot for the secondary zygote, as apps forked from it are not
+      // critical for boot.
       if (Runtime::Current()->IsPrimaryZygote()) {
-        std::string boot_profile = GetBootProfileFile(profile_file);
-        // We avoid doing compilation at boot for the secondary zygote, as apps
-        // forked from it are not critical for boot.
-        added_to_queue += runtime->GetJit()->CompileMethodsFromBootProfile(
-            self, boot_class_path, boot_profile, null_handle, /* add_to_queue= */ true);
+        for (const std::string& profile_file : space->GetProfileFiles()) {
+          std::string boot_profile = GetBootProfileFile(profile_file);
+          LOG(INFO) << "JIT Zygote looking at boot profile " << boot_profile;
+
+          // We add to the queue for zygote so that we can fork processes in-between compilations.
+          added_to_queue += runtime->GetJit()->CompileMethodsFromBootProfile(
+              self, boot_class_path, boot_profile, null_handle, /* add_to_queue= */ true);
+        }
       }
-      added_to_queue += runtime->GetJit()->CompileMethodsFromProfile(
-          self, boot_class_path, profile_file, null_handle, /* add_to_queue= */ true);
+      for (const std::string& profile_file : space->GetProfileFiles()) {
+        LOG(INFO) << "JIT Zygote looking at profile " << profile_file;
+
+        added_to_queue += runtime->GetJit()->CompileMethodsFromProfile(
+            self, boot_class_path, profile_file, null_handle, /* add_to_queue= */ true);
+      }
     }
 
     JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
@@ -1149,7 +1150,7 @@ void Jit::MapBootImageMethods() {
 // methods in that profile for performance.
 static bool HasImageWithProfile() {
   for (gc::space::ImageSpace* space : Runtime::Current()->GetHeap()->GetBootImageSpaces()) {
-    if (!space->GetProfileFile().empty()) {
+    if (!space->GetProfileFiles().empty()) {
       return true;
     }
   }
@@ -1312,6 +1313,8 @@ bool Jit::CompileMethodFromProfile(Thread* self,
       // We explicitly check for the stub. The trampoline is for methods backed by
       // a .oat file that has a compiled version of the method.
       (entry_point == GetQuickResolutionStub())) {
+    VLOG(jit) << "JIT Zygote processing method " << ArtMethod::PrettyMethod(method)
+              << " from profile";
     method->SetPreCompiled();
     if (!add_to_queue) {
       CompileMethod(method, self, CompilationKind::kOptimized, /* prejit= */ true);
@@ -1407,11 +1410,6 @@ uint32_t Jit::CompileMethodsFromProfile(
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   uint32_t added_to_queue = 0u;
   for (const DexFile* dex_file : dex_files) {
-    if (LocationIsOnArtModule(dex_file->GetLocation().c_str())) {
-      // The ART module jars are already preopted.
-      continue;
-    }
-
     std::set<dex::TypeIndex> class_types;
     std::set<uint16_t> all_methods;
     if (!profile_info.GetClassesAndMethods(*dex_file,

@@ -343,14 +343,6 @@ class Checker:
     """Check bin/filename32, and/or bin/filename64, with symlink bin/filename."""
     raise NotImplementedError
 
-  def check_multilib_executable(self, filename):
-    """Check bin/filename for 32 bit, and/or bin/filename64."""
-    raise NotImplementedError
-
-  def check_first_executable(self, filename):
-    """Check bin/filename for 32 bit, and/or bin/filename64."""
-    raise NotImplementedError
-
   def check_native_library(self, basename):
     """Check lib/basename.so, and/or lib64/basename.so."""
     raise NotImplementedError
@@ -376,12 +368,6 @@ class Arch32Checker(Checker):
     self.check_executable('%s32' % filename)
     self.check_executable_symlink(filename)
 
-  def check_multilib_executable(self, filename):
-    self.check_executable('%s32' % filename)
-
-  def check_first_executable(self, filename):
-    self.check_executable('%s32' % filename)
-
   def check_native_library(self, basename):
     # TODO: Use $TARGET_ARCH (e.g. check whether it is "arm" or "arm64") to improve
     # the precision of this test?
@@ -404,12 +390,6 @@ class Arch64Checker(Checker):
   def check_symlinked_first_executable(self, filename):
     self.check_executable('%s64' % filename)
     self.check_executable_symlink(filename)
-
-  def check_multilib_executable(self, filename):
-    self.check_executable('%s64' % filename)
-
-  def check_first_executable(self, filename):
-    self.check_executable('%s64' % filename)
 
   def check_native_library(self, basename):
     # TODO: Use $TARGET_ARCH (e.g. check whether it is "arm" or "arm64") to improve
@@ -435,13 +415,6 @@ class MultilibChecker(Checker):
   def check_symlinked_first_executable(self, filename):
     self.check_executable('%s64' % filename)
     self.check_executable_symlink(filename)
-
-  def check_multilib_executable(self, filename):
-    self.check_executable('%s64' % filename)
-    self.check_executable('%s32' % filename)
-
-  def check_first_executable(self, filename):
-    self.check_executable('%s64' % filename)
 
   def check_native_library(self, basename):
     # TODO: Use $TARGET_ARCH (e.g. check whether it is "arm" or "arm64") to improve
@@ -478,7 +451,6 @@ class ReleaseChecker:
     self._checker.check_file('apex_manifest.pb')
 
     # Check binaries for ART.
-    self._checker.check_first_executable('dex2oat')
     self._checker.check_executable('dexdump')
     self._checker.check_executable('dexlist')
     self._checker.check_executable('dexoptanalyzer')
@@ -573,15 +545,13 @@ class ReleaseTargetChecker:
 
     # Check binaries for ART.
     self._checker.check_executable('artd')
-    self._checker.check_multilib_executable('dex2oat')
     self._checker.check_executable('oatdump')
     self._checker.check_executable("odrefresh")
+    self._checker.check_symlinked_multilib_executable('dex2oat')
 
     # Check internal libraries for ART.
     self._checker.check_native_library('libperfetto_hprof')
     self._checker.check_prefer64_library('artd-aidl-ndk')
-    self._checker.check_prefer64_library('artd-private-aidl-ndk')
-    self._checker.check_prefer64_library('libdexopt')
 
     # Check internal Java libraries
     self._checker.check_java_library("service-art")
@@ -663,9 +633,8 @@ class DebugTargetChecker:
 
   def run(self):
     # Check ART debug binaries.
-    self._checker.check_multilib_executable('dex2oatd')
-    self._checker.check_multilib_executable('dex2oat')
     self._checker.check_executable('oatdumpd')
+    self._checker.check_symlinked_multilib_executable('dex2oatd')
 
     # Check ART internal libraries.
     self._checker.check_native_library('libperfetto_hprofd')
@@ -713,17 +682,16 @@ class TestingTargetChecker:
     self._checker.check_art_test_executable('art_libdexfile_tests')
     self._checker.check_art_test_executable('art_libprofile_tests')
     self._checker.check_art_test_executable('art_oatdump_tests')
-    self._checker.check_art_test_executable('art_odrefresh_tests',
-                                            multilib=MULTILIB_FIRST)
+    self._checker.check_art_test_executable('art_odrefresh_tests')
     self._checker.check_art_test_executable('art_profman_tests')
     self._checker.check_art_test_executable('art_runtime_compiler_tests')
     self._checker.check_art_test_executable('art_runtime_tests')
     self._checker.check_art_test_executable('art_sigchain_tests')
 
     # Check ART test (internal) libraries.
-    self._checker.check_prefer64_library('libdexoptd')
     self._checker.check_native_library('libartd-gtest')
     self._checker.check_native_library('libartd-simulator-container')
+    self._checker.check_native_library('libartbased-testing')
 
     # Check ART test tools.
     self._checker.check_executable('signal_dumper')

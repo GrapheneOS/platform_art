@@ -15,16 +15,15 @@
  */
 
 #include <inttypes.h>
+#include <log/log.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include "base/memory_tool.h"
 
 #include <forward_list>
 #include <fstream>
 #include <iostream>
 #include <limits>
-#include <log/log.h>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -51,8 +50,10 @@
 #include "base/dumpable.h"
 #include "base/fast_exit.h"
 #include "base/file_utils.h"
+#include "base/globals.h"
 #include "base/leb128.h"
 #include "base/macros.h"
+#include "base/memory_tool.h"
 #include "base/mutex.h"
 #include "base/os.h"
 #include "base/scoped_flock.h"
@@ -545,7 +546,8 @@ class Dex2Oat final {
         check_linkage_conditions_(false),
         crash_on_linkage_violation_(false),
         compile_individually_(false),
-        profile_load_attempted_(false) {}
+        profile_load_attempted_(false),
+        should_report_dex2oat_compilation_(false) {}
 
   ~Dex2Oat() {
     // Log completion time before deleting the runtime_, because this accesses
@@ -705,11 +707,6 @@ class Dex2Oat final {
       Usage("--oat-fd should not be used with --image");
     }
 
-    if ((input_vdex_fd_ != -1 || !input_vdex_.empty()) &&
-        (dm_fd_ != -1 || !dm_file_location_.empty())) {
-      Usage("An input vdex should not be passed with a .dm file");
-    }
-
     if (!parser_options->oat_symbols.empty() &&
         parser_options->oat_symbols.size() != oat_filenames_.size()) {
       Usage("--oat-file arguments do not match --oat-symbols arguments");
@@ -775,8 +772,11 @@ class Dex2Oat final {
       // Use the default, i.e. multi-image for boot image and boot image extension.
       multi_image_ = IsBootImage() || IsBootImageExtension();  // Shall pass checks below.
     }
-    if (IsBootImage() && !multi_image_) {
-      Usage("--single-image specified for primary boot image");
+    // On target we support generating a single image for the primary boot image.
+    if (!kIsTargetBuild) {
+      if (IsBootImage() && !multi_image_) {
+        Usage("--single-image specified for primary boot image on host");
+      }
     }
     if (IsAppImage() && multi_image_) {
       Usage("--multi-image specified for app image");
@@ -834,7 +834,9 @@ class Dex2Oat final {
     // Set the compilation target's implicit checks options.
     switch (compiler_options_->GetInstructionSet()) {
       case InstructionSet::kArm64:
-        compiler_options_->implicit_suspend_checks_ = true;
+        // TODO: Implicit suspend checks are currently disabled to facilitate search
+        // for unrelated memory use regressions. Bug: 213757852.
+        compiler_options_->implicit_suspend_checks_ = false;
         FALLTHROUGH_INTENDED;
       case InstructionSet::kArm:
       case InstructionSet::kThumb2:
@@ -878,25 +880,23 @@ class Dex2Oat final {
       }
     }
 
-    // Trim the boot image location to not include any specified profile. Note
-    // that the logic below will include the first boot image extension, but not
-    // the ones that could be listed after the profile of that extension. This
-    // works for our current top use case:
-    // boot.art:/system/framework/boot-framework.art
-    // But this would need to be adjusted if we had to support different use
-    // cases.
-    size_t profile_separator_pos = boot_image_filename_.find(ImageSpace::kProfileSeparator);
-    if (profile_separator_pos != std::string::npos) {
-      DCHECK(!IsBootImage());  // For primary boot image the boot_image_filename_ is empty.
-      if (IsBootImageExtension()) {
-        Usage("Unsupported profile specification in boot image location (%s) for extension.",
-              boot_image_filename_.c_str());
+    // Prune profile specifications of the boot image location.
+    std::vector<std::string> boot_images =
+        android::base::Split(boot_image_filename_, {ImageSpace::kComponentSeparator});
+    bool boot_image_filename_pruned = false;
+    for (std::string& boot_image : boot_images) {
+      size_t profile_separator_pos = boot_image.find(ImageSpace::kProfileSeparator);
+      if (profile_separator_pos != std::string::npos) {
+        boot_image.resize(profile_separator_pos);
+        boot_image_filename_pruned = true;
       }
-      VLOG(compiler)
-          << "Truncating boot image location " << boot_image_filename_
-          << " because it contains profile specification. Truncated: "
-          << boot_image_filename_.substr(/*pos*/ 0u, /*length*/ profile_separator_pos);
-      boot_image_filename_.resize(profile_separator_pos);
+    }
+    if (boot_image_filename_pruned) {
+      std::string new_boot_image_filename =
+          android::base::Join(boot_images, ImageSpace::kComponentSeparator);
+      VLOG(compiler) << "Pruning profile specifications of the boot image location. Before: "
+                     << boot_image_filename_ << ", After: " << new_boot_image_filename;
+      boot_image_filename_ = std::move(new_boot_image_filename);
     }
 
     compiler_options_->passes_to_run_ = passes_to_run_.get();
@@ -1177,6 +1177,13 @@ class Dex2Oat final {
       LOG(WARNING) << "Option --updatable-bcp-packages-fd is deprecated and no longer takes effect";
     }
 
+    if (args.Exists(M::ForceJitZygote)) {
+      if (!parser_options->boot_image_filename.empty()) {
+        Usage("Option --boot-image and --force-jit-zygote cannot be specified together");
+      }
+      parser_options->boot_image_filename = "boot.art:/nonx/boot-framework.art";
+    }
+
     // If we have a profile, change the default compiler filter to speed-profile
     // before reading compiler options.
     static_assert(CompilerFilter::kDefaultCompilerFilter == CompilerFilter::kSpeed);
@@ -1195,6 +1202,15 @@ class Dex2Oat final {
                 << ".";
       thread_count_ = 1;
     }
+
+    // For debuggable apps, we do not want to generate compact dex as class
+    // redefinition will want a proper dex file.
+    if (compiler_options_->GetDebuggable()) {
+      compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
+    }
+
+    PaletteShouldReportDex2oatCompilation(&should_report_dex2oat_compilation_);
+    AssignTrueIfExists(args, M::ForcePaletteCompilationHooks, &should_report_dex2oat_compilation_);
 
     ProcessOptions(parser_options.get());
   }
@@ -1232,7 +1248,6 @@ class Dex2Oat final {
           input_vdex_file_ = VdexFile::Open(input_vdex_,
                                             /* writable */ false,
                                             /* low_4gb */ false,
-                                            DoEagerUnquickeningOfVdex(),
                                             &error_msg);
         }
 
@@ -1241,8 +1256,8 @@ class Dex2Oat final {
             ? ReplaceFileExtension(oat_filename, "vdex")
             : output_vdex_;
         if (vdex_filename == input_vdex_ && output_vdex_.empty()) {
-          update_input_vdex_ = true;
-          std::unique_ptr<File> vdex_file(OS::OpenFileReadWrite(vdex_filename.c_str()));
+          use_existing_vdex_ = true;
+          std::unique_ptr<File> vdex_file(OS::OpenFileForReading(vdex_filename.c_str()));
           vdex_files_.push_back(std::move(vdex_file));
         } else {
           std::unique_ptr<File> vdex_file(OS::CreateEmptyFile(vdex_filename.c_str()));
@@ -1284,7 +1299,6 @@ class Dex2Oat final {
                                             "vdex",
                                             /* writable */ false,
                                             /* low_4gb */ false,
-                                            DoEagerUnquickeningOfVdex(),
                                             &error_msg);
           // If there's any problem with the passed vdex, just warn and proceed
           // without it.
@@ -1296,15 +1310,20 @@ class Dex2Oat final {
 
       DCHECK_NE(output_vdex_fd_, -1);
       std::string vdex_location = ReplaceFileExtension(oat_location_, "vdex");
-      std::unique_ptr<File> vdex_file(new File(
-          DupCloexec(output_vdex_fd_), vdex_location, /* check_usage */ true));
+      if (input_vdex_file_ != nullptr && output_vdex_fd_ == input_vdex_fd_) {
+        use_existing_vdex_ = true;
+      }
+
+      std::unique_ptr<File> vdex_file(new File(DupCloexec(output_vdex_fd_),
+                                               vdex_location,
+                                               /* check_usage= */ true,
+                                               /* read_only_mode= */ use_existing_vdex_));
       if (!vdex_file->IsOpened()) {
         PLOG(ERROR) << "Failed to create vdex file: " << vdex_location;
         return false;
       }
-      if (input_vdex_file_ != nullptr && output_vdex_fd_ == input_vdex_fd_) {
-        update_input_vdex_ = true;
-      } else {
+
+      if (!use_existing_vdex_) {
         if (vdex_file->SetLength(0) != 0) {
           PLOG(ERROR) << "Truncating vdex file " << vdex_location << " failed.";
           vdex_file->Erase();
@@ -1314,26 +1333,6 @@ class Dex2Oat final {
       vdex_files_.push_back(std::move(vdex_file));
 
       oat_filenames_.push_back(oat_location_);
-    }
-
-    // If we're updating in place a vdex file, be defensive and put an invalid vdex magic in case
-    // dex2oat gets killed.
-    // Note: we're only invalidating the magic data in the file, as dex2oat needs the rest of
-    // the information to remain valid.
-    if (update_input_vdex_) {
-      File* vdex_file = vdex_files_.back().get();
-      if (!vdex_file->PwriteFully(&VdexFile::VdexFileHeader::kVdexInvalidMagic,
-                                  arraysize(VdexFile::VdexFileHeader::kVdexInvalidMagic),
-                                  /*offset=*/ 0u)) {
-        PLOG(ERROR) << "Failed to invalidate vdex header. File: " << vdex_file->GetPath();
-        return false;
-      }
-
-      if (vdex_file->Flush() != 0) {
-        PLOG(ERROR) << "Failed to flush stream after invalidating header of vdex file."
-                    << " File: " << vdex_file->GetPath();
-        return false;
-      }
     }
 
     if (dm_fd_ != -1 || !dm_file_location_.empty()) {
@@ -1348,11 +1347,16 @@ class Dex2Oat final {
       }
     }
 
+    // If we have a dm file and a vdex file, we (arbitrarily) pick the vdex file.
+    // In theory the files should be the same.
     if (dm_file_ != nullptr) {
-      DCHECK(input_vdex_file_ == nullptr);
-      input_vdex_file_ = VdexFile::OpenFromDm(dm_file_location_, *dm_file_);
-      if (input_vdex_file_ != nullptr) {
-        VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
+      if (input_vdex_file_ == nullptr) {
+        input_vdex_file_ = VdexFile::OpenFromDm(dm_file_location_, *dm_file_);
+        if (input_vdex_file_ != nullptr) {
+          VLOG(verifier) << "Doing fast verification with vdex from DexMetadata archive";
+        }
+      } else {
+        LOG(INFO) << "Ignoring vdex file in dex metadata due to vdex file already being passed";
       }
     }
 
@@ -1379,9 +1383,12 @@ class Dex2Oat final {
   void EraseOutputFiles() {
     for (auto& files : { &vdex_files_, &oat_files_ }) {
       for (size_t i = 0; i < files->size(); ++i) {
-        if ((*files)[i].get() != nullptr) {
-          (*files)[i]->Erase();
-          (*files)[i].reset();
+        auto& file = (*files)[i];
+        if (file != nullptr) {
+          if (!file->ReadOnlyMode()) {
+            file->Erase();
+          }
+          file.reset();
         }
       }
     }
@@ -1445,7 +1452,7 @@ class Dex2Oat final {
         if (!oat_writers_[i]->WriteAndOpenDexFiles(
             vdex_files_[i].get(),
             verify,
-            update_input_vdex_,
+            use_existing_vdex_,
             copy_dex_files_,
             &opened_dex_files_map,
             &opened_dex_files)) {
@@ -1505,6 +1512,13 @@ class Dex2Oat final {
     if (!CreateRuntime(std::move(runtime_options))) {
       return dex2oat::ReturnCode::kCreateRuntime;
     }
+    if (runtime_->GetHeap()->GetBootImageSpaces().empty() &&
+        (IsBootImageExtension() || IsAppImage())) {
+      LOG(ERROR) << "Cannot create "
+                 << (IsBootImageExtension() ? "boot image extension" : "app image")
+                 << " without a primary boot image.";
+      return dex2oat::ReturnCode::kOther;
+    }
     ArrayRef<const DexFile* const> bcp_dex_files(runtime_->GetClassLinker()->GetBootClassPath());
     if (IsBootImage() || IsBootImageExtension()) {
       // Check boot class path dex files and, if compiling an extension, the images it depends on.
@@ -1554,17 +1568,13 @@ class Dex2Oat final {
         LOG(ERROR) << "Missing required boot image(s) for boot image extension.";
         return dex2oat::ReturnCode::kOther;
       }
-    } else {
-      // Check that we loaded at least the primary boot image for app compilation.
-      if (runtime_->GetHeap()->GetBootImageSpaces().empty()) {
-        LOG(ERROR) << "Missing primary boot image for app compilation.";
-        return dex2oat::ReturnCode::kOther;
-      }
     }
 
     if (!compilation_reason_.empty()) {
       key_value_store_->Put(OatHeader::kCompilationReasonKey, compilation_reason_);
     }
+
+    Runtime* runtime = Runtime::Current();
 
     if (IsBootImage()) {
       // If we're compiling the boot image, store the boot classpath into the Key-Value store.
@@ -1573,7 +1583,6 @@ class Dex2Oat final {
     } else if (IsBootImageExtension()) {
       // Validate the boot class path and record the dependency on the loaded boot images.
       TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
-      Runtime* runtime = Runtime::Current();
       std::string full_bcp = android::base::Join(runtime->GetBootClassPathLocations(), ':');
       std::string extension_part = ":" + android::base::Join(dex_locations_, ':');
       if (!android::base::EndsWith(full_bcp, extension_part)) {
@@ -1592,18 +1601,12 @@ class Dex2Oat final {
     } else {
       if (CompilerFilter::DependsOnImageChecksum(original_compiler_filter)) {
         TimingLogger::ScopedTiming t3("Loading image checksum", timings_);
-        Runtime* runtime = Runtime::Current();
         key_value_store_->Put(OatHeader::kBootClassPathKey,
                               android::base::Join(runtime->GetBootClassPathLocations(), ':'));
         ArrayRef<ImageSpace* const> image_spaces(runtime->GetHeap()->GetBootImageSpaces());
         key_value_store_->Put(
             OatHeader::kBootClassPathChecksumsKey,
             gc::space::ImageSpace::GetBootClassPathChecksums(image_spaces, bcp_dex_files));
-
-        std::string versions = apex_versions_argument_.empty()
-            ? runtime->GetApexVersions()
-            : apex_versions_argument_;
-        key_value_store_->Put(OatHeader::kApexVersionsKey, versions);
       }
 
       // Open dex files for class path.
@@ -1643,6 +1646,14 @@ class Dex2Oat final {
           class_loader_context_->EncodeContextForOatFile(classpath_dir_,
                                                          stored_class_loader_context_.get());
       key_value_store_->Put(OatHeader::kClassPathKey, class_path_key);
+    }
+
+    if (IsBootImage() ||
+        IsBootImageExtension() ||
+        CompilerFilter::DependsOnImageChecksum(original_compiler_filter)) {
+      std::string versions =
+          apex_versions_argument_.empty() ? runtime->GetApexVersions() : apex_versions_argument_;
+      key_value_store_->Put(OatHeader::kApexVersionsKey, versions);
     }
 
     // Now that we have finalized key_value_store_, start writing the .rodata section.
@@ -1691,21 +1702,16 @@ class Dex2Oat final {
       }
     }
 
-    // Ensure opened dex files are writable for dex-to-dex transformations.
-    for (MemMap& map : opened_dex_files_maps_) {
-      if (!map.Protect(PROT_READ | PROT_WRITE)) {
-        PLOG(ERROR) << "Failed to make .dex files writeable.";
-        return dex2oat::ReturnCode::kOther;
-      }
-    }
-
     // Setup VerifierDeps for compilation and report if we fail to parse the data.
-    if (!DoEagerUnquickeningOfVdex() && input_vdex_file_ != nullptr) {
+    // When we do profile guided optimizations, the compiler currently needs to run
+    // full verification.
+    if (!DoProfileGuidedOptimizations() && input_vdex_file_ != nullptr) {
       std::unique_ptr<verifier::VerifierDeps> verifier_deps(
           new verifier::VerifierDeps(dex_files, /*output_only=*/ false));
       if (!verifier_deps->ParseStoredData(dex_files, input_vdex_file_->GetVerifierDepsData())) {
         return dex2oat::ReturnCode::kOther;
       }
+      // We can do fast verification.
       callbacks_->SetVerifierDeps(verifier_deps.release());
     } else {
       // Create the main VerifierDeps, here instead of in the compiler since we want to aggregate
@@ -1788,7 +1794,7 @@ class Dex2Oat final {
     // This means extract, no-vdex verify, and quicken, will use the individual compilation
     // mode (to reduce RAM used by the compiler).
     return compile_individually_ &&
-           (!IsImage() && !update_input_vdex_ &&
+           (!IsImage() && !use_existing_vdex_ &&
             compiler_options_->dex_files_for_oat_file_.size() > 1 &&
             !CompilerFilter::IsAotCompilationEnabled(compiler_options_->GetCompilerFilter()));
   }
@@ -2065,7 +2071,7 @@ class Dex2Oat final {
       oat_writer->Initialize(driver_.get(), image_writer_.get(), dex_files);
     }
 
-    {
+    if (!use_existing_vdex_) {
       TimingLogger::ScopedTiming t2("dex2oat Write VDEX", timings_);
       DCHECK(IsBootImage() || IsBootImageExtension() || oat_files_.size() == 1u);
       verifier::VerifierDeps* verifier_deps = callbacks_->GetVerifierDeps();
@@ -2231,7 +2237,7 @@ class Dex2Oat final {
   }
 
   bool FlushOutputFile(std::unique_ptr<File>* file) {
-    if (file->get() != nullptr) {
+    if ((file->get() != nullptr) && !file->get()->ReadOnlyMode()) {
       if (file->get()->Flush() != 0) {
         PLOG(ERROR) << "Failed to flush output file: " << file->get()->GetPath();
         return false;
@@ -2241,7 +2247,7 @@ class Dex2Oat final {
   }
 
   bool FlushCloseOutputFile(File* file) {
-    if (file != nullptr) {
+    if ((file != nullptr) && !file->ReadOnlyMode()) {
       if (file->FlushCloseOrErase() != 0) {
         PLOG(ERROR) << "Failed to flush and close output file: " << file->GetPath();
         return false;
@@ -2321,16 +2327,6 @@ class Dex2Oat final {
     return DoProfileGuidedOptimizations();
   }
 
-  bool MayInvalidateVdexMetadata() const {
-    // DexLayout can invalidate the vdex metadata if changing the class def order is enabled, so
-    // we need to unquicken the vdex file eagerly, before passing it to dexlayout.
-    return DoDexLayoutOptimizations();
-  }
-
-  bool DoEagerUnquickeningOfVdex() const {
-    return MayInvalidateVdexMetadata() && dm_file_ == nullptr;
-  }
-
   bool LoadProfile() {
     DCHECK(HasProfileInput());
     profile_load_attempted_ = true;
@@ -2347,27 +2343,46 @@ class Dex2Oat final {
     // Dex2oat only uses the reference profile and that is not updated concurrently by the app or
     // other processes. So we don't need to lock (as we have to do in profman or when writing the
     // profile info).
+    std::vector<std::unique_ptr<File>> profile_files;
     if (!profile_file_fds_.empty()) {
       for (int fd : profile_file_fds_) {
-        std::unique_ptr<File> profile_file(new File(DupCloexec(fd),
-                                                    "profile",
-                                                    /* check_usage= */ false,
-                                                    /* read_only_mode= */ true));
-        if (!profile_compilation_info_->Load(profile_file->Fd())) {
-          return false;
-        }
+        profile_files.push_back(std::make_unique<File>(DupCloexec(fd),
+                                                       "profile",
+                                                       /*check_usage=*/ false,
+                                                       /*read_only_mode=*/ true));
       }
     } else {
       for (const std::string& file : profile_files_) {
-        std::unique_ptr<File> profile_file(OS::OpenFileForReading(file.c_str()));
-        if (profile_file.get() == nullptr) {
+        profile_files.emplace_back(OS::OpenFileForReading(file.c_str()));
+        if (profile_files.back().get() == nullptr) {
           PLOG(ERROR) << "Cannot open profiles";
           return false;
         }
-        if (!profile_compilation_info_->Load(profile_file->Fd())) {
-          return false;
-        }
       }
+    }
+
+    std::map<std::string, uint32_t> old_profile_keys, new_profile_keys;
+    auto filter_fn = [&](const std::string& profile_key, uint32_t checksum) {
+      auto it = old_profile_keys.find(profile_key);
+      if (it != old_profile_keys.end() && it->second != checksum) {
+        // Filter out this entry. We have already loaded data for the same profile key with a
+        // different checksum from an earlier profile file.
+        return false;
+      }
+      // Insert the new profile key and checksum.
+      // Note: If the profile contains the same key with different checksums, this insertion fails
+      // but we still return `true` and let the `ProfileCompilationInfo::Load()` report an error.
+      new_profile_keys.insert(std::make_pair(profile_key, checksum));
+      return true;
+    };
+    for (const std::unique_ptr<File>& profile_file : profile_files) {
+      if (!profile_compilation_info_->Load(profile_file->Fd(),
+                                           /*merge_classes=*/ true,
+                                           filter_fn)) {
+        return false;
+      }
+      old_profile_keys.merge(new_profile_keys);
+      new_profile_keys.clear();
     }
 
     cleanup.Disable();
@@ -2399,10 +2414,9 @@ class Dex2Oat final {
 
   class ScopedDex2oatReporting {
    public:
-    explicit ScopedDex2oatReporting(const Dex2Oat& dex2oat) {
-      bool should_report = false;
-      PaletteShouldReportDex2oatCompilation(&should_report);
-      if (should_report) {
+    explicit ScopedDex2oatReporting(const Dex2Oat& dex2oat) :
+        should_report_(dex2oat.should_report_dex2oat_compilation_) {
+      if (should_report_) {
         if (dex2oat.zip_fd_ != -1) {
           zip_dup_fd_.reset(DupCloexecOrError(dex2oat.zip_fd_));
           if (zip_dup_fd_ < 0) {
@@ -2434,9 +2448,7 @@ class Dex2Oat final {
 
     ~ScopedDex2oatReporting() {
       if (!error_reporting_) {
-        bool should_report = false;
-        PaletteShouldReportDex2oatCompilation(&should_report);
-        if (should_report) {
+        if (should_report_) {
           PaletteNotifyEndDex2oatCompilation(zip_dup_fd_,
                                              image_dup_fd_,
                                              oat_dup_fd_,
@@ -2461,6 +2473,7 @@ class Dex2Oat final {
     android::base::unique_fd zip_dup_fd_;
     android::base::unique_fd image_dup_fd_;
     bool error_reporting_ = false;
+    bool should_report_;
   };
 
  private:
@@ -2925,7 +2938,7 @@ class Dex2Oat final {
   std::string classpath_dir_;
 
   // Whether the given input vdex is also the output.
-  bool update_input_vdex_ = false;
+  bool use_existing_vdex_ = false;
 
   // By default, copy the dex to the vdex file only if dex files are
   // compressed in APK.
@@ -2946,6 +2959,9 @@ class Dex2Oat final {
 
   // Whether or we attempted to load the profile (if given).
   bool profile_load_attempted_;
+
+  // Whether PaletteNotify{Start,End}Dex2oatCompilation should be called.
+  bool should_report_dex2oat_compilation_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };

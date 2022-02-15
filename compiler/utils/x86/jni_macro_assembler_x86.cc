@@ -568,12 +568,6 @@ void X86JNIMacroAssembler::Call(ManagedRegister mbase, Offset offset) {
   // TODO: place reference map on call
 }
 
-void X86JNIMacroAssembler::Call(FrameOffset base, Offset offset) {
-  Register scratch = GetScratchRegister();
-  __ movl(scratch, Address(ESP, base));
-  __ call(Address(scratch, offset));
-}
-
 void X86JNIMacroAssembler::CallFromThread(ThreadOffset32 offset) {
   __ fs()->call(Address::Absolute(offset));
 }

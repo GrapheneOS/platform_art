@@ -165,31 +165,31 @@ extern "C" void* art_quick_alloc_string_from_chars##suffix##_instrumented(int32_
 extern "C" void* art_quick_alloc_string_from_string##suffix##_instrumented(void*); \
 void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrumented) { \
   if (instrumented) { \
-    qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix##_instrumented; \
-    qpoints->pAllocArrayResolved8 = art_quick_alloc_array_resolved8##suffix##_instrumented; \
-    qpoints->pAllocArrayResolved16 = art_quick_alloc_array_resolved16##suffix##_instrumented; \
-    qpoints->pAllocArrayResolved32 = art_quick_alloc_array_resolved32##suffix##_instrumented; \
-    qpoints->pAllocArrayResolved64 = art_quick_alloc_array_resolved64##suffix##_instrumented; \
-    qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix##_instrumented; \
-    qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix##_instrumented; \
-    qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix##_instrumented; \
-    qpoints->pAllocStringObject = art_quick_alloc_string_object##suffix##_instrumented; \
-    qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix##_instrumented; \
-    qpoints->pAllocStringFromChars = art_quick_alloc_string_from_chars##suffix##_instrumented; \
-    qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix##_instrumented; \
+    qpoints->SetAllocArrayResolved(art_quick_alloc_array_resolved##suffix##_instrumented); \
+    qpoints->SetAllocArrayResolved8(art_quick_alloc_array_resolved8##suffix##_instrumented); \
+    qpoints->SetAllocArrayResolved16(art_quick_alloc_array_resolved16##suffix##_instrumented); \
+    qpoints->SetAllocArrayResolved32(art_quick_alloc_array_resolved32##suffix##_instrumented); \
+    qpoints->SetAllocArrayResolved64(art_quick_alloc_array_resolved64##suffix##_instrumented); \
+    qpoints->SetAllocObjectResolved(art_quick_alloc_object_resolved##suffix##_instrumented); \
+    qpoints->SetAllocObjectInitialized(art_quick_alloc_object_initialized##suffix##_instrumented); \
+    qpoints->SetAllocObjectWithChecks(art_quick_alloc_object_with_checks##suffix##_instrumented); \
+    qpoints->SetAllocStringObject(art_quick_alloc_string_object##suffix##_instrumented); \
+    qpoints->SetAllocStringFromBytes(art_quick_alloc_string_from_bytes##suffix##_instrumented); \
+    qpoints->SetAllocStringFromChars(art_quick_alloc_string_from_chars##suffix##_instrumented); \
+    qpoints->SetAllocStringFromString(art_quick_alloc_string_from_string##suffix##_instrumented); \
   } else { \
-    qpoints->pAllocArrayResolved = art_quick_alloc_array_resolved##suffix; \
-    qpoints->pAllocArrayResolved8 = art_quick_alloc_array_resolved8##suffix; \
-    qpoints->pAllocArrayResolved16 = art_quick_alloc_array_resolved16##suffix; \
-    qpoints->pAllocArrayResolved32 = art_quick_alloc_array_resolved32##suffix; \
-    qpoints->pAllocArrayResolved64 = art_quick_alloc_array_resolved64##suffix; \
-    qpoints->pAllocObjectResolved = art_quick_alloc_object_resolved##suffix; \
-    qpoints->pAllocObjectInitialized = art_quick_alloc_object_initialized##suffix; \
-    qpoints->pAllocObjectWithChecks = art_quick_alloc_object_with_checks##suffix; \
-    qpoints->pAllocStringObject = art_quick_alloc_string_object##suffix; \
-    qpoints->pAllocStringFromBytes = art_quick_alloc_string_from_bytes##suffix; \
-    qpoints->pAllocStringFromChars = art_quick_alloc_string_from_chars##suffix; \
-    qpoints->pAllocStringFromString = art_quick_alloc_string_from_string##suffix; \
+    qpoints->SetAllocArrayResolved(art_quick_alloc_array_resolved##suffix); \
+    qpoints->SetAllocArrayResolved8(art_quick_alloc_array_resolved8##suffix); \
+    qpoints->SetAllocArrayResolved16(art_quick_alloc_array_resolved16##suffix); \
+    qpoints->SetAllocArrayResolved32(art_quick_alloc_array_resolved32##suffix); \
+    qpoints->SetAllocArrayResolved64(art_quick_alloc_array_resolved64##suffix); \
+    qpoints->SetAllocObjectResolved(art_quick_alloc_object_resolved##suffix); \
+    qpoints->SetAllocObjectInitialized(art_quick_alloc_object_initialized##suffix); \
+    qpoints->SetAllocObjectWithChecks(art_quick_alloc_object_with_checks##suffix); \
+    qpoints->SetAllocStringObject(art_quick_alloc_string_object##suffix); \
+    qpoints->SetAllocStringFromBytes(art_quick_alloc_string_from_bytes##suffix); \
+    qpoints->SetAllocStringFromChars(art_quick_alloc_string_from_chars##suffix); \
+    qpoints->SetAllocStringFromString(art_quick_alloc_string_from_string##suffix); \
   } \
 }
 

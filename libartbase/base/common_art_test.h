@@ -287,13 +287,19 @@ using CommonArtTest = CommonArtTestBase<testing::Test>;
 template <typename Param>
 using CommonArtTestWithParam = CommonArtTestBase<testing::TestWithParam<Param>>;
 
-// Returns a list of PIDs of the processes whose process name (the name of the binary without path)
-// fully matches the given name.
+// Returns a list of PIDs of the processes whose process name (the first commandline argument) fully
+// matches the given name.
 std::vector<pid_t> GetPidByName(const std::string& process_name);
 
 #define TEST_DISABLED_FOR_TARGET() \
   if (kIsTargetBuild) { \
     printf("WARNING: TEST DISABLED FOR TARGET\n"); \
+    return; \
+  }
+
+#define TEST_DISABLED_FOR_HOST() \
+  if (!kIsTargetBuild) { \
+    printf("WARNING: TEST DISABLED FOR HOST\n"); \
     return; \
   }
 

@@ -173,11 +173,8 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isAotCompiled(JNIEnv* env,
   if (oat_code == nullptr) {
     return false;
   }
-  const void* actual_code = method->GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
-  bool interpreter =
-      Runtime::Current()->GetClassLinker()->ShouldUseInterpreterEntrypoint(method, actual_code) ||
-      (actual_code == interpreter::GetNterpEntryPoint());
-  return !interpreter;
+  const void* actual_code = Runtime::Current()->GetInstrumentation()->GetCodeForInvoke(method);
+  return actual_code == oat_code;
 }
 
 static ArtMethod* GetMethod(ScopedObjectAccess& soa, jclass cls, const ScopedUtfChars& chars)
@@ -228,9 +225,16 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasJitCompiledCode(JNIEnv* env,
 static void ForceJitCompiled(Thread* self,
                              ArtMethod* method,
                              CompilationKind kind) REQUIRES(!Locks::mutator_lock_) {
+  // TODO(mythria): Update this check once we support method entry / exit hooks directly from
+  // JIT code instead of installing EntryExit stubs.
+  if (Runtime::Current()->GetInstrumentation()->EntryExitStubsInstalled() &&
+      (method->IsNative() || !Runtime::Current()->IsJavaDebuggable())) {
+    return;
+  }
+
   {
     ScopedObjectAccess soa(self);
-    if (!Runtime::Current()->GetRuntimeCallbacks()->IsMethodSafeToJit(method)) {
+    if (Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method)) {
       std::string msg(method->PrettyMethod());
       msg += ": is not safe to jit!";
       ThrowIllegalStateException(msg.c_str());

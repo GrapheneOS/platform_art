@@ -65,7 +65,7 @@ LIBCORE_TEST_NAMES = [
   "libcore.highmemorytest.java.time.format.DateTimeFormatterTest",
   "libcore.highmemorytest.java.util.CalendarTest",
   "libcore.highmemorytest.java.util.CurrencyTest",
-  "libcore.highmemorytest.libcore.icu.LocaleDataTest",
+  "libcore.highmemorytest.libcore.icu.SimpleDateFormatDataTest",
   # All other tests in alphabetical order.
   "libcore.android.system",
   "libcore.build",
@@ -168,6 +168,7 @@ def get_vogar_command(test_name):
     cmd.append("--variant=" + args.variant)
   if args.gcstress:
     cmd.append("--vm-arg -Xgc:gcstress")
+    cmd.append('--vm-arg -Djsr166.delay.factor="1.50"')
   if args.debug:
     cmd.append("--vm-arg -XXlib:libartd.so --vm-arg -XX:SlowDebug=true")
 

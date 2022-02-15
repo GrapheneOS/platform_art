@@ -11,7 +11,7 @@
 %def invoke_direct_or_super(helper="", range="", is_super=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE r0, 2f
+%  fetch_from_thread_cache("r0", miss_label="2f")
 1:
    // Load the first argument (the 'this' pointer).
    FETCH r1, 2
@@ -74,10 +74,10 @@
    b NterpCommonInvokePolymorphicRange
 
 %def invoke_interface(range=""):
-%  slow_path = add_helper(lambda: op_invoke_interface_slow_path())
+%  slow_path = add_slow_path(op_invoke_interface_slow_path)
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE r4, ${slow_path}
+%  fetch_from_thread_cache("r4", miss_label=slow_path)
 .L${opcode}_resume:
    // First argument is the 'this' pointer.
    FETCH r1, 2
@@ -135,7 +135,7 @@
 %def invoke_static(helper=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE r0, 1f
+%  fetch_from_thread_cache("r0", miss_label="1f")
    b $helper
 1:
    mov r0, rSELF
@@ -153,7 +153,7 @@
 %def invoke_virtual(helper="", range=""):
    EXPORT_PC
    // Fast-path which gets the vtable offset from thread-local cache.
-   FETCH_FROM_THREAD_CACHE r2, 2f
+%  fetch_from_thread_cache("r2", miss_label="2f")
 1:
    FETCH r1, 2
    .if !$range

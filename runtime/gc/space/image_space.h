@@ -59,6 +59,13 @@ class ImageSpace : public MemMapSpace {
   //     <path>/<base-name>
   //     <base-name>
   // and the path of the first BCP component is used for the second form.
+  // The specification may be followed by one or more profile specifications, where each profile
+  // specification is one of
+  //     !<profile-path>/<profile-name>
+  //     !<profile-name>
+  // and the profiles will be used to compile the primary boot image when loading the boot image if
+  // the on-disk version is not acceptable (either not present or fails validation, presumably
+  // because it's out of date). The primary boot image is compiled with no dependency.
   //
   // Named extension specifications must correspond to an expansion of the
   // <base-name> with a BCP component (for example boot.art with the BCP
@@ -67,15 +74,14 @@ class ImageSpace : public MemMapSpace {
   //     <ext-path>/<ext-name>
   //     <ext-name>
   // and must be listed in the order of their corresponding BCP components.
-  // The specification may have a suffix with profile specification, one of
-  //     !<ext-path>/<ext-name>
-  //     !<ext-name>
-  // and this profile will be used to compile the extension when loading the
-  // boot image if the on-disk version is not acceptable (either not present
-  // or fails validation, presumably because it's out of date). The first
-  // extension specification that includes the profile specification also
-  // terminates the list of the boot image dependencies that each extension
-  // is compiled against.
+  // Similarly, the specification may be followed by one or more profile specifications, where each
+  // profile specification is one of
+  //     !<profile-path>/<profile-name>
+  //     !<profile-name>
+  // and the profiles will be used to compile the extension when loading the boot image if the
+  // on-disk version is not acceptable (either not present or fails validation, presumably because
+  // it's out of date). The primary boot image (i.e., the first element in "image location") is the
+  // dependency that each extension is compiled against.
   //
   // Search paths for remaining extensions can be specified after named
   // components as one of
@@ -90,6 +96,9 @@ class ImageSpace : public MemMapSpace {
   // Example image locations:
   //     /system/framework/boot.art
   //         - only primary boot image with full path.
+  //     /data/misc/apexdata/com.android.art/dalvik-cache/boot.art!/apex/com.android.art/etc/boot-image.prof!/system/etc/boot-image.prof
+  //         - only primary boot image with full path; if the primary boot image is not found or
+  //           broken, compile it in memory using two specified profile files at the exact paths.
   //     boot.art:boot-framework.art
   //         - primary and one extension, use BCP component paths.
   //     /apex/com.android.art/boot.art:*
@@ -178,9 +187,7 @@ class ImageSpace : public MemMapSpace {
     return image_location_;
   }
 
-  const std::string GetProfileFile() const {
-    return profile_file_;
-  }
+  const std::vector<std::string>& GetProfileFiles() const { return profile_files_; }
 
   accounting::ContinuousSpaceBitmap* GetLiveBitmap() override {
     return &live_bitmap_;
@@ -260,6 +267,9 @@ class ImageSpace : public MemMapSpace {
       const std::string& image_location,
       bool boot_image_extension = false);
 
+  // Returns true if the APEX versions in the OAT file match the current APEX versions.
+  static bool ValidateApexVersions(const OatFile& oat_file, std::string* error_msg);
+
   // Returns true if the dex checksums in the given oat file match the
   // checksums of the original dex files on disk. This is intended to be used
   // to validate the boot image oat file, which may contain dex entries from
@@ -270,6 +280,16 @@ class ImageSpace : public MemMapSpace {
   //
   // This function is exposed for testing purposes.
   static bool ValidateOatFile(const OatFile& oat_file, std::string* error_msg);
+
+  // Same as above, but allows to use `dex_filenames` and `dex_fds` to find the dex files instead of
+  // using the dex filenames in the header of the oat file. This overload is useful when the actual
+  // dex filenames are different from what's in the header (e.g., when we run dex2oat on host), or
+  // when the runtime can only access files through FDs (e.g., when we run dex2oat on target in a
+  // restricted SELinux domain).
+  static bool ValidateOatFile(const OatFile& oat_file,
+                              std::string* error_msg,
+                              ArrayRef<const std::string> dex_filenames,
+                              ArrayRef<const int> dex_fds);
 
   // Return the end of the image which includes non-heap objects such as ArtMethods and ArtFields.
   uint8_t* GetImageEnd() const {
@@ -302,7 +322,7 @@ class ImageSpace : public MemMapSpace {
 
   ImageSpace(const std::string& name,
              const char* image_location,
-             const char* profile_file,
+             const std::vector<std::string>& profile_files,
              MemMap&& mem_map,
              accounting::ContinuousSpaceBitmap&& live_bitmap,
              uint8_t* end);
@@ -317,7 +337,7 @@ class ImageSpace : public MemMapSpace {
   const OatFile* oat_file_non_owned_;
 
   const std::string image_location_;
-  const std::string profile_file_;
+  const std::vector<std::string> profile_files_;
 
   friend class Space;
 

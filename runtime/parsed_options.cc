@@ -181,6 +181,8 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Ximage:_")
           .WithType<ParseStringList<':'>>()
           .IntoKey(M::Image)
+      .Define("-Xforcejitzygote")
+          .IntoKey(M::ForceJitZygote)
       .Define("-Xprimaryzygote")
           .IntoKey(M::PrimaryZygote)
       .Define("-Xbootclasspath-locations:_")
@@ -722,6 +724,17 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
           boot_class_path_locations->Join().c_str());
       return false;
     }
+  }
+
+  if (args.Exists(M::ForceJitZygote)) {
+    if (args.Exists(M::Image)) {
+      Usage("-Ximage and -Xforcejitzygote cannot be specified together\n");
+      Exit(0);
+    }
+    // If `boot.art` exists in the ART APEX, it will be used. Otherwise, Everything will be JITed.
+    args.Set(M::Image,
+             ParseStringList<':'>{{"boot.art!/apex/com.android.art/etc/boot-image.prof",
+                                   "/nonx/boot-framework.art!/system/etc/boot-image.prof"}});
   }
 
   if (!args.Exists(M::CompilerCallbacksPtr) && !args.Exists(M::Image)) {

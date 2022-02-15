@@ -116,7 +116,7 @@ class InternTable {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // Only used by image writer. Special version that may not cause thread suspension since the GC
-  // cannot be running while we are doing image writing. Maybe be called while while holding a
+  // cannot be running while we are doing image writing. Maybe be called while holding a
   // lock since there will not be thread suspension.
   ObjPtr<mirror::String> InternStrongImageString(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_);

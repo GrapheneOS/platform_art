@@ -126,5 +126,6 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_dexoptanalyzer_tests_defaults",
     ],
+    data: [":generate-boot-image"],
     test_config_template: "art_standalone_dexoptanalyzer_tests.xml",
 }

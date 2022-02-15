@@ -272,6 +272,7 @@ art_cc_binary {
             suffix: "64",
         },
     },
+    symlink_preferred_arch: true,
 
     pgo: {
         // Additional cflags just for dex2oat during PGO instrumentation
@@ -281,6 +282,7 @@ art_cc_binary {
             "-DART_PGO_INSTRUMENTATION",
         ],
     },
+
     target: {
         android: {
             shared_libs: [
@@ -311,9 +313,9 @@ art_cc_binary {
             // it'd get overridden by the load hook even when it uses
             // PrependProperties.
             compile_multilib: "64",
-            symlink_preferred_arch: true,
         },
     },
+
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
@@ -329,6 +331,17 @@ art_cc_binary {
     // Modules that do dexpreopting, e.g. android_app, depend implicitly on
     // either dex2oat or dex2oatd in ART source builds.
     visibility: ["//visibility:public"],
+
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
+    symlink_preferred_arch: true,
+
     target: {
         android: {
             shared_libs: [
@@ -356,21 +369,12 @@ art_cc_binary {
             // it'd get overridden by the load hook even when it uses
             // PrependProperties.
             compile_multilib: "64",
-            symlink_preferred_arch: true,
         },
     },
+
     apex_available: [
         "com.android.art.debug",
     ],
-
-    multilib: {
-        lib32: {
-            suffix: "32",
-        },
-        lib64: {
-            suffix: "64",
-        },
-    },
 }
 
 cc_defaults {
@@ -560,6 +564,7 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_dex2oat_tests_defaults",
     ],
+    data: [":generate-boot-image"],
     shared_libs: [
         "libartbase",
         "libart-compiler",
@@ -572,4 +577,20 @@ art_cc_test {
         "libvixl",
     ],
     test_config: "art_standalone_dex2oat_tests.xml",
+}
+
+// Counterpart to art_standalone_dex2oat_tests for tests that go into CTS.
+art_cc_test {
+    name: "art_standalone_dex2oat_cts_tests",
+    defaults: ["art_standalone_gtest_defaults"],
+    srcs: ["dex2oat_cts_test.cc"],
+    data: [
+        ":art-gtest-jars-Main",
+        ":art-gtest-jars-MainStripped",
+        ":art-gtest-jars-MultiDex",
+        ":art-gtest-jars-MultiDexModifiedSecondary",
+        ":art-gtest-jars-Nested",
+    ],
+    test_config: "art_standalone_dex2oat_cts_tests.xml",
+    test_suites: ["cts"],
 }

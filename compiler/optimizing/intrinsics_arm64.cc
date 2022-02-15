@@ -1096,9 +1096,7 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafePutLongRelease(HInvoke* invoke) 
 }
 
 static void CreateUnsafeCASLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  bool can_call = kEmitCompilerReadBarrier &&
-      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCASObject);
+  const bool can_call = kEmitCompilerReadBarrier && IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -1505,14 +1503,26 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCASInt(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, invoke);
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCASLong(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, invoke);
+  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetLong(invoke);
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCASObject(HInvoke* invoke) {
-  // The only read barrier implementation supporting the
-  // UnsafeCASObject intrinsic is the Baker-style read barriers. b/173104084
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetObject(invoke);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
+  CreateUnsafeCASLocations(allocator_, invoke);
+}
+void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
+  CreateUnsafeCASLocations(allocator_, invoke);
+}
+void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
   if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
     return;
   }
@@ -1536,12 +1546,6 @@ void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCASObject(HInvoke* invoke) {
     }
   }
 }
-void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, invoke);
-}
-void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, invoke);
-}
 
 void IntrinsicCodeGeneratorARM64::VisitUnsafeCASInt(HInvoke* invoke) {
   VisitJdkUnsafeCASInt(invoke);
@@ -1554,19 +1558,29 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafeCASObject(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCASInt(HInvoke* invoke) {
-  GenUnsafeCas(invoke, DataType::Type::kInt32, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
 }
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCASLong(HInvoke* invoke) {
-  GenUnsafeCas(invoke, DataType::Type::kInt64, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetLong(invoke);
 }
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCASObject(HInvoke* invoke) {
-  GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
+
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
   GenUnsafeCas(invoke, DataType::Type::kInt32, codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
   GenUnsafeCas(invoke, DataType::Type::kInt64, codegen_);
+}
+void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
 }
 
 enum class GetAndUpdateOp {
@@ -3458,7 +3472,8 @@ void IntrinsicCodeGeneratorARM64::VisitReferenceGetReferent(HInvoke* invoke) {
     Register temp = temps.AcquireW();
     __ Ldr(temp,
            MemOperand(tr, Thread::WeakRefAccessEnabledOffset<kArm64PointerSize>().Uint32Value()));
-    __ Cbz(temp, slow_path->GetEntryLabel());
+    static_assert(enum_cast<int32_t>(WeakRefAccessState::kVisiblyEnabled) == 0);
+    __ Cbnz(temp, slow_path->GetEntryLabel());
   }
 
   {
@@ -5655,7 +5670,6 @@ UNIMPLEMENTED_INTRINSIC(ARM64, JdkUnsafeGetAndAddLong)
 UNIMPLEMENTED_INTRINSIC(ARM64, JdkUnsafeGetAndSetInt)
 UNIMPLEMENTED_INTRINSIC(ARM64, JdkUnsafeGetAndSetLong)
 UNIMPLEMENTED_INTRINSIC(ARM64, JdkUnsafeGetAndSetObject)
-UNIMPLEMENTED_INTRINSIC(ARM64, JdkUnsafeCompareAndSetObject)
 
 UNREACHABLE_INTRINSICS(ARM64)
 

@@ -24,6 +24,8 @@
     `/data/misc/apexdata/com.android.art/dalvik-cache` -->
   <xs:element name="cacheInfo">
     <xs:complexType>
+    <!-- True if the cache info is generated in the Compilation OS. -->
+    <xs:attribute name="compilationOsMode" type="xs:boolean" />
     <xs:sequence>
       <xs:element name="artModuleInfo" minOccurs="1" maxOccurs="1" type="t:moduleInfo" />
       <xs:element name="moduleInfoList" minOccurs="1" maxOccurs="1" type="t:moduleInfoList" />

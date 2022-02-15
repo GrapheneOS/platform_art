@@ -393,10 +393,6 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
-bool ArtMethod::IsOverridableByDefaultMethod() {
-  return GetDeclaringClass()->IsInterface();
-}
-
 bool ArtMethod::IsSignaturePolymorphic() {
   // Methods with a polymorphic signature have constraints that they
   // are native and varargs and belong to either MethodHandle or VarHandle.
@@ -843,12 +839,12 @@ const char* ArtMethod::GetRuntimeMethodName() {
   }
 }
 
-void ArtMethod::SetCodeItem(const dex::CodeItem* code_item) {
+void ArtMethod::SetCodeItem(const dex::CodeItem* code_item, bool is_compact_dex_code_item) {
   DCHECK(HasCodeItem());
   // We mark the lowest bit for the interpreter to know whether it's executing a
   // method in a compact or standard dex file.
   uintptr_t data =
-      reinterpret_cast<uintptr_t>(code_item) | (GetDexFile()->IsCompactDexFile() ? 1 : 0);
+      reinterpret_cast<uintptr_t>(code_item) | (is_compact_dex_code_item ? 1 : 0);
   SetDataPtrSize(reinterpret_cast<void*>(data), kRuntimePointerSize);
 }
 

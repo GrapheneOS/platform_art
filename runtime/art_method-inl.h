@@ -102,6 +102,13 @@ inline ObjPtr<mirror::Class> ArtMethod::ResolveClassFromTypeIndex(dex::TypeIndex
   return type;
 }
 
+inline bool ArtMethod::IsOverridableByDefaultMethod() {
+  // It is safe to avoid the read barrier here since the constant interface flag
+  // in the `Class` object is stored before creating the `ArtMethod` and storing
+  // the declaring class reference. See `ReadBarrierOption`.
+  return GetDeclaringClass<kWithoutReadBarrier>()->IsInterface();
+}
+
 inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
   switch (type) {
     case kStatic:
@@ -391,7 +398,7 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, PointerSize pointer_size) {
       // However, for proxies we need to keep the interface method alive, so we visit its roots.
       ArtMethod* interface_method = GetInterfaceMethodForProxyUnchecked(pointer_size);
       DCHECK(interface_method != nullptr);
-      interface_method->VisitRoots(visitor, pointer_size);
+      interface_method->VisitRoots<kReadBarrierOption>(visitor, pointer_size);
     }
   }
 }

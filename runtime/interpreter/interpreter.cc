@@ -343,7 +343,7 @@ void EnterInterpreterFromInvoke(Thread* self,
                                 JValue* result,
                                 bool stay_in_interpreter) {
   DCHECK_EQ(self, Thread::Current());
-  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return;
@@ -476,19 +476,22 @@ void EnterInterpreterFromDeoptimize(Thread* self,
     const uint32_t dex_pc = shadow_frame->GetDexPC();
     uint32_t new_dex_pc = dex_pc;
     if (UNLIKELY(self->IsExceptionPending())) {
-      // If we deoptimize from the QuickExceptionHandler, we already reported the exception to
-      // the instrumentation. To prevent from reporting it a second time, we simply pass a
-      // null Instrumentation*.
-      const instrumentation::Instrumentation* const instrumentation =
-          frame_cnt == 0 ? nullptr : Runtime::Current()->GetInstrumentation();
-      new_dex_pc = MoveToExceptionHandler(
-          self, *shadow_frame, instrumentation) ? shadow_frame->GetDexPC() : dex::kDexNoIndex;
+      // If we deoptimize from the QuickExceptionHandler, we already reported the exception throw
+      // event to the instrumentation. Skip throw listeners for the first frame. The deopt check
+      // should happen after the throw listener is called as throw listener can trigger a
+      // deoptimization.
+      new_dex_pc = MoveToExceptionHandler(self,
+                                          *shadow_frame,
+                                          /* skip_listeners= */ false,
+                                          /* skip_throw_listener= */ frame_cnt == 0) ?
+                       shadow_frame->GetDexPC() :
+                       dex::kDexNoIndex;
     } else if (!from_code) {
       // Deoptimization is not called from code directly.
       const Instruction* instr = &accessor.InstructionAt(dex_pc);
       if (deopt_method_type == DeoptimizationMethodType::kKeepDexPc ||
           shadow_frame->GetForceRetryInstruction()) {
-        DCHECK(frame_cnt == 0 || (frame_cnt == 1 && shadow_frame->GetForceRetryInstruction()))
+        DCHECK(frame_cnt == 0 || shadow_frame->GetForceRetryInstruction())
             << "frame_cnt: " << frame_cnt
             << " force-retry: " << shadow_frame->GetForceRetryInstruction();
         // Need to re-execute the dex instruction.
@@ -569,7 +572,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
 JValue EnterInterpreterFromEntryPoint(Thread* self, const CodeItemDataAccessor& accessor,
                                       ShadowFrame* shadow_frame) {
   DCHECK_EQ(self, Thread::Current());
-  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return JValue();
@@ -586,7 +589,7 @@ void ArtInterpreterToInterpreterBridge(Thread* self,
                                        const CodeItemDataAccessor& accessor,
                                        ShadowFrame* shadow_frame,
                                        JValue* result) {
-  bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  bool implicit_check = Runtime::Current()->GetImplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
     ThrowStackOverflowError(self);
     return;

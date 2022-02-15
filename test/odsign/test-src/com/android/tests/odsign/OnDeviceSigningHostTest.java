@@ -23,170 +23,40 @@ import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
-import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Stream;
-import java.util.stream.Collectors;
-
 /**
- * Test to check if odrefresh, odsign, fs-verity, and ART runtime work together properly.
+ * Test to check if the early boot compilation works properly.
+ *
+ * @see ActivationTest for actual tests
+ * @see CompOsSigningHostTest for the same test with compilation happens in the CompOS VM
  */
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class OnDeviceSigningHostTest extends BaseHostJUnit4Test {
-    private static final String TEST_APP_PACKAGE_NAME = "com.android.tests.odsign";
-    private static final String TEST_APP_APK = "odsign_e2e_test_app.apk";
-
-    private static OdsignTestUtils sTestUtils;
-
+public class OnDeviceSigningHostTest extends ActivationTest {
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        sTestUtils = new OdsignTestUtils(testInfo);
-        sTestUtils.installTestApex();;
+        OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
+        testUtils.installTestApex();
+        testUtils.reboot();
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
-        sTestUtils.uninstallTestApex();
+        OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
+        testUtils.uninstallTestApex();
+        testUtils.reboot();
+        testUtils.restoreAdbRoot();
     }
 
     @Test
-    public void verifyArtUpgradeSignsFiles() throws Exception {
-        installPackage(TEST_APP_APK);
-        DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
-        options.setTestClassName(TEST_APP_PACKAGE_NAME + ".ArtifactsSignedTest");
-        options.setTestMethodName("testArtArtifactsHaveFsverity");
-        runDeviceTests(options);
-    }
-
-    @Test
-    public void verifyArtUpgradeGeneratesRequiredArtifacts() throws Exception {
-        installPackage(TEST_APP_APK);
-        DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
-        options.setTestClassName(TEST_APP_PACKAGE_NAME + ".ArtifactsSignedTest");
-        options.setTestMethodName("testGeneratesRequiredArtArtifacts");
-        runDeviceTests(options);
-    }
-
-    @Test
-    public void verifyGeneratedArtifactsLoaded() throws Exception {
-        // Checking zygote and system_server need the device have adb root to walk process maps.
-        final boolean adbEnabled = getDevice().enableAdbRoot();
-        assertTrue("ADB root failed and required to get process maps", adbEnabled);
+    public void verifyCompilationLogGenerated() throws Exception {
+        OdsignTestUtils testUtils = new OdsignTestUtils(getTestInformation());
+        testUtils.enableAdbRootOrSkipTest();
 
         // Check there is a compilation log, we expect compilation to have occurred.
-        assertTrue("Compilation log not found", sTestUtils.haveCompilationLog());
-
-        // Check both zygote and system_server processes to see that they have loaded the
-        // artifacts compiled and signed by odrefresh and odsign. We check both here rather than
-        // having a separate test because the device reboots between each @Test method and
-        // that is an expensive use of time.
-        verifyZygotesLoadedArtifacts();
-        verifySystemServerLoadedArtifacts();
-    }
-
-    @Test
-    public void verifyGeneratedArtifactsLoadedAfterReboot() throws Exception {
-        sTestUtils.reboot();
-        verifyGeneratedArtifactsLoaded();
-    }
-
-    @Test
-    public void verifyGeneratedArtifactsLoadedAfterPartialCompilation() throws Exception {
-        Set<String> mappedArtifacts = sTestUtils.getSystemServerLoadedArtifacts();
-        // Delete an arbitrary artifact.
-        getDevice().deleteFile(mappedArtifacts.iterator().next());
-        sTestUtils.removeCompilationLogToAvoidBackoff();
-        sTestUtils.reboot();
-        verifyGeneratedArtifactsLoaded();
-    }
-
-    private String[] getListFromEnvironmentVariable(String name) throws Exception {
-        String systemServerClasspath = getDevice().executeShellCommand("echo $" + name).trim();
-        if (!systemServerClasspath.isEmpty()) {
-            return systemServerClasspath.split(":");
-        }
-        return new String[0];
-    }
-
-    private String getSystemServerIsa(String mappedArtifact) {
-        // Artifact path for system server artifacts has the form:
-        //    ART_APEX_DALVIK_CACHE_DIRNAME + "/<arch>/system@framework@some.jar@classes.odex"
-        // `mappedArtifacts` may include other artifacts, such as boot-framework.oat that are not
-        // prefixed by the architecture.
-        String[] pathComponents = mappedArtifact.split("/");
-        return pathComponents[pathComponents.length - 2];
-    }
-
-    private void verifySystemServerLoadedArtifacts() throws Exception {
-        String[] classpathElements = getListFromEnvironmentVariable("SYSTEMSERVERCLASSPATH");
-        assertTrue("SYSTEMSERVERCLASSPATH is empty", classpathElements.length > 0);
-        String[] standaloneJars = getListFromEnvironmentVariable("STANDALONE_SYSTEMSERVER_JARS");
-        String[] allSystemServerJars = Stream
-                .concat(Arrays.stream(classpathElements), Arrays.stream(standaloneJars))
-                .toArray(String[]::new);
-
-        final Set<String> mappedArtifacts = sTestUtils.getSystemServerLoadedArtifacts();
-        assertTrue(
-                "No mapped artifacts under " + OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME,
-                mappedArtifacts.size() > 0);
-        final String isa = getSystemServerIsa(mappedArtifacts.iterator().next());
-        final String isaCacheDirectory =
-                String.format("%s/%s", OdsignTestUtils.ART_APEX_DALVIK_CACHE_DIRNAME, isa);
-
-        // Check components in the system_server classpath have mapped artifacts.
-        for (String element : allSystemServerJars) {
-          String escapedPath = element.substring(1).replace('/', '@');
-          for (String extension : OdsignTestUtils.APP_ARTIFACT_EXTENSIONS) {
-            final String fullArtifactPath =
-                    String.format("%s/%s@classes%s", isaCacheDirectory, escapedPath, extension);
-            assertTrue("Missing " + fullArtifactPath, mappedArtifacts.contains(fullArtifactPath));
-          }
-        }
-
-        for (String mappedArtifact : mappedArtifacts) {
-          // Check the mapped artifact has a .art, .odex or .vdex extension.
-          final boolean knownArtifactKind =
-                    OdsignTestUtils.APP_ARTIFACT_EXTENSIONS.stream().anyMatch(
-                            e -> mappedArtifact.endsWith(e));
-          assertTrue("Unknown artifact kind: " + mappedArtifact, knownArtifactKind);
-        }
-    }
-
-    private void verifyZygoteLoadedArtifacts(String zygoteName, Set<String> mappedArtifacts)
-            throws Exception {
-        final String bootExtensionName = "boot-framework";
-
-        assertTrue("Expect 3 boot-framework artifacts", mappedArtifacts.size() == 3);
-
-        String allArtifacts = mappedArtifacts.stream().collect(Collectors.joining(","));
-        for (String extension : OdsignTestUtils.BCP_ARTIFACT_EXTENSIONS) {
-            final String artifact = bootExtensionName + extension;
-            final boolean found = mappedArtifacts.stream().anyMatch(a -> a.endsWith(artifact));
-            assertTrue(zygoteName + " " + artifact + " not found: '" + allArtifacts + "'", found);
-        }
-    }
-
-    private void verifyZygotesLoadedArtifacts() throws Exception {
-        // There are potentially two zygote processes "zygote" and "zygote64". These are
-        // instances 32-bit and 64-bit unspecialized app_process processes.
-        // (frameworks/base/cmds/app_process).
-        int zygoteCount = 0;
-        for (String zygoteName : OdsignTestUtils.ZYGOTE_NAMES) {
-            final Optional<Set<String>> mappedArtifacts =
-                    sTestUtils.getZygoteLoadedArtifacts(zygoteName);
-            if (!mappedArtifacts.isPresent()) {
-                continue;
-            }
-            verifyZygoteLoadedArtifacts(zygoteName, mappedArtifacts.get());
-            zygoteCount += 1;
-        }
-        assertTrue("No zygote processes found", zygoteCount > 0);
+        assertTrue("Compilation log not found", testUtils.haveCompilationLog());
     }
 }

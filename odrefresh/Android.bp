@@ -29,7 +29,6 @@ cc_defaults {
         "odrefresh.cc",
         "odr_common.cc",
         "odr_compilation_log.cc",
-        "odr_dexopt.cc",
         "odr_fs_utils.cc",
         "odr_metrics.cc",
         "odr_metrics_record.cc",
@@ -42,7 +41,6 @@ cc_defaults {
         "art-odrefresh-operator-srcs",
     ],
     shared_libs: [
-        "artd-private-aidl-ndk",
         "libartpalette",
         "libbase",
         "liblog",
@@ -110,7 +108,6 @@ art_cc_binary {
     shared_libs: [
         "libart",
         "libartbase",
-        "libdexopt",
     ],
     apex_available: [
         "com.android.art",
@@ -142,7 +139,6 @@ art_cc_binary {
     shared_libs: [
         "libartd",
         "libartbased",
-        "libdexoptd",
     ],
     apex_available: [
         "com.android.art.debug",
@@ -208,9 +204,13 @@ art_cc_test {
     host_supported: false,
     shared_libs: [
         "libdexfiled",
-        "libdexoptd",
     ],
-    test_config_template: "//art/test:art-gtests-target-standalone-root-template",
+    // The test config template is needed even though it's not used by the test
+    // runner. Otherwise, Soong will generate a test config, which is adding
+    // `art-host-test` as a test tag, while this test does not support running
+    // on host.
+    // TODO(b/214016626): Remove this line once the bug is fixed.
+    test_config_template: "//art/test:art-gtests-target-standalone-template",
 }
 
 // Standalone version of ART gtest `art_odrefresh_tests`, not bundled with the ART APEX on target.
@@ -222,9 +222,7 @@ art_cc_test {
     ],
     shared_libs: [
         "libdexfile",
-        "libdexopt",
     ],
-    test_config_template: "//art/test:art-gtests-target-standalone-root-template",
 }
 
 genrule {

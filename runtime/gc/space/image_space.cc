@@ -20,12 +20,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <memory>
 #include <random>
+#include <string>
 
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android-base/unique_fd.h"
-
 #include "arch/instruction_set.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -34,6 +35,7 @@
 #include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "base/file_utils.h"
+#include "base/globals.h"
 #include "base/macros.h"
 #include "base/memfd.h"
 #include "base/os.h"
@@ -50,6 +52,7 @@
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/task_processor.h"
 #include "image-inl.h"
+#include "image.h"
 #include "intern_table-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/executable-inl.h"
@@ -78,7 +81,7 @@ Atomic<uint32_t> ImageSpace::bitmap_index_(0);
 
 ImageSpace::ImageSpace(const std::string& image_filename,
                        const char* image_location,
-                       const char* profile_file,
+                       const std::vector<std::string>& profile_files,
                        MemMap&& mem_map,
                        accounting::ContinuousSpaceBitmap&& live_bitmap,
                        uint8_t* end)
@@ -91,7 +94,7 @@ ImageSpace::ImageSpace(const std::string& image_filename,
       live_bitmap_(std::move(live_bitmap)),
       oat_file_non_owned_(nullptr),
       image_location_(image_location),
-      profile_file_(profile_file) {
+      profile_files_(profile_files) {
   DCHECK(live_bitmap_.IsValid());
 }
 
@@ -147,15 +150,15 @@ static bool ReadSpecificImageHeader(File* image_file,
                                     const char* file_description,
                                     /*out*/ImageHeader* image_header,
                                     /*out*/std::string* error_msg) {
-    if (!image_file->ReadFully(image_header, sizeof(ImageHeader))) {
-      *error_msg = StringPrintf("Unable to read image header from \"%s\"", file_description);
-      return false;
-    }
-    if (!image_header->IsValid()) {
-      *error_msg = StringPrintf("Image header from \"%s\" is invalid", file_description);
-      return false;
-    }
-    return true;
+  if (!image_file->PreadFully(image_header, sizeof(ImageHeader), /*offset=*/ 0)) {
+    *error_msg = StringPrintf("Unable to read image header from \"%s\"", file_description);
+    return false;
+  }
+  if (!image_header->IsValid()) {
+    *error_msg = StringPrintf("Image header from \"%s\" is invalid", file_description);
+    return false;
+  }
+  return true;
 }
 
 static bool ReadSpecificImageHeader(const char* filename,
@@ -608,7 +611,7 @@ class ImageSpace::Loader {
     return Init(file.get(),
                 image_filename,
                 image_location,
-                /* profile_file=*/ "",
+                /*profile_files=*/ {},
                 /*allow_direct_mapping=*/ true,
                 logger,
                 image_reservation,
@@ -618,7 +621,7 @@ class ImageSpace::Loader {
   static std::unique_ptr<ImageSpace> Init(File* file,
                                           const char* image_filename,
                                           const char* image_location,
-                                          const char* profile_file,
+                                          const std::vector<std::string>& profile_files,
                                           bool allow_direct_mapping,
                                           TimingLogger* logger,
                                           /*inout*/MemMap* image_reservation,
@@ -731,7 +734,7 @@ class ImageSpace::Loader {
     // We only want the mirror object, not the ArtFields and ArtMethods.
     std::unique_ptr<ImageSpace> space(new ImageSpace(image_filename,
                                                      image_location,
-                                                     profile_file,
+                                                     profile_files,
                                                      std::move(map),
                                                      std::move(bitmap),
                                                      image_end));
@@ -1229,7 +1232,8 @@ class ImageSpace::Loader {
           DCHECK_LT(class_roots_index, image_roots->GetLength<kVerifyNone>());
           ObjPtr<mirror::ObjectArray<mirror::Class>> class_roots =
               ObjPtr<mirror::ObjectArray<mirror::Class>>::DownCast(boot_image.ToDest(
-                  image_roots->GetWithoutChecks<kVerifyNone>(class_roots_index).Ptr()));
+                  image_roots->GetWithoutChecks<kVerifyNone,
+                                                kWithoutReadBarrier>(class_roots_index).Ptr()));
           return GetClassRoot<mirror::Class, kWithoutReadBarrier>(class_roots);
         }();
         const auto& class_table_section = image_header->GetClassTableSection();
@@ -1395,7 +1399,7 @@ class ImageSpace::BootImageLayout {
   struct ImageChunk {
     std::string base_location;
     std::string base_filename;
-    std::string profile_file;
+    std::vector<std::string> profile_files;
     size_t start_index;
     uint32_t component_count;
     uint32_t image_space_count;
@@ -1466,7 +1470,7 @@ class ImageSpace::BootImageLayout {
   struct NamedComponentLocation {
     std::string base_location;
     size_t bcp_index;
-    std::string profile_filename;
+    std::vector<std::string> profile_filenames;
   };
 
   std::string ExpandLocationImpl(const std::string& location,
@@ -1514,17 +1518,25 @@ class ImageSpace::BootImageLayout {
                       const char* file_description,
                       /*out*/std::string* error_msg);
 
+  bool ValidateOatFile(const std::string& base_location,
+                       const std::string& base_filename,
+                       size_t bcp_index,
+                       size_t component_count,
+                       /*out*/std::string* error_msg);
+
   bool ReadHeader(const std::string& base_location,
                   const std::string& base_filename,
                   size_t bcp_index,
                   /*out*/std::string* error_msg);
 
-  bool CompileExtension(const std::string& base_location,
-                        const std::string& base_filename,
-                        size_t bcp_index,
-                        const std::string& profile_filename,
-                        ArrayRef<const std::string> dependencies,
-                        /*out*/std::string* error_msg);
+  // Compiles a consecutive subsequence of bootclasspath dex files, whose contents are included in
+  // the profiles specified by `profile_filenames`, starting from `bcp_index`.
+  bool CompileBootclasspathElements(const std::string& base_location,
+                                    const std::string& base_filename,
+                                    size_t bcp_index,
+                                    const std::vector<std::string>& profile_filenames,
+                                    ArrayRef<const std::string> dependencies,
+                                    /*out*/std::string* error_msg);
 
   bool CheckAndRemoveLastChunkChecksum(/*inout*/std::string_view* oat_checksums,
                                        /*out*/std::string* error_msg);
@@ -1556,6 +1568,10 @@ class ImageSpace::BootImageLayout {
 std::string ImageSpace::BootImageLayout::GetPrimaryImageLocation() {
   DCHECK(!image_locations_.empty());
   std::string location = image_locations_[0];
+  size_t profile_separator_pos = location.find(kProfileSeparator);
+  if (profile_separator_pos != std::string::npos) {
+    location.resize(profile_separator_pos);
+  }
   if (location.find('/') == std::string::npos) {
     // No path, so use the path from the first boot class path component.
     size_t slash_pos = boot_class_path_.empty()
@@ -1594,7 +1610,7 @@ bool ImageSpace::BootImageLayout::VerifyImageLocation(
   for (size_t i = 0; i != components_size; ++i) {
     const std::string& component = components[i];
     DCHECK(!component.empty());  // Guaranteed by Split().
-    const size_t profile_separator_pos = component.find(kProfileSeparator);
+    std::vector<std::string> parts = android::base::Split(component, {kProfileSeparator});
     size_t wildcard_pos = component.find('*');
     if (wildcard_pos == std::string::npos) {
       if (wildcards_start != components.size()) {
@@ -1603,31 +1619,21 @@ bool ImageSpace::BootImageLayout::VerifyImageLocation(
                          component.c_str());
         return false;
       }
-      if (profile_separator_pos != std::string::npos) {
-        if (component.find(kProfileSeparator, profile_separator_pos + 1u) != std::string::npos) {
-          *error_msg = StringPrintf("Multiple profile delimiters in %s", component.c_str());
-          return false;
-        }
-        if (profile_separator_pos == 0u || profile_separator_pos + 1u == component.size()) {
+      for (size_t j = 0; j < parts.size(); j++) {
+        if (parts[j].empty()) {
           *error_msg = StringPrintf("Missing component and/or profile name in %s",
                                     component.c_str());
           return false;
         }
-        if (component.back() == '/') {
-          *error_msg = StringPrintf("Profile name ends with path separator: %s",
+        if (parts[j].back() == '/') {
+          *error_msg = StringPrintf("%s name ends with path separator: %s",
+                                    j == 0 ? "Image component" : "Profile",
                                     component.c_str());
           return false;
         }
       }
-      size_t component_name_length =
-          profile_separator_pos != std::string::npos ? profile_separator_pos : component.size();
-      if (component[component_name_length - 1u] == '/') {
-        *error_msg = StringPrintf("Image component ends with path separator: %s",
-                                  component.c_str());
-        return false;
-      }
     } else {
-      if (profile_separator_pos != std::string::npos) {
+      if (parts.size() > 1) {
         *error_msg = StringPrintf("Unsupproted wildcard (*) and profile delimiter (!) in %s",
                                   component.c_str());
         return false;
@@ -1669,13 +1675,16 @@ bool ImageSpace::BootImageLayout::MatchNamedComponents(
   std::string base_name;
   for (size_t i = 0, size = named_components.size(); i != size; ++i) {
     std::string component = named_components[i];
-    std::string profile_filename;  // Empty.
-    const size_t profile_separator_pos = component.find(kProfileSeparator);
-    if (profile_separator_pos != std::string::npos) {
-      profile_filename = component.substr(profile_separator_pos + 1u);
-      DCHECK(!profile_filename.empty());  // Checked by VerifyImageLocation()
-      component.resize(profile_separator_pos);
-      DCHECK(!component.empty());  // Checked by VerifyImageLocation()
+    std::vector<std::string> profile_filenames;  // Empty.
+    std::vector<std::string> parts = android::base::Split(component, {kProfileSeparator});
+    for (size_t j = 0; j < parts.size(); j++) {
+      if (j == 0) {
+        component = std::move(parts[j]);
+        DCHECK(!component.empty());  // Checked by VerifyImageLocation()
+      } else {
+        profile_filenames.push_back(std::move(parts[j]));
+        DCHECK(!profile_filenames.back().empty());  // Checked by VerifyImageLocation()
+      }
     }
     size_t slash_pos = component.rfind('/');
     std::string base_location;
@@ -1714,13 +1723,15 @@ bool ImageSpace::BootImageLayout::MatchNamedComponents(
         }
       }
     }
-    if (!profile_filename.empty() && profile_filename.find('/') == std::string::npos) {
-      profile_filename.insert(/*pos*/ 0u, GetBcpComponentPath(bcp_pos));
+    for (std::string& profile_filename : profile_filenames) {
+      if (profile_filename.find('/') == std::string::npos) {
+        profile_filename.insert(/*pos*/ 0u, GetBcpComponentPath(bcp_pos));
+      }
     }
     NamedComponentLocation location;
     location.base_location = base_location;
     location.bcp_index = bcp_pos;
-    location.profile_filename = profile_filename;
+    location.profile_filenames = profile_filenames;
     named_component_locations->push_back(location);
     ++bcp_pos;
   }
@@ -1819,6 +1830,68 @@ bool ImageSpace::BootImageLayout::ValidateHeader(const ImageHeader& header,
   return true;
 }
 
+bool ImageSpace::BootImageLayout::ValidateOatFile(
+    const std::string& base_location,
+    const std::string& base_filename,
+    size_t bcp_index,
+    size_t component_count,
+    /*out*/std::string* error_msg) {
+  std::string art_filename = ExpandLocation(base_filename, bcp_index);
+  std::string art_location = ExpandLocation(base_location, bcp_index);
+  std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(art_filename);
+  std::string oat_location = ImageHeader::GetOatLocationFromImageLocation(art_location);
+  int oat_fd =
+      bcp_index < boot_class_path_oat_fds_.size() ? boot_class_path_oat_fds_[bcp_index] : -1;
+  int vdex_fd =
+      bcp_index < boot_class_path_vdex_fds_.size() ? boot_class_path_vdex_fds_[bcp_index] : -1;
+  auto dex_filenames =
+      ArrayRef<const std::string>(boot_class_path_).SubArray(bcp_index, component_count);
+  auto dex_fds =
+      bcp_index + component_count < boot_class_path_fds_.size() ?
+          ArrayRef<const int>(boot_class_path_fds_).SubArray(bcp_index, component_count) :
+          ArrayRef<const int>();
+  // We open the oat file here only for validating that it's up-to-date. We don't open it as
+  // executable or mmap it to a reserved space. This `OatFile` object will be dropped after
+  // validation, and will not go into the `ImageSpace`.
+  std::unique_ptr<OatFile> oat_file;
+  DCHECK_EQ(oat_fd >= 0, vdex_fd >= 0);
+  if (oat_fd >= 0) {
+    oat_file.reset(OatFile::Open(
+        /*zip_fd=*/ -1,
+        vdex_fd,
+        oat_fd,
+        oat_location,
+        /*executable=*/ false,
+        /*low_4gb=*/ false,
+        dex_filenames,
+        dex_fds,
+        /*reservation=*/ nullptr,
+        error_msg));
+  } else {
+    oat_file.reset(OatFile::Open(
+        /*zip_fd=*/ -1,
+        oat_filename,
+        oat_location,
+        /*executable=*/ false,
+        /*low_4gb=*/ false,
+        dex_filenames,
+        dex_fds,
+        /*reservation=*/ nullptr,
+        error_msg));
+  }
+  if (oat_file == nullptr) {
+    *error_msg = StringPrintf("Failed to open oat file '%s' when validating it for image '%s': %s",
+                              oat_filename.c_str(),
+                              art_location.c_str(),
+                              error_msg->c_str());
+    return false;
+  }
+  if (!ImageSpace::ValidateOatFile(*oat_file, error_msg, dex_filenames, dex_fds)) {
+    return false;
+  }
+  return true;
+}
+
 bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
                                              const std::string& base_filename,
                                              size_t bcp_index,
@@ -1845,6 +1918,15 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
   const char* file_description = actual_filename.c_str();
   if (!ValidateHeader(header, bcp_index, file_description, error_msg)) {
     return false;
+  }
+
+  // Validate oat files. We do it here so that the boot image will be re-compiled in memory if it's
+  // outdated.
+  size_t component_count = (header.GetImageSpaceCount() == 1u) ? header.GetComponentCount() : 1u;
+  for (size_t i = 0; i < header.GetImageSpaceCount(); i++) {
+    if (!ValidateOatFile(base_location, base_filename, bcp_index + i, component_count, error_msg)) {
+      return false;
+    }
   }
 
   if (chunks_.empty()) {
@@ -1882,17 +1964,18 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
   return true;
 }
 
-bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_location,
-                                                   const std::string& base_filename,
-                                                   size_t bcp_index,
-                                                   const std::string& profile_filename,
-                                                   ArrayRef<const std::string> dependencies,
-                                                   /*out*/std::string* error_msg) {
+bool ImageSpace::BootImageLayout::CompileBootclasspathElements(
+    const std::string& base_location,
+    const std::string& base_filename,
+    size_t bcp_index,
+    const std::vector<std::string>& profile_filenames,
+    ArrayRef<const std::string> dependencies,
+    /*out*/std::string* error_msg) {
   DCHECK_LE(total_component_count_, next_bcp_index_);
   DCHECK_LE(next_bcp_index_, bcp_index);
   size_t bcp_component_count = boot_class_path_.size();
   DCHECK_LT(bcp_index, bcp_component_count);
-  DCHECK(!profile_filename.empty());
+  DCHECK(!profile_filenames.empty());
   if (total_component_count_ != bcp_index) {
     // We require all previous BCP components to have a boot image space (primary or extension).
     *error_msg = "Cannot compile extension because of missing dependencies.";
@@ -1900,12 +1983,12 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
   }
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsImageDex2OatEnabled()) {
-    *error_msg = "Cannot compile extension because dex2oat for image compilation is disabled.";
+    *error_msg = "Cannot compile bootclasspath because dex2oat for image compilation is disabled.";
     return false;
   }
 
   // Check dependencies.
-  DCHECK(!dependencies.empty());
+  DCHECK_EQ(dependencies.empty(), bcp_index == 0);
   size_t dependency_component_count = 0;
   for (size_t i = 0, size = dependencies.size(); i != size; ++i) {
     if (chunks_.size() == i || chunks_[i].start_index != dependency_component_count) {
@@ -1917,7 +2000,7 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
 
   // Collect locations from the profile.
   std::set<std::string> dex_locations;
-  {
+  for (const std::string& profile_filename : profile_filenames) {
     std::unique_ptr<File> profile_file(OS::OpenFileForReading(profile_filename.c_str()));
     if (profile_file == nullptr) {
       *error_msg = StringPrintf("Failed to open profile file \"%s\" for reading, error: %s",
@@ -1968,7 +2051,7 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
   android::base::unique_fd vdex_fd(memfd_create_compat(vdex_filename.c_str(), /*flags=*/ 0));
   android::base::unique_fd oat_fd(memfd_create_compat(oat_filename.c_str(), /*flags=*/ 0));
   if (art_fd.get() == -1 || vdex_fd.get() == -1 || oat_fd.get() == -1) {
-    *error_msg = StringPrintf("Failed to create memfd handles for compiling extension for %s",
+    *error_msg = StringPrintf("Failed to create memfd handles for compiling bootclasspath for %s",
                               boot_class_path_locations_[bcp_index].c_str());
     return false;
   }
@@ -1979,13 +2062,17 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
       boot_class_path_.SubArray(/*pos=*/ 0u, /*length=*/ dependency_component_count);
   ArrayRef<const std::string> head_bcp_locations =
       boot_class_path_locations_.SubArray(/*pos=*/ 0u, /*length=*/ dependency_component_count);
-  ArrayRef<const std::string> extension_bcp =
+  ArrayRef<const std::string> bcp_to_compile =
       boot_class_path_.SubArray(/*pos=*/ bcp_index, /*length=*/ bcp_end - bcp_index);
-  ArrayRef<const std::string> extension_bcp_locations =
+  ArrayRef<const std::string> bcp_to_compile_locations =
       boot_class_path_locations_.SubArray(/*pos=*/ bcp_index, /*length=*/ bcp_end - bcp_index);
-  std::string boot_class_path = Join(head_bcp, ':') + ':' + Join(extension_bcp, ':');
+  std::string boot_class_path = head_bcp.empty() ?
+                                    Join(bcp_to_compile, ':') :
+                                    Join(head_bcp, ':') + ':' + Join(bcp_to_compile, ':');
   std::string boot_class_path_locations =
-      Join(head_bcp_locations, ':') + ':' + Join(extension_bcp_locations, ':');
+      head_bcp_locations.empty() ?
+          Join(bcp_to_compile_locations, ':') :
+          Join(head_bcp_locations, ':') + ':' + Join(bcp_to_compile_locations, ':');
 
   std::vector<std::string> args;
   args.push_back(dex2oat);
@@ -1993,7 +2080,11 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
   args.push_back("-Xbootclasspath:" + boot_class_path);
   args.push_back("--runtime-arg");
   args.push_back("-Xbootclasspath-locations:" + boot_class_path_locations);
-  args.push_back("--boot-image=" + Join(dependencies, kComponentSeparator));
+  if (dependencies.empty()) {
+    args.push_back(android::base::StringPrintf("--base=0x%08x", ART_BASE_ADDRESS));
+  } else {
+    args.push_back("--boot-image=" + Join(dependencies, kComponentSeparator));
+  }
   for (size_t i = bcp_index; i != bcp_end; ++i) {
     args.push_back("--dex-file=" + boot_class_path_[i]);
     args.push_back("--dex-location=" + boot_class_path_locations_[i]);
@@ -2009,8 +2100,10 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
   // And we do not want to compile anything, compilation should be done by JIT in zygote.
   args.push_back("--compiler-filter=verify");
 
-  // Pass the profile.
-  args.push_back("--profile-file=" + profile_filename);
+  // Pass the profiles.
+  for (const std::string& profile_filename : profile_filenames) {
+    args.push_back("--profile-file=" + profile_filename);
+  }
 
   // Do not let the file descriptor numbers change the compilation output.
   args.push_back("--avoid-storing-invocation");
@@ -2026,8 +2119,8 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
     args.push_back(compiler_option);
   }
 
-  // Compile the extension.
-  VLOG(image) << "Compiling boot image extension for " << (bcp_end - bcp_index)
+  // Compile.
+  VLOG(image) << "Compiling boot bootclasspath for " << (bcp_end - bcp_index)
               << " components, starting from " << boot_class_path_locations_[bcp_index];
   if (!Exec(args, error_msg)) {
     return false;
@@ -2047,11 +2140,11 @@ bool ImageSpace::BootImageLayout::CompileExtension(const std::string& base_locat
     return false;
   }
 
-  DCHECK(!chunks_.empty());
+  DCHECK_EQ(chunks_.empty(), dependencies.empty());
   ImageChunk chunk;
   chunk.base_location = base_location;
   chunk.base_filename = base_filename;
-  chunk.profile_file = profile_filename;
+  chunk.profile_files = profile_filenames;
   chunk.start_index = bcp_index;
   chunk.component_count = header.GetComponentCount();
   chunk.image_space_count = header.GetImageSpaceCount();
@@ -2131,16 +2224,12 @@ bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
   DCHECK_EQ(named_component_locations.size(), named_components.size());
   const size_t bcp_component_count = boot_class_path_.size();
   size_t bcp_pos = 0u;
-  ArrayRef<const std::string> extension_dependencies;
   for (size_t i = 0, size = named_components.size(); i != size; ++i) {
     const std::string& base_location = named_component_locations[i].base_location;
     size_t bcp_index = named_component_locations[i].bcp_index;
-    const std::string& profile_filename = named_component_locations[i].profile_filename;
-    if (extension_dependencies.empty() && !profile_filename.empty()) {
-      // Each extension is compiled against the same dependencies, namely the leading
-      // named components that were specified without providing the profile filename.
-      extension_dependencies = components.SubArray(/*pos=*/ 0, /*length=*/ i);
-    }
+    const std::vector<std::string>& profile_filenames =
+        named_component_locations[i].profile_filenames;
+    DCHECK_EQ(i == 0, bcp_index == 0);
     if (bcp_index < bcp_pos) {
       DCHECK_NE(i, 0u);
       LOG(ERROR) << "Named image component already covered by previous image: " << base_location;
@@ -2152,25 +2241,51 @@ bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
       return false;
     }
     std::string local_error_msg;
-    std::string* err_msg = (i == 0 || validate) ? error_msg : &local_error_msg;
+    std::string* err_msg = validate ? error_msg : &local_error_msg;
     std::string base_filename;
     if (!filename_fn(base_location, &base_filename, err_msg) ||
         !ReadHeader(base_location, base_filename, bcp_index, err_msg)) {
-      if (i == 0u || validate) {
+      if (validate) {
         return false;
       }
-      VLOG(image) << "Error reading named image component header for " << base_location
-                  << ", error: " << local_error_msg;
-      if (profile_filename.empty() ||
-          !CompileExtension(base_location,
-                            base_filename,
-                            bcp_index,
-                            profile_filename,
-                            extension_dependencies,
-                            &local_error_msg)) {
-        if (!profile_filename.empty()) {
-          VLOG(image) << "Error compiling extension for " << boot_class_path_[bcp_index]
-                      << " error: " << local_error_msg;
+      LOG(ERROR) << "Error reading named image component header for " << base_location
+                 << ", error: " << local_error_msg;
+      // If the primary boot image is invalid, we generate a single full image. This is faster than
+      // generating the primary boot image and the extension separately.
+      if (bcp_index == 0) {
+        // We must at least have profiles for the core libraries.
+        if (profile_filenames.empty()) {
+          *error_msg = "Full boot image cannot be compiled because no profile is provided.";
+          return false;
+        }
+        std::vector<std::string> all_profiles;
+        for (const NamedComponentLocation& named_component_location : named_component_locations) {
+          const std::vector<std::string>& profiles = named_component_location.profile_filenames;
+          all_profiles.insert(all_profiles.end(), profiles.begin(), profiles.end());
+        }
+        if (!CompileBootclasspathElements(base_location,
+                                          base_filename,
+                                          /*bcp_index=*/ 0,
+                                          all_profiles,
+                                          /*dependencies=*/ ArrayRef<const std::string>{},
+                                          &local_error_msg)) {
+          *error_msg =
+              StringPrintf("Full boot image cannot be compiled: %s", local_error_msg.c_str());
+          return false;
+        }
+        // No extensions are needed.
+        return true;
+      }
+      if (profile_filenames.empty() ||
+          !CompileBootclasspathElements(base_location,
+                                        base_filename,
+                                        bcp_index,
+                                        profile_filenames,
+                                        components.SubArray(/*pos=*/ 0, /*length=*/ 1),
+                                        &local_error_msg)) {
+        if (!profile_filenames.empty()) {
+          LOG(ERROR) << "Error compiling boot image extension for " << boot_class_path_[bcp_index]
+                     << ", error: " << local_error_msg;
         }
         bcp_pos = bcp_index + 1u;  // Skip at least this component.
         DCHECK_GT(bcp_pos, GetNextBcpIndex());
@@ -2391,8 +2506,12 @@ class ImageSpace::BootImageLoader {
       }
       // Update `max_image_space_dependencies` if all previous BCP components
       // were covered and loading the current chunk succeeded.
+      size_t total_component_count = 0;
+      for (const std::unique_ptr<ImageSpace>& space : spaces) {
+        total_component_count += space->GetComponentCount();
+      }
       if (max_image_space_dependencies == chunk.start_index &&
-          spaces.size() == chunk.start_index + chunk.component_count) {
+          total_component_count == chunk.start_index + chunk.component_count) {
         max_image_space_dependencies = chunk.start_index + chunk.component_count;
       }
     }
@@ -2681,8 +2800,8 @@ class ImageSpace::BootImageLoader {
             main_patch_object_visitor.VisitPointerArray(vtable);
           }
           ObjPtr<mirror::IfTable> iftable = klass->GetIfTable<kVerifyNone, kWithoutReadBarrier>();
-          if (iftable != nullptr) {
-            int32_t ifcount = klass->GetIfTableCount<kVerifyNone>();
+          if (kExtension ? simple_relocate_visitor.InDest(iftable.Ptr()) : iftable != nullptr) {
+            int32_t ifcount = iftable->Count<kVerifyNone>();
             for (int32_t i = 0; i != ifcount; ++i) {
               ObjPtr<mirror::PointerArray> unpatched_ifarray =
                   iftable->GetMethodArrayOrNull<kVerifyNone, kWithoutReadBarrier>(i);
@@ -2772,9 +2891,12 @@ class ImageSpace::BootImageLoader {
     size_t num_spaces = spaces.size();
     const ImageHeader& primary_header = spaces.front()->GetImageHeader();
     size_t primary_image_count = primary_header.GetImageSpaceCount();
+    size_t primary_image_component_count = primary_header.GetComponentCount();
     DCHECK_LE(primary_image_count, num_spaces);
-    DCHECK_EQ(primary_image_count, primary_header.GetComponentCount());
-    size_t component_count = primary_image_count;
+    // The primary boot image can be generated with `--single-image` on device, when generated
+    // in-memory or with odrefresh.
+    DCHECK(primary_image_count == primary_image_component_count || primary_image_count == 1);
+    size_t component_count = primary_image_component_count;
     size_t space_pos = primary_image_count;
     while (space_pos != num_spaces) {
       const ImageHeader& current_header = spaces[space_pos]->GetImageHeader();
@@ -2785,7 +2907,7 @@ class ImageSpace::BootImageLoader {
       if (dependency_component_count < component_count) {
         // There shall be no duplicate strings with the components that this space depends on.
         // Find the end of the dependencies, i.e. start of non-dependency images.
-        size_t start_component_count = primary_image_count;
+        size_t start_component_count = primary_image_component_count;
         size_t start_pos = primary_image_count;
         while (start_component_count != dependency_component_count) {
           const ImageHeader& dependency_header = spaces[start_pos]->GetImageHeader();
@@ -2817,7 +2939,7 @@ class ImageSpace::BootImageLoader {
 
   std::unique_ptr<ImageSpace> Load(const std::string& image_location,
                                    const std::string& image_filename,
-                                   const std::string& profile_file,
+                                   const std::vector<std::string>& profile_files,
                                    android::base::unique_fd art_fd,
                                    TimingLogger* logger,
                                    /*inout*/MemMap* image_reservation,
@@ -2833,7 +2955,7 @@ class ImageSpace::BootImageLoader {
       std::unique_ptr<ImageSpace> result = Loader::Init(&image_file,
                                                         image_filename.c_str(),
                                                         image_location.c_str(),
-                                                        profile_file.c_str(),
+                                                        profile_files,
                                                         /*allow_direct_mapping=*/ false,
                                                         logger,
                                                         image_reservation,
@@ -3052,10 +3174,11 @@ class ImageSpace::BootImageLoader {
     std::vector<std::string> filenames =
         ExpandMultiImageLocations(requested_bcp_locations, chunk.base_filename, is_extension);
     DCHECK_EQ(locations.size(), filenames.size());
+    size_t max_dependency_count = spaces->size();
     for (size_t i = 0u, size = locations.size(); i != size; ++i) {
       spaces->push_back(Load(locations[i],
                              filenames[i],
-                             chunk.profile_file,
+                             chunk.profile_files,
                              std::move(chunk.art_fd),
                              logger,
                              image_reservation,
@@ -3097,9 +3220,23 @@ class ImageSpace::BootImageLoader {
       }
     }
     DCHECK_GE(max_image_space_dependencies, chunk.boot_image_component_count);
+    size_t dependency_count = 0;
+    size_t dependency_component_count = 0;
+    while (dependency_component_count < chunk.boot_image_component_count &&
+           dependency_count < max_dependency_count) {
+      const ImageHeader& current_header = (*spaces)[dependency_count]->GetImageHeader();
+      dependency_component_count += current_header.GetComponentCount();
+      dependency_count += current_header.GetImageSpaceCount();
+    }
+    if (dependency_component_count != chunk.boot_image_component_count) {
+      *error_msg = StringPrintf(
+          "Unable to find dependencies from image spaces; boot_image_component_count: %u",
+          chunk.boot_image_component_count);
+      return false;
+    }
     ArrayRef<const std::unique_ptr<ImageSpace>> dependencies =
         ArrayRef<const std::unique_ptr<ImageSpace>>(*spaces).SubArray(
-            /*pos=*/ 0u, chunk.boot_image_component_count);
+            /*pos=*/ 0u, dependency_count);
     for (size_t i = 0u, size = locations.size(); i != size; ++i) {
       ImageSpace* space = (*spaces)[spaces->size() - chunk.image_space_count + i].get();
       size_t bcp_chunk_size = (chunk.image_space_count == 1u) ? chunk.component_count : 1u;
@@ -3198,6 +3335,8 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
     return false;
   }
 
+  // Load the image. We don't validate oat files in this stage because they have been validated
+  // before.
   if (!LoadImage(layout,
                  /*validate_oat_file=*/ false,
                  extra_reservation_size,
@@ -3285,15 +3424,11 @@ bool ImageSpace::LoadBootImage(
   std::vector<std::string> error_msgs;
 
   std::string error_msg;
-  if (loader.HasSystem()) {
-    if (loader.LoadFromSystem(extra_reservation_size,
-                              boot_image_spaces,
-                              extra_reservation,
-                              &error_msg)) {
-      return true;
-    }
-    error_msgs.push_back(error_msg);
+  if (loader.LoadFromSystem(
+          extra_reservation_size, boot_image_spaces, extra_reservation, &error_msg)) {
+    return true;
   }
+  error_msgs.push_back(error_msg);
 
   std::ostringstream oss;
   bool first = true;
@@ -3358,21 +3493,72 @@ void ImageSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-bool ImageSpace::ValidateOatFile(const OatFile& oat_file, std::string* error_msg) {
-  const ArtDexFileLoader dex_file_loader;
-  for (const OatDexFile* oat_dex_file : oat_file.GetOatDexFiles()) {
-    const std::string& dex_file_location = oat_dex_file->GetDexFileLocation();
+bool ImageSpace::ValidateApexVersions(const OatFile& oat_file, std::string* error_msg) {
+  // For a boot image, the key value store only exists in the first OAT file. Skip other OAT files.
+  if (oat_file.GetOatHeader().GetKeyValueStoreSize() == 0) {
+    return true;
+  }
 
+  // The OAT files in the ART APEX is built on host, so they don't have the right APEX versions. It
+  // is safe to assume that they are always up-to-date because they are shipped along with the
+  // runtime and the dex files.
+  if (kIsTargetAndroid && android::base::StartsWith(oat_file.GetLocation(), GetArtRoot())) {
+    return true;
+  }
+
+  const char* oat_apex_versions =
+      oat_file.GetOatHeader().GetStoreValueByKey(OatHeader::kApexVersionsKey);
+  if (oat_apex_versions == nullptr) {
+    *error_msg = StringPrintf("ValidateApexVersions failed to get APEX versions from oat file '%s'",
+                              oat_file.GetLocation().c_str());
+    return false;
+  }
+  // For a boot image, it can be generated from a subset of the bootclasspath.
+  // For an app image, some dex files get compiled with a subset of the bootclasspath.
+  // For such cases, the OAT APEX versions will be a prefix of the runtime APEX versions.
+  if (!android::base::StartsWith(Runtime::Current()->GetApexVersions(), oat_apex_versions)) {
+    *error_msg = StringPrintf(
+        "ValidateApexVersions found APEX versions mismatch between oat file '%s' and the runtime "
+        "(Oat file: '%s', Runtime: '%s')",
+        oat_file.GetLocation().c_str(),
+        oat_apex_versions,
+        Runtime::Current()->GetApexVersions().c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ImageSpace::ValidateOatFile(const OatFile& oat_file, std::string* error_msg) {
+  return ValidateOatFile(oat_file, error_msg, ArrayRef<const std::string>(), ArrayRef<const int>());
+}
+
+bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
+                                 std::string* error_msg,
+                                 ArrayRef<const std::string> dex_filenames,
+                                 ArrayRef<const int> dex_fds) {
+  if (!ValidateApexVersions(oat_file, error_msg)) {
+    return false;
+  }
+
+  const ArtDexFileLoader dex_file_loader;
+  size_t dex_file_index = 0;
+  for (const OatDexFile* oat_dex_file : oat_file.GetOatDexFiles()) {
     // Skip multidex locations - These will be checked when we visit their
     // corresponding primary non-multidex location.
-    if (DexFileLoader::IsMultiDexLocation(dex_file_location.c_str())) {
+    if (DexFileLoader::IsMultiDexLocation(oat_dex_file->GetDexFileLocation().c_str())) {
       continue;
     }
+
+    DCHECK(dex_filenames.empty() || dex_file_index < dex_filenames.size());
+    const std::string& dex_file_location =
+        dex_filenames.empty() ? oat_dex_file->GetDexFileLocation() : dex_filenames[dex_file_index];
+    int dex_fd = dex_file_index < dex_fds.size() ? dex_fds[dex_file_index] : -1;
+    dex_file_index++;
 
     std::vector<uint32_t> checksums;
     std::vector<std::string> dex_locations_ignored;
     if (!dex_file_loader.GetMultiDexChecksums(
-        dex_file_location.c_str(), &checksums, &dex_locations_ignored, error_msg)) {
+            dex_file_location.c_str(), &checksums, &dex_locations_ignored, error_msg, dex_fd)) {
       *error_msg = StringPrintf("ValidateOatFile failed to get checksums of dex file '%s' "
                                 "referenced by oat file %s: %s",
                                 dex_file_location.c_str(),
@@ -3640,9 +3826,14 @@ bool ImageSpace::VerifyBootClassPathChecksums(
     return false;
   }
   const size_t num_image_spaces = image_spaces.size();
-  if (num_image_spaces != oat_bcp_size) {
-    *error_msg = StringPrintf("Image header records more dependencies (%zu) than BCP (%zu)",
-                              num_image_spaces,
+  size_t dependency_component_count = 0;
+  for (const std::unique_ptr<ImageSpace>& space : image_spaces) {
+    dependency_component_count += space->GetComponentCount();
+  }
+  if (dependency_component_count != oat_bcp_size) {
+    *error_msg = StringPrintf("Image header records %s dependencies (%zu) than BCP (%zu)",
+                              dependency_component_count < oat_bcp_size ? "less" : "more",
+                              dependency_component_count,
                               oat_bcp_size);
     return false;
   }
@@ -3673,7 +3864,7 @@ bool ImageSpace::VerifyBootClassPathChecksums(
         CHECK(!DexFileLoader::IsMultiDexLocation(main_location.c_str()));
         size_t num_base_locations = 1u;
         for (size_t i = 1u; i != num_dex_files; ++i) {
-          if (DexFileLoader::IsMultiDexLocation(
+          if (!DexFileLoader::IsMultiDexLocation(
                   oat_file->GetOatDexFiles()[i]->GetDexFileLocation().c_str())) {
             CHECK_EQ(image_space_count, 1u);  // We can find base locations only for --single-image.
             ++num_base_locations;
@@ -3695,9 +3886,9 @@ bool ImageSpace::VerifyBootClassPathChecksums(
                                    std::string(oat_checksums).c_str());
          return false;
       }
-      if (image_pos != oat_bcp_size) {
+      if (bcp_pos != oat_bcp_size) {
         *error_msg = StringPrintf("Component count mismatch between checksums (%zu) and BCP (%zu)",
-                                  image_pos,
+                                  bcp_pos,
                                   oat_bcp_size);
         return false;
       }

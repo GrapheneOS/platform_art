@@ -56,6 +56,7 @@ struct WellKnownClasses {
  public:
   static jclass dalvik_annotation_optimization_CriticalNative;
   static jclass dalvik_annotation_optimization_FastNative;
+  static jclass dalvik_annotation_optimization_NeverCompile;
   static jclass dalvik_system_BaseDexClassLoader;
   static jclass dalvik_system_DelegateLastClassLoader;
   static jclass dalvik_system_DexClassLoader;
@@ -116,6 +117,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_Float_floatToRawIntBits;
   static jmethodID java_lang_Float_valueOf;
   static jmethodID java_lang_Integer_valueOf;
+  static jmethodID java_lang_invoke_MethodHandle_asType;
   static jmethodID java_lang_invoke_MethodHandles_lookup;
   static jmethodID java_lang_invoke_MethodHandles_Lookup_findConstructor;
   static jmethodID java_lang_Long_valueOf;

@@ -52,13 +52,6 @@ enum class DeoptimizationMethodType;
 
 namespace instrumentation {
 
-// Interpreter handler tables.
-enum InterpreterHandlerTable {
-  kMainHandlerTable = 0,          // Main handler table: no suspend check, no instrumentation.
-  kAlternativeHandlerTable = 1,   // Alternative handler table: suspend check and/or instrumentation
-                                  // enabled.
-  kNumHandlerTables
-};
 
 // Do we want to deoptimize for method entry and exit listeners or just try to intercept
 // invocations? Deoptimization forces all code to run in the interpreter and considerably hurts the
@@ -226,10 +219,6 @@ class Instrumentation {
   void RemoveListener(InstrumentationListener* listener, uint32_t events)
       REQUIRES(Locks::mutator_lock_, !Locks::thread_list_lock_, !Locks::classlinker_classes_lock_);
 
-  // Deoptimization.
-  void EnableDeoptimization()
-      REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!GetDeoptimizedMethodsLock());
   // Calls UndeoptimizeEverything which may visit class linker classes through ConfigureStubs.
   void DisableDeoptimization(const char* key)
       REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
@@ -239,10 +228,6 @@ class Instrumentation {
     return InterpreterStubsInstalled();
   }
   bool ShouldNotifyMethodEnterExitEvents() const REQUIRES_SHARED(Locks::mutator_lock_);
-
-  bool CanDeoptimize() {
-    return deoptimization_enabled_;
-  }
 
   // Executes everything with interpreter.
   void DeoptimizeEverything(const char* key)
@@ -275,6 +260,11 @@ class Instrumentation {
   bool IsDeoptimized(ArtMethod* method)
       REQUIRES(!GetDeoptimizedMethodsLock()) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Indicates if any method needs to be deoptimized. This is used to avoid walking the stack to
+  // determine if a deoptimization is required.
+  bool IsDeoptimizedMethodsEmpty() const
+      REQUIRES(!GetDeoptimizedMethodsLock()) REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Enable method tracing by installing instrumentation entry/exit stubs or interpreter.
   void EnableMethodTracing(const char* key,
                            bool needs_interpreter = kDeoptimizeForAccurateMethodEntryExitListeners)
@@ -290,10 +280,6 @@ class Instrumentation {
                !Locks::classlinker_classes_lock_,
                !GetDeoptimizedMethodsLock());
 
-  InterpreterHandlerTable GetInterpreterHandlerTable() const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    return interpreter_handler_table_;
-  }
 
   void InstrumentQuickAllocEntryPoints() REQUIRES(!Locks::instrument_entrypoints_lock_);
   void UninstrumentQuickAllocEntryPoints() REQUIRES(!Locks::instrument_entrypoints_lock_);
@@ -305,20 +291,19 @@ class Instrumentation {
                !Locks::runtime_shutdown_lock_);
   void ResetQuickAllocEntryPoints() REQUIRES(Locks::runtime_shutdown_lock_);
 
+  // Returns a string representation of the given entry point.
+  static std::string EntryPointString(const void* code);
+
+  // Initialize the entrypoint of the method .`aot_code` is the AOT code.
+  void InitializeMethodsCode(ArtMethod* method, const void* aot_code)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Update the code of a method respecting any installed stubs.
-  void UpdateMethodsCode(ArtMethod* method, const void* quick_code)
+  void UpdateMethodsCode(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Update the code of a native method to a JITed stub.
-  void UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const void* quick_code)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
-
-  // Update the code of a method to the interpreter respecting any installed stubs from debugger.
-  void UpdateMethodsCodeToInterpreterEntryPoint(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
-
-  // Update the code of a method respecting any installed stubs from debugger.
-  void UpdateMethodsCodeForJavaDebuggable(ArtMethod* method, const void* quick_code)
+  void UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   // Return the code that we can execute for an invoke including from the JIT.
@@ -391,12 +376,11 @@ class Instrumentation {
     return have_exception_handled_listeners_;
   }
 
-  bool IsActive() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    return have_dex_pc_listeners_ || have_method_entry_listeners_ || have_method_exit_listeners_ ||
-        have_field_read_listeners_ || have_field_write_listeners_ ||
-        have_exception_thrown_listeners_ || have_method_unwind_listeners_ ||
-        have_branch_listeners_ || have_watched_frame_pop_listeners_ ||
-        have_exception_handled_listeners_;
+  bool NeedsSlowInterpreterForListeners() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    return have_field_read_listeners_ ||
+           have_field_write_listeners_ ||
+           have_watched_frame_pop_listeners_ ||
+           have_exception_handled_listeners_;
   }
 
   // Inform listeners that a method has been entered. A dex PC is provided as we may install
@@ -573,7 +557,8 @@ class Instrumentation {
 
   // Returns true if we need entry exit stub to call entry hooks. JITed code
   // directly call entry / exit hooks and don't need the stub.
-  bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method);
+  static bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Update the current instrumentation_level_.
   void UpdateInstrumentationLevel(InstrumentationLevel level);
@@ -593,16 +578,6 @@ class Instrumentation {
                !Locks::thread_list_lock_,
                !Locks::classlinker_classes_lock_);
 
-  void UpdateInterpreterHandlerTable() REQUIRES(Locks::mutator_lock_) {
-    /*
-     * TUNING: Dalvik's mterp stashes the actual current handler table base in a
-     * tls field.  For Arm, this enables all suspend, debug & tracing checks to be
-     * collapsed into a single conditionally-executed ldw instruction.
-     * Move to Dalvik-style handler-table management for both the goto interpreter and
-     * mterp.
-     */
-    interpreter_handler_table_ = IsActive() ? kAlternativeHandlerTable : kMainHandlerTable;
-  }
 
   // No thread safety analysis to get around SetQuickAllocEntryPointsInstrumented requiring
   // exclusive access to mutator lock which you can't get if the runtime isn't started.
@@ -648,9 +623,9 @@ class Instrumentation {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(GetDeoptimizedMethodsLock());
   ArtMethod* BeginDeoptimizedMethod()
       REQUIRES_SHARED(Locks::mutator_lock_, GetDeoptimizedMethodsLock());
-  bool IsDeoptimizedMethodsEmpty() const
+  bool IsDeoptimizedMethodsEmptyLocked() const
       REQUIRES_SHARED(Locks::mutator_lock_, GetDeoptimizedMethodsLock());
-  void UpdateMethodsCodeImpl(ArtMethod* method, const void* quick_code)
+  void UpdateMethodsCodeImpl(ArtMethod* method, const void* new_code)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
   ReaderWriterMutex* GetDeoptimizedMethodsLock() const {
@@ -741,11 +716,9 @@ class Instrumentation {
   // only.
   mutable std::unique_ptr<ReaderWriterMutex> deoptimized_methods_lock_ BOTTOM_MUTEX_ACQUIRED_AFTER;
   std::unordered_set<ArtMethod*> deoptimized_methods_ GUARDED_BY(GetDeoptimizedMethodsLock());
-  bool deoptimization_enabled_;
 
   // Current interpreter handler table. This is updated each time the thread state flags are
   // modified.
-  InterpreterHandlerTable interpreter_handler_table_ GUARDED_BY(Locks::mutator_lock_);
 
   // Greater than 0 if quick alloc entry points instrumented.
   size_t quick_alloc_entry_points_instrumentation_counter_;

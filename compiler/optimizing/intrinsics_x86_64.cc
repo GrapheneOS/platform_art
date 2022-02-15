@@ -208,6 +208,67 @@ void IntrinsicCodeGeneratorX86_64::VisitShortReverseBytes(HInvoke* invoke) {
   codegen_->GetInstructionCodegen()->Bswap(invoke->GetLocations()->Out(), DataType::Type::kInt16);
 }
 
+static void GenIsInfinite(LocationSummary* locations,
+                          bool is64bit,
+                          CodeGeneratorX86_64* codegen) {
+  X86_64Assembler* assembler = codegen->GetAssembler();
+
+  XmmRegister input = locations->InAt(0).AsFpuRegister<XmmRegister>();
+  CpuRegister output = locations->Out().AsRegister<CpuRegister>();
+
+  NearLabel done1, done2;
+
+  if (is64bit) {
+    double kPositiveInfinity = std::numeric_limits<double>::infinity();
+    double kNegativeInfinity = -1 * kPositiveInfinity;
+
+     __ xorq(output, output);
+     __ comisd(input, codegen->LiteralDoubleAddress(kPositiveInfinity));
+     __ j(kNotEqual, &done1);
+     __ j(kParityEven, &done2);
+     __ movq(output, Immediate(1));
+     __ jmp(&done2);
+     __ Bind(&done1);
+     __ comisd(input, codegen->LiteralDoubleAddress(kNegativeInfinity));
+     __ j(kNotEqual, &done2);
+     __ j(kParityEven, &done2);
+     __ movq(output, Immediate(1));
+     __ Bind(&done2);
+  } else {
+    float kPositiveInfinity = std::numeric_limits<float>::infinity();
+    float kNegativeInfinity = -1 * kPositiveInfinity;
+
+     __ xorl(output, output);
+     __ comiss(input, codegen->LiteralFloatAddress(kPositiveInfinity));
+     __ j(kNotEqual, &done1);
+     __ j(kParityEven, &done2);
+     __ movl(output, Immediate(1));
+     __ jmp(&done2);
+     __ Bind(&done1);
+     __ comiss(input, codegen->LiteralFloatAddress(kNegativeInfinity));
+     __ j(kNotEqual, &done2);
+     __ j(kParityEven, &done2);
+     __ movl(output, Immediate(1));
+     __ Bind(&done2);
+  }
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitFloatIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitFloatIsInfinite(HInvoke* invoke) {
+  GenIsInfinite(invoke->GetLocations(), /* is64bit=*/  false, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(allocator_, invoke);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  GenIsInfinite(invoke->GetLocations(), /* is64bit=*/  true, codegen_);
+}
+
 static void CreateFPToFPLocations(ArenaAllocator* allocator, HInvoke* invoke) {
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke, LocationSummary::kNoCall, kIntrinsified);
@@ -2134,10 +2195,9 @@ void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafePutLongRelease(HInvoke* invoke)
 static void CreateUnsafeCASLocations(ArenaAllocator* allocator,
                                      DataType::Type type,
                                      HInvoke* invoke) {
-  bool can_call = kEmitCompilerReadBarrier &&
-      kUseBakerReadBarrier &&
-      (invoke->GetIntrinsic() == Intrinsics::kUnsafeCASObject ||
-       invoke->GetIntrinsic() == Intrinsics::kJdkUnsafeCASObject);
+  const bool can_call = kEmitCompilerReadBarrier &&
+                        kUseBakerReadBarrier &&
+                        IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -2179,21 +2239,18 @@ void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCASInt(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, DataType::Type::kInt32, invoke);
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCASLong(HInvoke* invoke) {
-  CreateUnsafeCASLocations(allocator_, DataType::Type::kInt64, invoke);
+  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetLong(invoke);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCASObject(HInvoke* invoke) {
-  // The only read barrier implementation supporting the
-  // UnsafeCASObject intrinsic is the Baker-style read barriers.
-  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
-    return;
-  }
-
-  CreateUnsafeCASLocations(allocator_, DataType::Type::kReference, invoke);
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
@@ -2202,6 +2259,15 @@ void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCompareAndSetInt(HInvoke* in
 
 void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
   CreateUnsafeCASLocations(allocator_, DataType::Type::kInt64, invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
+  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
+    return;
+  }
+
+  CreateUnsafeCASLocations(allocator_, DataType::Type::kReference, invoke);
 }
 
 // Convert ZF into the Boolean result.
@@ -2499,19 +2565,18 @@ void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCASInt(HInvoke* invoke) {
-  GenCAS(DataType::Type::kInt32, invoke, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapInt` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetInt(invoke);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCASLong(HInvoke* invoke) {
-  GenCAS(DataType::Type::kInt64, invoke, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapLong` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetLong(invoke);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCASObject(HInvoke* invoke) {
-  // The only read barrier implementation supporting the
-  // UnsafeCASObject intrinsic is the Baker-style read barriers.
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
-
-  GenCAS(DataType::Type::kReference, invoke, codegen_);
+  // `jdk.internal.misc.Unsafe.compareAndSwapObject` has compare-and-set semantics (see javadoc).
+  VisitJdkUnsafeCompareAndSetObject(invoke);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invoke) {
@@ -2520,6 +2585,13 @@ void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetInt(HInvoke* invok
 
 void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invoke) {
   GenCAS(DataType::Type::kInt64, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
+  // The only supported read barrier implementation is the Baker-style read barriers.
+  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+
+  GenCAS(DataType::Type::kReference, invoke, codegen_);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitIntegerReverse(HInvoke* invoke) {
@@ -3024,8 +3096,9 @@ void IntrinsicCodeGeneratorX86_64::VisitReferenceGetReferent(HInvoke* invoke) {
   if (kEmitCompilerReadBarrier) {
     // Check self->GetWeakRefAccessEnabled().
     ThreadOffset64 offset = Thread::WeakRefAccessEnabledOffset<kX86_64PointerSize>();
-    __ gs()->cmpl(Address::Absolute(offset, /* no_rip= */ true), Immediate(0));
-    __ j(kEqual, slow_path->GetEntryLabel());
+    __ gs()->cmpl(Address::Absolute(offset, /* no_rip= */ true),
+                  Immediate(enum_cast<int32_t>(WeakRefAccessState::kVisiblyEnabled)));
+    __ j(kNotEqual, slow_path->GetEntryLabel());
   }
 
   // Load the java.lang.ref.Reference class, use the output register as a temporary.
@@ -4838,8 +4911,6 @@ void VarHandleSlowPathX86_64::EmitByteArrayViewCode(CodeGeneratorX86_64* codegen
   __ jmp(GetExitLabel());
 }
 
-UNIMPLEMENTED_INTRINSIC(X86_64, FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(X86_64, DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32Update)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32UpdateBytes)
 UNIMPLEMENTED_INTRINSIC(X86_64, CRC32UpdateByteBuffer)
@@ -4891,7 +4962,6 @@ UNIMPLEMENTED_INTRINSIC(X86_64, JdkUnsafeGetAndAddLong)
 UNIMPLEMENTED_INTRINSIC(X86_64, JdkUnsafeGetAndSetInt)
 UNIMPLEMENTED_INTRINSIC(X86_64, JdkUnsafeGetAndSetLong)
 UNIMPLEMENTED_INTRINSIC(X86_64, JdkUnsafeGetAndSetObject)
-UNIMPLEMENTED_INTRINSIC(X86_64, JdkUnsafeCompareAndSetObject)
 
 UNREACHABLE_INTRINSICS(X86_64)
 

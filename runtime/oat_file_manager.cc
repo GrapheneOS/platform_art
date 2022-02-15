@@ -159,7 +159,7 @@ std::vector<const OatFile*> OatFileManager::RegisterImageOatFiles(
   oat_files.reserve(spaces.size());
   for (gc::space::ImageSpace* space : spaces) {
     // The oat file was generated in memory if the image space has a profile.
-    bool in_memory = !space->GetProfileFile().empty();
+    bool in_memory = !space->GetProfileFiles().empty();
     oat_files.push_back(RegisterOatFile(space->ReleaseOatFile(), in_memory));
   }
   return oat_files;
@@ -497,7 +497,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat_
     vdex_file = VdexFile::Open(vdex_path,
                                /* writable= */ false,
                                /* low_4gb= */ false,
-                               /* unquicken= */ false,
                                &error_msg);
     if (vdex_file == nullptr) {
       LOG(WARNING) << "Failed to open vdex " << vdex_path << ": " << error_msg;

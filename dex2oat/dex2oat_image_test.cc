@@ -592,9 +592,9 @@ TEST_F(Dex2oatImageTest, TestExtension) {
   for (bool r : { false, true }) {
     relocate = r;
 
-    // Try and fail to load everything as compiled extension.
+    // Load primary boot image with a profile name.
     bool load_ok = silent_load(base_location + "!" + single_profile_filename);
-    ASSERT_FALSE(load_ok);
+    ASSERT_TRUE(load_ok);
 
     // Try and fail to load with invalid spec, two profile name separators.
     load_ok = silent_load(base_location + ":" + single_location + "!!arbitrary-profile-name");

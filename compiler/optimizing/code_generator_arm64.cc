@@ -36,6 +36,7 @@
 #include "interpreter/mterp/nterp.h"
 #include "intrinsics.h"
 #include "intrinsics_arm64.h"
+#include "intrinsics_utils.h"
 #include "linker/linker_patch.h"
 #include "lock_word.h"
 #include "mirror/array-inl.h"
@@ -672,29 +673,16 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
             "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
         __ Add(index_reg, index_reg, Operand(offset_));
       } else {
-        // In the case of the UnsafeGetObject/UnsafeGetObjectVolatile/VarHandleGet
-        // intrinsics, `index_` is not shifted by a scale factor of 2
-        // (as in the case of ArrayGet), as it is actually an offset
-        // to an object field within an object.
+        // In the case of the following intrinsics `index_` is not shifted by a scale factor of 2
+        // (as in the case of ArrayGet), as it is actually an offset to an object field within an
+        // object.
         DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
-        Intrinsics intrinsic = instruction_->AsInvoke()->GetIntrinsic();
-        DCHECK(intrinsic == Intrinsics::kUnsafeGetObject ||
-               intrinsic == Intrinsics::kUnsafeGetObjectVolatile ||
-               intrinsic == Intrinsics::kUnsafeCASObject ||
-               intrinsic == Intrinsics::kJdkUnsafeGetObject ||
-               intrinsic == Intrinsics::kJdkUnsafeGetObjectVolatile ||
-               intrinsic == Intrinsics::kJdkUnsafeGetObjectAcquire ||
-               intrinsic == Intrinsics::kJdkUnsafeCASObject ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kGet ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kCompareAndSet ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kCompareAndExchange ||
-               mirror::VarHandle::GetAccessModeTemplateByIntrinsic(intrinsic) ==
-                   mirror::VarHandle::AccessModeTemplate::kGetAndUpdate)
-            << instruction_->AsInvoke()->GetIntrinsic();
+        HInvoke* invoke = instruction_->AsInvoke();
+        DCHECK(IsUnsafeGetObject(invoke) ||
+               IsVarHandleGet(invoke) ||
+               IsUnsafeCASObject(invoke) ||
+               IsVarHandleCASFamily(invoke)) << invoke->GetIntrinsic();
         DCHECK_EQ(offset_, 0u);
         DCHECK(index_.IsRegister());
       }
@@ -1987,6 +1975,9 @@ void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruct
   if (codegen_->CanUseImplicitSuspendCheck()) {
     __ Ldr(kImplicitSuspendCheckRegister, MemOperand(kImplicitSuspendCheckRegister));
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+    if (successor != nullptr) {
+      __ B(codegen_->GetLabelOf(successor));
+    }
     return;
   }
 
@@ -2530,9 +2521,9 @@ void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate*
   if (instr->GetType() == DataType::Type::kInt64 &&
       codegen_->GetInstructionSetFeatures().NeedFixCortexA53_835769()) {
     MacroAssembler* masm = down_cast<CodeGeneratorARM64*>(codegen_)->GetVIXLAssembler();
-    vixl::aarch64::Instruction* prev =
-        masm->GetCursorAddress<vixl::aarch64::Instruction*>() - kInstructionSize;
-    if (prev->IsLoadOrStore()) {
+    ptrdiff_t off = masm->GetCursorOffset();
+    if (off >= static_cast<ptrdiff_t>(kInstructionSize) &&
+        masm->GetInstructionAt(off - static_cast<ptrdiff_t>(kInstructionSize))->IsLoadOrStore()) {
       // Make sure we emit only exactly one nop.
       ExactAssemblyScope scope(masm, kInstructionSize, CodeBufferCheckScope::kExactSize);
       __ nop();
@@ -3583,9 +3574,7 @@ void InstructionCodeGeneratorARM64::HandleGoto(HInstruction* got, HBasicBlock* s
   if (info != nullptr && info->IsBackEdge(*block) && info->HasSuspendCheck()) {
     codegen_->MaybeIncrementHotness(/* is_frame_entry= */ false);
     GenerateSuspendCheck(info->GetSuspendCheck(), successor);
-    if (!codegen_->CanUseImplicitSuspendCheck()) {
-      return;  // `GenerateSuspendCheck()` emitted the jump.
-    }
+    return;  // `GenerateSuspendCheck()` emitted the jump.
   }
   if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
     GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2021 The Android Open Source Project
+<!-- Copyright (C) 2022 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -15,12 +15,23 @@
 -->
 <!-- Note: This test config file for {MODULE} is generated from a template. -->
 <configuration description="Runs {MODULE}.">
-    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
-
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="{MODULE}->/data/local/tmp/{MODULE}/{MODULE}" />
         <option name="append-bitness" value="true" />
+    </target_preparer>
+
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="append-bitness" value="true" />
+        <option name="push-file" key="generate-boot-image" value="/data/local/tmp/{MODULE}/generate-boot-image" />
+    </target_preparer>
+
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="throw-if-cmd-fail" value="true" />
+        <option name="run-command" value="mkdir -p /data/local/tmp/{MODULE}/art_boot_images" />
+        <option name="run-command" value="/data/local/tmp/{MODULE}/generate-boot-image --output-dir=/data/local/tmp/{MODULE}/art_boot_images" />
+        <option name="teardown-command" value="rm -rf /data/local/tmp/{MODULE}/art_boot_images" />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.GTest" >
@@ -28,9 +39,6 @@
         <option name="module-name" value="{MODULE}" />
         <option name="ld-library-path-32" value="/apex/com.android.art/lib" />
         <option name="ld-library-path-64" value="/apex/com.android.art/lib64" />
-
-        <option name="gtest-env" value="DEX2OATBOOTCLASSPATH=/apex/com.android.art/javalib/core-foo.jar:/system/framework/framework.jar" />
-        <option name="gtest-env" value="BOOTCLASSPATH=/apex/com.android.art/javalib/core-bar.jar:/system/framework/framework.jar:/apex/com.android.bar/javalib/bar.jar" />
     </test>
 
     <!-- When this test is run in a Mainline context (e.g. with `mts-tradefed`), only enable it if
@@ -41,4 +49,7 @@
         <!-- ART Mainline Module (external (AOSP) version). -->
         <option name="mainline-module-package-name" value="com.android.art" />
     </object>
+
+    <!-- Only run tests if the device under test is SDK version 31 (Android 12) or above. -->
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
 </configuration>

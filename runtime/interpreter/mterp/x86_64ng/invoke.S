@@ -14,7 +14,7 @@
 %def invoke_direct_or_super(helper="", range="", is_super=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE %rdi, 2f
+%  fetch_from_thread_cache("%rdi", miss_label="2f")
 1:
    // Load the first argument (the 'this' pointer).
    movzwl 4(rPC), %r11d // arguments
@@ -72,10 +72,10 @@
    jmp NterpCommonInvokePolymorphicRange
 
 %def invoke_interface(helper="", range=""):
-%  slow_path = add_helper(lambda: op_invoke_interface_slow_path())
+%  slow_path = add_slow_path(op_invoke_interface_slow_path)
    EXPORT_PC
    // Fast-path which gets the interface method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE %rax, ${slow_path}
+%  fetch_from_thread_cache("%rax", miss_label=slow_path)
 .L${opcode}_resume:
    // First argument is the 'this' pointer.
    movzwl 4(rPC), %r11d // arguments
@@ -123,7 +123,7 @@
 %def invoke_static(helper=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE %rdi, 1f
+%  fetch_from_thread_cache("%rdi", miss_label="1f")
    jmp $helper
 1:
    movq rSELF:THREAD_SELF_OFFSET, %rdi
@@ -148,7 +148,7 @@
 %def invoke_virtual(helper="", range=""):
    EXPORT_PC
    // Fast-path which gets the method from thread-local cache.
-   FETCH_FROM_THREAD_CACHE %rdi, 2f
+%  fetch_from_thread_cache("%rdi", miss_label="2f")
 1:
    // First argument is the 'this' pointer.
    movzwl 4(rPC), %r11d // arguments

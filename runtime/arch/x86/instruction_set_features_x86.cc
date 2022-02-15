@@ -24,6 +24,7 @@
 #include <android-base/strings.h>
 
 #include "arch/x86_64/instruction_set_features_x86_64.h"
+#include "base/array_ref.h"
 
 #include <cpu_features_macros.h>
 
@@ -44,6 +45,7 @@ static constexpr const char* x86_known_variants[] = {
     "sandybridge",
     "silvermont",
     "kabylake",
+    "default",
 };
 
 static constexpr const char* x86_variants_with_ssse3[] = {
@@ -132,8 +134,12 @@ X86FeaturesUniquePtr X86InstructionSetFeatures::FromVariant(
   // Verify that variant is known.
   bool known_variant = FindVariantInArray(x86_known_variants, arraysize(x86_known_variants),
                                           variant);
-  if (!known_variant && variant != "default") {
-    LOG(WARNING) << "Unexpected CPU variant for X86 using defaults: " << variant;
+  if (!known_variant) {
+    std::ostringstream os;
+    os << "Unexpected CPU variant for x86: " << variant << ".\n"
+       << "Known variants: "
+       << android::base::Join(ArrayRef<const char* const>(x86_known_variants), ", ");
+    LOG(WARNING) << os.str();
   }
 
   return Create(x86_64, has_SSSE3, has_SSE4_1, has_SSE4_2, has_AVX, has_AVX2, has_POPCNT);

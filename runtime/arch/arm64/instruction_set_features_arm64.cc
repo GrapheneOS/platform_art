@@ -28,6 +28,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 
+#include "base/array_ref.h"
 #include "base/stl_util.h"
 
 #include <cpu_features_macros.h>
@@ -131,8 +132,9 @@ Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromVariant(
   bool has_sve = false;
 
   if (!needs_a53_835769_fix) {
-    // Check to see if this is an expected variant.
-    static const char* arm64_known_variants[] = {
+    // Check to see if this is an expected variant. `other_arm64_known_variants` contains the
+    // variants which do *not* need a fix for a53 erratum 835769.
+    static const char* other_arm64_known_variants[] = {
         "cortex-a35",
         "cortex-a55",
         "cortex-a75",
@@ -145,9 +147,16 @@ Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromVariant(
         "kryo385",
         "kryo785",
     };
-    if (!FindVariantInArray(arm64_known_variants, arraysize(arm64_known_variants), variant)) {
+    if (!FindVariantInArray(
+            other_arm64_known_variants, arraysize(other_arm64_known_variants), variant)) {
       std::ostringstream os;
-      os << "Unexpected CPU variant for Arm64: " << variant;
+      os << "Unexpected CPU variant for Arm64: " << variant << ".\n"
+         << "Known variants that need a fix for a53 erratum 835769: "
+         << android::base::Join(ArrayRef<const char* const>(arm64_variants_with_a53_835769_bug),
+                                ", ")
+         << ".\n"
+         << "Known variants that do not need a fix for a53 erratum 835769: "
+         << android::base::Join(ArrayRef<const char* const>(other_arm64_known_variants), ", ");
       *error_msg = os.str();
       return nullptr;
     }

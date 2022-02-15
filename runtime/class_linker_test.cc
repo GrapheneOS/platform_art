@@ -743,10 +743,10 @@ struct MethodHandleOffsets : public CheckOffsets<mirror::MethodHandle> {
   MethodHandleOffsets() : CheckOffsets<mirror::MethodHandle>(
       false, "Ljava/lang/invoke/MethodHandle;") {
     addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, art_field_or_method_), "artFieldOrMethod");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, as_type_cache_), "asTypeCache");
     addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, cached_spread_invoker_),
               "cachedSpreadInvoker");
     addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, handle_kind_), "handleKind");
-    addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, nominal_type_), "nominalType");
     addOffset(OFFSETOF_MEMBER(mirror::MethodHandle, method_type_), "type");
   }
 };
@@ -769,7 +769,6 @@ struct MethodHandlesLookupOffsets : public CheckOffsets<mirror::MethodHandlesLoo
 struct EmulatedStackFrameOffsets : public CheckOffsets<mirror::EmulatedStackFrame> {
   EmulatedStackFrameOffsets() : CheckOffsets<mirror::EmulatedStackFrame>(
       false, "Ldalvik/system/EmulatedStackFrame;") {
-    addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, callsite_type_), "callsiteType");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, references_), "references");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, stack_frame_), "stackFrame");
     addOffset(OFFSETOF_MEMBER(mirror::EmulatedStackFrame, type_), "type");

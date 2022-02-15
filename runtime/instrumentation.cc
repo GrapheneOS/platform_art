@@ -184,8 +184,6 @@ Instrumentation::Instrumentation()
       have_exception_handled_listeners_(false),
       deoptimized_methods_lock_(new ReaderWriterMutex("deoptimized methods lock",
                                                       kGenericBottomLock)),
-      deoptimization_enabled_(false),
-      interpreter_handler_table_(kMainHandlerTable),
       quick_alloc_entry_points_instrumentation_counter_(0),
       alloc_entrypoints_instrumented_(false) {
 }
@@ -211,7 +209,25 @@ static bool CanHandleInitializationCheck(const void* code) {
          (code == GetQuickInstrumentationEntryPoint());
 }
 
-static void UpdateEntrypoints(ArtMethod* method, const void* quick_code)
+static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Annoyingly this can be called before we have actually initialized WellKnownClasses so therefore
+  // we also need to check this based on the declaring-class descriptor. The check is valid because
+  // Proxy only has a single constructor.
+  ArtMethod* well_known_proxy_init = jni::DecodeArtMethod(
+      WellKnownClasses::java_lang_reflect_Proxy_init);
+  if (well_known_proxy_init == method) {
+    return true;
+  }
+
+  if (well_known_proxy_init != nullptr) {
+    return false;
+  }
+
+  return method->IsConstructor() &&
+      method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;");
+}
+
+static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (kIsDebugBuild) {
     if (NeedsClinitCheckBeforeCall(method) &&
@@ -225,11 +241,24 @@ static void UpdateEntrypoints(ArtMethod* method, const void* quick_code)
         CHECK_EQ(reinterpret_cast<uintptr_t>(quick_code) & 1, 1u);
       }
     }
+    if (IsProxyInit(method)) {
+      CHECK_NE(quick_code, GetQuickInstrumentationEntryPoint());
+    }
   }
-  method->SetEntryPointFromQuickCompiledCode(quick_code);
+  // If the method is from a boot image, don't dirty it if the entrypoint
+  // doesn't change.
+  if (method->GetEntryPointFromQuickCompiledCode() != quick_code) {
+    method->SetEntryPointFromQuickCompiledCode(quick_code);
+  }
 }
 
-bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method) {
+bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Proxy.init should never have entry/exit stubs.
+  if (IsProxyInit(method)) {
+    return false;
+  }
+
   // In some tests runtime isn't setup fully and hence the entry points could
   // be nullptr.
   if (code == nullptr) {
@@ -262,31 +291,48 @@ bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method
   return true;
 }
 
-static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
-  // Annoyingly this can be called before we have actually initialized WellKnownClasses so therefore
-  // we also need to check this based on the declaring-class descriptor. The check is valid because
-  // Proxy only has a single constructor.
-  ArtMethod* well_known_proxy_init = jni::DecodeArtMethod(
-      WellKnownClasses::java_lang_reflect_Proxy_init);
-  if (well_known_proxy_init == method) {
-    return true;
-  }
-
-  if (well_known_proxy_init != nullptr) {
-    return false;
-  }
-
-  return method->IsConstructor() &&
-      method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;");
-}
-
 bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
   if (method->IsNative()) {
     return false;
   }
   return InterpretOnly() ||
          IsDeoptimized(method) ||
-         Runtime::Current()->GetRuntimeCallbacks()->MethodNeedsDebugVersion(method);
+         Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method);
+}
+
+static bool CanUseAotCode(ArtMethod* method, const void* quick_code)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (quick_code == nullptr) {
+    return false;
+  }
+  if (method->IsNative()) {
+    // AOT code for native methods can always be used.
+    return true;
+  }
+
+  Runtime* runtime = Runtime::Current();
+  // For simplicity, we never use AOT code for debuggable.
+  if (runtime->IsJavaDebuggable()) {
+    return false;
+  }
+
+  if (runtime->IsNativeDebuggable()) {
+    DCHECK(runtime->UseJitCompilation() && runtime->GetJit()->JitAtFirstUse());
+    // If we are doing native debugging, ignore application's AOT code,
+    // since we want to JIT it (at first use) with extra stackmaps for native
+    // debugging. We keep however all AOT code from the boot image,
+    // since the JIT-at-first-use is blocking and would result in non-negligible
+    // startup performance impact.
+    return runtime->GetHeap()->IsInBootImageOatFile(quick_code);
+  }
+
+  return true;
+}
+
+static bool CanUseNterp(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
+  return interpreter::CanRuntimeUseNterp() &&
+      CanMethodUseNterp(method) &&
+      method->GetDeclaringClass()->IsVerified();
 }
 
 static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -297,12 +343,10 @@ static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks:
   }
 
   // In debuggable mode, we can only use AOT code for native methods.
-  if (!Runtime::Current()->IsJavaDebuggable() || method->IsNative()) {
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    const void* code = method->GetOatMethodQuickCode(class_linker->GetImagePointerSize());
-    if (code != nullptr) {
-      return code;
-    }
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const void* aot_code = method->GetOatMethodQuickCode(class_linker->GetImagePointerSize());
+  if (CanUseAotCode(method, aot_code)) {
+    return aot_code;
   }
 
   // If the method has been precompiled, there can be a JIT version.
@@ -314,11 +358,68 @@ static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks:
     }
   }
 
-  if (interpreter::CanRuntimeUseNterp() && CanMethodUseNterp(method)) {
+  // We need to check if the class has been verified for setting up nterp, as
+  // the verifier could punt the method to the switch interpreter in case we
+  // need to do lock counting.
+  if (CanUseNterp(method)) {
     return interpreter::GetNterpEntryPoint();
   }
 
   return method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge();
+}
+
+void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_code)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Use instrumentation entrypoints if instrumentation is installed.
+  if (UNLIKELY(EntryExitStubsInstalled()) && !IsProxyInit(method)) {
+    if (!method->IsNative() && InterpretOnly()) {
+      UpdateEntryPoints(method, GetQuickToInterpreterBridge());
+    } else {
+      UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
+    }
+    return;
+  }
+
+  if (UNLIKELY(IsForcedInterpretOnly())) {
+    UpdateEntryPoints(
+        method, method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
+    return;
+  }
+
+  // Special case if we need an initialization check.
+  if (NeedsClinitCheckBeforeCall(method) && !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+    // If we have code but the method needs a class initialization check before calling
+    // that code, install the resolution stub that will perform the check.
+    // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
+    // after initializing class (see ClassLinker::InitializeClass method).
+    // Note: this mimics the logic in image_writer.cc that installs the resolution
+    // stub only if we have compiled code or we can execute nterp, and the method needs a class
+    // initialization check.
+    if (aot_code != nullptr || method->IsNative() || CanUseNterp(method)) {
+      UpdateEntryPoints(method, GetQuickResolutionStub());
+    } else {
+      UpdateEntryPoints(method, GetQuickToInterpreterBridge());
+    }
+    return;
+  }
+
+  // Use the provided AOT code if possible.
+  if (CanUseAotCode(method, aot_code)) {
+    UpdateEntryPoints(method, aot_code);
+    return;
+  }
+
+  // We check if the class is verified as we need the slow interpreter for lock verification.
+  // If the class is not verified, This will be updated in
+  // ClassLinker::UpdateClassAfterVerification.
+  if (CanUseNterp(method)) {
+    UpdateEntryPoints(method, interpreter::GetNterpEntryPoint());
+    return;
+  }
+
+  // Use default entrypoints.
+  UpdateEntryPoints(
+      method, method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
 }
 
 void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
@@ -336,14 +437,14 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   // If the instrumentation needs to go through the interpreter, just update the
   // entrypoint to interpreter.
   if (InterpretOnly(method)) {
-    UpdateEntrypoints(method, GetQuickToInterpreterBridge());
+    UpdateEntryPoints(method, GetQuickToInterpreterBridge());
     return;
   }
 
   if (EntryExitStubsInstalled()) {
     // Install the instrumentation entry point if needed.
     if (CodeNeedsEntryExitStub(method->GetEntryPointFromQuickCompiledCode(), method)) {
-      UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint());
+      UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
     }
     return;
   }
@@ -352,10 +453,10 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   CHECK_EQ(instrumentation_level_, InstrumentationLevel::kInstrumentNothing);
   // We need to have the resolution stub still if the class is not initialized.
   if (NeedsClinitCheckBeforeCall(method) && !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-    UpdateEntrypoints(method, GetQuickResolutionStub());
+    UpdateEntryPoints(method, GetQuickResolutionStub());
     return;
   }
-  UpdateEntrypoints(method, GetOptimizedCodeFor(method));
+  UpdateEntryPoints(method, GetOptimizedCodeFor(method));
 }
 
 // Places the instrumentation exit pc as the return PC for every quick frame. This also allows
@@ -700,7 +801,6 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
                            exception_handled_listeners_,
                            listener,
                            &have_exception_handled_listeners_);
-  UpdateInterpreterHandlerTable();
 }
 
 static void PotentiallyRemoveListenerFrom(Instrumentation::InstrumentationEvent event,
@@ -782,7 +882,6 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
                                 exception_handled_listeners_,
                                 listener,
                                 &have_exception_handled_listeners_);
-  UpdateInterpreterHandlerTable();
 }
 
 Instrumentation::InstrumentationLevel Instrumentation::GetCurrentInstrumentationLevel() const {
@@ -808,8 +907,8 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
 }
 
 void Instrumentation::EnableSingleThreadDeopt(const char* key) {
-  // Single-thread deopt only uses interpreter.
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInterpreter);
+  // Prepare for single thread deopt by installing instrumentation stubs.
+  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInstrumentationStubs);
 }
 
 void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_level) {
@@ -844,11 +943,7 @@ void Instrumentation::UpdateStubs() {
     InstallStubsClassVisitor visitor(this);
     runtime->GetClassLinker()->VisitClasses(&visitor);
     // Restore stack only if there is no method currently deoptimized.
-    bool empty;
-    {
-      ReaderMutexLock mu(self, *GetDeoptimizedMethodsLock());
-      empty = IsDeoptimizedMethodsEmpty();  // Avoid lock violation.
-    }
+    bool empty = IsDeoptimizedMethodsEmpty();
     if (empty) {
       MutexLock mu(self, *Locks::thread_list_lock_);
       bool no_remaining_deopts = true;
@@ -943,7 +1038,7 @@ void Instrumentation::ResetQuickAllocEntryPoints() {
   }
 }
 
-static std::string EntrypointString(const void* code) {
+std::string Instrumentation::EntryPointString(const void* code) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (class_linker->IsQuickToInterpreterBridge(code)) {
@@ -966,41 +1061,41 @@ static std::string EntrypointString(const void* code) {
   return "unknown";
 }
 
-void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* quick_code) {
+void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* new_code) {
   if (!EntryExitStubsInstalled()) {
     // Fast path: no instrumentation.
     DCHECK(!IsDeoptimized(method));
-    UpdateEntrypoints(method, quick_code);
+    UpdateEntryPoints(method, new_code);
     return;
   }
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (class_linker->IsQuickToInterpreterBridge(quick_code)) {
+  if (class_linker->IsQuickToInterpreterBridge(new_code)) {
     // It's always OK to update to the interpreter.
-    UpdateEntrypoints(method, quick_code);
+    UpdateEntryPoints(method, new_code);
     return;
   }
 
   if (IsDeoptimized(method)) {
     DCHECK(class_linker->IsQuickToInterpreterBridge(method->GetEntryPointFromQuickCompiledCode()))
-        << EntrypointString(method->GetEntryPointFromQuickCompiledCode());
+        << EntryPointString(method->GetEntryPointFromQuickCompiledCode());
     // Don't update, stay deoptimized.
     return;
   }
 
-  if (CodeNeedsEntryExitStub(quick_code, method)) {
+  if (CodeNeedsEntryExitStub(new_code, method)) {
     DCHECK(method->GetEntryPointFromQuickCompiledCode() == GetQuickInstrumentationEntryPoint() ||
         class_linker->IsQuickToInterpreterBridge(method->GetEntryPointFromQuickCompiledCode()))
-              << EntrypointString(method->GetEntryPointFromQuickCompiledCode());
+              << EntryPointString(method->GetEntryPointFromQuickCompiledCode());
     // If the code we want to update the method with still needs entry/exit stub, just skip.
     return;
   }
 
   // At this point, we can update as asked.
-  UpdateEntrypoints(method, quick_code);
+  UpdateEntryPoints(method, new_code);
 }
 
-void Instrumentation::UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const void* quick_code) {
+void Instrumentation::UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const void* new_code) {
   // We don't do any read barrier on `method`'s declaring class in this code, as the JIT might
   // enter here on a soon-to-be deleted ArtMethod. Updating the entrypoint is OK though, as
   // the ArtMethod is still in memory.
@@ -1008,25 +1103,12 @@ void Instrumentation::UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const 
     // If stubs are installed don't update.
     return;
   }
-  UpdateEntrypoints(method, quick_code);
+  UpdateEntryPoints(method, new_code);
 }
 
-void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* quick_code) {
+void Instrumentation::UpdateMethodsCode(ArtMethod* method, const void* new_code) {
   DCHECK(method->GetDeclaringClass()->IsResolved());
-  UpdateMethodsCodeImpl(method, quick_code);
-}
-
-void Instrumentation::UpdateMethodsCodeToInterpreterEntryPoint(ArtMethod* method) {
-  UpdateMethodsCodeImpl(method, GetQuickToInterpreterBridge());
-}
-
-void Instrumentation::UpdateMethodsCodeForJavaDebuggable(ArtMethod* method,
-                                                         const void* quick_code) {
-  // When the runtime is set to Java debuggable, we may update the entry points of
-  // all methods of a class to the interpreter bridge. A method's declaring class
-  // might not be in resolved state yet in that case, so we bypass the DCHECK in
-  // UpdateMethodsCode.
-  UpdateMethodsCodeImpl(method, quick_code);
+  UpdateMethodsCodeImpl(method, new_code);
 }
 
 bool Instrumentation::AddDeoptimizedMethod(ArtMethod* method) {
@@ -1060,7 +1142,7 @@ bool Instrumentation::RemoveDeoptimizedMethod(ArtMethod* method) {
   return true;
 }
 
-bool Instrumentation::IsDeoptimizedMethodsEmpty() const {
+bool Instrumentation::IsDeoptimizedMethodsEmptyLocked() const {
   return deoptimized_methods_.empty();
 }
 
@@ -1077,7 +1159,7 @@ void Instrumentation::Deoptimize(ArtMethod* method) {
         << " is already deoptimized";
   }
   if (!InterpreterStubsInstalled()) {
-    UpdateEntrypoints(method, GetQuickToInterpreterBridge());
+    UpdateEntryPoints(method, GetQuickToInterpreterBridge());
 
     // Install instrumentation exit stub and instrumentation frames. We may already have installed
     // these previously so it will only cover the newly created frames.
@@ -1104,19 +1186,19 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
     bool found_and_erased = RemoveDeoptimizedMethod(method);
     CHECK(found_and_erased) << "Method " << ArtMethod::PrettyMethod(method)
         << " is not deoptimized";
-    empty = IsDeoptimizedMethodsEmpty();
+    empty = IsDeoptimizedMethodsEmptyLocked();
   }
 
   // Restore code and possibly stack only if we did not deoptimize everything.
   if (!InterpreterStubsInstalled()) {
     // Restore its code or resolution trampoline.
     if (InterpretOnly(method)) {
-      UpdateEntrypoints(method, GetQuickToInterpreterBridge());
+      UpdateEntryPoints(method, GetQuickToInterpreterBridge());
     } else if (NeedsClinitCheckBeforeCall(method) &&
                !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-      UpdateEntrypoints(method, GetQuickResolutionStub());
+      UpdateEntryPoints(method, GetQuickResolutionStub());
     } else {
-      UpdateEntrypoints(method, GetOptimizedCodeFor(method));
+      UpdateEntryPoints(method, GetOptimizedCodeFor(method));
     }
 
     // If there is no deoptimized method left, we can restore the stack of each thread.
@@ -1128,32 +1210,27 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
   }
 }
 
+bool Instrumentation::IsDeoptimizedMethodsEmpty() const {
+  ReaderMutexLock mu(Thread::Current(), *GetDeoptimizedMethodsLock());
+  return deoptimized_methods_.empty();
+}
+
 bool Instrumentation::IsDeoptimized(ArtMethod* method) {
   DCHECK(method != nullptr);
   ReaderMutexLock mu(Thread::Current(), *GetDeoptimizedMethodsLock());
   return IsDeoptimizedMethod(method);
 }
 
-void Instrumentation::EnableDeoptimization() {
-  ReaderMutexLock mu(Thread::Current(), *GetDeoptimizedMethodsLock());
-  CHECK(IsDeoptimizedMethodsEmpty());
-  CHECK_EQ(deoptimization_enabled_, false);
-  deoptimization_enabled_ = true;
-}
 
 void Instrumentation::DisableDeoptimization(const char* key) {
-  CHECK_EQ(deoptimization_enabled_, true);
-  // If we deoptimized everything, undo it.
-  InstrumentationLevel level = GetCurrentInstrumentationLevel();
-  if (level == InstrumentationLevel::kInstrumentWithInterpreter) {
-    UndeoptimizeEverything(key);
-  }
+  // Remove any instrumentation support added for deoptimization.
+  ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
   // Undeoptimized selected methods.
   while (true) {
     ArtMethod* method;
     {
       ReaderMutexLock mu(Thread::Current(), *GetDeoptimizedMethodsLock());
-      if (IsDeoptimizedMethodsEmpty()) {
+      if (IsDeoptimizedMethodsEmptyLocked()) {
         break;
       }
       method = BeginDeoptimizedMethod();
@@ -1161,7 +1238,6 @@ void Instrumentation::DisableDeoptimization(const char* key) {
     }
     Undeoptimize(method);
   }
-  deoptimization_enabled_ = false;
 }
 
 // Indicates if instrumentation should notify method enter/exit events to the listeners.
@@ -1169,17 +1245,15 @@ bool Instrumentation::ShouldNotifyMethodEnterExitEvents() const {
   if (!HasMethodEntryListeners() && !HasMethodExitListeners()) {
     return false;
   }
-  return !deoptimization_enabled_ && !InterpreterStubsInstalled();
+  return !InterpreterStubsInstalled();
 }
 
 void Instrumentation::DeoptimizeEverything(const char* key) {
-  CHECK(deoptimization_enabled_);
   ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInterpreter);
 }
 
 void Instrumentation::UndeoptimizeEverything(const char* key) {
   CHECK(InterpreterStubsInstalled());
-  CHECK(deoptimization_enabled_);
   ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
 }
 

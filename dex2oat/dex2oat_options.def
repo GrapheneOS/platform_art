@@ -61,6 +61,7 @@ DEX2OAT_OPTIONS_KEY (ImageHeader::StorageMode,       ImageFormat)
 DEX2OAT_OPTIONS_KEY (std::string,                    Passes)
 DEX2OAT_OPTIONS_KEY (std::string,                    Base)  // TODO: Hex string parsing.
 DEX2OAT_OPTIONS_KEY (std::string,                    BootImage)
+DEX2OAT_OPTIONS_KEY (Unit,                           ForceJitZygote)
 DEX2OAT_OPTIONS_KEY (std::string,                    AndroidRoot)
 DEX2OAT_OPTIONS_KEY (InstructionSet,                 TargetInstructionSet)
 DEX2OAT_OPTIONS_KEY (std::string,                    TargetInstructionSetVariant)
@@ -101,5 +102,6 @@ DEX2OAT_OPTIONS_KEY (Unit,                           CompileIndividually)
 DEX2OAT_OPTIONS_KEY (std::string,                    PublicSdk)
 DEX2OAT_OPTIONS_KEY (Unit,                           ForceAllowOjInlines)
 DEX2OAT_OPTIONS_KEY (std::string,                    ApexVersions)
+DEX2OAT_OPTIONS_KEY (Unit,                           ForcePaletteCompilationHooks)
 
 #undef DEX2OAT_OPTIONS_KEY

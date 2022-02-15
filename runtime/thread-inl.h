@@ -46,7 +46,7 @@ inline void Thread::AllowThreadSuspension() {
   PoisonObjectPointers();
 }
 
-inline void Thread::CheckSuspend() {
+inline void Thread::CheckSuspend(bool implicit) {
   DCHECK_EQ(Thread::Current(), this);
   while (true) {
     StateAndFlags state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
@@ -55,11 +55,17 @@ inline void Thread::CheckSuspend() {
     } else if (state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest)) {
       RunCheckpointFunction();
     } else if (state_and_flags.IsFlagSet(ThreadFlag::kSuspendRequest)) {
-      FullSuspendCheck();
+      FullSuspendCheck(implicit);
+      implicit = false;  // We do not need to `MadviseAwayAlternateSignalStack()` anymore.
     } else {
       DCHECK(state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest));
       RunEmptyCheckpoint();
     }
+  }
+  if (implicit) {
+    // For implicit suspend check we want to `madvise()` away
+    // the alternate signal stack to avoid wasting memory.
+    MadviseAwayAlternateSignalStack();
   }
 }
 
@@ -364,6 +370,25 @@ inline bool Thread::PushOnThreadLocalAllocationStack(mirror::Object* obj) {
     return true;
   }
   return false;
+}
+
+inline bool Thread::GetWeakRefAccessEnabled() const {
+  CHECK(kUseReadBarrier);
+  DCHECK(this == Thread::Current());
+  WeakRefAccessState s = tls32_.weak_ref_access_enabled.load(std::memory_order_acquire);
+  if (s == WeakRefAccessState::kVisiblyEnabled) {
+    return true;
+  } else if (s == WeakRefAccessState::kDisabled) {
+    return false;
+  }
+  DCHECK(s == WeakRefAccessState::kEnabled)
+      << "state = " << static_cast<std::underlying_type_t<WeakRefAccessState>>(s);
+  // The state is only changed back to DISABLED during a checkpoint. Thus no other thread can
+  // change the value concurrently here. No other thread reads the value we store here, so there
+  // is no need for a release store.
+  tls32_.weak_ref_access_enabled.store(WeakRefAccessState::kVisiblyEnabled,
+                                       std::memory_order_relaxed);
+  return true;
 }
 
 inline void Thread::SetThreadLocalAllocationStack(StackReference<mirror::Object>* start,

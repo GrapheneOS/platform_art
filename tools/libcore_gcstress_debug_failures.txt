@@ -8,9 +8,7 @@
   description: "Timeouts on target with gcstress and debug.",
   result: EXEC_FAILED,
   modes: [device],
-  names: ["jsr166.CompletableFutureTest#testCompleteOnTimeout_completed",
-          "jsr166.CompletableFutureTest#testDelayedExecutor",
-          "jsr166.ExecutorsTest#testTimedCallable",
+  names: ["jsr166.ExecutorsTest#testTimedCallable",
           "jsr166.RecursiveActionTest#testJoinIgnoresInterruptsOutsideForkJoinPool",
           "libcore.java.lang.ref.ReferenceQueueTest#testRemoveWithDelayedResultAndTimeout",
           "libcore.java.text.DecimalFormatTest#testWhitespaceError",
@@ -40,6 +38,7 @@
           "jsr166.StampedLockTest#testReadLockInterruptibly",
           "jsr166.StampedLockTest#testWriteLockInterruptibly",
           "jsr166.TimeUnitTest#testConvert",
+          "jsr166.TreeSetTest#testRecursiveSubSets",
           "libcore.java.lang.OldThreadTest#test_getState",
           "libcore.java.lang.StringTest#testFastPathString_wellFormedUtf8Sequence",
           "libcore.java.math.BigIntegerTest#test_Constructor_IILjava_util_Random",
@@ -68,8 +67,9 @@
 {
   description: "Time-sensitive test fails check of elapsed time with gcstress",
   result: EXEC_FAILED,
-  modes: [host],
   bug: 205007075,
-  names: ["jsr166.CompletableFutureTest#testCompleteOnTimeout_completed"]
+  names: ["jsr166.CompletableFutureTest#testCompleteOnTimeout_completed",
+          "jsr166.CompletableFutureTest#testDelayedExecutor"
+         ]
 }
 ]

@@ -237,6 +237,29 @@ bool PerformConversions(Thread* self,
   return PerformConversions(self, callsite_type, callee_type, getter, setter, 0, num_conversions);
 }
 
+template <typename G, typename S>
+bool CopyArguments(Thread* self,
+                   Handle<mirror::MethodType> method_type,
+                   G* getter,
+                   S* setter) REQUIRES_SHARED(Locks::mutator_lock_) {
+  StackHandleScope<2> hs(self);
+  Handle<mirror::ObjectArray<mirror::Class>> ptypes(hs.NewHandle(method_type->GetPTypes()));
+  int32_t ptypes_length = ptypes->GetLength();
+
+  for (int32_t i = 0; i < ptypes_length; ++i) {
+    ObjPtr<mirror::Class> ptype(ptypes->GetWithoutChecks(i));
+    Primitive::Type primitive = ptype->GetPrimitiveType();
+    if (Primitive::Is64BitType(primitive)) {
+      setter->SetLong(getter->GetLong());
+    } else if (primitive == Primitive::kPrimNot) {
+      setter->SetReference(getter->GetReference());
+    } else {
+      setter->Set(getter->Get());
+    }
+  }
+  return true;
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_METHOD_HANDLES_INL_H_
