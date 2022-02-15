@@ -19,7 +19,7 @@ package unresolved;
 // This class is used for compiling code that accesses it but it is
 // replaced by a package-private class from src2/ with reduced access
 // to run tests, including access check tests.
-public class UnresolvedPackagePrivateClass {
+public class UnresolvedPackagePrivateClass implements BcpExMarker {
   public static void $noinline$main() {
     throw new Error("Unreachable");
   }
