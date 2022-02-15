@@ -160,4 +160,27 @@
 %  op_filled_new_array(helper="nterp_filled_new_array_range")
 
 %def op_new_array():
-  b NterpNewArray
+   /* new-array vA, vB, class@CCCC */
+   EXPORT_PC
+   // Fast-path which gets the class from thread-local cache.
+%  fetch_from_thread_cache("x0", miss_label="2f")
+   TEST_IF_MARKING 3f
+1:
+   lsr     w1, wINST, #12              // w1<- B
+   GET_VREG w1, w1                     // w1<- vB (array length)
+   ldr lr, [xSELF, #THREAD_ALLOC_ARRAY_ENTRYPOINT_OFFSET]
+   blr lr
+   ubfx    w1, wINST, #8, #4           // w1<- A
+   SET_VREG_OBJECT w0, w1
+   FETCH_ADVANCE_INST 2
+   GET_INST_OPCODE ip
+   GOTO_OPCODE ip
+2:
+   mov x0, xSELF
+   ldr x1, [sp, 0]
+   mov x2, xPC
+   bl nterp_get_class_or_allocate_object
+   b 1b
+3:
+   bl art_quick_read_barrier_mark_reg00
+   b 1b

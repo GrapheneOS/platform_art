@@ -1477,7 +1477,7 @@
     },
     {
         "tests": ["835-b216762268"],
-        "variant": "jit | optimizing",
+        "variant": "jit | optimizing | jit-on-first-use",
         "bug": "b/216762268",
         "description": ["bug in the loop optimization"]
     }
