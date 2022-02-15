@@ -17,29 +17,20 @@
 #
 # Perform a mostly normal build.
 # Since this test imports 'dalvik.annotation.optimization.FastNative' (and CriticalNative),
-# we do a bit of trickery to allow the annotations to be used at javac-compile time,
-# but remove them afterwards so it doesn't end up in the dex file.
+# we put them to src-aotex/ to allow the annotations to be used at javac-compile time,
+# but remove compiled *-aotex* artifacts afterwards.
 #
 # This enables the test to compile with vanilla RI javac and work on either ART or RI.
+# TODO: The test is currently disabled for RI anyway, presumably because @CriticalNative
+# has a different ABI and cannot be tested on RI.
 #
 
 # Stop on failure.
 set -e
 
-export ORIGINAL_JAVAC="$JAVAC"
-
-# Wrapper function for javac which invokes the compiler and applies
-# additional setup steps for the test.
-cat >javac_wrapper.sh <<"EOF"
-  set -e # Stop on error - the caller script may not have this set.
-  $ORIGINAL_JAVAC "$@"
-  # Delete CriticalNative.java, FastNative.java annotations after building the .class files.
-  find classes/dalvik -name '*.class' -exec rm {} \;
-EOF
-export JAVAC=./javac_wrapper.sh
-
-######################################################################
-
 # Use release mode to check optimizations do not break JNI.
 export D8_FLAGS=--release
 ./default-build "$@"
+
+# Remove the *-aotex build artifacts (but keep src-aotex) with dalvik.* annotations.
+rm -rf classes-aotex classes-aotex.jar $TEST_NAME-aotex.jar
