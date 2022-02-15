@@ -18,6 +18,9 @@
 
 #include <android-base/logging.h>
 
+#include "nativehelper/ScopedUtfChars.h"
+#include "runtime.h"
+
 namespace art {
 
 extern "C" JNIEXPORT jint JNICALL Java_TestCase_testNativeInternal(JNIEnv* env,
@@ -32,6 +35,24 @@ extern "C" JNIEXPORT jint JNICALL Java_TestCase_testNativeInternal(JNIEnv* env,
   }
   jobject obj = env->NewObject(cls, constructor);
   return env->CallIntMethod(obj, method_id);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_TestCase_testAccessInternal(JNIEnv* env,
+                                                                       jclass,
+                                                                       jclass cls,
+                                                                       jstring method_name,
+                                                                       jstring signature) {
+  ScopedUtfChars chars_method(env, method_name);
+  ScopedUtfChars chars_signature(env, signature);
+  if (env->GetMethodID(cls, chars_method.c_str(), chars_signature.c_str()) != nullptr) {
+    return true;
+  }
+  env->ExceptionClear();
+  return false;
+}
+
+extern "C" JNIEXPORT void JNICALL Java_TestCase_dedupeHiddenApiWarnings(JNIEnv*, jclass) {
+  Runtime::Current()->SetDedupeHiddenApiWarnings(true);
 }
 
 }  // namespace art

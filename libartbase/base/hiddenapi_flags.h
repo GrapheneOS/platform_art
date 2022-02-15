@@ -326,6 +326,10 @@ class ApiList {
     return GetValue() == Value::kBlocked;
   }
 
+  bool IsSdkApi() const {
+    return GetValue() == Value::kSdk;
+  }
+
   // Returns true if the ApiList is a test API.
   bool IsTestApi() const {
     return helper::MatchesBitMask(helper::ToBit(DomainApi::kTestApi), dex_flags_);
