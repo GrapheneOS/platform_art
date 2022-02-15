@@ -288,6 +288,8 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
   if (UNLIKELY(method->IsIntrinsic())) {
     switch (static_cast<Intrinsics>(method->GetIntrinsic())) {
       case Intrinsics::kSystemArrayCopyChar:
+      case Intrinsics::kSystemArrayCopyByte:
+      case Intrinsics::kSystemArrayCopyInt:
       case Intrinsics::kStringGetCharsNoCheck:
       case Intrinsics::kReferenceGetReferent:
       case Intrinsics::kReferenceRefersTo:

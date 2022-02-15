@@ -22,8 +22,8 @@ public class Main {
   /// CHECK-START-X86: void Main.typedCopy(java.lang.Object, byte[]) disassembly (after)
   /// CHECK: InvokeStaticOrDirect method_name:java.lang.System.arraycopy intrinsic:SystemArrayCopy
   /// CHECK-NOT:    call
-  /// CHECK: InvokeStaticOrDirect method_name:java.lang.System.arraycopy intrinsic:SystemArrayCopy
-  /// CHECK:        call
+  /// CHECK: InvokeStaticOrDirect method_name:java.lang.System.arraycopy intrinsic:SystemArrayCopyByte
+  /// CHECK-NOT:    call
   /// CHECK: ReturnVoid
   public static void typedCopy(Object o, byte[] foo) {
     System.arraycopy(o, 1, o, 0, 1);
@@ -40,8 +40,8 @@ public class Main {
   /// CHECK-START-X86: void Main.untypedCopyCaller(java.lang.Object, byte[]) disassembly (after)
   /// CHECK: InvokeStaticOrDirect method_name:java.lang.System.arraycopy intrinsic:SystemArrayCopy
   /// CHECK-NOT:    call
-  /// CHECK: InvokeStaticOrDirect method_name:java.lang.System.arraycopy intrinsic:SystemArrayCopy
-  /// CHECK:        call
+  /// CHECK: InvokeStaticOrDirect method_name:java.lang.System.arraycopy intrinsic:SystemArrayCopyByte
+  /// CHECK-NOT:    call
   /// CHECK: ReturnVoid
   public static void untypedCopyCaller(Object o, byte[] array) {
     untypedCopy(o, array);
