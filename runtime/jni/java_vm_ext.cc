@@ -516,7 +516,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime,
       allocation_tracking_enabled_(false),
       old_allocation_tracking_state_(false) {
   functions = unchecked_functions_;
-  SetCheckJniEnabled(runtime_options.Exists(RuntimeArgumentMap::CheckJni));
+  SetCheckJniEnabled(runtime_options.Exists(RuntimeArgumentMap::CheckJni) || kIsDebugBuild);
 }
 
 JavaVMExt::~JavaVMExt() {
