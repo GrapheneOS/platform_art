@@ -308,12 +308,7 @@ END \name
     cbz w2, NterpHandleHotnessOverflow
     add x2, x2, #-1
     strh w2, [x0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
-    // Otherwise, do a suspend check.
-    ldr w0, [xSELF, #THREAD_FLAGS_OFFSET]
-    tst w0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
-    b.eq 1b
-    EXPORT_PC
-    bl    art_quick_test_suspend
+    DO_SUSPEND_CHECK continue_label=1b
     b 1b
 .endm
 
@@ -432,25 +427,22 @@ END \name
 #error Expected 0 for hotness value
 #endif
     // If the counter is at zero, handle this in the runtime.
-    cbz w2, 2f
+    cbz w2, 3f
     add x2, x2, #-1
     strh w2, [x0, #ART_METHOD_HOTNESS_COUNT_OFFSET]
-    ldr w0, [xSELF, #THREAD_FLAGS_OFFSET]
-    tst w0, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
-    b.ne 3f
 1:
+    DO_SUSPEND_CHECK continue_label=2f
+2:
     FETCH_INST
     GET_INST_OPCODE ip
     GOTO_OPCODE ip
-2:
+3:
+    CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot=4f, if_not_hot=1b
+4:
     mov x1, xzr
     mov x2, xFP
     bl nterp_hot_method
-    b 1b
-3:
-    EXPORT_PC
-    bl art_quick_test_suspend
-    b 1b
+    b 2b
 .endm
 
 .macro SPILL_ALL_CALLEE_SAVES
@@ -1571,6 +1563,24 @@ END \name
     cbnz \ins, 1b
 .endm
 
+.macro CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot, if_not_hot
+    ldr wip, [x0, #ART_METHOD_ACCESS_FLAGS_OFFSET]
+    tbz wip, #ART_METHOD_IS_MEMORY_SHARED_FLAG_BIT, \if_hot
+    ldr wip, [xSELF, #THREAD_SHARED_METHOD_HOTNESS_OFFSET]
+    cbz wip, \if_hot
+    add wip, wip, #-1
+    str wip, [xSELF, #THREAD_SHARED_METHOD_HOTNESS_OFFSET]
+    b \if_not_hot
+.endm
+
+.macro DO_SUSPEND_CHECK continue_label
+    ldr wip, [xSELF, #THREAD_FLAGS_OFFSET]
+    tst wip, #THREAD_SUSPEND_OR_CHECKPOINT_REQUEST
+    b.eq \continue_label
+    EXPORT_PC
+    bl    art_quick_test_suspend
+.endm
+
 %def entry():
 /*
  * ArtMethod entry point.
@@ -1754,14 +1764,17 @@ NterpHandleStringInitRange:
    COMMON_INVOKE_RANGE is_string_init=1, suffix="stringInit"
 
 NterpHandleHotnessOverflow:
+    CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot=1f, if_not_hot=5f
+1:
     mov x1, xPC
     mov x2, xFP
     bl nterp_hot_method
-    cbnz x0, 1f
+    cbnz x0, 3f
+2:
     FETCH wINST, 0                      // load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
-1:
+3:
     // Drop the current frame.
     ldr ip, [xREFS, #-8]
     mov sp, ip
@@ -1801,11 +1814,11 @@ NterpHandleHotnessOverflow:
     sub sp, sp, x1
 
     add x2, x0, #OSR_DATA_MEMORY
-2:
+4:
     sub x1, x1, #8
     ldr ip, [x2, x1]
     str ip, [sp, x1]
-    cbnz x1, 2b
+    cbnz x1, 4b
 
     // Fetch the native PC to jump to and save it in a callee-save register.
     ldr xFP, [x0, #OSR_DATA_NATIVE_PC]
@@ -1815,6 +1828,9 @@ NterpHandleHotnessOverflow:
 
     // Jump to the compiled code.
     br xFP
+5:
+    DO_SUSPEND_CHECK continue_label=2b
+    b 2b
 
 // This is the logical end of ExecuteNterpImpl, where the frame info applies.
 // EndExecuteNterpImpl includes the methods below as we want the runtime to
