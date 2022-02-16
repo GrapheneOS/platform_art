@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (C) 2016 The Android Open Source Project
+# Copyright (C) 2022 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,5 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use secondary switch to add secondary dex file to class path.
-exec ${RUN} "${@}" --secondary
+# Use a profile to put specific classes in the app image to trigger polymorphic inlining.
+exec ${RUN} $@ --profile -Xcompiler-option --compiler-filter=speed-profile
