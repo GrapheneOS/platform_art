@@ -3753,6 +3753,7 @@ void ClassLinker::AppendToBootClassPath(const DexFile* dex_file,
                                         ObjPtr<mirror::DexCache> dex_cache) {
   CHECK(dex_file != nullptr);
   CHECK(dex_cache != nullptr) << dex_file->GetLocation();
+  CHECK_EQ(dex_cache->GetDexFile(), dex_file) << dex_file->GetLocation();
   boot_class_path_.push_back(dex_file);
   WriterMutexLock mu(Thread::Current(), *Locks::dex_lock_);
   RegisterDexFileLocked(*dex_file, dex_cache, /* class_loader= */ nullptr);
