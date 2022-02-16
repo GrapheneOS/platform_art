@@ -1539,7 +1539,8 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
         pointer_size_(GetInstructionSetPointerSize(writer_->compiler_options_.GetInstructionSet())),
         class_loader_(writer->HasImage() ? writer->image_writer_->GetAppClassLoader() : nullptr),
         dex_files_(dex_files),
-        class_linker_(Runtime::Current()->GetClassLinker()) {}
+        class_linker_(Runtime::Current()->GetClassLinker()),
+        is_image_class_(false) {}
 
   // Handle copied methods here. Copy pointer to quick code from
   // an origin method to a copied method only if they are
@@ -1550,7 +1551,11 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     OatDexMethodVisitor::StartClass(dex_file, class_def_index);
     // Skip classes that are not in the image.
-    if (!IsImageClass()) {
+    const dex::TypeId& type_id =
+        dex_file_->GetTypeId(dex_file->GetClassDef(class_def_index).class_idx_);
+    const char* class_descriptor = dex_file->GetTypeDescriptor(type_id);
+    is_image_class_ = writer_->GetCompilerOptions().IsImageClass(class_descriptor);
+    if (!is_image_class_) {
       return true;
     }
     ObjPtr<mirror::DexCache> dex_cache = class_linker_->FindDexCache(Thread::Current(), *dex_file);
@@ -1588,7 +1593,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
   bool VisitMethod(size_t class_def_method_index, const ClassAccessor::Method& method) override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Skip methods that are not in the image.
-    if (!IsImageClass()) {
+    if (!is_image_class_) {
       return true;
     }
 
@@ -1632,14 +1637,6 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     return true;
   }
 
-  // Check whether current class is image class
-  bool IsImageClass() {
-    const dex::TypeId& type_id =
-        dex_file_->GetTypeId(dex_file_->GetClassDef(class_def_index_).class_idx_);
-    const char* class_descriptor = dex_file_->GetTypeDescriptor(type_id);
-    return writer_->GetCompilerOptions().IsImageClass(class_descriptor);
-  }
-
   // Check whether specified dex file is in the compiled oat file.
   bool IsInOatFile(const DexFile* dex_file) {
     return ContainsElement(*dex_files_, dex_file);
@@ -1661,9 +1658,10 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
 
  private:
   const PointerSize pointer_size_;
-  ObjPtr<mirror::ClassLoader> class_loader_;
+  const ObjPtr<mirror::ClassLoader> class_loader_;
   const std::vector<const DexFile*>* dex_files_;
   ClassLinker* const class_linker_;
+  bool is_image_class_;  // Updated in `StartClass()`.
   std::vector<std::pair<ArtMethod*, ArtMethod*>> methods_to_process_;
 };
 
