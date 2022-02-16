@@ -215,7 +215,7 @@ class MemberSignature {
   void NotifyHiddenApiListener(AccessMethod access_method);
 };
 
-// Locates hiddenapi flags for `field` in the corresponding dex file.
+// Locates hiddenapi flags for `member` in the corresponding dex file.
 // NB: This is an O(N) operation, linear with the number of members in the class def.
 template<typename T>
 uint32_t GetDexFlags(T* member) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -288,6 +288,8 @@ ALWAYS_INLINE inline uint32_t GetRuntimeFlags(ArtMethod* method)
   if (UNLIKELY(method->IsIntrinsic())) {
     switch (static_cast<Intrinsics>(method->GetIntrinsic())) {
       case Intrinsics::kSystemArrayCopyChar:
+      case Intrinsics::kSystemArrayCopyByte:
+      case Intrinsics::kSystemArrayCopyInt:
       case Intrinsics::kStringGetCharsNoCheck:
       case Intrinsics::kReferenceGetReferent:
       case Intrinsics::kReferenceRefersTo:

@@ -100,6 +100,7 @@ enum class MethodCompilationStat {
   kNotInlinedCodeItem,
   kNotInlinedWont,
   kNotInlinedRecursiveBudget,
+  kNotInlinedPolymorphicRecursiveBudget,
   kNotInlinedProxy,
   kNotInlinedUnresolved,
   kNotInlinedPolymorphic,

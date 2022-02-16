@@ -9118,7 +9118,8 @@ ArtMethod* ClassLinker::FindIncompatibleMethod(ObjPtr<mirror::Class> klass,
     if (kIsDebugBuild) {
       ArtMethod* method =
           klass->FindInterfaceMethod(dex_cache, method_idx, image_pointer_size_);
-      DCHECK(CheckNoSuchMethod(method, dex_cache, class_loader));
+      CHECK(CheckNoSuchMethod(method, dex_cache, class_loader) ||
+            (klass->FindAccessibleInterfaceMethod(method, image_pointer_size_) == nullptr));
     }
     return nullptr;
   }

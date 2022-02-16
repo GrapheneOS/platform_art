@@ -23,7 +23,7 @@ import resolved.PublicSubclassOfUnresolvedClass;
 import resolved.ResolvedPackagePrivateClass;
 import resolved.ResolvedPublicSubclassOfPackagePrivateClass;
 
-public class UnresolvedPublicClass {
+public class UnresolvedPublicClass implements BcpExMarker {
   public static void $noinline$main() {
     $noinline$testReferrersClass();
     $noinline$testInlinedReferrersClass();

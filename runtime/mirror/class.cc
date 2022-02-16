@@ -2120,7 +2120,13 @@ ArtMethod* Class::FindAccessibleInterfaceMethod(ArtMethod* implementation_method
         ArtMethod* interface_method = &iface->GetVirtualMethodsSlice(pointer_size)[j];
         // If the interface method is part of the public SDK, return it.
         if ((hiddenapi::GetRuntimeFlags(interface_method) & kAccPublicApi) != 0) {
-          return interface_method;
+          hiddenapi::ApiList api_list(hiddenapi::detail::GetDexFlags(interface_method));
+          // The kAccPublicApi flag is also used as an optimization to avoid
+          // other hiddenapi checks to always go on the slow path. Therefore, we
+          // need to check here if the method is in the SDK list.
+          if (api_list.IsSdkApi()) {
+            return interface_method;
+          }
         }
       }
     }
