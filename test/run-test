@@ -640,7 +640,7 @@ elif [ "$runtime" = "art" ]; then
         # need to be loaded through LD_LIBRARY_PATH and
         # NATIVELOADER_DEFAULT_NAMESPACE_LIBS instead.
         run_args+=(--runtime-option "-Djava.library.path=/data/nativetest${suffix64}/art/${target_arch_name}")
-        run_args+=(--boot "/data/local/tmp/art_boot_images/boot.art")
+        run_args+=(--boot "/system/framework/art_boot_images/boot.art")
     fi
     if [ "$relocate" = "yes" ]; then
       run_args+=(--relocate)
