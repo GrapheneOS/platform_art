@@ -116,7 +116,7 @@ for b in {32,64}; do
   basename="generate-boot-image$b"
   bin_on_host="$ANDROID_PRODUCT_OUT/system/bin/$basename"
   bin_on_device="/data/local/tmp/$basename"
-  output_dir="/data/local/tmp/art_boot_images"
+  output_dir="/system/framework/art_boot_images"
   if [ -f $bin_on_host ]; then
     msginfo "Generating the primary boot image ($b-bit)..."
     adb push "$bin_on_host" "$ART_TEST_CHROOT$bin_on_device"
