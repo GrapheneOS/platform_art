@@ -1216,7 +1216,8 @@
                   "2035-structural-native-method",
                   "2036-structural-subclass-shadow",
                   "2038-hiddenapi-jvmti-ext",
-                  "2040-huge-native-alloc"],
+                  "2040-huge-native-alloc",
+                  "2238-checker-polymorphic-recursive-inlining"],
         "variant": "jvm",
         "description": ["Doesn't run on RI."]
     },
@@ -1453,11 +1454,9 @@
     },
     {
         "tests": ["727-checker-unresolved-class"],
-        "description": ["The test used to use --updatable-bcp-packages-file to",
-                        "make classes unresolved, but the flag is deprecated",
-                        "and no longer takes effect"],
+        "description": ["The run-test-jar script does not support *-bcpex.jar for RI."],
         "bug": "b/203171409",
-        "variant": "target | host"
+        "variant": "jvm"
     },
     {
         "tests": ["004-ReferenceMap"],
