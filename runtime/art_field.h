@@ -87,9 +87,6 @@ class ArtField final {
 
   // Offset to field within an Object.
   MemberOffset GetOffset() REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (kIsDebugBuild) {
-      GetOffsetDCheck();
-    }
     return MemberOffset(offset_);
   }
 
@@ -238,8 +235,6 @@ class ArtField final {
 
   ObjPtr<mirror::Class> ProxyFindSystemClass(const char* descriptor)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  void GetOffsetDCheck() REQUIRES_SHARED(Locks::mutator_lock_);
 
   GcRoot<mirror::Class> declaring_class_;
 

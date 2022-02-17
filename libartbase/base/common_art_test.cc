@@ -540,7 +540,14 @@ std::string CommonArtTestImpl::GetImageDirectory() {
   if (OS::DirectoryExists(path.c_str())) {
     return path;
   }
-  // In a chroot test, the boot image is located in a predefined location.
+  // In a chroot environment prepared by scripts, the boot image is located in a predefined
+  // location on /system.
+  path = "/system/framework/art_boot_images";
+  if (OS::DirectoryExists(path.c_str())) {
+    return path;
+  }
+  // In art-target-gtest-chroot, the boot image is located in a predefined location on /data because
+  // /system is a mount point that replicates the real one on device.
   path = "/data/local/tmp/art_boot_images";
   if (OS::DirectoryExists(path.c_str())) {
     return path;

@@ -3753,6 +3753,7 @@ void ClassLinker::AppendToBootClassPath(const DexFile* dex_file,
                                         ObjPtr<mirror::DexCache> dex_cache) {
   CHECK(dex_file != nullptr);
   CHECK(dex_cache != nullptr) << dex_file->GetLocation();
+  CHECK_EQ(dex_cache->GetDexFile(), dex_file) << dex_file->GetLocation();
   boot_class_path_.push_back(dex_file);
   WriterMutexLock mu(Thread::Current(), *Locks::dex_lock_);
   RegisterDexFileLocked(*dex_file, dex_cache, /* class_loader= */ nullptr);
@@ -9118,7 +9119,8 @@ ArtMethod* ClassLinker::FindIncompatibleMethod(ObjPtr<mirror::Class> klass,
     if (kIsDebugBuild) {
       ArtMethod* method =
           klass->FindInterfaceMethod(dex_cache, method_idx, image_pointer_size_);
-      DCHECK(CheckNoSuchMethod(method, dex_cache, class_loader));
+      CHECK(CheckNoSuchMethod(method, dex_cache, class_loader) ||
+            (klass->FindAccessibleInterfaceMethod(method, image_pointer_size_) == nullptr));
     }
     return nullptr;
   }

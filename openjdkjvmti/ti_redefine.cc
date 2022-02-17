@@ -2477,10 +2477,11 @@ jvmtiError Redefiner::Run() {
     art::ClassLinker* cl = runtime_->GetClassLinker();
     if (data.GetSourceClassLoader() == nullptr) {
       // AppendToBootClassPath includes dex file registration.
-      cl->AppendToBootClassPath(self_, &data.GetRedefinition().GetDexFile());
+      cl->AppendToBootClassPath(&data.GetRedefinition().GetDexFile(), data.GetNewDexCache());
     } else {
       cl->RegisterExistingDexCache(data.GetNewDexCache(), data.GetSourceClassLoader());
     }
+    DCHECK_EQ(cl->FindDexCache(self_, data.GetRedefinition().GetDexFile()), data.GetNewDexCache());
   }
   UnregisterAllBreakpoints();
 
