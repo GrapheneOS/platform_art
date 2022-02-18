@@ -1262,12 +1262,6 @@ class ClassLinker {
                           /*out*/bool* new_conflict,
                           /*out*/ArtMethod** imt) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void FillImtFromSuperClass(Handle<mirror::Class> klass,
-                             ArtMethod* unimplemented_method,
-                             ArtMethod* imt_conflict_method,
-                             bool* new_conflict,
-                             ArtMethod** imt) REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Check invoke type against the referenced class. Throws IncompatibleClassChangeError
   // (if `kThrowOnError`) and returns true on mismatch (kInterface on a non-interface class,
   // kVirtual on interface, kDefault on interface for dex files not supporting default methods),
