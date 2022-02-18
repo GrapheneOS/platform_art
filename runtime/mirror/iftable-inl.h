@@ -65,8 +65,8 @@ inline size_t IfTable::GetMethodArrayCount(int32_t i) {
 
 inline void IfTable::SetMethodArray(int32_t i, ObjPtr<PointerArray> arr) {
   DCHECK(arr != nullptr);
+  DCHECK_EQ(static_cast<size_t>(arr->GetLength()), GetInterface(i)->NumDeclaredVirtualMethods());
   auto idx = i * kMax + kMethodArray;
-  DCHECK(Get(idx) == nullptr);
   Set<false>(idx, arr);
 }
 
