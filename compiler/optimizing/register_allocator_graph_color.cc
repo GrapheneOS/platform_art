@@ -286,7 +286,7 @@ class InterferenceNode : public ArenaObject<kArenaAllocRegisterAllocator> {
 
   size_t GetOutDegree() const {
     // Pre-colored nodes have infinite degree.
-    DCHECK(!IsPrecolored() || out_degree_ == std::numeric_limits<size_t>::max());
+    DCHECK_IMPLIES(IsPrecolored(), out_degree_ == std::numeric_limits<size_t>::max());
     return out_degree_;
   }
 
@@ -704,7 +704,8 @@ void RegisterAllocatorGraphColor::AllocateRegisters() {
               codegen_->AddAllocatedRegister(high_reg);
             }
           } else {
-            DCHECK(!interval->HasHighInterval() || !interval->GetHighInterval()->HasRegister());
+            DCHECK_IMPLIES(interval->HasHighInterval(),
+                           !interval->GetHighInterval()->HasRegister());
           }
         }
 

@@ -237,7 +237,7 @@ class ExecutionSubgraph : public DeletableArenaObject<kArenaAllocLSA> {
   // Finalization is needed to call this function.
   // See RemoveConcavity and Prune for more information.
   bool ContainsBlock(const HBasicBlock* blk) const {
-    DCHECK(!finalized_ || !needs_prune_) << "finalized: " << finalized_;
+    DCHECK_IMPLIES(finalized_, !needs_prune_);
     if (!valid_) {
       return false;
     }
@@ -267,7 +267,7 @@ class ExecutionSubgraph : public DeletableArenaObject<kArenaAllocLSA> {
   }
 
   ArrayRef<const ExcludedCohort> GetExcludedCohorts() const {
-    DCHECK(!valid_ || !needs_prune_);
+    DCHECK_IMPLIES(valid_, !needs_prune_);
     if (!valid_ || !unreachable_blocks_.IsAnyBitSet()) {
       return ArrayRef<const ExcludedCohort>();
     } else {

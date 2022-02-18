@@ -198,7 +198,8 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
   }
   for (const HUseListNode<HEnvironment*>& use : instruction->GetEnvUses()) {
     DCHECK(!use.GetUser()->GetHolder()->IsPhi());
-    DCHECK(!filter || !ShouldFilterUse(instruction, use.GetUser()->GetHolder(), post_dominated));
+    DCHECK_IMPLIES(filter,
+                   !ShouldFilterUse(instruction, use.GetUser()->GetHolder(), post_dominated));
     finder.Update(use.GetUser()->GetHolder()->GetBlock());
   }
   HBasicBlock* target_block = finder.Get();
