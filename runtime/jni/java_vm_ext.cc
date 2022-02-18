@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "java_vm_ext.h"
+#include "java_vm_ext-inl.h"
 
 #include <dlfcn.h>
 #include <string_view>
@@ -834,17 +834,6 @@ void JavaVMExt::UpdateGlobal(Thread* self, IndirectRef ref, ObjPtr<mirror::Objec
   globals_.Update(ref, result);
 }
 
-inline bool JavaVMExt::MayAccessWeakGlobals(Thread* self) const {
-  return MayAccessWeakGlobalsUnlocked(self);
-}
-
-inline bool JavaVMExt::MayAccessWeakGlobalsUnlocked(Thread* self) const {
-  DCHECK(self != nullptr);
-  return kUseReadBarrier ?
-      self->GetWeakRefAccessEnabled() :
-      allow_accessing_weak_globals_.load(std::memory_order_seq_cst);
-}
-
 ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   // It is safe to access GetWeakRefAccessEnabled without the lock since CC uses checkpoints to call
   // SetWeakRefAccessEnabled, and the other collectors only modify allow_accessing_weak_globals_
@@ -853,7 +842,7 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref
   // case, it may be racy, this is benign since DecodeWeakGlobalLocked does the correct behavior
   // if MayAccessWeakGlobals is false.
   DCHECK_EQ(IndirectReferenceTable::GetIndirectRefKind(ref), kWeakGlobal);
-  if (LIKELY(MayAccessWeakGlobalsUnlocked(self))) {
+  if (LIKELY(MayAccessWeakGlobals(self))) {
     return weak_globals_.SynchronizedGet(ref);
   }
   MutexLock mu(self, *Locks::jni_weak_globals_lock_);
