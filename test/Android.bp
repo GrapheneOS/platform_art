@@ -469,6 +469,14 @@ filegroup {
     ],
 }
 
+// Same as above, but with a longer timeout.
+filegroup {
+    name: "art-run-test-target-slow-template",
+    srcs: [
+        "art-run-test-target-slow-template.xml",
+    ],
+}
+
 // Test configuration template for ART run-tests on target expected to run
 // successfully, and as such *not* tagged as part of TradeFed's
 // `art-target-run-test` test suite via the `test-suite-tag`. This is as
