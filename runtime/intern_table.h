@@ -121,9 +121,6 @@ class InternTable {
   ObjPtr<mirror::String> InternStrongImageString(ObjPtr<mirror::String> s)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Only used by image writer. Promote all weak interns to strong interns.
-  void PromoteWeakToStrong() REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Interns a potentially new string in the 'strong' table. May cause thread suspension.
   ObjPtr<mirror::String> InternStrong(const char* utf8_data) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
