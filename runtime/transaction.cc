@@ -410,7 +410,6 @@ void Transaction::VisitArrayLogs(RootVisitor* visitor, ArenaStack* arena_stack) 
 
   for (auto& it : array_logs_) {
     mirror::Array* old_root = it.first;
-    CHECK(!old_root->IsObjectArray());
     mirror::Array* new_root = old_root;
     visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&new_root), RootInfo(kRootUnknown));
     if (new_root != old_root) {
