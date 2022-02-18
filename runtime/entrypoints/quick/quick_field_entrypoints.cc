@@ -85,7 +85,7 @@ ALWAYS_INLINE static inline ArtField* FindInstanceField(uint32_t field_idx,
   HandleWrapper<mirror::Object> h(hs.NewHandleWrapper(obj));
   ArtField* field = FindFieldFromCode<type, kAccessCheck>(field_idx, referrer, self, size);
   if (LIKELY(field != nullptr) && UNLIKELY(h == nullptr)) {
-    ThrowNullPointerExceptionForFieldAccess(field, (type & FindFieldFlags::ReadBit) != 0);
+    ThrowNullPointerExceptionForFieldAccess(field, referrer, (type & FindFieldFlags::ReadBit) != 0);
     return nullptr;
   }
   return field;
