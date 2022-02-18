@@ -153,6 +153,9 @@ art_cc_test {
         "art_standalone_test_defaults",
         "libnativeloader-test-defaults",
     ],
+    tidy_timeout_srcs: [
+        "native_loader_test.cpp",
+    ],
     srcs: [
         "native_loader_api_test.c",
         "native_loader_test.cpp",
