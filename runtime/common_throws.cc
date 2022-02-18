@@ -23,6 +23,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "art_method.h"
 #include "class_linker-inl.h"
 #include "debug_print.h"
 #include "dex/dex_file-inl.h"
@@ -406,10 +407,11 @@ void ThrowNoSuchMethodError(InvokeType type,
 
 // NullPointerException
 
-void ThrowNullPointerExceptionForFieldAccess(ArtField* field, bool is_read) {
+void ThrowNullPointerExceptionForFieldAccess(ArtField* field, ArtMethod* method, bool is_read) {
   std::ostringstream msg;
-  msg << "Attempt to " << (is_read ? "read from" : "write to")
-      << " field '" << ArtField::PrettyField(field, true) << "' on a null object reference";
+  msg << "Attempt to " << (is_read ? "read from" : "write to") << " field '"
+      << ArtField::PrettyField(field) << "' on a null object reference in method '"
+      << ArtMethod::PrettyMethod(method) << "'";
   ThrowException("Ljava/lang/NullPointerException;", nullptr, msg.str().c_str());
 }
 
@@ -585,7 +587,7 @@ void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
       ArtField* field =
           Runtime::Current()->GetClassLinker()->ResolveField(instr.VRegC_22c(), method, false);
       Thread::Current()->ClearException();  // Resolution may fail, ignore.
-      ThrowNullPointerExceptionForFieldAccess(field, /* is_read= */ true);
+      ThrowNullPointerExceptionForFieldAccess(field, method, /* is_read= */ true);
       break;
     }
     case Instruction::IPUT:
@@ -598,7 +600,7 @@ void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
       ArtField* field = Runtime::Current()->GetClassLinker()->ResolveField(
           instr.VRegC_22c(), method, /* is_static= */ false);
       Thread::Current()->ClearException();  // Resolution may fail, ignore.
-      ThrowNullPointerExceptionForFieldAccess(field, /* is_read= */ false);
+      ThrowNullPointerExceptionForFieldAccess(field, method, /* is_read= */ false);
       break;
     }
     case Instruction::AGET:
