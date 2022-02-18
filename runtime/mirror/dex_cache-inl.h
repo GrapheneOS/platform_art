@@ -422,8 +422,10 @@ inline void DexCache::VisitReferences(ObjPtr<Class> klass, const Visitor& visito
   }
 }
 
+template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline ObjPtr<String> DexCache::GetLocation() {
-  return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
+  return GetFieldObject<String, kVerifyFlags, kReadBarrierOption>(
+      OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
 }
 
 }  // namespace mirror

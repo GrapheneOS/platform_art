@@ -2358,7 +2358,7 @@ void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data, b
   // Cleanup references to single implementation ArtMethods that will be deleted.
   if (cleanup_cha) {
     CHAOnDeleteUpdateClassVisitor visitor(data.allocator);
-    data.class_table->Visit<CHAOnDeleteUpdateClassVisitor, kWithoutReadBarrier>(visitor);
+    data.class_table->Visit<kWithoutReadBarrier>(visitor);
   }
   {
     MutexLock lock(self, critical_native_code_with_clinit_check_lock_);

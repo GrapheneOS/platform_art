@@ -109,14 +109,17 @@ inline void ArtField::Set64(ObjPtr<mirror::Object> object, uint64_t new_value) {
   }
 }
 
-template<class MirrorType>
+template<class MirrorType, ReadBarrierOption kReadBarrierOption>
 inline ObjPtr<MirrorType> ArtField::GetObj(ObjPtr<mirror::Object> object) {
   DCHECK(object != nullptr) << PrettyField();
-  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
+  DCHECK(!IsStatic() ||
+         (object == GetDeclaringClass<kReadBarrierOption>()) ||
+         !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
-    return object->GetFieldObjectVolatile<MirrorType>(GetOffset());
+    return object->GetFieldObjectVolatile<MirrorType, kDefaultVerifyFlags, kReadBarrierOption>(
+        GetOffset());
   }
-  return object->GetFieldObject<MirrorType>(GetOffset());
+  return object->GetFieldObject<MirrorType, kDefaultVerifyFlags, kReadBarrierOption>(GetOffset());
 }
 
 template<bool kTransactionActive>
@@ -273,9 +276,10 @@ inline void ArtField::SetDouble(ObjPtr<mirror::Object> object, double d) {
   Set64<kTransactionActive>(object, bits.GetJ());
 }
 
+template<ReadBarrierOption kReadBarrierOption>
 inline ObjPtr<mirror::Object> ArtField::GetObject(ObjPtr<mirror::Object> object) {
   DCHECK_EQ(Primitive::kPrimNot, GetTypeAsPrimitiveType()) << PrettyField();
-  return GetObj(object);
+  return GetObj<mirror::Object, kReadBarrierOption>(object);
 }
 
 template<bool kTransactionActive>
