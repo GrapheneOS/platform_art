@@ -958,7 +958,14 @@ bool HInliner::TryInlinePolymorphicCall(
     dex::TypeIndex class_index = FindClassIndexIn(handle.Get(), caller_compilation_unit_);
     HInstruction* return_replacement = nullptr;
 
+    // In monomorphic cases when UseOnlyPolymorphicInliningWithNoDeopt() is true, we call
+    // `TryInlinePolymorphicCall` even though we are monomorphic.
+    const bool actually_monomorphic = number_of_types == 1;
+    DCHECK(!actually_monomorphic || UseOnlyPolymorphicInliningWithNoDeopt());
+
+    // We only want to limit recursive polymorphic cases, not monomorphic ones.
     const bool too_many_polymorphic_recursive_calls =
+        !actually_monomorphic &&
         CountRecursiveCallsOf(method) > kMaximumNumberOfPolymorphicRecursiveCalls;
     if (too_many_polymorphic_recursive_calls) {
       LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedPolymorphicRecursiveBudget)
