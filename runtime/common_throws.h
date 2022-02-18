@@ -210,8 +210,7 @@ void ThrowNoSuchMethodError(InvokeType type,
 
 // NullPointerException
 
-void ThrowNullPointerExceptionForFieldAccess(ArtField* field,
-                                             bool is_read)
+void ThrowNullPointerExceptionForFieldAccess(ArtField* field, ArtMethod* method, bool is_read)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowNullPointerExceptionForMethodAccess(uint32_t method_idx,
