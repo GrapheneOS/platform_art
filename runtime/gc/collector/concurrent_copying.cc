@@ -3152,7 +3152,7 @@ class ConcurrentCopying::RefFieldsVisitor {
   explicit RefFieldsVisitor(ConcurrentCopying* collector, Thread* const thread)
       : collector_(collector), thread_(thread) {
     // Cannot have `kNoUnEvac` when Generational CC collection is disabled.
-    DCHECK(!kNoUnEvac || collector_->use_generational_cc_);
+    DCHECK_IMPLIES(kNoUnEvac, collector_->use_generational_cc_);
   }
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */)
@@ -3189,7 +3189,7 @@ class ConcurrentCopying::RefFieldsVisitor {
 template <bool kNoUnEvac>
 inline void ConcurrentCopying::Scan(mirror::Object* to_ref, size_t obj_size) {
   // Cannot have `kNoUnEvac` when Generational CC collection is disabled.
-  DCHECK(!kNoUnEvac || use_generational_cc_);
+  DCHECK_IMPLIES(kNoUnEvac, use_generational_cc_);
   if (kDisallowReadBarrierDuringScan && !Runtime::Current()->IsActiveTransaction()) {
     // Avoid all read barriers during visit references to help performance.
     // Don't do this in transaction mode because we may read the old value of an field which may
@@ -3215,7 +3215,7 @@ inline void ConcurrentCopying::Scan(mirror::Object* to_ref, size_t obj_size) {
 template <bool kNoUnEvac>
 inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset) {
   // Cannot have `kNoUnEvac` when Generational CC collection is disabled.
-  DCHECK(!kNoUnEvac || use_generational_cc_);
+  DCHECK_IMPLIES(kNoUnEvac, use_generational_cc_);
   DCHECK_EQ(Thread::Current(), thread_running_gc_);
   mirror::Object* ref = obj->GetFieldObject<
       mirror::Object, kVerifyNone, kWithoutReadBarrier, false>(offset);

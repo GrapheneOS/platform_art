@@ -2192,7 +2192,7 @@ bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
   DCHECK_EQ(GetBaseAddress(), 0u);
   bool validate = (oat_checksums != nullptr);
   static_assert(ImageSpace::kImageChecksumPrefix == 'i', "Format prefix check.");
-  DCHECK(!validate || StartsWith(*oat_checksums, "i"));
+  DCHECK_IMPLIES(validate, StartsWith(*oat_checksums, "i"));
 
   ArrayRef<const std::string> components = image_locations_;
   size_t named_components_count = 0u;

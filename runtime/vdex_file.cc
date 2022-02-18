@@ -126,7 +126,7 @@ std::unique_ptr<VdexFile> VdexFile::OpenAtAddress(uint8_t* mmap_addr,
                               vdex_length);
     return nullptr;
   }
-  CHECK(!mmap_reuse || mmap_addr != nullptr);
+  CHECK_IMPLIES(mmap_reuse, mmap_addr != nullptr);
   // Start as PROT_WRITE so we can mprotect back to it if we want to.
   MemMap mmap = MemMap::MapFileAtAddress(
       mmap_addr,
