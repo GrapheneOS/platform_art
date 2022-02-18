@@ -189,11 +189,11 @@ class ClassTable {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Stops visit if the visitor returns false.
-  template <typename Visitor, ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
   bool Visit(Visitor& visitor)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  template <typename Visitor, ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
   bool Visit(const Visitor& visitor)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
