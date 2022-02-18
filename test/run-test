@@ -570,8 +570,8 @@ fi
 function guess_target_arch_name() {
     # Check whether this is a device with native bridge. Currently this is hardcoded
     # to x86 + arm.
-    local guess_path=${ANDROID_PRODUCT_OUT}/system/apex/com.android.art.testing/javalib
-    local x86_arm=`ls ${guess_path} | sort | grep -E '^(arm|x86)$'`
+    local guess_path=$chroot/system/framework/art_boot_images
+    local x86_arm=`adb shell ls ${guess_path} | sort | grep -E '^(arm|x86)$'`
     # Collapse line-breaks into spaces
     x86_arm=$(echo $x86_arm)
     if [ "x$x86_arm" = "xarm x86" ] ; then
@@ -583,8 +583,8 @@ function guess_target_arch_name() {
             target_arch_name=x86
         fi
     else
-        local grep32bit=`ls ${guess_path} | grep -E '^(arm|x86)$'`
-        local grep64bit=`ls ${guess_path} | grep -E '^(arm64|x86_64)$'`
+        local grep32bit=`adb shell ls ${guess_path} | grep -E '^(arm|x86)$'`
+        local grep64bit=`adb shell ls ${guess_path} | grep -E '^(arm64|x86_64)$'`
         if [ "x${suffix64}" = "x64" ]; then
             target_arch_name=${grep64bit}
         else
