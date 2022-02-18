@@ -3044,7 +3044,7 @@ void ImageWriter::CopyAndFixupObjects() {
   for (ImageInfo& image_info : image_infos_) {
     if (image_info.class_table_size_ != 0u) {
       DCHECK(image_info.class_table_.has_value());
-      for (const ClassTable::TableSlot slot : *image_info.class_table_) {
+      for (const ClassTable::TableSlot& slot : *image_info.class_table_) {
         ObjPtr<mirror::Class> klass = slot.Read<kWithoutReadBarrier>();
         DCHECK(klass != nullptr);
         // Do not process boot image classes present in app image class table.
