@@ -393,9 +393,9 @@ ALWAYS_INLINE bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Ins
                               uint16_t inst_data) REQUIRES_SHARED(Locks::mutator_lock_) {
   const bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   const uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  ArtField* f =
-      FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
-                                                    Primitive::ComponentSize(field_type));
+  ArtMethod* method = shadow_frame.GetMethod();
+  ArtField* f = FindFieldFromCode<find_type, do_access_check>(
+      field_idx, method, self, Primitive::ComponentSize(field_type));
   if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -413,7 +413,7 @@ ALWAYS_INLINE bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Ins
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == nullptr)) {
-      ThrowNullPointerExceptionForFieldAccess(f, true);
+      ThrowNullPointerExceptionForFieldAccess(f, method, true);
       return false;
     }
   }
@@ -492,9 +492,9 @@ ALWAYS_INLINE bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
   const bool do_assignability_check = do_access_check;
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  ArtField* f =
-      FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
-                                                    Primitive::ComponentSize(field_type));
+  ArtMethod* method = shadow_frame.GetMethod();
+  ArtField* f = FindFieldFromCode<find_type, do_access_check>(
+      field_idx, method, self, Primitive::ComponentSize(field_type));
   if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -505,7 +505,7 @@ ALWAYS_INLINE bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == nullptr)) {
-      ThrowNullPointerExceptionForFieldAccess(f, false);
+      ThrowNullPointerExceptionForFieldAccess(f, method, false);
       return false;
     }
   }

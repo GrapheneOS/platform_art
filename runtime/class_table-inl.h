@@ -102,7 +102,7 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
   }
 }
 
-template <typename Visitor, ReadBarrierOption kReadBarrierOption>
+template <ReadBarrierOption kReadBarrierOption, typename Visitor>
 bool ClassTable::Visit(Visitor& visitor) {
   ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
@@ -115,7 +115,7 @@ bool ClassTable::Visit(Visitor& visitor) {
   return true;
 }
 
-template <typename Visitor, ReadBarrierOption kReadBarrierOption>
+template <ReadBarrierOption kReadBarrierOption, typename Visitor>
 bool ClassTable::Visit(const Visitor& visitor) {
   ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
