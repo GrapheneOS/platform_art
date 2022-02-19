@@ -197,6 +197,8 @@ class MANAGED DexCache final : public Object {
   // WARNING: This does not free the memory since it is in LinearAlloc.
   void ResetNativeArrays() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ObjPtr<String> GetLocation() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static constexpr MemberOffset StringsOffset() {

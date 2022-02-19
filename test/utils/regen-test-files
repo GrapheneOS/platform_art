@@ -112,6 +112,10 @@ runnable_test_exceptions = frozenset([
   "821-madvise-willneed",
 ])
 
+known_slow_tests = frozenset([
+  "175-alloc-big-bignums",
+])
+
 # Known failing ART run-tests.
 # TODO(rpl): Investigate and address the causes of failures.
 known_failing_tests = frozenset([
@@ -417,6 +421,9 @@ class Generator:
     # All other tests are considered runnable.
     return True
 
+  def is_slow(self, run_test):
+    return run_test in known_slow_tests
+
   def regen_bp_files(self, run_tests, buildable_tests):
     for run_test in run_tests:
       # Remove any previously generated file.
@@ -437,7 +444,10 @@ class Generator:
     run_test_module_name = ART_RUN_TEST_MODULE_NAME_PREFIX + run_test
 
     if self.is_runnable(run_test):
-      test_config_template = "art-run-test-target-template"
+      if self.is_slow(run_test):
+        test_config_template= "art-run-test-target-slow-template"
+      else:
+        test_config_template = "art-run-test-target-template"
     else:
       test_config_template = "art-run-test-target-no-test-suite-tag-template"
 
