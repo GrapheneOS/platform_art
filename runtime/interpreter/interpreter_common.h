@@ -46,6 +46,7 @@
 #include "dex/dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "handle_scope-inl.h"
+#include "interpreter_cache-inl.h"
 #include "interpreter_switch_impl.h"
 #include "jit/jit-inl.h"
 #include "mirror/call_site.h"
