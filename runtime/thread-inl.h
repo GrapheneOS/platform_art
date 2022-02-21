@@ -375,7 +375,11 @@ inline bool Thread::PushOnThreadLocalAllocationStack(mirror::Object* obj) {
 inline bool Thread::GetWeakRefAccessEnabled() const {
   CHECK(kUseReadBarrier);
   DCHECK(this == Thread::Current());
-  WeakRefAccessState s = tls32_.weak_ref_access_enabled.load(std::memory_order_acquire);
+  WeakRefAccessState s = tls32_.weak_ref_access_enabled.load(std::memory_order_relaxed);
+  if (LIKELY(s == WeakRefAccessState::kVisiblyEnabled)) {
+    return true;
+  }
+  s = tls32_.weak_ref_access_enabled.load(std::memory_order_acquire);
   if (s == WeakRefAccessState::kVisiblyEnabled) {
     return true;
   } else if (s == WeakRefAccessState::kDisabled) {
