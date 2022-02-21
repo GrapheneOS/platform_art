@@ -179,10 +179,6 @@ class ThreadList {
     return empty_checkpoint_barrier_.get();
   }
 
-  void SweepInterpreterCaches(IsMarkedVisitor* visitor) const
-      REQUIRES(!Locks::thread_list_lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   void WaitForOtherNonDaemonThreadsToExit(bool check_no_birth = true)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_,
                !Locks::mutator_lock_);
