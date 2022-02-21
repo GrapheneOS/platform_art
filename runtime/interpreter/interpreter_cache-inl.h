@@ -19,10 +19,12 @@
 
 #include "interpreter_cache.h"
 
+#include "thread.h"
+
 namespace art {
 
-inline bool InterpreterCache::Get(const void* key, /* out */ size_t* value) {
-  DCHECK(IsCalledFromOwningThread());
+inline bool InterpreterCache::Get(Thread* self, const void* key, /* out */ size_t* value) {
+  DCHECK(self->GetInterpreterCache() == this) << "Must be called from owning thread";
   Entry& entry = data_[IndexOf(key)];
   if (LIKELY(entry.first == key)) {
     *value = entry.second;
@@ -31,9 +33,15 @@ inline bool InterpreterCache::Get(const void* key, /* out */ size_t* value) {
   return false;
 }
 
-inline void InterpreterCache::Set(const void* key, size_t value) {
-  DCHECK(IsCalledFromOwningThread());
-  data_[IndexOf(key)] = Entry{key, value};
+inline void InterpreterCache::Set(Thread* self, const void* key, size_t value) {
+  DCHECK(self->GetInterpreterCache() == this) << "Must be called from owning thread";
+
+  // For simplicity, only update the cache if weak ref accesses are enabled. If
+  // they are disabled, this means the GC is processing the cache, and is
+  // reading it concurrently.
+  if (kUseReadBarrier && self->GetWeakRefAccessEnabled()) {
+    data_[IndexOf(key)] = Entry{key, value};
+  }
 }
 
 }  // namespace art
