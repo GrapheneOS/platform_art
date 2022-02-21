@@ -1541,7 +1541,8 @@ class Thread {
   template <bool kPrecise>
   void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SweepInterpreterCache(IsMarkedVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+  static void SweepInterpreterCaches(IsMarkedVisitor* visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsAotCompiler();
 
