@@ -25,8 +25,4 @@ void InterpreterCache::Clear(Thread* owning_thread) {
   data_.fill(Entry{});
 }
 
-bool InterpreterCache::IsCalledFromOwningThread() {
-  return Thread::Current()->GetInterpreterCache() == this;
-}
-
 }  // namespace art
