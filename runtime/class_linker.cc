@@ -6170,26 +6170,6 @@ ArtMethod* ClassLinker::AddMethodToConflictTable(ObjPtr<mirror::Class> klass,
   return new_conflict_method;
 }
 
-bool ClassLinker::AllocateIfTableMethodArrays(Thread* self,
-                                              Handle<mirror::Class> klass,
-                                              Handle<mirror::IfTable> iftable) {
-  DCHECK(!klass->IsInterface());
-  DCHECK(klass->HasSuperClass());
-  const size_t ifcount = iftable->Count();
-  for (size_t i = 0; i < ifcount; ++i) {
-    size_t num_methods = iftable->GetInterface(i)->NumDeclaredVirtualMethods();
-    if (num_methods > 0) {
-      ObjPtr<mirror::PointerArray> method_array = AllocPointerArray(self, num_methods);
-      if (UNLIKELY(method_array == nullptr)) {
-        self->AssertPendingOOMException();
-        return false;
-      }
-      iftable->SetMethodArray(i, method_array);
-    }
-  }
-  return true;
-}
-
 void ClassLinker::SetIMTRef(ArtMethod* unimplemented_method,
                             ArtMethod* imt_conflict_method,
                             ArtMethod* current_method,
@@ -6572,25 +6552,13 @@ static ObjPtr<mirror::IfTable> SetupInterfaceLookupTable(
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(klass->HasSuperClass());
   ObjPtr<mirror::IfTable> super_iftable = klass->GetSuperClass()->GetIfTable();
-  const size_t super_ifcount = super_iftable->Count();
+  DCHECK(super_iftable != nullptr);
   const size_t num_interfaces = interfaces.GetLength();
 
-  // If there are no new interfaces, we can recycle parent's interface table if the class
-  // inherits no interfaces from the superclass (this is always the case for interfaces as
-  // their superclass `java.lang.Object` does not implement any interface), or there are no
-  // new virtuals, or all interfaces inherited from the superclass are just marker interfaces.
-  auto is_marker_iface = [=](size_t index) REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
-    return super_iftable->GetMethodArrayCount(index) == 0;
-  };
-  auto can_reuse_super_iftable = [=]() REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE{
-    if (super_ifcount == 0u) {
-      return true;
-    }
-    DCHECK(!klass->IsInterface());
-    return klass->NumDeclaredVirtualMethods() == 0u ||
-           std::all_of(CountIter(0), CountIter(super_ifcount), is_marker_iface);
-  };
-  if (num_interfaces == 0 && can_reuse_super_iftable()) {
+  // If there are no new interfaces, return the interface table from superclass.
+  // If any implementation methods are overridden, we shall copy the table and
+  // the method arrays that contain any differences (copy-on-write).
+  if (num_interfaces == 0) {
     return super_iftable;
   }
 
@@ -6610,6 +6578,7 @@ static ObjPtr<mirror::IfTable> SetupInterfaceLookupTable(
   static constexpr size_t kMaxStackReferences = 16;
   NewInterfaceReference initial_storage[kMaxStackReferences];
   ScopedArenaVector<NewInterfaceReference> supplemental_storage(allocator->Adapter());
+  const size_t super_ifcount = super_iftable->Count();
   ArrayRef<const NewInterfaceReference> new_interface_references =
       FindNewIfTableInterfaces(
           super_iftable,
@@ -6619,13 +6588,10 @@ static ObjPtr<mirror::IfTable> SetupInterfaceLookupTable(
           ArrayRef<NewInterfaceReference>(initial_storage),
           &supplemental_storage);
 
-  // If all declared interfaces were already present in superclass interface table, we can
-  // re-check if other conditions of reusing the superclass interface table are satisfied.
-  if (UNLIKELY(num_interfaces != 0u && new_interface_references.empty())) {
-    DCHECK(!klass->IsInterface());
-    if (can_reuse_super_iftable()) {
-      return super_iftable;
-    }
+  // If all declared interfaces were already present in superclass interface table,
+  // return the interface table from superclass. See above.
+  if (UNLIKELY(new_interface_references.empty())) {
+    return super_iftable;
   }
 
   // Create the interface table.
@@ -6639,9 +6605,14 @@ static ObjPtr<mirror::IfTable> SetupInterfaceLookupTable(
   if (super_ifcount != 0) {
     // Reload `super_iftable` as it may have been clobbered by the allocation.
     super_iftable = klass->GetSuperClass()->GetIfTable();
-    for (size_t i = 0; i < super_ifcount; i++) {
+    for (size_t i = 0; i != super_ifcount; i++) {
       ObjPtr<mirror::Class> super_interface = super_iftable->GetInterface(i);
+      DCHECK(super_interface != nullptr);
       iftable->SetInterface(i, super_interface);
+      ObjPtr<mirror::PointerArray> method_array = super_iftable->GetMethodArrayOrNull(i);
+      if (method_array != nullptr) {
+        iftable->SetMethodArray(i, method_array);
+      }
     }
   }
   // Fill in the table with additional interfaces.
@@ -6935,6 +6906,16 @@ class ClassLinker::LinkMethodsHelper {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
+  // Allocate a pointer array.
+  static ObjPtr<mirror::PointerArray> AllocPointerArray(Thread* self, size_t length)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Allocate method arrays for interfaces.
+  bool AllocateIfTableMethodArrays(Thread* self,
+                                   Handle<mirror::Class> klass,
+                                   Handle<mirror::IfTable> iftable)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Assign vtable indexes to declared virtual methods for a non-interface class other
   // than `java.lang.Object`. Returns the number of vtable entries on success, 0 on failure.
   // This function also assigns vtable indexes for interface methods in new interfaces
@@ -6955,9 +6936,9 @@ class ClassLinker::LinkMethodsHelper {
       REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
   void ReallocMethods(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
-  void FinalizeIfTable(ObjPtr<mirror::Class> klass,
-                       ObjPtr<mirror::IfTable> iftable,
-                       ObjPtr<mirror::PointerArray> vtable,
+  bool FinalizeIfTable(Handle<mirror::Class> klass,
+                       MutableHandle<mirror::IfTable> iftable,
+                       Handle<mirror::PointerArray> vtable,
                        bool is_klass_abstract,
                        bool is_super_abstract,
                        bool* out_new_conflict,
@@ -7694,18 +7675,21 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::ReallocMethods(ObjPtr<mirror:
 }
 
 template <PointerSize kPointerSize>
-void ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
-    ObjPtr<mirror::Class> klass,
-    ObjPtr<mirror::IfTable> iftable,
-    ObjPtr<mirror::PointerArray> vtable,
+bool ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
+    Handle<mirror::Class> klass,
+    MutableHandle<mirror::IfTable> iftable,
+    Handle<mirror::PointerArray> vtable,
     bool is_klass_abstract,
     bool is_super_abstract,
     bool* out_new_conflict,
     ArtMethod** out_imt) {
-  ObjPtr<mirror::IfTable> super_iftable = klass->GetSuperClass()->GetIfTable();
   size_t ifcount = iftable->Count();
-  size_t super_ifcount = super_iftable->Count();
+  // We do not need a read barrier here as the length is constant, both from-space and
+  // to-space `IfTable`s shall yield the same result. See also `Class::GetIfTableCount()`.
+  size_t super_ifcount =
+      klass->GetSuperClass<kDefaultVerifyFlags, kWithoutReadBarrier>()->GetIfTableCount();
 
+  ClassLinker* class_linker = nullptr;
   ArtMethod* unimplemented_method = nullptr;
   ArtMethod* imt_conflict_method = nullptr;
   uintptr_t imt_methods_begin = 0u;
@@ -7713,6 +7697,7 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
   DCHECK_EQ(klass->ShouldHaveImt(), !is_klass_abstract);
   DCHECK_EQ(klass->GetSuperClass()->ShouldHaveImt(), !is_super_abstract);
   if (!is_klass_abstract) {
+    class_linker = class_linker_;
     unimplemented_method = runtime_->GetImtUnimplementedMethod();
     imt_conflict_method = runtime_->GetImtConflictMethod();
     if (is_super_abstract) {
@@ -7734,32 +7719,76 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
     }
   }
 
+  auto update_imt = [=](ObjPtr<mirror::Class> iface, size_t j, ArtMethod* implementation)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    // Place method in imt if entry is empty, place conflict otherwise.
+    ArtMethod** imt_ptr = &out_imt[iface->GetVirtualMethod(j, kPointerSize)->GetImtIndex()];
+    class_linker->SetIMTRef(unimplemented_method,
+                            imt_conflict_method,
+                            implementation,
+                            /*out*/out_new_conflict,
+                            /*out*/imt_ptr);
+  };
+
   // For interfaces inherited from superclass, the new method arrays are empty,
   // so use vtable indexes from implementation methods from the superclass method array.
   for (size_t i = 0; i != super_ifcount; ++i) {
     ObjPtr<mirror::PointerArray> method_array = iftable->GetMethodArrayOrNull(i);
+    DCHECK(method_array == klass->GetSuperClass()->GetIfTable()->GetMethodArrayOrNull(i));
     if (method_array == nullptr) {
       continue;
     }
     size_t num_methods = method_array->GetLength();
     ObjPtr<mirror::Class> iface = iftable->GetInterface(i);
-    ObjPtr<mirror::PointerArray> super_method_array = super_iftable->GetMethodArrayOrNull(i);
-    for (size_t j = 0; j != num_methods; ++j) {
+    size_t j = 0;
+    // First loop has method array shared with the super class.
+    for (; j != num_methods; ++j) {
       ArtMethod* super_implementation =
-          super_method_array->GetElementPtrSize<ArtMethod*, kPointerSize>(j);
+          method_array->GetElementPtrSize<ArtMethod*, kPointerSize>(j);
+      size_t vtable_index = super_implementation->GetMethodIndex();
+      ArtMethod* implementation =
+          vtable->GetElementPtrSize<ArtMethod*, kPointerSize>(vtable_index);
+      // Check if we need to update IMT with this method, see above.
+      if (reinterpret_cast<uintptr_t>(implementation) - imt_methods_begin < imt_methods_size) {
+        update_imt(iface, j, implementation);
+      }
+      if (implementation != super_implementation) {
+        // Copy-on-write and move to the next loop.
+        Thread* self = self_;
+        StackHandleScope<2u> hs(self);
+        Handle<mirror::PointerArray> old_method_array = hs.NewHandle(method_array);
+        HandleWrapperObjPtr<mirror::Class> h_iface = hs.NewHandleWrapper(&iface);
+        if (ifcount == super_ifcount && iftable.Get() == klass->GetSuperClass()->GetIfTable()) {
+          ObjPtr<mirror::IfTable> new_iftable = ObjPtr<mirror::IfTable>::DownCast(
+              mirror::ObjectArray<mirror::Object>::CopyOf(
+                  iftable, self, ifcount * mirror::IfTable::kMax));
+          if (new_iftable == nullptr) {
+            return false;
+          }
+          iftable.Assign(new_iftable);
+        }
+        method_array = ObjPtr<mirror::PointerArray>::DownCast(
+            mirror::Array::CopyOf(old_method_array, self, num_methods));
+        if (method_array == nullptr) {
+          return false;
+        }
+        iftable->SetMethodArray(i, method_array);
+        method_array->SetElementPtrSize(j, implementation, kPointerSize);
+        ++j;
+        break;
+      }
+    }
+    // Second loop (if non-empty) has method array different from the superclass.
+    for (; j != num_methods; ++j) {
+      ArtMethod* super_implementation =
+          method_array->GetElementPtrSize<ArtMethod*, kPointerSize>(j);
       size_t vtable_index = super_implementation->GetMethodIndex();
       ArtMethod* implementation =
           vtable->GetElementPtrSize<ArtMethod*, kPointerSize>(vtable_index);
       method_array->SetElementPtrSize(j, implementation, kPointerSize);
       // Check if we need to update IMT with this method, see above.
       if (reinterpret_cast<uintptr_t>(implementation) - imt_methods_begin < imt_methods_size) {
-        // Place method in imt if entry is empty, place conflict otherwise.
-        ArtMethod** imt_ptr = &out_imt[iface->GetVirtualMethod(j, kPointerSize)->GetImtIndex()];
-        class_linker_->SetIMTRef(unimplemented_method,
-                                 imt_conflict_method,
-                                 implementation,
-                                 /*out*/out_new_conflict,
-                                 /*out*/imt_ptr);
+        update_imt(iface, j, implementation);
       }
     }
   }
@@ -7779,16 +7808,12 @@ void ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
           vtable->GetElementPtrSize<ArtMethod*, kPointerSize>(vtable_index);
       method_array->SetElementPtrSize(j, implementation, kPointerSize);
       if (!is_klass_abstract) {
-        // Place method in IMT if entry is empty, place conflict otherwise.
-        ArtMethod** imt_ptr = &out_imt[iface->GetVirtualMethod(j, kPointerSize)->GetImtIndex()];
-        class_linker_->SetIMTRef(unimplemented_method,
-                                 imt_conflict_method,
-                                 implementation,
-                                 /*out*/out_new_conflict,
-                                 /*out*/imt_ptr);
+        update_imt(iface, j, implementation);
       }
     }
   }
+
+  return true;
 }
 
 NO_INLINE
@@ -7803,6 +7828,56 @@ static void ThrowIllegalAccessErrorForImplementingMethod(ObjPtr<mirror::Class> k
       "Method '%s' implementing interface method '%s' is not public",
       vtable_method->PrettyMethod().c_str(),
       interface_method->PrettyMethod().c_str());
+}
+
+template <PointerSize kPointerSize>
+ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper<kPointerSize>::AllocPointerArray(
+    Thread* self, size_t length) {
+  using PointerArrayType = std::conditional_t<
+      kPointerSize == PointerSize::k64, mirror::LongArray, mirror::IntArray>;
+  ObjPtr<mirror::Array> array = PointerArrayType::Alloc(self, length);
+  return ObjPtr<mirror::PointerArray>::DownCast(array);
+}
+
+template <PointerSize kPointerSize>
+bool ClassLinker::LinkMethodsHelper<kPointerSize>::AllocateIfTableMethodArrays(
+    Thread* self,
+    Handle<mirror::Class> klass,
+    Handle<mirror::IfTable> iftable) {
+  DCHECK(!klass->IsInterface());
+  DCHECK(klass_->HasSuperClass());
+  const size_t ifcount = iftable->Count();
+  // We do not need a read barrier here as the length is constant, both from-space and
+  // to-space `IfTable`s shall yield the same result. See also `Class::GetIfTableCount()`.
+  size_t super_ifcount =
+      klass->GetSuperClass<kDefaultVerifyFlags, kWithoutReadBarrier>()->GetIfTableCount();
+  if (ifcount == super_ifcount) {
+    DCHECK(iftable.Get() == klass_->GetSuperClass()->GetIfTable());
+    return true;
+  }
+
+  if (kIsDebugBuild) {
+    // The method array references for superclass interfaces have been copied.
+    // We shall allocate new arrays if needed (copy-on-write) in `FinalizeIfTable()`.
+    ObjPtr<mirror::IfTable> super_iftable = klass_->GetSuperClass()->GetIfTable();
+    for (size_t i = 0; i != super_ifcount; ++i) {
+      CHECK(iftable->GetInterface(i) == super_iftable->GetInterface(i));
+      CHECK(iftable->GetMethodArrayOrNull(i) == super_iftable->GetMethodArrayOrNull(i));
+    }
+  }
+
+  for (size_t i = super_ifcount; i < ifcount; ++i) {
+    size_t num_methods = iftable->GetInterface(i)->NumDeclaredVirtualMethods();
+    if (num_methods > 0) {
+      ObjPtr<mirror::PointerArray> method_array = AllocPointerArray(self, num_methods);
+      if (UNLIKELY(method_array == nullptr)) {
+        self->AssertPendingOOMException();
+        return false;
+      }
+      iftable->SetMethodArray(i, method_array);
+    }
+  }
+  return true;
 }
 
 template <PointerSize kPointerSize>
@@ -8245,7 +8320,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     // We set up the interface lookup table now because we need it to determine if we need
     // to update any vtable entries with new default method implementations.
     StackHandleScope<3> hs(self);
-    Handle<mirror::IfTable> iftable = hs.NewHandle(UNLIKELY(klass->IsProxyClass())
+    MutableHandle<mirror::IfTable> iftable = hs.NewHandle(UNLIKELY(klass->IsProxyClass())
         ? SetupInterfaceLookupTable(self, klass, &allocator_, ProxyInterfacesAccessor(interfaces))
         : SetupInterfaceLookupTable(
               self, klass, &allocator_, NonProxyInterfacesAccessor(class_linker_, klass)));
@@ -8254,10 +8329,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
       return false;
     }
 
-    const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
-    Handle<mirror::Class> super_class = hs.NewHandle(klass->GetSuperClass());
-
     // Copy the IMT from superclass if present and needed. Update with new methods later.
+    Handle<mirror::Class> super_class = hs.NewHandle(klass->GetSuperClass());
     bool is_klass_abstract = klass->IsAbstract();
     bool is_super_abstract = super_class->IsAbstract();
     DCHECK_EQ(klass->ShouldHaveImt(), !is_klass_abstract);
@@ -8271,6 +8344,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
 
     // If there are no new virtual methods and no new interfaces, we can simply reuse
     // the vtable from superclass. We may need to make a copy if it's embedded.
+    const size_t super_vtable_length = super_class->GetVTableLength();
     if (num_virtual_methods == 0 && iftable.Get() == super_class->GetIfTable()) {
       DCHECK_EQ(is_super_abstract, !super_class->ShouldHaveEmbeddedVTable());
       if (is_super_abstract) {
@@ -8290,8 +8364,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
                                             out_imt);
         }
       } else {
-        ObjPtr<mirror::PointerArray> vtable =
-            class_linker_->AllocPointerArray(self, super_vtable_length);
+        ObjPtr<mirror::PointerArray> vtable = AllocPointerArray(self, super_vtable_length);
         if (UNLIKELY(vtable == nullptr)) {
           self->AssertPendingOOMException();
           return false;
@@ -8312,7 +8385,8 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     // TODO: Do not allocate copied methods during linking, store only records about what
     // we need to allocate and allocate it at the end. Start with superclass iftable and
     // perform copy-on-write when needed to facilitate maximum memory sharing.
-    if (!class_linker_->AllocateIfTableMethodArrays(self, klass, iftable)) {
+    if (!AllocateIfTableMethodArrays(self, klass, iftable)) {
+      self->AssertPendingOOMException();
       return false;
     }
 
@@ -8325,8 +8399,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     DCHECK(IsUint<16>(final_vtable_size));
 
     // Allocate the new vtable.
-    Handle<mirror::PointerArray> vtable =
-        hs.NewHandle(class_linker_->AllocPointerArray(self, final_vtable_size));
+    Handle<mirror::PointerArray> vtable = hs.NewHandle(AllocPointerArray(self, final_vtable_size));
     if (UNLIKELY(vtable == nullptr)) {
       self->AssertPendingOOMException();
       return false;
@@ -8352,13 +8425,16 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     }
 
     // Update the `iftable` (and IMT) with finalized virtual methods.
-    FinalizeIfTable(klass.Get(),
-                    iftable.Get(),
-                    vtable.Get(),
-                    is_klass_abstract,
-                    is_super_abstract,
-                    out_new_conflict,
-                    out_imt);
+    if (!FinalizeIfTable(klass,
+                         iftable,
+                         vtable,
+                         is_klass_abstract,
+                         is_super_abstract,
+                         out_new_conflict,
+                         out_imt)) {
+      self->AssertPendingOOMException();
+      return false;
+    }
 
     klass->SetVTable(vtable.Get());
     klass->SetIfTable(iftable.Get());
@@ -8379,8 +8455,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkJavaLangObjectMethods(
   DCHECK_EQ(klass.Get(), GetClassRoot<mirror::Object>(class_linker_));
   DCHECK_EQ(klass->NumVirtualMethods(), mirror::Object::kVTableLength);
   static_assert(IsUint<16>(mirror::Object::kVTableLength));
-  ObjPtr<mirror::PointerArray> vtable =
-      class_linker_->AllocPointerArray(self, mirror::Object::kVTableLength);
+  ObjPtr<mirror::PointerArray> vtable = AllocPointerArray(self, mirror::Object::kVTableLength);
   if (UNLIKELY(vtable == nullptr)) {
     self->AssertPendingOOMException();
     return false;
