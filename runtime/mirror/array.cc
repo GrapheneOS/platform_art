@@ -121,9 +121,10 @@ ObjPtr<Array> Array::CreateMultiArray(Thread* self,
 
 template<typename T>
 ObjPtr<PrimitiveArray<T>> PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
-  gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+  Runtime* runtime = Runtime::Current();
+  gc::AllocatorType allocator_type = runtime->GetHeap()->GetCurrentAllocator();
   ObjPtr<Array> raw_array = Array::Alloc(self,
-                                         GetClassRoot<PrimitiveArray<T>>(),
+                                         GetClassRoot<PrimitiveArray<T>>(runtime->GetClassLinker()),
                                          length,
                                          ComponentSizeShiftWidth(sizeof(T)),
                                          allocator_type);
