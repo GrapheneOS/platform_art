@@ -1237,12 +1237,6 @@ class ClassLinker {
       REQUIRES(!Locks::dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Allocate method arrays for interfaces.
-  bool AllocateIfTableMethodArrays(Thread* self,
-                                   Handle<mirror::Class> klass,
-                                   Handle<mirror::IfTable> iftable)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Sets imt_ref appropriately for LinkInterfaceMethods.
   // If there is no method in the imt location of imt_ref it will store the given method there.
   // Otherwise it will set the conflict method which will figure out which method to use during
