@@ -24,6 +24,7 @@
 #include "dex/dex_instruction_utils.h"
 #include "debugger.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "interpreter/interpreter_cache-inl.h"
 #include "interpreter/interpreter_common.h"
 #include "interpreter/interpreter_intrinsics.h"
 #include "interpreter/shadow_frame-inl.h"
@@ -90,12 +91,7 @@ inline void UpdateHotness(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock
 template<typename T>
 inline void UpdateCache(Thread* self, uint16_t* dex_pc_ptr, T value) {
   DCHECK(kUseReadBarrier) << "Nterp only works with read barriers";
-  // For simplicity, only update the cache if weak ref accesses are enabled. If
-  // they are disabled, this means the GC is processing the cache, and is
-  // reading it concurrently.
-  if (self->GetWeakRefAccessEnabled()) {
-    self->GetInterpreterCache()->Set(dex_pc_ptr, value);
-  }
+  self->GetInterpreterCache()->Set(self, dex_pc_ptr, value);
 }
 
 template<typename T>

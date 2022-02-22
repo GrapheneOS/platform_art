@@ -573,6 +573,7 @@
             "691-hiddenapi-proxy",
             "692-vdex-inmem-loader",
             "693-vdex-inmem-loader-evict",
+            "817-hiddenapi",
             "944-transform-classloaders",
             "999-redefine-hiddenapi",
             "2038-hiddenapi-jvmti-ext"
