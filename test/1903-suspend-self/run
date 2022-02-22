@@ -15,3 +15,13 @@
 # limitations under the License.
 
 ./default-run "$@" --jvmti
+
+return_status1=$?
+
+#Also do one run with --no-image to have one test coverage with no-image.
+./default-run "$@" --jvmti --no-image
+
+return_status2=$?
+
+# Make sure we don't silently ignore an early failure.
+(exit $return_status1) && (exit $return_status2)

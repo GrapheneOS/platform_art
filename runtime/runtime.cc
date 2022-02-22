@@ -739,7 +739,7 @@ void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
     // from mutators. See b/32167580.
     GetJit()->GetCodeCache()->SweepRootTables(visitor);
   }
-  thread_list_->SweepInterpreterCaches(visitor);
+  Thread::SweepInterpreterCaches(visitor);
 
   // All other generic system-weak holders.
   for (gc::AbstractSystemWeakHolder* holder : system_weak_holders_) {
