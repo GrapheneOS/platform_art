@@ -483,6 +483,12 @@ art_cc_defaults {
         ":art-gtest-jars-VerifierDepsMulti",
         ":art-gtest-jars-VerifySoftFailDuringClinit",
     ],
+    tidy_timeout_srcs: [
+        "dex2oat_test.cc",
+        "verifier_deps_test.cc",
+        "linker/arm/relative_patcher_thumb2_test.cc",
+        "linker/arm64/relative_patcher_arm64_test.cc",
+    ],
     srcs: [
         "dex2oat_test.cc",
         "dex2oat_vdex_test.cc",

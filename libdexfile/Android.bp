@@ -27,6 +27,9 @@ cc_defaults {
     name: "libdexfile_defaults",
     defaults: ["art_defaults"],
     host_supported: true,
+    tidy_timeout_srcs: [
+        "dex/dex_file_verifier.cc",
+    ],
     srcs: [
         "dex/art_dex_file_loader.cc",
         "dex/compact_dex_file.cc",
@@ -262,6 +265,9 @@ art_cc_library {
 
 art_cc_defaults {
     name: "art_libdexfile_tests_defaults",
+    tidy_timeout_srcs: [
+        "dex/dex_file_verifier_test.cc",
+    ],
     srcs: [
         "dex/art_dex_file_loader_test.cc",
         "dex/class_accessor_test.cc",
