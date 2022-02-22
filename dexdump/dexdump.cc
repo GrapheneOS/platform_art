@@ -1198,12 +1198,26 @@ static void dumpBytecodes(const DexFile* pDexFile, u4 idx,
   }  // for
 }
 
+static u4 findLastInstructionAddress(const CodeItemDebugInfoAccessor& accessor) {
+  const u4 maxAddress = accessor.InsnsSizeInCodeUnits();
+  u4 lastInstructionSize = 0;
+  for (const DexInstructionPcPair& pair : accessor) {
+    const u4 address = pair.DexPc();
+    if (address >= maxAddress) {
+      return 1;
+    }
+    lastInstructionSize = pair.Inst().SizeInCodeUnits();
+  }
+  return maxAddress - lastInstructionSize;
+}
+
 /*
  * Dumps code of a method.
  */
 static void dumpCode(const DexFile* pDexFile, u4 idx, u4 flags,
                      const dex::CodeItem* pCode, u4 codeOffset) {
   CodeItemDebugInfoAccessor accessor(*pDexFile, pCode, idx);
+  const u4 lastInstructionAddress = findLastInstructionAddress(accessor);
 
   fprintf(gOutFile, "      registers     : %d\n", accessor.RegistersSize());
   fprintf(gOutFile, "      ins           : %d\n", accessor.InsSize());
@@ -1223,8 +1237,12 @@ static void dumpCode(const DexFile* pDexFile, u4 idx, u4 flags,
   bool is_static = (flags & kAccStatic) != 0;
   fprintf(gOutFile, "      positions     : \n");
   accessor.DecodeDebugPositionInfo([&](const DexFile::PositionInfo& entry) {
-    fprintf(gOutFile, "        0x%04x line=%d\n", entry.address_, entry.line_);
-    return false;
+    if (entry.address_ > lastInstructionAddress) {
+      return true;
+    } else {
+      fprintf(gOutFile, "        0x%04x line=%d\n", entry.address_, entry.line_);
+      return false;
+    }
   });
   fprintf(gOutFile, "      locals        : \n");
   accessor.DecodeDebugLocalInfo(is_static,
