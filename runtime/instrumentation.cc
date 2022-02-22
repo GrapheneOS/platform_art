@@ -223,7 +223,7 @@ static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_)
     return false;
   }
 
-  return method->IsConstructor() &&
+  return method->IsConstructor() && !method->IsStatic() &&
       method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;");
 }
 
@@ -1086,7 +1086,8 @@ void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* new_c
   if (CodeNeedsEntryExitStub(new_code, method)) {
     DCHECK(method->GetEntryPointFromQuickCompiledCode() == GetQuickInstrumentationEntryPoint() ||
         class_linker->IsQuickToInterpreterBridge(method->GetEntryPointFromQuickCompiledCode()))
-              << EntryPointString(method->GetEntryPointFromQuickCompiledCode());
+              << EntryPointString(method->GetEntryPointFromQuickCompiledCode())
+              << " " << method->PrettyMethod();
     // If the code we want to update the method with still needs entry/exit stub, just skip.
     return;
   }
