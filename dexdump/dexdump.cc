@@ -1198,6 +1198,19 @@ static void dumpBytecodes(const DexFile* pDexFile, u4 idx,
   }  // for
 }
 
+static u4 findLastInstructionAddress(const CodeItemDebugInfoAccessor& accessor) {
+  const u4 maxAddress = accessor.InsnsSizeInCodeUnits();
+  u4 lastInstructionSize = 0;
+  for (const DexInstructionPcPair& pair : accessor) {
+    const u4 address = pair.DexPc();
+    if (address >= maxAddress) {
+      return 1;
+    }
+    lastInstructionSize = pair.Inst().SizeInCodeUnits();
+  }
+  return maxAddress - lastInstructionSize;
+}
+
 /*
  * Dumps code of a method.
  */
@@ -1219,27 +1232,34 @@ static void dumpCode(const DexFile* pDexFile, u4 idx, u4 flags,
   // Try-catch blocks.
   dumpCatches(pDexFile, pCode);
 
-  // Positions and locals table in the debug info.
-  bool is_static = (flags & kAccStatic) != 0;
-  fprintf(gOutFile, "      positions     : \n");
-  accessor.DecodeDebugPositionInfo([&](const DexFile::PositionInfo& entry) {
-    fprintf(gOutFile, "        0x%04x line=%d\n", entry.address_, entry.line_);
-    return false;
-  });
-  fprintf(gOutFile, "      locals        : \n");
-  accessor.DecodeDebugLocalInfo(is_static,
-                                idx,
-                                [&](const DexFile::LocalInfo& entry) {
-    const char* signature = entry.signature_ != nullptr ? entry.signature_ : "";
-    fprintf(gOutFile,
-            "        0x%04x - 0x%04x reg=%d %s %s %s\n",
-            entry.start_address_,
-            entry.end_address_,
-            entry.reg_,
-            entry.name_,
-            entry.descriptor_,
-            signature);
-  });
+  if (gOptions.showDebugInfo) {
+    const u4 lastInstructionAddress = findLastInstructionAddress(accessor);
+    // Positions and locals table in the debug info.
+    bool is_static = (flags & kAccStatic) != 0;
+    fprintf(gOutFile, "      positions     : \n");
+    accessor.DecodeDebugPositionInfo([&](const DexFile::PositionInfo& entry) {
+      if (entry.address_ > lastInstructionAddress) {
+        return true;
+      } else {
+        fprintf(gOutFile, "        0x%04x line=%d\n", entry.address_, entry.line_);
+        return false;
+      }
+    });
+    fprintf(gOutFile, "      locals        : \n");
+    accessor.DecodeDebugLocalInfo(is_static,
+                                  idx,
+                                  [&](const DexFile::LocalInfo& entry) {
+      const char* signature = entry.signature_ != nullptr ? entry.signature_ : "";
+      fprintf(gOutFile,
+              "        0x%04x - 0x%04x reg=%d %s %s %s\n",
+              entry.start_address_,
+              entry.end_address_,
+              entry.reg_,
+              entry.name_,
+              entry.descriptor_,
+              signature);
+    });
+  }
 }
 
 static std::string GetHiddenapiFlagStr(uint32_t hiddenapi_flags) {
