@@ -107,7 +107,7 @@ uint32_t TypeLookupTable::Lookup(const char* str, uint32_t hash) const {
     return dex::kDexNoIndex;
   }
   // Look for the partial hash match first, even if traversing the wrong bucket's chain.
-  uint32_t compared_hash_bits = (hash << mask_bits_) >> (2 * mask_bits_);
+  uint32_t compared_hash_bits = static_cast<uint64_t>(hash << mask_bits_) >> (2 * mask_bits_);
   while (compared_hash_bits != entry->GetHashBits(mask_bits_)) {
     if (entry->IsLast(mask_bits_)) {
       return dex::kDexNoIndex;
