@@ -83,6 +83,7 @@ art_cc_test {
         ":art-gtest-jars-HiddenApi",
         ":art-gtest-jars-HiddenApiStubs",
     ],
+    tidy_timeout_srcs: ["hiddenapi_test.cc"],
     srcs: ["hiddenapi_test.cc"],
     required: ["hiddenapid"],
 }

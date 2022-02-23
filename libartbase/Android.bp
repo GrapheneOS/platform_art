@@ -314,6 +314,10 @@ art_cc_library {
 
 art_cc_defaults {
     name: "art_libartbase_tests_defaults",
+    tidy_timeout_srcs: [
+        "base/bit_utils_test.cc",
+        "base/intrusive_forward_list_test.cc",
+    ],
     srcs: [
         "arch/instruction_set_test.cc",
         "base/arena_allocator_test.cc",
