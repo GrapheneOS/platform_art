@@ -17,13 +17,14 @@
 #ifndef ART_LIBDEXFILE_DEX_UTF_H_
 #define ART_LIBDEXFILE_DEX_UTF_H_
 
-#include "base/macros.h"
-
 #include <stddef.h>
 #include <stdint.h>
 
 #include <string>
 #include <string_view>
+#include <type_traits>
+
+#include "base/macros.h"
 
 /*
  * All UTF-8 in art is actually modified UTF-8. Mostly, this distinction
@@ -97,9 +98,13 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
  */
 template<typename MemoryType>
 int32_t ComputeUtf16Hash(const MemoryType* chars, size_t char_count) {
+  static_assert(std::is_same_v<MemoryType, char> ||
+                std::is_same_v<MemoryType, uint8_t> ||
+                std::is_same_v<MemoryType, uint16_t>);
+  using UnsignedMemoryType = std::make_unsigned_t<MemoryType>;
   uint32_t hash = 0;
   while (char_count--) {
-    hash = hash * 31 + *chars++;
+    hash = hash * 31 + static_cast<UnsignedMemoryType>(*chars++);
   }
   return static_cast<int32_t>(hash);
 }
