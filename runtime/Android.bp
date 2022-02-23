@@ -668,6 +668,9 @@ art_cc_library {
 
 art_cc_defaults {
     name: "libart-runtime-gtest-defaults",
+    tidy_timeout_srcs: [
+        "common_runtime_test.cc",
+    ],
     srcs: [
         "common_runtime_test.cc",
         "dexopt_test.cc",
@@ -745,6 +748,23 @@ art_cc_defaults {
         ":art-gtest-jars-VerifierDeps",
         ":art-gtest-jars-VerifierDepsMulti",
         ":art-gtest-jars-XandY",
+    ],
+    tidy_timeout_srcs: [
+        "arch/stub_test.cc",
+        "class_linker_test.cc",
+        "class_loader_context_test.cc",
+        "hidden_api_test.cc",
+        "instrumentation_test.cc",
+        "interpreter/unstarted_runtime_test.cc",
+        "jni/jni_internal_test.cc",
+        "method_handles_test.cc",
+        "mirror/object_test.cc",
+        "mirror/var_handle_test.cc",
+        "oat_file_assistant_test.cc",
+        "runtime_callbacks_test.cc",
+        "subtype_check_test.cc",
+        "transaction_test.cc",
+        "verifier/reg_type_test.cc",
     ],
     srcs: [
         "app_info_test.cc",
@@ -867,6 +887,9 @@ art_cc_test {
 
 art_cc_defaults {
     name: "art_runtime_compiler_tests_defaults",
+    tidy_timeout_srcs: [
+        "reflection_test.cc",
+    ],
     srcs: [
         "reflection_test.cc",
     ],
