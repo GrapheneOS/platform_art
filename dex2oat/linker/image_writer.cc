@@ -2019,9 +2019,8 @@ void ImageWriter::LayoutHelper::ProcessInterns(Thread* self) {
       uint32_t utf16_length;
       const char* utf8_data = dex_file->StringDataAndUtf16LengthByIdx(dex::StringIndex(i),
                                                                       &utf16_length);
-      int32_t hash = ComputeUtf16HashFromModifiedUtf8(utf8_data, utf16_length);
-      InternTable::Utf8String utf8_string(utf16_length, utf8_data, hash);
-      auto intern_it = intern_set.find(utf8_string);
+      int32_t hash = InternTable::Utf8String::Hash(utf16_length, utf8_data);
+      auto intern_it = intern_set.find(InternTable::Utf8String(utf16_length, utf8_data, hash));
       if (intern_it != intern_set.end()) {
         mirror::String* string = intern_it->Read<kWithoutReadBarrier>();
         DCHECK(string != nullptr);

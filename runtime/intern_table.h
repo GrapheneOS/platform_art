@@ -66,6 +66,8 @@ class InternTable {
     uint32_t GetUtf16Length() const { return utf16_length_; }
     const char* GetUtf8Data() const { return utf8_data_; }
 
+    static int32_t Hash(uint32_t utf16_length, const char* utf8_data);
+
    private:
     int32_t hash_;
     uint32_t utf16_length_;
@@ -112,7 +114,7 @@ class InternTable {
   InternTable();
 
   // Interns a potentially new string in the 'strong' table. May cause thread suspension.
-  ObjPtr<mirror::String> InternStrong(int32_t utf16_length, const char* utf8_data)
+  ObjPtr<mirror::String> InternStrong(uint32_t utf16_length, const char* utf8_data)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // Only used by image writer. Special version that may not cause thread suspension since the GC
