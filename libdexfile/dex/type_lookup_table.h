@@ -147,7 +147,7 @@ class TypeLookupTable {
 
     uint32_t GetHashBits(uint32_t mask_bits) const {
       DCHECK_LE(mask_bits, 16u);
-      return data_ >> (2u * mask_bits);
+      return static_cast<uint64_t>(data_) >> (2u * mask_bits);
     }
 
     static uint32_t GetMask(uint32_t mask_bits) {
