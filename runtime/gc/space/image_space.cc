@@ -1904,8 +1904,10 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
       ? boot_class_path_image_fds_[bcp_index]
       : -1;
   ImageHeader header;
+  // When BCP image is provided as FD, it needs to be dup'ed (since it's stored in unique_fd) so
+  // that it can later be used in LoadComponents.
   auto image_file = bcp_image_fd >= 0
-      ? std::make_unique<File>(bcp_image_fd, actual_filename, /*check_usage=*/ false)
+      ? std::make_unique<File>(DupCloexec(bcp_image_fd), actual_filename, /*check_usage=*/ false)
       : std::unique_ptr<File>(OS::OpenFileForReading(actual_filename.c_str()));
   if (!image_file || !image_file->IsOpened()) {
     *error_msg = StringPrintf("Unable to open file \"%s\" for reading image header",
@@ -1943,20 +1945,6 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
   chunk.boot_image_component_count = header.GetBootImageComponentCount();
   chunk.boot_image_checksum = header.GetBootImageChecksum();
   chunk.boot_image_size = header.GetBootImageSize();
-  // When BCP art/vdex/oat FDs are also passed, initialize the chunk accordingly.
-  if (bcp_index < boot_class_path_image_fds_.size()) {
-    // The FD of .art needs to be duplicated because it'll be owned/used later.
-    int fd = boot_class_path_image_fds_[bcp_index];
-    if (fd >= 0) {
-      chunk.art_fd.reset(dup(fd));
-    }
-  }
-  if (bcp_index < boot_class_path_vdex_fds_.size()) {
-    chunk.vdex_fd.reset(boot_class_path_vdex_fds_[bcp_index]);
-  }
-  if (bcp_index < boot_class_path_oat_fds_.size()) {
-    chunk.oat_fd.reset(boot_class_path_oat_fds_[bcp_index]);
-  }
   chunks_.push_back(std::move(chunk));
   next_bcp_index_ = bcp_index + header.GetComponentCount();
   total_component_count_ += header.GetComponentCount();
@@ -3176,10 +3164,22 @@ class ImageSpace::BootImageLoader {
     DCHECK_EQ(locations.size(), filenames.size());
     size_t max_dependency_count = spaces->size();
     for (size_t i = 0u, size = locations.size(); i != size; ++i) {
+      android::base::unique_fd image_fd;
+      if (chunk.art_fd.get() >= 0) {
+        DCHECK_EQ(locations.size(), 1u);
+        image_fd = std::move(chunk.art_fd);
+      } else {
+        size_t pos = chunk.start_index + i;
+        int arg_image_fd = pos < boot_class_path_image_fds_.size() ? boot_class_path_image_fds_[pos]
+            : -1;
+        if (arg_image_fd >= 0) {
+          image_fd.reset(DupCloexec(arg_image_fd));
+        }
+      }
       spaces->push_back(Load(locations[i],
                              filenames[i],
                              chunk.profile_files,
-                             std::move(chunk.art_fd),
+                             std::move(image_fd),
                              logger,
                              image_reservation,
                              error_msg));
@@ -3241,12 +3241,38 @@ class ImageSpace::BootImageLoader {
       ImageSpace* space = (*spaces)[spaces->size() - chunk.image_space_count + i].get();
       size_t bcp_chunk_size = (chunk.image_space_count == 1u) ? chunk.component_count : 1u;
 
+      size_t pos = chunk.start_index + i;
       auto boot_class_path_fds = boot_class_path_fds_.empty() ? ArrayRef<const int>()
-          : boot_class_path_fds_.SubArray(/*pos=*/ chunk.start_index + i, bcp_chunk_size);
+          : boot_class_path_fds_.SubArray(/*pos=*/ pos, bcp_chunk_size);
+
+      // Select vdex and oat FD if any exists.
+      android::base::unique_fd vdex_fd;
+      android::base::unique_fd oat_fd;
+      if (chunk.vdex_fd.get() >= 0) {
+        DCHECK_EQ(locations.size(), 1u);
+        vdex_fd = std::move(chunk.vdex_fd);
+      } else {
+        int arg_vdex_fd = pos < boot_class_path_vdex_fds_.size() ? boot_class_path_vdex_fds_[pos]
+            : -1;
+        if (arg_vdex_fd >= 0) {
+          vdex_fd.reset(DupCloexec(arg_vdex_fd));
+        }
+      }
+      if (chunk.oat_fd.get() >= 0) {
+        DCHECK_EQ(locations.size(), 1u);
+        oat_fd = std::move(chunk.oat_fd);
+      } else {
+        int arg_oat_fd = pos < boot_class_path_oat_fds_.size() ? boot_class_path_oat_fds_[pos]
+            : -1;
+        if (arg_oat_fd >= 0) {
+          oat_fd.reset(DupCloexec(arg_oat_fd));
+        }
+      }
+
       if (!OpenOatFile(space,
-                       std::move(chunk.vdex_fd),
-                       std::move(chunk.oat_fd),
-                       boot_class_path_.SubArray(/*pos=*/ chunk.start_index + i, bcp_chunk_size),
+                       std::move(vdex_fd),
+                       std::move(oat_fd),
+                       boot_class_path_.SubArray(/*pos=*/ pos, bcp_chunk_size),
                        boot_class_path_fds,
                        validate_oat_file,
                        dependencies,
