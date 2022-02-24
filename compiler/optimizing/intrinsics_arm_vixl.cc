@@ -4234,7 +4234,6 @@ static void GenerateVarHandleArrayChecks(HInvoke* invoke,
   bool boot_image_available =
       codegen->GetCompilerOptions().IsBootImage() ||
       !Runtime::Current()->GetHeap()->GetBootImageSpaces().empty();
-  DCHECK(boot_image_available || codegen->GetCompilerOptions().IsJitCompiler());
   bool can_be_view =
       ((value_type != DataType::Type::kReference) && (DataType::Size(value_type) != 1u)) &&
       boot_image_available;
