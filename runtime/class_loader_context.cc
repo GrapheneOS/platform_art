@@ -664,7 +664,7 @@ void ClassLoaderContext::EncodeClassPath(const std::string& base_dir,
   out << kClassLoaderOpeningMark;
   const size_t len = dex_locations.size();
   for (size_t k = 0; k < len; k++) {
-    std::string location = dex_locations[k];
+    const std::string& location = dex_locations[k];
     if (k > 0) {
       out << kClasspathSeparator;
     }
