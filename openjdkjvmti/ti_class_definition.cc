@@ -37,7 +37,6 @@
 #include "class_root-inl.h"
 #include "dex/dex_file.h"
 #include "dex/art_dex_file_loader.h"
-#include "fixed_up_dex_file.h"
 #include "handle.h"
 #include "handle_scope-inl.h"
 #include "mirror/class-inl.h"
@@ -47,32 +46,6 @@
 #include "thread.h"
 
 namespace openjdkjvmti {
-
-void ArtClassDefinition::InitializeMemory() const {
-  DCHECK(art::MemMap::kCanReplaceMapping);
-  VLOG(signals) << "Initializing de-quickened memory for dex file of " << name_;
-  CHECK(dex_data_mmap_.IsValid());
-  CHECK(temp_mmap_.IsValid());
-  CHECK_EQ(dex_data_mmap_.GetProtect(), PROT_NONE);
-  CHECK_EQ(temp_mmap_.GetProtect(), PROT_READ | PROT_WRITE);
-
-  std::string desc = std::string("L") + name_ + ";";
-  std::unique_ptr<FixedUpDexFile>
-      fixed_dex_file(FixedUpDexFile::Create(*initial_dex_file_unquickened_, desc.c_str()));
-  CHECK(fixed_dex_file.get() != nullptr);
-  CHECK_LE(fixed_dex_file->Size(), temp_mmap_.Size());
-  CHECK_EQ(temp_mmap_.Size(), dex_data_mmap_.Size());
-  // Copy the data to the temp mmap.
-  memcpy(temp_mmap_.Begin(), fixed_dex_file->Begin(), fixed_dex_file->Size());
-
-  // Move the mmap atomically.
-  art::MemMap source;
-  source.swap(temp_mmap_);
-  std::string error;
-  CHECK(dex_data_mmap_.ReplaceWith(&source, &error)) << "Failed to replace mmap for "
-                                                     << name_ << " because " << error;
-  CHECK(dex_data_mmap_.Protect(PROT_READ));
-}
 
 bool ArtClassDefinition::IsModified() const {
   // RedefineClasses calls always are 'modified' since they need to change the current_dex_file of
@@ -86,27 +59,6 @@ bool ArtClassDefinition::IsModified() const {
     // no change at all.
     return false;
   }
-
-  // The dex_data_ was never touched by the agents.
-  if (dex_data_mmap_.IsValid() && dex_data_mmap_.GetProtect() == PROT_NONE) {
-    if (current_dex_file_.data() == dex_data_mmap_.Begin()) {
-      // the dex_data_ looks like it changed (not equal to current_dex_file_) but we never
-      // initialized the dex_data_mmap_. This means the new_dex_data was filled in without looking
-      // at the initial dex_data_.
-      return true;
-    } else if (dex_data_.data() == dex_data_mmap_.Begin()) {
-      // The dex file used to have modifications but they were not added again.
-      return true;
-    } else {
-      // It's not clear what happened. It's possible that the agent got the current dex file data
-      // from some other source so we need to initialize everything to see if it is the same.
-      VLOG(signals) << "Lazy dex file for " << name_ << " was never touched but the dex_data_ is "
-                    << "changed! Need to initialize the memory to see if anything changed";
-      InitializeMemory();
-    }
-  }
-
-  // We can definitely read current_dex_file_ and dex_file_ without causing page faults.
 
   // Check if the dex file we want to set is the same as the current one.
   // Unfortunately we need to do this check even if no modifications have been done since it could
