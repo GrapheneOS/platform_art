@@ -1217,6 +1217,9 @@
       "name": "art-run-test-963-default-range-smali[com.google.android.art.apex]"
     },
     {
+      "name": "art_libnativebridge_cts_tests[com.google.android.art.apex]"
+    },
+    {
       "name": "art_standalone_cmdline_tests[com.google.android.art.apex]"
     },
     {
@@ -2501,6 +2504,9 @@
     },
     {
       "name": "art-run-test-963-default-range-smali"
+    },
+    {
+      "name": "art_libnativebridge_cts_tests"
     },
     {
       "name": "art_standalone_cmdline_tests"
