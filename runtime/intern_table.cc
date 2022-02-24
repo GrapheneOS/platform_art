@@ -103,12 +103,9 @@ ObjPtr<mirror::String> InternTable::LookupStrong(Thread* self, ObjPtr<mirror::St
 ObjPtr<mirror::String> InternTable::LookupStrong(Thread* self,
                                                  uint32_t utf16_length,
                                                  const char* utf8_data) {
-  DCHECK_EQ(utf16_length, CountModifiedUtf8Chars(utf8_data));
-  Utf8String string(utf16_length,
-                    utf8_data,
-                    ComputeUtf16HashFromModifiedUtf8(utf8_data, utf16_length));
+  int32_t hash = Utf8String::Hash(utf16_length, utf8_data);
   MutexLock mu(self, *Locks::intern_table_lock_);
-  return strong_interns_.Find(string);
+  return strong_interns_.Find(Utf8String(utf16_length, utf8_data, hash));
 }
 
 ObjPtr<mirror::String> InternTable::LookupWeakLocked(ObjPtr<mirror::String> s) {
@@ -254,16 +251,34 @@ ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s,
   return is_strong ? InsertStrong(s) : InsertWeak(s);
 }
 
-ObjPtr<mirror::String> InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
+ObjPtr<mirror::String> InternTable::InternStrong(uint32_t utf16_length, const char* utf8_data) {
   DCHECK(utf8_data != nullptr);
+  int32_t hash = Utf8String::Hash(utf16_length, utf8_data);
   Thread* self = Thread::Current();
-  // Try to avoid allocation.
-  ObjPtr<mirror::String> s = LookupStrong(self, utf16_length, utf8_data);
+  ObjPtr<mirror::String> s;
+  {
+    // Try to avoid allocation. If we need to allocate, release the mutex before the allocation.
+    MutexLock mu(self, *Locks::intern_table_lock_);
+    s = strong_interns_.Find(Utf8String(utf16_length, utf8_data, hash));
+  }
   if (s != nullptr) {
     return s;
   }
-  return InternStrong(mirror::String::AllocFromModifiedUtf8(
-      self, utf16_length, utf8_data));
+  bool is_ascii = (utf8_data[utf16_length] == 0);
+  int32_t utf8_length = utf16_length + (LIKELY(is_ascii) ? 0 : strlen(utf8_data + utf16_length));
+  DCHECK_EQ(static_cast<size_t>(utf8_length), strlen(utf8_data));
+  s = mirror::String::AllocFromModifiedUtf8(self, utf16_length, utf8_data, utf8_length);
+  if (UNLIKELY(s == nullptr)) {
+    self->AssertPendingOOMException();
+    return nullptr;
+  }
+  if (kIsDebugBuild) {
+    int32_t string_hash = s->GetHashCode();  // Implicitly sets the hash code.
+    CHECK_EQ(hash, string_hash);
+  } else {
+    s->SetHashCode(hash);
+  }
+  return InternStrong(s);
 }
 
 ObjPtr<mirror::String> InternTable::InternStrong(const char* utf8_data) {
