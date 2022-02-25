@@ -759,14 +759,13 @@ if [ "$HAVE_IMAGE" = "n" ]; then
     # We'll abuse a second flag here to test different behavior. If --relocate, use the
     # existing image - relocation will fail as patching is disallowed. If --no-relocate,
     # pass a non-existent image - compilation will fail as dex2oat is disallowed.
-    if [ "${RELOCATE}" = "y" ] ; then
-      DALVIKVM_BOOT_OPT="-Ximage:${BOOT_IMAGE}"
-    else
-      DALVIKVM_BOOT_OPT="-Ximage:/system/non-existent/boot.art"
+    if [ "${RELOCATE}" = "n" ] ; then
+      BOOT_IMAGE="/system/non-existent/boot.art"
     fi
-else
-    DALVIKVM_BOOT_OPT="-Ximage:${BOOT_IMAGE}"
+    # App images cannot be generated without a boot image.
+    APP_IMAGE="n"
 fi
+DALVIKVM_BOOT_OPT="-Ximage:${BOOT_IMAGE}"
 
 if [ "$USE_GDB_DEX2OAT" = "y" ]; then
   if [ "$HOST" = "n" ]; then
