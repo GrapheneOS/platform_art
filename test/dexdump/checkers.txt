@@ -925,12 +925,7 @@ Class #1            -
 001dea: 2200 0500                              |01f7: new-instance v0, Landroid/app/AlertDialog$Builder; // type@0005
 001dee: 5491 1300                              |01f9: iget-object v1, v9, Lcom/google/android/checkers/CheckersView;.a:Landroid/content/Context; // field@0013
 001df2: 7020 0900 1000                         |01fb: invoke-direct {v0, v1}, Landroid/app/AlertDialog$Builder;.<init>:(Landroid/content/Context;)V // method@0009
-001df8: 1a01 1200                              |01fe: const-string v1, "Checkers for Android was written by Aart J.C. Bik.
-
-Use the touch screen or trackball to make a move. Press the MENU button for more options, such as making captures optional instead of mandatory.
-
-The application complies with the official American checkers rules, where black moves first, captures are mandatory, men only move and jump forward, and kings move and jump forward and backward (but not over a distance). Please note that many variants of checkers exist, and this game may not use the rules you are most familiar with.
-" // string@0012
+001df8: 1a01 1200                              |01fe: const-string v1, "Checkers for Android was written by Aart J.C. Bik.\n\nUse the touch screen or trackball to make a move. Press the MENU button for more options, such as making captures optional instead of mandatory.\n\nThe application complies with the official American checkers rules, where black moves first, captures are mandatory, men only move and jump forward, and kings move and jump forward and backward (but not over a distance). Please note that many variants of checkers exist, and this game may not use the rules you are most familiar with.\n" // string@0012
 001dfc: 6e20 0c00 1000                         |0200: invoke-virtual {v0, v1}, Landroid/app/AlertDialog$Builder;.setMessage:(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder; // method@000c
 001e02: 0c00                                   |0203: move-result-object v0
 001e04: 1a01 2b00                              |0204: const-string v1, "KEEP SHOWING" // string@002b
@@ -1735,8 +1730,7 @@ The application complies with the official American checkers rules, where black 
 002804: 6e10 3d00 0000                         |0206: invoke-virtual {v0}, Landroid/widget/Toast;.show:()V // method@003d
 00280a: 0160                                   |0209: move v0, v6
 00280c: 2900 2dfe                              |020a: goto/16 0037 // -01d3
-002810: 1a00 c000                              |020c: const-string v0, "computer now plays black
-goto options to rotate board" // string@00c0
+002810: 1a00 c000                              |020c: const-string v0, "computer now plays black\ngoto options to rotate board" // string@00c0
 002814: 28f3                                   |020e: goto 0201 // -000d
 002816: 5290 2300                              |020f: iget v0, v9, Lcom/google/android/checkers/CheckersView;.q:I // field@0023
 00281a: 3320 6f00                              |0211: if-ne v0, v2, 0280 // +006f
@@ -1749,8 +1743,7 @@ goto options to rotate board" // string@00c0
 002834: 5491 1300                              |021e: iget-object v1, v9, Lcom/google/android/checkers/CheckersView;.a:Landroid/content/Context; // field@0013
 002838: 5590 0400                              |0220: iget-boolean v0, v9, Lcom/google/android/checkers/CheckersView;.C:Z // field@0004
 00283c: 3800 0f00                              |0222: if-eqz v0, 0231 // +000f
-002840: 1a00 c200                              |0224: const-string v0, "computer now plays white
-goto options to rotate board" // string@00c2
+002840: 1a00 c200                              |0224: const-string v0, "computer now plays white\ngoto options to rotate board" // string@00c2
 002844: 1202                                   |0226: const/4 v2, #int 0 // #0
 002846: 7130 3c00 0102                         |0227: invoke-static {v1, v0, v2}, Landroid/widget/Toast;.makeText:(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast; // method@003c
 00284c: 0c00                                   |022a: move-result-object v0
