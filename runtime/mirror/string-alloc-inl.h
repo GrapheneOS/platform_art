@@ -45,7 +45,7 @@ class SetStringCountVisitor {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
     string->SetCount(count_);
-    DCHECK(!string->IsCompressed() || kUseStringCompression);
+    DCHECK_IMPLIES(string->IsCompressed(), kUseStringCompression);
   }
 
  private:
@@ -65,7 +65,7 @@ class SetStringCountAndBytesVisitor {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
     string->SetCount(count_);
-    DCHECK(!string->IsCompressed() || kUseStringCompression);
+    DCHECK_IMPLIES(string->IsCompressed(), kUseStringCompression);
     int32_t length = String::GetLengthFromCount(count_);
     const uint8_t* const src = reinterpret_cast<uint8_t*>(src_array_->GetData()) + offset_;
     if (string->IsCompressed()) {

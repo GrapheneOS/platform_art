@@ -296,12 +296,16 @@ void WellKnownClasses::InitStringInit(ObjPtr<mirror::Class> string_class,
 
 void Thread::InitStringEntryPoints() {
   QuickEntryPoints* qpoints = &tlsPtr_.quick_entrypoints;
-  #define SET_ENTRY_POINT(init_runtime_name, init_signature, new_runtime_name,              \
-                          new_java_name, new_signature, entry_point_name)                   \
-      DCHECK(!Runtime::Current()->IsStarted() || (new_runtime_name) != nullptr);            \
-      qpoints->p ## entry_point_name = reinterpret_cast<void*>(new_runtime_name);
-      STRING_INIT_LIST(SET_ENTRY_POINT)
-  #undef SET_ENTRY_POINT
+#define SET_ENTRY_POINT(init_runtime_name,                                        \
+                        init_signature,                                           \
+                        new_runtime_name,                                         \
+                        new_java_name,                                            \
+                        new_signature,                                            \
+                        entry_point_name)                                         \
+  DCHECK_IMPLIES(Runtime::Current()->IsStarted(), (new_runtime_name) != nullptr); \
+  qpoints->p##entry_point_name = reinterpret_cast<void*>(new_runtime_name);
+  STRING_INIT_LIST(SET_ENTRY_POINT)
+#undef SET_ENTRY_POINT
 }
 
 ArtMethod* WellKnownClasses::StringInitToStringFactory(ArtMethod* string_init) {
