@@ -74,10 +74,10 @@ inline int32_t String::GetHashCode() {
   }
   if (kIsDebugBuild) {
     if (IsCompressed()) {
-      DCHECK(result != 0 || ComputeUtf16Hash(GetValueCompressed(), GetLength()) == 0)
+      DCHECK_IMPLIES(result == 0, ComputeUtf16Hash(GetValueCompressed(), GetLength()) == 0)
           << ToModifiedUtf8() << " " << result;
     } else {
-      DCHECK(result != 0 || ComputeUtf16Hash(GetValue(), GetLength()) == 0)
+      DCHECK_IMPLIES(result == 0, ComputeUtf16Hash(GetValue(), GetLength()) == 0)
           << ToModifiedUtf8() << " " << result;
     }
   }

@@ -129,7 +129,7 @@ inline mirror::Object* ConcurrentCopying::Mark(Thread* const self,
                                                mirror::Object* holder,
                                                MemberOffset offset) {
   // Cannot have `kNoUnEvac` when Generational CC collection is disabled.
-  DCHECK(!kNoUnEvac || use_generational_cc_);
+  DCHECK_IMPLIES(kNoUnEvac, use_generational_cc_);
   if (from_ref == nullptr) {
     return nullptr;
   }

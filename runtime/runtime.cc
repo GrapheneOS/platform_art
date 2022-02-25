@@ -1493,7 +1493,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // (a) runtime was started with a command line flag that enables the checks, or
   // (b) Zygote forked a new process that is not exempt (see ZygoteHooks).
   hidden_api_policy_ = runtime_options.GetOrDefault(Opt::HiddenApiPolicy);
-  DCHECK(!is_zygote_ || hidden_api_policy_ == hiddenapi::EnforcementPolicy::kDisabled);
+  DCHECK_IMPLIES(is_zygote_, hidden_api_policy_ == hiddenapi::EnforcementPolicy::kDisabled);
 
   // Set core platform API enforcement policy. The checks are disabled by default and
   // can be enabled with a command line flag. AndroidRuntime will pass the flag if
@@ -2146,26 +2146,26 @@ void Runtime::InitThreadGroups(Thread* self) {
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup));
-  CHECK(main_thread_group_ != nullptr || IsAotCompiler());
+  CHECK_IMPLIES(main_thread_group_ == nullptr, IsAotCompiler());
   system_thread_group_ =
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
-  CHECK(system_thread_group_ != nullptr || IsAotCompiler());
+  CHECK_IMPLIES(system_thread_group_ == nullptr, IsAotCompiler());
 }
 
 jobject Runtime::GetMainThreadGroup() const {
-  CHECK(main_thread_group_ != nullptr || IsAotCompiler());
+  CHECK_IMPLIES(main_thread_group_ == nullptr, IsAotCompiler());
   return main_thread_group_;
 }
 
 jobject Runtime::GetSystemThreadGroup() const {
-  CHECK(system_thread_group_ != nullptr || IsAotCompiler());
+  CHECK_IMPLIES(system_thread_group_ == nullptr, IsAotCompiler());
   return system_thread_group_;
 }
 
 jobject Runtime::GetSystemClassLoader() const {
-  CHECK(system_class_loader_ != nullptr || IsAotCompiler());
+  CHECK_IMPLIES(system_class_loader_ == nullptr, IsAotCompiler());
   return system_class_loader_;
 }
 

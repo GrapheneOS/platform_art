@@ -317,7 +317,7 @@ void ClassHierarchyAnalysis::CheckVirtualMethodSingleImplementationInfo(
   // even if it overrides, it doesn't invalidate single-implementation
   // assumption.
 
-  DCHECK((virtual_method != method_in_super) || virtual_method->IsAbstract());
+  DCHECK_IMPLIES(virtual_method == method_in_super, virtual_method->IsAbstract());
   DCHECK(method_in_super->GetDeclaringClass()->IsResolved()) << "class isn't resolved";
   // If virtual_method doesn't come from a default interface method, it should
   // be supplied by klass.
