@@ -2418,9 +2418,9 @@ void InstructionCodeGeneratorARM64::VisitDataProcWithShifterOp(
   // operand. Note that VIXL would still manage if it was passed by generating
   // the extension as a separate instruction.
   // `HNeg` also does not support extension. See comments in `ShifterOperandSupportsExtension()`.
-  DCHECK(!right_operand.IsExtendedRegister() ||
-         (kind != HInstruction::kAnd && kind != HInstruction::kOr && kind != HInstruction::kXor &&
-          kind != HInstruction::kNeg));
+  DCHECK_IMPLIES(right_operand.IsExtendedRegister(),
+                 kind != HInstruction::kAnd && kind != HInstruction::kOr &&
+                     kind != HInstruction::kXor && kind != HInstruction::kNeg);
   switch (kind) {
     case HInstruction::kAdd:
       __ Add(out, left, right_operand);
@@ -7169,7 +7169,7 @@ void CodeGeneratorARM64::CompileBakerReadBarrierThunk(Arm64Assembler& assembler,
 
   // For JIT, the slow path is considered part of the compiled method,
   // so JIT should pass null as `debug_name`.
-  DCHECK(!GetCompilerOptions().IsJitCompiler() || debug_name == nullptr);
+  DCHECK_IMPLIES(GetCompilerOptions().IsJitCompiler(), debug_name == nullptr);
   if (debug_name != nullptr && GetCompilerOptions().GenerateAnyDebugInfo()) {
     std::ostringstream oss;
     oss << "BakerReadBarrierThunk";

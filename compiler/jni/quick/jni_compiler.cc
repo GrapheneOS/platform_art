@@ -396,7 +396,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   // 4.5. Fix differences in result widths.
   if (main_jni_conv->RequiresSmallResultTypeExtension()) {
     DCHECK(main_jni_conv->HasSmallReturnType());
-    CHECK(!is_critical_native || !main_jni_conv->UseTailCall());
+    CHECK_IMPLIES(is_critical_native, !main_jni_conv->UseTailCall());
     if (main_jni_conv->GetReturnType() == Primitive::kPrimByte ||
         main_jni_conv->GetReturnType() == Primitive::kPrimShort) {
       __ SignExtend(main_jni_conv->ReturnRegister(),
@@ -418,7 +418,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     // If they differ, only then do we have to do anything about it.
     // Otherwise the return value is already in the right place when we return.
     if (!jni_return_reg.Equals(mr_return_reg)) {
-      CHECK(!is_critical_native || !main_jni_conv->UseTailCall());
+      CHECK_IMPLIES(is_critical_native, !main_jni_conv->UseTailCall());
       // This is typically only necessary on ARM32 due to native being softfloat
       // while managed is hardfloat.
       // -- For example VMOV {r0, r1} -> D0; VMOV r0 -> S0.

@@ -683,15 +683,15 @@ class LSEVisitor final : private HGraphDelegateVisitor {
           return Value::ForInstruction(substitute);
         }
       }
-      DCHECK(!value.IsInstruction() ||
-             FindSubstitute(value.GetInstruction()) == value.GetInstruction());
+      DCHECK_IMPLIES(value.IsInstruction(),
+                     FindSubstitute(value.GetInstruction()) == value.GetInstruction());
       return value;
     }
     if (value.NeedsPhi() && phi_placeholder_replacements_[PhiPlaceholderIndex(value)].IsValid()) {
       return Replacement(value);
     } else {
-      DCHECK(!value.IsInstruction() ||
-             FindSubstitute(value.GetInstruction()) == value.GetInstruction());
+      DCHECK_IMPLIES(value.IsInstruction(),
+                     FindSubstitute(value.GetInstruction()) == value.GetInstruction());
       return value;
     }
   }
@@ -748,7 +748,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     size_t id = static_cast<size_t>(instruction->GetId());
     if (id >= substitute_instructions_for_loads_.size()) {
       // New Phi (may not be in the graph yet), default value or PredicatedInstanceFieldGet.
-      DCHECK(!IsLoad(instruction) || instruction->IsPredicatedInstanceFieldGet());
+      DCHECK_IMPLIES(IsLoad(instruction), instruction->IsPredicatedInstanceFieldGet());
       return instruction;
     }
     HInstruction* substitute = substitute_instructions_for_loads_[id];
@@ -1597,7 +1597,7 @@ LSEVisitor::Value LSEVisitor::MergePredecessorValues(HBasicBlock* block, size_t 
       merged_value = ReplacementOrValue(Value::ForPhiPlaceholder(phi_placeholder, needs_loop_phi));
     }
   }
-  DCHECK(!merged_value.IsPureUnknown() || block->GetPredecessors().size() <= 1)
+  DCHECK_IMPLIES(merged_value.IsPureUnknown(), block->GetPredecessors().size() <= 1)
       << merged_value << " in " << GetGraph()->PrettyMethod();
   return merged_value;
 }
@@ -1800,8 +1800,8 @@ void LSEVisitor::VisitSetLocation(HInstruction* instruction, size_t idx, HInstru
   HBasicBlock* block = instruction->GetBlock();
   ScopedArenaVector<ValueRecord>& heap_values = heap_values_for_[block->GetBlockId()];
   ValueRecord& record = heap_values[idx];
-  DCHECK(!record.value.IsInstruction() ||
-         FindSubstitute(record.value.GetInstruction()) == record.value.GetInstruction());
+  DCHECK_IMPLIES(record.value.IsInstruction(),
+                 FindSubstitute(record.value.GetInstruction()) == record.value.GetInstruction());
 
   if (record.value.Equals(value)) {
     // Store into the heap location with the same value.

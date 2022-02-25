@@ -719,7 +719,8 @@ void HGraph::ComputeTryBlockInformation() {
     // the first predecessor can never be a back edge and therefore it must have
     // been visited already and had its try membership set.
     HBasicBlock* first_predecessor = block->GetPredecessors()[0];
-    DCHECK(!block->IsLoopHeader() || !block->GetLoopInformation()->IsBackEdge(*first_predecessor));
+    DCHECK_IMPLIES(block->IsLoopHeader(),
+                   !block->GetLoopInformation()->IsBackEdge(*first_predecessor));
     const HTryBoundary* try_entry = first_predecessor->ComputeTryEntryOfSuccessors();
     if (try_entry != nullptr &&
         (block->GetTryCatchInformation() == nullptr ||
@@ -2468,7 +2469,7 @@ void HBasicBlock::DisconnectAndDelete() {
   //     control-flow instructions.
   for (HBasicBlock* predecessor : predecessors_) {
     // We should not see any back edges as they would have been removed by step (3).
-    DCHECK(!IsInLoop() || !GetLoopInformation()->IsBackEdge(*predecessor));
+    DCHECK_IMPLIES(IsInLoop(), !GetLoopInformation()->IsBackEdge(*predecessor));
 
     HInstruction* last_instruction = predecessor->GetLastInstruction();
     if (last_instruction->IsTryBoundary() && !IsCatchBlock()) {
@@ -3069,7 +3070,7 @@ static void CheckAgainstUpperBound(ReferenceTypeInfo rti, ReferenceTypeInfo uppe
     DCHECK(upper_bound_rti.IsSupertypeOf(rti))
         << " upper_bound_rti: " << upper_bound_rti
         << " rti: " << rti;
-    DCHECK(!upper_bound_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes() || rti.IsExact())
+    DCHECK_IMPLIES(upper_bound_rti.GetTypeHandle()->CannotBeAssignedFromOtherTypes(), rti.IsExact())
         << " upper_bound_rti: " << upper_bound_rti
         << " rti: " << rti;
   }
