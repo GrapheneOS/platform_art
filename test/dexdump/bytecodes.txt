@@ -136,10 +136,10 @@ Class #2            -
 0009a0: 7010 1900 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0019
 0009a6: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=4
-      locals        : 
-        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/BuildConfig; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/BuildConfig;
 
   Virtual methods   -
   source_file_idx   : 3 (BuildConfig.java)
@@ -184,10 +184,10 @@ Class #3            -
 0009b8: 7010 1900 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0019
 0009be: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=11
-      locals        : 
-        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/R$attr; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/R$attr;
 
   Virtual methods   -
   source_file_idx   : 44 (R.java)
@@ -237,10 +237,10 @@ Class #4            -
 0009d0: 7010 1900 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0019
 0009d6: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=13
-      locals        : 
-        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/R$drawable; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/R$drawable;
 
   Virtual methods   -
   source_file_idx   : 44 (R.java)
@@ -284,10 +284,10 @@ Class #5            -
 0009e8: 7010 1900 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0019
 0009ee: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=10
-      locals        : 
-        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/R; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this Lcom/google/android/test/R;
 
   Virtual methods   -
   source_file_idx   : 44 (R.java)
@@ -475,7 +475,7 @@ Class #6            -
 000a6a: 0000                                   |0035: nop // spacer
 000a6c: 0003 0400 0800 0000 0100 0000 0200 ... |0036: array-data (20 units)
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=7
         0x0003 line=8
         0x0007 line=9
@@ -486,7 +486,7 @@ Class #6            -
         0x0021 line=14
         0x0028 line=15
         0x002b line=16
-      locals        : 
+      locals        :
 
     #1              : (in Lcom/google/android/test/Test;)
       name          : '<init>'
@@ -593,7 +593,7 @@ Class #6            -
           <any> -> 0x00a6
         0x00a1 - 0x00a3
           <any> -> 0x00a6
-      positions     : 
+      positions     :
         0x0004 line=43
         0x0007 line=18
         0x000a line=19
@@ -636,9 +636,9 @@ Class #6            -
         0x00ca line=36
         0x00d6 line=37
         0x00de line=38
-      locals        : 
-        0x00a0 - 0x00a6 reg=0 e Ljava/lang/Exception; 
-        0x0000 - 0x00ea reg=8 this Lcom/google/android/test/Test; 
+      locals        :
+        0x00a0 - 0x00a6 reg=0 e Ljava/lang/Exception;
+        0x0000 - 0x00ea reg=8 this Lcom/google/android/test/Test;
 
     #2              : (in Lcom/google/android/test/Test;)
       name          : 'add'
@@ -783,7 +783,7 @@ Class #6            -
       catches       : 1
         0x0005 - 0x00e8
           <any> -> 0x00ec
-      positions     : 
+      positions     :
         0x0004 line=179
         0x0007 line=180
         0x000d line=181
@@ -803,10 +803,10 @@ Class #6            -
         0x00e4 line=197
         0x00ea line=195
         0x00ec line=179
-      locals        : 
-        0x0000 - 0x00e8 reg=12 o Ljava/lang/Object; 
-        0x0000 - 0x00ef reg=11 this Lcom/google/android/test/Test; 
-        0x00ea - 0x00ef reg=12 o Ljava/lang/Object; 
+      locals        :
+        0x0000 - 0x00e8 reg=12 o Ljava/lang/Object;
+        0x0000 - 0x00ef reg=11 this Lcom/google/android/test/Test;
+        0x00ea - 0x00ef reg=12 o Ljava/lang/Object;
 
     #3              : (in Lcom/google/android/test/Test;)
       name          : 'adds'
@@ -886,7 +886,7 @@ Class #6            -
 000f86: 6208 1e00                              |0073: sget-object v8, Lcom/google/android/test/Test;.sO:Ljava/lang/Object; // field@001e
 000f8a: 1108                                   |0075: return-object v8
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=201
         0x0002 line=202
         0x0008 line=203
@@ -899,8 +899,8 @@ Class #6            -
         0x003f line=210
         0x0057 line=211
         0x0071 line=212
-      locals        : 
-        0x0000 - 0x0075 reg=8 o Ljava/lang/Object; 
+      locals        :
+        0x0000 - 0x0075 reg=8 o Ljava/lang/Object;
 
     #4              : (in Lcom/google/android/test/Test;)
       name          : 'copies'
@@ -1007,7 +1007,7 @@ Class #6            -
 0010ec: 6802 1d00                              |00a8: sput-wide v2, Lcom/google/android/test/Test;.sL:J // field@001d
 0010f0: 0e00                                   |00aa: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=216
         0x0021 line=217
         0x0037 line=218
@@ -1022,10 +1022,10 @@ Class #6            -
         0x0078 line=227
         0x007e line=228
         0x00aa line=229
-      locals        : 
-        0x0037 - 0x00ab reg=14 d D 
-        0x0021 - 0x00ab reg=16 x J 
-        0x0000 - 0x00ab reg=18 this Lcom/google/android/test/Test; 
+      locals        :
+        0x0037 - 0x00ab reg=14 d D
+        0x0021 - 0x00ab reg=16 x J
+        0x0000 - 0x00ab reg=18 this Lcom/google/android/test/Test;
 
     #5              : (in Lcom/google/android/test/Test;)
       name          : 'doit'
@@ -1071,7 +1071,7 @@ Class #6            -
 00117c: 0001 0200 0000 0000 0900 0000 1b00 ... |003c: packed-switch-data (8 units)
 00118c: 0002 0200 2dfb ffff 0ba2 0700 0d00 ... |0044: sparse-switch-data (10 units)
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=98
         0x0002 line=99
         0x0007 line=101
@@ -1088,9 +1088,9 @@ Class #6            -
         0x0035 line=111
         0x003b line=101
         0x0044 line=109
-      locals        : 
-        0x0000 - 0x004e reg=1 this Lcom/google/android/test/Test; 
-        0x0000 - 0x004e reg=2 x I 
+      locals        :
+        0x0000 - 0x004e reg=1 this Lcom/google/android/test/Test;
+        0x0000 - 0x004e reg=2 x I
 
     #6              : (in Lcom/google/android/test/Test;)
       name          : 'geta'
@@ -1143,7 +1143,7 @@ Class #6            -
 00123e: 1200                                   |0047: const/4 v0, #int 0 // #0
 001240: 28c0                                   |0048: goto 0008 // -0040
       catches       : (none)
-      positions     : 
+      positions     :
         0x0002 line=72
         0x0008 line=81
         0x0009 line=73
@@ -1155,8 +1155,8 @@ Class #6            -
         0x0037 line=79
         0x0041 line=80
         0x0047 line=81
-      locals        : 
-        0x0000 - 0x0049 reg=7 this Lcom/google/android/test/Test; 
+      locals        :
+        0x0000 - 0x0049 reg=7 this Lcom/google/android/test/Test;
 
     #7              : (in Lcom/google/android/test/Test;)
       name          : 'p'
@@ -1182,17 +1182,17 @@ Class #6            -
 001274: d800 0001                              |0010: add-int/lit8 v0, v0, #int 1 // #01
 001278: 28f0                                   |0012: goto 0002 // -0010
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=120
         0x0001 line=121
         0x0007 line=124
         0x0008 line=122
         0x0010 line=121
-      locals        : 
-        0x0002 - 0x0013 reg=0 i I 
-        0x0001 - 0x0013 reg=1 y I 
-        0x0000 - 0x0013 reg=4 this Lcom/google/android/test/Test; 
-        0x0000 - 0x0013 reg=5 x I 
+      locals        :
+        0x0002 - 0x0013 reg=0 i I
+        0x0001 - 0x0013 reg=1 y I
+        0x0000 - 0x0013 reg=4 this Lcom/google/android/test/Test;
+        0x0000 - 0x0013 reg=5 x I
 
     #8              : (in Lcom/google/android/test/Test;)
       name          : 'params'
@@ -1363,7 +1363,7 @@ Class #6            -
 0014e0: 0003 0400 0200 0000 0100 0000 0100 ... |012a: array-data (8 units)
 0014f0: 0003 0800 0200 0000 0100 0000 0000 ... |0132: array-data (12 units)
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=232
         0x000a line=233
         0x0012 line=235
@@ -1393,29 +1393,29 @@ Class #6            -
         0x0115 line=254
         0x012a line=256
         0x0132 line=258
-      locals        : 
-        0x0025 - 0x0052 reg=4 aa [I 
-        0x0032 - 0x0052 reg=5 bb [J 
-        0x00d8 - 0x013e reg=6 d1 D 
-        0x00e2 - 0x013e reg=8 d2 D 
-        0x00ec - 0x013e reg=10 d3 D 
-        0x00f6 - 0x013e reg=12 d4 D 
-        0x0100 - 0x013e reg=14 d5 D 
-        0x00a6 - 0x013e reg=16 f1 F 
-        0x00b0 - 0x013e reg=17 f2 F 
-        0x00ba - 0x013e reg=18 f3 F 
-        0x00c4 - 0x013e reg=19 f4 F 
-        0x00ce - 0x013e reg=20 f5 F 
-        0x0000 - 0x013e reg=26 this Lcom/google/android/test/Test; 
-        0x0000 - 0x013e reg=27 b B 
-        0x0000 - 0x013e reg=28 c C 
-        0x0000 - 0x013e reg=29 s S 
-        0x0000 - 0x013e reg=30 i I 
-        0x0000 - 0x013e reg=31 l J 
-        0x0000 - 0x013e reg=33 f F 
-        0x0000 - 0x013e reg=34 d D 
-        0x0000 - 0x013e reg=36 o Ljava/lang/Object; 
-        0x0000 - 0x013e reg=37 a [I 
+      locals        :
+        0x0025 - 0x0052 reg=4 aa [I
+        0x0032 - 0x0052 reg=5 bb [J
+        0x00d8 - 0x013e reg=6 d1 D
+        0x00e2 - 0x013e reg=8 d2 D
+        0x00ec - 0x013e reg=10 d3 D
+        0x00f6 - 0x013e reg=12 d4 D
+        0x0100 - 0x013e reg=14 d5 D
+        0x00a6 - 0x013e reg=16 f1 F
+        0x00b0 - 0x013e reg=17 f2 F
+        0x00ba - 0x013e reg=18 f3 F
+        0x00c4 - 0x013e reg=19 f4 F
+        0x00ce - 0x013e reg=20 f5 F
+        0x0000 - 0x013e reg=26 this Lcom/google/android/test/Test;
+        0x0000 - 0x013e reg=27 b B
+        0x0000 - 0x013e reg=28 c C
+        0x0000 - 0x013e reg=29 s S
+        0x0000 - 0x013e reg=30 i I
+        0x0000 - 0x013e reg=31 l J
+        0x0000 - 0x013e reg=33 f F
+        0x0000 - 0x013e reg=34 d D
+        0x0000 - 0x013e reg=36 o Ljava/lang/Object;
+        0x0000 - 0x013e reg=37 a [I
 
     #9              : (in Lcom/google/android/test/Test;)
       name          : 'q'
@@ -1480,7 +1480,7 @@ Class #6            -
 0015bc: 4b01 0006                              |0052: aput v1, v0, v6
 0015c0: 28c0                                   |0054: goto 0014 // -0040
       catches       : (none)
-      positions     : 
+      positions     :
         0x0003 line=127
         0x0007 line=128
         0x0014 line=136
@@ -1490,10 +1490,10 @@ Class #6            -
         0x0030 line=132
         0x003c line=133
         0x0046 line=134
-      locals        : 
-        0x0000 - 0x0055 reg=7 this Lcom/google/android/test/Test; 
-        0x0000 - 0x0055 reg=8 x I 
-        0x0000 - 0x0055 reg=9 y I 
+      locals        :
+        0x0000 - 0x0055 reg=7 this Lcom/google/android/test/Test;
+        0x0000 - 0x0055 reg=8 x I
+        0x0000 - 0x0055 reg=9 y I
 
     #10              : (in Lcom/google/android/test/Test;)
       name          : 'r'
@@ -1566,7 +1566,7 @@ Class #6            -
 00168a: b0ba                                   |005b: add-int/2addr v10, v11
 00168c: 0f0a                                   |005c: return v10
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=139
         0x0006 line=140
         0x0009 line=141
@@ -1596,19 +1596,19 @@ Class #6            -
         0x0058 line=153
         0x0059 line=155
         0x005b line=153
-      locals        : 
-        0x000d - 0x005d reg=0 t1 I 
-        0x000f - 0x005d reg=1 t2 I 
-        0x0011 - 0x005d reg=2 t3 I 
-        0x0013 - 0x005d reg=3 t4 I 
-        0x0015 - 0x005d reg=4 t5 I 
-        0x0017 - 0x005d reg=5 t6 I 
-        0x0019 - 0x005d reg=6 t7 I 
-        0x001b - 0x005d reg=7 t8 I 
-        0x001d - 0x005d reg=8 t9 I 
-        0x000b - 0x005d reg=9 z I 
-        0x0000 - 0x005d reg=13 x I 
-        0x0000 - 0x005d reg=14 y I 
+      locals        :
+        0x000d - 0x005d reg=0 t1 I
+        0x000f - 0x005d reg=1 t2 I
+        0x0011 - 0x005d reg=2 t3 I
+        0x0013 - 0x005d reg=3 t4 I
+        0x0015 - 0x005d reg=4 t5 I
+        0x0017 - 0x005d reg=5 t6 I
+        0x0019 - 0x005d reg=6 t7 I
+        0x001b - 0x005d reg=7 t8 I
+        0x001d - 0x005d reg=8 t9 I
+        0x000b - 0x005d reg=9 z I
+        0x0000 - 0x005d reg=13 x I
+        0x0000 - 0x005d reg=14 y I
 
     #11              : (in Lcom/google/android/test/Test;)
       name          : 's'
@@ -1723,7 +1723,7 @@ Class #6            -
 00181e: 9b16 1618                              |00bf: add-long v22, v22, v24
 001822: 1016                                   |00c1: return-wide v22
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=159
         0x000c line=160
         0x0021 line=161
@@ -1753,19 +1753,19 @@ Class #6            -
         0x00b9 line=173
         0x00bb line=175
         0x00bf line=173
-      locals        : 
-        0x0027 - 0x00c2 reg=2 t1 J 
-        0x0029 - 0x00c2 reg=4 t2 J 
-        0x002b - 0x00c2 reg=6 t3 J 
-        0x002d - 0x00c2 reg=8 t4 J 
-        0x002f - 0x00c2 reg=10 t5 J 
-        0x0031 - 0x00c2 reg=12 t6 J 
-        0x0038 - 0x00c2 reg=14 t7 J 
-        0x003f - 0x00c2 reg=16 t8 J 
-        0x0046 - 0x00c2 reg=18 t9 J 
-        0x0025 - 0x00c2 reg=20 z J 
-        0x0000 - 0x00c2 reg=28 x J 
-        0x0000 - 0x00c2 reg=30 y J 
+      locals        :
+        0x0027 - 0x00c2 reg=2 t1 J
+        0x0029 - 0x00c2 reg=4 t2 J
+        0x002b - 0x00c2 reg=6 t3 J
+        0x002d - 0x00c2 reg=8 t4 J
+        0x002f - 0x00c2 reg=10 t5 J
+        0x0031 - 0x00c2 reg=12 t6 J
+        0x0038 - 0x00c2 reg=14 t7 J
+        0x003f - 0x00c2 reg=16 t8 J
+        0x0046 - 0x00c2 reg=18 t9 J
+        0x0025 - 0x00c2 reg=20 z J
+        0x0000 - 0x00c2 reg=28 x J
+        0x0000 - 0x00c2 reg=30 y J
 
     #12              : (in Lcom/google/android/test/Test;)
       name          : 'seta'
@@ -1805,7 +1805,7 @@ Class #6            -
 00188e: 4d05 0004                              |002d: aput-object v5, v0, v4
 001892: 0e00                                   |002f: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0002 line=60
         0x0006 line=61
         0x000a line=62
@@ -1816,8 +1816,8 @@ Class #6            -
         0x0025 line=67
         0x002b line=68
         0x002f line=69
-      locals        : 
-        0x0000 - 0x0030 reg=5 this Lcom/google/android/test/Test; 
+      locals        :
+        0x0000 - 0x0030 reg=5 this Lcom/google/android/test/Test;
 
   Virtual methods   -
     #0              : (in Lcom/google/android/test/Test;)
@@ -1836,12 +1836,12 @@ Class #6            -
 0018ac: 5b10 0b00                              |0004: iput-object v0, v1, Lcom/google/android/test/Test;.mArray:[I // field@000b
 0018b0: 0e00                                   |0006: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=86
         0x0003 line=87
         0x0006 line=88
-      locals        : 
-        0x0000 - 0x0007 reg=1 this Lcom/google/android/test/Test; 
+      locals        :
+        0x0000 - 0x0007 reg=1 this Lcom/google/android/test/Test;
 
     #1              : (in Lcom/google/android/test/Test;)
       name          : 'run'
@@ -1860,14 +1860,14 @@ Class #6            -
 0018d0: 6900 1600                              |0006: sput-object v0, Lcom/google/android/test/Test;.sArray:[I // field@0016
 0018d4: 0e00                                   |0008: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=92
         0x0004 line=93
         0x0006 line=94
         0x0008 line=95
-      locals        : 
-        0x0004 - 0x0009 reg=0 x [I 
-        0x0000 - 0x0009 reg=2 this Lcom/google/android/test/Test; 
+      locals        :
+        0x0004 - 0x0009 reg=0 x [I
+        0x0000 - 0x0009 reg=2 this Lcom/google/android/test/Test;
 
   source_file_idx   : 49 (Test.java)
 

@@ -329,9 +329,9 @@ Class #0            -
 0003be: 6900 2c00                              |0001: sput-object v0, LTest;.mObject:Ljava/lang/Object; // field@002c
 0003c2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=66
-      locals        : 
+      locals        :
 
     #1              : (in LTest;)
       name          : '<init>'
@@ -347,10 +347,10 @@ Class #0            -
 0003d4: 7010 0200 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0002
 0003da: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=1
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTest; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTest;
 
   Virtual methods   -
   source_file_idx   : 13 (Test.java)
