@@ -26,6 +26,7 @@
 
 #include <android-base/logging.h>
 
+#include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 
@@ -179,7 +180,7 @@ class SwapAllocator {
     DCHECK_LE(n, max_size());
     if (swap_space_ == nullptr) {
       T* result = reinterpret_cast<T*>(malloc(n * sizeof(T)));
-      CHECK(result != nullptr || n == 0u);  // Abort if malloc() fails.
+      CHECK_IMPLIES(result == nullptr, n == 0u);  // Abort if malloc() fails.
       return result;
     } else {
       return reinterpret_cast<T*>(swap_space_->Alloc(n * sizeof(T)));

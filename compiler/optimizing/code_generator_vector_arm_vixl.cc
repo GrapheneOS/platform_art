@@ -958,7 +958,8 @@ void InstructionCodeGeneratorARMVIXL::VisitVecLoad(HVecLoad* instruction) {
   UseScratchRegisterScope temps(GetVIXLAssembler());
   vixl32::Register scratch;
 
-  DCHECK(instruction->GetPackedType() != DataType::Type::kUint16 || !instruction->IsStringCharAt());
+  DCHECK_IMPLIES(instruction->GetPackedType() == DataType::Type::kUint16,
+                 !instruction->IsStringCharAt());
 
   switch (instruction->GetPackedType()) {
     case DataType::Type::kBool:

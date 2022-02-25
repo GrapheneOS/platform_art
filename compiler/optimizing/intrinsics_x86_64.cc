@@ -887,7 +887,7 @@ static void GenSystemArrayCopyAddresses(X86_64Assembler* assembler,
 void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
 
   X86_64Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -2438,7 +2438,7 @@ static void GenCompareAndSetOrExchangeRef(CodeGeneratorX86_64* codegen,
                                           CpuRegister temp3,
                                           bool is_cmpxchg) {
   // The only supported read barrier implementation is the Baker-style read barriers.
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
 
   X86_64Assembler* assembler = down_cast<X86_64Assembler*>(codegen->GetAssembler());
 
@@ -2624,7 +2624,7 @@ void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invo
 
 void IntrinsicCodeGeneratorX86_64::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
   // The only supported read barrier implementation is the Baker-style read barriers.
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
 
   GenCAS(DataType::Type::kReference, invoke, codegen_);
 }
@@ -4050,7 +4050,7 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
                                                      CodeGeneratorX86_64* codegen,
                                                      bool is_cmpxchg,
                                                      bool byte_swap = false) {
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
 
   X86_64Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -4351,7 +4351,7 @@ static void GenerateVarHandleGetAndOp(HInvoke* invoke,
     codegen->GetInstructionCodegen()->Bswap(temp_loc, type);
   }
 
-  DCHECK(!value.IsConstant() || !is64Bit);
+  DCHECK_IMPLIES(value.IsConstant(), !is64Bit);
   int32_t const_value = value.IsConstant()
       ? CodeGenerator::GetInt32ValueOf(value.GetConstant())
       : 0;
@@ -4609,7 +4609,7 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
                                           bool need_any_store_barrier,
                                           bool need_any_any_barrier,
                                           bool byte_swap = false) {
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
 
   X86_64Assembler* assembler = codegen->GetAssembler();
   LocationSummary* locations = invoke->GetLocations();

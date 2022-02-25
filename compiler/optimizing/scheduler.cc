@@ -316,7 +316,7 @@ void SchedulingGraph::AddDependencies(SchedulingNode* instruction_node,
   }
 
   // Scheduling barrier dependencies.
-  DCHECK(!is_scheduling_barrier || contains_scheduling_barrier_);
+  DCHECK_IMPLIES(is_scheduling_barrier, contains_scheduling_barrier_);
   if (contains_scheduling_barrier_) {
     // A barrier depends on instructions after it. And instructions before the
     // barrier depend on it.
