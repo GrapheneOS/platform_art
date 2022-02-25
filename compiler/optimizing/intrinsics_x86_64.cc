@@ -3656,7 +3656,6 @@ static void GenerateVarHandleArrayChecks(HInvoke* invoke,
     bool boot_image_available =
         codegen->GetCompilerOptions().IsBootImage() ||
         !Runtime::Current()->GetHeap()->GetBootImageSpaces().empty();
-    DCHECK(boot_image_available || codegen->GetCompilerOptions().IsJitCompiler());
     bool can_be_view = (DataType::Size(value_type) != 1u) && boot_image_available;
     slow_path_label =
         can_be_view ? slow_path->GetByteArrayViewCheckLabel() : slow_path->GetEntryLabel();
