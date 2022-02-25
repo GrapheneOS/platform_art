@@ -3560,8 +3560,7 @@ Class #9            -
 00322a: 0107                                   |008f: move v7, v0
 00322c: 3527 2200                              |0090: if-ge v7, v2, 00b2 // +0022
 003230: 6208 1300                              |0092: sget-object v8, Ljava/lang/System;.out:Ljava/io/PrintStream; // field@0013
-003234: 1a09 0400                              |0094: const-string v9, " Thread % 2d invoked call site instance #%02d
-" // string@0004
+003234: 1a09 0400                              |0094: const-string v9, " Thread % 2d invoked call site instance #%02d\n" // string@0004
 003238: 233a 4800                              |0096: new-array v10, v3, [Ljava/lang/Object; // type@0048
 00323c: 7110 bd00 0700                         |0098: invoke-static {v7}, Ljava/lang/Integer;.valueOf:(I)Ljava/lang/Integer; // method@00bd
 003242: 0c0b                                   |009b: move-result-object v11
@@ -3583,8 +3582,7 @@ Class #9            -
 003282: 0107                                   |00bb: move v7, v0
 003284: 3527 2200                              |00bc: if-ge v7, v2, 00de // +0022
 003288: 6208 1300                              |00be: sget-object v8, Ljava/lang/System;.out:Ljava/io/PrintStream; // field@0013
-00328c: 1a09 0300                              |00c0: const-string v9, " Call site instance #%02d was invoked % 2d times
-" // string@0003
+00328c: 1a09 0300                              |00c0: const-string v9, " Call site instance #%02d was invoked % 2d times\n" // string@0003
 003290: 233a 4800                              |00c2: new-array v10, v3, [Ljava/lang/Object; // type@0048
 003294: 7110 bd00 0700                         |00c4: invoke-static {v7}, Ljava/lang/Integer;.valueOf:(I)Ljava/lang/Integer; // method@00bd
 00329a: 0c0b                                   |00c7: move-result-object v11
