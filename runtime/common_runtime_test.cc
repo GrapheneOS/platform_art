@@ -60,6 +60,7 @@
 #include "noop_compiler_callbacks.h"
 #include "profile/profile_compilation_info.h"
 #include "runtime-inl.h"
+#include "runtime_intrinsics.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "well_known_classes.h"
@@ -160,8 +161,10 @@ void CommonRuntimeTestImpl::FinalizeSetup() {
     runtime_->RunRootClinits(soa.Self());
   }
 
-  // We're back in native, take the opportunity to initialize well known classes.
+  // We're back in native, take the opportunity to initialize well known classes and ensure
+  // intrinsics are initialized.
   WellKnownClasses::Init(Thread::Current()->GetJniEnv());
+  InitializeIntrinsics();
 
   // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
   // pool is created by the runtime.
