@@ -1566,12 +1566,7 @@ Class #1            -
 001dea: 2200 0500                              |01f7: new-instance v0, Landroid/app/AlertDialog$Builder; // type@0005
 001dee: 5491 1300                              |01f9: iget-object v1, v9, Lcom/google/android/checkers/CheckersView;.a:Landroid/content/Context; // field@0013
 001df2: 7020 0900 1000                         |01fb: invoke-direct {v0, v1}, Landroid/app/AlertDialog$Builder;.<init>:(Landroid/content/Context;)V // method@0009
-001df8: 1a01 1200                              |01fe: const-string v1, "Checkers for Android was written by Aart J.C. Bik.
-
-Use the touch screen or trackball to make a move. Press the MENU button for more options, such as making captures optional instead of mandatory.
-
-The application complies with the official American checkers rules, where black moves first, captures are mandatory, men only move and jump forward, and kings move and jump forward and backward (but not over a distance). Please note that many variants of checkers exist, and this game may not use the rules you are most familiar with.
-" // string@0012
+001df8: 1a01 1200                              |01fe: const-string v1, "Checkers for Android was written by Aart J.C. Bik.\n\nUse the touch screen or trackball to make a move. Press the MENU button for more options, such as making captures optional instead of mandatory.\n\nThe application complies with the official American checkers rules, where black moves first, captures are mandatory, men only move and jump forward, and kings move and jump forward and backward (but not over a distance). Please note that many variants of checkers exist, and this game may not use the rules you are most familiar with.\n" // string@0012
 001dfc: 6e20 0c00 1000                         |0200: invoke-virtual {v0, v1}, Landroid/app/AlertDialog$Builder;.setMessage:(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder; // method@000c
 001e02: 0c00                                   |0203: move-result-object v0
 001e04: 1a01 2b00                              |0204: const-string v1, "KEEP SHOWING" // string@002b
@@ -2376,8 +2371,7 @@ The application complies with the official American checkers rules, where black 
 002804: 6e10 3d00 0000                         |0206: invoke-virtual {v0}, Landroid/widget/Toast;.show:()V // method@003d
 00280a: 0160                                   |0209: move v0, v6
 00280c: 2900 2dfe                              |020a: goto/16 0037 // -01d3
-002810: 1a00 c000                              |020c: const-string v0, "computer now plays black
-goto options to rotate board" // string@00c0
+002810: 1a00 c000                              |020c: const-string v0, "computer now plays black\ngoto options to rotate board" // string@00c0
 002814: 28f3                                   |020e: goto 0201 // -000d
 002816: 5290 2300                              |020f: iget v0, v9, Lcom/google/android/checkers/CheckersView;.q:I // field@0023
 00281a: 3320 6f00                              |0211: if-ne v0, v2, 0280 // +006f
@@ -2390,8 +2384,7 @@ goto options to rotate board" // string@00c0
 002834: 5491 1300                              |021e: iget-object v1, v9, Lcom/google/android/checkers/CheckersView;.a:Landroid/content/Context; // field@0013
 002838: 5590 0400                              |0220: iget-boolean v0, v9, Lcom/google/android/checkers/CheckersView;.C:Z // field@0004
 00283c: 3800 0f00                              |0222: if-eqz v0, 0231 // +000f
-002840: 1a00 c200                              |0224: const-string v0, "computer now plays white
-goto options to rotate board" // string@00c2
+002840: 1a00 c200                              |0224: const-string v0, "computer now plays white\ngoto options to rotate board" // string@00c2
 002844: 1202                                   |0226: const/4 v2, #int 0 // #0
 002846: 7130 3c00 0102                         |0227: invoke-static {v1, v0, v2}, Landroid/widget/Toast;.makeText:(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast; // method@003c
 00284c: 0c00                                   |022a: move-result-object v0
@@ -12384,8 +12377,7 @@ Class #9            -
 00322a: 0107                                   |008f: move v7, v0
 00322c: 3527 2200                              |0090: if-ge v7, v2, 00b2 // +0022
 003230: 6208 1300                              |0092: sget-object v8, Ljava/lang/System;.out:Ljava/io/PrintStream; // field@0013
-003234: 1a09 0400                              |0094: const-string v9, " Thread % 2d invoked call site instance #%02d
-" // string@0004
+003234: 1a09 0400                              |0094: const-string v9, " Thread % 2d invoked call site instance #%02d\n" // string@0004
 003238: 233a 4800                              |0096: new-array v10, v3, [Ljava/lang/Object; // type@0048
 00323c: 7110 bd00 0700                         |0098: invoke-static {v7}, Ljava/lang/Integer;.valueOf:(I)Ljava/lang/Integer; // method@00bd
 003242: 0c0b                                   |009b: move-result-object v11
@@ -12407,8 +12399,7 @@ Class #9            -
 003282: 0107                                   |00bb: move v7, v0
 003284: 3527 2200                              |00bc: if-ge v7, v2, 00de // +0022
 003288: 6208 1300                              |00be: sget-object v8, Ljava/lang/System;.out:Ljava/io/PrintStream; // field@0013
-00328c: 1a09 0300                              |00c0: const-string v9, " Call site instance #%02d was invoked % 2d times
-" // string@0003
+00328c: 1a09 0300                              |00c0: const-string v9, " Call site instance #%02d was invoked % 2d times\n" // string@0003
 003290: 233a 4800                              |00c2: new-array v10, v3, [Ljava/lang/Object; // type@0048
 003294: 7110 bd00 0700                         |00c4: invoke-static {v7}, Ljava/lang/Integer;.valueOf:(I)Ljava/lang/Integer; // method@00bd
 00329a: 0c0b                                   |00c7: move-result-object v11
@@ -14804,6 +14795,120 @@ Class #0            -
 Opened 'all-dex-files.jar:classes6.dex', DEX version '035'
 DEX file header:
 magic               : 'dex\n035\0'
+checksum            : 036e70eb
+signature           : b715...0ace
+file_size           : 868
+header_size         : 112
+link_size           : 0
+link_off            : 0 (0x000000)
+string_ids_size     : 15
+string_ids_off      : 112 (0x000070)
+type_ids_size       : 5
+type_ids_off        : 172 (0x0000ac)
+proto_ids_size      : 4
+proto_ids_off       : 192 (0x0000c0)
+field_ids_size      : 0
+field_ids_off       : 0 (0x000000)
+method_ids_size     : 7
+method_ids_off      : 240 (0x0000f0)
+class_defs_size     : 1
+class_defs_off      : 296 (0x000128)
+data_size           : 540
+data_off            : 328 (0x000148)
+
+Class #0 header:
+class_idx           : 0
+access_flags        : 0 (0x0000)
+superclass_idx      : 1
+interfaces_off      : 0 (0x000000)
+source_file_idx     : 9
+annotations_off     : 0 (0x000000)
+class_data_off      : 702 (0x0002be)
+static_fields_size  : 0
+instance_fields_size: 0
+direct_methods_size : 1
+virtual_methods_size: 2
+
+Class #0            -
+  Class descriptor  : 'LQuoting;'
+  Access flags      : 0x0000 ()
+  Superclass        : 'Ljava/lang/Object;'
+  Interfaces        -
+  Static fields     -
+  Instance fields   -
+  Direct methods    -
+    #0              : (in LQuoting;)
+      name          : '<init>'
+      type          : '()V'
+      access        : 0x10001 (PUBLIC CONSTRUCTOR)
+      method_idx    : 0
+      code          -
+      registers     : 1
+      ins           : 1
+      outs          : 1
+      insns size    : 4 16-bit code units
+000148:                                        |[000148] Quoting.<init>:()V
+000158: 7010 0300 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0003
+00015e: 0e00                                   |0003: return-void
+      catches       : (none)
+      positions     : 
+        0x0000 line=2
+      locals        : 
+        0x0000 - 0x0004 reg=0 this LQuoting; 
+
+  Virtual methods   -
+    #0              : (in LQuoting;)
+      name          : 'append1'
+      type          : '(Ljava/lang/String;)Ljava/lang/String;'
+      access        : 0x0001 (PUBLIC)
+      method_idx    : 1
+      code          -
+      registers     : 4
+      ins           : 2
+      outs          : 2
+      insns size    : 20 16-bit code units
+000160:                                        |[000160] Quoting.append1:(Ljava/lang/String;)Ljava/lang/String;
+000170: 2200 0300                              |0000: new-instance v0, Ljava/lang/StringBuilder; // type@0003
+000174: 7010 0400 0000                         |0002: invoke-direct {v0}, Ljava/lang/StringBuilder;.<init>:()V // method@0004
+00017a: 6e20 0500 3000                         |0005: invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;.append:(Ljava/lang/String;)Ljava/lang/StringBuilder; // method@0005
+000180: 0c00                                   |0008: move-result-object v0
+000182: 1a01 0100                              |0009: const-string v1, "\" // string@0001\n000149: ffff                                   |0005: rat // \"" // string@0001
+000186: 6e20 0500 1000                         |000b: invoke-virtual {v0, v1}, Ljava/lang/StringBuilder;.append:(Ljava/lang/String;)Ljava/lang/StringBuilder; // method@0005
+00018c: 0c00                                   |000e: move-result-object v0
+00018e: 6e10 0600 0000                         |000f: invoke-virtual {v0}, Ljava/lang/StringBuilder;.toString:()Ljava/lang/String; // method@0006
+000194: 0c00                                   |0012: move-result-object v0
+000196: 1100                                   |0013: return-object v0
+      catches       : (none)
+      positions     : 
+        0x0000 line=5
+      locals        : 
+        0x0000 - 0x0014 reg=2 this LQuoting; 
+        0x0000 - 0x0014 reg=3 (null) Ljava/lang/String; 
+
+    #1              : (in LQuoting;)
+      name          : 'unicode'
+      type          : '()Ljava/lang/String;'
+      access        : 0x0001 (PUBLIC)
+      method_idx    : 2
+      code          -
+      registers     : 2
+      ins           : 1
+      outs          : 0
+      insns size    : 3 16-bit code units
+000198:                                        |[000198] Quoting.unicode:()Ljava/lang/String;
+0001a8: 1a00 0000                              |0000: const-string v0, "\b\f\n\r\t\\\"'í ½í¸œâ˜ˆ'\"" // string@0000
+0001ac: 1100                                   |0002: return-object v0
+      catches       : (none)
+      positions     : 
+        0x0000 line=10
+      locals        : 
+        0x0000 - 0x0003 reg=1 this LQuoting; 
+
+  source_file_idx   : 9 (Quoting.java)
+
+Opened 'all-dex-files.jar:classes7.dex', DEX version '035'
+DEX file header:
+magic               : 'dex\n035\0'
 checksum            : 52d4fc6d
 signature           : 6e82...2f27
 file_size           : 1264
@@ -14927,7 +15032,7 @@ Class #0            -
   Virtual methods   -
   source_file_idx   : 11 (StaticFields.java)
 
-Opened 'all-dex-files.jar:classes7.dex', DEX version '035'
+Opened 'all-dex-files.jar:classes8.dex', DEX version '035'
 DEX file header:
 magic               : 'dex\n035\0'
 checksum            : 7605eec0
