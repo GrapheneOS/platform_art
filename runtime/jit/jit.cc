@@ -836,18 +836,26 @@ class JitDoneCompilingProfileTask final : public SelfDeletingTask {
         }
       }
     }
-
-    if (Runtime::Current()->IsZygote()) {
-      // Record that we are done compiling the profile.
-      Runtime::Current()->GetJit()->GetCodeCache()->GetZygoteMap()->SetCompilationState(
-          ZygoteCompilationState::kDone);
-    }
   }
 
  private:
   std::vector<const DexFile*> dex_files_;
 
   DISALLOW_COPY_AND_ASSIGN(JitDoneCompilingProfileTask);
+};
+
+class JitZygoteDoneCompilingTask final : public SelfDeletingTask {
+ public:
+  JitZygoteDoneCompilingTask() {}
+
+  void Run(Thread* self ATTRIBUTE_UNUSED) override {
+    DCHECK(Runtime::Current()->IsZygote());
+    Runtime::Current()->GetJit()->GetCodeCache()->GetZygoteMap()->SetCompilationState(
+        ZygoteCompilationState::kDone);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(JitZygoteDoneCompilingTask);
 };
 
 /**
@@ -941,6 +949,8 @@ class ZygoteTask final : public Task {
         added_to_queue += runtime->GetJit()->CompileMethodsFromProfile(
             self, boot_class_path, profile_file, null_handle, /* add_to_queue= */ true);
       }
+      DCHECK(runtime->GetJit()->InZygoteUsingJit());
+      runtime->GetJit()->AddPostBootTask(self, new JitZygoteDoneCompilingTask());
     }
 
     JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
@@ -1322,14 +1332,10 @@ bool Jit::CompileMethodFromProfile(Thread* self,
       Task* task = new JitCompileTask(
           method, JitCompileTask::TaskKind::kPreCompile, CompilationKind::kOptimized);
       if (compile_after_boot) {
-        MutexLock mu(Thread::Current(), boot_completed_lock_);
-        if (!boot_completed_) {
-          tasks_after_boot_.push_back(task);
-          return true;
-        }
-        DCHECK(tasks_after_boot_.empty());
+        AddPostBootTask(self, task);
+      } else {
+        thread_pool_->AddTask(self, task);
       }
-      thread_pool_->AddTask(self, task);
       return true;
     }
   }
@@ -1438,14 +1444,7 @@ uint32_t Jit::CompileMethodsFromProfile(
   }
 
   // Add a task to run when all compilation is done.
-  JitDoneCompilingProfileTask* task = new JitDoneCompilingProfileTask(dex_files);
-  MutexLock mu(Thread::Current(), boot_completed_lock_);
-  if (!boot_completed_) {
-    tasks_after_boot_.push_back(task);
-  } else {
-    DCHECK(tasks_after_boot_.empty());
-    thread_pool_->AddTask(self, task);
-  }
+  AddPostBootTask(self, new JitDoneCompilingProfileTask(dex_files));
   return added_to_queue;
 }
 
@@ -1676,6 +1675,15 @@ void Jit::PostZygoteFork() {
       runtime->IsZygote()
           ? options_->GetZygoteThreadPoolPthreadPriority()
           : options_->GetThreadPoolPthreadPriority());
+}
+
+void Jit::AddPostBootTask(Thread* self, Task* task) {
+  MutexLock mu(self, boot_completed_lock_);
+  if (boot_completed_) {
+    thread_pool_->AddTask(self, task);
+  } else {
+    tasks_after_boot_.push_back(task);
+  }
 }
 
 void Jit::BootCompleted() {
