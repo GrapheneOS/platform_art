@@ -1161,7 +1161,7 @@ void DexLayout::DumpCode(uint32_t idx,
 
   // Positions and locals table in the debug info.
   dex_ir::DebugInfoItem* debug_info = code->DebugInfo();
-  fprintf(out_file_, "      positions     : \n");
+  fprintf(out_file_, "      positions     :\n");
   if (debug_info != nullptr) {
     DexFile::DecodeDebugPositionInfo(debug_info->GetDebugInfo(),
                                      [this](uint32_t idx) {
@@ -1175,7 +1175,7 @@ void DexLayout::DumpCode(uint32_t idx,
                                         return false;
                                      });
   }
-  fprintf(out_file_, "      locals        : \n");
+  fprintf(out_file_, "      locals        :\n");
   if (debug_info != nullptr) {
     std::vector<const char*> arg_descriptors;
     const dex_ir::TypeList* parameters = proto->Parameters();
@@ -1205,16 +1205,18 @@ void DexLayout::DumpCode(uint32_t idx,
                                                             this->header_);
                                   },
                                   [&](const DexFile::LocalInfo& entry) {
-                                    const char* signature =
-                                        entry.signature_ != nullptr ? entry.signature_ : "";
                                     fprintf(out_file_,
-                                            "        0x%04x - 0x%04x reg=%d %s %s %s\n",
+                                            "        0x%04x - 0x%04x reg=%d %s %s",
                                             entry.start_address_,
                                             entry.end_address_,
                                             entry.reg_,
                                             entry.name_,
-                                            entry.descriptor_,
-                                            signature);
+                                            entry.descriptor_);
+                                    if (entry.signature_) {
+                                      fputc(' ', out_file_);
+                                      fputs(entry.signature_, out_file_);
+                                    }
+                                    fputc('\n', out_file_);
                                   });
   }
 }

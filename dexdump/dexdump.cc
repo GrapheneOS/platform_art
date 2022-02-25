@@ -1303,7 +1303,7 @@ static void dumpCode(const DexFile* pDexFile, u4 idx, u4 flags,
     const u4 lastInstructionAddress = findLastInstructionAddress(accessor);
     // Positions and locals table in the debug info.
     bool is_static = (flags & kAccStatic) != 0;
-    fprintf(gOutFile, "      positions     : \n");
+    fprintf(gOutFile, "      positions     :\n");
     accessor.DecodeDebugPositionInfo([&](const DexFile::PositionInfo& entry) {
       if (entry.address_ > lastInstructionAddress) {
         return true;
@@ -1312,19 +1312,22 @@ static void dumpCode(const DexFile* pDexFile, u4 idx, u4 flags,
         return false;
       }
     });
-    fprintf(gOutFile, "      locals        : \n");
+    fprintf(gOutFile, "      locals        :\n");
     accessor.DecodeDebugLocalInfo(is_static,
                                   idx,
                                   [&](const DexFile::LocalInfo& entry) {
-      const char* signature = entry.signature_ != nullptr ? entry.signature_ : "";
       fprintf(gOutFile,
-              "        0x%04x - 0x%04x reg=%d %s %s %s\n",
+              "        0x%04x - 0x%04x reg=%d %s %s",
               entry.start_address_,
               entry.end_address_,
               entry.reg_,
               entry.name_,
-              entry.descriptor_,
-              signature);
+              entry.descriptor_);
+      if (entry.signature_) {
+        fputc(' ', gOutFile);
+        fputs(entry.signature_, gOutFile);
+      }
+      fputc('\n', gOutFile);
     });
   }
 }
