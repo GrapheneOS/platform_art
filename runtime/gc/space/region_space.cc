@@ -1032,7 +1032,7 @@ RegionSpace::Region* RegionSpace::AllocateRegion(bool for_evac) {
       r->Unfree(this, time_);
       if (use_generational_cc_) {
         // TODO: Add an explanation for this assertion.
-        DCHECK(!for_evac || !r->is_newly_allocated_);
+        DCHECK_IMPLIES(for_evac, !r->is_newly_allocated_);
       }
       if (for_evac) {
         ++num_evac_regions_;
