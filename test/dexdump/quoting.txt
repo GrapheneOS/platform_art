@@ -58,10 +58,10 @@ Class #0            -
 000158: 7010 0300 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0003
 00015e: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=2
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LQuoting; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LQuoting;
 
   Virtual methods   -
     #0              : (in LQuoting;)
@@ -86,11 +86,11 @@ Class #0            -
 000194: 0c00                                   |0012: move-result-object v0
 000196: 1100                                   |0013: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=5
-      locals        : 
-        0x0000 - 0x0014 reg=2 this LQuoting; 
-        0x0000 - 0x0014 reg=3 (null) Ljava/lang/String; 
+      locals        :
+        0x0000 - 0x0014 reg=2 this LQuoting;
+        0x0000 - 0x0014 reg=3 (null) Ljava/lang/String;
 
     #1              : (in LQuoting;)
       name          : 'unicode'
@@ -106,10 +106,10 @@ Class #0            -
 0001a8: 1a00 0000                              |0000: const-string v0, "\b\f\n\r\t\\\"'í ½í¸œâ˜ˆ'\"" // string@0000
 0001ac: 1100                                   |0002: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=10
-      locals        : 
-        0x0000 - 0x0003 reg=1 this LQuoting; 
+      locals        :
+        0x0000 - 0x0003 reg=1 this LQuoting;
 
   source_file_idx   : 9 (Quoting.java)
 
