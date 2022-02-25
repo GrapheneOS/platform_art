@@ -51,7 +51,6 @@
 #include "dex/dex_file_loader.h"
 #include "dex/primitive.h"
 #include "events-inl.h"
-#include "fixed_up_dex_file.h"
 #include "gc/heap-visit-objects-inl.h"
 #include "gc/heap.h"
 #include "gc_root.h"

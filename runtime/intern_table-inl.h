@@ -28,6 +28,17 @@
 
 namespace art {
 
+inline int32_t InternTable::Utf8String::Hash(uint32_t utf16_length, const char* utf8_data) {
+  DCHECK_EQ(utf16_length, CountModifiedUtf8Chars(utf8_data));
+  if (LIKELY(utf8_data[utf16_length] == 0)) {
+    int32_t hash = ComputeUtf16Hash(utf8_data, utf16_length);
+    DCHECK_EQ(hash, ComputeUtf16HashFromModifiedUtf8(utf8_data, utf16_length));
+    return hash;
+  } else {
+    return ComputeUtf16HashFromModifiedUtf8(utf8_data, utf16_length);
+  }
+}
+
 inline std::size_t InternTable::StringHash::operator()(const GcRoot<mirror::String>& root) const {
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
@@ -55,19 +66,16 @@ inline bool InternTable::StringEquals::operator()(const GcRoot<mirror::String>& 
   if (a_length != b.GetUtf16Length()) {
     return false;
   }
+  DCHECK_GE(strlen(b.GetUtf8Data()), a_length);
   if (a_string->IsCompressed()) {
-    size_t b_byte_count = strlen(b.GetUtf8Data());
-    size_t b_utf8_length = CountModifiedUtf8Chars(b.GetUtf8Data(), b_byte_count);
-    // Modified UTF-8 single byte character range is 0x01 .. 0x7f
+    // Modified UTF-8 single byte character range is 0x01 .. 0x7f.
     // The string compression occurs on regular ASCII with same exact range,
-    // not on extended ASCII which up to 0xff
-    const bool is_b_regular_ascii = (b_byte_count == b_utf8_length);
-    if (is_b_regular_ascii) {
-      return memcmp(b.GetUtf8Data(),
-                    a_string->GetValueCompressed(), a_length * sizeof(uint8_t)) == 0;
-    } else {
-      return false;
-    }
+    // not on extended ASCII which is up to 0xff.
+    return b.GetUtf8Data()[a_length] == 0 &&
+           memcmp(b.GetUtf8Data(), a_string->GetValueCompressed(), a_length * sizeof(uint8_t)) == 0;
+  } else if (mirror::kUseStringCompression && b.GetUtf8Data()[a_length] == 0) {
+    // ASCII string `b` cannot equal non-ASCII `a_string`.
+    return false;
   } else {
     const uint16_t* a_value = a_string->GetValue();
     return CompareModifiedUtf8ToUtf16AsCodePointValues(b.GetUtf8Data(), a_value, a_length) == 0;
