@@ -543,7 +543,7 @@ void RegisterAllocatorLinearScan::LinearScan() {
     // Make sure we are going in the right order.
     DCHECK(unhandled_->empty() || unhandled_->back()->GetStart() >= current->GetStart());
     // Make sure a low interval is always with a high.
-    DCHECK(!current->IsLowInterval() || unhandled_->back()->IsHighInterval());
+    DCHECK_IMPLIES(current->IsLowInterval(), unhandled_->back()->IsHighInterval());
     // Make sure a high interval is always with a low.
     DCHECK(current->IsLowInterval() ||
            unhandled_->empty() ||
@@ -914,7 +914,7 @@ bool RegisterAllocatorLinearScan::AllocateBlockedReg(LiveInterval* current) {
     // We must still proceed in order to split currently active and inactive
     // uses of the high interval's register, and put the high interval in the
     // active set.
-    DCHECK(first_register_use != kNoLifetime || (current->GetNextSibling() != nullptr));
+    DCHECK_IMPLIES(first_register_use == kNoLifetime, current->GetNextSibling() != nullptr);
   } else if (first_register_use == kNoLifetime) {
     AllocateSpillSlotFor(current);
     return false;
@@ -1128,7 +1128,7 @@ void RegisterAllocatorLinearScan::AllocateSpillSlotFor(LiveInterval* interval) {
   }
 
   HInstruction* defined_by = parent->GetDefinedBy();
-  DCHECK(!defined_by->IsPhi() || !defined_by->AsPhi()->IsCatchPhi());
+  DCHECK_IMPLIES(defined_by->IsPhi(), !defined_by->AsPhi()->IsCatchPhi());
 
   if (defined_by->IsParameterValue()) {
     // Parameters have their own stack slot.

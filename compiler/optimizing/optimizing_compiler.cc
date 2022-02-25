@@ -817,7 +817,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr) {
     ProfilingInfo* info = jit->GetCodeCache()->GetProfilingInfo(method, Thread::Current());
-    DCHECK(compilation_kind != CompilationKind::kBaseline || info != nullptr)
+    DCHECK_IMPLIES(compilation_kind == CompilationKind::kBaseline, info != nullptr)
         << "Compiling a method baseline should always have a ProfilingInfo";
     graph->SetProfilingInfo(info);
   }
@@ -1107,7 +1107,7 @@ CompiledMethod* OptimizingCompiler::Compile(const dex::CodeItem* code_item,
     // regressing.
     std::string method_name = dex_file.PrettyMethod(method_idx);
     bool shouldCompile = method_name.find("$opt$") != std::string::npos;
-    DCHECK((compiled_method != nullptr) || !shouldCompile) << "Didn't compile " << method_name;
+    DCHECK_IMPLIES(compiled_method == nullptr, !shouldCompile) << "Didn't compile " << method_name;
   }
 
   return compiled_method;
