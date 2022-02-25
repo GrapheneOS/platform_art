@@ -486,7 +486,7 @@ Heap::Heap(size_t initial_size,
     DCHECK_EQ(heap_reservation_size, heap_reservation.IsValid() ? heap_reservation.Size() : 0u);
     DCHECK(!boot_image_spaces.empty());
     request_begin = boot_image_spaces.back()->GetImageHeader().GetOatFileEnd();
-    DCHECK(!heap_reservation.IsValid() || request_begin == heap_reservation.Begin())
+    DCHECK_IMPLIES(heap_reservation.IsValid(), request_begin == heap_reservation.Begin())
         << "request_begin=" << static_cast<const void*>(request_begin)
         << " heap_reservation.Begin()=" << static_cast<const void*>(heap_reservation.Begin());
     for (std::unique_ptr<space::ImageSpace>& space : boot_image_spaces) {
@@ -3777,7 +3777,7 @@ class Heap::ConcurrentGCTask : public HeapTask {
     gc::Heap* heap = runtime->GetHeap();
     DCHECK(GCNumberLt(my_gc_num_, heap->GetCurrentGcNum() + 2));  // <= current_gc_num + 1
     heap->ConcurrentGC(self, cause_, force_full_, my_gc_num_);
-    CHECK(!GCNumberLt(heap->GetCurrentGcNum(), my_gc_num_) || runtime->IsShuttingDown(self));
+    CHECK_IMPLIES(GCNumberLt(heap->GetCurrentGcNum(), my_gc_num_), runtime->IsShuttingDown(self));
   }
 
  private:

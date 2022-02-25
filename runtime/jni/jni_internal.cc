@@ -166,7 +166,7 @@ class NewStringUTFVisitor {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
     ObjPtr<mirror::String> string = ObjPtr<mirror::String>::DownCast(obj);
     string->SetCount(count_);
-    DCHECK(!string->IsCompressed() || mirror::kUseStringCompression);
+    DCHECK_IMPLIES(string->IsCompressed(), mirror::kUseStringCompression);
     if (string->IsCompressed()) {
       uint8_t* value_compressed = string->GetValueCompressed();
       auto good = [&](const char* ptr, size_t length) {
@@ -202,8 +202,8 @@ class NewStringUTFVisitor {
         *value++ = kBadUtf8ReplacementChar;
       };
       VisitUtf8Chars(utf_, utf8_length_, good, bad);
-      DCHECK(!mirror::kUseStringCompression ||
-             !mirror::String::AllASCII(string->GetValue(), string->GetLength()));
+      DCHECK_IMPLIES(mirror::kUseStringCompression,
+                     !mirror::String::AllASCII(string->GetValue(), string->GetLength()));
     }
   }
 

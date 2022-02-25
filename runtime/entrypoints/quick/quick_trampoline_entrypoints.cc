@@ -730,7 +730,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
       VLOG(deopt) << "Forcing deoptimization on return from method " << method->PrettyMethod()
                   << " to " << caller->PrettyMethod()
                   << (force_frame_pop ? " for frame-pop" : "");
-      DCHECK(!force_frame_pop || result.GetJ() == 0) << "Force frame pop should have no result.";
+      DCHECK_IMPLIES(force_frame_pop, result.GetJ() == 0)
+          << "Force frame pop should have no result.";
       if (force_frame_pop && self->GetException() != nullptr) {
         LOG(WARNING) << "Suppressing exception for instruction-retry: "
                      << self->GetException()->Dump();

@@ -328,7 +328,7 @@ static inline JValue Execute(
 
   // Lock counting is a special version of accessibility checks, and for simplicity and
   // reduction of template parameters, we gate it behind access-checks mode.
-  DCHECK(!method->SkipAccessChecks() || !method->MustCountLocks());
+  DCHECK_IMPLIES(method->SkipAccessChecks(), !method->MustCountLocks());
 
   VLOG(interpreter) << "Interpreting " << method->PrettyMethod();
 
