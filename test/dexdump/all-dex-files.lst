@@ -254,6 +254,9 @@
 0x00003db4 448 TestVariableArityLinkerMethod test ()V TestVariableArityLinkerMethod.java 506
 0x000001bc 8 Main <init> ()V Main.java 9
 0x000001d4 60 Main main ([Ljava/lang/String;)V Main.java 31
+0x00000158 8 Quoting <init> ()V Quoting.java 2
+0x00000170 40 Quoting append1 (Ljava/lang/String;)Ljava/lang/String; Quoting.java 5
+0x000001a8 6 Quoting unicode ()Ljava/lang/String; Quoting.java 10
 0x000001bc 8 StaticFields <init> ()V StaticFields.java 24
 0x000003bc 8 Test <clinit> ()V Test.java 66
 0x000003d4 8 Test <init> ()V Test.java 1
