@@ -106,7 +106,7 @@ ObjPtr<String> String::DoReplace(Thread* self, Handle<String> src, uint16_t old_
       } else {
         std::transform(src->value_, src->value_ + length, out, replace);
       }
-      DCHECK(!kUseStringCompression || !AllASCII(out, length));
+      DCHECK_IMPLIES(kUseStringCompression, !AllASCII(out, length));
     }
   };
   return Alloc(self, length_with_flag, allocator_type, visitor);
@@ -202,7 +202,7 @@ ObjPtr<String> String::DoRepeat(Thread* self, Handle<String> h_this, int32_t cou
 ObjPtr<String> String::AllocFromUtf16(Thread* self,
                                       int32_t utf16_length,
                                       const uint16_t* utf16_data_in) {
-  CHECK(utf16_data_in != nullptr || utf16_length == 0);
+  CHECK_IMPLIES(utf16_data_in == nullptr, utf16_length == 0);
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
   const bool compressible = kUseStringCompression &&
                             String::AllASCII<uint16_t>(utf16_data_in, utf16_length);

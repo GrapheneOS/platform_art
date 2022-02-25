@@ -184,7 +184,7 @@ mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
     // Zero freshly allocated memory, done while not holding the space's lock.
     memset(result, 0, num_bytes);
     // Check that the result is contained in the space.
-    CHECK(!kDebugSpaces || Contains(result));
+    CHECK_IMPLIES(kDebugSpaces, Contains(result));
   }
   return result;
 }
