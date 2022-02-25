@@ -1829,7 +1829,8 @@ bool HInstructionBuilder::HandleInvoke(HInvoke* invoke,
                                        const InstructionOperands& operands,
                                        const char* shorty,
                                        bool is_unresolved) {
-  DCHECK(!invoke->IsInvokeStaticOrDirect() || !invoke->AsInvokeStaticOrDirect()->IsStringInit());
+  DCHECK_IMPLIES(invoke->IsInvokeStaticOrDirect(),
+                 !invoke->AsInvokeStaticOrDirect()->IsStringInit());
 
   ReceiverArg receiver_arg = (invoke->GetInvokeType() == InvokeType::kStatic)
       ? ReceiverArg::kNone

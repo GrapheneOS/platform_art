@@ -1175,7 +1175,7 @@ void HLoopOptimization::Vectorize(LoopNode* node,
   // for ( ; i < stc; i += 1)
   //    <loop-body>
   if (needs_cleanup) {
-    DCHECK(!IsInPredicatedVectorizationMode() || vector_runtime_test_a_ != nullptr);
+    DCHECK_IMPLIES(IsInPredicatedVectorizationMode(), vector_runtime_test_a_ != nullptr);
     vector_mode_ = kSequential;
     GenerateNewLoop(node,
                     block,

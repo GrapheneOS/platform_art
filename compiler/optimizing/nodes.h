@@ -6828,7 +6828,7 @@ class HLoadClass final : public HInstruction {
         klass_(klass) {
     // Referrers class should not need access check. We never inline unverified
     // methods so we can't possibly end up in this situation.
-    DCHECK(!is_referrers_class || !needs_access_check);
+    DCHECK_IMPLIES(is_referrers_class, !needs_access_check);
 
     SetPackedField<LoadKindField>(
         is_referrers_class ? LoadKind::kReferrersClass : LoadKind::kRuntimeCall);
@@ -8261,7 +8261,7 @@ class MoveOperands : public ArenaObject<kArenaAllocMoveOperands> {
   }
 
   bool IsEliminated() const {
-    DCHECK(!source_.IsInvalid() || destination_.IsInvalid());
+    DCHECK_IMPLIES(source_.IsInvalid(), destination_.IsInvalid());
     return source_.IsInvalid();
   }
 

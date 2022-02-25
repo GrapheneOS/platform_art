@@ -1339,7 +1339,7 @@ static void CheckPosition(ArmVIXLAssembler* assembler,
 void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
 
   ArmVIXLAssembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -3797,7 +3797,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeCompareAndSetInt(HInvoke* invo
 }
 void IntrinsicCodeGeneratorARMVIXL::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
   // The only supported read barrier implementation is the Baker-style read barriers (b/173104084).
-  DCHECK(!kEmitCompilerReadBarrier || kUseBakerReadBarrier);
+  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
 
   GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
 }
@@ -4623,7 +4623,8 @@ static void GenerateVarHandleSet(HInvoke* invoke,
       size_t temp_start = 0u;
       if (Use64BitExclusiveLoadStore(atomic, codegen)) {
         // Clear `maybe_temp3` which was initialized above for Float64.
-        DCHECK(value_type != DataType::Type::kFloat64 || maybe_temp3.Equals(locations->GetTemp(2)));
+        DCHECK_IMPLIES(value_type == DataType::Type::kFloat64,
+                       maybe_temp3.Equals(locations->GetTemp(2)));
         maybe_temp3 = Location::NoLocation();
         temp_start = 2u;
       }
