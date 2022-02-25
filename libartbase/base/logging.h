@@ -149,6 +149,24 @@ class VlogMessage {
                      -1)                       \
       .stream()
 
+// Check whether an implication holds between x and y, LOG(FATAL) if not. The value
+// of the expressions x and y is evaluated once. Extra logging can be appended
+// using << after. For example:
+//
+//     CHECK_IMPLIES(1==1, 0==1) results in
+//       "Check failed: 1==1 (true) implies 0==1 (false) ".
+// clang-format off
+#define CHECK_IMPLIES(LHS, RHS)                                                                  \
+  LIKELY(!(LHS) || (RHS)) || ABORT_AFTER_LOG_FATAL_EXPR(false) ||                                \
+      ::android::base::LogMessage(__FILE__, __LINE__, ::android::base::FATAL, _LOG_TAG_INTERNAL, \
+                                  -1)                                                            \
+              .stream()                                                                          \
+      << "Check failed: " #LHS << " (true) implies " #RHS << " (false)"
+// clang-format on
+
+#define DCHECK_IMPLIES(a, b) \
+  if (::android::base::kEnableDChecks) CHECK_IMPLIES(a, b)
+
 }  // namespace art
 
 #endif  // ART_LIBARTBASE_BASE_LOGGING_H_
