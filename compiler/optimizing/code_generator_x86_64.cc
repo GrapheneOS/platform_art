@@ -5195,8 +5195,7 @@ void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
         if (byte_swap) {
           v = BSWAP(v);
         }
-        // `field_type == DataType::Type::kReference` implies `v == 0`.
-        DCHECK((field_type != DataType::Type::kReference) || (v == 0));
+        DCHECK_IMPLIES(field_type == DataType::Type::kReference, v == 0);
         // Note: if heap poisoning is enabled, no need to poison
         // (negate) `v` if it is a reference, as it would be null.
         __ movl(field_addr, Immediate(v));
