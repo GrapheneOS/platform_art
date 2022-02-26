@@ -282,33 +282,92 @@ static void Asciify(char* out, const unsigned char* data, size_t len) {
   }  // while
   *out = '\0';
 }
+/* clang-format off */
+constexpr char kEscapedLength[256] = {
+    4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 2, 4, 2, 2, 4, 4,  // \a, \b, \t, \n, \r
+    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // ",
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // '0'..'9'
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 'A'..'O'
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1,  // 'P'..'Z', '\'
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 'a'..'o'
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4,  // 'p'..'z', DEL
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // Unicode range, keep
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+};
+/* clang-format on */
+
+/*
+ * Check if a UTF8 string contains characters we should quote.
+ */
+static bool needsEscape(std::string_view s) {
+  for (unsigned char c : s) {
+    if (kEscapedLength[c] != 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string escapeString(std::string_view s) {
+  std::ostringstream oss;
+  for (unsigned char c : s) {
+    switch (kEscapedLength[c]) {
+      case 1:
+        oss << static_cast<char>(c);
+        break;
+      case 2:
+        switch (c) {
+          case '\b':
+            oss << '\\' << 'b';
+            break;
+          case '\f':
+            oss << '\\' << 'f';
+            break;
+          case '\n':
+            oss << '\\' << 'n';
+            break;
+          case '\r':
+            oss << '\\' << 'r';
+            break;
+          case '\t':
+            oss << '\\' << 't';
+            break;
+          case '\"':
+            oss << '\\' << '"';
+            break;
+          case '\\':
+            oss << '\\' << '\\';
+            break;
+        }
+        break;
+      case 4:
+        oss << '\\' << '0' + (c / 64) << '0' + ((c % 64) / 8) << '0' + (c % 8);
+        break;
+    }
+  }
+  return oss.str();
+}
 
 /*
  * Dumps a string value with some escape characters.
  */
-static void DumpEscapedString(const char* p, FILE* out_file) {
+static void DumpEscapedString(std::string_view s, FILE* out_file) {
   fputs("\"", out_file);
-  for (; *p; p++) {
-    switch (*p) {
-      case '\\':
-        fputs("\\\\", out_file);
-        break;
-      case '\"':
-        fputs("\\\"", out_file);
-        break;
-      case '\t':
-        fputs("\\t", out_file);
-        break;
-      case '\n':
-        fputs("\\n", out_file);
-        break;
-      case '\r':
-        fputs("\\r", out_file);
-        break;
-      default:
-        putc(*p, out_file);
-    }  // switch
-  }  // for
+  if (needsEscape(s)) {
+    std::string e = escapeString(s);
+    fputs(e.c_str(), out_file);
+  } else {
+    for (char c : s) {
+      fputc(c, out_file);
+    }
+  }
   fputs("\"", out_file);
 }
 
@@ -414,7 +473,13 @@ static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
     case Instruction::kIndexStringRef:
       if (index < header->StringIds().Size()) {
         const char* st = header->StringIds()[index]->Data();
-        outSize = snprintf(buf.get(), buf_size, "\"%s\" // string@%0*x", st, width, index);
+        if (needsEscape(std::string_view(st))) {
+          std::string escaped = escapeString(st);
+          outSize =
+              snprintf(buf.get(), buf_size, "\"%s\" // string@%0*x", escaped.c_str(), width, index);
+        } else {
+          outSize = snprintf(buf.get(), buf_size, "\"%s\" // string@%0*x", st, width, index);
+        }
       } else {
         outSize = snprintf(buf.get(), buf_size, "<string?> // string@%0*x", width, index);
       }
@@ -1096,7 +1161,7 @@ void DexLayout::DumpCode(uint32_t idx,
 
   // Positions and locals table in the debug info.
   dex_ir::DebugInfoItem* debug_info = code->DebugInfo();
-  fprintf(out_file_, "      positions     : \n");
+  fprintf(out_file_, "      positions     :\n");
   if (debug_info != nullptr) {
     DexFile::DecodeDebugPositionInfo(debug_info->GetDebugInfo(),
                                      [this](uint32_t idx) {
@@ -1110,7 +1175,7 @@ void DexLayout::DumpCode(uint32_t idx,
                                         return false;
                                      });
   }
-  fprintf(out_file_, "      locals        : \n");
+  fprintf(out_file_, "      locals        :\n");
   if (debug_info != nullptr) {
     std::vector<const char*> arg_descriptors;
     const dex_ir::TypeList* parameters = proto->Parameters();
@@ -1140,16 +1205,18 @@ void DexLayout::DumpCode(uint32_t idx,
                                                             this->header_);
                                   },
                                   [&](const DexFile::LocalInfo& entry) {
-                                    const char* signature =
-                                        entry.signature_ != nullptr ? entry.signature_ : "";
                                     fprintf(out_file_,
-                                            "        0x%04x - 0x%04x reg=%d %s %s %s\n",
+                                            "        0x%04x - 0x%04x reg=%d %s %s",
                                             entry.start_address_,
                                             entry.end_address_,
                                             entry.reg_,
                                             entry.name_,
-                                            entry.descriptor_,
-                                            signature);
+                                            entry.descriptor_);
+                                    if (entry.signature_) {
+                                      fputc(' ', out_file_);
+                                      fputs(entry.signature_, out_file_);
+                                    }
+                                    fputc('\n', out_file_);
                                   });
   }
 }

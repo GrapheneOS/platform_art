@@ -40,7 +40,7 @@ inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const 
 
 inline const ConstantType& RegTypeCache::FromCat1Const(int32_t value, bool precise) {
   // We only expect 0 to be a precise constant.
-  DCHECK(value != 0 || precise);
+  DCHECK_IMPLIES(value == 0, precise);
   if (precise && (value >= kMinSmallConstant) && (value <= kMaxSmallConstant)) {
     return *small_precise_constants_[value - kMinSmallConstant];
   }

@@ -192,7 +192,7 @@ class HLoopOptimization : public HOptimization {
   bool TrySetVectorLength(DataType::Type type, uint32_t length) {
     bool res = TrySetVectorLengthImpl(length);
     // Currently the vectorizer supports only the mode when full SIMD registers are used.
-    DCHECK(!res || (DataType::Size(type) * length == GetVectorSizeInBytes()));
+    DCHECK_IMPLIES(res, DataType::Size(type) * length == GetVectorSizeInBytes());
     return res;
   }
 

@@ -310,7 +310,7 @@ inline ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx, ArtMethod*
   // Note: The referrer can be a Proxy constructor. In that case, we need to do the
   // lookup in the context of the original method from where it steals the code.
   // However, we delay the GetInterfaceMethodIfProxy() until needed.
-  DCHECK(!referrer->IsProxyMethod() || referrer->IsConstructor());
+  DCHECK_IMPLIES(referrer->IsProxyMethod(), referrer->IsConstructor());
   // We do not need the read barrier for getting the DexCache for the initial resolved method
   // lookup as both from-space and to-space copies point to the same native resolved methods array.
   ArtMethod* resolved_method = referrer->GetDexCache<kWithoutReadBarrier>()->GetResolvedMethod(
@@ -362,7 +362,7 @@ inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
   // Note: The referrer can be a Proxy constructor. In that case, we need to do the
   // lookup in the context of the original method from where it steals the code.
   // However, we delay the GetInterfaceMethodIfProxy() until needed.
-  DCHECK(!referrer->IsProxyMethod() || referrer->IsConstructor());
+  DCHECK_IMPLIES(referrer->IsProxyMethod(), referrer->IsConstructor());
   Thread::PoisonObjectPointersIfDebug();
   // We do not need the read barrier for getting the DexCache for the initial resolved method
   // lookup as both from-space and to-space copies point to the same native resolved methods array.

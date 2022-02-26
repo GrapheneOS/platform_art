@@ -849,7 +849,7 @@ const RegType& RegType::Merge(const RegType& incoming_type,
              (IsDoubleTypes() && incoming_type.IsDoubleTypes()) ||
              (IsDoubleHighTypes() && incoming_type.IsDoubleHighTypes())) {
     // check constant case was handled prior to entry
-    DCHECK(!IsConstant() || !incoming_type.IsConstant());
+    DCHECK_IMPLIES(IsConstant(), !incoming_type.IsConstant());
     // float/long/double MERGE float/long/double_constant => float/long/double
     return SelectNonConstant(*this, incoming_type);
   } else if (IsReferenceTypes() && incoming_type.IsReferenceTypes()) {

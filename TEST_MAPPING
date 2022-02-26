@@ -839,9 +839,6 @@
       "name": "art-run-test-551-implicit-null-checks[com.google.android.art.apex]"
     },
     {
-      "name": "art-run-test-552-checker-sharpening[com.google.android.art.apex]"
-    },
-    {
       "name": "art-run-test-552-checker-x86-avx2-bit-manipulation[com.google.android.art.apex]"
     },
     {
@@ -1212,6 +1209,9 @@
     },
     {
       "name": "art-run-test-834-lse[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-835-b216762268[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-963-default-range-smali[com.google.android.art.apex]"
@@ -2122,9 +2122,6 @@
       "name": "art-run-test-551-implicit-null-checks"
     },
     {
-      "name": "art-run-test-552-checker-sharpening"
-    },
-    {
       "name": "art-run-test-552-checker-x86-avx2-bit-manipulation"
     },
     {
@@ -2495,6 +2492,9 @@
     },
     {
       "name": "art-run-test-834-lse"
+    },
+    {
+      "name": "art-run-test-835-b216762268"
     },
     {
       "name": "art-run-test-963-default-range-smali"

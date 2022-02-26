@@ -75,7 +75,7 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
       }
     } else if (instruction->IsCurrentMethod()) {
       // The current method is always at offset 0.
-      DCHECK(!current->HasSpillSlot() || (current->GetSpillSlot() == 0));
+      DCHECK_IMPLIES(current->HasSpillSlot(), (current->GetSpillSlot() == 0));
     } else if (instruction->IsPhi() && instruction->AsPhi()->IsCatchPhi()) {
       DCHECK(current->HasSpillSlot());
       size_t slot = current->GetSpillSlot()
@@ -306,9 +306,9 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
     size_t num_of_slots = interval->NumberOfSpillSlotsNeeded();
     loc = Location::StackSlotByNumOfSlots(num_of_slots, interval->GetParent()->GetSpillSlot());
 
-    CHECK(!loc.IsSIMDStackSlot() ||
-          (codegen_->GetSIMDRegisterWidth() / kVRegSize == num_of_slots)) <<
-          "Unexpected number of spill slots";
+    CHECK_IMPLIES(loc.IsSIMDStackSlot(),
+                  (codegen_->GetSIMDRegisterWidth() / kVRegSize == num_of_slots))
+        << "Unexpected number of spill slots";
     InsertMoveAfter(interval->GetDefinedBy(), interval->ToLocation(), loc);
   }
   UsePositionList::const_iterator use_it = current->GetUses().begin();
@@ -468,9 +468,9 @@ void RegisterAllocationResolver::ConnectSplitSiblings(LiveInterval* interval,
       DCHECK(defined_by->IsCurrentMethod());
       size_t num_of_slots = parent->NumberOfSpillSlotsNeeded();
       location_source = Location::StackSlotByNumOfSlots(num_of_slots, parent->GetSpillSlot());
-      CHECK(!location_source.IsSIMDStackSlot() ||
-            (codegen_->GetSIMDRegisterWidth() == num_of_slots * kVRegSize)) <<
-            "Unexpected number of spill slots";
+      CHECK_IMPLIES(location_source.IsSIMDStackSlot(),
+                    (codegen_->GetSIMDRegisterWidth() == num_of_slots * kVRegSize))
+          << "Unexpected number of spill slots";
     }
   } else {
     DCHECK(source != nullptr);

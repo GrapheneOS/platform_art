@@ -134,6 +134,7 @@ class ZygoteMap {
   }
 
   void SetCompilationState(ZygoteCompilationState state) {
+    DCHECK_LT(static_cast<uint8_t>(*compilation_state_), static_cast<uint8_t>(state));
     region_->WriteData(compilation_state_, state);
   }
 
