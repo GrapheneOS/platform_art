@@ -961,7 +961,7 @@ bool HInliner::TryInlinePolymorphicCall(
     // In monomorphic cases when UseOnlyPolymorphicInliningWithNoDeopt() is true, we call
     // `TryInlinePolymorphicCall` even though we are monomorphic.
     const bool actually_monomorphic = number_of_types == 1;
-    DCHECK(!actually_monomorphic || UseOnlyPolymorphicInliningWithNoDeopt());
+    DCHECK_IMPLIES(actually_monomorphic, UseOnlyPolymorphicInliningWithNoDeopt());
 
     // We only want to limit recursive polymorphic cases, not monomorphic ones.
     const bool too_many_polymorphic_recursive_calls =

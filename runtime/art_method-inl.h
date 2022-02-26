@@ -154,14 +154,14 @@ inline bool ArtMethod::IsCalleeSaveMethod() {
 inline bool ArtMethod::IsResolutionMethod() {
   bool result = this == Runtime::Current()->GetResolutionMethod();
   // Check that if we do think it is phony it looks like the resolution method.
-  DCHECK(!result || IsRuntimeMethod());
+  DCHECK_IMPLIES(result, IsRuntimeMethod());
   return result;
 }
 
 inline bool ArtMethod::IsImtUnimplementedMethod() {
   bool result = this == Runtime::Current()->GetImtUnimplementedMethod();
   // Check that if we do think it is phony it looks like the imt unimplemented method.
-  DCHECK(!result || IsRuntimeMethod());
+  DCHECK_IMPLIES(result, IsRuntimeMethod());
   return result;
 }
 
@@ -357,8 +357,8 @@ inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy(PointerSize pointer_size)
   ArtMethod* interface_method = GetInterfaceMethodForProxyUnchecked(pointer_size);
   // We can check that the proxy class implements the interface only if the proxy class
   // is resolved, otherwise the interface table is not yet initialized.
-  DCHECK(!GetDeclaringClass()->IsResolved() ||
-         interface_method->GetDeclaringClass()->IsAssignableFrom(GetDeclaringClass()));
+  DCHECK_IMPLIES(GetDeclaringClass()->IsResolved(),
+                 interface_method->GetDeclaringClass()->IsAssignableFrom(GetDeclaringClass()));
   return interface_method;
 }
 

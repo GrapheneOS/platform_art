@@ -562,7 +562,7 @@ Trace::Trace(File* trace_file,
       start_time_(MicroTime()), clock_overhead_ns_(GetClockOverheadNanoSeconds()),
       overflow_(false), interval_us_(0), streaming_lock_(nullptr),
       unique_methods_lock_(new Mutex("unique methods lock", kTracingUniqueMethodsLock)) {
-  CHECK(trace_file != nullptr || output_mode == TraceOutputMode::kDDMS);
+  CHECK_IMPLIES(trace_file == nullptr, output_mode == TraceOutputMode::kDDMS);
 
   uint16_t trace_version = GetTraceVersion(clock_source_);
   if (output_mode == TraceOutputMode::kStreaming) {

@@ -62,10 +62,10 @@ Class #0            -
 0001bc: 7010 0200 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0002
 0001c2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=9
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LMain; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LMain;
 
     #1              : (in LMain;)
       name          : 'main'
@@ -92,19 +92,19 @@ Class #0            -
 000206: fa54 0300 1032 0400                    |0019: invoke-polymorphic {v0, v1, v2, v3, v4}, Ljava/lang/invoke/MethodHandle;.invoke:([Ljava/lang/Object;)Ljava/lang/Object;, (Ljava/lang/String;DI)V // method@0003, proto@0004
 00020e: 0e00                                   |001d: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0006 line=31
         0x0007 line=32
         0x0008 line=33
         0x0011 line=34
         0x0016 line=35
         0x001d line=56
-      locals        : 
-        0x0007 - 0x001e reg=0 handle Ljava/lang/invoke/MethodHandle; 
-        0x0008 - 0x001e reg=5 o Ljava/lang/Object; 
-        0x0011 - 0x001e reg=7 s Ljava/lang/String; 
-        0x0016 - 0x001e reg=8 x I 
-        0x0000 - 0x001e reg=9 args [Ljava/lang/String; 
+      locals        :
+        0x0007 - 0x001e reg=0 handle Ljava/lang/invoke/MethodHandle;
+        0x0008 - 0x001e reg=5 o Ljava/lang/Object;
+        0x0011 - 0x001e reg=7 s Ljava/lang/String;
+        0x0016 - 0x001e reg=8 x I
+        0x0000 - 0x001e reg=9 args [Ljava/lang/String;
 
   Virtual methods   -
   source_file_idx   : 12 (Main.java)

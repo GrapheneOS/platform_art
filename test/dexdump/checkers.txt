@@ -62,8 +62,8 @@ Class #0            -
 00149c: 7010 0000 0000                         |0000: invoke-direct {v0}, Landroid/app/Activity;.<init>:()V // method@0000
 0014a2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'a'
@@ -92,8 +92,8 @@ Class #0            -
 0014ee: 6e20 3b00 1000                         |001d: invoke-virtual {v0, v1}, Landroid/view/Window;.clearFlags:(I)V // method@003b
 0014f4: 28f0                                   |0020: goto 0010 // -0010
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/Checkers;)
@@ -110,8 +110,8 @@ Class #0            -
 001508: 6f20 0100 1000                         |0000: invoke-super {v0, v1}, Landroid/app/Activity;.onConfigurationChanged:(Landroid/content/res/Configuration;)V // method@0001
 00150e: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'onCreate'
@@ -155,8 +155,8 @@ Class #0            -
 001590: d800 0001                              |0038: add-int/lit8 v0, v0, #int 1 // #01
 001594: 28dd                                   |003a: goto 0017 // -0023
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #2              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'onCreateOptionsMenu'
@@ -275,8 +275,8 @@ Class #0            -
 001750: 7252 2b00 5a10                         |00d4: invoke-interface {v10, v5, v0, v1, v2}, Landroid/view/Menu;.add:(IIILjava/lang/CharSequence;)Landroid/view/MenuItem; // method@002b
 001756: 0f04                                   |00d7: return v4
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #3              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'onKeyDown'
@@ -314,8 +314,8 @@ Class #0            -
 0017be: 28e2                                   |002b: goto 000d // -001e
 0017c0: 0001 0500 1300 0000 1a00 0000 2000 ... |002c: packed-switch-data (14 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #4              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'onOptionsItemSelected'
@@ -407,8 +407,8 @@ Class #0            -
 001912: 0000                                   |0093: nop // spacer
 001914: 0001 0300 0000 0000 0800 0000 3600 ... |0094: packed-switch-data (10 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #5              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'onPause'
@@ -432,8 +432,8 @@ Class #0            -
 00195a: 7210 1400 0000                         |0011: invoke-interface {v0}, Landroid/content/SharedPreferences$Editor;.commit:()Z // method@0014
 001960: 0e00                                   |0014: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #6              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'onStop'
@@ -451,8 +451,8 @@ Class #0            -
 00197c: 7110 ac00 0000                         |0004: invoke-static {v0}, Ljava/lang/System;.exit:(I)V // method@00ac
 001982: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #7              : (in Lcom/google/android/checkers/Checkers;)
       name          : 'onTrackballEvent'
@@ -485,8 +485,8 @@ Class #0            -
 0019d6: 0000                                   |0021: nop // spacer
 0019d8: 0001 0300 0000 0000 0800 0000 0300 ... |0022: packed-switch-data (10 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -925,12 +925,7 @@ Class #1            -
 001dea: 2200 0500                              |01f7: new-instance v0, Landroid/app/AlertDialog$Builder; // type@0005
 001dee: 5491 1300                              |01f9: iget-object v1, v9, Lcom/google/android/checkers/CheckersView;.a:Landroid/content/Context; // field@0013
 001df2: 7020 0900 1000                         |01fb: invoke-direct {v0, v1}, Landroid/app/AlertDialog$Builder;.<init>:(Landroid/content/Context;)V // method@0009
-001df8: 1a01 1200                              |01fe: const-string v1, "Checkers for Android was written by Aart J.C. Bik.
-
-Use the touch screen or trackball to make a move. Press the MENU button for more options, such as making captures optional instead of mandatory.
-
-The application complies with the official American checkers rules, where black moves first, captures are mandatory, men only move and jump forward, and kings move and jump forward and backward (but not over a distance). Please note that many variants of checkers exist, and this game may not use the rules you are most familiar with.
-" // string@0012
+001df8: 1a01 1200                              |01fe: const-string v1, "Checkers for Android was written by Aart J.C. Bik.\n\nUse the touch screen or trackball to make a move. Press the MENU button for more options, such as making captures optional instead of mandatory.\n\nThe application complies with the official American checkers rules, where black moves first, captures are mandatory, men only move and jump forward, and kings move and jump forward and backward (but not over a distance). Please note that many variants of checkers exist, and this game may not use the rules you are most familiar with.\n" // string@0012
 001dfc: 6e20 0c00 1000                         |0200: invoke-virtual {v0, v1}, Landroid/app/AlertDialog$Builder;.setMessage:(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder; // method@000c
 001e02: 0c00                                   |0203: move-result-object v0
 001e04: 1a01 2b00                              |0204: const-string v1, "KEEP SHOWING" // string@002b
@@ -1008,8 +1003,8 @@ The application complies with the official American checkers rules, where black 
       catches       : 1
         0x00ef - 0x01c7
           Ljava/lang/Exception; -> 0x021e
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1039,8 +1034,8 @@ The application complies with the official American checkers rules, where black 
 001f80: d800 0001                              |001c: add-int/lit8 v0, v0, #int 1 // #01
 001f84: 28e3                                   |001e: goto 0001 // -001d
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #2              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1072,8 +1067,8 @@ The application complies with the official American checkers rules, where black 
 001fd4: d800 0001                              |001e: add-int/lit8 v0, v0, #int 1 // #01
 001fd8: 28e2                                   |0020: goto 0002 // -001e
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #3              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1130,8 +1125,8 @@ The application complies with the official American checkers rules, where black 
 002066: 0162                                   |003d: move v2, v6
 002068: 28e9                                   |003e: goto 0027 // -0017
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #4              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1195,8 +1190,8 @@ The application complies with the official American checkers rules, where black 
 002116: 6e5a 2000 2501                         |004d: invoke-virtual {v5, v2, v1, v0, v10}, Landroid/graphics/Canvas;.drawText:(Ljava/lang/String;FFLandroid/graphics/Paint;)V // method@0020
 00211c: 0e00                                   |0050: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #5              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1212,8 +1207,8 @@ The application complies with the official American checkers rules, where black 
 002130: 7020 5e00 1000                         |0000: invoke-direct {v0, v1}, Lcom/google/android/checkers/CheckersView;.b:(I)V // method@005e
 002136: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #6              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1403,8 +1398,8 @@ The application complies with the official American checkers rules, where black 
         0x0104 - 0x011c
           Ljava/lang/ClassCastException; -> 0x011c
           <any> -> 0x0123
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #7              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1427,8 +1422,8 @@ The application complies with the official American checkers rules, where black 
 0023e2: 0a00                                   |0009: move-result v0
 0023e4: 0f00                                   |000a: return v0
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #8              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -1735,8 +1730,7 @@ The application complies with the official American checkers rules, where black 
 002804: 6e10 3d00 0000                         |0206: invoke-virtual {v0}, Landroid/widget/Toast;.show:()V // method@003d
 00280a: 0160                                   |0209: move v0, v6
 00280c: 2900 2dfe                              |020a: goto/16 0037 // -01d3
-002810: 1a00 c000                              |020c: const-string v0, "computer now plays black
-goto options to rotate board" // string@00c0
+002810: 1a00 c000                              |020c: const-string v0, "computer now plays black\ngoto options to rotate board" // string@00c0
 002814: 28f3                                   |020e: goto 0201 // -000d
 002816: 5290 2300                              |020f: iget v0, v9, Lcom/google/android/checkers/CheckersView;.q:I // field@0023
 00281a: 3320 6f00                              |0211: if-ne v0, v2, 0280 // +006f
@@ -1749,8 +1743,7 @@ goto options to rotate board" // string@00c0
 002834: 5491 1300                              |021e: iget-object v1, v9, Lcom/google/android/checkers/CheckersView;.a:Landroid/content/Context; // field@0013
 002838: 5590 0400                              |0220: iget-boolean v0, v9, Lcom/google/android/checkers/CheckersView;.C:Z // field@0004
 00283c: 3800 0f00                              |0222: if-eqz v0, 0231 // +000f
-002840: 1a00 c200                              |0224: const-string v0, "computer now plays white
-goto options to rotate board" // string@00c2
+002840: 1a00 c200                              |0224: const-string v0, "computer now plays white\ngoto options to rotate board" // string@00c2
 002844: 1202                                   |0226: const/4 v2, #int 0 // #0
 002846: 7130 3c00 0102                         |0227: invoke-static {v1, v0, v2}, Landroid/widget/Toast;.makeText:(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast; // method@003c
 00284c: 0c00                                   |022a: move-result-object v0
@@ -1814,8 +1807,8 @@ goto options to rotate board" // string@00c2
           <any> -> 0x0044
         0x004a - 0x027d
           <any> -> 0x0044
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #9              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'b'
@@ -1900,8 +1893,8 @@ goto options to rotate board" // string@00c2
           <any> -> 0x0057
         0x0030 - 0x0056
           <any> -> 0x0057
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #10              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'b'
@@ -1928,8 +1921,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0001 - 0x000d
           <any> -> 0x000f
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #11              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'b'
@@ -2009,8 +2002,8 @@ goto options to rotate board" // string@00c2
 002b22: 0108                                   |0061: move v8, v0
 002b24: 28f1                                   |0062: goto 0053 // -000f
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #12              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'c'
@@ -2162,8 +2155,8 @@ goto options to rotate board" // string@00c2
 002d2e: 289b                                   |00fb: goto 0096 // -0065
 002d30: 0001 0300 0000 0000 1a00 0000 2400 ... |00fc: packed-switch-data (10 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #13              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'd'
@@ -2214,8 +2207,8 @@ goto options to rotate board" // string@00c2
 002de2: 28c4                                   |0047: goto 000b // -003c
 002de4: 0001 0600 0100 0000 0400 0000 1000 ... |0048: packed-switch-data (16 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #14              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'e'
@@ -2236,8 +2229,8 @@ goto options to rotate board" // string@00c2
 002e24: 1200                                   |0008: const/4 v0, #int 0 // #0
 002e26: 28fe                                   |0009: goto 0007 // -0002
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/CheckersView;)
@@ -2287,8 +2280,8 @@ goto options to rotate board" // string@00c2
 002eb0: 6e10 1000 0000                         |003c: invoke-virtual {v0}, Landroid/app/AlertDialog$Builder;.show:()Landroid/app/AlertDialog; // method@0010
 002eb6: 0e00                                   |003f: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -2377,8 +2370,8 @@ goto options to rotate board" // string@00c2
           <any> -> 0x0061
         0x0064 - 0x0070
           <any> -> 0x0061
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #2              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -2403,8 +2396,8 @@ goto options to rotate board" // string@00c2
 002ff0: 6e10 6d00 0600                         |000c: invoke-virtual {v6}, Lcom/google/android/checkers/CheckersView;.postInvalidate:()V // method@006d
 002ff6: 0e00                                   |000f: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #3              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -2496,8 +2489,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0001 - 0x00a5
           <any> -> 0x00a7
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #4              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -2523,8 +2516,8 @@ goto options to rotate board" // string@00c2
 003196: 1211                                   |000f: const/4 v1, #int 1 // #1
 003198: 0f01                                   |0010: return v1
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #5              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'a'
@@ -2555,8 +2548,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0003 - 0x000f
           <any> -> 0x0013
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #6              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'b'
@@ -2592,8 +2585,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0002 - 0x000b
           <any> -> 0x001b
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #7              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'b'
@@ -2653,8 +2646,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0006 - 0x003a
           <any> -> 0x0042
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #8              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'c'
@@ -2677,8 +2670,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0001 - 0x0003
           <any> -> 0x0005
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #9              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'c'
@@ -2715,8 +2708,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0004 - 0x001b
           <any> -> 0x001f
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #10              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'd'
@@ -2746,8 +2739,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0003 - 0x000c
           <any> -> 0x0010
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #11              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'draw'
@@ -3454,8 +3447,8 @@ goto options to rotate board" // string@00c2
           <any> -> 0x02af
         0x02b2 - 0x04db
           <any> -> 0x02af
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #12              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'e'
@@ -3485,8 +3478,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0003 - 0x000c
           <any> -> 0x0010
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #13              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'onSizeChanged'
@@ -3533,8 +3526,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0004 - 0x002b
           <any> -> 0x002f
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #14              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'onTouchEvent'
@@ -3572,8 +3565,8 @@ goto options to rotate board" // string@00c2
 003ee6: 0a00                                   |0027: move-result v0
 003ee8: 28fb                                   |0028: goto 0023 // -0005
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #15              : (in Lcom/google/android/checkers/CheckersView;)
       name          : 'setLevel'
@@ -3619,8 +3612,8 @@ goto options to rotate board" // string@00c2
       catches       : 1
         0x0007 - 0x000d
           <any> -> 0x0026
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -4398,8 +4391,8 @@ Class #2            -
 004866: 0000                                   |0467: nop // spacer
 004868: 0003 0400 8100 0000 6745 68ba ff5c ... |0468: array-data (262 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in Lcom/google/android/checkers/a;)
       name          : '<init>'
@@ -4463,8 +4456,8 @@ Class #2            -
       catches       : 1
         0x0030 - 0x0040
           Ljava/lang/Exception; -> 0x0056
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #2              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -4488,8 +4481,8 @@ Class #2            -
 004b74: 1200                                   |000c: const/4 v0, #int 0 // #0
 004b76: 28f8                                   |000d: goto 0005 // -0008
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #3              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5190,8 +5183,8 @@ Class #2            -
 005584: 0001 0200 0000 0000 b402 0000 ba02 ... |04fe: packed-switch-data (8 units)
 005594: 0001 0300 0100 0000 9402 0000 9802 ... |0506: packed-switch-data (10 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #4              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5238,8 +5231,8 @@ Class #2            -
 005622: 0110                                   |0035: move v0, v1
 005624: 28f0                                   |0036: goto 0026 // -0010
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #5              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5311,8 +5304,8 @@ Class #2            -
 0056f8: b520                                   |0060: and-int/2addr v0, v2
 0056fa: 28b3                                   |0061: goto 0014 // -004d
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #6              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5358,8 +5351,8 @@ Class #2            -
 005776: 4800 0200                              |0035: aget-byte v0, v2, v0
 00577a: 28f2                                   |0037: goto 0029 // -000e
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #7              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5398,8 +5391,8 @@ Class #2            -
 0057de: 4800 0300                              |0029: aget-byte v0, v3, v0
 0057e2: 28f5                                   |002b: goto 0020 // -000b
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #8              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5432,8 +5425,8 @@ Class #2            -
 005832: 4800 0200                              |001f: aget-byte v0, v2, v0
 005836: 28f8                                   |0021: goto 0019 // -0008
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #9              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5484,8 +5477,8 @@ Class #2            -
 0058b8: 0002 0200 4000 0000 c000 0000 0600 ... |0038: sparse-switch-data (10 units)
 0058cc: 0002 0200 8000 0000 c000 0000 0400 ... |0042: sparse-switch-data (10 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #10              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5520,8 +5513,8 @@ Class #2            -
 005938: 4b09 0100                              |0024: aput v9, v1, v0
 00593c: 28e0                                   |0026: goto 0006 // -0020
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #11              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -5593,8 +5586,8 @@ Class #2            -
 005a0e: 7606 7e00 0000                         |005f: invoke-direct/range {v0, v1, v2, v3, v4, v5}, Lcom/google/android/checkers/a;.a:(IIIII)V // method@007e
 005a14: 0e00                                   |0062: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #12              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -6064,8 +6057,8 @@ Class #2            -
 0060f8: 1201                                   |0368: const/4 v1, #int 0 // #0
 0060fa: 2900 19fd                              |0369: goto/16 0082 // -02e7
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #13              : (in Lcom/google/android/checkers/a;)
       name          : 'b'
@@ -6105,8 +6098,8 @@ Class #2            -
 006166: 4800 0300                              |002b: aget-byte v0, v3, v0
 00616a: 28f5                                   |002d: goto 0022 // -000b
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #14              : (in Lcom/google/android/checkers/a;)
       name          : 'b'
@@ -6152,8 +6145,8 @@ Class #2            -
 0061e6: 4800 0200                              |0035: aget-byte v0, v2, v0
 0061ea: 28f2                                   |0037: goto 0029 // -000e
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #15              : (in Lcom/google/android/checkers/a;)
       name          : 'b'
@@ -6186,8 +6179,8 @@ Class #2            -
         0x000a - 0x000d
           Ljava/lang/InterruptedException; -> 0x000e
           <any> -> 0x0010
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #16              : (in Lcom/google/android/checkers/a;)
       name          : 'b'
@@ -6396,8 +6389,8 @@ Class #2            -
 006506: 0000                                   |015d: nop // spacer
 006508: 0002 0400 0001 0000 0002 0000 0004 ... |015e: sparse-switch-data (18 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #17              : (in Lcom/google/android/checkers/a;)
       name          : 'b'
@@ -6469,8 +6462,8 @@ Class #2            -
 0065fa: 7606 7e00 0000                         |005f: invoke-direct/range {v0, v1, v2, v3, v4, v5}, Lcom/google/android/checkers/a;.a:(IIIII)V // method@007e
 006600: 0e00                                   |0062: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #18              : (in Lcom/google/android/checkers/a;)
       name          : 'b'
@@ -6748,8 +6741,8 @@ Class #2            -
 0069a8: 1200                                   |01ca: const/4 v0, #int 0 // #0
 0069aa: 2900 5efe                              |01cb: goto/16 0029 // -01a2
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #19              : (in Lcom/google/android/checkers/a;)
       name          : 'c'
@@ -6794,8 +6787,8 @@ Class #2            -
 006a26: 4800 0200                              |0033: aget-byte v0, v2, v0
 006a2a: 28f2                                   |0035: goto 0027 // -000e
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #20              : (in Lcom/google/android/checkers/a;)
       name          : 'c'
@@ -6816,8 +6809,8 @@ Class #2            -
       catches       : 1
         0x0002 - 0x0005
           Ljava/lang/InterruptedException; -> 0x0006
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #21              : (in Lcom/google/android/checkers/a;)
       name          : 'c'
@@ -6945,8 +6938,8 @@ Class #2            -
 006bf6: 7606 7e00 0000                         |00c7: invoke-direct/range {v0, v1, v2, v3, v4, v5}, Lcom/google/android/checkers/a;.a:(IIIII)V // method@007e
 006bfc: 0e00                                   |00ca: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #22              : (in Lcom/google/android/checkers/a;)
       name          : 'd'
@@ -6992,8 +6985,8 @@ Class #2            -
 006c7a: 4800 0200                              |0035: aget-byte v0, v2, v0
 006c7e: 28f2                                   |0037: goto 0029 // -000e
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/a;)
@@ -7013,8 +7006,8 @@ Class #2            -
 006c9c: 0a00                                   |0006: move-result v0
 006c9e: 0f00                                   |0007: return v0
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -7052,8 +7045,8 @@ Class #2            -
 006d04: d800 0001                              |002a: add-int/lit8 v0, v0, #int 1 // #01
 006d08: 28f5                                   |002c: goto 0021 // -000b
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #2              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -7069,8 +7062,8 @@ Class #2            -
 006d1c: 7020 8500 1000                         |0000: invoke-direct {v0, v1}, Lcom/google/android/checkers/a;.b:(I)V // method@0085
 006d22: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #3              : (in Lcom/google/android/checkers/a;)
       name          : 'a'
@@ -7104,8 +7097,8 @@ Class #2            -
 006d78: 5920 5100                              |0022: iput v0, v2, Lcom/google/android/checkers/a;.x:I // field@0051
 006d7c: 0e00                                   |0024: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #4              : (in Lcom/google/android/checkers/a;)
       name          : 'b'
@@ -7132,8 +7125,8 @@ Class #2            -
       catches       : 1
         0x0001 - 0x000b
           <any> -> 0x000d
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #5              : (in Lcom/google/android/checkers/a;)
       name          : 'run'
@@ -7436,8 +7429,8 @@ Class #2            -
 0071e2: 01d5                                   |020b: move v5, v13
 0071e4: 2900 2cff                              |020c: goto/16 0138 // -00d4
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -7482,8 +7475,8 @@ Class #3            -
 0071fc: 7010 a000 0000                         |0002: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00a0
 007202: 0e00                                   |0005: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/b;)
@@ -7505,8 +7498,8 @@ Class #3            -
 007228: 6e10 6d00 0000                         |000a: invoke-virtual {v0}, Lcom/google/android/checkers/CheckersView;.postInvalidate:()V // method@006d
 00722e: 0e00                                   |000d: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -7551,8 +7544,8 @@ Class #4            -
 007244: 7010 a000 0000                         |0002: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00a0
 00724a: 0e00                                   |0005: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/c;)
@@ -7568,8 +7561,8 @@ Class #4            -
 00724c:                                        |[00724c] com.google.android.checkers.c.onClick:(Landroid/content/DialogInterface;I)V
 00725c: 0e00                                   |0000: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -7614,8 +7607,8 @@ Class #5            -
 007274: 7010 a000 0000                         |0002: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00a0
 00727a: 0e00                                   |0005: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/d;)
@@ -7631,8 +7624,8 @@ Class #5            -
 00727c:                                        |[00727c] com.google.android.checkers.d.onClick:(Landroid/content/DialogInterface;I)V
 00728c: 0e00                                   |0000: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -7677,8 +7670,8 @@ Class #6            -
 0072a4: 7010 a000 0000                         |0002: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00a0
 0072aa: 0e00                                   |0005: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/e;)
@@ -7697,8 +7690,8 @@ Class #6            -
 0072c2: 6e20 6800 1000                         |0003: invoke-virtual {v0, v1}, Lcom/google/android/checkers/CheckersView;.e:(Z)Z // method@0068
 0072c8: 0e00                                   |0006: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -7743,8 +7736,8 @@ Class #7            -
 0072e0: 7010 a000 0000                         |0002: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00a0
 0072e6: 0e00                                   |0005: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in Lcom/google/android/checkers/f;)
@@ -7762,8 +7755,8 @@ Class #7            -
 0072fc: 7120 5600 3000                         |0002: invoke-static {v0, v3}, Lcom/google/android/checkers/CheckersView;.a:(Lcom/google/android/checkers/CheckersView;I)V // method@0056
 007302: 0e00                                   |0005: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 
@@ -7894,8 +7887,8 @@ Class #8            -
 007348: d800 0001                              |001a: add-int/lit8 v0, v0, #int 1 // #01
 00734c: 28e6                                   |001c: goto 0002 // -001a
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
   source_file_idx   : -1 (unknown)

@@ -200,14 +200,14 @@ const RegType& RegTypeCache::From(ObjPtr<mirror::ClassLoader> loader,
     // Class was not found, must create new type.
     // To pass the verification, the type should be imprecise,
     // instantiable or an interface with the precise type set to false.
-    DCHECK(!precise || klass->IsInstantiable());
+    DCHECK_IMPLIES(precise, klass->IsInstantiable());
     // Create a precise type if:
     // 1- Class is final and NOT an interface. a precise interface is meaningless !!
     // 2- Precise Flag passed as true.
     RegType* entry;
     // Create an imprecise type if we can't tell for a fact that it is precise.
     if (klass->CannotBeAssignedFromOtherTypes() || precise) {
-      DCHECK(!(klass->IsAbstract()) || klass->IsArrayClass());
+      DCHECK_IMPLIES(klass->IsAbstract(), klass->IsArrayClass());
       DCHECK(!klass->IsInterface());
       entry =
           new (&allocator_) PreciseReferenceType(klass, AddString(sv_descriptor), entries_.size());

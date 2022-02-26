@@ -1044,11 +1044,6 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings,
 
   if (GetCompilerOptions().IsBootImage()) {
     AddClassesContainingIntrinsics(image_classes);
-
-    // All intrinsics must be in the primary boot image, so we don't need to setup
-    // the intrinsics for any other compilation, as those compilations will pick up
-    // a boot image that have the ArtMethod already set with the intrinsics flag.
-    InitializeIntrinsics();
   }
 
   // Make a first pass to load all classes explicitly listed in the file

@@ -57,7 +57,7 @@ inline ObjPtr<Object> Class::Alloc(Thread* self, gc::AllocatorType allocator_typ
       break;
     case Class::AddFinalizer::kNoAddFinalizer:
       add_finalizer = false;
-      DCHECK(!kCheckAddFinalizer || !IsFinalizable());
+      DCHECK_IMPLIES(kCheckAddFinalizer, !IsFinalizable());
       break;
   }
   // Note that the `this` pointer may be invalidated after the allocation.

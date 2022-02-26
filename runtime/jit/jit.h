@@ -384,6 +384,9 @@ class Jit {
   // Adjust state after forking.
   void PostZygoteFork();
 
+  // Add a task to the queue, ensuring it runs after boot is finished.
+  void AddPostBootTask(Thread* self, Task* task);
+
   // Called when system finishes booting.
   void BootCompleted();
 
