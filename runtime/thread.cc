@@ -3380,7 +3380,7 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
     DCHECK(IsExceptionPending());
     return;
   }
-  DCHECK(!runtime->IsStarted() || exception_class->IsThrowableClass());
+  DCHECK_IMPLIES(runtime->IsStarted(), exception_class->IsThrowableClass());
   Handle<mirror::Throwable> exception(
       hs.NewHandle(ObjPtr<mirror::Throwable>::DownCast(exception_class->AllocObject(this))));
 

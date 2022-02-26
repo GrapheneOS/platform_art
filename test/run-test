@@ -844,7 +844,7 @@ export TEST_NAME=`basename ${test_dir}`
 if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]] || [ "$dump_cfg" = "true" ]; then
   if [ "$runtime" = "art" -a "$run_optimizing" = "true" ]; then
     # In no-prebuild or no-image mode, the compiler only quickens so disable the checker.
-    if [ "$prebuild_mode" = "yes" -a "$have_image" = "yes" ]; then
+    if [ "$prebuild_mode" = "yes" ]; then
       run_checker="yes"
 
       if [ "$target_mode" = "no" ]; then

@@ -1185,7 +1185,7 @@ bool DlOpenOatFile::Load(const std::string& elf_filename,
   }
 
   bool success = Dlopen(elf_filename, reservation, error_msg);
-  DCHECK(dlopen_handle_ != nullptr || !success);
+  DCHECK_IMPLIES(dlopen_handle_ == nullptr, !success);
 
   return success;
 }

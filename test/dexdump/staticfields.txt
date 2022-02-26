@@ -117,10 +117,10 @@ Class #0            -
 0001bc: 7010 0100 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0001
 0001c2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=24
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LStaticFields; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LStaticFields;
 
   Virtual methods   -
   source_file_idx   : 11 (StaticFields.java)

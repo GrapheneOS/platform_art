@@ -498,7 +498,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   static bool StoreNeedsWriteBarrier(DataType::Type type, HInstruction* value) {
     // Check that null value is not represented as an integer constant.
-    DCHECK(type != DataType::Type::kReference || !value->IsIntConstant());
+    DCHECK_IMPLIES(type == DataType::Type::kReference, !value->IsIntConstant());
     return type == DataType::Type::kReference && !value->IsNullConstant();
   }
 

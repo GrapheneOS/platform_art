@@ -114,8 +114,8 @@ Class #0            -
 00043c: 7010 1400 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@0014
 000442: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in LA;)
       name          : 'arrays'
@@ -144,8 +144,8 @@ Class #0            -
 000488: 5100 0102                              |001a: aput-short v0, v1, v2
 00048c: 0e00                                   |001c: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #2              : (in LA;)
       name          : 'binary_ops'
@@ -192,8 +192,8 @@ Class #0            -
 00051c: af00 0102                              |003e: rem-double v0, v1, v2
 000520: 0e00                                   |0040: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #3              : (in LA;)
       name          : 'binary_ops_2addr'
@@ -240,8 +240,8 @@ Class #0            -
 000572: cf10                                   |001f: rem-double/2addr v0, v1
 000574: 0e00                                   |0020: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #4              : (in LA;)
       name          : 'binary_ops_lit16'
@@ -264,8 +264,8 @@ Class #0            -
 0005a4: d710 3412                              |000e: xor-int/lit16 v0, v1, #int 4660 // #1234
 0005a8: 0e00                                   |0010: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #5              : (in LA;)
       name          : 'binary_ops_lit8'
@@ -291,8 +291,8 @@ Class #0            -
 0005e4: e200 0112                              |0014: ushr-int/lit8 v0, v1, #int 18 // #12
 0005e8: 0e00                                   |0016: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #6              : (in LA;)
       name          : 'compares'
@@ -312,8 +312,8 @@ Class #0            -
 00060c: 3100 0102                              |0008: cmp-long v0, v1, v2
 000610: 0e00                                   |000a: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #7              : (in LA;)
       name          : 'conditionals'
@@ -340,8 +340,8 @@ Class #0            -
 000650: 3d00 0200                              |0016: if-lez v0, 0018 // +0002
 000654: 0e00                                   |0018: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #8              : (in LA;)
       name          : 'constants'
@@ -367,8 +367,8 @@ Class #0            -
 00069a: 1c00 0500                              |0019: const-class v0, Ljava/lang/Object; // type@0005
 00069e: 0e00                                   |001b: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #9              : (in LA;)
       name          : 'misc'
@@ -400,8 +400,8 @@ Class #0            -
 0006ea: 0000                                   |001d: nop // spacer
 0006ec: 0003 0400 0a00 0000 0100 0000 0200 ... |001e: array-data (24 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #10              : (in LA;)
       name          : 'moves'
@@ -429,8 +429,8 @@ Class #0            -
 000756: 0d00                                   |0015: move-exception v0
 000758: 0e00                                   |0016: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #11              : (in LA;)
       name          : 'packed_switch'
@@ -451,8 +451,8 @@ Class #0            -
 00077a: 0000                                   |0007: nop // spacer
 00077c: 0001 0200 feff ff7f 0500 0000 0600 ... |0008: packed-switch-data (8 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #12              : (in LA;)
       name          : 'return32'
@@ -467,8 +467,8 @@ Class #0            -
 00078c:                                        |[00078c] A.return32:()I
 00079c: 0f00                                   |0000: return v0
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #13              : (in LA;)
       name          : 'return64'
@@ -483,8 +483,8 @@ Class #0            -
 0007a0:                                        |[0007a0] A.return64:()I
 0007b0: 1000                                   |0000: return-wide v0
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #14              : (in LA;)
       name          : 'return_object'
@@ -499,8 +499,8 @@ Class #0            -
 0007b4:                                        |[0007b4] A.return_object:()Ljava/lang/Object;
 0007c4: 1100                                   |0000: return-object v0
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #15              : (in LA;)
       name          : 'sparse_switch'
@@ -517,8 +517,8 @@ Class #0            -
 0007de: 0e00                                   |0003: return-void
 0007e0: 0002 0400 1111 0000 2222 0000 3333 ... |0004: sparse-switch-data (18 units)
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #16              : (in LA;)
       name          : 'static_fields'
@@ -547,8 +547,8 @@ Class #0            -
 000848: 6d00 0500                              |001a: sput-short v0, LA;.mS:S // field@0005
 00084c: 0e00                                   |001c: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #17              : (in LA;)
       name          : 'unary_ops'
@@ -584,8 +584,8 @@ Class #0            -
 000888: 8f10                                   |0014: int-to-short v0, v1
 00088a: 0e00                                   |0015: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   Virtual methods   -
     #0              : (in LA;)
@@ -615,8 +615,8 @@ Class #0            -
 0008d0: 5f10 0c00                              |001a: iput-short v0, v1, LA;.sS:S // field@000c
 0008d4: 0e00                                   |001c: return-void
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
     #1              : (in LA;)
       name          : 'invokes'
@@ -635,8 +635,8 @@ Class #0            -
 0008fa: 7154 0a00 1032                         |0009: invoke-static {v0, v1, v2, v3, v4}, LA;.invokes:()V // method@000a
 000900: 7254 0a00 1032                         |000c: invoke-interface {v0, v1, v2, v3, v4}, LA;.invokes:()V // method@000a
       catches       : (none)
-      positions     : 
-      locals        : 
+      positions     :
+      locals        :
 
   source_file_idx   : -1 (unknown)
 

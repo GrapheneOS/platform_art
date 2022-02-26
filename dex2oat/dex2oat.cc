@@ -101,6 +101,7 @@
 #include "palette/palette.h"
 #include "profile/profile_compilation_info.h"
 #include "runtime.h"
+#include "runtime_intrinsics.h"
 #include "runtime_options.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stream/buffered_output_stream.h"
@@ -1688,13 +1689,6 @@ class Dex2Oat final {
     }
     // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
 
-    // If we're doing the image, override the compiler filter to force full compilation. Must be
-    // done ahead of WellKnownClasses::Init that causes verification.  Note: doesn't force
-    // compilation of class initializers.
-    // Whilst we're in native take the opportunity to initialize well known classes.
-    Thread* self = Thread::Current();
-    WellKnownClasses::Init(self->GetJniEnv());
-
     if (!IsBootImage() && !IsBootImageExtension()) {
       constexpr bool kSaveDexInput = false;
       if (kSaveDexInput) {
@@ -2707,6 +2701,13 @@ class Dex2Oat final {
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
     // Runtime::Start, give it away now so that we don't starve GC.
     self->TransitionFromRunnableToSuspended(ThreadState::kNative);
+
+    // Now that we are in native state, initialize well known classes and
+    // intrinsics if we don't have a boot image.
+    WellKnownClasses::Init(self->GetJniEnv());
+    if (IsBootImage() || runtime_->GetHeap()->GetBootImageSpaces().empty()) {
+      InitializeIntrinsics();
+    }
 
     WatchDog::SetRuntime(runtime_.get());
 

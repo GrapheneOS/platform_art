@@ -674,7 +674,7 @@ void* RosAlloc::AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated,
     DCHECK(thread_local_run->IsThreadLocal() || thread_local_run == dedicated_full_run_);
     slot_addr = thread_local_run->AllocSlot();
     // The allocation must fail if the run is invalid.
-    DCHECK(thread_local_run != dedicated_full_run_ || slot_addr == nullptr)
+    DCHECK_IMPLIES(thread_local_run == dedicated_full_run_, slot_addr == nullptr)
         << "allocated from an invalid run";
     if (UNLIKELY(slot_addr == nullptr)) {
       // The run got full. Try to free slots.

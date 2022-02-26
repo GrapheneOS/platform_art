@@ -63,12 +63,12 @@ Class #0            -
 001b28: 7020 d200 1000                         |0000: invoke-direct {v0, v1}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 001b2e: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=449
         0x0003 line=450
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestBadBootstrapArguments$TestersConstantCallSite; 
-        0x0000 - 0x0004 reg=1 mh Ljava/lang/invoke/MethodHandle; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestBadBootstrapArguments$TestersConstantCallSite;
+        0x0000 - 0x0004 reg=1 mh Ljava/lang/invoke/MethodHandle;
 
   Virtual methods   -
   source_file_idx   : 144 (TestBadBootstrapArguments.java)
@@ -108,10 +108,10 @@ Class #1            -
 002554: 7010 bf00 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00bf
 00255a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=19
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestBase; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestBase;
 
     #1              : (in LTestBase;)
       name          : 'assertEquals'
@@ -140,13 +140,13 @@ Class #1            -
 0025a8: 7020 b500 1000                         |001e: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 0025ae: 2700                                   |0021: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=27
         0x0002 line=28
         0x0003 line=30
-      locals        : 
-        0x0000 - 0x0022 reg=3 b1 B 
-        0x0000 - 0x0022 reg=4 b2 B 
+      locals        :
+        0x0000 - 0x0022 reg=3 b1 B
+        0x0000 - 0x0022 reg=4 b2 B
 
     #2              : (in LTestBase;)
       name          : 'assertEquals'
@@ -175,13 +175,13 @@ Class #1            -
 0025fc: 7020 b500 1000                         |001e: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 002602: 2700                                   |0021: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=34
         0x0002 line=35
         0x0003 line=37
-      locals        : 
-        0x0000 - 0x0022 reg=3 c1 C 
-        0x0000 - 0x0022 reg=4 c2 C 
+      locals        :
+        0x0000 - 0x0022 reg=3 c1 C
+        0x0000 - 0x0022 reg=4 c2 C
 
     #3              : (in LTestBase;)
       name          : 'assertEquals'
@@ -211,13 +211,13 @@ Class #1            -
 002654: 7020 b500 1000                         |0020: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 00265a: 2700                                   |0023: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=69
         0x0004 line=70
         0x0005 line=72
-      locals        : 
-        0x0000 - 0x0024 reg=3 d1 D 
-        0x0000 - 0x0024 reg=5 d2 D 
+      locals        :
+        0x0000 - 0x0024 reg=3 d1 D
+        0x0000 - 0x0024 reg=5 d2 D
 
     #4              : (in LTestBase;)
       name          : 'assertEquals'
@@ -247,13 +247,13 @@ Class #1            -
 0026ac: 7020 b500 1000                         |0020: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 0026b2: 2700                                   |0023: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=62
         0x0004 line=63
         0x0005 line=65
-      locals        : 
-        0x0000 - 0x0024 reg=3 f1 F 
-        0x0000 - 0x0024 reg=4 f2 F 
+      locals        :
+        0x0000 - 0x0024 reg=3 f1 F
+        0x0000 - 0x0024 reg=4 f2 F
 
     #5              : (in LTestBase;)
       name          : 'assertEquals'
@@ -282,13 +282,13 @@ Class #1            -
 002700: 7020 b500 1000                         |001e: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 002706: 2700                                   |0021: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=48
         0x0002 line=49
         0x0003 line=51
-      locals        : 
-        0x0000 - 0x0022 reg=3 i1 I 
-        0x0000 - 0x0022 reg=4 i2 I 
+      locals        :
+        0x0000 - 0x0022 reg=3 i1 I
+        0x0000 - 0x0022 reg=4 i2 I
 
     #6              : (in LTestBase;)
       name          : 'assertEquals'
@@ -318,13 +318,13 @@ Class #1            -
 0027b4: 7020 b500 1000                         |0020: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 0027ba: 2700                                   |0023: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=55
         0x0004 line=56
         0x0005 line=58
-      locals        : 
-        0x0000 - 0x0024 reg=3 l1 J 
-        0x0000 - 0x0024 reg=5 l2 J 
+      locals        :
+        0x0000 - 0x0024 reg=3 l1 J
+        0x0000 - 0x0024 reg=5 l2 J
 
     #7              : (in LTestBase;)
       name          : 'assertEquals'
@@ -355,13 +355,13 @@ Class #1            -
 00275c: 7020 b500 1000                         |0022: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 002762: 2700                                   |0025: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=76
         0x0006 line=79
         0x0007 line=77
-      locals        : 
-        0x0000 - 0x0026 reg=3 o Ljava/lang/Object; 
-        0x0000 - 0x0026 reg=4 p Ljava/lang/Object; 
+      locals        :
+        0x0000 - 0x0026 reg=3 o Ljava/lang/Object;
+        0x0000 - 0x0026 reg=4 p Ljava/lang/Object;
 
     #8              : (in LTestBase;)
       name          : 'assertEquals'
@@ -390,13 +390,13 @@ Class #1            -
 002808: 7020 b500 1000                         |001e: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 00280e: 2700                                   |0021: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=41
         0x0002 line=42
         0x0003 line=44
-      locals        : 
-        0x0000 - 0x0022 reg=3 s1 S 
-        0x0000 - 0x0022 reg=4 s2 S 
+      locals        :
+        0x0000 - 0x0022 reg=3 s1 S
+        0x0000 - 0x0022 reg=4 s2 S
 
     #9              : (in LTestBase;)
       name          : 'assertNotEquals'
@@ -427,13 +427,13 @@ Class #1            -
 002864: 7020 b500 1000                         |0022: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 00286a: 2700                                   |0025: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=82
         0x0006 line=85
         0x0007 line=83
-      locals        : 
-        0x0000 - 0x0026 reg=3 o Ljava/lang/Object; 
-        0x0000 - 0x0026 reg=4 p Ljava/lang/Object; 
+      locals        :
+        0x0000 - 0x0026 reg=3 o Ljava/lang/Object;
+        0x0000 - 0x0026 reg=4 p Ljava/lang/Object;
 
     #10              : (in LTestBase;)
       name          : 'assertNotReached'
@@ -451,9 +451,9 @@ Class #1            -
 002884: 7020 b500 1000                         |0004: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 00288a: 2700                                   |0007: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=88
-      locals        : 
+      locals        :
 
     #11              : (in LTestBase;)
       name          : 'assertTrue'
@@ -479,12 +479,12 @@ Class #1            -
 0028c8: 7020 b500 1000                         |0016: invoke-direct {v0, v1}, Ljava/lang/AssertionError;.<init>:(Ljava/lang/Object;)V // method@00b5
 0028ce: 2700                                   |0019: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=21
         0x0002 line=24
         0x0003 line=22
-      locals        : 
-        0x0000 - 0x001a reg=3 value Z 
+      locals        :
+        0x0000 - 0x001a reg=3 value Z
 
     #12              : (in LTestBase;)
       name          : 'fail'
@@ -503,11 +503,11 @@ Class #1            -
 0028ee: 7100 cc00 0000                         |0007: invoke-static {}, Ljava/lang/Thread;.dumpStack:()V // method@00cc
 0028f4: 0e00                                   |000a: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=92
         0x0007 line=93
         0x000a line=94
-      locals        : 
+      locals        :
 
   Virtual methods   -
   source_file_idx   : 145 (TestBase.java)
@@ -556,11 +556,11 @@ Class #2            -
 002acc: 7010 bf00 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00bf
 002ad2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=177
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestInvocationKinds$Widget; 
-        0x0000 - 0x0004 reg=1 value I 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestInvocationKinds$Widget;
+        0x0000 - 0x0004 reg=1 value I
 
   Virtual methods   -
   source_file_idx   : 148 (TestInvocationKinds.java)
@@ -606,10 +606,10 @@ Class #3            -
 002ef8: 7010 cf00 0000                         |0000: invoke-direct {v0}, Ljava/lang/ThreadLocal;.<init>:()V // method@00cf
 002efe: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=33
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestInvokeCustomWithConcurrentThreads$1; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestInvokeCustomWithConcurrentThreads$1;
 
   Virtual methods   -
     #0              : (in LTestInvokeCustomWithConcurrentThreads$1;)
@@ -631,10 +631,10 @@ Class #3            -
 002ec6: 0c00                                   |000b: move-result-object v0
 002ec8: 1100                                   |000c: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=36
-      locals        : 
-        0x0000 - 0x000d reg=1 this LTestInvokeCustomWithConcurrentThreads$1; 
+      locals        :
+        0x0000 - 0x000d reg=1 this LTestInvokeCustomWithConcurrentThreads$1;
 
     #1              : (in LTestInvokeCustomWithConcurrentThreads$1;)
       name          : 'initialValue'
@@ -651,10 +651,10 @@ Class #3            -
 002ee2: 0c00                                   |0003: move-result-object v0
 002ee4: 1100                                   |0004: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=33
-      locals        : 
-        0x0000 - 0x0005 reg=1 this LTestInvokeCustomWithConcurrentThreads$1; 
+      locals        :
+        0x0000 - 0x0005 reg=1 this LTestInvokeCustomWithConcurrentThreads$1;
 
   source_file_idx   : 149 (TestInvokeCustomWithConcurrentThreads.java)
 
@@ -698,10 +698,10 @@ Class #4            -
 003fd8: 7010 bf00 0000                         |0000: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00bf
 003fde: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=23
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LUnrelatedBSM; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LUnrelatedBSM;
 
     #1              : (in LUnrelatedBSM;)
       name          : 'bsm'
@@ -720,15 +720,15 @@ Class #4            -
 003fc0: 7020 d200 0100                         |0006: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 003fc6: 1101                                   |0009: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=27
         0x0004 line=28
-      locals        : 
-        0x0000 - 0x0000 reg=5 (null) Ljava/lang/Class; 
-        0x0004 - 0x000a reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x000a reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x000a reg=3 name Ljava/lang/String; 
-        0x0000 - 0x000a reg=4 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0000 - 0x0000 reg=5 (null) Ljava/lang/Class;
+        0x0004 - 0x000a reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x000a reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x000a reg=3 name Ljava/lang/String;
+        0x0000 - 0x000a reg=4 methodType Ljava/lang/invoke/MethodType;
         0x0000 - 0x000a reg=5 target Ljava/lang/Class; Ljava/lang/Class<*>;
 
   Virtual methods   -
@@ -779,10 +779,10 @@ Class #5            -
 001910: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 001916: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=21
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LMain; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LMain;
 
     #1              : (in LMain;)
       name          : 'TestLinkerMethodMinimalArguments'
@@ -836,7 +836,7 @@ Class #5            -
           Ljava/lang/BootstrapMethodError; -> 0x0022
         0x0033 - 0x0039
           Ljava/lang/ArithmeticException; -> 0x003a
-      positions     : 
+      positions     :
         0x0000 line=49
         0x0006 line=53
         0x0009 line=56
@@ -853,9 +853,9 @@ Class #5            -
         0x003a line=70
         0x003b line=73
         0x0041 line=75
-      locals        : 
-        0x000b - 0x0018 reg=0 e Ljava/lang/BootstrapMethodError; 
-        0x0023 - 0x0030 reg=0 e Ljava/lang/BootstrapMethodError; 
+      locals        :
+        0x000b - 0x0018 reg=0 e Ljava/lang/BootstrapMethodError;
+        0x0023 - 0x0030 reg=0 e Ljava/lang/BootstrapMethodError;
 
     #2              : (in LMain;)
       name          : 'TestLinkerMethodMultipleArgumentTypes'
@@ -879,12 +879,12 @@ Class #5            -
 001a04: 7120 8400 1000                         |0012: invoke-static {v0, v1}, LTestLinkerMethodMultipleArgumentTypes;.test:(II)V // method@0084
 001a0a: 0e00                                   |0015: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=42
         0x0007 line=43
         0x000e line=44
         0x0015 line=45
-      locals        : 
+      locals        :
 
     #3              : (in LMain;)
       name          : 'TestUninitializedCallSite'
@@ -940,7 +940,7 @@ Class #5            -
           Ljava/lang/IllegalStateException; -> 0x0017
         0x0035 - 0x0044
           Ljava/lang/IllegalStateException; -> 0x0045
-      positions     : 
+      positions     :
         0x0000 line=24
         0x000b line=26
         0x0013 line=27
@@ -954,10 +954,10 @@ Class #5            -
         0x0045 line=36
         0x0046 line=37
         0x004d line=39
-      locals        : 
-        0x0018 - 0x001f reg=1 e Ljava/lang/IllegalStateException; 
-        0x0046 - 0x004d reg=1 e Ljava/lang/IllegalStateException; 
-        0x000b - 0x004e reg=0 callSite Ljava/lang/invoke/CallSite; 
+      locals        :
+        0x0018 - 0x001f reg=1 e Ljava/lang/IllegalStateException;
+        0x0046 - 0x004d reg=1 e Ljava/lang/IllegalStateException;
+        0x000b - 0x004e reg=0 callSite Ljava/lang/invoke/CallSite;
 
     #4              : (in LMain;)
       name          : 'main'
@@ -981,7 +981,7 @@ Class #5            -
 001b10: 7100 a800 0000                         |0018: invoke-static {}, LTestVariableArityLinkerMethod;.test:()V // method@00a8
 001b16: 0e00                                   |001b: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=78
         0x0003 line=79
         0x0006 line=80
@@ -992,8 +992,8 @@ Class #5            -
         0x0015 line=85
         0x0018 line=86
         0x001b line=87
-      locals        : 
-        0x0000 - 0x001c reg=0 args [Ljava/lang/String; 
+      locals        :
+        0x0000 - 0x001c reg=0 args [Ljava/lang/String;
 
   Virtual methods   -
   source_file_idx   : 136 (Main.java)
@@ -1077,10 +1077,10 @@ Class #6            -
 001d74: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 001d7a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=27
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestBadBootstrapArguments; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestBadBootstrapArguments;
 
     #1              : (in LTestBadBootstrapArguments;)
       name          : 'boxingArguments'
@@ -1098,10 +1098,10 @@ Class #6            -
 001d94: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 001d9a: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=348
         0x0007 line=349
-      locals        : 
+      locals        :
 
     #2              : (in LTestBadBootstrapArguments;)
       name          : 'bsm'
@@ -1152,7 +1152,7 @@ Class #6            -
 001c66: 7020 d200 0100                         |0051: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 001c6c: 1101                                   |0054: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=35
         0x0007 line=36
         0x0010 line=37
@@ -1166,13 +1166,13 @@ Class #6            -
         0x0040 line=45
         0x0047 line=46
         0x004f line=47
-      locals        : 
-        0x004f - 0x0055 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0055 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0055 reg=3 methodName Ljava/lang/String; 
-        0x0000 - 0x0055 reg=4 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0055 reg=5 extraInt I 
-        0x0000 - 0x0055 reg=6 extraString Ljava/lang/String; 
+      locals        :
+        0x004f - 0x0055 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0055 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0055 reg=3 methodName Ljava/lang/String;
+        0x0000 - 0x0055 reg=4 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0055 reg=5 extraInt I
+        0x0000 - 0x0055 reg=6 extraString Ljava/lang/String;
 
     #3              : (in LTestBadBootstrapArguments;)
       name          : 'bsmDJ'
@@ -1206,7 +1206,7 @@ Class #6            -
 001cd2: 7020 d200 0100                         |0029: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 001cd8: 1101                                   |002c: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=270
         0x0007 line=271
         0x000c line=272
@@ -1214,13 +1214,13 @@ Class #6            -
         0x0018 line=274
         0x001f line=275
         0x0027 line=276
-      locals        : 
-        0x0027 - 0x002d reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x002d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x002d reg=3 methodName Ljava/lang/String; 
-        0x0000 - 0x002d reg=4 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x002d reg=5 extraArg0 D 
-        0x0000 - 0x002d reg=7 extraArg1 J 
+      locals        :
+        0x0027 - 0x002d reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x002d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x002d reg=3 methodName Ljava/lang/String;
+        0x0000 - 0x002d reg=4 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x002d reg=5 extraArg0 D
+        0x0000 - 0x002d reg=7 extraArg1 J
 
     #4              : (in LTestBadBootstrapArguments;)
       name          : 'bsmDoubleLong'
@@ -1254,7 +1254,7 @@ Class #6            -
 001d3e: 7020 d200 0100                         |0029: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 001d44: 1101                                   |002c: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=314
         0x0007 line=315
         0x000c line=316
@@ -1262,13 +1262,13 @@ Class #6            -
         0x0018 line=318
         0x001f line=319
         0x0027 line=320
-      locals        : 
-        0x0027 - 0x002d reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x002d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x002d reg=3 methodName Ljava/lang/String; 
-        0x0000 - 0x002d reg=4 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x002d reg=5 extraArg0 Ljava/lang/Double; 
-        0x0000 - 0x002d reg=6 extraArg1 Ljava/lang/Long; 
+      locals        :
+        0x0027 - 0x002d reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x002d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x002d reg=3 methodName Ljava/lang/String;
+        0x0000 - 0x002d reg=4 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x002d reg=5 extraArg0 Ljava/lang/Double;
+        0x0000 - 0x002d reg=6 extraArg1 Ljava/lang/Long;
 
     #5              : (in LTestBadBootstrapArguments;)
       name          : 'bsmReturningInteger'
@@ -1289,13 +1289,13 @@ Class #6            -
 001b82: 0c00                                   |000b: move-result-object v0
 001b84: 1100                                   |000c: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=425
         0x0007 line=426
-      locals        : 
-        0x0000 - 0x000d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x000d reg=3 name Ljava/lang/String; 
-        0x0000 - 0x000d reg=4 type Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0000 - 0x000d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x000d reg=3 name Ljava/lang/String;
+        0x0000 - 0x000d reg=4 type Ljava/lang/invoke/MethodType;
 
     #6              : (in LTestBadBootstrapArguments;)
       name          : 'bsmReturningObject'
@@ -1315,13 +1315,13 @@ Class #6            -
 001baa: 7010 bf00 0000                         |0009: invoke-direct {v0}, Ljava/lang/Object;.<init>:()V // method@00bf
 001bb0: 1100                                   |000c: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=402
         0x0007 line=403
-      locals        : 
-        0x0000 - 0x000d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x000d reg=3 name Ljava/lang/String; 
-        0x0000 - 0x000d reg=4 type Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0000 - 0x000d reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x000d reg=3 name Ljava/lang/String;
+        0x0000 - 0x000d reg=4 type Ljava/lang/invoke/MethodType;
 
     #7              : (in LTestBadBootstrapArguments;)
       name          : 'bsmReturningTestersConstantCallsite'
@@ -1342,12 +1342,12 @@ Class #6            -
 001b54: 7020 0800 1000                         |000a: invoke-direct {v0, v1}, LTestBadBootstrapArguments$TestersConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@0008
 001b5a: 1100                                   |000d: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=455
-      locals        : 
-        0x0000 - 0x000e reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x000e reg=3 name Ljava/lang/String; 
-        0x0000 - 0x000e reg=4 type Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0000 - 0x000e reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x000e reg=3 name Ljava/lang/String;
+        0x0000 - 0x000e reg=4 type Ljava/lang/invoke/MethodType;
 
     #8              : (in LTestBadBootstrapArguments;)
       name          : 'bsmReturningVoid'
@@ -1365,13 +1365,13 @@ Class #6            -
 001db4: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 001dba: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=380
         0x0007 line=381
-      locals        : 
-        0x0000 - 0x0008 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0008 reg=3 name Ljava/lang/String; 
-        0x0000 - 0x0008 reg=4 type Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0000 - 0x0008 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0008 reg=3 name Ljava/lang/String;
+        0x0000 - 0x0008 reg=4 type Ljava/lang/invoke/MethodType;
 
     #9              : (in LTestBadBootstrapArguments;)
       name          : 'bsmZBCS'
@@ -1388,17 +1388,17 @@ Class #6            -
 001d5e: 1200                                   |0003: const/4 v0, #int 0 // #0
 001d60: 1100                                   |0004: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=227
         0x0003 line=228
-      locals        : 
-        0x0000 - 0x0005 reg=1 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0005 reg=2 methodName Ljava/lang/String; 
-        0x0000 - 0x0005 reg=3 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0005 reg=4 extraArg0 Z 
-        0x0000 - 0x0005 reg=5 extraArg1 B 
-        0x0000 - 0x0005 reg=6 extraArg2 C 
-        0x0000 - 0x0005 reg=7 extraArg3 S 
+      locals        :
+        0x0000 - 0x0005 reg=1 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0005 reg=2 methodName Ljava/lang/String;
+        0x0000 - 0x0005 reg=3 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0005 reg=4 extraArg0 Z
+        0x0000 - 0x0005 reg=5 extraArg1 B
+        0x0000 - 0x0005 reg=6 extraArg2 C
+        0x0000 - 0x0005 reg=7 extraArg3 S
 
     #10              : (in LTestBadBootstrapArguments;)
       name          : 'extraArguments'
@@ -1416,10 +1416,10 @@ Class #6            -
 001dd4: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 001dda: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=158
         0x0007 line=159
-      locals        : 
+      locals        :
 
     #11              : (in LTestBadBootstrapArguments;)
       name          : 'happy'
@@ -1437,10 +1437,10 @@ Class #6            -
 001df4: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 001dfa: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=74
         0x0007 line=75
-      locals        : 
+      locals        :
 
     #12              : (in LTestBadBootstrapArguments;)
       name          : 'integerReturnType'
@@ -1456,10 +1456,10 @@ Class #6            -
 001e0c: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001e12: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=444
         0x0003 line=445
-      locals        : 
+      locals        :
 
     #13              : (in LTestBadBootstrapArguments;)
       name          : 'invokeBoxingArguments'
@@ -1475,10 +1475,10 @@ Class #6            -
 001e24: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001e2a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=344
         0x0003 line=345
-      locals        : 
+      locals        :
 
     #14              : (in LTestBadBootstrapArguments;)
       name          : 'invokeExtraArguments'
@@ -1494,10 +1494,10 @@ Class #6            -
 001e3c: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001e42: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=154
         0x0003 line=155
-      locals        : 
+      locals        :
 
     #15              : (in LTestBadBootstrapArguments;)
       name          : 'invokeHappy'
@@ -1513,10 +1513,10 @@ Class #6            -
 001e54: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001e5a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=70
         0x0003 line=71
-      locals        : 
+      locals        :
 
     #16              : (in LTestBadBootstrapArguments;)
       name          : 'invokeIntegerReturnType'
@@ -1532,10 +1532,10 @@ Class #6            -
 001e6c: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001e72: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=440
         0x0003 line=441
-      locals        : 
+      locals        :
 
     #17              : (in LTestBadBootstrapArguments;)
       name          : 'invokeMissingParameterTypes'
@@ -1551,10 +1551,10 @@ Class #6            -
 001e84: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001e8a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=124
         0x0003 line=125
-      locals        : 
+      locals        :
 
     #18              : (in LTestBadBootstrapArguments;)
       name          : 'invokeNarrowArguments'
@@ -1570,10 +1570,10 @@ Class #6            -
 001e9c: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001ea2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=256
         0x0003 line=257
-      locals        : 
+      locals        :
 
     #19              : (in LTestBadBootstrapArguments;)
       name          : 'invokeObjectReturnType'
@@ -1589,10 +1589,10 @@ Class #6            -
 001eb4: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001eba: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=417
         0x0003 line=418
-      locals        : 
+      locals        :
 
     #20              : (in LTestBadBootstrapArguments;)
       name          : 'invokeViaCustomCallSiteClass'
@@ -1608,10 +1608,10 @@ Class #6            -
 001ecc: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001ed2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=469
         0x0003 line=470
-      locals        : 
+      locals        :
 
     #21              : (in LTestBadBootstrapArguments;)
       name          : 'invokeVoidReturnType'
@@ -1627,10 +1627,10 @@ Class #6            -
 001ee4: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001eea: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=394
         0x0003 line=395
-      locals        : 
+      locals        :
 
     #22              : (in LTestBadBootstrapArguments;)
       name          : 'invokeWideningArguments'
@@ -1646,10 +1646,10 @@ Class #6            -
 001efc: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001f02: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=300
         0x0003 line=301
-      locals        : 
+      locals        :
 
     #23              : (in LTestBadBootstrapArguments;)
       name          : 'invokeWideningBoxingArguments'
@@ -1665,10 +1665,10 @@ Class #6            -
 001f14: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001f1a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=372
         0x0003 line=373
-      locals        : 
+      locals        :
 
     #24              : (in LTestBadBootstrapArguments;)
       name          : 'invokeWrongArguments'
@@ -1684,10 +1684,10 @@ Class #6            -
 001f2c: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001f32: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=182
         0x0003 line=183
-      locals        : 
+      locals        :
 
     #25              : (in LTestBadBootstrapArguments;)
       name          : 'invokeWrongArgumentsAgain'
@@ -1703,10 +1703,10 @@ Class #6            -
 001f44: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001f4a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=210
         0x0003 line=211
-      locals        : 
+      locals        :
 
     #26              : (in LTestBadBootstrapArguments;)
       name          : 'invokeWrongParameterTypes'
@@ -1722,10 +1722,10 @@ Class #6            -
 001f5c: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001f62: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=98
         0x0003 line=99
-      locals        : 
+      locals        :
 
     #27              : (in LTestBadBootstrapArguments;)
       name          : 'missingParameterTypes'
@@ -1743,10 +1743,10 @@ Class #6            -
 001f7c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 001f82: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=128
         0x0007 line=129
-      locals        : 
+      locals        :
 
     #28              : (in LTestBadBootstrapArguments;)
       name          : 'narrowArguments'
@@ -1762,10 +1762,10 @@ Class #6            -
 001f94: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001f9a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=260
         0x0003 line=261
-      locals        : 
+      locals        :
 
     #29              : (in LTestBadBootstrapArguments;)
       name          : 'objectReturnType'
@@ -1781,10 +1781,10 @@ Class #6            -
 001fac: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 001fb2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=421
         0x0003 line=422
-      locals        : 
+      locals        :
 
     #30              : (in LTestBadBootstrapArguments;)
       name          : 'sayHello'
@@ -1802,10 +1802,10 @@ Class #6            -
 001fcc: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 001fd2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=473
         0x0007 line=474
-      locals        : 
+      locals        :
 
     #31              : (in LTestBadBootstrapArguments;)
       name          : 'test'
@@ -2081,7 +2081,7 @@ Class #6            -
           Ljava/lang/BootstrapMethodError; -> 0x01bc
         0x01e1 - 0x01e7
           Ljava/lang/BootstrapMethodError; -> 0x01e8
-      positions     : 
+      positions     :
         0x0000 line=477
         0x0007 line=478
         0x000a line=480
@@ -2177,18 +2177,18 @@ Class #6            -
         0x0200 line=579
         0x020d line=581
         0x0210 line=582
-      locals        : 
-        0x0012 - 0x0022 reg=0 expected Ljava/lang/NoSuchMethodError; 
-        0x002a - 0x003a reg=0 expected Ljava/lang/NoSuchMethodError; 
-        0x0042 - 0x0073 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x007b - 0x00ac reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x00b4 - 0x00e5 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x00ed - 0x011e reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x0126 - 0x0157 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x0165 - 0x0189 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x0191 - 0x01b5 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x01bd - 0x01e1 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x01e9 - 0x020d reg=0 expected Ljava/lang/BootstrapMethodError; 
+      locals        :
+        0x0012 - 0x0022 reg=0 expected Ljava/lang/NoSuchMethodError;
+        0x002a - 0x003a reg=0 expected Ljava/lang/NoSuchMethodError;
+        0x0042 - 0x0073 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x007b - 0x00ac reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x00b4 - 0x00e5 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x00ed - 0x011e reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x0126 - 0x0157 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x0165 - 0x0189 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x0191 - 0x01b5 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x01bd - 0x01e1 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x01e9 - 0x020d reg=0 expected Ljava/lang/BootstrapMethodError;
 
     #32              : (in LTestBadBootstrapArguments;)
       name          : 'voidReturnType'
@@ -2204,10 +2204,10 @@ Class #6            -
 00249c: 7100 0b00 0000                         |0000: invoke-static {}, LTestBadBootstrapArguments;.assertNotReached:()V // method@000b
 0024a2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=398
         0x0003 line=399
-      locals        : 
+      locals        :
 
     #33              : (in LTestBadBootstrapArguments;)
       name          : 'wideningArguments'
@@ -2225,10 +2225,10 @@ Class #6            -
 0024bc: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 0024c2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=304
         0x0007 line=305
-      locals        : 
+      locals        :
 
     #34              : (in LTestBadBootstrapArguments;)
       name          : 'wideningBoxingArguments'
@@ -2246,10 +2246,10 @@ Class #6            -
 0024dc: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 0024e2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=376
         0x0007 line=377
-      locals        : 
+      locals        :
 
     #35              : (in LTestBadBootstrapArguments;)
       name          : 'wrongArguments'
@@ -2267,10 +2267,10 @@ Class #6            -
 0024fc: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 002502: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=186
         0x0007 line=187
-      locals        : 
+      locals        :
 
     #36              : (in LTestBadBootstrapArguments;)
       name          : 'wrongArgumentsAgain'
@@ -2288,10 +2288,10 @@ Class #6            -
 00251c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 002522: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=214
         0x0007 line=215
-      locals        : 
+      locals        :
 
     #37              : (in LTestBadBootstrapArguments;)
       name          : 'wrongParameterTypes'
@@ -2309,10 +2309,10 @@ Class #6            -
 00253c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 002542: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=102
         0x0007 line=103
-      locals        : 
+      locals        :
 
   Virtual methods   -
   source_file_idx   : 144 (TestBadBootstrapArguments.java)
@@ -2363,9 +2363,9 @@ Class #7            -
 0029da: 6700 0000                              |0001: sput v0, LTestDynamicBootstrapArguments;.bsmCalls:I // field@0000
 0029de: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=27
-      locals        : 
+      locals        :
 
     #1              : (in LTestDynamicBootstrapArguments;)
       name          : '<init>'
@@ -2381,10 +2381,10 @@ Class #7            -
 0029f0: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 0029f6: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=26
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestDynamicBootstrapArguments; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestDynamicBootstrapArguments;
 
     #2              : (in LTestDynamicBootstrapArguments;)
       name          : 'bsm'
@@ -2417,22 +2417,22 @@ Class #7            -
 0029be: 7020 d200 2300                         |0027: invoke-direct {v3, v2}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 0029c4: 1103                                   |002a: return-object v3
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=36
         0x0006 line=37
         0x0008 line=38
         0x001a line=39
         0x001e line=40
         0x0025 line=41
-      locals        : 
+      locals        :
         0x0008 - 0x002b reg=0 definingClass Ljava/lang/Class; Ljava/lang/Class<*>;
-        0x001a - 0x002b reg=1 methodName Ljava/lang/String; 
-        0x001e - 0x002b reg=2 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x002b reg=5 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x002b reg=6 name Ljava/lang/String; 
-        0x0000 - 0x002b reg=7 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x002b reg=8 otherNameComponent Ljava/lang/String; 
-        0x0000 - 0x002b reg=9 nameSuffix J 
+        0x001a - 0x002b reg=1 methodName Ljava/lang/String;
+        0x001e - 0x002b reg=2 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x002b reg=5 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x002b reg=6 name Ljava/lang/String;
+        0x0000 - 0x002b reg=7 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x002b reg=8 otherNameComponent Ljava/lang/String;
+        0x0000 - 0x002b reg=9 nameSuffix J
 
     #3              : (in LTestDynamicBootstrapArguments;)
       name          : 'targetA100000000'
@@ -2459,17 +2459,17 @@ Class #7            -
 00293c: 6e20 b200 4000                         |001a: invoke-virtual {v0, v4}, Ljava/io/PrintStream;.println:(Ljava/lang/Object;)V // method@00b2
 002942: 0f02                                   |001d: return v2
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=71
         0x0005 line=72
         0x000c line=73
         0x0011 line=74
         0x0018 line=75
         0x001d line=76
-      locals        : 
-        0x0000 - 0x001e reg=2 i I 
-        0x0000 - 0x001e reg=3 s Ljava/lang/String; 
-        0x0000 - 0x001e reg=4 d Ljava/lang/Double; 
+      locals        :
+        0x0000 - 0x001e reg=2 i I
+        0x0000 - 0x001e reg=3 s Ljava/lang/String;
+        0x0000 - 0x001e reg=4 d Ljava/lang/Double;
 
     #4              : (in LTestDynamicBootstrapArguments;)
       name          : 'test'
@@ -2494,14 +2494,14 @@ Class #7            -
 002a32: 7120 4100 0100                         |0015: invoke-static {v1, v0}, LTestDynamicBootstrapArguments;.assertEquals:(II)V // method@0041
 002a38: 0e00                                   |0018: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=86
         0x0007 line=87
         0x000a line=88
         0x0010 line=89
         0x0013 line=90
         0x0018 line=91
-      locals        : 
+      locals        :
 
     #5              : (in LTestDynamicBootstrapArguments;)
       name          : 'testCallSites'
@@ -2540,12 +2540,12 @@ Class #7            -
 002ab2: 7120 4100 0200                         |0033: invoke-static {v2, v0}, LTestDynamicBootstrapArguments;.assertEquals:(II)V // method@0041
 002ab8: 0e00                                   |0036: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=80
         0x0013 line=81
         0x0026 line=82
         0x0036 line=83
-      locals        : 
+      locals        :
 
     #6              : (in LTestDynamicBootstrapArguments;)
       name          : 'testDynamic'
@@ -2562,13 +2562,13 @@ Class #7            -
 00295a: 1200                                   |0003: const/4 v0, #int 0 // #0
 00295c: 0f00                                   |0004: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=66
         0x0003 line=67
-      locals        : 
-        0x0000 - 0x0005 reg=1 i I 
-        0x0000 - 0x0005 reg=2 s Ljava/lang/String; 
-        0x0000 - 0x0005 reg=3 d Ljava/lang/Double; 
+      locals        :
+        0x0000 - 0x0005 reg=1 i I
+        0x0000 - 0x0005 reg=2 s Ljava/lang/String;
+        0x0000 - 0x0005 reg=3 d Ljava/lang/Double;
 
   Virtual methods   -
   source_file_idx   : 147 (TestDynamicBootstrapArguments.java)
@@ -2644,10 +2644,10 @@ Class #8            -
 002cb4: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 002cba: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=25
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestInvocationKinds; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestInvocationKinds;
 
     #1              : (in LTestInvocationKinds;)
       name          : 'getInstanceField'
@@ -2664,11 +2664,11 @@ Class #8            -
 002b06: 1900 f87f                              |0003: const-wide/high16 v0, #long 9221120237041090560 // #7ff8
 002b0a: 1000                                   |0005: return-wide v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=117
         0x0003 line=118
-      locals        : 
-        0x0000 - 0x0006 reg=2 instance LTestInvocationKinds; 
+      locals        :
+        0x0000 - 0x0006 reg=2 instance LTestInvocationKinds;
 
     #2              : (in LTestInvocationKinds;)
       name          : 'getStaticField'
@@ -2685,10 +2685,10 @@ Class #8            -
 002b3e: 1200                                   |0003: const/4 v0, #int 0 // #0
 002b40: 0f00                                   |0004: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=71
         0x0003 line=72
-      locals        : 
+      locals        :
 
     #3              : (in LTestInvocationKinds;)
       name          : 'lookupConstructor'
@@ -2712,18 +2712,18 @@ Class #8            -
 002b90: 7020 d200 2300                         |0010: invoke-direct {v3, v2}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 002b96: 1103                                   |0013: return-object v3
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=183
         0x0004 line=184
         0x000a line=185
         0x000e line=186
-      locals        : 
+      locals        :
         0x0004 - 0x0014 reg=0 cls Ljava/lang/Class; Ljava/lang/Class<*>;
-        0x000a - 0x0014 reg=1 constructorMethodType Ljava/lang/invoke/MethodType; 
-        0x000e - 0x0014 reg=2 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0014 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0014 reg=5 name Ljava/lang/String; 
-        0x0000 - 0x0014 reg=6 methodType Ljava/lang/invoke/MethodType; 
+        0x000a - 0x0014 reg=1 constructorMethodType Ljava/lang/invoke/MethodType;
+        0x000e - 0x0014 reg=2 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0014 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0014 reg=5 name Ljava/lang/String;
+        0x0000 - 0x0014 reg=6 methodType Ljava/lang/invoke/MethodType;
 
     #4              : (in LTestInvocationKinds;)
       name          : 'lookupInstanceFieldGetter'
@@ -2748,15 +2748,15 @@ Class #8            -
 002bc8: 7020 d200 0100                         |0010: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 002bce: 1101                                   |0013: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=101
         0x0001 line=102
         0x000e line=103
-      locals        : 
-        0x000e - 0x0014 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0014 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0014 reg=3 name Ljava/lang/String; 
-        0x0000 - 0x0014 reg=4 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x000e - 0x0014 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0014 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0014 reg=3 name Ljava/lang/String;
+        0x0000 - 0x0014 reg=4 methodType Ljava/lang/invoke/MethodType;
 
     #5              : (in LTestInvocationKinds;)
       name          : 'lookupInstanceFieldSetter'
@@ -2782,15 +2782,15 @@ Class #8            -
 002c02: 7020 d200 0100                         |0011: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 002c08: 1101                                   |0014: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=78
         0x0001 line=79
         0x000f line=80
-      locals        : 
-        0x000f - 0x0015 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0015 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0015 reg=3 name Ljava/lang/String; 
-        0x0000 - 0x0015 reg=4 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x000f - 0x0015 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0015 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0015 reg=3 name Ljava/lang/String;
+        0x0000 - 0x0015 reg=4 methodType Ljava/lang/invoke/MethodType;
 
     #6              : (in LTestInvocationKinds;)
       name          : 'lookupStaticFieldGetter'
@@ -2812,15 +2812,15 @@ Class #8            -
 002c34: 7020 d200 0100                         |000c: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 002c3a: 1101                                   |000f: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=32
         0x0002 line=33
         0x000a line=34
-      locals        : 
-        0x000a - 0x0010 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0010 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0010 reg=3 name Ljava/lang/String; 
-        0x0000 - 0x0010 reg=4 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x000a - 0x0010 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0010 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0010 reg=3 name Ljava/lang/String;
+        0x0000 - 0x0010 reg=4 methodType Ljava/lang/invoke/MethodType;
 
     #7              : (in LTestInvocationKinds;)
       name          : 'lookupStaticFieldSetter'
@@ -2843,16 +2843,16 @@ Class #8            -
 002c66: 7020 d200 0100                         |000d: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 002c6c: 1101                                   |0010: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=54
         0x0002 line=56
         0x0007 line=55
         0x000b line=57
-      locals        : 
-        0x000b - 0x0011 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0011 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0011 reg=3 name Ljava/lang/String; 
-        0x0000 - 0x0011 reg=4 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x000b - 0x0011 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0011 reg=2 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0011 reg=3 name Ljava/lang/String;
+        0x0000 - 0x0011 reg=4 methodType Ljava/lang/invoke/MethodType;
 
     #8              : (in LTestInvocationKinds;)
       name          : 'lookupVirtual'
@@ -2876,16 +2876,16 @@ Class #8            -
 002c9c: 7020 d200 1200                         |000e: invoke-direct {v2, v1}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 002ca2: 1102                                   |0011: return-object v2
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=146
         0x0006 line=147
         0x000c line=148
-      locals        : 
-        0x0006 - 0x0012 reg=0 mt Ljava/lang/invoke/MethodType; 
-        0x000c - 0x0012 reg=1 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0012 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0012 reg=4 name Ljava/lang/String; 
-        0x0000 - 0x0012 reg=5 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0006 - 0x0012 reg=0 mt Ljava/lang/invoke/MethodType;
+        0x000c - 0x0012 reg=1 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0012 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0012 reg=4 name Ljava/lang/String;
+        0x0000 - 0x0012 reg=5 methodType Ljava/lang/invoke/MethodType;
 
     #9              : (in LTestInvocationKinds;)
       name          : 'makeWidget'
@@ -2902,11 +2902,11 @@ Class #8            -
 002aea: 1200                                   |0003: const/4 v0, #int 0 // #0
 002aec: 1100                                   |0004: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=200
         0x0003 line=201
-      locals        : 
-        0x0000 - 0x0005 reg=1 v I 
+      locals        :
+        0x0000 - 0x0005 reg=1 v I
 
     #10              : (in LTestInvocationKinds;)
       name          : 'maxIntegerValue'
@@ -2923,13 +2923,13 @@ Class #8            -
 002b5a: 1200                                   |0003: const/4 v0, #int 0 // #0
 002b5c: 0f00                                   |0004: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=159
         0x0003 line=160
-      locals        : 
-        0x0000 - 0x0005 reg=1 receiver LTestInvocationKinds; 
-        0x0000 - 0x0005 reg=2 x I 
-        0x0000 - 0x0005 reg=3 y I 
+      locals        :
+        0x0000 - 0x0005 reg=1 receiver LTestInvocationKinds;
+        0x0000 - 0x0005 reg=2 x I
+        0x0000 - 0x0005 reg=3 y I
 
     #11              : (in LTestInvocationKinds;)
       name          : 'setInstanceField'
@@ -2947,13 +2947,13 @@ Class #8            -
 002cd6: 5a20 0200                              |0005: iput-wide v0, v2, LTestInvocationKinds;.instance_field:D // field@0002
 002cda: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=94
         0x0003 line=95
         0x0007 line=96
-      locals        : 
-        0x0000 - 0x0008 reg=2 instance LTestInvocationKinds; 
-        0x0000 - 0x0008 reg=3 value D 
+      locals        :
+        0x0000 - 0x0008 reg=2 instance LTestInvocationKinds;
+        0x0000 - 0x0008 reg=3 value D
 
     #12              : (in LTestInvocationKinds;)
       name          : 'setStaticField'
@@ -2969,11 +2969,11 @@ Class #8            -
 002cec: 7100 4d00 0000                         |0000: invoke-static {}, LTestInvocationKinds;.assertNotReached:()V // method@004d
 002cf2: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=48
         0x0003 line=49
-      locals        : 
-        0x0000 - 0x0004 reg=0 value I 
+      locals        :
+        0x0000 - 0x0004 reg=0 value I
 
     #13              : (in LTestInvocationKinds;)
       name          : 'test'
@@ -2997,14 +2997,14 @@ Class #8            -
 002d2c: 7100 5c00 0000                         |0014: invoke-static {}, LTestInvocationKinds;.testConstructor:()V // method@005c
 002d32: 0e00                                   |0017: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=212
         0x000b line=213
         0x000e line=214
         0x0011 line=215
         0x0014 line=216
         0x0017 line=217
-      locals        : 
+      locals        :
 
     #14              : (in LTestInvocationKinds;)
       name          : 'testConstructor'
@@ -3033,14 +3033,14 @@ Class #8            -
 002d7a: 6e20 b200 2100                         |001b: invoke-virtual {v1, v2}, Ljava/io/PrintStream;.println:(Ljava/lang/Object;)V // method@00b2
 002d80: 0e00                                   |001e: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=205
         0x0007 line=206
         0x000c line=207
         0x0015 line=208
         0x001e line=209
-      locals        : 
-        0x000c - 0x001f reg=0 receiver LTestInvocationKinds$Widget; 
+      locals        :
+        0x000c - 0x001f reg=0 receiver LTestInvocationKinds$Widget;
 
     #15              : (in LTestInvocationKinds;)
       name          : 'testInstanceFieldAccessors'
@@ -3071,7 +3071,7 @@ Class #8            -
 002de4: 7140 4a00 2143                         |0028: invoke-static {v1, v2, v3, v4}, LTestInvocationKinds;.assertEquals:(DD)V // method@004a
 002dea: 0e00                                   |002b: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=133
         0x0007 line=134
         0x000c line=135
@@ -3080,8 +3080,8 @@ Class #8            -
         0x001d line=138
         0x0024 line=139
         0x002b line=140
-      locals        : 
-        0x000c - 0x002c reg=0 instance LTestInvocationKinds; 
+      locals        :
+        0x000c - 0x002c reg=0 instance LTestInvocationKinds;
 
     #16              : (in LTestInvocationKinds;)
       name          : 'testInvokeVirtual'
@@ -3107,15 +3107,15 @@ Class #8            -
 002e26: 6e20 b100 1200                         |0015: invoke-virtual {v2, v1}, Ljava/io/PrintStream;.println:(I)V // method@00b1
 002e2c: 0e00                                   |0018: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=168
         0x0007 line=169
         0x000c line=170
         0x0013 line=171
         0x0018 line=172
-      locals        : 
-        0x000c - 0x0019 reg=0 receiver LTestInvocationKinds; 
-        0x0013 - 0x0019 reg=1 result I 
+      locals        :
+        0x000c - 0x0019 reg=0 receiver LTestInvocationKinds;
+        0x0013 - 0x0019 reg=1 result I
 
     #17              : (in LTestInvocationKinds;)
       name          : 'testStaticFieldAccessors'
@@ -3150,7 +3150,7 @@ Class #8            -
 002e96: 7120 4b00 1000                         |002b: invoke-static {v0, v1}, LTestInvocationKinds;.assertEquals:(II)V // method@004b
 002e9c: 0e00                                   |002e: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=122
         0x0007 line=123
         0x000b line=124
@@ -3160,7 +3160,7 @@ Class #8            -
         0x0022 line=128
         0x0027 line=129
         0x002e line=130
-      locals        : 
+      locals        :
 
   Virtual methods   -
     #0              : (in LTestInvocationKinds;)
@@ -3180,12 +3180,12 @@ Class #8            -
 002b24: 0130                                   |0004: move v0, v3
 002b26: 0f00                                   |0005: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=164
-      locals        : 
-        0x0000 - 0x0006 reg=1 this LTestInvocationKinds; 
-        0x0000 - 0x0006 reg=2 x I 
-        0x0000 - 0x0006 reg=3 y I 
+      locals        :
+        0x0000 - 0x0006 reg=1 this LTestInvocationKinds;
+        0x0000 - 0x0006 reg=2 x I
+        0x0000 - 0x0006 reg=3 y I
 
   source_file_idx   : 148 (TestInvocationKinds.java)
 
@@ -3280,14 +3280,14 @@ Class #9            -
 0030b8: 6901 0500                              |0022: sput-object v1, LTestInvokeCustomWithConcurrentThreads;.barrier:Ljava/util/concurrent/CyclicBarrier; // field@0005
 0030bc: 0e00                                   |0024: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=30
         0x0008 line=32
         0x000f line=41
         0x0015 line=44
         0x0019 line=47
         0x001d line=50
-      locals        : 
+      locals        :
 
     #1              : (in LTestInvokeCustomWithConcurrentThreads;)
       name          : '<init>'
@@ -3303,10 +3303,10 @@ Class #9            -
 0030d0: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 0030d6: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=52
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestInvokeCustomWithConcurrentThreads; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestInvokeCustomWithConcurrentThreads;
 
     #2              : (in LTestInvokeCustomWithConcurrentThreads;)
       name          : 'access$000'
@@ -3322,9 +3322,9 @@ Class #9            -
 00305c: 6200 0800                              |0000: sget-object v0, LTestInvokeCustomWithConcurrentThreads;.nextIndex:Ljava/util/concurrent/atomic/AtomicInteger; // field@0008
 003060: 1100                                   |0002: return-object v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=27
-      locals        : 
+      locals        :
 
     #3              : (in LTestInvokeCustomWithConcurrentThreads;)
       name          : 'getThreadIndex'
@@ -3345,9 +3345,9 @@ Class #9            -
 002f26: 0a00                                   |000b: move-result v0
 002f28: 0f00                                   |000c: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=55
-      locals        : 
+      locals        :
 
     #4              : (in LTestInvokeCustomWithConcurrentThreads;)
       name          : 'linkerMethod'
@@ -3408,7 +3408,7 @@ Class #9            -
 003044: 4601 0102                              |005e: aget-object v1, v1, v2
 003048: 1101                                   |0060: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=87
         0x0002 line=88
         0x0006 line=89
@@ -3420,11 +3420,11 @@ Class #9            -
         0x0046 line=99
         0x004b line=101
         0x0058 line=102
-      locals        : 
-        0x0006 - 0x0061 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0061 reg=5 caller Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0061 reg=6 name Ljava/lang/String; 
-        0x0000 - 0x0061 reg=7 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0006 - 0x0061 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0061 reg=5 caller Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0061 reg=6 name Ljava/lang/String;
+        0x0000 - 0x0061 reg=7 methodType Ljava/lang/invoke/MethodType;
 
     #5              : (in LTestInvokeCustomWithConcurrentThreads;)
       name          : 'notUsed'
@@ -3439,10 +3439,10 @@ Class #9            -
 002f2c:                                        |[002f2c] TestInvokeCustomWithConcurrentThreads.notUsed:(I)I
 002f3c: 0f00                                   |0000: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=59
-      locals        : 
-        0x0000 - 0x0001 reg=0 x I 
+      locals        :
+        0x0000 - 0x0001 reg=0 x I
 
     #6              : (in LTestInvokeCustomWithConcurrentThreads;)
       name          : 'setCalled'
@@ -3466,12 +3466,12 @@ Class #9            -
 002f74: 1200                                   |0012: const/4 v0, #int 0 // #0
 002f76: 0f00                                   |0013: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=79
         0x0007 line=80
         0x0012 line=81
-      locals        : 
-        0x0000 - 0x0014 reg=2 index I 
+      locals        :
+        0x0000 - 0x0014 reg=2 index I
 
     #7              : (in LTestInvokeCustomWithConcurrentThreads;)
       name          : 'test'
@@ -3560,8 +3560,7 @@ Class #9            -
 00322a: 0107                                   |008f: move v7, v0
 00322c: 3527 2200                              |0090: if-ge v7, v2, 00b2 // +0022
 003230: 6208 1300                              |0092: sget-object v8, Ljava/lang/System;.out:Ljava/io/PrintStream; // field@0013
-003234: 1a09 0400                              |0094: const-string v9, " Thread % 2d invoked call site instance #%02d
-" // string@0004
+003234: 1a09 0400                              |0094: const-string v9, " Thread % 2d invoked call site instance #%02d\n" // string@0004
 003238: 233a 4800                              |0096: new-array v10, v3, [Ljava/lang/Object; // type@0048
 00323c: 7110 bd00 0700                         |0098: invoke-static {v7}, Ljava/lang/Integer;.valueOf:(I)Ljava/lang/Integer; // method@00bd
 003242: 0c0b                                   |009b: move-result-object v11
@@ -3583,8 +3582,7 @@ Class #9            -
 003282: 0107                                   |00bb: move v7, v0
 003284: 3527 2200                              |00bc: if-ge v7, v2, 00de // +0022
 003288: 6208 1300                              |00be: sget-object v8, Ljava/lang/System;.out:Ljava/io/PrintStream; // field@0013
-00328c: 1a09 0300                              |00c0: const-string v9, " Call site instance #%02d was invoked % 2d times
-" // string@0003
+00328c: 1a09 0300                              |00c0: const-string v9, " Call site instance #%02d was invoked % 2d times\n" // string@0003
 003290: 233a 4800                              |00c2: new-array v10, v3, [Ljava/lang/Object; // type@0048
 003294: 7110 bd00 0700                         |00c4: invoke-static {v7}, Ljava/lang/Integer;.valueOf:(I)Ljava/lang/Integer; // method@00bd
 00329a: 0c0b                                   |00c7: move-result-object v11
@@ -3603,7 +3601,7 @@ Class #9            -
 0032ce: 7120 6600 2500                         |00e1: invoke-static {v5, v2}, LTestInvokeCustomWithConcurrentThreads;.assertEquals:(II)V // method@0066
 0032d4: 0e00                                   |00e4: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=107
         0x0006 line=108
         0x000f line=109
@@ -3642,18 +3640,18 @@ Class #9            -
         0x00de line=157
         0x00e1 line=158
         0x00e4 line=159
-      locals        : 
-        0x0002 - 0x001b reg=1 i I 
-        0x001e - 0x0034 reg=3 i I 
-        0x0035 - 0x003f reg=3 i I 
-        0x0040 - 0x0044 reg=3 winners I 
-        0x0041 - 0x0044 reg=4 votes I 
-        0x0044 - 0x0066 reg=3 i I 
-        0x0090 - 0x00b2 reg=7 i I 
-        0x00bc - 0x00de reg=7 i I 
-        0x001d - 0x00e5 reg=1 threads [Ljava/lang/Thread; 
-        0x0044 - 0x00e5 reg=4 winners I 
-        0x0044 - 0x00e5 reg=5 votes I 
+      locals        :
+        0x0002 - 0x001b reg=1 i I
+        0x001e - 0x0034 reg=3 i I
+        0x0035 - 0x003f reg=3 i I
+        0x0040 - 0x0044 reg=3 winners I
+        0x0041 - 0x0044 reg=4 votes I
+        0x0044 - 0x0066 reg=3 i I
+        0x0090 - 0x00b2 reg=7 i I
+        0x00bc - 0x00de reg=7 i I
+        0x001d - 0x00e5 reg=1 threads [Ljava/lang/Thread;
+        0x0044 - 0x00e5 reg=4 winners I
+        0x0044 - 0x00e5 reg=5 votes I
 
   Virtual methods   -
     #0              : (in LTestInvokeCustomWithConcurrentThreads;)
@@ -3673,13 +3671,13 @@ Class #9            -
 0030f2: 7110 6b00 0000                         |0005: invoke-static {v0}, LTestInvokeCustomWithConcurrentThreads;.notUsed:(I)I // method@006b
 0030f8: 0e00                                   |0008: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=63
         0x0005 line=64
         0x0008 line=65
-      locals        : 
-        0x0005 - 0x0009 reg=0 x I 
-        0x0000 - 0x0009 reg=1 this LTestInvokeCustomWithConcurrentThreads; 
+      locals        :
+        0x0005 - 0x0009 reg=0 x I
+        0x0000 - 0x0009 reg=1 this LTestInvokeCustomWithConcurrentThreads;
 
   source_file_idx   : 149 (TestInvokeCustomWithConcurrentThreads.java)
 
@@ -3751,9 +3749,9 @@ Class #10            -
 003416: 6700 0f00                              |0001: sput v0, LTestLinkerMethodMinimalArguments;.forceFailureType:I // field@000f
 00341a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=26
-      locals        : 
+      locals        :
 
     #1              : (in LTestLinkerMethodMinimalArguments;)
       name          : '<init>'
@@ -3769,10 +3767,10 @@ Class #10            -
 00342c: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 003432: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=25
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestLinkerMethodMinimalArguments; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestLinkerMethodMinimalArguments;
 
     #2              : (in LTestLinkerMethodMinimalArguments;)
       name          : '_add'
@@ -3798,14 +3796,14 @@ Class #10            -
 00330e: 7020 b400 1000                         |0013: invoke-direct {v0, v1}, Ljava/lang/ArithmeticException;.<init>:(Ljava/lang/String;)V // method@00b4
 003314: 2700                                   |0016: throw v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=51
         0x0005 line=55
         0x0008 line=52
         0x000f line=53
-      locals        : 
-        0x0000 - 0x0017 reg=2 a I 
-        0x0000 - 0x0017 reg=3 b I 
+      locals        :
+        0x0000 - 0x0017 reg=2 a I
+        0x0000 - 0x0017 reg=3 b I
 
     #3              : (in LTestLinkerMethodMinimalArguments;)
       name          : 'add'
@@ -3822,12 +3820,12 @@ Class #10            -
 00332e: 12f0                                   |0003: const/4 v0, #int -1 // #ff
 003330: 0f00                                   |0004: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=45
         0x0003 line=46
-      locals        : 
-        0x0000 - 0x0005 reg=1 a I 
-        0x0000 - 0x0005 reg=2 b I 
+      locals        :
+        0x0000 - 0x0005 reg=1 a I
+        0x0000 - 0x0005 reg=2 b I
 
     #4              : (in LTestLinkerMethodMinimalArguments;)
       name          : 'linkerMethod'
@@ -3881,7 +3879,7 @@ Class #10            -
 0033f2: 1101                                   |0057: return-object v1
 0033f4: 0001 0200 0100 0000 1800 0000 0900 ... |0058: packed-switch-data (8 units)
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=61
         0x0018 line=62
         0x001a line=63
@@ -3891,11 +3889,11 @@ Class #10            -
         0x0030 line=71
         0x0038 line=66
         0x0056 line=68
-      locals        : 
-        0x001e - 0x0060 reg=0 mh_add Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0060 reg=4 caller Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0060 reg=5 name Ljava/lang/String; 
-        0x0000 - 0x0060 reg=6 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x001e - 0x0060 reg=0 mh_add Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0060 reg=4 caller Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0060 reg=5 name Ljava/lang/String;
+        0x0000 - 0x0060 reg=6 methodType Ljava/lang/invoke/MethodType;
 
     #5              : (in LTestLinkerMethodMinimalArguments;)
       name          : 'test'
@@ -3942,17 +3940,17 @@ Class #10            -
 0034c4: 6e20 b300 1000                         |0040: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 0034ca: 0e00                                   |0043: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=78
         0x000a line=79
         0x0012 line=80
         0x0014 line=81
         0x001d line=82
         0x0043 line=83
-      locals        : 
-        0x0000 - 0x0044 reg=3 failureType I 
-        0x0000 - 0x0044 reg=4 x I 
-        0x0000 - 0x0044 reg=5 y I 
+      locals        :
+        0x0000 - 0x0044 reg=3 failureType I
+        0x0000 - 0x0044 reg=4 x I
+        0x0000 - 0x0044 reg=5 y I
 
   Virtual methods   -
   source_file_idx   : 151 (TestLinkerMethodMinimalArguments.java)
@@ -4006,9 +4004,9 @@ Class #11            -
 00362a: 6700 1000                              |0001: sput v0, LTestLinkerMethodMultipleArgumentTypes;.bootstrapRunCount:I // field@0010
 00362e: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=28
-      locals        : 
+      locals        :
 
     #1              : (in LTestLinkerMethodMultipleArgumentTypes;)
       name          : '<init>'
@@ -4024,10 +4022,10 @@ Class #11            -
 003640: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 003646: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=26
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestLinkerMethodMultipleArgumentTypes; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestLinkerMethodMultipleArgumentTypes;
 
     #2              : (in LTestLinkerMethodMultipleArgumentTypes;)
       name          : '_add'
@@ -4043,11 +4041,11 @@ Class #11            -
 0034f4: 9000 0102                              |0000: add-int v0, v1, v2
 0034f8: 0f00                                   |0002: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=74
-      locals        : 
-        0x0000 - 0x0003 reg=1 a I 
-        0x0000 - 0x0003 reg=2 b I 
+      locals        :
+        0x0000 - 0x0003 reg=1 a I
+        0x0000 - 0x0003 reg=2 b I
 
     #3              : (in LTestLinkerMethodMultipleArgumentTypes;)
       name          : 'add'
@@ -4064,12 +4062,12 @@ Class #11            -
 003512: 12f0                                   |0003: const/4 v0, #int -1 // #ff
 003514: 0f00                                   |0004: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=68
         0x0003 line=69
-      locals        : 
-        0x0000 - 0x0005 reg=1 a I 
-        0x0000 - 0x0005 reg=2 b I 
+      locals        :
+        0x0000 - 0x0005 reg=1 a I
+        0x0000 - 0x0005 reg=2 b I
 
     #4              : (in LTestLinkerMethodMultipleArgumentTypes;)
       name          : 'linkerMethod'
@@ -4133,7 +4131,7 @@ Class #11            -
 00360e: 7020 d200 df00                         |0073: invoke-direct {v15, v13}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 003614: 110f                                   |0076: return-object v15
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=93
         0x0022 line=94
         0x0028 line=95
@@ -4148,22 +4146,22 @@ Class #11            -
         0x0069 line=104
         0x006b line=105
         0x0071 line=106
-      locals        : 
-        0x0000 - 0x0000 reg=28 (null) Ljava/lang/Class; 
-        0x0071 - 0x0077 reg=13 mh_add Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0077 reg=16 caller Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0077 reg=17 name Ljava/lang/String; 
-        0x0000 - 0x0077 reg=18 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0077 reg=19 v1 I 
-        0x0000 - 0x0077 reg=20 v2 I 
-        0x0000 - 0x0077 reg=21 v3 I 
-        0x0000 - 0x0077 reg=22 v4 I 
-        0x0000 - 0x0077 reg=23 v5 I 
-        0x0000 - 0x0077 reg=24 v6 F 
-        0x0000 - 0x0077 reg=25 v7 D 
-        0x0000 - 0x0077 reg=27 v8 Ljava/lang/String; 
+      locals        :
+        0x0000 - 0x0000 reg=28 (null) Ljava/lang/Class;
+        0x0071 - 0x0077 reg=13 mh_add Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0077 reg=16 caller Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0077 reg=17 name Ljava/lang/String;
+        0x0000 - 0x0077 reg=18 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0077 reg=19 v1 I
+        0x0000 - 0x0077 reg=20 v2 I
+        0x0000 - 0x0077 reg=21 v3 I
+        0x0000 - 0x0077 reg=22 v4 I
+        0x0000 - 0x0077 reg=23 v5 I
+        0x0000 - 0x0077 reg=24 v6 F
+        0x0000 - 0x0077 reg=25 v7 D
+        0x0000 - 0x0077 reg=27 v8 Ljava/lang/String;
         0x0000 - 0x0077 reg=28 v9 Ljava/lang/Class; Ljava/lang/Class<*>;
-        0x0000 - 0x0077 reg=29 v10 J 
+        0x0000 - 0x0077 reg=29 v10 J
 
     #5              : (in LTestLinkerMethodMultipleArgumentTypes;)
       name          : 'test'
@@ -4185,13 +4183,13 @@ Class #11            -
 003672: 6e20 b100 1000                         |000d: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(I)V // method@00b1
 003678: 0e00                                   |0010: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=114
         0x0009 line=115
         0x0010 line=116
-      locals        : 
-        0x0000 - 0x0011 reg=2 x I 
-        0x0000 - 0x0011 reg=3 y I 
+      locals        :
+        0x0000 - 0x0011 reg=2 x I
+        0x0000 - 0x0011 reg=3 y I
 
   Virtual methods   -
     #0              : (in LTestLinkerMethodMultipleArgumentTypes;)
@@ -4208,10 +4206,10 @@ Class #11            -
 0034dc: 6000 1000                              |0000: sget v0, LTestLinkerMethodMultipleArgumentTypes;.bootstrapRunCount:I // field@0010
 0034e0: 0f00                                   |0002: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=110
-      locals        : 
-        0x0000 - 0x0003 reg=1 this LTestLinkerMethodMultipleArgumentTypes; 
+      locals        :
+        0x0000 - 0x0003 reg=1 this LTestLinkerMethodMultipleArgumentTypes;
 
   source_file_idx   : 153 (TestLinkerMethodMultipleArgumentTypes.java)
 
@@ -4256,10 +4254,10 @@ Class #12            -
 0036f4: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 0036fa: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=23
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestLinkerUnrelatedBSM; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestLinkerUnrelatedBSM;
 
     #1              : (in LTestLinkerUnrelatedBSM;)
       name          : '_addf'
@@ -4275,11 +4273,11 @@ Class #12            -
 00368c: a600 0102                              |0000: add-float v0, v1, v2
 003690: 0f00                                   |0002: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=47
-      locals        : 
-        0x0000 - 0x0003 reg=1 a F 
-        0x0000 - 0x0003 reg=2 b F 
+      locals        :
+        0x0000 - 0x0003 reg=1 a F
+        0x0000 - 0x0003 reg=2 b F
 
     #2              : (in LTestLinkerUnrelatedBSM;)
       name          : '_subf'
@@ -4295,11 +4293,11 @@ Class #12            -
 0036a4: a700 0102                              |0000: sub-float v0, v1, v2
 0036a8: 0f00                                   |0002: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=73
-      locals        : 
-        0x0000 - 0x0003 reg=1 a F 
-        0x0000 - 0x0003 reg=2 b F 
+      locals        :
+        0x0000 - 0x0003 reg=1 a F
+        0x0000 - 0x0003 reg=2 b F
 
     #3              : (in LTestLinkerUnrelatedBSM;)
       name          : 'addf'
@@ -4316,12 +4314,12 @@ Class #12            -
 0036c2: 1210                                   |0003: const/4 v0, #int 1 // #1
 0036c4: 0f00                                   |0004: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=42
         0x0003 line=43
-      locals        : 
-        0x0000 - 0x0005 reg=1 a F 
-        0x0000 - 0x0005 reg=2 b F 
+      locals        :
+        0x0000 - 0x0005 reg=1 a F
+        0x0000 - 0x0005 reg=2 b F
 
     #4              : (in LTestLinkerUnrelatedBSM;)
       name          : 'subf'
@@ -4338,12 +4336,12 @@ Class #12            -
 0036de: 1210                                   |0003: const/4 v0, #int 1 // #1
 0036e0: 0f00                                   |0004: return v0
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=68
         0x0003 line=69
-      locals        : 
-        0x0000 - 0x0005 reg=1 a F 
-        0x0000 - 0x0005 reg=2 b F 
+      locals        :
+        0x0000 - 0x0005 reg=1 a F
+        0x0000 - 0x0005 reg=2 b F
 
     #5              : (in LTestLinkerUnrelatedBSM;)
       name          : 'test'
@@ -4373,12 +4371,12 @@ Class #12            -
 003748: 7120 8900 0100                         |001e: invoke-static {v1, v0}, LTestLinkerUnrelatedBSM;.assertEquals:(FF)V // method@0089
 00374e: 0e00                                   |0021: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=77
         0x000b line=78
         0x0018 line=79
         0x0021 line=80
-      locals        : 
+      locals        :
 
   Virtual methods   -
   source_file_idx   : 154 (TestLinkerUnrelatedBSM.java)
@@ -4469,10 +4467,10 @@ Class #13            -
 003a8c: 7010 3200 0000                         |0000: invoke-direct {v0}, LTestBase;.<init>:()V // method@0032
 003a92: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=27
-      locals        : 
-        0x0000 - 0x0004 reg=0 this LTestVariableArityLinkerMethod; 
+      locals        :
+        0x0000 - 0x0004 reg=0 this LTestVariableArityLinkerMethod;
 
     #1              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithBoxedArray'
@@ -4505,16 +4503,16 @@ Class #13            -
 00379c: 7020 d200 0100                         |001e: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 0037a2: 1101                                   |0021: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=477
         0x0014 line=478
         0x001c line=479
-      locals        : 
-        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String; 
-        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0022 reg=6 extraArgs [Ljava/lang/Integer; 
+      locals        :
+        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String;
+        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0022 reg=6 extraArgs [Ljava/lang/Integer;
 
     #2              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithClassAndFloatArray'
@@ -4549,18 +4547,18 @@ Class #13            -
 0037f6: 7020 d200 0100                         |0021: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 0037fc: 1101                                   |0024: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=294
         0x0017 line=296
         0x001f line=297
-      locals        : 
-        0x0000 - 0x0000 reg=6 (null) Ljava/lang/Class; 
-        0x001f - 0x0025 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0025 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0025 reg=4 methodName Ljava/lang/String; 
-        0x0000 - 0x0025 reg=5 methodType Ljava/lang/invoke/MethodType; 
+      locals        :
+        0x0000 - 0x0000 reg=6 (null) Ljava/lang/Class;
+        0x001f - 0x0025 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0025 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0025 reg=4 methodName Ljava/lang/String;
+        0x0000 - 0x0025 reg=5 methodType Ljava/lang/invoke/MethodType;
         0x0000 - 0x0025 reg=6 extraArg Ljava/lang/Class; Ljava/lang/Class<*>;
-        0x0000 - 0x0025 reg=7 arityArgs [F 
+        0x0000 - 0x0025 reg=7 arityArgs [F
 
     #3              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithClassArray'
@@ -4593,16 +4591,16 @@ Class #13            -
 00384c: 7020 d200 0100                         |001e: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 003852: 1101                                   |0021: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=367
         0x0014 line=368
         0x001c line=369
-      locals        : 
-        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String; 
-        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0022 reg=6 arityArgs [Ljava/lang/Class; 
+      locals        :
+        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String;
+        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0022 reg=6 arityArgs [Ljava/lang/Class;
 
     #4              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithDoubleArray'
@@ -4635,16 +4633,16 @@ Class #13            -
 0038a0: 7020 d200 0100                         |001e: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 0038a6: 1101                                   |0021: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=332
         0x0014 line=333
         0x001c line=334
-      locals        : 
-        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String; 
-        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0022 reg=6 arityArgs [D 
+      locals        :
+        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String;
+        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0022 reg=6 arityArgs [D
 
     #5              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithFloatAndLongArray'
@@ -4681,19 +4679,19 @@ Class #13            -
 003902: 7020 d200 0100                         |0025: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 003908: 1101                                   |0028: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=257
         0x000e line=258
         0x0018 line=257
         0x001b line=259
         0x0023 line=260
-      locals        : 
-        0x0023 - 0x0029 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0029 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0029 reg=5 methodName Ljava/lang/String; 
-        0x0000 - 0x0029 reg=6 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0029 reg=7 extraArg F 
-        0x0000 - 0x0029 reg=8 arityArgs [J 
+      locals        :
+        0x0023 - 0x0029 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0029 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0029 reg=5 methodName Ljava/lang/String;
+        0x0000 - 0x0029 reg=6 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0029 reg=7 extraArg F
+        0x0000 - 0x0029 reg=8 arityArgs [J
 
     #6              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithIntAndStringArray'
@@ -4730,19 +4728,19 @@ Class #13            -
 003966: 7020 d200 0100                         |0025: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 00396c: 1101                                   |0028: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=133
         0x000e line=138
         0x0018 line=133
         0x001b line=140
         0x0023 line=141
-      locals        : 
-        0x0023 - 0x0029 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0029 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0029 reg=5 methodName Ljava/lang/String; 
-        0x0000 - 0x0029 reg=6 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0029 reg=7 extraInt I 
-        0x0000 - 0x0029 reg=8 extraArityArgs [Ljava/lang/String; 
+      locals        :
+        0x0023 - 0x0029 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0029 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0029 reg=5 methodName Ljava/lang/String;
+        0x0000 - 0x0029 reg=6 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0029 reg=7 extraInt I
+        0x0000 - 0x0029 reg=8 extraArityArgs [Ljava/lang/String;
 
     #7              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithLongAndIntArray'
@@ -4779,17 +4777,17 @@ Class #13            -
 0039ca: 7020 d200 0100                         |0025: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 0039d0: 1101                                   |0028: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=219
         0x001b line=220
         0x0023 line=221
-      locals        : 
-        0x0023 - 0x0029 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0029 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0029 reg=5 methodName Ljava/lang/String; 
-        0x0000 - 0x0029 reg=6 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0029 reg=7 extraArg J 
-        0x0000 - 0x0029 reg=9 arityArgs [I 
+      locals        :
+        0x0023 - 0x0029 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0029 reg=4 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0029 reg=5 methodName Ljava/lang/String;
+        0x0000 - 0x0029 reg=6 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0029 reg=7 extraArg J
+        0x0000 - 0x0029 reg=9 arityArgs [I
 
     #8              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithStringArray'
@@ -4822,16 +4820,16 @@ Class #13            -
 003a20: 7020 d200 0100                         |001e: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 003a26: 1101                                   |0021: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=61
         0x0014 line=62
         0x001c line=63
-      locals        : 
-        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String; 
-        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0022 reg=6 arityArgs [Ljava/lang/String; 
+      locals        :
+        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String;
+        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0022 reg=6 arityArgs [Ljava/lang/String;
 
     #9              : (in LTestVariableArityLinkerMethod;)
       name          : 'bsmWithWiderArray'
@@ -4864,16 +4862,16 @@ Class #13            -
 003a74: 7020 d200 0100                         |001e: invoke-direct {v1, v0}, Ljava/lang/invoke/ConstantCallSite;.<init>:(Ljava/lang/invoke/MethodHandle;)V // method@00d2
 003a7a: 1101                                   |0021: return-object v1
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=447
         0x0014 line=448
         0x001c line=449
-      locals        : 
-        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle; 
-        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup; 
-        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String; 
-        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType; 
-        0x0000 - 0x0022 reg=6 extraArgs [J 
+      locals        :
+        0x001c - 0x0022 reg=0 mh Ljava/lang/invoke/MethodHandle;
+        0x0000 - 0x0022 reg=3 lookup Ljava/lang/invoke/MethodHandles$Lookup;
+        0x0000 - 0x0022 reg=4 methodName Ljava/lang/String;
+        0x0000 - 0x0022 reg=5 methodType Ljava/lang/invoke/MethodType;
+        0x0000 - 0x0022 reg=6 extraArgs [J
 
     #10              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodA'
@@ -4891,10 +4889,10 @@ Class #13            -
 003aac: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003ab2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=86
         0x0007 line=87
-      locals        : 
+      locals        :
 
     #11              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodB'
@@ -4912,10 +4910,10 @@ Class #13            -
 003acc: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003ad2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=105
         0x0007 line=106
-      locals        : 
+      locals        :
 
     #12              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodC'
@@ -4933,10 +4931,10 @@ Class #13            -
 003aec: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003af2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=123
         0x0007 line=124
-      locals        : 
+      locals        :
 
     #13              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodD'
@@ -4954,10 +4952,10 @@ Class #13            -
 003b0c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003b12: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=166
         0x0007 line=167
-      locals        : 
+      locals        :
 
     #14              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodE'
@@ -4975,10 +4973,10 @@ Class #13            -
 003b2c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003b32: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=189
         0x0007 line=190
-      locals        : 
+      locals        :
 
     #15              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodF'
@@ -4996,10 +4994,10 @@ Class #13            -
 003b4c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003b52: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=209
         0x0007 line=210
-      locals        : 
+      locals        :
 
     #16              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodG'
@@ -5017,10 +5015,10 @@ Class #13            -
 003b6c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003b72: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=247
         0x0007 line=248
-      locals        : 
+      locals        :
 
     #17              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodH'
@@ -5038,10 +5036,10 @@ Class #13            -
 003b8c: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003b92: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=284
         0x0007 line=285
-      locals        : 
+      locals        :
 
     #18              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodI'
@@ -5059,10 +5057,10 @@ Class #13            -
 003bac: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003bb2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=323
         0x0007 line=324
-      locals        : 
+      locals        :
 
     #19              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodJ'
@@ -5080,10 +5078,10 @@ Class #13            -
 003bcc: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003bd2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=358
         0x0007 line=359
-      locals        : 
+      locals        :
 
     #20              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodK'
@@ -5101,10 +5099,10 @@ Class #13            -
 003bec: 6e20 b300 1000                         |0004: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003bf2: 0e00                                   |0007: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=392
         0x0007 line=393
-      locals        : 
+      locals        :
 
     #21              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodO'
@@ -5120,10 +5118,10 @@ Class #13            -
 003c04: 7100 8e00 0000                         |0000: invoke-static {}, LTestVariableArityLinkerMethod;.assertNotReached:()V // method@008e
 003c0a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=413
         0x0003 line=414
-      locals        : 
+      locals        :
 
     #22              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodP'
@@ -5139,10 +5137,10 @@ Class #13            -
 003c1c: 7100 8e00 0000                         |0000: invoke-static {}, LTestVariableArityLinkerMethod;.assertNotReached:()V // method@008e
 003c22: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=441
         0x0003 line=442
-      locals        : 
+      locals        :
 
     #23              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodQ'
@@ -5158,10 +5156,10 @@ Class #13            -
 003c34: 7100 8e00 0000                         |0000: invoke-static {}, LTestVariableArityLinkerMethod;.assertNotReached:()V // method@008e
 003c3a: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=468
         0x0003 line=469
-      locals        : 
+      locals        :
 
     #24              : (in LTestVariableArityLinkerMethod;)
       name          : 'methodR'
@@ -5177,10 +5175,10 @@ Class #13            -
 003c4c: 7100 8e00 0000                         |0000: invoke-static {}, LTestVariableArityLinkerMethod;.assertNotReached:()V // method@008e
 003c52: 0e00                                   |0003: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=501
         0x0003 line=502
-      locals        : 
+      locals        :
 
     #25              : (in LTestVariableArityLinkerMethod;)
       name          : 'printBsmArgs'
@@ -5275,7 +5273,7 @@ Class #13            -
 003d9a: 6e20 b300 1000                         |009b: invoke-virtual {v0, v1}, Ljava/io/PrintStream;.println:(Ljava/lang/String;)V // method@00b3
 003da0: 0e00                                   |009e: return-void
       catches       : (none)
-      positions     : 
+      positions     :
         0x0000 line=29
         0x0005 line=30
         0x000c line=31
@@ -5297,11 +5295,11 @@ Class #13            -
         0x0093 line=31
         0x0097 line=52
         0x009e line=53
-      locals        : 
-        0x002b - 0x008b reg=1 array Ljava/lang/Object; 
-        0x000d - 0x0097 reg=0 i I 
-        0x0000 - 0x009f reg=4 method Ljava/lang/String; 
-        0x0000 - 0x009f reg=5 args [Ljava/lang/Object; 
+      locals        :
+        0x002b - 0x008b reg=1 array Ljava/lang/Object;
+        0x000d - 0x0097 reg=0 i I
+        0x0000 - 0x009f reg=4 method Ljava/lang/String;
+        0x0000 - 0x009f reg=5 args [Ljava/lang/Object;
 
     #26              : (in LTestVariableArityLinkerMethod;)
       name          : 'test'
@@ -5425,7 +5423,7 @@ Class #13            -
           Ljava/lang/BootstrapMethodError; -> 0x008e
         0x00b3 - 0x00b9
           Ljava/lang/BootstrapMethodError; -> 0x00ba
-      positions     : 
+      positions     :
         0x0000 line=506
         0x0005 line=507
         0x0008 line=508
@@ -5474,13 +5472,13 @@ Class #13            -
         0x00cb line=565
         0x00d2 line=566
         0x00df line=568
-      locals        : 
-        0x0002 - 0x0011 reg=1 i I 
-        0x0012 - 0x0020 reg=0 i I 
-        0x0037 - 0x005b reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x0063 - 0x0087 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x008f - 0x00b3 reg=0 expected Ljava/lang/BootstrapMethodError; 
-        0x00bb - 0x00df reg=0 expected Ljava/lang/BootstrapMethodError; 
+      locals        :
+        0x0002 - 0x0011 reg=1 i I
+        0x0012 - 0x0020 reg=0 i I
+        0x0037 - 0x005b reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x0063 - 0x0087 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x008f - 0x00b3 reg=0 expected Ljava/lang/BootstrapMethodError;
+        0x00bb - 0x00df reg=0 expected Ljava/lang/BootstrapMethodError;
 
   Virtual methods   -
   source_file_idx   : 156 (TestVariableArityLinkerMethod.java)

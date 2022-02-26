@@ -113,7 +113,7 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
       dm_for_oat_(this, /*is_oat_location=*/ true),
       zip_fd_(zip_fd) {
   CHECK(dex_location != nullptr) << "OatFileAssistant: null dex location";
-  CHECK(!load_executable || context != nullptr) << "Loading executable without a context";
+  CHECK_IMPLIES(load_executable, context != nullptr) << "Loading executable without a context";
 
   if (zip_fd < 0) {
     CHECK_LE(oat_fd, 0) << "zip_fd must be provided with valid oat_fd. zip_fd=" << zip_fd

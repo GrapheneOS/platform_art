@@ -375,10 +375,10 @@ bool AnalyseConstructor(const CodeItemDataAccessor* code_item,
     return false;
   }
   static_assert(kMaxConstructorIPuts == 3, "Unexpected limit");  // Code below depends on this.
-  DCHECK(iputs[0].field_index != DexFile::kDexNoIndex16 ||
-         iputs[1].field_index == DexFile::kDexNoIndex16);
-  DCHECK(iputs[1].field_index != DexFile::kDexNoIndex16 ||
-         iputs[2].field_index == DexFile::kDexNoIndex16);
+  DCHECK_IMPLIES(iputs[0].field_index == DexFile::kDexNoIndex16,
+                 iputs[1].field_index == DexFile::kDexNoIndex16);
+  DCHECK_IMPLIES(iputs[1].field_index == DexFile::kDexNoIndex16,
+                 iputs[2].field_index == DexFile::kDexNoIndex16);
 
 #define STORE_IPUT(n)                                                         \
   do {                                                                        \
