@@ -1481,5 +1481,19 @@
         "variant": "jit | optimizing | jit-on-first-use",
         "bug": "b/216762268",
         "description": ["bug in the loop optimization"]
+    },
+    {
+        "tests": ["455-checker-gvn",
+                  "530-checker-lse",
+                  "530-checker-peel-unroll",
+                  "552-checker-sharpening",
+                  "577-checker-fp2int",
+                  "580-checker-string-fact-intrinsics",
+                  "603-checker-instanceof",
+                  "623-checker-loop-regressions",
+                  "639-checker-code-sinking",
+                  "640-checker-integer-valueof"],
+        "variant": "optimizing & no-image",
+        "description": ["Expected failures when compiling without a boot image"]
     }
 ]
