@@ -180,7 +180,10 @@ art_cc_test {
     // Added to CTS for API coverage of libnativeloader which is backed by the
     // ART module.
     test_config_template: ":art-gtests-target-standalone-cts-template",
-    test_suites: ["cts"],
+    test_suites: [
+        "cts",
+        "mts-art",
+    ],
 }
 
 art_cc_test {
