@@ -742,13 +742,11 @@ struct InstrumentationStackFrame {
   InstrumentationStackFrame(mirror::Object* this_object,
                             ArtMethod* method,
                             uintptr_t return_pc,
-                            size_t frame_id,
                             bool interpreter_entry,
                             uint64_t force_deopt_id)
       : this_object_(this_object),
         method_(method),
         return_pc_(return_pc),
-        frame_id_(frame_id),
         interpreter_entry_(interpreter_entry),
         force_deopt_id_(force_deopt_id) {
   }
@@ -758,7 +756,6 @@ struct InstrumentationStackFrame {
   mirror::Object* this_object_;
   ArtMethod* method_;
   uintptr_t return_pc_;
-  size_t frame_id_;
   bool interpreter_entry_;
   uint64_t force_deopt_id_;
 };

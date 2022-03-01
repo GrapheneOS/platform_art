@@ -493,17 +493,10 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
         return true;  // Ignore upcalls.
       }
       if (GetCurrentQuickFrame() == nullptr) {
-        bool interpreter_frame = true;
-        InstrumentationStackFrame instrumentation_frame(GetThisObject().Ptr(),
-                                                        m,
-                                                        /*return_pc=*/ 0,
-                                                        GetFrameId(),
-                                                        interpreter_frame,
-                                                        force_deopt_id_);
         if (kVerboseInstrumentation) {
-          LOG(INFO) << "Pushing shadow frame " << instrumentation_frame.Dump();
+          LOG(INFO) << "Pushing shadow frame method " << m->PrettyMethod();
         }
-        shadow_stack_.push_back(instrumentation_frame);
+        stack_methods_.push_back(m);
         return true;  // Continue.
       }
       uintptr_t return_pc = GetReturnPc();
@@ -566,20 +559,20 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
             m->IsRuntimeMethod() ? nullptr : GetThisObject().Ptr(),
             m,
             return_pc,
-            GetFrameId(),    // A runtime method still gets a frame id.
             false,
             force_deopt_id_);
         if (kVerboseInstrumentation) {
           LOG(INFO) << "Pushing frame " << instrumentation_frame.Dump();
         }
 
+        stack_methods_.push_back(m);
         instrumentation_stack_->insert({GetReturnPcAddr(), instrumentation_frame});
         SetReturnPc(instrumentation_exit_pc_);
       }
       return true;  // Continue.
     }
     std::map<uintptr_t, InstrumentationStackFrame>* const instrumentation_stack_;
-    std::vector<InstrumentationStackFrame> shadow_stack_;
+    std::vector<ArtMethod*> stack_methods_;
     const uintptr_t instrumentation_exit_pc_;
     bool reached_existing_instrumentation_frames_;
     uint64_t force_deopt_id_;
@@ -603,19 +596,9 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
 
   if (instrumentation->ShouldNotifyMethodEnterExitEvents()) {
     // Create method enter events for all methods currently on the thread's stack. We only do this
-    // if no debugger is attached to prevent from posting events twice.
-    // TODO: This is the only place we make use of frame_id_. We should create a
-    // std::vector instead and populate it as we walk the stack.
-    auto ssi = visitor.shadow_stack_.rbegin();
-    for (auto isi = thread->GetInstrumentationStack()->rbegin(),
-        end = thread->GetInstrumentationStack()->rend(); isi != end; ++isi) {
-      while (ssi != visitor.shadow_stack_.rend() && (*ssi).frame_id_ < isi->second.frame_id_) {
-        instrumentation->MethodEnterEvent(thread, (*ssi).method_);
-        ++ssi;
-      }
-      if (!isi->second.interpreter_entry_ && !isi->second.method_->IsRuntimeMethod()) {
-        instrumentation->MethodEnterEvent(thread, isi->second.method_);
-      }
+    // if we haven't already processed the method enter events.
+    for (auto smi = visitor.stack_methods_.rbegin(); smi != visitor.stack_methods_.rend(); smi++) {
+      instrumentation->MethodEnterEvent(thread,  *smi);
     }
   }
   thread->VerifyStack();
@@ -1494,10 +1477,9 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self,
 
   // We have a callee-save frame meaning this value is guaranteed to never be 0.
   DCHECK(!self->IsExceptionPending());
-  size_t frame_id = StackVisitor::ComputeNumFrames(self, kInstrumentationStackWalk);
 
   instrumentation::InstrumentationStackFrame instrumentation_frame(
-      h_this.Get(), method, lr, frame_id, interpreter_entry, current_force_deopt_id_);
+      h_this.Get(), method, lr, interpreter_entry, current_force_deopt_id_);
   stack->insert({stack_ptr, instrumentation_frame});
 }
 
@@ -1733,7 +1715,7 @@ uintptr_t Instrumentation::PopFramesForDeoptimization(Thread* self, uintptr_t po
 
 std::string InstrumentationStackFrame::Dump() const {
   std::ostringstream os;
-  os << "Frame " << frame_id_ << " " << ArtMethod::PrettyMethod(method_) << ":"
+  os << ArtMethod::PrettyMethod(method_) << ":"
       << reinterpret_cast<void*>(return_pc_) << " this=" << reinterpret_cast<void*>(this_object_)
       << " force_deopt_id=" << force_deopt_id_;
   return os.str();
