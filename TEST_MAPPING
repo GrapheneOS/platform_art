@@ -1269,6 +1269,9 @@
     },
     {
       "name": "art_standalone_sigchain_tests[com.google.android.art.apex]"
+    },
+    {
+      "name": "libnativeloader_test[com.google.android.art.apex]"
     }
   ],
   "presubmit": [
@@ -2555,6 +2558,9 @@
     },
     {
       "name": "art_standalone_sigchain_tests"
+    },
+    {
+      "name": "libnativeloader_test"
     }
   ]
 }
