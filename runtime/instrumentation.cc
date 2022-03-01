@@ -565,7 +565,10 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
           LOG(INFO) << "Pushing frame " << instrumentation_frame.Dump();
         }
 
-        stack_methods_.push_back(m);
+        if (!m->IsRuntimeMethod()) {
+          // Runtime methods don't need to run method entry callbacks.
+          stack_methods_.push_back(m);
+        }
         instrumentation_stack_->insert({GetReturnPcAddr(), instrumentation_frame});
         SetReturnPc(instrumentation_exit_pc_);
       }
