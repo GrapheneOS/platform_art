@@ -638,8 +638,9 @@ bool ShouldDenyAccessToMemberImpl(T* member, ApiList api_list, AccessMethod acce
     }
 
     // If this access was not denied, flag member as SDK and skip
-    // the warning the next time the member is accessed.
-    if (!deny_access) {
+    // the warning the next time the member is accessed. Don't update for
+    // non-debuggable apps as this has a memory cost.
+    if (!deny_access && runtime->IsJavaDebuggable()) {
       MaybeUpdateAccessFlags(runtime, member, kAccPublicApi);
     }
   }
