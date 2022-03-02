@@ -949,9 +949,9 @@ class ZygoteTask final : public Task {
         added_to_queue += runtime->GetJit()->CompileMethodsFromProfile(
             self, boot_class_path, profile_file, null_handle, /* add_to_queue= */ true);
       }
-      DCHECK(runtime->GetJit()->InZygoteUsingJit());
-      runtime->GetJit()->AddPostBootTask(self, new JitZygoteDoneCompilingTask());
     }
+    DCHECK(runtime->GetJit()->InZygoteUsingJit());
+    runtime->GetJit()->AddPostBootTask(self, new JitZygoteDoneCompilingTask());
 
     JitCodeCache* code_cache = runtime->GetJit()->GetCodeCache();
     code_cache->GetZygoteMap()->Initialize(added_to_queue);
