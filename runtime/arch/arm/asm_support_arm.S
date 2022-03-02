@@ -73,23 +73,7 @@
     .cfi_def_cfa \reg, \offset
 .endm
 
-// Macro to generate the value of Runtime::Current into rDest. As it uses labels
-// then the labels need to be unique. We bind these to the function name in the ENTRY macros.
-.macro RUNTIME_CURRENT name, num, rDest
-    .if .Lruntime_current\num\()_used
-         .error
-    .endif
-    .set .Lruntime_current\num\()_used, 1
-    ldr \rDest, .Lruntime_instance_\name\()_\num  @ Load GOT_PREL offset of Runtime::instance_.
-.Lload_got_\name\()_\num\():
-    add \rDest, pc                                @ Fixup GOT_PREL address.
-    ldr \rDest, [\rDest]                          @ Load address of Runtime::instance_.
-    ldr \rDest, [\rDest]                          @ Load Runtime::instance_.
-.endm
-
 // Common ENTRY declaration code for ARM and thumb, an ENTRY should always be paired with an END.
-// Declares the RUNTIME_CURRENT[123] macros that can be used within an ENTRY and will have literals
-// generated at END.
 .macro DEF_ENTRY thumb_or_arm, name, alignment
     \thumb_or_arm
 // Clang ignores .thumb_func and requires an explicit .thumb. Investigate whether we should still
@@ -109,21 +93,6 @@
 \name:
     .cfi_startproc
     .fnstart
-    // Track whether RUNTIME_CURRENT was used.
-    .set .Lruntime_current1_used, 0
-    .set .Lruntime_current2_used, 0
-    .set .Lruntime_current3_used, 0
-    // The RUNTIME_CURRENT macros that are bound to the \name argument of DEF_ENTRY to ensure
-    // that label names are unique.
-    .macro RUNTIME_CURRENT1 rDest
-        RUNTIME_CURRENT \name, 1, \rDest
-    .endm
-    .macro RUNTIME_CURRENT2 rDest
-        RUNTIME_CURRENT \name, 2, \rDest
-    .endm
-    .macro RUNTIME_CURRENT3 rDest
-        RUNTIME_CURRENT \name, 3, \rDest
-    .endm
 .endm
 
 // A thumb2 style ENTRY.
@@ -139,25 +108,8 @@
     DEF_ENTRY .arm, \name, 16
 .endm
 
-// Terminate an ENTRY and generate GOT_PREL references.
+// Terminate an ENTRY.
 .macro END name
-     // Generate offsets of GOT and Runtime::instance_ used in RUNTIME_CURRENT.
-     .if .Lruntime_current1_used
-         .Lruntime_instance_\name\()_1:
-             .word   _ZN3art7Runtime9instance_E(GOT_PREL)-(.Lload_got_\name\()_1+4)
-     .endif
-     .if .Lruntime_current2_used
-         .Lruntime_instance_\name\()_2:
-             .word   _ZN3art7Runtime9instance_E(GOT_PREL)-(.Lload_got_\name\()_2+4)
-    .endif
-     .if .Lruntime_current3_used
-         .Lruntime_instance_\name\()_3:
-             .word   _ZN3art7Runtime9instance_E(GOT_PREL)-(.Lload_got_\name\()_3+4)
-    .endif
-    // Remove the RUNTIME_CURRENTx macros so they get rebound in the next function entry.
-    .purgem RUNTIME_CURRENT1
-    .purgem RUNTIME_CURRENT2
-    .purgem RUNTIME_CURRENT3
     .fnend
     .cfi_endproc
     .size \name, .-\name
@@ -193,6 +145,13 @@
 .macro DECREASE_FRAME frame_adjustment
     add sp, sp, #(\frame_adjustment)
     .cfi_adjust_cfa_offset -(\frame_adjustment)
+.endm
+
+.macro LOAD_RUNTIME_INSTANCE rDest
+    movw \rDest, #:lower16:(_ZN3art7Runtime9instance_E - (. + 12))
+    movt \rDest, #:upper16:(_ZN3art7Runtime9instance_E - (. + 8))
+    add \rDest, pc
+    ldr \rDest, [\rDest]
 .endm
 
 // Macro to refresh the Marking Register (R8).
@@ -318,7 +277,7 @@
     .cfi_adjust_cfa_offset 64
     sub sp, #12                                   @ 3 words of space, bottom word will hold Method*
     .cfi_adjust_cfa_offset 12
-    RUNTIME_CURRENT1 \rTemp                       @ Load Runtime::Current into rTemp.
+    LOAD_RUNTIME_INSTANCE \rTemp                  @ Load Runtime::Current into rTemp.
     @ Load kSaveAllCalleeSaves Method* into rTemp.
     ldr \rTemp, [\rTemp, #RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET]
     str \rTemp, [sp, #0]                          @ Place Method* at bottom of stack.
@@ -388,7 +347,7 @@
     .cfi_rel_offset lr, 24
     sub sp, #4                                    @ bottom word will hold Method*
     .cfi_adjust_cfa_offset 4
-    RUNTIME_CURRENT2 \rTemp                       @ Load Runtime::Current into rTemp.
+    LOAD_RUNTIME_INSTANCE \rTemp                  @ Load Runtime::Current into rTemp.
     @ Load kSaveRefsOnly Method* into rTemp.
     ldr \rTemp, [\rTemp, #RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET]
     str \rTemp, [sp, #0]                          @ Place Method* at bottom of stack.
