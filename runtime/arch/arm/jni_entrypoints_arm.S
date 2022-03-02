@@ -205,7 +205,7 @@ ENTRY art_jni_dlsym_lookup_critical_stub
     str    lr, [r4, #(FRAME_SIZE_SAVE_REFS_AND_ARGS - __SIZEOF_POINTER__)]
 
     // Replace the target method with the SaveRefsAndArgs runtime method.
-    RUNTIME_CURRENT1 r1
+    LOAD_RUNTIME_INSTANCE r1
     ldr    r1, [r1, #RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET]
 
     mov    r2, r4                 // Prepare untagged managed SP for the runtime method.
@@ -302,7 +302,7 @@ ENTRY art_jni_dlsym_lookup_critical_stub
     vstmia ip, {s16-s31}
 
     // Store ArtMethod* Runtime::callee_save_methods_[kSaveAllCalleeSaves] to the managed frame.
-    RUNTIME_CURRENT2 ip
+    LOAD_RUNTIME_INSTANCE ip
     ldr   ip, [ip, #RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET]
     str   ip, [r4]
 
