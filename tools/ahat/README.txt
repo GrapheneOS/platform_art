@@ -51,7 +51,14 @@ Things to Test:
 Reported Issues:
  * Request to be able to sort tables by size.
 
+Known Issues:
+ * Line number decoding for allocations in proguarded classes.
+
 Release History:
+ 1.7.2 March 2, 2022
+   Fix ahat parsing to allow leading whitespaces for comments.
+   Hide Value class constructor.
+
  1.7.1 September 30, 2020
    Fix issue parsing proguard maps with comments.
 
