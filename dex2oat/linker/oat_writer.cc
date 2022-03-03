@@ -1153,7 +1153,7 @@ class OatWriter::OrderedMethodVisitor {
 
 // Visit every compiled method in order to determine its order within the OAT file.
 // Methods from the same class do not need to be adjacent in the OAT code.
-class OatWriter::LayoutCodeMethodVisitor : public OatDexMethodVisitor {
+class OatWriter::LayoutCodeMethodVisitor final : public OatDexMethodVisitor {
  public:
   LayoutCodeMethodVisitor(OatWriter* writer, size_t offset)
       : OatDexMethodVisitor(writer, offset),
@@ -1161,7 +1161,7 @@ class OatWriter::LayoutCodeMethodVisitor : public OatDexMethodVisitor {
         profile_index_dex_file_(nullptr) {
   }
 
-  bool StartClass(const DexFile* dex_file, size_t class_def_index) override {
+  bool StartClass(const DexFile* dex_file, size_t class_def_index) final {
     // Update the cached `profile_index_` if needed. This happens only once per dex file
     // because we visit all classes in a dex file together, so mark that as `UNLIKELY`.
     if (UNLIKELY(dex_file != profile_index_dex_file_)) {
@@ -1175,14 +1175,7 @@ class OatWriter::LayoutCodeMethodVisitor : public OatDexMethodVisitor {
     return OatDexMethodVisitor::StartClass(dex_file, class_def_index);
   }
 
-  bool EndClass() override {
-    OatDexMethodVisitor::EndClass();
-    return true;
-  }
-
-  bool VisitMethod(size_t class_def_method_index,
-                   const ClassAccessor::Method& method)
-      override
+  bool VisitMethod(size_t class_def_method_index, const ClassAccessor::Method& method) final
       REQUIRES_SHARED(Locks::mutator_lock_)  {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
 
@@ -1530,40 +1523,51 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
   CodeInfo::Deduper dedupe_bit_table_;
 };
 
-class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
+class OatWriter::InitImageMethodVisitor final : public OatDexMethodVisitor {
  public:
   InitImageMethodVisitor(OatWriter* writer,
                          size_t offset,
                          const std::vector<const DexFile*>* dex_files)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : OatDexMethodVisitor(writer, offset),
         pointer_size_(GetInstructionSetPointerSize(writer_->compiler_options_.GetInstructionSet())),
-        class_loader_(writer->HasImage() ? writer->image_writer_->GetAppClassLoader() : nullptr),
+        class_loader_(writer->image_writer_->GetAppClassLoader()),
         dex_files_(dex_files),
         class_linker_(Runtime::Current()->GetClassLinker()),
-        is_image_class_(false) {}
+        dex_cache_dex_file_(nullptr),
+        dex_cache_(nullptr),
+        klass_(nullptr) {}
 
   // Handle copied methods here. Copy pointer to quick code from
   // an origin method to a copied method only if they are
   // in the same oat file. If the origin and the copied methods are
   // in different oat files don't touch the copied method.
   // References to other oat files are not supported yet.
-  bool StartClass(const DexFile* dex_file, size_t class_def_index) override
+  bool StartClass(const DexFile* dex_file, size_t class_def_index) final
       REQUIRES_SHARED(Locks::mutator_lock_) {
     OatDexMethodVisitor::StartClass(dex_file, class_def_index);
     // Skip classes that are not in the image.
     const dex::TypeId& type_id =
         dex_file_->GetTypeId(dex_file->GetClassDef(class_def_index).class_idx_);
     const char* class_descriptor = dex_file->GetTypeDescriptor(type_id);
-    is_image_class_ = writer_->GetCompilerOptions().IsImageClass(class_descriptor);
-    if (!is_image_class_) {
+    if (!writer_->GetCompilerOptions().IsImageClass(class_descriptor)) {
+      klass_ = nullptr;
       return true;
     }
-    ObjPtr<mirror::DexCache> dex_cache = class_linker_->FindDexCache(Thread::Current(), *dex_file);
+    if (UNLIKELY(dex_file != dex_cache_dex_file_)) {
+      dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
+      DCHECK(dex_cache_ != nullptr);
+      DCHECK(dex_cache_->GetDexFile() == dex_file);
+      dex_cache_dex_file_ = dex_file;
+    }
     const dex::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
-    ObjPtr<mirror::Class> klass =
-        class_linker_->LookupResolvedType(class_def.class_idx_, dex_cache, class_loader_);
-    if (klass != nullptr) {
-      for (ArtMethod& method : klass->GetCopiedMethods(pointer_size_)) {
+    klass_ = class_linker_->LookupResolvedType(class_def.class_idx_, dex_cache_, class_loader_);
+    if (klass_ != nullptr) {
+      if (UNLIKELY(klass_->GetDexCache() != dex_cache_)) {
+        klass_ = nullptr;  // This class definition is hidden by another dex file.
+        return true;
+      }
+      for (ArtMethod& method : klass_->GetCopiedMethods(pointer_size_)) {
         // Find origin method. Declaring class and dex_method_idx
         // in the copied method should be the same as in the origin
         // method.
@@ -1590,46 +1594,29 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
     return true;
   }
 
-  bool VisitMethod(size_t class_def_method_index, const ClassAccessor::Method& method) override
+  bool VisitMethod(size_t class_def_method_index, const ClassAccessor::Method& method) final
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Skip methods that are not in the image.
-    if (!is_image_class_) {
+    if (klass_ == nullptr) {
       return true;
     }
 
     OatClass* oat_class = &writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
-    OatMethodOffsets offsets(0u);
     if (HasCompiledCode(compiled_method)) {
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
-      offsets = oat_class->method_offsets_[method_offsets_index_];
+      OatMethodOffsets offsets = oat_class->method_offsets_[method_offsets_index_];
       ++method_offsets_index_;
-    }
 
-    Thread* self = Thread::Current();
-    ObjPtr<mirror::DexCache> dex_cache = class_linker_->FindDexCache(self, *dex_file_);
-    ArtMethod* resolved_method;
-    if (writer_->GetCompilerOptions().IsBootImage() ||
-        writer_->GetCompilerOptions().IsBootImageExtension()) {
-      resolved_method = class_linker_->LookupResolvedMethod(
-          method.GetIndex(), dex_cache, /*class_loader=*/ nullptr);
-      if (resolved_method == nullptr) {
-        LOG(FATAL) << "Unexpected failure to look up a method: "
-            << dex_file_->PrettyMethod(method.GetIndex(), true);
-        UNREACHABLE();
-      }
-    } else {
-      // Should already have been resolved by the compiler.
-      // It may not be resolved if the class failed to verify, in this case, don't set the
-      // entrypoint. This is not fatal since we shall use a resolution method.
-      resolved_method = class_linker_->LookupResolvedMethod(method.GetIndex(),
-                                                            dex_cache,
-                                                            class_loader_);
-    }
-    if (resolved_method != nullptr &&
-        compiled_method != nullptr &&
-        compiled_method->GetQuickCode().size() != 0) {
+      // Do not try to use the `DexCache` via `ClassLinker::LookupResolvedMethod()`.
+      // As we're going over all methods, `DexCache` entries would be quickly evicted
+      // and we do not want the overhead of `hiddenapi` checks in the slow-path call
+      // to `ClassLinker::FindResolvedMethod()` for a method that we have compiled.
+      ArtMethod* resolved_method = klass_->IsInterface()
+          ? klass_->FindInterfaceMethod(dex_cache_, method.GetIndex(), pointer_size_)
+          : klass_->FindClassMethod(dex_cache_, method.GetIndex(), pointer_size_);
+      DCHECK(resolved_method != nullptr);
       resolved_method->SetEntryPointFromQuickCompiledCodePtrSize(
           reinterpret_cast<void*>(offsets.code_offset_), pointer_size_);
     }
@@ -1661,7 +1648,9 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
   const ObjPtr<mirror::ClassLoader> class_loader_;
   const std::vector<const DexFile*>* dex_files_;
   ClassLinker* const class_linker_;
-  bool is_image_class_;  // Updated in `StartClass()`.
+  const DexFile* dex_cache_dex_file_;  // Updated in `StartClass()`.
+  ObjPtr<mirror::DexCache> dex_cache_;  // Updated in `StartClass()`.
+  ObjPtr<mirror::Class> klass_;  // Updated in `StartClass()`.
   std::vector<std::pair<ArtMethod*, ArtMethod*>> methods_to_process_;
 };
 
