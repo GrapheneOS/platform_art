@@ -187,7 +187,11 @@ cc_test {
     },
 
     test_config_template: ":art-gtests-target-standalone-cts-template",
-    test_suites: ["cts"],
+    test_suites: [
+        "cts",
+        "general-tests",
+        "mts-art",
+    ],
 }
 
 cc_test {
