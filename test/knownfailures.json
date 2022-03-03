@@ -1483,7 +1483,8 @@
         "description": ["bug in the loop optimization"]
     },
     {
-        "tests": ["455-checker-gvn",
+        "tests": ["445-checker-licm",
+                  "455-checker-gvn",
                   "530-checker-lse",
                   "530-checker-peel-unroll",
                   "552-checker-sharpening",
