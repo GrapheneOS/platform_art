@@ -14,20 +14,12 @@
  * limitations under the License.
  */
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-
 public class Main {
   public static void main(String[] args) throws Exception {
-    Class<?> cls = Class.forName("Unbalanced");
-    Object o = cls.newInstance();
     try {
-      cls.getMethod("unbalanced").invoke(o);
+      new Unbalanced().unbalanced();
       throw new Error("Expected IllegalMonitorStateException");
-    } catch (InvocationTargetException e) {
-      if (!(e.getCause() instanceof IllegalMonitorStateException)) {
-        throw new Error("Expected IllegalMonitorStateException");
-      }
+    } catch (IllegalMonitorStateException expected) {
     }
   }
 }
