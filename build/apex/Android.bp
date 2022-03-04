@@ -233,7 +233,7 @@ apex_key {
 art_module_apex_defaults {
     name: "com.android.art-defaults",
 
-    // Enable if SOONG_CONFIG_art_module_source_build is true.
+    // Enable if ART_MODULE_BUILD_FROM_SOURCE is true
     enabled: false,
     soong_config_variables: {
         source_build: {
@@ -519,7 +519,7 @@ art_module_cc_defaults {
     host_supported: true,
     device_supported: false,
 
-    // Enable if SOONG_CONFIG_art_module_source_build is true.
+    // Enable if ART_MODULE_BUILD_FROM_SOURCE is true
     enabled: false,
     soong_config_variables: {
         source_build: {
