@@ -22,12 +22,12 @@ ART_ANDROID_COMMON_PATH_MK := true
 # relate to them, because `m checkbuild` complains on rules with nonexisting
 # dependencies, even if they won't get called.
 # TODO(b/172480617): Remove this when ART sources are no longer in platform manifests.
-ifeq (true,$(SOONG_CONFIG_art_module_source_build))
+ifeq (true,$(ART_MODULE_BUILD_FROM_SOURCE))
   my_art_module_source_build := true
-else ifeq (false,$(SOONG_CONFIG_art_module_source_build))
+else ifeq (false,$(ART_MODULE_BUILD_FROM_SOURCE))
   my_art_module_source_build := false
 else
-  $(error SOONG_CONFIG_art_module_source_build is neither true nor false - mk file ordering problem?)
+  $(error ART_MODULE_BUILD_FROM_SOURCE is neither true nor false - mk file ordering problem?)
 endif
 
 ifeq (true,$(my_art_module_source_build))
