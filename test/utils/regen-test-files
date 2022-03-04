@@ -289,21 +289,6 @@ flaky_tests_excluded_from_mts = [
          "testLookupOrderNodelegate_getResource",
          "testLookupOrder_getResource",
     ]
-] + [
-    ("CtsLibcoreOjTestCases" +
-     " org.openjdk.tests.java.util.stream." + m) for m in [
-         "ExplodeOpTest#testOps",
-         "IntSliceOpTest#testLimitOps",
-         "IntSliceOpTest#testSkipOps",
-         "SequentialOpTest#testMixedSeqPar",
-         "SliceOpTest#testLimitOps",
-         "SliceOpTest#testSkipLimitOps",
-         "SliceOpTest#testSkipOps",
-         "SortedOpTest#testDoubleStreamTooLarge",
-         "SortedOpTest#testSortSort",
-         "ToArrayOpTest#testDistinctAndSortedPermutations",
-         "ToArrayOpTest#testLongDistinctAndSortedPermutations",
-    ]
 ]
 
 # Is `run_test` a Checker test (i.e. a test containing Checker
