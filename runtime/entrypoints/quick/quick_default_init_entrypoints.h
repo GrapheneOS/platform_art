@@ -30,8 +30,8 @@ static void DefaultInitEntryPoints(JniEntryPoints* jpoints,
                                    QuickEntryPoints* qpoints,
                                    bool monitor_jni_entry_exit) {
   // JNI
-  jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
-  jpoints->pDlsymLookupCritical = art_jni_dlsym_lookup_critical_stub;
+  jpoints->pDlsymLookup = reinterpret_cast<void*>(art_jni_dlsym_lookup_stub);
+  jpoints->pDlsymLookupCritical = reinterpret_cast<void*>(art_jni_dlsym_lookup_critical_stub);
 
   // Alloc
   ResetQuickAllocEntryPoints(qpoints);

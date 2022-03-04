@@ -26,7 +26,7 @@
 
 .macro SETUP_SAVE_REFS_AND_ARGS_FRAME rTemp
     SETUP_SAVE_REFS_AND_ARGS_FRAME_REGISTERS_ONLY
-    RUNTIME_CURRENT3 \rTemp                       @ Load Runtime::Current into rTemp.
+    LOAD_RUNTIME_INSTANCE \rTemp                  @ Load Runtime::Current into rTemp.
     @ Load kSaveRefsAndArgs Method* into rTemp.
     ldr \rTemp, [\rTemp, #RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET]
     str \rTemp, [sp, #0]                          @ Place Method* at bottom of stack.
@@ -50,7 +50,7 @@
     .cfi_adjust_cfa_offset 128
     sub sp, #8                          @ 2 words of space, alignment padding and Method*
     .cfi_adjust_cfa_offset 8
-    RUNTIME_CURRENT1 \rTemp             @ Load Runtime::Current into rTemp.
+    LOAD_RUNTIME_INSTANCE \rTemp        @ Load Runtime::Current into rTemp.
     @ Load kSaveEverything Method* into rTemp.
     ldr \rTemp, [\rTemp, #\runtime_method_offset]
     str \rTemp, [sp, #0]                @ Place Method* at bottom of stack.
