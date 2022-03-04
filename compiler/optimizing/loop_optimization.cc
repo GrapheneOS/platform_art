@@ -1331,7 +1331,7 @@ bool HLoopOptimization::VectorizeDef(LoopNode* node,
     }
     if (TrySetVectorType(type, &restrictions) &&
         node->loop_info->IsDefinedOutOfTheLoop(base) &&
-        induction_range_.IsUnitStride(instruction, index, graph_, &offset) &&
+        induction_range_.IsUnitStride(instruction->GetBlock(), index, graph_, &offset) &&
         VectorizeUse(node, value, generate_code, type, restrictions)) {
       if (generate_code) {
         GenerateVecSub(index, offset);
@@ -1412,7 +1412,7 @@ bool HLoopOptimization::VectorizeUse(LoopNode* node,
     HInstruction* offset = nullptr;
     if (HVecOperation::ToSignedType(type) == HVecOperation::ToSignedType(instruction->GetType()) &&
         node->loop_info->IsDefinedOutOfTheLoop(base) &&
-        induction_range_.IsUnitStride(instruction, index, graph_, &offset)) {
+        induction_range_.IsUnitStride(instruction->GetBlock(), index, graph_, &offset)) {
       if (generate_code) {
         GenerateVecSub(index, offset);
         GenerateVecMem(instruction, vector_map_->Get(index), nullptr, offset, type);

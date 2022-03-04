@@ -911,7 +911,7 @@ class BCEVisitor : public HGraphVisitor {
       bool needs_taken_test = false;
       if (DynamicBCESeemsProfitable(loop, bounds_check->GetBlock()) &&
           induction_range_.CanGenerateRange(
-              bounds_check, index, &needs_finite_test, &needs_taken_test) &&
+              bounds_check->GetBlock(), index, &needs_finite_test, &needs_taken_test) &&
           CanHandleInfiniteLoop(loop, index, needs_finite_test) &&
           // Do this test last, since it may generate code.
           CanHandleLength(loop, array_length, needs_taken_test)) {
@@ -1495,7 +1495,8 @@ class BCEVisitor : public HGraphVisitor {
     bool needs_finite_test = false;
     HInstruction* index = context->InputAt(0);
     HInstruction* hint = HuntForDeclaration(context->InputAt(1));
-    if (induction_range_.GetInductionRange(context, index, hint, &v1, &v2, &needs_finite_test)) {
+    if (induction_range_.GetInductionRange(
+            context->GetBlock(), index, hint, &v1, &v2, &needs_finite_test)) {
       if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
           v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
         DCHECK(v1.a_constant == 1 || v1.instruction == nullptr);
@@ -1547,7 +1548,8 @@ class BCEVisitor : public HGraphVisitor {
         if (array_length == other_array_length && base == other_value.GetInstruction()) {
           // Ensure every candidate could be picked for code generation.
           bool b1 = false, b2 = false;
-          if (!induction_range_.CanGenerateRange(other_bounds_check, other_index, &b1, &b2)) {
+          if (!induction_range_.CanGenerateRange(
+                  other_bounds_check->GetBlock(), other_index, &b1, &b2)) {
             continue;
           }
           // Does the current basic block dominate all back edges? If not,
@@ -1592,11 +1594,19 @@ class BCEVisitor : public HGraphVisitor {
           // whether code generation on the original and, thus, related bounds check was possible.
           // It handles either loop invariants (lower is not set) or unit strides.
           if (other_c == max_c) {
-            induction_range_.GenerateRange(
-                other_bounds_check, other_index, GetGraph(), block, &max_lower, &max_upper);
+            induction_range_.GenerateRange(other_bounds_check->GetBlock(),
+                                           other_index,
+                                           GetGraph(),
+                                           block,
+                                           &max_lower,
+                                           &max_upper);
           } else if (other_c == min_c && base != nullptr) {
-            induction_range_.GenerateRange(
-                other_bounds_check, other_index, GetGraph(), block, &min_lower, &min_upper);
+            induction_range_.GenerateRange(other_bounds_check->GetBlock(),
+                                           other_index,
+                                           GetGraph(),
+                                           block,
+                                           &min_lower,
+                                           &min_upper);
           }
           ReplaceInstruction(other_bounds_check, other_index);
         }
