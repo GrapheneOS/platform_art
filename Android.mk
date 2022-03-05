@@ -100,7 +100,7 @@ endif # HOST_OS != darwin
 
 ########################################################################
 # Everything below is only available in ART source builds
-# (SOONG_CONFIG_art_module_source_build=true).
+# (ART_MODULE_BUILD_FROM_SOURCE=true).
 ########################################################################
 
 # TODO(b/172480617): Clean up the platform dependencies on everything above and
@@ -394,10 +394,10 @@ LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
 
 # Reference the libraries and binaries in the appropriate APEX module, because
 # they don't have platform variants. However if
-# SOONG_CONFIG_art_module_source_build isn't true then the APEX modules are
-# disabled, so Soong won't apply the APEX mutators to them, and then they are
-# available with their plain names.
-ifeq (true,$(SOONG_CONFIG_art_module_source_build))
+# ART_MODULE_BUILD_FROM_SOURCE isn't true then the APEX
+# modules are disabled, so Soong won't apply the APEX mutators to them, and
+# then they are available with their plain names.
+ifeq (true,$(ART_MODULE_BUILD_FROM_SOURCE))
   art_module_lib = $(1).com.android.art
   art_module_debug_lib = $(1).com.android.art.debug
 else
