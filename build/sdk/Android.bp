@@ -43,7 +43,7 @@ art_module_sdk {
     name: "art-module-sdk",
     host_supported: true,
 
-    // Enable if SOONG_CONFIG_art_module_source_build is true.
+    // Enable if ART_MODULE_BUILD_FROM_SOURCE is true
     enabled: false,
     soong_config_variables: {
         source_build: {
@@ -157,7 +157,7 @@ art_module_exports {
     name: "art-module-host-exports",
     host_supported: true,
 
-    // Enable if SOONG_CONFIG_art_module_source_build is true.
+    // Enable if ART_MODULE_BUILD_FROM_SOURCE is true
     enabled: false,
     soong_config_variables: {
         source_build: {
@@ -216,7 +216,7 @@ art_module_exports {
 art_module_exports {
     name: "art-module-test-exports",
 
-    // Enable if SOONG_CONFIG_art_module_source_build is true.
+    // Enable if ART_MODULE_BUILD_FROM_SOURCE is true
     enabled: false,
     soong_config_variables: {
         source_build: {
