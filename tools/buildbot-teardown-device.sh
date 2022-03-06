@@ -95,6 +95,7 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
     adb shell rm -rf "$ART_TEST_CHROOT/apex"
 
     # Remove /dev from chroot.
+    remove_filesystem_from_chroot dev/pts devpts false
     remove_filesystem_from_chroot dev tmpfs true
 
     # Remove /sys/kernel/debug from chroot.
