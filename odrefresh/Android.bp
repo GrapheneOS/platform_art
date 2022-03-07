@@ -182,6 +182,7 @@ art_cc_defaults {
     header_libs: ["odrefresh_headers"],
     srcs: [
         "odr_artifacts_test.cc",
+        "odr_common_test.cc",
         "odr_compilation_log_test.cc",
         "odr_fs_utils_test.cc",
         "odr_metrics_test.cc",
