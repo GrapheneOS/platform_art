@@ -30,6 +30,11 @@ std::string Concatenate(std::initializer_list<std::string_view> args);
 // Quotes a path with single quotes (').
 std::string QuotePath(std::string_view path);
 
+// Returns true if there is no need to load existing artifacts that are already up-to-date and write
+// them back. See `OnDeviceRefresh::RefreshExistingArtifacts` for more details. Takes a string from
+// `ro.build.version.sdk`, which represents the SDK version.
+bool ShouldDisableRefresh(const std::string& sdk_version_str);
+
 }  // namespace odrefresh
 }  // namespace art
 
