@@ -1002,6 +1002,85 @@ bool OatFileBase::Setup(int zip_fd,
       oat_dex_files_.Put(canonical_key, oat_dex_file);
     }
   }
+
+  size_t bcp_info_offset = GetOatHeader().GetBcpBssInfoOffset();
+  // `bcp_info_offset` will be 0 for multi-image, or for the case of no mappings.
+  if (bcp_info_offset != 0) {
+    // Consistency check.
+    if (bcp_info_offset < GetOatHeader().GetHeaderSize() || bcp_info_offset > Size()) {
+      *error_msg = StringPrintf(
+          "In oat file '%s' found invalid bcp info offset: "
+          "%zu is not in [%zu, %zu]",
+          GetLocation().c_str(),
+          bcp_info_offset,
+          GetOatHeader().GetHeaderSize(),
+          Size());
+      return false;
+    }
+    const uint8_t* bcp_info_begin = Begin() + bcp_info_offset;  // Jump to the BCP_info records.
+
+    uint32_t number_of_bcp_dexfiles;
+    if (UNLIKELY(!ReadOatDexFileData(*this, &bcp_info_begin, &number_of_bcp_dexfiles))) {
+      *error_msg = StringPrintf("Failed to read the number of BCP dex files");
+      return false;
+    }
+    Runtime* const runtime = Runtime::Current();
+    ClassLinker* const linker = runtime != nullptr ? runtime->GetClassLinker() : nullptr;
+    if (linker != nullptr && UNLIKELY(number_of_bcp_dexfiles > linker->GetBootClassPath().size())) {
+      // If we compiled with more DexFiles than what we have at runtime, we expect to discard this
+      // OatFile after verifying its checksum in OatFileAssistant. Therefore, we set
+      // `number_of_bcp_dexfiles` to 0 to avoid reading data that will ultimately be discarded.
+      number_of_bcp_dexfiles = 0;
+    }
+
+    DCHECK(bcp_bss_info_.empty());
+    bcp_bss_info_.resize(number_of_bcp_dexfiles);
+    // At runtime, there might be more DexFiles added to the BCP that we didn't compile with.
+    // We only care about the ones in [0..number_of_bcp_dexfiles).
+    for (size_t i = 0, size = number_of_bcp_dexfiles; i != size; ++i) {
+      const std::string& dex_file_location = linker != nullptr ?
+                                                 linker->GetBootClassPath()[i]->GetLocation() :
+                                                 "No runtime/linker therefore no DexFile location";
+      if (!ReadIndexBssMapping(this,
+                               &bcp_info_begin,
+                               i,
+                               dex_file_location,
+                               "method",
+                               &bcp_bss_info_[i].method_bss_mapping,
+                               error_msg) ||
+          !ReadIndexBssMapping(this,
+                               &bcp_info_begin,
+                               i,
+                               dex_file_location,
+                               "type",
+                               &bcp_bss_info_[i].type_bss_mapping,
+                               error_msg) ||
+          !ReadIndexBssMapping(this,
+                               &bcp_info_begin,
+                               i,
+                               dex_file_location,
+                               "type",
+                               &bcp_bss_info_[i].public_type_bss_mapping,
+                               error_msg) ||
+          !ReadIndexBssMapping(this,
+                               &bcp_info_begin,
+                               i,
+                               dex_file_location,
+                               "type",
+                               &bcp_bss_info_[i].package_type_bss_mapping,
+                               error_msg) ||
+          !ReadIndexBssMapping(this,
+                               &bcp_info_begin,
+                               i,
+                               dex_file_location,
+                               "string",
+                               &bcp_bss_info_[i].string_bss_mapping,
+                               error_msg)) {
+        return false;
+      }
+    }
+  }
+
   if (!dex_filenames.empty() && dex_filenames_pos != dex_filenames.size()) {
     *error_msg = StringPrintf("Oat file '%s' contains only %zu primary dex locations, expected %zu",
                               GetLocation().c_str(),
