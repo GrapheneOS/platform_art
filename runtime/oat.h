@@ -32,8 +32,8 @@ class InstructionSetFeatures;
 class PACKED(4) OatHeader {
  public:
   static constexpr std::array<uint8_t, 4> kOatMagic { { 'o', 'a', 't', '\n' } };
-  // Last oat version changed reason: Revert "bss support for inlining BCP into non-BCP".
-  static constexpr std::array<uint8_t, 4> kOatVersion { { '2', '2', '3', '\0' } };
+  // Last oat version changed reason: Revert^2 "bss support for inlining BCP into non-BCP".
+  static constexpr std::array<uint8_t, 4> kOatVersion { { '2', '2', '4', '\0' } };
 
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDebuggableKey = "debuggable";
@@ -68,6 +68,8 @@ class PACKED(4) OatHeader {
   }
   uint32_t GetOatDexFilesOffset() const;
   void SetOatDexFilesOffset(uint32_t oat_dex_files_offset);
+  uint32_t GetBcpBssInfoOffset() const;
+  void SetBcpBssInfoOffset(uint32_t bcp_info_offset);
   uint32_t GetExecutableOffset() const;
   void SetExecutableOffset(uint32_t executable_offset);
 
@@ -130,6 +132,7 @@ class PACKED(4) OatHeader {
   uint32_t instruction_set_features_bitmap_;
   uint32_t dex_file_count_;
   uint32_t oat_dex_files_offset_;
+  uint32_t bcp_bss_info_offset_;
   uint32_t executable_offset_;
   uint32_t jni_dlsym_lookup_trampoline_offset_;
   uint32_t jni_dlsym_lookup_critical_trampoline_offset_;
