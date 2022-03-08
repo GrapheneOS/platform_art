@@ -1551,14 +1551,19 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
       *return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction,
                                                           inline_method.d.return_data.arg);
       break;
-    case kInlineOpNonWideConst:
-      if (method->GetShorty()[0] == 'L') {
+    case kInlineOpNonWideConst: {
+      char shorty0 = method->GetShorty()[0];
+      if (shorty0 == 'L') {
         DCHECK_EQ(inline_method.d.data, 0u);
         *return_replacement = graph_->GetNullConstant();
+      } else if (shorty0 == 'F') {
+        *return_replacement = graph_->GetFloatConstant(
+            bit_cast<float, int32_t>(static_cast<int32_t>(inline_method.d.data)));
       } else {
         *return_replacement = graph_->GetIntConstant(static_cast<int32_t>(inline_method.d.data));
       }
       break;
+    }
     case kInlineOpIGet: {
       const InlineIGetIPutData& data = inline_method.d.ifield_data;
       if (data.method_is_static || data.object_arg != 0u) {
