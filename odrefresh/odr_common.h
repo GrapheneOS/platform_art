@@ -21,6 +21,8 @@
 #include <string>
 #include <string_view>
 
+#include "android-base/result.h"
+
 namespace art {
 namespace odrefresh {
 
@@ -29,6 +31,13 @@ std::string Concatenate(std::initializer_list<std::string_view> args);
 
 // Quotes a path with single quotes (').
 std::string QuotePath(std::string_view path);
+
+// Converts the security patch date to a comparable integer.
+android::base::Result<int> ParseSecurityPatchStr(const std::string& security_patch_str);
+
+// Returns true if partial compilation should be disabled. Takes a string from
+// `ro.build.version.security_patch`, which represents the security patch date.
+bool ShouldDisablePartialCompilation(const std::string& security_patch_str);
 
 // Returns true if there is no need to load existing artifacts that are already up-to-date and write
 // them back. See `OnDeviceRefresh::RefreshExistingArtifacts` for more details. Takes a string from
