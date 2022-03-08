@@ -38,6 +38,7 @@
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -48,7 +49,9 @@
 #include "android-base/file.h"
 #include "android-base/logging.h"
 #include "android-base/macros.h"
+#include "android-base/parseint.h"
 #include "android-base/properties.h"
+#include "android-base/result.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android/log.h"
@@ -65,14 +68,13 @@
 #include "dexoptanalyzer.h"
 #include "exec_utils.h"
 #include "log/log.h"
-#include "palette/palette.h"
-#include "palette/palette_types.h"
-
 #include "odr_artifacts.h"
 #include "odr_compilation_log.h"
 #include "odr_config.h"
 #include "odr_fs_utils.h"
 #include "odr_metrics.h"
+#include "palette/palette.h"
+#include "palette/palette_types.h"
 
 namespace art {
 namespace odrefresh {
@@ -84,6 +86,8 @@ namespace {
 
 // Name of cache info file in the ART Apex artifact cache.
 static constexpr const char* kCacheInfoFile = "cache-info.xml";
+
+using ::android::base::Result;
 
 static void UsageErrorV(const char* fmt, va_list ap) {
   std::string error;
@@ -209,6 +213,30 @@ static bool MoveOrEraseFiles(const std::vector<std::unique_ptr<File>>& files,
     }
   }
   return true;
+}
+
+Result<int> ParseSecurityPatchStr(const std::string& security_patch_str) {
+  std::regex security_patch_regex(R"re((\d{4})-(\d{2})-(\d{2}))re");
+  std::smatch m;
+  if (!std::regex_match(security_patch_str, m, security_patch_regex)) {
+    return Errorf("Invalid security patch string \"{}\"", security_patch_str);
+  }
+  int year = 0, month = 0, day = 0;
+  if (!android::base::ParseInt(m[1], &year) || !android::base::ParseInt(m[2], &month) ||
+      !android::base::ParseInt(m[3], &day)) {
+    // This should never happen because the string already matches the regex.
+    return Errorf("Unknown error when parsing security patch string \"{}\"", security_patch_str);
+  }
+  return year * 10000 + month * 100 + day;
+}
+
+bool ShouldDisablePartialCompilation(const std::string& security_patch_str) {
+  Result<int> security_patch_value = ParseSecurityPatchStr(security_patch_str);
+  if (!security_patch_value.ok()) {
+    LOG(ERROR) << security_patch_value.error();
+    return false;
+  }
+  return security_patch_value.value() < ParseSecurityPatchStr("2022-03-05").value();
 }
 
 }  // namespace
@@ -1272,7 +1300,7 @@ class OnDeviceRefresh final {
     const char* staging_dir = nullptr;
     metrics.SetStage(OdrMetrics::Stage::kPreparation);
     // Clean-up existing files.
-    if (force_compile && !CleanApexdataDirectory()) {
+    if ((force_compile || !config_.GetPartialCompilation()) && !CleanApexdataDirectory()) {
       metrics.SetStatus(OdrMetrics::Status::kIoError);
       return ExitCode::kCleanupFailed;
     }
@@ -1433,6 +1461,11 @@ class OnDeviceRefresh final {
     const std::string updatable_packages =
         android::base::GetProperty("dalvik.vm.dex2oat-updatable-bcp-packages-file", {});
     config->SetUpdatableBcpPackagesFile(updatable_packages);
+
+    if (ShouldDisablePartialCompilation(
+            android::base::GetProperty("ro.build.version.security_patch", /*default_value=*/""))) {
+      config->SetPartialCompilation(false);
+    }
 
     int n = 1;
     for (; n < argc - 1; ++n) {
