@@ -21,7 +21,7 @@
 # $4: Test's actual standard error
 
 # Strip any JNI registration error messages
-sed -e '/java_vm_ext/d' -e '/jni_internal.cc/d' "$4" > "$4.tmp"
+sed -e '/jni_entrypoints/d' -e '/jni_internal.cc/d' "$4" > "$4.tmp"
 
 diff --strip-trailing-cr -q "$1" "$2" >/dev/null \
   && diff --strip-trailing-cr -q "$3" "$4.tmp" >/dev/null
