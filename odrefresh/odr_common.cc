@@ -21,6 +21,9 @@
 #include <string>
 #include <string_view>
 
+#include "android-base/logging.h"
+#include "android-base/parseint.h"
+
 namespace art {
 namespace odrefresh {
 
@@ -34,6 +37,15 @@ std::string Concatenate(std::initializer_list<std::string_view> args) {
 
 std::string QuotePath(std::string_view path) {
   return Concatenate({"'", path, "'"});
+}
+
+bool ShouldDisableRefresh(const std::string& sdk_version_str) {
+  int sdk_version = 0;
+  if (!android::base::ParseInt(sdk_version_str, &sdk_version)) {
+    LOG(ERROR) << "Invalid SDK version string \"" << sdk_version_str << "\"";
+    return false;
+  }
+  return sdk_version >= 32;
 }
 
 }  // namespace odrefresh
