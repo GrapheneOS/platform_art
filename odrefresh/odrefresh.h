@@ -114,9 +114,9 @@ class OnDeviceRefresh final {
   android::base::Result<void> CleanupArtifactDirectory(
       const std::vector<std::string>& artifacts_to_keep) const;
 
-  // Loads artifacts to memory and writes them back. This essentially removes the existing artifacts
-  // from fs-verity so that odsign will not encounter "file exists" error when it adds the existing
-  // artifacts to fs-verity.
+  // Loads artifacts to memory and writes them back. This is a workaround for old versions of
+  // odsign, which encounters "file exists" error when it adds existing artifacts to fs-verity. This
+  // function essentially removes existing artifacts from fs-verity to avoid the error.
   android::base::Result<void> RefreshExistingArtifacts() const;
 
   // Checks whether all boot classpath artifacts are present. Returns true if all are present, false

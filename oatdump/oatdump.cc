@@ -528,42 +528,48 @@ class OatDumper {
       }
 
       if (!options_.dump_header_only_) {
-        // Dump .bss entries.
-        DumpBssEntries(
-            os,
-            "ArtMethod",
-            oat_dex_file->GetMethodBssMapping(),
-            dex_file->NumMethodIds(),
-            static_cast<size_t>(GetInstructionSetPointerSize(instruction_set_)),
-            [=](uint32_t index) { return dex_file->PrettyMethod(index); });
-        DumpBssEntries(
-            os,
-            "Class",
-            oat_dex_file->GetTypeBssMapping(),
-            dex_file->NumTypeIds(),
-            sizeof(GcRoot<mirror::Class>),
-            [=](uint32_t index) { return dex_file->PrettyType(dex::TypeIndex(index)); });
-        DumpBssEntries(
-            os,
-            "Public Class",
-            oat_dex_file->GetPublicTypeBssMapping(),
-            dex_file->NumTypeIds(),
-            sizeof(GcRoot<mirror::Class>),
-            [=](uint32_t index) { return dex_file->PrettyType(dex::TypeIndex(index)); });
-        DumpBssEntries(
-            os,
-            "Package Class",
-            oat_dex_file->GetPackageTypeBssMapping(),
-            dex_file->NumTypeIds(),
-            sizeof(GcRoot<mirror::Class>),
-            [=](uint32_t index) { return dex_file->PrettyType(dex::TypeIndex(index)); });
-        DumpBssEntries(
-            os,
-            "String",
-            oat_dex_file->GetStringBssMapping(),
-            dex_file->NumStringIds(),
-            sizeof(GcRoot<mirror::Class>),
-            [=](uint32_t index) { return dex_file->StringDataByIdx(dex::StringIndex(index)); });
+        DumpBssMappings(os,
+                        dex_file,
+                        oat_dex_file->GetMethodBssMapping(),
+                        oat_dex_file->GetTypeBssMapping(),
+                        oat_dex_file->GetPublicTypeBssMapping(),
+                        oat_dex_file->GetPackageTypeBssMapping(),
+                        oat_dex_file->GetStringBssMapping());
+      }
+    }
+
+    if (!options_.dump_header_only_) {
+      Runtime* const runtime = Runtime::Current();
+      ClassLinker* const linker = runtime != nullptr ? runtime->GetClassLinker() : nullptr;
+
+      if (linker != nullptr) {
+        ArrayRef<const DexFile* const> bcp_dex_files(linker->GetBootClassPath());
+        // The guarantee that we have is that we can safely take a look the BCP DexFiles in
+        // [0..number_of_compiled_bcp_dexfiles) since the runtime may add more DexFiles after that.
+        // As a note, in the case of not having mappings or in the case of multi image we
+        // purposively leave `oat_file_.bcp_bss_info` empty.
+        CHECK_LE(oat_file_.bcp_bss_info_.size(), bcp_dex_files.size());
+        for (size_t i = 0; i < oat_file_.bcp_bss_info_.size(); i++) {
+          const DexFile* const dex_file = bcp_dex_files[i];
+          os << "Dumping entries for BCP DexFile: " << dex_file->GetLocation() << "\n";
+          DumpBssMappings(os,
+                          dex_file,
+                          oat_file_.bcp_bss_info_[i].method_bss_mapping,
+                          oat_file_.bcp_bss_info_[i].type_bss_mapping,
+                          oat_file_.bcp_bss_info_[i].public_type_bss_mapping,
+                          oat_file_.bcp_bss_info_[i].package_type_bss_mapping,
+                          oat_file_.bcp_bss_info_[i].string_bss_mapping);
+        }
+      } else {
+        // We don't have a runtime, just dump the offsets
+        for (size_t i = 0; i < oat_file_.bcp_bss_info_.size(); i++) {
+          os << "We don't have a runtime, just dump the offsets for BCP Dexfile " << i << "\n";
+          DumpBssOffsets(os, "ArtMethod", oat_file_.bcp_bss_info_[i].method_bss_mapping);
+          DumpBssOffsets(os, "Class", oat_file_.bcp_bss_info_[i].type_bss_mapping);
+          DumpBssOffsets(os, "Public Class", oat_file_.bcp_bss_info_[i].public_type_bss_mapping);
+          DumpBssOffsets(os, "Package Class", oat_file_.bcp_bss_info_[i].package_type_bss_mapping);
+          DumpBssOffsets(os, "String", oat_file_.bcp_bss_info_[i].string_bss_mapping);
+        }
       }
     }
 
@@ -1678,6 +1684,71 @@ class OatDumper {
       os << "  0x" << bss_offset << ": " << slot_type << ": " << name(index) << "\n";
     }
     os << std::dec;
+  }
+
+  void DumpBssMappings(std::ostream& os,
+                       const DexFile* dex_file,
+                       const IndexBssMapping* method_bss_mapping,
+                       const IndexBssMapping* type_bss_mapping,
+                       const IndexBssMapping* public_type_bss_mapping,
+                       const IndexBssMapping* package_type_bss_mapping,
+                       const IndexBssMapping* string_bss_mapping) {
+    DumpBssEntries(os,
+                   "ArtMethod",
+                   method_bss_mapping,
+                   dex_file->NumMethodIds(),
+                   static_cast<size_t>(GetInstructionSetPointerSize(instruction_set_)),
+                   [=](uint32_t index) { return dex_file->PrettyMethod(index); });
+    DumpBssEntries(os,
+                   "Class",
+                   type_bss_mapping,
+                   dex_file->NumTypeIds(),
+                   sizeof(GcRoot<mirror::Class>),
+                   [=](uint32_t index) { return dex_file->PrettyType(dex::TypeIndex(index)); });
+    DumpBssEntries(os,
+                   "Public Class",
+                   public_type_bss_mapping,
+                   dex_file->NumTypeIds(),
+                   sizeof(GcRoot<mirror::Class>),
+                   [=](uint32_t index) { return dex_file->PrettyType(dex::TypeIndex(index)); });
+    DumpBssEntries(os,
+                   "Package Class",
+                   package_type_bss_mapping,
+                   dex_file->NumTypeIds(),
+                   sizeof(GcRoot<mirror::Class>),
+                   [=](uint32_t index) { return dex_file->PrettyType(dex::TypeIndex(index)); });
+    DumpBssEntries(
+        os,
+        "String",
+        string_bss_mapping,
+        dex_file->NumStringIds(),
+        sizeof(GcRoot<mirror::Class>),
+        [=](uint32_t index) { return dex_file->StringDataByIdx(dex::StringIndex(index)); });
+  }
+
+  void DumpBssOffsets(std::ostream& os, const char* slot_type, const IndexBssMapping* mapping) {
+    os << ".bss offset for " << slot_type << ": ";
+    if (mapping == nullptr) {
+      os << "empty.\n";
+      return;
+    }
+
+    os << "Mapping size: " << mapping->size() << "\n";
+    for (size_t i = 0; i < mapping->size(); ++i) {
+      os << "Entry[" << i << "]: index_and_mask: "
+         << mapping->At(i).index_and_mask
+         << ", bss_offset: "
+         << mapping->At(i).bss_offset << "\n";
+    }
+
+    // TODO(solanes, 154012332): We are dumping the raw values but we could make assumptions about
+    // ordering of the entries and deconstruct even the `index_and_mask`. This would allow us to use
+    // DumpBssEntries and dump more information. The size and alignment of the entry (ArtMethod*
+    // depends on instruction set but Class and String references are 32-bit) and the difference
+    // from the previous `bss_offset` (or from the "oatbss" symbol for the first item) tell us how
+    // many .bss entries a single `IndexBssMappingEntry` should describe. So we know how many most
+    // significant set bits represent the mask and the rest is the actual index. And the position of
+    // the mask bits would allow reconstructing the other indexes.
   }
 
   const OatFile& oat_file_;
