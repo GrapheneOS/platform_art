@@ -69,9 +69,7 @@ extern "C" const void* artFindNativeMethodRunnable(Thread* self)
     // Note that the BSS also contains entries used for super calls. Given we
     // only deal with invokestatic in this code path, we don't need to adjust
     // the method index.
-    MaybeUpdateBssMethodEntry(target_method,
-                              MethodReference(method->GetDexFile(), method_idx),
-                              GetCalleeSaveOuterMethod(self, CalleeSaveType::kSaveRefsAndArgs));
+    MaybeUpdateBssMethodEntry(target_method, MethodReference(method->GetDexFile(), method_idx));
 
     // These calls do not have an explicit class initialization check, so do the check now.
     // (When going through the stub or GenericJNI, the check was already done.)

@@ -379,21 +379,6 @@ class OatFile {
   // Returns whether an image (e.g. app image) is required to safely execute this OAT file.
   bool RequiresImage() const;
 
-  struct BssMappingInfo {
-    const IndexBssMapping* method_bss_mapping = nullptr;
-    const IndexBssMapping* type_bss_mapping = nullptr;
-    const IndexBssMapping* public_type_bss_mapping = nullptr;
-    const IndexBssMapping* package_type_bss_mapping = nullptr;
-    const IndexBssMapping* string_bss_mapping = nullptr;
-  };
-
-  ArrayRef<const BssMappingInfo> GetBcpBssInfo() const {
-    return ArrayRef<const BssMappingInfo>(bcp_bss_info_);
-  }
-
-  // Returns the mapping info of `dex_file` if found in the BcpBssInfo, or nullptr otherwise.
-  const BssMappingInfo* FindBcpMappingInfo(const DexFile* dex_file) const;
-
  protected:
   OatFile(const std::string& filename, bool executable);
 
@@ -441,9 +426,6 @@ class OatFile {
 
   // Owning storage for the OatDexFile objects.
   std::vector<const OatDexFile*> oat_dex_files_storage_;
-
-  // Mapping info for DexFiles in the BCP.
-  std::vector<BssMappingInfo> bcp_bss_info_;
 
   // NOTE: We use a std::string_view as the key type to avoid a memory allocation on every
   // lookup with a const char* key. The std::string_view doesn't own its backing storage,
