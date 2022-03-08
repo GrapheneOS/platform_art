@@ -216,10 +216,6 @@ void Locks::Init() {
     DCHECK(thread_list_lock_ == nullptr);
     thread_list_lock_ = new Mutex("thread list lock", current_lock_level);
 
-    UPDATE_CURRENT_LOCK_LEVEL(kJniLoadLibraryLock);
-    DCHECK(jni_libraries_lock_ == nullptr);
-    jni_libraries_lock_ = new Mutex("JNI shared libraries map lock", current_lock_level);
-
     UPDATE_CURRENT_LOCK_LEVEL(kBreakpointLock);
     DCHECK(breakpoint_lock_ == nullptr);
     breakpoint_lock_ = new ReaderWriterMutex("breakpoint lock", current_lock_level);
@@ -254,6 +250,10 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kDexCacheLock);
     DCHECK(dex_cache_lock_ == nullptr);
     dex_cache_lock_ = new Mutex("DexCache lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kJniLoadLibraryLock);
+    DCHECK(jni_libraries_lock_ == nullptr);
+    jni_libraries_lock_ = new Mutex("JNI shared libraries map lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kOatFileManagerLock);
     DCHECK(oat_file_manager_lock_ == nullptr);
