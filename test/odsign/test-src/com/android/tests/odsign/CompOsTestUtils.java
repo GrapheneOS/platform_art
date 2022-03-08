@@ -24,6 +24,7 @@ import static org.junit.Assume.assumeTrue;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.util.CommandResult;
 
 import java.util.concurrent.TimeUnit;
@@ -120,7 +121,9 @@ public class CompOsTestUtils {
 
     public void assumeCompOsPresent() throws Exception {
         // We have to have kernel support for a VM.
-        assumeTrue(mDevice.doesFileExist("/dev/kvm"));
+        assumeTrue("Need an actual TestDevice", mDevice instanceof TestDevice);
+        TestDevice testDevice = (TestDevice) mDevice;
+        assumeTrue("Requires VM support", testDevice.deviceSupportsMicrodroid());
 
         // And the CompOS APEX must be present.
         assumeTrue(mDevice.doesFileExist("/apex/com.android.compos/"));
