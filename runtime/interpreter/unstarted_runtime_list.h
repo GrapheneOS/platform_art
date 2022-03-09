@@ -27,6 +27,7 @@
   V(ClassClassForName, "Ljava/lang/Class;", "classForName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;") \
   V(ClassNewInstance, "Ljava/lang/Class;", "newInstance", "()Ljava/lang/Object;") \
   V(ClassGetDeclaredField, "Ljava/lang/Class;", "getDeclaredField", "(Ljava/lang/String;)Ljava/lang/reflect/Field;") \
+  V(ClassGetPublicDeclaredFields, "Ljava/lang/Class;", "getPublicDeclaredFields", "()[Ljava/lang/reflect/Field;") \
   V(ClassGetDeclaredFields, "Ljava/lang/Class;", "getDeclaredFields", "()[Ljava/lang/reflect/Field;") \
   V(ClassGetDeclaredMethod, "Ljava/lang/Class;", "getDeclaredMethodInternal", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;") \
   V(ClassGetDeclaredConstructor, "Ljava/lang/Class;", "getDeclaredConstructorInternal", "([Ljava/lang/Class;)Ljava/lang/reflect/Constructor;") \
@@ -51,6 +52,7 @@
   V(MathSin, "Ljava/lang/Math;", "sin", "(D)D") \
   V(MathCos, "Ljava/lang/Math;", "cos", "(D)D") \
   V(MathPow, "Ljava/lang/Math;", "pow", "(DD)D") \
+  V(MathTan, "Ljava/lang/Math;", "tan", "(D)D") \
   V(ObjectHashCode, "Ljava/lang/Object;", "hashCode", "()I") \
   V(DoubleDoubleToRawLongBits, "Ljava/lang/Double;", "doubleToRawLongBits", "(D)J") \
   V(MemoryPeekByte, "Llibcore/io/Memory;", "peekByte", "(J)B") \
@@ -76,6 +78,8 @@
   V(UnsafeGetObjectVolatile, "Lsun/misc/Unsafe;", "getObjectVolatile", "(Ljava/lang/Object;J)Ljava/lang/Object;") \
   V(UnsafePutObjectVolatile, "Lsun/misc/Unsafe;", "putObjectVolatile", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
   V(UnsafePutOrderedObject, "Lsun/misc/Unsafe;", "putOrderedObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
+  V(JdkUnsafeCompareAndSetLong, "Ljdk/internal/misc/Unsafe;", "compareAndSetLong", "(Ljava/lang/Object;JJJ)Z") \
+  V(JdkUnsafeCompareAndSetObject, "Ljdk/internal/misc/Unsafe;", "compareAndSetObject", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z") \
   V(JdkUnsafeCompareAndSwapLong, "Ljdk/internal/misc/Unsafe;", "compareAndSwapLong", "(Ljava/lang/Object;JJJ)Z") \
   V(JdkUnsafeCompareAndSwapObject, "Ljdk/internal/misc/Unsafe;", "compareAndSwapObject", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z") \
   V(JdkUnsafeGetObjectVolatile, "Ljdk/internal/misc/Unsafe;", "getObjectVolatile", "(Ljava/lang/Object;J)Ljava/lang/Object;") \
@@ -111,6 +115,7 @@
   V(UnsafeGetArrayBaseOffsetForComponentType, "Lsun/misc/Unsafe;", "getArrayBaseOffsetForComponentType", "(Ljava/lang/Class;)I") \
   V(UnsafeGetArrayIndexScaleForComponentType, "Lsun/misc/Unsafe;", "getArrayIndexScaleForComponentType", "(Ljava/lang/Class;)I") \
   V(JdkUnsafeAddressSize, "Ljdk/internal/misc/Unsafe;", "addressSize", "()I") \
+  V(JdkUnsafeCompareAndSetInt, "Ljdk/internal/misc/Unsafe;", "compareAndSetInt", "(Ljava/lang/Object;JII)Z") \
   V(JdkUnsafeCompareAndSwapInt, "Ljdk/internal/misc/Unsafe;", "compareAndSwapInt", "(Ljava/lang/Object;JII)Z") \
   V(JdkUnsafeGetIntVolatile, "Ljdk/internal/misc/Unsafe;", "getIntVolatile", "(Ljava/lang/Object;J)I") \
   V(JdkUnsafePutObject, "Ljdk/internal/misc/Unsafe;", "putObject", "(Ljava/lang/Object;JLjava/lang/Object;)V") \
