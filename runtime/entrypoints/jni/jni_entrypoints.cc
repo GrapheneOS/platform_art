@@ -108,11 +108,9 @@ extern "C" const void* artFindNativeMethodRunnable(Thread* self)
   // Lookup symbol address for method, on failure we'll return null with an exception set,
   // otherwise we return the address of the method we found.
   JavaVMExt* vm = down_cast<JNIEnvExt*>(self->GetJniEnv())->GetVm();
-  std::string error_msg;
-  native_code = vm->FindCodeForNativeMethod(method, &error_msg, /*can_suspend=*/ true);
+  native_code = vm->FindCodeForNativeMethod(method);
   if (native_code == nullptr) {
-    LOG(ERROR) << error_msg;
-    self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", error_msg.c_str());
+    self->AssertPendingException();
     return nullptr;
   }
 
