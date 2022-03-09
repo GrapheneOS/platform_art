@@ -382,6 +382,17 @@ void UnstartedRuntime::UnstartedClassGetDeclaredFields(
   }
 }
 
+void UnstartedRuntime::UnstartedClassGetPublicDeclaredFields(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  ObjPtr<mirror::Class> klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
+  auto object_array = klass->GetDeclaredFields(self,
+                                               /*public_only=*/ true,
+                                               /*force_resolve=*/ true);
+  if (object_array != nullptr) {
+    result->SetL(object_array);
+  }
+}
+
 // This is required for Enum(Set) code, as that uses reflection to inspect enum classes.
 void UnstartedRuntime::UnstartedClassGetDeclaredMethod(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
@@ -1170,6 +1181,11 @@ void UnstartedRuntime::UnstartedMathPow(
                    shadow_frame->GetVRegDouble(arg_offset + 2)));
 }
 
+void UnstartedRuntime::UnstartedMathTan(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  result->SetD(tan(shadow_frame->GetVRegDouble(arg_offset)));
+}
+
 void UnstartedRuntime::UnstartedObjectHashCode(
     Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);
@@ -1523,6 +1539,11 @@ void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapLong(
   result->SetZ(success ? 1 : 0);
 }
 
+void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSetLong(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  UnstartedJdkUnsafeCompareAndSwapLong(self, shadow_frame, result, arg_offset);
+}
+
 void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapObject(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   // Argument 0 is the Unsafe instance, skip.
@@ -1571,6 +1592,11 @@ void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapObject(
                                          std::memory_order_seq_cst);
   }
   result->SetZ(success ? 1 : 0);
+}
+
+void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSetObject(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  UnstartedJdkUnsafeCompareAndSwapObject(self, shadow_frame, result, arg_offset);
 }
 
 void UnstartedRuntime::UnstartedJdkUnsafeGetObjectVolatile(
@@ -2000,7 +2026,7 @@ void UnstartedRuntime::UnstartedJNIJdkUnsafeCompareAndSwapInt(
     JValue* result) {
   ObjPtr<mirror::Object> obj = reinterpret_cast32<mirror::Object*>(args[0]);
   if (obj == nullptr) {
-    AbortTransactionOrFail(self, "Unsafe.compareAndSwapInt with null object.");
+    AbortTransactionOrFail(self, "Cannot access null object, retry at runtime.");
     return;
   }
   jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
@@ -2025,6 +2051,15 @@ void UnstartedRuntime::UnstartedJNIJdkUnsafeCompareAndSwapInt(
                                      std::memory_order_seq_cst);
   }
   result->SetZ(success ? JNI_TRUE : JNI_FALSE);
+}
+
+void UnstartedRuntime::UnstartedJNIJdkUnsafeCompareAndSetInt(
+    Thread* self,
+    ArtMethod* method,
+    mirror::Object* receiver,
+    uint32_t* args,
+    JValue* result) {
+  UnstartedJNIJdkUnsafeCompareAndSwapInt(self, method, receiver, args, result);
 }
 
 void UnstartedRuntime::UnstartedJNIJdkUnsafeGetIntVolatile(Thread* self,
