@@ -787,7 +787,7 @@ class ClassLinker {
   // Registers the native method and returns the new entry point. NB The returned entry point
   // might be different from the native_method argument if some MethodCallback modifies it.
   const void* RegisterNative(Thread* self, ArtMethod* method, const void* native_method)
-      REQUIRES_SHARED(Locks::mutator_lock_) WARN_UNUSED;
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Unregister native code for a method.
   void UnregisterNative(Thread* self, ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
