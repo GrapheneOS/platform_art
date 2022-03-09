@@ -35,6 +35,10 @@ public final class Second {
     return 7;
   }
 
+  public float return42f() {
+    return 42.0f;
+  }
+
   public static String staticReturnNull() {
     return null;
   }

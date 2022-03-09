@@ -1551,14 +1551,19 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
       *return_replacement = GetInvokeInputForArgVRegIndex(invoke_instruction,
                                                           inline_method.d.return_data.arg);
       break;
-    case kInlineOpNonWideConst:
-      if (method->GetShorty()[0] == 'L') {
+    case kInlineOpNonWideConst: {
+      char shorty0 = method->GetShorty()[0];
+      if (shorty0 == 'L') {
         DCHECK_EQ(inline_method.d.data, 0u);
         *return_replacement = graph_->GetNullConstant();
+      } else if (shorty0 == 'F') {
+        *return_replacement = graph_->GetFloatConstant(
+            bit_cast<float, int32_t>(static_cast<int32_t>(inline_method.d.data)));
       } else {
         *return_replacement = graph_->GetIntConstant(static_cast<int32_t>(inline_method.d.data));
       }
       break;
+    }
     case kInlineOpIGet: {
       const InlineIGetIPutData& data = inline_method.d.ifield_data;
       if (data.method_is_static || data.object_arg != 0u) {
@@ -1740,12 +1745,11 @@ static bool CanEncodeInlinedMethodInStackMap(const DexFile& outer_dex_file,
   // Inline across dexfiles if the callee's DexFile is:
   // 1) in the bootclasspath, or
   if (callee->GetDeclaringClass()->GetClassLoader() == nullptr) {
-    // In multi-image, each BCP DexFile has their own OatWriter. Since they don't cooperate with
-    // each other, we request the BSS check for them.
-    // TODO(solanes): Add .bss support for BCP multi-image.
-    const bool is_multi_image = codegen->GetCompilerOptions().IsBootImage() ||
-                                codegen->GetCompilerOptions().IsBootImageExtension();
-    *out_needs_bss_check = is_multi_image;
+    // There are cases in which the BCP DexFiles are within the OatFile as far as the compiler
+    // options are concerned, but they have their own OatWriter (and therefore not in the same
+    // OatFile). Then, we request the BSS check for all BCP DexFiles.
+    // TODO(solanes): Add .bss support for BCP.
+    *out_needs_bss_check = true;
     return true;
   }
 
