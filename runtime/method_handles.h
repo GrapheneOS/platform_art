@@ -29,6 +29,7 @@ namespace art {
 class ShadowFrame;
 
 namespace mirror {
+class EmulatedStackFrame;
 class MethodHandle;
 class MethodType;
 }  // namespace mirror
@@ -148,6 +149,11 @@ bool MethodHandleInvokeExact(Thread* self,
                              Handle<mirror::MethodType> callsite_type,
                              const InstructionOperands* const args,
                              JValue* result)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+
+void MethodHandleInvokeExactWithFrame(Thread* self,
+                                      Handle<mirror::MethodHandle> method_handle,
+                                      Handle<mirror::EmulatedStackFrame> stack_frame)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace art

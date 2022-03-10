@@ -106,6 +106,23 @@ public class Main {
     return s.return7(null);
   }
 
+  /// CHECK-START: float Main.return42f(Second) inliner (before)
+  /// CHECK:      {{f\d+}}            InvokeVirtual
+
+  /// CHECK-START: float Main.return42f(Second) inliner (before)
+  /// CHECK-NOT:                      FloatConstant 42
+
+  /// CHECK-START: float Main.return42f(Second) inliner (after)
+  /// CHECK-DAG:  <<Const42f:f\d+>>   FloatConstant 42
+  /// CHECK-DAG:                      Return [<<Const42f>>]
+
+  /// CHECK-START: float Main.return42f(Second) inliner (after)
+  /// CHECK-NOT:                      InvokeVirtual
+
+  public static float return42f(Second s) {
+    return s.return42f();
+  }
+
   /// CHECK-START: java.lang.String Main.staticReturnNull() inliner (before)
   /// CHECK:      {{l\d+}}            InvokeStaticOrDirect
 
@@ -1166,6 +1183,7 @@ public class Main {
     // Replaced "return const" pattern.
     assertEquals(9, staticReturn9());
     assertEquals(7, return7(s));
+    assertEquals(42.0f, return42f(s));
     assertEquals(null, staticReturnNull());
     assertEquals(null, returnNull(s));
     // Replaced IGET pattern.
@@ -1244,6 +1262,12 @@ public class Main {
   }
 
   private static void assertEquals(int expected, int actual) {
+    if (expected != actual) {
+      throw new AssertionError("Wrong result: " + expected + " != " + actual);
+    }
+  }
+
+  private static void assertEquals(float expected, float actual) {
     if (expected != actual) {
       throw new AssertionError("Wrong result: " + expected + " != " + actual);
     }
