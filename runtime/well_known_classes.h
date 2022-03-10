@@ -118,6 +118,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_Float_valueOf;
   static jmethodID java_lang_Integer_valueOf;
   static jmethodID java_lang_invoke_MethodHandle_asType;
+  static jmethodID java_lang_invoke_MethodHandle_invokeExact;
   static jmethodID java_lang_invoke_MethodHandles_lookup;
   static jmethodID java_lang_invoke_MethodHandles_Lookup_findConstructor;
   static jmethodID java_lang_Long_valueOf;

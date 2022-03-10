@@ -105,6 +105,7 @@ jmethodID WellKnownClasses::java_lang_Float_floatToRawIntBits;
 jmethodID WellKnownClasses::java_lang_Float_valueOf;
 jmethodID WellKnownClasses::java_lang_Integer_valueOf;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_asType;
+jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
 jmethodID WellKnownClasses::java_lang_Long_valueOf;
@@ -407,6 +408,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Daemons_stop = CacheMethod(env, java_lang_Daemons, true, "stop", "()V");
   java_lang_Daemons_waitForDaemonStart = CacheMethod(env, java_lang_Daemons, true, "waitForDaemonStart", "()V");
   java_lang_invoke_MethodHandle_asType = CacheMethod(env, "java/lang/invoke/MethodHandle", false, "asType", "(Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;");
+  java_lang_invoke_MethodHandle_invokeExact = CacheMethod(env, "java/lang/invoke/MethodHandle", false, "invokeExact", "([Ljava/lang/Object;)Ljava/lang/Object;");
   java_lang_invoke_MethodHandles_lookup = CacheMethod(env, "java/lang/invoke/MethodHandles", true, "lookup", "()Ljava/lang/invoke/MethodHandles$Lookup;");
   java_lang_invoke_MethodHandles_Lookup_findConstructor = CacheMethod(env, "java/lang/invoke/MethodHandles$Lookup", false, "findConstructor", "(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;");
 
@@ -608,6 +610,7 @@ void WellKnownClasses::Clear() {
   java_lang_Float_valueOf = nullptr;
   java_lang_Integer_valueOf = nullptr;
   java_lang_invoke_MethodHandle_asType = nullptr;
+  java_lang_invoke_MethodHandle_invokeExact = nullptr;
   java_lang_invoke_MethodHandles_lookup = nullptr;
   java_lang_invoke_MethodHandles_Lookup_findConstructor = nullptr;
   java_lang_Long_valueOf = nullptr;

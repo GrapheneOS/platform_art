@@ -213,9 +213,14 @@ bool NeedsClinitCheckBeforeCall(ArtMethod* method) REQUIRES_SHARED(Locks::mutato
 ObjPtr<mirror::Object> GetGenericJniSynchronizationObject(Thread* self, ArtMethod* called)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-// Update .bss method entrypoint if the `callee_reference` has an associated oat file
-// and that oat file has a .bss entry for the `callee_reference`.
-void MaybeUpdateBssMethodEntry(ArtMethod* callee, MethodReference callee_reference);
+// Update .bss method entrypoint if the `outer_method` has a valid OatFile, and either
+//   A) the `callee_reference` has the same OatFile as `outer_method`, or
+//   B) the `callee_reference` comes from a BCP DexFile that was present during `outer_method`'s
+//      OatFile compilation.
+// In both cases, we require that the oat file has a .bss entry for the `callee_reference`.
+void MaybeUpdateBssMethodEntry(ArtMethod* callee,
+                               MethodReference callee_reference,
+                               ArtMethod* outer_method) REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace art
 

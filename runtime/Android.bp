@@ -231,6 +231,7 @@ libart_cc_defaults {
         "native/java_lang_Thread.cc",
         "native/java_lang_Throwable.cc",
         "native/java_lang_VMClassLoader.cc",
+        "native/java_lang_invoke_MethodHandle.cc",
         "native/java_lang_invoke_MethodHandleImpl.cc",
         "native/java_lang_ref_FinalizerReference.cc",
         "native/java_lang_ref_Reference.cc",
