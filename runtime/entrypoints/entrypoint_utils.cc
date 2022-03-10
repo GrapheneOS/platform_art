@@ -36,6 +36,7 @@
 #include "mirror/object_array-inl.h"
 #include "nth_caller_visitor.h"
 #include "oat_file.h"
+#include "oat_file-inl.h"
 #include "oat_quick_method_header.h"
 #include "reflection.h"
 #include "scoped_thread_state_change-inl.h"
@@ -284,22 +285,46 @@ ObjPtr<mirror::MethodType> ResolveMethodTypeFromCode(ArtMethod* referrer,
   return method_type;
 }
 
-void MaybeUpdateBssMethodEntry(ArtMethod* callee, MethodReference callee_reference) {
-  DCHECK(callee != nullptr);
-  if (callee_reference.dex_file->GetOatDexFile() != nullptr) {
-    size_t bss_offset = IndexBssMappingLookup::GetBssOffset(
-        callee_reference.dex_file->GetOatDexFile()->GetMethodBssMapping(),
-        callee_reference.index,
-        callee_reference.dex_file->NumMethodIds(),
-        static_cast<size_t>(kRuntimePointerSize));
+void MaybeUpdateBssMethodEntry(ArtMethod* callee,
+                               MethodReference callee_reference,
+                               ArtMethod* outer_method) {
+  DCHECK_NE(callee, nullptr);
+  if (outer_method->GetDexFile()->GetOatDexFile() == nullptr ||
+      outer_method->GetDexFile()->GetOatDexFile()->GetOatFile() == nullptr) {
+    // No OatFile to update.
+    return;
+  }
+  const OatFile* outer_oat_file = outer_method->GetDexFile()->GetOatDexFile()->GetOatFile();
+
+  const DexFile* dex_file = callee_reference.dex_file;
+  const OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
+  const IndexBssMapping* mapping = nullptr;
+  if (oat_dex_file != nullptr && oat_dex_file->GetOatFile() == outer_oat_file) {
+    // DexFiles compiled together to an oat file case.
+    mapping = oat_dex_file->GetMethodBssMapping();
+  } else {
+    // Try to find the DexFile in the BCP of the outer_method.
+    const OatFile::BssMappingInfo* mapping_info = outer_oat_file->FindBcpMappingInfo(dex_file);
+    if (mapping_info != nullptr) {
+      mapping = mapping_info->method_bss_mapping;
+    }
+  }
+
+  // Perform the update if we found a mapping.
+  if (mapping != nullptr) {
+    size_t bss_offset =
+        IndexBssMappingLookup::GetBssOffset(mapping,
+                                            callee_reference.index,
+                                            dex_file->NumMethodIds(),
+                                            static_cast<size_t>(kRuntimePointerSize));
     if (bss_offset != IndexBssMappingLookup::npos) {
       DCHECK_ALIGNED(bss_offset, static_cast<size_t>(kRuntimePointerSize));
-      const OatFile* oat_file = callee_reference.dex_file->GetOatDexFile()->GetOatFile();
-      ArtMethod** method_entry = reinterpret_cast<ArtMethod**>(const_cast<uint8_t*>(
-          oat_file->BssBegin() + bss_offset));
-      DCHECK_GE(method_entry, oat_file->GetBssMethods().data());
+      DCHECK_NE(outer_oat_file, nullptr);
+      ArtMethod** method_entry = reinterpret_cast<ArtMethod**>(
+          const_cast<uint8_t*>(outer_oat_file->BssBegin() + bss_offset));
+      DCHECK_GE(method_entry, outer_oat_file->GetBssMethods().data());
       DCHECK_LT(method_entry,
-                oat_file->GetBssMethods().data() + oat_file->GetBssMethods().size());
+                outer_oat_file->GetBssMethods().data() + outer_oat_file->GetBssMethods().size());
       std::atomic<ArtMethod*>* atomic_entry =
           reinterpret_cast<std::atomic<ArtMethod*>*>(method_entry);
       if (kIsDebugBuild) {

@@ -21,6 +21,7 @@
 
 #include "base/utils.h"
 #include "oat_quick_method_header.h"
+#include "runtime-inl.h"
 
 namespace art {
 
@@ -95,6 +96,20 @@ inline const void* OatFile::OatMethod::GetQuickCode() const {
     return nullptr;
   }
   return reinterpret_cast<const void *>(begin_ + code_offset_);
+}
+
+inline const OatFile::BssMappingInfo* OatFile::FindBcpMappingInfo(const DexFile* dex_file) const {
+  ArrayRef<const OatFile::BssMappingInfo> mapping_info_vector(GetBcpBssInfo());
+  ArrayRef<const DexFile* const> bcp_dexfiles(
+      Runtime::Current()->GetClassLinker()->GetBootClassPath());
+  // Create a sub array to limit search range.
+  bcp_dexfiles = bcp_dexfiles.SubArray(/*pos=*/ 0u, mapping_info_vector.size());
+  auto it = std::find(bcp_dexfiles.begin(), bcp_dexfiles.end(), dex_file);
+  if (it != bcp_dexfiles.end()) {
+    return &mapping_info_vector[std::distance(bcp_dexfiles.begin(), it)];
+  } else {
+    return nullptr;
+  }
 }
 
 }  // namespace art
