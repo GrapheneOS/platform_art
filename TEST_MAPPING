@@ -1175,6 +1175,9 @@
       "name": "art-run-test-718-zipfile-finalizer[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-719-varhandle-concurrency[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-721-osr[com.google.android.art.apex]"
     },
     {
@@ -2462,6 +2465,9 @@
     },
     {
       "name": "art-run-test-718-zipfile-finalizer"
+    },
+    {
+      "name": "art-run-test-719-varhandle-concurrency"
     },
     {
       "name": "art-run-test-721-osr"
