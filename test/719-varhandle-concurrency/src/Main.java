@@ -62,7 +62,6 @@ public class Main {
       concurrentProcessingTestIteration(factory, i, testName);
       Duration now = Duration.ofNanos(System.nanoTime());
       if (0 < now.compareTo(endTs)) {
-          System.out.println("Test timed out after " + i + " iterations");
           break;
       }
     }
