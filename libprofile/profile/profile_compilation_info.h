@@ -807,7 +807,7 @@ class ProfileCompilationInfo {
           num_method_ids == other.num_method_ids &&
           method_map == other.method_map &&
           class_set == other.class_set &&
-          BitMemoryRegion::Equals(method_bitmap, other.method_bitmap);
+          (BitMemoryRegion::Compare(method_bitmap, other.method_bitmap) == 0);
     }
 
     // Mark a method as executed at least once.

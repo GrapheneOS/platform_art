@@ -30,7 +30,6 @@ art_cc_defaults {
     srcs: [
         "dex/quick_compiler_callbacks.cc",
         "driver/compiler_driver.cc",
-        "linker/code_info_table_deduper.cc",
         "linker/elf_writer.cc",
         "linker/elf_writer_quick.cc",
         "linker/image_writer.cc",
@@ -495,7 +494,6 @@ art_cc_defaults {
         "dex2oat_vdex_test.cc",
         "dex2oat_image_test.cc",
         "driver/compiler_driver_test.cc",
-        "linker/code_info_table_deduper_test.cc",
         "linker/elf_writer_test.cc",
         "linker/image_test.cc",
         "linker/image_write_read_test.cc",

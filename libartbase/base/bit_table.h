@@ -92,7 +92,7 @@ class BitTableBase {
   bool Equals(const BitTableBase& other) const {
     return num_rows_ == other.num_rows_ &&
         std::equal(column_offset_, column_offset_ + kNumColumns, other.column_offset_) &&
-        BitMemoryRegion::Equals(table_data_, other.table_data_);
+        BitMemoryRegion::Compare(table_data_, other.table_data_) == 0;
   }
 
  protected:
@@ -449,10 +449,9 @@ class BitmapTableBuilder {
 
     // Write table data.
     for (MemoryRegion row : rows_) {
-      size_t bits_to_copy = std::min(max_num_bits_, row.size_in_bits());
-      BitMemoryRegion src(row, /*bit_offset=*/ 0u, bits_to_copy);
+      BitMemoryRegion src(row);
       BitMemoryRegion dst = out.Allocate(max_num_bits_);
-      dst.Subregion(/*bit_offset=*/ 0, bits_to_copy).CopyBits(src);
+      dst.StoreBits(/* bit_offset */ 0, src, std::min(max_num_bits_, src.size_in_bits()));
     }
 
     // Verify the written data.

@@ -30,6 +30,12 @@ namespace art {
 // abstracting away the bit start offset to avoid needing passing as an argument everywhere.
 class BitMemoryRegion final : public ValueObject {
  public:
+  struct Less {
+    bool operator()(const BitMemoryRegion& lhs, const BitMemoryRegion& rhs) const {
+      return Compare(lhs, rhs) < 0;
+    }
+  };
+
   BitMemoryRegion() = default;
   ALWAYS_INLINE BitMemoryRegion(uint8_t* data, ssize_t bit_start, size_t bit_size) {
     // Normalize the data pointer. Note that bit_start may be negative.
@@ -130,17 +136,17 @@ class BitMemoryRegion final : public ValueObject {
 
   // Store `bit_length` bits in `data` starting at given `bit_offset`.
   // The least significant bit is stored in the smallest memory offset.
-  ALWAYS_INLINE void StoreBits(size_t bit_offset, size_t value, size_t bit_length) {
+  ALWAYS_INLINE void StoreBits(size_t bit_offset, uint32_t value, size_t bit_length) {
     DCHECK_LE(bit_offset, bit_size_);
     DCHECK_LE(bit_length, bit_size_ - bit_offset);
-    DCHECK_LE(bit_length, BitSizeOf<size_t>());
-    DCHECK_LE(value, MaxInt<size_t>(bit_length));
+    DCHECK_LE(bit_length, BitSizeOf<uint32_t>());
+    DCHECK_LE(value, MaxInt<uint32_t>(bit_length));
     if (bit_length == 0) {
       return;
     }
     // Write data byte by byte to avoid races with other threads
     // on bytes that do not overlap with this region.
-    size_t mask = std::numeric_limits<size_t>::max() >> (BitSizeOf<size_t>() - bit_length);
+    uint32_t mask = std::numeric_limits<uint32_t>::max() >> (BitSizeOf<uint32_t>() - bit_length);
     size_t index = (bit_start_ + bit_offset) / kBitsPerByte;
     size_t shift = (bit_start_ + bit_offset) % kBitsPerByte;
     data_[index] &= ~(mask << shift);  // Clear bits.
@@ -153,171 +159,91 @@ class BitMemoryRegion final : public ValueObject {
     DCHECK_EQ(value, LoadBits(bit_offset, bit_length));
   }
 
-  // Copy bits from other bit region.
-  ALWAYS_INLINE void CopyBits(const BitMemoryRegion& src) {
-    DCHECK_EQ(size_in_bits(), src.size_in_bits());
-    // Hopefully, the loads of the unused `value` shall be optimized away.
-    VisitChunks(
-        [this, &src](size_t offset, size_t num_bits, size_t value ATTRIBUTE_UNUSED) ALWAYS_INLINE {
-          StoreChunk(offset, src.LoadBits(offset, num_bits), num_bits);
-          return true;
-        });
-  }
-
-  // And bits from other bit region.
-  ALWAYS_INLINE void AndBits(const BitMemoryRegion& src) {
-    DCHECK_EQ(size_in_bits(), src.size_in_bits());
-    VisitChunks([this, &src](size_t offset, size_t num_bits, size_t value) ALWAYS_INLINE {
-      StoreChunk(offset, value & src.LoadBits(offset, num_bits), num_bits);
-      return true;
-    });
+  // Store bits from other bit region.
+  ALWAYS_INLINE void StoreBits(size_t bit_offset, const BitMemoryRegion& src, size_t bit_length) {
+    DCHECK_LE(bit_offset, bit_size_);
+    DCHECK_LE(bit_length, bit_size_ - bit_offset);
+    size_t bit = 0;
+    constexpr size_t kNumBits = BitSizeOf<uint32_t>();
+    for (; bit + kNumBits <= bit_length; bit += kNumBits) {
+      StoreBits(bit_offset + bit, src.LoadBits(bit, kNumBits), kNumBits);
+    }
+    size_t num_bits = bit_length - bit;
+    StoreBits(bit_offset + bit, src.LoadBits(bit, num_bits), num_bits);
   }
 
   // Or bits from other bit region.
-  ALWAYS_INLINE void OrBits(const BitMemoryRegion& src) {
-    DCHECK_EQ(size_in_bits(), src.size_in_bits());
-    VisitChunks([this, &src](size_t offset, size_t num_bits, size_t value) ALWAYS_INLINE {
-      StoreChunk(offset, value | src.LoadBits(offset, num_bits), num_bits);
-      return true;
-    });
-  }
-
-  // Xor bits from other bit region.
-  ALWAYS_INLINE void XorBits(const BitMemoryRegion& src) {
-    DCHECK_EQ(size_in_bits(), src.size_in_bits());
-    VisitChunks([this, &src](size_t offset, size_t num_bits, size_t value) ALWAYS_INLINE {
-      StoreChunk(offset, value ^ src.LoadBits(offset, num_bits), num_bits);
-      return true;
-    });
-  }
-
-  // Count the number of set bits within this region.
-  ALWAYS_INLINE size_t PopCount() const {
-    size_t result = 0u;
-    VisitChunks([&](size_t offset ATTRIBUTE_UNUSED,
-                    size_t num_bits ATTRIBUTE_UNUSED,
-                    size_t value) ALWAYS_INLINE {
-                      result += POPCOUNT(value);
-                      return true;
-                    });
-    return result;
+  ALWAYS_INLINE void OrBits(size_t bit_offset, const BitMemoryRegion& src, size_t bit_length) {
+    // TODO: Load `size_t` chunks (instead of `uint32_t`) from aligned
+    // addresses except for the leading and trailing bits. Refactor to
+    // share code with StoreBits() and maybe other functions.
+    DCHECK_LE(bit_offset, bit_size_);
+    DCHECK_LE(bit_length, bit_size_ - bit_offset);
+    size_t bit = 0;
+    constexpr size_t kNumBits = BitSizeOf<uint32_t>();
+    for (; bit + kNumBits <= bit_length; bit += kNumBits) {
+      size_t old_bits = LoadBits(bit_offset + bit, kNumBits);
+      StoreBits(bit_offset + bit, old_bits | src.LoadBits(bit, kNumBits), kNumBits);
+    }
+    size_t num_bits = bit_length - bit;
+    size_t old_bits = LoadBits(bit_offset + bit, num_bits);
+    StoreBits(bit_offset + bit, old_bits | src.LoadBits(bit, num_bits), num_bits);
   }
 
   // Count the number of set bits within the given bit range.
   ALWAYS_INLINE size_t PopCount(size_t bit_offset, size_t bit_length) const {
-    return Subregion(bit_offset, bit_length).PopCount();
-  }
-
-  // Check if this region has all bits clear.
-  ALWAYS_INLINE bool HasAllBitsClear() const {
-    return VisitChunks([](size_t offset ATTRIBUTE_UNUSED,
-                          size_t num_bits ATTRIBUTE_UNUSED,
-                          size_t value) ALWAYS_INLINE {
-                            return value == 0u;
-                          });
-  }
-
-  // Check if this region has any bit set.
-  ALWAYS_INLINE bool HasSomeBitSet() const {
-    return !HasAllBitsClear();
+    DCHECK_LE(bit_offset, bit_size_);
+    DCHECK_LE(bit_length, bit_size_ - bit_offset);
+    size_t count = 0;
+    size_t bit = 0;
+    constexpr size_t kNumBits = BitSizeOf<uint32_t>();
+    for (; bit + kNumBits <= bit_length; bit += kNumBits) {
+      count += POPCOUNT(LoadBits(bit_offset + bit, kNumBits));
+    }
+    count += POPCOUNT(LoadBits(bit_offset + bit, bit_length - bit));
+    return count;
   }
 
   // Check if there is any bit set within the given bit range.
   ALWAYS_INLINE bool HasSomeBitSet(size_t bit_offset, size_t bit_length) const {
-    return Subregion(bit_offset, bit_length).HasSomeBitSet();
+    // TODO: Load `size_t` chunks (instead of `uint32_t`) from aligned
+    // addresses except for the leading and trailing bits. Refactor to
+    // share code with PopCount() and maybe also Compare().
+    DCHECK_LE(bit_offset, bit_size_);
+    DCHECK_LE(bit_length, bit_size_ - bit_offset);
+    size_t bit = 0;
+    constexpr size_t kNumBits = BitSizeOf<uint32_t>();
+    for (; bit + kNumBits <= bit_length; bit += kNumBits) {
+      if (LoadBits(bit_offset + bit, kNumBits) != 0u) {
+        return true;
+      }
+    }
+    return LoadBits(bit_offset + bit, bit_length - bit) != 0u;
   }
 
   static int Compare(const BitMemoryRegion& lhs, const BitMemoryRegion& rhs) {
     if (lhs.size_in_bits() != rhs.size_in_bits()) {
       return (lhs.size_in_bits() < rhs.size_in_bits()) ? -1 : 1;
     }
-    int result = 0;
-    bool equals = lhs.VisitChunks(
-        [&](size_t offset, size_t num_bits, size_t lhs_value) ALWAYS_INLINE {
-          size_t rhs_value = rhs.LoadBits(offset, num_bits);
-          if (lhs_value == rhs_value) {
-            return true;
-          }
-          // We have found a difference. To avoid the comparison being dependent on how the region
-          // is split into chunks, check the lowest bit that differs. (Android is little-endian.)
-          int bit = CTZ(lhs_value ^ rhs_value);
-          result = ((rhs_value >> bit) & 1u) != 0u ? 1 : -1;
-          return false;  // Stop iterating.
-        });
-    DCHECK_EQ(equals, result == 0);
-    return result;
-  }
-
-  static bool Equals(const BitMemoryRegion& lhs, const BitMemoryRegion& rhs) {
-    if (lhs.size_in_bits() != rhs.size_in_bits()) {
-      return false;
+    size_t bit = 0;
+    constexpr size_t kNumBits = BitSizeOf<uint32_t>();
+    for (; bit + kNumBits <= lhs.size_in_bits(); bit += kNumBits) {
+      uint32_t lhs_bits = lhs.LoadBits(bit, kNumBits);
+      uint32_t rhs_bits = rhs.LoadBits(bit, kNumBits);
+      if (lhs_bits != rhs_bits) {
+        return (lhs_bits < rhs_bits) ? -1 : 1;
+      }
     }
-    return lhs.VisitChunks([&rhs](size_t offset, size_t num_bits, size_t lhs_value) ALWAYS_INLINE {
-      return lhs_value == rhs.LoadBits(offset, num_bits);
-    });
+    size_t num_bits = lhs.size_in_bits() - bit;
+    uint32_t lhs_bits = lhs.LoadBits(bit, num_bits);
+    uint32_t rhs_bits = rhs.LoadBits(bit, num_bits);
+    if (lhs_bits != rhs_bits) {
+      return (lhs_bits < rhs_bits) ? -1 : 1;
+    }
+    return 0;
   }
 
  private:
-  // Visit the region in aligned `size_t` chunks. The first and last chunk may have fewer bits.
-  //
-  // Returns `true` if the iteration visited all chunks successfully, i.e. none of the
-  // calls to `visitor(offset, num_bits, value)` returned `false`; otherwise `false`.
-  template <typename VisitorType>
-  ALWAYS_INLINE
-  bool VisitChunks(VisitorType&& visitor) const {
-    constexpr size_t kChunkSize = BitSizeOf<size_t>();
-    size_t remaining_bits = bit_size_;
-    if (remaining_bits == 0) {
-      return true;
-    }
-    DCHECK(IsAligned<sizeof(size_t)>(data_));
-    const size_t* data = reinterpret_cast<const size_t*>(data_);
-    size_t offset = 0u;
-    size_t bit_start = bit_start_;
-    data += bit_start / kChunkSize;
-    if ((bit_start % kChunkSize) != 0u) {
-      size_t leading_bits = kChunkSize - (bit_start % kChunkSize);
-      size_t value = (*data) >> (bit_start % kChunkSize);
-      if (leading_bits > remaining_bits) {
-        leading_bits = remaining_bits;
-        value = value & ~(std::numeric_limits<size_t>::max() << remaining_bits);
-      }
-      if (!visitor(offset, leading_bits, value)) {
-        return false;
-      }
-      offset += leading_bits;
-      remaining_bits -= leading_bits;
-      ++data;
-    }
-    while (remaining_bits >= kChunkSize) {
-      size_t value = *data;
-      if (!visitor(offset, kChunkSize, value)) {
-        return false;
-      }
-      offset += kChunkSize;
-      remaining_bits -= kChunkSize;
-      ++data;
-    }
-    if (remaining_bits != 0u) {
-      size_t value = (*data) & ~(std::numeric_limits<size_t>::max() << remaining_bits);
-      if (!visitor(offset, remaining_bits, value)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  ALWAYS_INLINE void StoreChunk(size_t bit_offset, size_t value, size_t bit_length) {
-    if (bit_length == BitSizeOf<size_t>()) {
-      DCHECK_ALIGNED(bit_start_ + bit_offset, BitSizeOf<size_t>());
-      uint8_t* data = data_ + (bit_start_ + bit_offset) / kBitsPerByte;
-      DCHECK_ALIGNED(data, sizeof(size_t));
-      reinterpret_cast<size_t*>(data)[0] = value;
-    } else {
-      StoreBits(bit_offset, value, bit_length);
-    }
-  }
-
   uint8_t* data_ = nullptr;  // The pointer is page aligned.
   size_t bit_start_ = 0;
   size_t bit_size_ = 0;
@@ -403,14 +329,6 @@ class BitMemoryWriter {
     DCHECK_EQ(NumberOfWrittenBits(), 0u);
   }
 
-  void Truncate(size_t bit_offset) {
-    DCHECK_GE(bit_offset, bit_start_);
-    DCHECK_LE(bit_offset, bit_offset_);
-    bit_offset_ = bit_offset;
-    DCHECK_LE(BitsToBytesRoundUp(bit_offset), out_->size());
-    out_->resize(BitsToBytesRoundUp(bit_offset));  // Shrink.
-  }
-
   BitMemoryRegion GetWrittenRegion() const {
     return BitMemoryRegion(out_->data(), bit_start_, bit_offset_ - bit_start_);
   }
@@ -428,7 +346,7 @@ class BitMemoryWriter {
   }
 
   ALWAYS_INLINE void WriteRegion(const BitMemoryRegion& region) {
-    Allocate(region.size_in_bits()).CopyBits(region);
+    Allocate(region.size_in_bits()).StoreBits(/* bit_offset */ 0, region, region.size_in_bits());
   }
 
   ALWAYS_INLINE void WriteBits(uint32_t value, size_t bit_length) {
@@ -461,17 +379,9 @@ class BitMemoryWriter {
     WriteInterleavedVarints<1>({value});
   }
 
-  void WriteBytesAligned(const uint8_t* bytes, size_t length) {
-    DCHECK_ALIGNED(bit_start_, kBitsPerByte);
-    DCHECK_ALIGNED(bit_offset_, kBitsPerByte);
-    DCHECK_EQ(BitsToBytesRoundUp(bit_offset_), out_->size());
-    out_->insert(out_->end(), bytes, bytes + length);
-    bit_offset_ += length * kBitsPerByte;
-  }
-
   ALWAYS_INLINE void ByteAlign() {
-    DCHECK_ALIGNED(bit_start_, kBitsPerByte);
-    bit_offset_ = RoundUp(bit_offset_, kBitsPerByte);
+    size_t end = bit_start_ + bit_offset_;
+    bit_offset_ += RoundUp(end, kBitsPerByte) - end;
   }
 
  private:
