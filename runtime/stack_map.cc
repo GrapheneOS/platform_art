@@ -80,6 +80,59 @@ CodeInfo CodeInfo::DecodeInlineInfoOnly(const OatQuickMethodHeader* header) {
   return copy;
 }
 
+size_t CodeInfo::Deduper::Dedupe(const uint8_t* code_info_data) {
+  writer_.ByteAlign();
+  size_t deduped_offset = writer_.NumberOfWrittenBits() / kBitsPerByte;
+
+  // The back-reference offset takes space so dedupe is not worth it for tiny tables.
+  constexpr size_t kMinDedupSize = 32;  // Assume 32-bit offset on average.
+
+  // Read the existing code info and find (and keep) dedup-map iterator for each table.
+  // The iterator stores BitMemoryRegion and bit_offset of previous identical BitTable.
+  std::map<BitMemoryRegion, uint32_t, BitMemoryRegion::Less>::iterator it[kNumBitTables];
+  CodeInfo code_info(code_info_data, nullptr, [&](size_t i, auto*, BitMemoryRegion region) {
+    it[i] = dedupe_map_.emplace(region, /*bit_offset=*/0).first;
+    if (it[i]->second != 0 && region.size_in_bits() > kMinDedupSize) {  // Seen before and large?
+      code_info.SetBitTableDeduped(i);  // Mark as deduped before we write header.
+    }
+  });
+
+  // Write the code info back, but replace deduped tables with relative offsets.
+  std::array<uint32_t, kNumHeaders> header;
+  ForEachHeaderField([&code_info, &header](size_t i, auto member_pointer) {
+    header[i] = code_info.*member_pointer;
+  });
+  writer_.WriteInterleavedVarints(header);
+  ForEachBitTableField([this, &code_info, &it](size_t i, auto) {
+    if (code_info.HasBitTable(i)) {
+      uint32_t& bit_offset = it[i]->second;
+      if (code_info.IsBitTableDeduped(i)) {
+        DCHECK_NE(bit_offset, 0u);
+        writer_.WriteVarint(writer_.NumberOfWrittenBits() - bit_offset);
+      } else {
+        bit_offset = writer_.NumberOfWrittenBits();  // Store offset in dedup map.
+        writer_.WriteRegion(it[i]->first);
+      }
+    }
+  });
+
+  if (kIsDebugBuild) {
+    CodeInfo old_code_info(code_info_data);
+    CodeInfo new_code_info(writer_.data() + deduped_offset);
+    ForEachHeaderField([&old_code_info, &new_code_info](size_t, auto member_pointer) {
+      if (member_pointer != &CodeInfo::bit_table_flags_) {  // Expected to differ.
+        DCHECK_EQ(old_code_info.*member_pointer, new_code_info.*member_pointer);
+      }
+    });
+    ForEachBitTableField([&old_code_info, &new_code_info](size_t i, auto member_pointer) {
+      DCHECK_EQ(old_code_info.HasBitTable(i), new_code_info.HasBitTable(i));
+      DCHECK((old_code_info.*member_pointer).Equals(new_code_info.*member_pointer));
+    });
+  }
+
+  return deduped_offset;
+}
+
 StackMap CodeInfo::GetStackMapForNativePcOffset(uintptr_t pc, InstructionSet isa) const {
   uint32_t packed_pc = StackMap::PackNativePc(pc, isa);
   // Binary search.  All catch stack maps are stored separately at the end.
