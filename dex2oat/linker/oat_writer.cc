@@ -36,7 +36,6 @@
 #include "base/zip_archive.h"
 #include "class_linker.h"
 #include "class_table-inl.h"
-#include "code_info_table_deduper.h"
 #include "compiled_method-inl.h"
 #include "debug/method_debug_info.h"
 #include "dex/art_dex_file_loader.h"
@@ -1552,7 +1551,7 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
   SafeMap<const uint8_t*, size_t> dedupe_code_info_;
 
   // Deduplicate at BitTable level.
-  CodeInfoTableDeduper dedupe_bit_table_;
+  CodeInfo::Deduper dedupe_bit_table_;
 };
 
 class OatWriter::InitImageMethodVisitor final : public OatDexMethodVisitor {
