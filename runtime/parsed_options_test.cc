@@ -30,11 +30,11 @@ class ParsedOptionsTest : public CommonArtTest {
   }
 };
 
-TEST_F(ParsedOptionsTest, ParsedOptions) {
-  void* test_vfprintf = reinterpret_cast<void*>(0xa);
-  void* test_abort = reinterpret_cast<void*>(0xb);
-  void* test_exit = reinterpret_cast<void*>(0xc);
+static int test_vfprintf(FILE*, const char*, va_list) { return 0; }
+static void test_abort() {}
+static void test_exit(jint) {}
 
+TEST_F(ParsedOptionsTest, ParsedOptions) {
   std::string boot_class_path;
   std::string class_path;
   boot_class_path += "-Xbootclasspath:";
@@ -68,9 +68,9 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   options.push_back(std::make_pair("-Dfoo=bar", nullptr));
   options.push_back(std::make_pair("-Dbaz=qux", nullptr));
   options.push_back(std::make_pair("-verbose:gc,class,jni", nullptr));
-  options.push_back(std::make_pair("vfprintf", test_vfprintf));
-  options.push_back(std::make_pair("abort", test_abort));
-  options.push_back(std::make_pair("exit", test_exit));
+  options.push_back(std::make_pair("vfprintf", reinterpret_cast<void*>(test_vfprintf)));
+  options.push_back(std::make_pair("abort", reinterpret_cast<void*>(test_abort)));
+  options.push_back(std::make_pair("exit", reinterpret_cast<void*>(test_exit)));
 
   RuntimeArgumentMap map;
   bool parsed = ParsedOptions::Parse(options, false, &map);
@@ -95,9 +95,9 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   EXPECT_PARSED_EQ(1 * MB, Opt::StackSize);
   EXPECT_PARSED_EQ(200 * MB, Opt::StopForNativeAllocs);
   EXPECT_DOUBLE_EQ(0.75, map.GetOrDefault(Opt::HeapTargetUtilization));
-  EXPECT_TRUE(test_vfprintf == map.GetOrDefault(Opt::HookVfprintf));
-  EXPECT_TRUE(test_exit == map.GetOrDefault(Opt::HookExit));
-  EXPECT_TRUE(test_abort == map.GetOrDefault(Opt::HookAbort));
+  EXPECT_TRUE(reinterpret_cast<void*>(test_vfprintf) == map.GetOrDefault(Opt::HookVfprintf));
+  EXPECT_TRUE(reinterpret_cast<void*>(test_exit) == map.GetOrDefault(Opt::HookExit));
+  EXPECT_TRUE(reinterpret_cast<void*>(test_abort) == map.GetOrDefault(Opt::HookAbort));
   EXPECT_TRUE(VLOG_IS_ON(class_linker));
   EXPECT_FALSE(VLOG_IS_ON(compiler));
   EXPECT_FALSE(VLOG_IS_ON(heap));
