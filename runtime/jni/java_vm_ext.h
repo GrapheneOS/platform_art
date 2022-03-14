@@ -123,7 +123,7 @@ class JavaVMExt : public JavaVM {
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
    */
-  void* FindCodeForNativeMethod(ArtMethod* m)
+  void* FindCodeForNativeMethod(ArtMethod* m, std::string* error_msg, bool can_suspend)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os)
