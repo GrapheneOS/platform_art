@@ -1070,6 +1070,7 @@ class Dex2Oat final {
     AssignIfExists(args, M::AndroidRoot, &android_root_);
     AssignIfExists(args, M::Profile, &profile_files_);
     AssignIfExists(args, M::ProfileFd, &profile_file_fds_);
+    AssignIfExists(args, M::PreloadedClasses, &preloaded_classes_files_);
     AssignIfExists(args, M::RuntimeOptions, &runtime_args_);
     AssignIfExists(args, M::SwapFile, &swap_file_name_);
     AssignIfExists(args, M::SwapFileFd, &swap_fd_);
@@ -1421,6 +1422,10 @@ class Dex2Oat final {
     TimingLogger::ScopedTiming t("dex2oat Setup", timings_);
 
     if (!PrepareDirtyObjects()) {
+      return dex2oat::ReturnCode::kOther;
+    }
+
+    if (!PreparePreloadedClasses()) {
       return dex2oat::ReturnCode::kOther;
     }
 
@@ -2520,6 +2525,16 @@ class Dex2Oat final {
     return true;
   }
 
+  bool PreparePreloadedClasses() {
+    preloaded_classes_.reset(new HashSet<std::string>());
+    for (const std::string& file : preloaded_classes_files_) {
+      ReadCommentedInputFromFile<HashSet<std::string>>(file.c_str(),
+                                                       nullptr,
+                                                       preloaded_classes_.get());
+    }
+    return true;
+  }
+
   void PruneNonExistentDexFiles() {
     DCHECK_EQ(dex_filenames_.size(), dex_locations_.size());
     size_t kept = 0u;
@@ -2748,6 +2763,17 @@ class Dex2Oat final {
     return true;
   }
 
+  template <typename T>
+  static void ReadCommentedInputFromFile(
+      const char* input_filename, std::function<std::string(const char*)>* process, T* output) {
+    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "r"), fclose};
+    if (!input_file) {
+      LOG(ERROR) << "Failed to open input file " << input_filename;
+      return;
+    }
+    ReadCommentedInputStream<T>(input_file.get(), process, output);
+  }
+
   // Read lines from the given file, dropping comments and empty lines. Post-process each line with
   // the given function.
   template <typename T>
@@ -2758,7 +2784,9 @@ class Dex2Oat final {
       LOG(ERROR) << "Failed to open input file " << input_filename;
       return nullptr;
     }
-    return ReadCommentedInputStream<T>(input_file.get(), process);
+    std::unique_ptr<T> output(new T());
+    ReadCommentedInputStream<T>(input_file.get(), process, output.get());
+    return output;
   }
 
   // Read lines from the given fd, dropping comments and empty lines. Post-process each line with
@@ -2771,16 +2799,17 @@ class Dex2Oat final {
       LOG(ERROR) << "Failed to re-open input fd from /prof/self/fd/" << input_fd;
       return nullptr;
     }
-    return ReadCommentedInputStream<T>(input_file.get(), process);
+    std::unique_ptr<T> output(new T());
+    ReadCommentedInputStream<T>(input_file.get(), process, output.get());
+    return output;
   }
 
   // Read lines from the given stream, dropping comments and empty lines. Post-process each line
   // with the given function.
-  template <typename T>
-  static std::unique_ptr<T> ReadCommentedInputStream(
+  template <typename T> static void ReadCommentedInputStream(
       std::FILE* in_stream,
-      std::function<std::string(const char*)>* process) {
-    std::unique_ptr<T> output(new T());
+      std::function<std::string(const char*)>* process,
+      T* output) {
     char* line = nullptr;
     size_t line_alloc = 0;
     ssize_t len = 0;
@@ -2799,7 +2828,6 @@ class Dex2Oat final {
       }
     }
     free(line);
-    return output;
   }
 
   void LogCompletionTime() {
@@ -2892,6 +2920,7 @@ class Dex2Oat final {
   const char* dirty_image_objects_filename_;
   int dirty_image_objects_fd_;
   std::unique_ptr<HashSet<std::string>> dirty_image_objects_;
+  std::unique_ptr<HashSet<std::string>> preloaded_classes_;
   std::unique_ptr<std::vector<std::string>> passes_to_run_;
   bool is_host_;
   std::string android_root_;
@@ -2920,6 +2949,7 @@ class Dex2Oat final {
   int app_image_fd_;
   std::vector<std::string> profile_files_;
   std::vector<int> profile_file_fds_;
+  std::vector<std::string> preloaded_classes_files_;
   std::unique_ptr<ProfileCompilationInfo> profile_compilation_info_;
   TimingLogger* timings_;
   std::vector<std::vector<const DexFile*>> dex_files_per_oat_file_;
