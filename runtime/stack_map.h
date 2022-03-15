@@ -23,16 +23,14 @@
 #include "base/bit_memory_region.h"
 #include "base/bit_table.h"
 #include "base/bit_utils.h"
+#include "base/bit_vector.h"
+#include "base/leb128.h"
 #include "base/memory_region.h"
 #include "dex/dex_file_types.h"
 #include "dex_register_location.h"
 #include "quick/quick_method_frame_info.h"
 
 namespace art {
-
-namespace linker {
-class CodeInfoTableDeduper;
-}  //  namespace linker
 
 class OatQuickMethodHeader;
 class VariableIndentationOutputStream;
@@ -283,6 +281,23 @@ class MethodInfo : public BitTableAccessor<3> {
  */
 class CodeInfo {
  public:
+  class Deduper {
+   public:
+    explicit Deduper(std::vector<uint8_t>* output) : writer_(output) {
+      DCHECK_EQ(output->size(), 0u);
+    }
+
+    // Copy CodeInfo into output while de-duplicating the internal bit tables.
+    // It returns the byte offset of the copied CodeInfo within the output.
+    size_t Dedupe(const uint8_t* code_info);
+
+   private:
+    BitMemoryWriter<std::vector<uint8_t>> writer_;
+
+    // Deduplicate at BitTable level. The value is bit offset within the output.
+    std::map<BitMemoryRegion, uint32_t, BitMemoryRegion::Less> dedupe_map_;
+  };
+
   ALWAYS_INLINE CodeInfo() {}
   ALWAYS_INLINE explicit CodeInfo(const uint8_t* data, size_t* num_read_bits = nullptr);
   ALWAYS_INLINE explicit CodeInfo(const OatQuickMethodHeader* header);
@@ -490,7 +505,6 @@ class CodeInfo {
   bool HasBitTable(size_t i) { return ((bit_table_flags_ >> i) & 1) != 0; }
   bool IsBitTableDeduped(size_t i) { return ((bit_table_flags_ >> (kNumBitTables + i)) & 1) != 0; }
   void SetBitTableDeduped(size_t i) { bit_table_flags_ |= 1 << (kNumBitTables + i); }
-  bool HasDedupedBitTables() { return (bit_table_flags_ >> kNumBitTables) != 0u; }
 
   enum Flags {
     kHasInlineInfo = 1 << 0,
@@ -519,7 +533,6 @@ class CodeInfo {
   BitTable<DexRegisterMapInfo> dex_register_maps_;
   BitTable<DexRegisterInfo> dex_register_catalog_;
 
-  friend class linker::CodeInfoTableDeduper;
   friend class StackMapStream;
 };
 

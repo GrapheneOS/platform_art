@@ -77,6 +77,7 @@
 #include "dex/dex_file_loader.h"
 #include "elf_file.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "experimental_flags.h"
 #include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
@@ -695,9 +696,54 @@ void Runtime::Abort(const char* msg) {
   // notreached
 }
 
+class FindNativeMethodsVisitor : public ClassVisitor {
+ public:
+  FindNativeMethodsVisitor(Thread* self, ClassLinker* class_linker)
+      : vm_(down_cast<JNIEnvExt*>(self->GetJniEnv())->GetVm()),
+        self_(self),
+        class_linker_(class_linker) {}
+
+  bool operator()(ObjPtr<mirror::Class> klass) override REQUIRES_SHARED(Locks::mutator_lock_) {
+    bool is_initialized = klass->IsVisiblyInitialized();
+    for (ArtMethod& method : klass->GetDeclaredMethods(kRuntimePointerSize)) {
+      if (method.IsNative() && (is_initialized || !NeedsClinitCheckBeforeCall(&method))) {
+        const void* existing = method.GetEntryPointFromJni();
+        if (method.IsCriticalNative()
+                ? class_linker_->IsJniDlsymLookupCriticalStub(existing)
+                : class_linker_->IsJniDlsymLookupStub(existing)) {
+          const void* native_code =
+              vm_->FindCodeForNativeMethod(&method, /*error_msg=*/ nullptr, /*can_suspend=*/ false);
+          if (native_code != nullptr) {
+            class_linker_->RegisterNative(self_, &method, native_code);
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+ private:
+  JavaVMExt* vm_;
+  Thread* self_;
+  ClassLinker* class_linker_;
+
+  DISALLOW_COPY_AND_ASSIGN(FindNativeMethodsVisitor);
+};
+
 void Runtime::PreZygoteFork() {
   if (GetJit() != nullptr) {
     GetJit()->PreZygoteFork();
+  }
+  if (!heap_->HasZygoteSpace()) {
+    // This is the first fork. Update ArtMethods in the boot classpath now to
+    // avoid having forked apps dirty the memory.
+    ScopedObjectAccess soa(Thread::Current());
+    // Ensure we call FixupStaticTrampolines on all methods that are
+    // initialized.
+    class_linker_->MakeInitializedClassesVisiblyInitialized(soa.Self(), /*wait=*/ true);
+    // Update native method JNI entrypoints.
+    FindNativeMethodsVisitor visitor(soa.Self(), class_linker_);
+    class_linker_->VisitClasses(&visitor);
   }
   heap_->PreZygoteFork();
   PreZygoteForkNativeBridge();
