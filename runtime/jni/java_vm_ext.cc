@@ -30,6 +30,7 @@
 #include "base/systrace.h"
 #include "check_jni.h"
 #include "dex/dex_file-inl.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "fault_handler.h"
 #include "gc/allocation_record.h"
 #include "gc/heap.h"
@@ -270,34 +271,42 @@ class Libraries {
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
-  void* FindNativeMethod(Thread* self, ArtMethod* m, std::string& detail)
+  void* FindNativeMethod(Thread* self, ArtMethod* m, std::string* detail, bool can_suspend)
       REQUIRES(!Locks::jni_libraries_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     std::string jni_short_name(m->JniShortName());
     std::string jni_long_name(m->JniLongName());
     const ObjPtr<mirror::ClassLoader> declaring_class_loader =
         m->GetDeclaringClass()->GetClassLoader();
-    ScopedObjectAccessUnchecked soa(Thread::Current());
     void* const declaring_class_loader_allocator =
         Runtime::Current()->GetClassLinker()->GetAllocatorForClassLoader(declaring_class_loader);
     CHECK(declaring_class_loader_allocator != nullptr);
     // TODO: Avoid calling GetShorty here to prevent dirtying dex pages?
     const char* shorty = m->GetShorty();
-    {
+    void* native_code = nullptr;
+    if (can_suspend) {
       // Go to suspended since dlsym may block for a long time if other threads are using dlopen.
       ScopedThreadSuspension sts(self, ThreadState::kNative);
-      void* native_code = FindNativeMethodInternal(self,
-                                                   declaring_class_loader_allocator,
-                                                   shorty,
-                                                   jni_short_name,
-                                                   jni_long_name);
-      if (native_code != nullptr) {
-        return native_code;
-      }
+      native_code = FindNativeMethodInternal(self,
+                                             declaring_class_loader_allocator,
+                                             shorty,
+                                             jni_short_name,
+                                             jni_long_name);
+    } else {
+      native_code = FindNativeMethodInternal(self,
+                                             declaring_class_loader_allocator,
+                                             shorty,
+                                             jni_short_name,
+                                             jni_long_name);
     }
-    detail += "No implementation found for ";
-    detail += m->PrettyMethod();
-    detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
+    if (native_code != nullptr) {
+      return native_code;
+    }
+    if (detail != nullptr) {
+      *detail += "No implementation found for ";
+      *detail += m->PrettyMethod();
+      *detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
+    }
     return nullptr;
   }
 
@@ -306,8 +315,7 @@ class Libraries {
                                  const char* shorty,
                                  const std::string& jni_short_name,
                                  const std::string& jni_long_name)
-      REQUIRES(!Locks::jni_libraries_lock_)
-      REQUIRES(!Locks::mutator_lock_) {
+      REQUIRES(!Locks::jni_libraries_lock_) {
     MutexLock mu(self, *Locks::jni_libraries_lock_);
     for (const auto& lib : libraries_) {
       SharedLibrary* const library = lib.second;
@@ -1148,23 +1156,18 @@ static void* FindCodeForNativeMethodInAgents(ArtMethod* m) REQUIRES_SHARED(Locks
   return nullptr;
 }
 
-void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
+void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m, std::string* error_msg, bool can_suspend) {
   CHECK(m->IsNative());
   ObjPtr<mirror::Class> c = m->GetDeclaringClass();
   // If this is a static method, it could be called before the class has been initialized.
-  CHECK(c->IsInitializing()) << c->GetStatus() << " " << m->PrettyMethod();
-  std::string detail;
+  CHECK(c->IsInitializing() || !NeedsClinitCheckBeforeCall(m))
+      << c->GetStatus() << " " << m->PrettyMethod();
   Thread* const self = Thread::Current();
-  void* native_method = libraries_->FindNativeMethod(self, m, detail);
-  if (native_method == nullptr) {
+  void* native_method = libraries_->FindNativeMethod(self, m, error_msg, can_suspend);
+  if (native_method == nullptr && can_suspend) {
     // Lookup JNI native methods from native TI Agent libraries. See runtime/ti/agent.h for more
     // information. Agent libraries are searched for native methods after all jni libraries.
     native_method = FindCodeForNativeMethodInAgents(m);
-  }
-  // Throwing can cause libraries_lock to be reacquired.
-  if (native_method == nullptr) {
-    LOG(ERROR) << detail;
-    self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
   }
   return native_method;
 }
