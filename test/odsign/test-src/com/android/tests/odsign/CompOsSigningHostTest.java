@@ -16,6 +16,8 @@
 
 package com.android.tests.odsign;
 
+import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
@@ -28,6 +30,7 @@ import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -46,6 +49,8 @@ public class CompOsSigningHostTest extends ActivationTest {
     private static final String PENDING_CHECKSUMS_KEY = "compos_test_pending_checksums";
     private static final String TIMESTAMP_VM_START_KEY = "compos_test_timestamp_vm_start";
     private static final String TIMESTAMP_REBOOT_KEY = "compos_test_timestamp_reboot";
+
+    @Rule public TestLogData mTestLogs = new TestLogData();
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
@@ -81,6 +86,22 @@ public class CompOsSigningHostTest extends ActivationTest {
         testUtils.uninstallTestApex();
         testUtils.reboot();
         testUtils.restoreAdbRoot();
+    }
+
+    @Test
+    public void vmLogCollector() throws Exception {
+        // This is not a test. The purpose is to collect VM's log, which is generated once per
+        // class. It's implemented as a test methond because TestLogData doesn't seem to work in a
+        // class method.
+
+        // The log files are currently only available through a rooted shell.
+        OdsignTestUtils testUtils = new OdsignTestUtils(getTestInformation());
+        testUtils.enableAdbRootOrSkipTest();
+
+        testUtils.archiveLogThenDelete(mTestLogs, CompOsTestUtils.APEXDATA_DIR + "/vm.log",
+                        "vm.log-CompOsSigningHostTest");
+        testUtils.archiveLogThenDelete(mTestLogs, CompOsTestUtils.APEXDATA_DIR + "/vm_console.log",
+                        "vm_console.log-CompOsSigningHostTest");
     }
 
     @Test
