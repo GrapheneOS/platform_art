@@ -687,13 +687,8 @@ standalone-apex-files: deapexer \
 
 .PHONY: build-art-target-golem
 
-# TODO(b/129332183): Clean this up when Golem runs can mount the APEXes directly
-# in the chroot.
-
 ART_TARGET_PLATFORM_DEPENDENCIES := \
   $(TARGET_OUT)/etc/public.libraries.txt \
-  $(TARGET_OUT_SHARED_LIBRARIES)/heapprofd_client_api.so \
-  $(TARGET_OUT_SHARED_LIBRARIES)/libartpalette-system.so \
   $(TARGET_OUT_SHARED_LIBRARIES)/libcutils.so \
   $(TARGET_OUT_SHARED_LIBRARIES)/liblz4.so \
   $(TARGET_OUT_SHARED_LIBRARIES)/libprocessgroup.so \
