@@ -72,7 +72,7 @@ class CompactDexWriter : public DexWriter {
         // Hash function.
         size_t operator()(const HashedMemoryRange& range) const {
           DCHECK_LE(range.offset_ + range.length_, section_->Size());
-          return HashBytes(Data() + range.offset_, range.length_);
+          return DataHash::HashBytes(Data() + range.offset_, range.length_);
         }
 
         ALWAYS_INLINE uint8_t* Data() const {
