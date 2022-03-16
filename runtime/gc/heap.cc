@@ -21,6 +21,10 @@
 #if defined(__BIONIC__) || defined(__GLIBC__)
 #include <malloc.h>  // For mallinfo()
 #endif
+#if defined(__BIONIC__) && defined(ART_TARGET)
+#include <linux/userfaultfd.h>
+#include <sys/ioctl.h>
+#endif
 #include <memory>
 #include <random>
 #include <unistd.h>
@@ -406,6 +410,7 @@ Heap::Heap(size_t initial_size,
       backtrace_lock_(nullptr),
       seen_backtrace_count_(0u),
       unique_backtrace_count_(0u),
+      uffd_(-1),
       gc_disabled_for_shutdown_(false),
       dump_region_info_before_gc_(dump_region_info_before_gc),
       dump_region_info_after_gc_(dump_region_info_after_gc),
@@ -2361,6 +2366,12 @@ void Heap::PreZygoteFork() {
     // the trim process may require locking the mutator lock.
     non_moving_space_->Trim();
   }
+  // We need to close userfaultfd fd for app/webview zygotes to avoid getattr
+  // (stat) on the fd during fork.
+  if (uffd_ >= 0) {
+    close(uffd_);
+    uffd_ = -1;
+  }
   Thread* self = Thread::Current();
   MutexLock mu(self, zygote_creation_lock_);
   // Try to see if we have any Zygote spaces.
@@ -3818,6 +3829,70 @@ bool Heap::RequestConcurrentGC(Thread* self,
   return true;  // Vacuously.
 }
 
+#if defined(__BIONIC__) && defined(ART_TARGET)
+void Heap::MaybePerformUffdIoctls(GcCause cause, uint32_t requested_gc_num) const {
+  if (uffd_ >= 0
+      && cause == kGcCauseBackground
+      && (requested_gc_num < 5 || requested_gc_num % 5 == 0)) {
+    // Attempt to use all userfaultfd ioctls that we intend to use.
+    // Register ioctl
+    {
+      struct uffdio_register uffd_register;
+      uffd_register.range.start = 0;
+      uffd_register.range.len = 0;
+      uffd_register.mode = UFFDIO_REGISTER_MODE_MISSING;
+      int ret = ioctl(uffd_, UFFDIO_REGISTER, &uffd_register);
+      CHECK_EQ(ret, -1);
+      CHECK_EQ(errno, EINVAL);
+    }
+    // Copy ioctl
+    {
+      struct uffdio_copy uffd_copy = {.src = 0, .dst = 0, .len = 0, .mode = 0};
+      int ret = ioctl(uffd_, UFFDIO_COPY, &uffd_copy);
+      CHECK_EQ(ret, -1);
+      CHECK_EQ(errno, EINVAL);
+    }
+    // Zeropage ioctl
+    {
+      struct uffdio_zeropage uffd_zeropage;
+      uffd_zeropage.range.start = 0;
+      uffd_zeropage.range.len = 0;
+      uffd_zeropage.mode = 0;
+      int ret = ioctl(uffd_, UFFDIO_ZEROPAGE, &uffd_zeropage);
+      CHECK_EQ(ret, -1);
+      CHECK_EQ(errno, EINVAL);
+    }
+    // Continue ioctl
+    {
+      struct uffdio_continue uffd_continue;
+      uffd_continue.range.start = 0;
+      uffd_continue.range.len = 0;
+      uffd_continue.mode = 0;
+      int ret = ioctl(uffd_, UFFDIO_CONTINUE, &uffd_continue);
+      CHECK_EQ(ret, -1);
+      CHECK_EQ(errno, EINVAL);
+    }
+    // Wake ioctl
+    {
+      struct uffdio_range uffd_range = {.start = 0, .len = 0};
+      int ret = ioctl(uffd_, UFFDIO_WAKE, &uffd_range);
+      CHECK_EQ(ret, -1);
+      CHECK_EQ(errno, EINVAL);
+    }
+    // Unregister ioctl
+    {
+      struct uffdio_range uffd_range = {.start = 0, .len = 0};
+      int ret = ioctl(uffd_, UFFDIO_UNREGISTER, &uffd_range);
+      CHECK_EQ(ret, -1);
+      CHECK_EQ(errno, EINVAL);
+    }
+  }
+}
+#else
+void Heap::MaybePerformUffdIoctls(GcCause cause ATTRIBUTE_UNUSED,
+                                  uint32_t requested_gc_num ATTRIBUTE_UNUSED) const {}
+#endif
+
 void Heap::ConcurrentGC(Thread* self, GcCause cause, bool force_full, uint32_t requested_gc_num) {
   if (!Runtime::Current()->IsShuttingDown(self)) {
     // Wait for any GCs currently running to finish. If this incremented GC number, we're done.
@@ -3844,9 +3919,12 @@ void Heap::ConcurrentGC(Thread* self, GcCause cause, bool force_full, uint32_t r
           if (gc_type > next_gc_type &&
               CollectGarbageInternal(gc_type, cause, false, requested_gc_num)
               != collector::kGcTypeNone) {
+            MaybePerformUffdIoctls(cause, requested_gc_num);
             break;
           }
         }
+      } else {
+        MaybePerformUffdIoctls(cause, requested_gc_num);
       }
     }
   }
@@ -4579,6 +4657,19 @@ void Heap::PostForkChildAction(Thread* self) {
   uint32_t starting_gc_num = GetCurrentGcNum();
   uint64_t last_adj_time = NanoTime();
   next_gc_type_ = NonStickyGcType();  // Always start with a full gc.
+
+#if defined(__BIONIC__) && defined(ART_TARGET)
+  uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | O_NONBLOCK | UFFD_USER_MODE_ONLY);
+  if (uffd_ >= 0) {
+    struct uffdio_api api = {.api = UFFD_API, .features = 0};
+    int ret = ioctl(uffd_, UFFDIO_API, &api);
+    CHECK_EQ(ret, 0) << "ioctl_userfaultfd: API: " << strerror(errno);
+  } else {
+    // The syscall should fail only if it doesn't exist in the kernel or if it's
+    // denied by SELinux.
+    CHECK(errno == ENOSYS || errno == EACCES) << "userfaultfd: " << strerror(errno);
+  }
+#endif
 
   // Temporarily increase target_footprint_ and concurrent_start_bytes_ to
   // max values to avoid GC during app launch.
