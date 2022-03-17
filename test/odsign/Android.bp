@@ -63,6 +63,7 @@ android_test_helper_app {
         "junit",
     ],
     static_libs: [
+        "androidx.test.ext.truth",
         "androidx.test.runner",
         "ctstestrunner-axt",
     ],
