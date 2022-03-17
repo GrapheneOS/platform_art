@@ -55,7 +55,21 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    public void verifyArtUpgradeGeneratesAnyArtifacts() throws Exception {
+        installPackage(TEST_APP_APK);
+        DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
+        options.setTestClassName(TEST_APP_PACKAGE_NAME + ".ArtifactsSignedTest");
+        options.setTestMethodName("testGeneratesAnyArtArtifacts");
+        runDeviceTests(options);
+    }
+
+    @Test
     public void verifyArtUpgradeGeneratesRequiredArtifacts() throws Exception {
+        // This test does not actually require root access, but we use `enableAdbRootOrSkipTest` as
+        // a way to skip the test in CTS. This test should not run in CTS because it has assumptions
+        // on the ART module's behavior.
+        mTestUtils.enableAdbRootOrSkipTest();
+
         installPackage(TEST_APP_APK);
         DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
         options.setTestClassName(TEST_APP_PACKAGE_NAME + ".ArtifactsSignedTest");
