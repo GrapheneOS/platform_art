@@ -67,3 +67,5 @@ ASM_DEFINE(THREAD_ALLOC_ARRAY_ENTRYPOINT_OFFSET,
                .Int32Value())
 ASM_DEFINE(THREAD_READ_BARRIER_MARK_REG00_OFFSET,
            art::Thread::ReadBarrierMarkEntryPointsOffset<art::kRuntimePointerSize>(0))
+ASM_DEFINE(THREAD_SHARED_METHOD_HOTNESS_OFFSET,
+           art::Thread::SharedMethodHotnessOffset<art::kRuntimePointerSize>().Int32Value())

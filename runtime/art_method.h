@@ -250,6 +250,17 @@ class ArtMethod final {
     AddAccessFlags(kAccPreCompiled | kAccCompileDontBother);
   }
 
+  bool IsMemorySharedMethod() {
+    return (GetAccessFlags() & kAccMemorySharedMethod) != 0;
+  }
+
+  void SetMemorySharedMethod() REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!IsIntrinsic() && !IsAbstract()) {
+      AddAccessFlags(kAccMemorySharedMethod);
+      SetHotCounter();
+    }
+  }
+
   void ClearPreCompiled() REQUIRES_SHARED(Locks::mutator_lock_) {
     ClearAccessFlags(kAccPreCompiled | kAccCompileDontBother);
   }

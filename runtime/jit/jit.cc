@@ -1728,7 +1728,7 @@ bool Jit::CanAssumeInitialized(ObjPtr<mirror::Class> cls, bool is_for_shared_reg
   }
 }
 
-void Jit::EnqueueCompilation(ArtMethod* method, Thread* self) {
+void Jit::MaybeEnqueueCompilation(ArtMethod* method, Thread* self) {
   if (thread_pool_ == nullptr) {
     return;
   }
@@ -1739,6 +1739,10 @@ void Jit::EnqueueCompilation(ArtMethod* method, Thread* self) {
   }
 
   if (!UseJitCompilation()) {
+    return;
+  }
+
+  if (IgnoreSamplesForMethod(method)) {
     return;
   }
 
@@ -1765,8 +1769,20 @@ void Jit::EnqueueCompilation(ArtMethod* method, Thread* self) {
     return;
   }
 
-  if (IgnoreSamplesForMethod(method)) {
-    return;
+  static constexpr size_t kIndividualSharedMethodHotnessThreshold = 0xff;
+  if (method->IsMemorySharedMethod()) {
+    MutexLock mu(self, lock_);
+    auto it = shared_method_counters_.find(method);
+    if (it == shared_method_counters_.end()) {
+      shared_method_counters_[method] = kIndividualSharedMethodHotnessThreshold;
+      return;
+    } else if (it->second != 0) {
+      DCHECK_LE(it->second, kIndividualSharedMethodHotnessThreshold);
+      shared_method_counters_[method] = it->second - 1;
+      return;
+    } else {
+      shared_method_counters_[method] = kIndividualSharedMethodHotnessThreshold;
+    }
   }
 
   if (!method->IsNative() && GetCodeCache()->CanAllocateProfilingInfo()) {
