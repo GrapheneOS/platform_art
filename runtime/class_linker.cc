@@ -3751,6 +3751,10 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
        std::none_of(shorty.begin() + slow_args_search_start, shorty.end(), is_slow_arg))) {
     dst->SetNterpInvokeFastPathFlag();
   }
+
+  if (Runtime::Current()->IsZygote()) {
+    dst->SetMemorySharedMethod();
+  }
 }
 
 void ClassLinker::AppendToBootClassPath(Thread* self, const DexFile* dex_file) {
