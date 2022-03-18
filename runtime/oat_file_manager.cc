@@ -389,7 +389,14 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     std::string error_msg;
     static constexpr bool kVerifyChecksum = true;
     const ArtDexFileLoader dex_file_loader;
-    if (!dex_file_loader.Open(dex_location,
+    int fd;
+    if (!strncmp("/proc/self/fd/", dex_location, strlen("/proc/self/fd/")) &&
+          sscanf(dex_location, "/proc/self/fd/%d", &fd) == 1) {
+      fd = dup(fd);
+    } else {
+      fd = open(dex_location, O_RDONLY | O_CLOEXEC);
+    }
+    if (fd < 0 || !dex_file_loader.Open(fd,
                               dex_location,
                               Runtime::Current()->IsVerificationEnabled(),
                               kVerifyChecksum,
