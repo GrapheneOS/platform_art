@@ -451,8 +451,18 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   if (dex_files.empty()) {
     std::string error_msg;
     static constexpr bool kVerifyChecksum = true;
-    ArtDexFileLoader dex_file_loader(dex_location);
-    if (!dex_file_loader.Open(Runtime::Current()->IsVerificationEnabled(),
+
+    int fd;
+    if (!strncmp("/gmscompat_fd_", dex_location, strlen("/gmscompat_fd_")) &&
+          sscanf(dex_location, "/gmscompat_fd_%d", &fd) == 1) {
+      fd = dup(fd);
+    } else {
+      fd = open(dex_location, O_RDONLY | O_CLOEXEC);
+    }
+
+    ArtDexFileLoader dex_file_loader(fd, dex_location);
+
+    if (fd < 0 || !dex_file_loader.Open(Runtime::Current()->IsVerificationEnabled(),
                               kVerifyChecksum,
                               /*out*/ &error_msg,
                               &dex_files)) {
