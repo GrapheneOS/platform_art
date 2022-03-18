@@ -255,7 +255,7 @@ END_FUNCTION \name
     // Update method counter and do a suspend check if the branch is negative or zero.
     testq rINSTq, rINSTq
     jle 3f
-2:
+2:  // We use 2 and not 1 for this local label as the users of the BRANCH macro have a 1 label.
     FETCH_INST
     GOTO_NEXT
 3:
@@ -270,11 +270,7 @@ END_FUNCTION \name
     // Update counter.
     addl $$-1, %esi
     movw %si, ART_METHOD_HOTNESS_COUNT_OFFSET(%rdi)
-    // Otherwise, do a suspend check.
-    testl   $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
-    jz      2b
-    EXPORT_PC
-    call    SYMBOL(art_quick_test_suspend)
+    DO_SUSPEND_CHECK continue_label=2b
     jmp 2b
 .endm
 
@@ -831,23 +827,23 @@ END_FUNCTION \name
 #error Expected 0 for hotness value
 #endif
    // If the counter is at zero, handle this in the runtime.
-   testw %si, %si
-   je 2f
+   testl %esi, %esi
+   je 3f
    // Update counter.
    addl $$-1, %esi
    movw %si, ART_METHOD_HOTNESS_COUNT_OFFSET(%rdi)
-   testl $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
-   jz 1f
-   EXPORT_PC
-   call SYMBOL(art_quick_test_suspend)
 1:
+   DO_SUSPEND_CHECK continue_label=2f
+2:
    FETCH_INST
    GOTO_NEXT
-2:
+3:
+   CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot=4f, if_not_hot=1b
+4:
    movq $$0, %rsi
    movq rFP, %rdx
    call nterp_hot_method
-   jmp 1b
+   jmp 2b
 .endm
 
 .macro SPILL_ALL_CALLEE_SAVES
@@ -1671,6 +1667,24 @@ END_FUNCTION \name
     jne 1b
 .endm
 
+.macro CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot, if_not_hot
+    testl $$ART_METHOD_IS_MEMORY_SHARED_FLAG, ART_METHOD_ACCESS_FLAGS_OFFSET(%rdi)
+    jz \if_hot
+    movzwl rSELF:THREAD_SHARED_METHOD_HOTNESS_OFFSET, %esi
+    testl %esi, %esi
+    je \if_hot
+    addl $$-1, %esi
+    movw %si, rSELF:THREAD_SHARED_METHOD_HOTNESS_OFFSET
+    jmp \if_not_hot
+.endm
+
+.macro DO_SUSPEND_CHECK continue_label
+    testl   $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
+    jz      \continue_label
+    EXPORT_PC
+    call    SYMBOL(art_quick_test_suspend)
+.endm
+
 %def entry():
 /*
  * ArtMethod entry point.
@@ -2168,14 +2182,17 @@ NterpGetInstanceField:
   OP_IGET load="movl", wide=0
 
 NterpHandleHotnessOverflow:
+    CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot=1f, if_not_hot=4f
+1:
     movq rPC, %rsi
     movq rFP, %rdx
     call nterp_hot_method
     testq %rax, %rax
-    jne 1f
+    jne 3f
+2:
     FETCH_INST
     GOTO_NEXT
-1:
+3:
     // Drop the current frame.
     movq -8(rREFS), %rsp
     CFI_DEF_CFA(rsp, CALLEE_SAVES_SIZE)
@@ -2203,6 +2220,9 @@ NterpHandleHotnessOverflow:
 
     // Jump to the compiled code.
     jmp *%rbx
+4:
+    DO_SUSPEND_CHECK continue_label=2b
+    jmp 2b
 
 NterpHandleInvokeInterfaceOnObjectMethodRange:
    shrl $$16, %eax
