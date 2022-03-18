@@ -259,7 +259,11 @@ static void AddCompilerMappings(Builder& builder) {
       .Define("--preloaded-classes=_")
           .WithType<std::vector<std::string>>().AppendValues()
           .WithHelp("Specify files containing list of classes preloaded in the zygote.")
-          .IntoKey(M::PreloadedClasses);
+          .IntoKey(M::PreloadedClasses)
+      .Define("--preloaded-classes-fds=_")
+          .WithType<std::vector<int>>().AppendValues()
+          .WithHelp("Specify files containing list of classes preloaded in the zygote.")
+          .IntoKey(M::PreloadedClassesFds);
 }
 
 static void AddTargetMappings(Builder& builder) {
