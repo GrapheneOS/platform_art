@@ -3355,6 +3355,11 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
         nullptr, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   }
 
+  if (!orig->IsRuntimeMethod() &&
+      (compiler_options_.IsBootImage() || compiler_options_.IsBootImageExtension())) {
+    orig->SetMemorySharedMethod();
+  }
+
   memcpy(copy, orig, ArtMethod::Size(target_ptr_size_));
 
   CopyAndFixupReference(copy->GetDeclaringClassAddressWithoutBarrier(),
