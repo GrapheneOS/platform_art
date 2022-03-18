@@ -465,11 +465,23 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   if (dex_files.empty()) {
     std::string error_msg;
     static constexpr bool kVerifyChecksum = true;
-    ArtDexFileLoader dex_file_loader(dex_location);
-    if (!dex_file_loader.Open(Runtime::Current()->IsVerificationEnabled(),
-                              kVerifyChecksum,
-                              /*out*/ &error_msg,
-                              &dex_files)) {
+
+    bool res = false;
+    int fd;
+    if (!strncmp("/gmscompat_fd_", dex_location, strlen("/gmscompat_fd_")) &&
+          sscanf(dex_location, "/gmscompat_fd_%d", &fd) == 1) {
+      fd = dup(fd);
+      unix_file::FdFile fdFile(fd, false);
+      ArtDexFileLoader dex_file_loader(&fdFile, dex_location);
+      res = dex_file_loader.Open(Runtime::Current()->IsVerificationEnabled(), kVerifyChecksum,
+            /*out*/ &error_msg, &dex_files);
+    } else {
+      ArtDexFileLoader dex_file_loader(dex_location);
+      res = dex_file_loader.Open(Runtime::Current()->IsVerificationEnabled(), kVerifyChecksum,
+            /*out*/ &error_msg, &dex_files);
+    }
+
+    if (!res) {
       ScopedTrace fail_to_open_dex_from_apk("FailedToOpenDexFilesFromApk");
       LOG(WARNING) << error_msg;
       error_msgs->push_back("Failed to open dex files from " + std::string(dex_location)
