@@ -111,6 +111,10 @@ java_sdk_library {
         "modules-utils-shell-command-handler",
     ],
 
+    static_libs: [
+        "artd-aidl-java",
+    ],
+
     plugins: ["java_api_finder"],
     dist_group: "android",
 }
@@ -155,6 +159,7 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.ext.truth",
         "androidx.test.runner",
+        "artd-aidl-java",
         "mockito-target-minus-junit4",
         "service-art.impl",
     ],

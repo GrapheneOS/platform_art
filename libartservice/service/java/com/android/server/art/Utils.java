@@ -16,10 +16,18 @@
 
 package com.android.server.art;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.util.SparseArray;
 
+import com.android.server.art.ArtifactsPath;
+import com.android.server.art.wrapper.PackageManagerLocal;
+import com.android.server.art.wrapper.PackageState;
+
+import dalvik.system.VMRuntime;
+
 import java.util.Collection;
+import java.util.List;
 
 /** @hide */
 public final class Utils {
@@ -44,5 +52,33 @@ public final class Utils {
      */
     public static boolean isEmpty(@Nullable int[] array) {
         return array == null || array.length == 0;
+    }
+
+    @NonNull
+    public static List<String> getAllIsas(@NonNull PackageState pkgState) {
+        String primaryCpuAbi = pkgState.getPrimaryCpuAbi();
+        String secondaryCpuAbi = pkgState.getSecondaryCpuAbi();
+        if (primaryCpuAbi != null) {
+            if (secondaryCpuAbi != null) {
+                return List.of(VMRuntime.getInstructionSet(primaryCpuAbi),
+                        VMRuntime.getInstructionSet(secondaryCpuAbi));
+            }
+            return List.of(VMRuntime.getInstructionSet(primaryCpuAbi));
+        }
+        return List.of();
+    }
+
+    @NonNull
+    public static ArtifactsPath buildArtifactsPath(
+            @NonNull String dexPath, @NonNull String isa, boolean isInDalvikCache) {
+        ArtifactsPath artifactsPath = new ArtifactsPath();
+        artifactsPath.dexPath = dexPath;
+        artifactsPath.isa = isa;
+        artifactsPath.isInDalvikCache = isInDalvikCache;
+        return artifactsPath;
+    }
+
+    public static boolean isInDalvikCache(@NonNull PackageState pkg) {
+        return pkg.isSystem() && !pkg.isUpdatedSystemApp();
     }
 }

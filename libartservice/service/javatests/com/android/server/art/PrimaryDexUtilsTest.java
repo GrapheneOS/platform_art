@@ -47,7 +47,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @SmallTest
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(MockitoJUnitRunner.StrictStubs.class)
 public class PrimaryDexUtilsTest {
     @Before
     public void setUp() {}

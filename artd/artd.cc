@@ -31,6 +31,7 @@ namespace artd {
 
 namespace {
 
+using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::BnArtd;
 using ::android::base::Error;
 using ::android::base::Result;
@@ -45,6 +46,13 @@ class Artd : public BnArtd {
   ScopedAStatus isAlive(bool* _aidl_return) override {
     *_aidl_return = true;
     return ScopedAStatus::ok();
+  }
+
+  ScopedAStatus deleteArtifacts(const ArtifactsPath& in_artifactsPath,
+                                int64_t* _aidl_return) override {
+    (void)in_artifactsPath;
+    (void)_aidl_return;
+    return ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
   }
 
   Result<void> Start() {

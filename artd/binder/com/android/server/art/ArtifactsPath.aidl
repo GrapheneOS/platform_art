@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,16 @@
 
 package com.android.server.art;
 
-/** @hide */
-interface IArtd {
-    // Test to see if the artd service is available.
-    boolean isAlive();
-
-    /** Deletes artifacts and returns the released space, in bytes. */
-    long deleteArtifacts(in com.android.server.art.ArtifactsPath artifactsPath);
+/**
+ * Represents the path to the optimized artifacts of a dex file (i.e., ART, OAT, and VDEX files).
+ *
+ * @hide
+ */
+parcelable ArtifactsPath {
+    /** The absolute path starting with '/' to the dex file (i.e., APK or JAR file). */
+    @utf8InCpp String dexPath;
+    /** The instruction set of the optimized artifacts. */
+    @utf8InCpp String isa;
+    /** Whether the optimized artifacts are in the dalvik-cache folder. */
+    boolean isInDalvikCache;
 }

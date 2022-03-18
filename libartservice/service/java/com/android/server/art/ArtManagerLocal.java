@@ -16,9 +16,22 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
+
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.os.Binder;
+import android.os.RemoteException;
+import android.util.Log;
+
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.art.IArtd;
+import com.android.server.art.model.DeleteOptions;
+import com.android.server.art.model.DeleteResult;
+import com.android.server.art.wrapper.AndroidPackageApi;
+import com.android.server.art.wrapper.PackageDataSnapshot;
+import com.android.server.art.wrapper.PackageManagerLocal;
+import com.android.server.art.wrapper.PackageState;
 
 import java.io.FileDescriptor;
 
@@ -37,7 +50,17 @@ import java.io.FileDescriptor;
 public final class ArtManagerLocal {
     private static final String TAG = "ArtService";
 
-    public ArtManagerLocal() {}
+    @NonNull private final Injector mInjector;
+
+    public ArtManagerLocal() {
+        this(new Injector());
+    }
+
+    /** @hide */
+    @VisibleForTesting
+    public ArtManagerLocal(Injector injector) {
+        mInjector = injector;
+    }
 
     /**
      * Handles `cmd package art` sub-command.
@@ -56,6 +79,96 @@ public final class ArtManagerLocal {
      */
     public int handleShellCommand(@NonNull Binder target, @NonNull FileDescriptor in,
             @NonNull FileDescriptor out, @NonNull FileDescriptor err, @NonNull String[] args) {
-        return new ArtShellCommand(this).exec(target, in, out, err, args);
+        return new ArtShellCommand(this, mInjector.getPackageManagerLocal())
+                .exec(target, in, out, err, args);
+    }
+
+    /**
+     * Deletes optimized artifacts of a package.
+     *
+     * @throws IllegalArgumentException if the package is not found or the options are illegal
+     * @throws IllegalStateException if an internal error occurs
+     *
+     * @hide
+     */
+    public DeleteResult deleteOptimizedArtifacts(@NonNull PackageDataSnapshot snapshot,
+            @NonNull String packageName, @NonNull DeleteOptions options) {
+        if (!options.isForPrimaryDex() && !options.isForSecondaryDex()) {
+            throw new IllegalArgumentException("Nothing to delete");
+        }
+
+        PackageState pkgState = mInjector.getPackageManagerLocal().getPackageState(
+                snapshot, Binder.getCallingUid(), packageName);
+        if (pkgState == null) {
+            throw new IllegalArgumentException("Package not found: " + packageName);
+        }
+        AndroidPackageApi pkg = pkgState.getAndroidPackage();
+        if (pkg == null) {
+            throw new IllegalStateException("Unable to get package " + pkgState.getPackageName());
+        }
+
+        try {
+            long freedBytes = 0;
+
+            if (options.isForPrimaryDex()) {
+                boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
+                for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
+                    if (!dexInfo.hasCode()) {
+                        continue;
+                    }
+                    for (String isa : Utils.getAllIsas(pkgState)) {
+                        freedBytes += mInjector.getArtd().deleteArtifacts(
+                                Utils.buildArtifactsPath(dexInfo.dexPath(), isa, isInDalvikCache));
+                    }
+                }
+            }
+
+            if (options.isForSecondaryDex()) {
+                // TODO(jiakaiz): Implement this.
+                throw new UnsupportedOperationException(
+                        "Deleting artifacts of secondary dex'es is not implemented yet");
+            }
+
+            return new DeleteResult(freedBytes);
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
+    }
+
+    /**
+     * Injector pattern for testing purpose.
+     *
+     * @hide
+     */
+    @VisibleForTesting
+    public static class Injector {
+        private final PackageManagerLocal mPackageManagerLocal;
+        private final IArtd mArtd;
+
+        Injector() {
+            PackageManagerLocal packageManagerLocal = null;
+            try {
+                packageManagerLocal = PackageManagerLocal.getInstance();
+            } catch (Exception e) {
+                // This is not a serious error. The reflection-based approach can be broken in some
+                // cases. This is fine because ART services is under development and no one depends
+                // on it.
+                // TODO(b/177273468): Make this a serious error when we switch to using the real
+                // APIs.
+                Log.w(TAG, "Unable to get fake PackageManagerLocal", e);
+            }
+            mPackageManagerLocal = packageManagerLocal;
+
+            // TODO(jiakaiz): Use real artd.
+            mArtd = new LoggingArtd();
+        }
+
+        public PackageManagerLocal getPackageManagerLocal() {
+            return mPackageManagerLocal;
+        }
+
+        public IArtd getArtd() {
+            return mArtd;
+        }
     }
 }

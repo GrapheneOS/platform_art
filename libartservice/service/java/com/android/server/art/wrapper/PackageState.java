@@ -18,6 +18,7 @@ package com.android.server.art.wrapper;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.text.TextUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -60,6 +61,82 @@ public class PackageState {
             return list.stream()
                     .map(obj -> new SharedLibraryInfo(obj))
                     .collect(Collectors.toList());
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nullable
+    public String getPrimaryCpuAbi() {
+        try {
+            String abi =
+                    (String) mPkgState.getClass().getMethod("getPrimaryCpuAbi").invoke(mPkgState);
+            if (!TextUtils.isEmpty(abi)) {
+                return abi;
+            }
+
+            // Default to the information in `AndroidPackageApi`. The defaulting behavior will
+            // eventually be done by `PackageState` internally.
+            AndroidPackageApi pkg = getAndroidPackage();
+            if (pkg == null) {
+                // This should never happen because we check the existence of the package at the
+                // beginning of each ART Services method.
+                throw new IllegalStateException("Unable to get package " + getPackageName()
+                        + ". This should never happen.");
+            }
+
+            Class<?> androidPackageHiddenClass =
+                    Class.forName("com.android.server.pm.parsing.pkg.AndroidPackageHidden");
+            return (String) androidPackageHiddenClass.getMethod("getPrimaryCpuAbi")
+                    .invoke(pkg.getRealInstance());
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nullable
+    public String getSecondaryCpuAbi() {
+        try {
+            String abi =
+                    (String) mPkgState.getClass().getMethod("getSecondaryCpuAbi").invoke(mPkgState);
+            if (!TextUtils.isEmpty(abi)) {
+                return abi;
+            }
+
+            // Default to the information in `AndroidPackageApi`. The defaulting behavior will
+            // eventually be done by `PackageState` internally.
+            AndroidPackageApi pkg = getAndroidPackage();
+            if (pkg == null) {
+                // This should never happen because we check the existence of the package at the
+                // beginning of each ART Services method.
+                throw new IllegalStateException("Unable to get package " + getPackageName()
+                        + ". This should never happen.");
+            }
+
+            Class<?> androidPackageHiddenClass =
+                    Class.forName("com.android.server.pm.parsing.pkg.AndroidPackageHidden");
+            return (String) androidPackageHiddenClass.getMethod("getSecondaryCpuAbi")
+                    .invoke(pkg.getRealInstance());
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean isSystem() {
+        try {
+            return (boolean) mPkgState.getClass().getMethod("isSystem").invoke(mPkgState);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean isUpdatedSystemApp() {
+        try {
+            Object packageStateUnserialized =
+                    mPkgState.getClass().getMethod("getTransientState").invoke(mPkgState);
+            return (boolean) packageStateUnserialized.getClass()
+                    .getMethod("isUpdatedSystemApp")
+                    .invoke(packageStateUnserialized);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }

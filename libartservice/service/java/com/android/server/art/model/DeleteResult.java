@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
-package com.android.server.art;
+package com.android.server.art.model;
 
 /** @hide */
-interface IArtd {
-    // Test to see if the artd service is available.
-    boolean isAlive();
+public class DeleteResult {
+    private long mFreedBytes;
 
-    /** Deletes artifacts and returns the released space, in bytes. */
-    long deleteArtifacts(in com.android.server.art.ArtifactsPath artifactsPath);
+    public DeleteResult(long freedBytes) {
+        mFreedBytes = freedBytes;
+    }
+
+    /** The amount of the disk space freed by the deletion, in bytes. */
+    public long getFreedBytes() {
+        return mFreedBytes;
+    }
 }

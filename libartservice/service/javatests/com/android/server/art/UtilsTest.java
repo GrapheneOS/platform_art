@@ -31,7 +31,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import java.util.List;
 
 @SmallTest
-@RunWith(MockitoJUnitRunner.class)
+@RunWith(MockitoJUnitRunner.StrictStubs.class)
 public class UtilsTest {
     @Test
     public void testCollectionIsEmptyTrue() {
