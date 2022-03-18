@@ -974,11 +974,10 @@ END_FUNCTION \name
 #endif
    // If the counter is at zero, handle this in the runtime.
    testl %ecx, %ecx
-   je 2f
+   je 3f
    // Update counter.
    addl $$-1, %ecx
    movw %cx, ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
-   jz 3f
 1:
    testl $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
    jz 2f
