@@ -187,10 +187,10 @@ inline void CodeItemDebugInfoAccessor::Init<StandardDexFile::CodeItem>(
 inline void CodeItemDebugInfoAccessor::Init(const DexFile& dex_file,
                                             const dex::CodeItem* code_item,
                                             uint32_t dex_method_index) {
+  dex_file_ = &dex_file;
   if (code_item == nullptr) {
     return;
   }
-  dex_file_ = &dex_file;
   if (dex_file.IsCompactDexFile()) {
     Init(down_cast<const CompactDexFile::CodeItem&>(*code_item), dex_method_index);
   } else {
