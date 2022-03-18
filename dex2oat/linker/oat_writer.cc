@@ -3311,9 +3311,9 @@ bool OatWriter::WriteDexFiles(File* file,
   if (extract_dex_files_into_vdex_) {
     vdex_dex_files_offset_ = vdex_size_;
 
-    // Perform dexlayout if requested.
-    if (profile_compilation_info_ != nullptr ||
-        compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
+    // Perform dexlayout if compact dex is enabled. Also see
+    // Dex2Oat::DoDexLayoutOptimizations.
+    if (compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
       for (OatDexFile& oat_dex_file : oat_dex_files_) {
         // use_existing_vdex should not be used with compact dex and layout.
         CHECK(!use_existing_vdex)
