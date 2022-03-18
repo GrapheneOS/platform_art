@@ -33,8 +33,8 @@ public class CompOsTestUtils {
     public static final String PENDING_ARTIFACTS_DIR =
             "/data/misc/apexdata/com.android.art/compos-pending";
 
-    /** odrefresh is currently hard-coded to fail if it does not complete in 300 seconds. */
-    private static final int ODREFRESH_MAX_SECONDS = 300;
+    /** Maximum time for a slow VM like cuttlefish to boot and finish odrefresh. */
+    private static final int VM_ODREFRESH_MAX_SECONDS = 360;
 
     /** Waiting time for the job to be scheduled after staging an APEX */
     private static final int JOB_CREATION_MAX_SECONDS = 5;
@@ -65,7 +65,7 @@ public class CompOsTestUtils {
         // It takes time. Just don't spam.
         TimeUnit.SECONDS.sleep(SECONDS_BEFORE_PROGRESS_CHECK);
         // The job runs asynchronously. To wait until it completes.
-        waitForJobExit(ODREFRESH_MAX_SECONDS - SECONDS_BEFORE_PROGRESS_CHECK);
+        waitForJobExit(VM_ODREFRESH_MAX_SECONDS - SECONDS_BEFORE_PROGRESS_CHECK);
 
         // Checks the output validity, then store the hashes of pending files.
         assertThat(mDevice.getChildren(PENDING_ARTIFACTS_DIR)).asList().containsAtLeast(
