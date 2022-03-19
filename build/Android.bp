@@ -151,13 +151,6 @@ art_module_art_global_defaults {
     ],
 
     arch: {
-        arm: {
-            cflags: [
-                // http://b/218805949  WAR for dex2oat32 segfault with clang-r445002
-                "-Xclang",
-                "-enable-noundef-analysis",
-            ],
-        },
         x86: {
             avx2: {
                 cflags: [
@@ -165,11 +158,6 @@ art_module_art_global_defaults {
                     "-mfma",
                 ],
             },
-            cflags: [
-                // http://b/218805949  WAR for dex2oat32 segfault with clang-r445002
-                "-Xclang",
-                "-enable-noundef-analysis",
-            ],
         },
         x86_64: {
             avx2: {
