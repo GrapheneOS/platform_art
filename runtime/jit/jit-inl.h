@@ -28,12 +28,17 @@ namespace art {
 namespace jit {
 
 inline void Jit::AddSamples(Thread* self, ArtMethod* method) {
-  if (IgnoreSamplesForMethod(method)) {
-    return;
-  }
   if (method->CounterIsHot()) {
-    method->ResetCounter(Runtime::Current()->GetJITOptions()->GetWarmupThreshold());
-    EnqueueCompilation(method, self);
+    if (method->IsMemorySharedMethod()) {
+      if (self->DecrementSharedMethodHotness() == 0) {
+        self->ResetSharedMethodHotness();
+      } else {
+        return;
+      }
+    } else {
+      method->ResetCounter(Runtime::Current()->GetJITOptions()->GetWarmupThreshold());
+    }
+    MaybeEnqueueCompilation(method, self);
   } else {
     method->UpdateCounter(1);
   }

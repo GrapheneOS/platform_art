@@ -104,9 +104,9 @@ static constexpr uint32_t kAccNterpInvokeFastPathFlag     = 0x00200000;  // meth
 static constexpr uint32_t kAccPublicApi =             0x10000000;  // field, method
 static constexpr uint32_t kAccCorePlatformApi =       0x20000000;  // field, method
 
-// Not currently used, except for intrinsic methods where these bits
-// are part of the intrinsic ordinal.
-static constexpr uint32_t kAccMayBeUnusedBits =       0x40000000;
+// For methods which we'd like to share memory between zygote and apps.
+// Uses an intrinsic bit but that's OK as intrinsics are always in the boot image.
+static constexpr uint32_t kAccMemorySharedMethod =       0x40000000;
 
 // Set by the compiler driver when compiling boot classes with instrinsic methods.
 static constexpr uint32_t kAccIntrinsic  =            0x80000000;  // method (runtime)
@@ -125,7 +125,7 @@ static constexpr uint32_t kAccHiddenapiBits = kAccPublicApi | kAccCorePlatformAp
 // which overlap are not valid when kAccIntrinsic is set.
 static constexpr uint32_t kAccIntrinsicBits = kAccHiddenapiBits |
     kAccSingleImplementation | kAccMustCountLocks | kAccCompileDontBother | kAccCopied |
-    kAccPreviouslyWarm | kAccMayBeUnusedBits;
+    kAccPreviouslyWarm | kAccMemorySharedMethod;
 
 // Valid (meaningful) bits for a field.
 static constexpr uint32_t kAccValidFieldFlags = kAccPublic | kAccPrivate | kAccProtected |

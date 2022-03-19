@@ -255,7 +255,11 @@ static void AddCompilerMappings(Builder& builder) {
           .IntoKey(M::ProfileFd)
       .Define("--no-inline-from=_")
           .WithType<std::string>()
-          .IntoKey(M::NoInlineFrom);
+          .IntoKey(M::NoInlineFrom)
+      .Define("--preloaded-classes=_")
+          .WithType<std::vector<std::string>>().AppendValues()
+          .WithHelp("Specify files containing list of classes preloaded in the zygote.")
+          .IntoKey(M::PreloadedClasses);
 }
 
 static void AddTargetMappings(Builder& builder) {
