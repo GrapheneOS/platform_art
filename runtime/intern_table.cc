@@ -195,26 +195,17 @@ void InternTable::WaitUntilAccessible(Thread* self) {
   Locks::intern_table_lock_->ExclusiveLock(self);
 }
 
-ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s,
-                                           bool is_strong,
-                                           bool holding_locks) {
+ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s, bool is_strong) {
   if (s == nullptr) {
     return nullptr;
   }
   Thread* const self = Thread::Current();
   MutexLock mu(self, *Locks::intern_table_lock_);
-  if (kDebugLocking && !holding_locks) {
+  if (kDebugLocking) {
     Locks::mutator_lock_->AssertSharedHeld(self);
     CHECK_EQ(2u, self->NumberOfHeldMutexes()) << "may only safely hold the mutator lock";
   }
   while (true) {
-    if (holding_locks) {
-      if (!kUseReadBarrier) {
-        CHECK_EQ(weak_root_state_, gc::kWeakRootStateNormal);
-      } else {
-        CHECK(self->GetWeakRefAccessEnabled());
-      }
-    }
     // Check the strong table for a match.
     ObjPtr<mirror::String> strong = LookupStrongLocked(s);
     if (strong != nullptr) {
@@ -227,7 +218,6 @@ ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s,
     // weak_root_state_ is set to gc::kWeakRootStateNoReadsOrWrites in the GC pause but is only
     // cleared after SweepSystemWeaks has completed. This is why we need to wait until it is
     // cleared.
-    CHECK(!holding_locks);
     StackHandleScope<1> hs(self);
     auto h = hs.NewHandleWrapper(&s);
     WaitUntilAccessible(self);
@@ -278,7 +268,7 @@ ObjPtr<mirror::String> InternTable::InternStrong(uint32_t utf16_length, const ch
   } else {
     s->SetHashCode(hash);
   }
-  return InternStrong(s);
+  return Insert(s, /*is_strong=*/ true);
 }
 
 ObjPtr<mirror::String> InternTable::InternStrong(const char* utf8_data) {
@@ -286,13 +276,8 @@ ObjPtr<mirror::String> InternTable::InternStrong(const char* utf8_data) {
   return InternStrong(mirror::String::AllocFromModifiedUtf8(Thread::Current(), utf8_data));
 }
 
-ObjPtr<mirror::String> InternTable::InternStrongImageString(ObjPtr<mirror::String> s) {
-  // May be holding the heap bitmap lock.
-  return Insert(s, true, true);
-}
-
 ObjPtr<mirror::String> InternTable::InternStrong(ObjPtr<mirror::String> s) {
-  return Insert(s, true, false);
+  return Insert(s, /*is_strong=*/ true);
 }
 
 ObjPtr<mirror::String> InternTable::InternWeak(const char* utf8_data) {
@@ -301,7 +286,7 @@ ObjPtr<mirror::String> InternTable::InternWeak(const char* utf8_data) {
 }
 
 ObjPtr<mirror::String> InternTable::InternWeak(ObjPtr<mirror::String> s) {
-  return Insert(s, false, false);
+  return Insert(s, /*is_strong=*/ false);
 }
 
 bool InternTable::ContainsWeak(ObjPtr<mirror::String> s) {
@@ -347,7 +332,12 @@ ObjPtr<mirror::String> InternTable::Table::Find(const Utf8String& string) {
 }
 
 void InternTable::Table::AddNewTable() {
-  tables_.push_back(InternalTable());
+  // Propagate the min/max load factor from the old active set.
+  DCHECK(!tables_.empty());
+  const UnorderedSet& last_set = tables_.back().set_;
+  InternalTable new_table;
+  new_table.set_.SetLoadFactor(last_set.GetMinLoadFactor(), last_set.GetMaxLoadFactor());
+  tables_.push_back(std::move(new_table));
 }
 
 void InternTable::Table::Insert(ObjPtr<mirror::String> s) {
