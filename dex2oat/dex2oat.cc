@@ -2324,11 +2324,7 @@ class Dex2Oat final {
   }
 
   bool DoDexLayoutOptimizations() const {
-    // Only run dexlayout when being asked to generate compact dex. We do this
-    // to avoid having multiple arguments being passed to dex2oat and the main
-    // user of dex2oat (installd) will have the same reasons for
-    // disabling/enabling compact dex and dex layout.
-    return DoGenerateCompactDex();
+    return DoProfileGuidedOptimizations() || DoGenerateCompactDex();
   }
 
   bool DoOatLayoutOptimizations() const {
