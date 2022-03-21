@@ -823,6 +823,10 @@ class Dex2Oat final {
       Usage("--dirty-image-objects and --dirty-image-objects-fd should not be both specified");
     }
 
+    if (!preloaded_classes_files_.empty() && !preloaded_classes_fds_.empty()) {
+      Usage("--preloaded-classes and --preloaded-classes-fds should not be both specified");
+    }
+
     if (!cpu_set_.empty()) {
       SetCpuAffinity(cpu_set_);
     }
@@ -1071,6 +1075,7 @@ class Dex2Oat final {
     AssignIfExists(args, M::Profile, &profile_files_);
     AssignIfExists(args, M::ProfileFd, &profile_file_fds_);
     AssignIfExists(args, M::PreloadedClasses, &preloaded_classes_files_);
+    AssignIfExists(args, M::PreloadedClassesFds, &preloaded_classes_fds_);
     AssignIfExists(args, M::RuntimeOptions, &runtime_args_);
     AssignIfExists(args, M::SwapFile, &swap_file_name_);
     AssignIfExists(args, M::SwapFileFd, &swap_fd_);
@@ -2526,11 +2531,15 @@ class Dex2Oat final {
   }
 
   bool PreparePreloadedClasses() {
-    preloaded_classes_.reset(new HashSet<std::string>());
-    for (const std::string& file : preloaded_classes_files_) {
-      ReadCommentedInputFromFile<HashSet<std::string>>(file.c_str(),
-                                                       nullptr,
-                                                       preloaded_classes_.get());
+    preloaded_classes_ = std::make_unique<HashSet<std::string>>();
+    if (!preloaded_classes_fds_.empty()) {
+      for (int fd : preloaded_classes_fds_) {
+        ReadCommentedInputFromFd(fd, nullptr, preloaded_classes_.get());
+      }
+    } else {
+      for (const std::string& file : preloaded_classes_files_) {
+        ReadCommentedInputFromFile(file.c_str(), nullptr, preloaded_classes_.get());
+      }
     }
     return true;
   }
@@ -2774,18 +2783,24 @@ class Dex2Oat final {
     ReadCommentedInputStream<T>(input_file.get(), process, output);
   }
 
+  template <typename T>
+  static void ReadCommentedInputFromFd(
+      int input_fd, std::function<std::string(const char*)>* process, T* output) {
+    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fdopen(input_fd, "r"), fclose};
+    if (!input_file) {
+      LOG(ERROR) << "Failed to re-open input fd from /prof/self/fd/" << input_fd;
+      return;
+    }
+    ReadCommentedInputStream<T>(input_file.get(), process, output);
+  }
+
   // Read lines from the given file, dropping comments and empty lines. Post-process each line with
   // the given function.
   template <typename T>
   static std::unique_ptr<T> ReadCommentedInputFromFile(
       const char* input_filename, std::function<std::string(const char*)>* process) {
-    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "r"), fclose};
-    if (!input_file) {
-      LOG(ERROR) << "Failed to open input file " << input_filename;
-      return nullptr;
-    }
     std::unique_ptr<T> output(new T());
-    ReadCommentedInputStream<T>(input_file.get(), process, output.get());
+    ReadCommentedInputFromFile(input_filename, process, output.get());
     return output;
   }
 
@@ -2794,13 +2809,8 @@ class Dex2Oat final {
   template <typename T>
   static std::unique_ptr<T> ReadCommentedInputFromFd(
       int input_fd, std::function<std::string(const char*)>* process) {
-    auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fdopen(input_fd, "r"), fclose};
-    if (!input_file) {
-      LOG(ERROR) << "Failed to re-open input fd from /prof/self/fd/" << input_fd;
-      return nullptr;
-    }
     std::unique_ptr<T> output(new T());
-    ReadCommentedInputStream<T>(input_file.get(), process, output.get());
+    ReadCommentedInputFromFd(input_fd, process, output.get());
     return output;
   }
 
@@ -2950,6 +2960,7 @@ class Dex2Oat final {
   std::vector<std::string> profile_files_;
   std::vector<int> profile_file_fds_;
   std::vector<std::string> preloaded_classes_files_;
+  std::vector<int> preloaded_classes_fds_;
   std::unique_ptr<ProfileCompilationInfo> profile_compilation_info_;
   TimingLogger* timings_;
   std::vector<std::vector<const DexFile*>> dex_files_per_oat_file_;
