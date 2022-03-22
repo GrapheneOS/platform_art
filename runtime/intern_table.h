@@ -117,12 +117,6 @@ class InternTable {
   ObjPtr<mirror::String> InternStrong(uint32_t utf16_length, const char* utf8_data)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  // Only used by image writer. Special version that may not cause thread suspension since the GC
-  // cannot be running while we are doing image writing. Maybe be called while holding a
-  // lock since there will not be thread suspension.
-  ObjPtr<mirror::String> InternStrongImageString(ObjPtr<mirror::String> s)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Interns a potentially new string in the 'strong' table. May cause thread suspension.
   ObjPtr<mirror::String> InternStrong(const char* utf8_data) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
@@ -282,9 +276,7 @@ class InternTable {
   };
 
   // Insert if non null, otherwise return null. Must be called holding the mutator lock.
-  // If holding_locks is true, then we may also hold other locks. If holding_locks is true, then we
-  // require GC is not running since it is not safe to wait while holding locks.
-  ObjPtr<mirror::String> Insert(ObjPtr<mirror::String> s, bool is_strong, bool holding_locks)
+  ObjPtr<mirror::String> Insert(ObjPtr<mirror::String> s, bool is_strong)
       REQUIRES(!Locks::intern_table_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Add a table from memory to the strong interns.
