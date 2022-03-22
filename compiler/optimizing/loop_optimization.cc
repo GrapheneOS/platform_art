@@ -2387,7 +2387,7 @@ bool HLoopOptimization::TrySetPhiInduction(HPhi* phi, bool restrict_uses) {
 }
 
 bool HLoopOptimization::TrySetPhiReduction(HPhi* phi) {
-  DCHECK(iset_->empty());
+  DCHECK(phi->IsLoopHeaderPhi());
   // Only unclassified phi cycles are candidates for reductions.
   if (induction_range_.IsClassified(phi)) {
     return false;
@@ -2399,15 +2399,18 @@ bool HLoopOptimization::TrySetPhiReduction(HPhi* phi) {
     HInstruction* reduction = inputs[1];
     if (HasReductionFormat(reduction, phi)) {
       HLoopInformation* loop_info = phi->GetBlock()->GetLoopInformation();
-      uint32_t use_count = 0;
-      bool single_use_inside_loop =
+      DCHECK(loop_info->Contains(*reduction->GetBlock()));
+      const bool single_use_inside_loop =
           // Reduction update only used by phi.
           reduction->GetUses().HasExactlyOneElement() &&
           !reduction->HasEnvironmentUses() &&
           // Reduction update is only use of phi inside the loop.
-          IsOnlyUsedAfterLoop(loop_info, phi, /*collect_loop_uses*/ true, &use_count) &&
-          iset_->size() == 1;
-      iset_->clear();  // leave the way you found it
+          std::none_of(phi->GetUses().begin(),
+                       phi->GetUses().end(),
+                       [loop_info, reduction](const HUseListNode<HInstruction*>& use) {
+                         HInstruction* user = use.GetUser();
+                         return user != reduction && loop_info->Contains(*user->GetBlock());
+                       });
       if (single_use_inside_loop) {
         // Link reduction back, and start recording feed value.
         reductions_->Put(reduction, phi);
@@ -2497,8 +2500,7 @@ bool HLoopOptimization::IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     HInstruction* user = use.GetUser();
     if (iset_->find(user) == iset_->end()) {  // not excluded?
-      HLoopInformation* other_loop_info = user->GetBlock()->GetLoopInformation();
-      if (other_loop_info != nullptr && other_loop_info->IsIn(*loop_info)) {
+      if (loop_info->Contains(*user->GetBlock())) {
         // If collect_loop_uses is set, simply keep adding those uses to the set.
         // Otherwise, reject uses inside the loop that were not already in the set.
         if (collect_loop_uses) {
