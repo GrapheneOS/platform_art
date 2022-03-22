@@ -217,8 +217,14 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
     DCHECK(target_block != nullptr);
   }
 
-  // Bail if the instruction can throw and we are about to move into a catch block.
-  if (instruction->CanThrow() && target_block->GetTryCatchInformation() != nullptr) {
+  // Bail if the instruction would throw into a catch block.
+  if (instruction->CanThrow() && target_block->IsTryBlock()) {
+    // TODO(solanes): Here we could do something similar to the loop above and move to the first
+    // dominator, which is not a try block, instead of just returning nullptr. If we do so, we have
+    // to also make sure we are not in a loop.
+    // TODO(solanes): Alternatively, we could split the try block at the try boundary having two
+    // blocks: A and B. Block B would have the try boundary (and xhandler) and therefore block A
+    // would be the target block available to move the instruction.
     return nullptr;
   }
 
