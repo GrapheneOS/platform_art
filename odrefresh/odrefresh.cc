@@ -1348,6 +1348,15 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
     LOG(WARNING) << "Missing dirty objects file : " << QuotePath(dirty_image_objects_file);
   }
 
+  const std::string preloaded_classes_file(GetAndroidRoot() + "/etc/preloaded-classes");
+  if (OS::FileExists(preloaded_classes_file.c_str())) {
+    std::unique_ptr<File> file(OS::OpenFileForReading(preloaded_classes_file.c_str()));
+    args.emplace_back(android::base::StringPrintf("--preloaded-classes-fds=%d", file->Fd()));
+    readonly_files_raii.push_back(std::move(file));
+  } else {
+    LOG(WARNING) << "Missing preloaded classes file : " << QuotePath(preloaded_classes_file);
+  }
+
   // Add boot classpath jars to compile.
   std::vector<std::string> jars_to_compile = boot_classpath_compilable_jars_;
   if (minimal) {
