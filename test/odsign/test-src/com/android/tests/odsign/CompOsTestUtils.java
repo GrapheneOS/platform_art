@@ -30,6 +30,8 @@ import com.android.tradefed.util.CommandResult;
 import java.util.concurrent.TimeUnit;
 
 public class CompOsTestUtils {
+    public static final String APEXDATA_DIR = "/data/misc/apexdata/com.android.compos";
+
     public static final String PENDING_ARTIFACTS_DIR =
             "/data/misc/apexdata/com.android.art/compos-pending";
 
