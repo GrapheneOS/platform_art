@@ -492,11 +492,6 @@ OatWriter::OatWriter(const CompilerOptions& compiler_options,
     relative_patcher_(nullptr),
     profile_compilation_info_(info),
     compact_dex_level_(compact_dex_level) {
-  // If we have a profile, always use at least the default compact dex level. The reason behind
-  // this is that CompactDex conversion is not more expensive than normal dexlayout.
-  if (info != nullptr && compact_dex_level_ == CompactDexLevel::kCompactDexLevelNone) {
-    compact_dex_level_ = kDefaultCompactDexLevel;
-  }
 }
 
 static bool ValidateDexFileHeader(const uint8_t* raw_header, const char* location) {
@@ -3311,9 +3306,9 @@ bool OatWriter::WriteDexFiles(File* file,
   if (extract_dex_files_into_vdex_) {
     vdex_dex_files_offset_ = vdex_size_;
 
-    // Perform dexlayout if requested.
-    if (profile_compilation_info_ != nullptr ||
-        compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
+    // Perform dexlayout if compact dex is enabled. Also see
+    // Dex2Oat::DoDexLayoutOptimizations.
+    if (compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
       for (OatDexFile& oat_dex_file : oat_dex_files_) {
         // use_existing_vdex should not be used with compact dex and layout.
         CHECK(!use_existing_vdex)
