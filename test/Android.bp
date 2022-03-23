@@ -1852,7 +1852,7 @@ genrule_defaults {
     ],
     tool_files: [
         "run-test-build.py",
-        "knownfailures.json",
+        "buildfailures.json",
         "etc/default-build",
         "etc/default-run",
         "etc/default-check",
