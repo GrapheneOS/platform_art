@@ -395,6 +395,7 @@ public class Main {
     assertEquals(456, testSinkToCatchBlock());
     assertEquals(456, testDoNotSinkToTry());
     assertEquals(456, testDoNotSinkToCatchInsideTry());
+    assertEquals(456, testSinkWithinTryBlock());
   }
 
   /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (before)
@@ -484,6 +485,27 @@ public class Main {
       }
     } catch (Error e) {
       throw new Error();
+    }
+    return 456;
+  }
+
+  /// CHECK-START: int Main.testSinkWithinTryBlock() code_sinking (before)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         If
+
+  /// CHECK-START: int Main.testSinkWithinTryBlock() code_sinking (after)
+  /// CHECK:                         If
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  private static int testSinkWithinTryBlock() {
+    try {
+      Object o = new Object();
+      if (doEarlyReturn) {
+        throw new Error(o.toString());
+      }
+    } catch (Error e) {
+      return 123;
     }
     return 456;
   }

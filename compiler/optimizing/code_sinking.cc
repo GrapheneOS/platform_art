@@ -222,10 +222,14 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
     // TODO(solanes): Here we could do something similar to the loop above and move to the first
     // dominator, which is not a try block, instead of just returning nullptr. If we do so, we have
     // to also make sure we are not in a loop.
-    // TODO(solanes): Alternatively, we could split the try block at the try boundary having two
-    // blocks: A and B. Block B would have the try boundary (and xhandler) and therefore block A
-    // would be the target block available to move the instruction.
-    return nullptr;
+
+    if (instruction->GetBlock()->IsTryBlock() &&
+        instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry().GetId() ==
+            target_block->GetTryCatchInformation()->GetTryEntry().GetId()) {
+      // Sink within the same try block is allowed.
+    } else {
+      return nullptr;
+    }
   }
 
   // Find insertion position. No need to filter anymore, as we have found a
