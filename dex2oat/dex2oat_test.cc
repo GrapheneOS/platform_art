@@ -1332,7 +1332,8 @@ TEST_F(Dex2oatTest, LayoutSections) {
       oat_filename,
       CompilerFilter::Filter::kVerify,
       &error_msg,
-      {"--profile-file=" + profile_file.GetFilename()});
+      {"--profile-file=" + profile_file.GetFilename(),
+       "--compact-dex-level=fast"});
   EXPECT_EQ(res, 0);
 
   // Open our generated oat file.
