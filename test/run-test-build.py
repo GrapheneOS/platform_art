@@ -22,7 +22,7 @@ It is intended to be used only from soong genrule.
 import argparse, os, tempfile, shutil, subprocess, glob, textwrap, re, json, concurrent.futures
 
 ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
-KNOWNFAILURES = json.loads(open(os.path.join("art", "test", "knownfailures.json"), "rt").read())
+BUILDFAILURES = json.loads(open(os.path.join("art", "test", "buildfailures.json"), "rt").read())
 
 def copy_sources(args, tmp, mode, srcdir):
   """Copy test files from Android tree into the build sandbox and return its path."""
@@ -32,9 +32,9 @@ def copy_sources(args, tmp, mode, srcdir):
   dstdir = join(tmp, mode, test)
 
   # Don't build tests that are disabled since they might not compile (e.g. on jvm).
-  def is_knownfailure(kf):
+  def is_buildfailure(kf):
     return test in kf.get("tests", []) and mode == kf.get("variant") and not kf.get("env_vars")
-  if any(is_knownfailure(kf) for kf in KNOWNFAILURES):
+  if any(is_buildfailure(kf) for kf in BUILDFAILURES):
     return None
 
   # Copy all source files to the temporary directory.
@@ -99,7 +99,7 @@ def main():
       for stdout, exitcode in pool.map(lambda dstdir: build_test(args, args.mode, dstdir), dstdirs):
         if stdout:
           print(stdout.strip())
-        assert(exitcode == 0) # Build failed.
+        assert(exitcode == 0) # Build failed. Add test to buildfailures.json if this is expected.
 
     # Create the final zip file which contains the content of the temporary directory.
     proc = subprocess.run([ZIP, "-o", args.out, "-C", tmp, "-D", tmp], check=True)
