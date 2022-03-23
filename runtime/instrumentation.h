@@ -578,6 +578,10 @@ class Instrumentation {
                !Locks::thread_list_lock_,
                !Locks::classlinker_classes_lock_);
 
+  // If there are no pending deoptimizations restores the stack to the normal state by updating the
+  // return pcs to actual return addresses from the instrumentation stack and clears the
+  // instrumentation stack.
+  void MaybeRestoreInstrumentationStack() REQUIRES(Locks::mutator_lock_);
 
   // No thread safety analysis to get around SetQuickAllocEntryPointsInstrumented requiring
   // exclusive access to mutator lock which you can't get if the runtime isn't started.
