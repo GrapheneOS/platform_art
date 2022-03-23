@@ -17,7 +17,9 @@
 #include "code_sinking.h"
 
 #include "base/arena_bit_vector.h"
+#include "base/array_ref.h"
 #include "base/bit_vector-inl.h"
+#include "base/logging.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "common_dominator.h"
@@ -216,21 +218,48 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
     target_block = target_block->GetDominator();
     DCHECK(target_block != nullptr);
   }
+  const bool was_in_loop = target_block->IsInLoop();
 
-  // Bail if the instruction would throw into a catch block.
-  if (instruction->CanThrow() && target_block->IsTryBlock()) {
-    // TODO(solanes): Here we could do something similar to the loop above and move to the first
-    // dominator, which is not a try block, instead of just returning nullptr. If we do so, we have
-    // to also make sure we are not in a loop.
-
-    if (instruction->GetBlock()->IsTryBlock() &&
-        instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry().GetId() ==
-            target_block->GetTryCatchInformation()->GetTryEntry().GetId()) {
-      // Sink within the same try block is allowed.
+  // For throwing instructions we can move them into:
+  //   * Blocks that are not part of a try
+  //     * Catch blocks are suitable as well, as long as they are not part of an outer try.
+  //   * Blocks that are part of the same try that the instrucion was already in.
+  //
+  // We cannot move an instruction that can throw into a try that said instruction is not a part of
+  // already, as that would mean it will throw into a different catch block. If we detect that
+  // `target_block` is not a valid block to move `instruction` to, we traverse up the dominator tree
+  // to find if we have a suitable block.
+  while (instruction->CanThrow() && target_block->GetTryCatchInformation() != nullptr) {
+    if (target_block->IsCatchBlock()) {
+      // If the catch block has an xhandler, it means it is inside of an outer try.
+      const bool inside_of_another_try_catch = target_block->GetSuccessors().size() != 1;
+      if (!inside_of_another_try_catch) {
+        // If we have a catch block, it's okay to sink as long as that catch is not inside of
+        // another try catch.
+        break;
+      }
     } else {
+      DCHECK(target_block->IsTryBlock());
+      if (instruction->GetBlock()->IsTryBlock() &&
+          instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry().GetId() ==
+              target_block->GetTryCatchInformation()->GetTryEntry().GetId()) {
+        // Sink within the same try block is allowed.
+        break;
+      }
+    }
+    // We are now in the case where we would be moving to a different try. Since we don't want
+    // that, traverse up the dominator tree to find a suitable block.
+    if (!post_dominated.IsBitSet(target_block->GetDominator()->GetBlockId())) {
+      // We couldn't find a suitable block.
       return nullptr;
     }
+    target_block = target_block->GetDominator();
+    DCHECK(target_block != nullptr);
   }
+
+  // We shouldn't land in a loop if we weren't in one before traversing up the dominator tree
+  // regarding try catches.
+  DCHECK_IMPLIES(target_block->IsInLoop(), was_in_loop);
 
   // Find insertion position. No need to filter anymore, as we have found a
   // target block.
@@ -296,7 +325,37 @@ void CodeSinking::SinkCodeToUncommonBranch(HBasicBlock* end_block) {
         // We currently bail for loops.
         is_post_dominated = false;
       } else {
-        for (HBasicBlock* successor : block->GetSuccessors()) {
+        // BasicBlock that are try entries look like this:
+        //   BasicBlock i:
+        //     instr 1
+        //     ...
+        //     instr N
+        //     TryBoundary kind:entry ---Try begins here---
+        //
+        // Due to how our BasicBlocks are structured, BasicBlock i will have an xhandler successor
+        // since we are starting a try. If we use `GetSuccessors` for this case, we will check if
+        // the catch block is post_dominated.
+        //
+        // However, this catch block doesn't matter: when we sink the instruction into that
+        // BasicBlock i, we do it before the TryBoundary (i.e. outside of the try and outside the
+        // catch's domain). We can ignore catch blocks using `GetNormalSuccessors` to sink code
+        // right before the start of a try block.
+        //
+        // On the other side of the coin, BasicBlock that are try exits look like this:
+        //   BasicBlock j:
+        //     instr 1
+        //     ...
+        //     instr N
+        //     TryBoundary kind:exit ---Try ends here---
+        //
+        // If we sink to these basic blocks we would be sinking inside of the try so we would like
+        // to check the catch block for post dominance.
+        const bool ends_with_try_boundary_entry =
+            block->EndsWithTryBoundary() && block->GetLastInstruction()->AsTryBoundary()->IsEntry();
+        ArrayRef<HBasicBlock* const> successors =
+            ends_with_try_boundary_entry ? block->GetNormalSuccessors() :
+                                           ArrayRef<HBasicBlock* const>(block->GetSuccessors());
+        for (HBasicBlock* successor : successors) {
           if (!post_dominated.IsBitSet(successor->GetBlockId())) {
             is_post_dominated = false;
             break;
