@@ -245,7 +245,7 @@ ThreadListTraces Thread 8
 Test911
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 68
- doTest ()V 110 54
+ doTest ()V 112 54
  run ()V 36 49
 
 ---------
@@ -302,7 +302,7 @@ ThreadListTraces Thread 8
 Test911
  getThreadListStackTraces ([Ljava/lang/Thread;I)[[Ljava/lang/Object; -1 -2
  printList ([Ljava/lang/Thread;I)V 0 68
- doTest ()V 115 56
+ doTest ()V 117 56
  run ()V 36 49
 
 ---------
