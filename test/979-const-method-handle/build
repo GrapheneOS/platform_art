@@ -17,7 +17,7 @@
 # make us exit on a failure
 set -e
 
-export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-7.0.jar"
+export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-9.2.jar"
 
 export ORIGINAL_JAVAC="$JAVAC"
 

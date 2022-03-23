@@ -24,7 +24,7 @@ if [[ -z "${ANDROID_BUILD_TOP}" ]]; then
 fi
 
 SCRIPT_PATH=$( cd $(dirname $0) ; pwd -P )
-ASM_CLASSPATH="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-7.0.jar"
+ASM_CLASSPATH="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-9.2.jar"
 SRC_PATH="${SCRIPT_PATH}/src"
 BUILD_PATH="${1:-${SCRIPT_PATH}/classes}"
 
