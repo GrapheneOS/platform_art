@@ -46,6 +46,7 @@ public class Main {
       // expected
       System.out.println(e.getMessage());
     }
+    testCatchBlock();
   }
 
   /// CHECK-START: void Main.testSimpleUse() code_sinking (before)
@@ -390,12 +391,116 @@ public class Main {
     return "" + intField;
   }
 
+  private static void testCatchBlock() {
+    assertEquals(456, testSinkToCatchBlock());
+    assertEquals(456, testDoNotSinkToTry());
+    assertEquals(456, testDoNotSinkToCatchInsideTry());
+  }
+
+  /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (before)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+
+  /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+
+  // Consistency check to make sure there's only one entry TryBoundary.
+  /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK-NOT:                     TryBoundary kind:entry
+
+  // Tests that we can sink the Object creation to the catch block.
+  private static int testSinkToCatchBlock() {
+    Object o = new Object();
+    try {
+      if (doEarlyReturn) {
+        return 123;
+      }
+    } catch (Error e) {
+      throw new Error(o.toString());
+    }
+    return 456;
+  }
+
+  /// CHECK-START: int Main.testDoNotSinkToTry() code_sinking (before)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+
+  /// CHECK-START: int Main.testDoNotSinkToTry() code_sinking (after)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+
+  // Consistency check to make sure there's only one entry TryBoundary.
+  /// CHECK-START: int Main.testDoNotSinkToTry() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK-NOT:                     TryBoundary kind:entry
+
+  // Tests that we don't sink the Object creation into the try.
+  private static int testDoNotSinkToTry() {
+    Object o = new Object();
+    try {
+      if (doEarlyReturn) {
+        throw new Error(o.toString());
+      }
+    } catch (Error e) {
+      throw new Error();
+    }
+    return 456;
+  }
+
+  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTry() code_sinking (before)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK:                         TryBoundary kind:entry
+
+  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTry() code_sinking (after)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK:                         TryBoundary kind:entry
+
+  // Consistency check to make sure there's exactly two entry TryBoundary.
+  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTry() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK-NOT:                     TryBoundary kind:entry
+
+  // Tests that we don't sink the Object creation into a catch handler surrounded by try/catch.
+  private static int testDoNotSinkToCatchInsideTry() {
+    Object o = new Object();
+    try {
+      try {
+        if (doEarlyReturn) {
+          return 123;
+        }
+      } catch (Error e) {
+        throw new Error(o.toString());
+      }
+    } catch (Error e) {
+      throw new Error();
+    }
+    return 456;
+  }
+
+  private static void assertEquals(int expected, int actual) {
+    if (expected != actual) {
+      throw new AssertionError("Expected: " + expected + ", Actual: " + actual);
+    }
+  }
+
   volatile int volatileField;
   int intField;
   int intField2;
   Object objectField;
   static boolean doThrow;
   static boolean doLoop;
+  static boolean doEarlyReturn;
   static Main mainField = new Main();
   static Object obj = new Object();
 }
