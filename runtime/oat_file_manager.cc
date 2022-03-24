@@ -308,7 +308,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
         if (oat_file->RequiresImage()) {
           LOG(WARNING) << "Loading "
                        << oat_file->GetLocation()
-                       << "non-executable as it requires an image which we failed to load";
+                       << " non-executable as it requires an image which we failed to load";
           // file as non-executable.
           OatFileAssistant nonexecutable_oat_file_assistant(dex_location,
                                                             kRuntimeISA,
