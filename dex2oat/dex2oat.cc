@@ -2541,11 +2541,15 @@ class Dex2Oat final {
     preloaded_classes_ = std::make_unique<HashSet<std::string>>();
     if (!preloaded_classes_fds_.empty()) {
       for (int fd : preloaded_classes_fds_) {
-        ReadCommentedInputFromFd(fd, nullptr, preloaded_classes_.get());
+        if (!ReadCommentedInputFromFd(fd, nullptr, preloaded_classes_.get())) {
+          return false;
+        }
       }
     } else {
       for (const std::string& file : preloaded_classes_files_) {
-        ReadCommentedInputFromFile(file.c_str(), nullptr, preloaded_classes_.get());
+        if (!ReadCommentedInputFromFile(file.c_str(), nullptr, preloaded_classes_.get())) {
+          return false;
+        }
       }
     }
     return true;
@@ -2780,25 +2784,27 @@ class Dex2Oat final {
   }
 
   template <typename T>
-  static void ReadCommentedInputFromFile(
+  static bool ReadCommentedInputFromFile(
       const char* input_filename, std::function<std::string(const char*)>* process, T* output) {
     auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fopen(input_filename, "r"), fclose};
     if (!input_file) {
       LOG(ERROR) << "Failed to open input file " << input_filename;
-      return;
+      return false;
     }
     ReadCommentedInputStream<T>(input_file.get(), process, output);
+    return true;
   }
 
   template <typename T>
-  static void ReadCommentedInputFromFd(
+  static bool ReadCommentedInputFromFd(
       int input_fd, std::function<std::string(const char*)>* process, T* output) {
     auto input_file = std::unique_ptr<FILE, decltype(&fclose)>{fdopen(input_fd, "r"), fclose};
     if (!input_file) {
       LOG(ERROR) << "Failed to re-open input fd from /prof/self/fd/" << input_fd;
-      return;
+      return false;
     }
     ReadCommentedInputStream<T>(input_file.get(), process, output);
+    return true;
   }
 
   // Read lines from the given file, dropping comments and empty lines. Post-process each line with
