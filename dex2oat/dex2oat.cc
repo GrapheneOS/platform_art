@@ -958,7 +958,6 @@ class Dex2Oat final {
     key_value_store_->Put(OatHeader::kCompilerFilter,
                           CompilerFilter::NameOfFilter(compiler_options_->GetCompilerFilter()));
     key_value_store_->Put(OatHeader::kConcurrentCopying, kUseReadBarrier);
-    key_value_store_->Put(OatHeader::kRequiresImage, compiler_options_->IsGeneratingImage());
     if (invocation_file_.get() != -1) {
       std::ostringstream oss;
       for (int i = 0; i < argc; ++i) {
@@ -1525,10 +1524,10 @@ class Dex2Oat final {
     }
     if (runtime_->GetHeap()->GetBootImageSpaces().empty() &&
         (IsBootImageExtension() || IsAppImage())) {
-      LOG(ERROR) << "Cannot create "
-                 << (IsBootImageExtension() ? "boot image extension" : "app image")
-                 << " without a primary boot image.";
-      return dex2oat::ReturnCode::kOther;
+      LOG(WARNING) << "Cannot create "
+                   << (IsBootImageExtension() ? "boot image extension" : "app image")
+                   << " without a primary boot image.";
+      compiler_options_->image_type_ = CompilerOptions::ImageType::kNone;
     }
     ArrayRef<const DexFile* const> bcp_dex_files(runtime_->GetClassLinker()->GetBootClassPath());
     if (IsBootImage() || IsBootImageExtension()) {
@@ -1666,6 +1665,10 @@ class Dex2Oat final {
           apex_versions_argument_.empty() ? runtime->GetApexVersions() : apex_versions_argument_;
       key_value_store_->Put(OatHeader::kApexVersionsKey, versions);
     }
+
+    // Now that we have adjusted whether we generate an image, encode it in the
+    // key/value store.
+    key_value_store_->Put(OatHeader::kRequiresImage, compiler_options_->IsGeneratingImage());
 
     // Now that we have finalized key_value_store_, start writing the .rodata section.
     // Among other things, this creates type lookup tables that speed up the compilation.
