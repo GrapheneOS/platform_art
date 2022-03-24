@@ -17,6 +17,7 @@
 package com.android.tests.odsign;
 
 import static com.android.tests.odsign.CompOsTestUtils.PENDING_ARTIFACTS_DIR;
+import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -29,6 +30,7 @@ import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -45,6 +47,8 @@ public class CompOsDenialHostTest extends BaseHostJUnit4Test {
 
     private OdsignTestUtils mTestUtils;
     private String mFirstArch;
+
+    @Rule public TestLogData mTestLogs = new TestLogData();
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
@@ -91,6 +95,18 @@ public class CompOsDenialHostTest extends BaseHostJUnit4Test {
         mTestUtils.assertCommandSucceeds("rm -rf " + PENDING_ARTIFACTS_DIR);
         mTestUtils.assertCommandSucceeds("cp -rp " + PENDING_ARTIFACTS_BACKUP_DIR + " " +
                 PENDING_ARTIFACTS_DIR);
+    }
+
+    @Test
+    public void vmLogCollector() throws Exception {
+        // This is not a test. The purpose is to collect VM's log, which is generated once per
+        // class, in beforeClassWithDevice before any tests run. It's implemented as a test methond
+        // because TestLogData doesn't seem to work in a class method.
+        OdsignTestUtils testUtils = new OdsignTestUtils(getTestInformation());
+        testUtils.archiveLogThenDelete(mTestLogs, CompOsTestUtils.APEXDATA_DIR + "/vm.log",
+                "vm.log-CompOsDenialHostTest");
+        testUtils.archiveLogThenDelete(mTestLogs, CompOsTestUtils.APEXDATA_DIR + "/vm_console.log",
+                "vm_console.log-CompOsDenialHostTest");
     }
 
     @Test
