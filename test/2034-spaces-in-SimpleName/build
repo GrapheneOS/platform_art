@@ -17,7 +17,7 @@
 # Stop on failure and be verbose.
 set -e -x
 
-export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-7.0.jar"
+export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-9.2.jar"
 
 # generate Java bytecode with ASM
 cd src_gen
