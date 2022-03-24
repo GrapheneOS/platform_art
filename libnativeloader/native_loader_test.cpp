@@ -167,6 +167,15 @@ INSTANTIATE_TEST_SUITE_P(NativeLoaderTests, NativeLoaderTest, testing::Bool());
 
 /////////////////////////////////////////////////////////////////
 
+std::string default_public_and_extended_libraries() {
+  std::string public_libs = default_public_libraries();
+  std::string ext_libs = extended_public_libraries();
+  if (!ext_libs.empty()) {
+    public_libs = public_libs + ":" + ext_libs;
+  }
+  return public_libs;
+}
+
 class NativeLoaderTest_Create : public NativeLoaderTest {
  protected:
   // Test inputs (initialized to the default values). Overriding these
@@ -195,7 +204,7 @@ class NativeLoaderTest_Create : public NativeLoaderTest {
   bool expected_link_with_vndk_product_ns = false;
   bool expected_link_with_default_ns = false;
   bool expected_link_with_neuralnetworks_ns = true;
-  std::string expected_shared_libs_to_platform_ns = default_public_libraries();
+  std::string expected_shared_libs_to_platform_ns = default_public_and_extended_libraries();
   std::string expected_shared_libs_to_art_ns = apex_public_libraries().at("com_android_art");
   std::string expected_shared_libs_to_i18n_ns = apex_public_libraries().at("com_android_i18n");
   std::string expected_shared_libs_to_conscrypt_ns = apex_jni_libraries("com_android_conscrypt");
@@ -203,7 +212,7 @@ class NativeLoaderTest_Create : public NativeLoaderTest {
   std::string expected_shared_libs_to_product_ns = product_public_libraries();
   std::string expected_shared_libs_to_vndk_ns = vndksp_libraries_vendor();
   std::string expected_shared_libs_to_vndk_product_ns = vndksp_libraries_product();
-  std::string expected_shared_libs_to_default_ns = default_public_libraries();
+  std::string expected_shared_libs_to_default_ns = default_public_and_extended_libraries();
   std::string expected_shared_libs_to_neuralnetworks_ns = apex_public_libraries().at("com_android_neuralnetworks");
 
   void SetExpectations() {
@@ -334,7 +343,7 @@ TEST_P(NativeLoaderTest_Create, UnbundledVendorApp) {
   expected_library_path = expected_library_path + ":/vendor/" LIB_DIR;
   expected_permitted_path = expected_permitted_path + ":/vendor/" LIB_DIR;
   expected_shared_libs_to_platform_ns =
-      expected_shared_libs_to_platform_ns + ":" + llndk_libraries_vendor();
+      default_public_libraries() + ":" + llndk_libraries_vendor();
   expected_link_with_vndk_ns = true;
   SetExpectations();
   RunTest();
@@ -371,7 +380,7 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
     expected_permitted_path =
         expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
     expected_shared_libs_to_platform_ns =
-        expected_shared_libs_to_platform_ns + ":" + llndk_libraries_product();
+        default_public_libraries() + ":" + llndk_libraries_product();
     expected_link_with_vndk_product_ns = true;
   }
   SetExpectations();
