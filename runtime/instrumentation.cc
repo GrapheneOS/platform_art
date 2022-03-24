@@ -905,6 +905,38 @@ void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_
   instrumentation_level_ = requested_level;
 }
 
+void Instrumentation::MaybeRestoreInstrumentationStack() {
+  // Restore stack only if there is no method currently deoptimized.
+  if (!IsDeoptimizedMethodsEmpty()) {
+    return;
+  }
+
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::thread_list_lock_);
+  bool no_remaining_deopts = true;
+  // Check that there are no other forced deoptimizations. Do it here so we only need to lock
+  // thread_list_lock once.
+  // The compiler gets confused on the thread annotations, so use
+  // NO_THREAD_SAFETY_ANALYSIS. Note that we hold the mutator lock
+  // exclusively at this point.
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
+  Runtime::Current()->GetThreadList()->ForEach([&](Thread* t) NO_THREAD_SAFETY_ANALYSIS {
+    no_remaining_deopts =
+        no_remaining_deopts && !t->IsForceInterpreter() &&
+        std::all_of(t->GetInstrumentationStack()->cbegin(),
+                    t->GetInstrumentationStack()->cend(),
+                    [&](const auto& frame) REQUIRES_SHARED(Locks::mutator_lock_) {
+                      return frame.second.force_deopt_id_ == current_force_deopt_id_;
+                    });
+  });
+  if (no_remaining_deopts) {
+    Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
+    // Only do this after restoring, as walking the stack when restoring will see
+    // the instrumentation exit pc.
+    instrumentation_stubs_installed_ = false;
+  }
+}
+
 void Instrumentation::UpdateStubs() {
   // Look for the highest required instrumentation level.
   InstrumentationLevel requested_level = InstrumentationLevel::kInstrumentNothing;
@@ -932,33 +964,7 @@ void Instrumentation::UpdateStubs() {
   } else {
     InstallStubsClassVisitor visitor(this);
     runtime->GetClassLinker()->VisitClasses(&visitor);
-    // Restore stack only if there is no method currently deoptimized.
-    bool empty = IsDeoptimizedMethodsEmpty();
-    if (empty) {
-      MutexLock mu(self, *Locks::thread_list_lock_);
-      bool no_remaining_deopts = true;
-      // Check that there are no other forced deoptimizations. Do it here so we only need to lock
-      // thread_list_lock once.
-      // The compiler gets confused on the thread annotations, so use
-      // NO_THREAD_SAFETY_ANALYSIS. Note that we hold the mutator lock
-      // exclusively at this point.
-      Locks::mutator_lock_->AssertExclusiveHeld(self);
-      runtime->GetThreadList()->ForEach([&](Thread* t) NO_THREAD_SAFETY_ANALYSIS {
-        no_remaining_deopts =
-            no_remaining_deopts && !t->IsForceInterpreter() &&
-            std::all_of(t->GetInstrumentationStack()->cbegin(),
-                        t->GetInstrumentationStack()->cend(),
-                        [&](const auto& frame) REQUIRES_SHARED(Locks::mutator_lock_) {
-                          return frame.second.force_deopt_id_ == current_force_deopt_id_;
-                        });
-      });
-      if (no_remaining_deopts) {
-        Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
-        // Only do this after restoring, as walking the stack when restoring will see
-        // the instrumentation exit pc.
-        instrumentation_stubs_installed_ = false;
-      }
-    }
+    MaybeRestoreInstrumentationStack();
   }
 }
 
@@ -1171,13 +1177,11 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
   CHECK(method->IsInvokable());
 
   Thread* self = Thread::Current();
-  bool empty;
   {
     WriterMutexLock mu(self, *GetDeoptimizedMethodsLock());
     bool found_and_erased = RemoveDeoptimizedMethod(method);
     CHECK(found_and_erased) << "Method " << ArtMethod::PrettyMethod(method)
         << " is not deoptimized";
-    empty = IsDeoptimizedMethodsEmptyLocked();
   }
 
   // Restore code and possibly stack only if we did not deoptimize everything.
@@ -1193,10 +1197,8 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
     }
 
     // If there is no deoptimized method left, we can restore the stack of each thread.
-    if (empty && !EntryExitStubsInstalled()) {
-      MutexLock mu(self, *Locks::thread_list_lock_);
-      Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, this);
-      instrumentation_stubs_installed_ = false;
+    if (!EntryExitStubsInstalled()) {
+      MaybeRestoreInstrumentationStack();
     }
   }
 }
