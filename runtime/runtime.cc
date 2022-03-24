@@ -3397,4 +3397,13 @@ void Runtime::MadviseFileForRange(size_t madvise_size_limit_bytes,
   }
 }
 
+bool Runtime::HasImageWithProfile() const {
+  for (gc::space::ImageSpace* space : GetHeap()->GetBootImageSpaces()) {
+    if (!space->GetProfileFiles().empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace art
