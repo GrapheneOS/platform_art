@@ -38,6 +38,7 @@ public class Main {
             test9();
             test10();
             test11();
+            test12();
 
             // TODO: How to test that interface method resolution returns the unique
             // maximally-specific non-abstract superinterface method if there is one?
@@ -383,17 +384,19 @@ public class Main {
      *     public interface Test10Interface { }
      * Tested invokes:
      *     invoke-interface Test10Interface.clone()Ljava/lang/Object; from Test10User in first dex
-     *         TODO b/64274113 This should throw a NSME (JLS 13.4.12) but actually throws an ICCE.
-     *         expected: Throws NoSuchMethodError (JLS 13.4.12)
-     *         actual: Throws IncompatibleClassChangeError
+     *         RI: Throws NoSuchMethodError (JLS 13.4.12?)
+     *         ART: Throws IncompatibleClassChangeError.
      *
      * This test is simulating compiling Test10Interface with "public Object clone()" method, along
-     * with every other class. Then we delete "clone" from Test10Interface only, which under JLS
-     * 13.4.12 is expected to be binary incompatible and throw a NoSuchMethodError.
+     * with every other class. Then we delete "clone" from Test10Interface only. As there is a
+     * method with the same signature declared in `java.lang.Object`, ART throws ICCE. For some
+     * reason RI throws NSME even though 13.4.12 is not applicable due to the superclass declaring
+     * a method with the same signature and the applicable section 13.4.7 does not specify what
+     * exception should be thrown (but ICCE is a reasonable choice).
      *
      * Files:
      *   src/Test10Interface.java     - defines empty interface
-     *   jasmin/Test10Base.j          - implements Test10Interface
+     *   src/Test10Base.java          - implements Test10Interface
      *   jasmin/Test10User.j          - invokeinterface Test10Interface.clone()Ljava/lang/Object;
      */
     private static void test10() throws Exception {
@@ -437,6 +440,33 @@ public class Main {
         } else {
             invokeUserTest("Test11User");
         }
+    }
+
+    /*
+     * Test12
+     * -----
+     * Tested function:
+     *     public class pkg.Test12Base {
+     *         void foo() { ... }  // package-private
+     *     }
+     *     public class Test12Derived extends pkg.Test12Base { }
+     * Tested invokes:
+     *     invoke-virtual Test12Derived.foo()V; from Test12User in first dex
+     *         expected: throws IllegalAccessError (JLS 13.4.7)
+     *
+     * This test is simulating compiling Test12Derived with "public void foo()" method, along
+     * with every other class. Then we delete "foo" from Test12Derived only. The invoke finds
+     * an inaccessible method in pkg1.Test12Base and throws IAE.
+     *
+     * This is somewhat similar to Test10 but throws IAE instead of ICCE.
+     *
+     * Files:
+     *   src/pkg/Test12Base.java      - declares package-private foo()V
+     *   src/Test12Derived.java       - does not declare foo()V
+     *   jasmin/Test12User.j          - invokevirtual Test12Derived.foo()V
+     */
+    private static void test12() throws Exception {
+        invokeUserTest("Test12User");
     }
 
     private static void invokeUserTest(String userName) throws Exception {
