@@ -1184,22 +1184,25 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
         << " is not deoptimized";
   }
 
-  // Restore code and possibly stack only if we did not deoptimize everything.
-  if (!InterpreterStubsInstalled()) {
-    // Restore its code or resolution trampoline.
-    if (InterpretOnly(method)) {
-      UpdateEntryPoints(method, GetQuickToInterpreterBridge());
-    } else if (NeedsClinitCheckBeforeCall(method) &&
-               !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-      UpdateEntryPoints(method, GetQuickResolutionStub());
-    } else {
-      UpdateEntryPoints(method, GetOptimizedCodeFor(method));
-    }
+  // If interpreter stubs are still needed nothing to do.
+  if (InterpreterStubsInstalled()) {
+    return;
+  }
 
-    // If there is no deoptimized method left, we can restore the stack of each thread.
-    if (!EntryExitStubsInstalled()) {
-      MaybeRestoreInstrumentationStack();
-    }
+  // We are not using interpreter stubs for deoptimization. Restore the code of the method.
+  // We still retain interpreter bridge if we need it for other reasons.
+  if (InterpretOnly(method)) {
+    UpdateEntryPoints(method, GetQuickToInterpreterBridge());
+  } else if (NeedsClinitCheckBeforeCall(method) &&
+             !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+    UpdateEntryPoints(method, GetQuickResolutionStub());
+  } else {
+    UpdateEntryPoints(method, GetMaybeInstrumentedCodeForInvoke(method));
+  }
+
+  // If there is no deoptimized method left, we can restore the stack of each thread.
+  if (!EntryExitStubsInstalled()) {
+    MaybeRestoreInstrumentationStack();
   }
 }
 
@@ -1285,6 +1288,16 @@ const void* Instrumentation::GetCodeForInvoke(ArtMethod* method) {
   }
 
   return GetOptimizedCodeFor(method);
+}
+
+const void* Instrumentation::GetMaybeInstrumentedCodeForInvoke(ArtMethod* method) {
+  // This is called by resolution trampolines and that should never be getting proxy methods.
+  DCHECK(!method->IsProxyMethod()) << method->PrettyMethod();
+  const void* code = GetCodeForInvoke(method);
+  if (EntryExitStubsInstalled() && CodeNeedsEntryExitStub(code, method)) {
+    return GetQuickInstrumentationEntryPoint();
+  }
+  return code;
 }
 
 void Instrumentation::MethodEnterEventImpl(Thread* thread, ArtMethod* method) const {
