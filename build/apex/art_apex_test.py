@@ -713,7 +713,6 @@ class TestingTargetChecker:
     self._checker.check_art_test_data('art-gtest-jars-ForClassLoaderD.jar')
     self._checker.check_art_test_data('art-gtest-jars-ForClassLoaderC.jar')
     self._checker.check_art_test_data('art-gtest-jars-ErroneousA.jar')
-    self._checker.check_art_test_data('art-gtest-jars-DexToDexDecompiler.jar')
     self._checker.check_art_test_data('art-gtest-jars-HiddenApiSignatures.jar')
     self._checker.check_art_test_data('art-gtest-jars-ForClassLoaderB.jar')
     self._checker.check_art_test_data('art-gtest-jars-LinkageTest.dex')
