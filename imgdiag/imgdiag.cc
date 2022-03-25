@@ -47,7 +47,7 @@
 #include "oat_file_manager.h"
 #include "scoped_thread_state_change-inl.h"
 
-#include "backtrace/BacktraceMap.h"
+#include "procinfo/process_map.h"
 #include "cmdline.h"
 
 #include <signal.h>
@@ -173,7 +173,7 @@ static std::vector<std::pair<V, K>> SortByValueDesc(
 template <typename T>
 static ObjPtr<T> FixUpRemotePointer(ObjPtr<T> remote_ptr,
                                     ArrayRef<uint8_t> remote_contents,
-                                    const backtrace_map_t& boot_map)
+                                    const android::procinfo::MapInfo& boot_map)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (remote_ptr == nullptr) {
     return nullptr;
@@ -233,7 +233,7 @@ struct RegionCommon {
   RegionCommon(std::ostream* os,
                ArrayRef<uint8_t> remote_contents,
                ArrayRef<uint8_t> zygote_contents,
-               const backtrace_map_t& boot_map,
+               const android::procinfo::MapInfo& boot_map,
                const ImageHeader& image_header) :
     os_(*os),
     remote_contents_(remote_contents),
@@ -308,7 +308,7 @@ struct RegionCommon {
   ArrayRef<uint8_t> remote_contents_;
   // The byte contents of the zygote process' image.
   ArrayRef<uint8_t> zygote_contents_;
-  const backtrace_map_t& boot_map_;
+  const android::procinfo::MapInfo& boot_map_;
   const ImageHeader& image_header_;
 
   // Count of entries that are different.
@@ -380,7 +380,7 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
   RegionSpecializedBase(std::ostream* os,
                         ArrayRef<uint8_t> remote_contents,
                         ArrayRef<uint8_t> zygote_contents,
-                        const backtrace_map_t& boot_map,
+                        const android::procinfo::MapInfo& boot_map,
                         const ImageHeader& image_header,
                         bool dump_dirty_objects)
       : RegionCommon<mirror::Object>(os, remote_contents, zygote_contents, boot_map, image_header),
@@ -709,7 +709,7 @@ class RegionSpecializedBase<ArtMethod> : public RegionCommon<ArtMethod> {
   RegionSpecializedBase(std::ostream* os,
                         ArrayRef<uint8_t> remote_contents,
                         ArrayRef<uint8_t> zygote_contents,
-                        const backtrace_map_t& boot_map,
+                        const android::procinfo::MapInfo& boot_map,
                         const ImageHeader& image_header,
                         bool dump_dirty_objects ATTRIBUTE_UNUSED)
       : RegionCommon<ArtMethod>(os, remote_contents, zygote_contents, boot_map, image_header),
@@ -949,7 +949,7 @@ class RegionData : public RegionSpecializedBase<T> {
   RegionData(std::ostream* os,
              ArrayRef<uint8_t> remote_contents,
              ArrayRef<uint8_t> zygote_contents,
-             const backtrace_map_t& boot_map,
+             const android::procinfo::MapInfo& boot_map,
              const ImageHeader& image_header,
              bool dump_dirty_objects)
       : RegionSpecializedBase<T>(os,
@@ -1152,11 +1152,10 @@ class ImgDiagDumper {
       }
     }
 
-    auto open_proc_maps = [&os](pid_t pid, /*out*/ std::unique_ptr<BacktraceMap>* proc_maps) {
-      // Open /proc/<pid>/maps to view memory maps.
-      proc_maps->reset(BacktraceMap::Create(pid));
-      if (*proc_maps == nullptr) {
-        os << "Could not read backtrace maps for " << pid;
+    auto open_proc_maps = [&os](pid_t pid,
+                                /*out*/ std::vector<android::procinfo::MapInfo>* proc_maps) {
+      if (!android::procinfo::ReadProcessMaps(pid, proc_maps)) {
+        os << "Could not read process maps for " << pid;
         return false;
       }
       return true;
@@ -1183,7 +1182,7 @@ class ImgDiagDumper {
     };
 
     // Open files for inspecting image memory.
-    std::unique_ptr<BacktraceMap> image_proc_maps;
+    std::vector<android::procinfo::MapInfo> image_proc_maps;
     std::unique_ptr<File> image_mem_file;
     std::unique_ptr<File> image_pagemap_file;
     if (!open_proc_maps(image_diff_pid_, &image_proc_maps) ||
@@ -1193,7 +1192,7 @@ class ImgDiagDumper {
     }
 
     // If zygote_diff_pid_ != -1, open files for inspecting zygote memory.
-    std::unique_ptr<BacktraceMap> zygote_proc_maps;
+    std::vector<android::procinfo::MapInfo> zygote_proc_maps;
     std::unique_ptr<File> zygote_mem_file;
     std::unique_ptr<File> zygote_pagemap_file;
     if (zygote_diff_pid_ != -1) {
@@ -1315,7 +1314,7 @@ class ImgDiagDumper {
 
   bool ComputeDirtyBytes(const ImageHeader& image_header,
                          const uint8_t* image_begin,
-                         const backtrace_map_t& boot_map,
+                         const android::procinfo::MapInfo& boot_map,
                          ArrayRef<uint8_t> remote_contents,
                          MappingData* mapping_data /*out*/) {
     std::ostream& os = *os_;
@@ -1445,17 +1444,17 @@ class ImgDiagDumper {
     std::string error_msg;
 
     std::string image_location_base_name = GetImageLocationBaseName(image_location);
-    // FIXME: BacktraceMap should provide a const_iterator so that we can take `maps` as const&.
-    auto find_boot_map = [&os, &image_location_base_name](BacktraceMap& maps, const char* tag)
-        -> std::optional<backtrace_map_t> {
+    auto find_boot_map = [&os, &image_location_base_name](
+                             const std::vector<android::procinfo::MapInfo>& maps,
+                             const char* tag) -> std::optional<android::procinfo::MapInfo> {
       // Find the memory map for the current boot image component.
-      for (const backtrace_map_t* map : maps) {
+      for (const android::procinfo::MapInfo& map_info : maps) {
         // The map name ends with ']' if it's an anonymous memmap. We need to special case that
         // to find the boot image map in some cases.
-        if (EndsWith(map->name, image_location_base_name) ||
-            EndsWith(map->name, image_location_base_name + "]")) {
-          if ((map->flags & PROT_WRITE) != 0) {
-            return *map;
+        if (EndsWith(map_info.name, image_location_base_name) ||
+            EndsWith(map_info.name, image_location_base_name + "]")) {
+          if ((map_info.flags & PROT_WRITE) != 0) {
+            return map_info;
           }
           // In actuality there's more than 1 map, but the second one is read-only.
           // The one we care about is the write-able map.
@@ -1468,11 +1467,12 @@ class ImgDiagDumper {
     };
 
     // Find the current boot image mapping.
-    std::optional<backtrace_map_t> maybe_boot_map = find_boot_map(*image_proc_maps_, "image");
-    if (maybe_boot_map == std::nullopt) {
+    std::optional<android::procinfo::MapInfo> maybe_boot_map =
+        find_boot_map(image_proc_maps_, "image");
+    if (!maybe_boot_map) {
       return false;
     }
-    backtrace_map_t boot_map = maybe_boot_map.value_or(backtrace_map_t{});
+    android::procinfo::MapInfo& boot_map = *maybe_boot_map;
     // Check the validity of the boot_map_.
     CHECK(boot_map.end >= boot_map.start);
 
@@ -1484,12 +1484,12 @@ class ImgDiagDumper {
 
     // If zygote_diff_pid_ != -1, check that the zygote boot map is the same.
     if (zygote_diff_pid_ != -1) {
-      std::optional<backtrace_map_t> maybe_zygote_boot_map =
-          find_boot_map(*zygote_proc_maps_, "zygote");
-      if (maybe_zygote_boot_map == std::nullopt) {
+      std::optional<android::procinfo::MapInfo> maybe_zygote_boot_map =
+          find_boot_map(zygote_proc_maps_, "zygote");
+      if (!maybe_zygote_boot_map) {
         return false;
       }
-      backtrace_map_t zygote_boot_map = maybe_zygote_boot_map.value_or(backtrace_map_t{});
+      android::procinfo::MapInfo& zygote_boot_map = *maybe_zygote_boot_map;
       // Adjust the `end` of the mapping. Some other mappings may have been
       // inserted within the image.
       zygote_boot_map.end = RoundUp(zygote_boot_map.start + image_header.GetImageSize(), kPageSize);
@@ -1801,15 +1801,15 @@ class ImgDiagDumper {
   bool dump_dirty_objects_;  // Adds dumping of objects that are dirty.
   bool zygote_pid_only_;  // The user only specified a pid for the zygote.
 
-  // BacktraceMap used for finding the memory mapping of the image file.
-  std::unique_ptr<BacktraceMap> image_proc_maps_;
+  // Used for finding the memory mapping of the image file.
+  std::vector<android::procinfo::MapInfo> image_proc_maps_;
   // A File for reading /proc/<image_diff_pid_>/mem.
   File image_mem_file_;
   // A File for reading /proc/<image_diff_pid_>/pagemap.
   File image_pagemap_file_;
 
-  // BacktraceMap used for finding the memory mapping of the zygote image file.
-  std::unique_ptr<BacktraceMap> zygote_proc_maps_;
+  // Used for finding the memory mapping of the zygote image file.
+  std::vector<android::procinfo::MapInfo> zygote_proc_maps_;
   // A File for reading /proc/<zygote_diff_pid_>/mem.
   File zygote_mem_file_;
   // A File for reading /proc/<zygote_diff_pid_>/pagemap.
