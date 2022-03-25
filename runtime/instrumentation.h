@@ -309,6 +309,13 @@ class Instrumentation {
   // Return the code that we can execute for an invoke including from the JIT.
   const void* GetCodeForInvoke(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Return the code that we can execute considering the current instrumentation level.
+  // If interpreter stubs are installed return interpreter bridge. If the entry exit stubs
+  // are installed return an instrumentation entry point. Otherwise, return the code that
+  // can be executed including from the JIT.
+  const void* GetMaybeInstrumentedCodeForInvoke(ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   void ForceInterpretOnly() {
     forced_interpret_only_ = true;
   }
