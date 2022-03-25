@@ -460,7 +460,6 @@ art_cc_defaults {
     data: [
         ":art-gtest-jars-AbstractMethod",
         ":art-gtest-jars-DefaultMethods",
-        ":art-gtest-jars-DexToDexDecompiler",
         ":art-gtest-jars-Dex2oatVdexPublicSdkDex",
         ":art-gtest-jars-Dex2oatVdexTestDex",
         ":art-gtest-jars-ImageLayoutA",
