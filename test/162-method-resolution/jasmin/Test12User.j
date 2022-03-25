@@ -1,4 +1,4 @@
-; Copyright (C) 2017 The Android Open Source Project
+; Copyright (C) 2022 The Android Open Source Project
 ;
 ; Licensed under the Apache License, Version 2.0 (the "License");
 ; you may not use this file except in compliance with the License.
@@ -12,14 +12,15 @@
 ; See the License for the specific language governing permissions and
 ; limitations under the License.
 
-.class                   public Test10Base
-.super                   java/lang/Object
-.implements              Test10Interface
+.class public Test12User
+.super java/lang/Object
 
-.method                  public <init>()V
-   .limit stack          1
-   .limit locals         1
-   aload_0
-   invokespecial         java/lang/Object/<init>()V
-   return
+.method public static test()V
+    .limit stack 2
+    .limit locals 0
+    new Test12Derived
+    dup
+    invokespecial Test12Derived.<init>()V
+    invokevirtual Test12Derived.foo()V
+    return
 .end method
