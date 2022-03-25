@@ -1391,7 +1391,10 @@ extern "C" const void* artQuickResolutionTrampoline(
     }
     if (success) {
       instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-      code = instrumentation->GetCodeForInvoke(called);
+      // Check if we need instrumented code here. Since resolution stubs could suspend, it is
+      // possible that we instrumented the entry points after we started executing the resolution
+      // stub.
+      code = instrumentation->GetMaybeInstrumentedCodeForInvoke(called);
     } else {
       DCHECK(called_class->IsErroneous());
       DCHECK(self->IsExceptionPending());
