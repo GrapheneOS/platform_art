@@ -36,8 +36,10 @@ cc_defaults {
     compile_multilib: "both",
 
     shared_libs: [
-        "libbacktrace",
         "libbase",
+    ],
+    static_libs: [
+        "libprocinfo",
     ],
     target: {
         host: {
