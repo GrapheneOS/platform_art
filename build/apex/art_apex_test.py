@@ -510,7 +510,6 @@ class ReleaseChecker:
     # catch invalid dependencies on /system or other APEXes that should go
     # through an exported library with stubs (b/128708192 tracks implementing a
     # better approach for that).
-    self._checker.check_native_library('libbacktrace')
     self._checker.check_native_library('libbase')
     self._checker.check_native_library('libc++')
     self._checker.check_native_library('libdt_socket')

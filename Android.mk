@@ -521,7 +521,6 @@ PRIVATE_ART_APEX_DEPENDENCY_LIBS := \
   lib/libart-disassembler.so \
   lib/libartpalette.so \
   lib/libart.so \
-  lib/libbacktrace.so \
   lib/libdexfile.so \
   lib/libdt_fd_forward.so \
   lib/libdt_socket.so \
@@ -551,7 +550,6 @@ PRIVATE_ART_APEX_DEPENDENCY_LIBS := \
   lib64/libart-disassembler.so \
   lib64/libartpalette.so \
   lib64/libart.so \
-  lib64/libbacktrace.so \
   lib64/libdexfile.so \
   lib64/libdt_fd_forward.so \
   lib64/libdt_socket.so \
