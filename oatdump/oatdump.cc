@@ -1214,10 +1214,7 @@ class OatDumper {
           (method_header == nullptr) ? 0 : method_header->GetCodeInfoOffset();
       vios->Stream() << StringPrintf("(offset=0x%08x)\n", vmap_table_offset);
 
-      size_t vmap_table_offset_limit =
-          IsMethodGeneratedByDexToDexCompiler(oat_method, code_item_accessor)
-              ? oat_file_.GetVdexFile()->Size()
-              : method_header->GetCode() - oat_file_.Begin();
+      size_t vmap_table_offset_limit = method_header->GetCode() - oat_file_.Begin();
       if (vmap_table_offset >= vmap_table_offset_limit) {
         vios->Stream() << StringPrintf("WARNING: "
                                        "vmap table offset 0x%08x is past end of file 0x%08zx. ",
@@ -1345,11 +1342,6 @@ class OatDumper {
         ScopedIndentation indent1(vios);
         DumpCodeInfo(vios, code_info, oat_method);
       }
-    } else if (IsMethodGeneratedByDexToDexCompiler(oat_method, code_item_accessor)) {
-      // We don't encode the size in the table, so just emit that we have quickened
-      // information.
-      ScopedIndentation indent(vios);
-      vios->Stream() << "quickened data\n";
     } else {
       // Otherwise, there is nothing to display.
     }
@@ -1463,19 +1455,6 @@ class OatDumper {
     // null, then this method has been compiled with the optimizing
     // compiler.
     return oat_method.GetQuickCode() != nullptr &&
-           oat_method.GetVmapTable() != nullptr &&
-           code_item_accessor.HasCodeItem();
-  }
-
-  // Has `oat_method` -- corresponding to the Dex `code_item` -- been compiled by
-  // the dextodex compiler?
-  static bool IsMethodGeneratedByDexToDexCompiler(
-      const OatFile::OatMethod& oat_method,
-      const CodeItemDataAccessor& code_item_accessor) {
-    // If the quick code is null, the Dex `code_item` is not
-    // null, and the vmap table is not null, then this method has been compiled
-    // with the dextodex compiler.
-    return oat_method.GetQuickCode() == nullptr &&
            oat_method.GetVmapTable() != nullptr &&
            code_item_accessor.HasCodeItem();
   }
