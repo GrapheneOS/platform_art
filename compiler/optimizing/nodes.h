@@ -1417,7 +1417,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   bool HasThrowingInstructions() const;
 
   // Returns whether this block dominates the blocked passed as parameter.
-  bool Dominates(HBasicBlock* block) const;
+  bool Dominates(const HBasicBlock* block) const;
 
   size_t GetLifetimeStart() const { return lifetime_start_; }
   size_t GetLifetimeEnd() const { return lifetime_end_; }
