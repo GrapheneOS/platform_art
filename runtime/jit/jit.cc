@@ -1156,20 +1156,9 @@ void Jit::MapBootImageMethods() {
   LOG(INFO) << "Successfully mapped boot image methods";
 }
 
-// Return whether a boot image has a profile. This means we'll need to pre-JIT
-// methods in that profile for performance.
-static bool HasImageWithProfile() {
-  for (gc::space::ImageSpace* space : Runtime::Current()->GetHeap()->GetBootImageSpaces()) {
-    if (!space->GetProfileFiles().empty()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 bool Jit::InZygoteUsingJit() {
   Runtime* runtime = Runtime::Current();
-  return runtime->IsZygote() && HasImageWithProfile() && runtime->UseJitCompilation();
+  return runtime->IsZygote() && runtime->HasImageWithProfile() && runtime->UseJitCompilation();
 }
 
 void Jit::CreateThreadPool() {
@@ -1290,7 +1279,7 @@ void Jit::RegisterDexFiles(const std::vector<std::unique_ptr<const DexFile>>& de
   if (runtime->IsSystemServer() &&
       UseJitCompilation() &&
       options_->UseProfiledJitCompilation() &&
-      HasImageWithProfile() &&
+      runtime->HasImageWithProfile() &&
       !runtime->IsJavaDebuggable()) {
     thread_pool_->AddTask(Thread::Current(), new JitProfileTask(dex_files, class_loader));
   }
@@ -1624,11 +1613,12 @@ void Jit::PostForkChildAction(bool is_system_server, bool is_zygote) {
   // JitAtFirstUse compiles the methods synchronously on mutator threads. While this should work
   // in theory it is causing deadlocks in some jvmti tests related to Jit GC. Hence, disabling
   // Jit GC for now (b/147208992).
-  code_cache_->SetGarbageCollectCode(!jit_compiler_->GenerateDebugInfo() &&
-      !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
+  code_cache_->SetGarbageCollectCode(
+      !jit_compiler_->GenerateDebugInfo() &&
+      !runtime->GetInstrumentation()->AreExitStubsInstalled() &&
       !JitAtFirstUse());
 
-  if (is_system_server && HasImageWithProfile()) {
+  if (is_system_server && runtime->HasImageWithProfile()) {
     // Disable garbage collection: we don't want it to delete methods we're compiling
     // through boot and system server profiles.
     // TODO(ngeoffray): Fix this so we still collect deoptimized and unused code.
