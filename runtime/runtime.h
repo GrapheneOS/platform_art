@@ -1069,6 +1069,10 @@ class Runtime {
     return apex_versions_;
   }
 
+  // Return whether a boot image has a profile. This means it's an in-memory
+  // image rather that an image loaded from disk.
+  bool HasImageWithProfile() const;
+
   // Trigger a flag reload from system properties or device congfigs.
   //
   // Should only be called from runtime init and zygote post fork as
