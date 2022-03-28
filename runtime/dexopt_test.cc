@@ -17,8 +17,8 @@
 #include <string>
 #include <vector>
 
-#include <backtrace/BacktraceMap.h>
 #include <gtest/gtest.h>
+#include <procinfo/process_map.h>
 
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -220,13 +220,14 @@ void DexoptTest::ReserveImageSpace() {
   uint64_t reservation_start = ART_BASE_ADDRESS;
   uint64_t reservation_end = ART_BASE_ADDRESS + 384 * MB;
 
-  std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
-  ASSERT_TRUE(map.get() != nullptr) << "Failed to build process map";
-  for (BacktraceMap::iterator it = map->begin();
-      reservation_start < reservation_end && it != map->end(); ++it) {
-    const backtrace_map_t* entry = *it;
-    ReserveImageSpaceChunk(reservation_start, std::min(entry->start, reservation_end));
-    reservation_start = std::max(reservation_start, entry->end);
+  std::vector<android::procinfo::MapInfo> maps;
+  ASSERT_TRUE(android::procinfo::ReadProcessMaps(getpid(), &maps));
+  for (const android::procinfo::MapInfo& map_info : maps) {
+    ReserveImageSpaceChunk(reservation_start, std::min(map_info.start, reservation_end));
+    reservation_start = std::max(reservation_start, map_info.end);
+    if (reservation_start >= reservation_end) {
+      break;
+    }
   }
   ReserveImageSpaceChunk(reservation_start, reservation_end);
 }
