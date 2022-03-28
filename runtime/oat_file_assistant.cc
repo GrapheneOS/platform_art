@@ -946,8 +946,28 @@ bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
     VLOG(oat) << "Compiler filter not okay because Profile changed";
     return false;
   }
-  return downgrade ? !CompilerFilter::IsBetter(current, target) :
-    CompilerFilter::IsAsGoodAs(current, target);
+
+  if (downgrade) {
+    return !CompilerFilter::IsBetter(current, target);
+  }
+
+  if (CompilerFilter::DependsOnImageChecksum(current) &&
+      CompilerFilter::IsAsGoodAs(current, target)) {
+    // If the oat file has been compiled without an image, and the runtime is
+    // now running with an image loaded from disk, return that we need to
+    // re-compile. The recompilation will generate a better oat file, and with an app
+    // image for profile guided compilation.
+    const char* oat_boot_class_path_checksums =
+        file->GetOatHeader().GetStoreValueByKey(OatHeader::kBootClassPathChecksumsKey);
+    if (oat_boot_class_path_checksums != nullptr &&
+        !StartsWith(oat_boot_class_path_checksums, "i") &&
+        !Runtime::Current()->HasImageWithProfile()) {
+      DCHECK(!file->GetOatHeader().RequiresImage());
+      return false;
+    }
+  }
+
+  return CompilerFilter::IsAsGoodAs(current, target);
 }
 
 bool OatFileAssistant::ClassLoaderContextIsOkay(const OatFile& oat_file) const {
