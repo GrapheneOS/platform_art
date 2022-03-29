@@ -150,9 +150,11 @@ struct CmdlineParserArgumentInfo {
     for (auto cname : names_) {
       std::string_view name = cname;
       auto& os = vios.Stream();
+      // nblank gets captured by print_once, so needs to be declared here.
+      std::string_view nblank;
       std::function<void()> print_once;
       if (using_blanks_) {
-        std::string_view nblank = name.substr(0, name.find("_"));
+        nblank = name.substr(0, name.find("_"));
         print_once = [&]() {
           os << nblank;
           if (has_value_map_) {
