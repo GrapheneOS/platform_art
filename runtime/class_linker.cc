@@ -7533,6 +7533,13 @@ class ClassLinker::LinkMethodsHelper {
   ArenaStack stack_;
   ScopedArenaAllocator allocator_;
 
+  // If there are multiple methods with the same signature in the superclass vtable
+  // (which can happen with a new virtual method having the same signature as an
+  // inaccessible package-private method from another package in the superclass),
+  // we keep singly-linked lists in this single array that maps vtable index to the
+  // next vtable index in the list, `dex::kDexNoIndex` denotes the end of a list.
+  ArrayRef<uint32_t> same_signature_vtable_lists_;
+
   // Avoid large allocation for a few copied method records.
   // Keep the initial buffer on the stack to avoid arena allocations
   // if there are no special cases (the first arena allocation is costly).
@@ -7971,6 +7978,7 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
           same_signature_vtable_lists = ArrayRef<uint32_t>(
               allocator_.AllocArray<uint32_t>(super_vtable_length), super_vtable_length);
           std::fill_n(same_signature_vtable_lists.data(), super_vtable_length, dex::kDexNoIndex);
+          same_signature_vtable_lists_ = same_signature_vtable_lists;
         }
         DCHECK_LT(*it, i);
         same_signature_vtable_lists[i] = *it;
@@ -8008,9 +8016,18 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
       // superclass method would have been incorrectly overridden.
       bool overrides = klass->CanAccessMember(super_method->GetDeclaringClass(),
                                               super_method->GetAccessFlags());
+      if (overrides && super_method->IsFinal()) {
+        sants.reset();
+        ThrowLinkageError(klass, "Method %s overrides final method in class %s",
+                          virtual_method->PrettyMethod().c_str(),
+                          super_method->GetDeclaringClassDescriptor());
+        return 0u;
+      }
       if (UNLIKELY(!same_signature_vtable_lists.empty())) {
-        // We override only the first accessible virtual method from superclass.
-        // TODO: Override all methods that need to be overridden according to JLS. b/211854716
+        // We may override more than one method according to JLS, see b/211854716 .
+        // We record the highest overridden vtable index here so that we can walk
+        // the list to find other overridden methods when constructing the vtable.
+        // However, we walk all the methods to check for final method overriding.
         size_t current_index = super_index;
         while (same_signature_vtable_lists[current_index] != dex::kDexNoIndex) {
           DCHECK_LT(same_signature_vtable_lists[current_index], current_index);
@@ -8018,20 +8035,22 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
           ArtMethod* current_method = super_vtable_accessor.GetVTableEntry(current_index);
           if (klass->CanAccessMember(current_method->GetDeclaringClass(),
                                      current_method->GetAccessFlags())) {
-            overrides = true;
-            super_index = current_index;
-            super_method = current_method;
+            if (current_method->IsFinal()) {
+              sants.reset();
+              ThrowLinkageError(klass, "Method %s overrides final method in class %s",
+                                virtual_method->PrettyMethod().c_str(),
+                                current_method->GetDeclaringClassDescriptor());
+              return 0u;
+            }
+            if (!overrides) {
+              overrides = true;
+              super_index = current_index;
+              super_method = current_method;
+            }
           }
         }
       }
       if (overrides) {
-        if (super_method->IsFinal()) {
-          sants.reset();
-          ThrowLinkageError(klass, "Method %s overrides final method in class %s",
-                            virtual_method->PrettyMethod().c_str(),
-                            super_method->GetDeclaringClassDescriptor());
-          return 0u;
-        }
         virtual_method->SetMethodIndex(super_index);
         continue;
       }
@@ -8426,9 +8445,25 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
     }
 
     // Store new virtual methods in the new vtable.
+    ArrayRef<uint32_t> same_signature_vtable_lists = same_signature_vtable_lists_;
     for (ArtMethod& virtual_method : klass->GetVirtualMethodsSliceUnchecked(kPointerSize)) {
-      int32_t vtable_index = virtual_method.GetMethodIndexDuringLinking();
+      uint32_t vtable_index = virtual_method.GetMethodIndexDuringLinking();
       vtable->SetElementPtrSize(vtable_index, &virtual_method, kPointerSize);
+      if (UNLIKELY(vtable_index < same_signature_vtable_lists.size())) {
+        // We may override more than one method according to JLS, see b/211854716 .
+        // If we do, arbitrarily update the method index to the lowest overridden vtable index.
+        while (same_signature_vtable_lists[vtable_index] != dex::kDexNoIndex) {
+          DCHECK_LT(same_signature_vtable_lists[vtable_index], vtable_index);
+          vtable_index = same_signature_vtable_lists[vtable_index];
+          ArtMethod* current_method = super_class->GetVTableEntry(vtable_index, kPointerSize);
+          if (klass->CanAccessMember(current_method->GetDeclaringClass(),
+                                     current_method->GetAccessFlags())) {
+            DCHECK(!current_method->IsFinal());
+            vtable->SetElementPtrSize(vtable_index, &virtual_method, kPointerSize);
+            virtual_method.SetMethodIndex(vtable_index);
+          }
+        }
+      }
     }
 
     // For non-overridden vtable slots, copy a method from `super_class`.

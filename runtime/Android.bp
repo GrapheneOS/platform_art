@@ -678,7 +678,9 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libbase",
-        "libbacktrace",
+    ],
+    static_libs: [
+        "libprocinfo",
     ],
     header_libs: [
         "libnativehelper_header_only",

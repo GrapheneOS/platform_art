@@ -1478,12 +1478,6 @@
         "description": ["jit-on-first-use disables jit GC but this test requires jit GC"]
     },
     {
-        "tests": ["835-b216762268"],
-        "variant": "jit | optimizing | jit-on-first-use",
-        "bug": "b/216762268",
-        "description": ["bug in the loop optimization"]
-    },
-    {
         "tests": ["445-checker-licm",
                   "449-checker-bce",
                   "455-checker-gvn",
