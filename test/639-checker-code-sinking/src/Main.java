@@ -396,6 +396,9 @@ public class Main {
     assertEquals(456, testDoNotSinkToTry());
     assertEquals(456, testDoNotSinkToCatchInsideTry());
     assertEquals(456, testSinkWithinTryBlock());
+    assertEquals(456, testSinkRightBeforeTryBlock());
+    assertEquals(456, testSinkToSecondCatch());
+    assertEquals(456, testDoNotSinkToCatchInsideTryWithMoreThings(false, false));
   }
 
   /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (before)
@@ -510,6 +513,103 @@ public class Main {
     return 456;
   }
 
+  /// CHECK-START: int Main.testSinkRightBeforeTryBlock() code_sinking (before)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         If
+  /// CHECK:                         TryBoundary kind:entry
+
+  /// CHECK-START: int Main.testSinkRightBeforeTryBlock() code_sinking (after)
+  /// CHECK:                         If
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+  private static int testSinkRightBeforeTryBlock() {
+    Object o = new Object();
+    if (doEarlyReturn) {
+      try {
+        throw new Error(o.toString());
+      } catch (Error e) {
+        return 123;
+      }
+    }
+    return 456;
+  }
+
+  /// CHECK-START: int Main.testSinkToSecondCatch() code_sinking (before)
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK:                         TryBoundary kind:entry
+
+  /// CHECK-START: int Main.testSinkToSecondCatch() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+
+  // Consistency check to make sure there's exactly two entry TryBoundary.
+  /// CHECK-START: int Main.testSinkToSecondCatch() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK-NOT:                     TryBoundary kind:entry
+  private static int testSinkToSecondCatch() {
+    Object o = new Object();
+    try {
+      if (doEarlyReturn) {
+        return 123;
+      }
+    } catch (Error e) {
+      throw new Error();
+    }
+
+    try {
+      // We need a different boolean to the one above, so that the compiler cannot optimize this
+      // return away.
+      if (doOtherEarlyReturn) {
+        return 789;
+      }
+    } catch (Error e) {
+      throw new Error(o.toString());
+    }
+
+    return 456;
+  }
+
+  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTryWithMoreThings(boolean, boolean) code_sinking (before)
+  /// CHECK-NOT:                     TryBoundary kind:entry
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+
+  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTryWithMoreThings(boolean, boolean) code_sinking (after)
+  /// CHECK-NOT:                     TryBoundary kind:entry
+  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
+  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
+
+  // Tests that we don't sink the Object creation into a catch handler surrounded by try/catch, even
+  // when that inner catch is not at the boundary of the outer try catch.
+  private static int testDoNotSinkToCatchInsideTryWithMoreThings(boolean a, boolean b) {
+    Object o = new Object();
+    try {
+      if (a) {
+        System.out.println(a);
+      }
+      try {
+        if (doEarlyReturn) {
+          return 123;
+        }
+      } catch (Error e) {
+        throw new Error(o.toString());
+      }
+      if (b) {
+        System.out.println(b);
+      }
+    } catch (Error e) {
+      throw new Error();
+    }
+    return 456;
+  }
+
   private static void assertEquals(int expected, int actual) {
     if (expected != actual) {
       throw new AssertionError("Expected: " + expected + ", Actual: " + actual);
@@ -523,6 +623,7 @@ public class Main {
   static boolean doThrow;
   static boolean doLoop;
   static boolean doEarlyReturn;
+  static boolean doOtherEarlyReturn;
   static Main mainField = new Main();
   static Object obj = new Object();
 }
