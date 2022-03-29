@@ -1110,10 +1110,10 @@ bool HLoopInformation::HasExitEdge() const {
   return false;
 }
 
-bool HBasicBlock::Dominates(HBasicBlock* other) const {
+bool HBasicBlock::Dominates(const HBasicBlock* other) const {
   // Walk up the dominator tree from `other`, to find out if `this`
   // is an ancestor.
-  HBasicBlock* current = other;
+  const HBasicBlock* current = other;
   while (current != nullptr) {
     if (current == this) {
       return true;
