@@ -16,6 +16,7 @@
 
 package com.android.tests.odsign;
 
+import static com.android.tests.odsign.CompOsTestUtils.PENDING_ARTIFACTS_DIR;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -72,8 +73,7 @@ public class CompOsSigningHostTest extends ActivationTest {
         compOsTestUtils.runCompilationJobEarlyAndWait();
 
         testInfo.properties().put(PENDING_CHECKSUMS_KEY,
-                compOsTestUtils.checksumDirectoryContentPartial(
-                        CompOsTestUtils.PENDING_ARTIFACTS_DIR));
+                compOsTestUtils.checksumDirectoryContentPartial(PENDING_ARTIFACTS_DIR));
 
         testInfo.properties().put(TIMESTAMP_REBOOT_KEY,
                         String.valueOf(testUtils.getCurrentTimeMs()));
@@ -102,6 +102,12 @@ public class CompOsSigningHostTest extends ActivationTest {
                         "vm.log-CompOsSigningHostTest");
         testUtils.archiveLogThenDelete(mTestLogs, CompOsTestUtils.APEXDATA_DIR + "/vm_console.log",
                         "vm_console.log-CompOsSigningHostTest");
+    }
+
+    @Test
+    public void checkOutputValidity() throws Exception {
+        assertThat(getDevice().getChildren(PENDING_ARTIFACTS_DIR)).asList().containsAtLeast(
+                "cache-info.xml", "compos.info", "compos.info.signature");
     }
 
     @Test
