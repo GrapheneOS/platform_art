@@ -68,18 +68,7 @@ art_cc_library {
             shared_libs: ["liblog"],
             version_script: "libartpalette.map.txt",
         },
-        linux_bionic: {
-            header_libs: ["libbase_headers"],
-            srcs: ["system/palette_fake.cc"],
-            shared: {
-                shared_libs: [
-                    "libbase",
-                    "liblog",
-                ],
-            },
-            version_script: "libartpalette.map.txt",
-        },
-        linux_glibc: {
+        host_linux: {
             header_libs: ["libbase_headers"],
             srcs: ["system/palette_fake.cc"],
             shared: {
