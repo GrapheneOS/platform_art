@@ -18,9 +18,38 @@
 
 #include "base/stl_util.h"
 #include "mirror/class-inl.h"
+#include "mirror/string-inl.h"
 #include "oat_file.h"
 
 namespace art {
+
+uint32_t ClassTable::TableSlot::UpdateHashForProxyClass(
+    uint32_t hash, ObjPtr<mirror::Class> proxy_class) {
+  // No read barrier needed, the `name` field is constant for proxy classes and
+  // the contents of the String are also constant. See ReadBarrierOption.
+  // Note: The `proxy_class` can be a from-space reference.
+  DCHECK(proxy_class->IsProxyClass());
+  ObjPtr<mirror::String> name = proxy_class->GetName<kVerifyNone, kWithoutReadBarrier>();
+  DCHECK(name != nullptr);
+  // Update hash for characters we would get from `DotToDescriptor(name->ToModifiedUtf8())`.
+  DCHECK_NE(name->GetLength(), 0);
+  DCHECK_NE(name->CharAt(0), '[');
+  hash = UpdateModifiedUtf8Hash(hash, 'L');
+  if (name->IsCompressed()) {
+    std::string_view dot_name(reinterpret_cast<const char*>(name->GetValueCompressed()),
+                              name->GetLength());
+    for (char c : dot_name) {
+      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
+    }
+  } else {
+    std::string dot_name = name->ToModifiedUtf8();
+    for (char c : dot_name) {
+      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
+    }
+  }
+  hash = UpdateModifiedUtf8Hash(hash, ';');
+  return hash;
+}
 
 ClassTable::ClassTable() : lock_("Class loader classes", kClassLoaderClassesLock) {
   Runtime* const runtime = Runtime::Current();
@@ -187,14 +216,6 @@ void ClassTable::ClearStrongRoots() {
   WriterMutexLock mu(Thread::Current(), lock_);
   oat_files_.clear();
   strong_roots_.clear();
-}
-
-ClassTable::TableSlot::TableSlot(ObjPtr<mirror::Class> klass)
-    : TableSlot(klass, HashDescriptor(klass)) {}
-
-uint32_t ClassTable::TableSlot::HashDescriptor(ObjPtr<mirror::Class> klass) {
-  std::string temp;
-  return ComputeModifiedUtf8Hash(klass->GetDescriptor(&temp));
 }
 
 }  // namespace art
