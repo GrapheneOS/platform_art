@@ -3701,7 +3701,23 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
       }
     }
   }
-  size_t slow_args_search_start = 1u;  // First arg.
+
+  // Check for nterp invoke fast-path based on shorty.
+  bool all_parameters_are_reference = true;
+  bool all_parameters_are_reference_or_int = true;
+  for (size_t i = 1; i < shorty.length(); ++i) {
+    if (shorty[i] != 'L') {
+      all_parameters_are_reference = false;
+      if (shorty[i] == 'F' || shorty[i] == 'D' || shorty[i] == 'J') {
+        all_parameters_are_reference_or_int = false;
+        break;
+      }
+    }
+  }
+  if (all_parameters_are_reference_or_int && shorty[0] != 'F' && shorty[0] != 'D') {
+    access_flags |= kAccNterpInvokeFastPathFlag;
+  }
+
   if (UNLIKELY((access_flags & kAccNative) != 0u)) {
     // Check if the native method is annotated with @FastNative or @CriticalNative.
     const dex::ClassDef& class_def = dex_file.GetClassDef(klass->GetDexClassDefIndex());
@@ -3723,6 +3739,10 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     DCHECK_EQ(method.GetCodeItemOffset(), 0u);
     dst->SetDataPtrSize(nullptr, image_pointer_size_);  // Single implementation not set yet.
   } else {
+    // Check for nterp entry fast-path based on shorty.
+    if (all_parameters_are_reference) {
+      access_flags |= kAccNterpEntryPointFastPathFlag;
+    }
     const dex::ClassDef& class_def = dex_file.GetClassDef(klass->GetDexClassDefIndex());
     if (annotations::MethodIsNeverCompile(dex_file, class_def, dex_method_idx)) {
       access_flags |= kAccCompileDontBother;
@@ -3737,19 +3757,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     } else {
       dst->SetCodeItem(dex_file.GetCodeItem(code_item_offset), dex_file.IsCompactDexFile());
     }
-    // Check for nterp entry fast-path based on shorty.
-    slow_args_search_start = shorty.find_first_not_of('L', 1u);
-    if (slow_args_search_start == std::string_view::npos) {
-      dst->SetNterpEntryPointFastPathFlag();
-    }
-  }
-
-  // Check for nterp invoke fast-path based on shorty.
-  auto is_slow_arg = [](char c) { return c == 'F' || c == 'D' || c == 'J'; };
-  if ((shorty[0] != 'F' && shorty[0] != 'D') &&  // Returns reference or integral type.
-      (slow_args_search_start == std::string_view::npos ||
-       std::none_of(shorty.begin() + slow_args_search_start, shorty.end(), is_slow_arg))) {
-    dst->SetNterpInvokeFastPathFlag();
   }
 
   if (Runtime::Current()->IsZygote()) {

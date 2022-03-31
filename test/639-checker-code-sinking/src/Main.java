@@ -26,6 +26,7 @@ public class Main {
     testNoUse();
     testPhiInput();
     testVolatileStore();
+    testCatchBlock();
     doThrow = true;
     try {
       testInstanceSideEffects();
@@ -46,7 +47,6 @@ public class Main {
       // expected
       System.out.println(e.getMessage());
     }
-    testCatchBlock();
   }
 
   /// CHECK-START: void Main.testSimpleUse() code_sinking (before)
@@ -399,6 +399,8 @@ public class Main {
     assertEquals(456, testSinkRightBeforeTryBlock());
     assertEquals(456, testSinkToSecondCatch());
     assertEquals(456, testDoNotSinkToCatchInsideTryWithMoreThings(false, false));
+    assertEquals(456, testSinkToCatchBlockCustomClass());
+    assertEquals(456, DoNotSinkWithOOMThrow());
   }
 
   /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (before)
@@ -608,6 +610,76 @@ public class Main {
       throw new Error();
     }
     return 456;
+  }
+
+  private static class ObjectWithInt {
+    int x;
+  }
+
+  /// CHECK-START: int Main.testSinkToCatchBlockCustomClass() code_sinking (before)
+  /// CHECK: <<LoadClass:l\d+>>      LoadClass class_name:Main$ObjectWithInt
+  /// CHECK: <<Clinit:l\d+>>         ClinitCheck [<<LoadClass>>]
+  /// CHECK:                         NewInstance [<<Clinit>>]
+  /// CHECK:                         TryBoundary kind:entry
+
+  /// CHECK-START: int Main.testSinkToCatchBlockCustomClass() code_sinking (after)
+  /// CHECK: <<LoadClass:l\d+>>      LoadClass class_name:Main$ObjectWithInt
+  /// CHECK: <<Clinit:l\d+>>         ClinitCheck [<<LoadClass>>]
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK:                         NewInstance [<<Clinit>>]
+
+  // Consistency check to make sure there's only one entry TryBoundary.
+  /// CHECK-START: int Main.testSinkToCatchBlockCustomClass() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK-NOT:                     TryBoundary kind:entry
+
+  // Similar to testSinkToCatchBlock, but using a custom class. CLinit check is not an instruction
+  // that we sink since it can throw and it is not in the allow list. We can sink the NewInstance
+  // nevertheless.
+  private static int testSinkToCatchBlockCustomClass() {
+    ObjectWithInt obj = new ObjectWithInt();
+    try {
+      if (doEarlyReturn) {
+        return 123;
+      }
+    } catch (Error e) {
+      throw new Error(Integer.toString(obj.x));
+    }
+    return 456;
+  }
+
+  /// CHECK-START: int Main.DoNotSinkWithOOMThrow() code_sinking (before)
+  /// CHECK: <<LoadClass:l\d+>>      LoadClass class_name:Main$ObjectWithInt
+  /// CHECK: <<Clinit:l\d+>>         ClinitCheck [<<LoadClass>>]
+  /// CHECK:                         NewInstance [<<Clinit>>]
+  /// CHECK:                         TryBoundary kind:entry
+
+  /// CHECK-START: int Main.DoNotSinkWithOOMThrow() code_sinking (after)
+  /// CHECK: <<LoadClass:l\d+>>      LoadClass class_name:Main$ObjectWithInt
+  /// CHECK: <<Clinit:l\d+>>         ClinitCheck [<<LoadClass>>]
+  /// CHECK:                         NewInstance [<<Clinit>>]
+  /// CHECK:                         TryBoundary kind:entry
+
+  // Consistency check to make sure there's only one entry TryBoundary.
+  /// CHECK-START: int Main.DoNotSinkWithOOMThrow() code_sinking (after)
+  /// CHECK:                         TryBoundary kind:entry
+  /// CHECK-NOT:                     TryBoundary kind:entry
+  private static int DoNotSinkWithOOMThrow() throws OutOfMemoryError {
+    int x = 0;
+    ObjectWithInt obj = new ObjectWithInt();
+    try {
+      // We want an if/else here so that the catch block will have a catch phi.
+      if (doThrow) {
+        x = 1;
+        // Doesn't really matter what we throw we just want it to not be caught by the
+        // NullPointerException below.
+        throw new OutOfMemoryError(Integer.toString(obj.x));
+      } else {
+        x = 456;
+      }
+    } catch (NullPointerException e) {
+    }
+    return x;
   }
 
   private static void assertEquals(int expected, int actual) {

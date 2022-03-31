@@ -30,6 +30,7 @@ import android.cts.install.lib.host.InstallUtilsHost;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.ITestDevice.ApexInfo;
+import com.android.tradefed.device.TestDeviceOptions;
 import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.result.FileInputStreamSource;
 import com.android.tradefed.result.LogDataType;
@@ -242,9 +243,23 @@ public class OdsignTestUtils {
     }
 
     public void reboot() throws Exception {
+        TestDeviceOptions options = mTestInfo.getDevice().getOptions();
+        // store default value and increase time-out for reboot
+        int rebootTimeout = options.getRebootTimeout();
+        long onlineTimeout = options.getOnlineTimeout();
+        options.setRebootTimeout((int)BOOT_COMPLETE_TIMEOUT.toMillis());
+        options.setOnlineTimeout(BOOT_COMPLETE_TIMEOUT.toMillis());
+        mTestInfo.getDevice().setOptions(options);
+
         mTestInfo.getDevice().reboot();
         boolean success =
                 mTestInfo.getDevice().waitForBootComplete(BOOT_COMPLETE_TIMEOUT.toMillis());
+
+        // restore default values
+        options.setRebootTimeout(rebootTimeout);
+        options.setOnlineTimeout(onlineTimeout);
+        mTestInfo.getDevice().setOptions(options);
+
         assertWithMessage("Device didn't boot in %s", BOOT_COMPLETE_TIMEOUT).that(success).isTrue();
     }
 
