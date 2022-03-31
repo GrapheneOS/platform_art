@@ -105,12 +105,6 @@ public class CompOsSigningHostTest extends ActivationTest {
     }
 
     @Test
-    public void checkOutputValidity() throws Exception {
-        assertThat(getDevice().getChildren(PENDING_ARTIFACTS_DIR)).asList().containsAtLeast(
-                "cache-info.xml", "compos.info", "compos.info.signature");
-    }
-
-    @Test
     public void checkFileChecksums() throws Exception {
         CompOsTestUtils compOsTestUtils = new CompOsTestUtils(getDevice());
         String actualChecksums = compOsTestUtils.checksumDirectoryContentPartial(
