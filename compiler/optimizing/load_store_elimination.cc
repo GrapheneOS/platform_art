@@ -1528,9 +1528,14 @@ LSEVisitor::Value LSEVisitor::PrepareLoopStoredBy(HBasicBlock* block, size_t idx
   // Use the Phi placeholder for `stored_by` to make sure all incoming stores are kept
   // if the value in the location escapes. This is not applicable to singletons that are
   // defined inside the loop as they shall be dead in the loop header.
-  ReferenceInfo* ref_info = heap_location_collector_.GetHeapLocation(idx)->GetReferenceInfo();
+  const ReferenceInfo* ref_info = heap_location_collector_.GetHeapLocation(idx)->GetReferenceInfo();
+  const HInstruction* reference = ref_info->GetReference();
+  // Finalizable objects always escape.
+  const bool is_finalizable =
+      reference->IsNewInstance() && reference->AsNewInstance()->IsFinalizable();
   if (ref_info->IsSingleton() &&
-      block->GetLoopInformation()->Contains(*ref_info->GetReference()->GetBlock())) {
+      block->GetLoopInformation()->Contains(*reference->GetBlock()) &&
+      !is_finalizable) {
     return Value::PureUnknown();
   }
   PhiPlaceholder phi_placeholder = GetPhiPlaceholder(block->GetBlockId(), idx);
