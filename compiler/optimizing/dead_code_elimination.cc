@@ -209,9 +209,6 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
 //
 //           B1
 //          /  \
-//          |   instr_1
-//          |   ...
-//          |   instr_n
 //          |   foo()  // always throws
 //          \   goto B2
 //           \ /
@@ -221,9 +218,6 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
 //
 //           B1
 //          /  \
-//          |  instr_1
-//          |  ...
-//          |  instr_n
 //          |  foo()
 //          |  goto Exit
 //          |   |
@@ -233,6 +227,10 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
 // Removal of the never taken edge to B2 may expose
 // other optimization opportunities, such as code sinking.
 bool HDeadCodeElimination::SimplifyAlwaysThrows() {
+  // Make sure exceptions go to exit.
+  if (graph_->HasTryCatch()) {
+    return false;
+  }
   HBasicBlock* exit = graph_->GetExitBlock();
   if (exit == nullptr) {
     return false;
@@ -242,35 +240,15 @@ bool HDeadCodeElimination::SimplifyAlwaysThrows() {
 
   // Order does not matter, just pick one.
   for (HBasicBlock* block : graph_->GetReversePostOrder()) {
-    if (block->GetTryCatchInformation() != nullptr) {
-      // We don't want to perform the simplify always throws optimizations for throws inside of
-      // tries since those throws might not go to the exit block. We do that by checking the
-      // TryCatchInformation of the blocks.
-      //
-      // As a special case the `catch_block` is the first block of the catch and it has
-      // TryCatchInformation. Other blocks in the catch don't have try catch information (as long as
-      // they are not part of an outer try). Knowing if a `catch_block` is part of an outer try is
-      // possible by checking its successors, but other restrictions of the simplify always throws
-      // optimization will block `catch_block` nevertheless (e.g. only one predecessor) so it is not
-      // worth the effort.
-
-      // TODO(solanes): Maybe we can do a `goto catch` if inside of a try catch instead of going to
-      // the exit. If we do so, we have to take into account that we should go to the nearest valid
-      // catch i.e. one that would accept our exception type.
-      continue;
-    }
-
+    HInstruction* first = block->GetFirstInstruction();
     HInstruction* last = block->GetLastInstruction();
-    HInstruction* prev = last->GetPrevious();
-    if (prev == nullptr) {
-      DCHECK_EQ(block->GetFirstInstruction(), block->GetLastInstruction());
-      continue;
-    }
-
-    if (prev->AlwaysThrows() &&
+    // Ensure only one throwing instruction appears before goto.
+    if (first->AlwaysThrows() &&
+        first->GetNext() == last &&
         last->IsGoto() &&
         block->GetPhis().IsEmpty() &&
         block->GetPredecessors().size() == 1u) {
+      DCHECK_EQ(block->GetSuccessors().size(), 1u);
       HBasicBlock* pred = block->GetSinglePredecessor();
       HBasicBlock* succ = block->GetSingleSuccessor();
       // Ensure no computations are merged through throwing block.
