@@ -1426,6 +1426,56 @@ public class Main {
     System.out.println("testFinalizableByForcingGc() failed to force gc.");
   }
 
+  /// CHECK-START: void Main.testFinalizable() load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+
+  /// CHECK-START: void Main.testFinalizableWithLoop() load_store_elimination (after)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldSet
+
+  // Allocations of finalizable objects cannot be eliminated.
+  static void testFinalizableWithLoop() {
+    for (int i = 0; i < 1000; ++i) {
+      Finalizable finalizable = new Finalizable();
+      finalizable.i = Finalizable.VALUE2;
+      finalizable.i = Finalizable.VALUE1;
+    }
+  }
+
+  static void testFinalizableWithLoopByForcingGc() {
+    testFinalizableWithLoop();
+    java.lang.ref.WeakReference<Object> reference = getWeakReference();
+
+    Runtime runtime = Runtime.getRuntime();
+    for (int i = 0; i < 20; ++i) {
+      runtime.gc();
+      System.runFinalization();
+      try {
+        Thread.sleep(1);
+      } catch (InterruptedException e) {
+        throw new AssertionError(e);
+      }
+
+      // Check to see if the weak reference has been garbage collected.
+      if (reference.get() == null) {
+        // A little bit more sleep time to make sure.
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+          throw new AssertionError(e);
+        }
+        if (!Finalizable.sVisited) {
+          System.out.println("finalize() not called.");
+        }
+        return;
+      }
+    }
+    System.out.println("testFinalizableWithLoopByForcingGc() failed to force gc.");
+  }
+
   /// CHECK-START: int Main.$noinline$testHSelect(boolean) load_store_elimination (before)
   /// CHECK: InstanceFieldSet
   /// CHECK: Select
@@ -4068,6 +4118,7 @@ public class Main {
     assertIntEquals(test39(new TestClass(), false), 1);
 
     testFinalizableByForcingGc();
+    testFinalizableWithLoopByForcingGc();
     assertIntEquals($noinline$testHSelect(true), 0xdead);
     int[] array = {2, 5, 9, -1, -3, 10, 8, 4};
     assertIntEquals(sumWithinRange(array, 1, 5), 11);
