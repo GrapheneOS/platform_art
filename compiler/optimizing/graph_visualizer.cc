@@ -586,10 +586,6 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
     StartAttributeStream("kind") << (try_boundary->IsEntry() ? "entry" : "exit");
   }
 
-  void VisitGoto(HGoto* instruction) override {
-    StartAttributeStream("target") << namer_.GetName(instruction->GetBlock()->GetSingleSuccessor());
-  }
-
   void VisitDeoptimize(HDeoptimize* deoptimize) override {
     StartAttributeStream("kind") << deoptimize->GetKind();
   }
@@ -661,8 +657,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       StartAttributeStream("dex_pc") << "n/a";
     }
     HBasicBlock* block = instruction->GetBlock();
-    StartAttributeStream("block") << namer_.GetName(block);
-
+    if (IsPass(kDebugDumpName)) {
+      // Include block name for logcat use.
+      StartAttributeStream("block") << namer_.GetName(block);
+    }
     instruction->Accept(this);
     if (instruction->HasEnvironment()) {
       StringList envs;
