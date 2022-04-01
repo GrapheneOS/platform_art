@@ -194,6 +194,7 @@ define define-art-gtest-rule-host
   gtest_build_rule := test-art-host-gtest-dependencies-$$(gtest_suffix)
   gtest_output := $(call intermediates-dir-for,PACKAGING,art-host-gtest,HOST)/$$(gtest_suffix).xml
   $$(call dist-for-goals,$$(gtest_rule),$$(gtest_output):gtest/$$(gtest_suffix))
+  $$(call declare-1p-target,$$(gtest_output))
   gtest_exe := $(2)
   # Dependencies for all host gtests.
   gtest_deps := $$(ART_HOST_DEX_DEPENDENCIES) \
