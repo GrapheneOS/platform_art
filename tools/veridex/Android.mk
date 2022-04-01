@@ -26,11 +26,14 @@ $(system_stub_dex): PRIVATE_MIN_SDK_VERSION := 1000
 $(system_stub_dex): $(call resolve-prebuilt-sdk-jar-path,system_current) | $(ZIP2ZIP) $(DX)
 	$(transform-classes.jar-to-dex)
 
+$(call declare-1p-target,$(system_stub_dex),art)
 
 oahl_stub_dex := $(TARGET_OUT_COMMON_INTERMEDIATES)/PACKAGING/oahl_dex_intermediates/classes.dex
 $(oahl_stub_dex): PRIVATE_MIN_SDK_VERSION := 1000
 $(oahl_stub_dex): $(call get-prebuilt-sdk-dir,current)/org.apache.http.legacy.jar | $(ZIP2ZIP) $(DX)
 	$(transform-classes.jar-to-dex)
+
+$(call declare-1p-target,$(oahl_stub_dex),art)
 
 # Phony rule to create all dependencies of the appcompat.sh script.
 .PHONY: appcompat
@@ -64,6 +67,10 @@ $(VERIDEX_FILES_PATH) : $(SOONG_ZIP) $(VERIDEX_FILES) $(INTERNAL_PLATFORM_HIDDEN
 	                   -C $(dir $(PRIVATE_OAHL_STUBS_ZIP)) -f $(PRIVATE_OAHL_STUBS_ZIP)
 	rm -f $(PRIVATE_SYSTEM_STUBS_ZIP)
 	rm -f $(PRIVATE_OAHL_STUBS_ZIP)
+
+$(call declare-1p-container,$(VERIDEX_FILES_PATH),art)
+$(call declare-container-license-deps,$(VERIDEX_FILES_PATH),$(INTERNAL_PLATFORM_HIDDENAPI_FLAGS) \
+    $(HOST_OUT_EXECUTABLES)/veridex $(system_stub_dex) $(oahl_stub_dex),$(VERIDEX_FILES_PATH):)
 
 # Make the zip file available for prebuilts.
 $(call dist-for-goals,sdk,$(VERIDEX_FILES_PATH))
