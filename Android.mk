@@ -884,6 +884,8 @@ public_sdk_$(1)_stub := $$(call get_public_sdk_stub_dex,$(1))
 $$(public_sdk_$(1)_stub): PRIVATE_MIN_SDK_VERSION := $(1)
 $$(public_sdk_$(1)_stub): $$(call resolve-prebuilt-sdk-jar-path,$(1)) $$(DX) $$(ZIP2ZIP)
 	$$(transform-classes.jar-to-dex)
+
+$$(call declare-1p-target,$$(public_sdk_$(1)_stub),art)
 endef
 
 $(foreach version,$(SDK_VERSIONS),$(eval $(call create_public_sdk_dex,$(version))))
@@ -899,6 +901,9 @@ $$(PUBLIC_SDK_$(1)_STUB_ZIP_PATH): PRIVATE_SDK_STUBS_DEX_DIR := $$(dir $$(public
 $$(PUBLIC_SDK_$(1)_STUB_ZIP_PATH): $$(SOONG_ZIP) $$(public_sdk_$(1)_stub)
 	rm -f $$@
 	$$(SOONG_ZIP) -o $$@ -C $$(PRIVATE_SDK_STUBS_DEX_DIR) -D $$(PRIVATE_SDK_STUBS_DEX_DIR)
+
+$$(call declare-1p-container,$$(PUBLIC_SDK_$(1)_STUB_ZIP_PATH),art)
+$$(call declare-container-license-deps,$$(PUBLIC_SDK_$(1)_STUB_ZIP_PATH),$$(public_sdk_$(1)_stub),$$(PUBLIC_SDK_$(1)_STUB_PATH):)
 endef
 
 $(foreach version,$(SDK_VERSIONS),$(eval $(call create_public_sdk_zip,$(version))))
