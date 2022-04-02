@@ -68,26 +68,8 @@ java_sdk_library {
         "com.android.art",
         "com.android.art.debug",
     ],
-    sdk_version: "core_platform",
+    sdk_version: "system_server_current",
     min_sdk_version: "31",
-
-    public: {
-        // Override the setting of "module_current" from the defaults as that is
-        // not available in all manifests where this needs to be built.
-        sdk_version: "core_current",
-    },
-
-    system_server: {
-        // Override the setting of "module_current" from the defaults as that is
-        // not available in all manifests where this needs to be built.
-        sdk_version: "core_current",
-    },
-
-    // The API elements are the ones annotated with
-    //   libcore.api.CorePlatformApi(status=libcore.api.CorePlatformApi.Status.STABLE)
-    droiddoc_options: [
-        "--show-single-annotation libcore.api.CorePlatformApi\\(status=libcore.api.CorePlatformApi.Status.STABLE\\)",
-    ],
 
     // Temporarily disable compatibility with previous released APIs.
     // TODO - remove once prototype has stabilized
@@ -100,11 +82,10 @@ java_sdk_library {
     compile_dex: true,
 
     srcs: [
-        "service/java/com/android/server/art/ArtManagerLocal.java",
+        "service/java/**/*.java",
     ],
 
     libs: [
-        "art.module.api.annotations.for.system.modules",
     ],
 
     plugins: ["java_api_finder"],

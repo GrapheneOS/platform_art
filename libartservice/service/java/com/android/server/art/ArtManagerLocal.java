@@ -16,15 +16,16 @@
 
 package com.android.server.art;
 
-import libcore.api.CorePlatformApi;
+import android.annotation.SystemApi;
 
 /**
- * This class provides a system API for functionality provided by the ART
- * module.
+ * This class provides a system API for functionality provided by the ART module.
+ *
+ * @hide
  */
-@libcore.api.CorePlatformApi(status = libcore.api.CorePlatformApi.Status.STABLE)
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public final class ArtManagerLocal {
-    static final String LOG_TAG = "ArtService";
+    private static final String TAG = "ArtService";
 
     public ArtManagerLocal() {}
 }
