@@ -198,7 +198,10 @@ void InternTable::WaitUntilAccessible(Thread* self) {
   Locks::intern_table_lock_->ExclusiveLock(self);
 }
 
-ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s, uint32_t hash, bool is_strong) {
+ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s,
+                                           uint32_t hash,
+                                           bool is_strong,
+                                           size_t num_searched_strong_frozen_tables) {
   DCHECK(s != nullptr);
   DCHECK_EQ(hash, static_cast<uint32_t>(s->GetStoredHashCode()));
   DCHECK_IMPLIES(hash == 0u, s->ComputeHashCode() == 0);
@@ -210,14 +213,16 @@ ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s, uint32_t ha
   }
   while (true) {
     // Check the strong table for a match.
-    ObjPtr<mirror::String> strong = strong_interns_.Find(s, hash);
+    ObjPtr<mirror::String> strong =
+        strong_interns_.Find(s, hash, num_searched_strong_frozen_tables);
     if (strong != nullptr) {
       return strong;
     }
-    if ((!kUseReadBarrier && weak_root_state_ != gc::kWeakRootStateNoReadsOrWrites) ||
-        (kUseReadBarrier && self->GetWeakRefAccessEnabled())) {
+    if (kUseReadBarrier ? self->GetWeakRefAccessEnabled()
+                        : weak_root_state_ != gc::kWeakRootStateNoReadsOrWrites) {
       break;
     }
+    num_searched_strong_frozen_tables = strong_interns_.tables_.size() - 1u;
     // weak_root_state_ is set to gc::kWeakRootStateNoReadsOrWrites in the GC pause but is only
     // cleared after SweepSystemWeaks has completed. This is why we need to wait until it is
     // cleared.
@@ -249,9 +254,12 @@ ObjPtr<mirror::String> InternTable::InternStrong(uint32_t utf16_length, const ch
   uint32_t hash = Utf8String::Hash(utf16_length, utf8_data);
   Thread* self = Thread::Current();
   ObjPtr<mirror::String> s;
+  size_t num_searched_strong_frozen_tables;
   {
     // Try to avoid allocation. If we need to allocate, release the mutex before the allocation.
     MutexLock mu(self, *Locks::intern_table_lock_);
+    DCHECK(!strong_interns_.tables_.empty());
+    num_searched_strong_frozen_tables = strong_interns_.tables_.size() - 1u;
     s = strong_interns_.Find(Utf8String(utf16_length, utf8_data), hash);
   }
   if (s != nullptr) {
@@ -266,7 +274,7 @@ ObjPtr<mirror::String> InternTable::InternStrong(uint32_t utf16_length, const ch
     return nullptr;
   }
   s->SetHashCode(static_cast<int32_t>(hash));
-  return Insert(s, hash, /*is_strong=*/ true);
+  return Insert(s, hash, /*is_strong=*/ true, num_searched_strong_frozen_tables);
 }
 
 ObjPtr<mirror::String> InternTable::InternStrong(const char* utf8_data) {
@@ -323,12 +331,18 @@ void InternTable::Table::Remove(ObjPtr<mirror::String> s, uint32_t hash) {
   LOG(FATAL) << "Attempting to remove non-interned string " << s->ToModifiedUtf8();
 }
 
-ObjPtr<mirror::String> InternTable::Table::Find(ObjPtr<mirror::String> s, uint32_t hash) {
+ObjPtr<mirror::String> InternTable::Table::Find(ObjPtr<mirror::String> s,
+                                                uint32_t hash,
+                                                size_t num_searched_frozen_tables) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
-  for (InternalTable& table : tables_) {
-    auto it = table.set_.FindWithHash(GcRoot<mirror::String>(s), hash);
-    if (it != table.set_.end()) {
-      return it->Read();
+  auto mid = tables_.begin() + num_searched_frozen_tables;
+  for (auto it = tables_.begin(); it != mid; ++it) {
+    DCHECK(it->set_.FindWithHash(GcRoot<mirror::String>(s), hash) == it->set_.end());
+  }
+  for (auto it = mid, end = tables_.end(); it != end; ++it) {
+    auto set_it = it->set_.FindWithHash(GcRoot<mirror::String>(s), hash);
+    if (set_it != it->set_.end()) {
+      return set_it->Read();
     }
   }
   return nullptr;
