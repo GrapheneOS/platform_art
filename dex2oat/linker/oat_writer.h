@@ -265,7 +265,7 @@ class OatWriter {
   struct OrderedMethodData;
   class OrderedMethodVisitor;
   class InitCodeMethodVisitor;
-  class InitMapMethodVisitor;
+  template <bool kDeduplicate> class InitMapMethodVisitor;
   class InitImageMethodVisitor;
   class WriteCodeMethodVisitor;
   class WriteMapMethodVisitor;
