@@ -81,6 +81,11 @@ class DedupeSet<InKey, StoreKey, Alloc, HashType, HashFunc, kShard>::Shard {
     return store_key;
   }
 
+  size_t Size(Thread* self) {
+    MutexLock lock(self, lock_);
+    return keys_.size();
+  }
+
   void UpdateStats(Thread* self, Stats* global_stats) REQUIRES(!lock_) {
     // HashSet<> doesn't keep entries ordered by hash, so we actually allocate memory
     // for bookkeeping while collecting the stats.
@@ -226,6 +231,20 @@ template <typename InKey,
           HashType kShard>
 DedupeSet<InKey, StoreKey, Alloc, HashType, HashFunc, kShard>::~DedupeSet() {
   // Everything done by member destructors.
+}
+
+template <typename InKey,
+          typename StoreKey,
+          typename Alloc,
+          typename HashType,
+          typename HashFunc,
+          HashType kShard>
+size_t DedupeSet<InKey, StoreKey, Alloc, HashType, HashFunc, kShard>::Size(Thread* self) const {
+  size_t result = 0u;
+  for (const auto& shard : shards_) {
+    result += shard->Size(self);
+  }
+  return result;
 }
 
 template <typename InKey,

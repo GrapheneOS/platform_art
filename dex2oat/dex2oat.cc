@@ -525,7 +525,6 @@ class Dex2Oat final {
         zip_fd_(-1),
         image_fd_(-1),
         have_multi_image_arg_(false),
-        multi_image_(false),
         image_base_(0U),
         image_storage_mode_(ImageHeader::kStorageModeUncompressed),
         passes_to_run_filename_(nullptr),
@@ -771,19 +770,20 @@ class Dex2Oat final {
       }
     } else {
       // Use the default, i.e. multi-image for boot image and boot image extension.
-      multi_image_ = IsBootImage() || IsBootImageExtension();  // Shall pass checks below.
+      // This shall pass the checks below.
+      compiler_options_->multi_image_ = IsBootImage() || IsBootImageExtension();
     }
     // On target we support generating a single image for the primary boot image.
     if (!kIsTargetBuild) {
-      if (IsBootImage() && !multi_image_) {
+      if (IsBootImage() && !compiler_options_->multi_image_) {
         Usage("--single-image specified for primary boot image on host");
       }
     }
-    if (IsAppImage() && multi_image_) {
+    if (IsAppImage() && compiler_options_->multi_image_) {
       Usage("--multi-image specified for app image");
     }
 
-    if (image_fd_ != -1 && multi_image_) {
+    if (image_fd_ != -1 && compiler_options_->multi_image_) {
       Usage("--single-image not specified for --image-fd");
     }
 
@@ -909,7 +909,7 @@ class Dex2Oat final {
 
   void ExpandOatAndImageFilenames() {
     ArrayRef<const std::string> locations(dex_locations_);
-    if (!multi_image_) {
+    if (!compiler_options_->multi_image_) {
       locations = locations.SubArray(/*pos=*/ 0u, /*length=*/ 1u);
     }
     if (image_fd_ == -1) {
@@ -925,7 +925,7 @@ class Dex2Oat final {
       oat_filenames_ = ImageSpace::ExpandMultiImageLocations(
           locations, oat_filenames_[0], IsBootImageExtension());
     } else {
-      DCHECK(!multi_image_);
+      DCHECK(!compiler_options_->multi_image_);
       std::vector<std::string> oat_locations = ImageSpace::ExpandMultiImageLocations(
           locations, oat_location_, IsBootImageExtension());
       DCHECK_EQ(1u, oat_locations.size());
@@ -1119,7 +1119,7 @@ class Dex2Oat final {
     AssignIfExists(args, M::CopyDexFiles, &copy_dex_files_);
 
     AssignTrueIfExists(args, M::MultiImage, &have_multi_image_arg_);
-    AssignIfExists(args, M::MultiImage, &multi_image_);
+    AssignIfExists(args, M::MultiImage, &compiler_options_->multi_image_);
 
     if (args.Exists(M::ForceDeterminism)) {
       force_determinism_ = true;
@@ -2936,7 +2936,6 @@ class Dex2Oat final {
   std::vector<std::string> image_filenames_;
   int image_fd_;
   bool have_multi_image_arg_;
-  bool multi_image_;
   uintptr_t image_base_;
   ImageHeader::StorageMode image_storage_mode_;
   const char* passes_to_run_filename_;
