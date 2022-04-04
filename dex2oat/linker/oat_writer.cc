@@ -1507,11 +1507,23 @@ class OatWriter::LayoutReserveOffsetCodeMethodVisitor : public OrderedMethodVisi
   const bool generate_debug_info_;
 };
 
+template <bool kDeduplicate>
 class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
  public:
   InitMapMethodVisitor(OatWriter* writer, size_t offset)
       : OatDexMethodVisitor(writer, offset),
         dedupe_bit_table_(&writer_->code_info_data_) {
+    if (kDeduplicate) {
+      // Reserve a large buffer for `CodeInfo` bit table deduplication except for
+      // multi-image compilation as we do not want to reserve multiple large buffers.
+      // User devices should not do any multi-image compilation.
+      const CompilerOptions& compiler_options = writer->GetCompilerOptions();
+      DCHECK(compiler_options.IsAnyCompilationEnabled());
+      if (compiler_options.DeduplicateCode() && !compiler_options.IsMultiImage()) {
+        dedupe_bit_table_.ReserveDedupeBuffer(
+            writer->compiler_driver_->GetCompiledMethodStorage()->UniqueVMapTableEntries());
+      }
+    }
   }
 
   bool VisitMethod(size_t class_def_method_index,
@@ -1526,10 +1538,16 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
 
       ArrayRef<const uint8_t> map = compiled_method->GetVmapTable();
       if (map.size() != 0u) {
-        size_t offset = dedupe_code_info_.GetOrCreate(map.data(), [=]() {
-          // Deduplicate the inner BitTable<>s within the CodeInfo.
-          return offset_ + dedupe_bit_table_.Dedupe(map.data());
-        });
+        size_t offset;
+        if (kDeduplicate) {
+          offset = dedupe_code_info_.GetOrCreate(map.data(), [=]() {
+            // Deduplicate the inner BitTable<>s within the CodeInfo.
+            return offset_ + dedupe_bit_table_.Dedupe(map.data());
+          });
+        } else {
+          offset = offset_ + writer_->code_info_data_.size();
+          writer_->code_info_data_.insert(writer_->code_info_data_.end(), map.begin(), map.end());
+        }
         // Code offset is not initialized yet, so set file offset for now.
         DCHECK_EQ(oat_class->method_offsets_[method_offsets_index_].code_offset_, 0u);
         oat_class->method_headers_[method_offsets_index_].SetCodeInfoOffset(offset);
@@ -2140,13 +2158,17 @@ size_t OatWriter::InitOatMaps(size_t offset) {
   if (!MayHaveCompiledMethods()) {
     return offset;
   }
-  {
-    InitMapMethodVisitor visitor(this, offset);
+  if (GetCompilerOptions().DeduplicateCode()) {
+    InitMapMethodVisitor</*kDeduplicate=*/ true> visitor(this, offset);
     bool success = VisitDexMethods(&visitor);
     DCHECK(success);
-    code_info_data_.shrink_to_fit();
-    offset += code_info_data_.size();
+  } else {
+    InitMapMethodVisitor</*kDeduplicate=*/ false> visitor(this, offset);
+    bool success = VisitDexMethods(&visitor);
+    DCHECK(success);
   }
+  code_info_data_.shrink_to_fit();
+  offset += code_info_data_.size();
   return offset;
 }
 

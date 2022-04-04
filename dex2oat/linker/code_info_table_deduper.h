@@ -29,9 +29,14 @@ class CodeInfoTableDeduper {
  public:
   explicit CodeInfoTableDeduper(std::vector<uint8_t>* output)
       : writer_(output),
-        dedupe_set_(DedupeSetEntryHash(), DedupeSetEntryEquals(output)) {
+        dedupe_set_(kMinLoadFactor,
+                    kMaxLoadFactor,
+                    DedupeSetEntryHash(output),
+                    DedupeSetEntryEquals(output)) {
     DCHECK_EQ(output->size(), 0u);
   }
+
+  void ReserveDedupeBuffer(size_t num_code_infos);
 
   // Copy CodeInfo into output while de-duplicating the internal bit tables.
   // It returns the byte offset of the copied CodeInfo within the output.
@@ -41,13 +46,12 @@ class CodeInfoTableDeduper {
   struct DedupeSetEntry {
     uint32_t bit_start;
     uint32_t bit_size;
-    uint32_t hash;
   };
 
   class DedupeSetEntryEmpty {
    public:
     void MakeEmpty(DedupeSetEntry& item) const {
-      item = {0u, 0u, 0u};
+      item = {0u, 0u};
     }
     bool IsEmpty(const DedupeSetEntry& item) const {
       return item.bit_size == 0u;
@@ -56,9 +60,14 @@ class CodeInfoTableDeduper {
 
   class DedupeSetEntryHash {
    public:
+    explicit DedupeSetEntryHash(std::vector<uint8_t>* output) : output_(output) {}
+
     uint32_t operator()(const DedupeSetEntry& item) const {
-      return item.hash;
+      return DataHash()(BitMemoryRegion(output_->data(), item.bit_start, item.bit_size));
     }
+
+   private:
+    std::vector<uint8_t>* const output_;
   };
 
   class DedupeSetEntryEquals {
@@ -68,8 +77,7 @@ class CodeInfoTableDeduper {
     bool operator()(const DedupeSetEntry& lhs, const DedupeSetEntry& rhs) const {
       DCHECK_NE(lhs.bit_size, 0u);
       DCHECK_NE(rhs.bit_size, 0u);
-      return lhs.hash == rhs.hash &&
-             lhs.bit_size == rhs.bit_size &&
+      return lhs.bit_size == rhs.bit_size &&
              BitMemoryRegion::Equals(
                  BitMemoryRegion(output_->data(), lhs.bit_start, lhs.bit_size),
                  BitMemoryRegion(output_->data(), rhs.bit_start, rhs.bit_size));
@@ -81,6 +89,9 @@ class CodeInfoTableDeduper {
 
   using DedupeSet =
       HashSet<DedupeSetEntry, DedupeSetEntryEmpty, DedupeSetEntryHash, DedupeSetEntryEquals>;
+
+  static constexpr double kMinLoadFactor = 0.5;
+  static constexpr double kMaxLoadFactor = 0.75;
 
   BitMemoryWriter<std::vector<uint8_t>> writer_;
 
