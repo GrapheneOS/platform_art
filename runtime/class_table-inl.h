@@ -28,11 +28,42 @@
 
 namespace art {
 
+inline ClassTable::TableSlot::TableSlot(ObjPtr<mirror::Class> klass)
+    : TableSlot(klass, HashDescriptor(klass)) {}
+
+inline uint32_t ClassTable::TableSlot::HashDescriptor(ObjPtr<mirror::Class> klass) {
+  // No read barriers needed, we're reading a chain of constant references for comparison with null
+  // and retrieval of constant primitive data. See `ReadBarrierOption` and `Class::GetDescriptor()`.
+  DCHECK(klass != nullptr);
+  ObjPtr<mirror::Class> orig_klass = klass;  // For debug check.
+  uint32_t hash = StartModifiedUtf8Hash();
+  while (klass->IsArrayClass()) {
+    klass = klass->GetComponentType<kDefaultVerifyFlags, kWithoutReadBarrier>();
+    hash = UpdateModifiedUtf8Hash(hash, '[');
+  }
+  if (UNLIKELY(klass->IsProxyClass())) {
+    hash = UpdateHashForProxyClass(hash, klass);
+  } else if (klass->IsPrimitive()) {
+    hash = UpdateModifiedUtf8Hash(hash, Primitive::Descriptor(klass->GetPrimitiveType())[0]);
+  } else {
+    const DexFile& dex_file = klass->GetDexFile();
+    const dex::TypeId& type_id = dex_file.GetTypeId(klass->GetDexTypeIndex());
+    std::string_view descriptor = dex_file.GetTypeDescriptorView(type_id);
+    hash = UpdateModifiedUtf8Hash(hash, descriptor);
+  }
+
+  if (kIsDebugBuild) {
+    std::string temp;
+    CHECK_EQ(hash, ComputeModifiedUtf8Hash(orig_klass->GetDescriptor(&temp)));
+  }
+
+  return hash;
+}
+
 inline uint32_t ClassTable::ClassDescriptorHash::operator()(const TableSlot& slot) const {
-  std::string temp;
-  // No read barrier needed, we're reading a chain of constant references for comparison
-  // with null and retrieval of constant primitive data. See ReadBarrierOption.
-  return ComputeModifiedUtf8Hash(slot.Read<kWithoutReadBarrier>()->GetDescriptor(&temp));
+  // No read barriers needed, we're reading a chain of constant references for comparison with null
+  // and retrieval of constant primitive data. See `ReadBarrierOption` and `Class::GetDescriptor()`.
+  return TableSlot::HashDescriptor(slot.Read<kWithoutReadBarrier>());
 }
 
 inline uint32_t ClassTable::ClassDescriptorHash::operator()(const DescriptorHashPair& pair) const {
