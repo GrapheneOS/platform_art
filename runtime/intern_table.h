@@ -236,7 +236,9 @@ class InternTable {
     };
 
     Table();
-    ObjPtr<mirror::String> Find(ObjPtr<mirror::String> s, uint32_t hash)
+    ObjPtr<mirror::String> Find(ObjPtr<mirror::String> s,
+                                uint32_t hash,
+                                size_t num_searched_frozen_tables = 0u)
         REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
     ObjPtr<mirror::String> Find(const Utf8String& string, uint32_t hash)
         REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
@@ -277,7 +279,10 @@ class InternTable {
   };
 
   // Insert if non null, otherwise return null. Must be called holding the mutator lock.
-  ObjPtr<mirror::String> Insert(ObjPtr<mirror::String> s, uint32_t hash, bool is_strong)
+  ObjPtr<mirror::String> Insert(ObjPtr<mirror::String> s,
+                                uint32_t hash,
+                                bool is_strong,
+                                size_t num_searched_strong_frozen_tables = 0u)
       REQUIRES(!Locks::intern_table_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Add a table from memory to the strong interns.
