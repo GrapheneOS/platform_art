@@ -130,11 +130,11 @@ inline void InternTable::Table::AddInternStrings(UnorderedSet&& intern_strings,
     }
   }
 
-  // Insert at the front since we add new interns into the back.
-  // TODO: Instead, insert before the last unfrozen table since we add new interns into the back.
-  //       We want to keep the order of previous frozen tables unchanged, so that we can
-  //       can remember the number of searched frozen tables and not search them again.
-  tables_.insert(tables_.begin(), InternalTable(std::move(intern_strings), is_boot_image));
+  // Insert before the last (unfrozen) table since we add new interns into the back.
+  // Keep the order of previous frozen tables unchanged, so that we can can remember
+  // the number of searched frozen tables and not search them again.
+  DCHECK(!tables_.empty());
+  tables_.insert(tables_.end() - 1, InternalTable(std::move(intern_strings), is_boot_image));
 }
 
 template <typename Visitor>
