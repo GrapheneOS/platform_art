@@ -151,16 +151,16 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
 
   const char test_string[] = "SharedBootImageExtensionTestString";
   size_t test_string_length = std::size(test_string) - 1u;  // Equals UTF-16 length.
-  uint32_t hash = ComputeUtf16HashFromModifiedUtf8(test_string, test_string_length);
-  InternTable::Utf8String utf8_test_string(test_string_length, test_string, hash);
-  auto contains_test_string = [utf8_test_string](ImageSpace* space)
+  uint32_t hash = InternTable::Utf8String::Hash(test_string_length, test_string);
+  InternTable::Utf8String utf8_test_string(test_string_length, test_string);
+  auto contains_test_string = [utf8_test_string, hash](ImageSpace* space)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const ImageHeader& image_header = space->GetImageHeader();
     if (image_header.GetInternedStringsSection().Size() != 0u) {
       const uint8_t* data = space->Begin() + image_header.GetInternedStringsSection().Offset();
       size_t read_count;
       InternTable::UnorderedSet temp_set(data, /*make_copy_of_data=*/ false, &read_count);
-      return temp_set.find(utf8_test_string) != temp_set.end();
+      return temp_set.FindWithHash(utf8_test_string, hash) != temp_set.end();
     } else {
       return false;
     }
