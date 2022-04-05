@@ -18,6 +18,7 @@
 #define ART_RUNTIME_INTERN_TABLE_H_
 
 #include "base/allocator.h"
+#include "base/dchecked_vector.h"
 #include "base/hash_set.h"
 #include "base/mutex.h"
 #include "gc/weak_root_state.h"
@@ -59,38 +60,41 @@ class InternTable {
   // Modified UTF-8-encoded string treated as UTF16.
   class Utf8String {
    public:
-    Utf8String(uint32_t utf16_length, const char* utf8_data, int32_t hash)
-        : hash_(hash), utf16_length_(utf16_length), utf8_data_(utf8_data) { }
+    Utf8String(uint32_t utf16_length, const char* utf8_data)
+        : utf16_length_(utf16_length), utf8_data_(utf8_data) { }
 
-    int32_t GetHash() const { return hash_; }
+    uint32_t GetHash() const { return Hash(utf16_length_, utf8_data_); }
     uint32_t GetUtf16Length() const { return utf16_length_; }
     const char* GetUtf8Data() const { return utf8_data_; }
 
-    static int32_t Hash(uint32_t utf16_length, const char* utf8_data);
+    static uint32_t Hash(uint32_t utf16_length, const char* utf8_data);
 
    private:
-    int32_t hash_;
     uint32_t utf16_length_;
     const char* utf8_data_;
   };
 
   class StringHash {
    public:
-    std::size_t operator()(const GcRoot<mirror::String>& root) const NO_THREAD_SAFETY_ANALYSIS;
+    // NO_THREAD_SAFETY_ANALYSIS: Used from unannotated `HashSet<>` functions.
+    size_t operator()(const GcRoot<mirror::String>& root) const NO_THREAD_SAFETY_ANALYSIS;
 
-    // Utf8String can be used for lookup.
-    std::size_t operator()(const Utf8String& key) const {
-      // A cast to prevent undesired sign extension.
-      return static_cast<uint32_t>(key.GetHash());
+    // Utf8String can be used for lookup. While we're passing the hash explicitly to all
+    // `HashSet<>` functions, they `DCHECK()` the supplied hash against the hash we provide here.
+    size_t operator()(const Utf8String& key) const {
+      static_assert(std::is_same_v<uint32_t, decltype(key.GetHash())>);
+      return key.GetHash();
     }
   };
 
   class StringEquals {
    public:
+    // NO_THREAD_SAFETY_ANALYSIS: Used from unannotated `HashSet<>` functions.
     bool operator()(const GcRoot<mirror::String>& a, const GcRoot<mirror::String>& b) const
         NO_THREAD_SAFETY_ANALYSIS;
 
     // Utf8String can be used for lookup.
+    // NO_THREAD_SAFETY_ANALYSIS: Used from unannotated `HashSet<>` functions.
     bool operator()(const GcRoot<mirror::String>& a, const Utf8String& b) const
         NO_THREAD_SAFETY_ANALYSIS;
   };
@@ -135,9 +139,6 @@ class InternTable {
       REQUIRES(!Roles::uninterruptible_);
 
   void SweepInternTableWeaks(IsMarkedVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::intern_table_lock_);
-
-  bool ContainsWeak(ObjPtr<mirror::String> s) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::intern_table_lock_);
 
   // Lookup a strong intern, returns null if not found.
@@ -235,13 +236,13 @@ class InternTable {
     };
 
     Table();
-    ObjPtr<mirror::String> Find(ObjPtr<mirror::String> s) REQUIRES_SHARED(Locks::mutator_lock_)
-        REQUIRES(Locks::intern_table_lock_);
-    ObjPtr<mirror::String> Find(const Utf8String& string) REQUIRES_SHARED(Locks::mutator_lock_)
-        REQUIRES(Locks::intern_table_lock_);
-    void Insert(ObjPtr<mirror::String> s) REQUIRES_SHARED(Locks::mutator_lock_)
-        REQUIRES(Locks::intern_table_lock_);
-    void Remove(ObjPtr<mirror::String> s)
+    ObjPtr<mirror::String> Find(ObjPtr<mirror::String> s, uint32_t hash)
+        REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
+    ObjPtr<mirror::String> Find(const Utf8String& string, uint32_t hash)
+        REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
+    void Insert(ObjPtr<mirror::String> s, uint32_t hash)
+        REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
+    void Remove(ObjPtr<mirror::String> s, uint32_t hash)
         REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
     void VisitRoots(RootVisitor* visitor)
         REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
@@ -268,7 +269,7 @@ class InternTable {
 
     // We call AddNewTable when we create the zygote to reduce private dirty pages caused by
     // modifying the zygote intern table. The back of table is modified when strings are interned.
-    std::vector<InternalTable> tables_;
+    dchecked_vector<InternalTable> tables_;
 
     friend class InternTable;
     friend class linker::ImageWriter;
@@ -276,7 +277,7 @@ class InternTable {
   };
 
   // Insert if non null, otherwise return null. Must be called holding the mutator lock.
-  ObjPtr<mirror::String> Insert(ObjPtr<mirror::String> s, bool is_strong)
+  ObjPtr<mirror::String> Insert(ObjPtr<mirror::String> s, uint32_t hash, bool is_strong)
       REQUIRES(!Locks::intern_table_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Add a table from memory to the strong interns.
@@ -284,23 +285,14 @@ class InternTable {
   size_t AddTableFromMemory(const uint8_t* ptr, const Visitor& visitor, bool is_boot_image)
       REQUIRES(!Locks::intern_table_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ObjPtr<mirror::String> InsertStrong(ObjPtr<mirror::String> s)
+  // Note: Transaction rollback calls these helper functions directly.
+  ObjPtr<mirror::String> InsertStrong(ObjPtr<mirror::String> s, uint32_t hash)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  ObjPtr<mirror::String> InsertWeak(ObjPtr<mirror::String> s)
+  ObjPtr<mirror::String> InsertWeak(ObjPtr<mirror::String> s, uint32_t hash)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveStrong(ObjPtr<mirror::String> s)
+  void RemoveStrong(ObjPtr<mirror::String> s, uint32_t hash)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveWeak(ObjPtr<mirror::String> s)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-
-  // Transaction rollback access.
-  ObjPtr<mirror::String> InsertStrongFromTransaction(ObjPtr<mirror::String> s)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  ObjPtr<mirror::String> InsertWeakFromTransaction(ObjPtr<mirror::String> s)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveStrongFromTransaction(ObjPtr<mirror::String> s)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
-  void RemoveWeakFromTransaction(ObjPtr<mirror::String> s)
+  void RemoveWeak(ObjPtr<mirror::String> s, uint32_t hash)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
 
   // Change the weak root state. May broadcast to waiters.
@@ -318,7 +310,7 @@ class InternTable {
   // directly access the strings in it. Use functions that contain
   // read barriers.
   Table strong_interns_ GUARDED_BY(Locks::intern_table_lock_);
-  std::vector<GcRoot<mirror::String>> new_strong_intern_roots_
+  dchecked_vector<GcRoot<mirror::String>> new_strong_intern_roots_
       GUARDED_BY(Locks::intern_table_lock_);
   // Since this contains (weak) roots, they need a read barrier. Do
   // not directly access the strings in it. Use functions that contain
