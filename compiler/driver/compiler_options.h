@@ -233,6 +233,10 @@ class CompilerOptions final {
     return image_type_ == ImageType::kAppImage;
   }
 
+  bool IsMultiImage() const {
+    return multi_image_;
+  }
+
   // Returns whether we are running ART tests.
   // The compiler will use that information for checking invariants.
   bool CompileArtTest() const {
@@ -408,6 +412,7 @@ class CompilerOptions final {
 
   CompilerType compiler_type_;
   ImageType image_type_;
+  bool multi_image_;
   bool compile_art_test_;
   bool baseline_;
   bool debuggable_;

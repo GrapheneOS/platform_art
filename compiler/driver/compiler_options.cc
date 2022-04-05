@@ -51,6 +51,7 @@ CompilerOptions::CompilerOptions()
       verification_results_(nullptr),
       compiler_type_(CompilerType::kAotCompiler),
       image_type_(ImageType::kNone),
+      multi_image_(false),
       compile_art_test_(false),
       baseline_(false),
       debuggable_(false),

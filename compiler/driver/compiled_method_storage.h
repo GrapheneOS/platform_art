@@ -53,16 +53,20 @@ class CompiledMethodStorage {
 
   const LengthPrefixedArray<uint8_t>* DeduplicateCode(const ArrayRef<const uint8_t>& code);
   void ReleaseCode(const LengthPrefixedArray<uint8_t>* code);
+  size_t UniqueCodeEntries() const;
 
   const LengthPrefixedArray<uint8_t>* DeduplicateVMapTable(const ArrayRef<const uint8_t>& table);
   void ReleaseVMapTable(const LengthPrefixedArray<uint8_t>* table);
+  size_t UniqueVMapTableEntries() const;
 
   const LengthPrefixedArray<uint8_t>* DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info);
   void ReleaseCFIInfo(const LengthPrefixedArray<uint8_t>* cfi_info);
+  size_t UniqueCFIInfoEntries() const;
 
   const LengthPrefixedArray<linker::LinkerPatch>* DeduplicateLinkerPatches(
       const ArrayRef<const linker::LinkerPatch>& linker_patches);
   void ReleaseLinkerPatches(const LengthPrefixedArray<linker::LinkerPatch>* linker_patches);
+  size_t UniqueLinkerPatchesEntries() const;
 
   // Returns the code associated with the given patch.
   // If the code has not been set, returns empty data.
