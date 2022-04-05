@@ -1382,7 +1382,10 @@ class CountInternedStringReferencesVisitor {
         space_.HasAddress(referred_obj.Ptr()) &&
         referred_obj->IsString()) {
       ObjPtr<mirror::String> referred_str = referred_obj->AsString();
-      auto it = image_interns_.find(GcRoot<mirror::String>(referred_str));
+      uint32_t hash = static_cast<uint32_t>(referred_str->GetStoredHashCode());
+      // All image strings have the hash code calculated, even if they are not interned.
+      DCHECK_EQ(hash, static_cast<uint32_t>(referred_str->ComputeHashCode()));
+      auto it = image_interns_.FindWithHash(GcRoot<mirror::String>(referred_str), hash);
       if (it != image_interns_.end() && it->Read() == referred_str) {
         ++count_;
       }
