@@ -87,14 +87,14 @@ applicable APEXes if none is given on the command line.
   -l, --list-files    list the contents of the ext4 image (\`find\`-like style)
   -t, --print-tree    list the contents of the ext4 image (\`tree\`-like style)
   -s, --print-sizes   print the size in bytes of each file when listing contents
-  --bitness=32|64|multilib|auto  passed on to art_apex_test.py
+  --bitness=32|64|multilib|auto  passed on to art_apex_test.py for non-host APEXes
   -h, --help          display this help and exit
 
 EOF
   exit
 }
 
-global_art_apex_test_args=""
+device_bitness_arg=""
 apex_modules=()
 
 while [[ $# -gt 0 ]]; do
@@ -103,7 +103,7 @@ while [[ $# -gt 0 ]]; do
     (-l|--list-files)  list_image_files_p=true;;
     (-t|--print-tree)  print_image_tree_p=true;;
     (-s|--print-sizes) print_file_sizes_p=true;;
-    (--bitness=*)      global_art_apex_test_args="$global_art_apex_test_args $1";;
+    (--bitness=*)      device_bitness_arg=$1;;
     (-h|--help) usage;;
     (-*) die "Unknown option: '$1'
 Try '$0 --help' for more information.";;
@@ -182,13 +182,16 @@ for apex_module in ${apex_modules[@]}; do
   work_dir=$(mktemp -d)
   trap finish EXIT
 
-  art_apex_test_args="$global_art_apex_test_args --tmpdir $work_dir"
+  art_apex_test_args="--tmpdir $work_dir"
   test_only_args=""
   if [[ $apex_module = *.host ]]; then
     apex_path="$HOST_OUT/apex/${apex_module}.zipapex"
     art_apex_test_args="$art_apex_test_args --host"
     test_only_args="--flavor debug"
+    # The host APEX is always built multilib.
+    art_apex_test_args="$art_apex_test_args --bitness=multilib"
   else
+    art_apex_test_args="$art_apex_test_args $device_bitness_arg"
     if [[ "$TARGET_FLATTEN_APEX" = true ]]; then
       apex_path="$PRODUCT_OUT/system/apex/${apex_module}"
       art_apex_test_args="$art_apex_test_args --flattened"
