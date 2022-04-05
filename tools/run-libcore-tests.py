@@ -114,7 +114,7 @@ BOOT_CLASSPATH = [
   "/apex/com.android.conscrypt/javalib/conscrypt.jar",
 ]
 
-CLASSPATH = ["core-tests", "jsr166-tests", "mockito-target"]
+CLASSPATH = ["core-tests", "core-ojtests", "jsr166-tests", "mockito-target"]
 
 def get_jar_filename(classpath):
   base_path = (ANDROID_PRODUCT_OUT + "/../..") if ANDROID_PRODUCT_OUT else "out/target"
