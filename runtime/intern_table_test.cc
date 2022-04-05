@@ -75,12 +75,15 @@ TEST_F(InternTableTest, CrossHash) {
   InternTable t;
 
   // A string that has a negative hash value.
-  GcRoot<mirror::String> str(mirror::String::AllocFromModifiedUtf8(soa.Self(), "00000000"));
+  ObjPtr<mirror::String> str = mirror::String::AllocFromModifiedUtf8(soa.Self(), "00000000");
+  // `String::GetHashCode()` ensures that the stored hash is calculated.
+  int32_t hash = str->GetHashCode();
+  ASSERT_LT(hash, 0);
 
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   for (InternTable::Table::InternalTable& table : t.strong_interns_.tables_) {
     // The negative hash value shall be 32-bit wide on every host.
-    ASSERT_TRUE(IsUint<32>(table.set_.hashfn_(str)));
+    ASSERT_TRUE(IsUint<32>(table.set_.hashfn_(GcRoot<mirror::String>(str))));
   }
 }
 
@@ -146,14 +149,19 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
 
 TEST_F(InternTableTest, ContainsWeak) {
   ScopedObjectAccess soa(Thread::Current());
+  auto ContainsWeak = [&](InternTable& t, ObjPtr<mirror::String> s)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    return t.LookupWeak(soa.Self(), s) == s;
+  };
+
   {
     // Strongs are never weak.
     InternTable t;
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::String> interned_foo_1(hs.NewHandle(t.InternStrong(3, "foo")));
-    EXPECT_FALSE(t.ContainsWeak(interned_foo_1.Get()));
+    EXPECT_FALSE(ContainsWeak(t, interned_foo_1.Get()));
     Handle<mirror::String> interned_foo_2(hs.NewHandle(t.InternStrong(3, "foo")));
-    EXPECT_FALSE(t.ContainsWeak(interned_foo_2.Get()));
+    EXPECT_FALSE(ContainsWeak(t, interned_foo_2.Get()));
     EXPECT_EQ(interned_foo_1.Get(), interned_foo_2.Get());
   }
 
@@ -168,7 +176,7 @@ TEST_F(InternTableTest, ContainsWeak) {
     EXPECT_NE(foo_1.Get(), foo_2.Get());
     Handle<mirror::String> interned_foo_1(hs.NewHandle(t.InternWeak(foo_1.Get())));
     Handle<mirror::String> interned_foo_2(hs.NewHandle(t.InternWeak(foo_2.Get())));
-    EXPECT_TRUE(t.ContainsWeak(interned_foo_2.Get()));
+    EXPECT_TRUE(ContainsWeak(t, interned_foo_2.Get()));
     EXPECT_EQ(interned_foo_1.Get(), interned_foo_2.Get());
   }
 
@@ -179,9 +187,9 @@ TEST_F(InternTableTest, ContainsWeak) {
     Handle<mirror::String> foo(
         hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo")));
     Handle<mirror::String> interned_foo_1(hs.NewHandle(t.InternWeak(foo.Get())));
-    EXPECT_TRUE(t.ContainsWeak(interned_foo_1.Get()));
+    EXPECT_TRUE(ContainsWeak(t, interned_foo_1.Get()));
     Handle<mirror::String> interned_foo_2(hs.NewHandle(t.InternStrong(3, "foo")));
-    EXPECT_FALSE(t.ContainsWeak(interned_foo_2.Get()));
+    EXPECT_FALSE(ContainsWeak(t, interned_foo_2.Get()));
     EXPECT_EQ(interned_foo_1.Get(), interned_foo_2.Get());
   }
 
@@ -190,11 +198,11 @@ TEST_F(InternTableTest, ContainsWeak) {
     InternTable t;
     StackHandleScope<3> hs(soa.Self());
     Handle<mirror::String> interned_foo_1(hs.NewHandle(t.InternStrong(3, "foo")));
-    EXPECT_FALSE(t.ContainsWeak(interned_foo_1.Get()));
+    EXPECT_FALSE(ContainsWeak(t, interned_foo_1.Get()));
     Handle<mirror::String> foo(
         hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo")));
     Handle<mirror::String> interned_foo_2(hs.NewHandle(t.InternWeak(foo.Get())));
-    EXPECT_FALSE(t.ContainsWeak(interned_foo_2.Get()));
+    EXPECT_FALSE(ContainsWeak(t, interned_foo_2.Get()));
     EXPECT_EQ(interned_foo_1.Get(), interned_foo_2.Get());
   }
 }
@@ -232,6 +240,22 @@ TEST_F(InternTableTest, LookupStrong) {
             ComputeUtf16HashFromModifiedUtf8("foobbS", 6));
   ObjPtr<mirror::String> lookup_foobbS = intern_table.LookupStrong(soa.Self(), 6, "foobbS");
   EXPECT_TRUE(lookup_foobbS == nullptr);
+}
+
+TEST_F(InternTableTest, InternStrongFrozenWeak) {
+  ScopedObjectAccess soa(Thread::Current());
+  InternTable intern_table;
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::String> foo(
+      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo")));
+  ASSERT_TRUE(foo != nullptr);
+  ObjPtr<mirror::String> weak_foo = intern_table.InternWeak(foo.Get());
+  ASSERT_TRUE(weak_foo == foo.Get());
+
+  intern_table.AddNewTable();
+
+  ObjPtr<mirror::String> strong_foo = intern_table.InternStrong(foo.Get());
+  ASSERT_TRUE(strong_foo == foo.Get());
 }
 
 }  // namespace art
