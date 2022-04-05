@@ -217,6 +217,10 @@ class CompilerDriver {
     return &compiled_method_storage_;
   }
 
+  const CompiledMethodStorage* GetCompiledMethodStorage() const {
+    return &compiled_method_storage_;
+  }
+
  private:
   void LoadImageClasses(TimingLogger* timings, /*inout*/ HashSet<std::string>* image_classes)
       REQUIRES(!Locks::mutator_lock_);

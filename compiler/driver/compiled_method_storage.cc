@@ -183,6 +183,11 @@ void CompiledMethodStorage::ReleaseCode(const LengthPrefixedArray<uint8_t>* code
   ReleaseArrayIfNotDeduplicated(code);
 }
 
+size_t CompiledMethodStorage::UniqueCodeEntries() const {
+  DCHECK(DedupeEnabled());
+  return dedupe_code_.Size(Thread::Current());
+}
+
 const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateVMapTable(
     const ArrayRef<const uint8_t>& table) {
   return AllocateOrDeduplicateArray(table, &dedupe_vmap_table_);
@@ -190,6 +195,11 @@ const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateVMapTable(
 
 void CompiledMethodStorage::ReleaseVMapTable(const LengthPrefixedArray<uint8_t>* table) {
   ReleaseArrayIfNotDeduplicated(table);
+}
+
+size_t CompiledMethodStorage::UniqueVMapTableEntries() const {
+  DCHECK(DedupeEnabled());
+  return dedupe_vmap_table_.Size(Thread::Current());
 }
 
 const LengthPrefixedArray<uint8_t>* CompiledMethodStorage::DeduplicateCFIInfo(
@@ -201,6 +211,11 @@ void CompiledMethodStorage::ReleaseCFIInfo(const LengthPrefixedArray<uint8_t>* c
   ReleaseArrayIfNotDeduplicated(cfi_info);
 }
 
+size_t CompiledMethodStorage::UniqueCFIInfoEntries() const {
+  DCHECK(DedupeEnabled());
+  return dedupe_cfi_info_.Size(Thread::Current());
+}
+
 const LengthPrefixedArray<linker::LinkerPatch>* CompiledMethodStorage::DeduplicateLinkerPatches(
     const ArrayRef<const linker::LinkerPatch>& linker_patches) {
   return AllocateOrDeduplicateArray(linker_patches, &dedupe_linker_patches_);
@@ -209,6 +224,11 @@ const LengthPrefixedArray<linker::LinkerPatch>* CompiledMethodStorage::Deduplica
 void CompiledMethodStorage::ReleaseLinkerPatches(
     const LengthPrefixedArray<linker::LinkerPatch>* linker_patches) {
   ReleaseArrayIfNotDeduplicated(linker_patches);
+}
+
+size_t CompiledMethodStorage::UniqueLinkerPatchesEntries() const {
+  DCHECK(DedupeEnabled());
+  return dedupe_linker_patches_.Size(Thread::Current());
 }
 
 CompiledMethodStorage::ThunkMapKey CompiledMethodStorage::GetThunkMapKey(
