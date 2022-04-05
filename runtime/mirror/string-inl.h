@@ -67,20 +67,19 @@ int32_t String::FastIndexOf(MemoryType* chars, int32_t ch, int32_t start) {
   return -1;
 }
 
+inline int32_t String::ComputeHashCode() {
+  uint32_t hash = IsCompressed()
+      ? ComputeUtf16Hash(GetValueCompressed(), GetLength())
+      : ComputeUtf16Hash(GetValue(), GetLength());
+  return static_cast<int32_t>(hash);
+}
+
 inline int32_t String::GetHashCode() {
-  int32_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(String, hash_code_));
+  int32_t result = GetStoredHashCode();
   if (UNLIKELY(result == 0)) {
-    result = ComputeHashCode();
+    result = ComputeAndSetHashCode();
   }
-  if (kIsDebugBuild) {
-    if (IsCompressed()) {
-      DCHECK_IMPLIES(result == 0, ComputeUtf16Hash(GetValueCompressed(), GetLength()) == 0)
-          << ToModifiedUtf8() << " " << result;
-    } else {
-      DCHECK_IMPLIES(result == 0, ComputeUtf16Hash(GetValue(), GetLength()) == 0)
-          << ToModifiedUtf8() << " " << result;
-    }
-  }
+  DCHECK_IMPLIES(result == 0, ComputeHashCode() == 0) << ToModifiedUtf8();
   return result;
 }
 

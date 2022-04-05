@@ -48,15 +48,10 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   }
 }
 
-int String::ComputeHashCode() {
-  int32_t hash_code = 0;
-  if (IsCompressed()) {
-    hash_code = ComputeUtf16Hash(GetValueCompressed(), GetLength());
-  } else {
-    hash_code = ComputeUtf16Hash(GetValue(), GetLength());
-  }
-  SetHashCode(hash_code);
-  return hash_code;
+int32_t String::ComputeAndSetHashCode() {
+  int32_t new_hash_code = ComputeHashCode();
+  SetHashCode(new_hash_code);
+  return new_hash_code;
 }
 
 inline bool String::AllASCIIExcept(const uint16_t* chars, int32_t length, uint16_t non_ascii) {
