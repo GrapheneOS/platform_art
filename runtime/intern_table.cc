@@ -331,6 +331,7 @@ void InternTable::Table::Remove(ObjPtr<mirror::String> s, uint32_t hash) {
   LOG(FATAL) << "Attempting to remove non-interned string " << s->ToModifiedUtf8();
 }
 
+FLATTEN
 ObjPtr<mirror::String> InternTable::Table::Find(ObjPtr<mirror::String> s,
                                                 uint32_t hash,
                                                 size_t num_searched_frozen_tables) {
@@ -348,6 +349,7 @@ ObjPtr<mirror::String> InternTable::Table::Find(ObjPtr<mirror::String> s,
   return nullptr;
 }
 
+FLATTEN
 ObjPtr<mirror::String> InternTable::Table::Find(const Utf8String& string, uint32_t hash) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
   for (InternalTable& table : tables_) {
