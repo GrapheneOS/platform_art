@@ -21,6 +21,10 @@
 
 ASM_DEFINE(ART_METHOD_ACCESS_FLAGS_OFFSET,
            art::ArtMethod::AccessFlagsOffset().Int32Value())
+ASM_DEFINE(ART_METHOD_IS_MEMORY_SHARED_FLAG,
+           art::kAccMemorySharedMethod)
+ASM_DEFINE(ART_METHOD_IS_MEMORY_SHARED_FLAG_BIT,
+           art::MostSignificantBit(art::kAccMemorySharedMethod))
 ASM_DEFINE(ART_METHOD_IS_STATIC_FLAG,
            art::kAccStatic)
 ASM_DEFINE(ART_METHOD_IS_STATIC_FLAG_BIT,

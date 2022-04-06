@@ -60,6 +60,16 @@ bootclasspath_fragment {
                 "jacoco-stubs",
             ],
         },
+
+        hidden_api: {
+            // Additional packages provided by jacoagent
+            package_prefixes: [
+                "com.vladium.emma.rt",
+                "org.jacoco",
+                "org.objectweb.asm",
+            ],
+
+        },
     },
     visibility: [
         "//art/build/apex",
@@ -74,6 +84,51 @@ bootclasspath_fragment {
         blocked: ["hiddenapi/hiddenapi-blocked.txt"],
         max_target_o_low_priority: ["hiddenapi/hiddenapi-max-target-o-low-priority.txt"],
         unsupported_packages: ["hiddenapi/hiddenapi-unsupported-packages.txt"],
+
+        // This module does not contain any split packages.
+        split_packages: [],
+
+        // The following packages currently only contain classes from this
+        // bootclasspath_fragment but some of their sub-packages contain classes
+        // from other bootckasspath modules. Packages should only be listed here
+        // when necessary for legacy purposes, new packages should match a
+        // package prefix.
+        single_packages: [
+            "android.system",
+        ],
+
+        // The following packages and all their subpackages currently only
+        // contain classes from this bootclasspath_fragment. Listing a package
+        // here won't prevent other bootclasspath modules from adding classes in
+        // any of those packages but it will prevent them from adding those
+        // classes into an API surface, e.g. public, system, etc.. Doing so will
+        // result in a build failure due to inconsistent flags.
+        package_prefixes: [
+            "android.compat",
+            "com.android.okhttp",
+            "com.android.org.bouncycastle",
+            "com.android.org.kxml2",
+            "com.sun",
+            "dalvik",
+            "java",
+            "javax.annotation",
+            "javax.crypto",
+            "javax.net",
+            "javax.security",
+            "javax.sql",
+            "javax.xml",
+            "jdk",
+            "libcore",
+            "org.apache.harmony",
+            "org.apache.xalan",
+            "org.apache.xml",
+            "org.apache.xpath",
+            "org.json",
+            "org.w3c",
+            "org.xml",
+            "org.xmlpull",
+            "sun",
+        ],
     },
 }
 

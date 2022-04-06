@@ -217,6 +217,10 @@ class CompilerDriver {
     return &compiled_method_storage_;
   }
 
+  const CompiledMethodStorage* GetCompiledMethodStorage() const {
+    return &compiled_method_storage_;
+  }
+
  private:
   void LoadImageClasses(TimingLogger* timings, /*inout*/ HashSet<std::string>* image_classes)
       REQUIRES(!Locks::mutator_lock_);
@@ -326,7 +330,6 @@ class CompilerDriver {
 
   friend class CommonCompilerDriverTest;
   friend class CompileClassVisitor;
-  friend class DexToDexDecompilerTest;
   friend class InitializeClassVisitor;
   friend class verifier::VerifierDepsTest;
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);

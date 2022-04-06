@@ -26,6 +26,7 @@
 #include "base/globals.h"
 #include "base/hash_set.h"
 #include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/utils.h"
 #include "optimizing/register_allocator.h"
 
@@ -233,6 +234,10 @@ class CompilerOptions final {
     return image_type_ == ImageType::kAppImage;
   }
 
+  bool IsMultiImage() const {
+    return multi_image_;
+  }
+
   // Returns whether we are running ART tests.
   // The compiler will use that information for checking invariants.
   bool CompileArtTest() const {
@@ -373,9 +378,9 @@ class CompilerOptions final {
     return initialize_app_image_classes_;
   }
 
+  // Returns true if `dex_file` is within an oat file we're producing right now.
   bool WithinOatFile(const DexFile* dex_file) const {
-    return std::find(GetDexFilesForOatFile().begin(), GetDexFilesForOatFile().end(), dex_file) !=
-           GetDexFilesForOatFile().end();
+    return ContainsElement(GetDexFilesForOatFile(), dex_file);
   }
 
  private:
@@ -408,6 +413,7 @@ class CompilerOptions final {
 
   CompilerType compiler_type_;
   ImageType image_type_;
+  bool multi_image_;
   bool compile_art_test_;
   bool baseline_;
   bool debuggable_;
@@ -486,7 +492,6 @@ class CompilerOptions final {
   const std::vector<std::string>* passes_to_run_;
 
   friend class Dex2Oat;
-  friend class DexToDexDecompilerTest;
   friend class CommonCompilerDriverTest;
   friend class CommonCompilerTestImpl;
   friend class jit::JitCompiler;

@@ -693,7 +693,12 @@ extern "C" jit::OsrData* NterpHotMethod(ArtMethod* method, uint16_t* dex_pc_ptr,
   // method.
   ScopedAssertNoThreadSuspension sants("In nterp");
   Runtime* runtime = Runtime::Current();
-  method->ResetCounter(runtime->GetJITOptions()->GetWarmupThreshold());
+  if (method->IsMemorySharedMethod()) {
+    DCHECK_EQ(Thread::Current()->GetSharedMethodHotness(), 0u);
+    Thread::Current()->ResetSharedMethodHotness();
+  } else {
+    method->ResetCounter(runtime->GetJITOptions()->GetWarmupThreshold());
+  }
   jit::Jit* jit = runtime->GetJit();
   if (jit != nullptr && jit->UseJitCompilation()) {
     // Nterp passes null on entry where we don't want to OSR.
@@ -707,7 +712,7 @@ extern "C" jit::OsrData* NterpHotMethod(ArtMethod* method, uint16_t* dex_pc_ptr,
         return osr_data;
       }
     }
-    jit->EnqueueCompilation(method, Thread::Current());
+    jit->MaybeEnqueueCompilation(method, Thread::Current());
   }
   return nullptr;
 }

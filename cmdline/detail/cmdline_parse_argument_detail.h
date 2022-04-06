@@ -149,12 +149,13 @@ struct CmdlineParserArgumentInfo {
     vios.Stream() << std::endl;
     for (auto cname : names_) {
       std::string_view name = cname;
-      auto& os = vios.Stream();
-      std::function<void()> print_once;
       if (using_blanks_) {
-        std::string_view nblank = name.substr(0, name.find("_"));
-        print_once = [&]() {
-          os << nblank;
+        name = name.substr(0, name.find("_"));
+      }
+      auto& os = vios.Stream();
+      auto print_once = [&]() {
+        os << name;
+        if (using_blanks_) {
           if (has_value_map_) {
             bool first = true;
             for (auto [val, unused] : value_map_) {
@@ -162,17 +163,13 @@ struct CmdlineParserArgumentInfo {
               first = false;
             }
             os << "}";
-          } else if (metavar_) {
-            os << metavar_.value();
+          } else if (metavar_.has_value()) {
+            os << *metavar_;
           } else {
             os << "{" << CmdlineType<T>::DescribeType() << "}";
           }
-        };
-      } else {
-        print_once = [&]() {
-          os << name;
-        };
-      }
+        }
+      };
       print_once();
       if (appending_values_) {
         os << " [";
@@ -181,9 +178,9 @@ struct CmdlineParserArgumentInfo {
       }
       os << std::endl;
     }
-    if (help_) {
+    if (help_.has_value()) {
       ScopedIndentation si(&vios);
-      vios.Stream() << help_.value() << std::endl;
+      vios.Stream() << *help_ << std::endl;
     }
   }
 

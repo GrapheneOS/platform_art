@@ -2225,22 +2225,26 @@ ArtField* HInstructionBuilder::ResolveField(uint16_t field_idx, bool is_static, 
     return nullptr;
   }
 
-  if (is_put &&
-      resolved_field->IsFinal() &&
-      (compiling_class.Get() != resolved_field->GetDeclaringClass())) {
-    // Final fields can only be updated within their own class.
-    // TODO: Only allow it in constructors. b/34966607.
-    return nullptr;
+  if (is_put) {
+    if (resolved_field->IsFinal() &&
+        (compiling_class.Get() != resolved_field->GetDeclaringClass())) {
+      // Final fields can only be updated within their own class.
+      // TODO: Only allow it in constructors. b/34966607.
+      return nullptr;
+    }
+
+    // Note: We do not need to resolve the field type for `get` opcodes.
+    StackArtFieldHandleScope<1> rhs(soa.Self());
+    ReflectiveHandle<ArtField> resolved_field_handle(rhs.NewHandle(resolved_field));
+    if (resolved_field->ResolveType().IsNull()) {
+      // ArtField::ResolveType() may fail as evidenced with a dexing bug (b/78788577).
+      soa.Self()->ClearException();
+      return nullptr;  // Failure
+    }
+    resolved_field = resolved_field_handle.Get();
   }
 
-  StackArtFieldHandleScope<1> rhs(soa.Self());
-  ReflectiveHandle<ArtField> resolved_field_handle(rhs.NewHandle(resolved_field));
-  if (resolved_field->ResolveType().IsNull()) {
-    // ArtField::ResolveType() may fail as evidenced with a dexing bug (b/78788577).
-    soa.Self()->ClearException();
-    return nullptr;  // Failure
-  }
-  return resolved_field_handle.Get();
+  return resolved_field;
 }
 
 void HInstructionBuilder::BuildStaticFieldAccess(const Instruction& instruction,

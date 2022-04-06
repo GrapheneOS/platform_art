@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,17 @@
  * limitations under the License.
  */
 
-public class Main {
-  Main() {
-  }
+package pkg1;
 
-  public static void main() {
-    Main m = new Main();
-    Object o = m;
-    // The call and field accesses will be quickened.
-    m.foo(m.a);
+import pkg2.B;
 
-    // The checkcast will be quickened.
-    m.foo(((Main)o).a);
-  }
+public class C extends B {
+    public void callCFoo() {
+        System.out.println("Calling pkg1.C.foo on " + getClass().getName());
+        foo();
+    };
 
-  int a;
-  void foo(int a) {}
+    /*package-private*/ void foo() {
+        System.out.println("pkg1.C.foo");
+    }
 }

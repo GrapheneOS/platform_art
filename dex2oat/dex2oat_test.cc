@@ -884,7 +884,21 @@ TEST_F(Dex2oatLayoutTest, TestLayoutAppImageMissingBootImage) {
                      /*use_fd=*/ false,
                      /*num_profile_classes=*/ 1,
                      /*extra_args=*/ {"--boot-image=/nonx/boot.art"},
-                     /*expect_success=*/ false);
+                     /*expect_success=*/ true);
+
+  // Verify the odex file does not require an image.
+  std::string error_msg;
+  std::unique_ptr<OatFile> odex_file(OatFile::Open(/*zip_fd=*/ -1,
+                                                   odex_location.c_str(),
+                                                   odex_location.c_str(),
+                                                   /*executable=*/ false,
+                                                   /*low_4gb=*/ false,
+                                                   dex_location,
+                                                   &error_msg));
+  ASSERT_TRUE(odex_file != nullptr) << "Could not open odex file: " << error_msg;
+
+  CheckFilter(CompilerFilter::kSpeedProfile, odex_file->GetCompilerFilter());
+  ASSERT_FALSE(odex_file->GetOatHeader().RequiresImage());
 }
 
 TEST_F(Dex2oatLayoutTest, TestLayoutMultipleProfiles) {
@@ -1332,7 +1346,8 @@ TEST_F(Dex2oatTest, LayoutSections) {
       oat_filename,
       CompilerFilter::Filter::kVerify,
       &error_msg,
-      {"--profile-file=" + profile_file.GetFilename()});
+      {"--profile-file=" + profile_file.GetFilename(),
+       "--compact-dex-level=fast"});
   EXPECT_EQ(res, 0);
 
   // Open our generated oat file.

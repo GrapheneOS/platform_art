@@ -357,23 +357,6 @@ static inline size_t GetInsForProxyOrNativeMethod(ArtMethod* method)
   return num_ins;
 }
 
-// Returns true iff. the callsite type for a polymorphic invoke is transformer
-// like, i.e that it has a single input argument whose type is
-// dalvik.system.EmulatedStackFrame.
-static inline bool InvokedFromTransform(Handle<mirror::MethodType> callsite_type)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ObjPtr<mirror::ObjectArray<mirror::Class>> param_types(callsite_type->GetPTypes());
-  if (param_types->GetLength() == 1) {
-    ObjPtr<mirror::Class> param(param_types->GetWithoutChecks(0));
-    // NB Comparing descriptor here as it appears faster in cycle simulation than using:
-    //   param == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_EmulatedStackFrame)
-    // Costs are 98 vs 173 cycles per invocation.
-    return param->DescriptorEquals("Ldalvik/system/EmulatedStackFrame;");
-  }
-
-  return false;
-}
-
 static inline bool MethodHandleInvokeTransform(Thread* self,
                                                ShadowFrame& shadow_frame,
                                                Handle<mirror::MethodHandle> method_handle,
@@ -893,48 +876,6 @@ static bool MethodHandleInvokeInternal(Thread* self,
   return MethodHandleInvokeExact(self, shadow_frame, atc, callsite_type, operands, result);
 }
 
-template <typename T>
-bool InvokeFromTransform(Thread* self,
-                         ShadowFrame& caller_frame,
-                         Handle<mirror::MethodHandle> method_handle,
-                         const InstructionOperands* const caller_operands,
-                         JValue* result,
-                         T invoker) REQUIRES_SHARED(Locks::mutator_lock_) {
-  // The MethodHandle invocation has occurred within a Transformer that has created an emulated
-  // stack frame as context with which to invoke the MethodHandle. We need to unpack this, then
-  // invoke the MethodHandle in the provided context.
-  StackHandleScope<2> hs(self);
-  const size_t emulated_frame_vreg = caller_operands->GetOperand(0);
-  Handle<mirror::EmulatedStackFrame> emulated_frame =
-      hs.NewHandle(ObjPtr<mirror::EmulatedStackFrame>::DownCast(
-          caller_frame.GetVRegReference(emulated_frame_vreg)));
-  Handle<mirror::MethodType> callsite_type = hs.NewHandle(emulated_frame->GetType());
-  const uint16_t num_vregs = callsite_type->NumberOfVRegs();
-  const RangeInstructionOperands operands(0, num_vregs);
-
-  const char* old_cause = self->StartAssertNoThreadSuspension("InvokeFromTransform");
-  ShadowFrameAllocaUniquePtr shadow_frame = CREATE_SHADOW_FRAME(num_vregs,
-                                                                &caller_frame,
-                                                                caller_frame.GetMethod(),
-                                                                caller_frame.GetDexPC());
-  if (num_vregs > 0) {
-    emulated_frame->WriteToShadowFrame(
-        self, callsite_type, operands.GetOperand(0), shadow_frame.get());
-  }
-  self->EndAssertNoThreadSuspension(old_cause);
-
-  // Make the created frame visible to the GC.
-  ScopedStackedShadowFramePusher pusher(
-      self, shadow_frame.get(), StackedShadowFrameType::kShadowFrameUnderConstruction);
-
-  // Invoke MethodHandle in newly created context
-  bool success = invoker(self, *shadow_frame, method_handle, callsite_type, &operands, result);
-  if (success) {
-    emulated_frame->SetReturnValue(self, *result);
-  }
-  return success;
-}
-
 }  // namespace
 
 bool MethodHandleInvoke(Thread* self,
@@ -943,13 +884,8 @@ bool MethodHandleInvoke(Thread* self,
                         Handle<mirror::MethodType> callsite_type,
                         const InstructionOperands* const operands,
                         JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (InvokedFromTransform(callsite_type)) {
-    return InvokeFromTransform(
-        self, shadow_frame, method_handle, operands, result, MethodHandleInvokeInternal);
-  } else {
     return MethodHandleInvokeInternal(
         self, shadow_frame, method_handle, callsite_type, operands, result);
-  }
 }
 
 bool MethodHandleInvokeExact(Thread* self,
@@ -958,13 +894,47 @@ bool MethodHandleInvokeExact(Thread* self,
                              Handle<mirror::MethodType> callsite_type,
                              const InstructionOperands* const operands,
                              JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (InvokedFromTransform(callsite_type)) {
-    return InvokeFromTransform(
-        self, shadow_frame, method_handle, operands, result, MethodHandleInvokeExactInternal);
-  } else {
     return MethodHandleInvokeExactInternal(
         self, shadow_frame, method_handle, callsite_type, operands, result);
+}
+
+void MethodHandleInvokeExactWithFrame(Thread* self,
+                                      Handle<mirror::MethodHandle> method_handle,
+                                      Handle<mirror::EmulatedStackFrame> emulated_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  StackHandleScope<1> hs(self);
+  Handle<mirror::MethodType> callsite_type = hs.NewHandle(emulated_frame->GetType());
+
+  // Copy arguments from the EmalatedStackFrame to a ShadowFrame.
+  const uint16_t num_vregs = callsite_type->NumberOfVRegs();
+
+  const char* old_cause = self->StartAssertNoThreadSuspension("EmulatedStackFrame to ShadowFrame");
+  ArtMethod* invoke_exact =
+      jni::DecodeArtMethod(WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact);
+  ShadowFrameAllocaUniquePtr shadow_frame =
+      CREATE_SHADOW_FRAME(num_vregs, /*link*/ nullptr, invoke_exact, /*dex_pc*/ 0);
+  emulated_frame->WriteToShadowFrame(self, callsite_type, 0, shadow_frame.get());
+  self->EndAssertNoThreadSuspension(old_cause);
+
+  ManagedStack fragment;
+  self->PushManagedStackFragment(&fragment);
+  self->PushShadowFrame(shadow_frame.get());
+
+  JValue result;
+  RangeInstructionOperands operands(0, num_vregs);
+  bool success = MethodHandleInvokeExact(self,
+                                         *shadow_frame.get(),
+                                         method_handle,
+                                         callsite_type,
+                                         &operands,
+                                         &result);
+  DCHECK_NE(success, self->IsExceptionPending());
+  if (success) {
+    emulated_frame->SetReturnValue(self, result);
   }
+
+  self->PopShadowFrame();
+  self->PopManagedStackFragment(fragment);
 }
 
 }  // namespace art

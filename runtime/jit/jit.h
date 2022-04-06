@@ -194,7 +194,7 @@ class JitCompilerInterface {
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual bool GenerateDebugInfo() = 0;
   virtual void ParseCompilerOptions() = 0;
-  virtual bool IsBaselineCompiler() const;
+  virtual bool IsBaselineCompiler() const = 0;
 
   virtual std::vector<uint8_t> PackElfFileForJIT(ArrayRef<const JITCodeEntry*> elf_files,
                                                  ArrayRef<const void*> removed_symbols,
@@ -438,7 +438,7 @@ class Jit {
 
   void EnqueueOptimizedCompilation(ArtMethod* method, Thread* self);
 
-  void EnqueueCompilation(ArtMethod* method, Thread* self)
+  void MaybeEnqueueCompilation(ArtMethod* method, Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
@@ -502,6 +502,10 @@ class Jit {
   // The size of the memory pointed by `fd_methods_`. Cached here to avoid
   // recomputing it.
   size_t fd_methods_size_;
+
+  // Map of hotness counters for methods which we want to share the memory
+  // between the zygote and apps.
+  std::map<ArtMethod*, uint16_t> shared_method_counters_;
 
   DISALLOW_COPY_AND_ASSIGN(Jit);
 };

@@ -131,6 +131,7 @@
 #include "native/java_lang_Thread.h"
 #include "native/java_lang_Throwable.h"
 #include "native/java_lang_VMClassLoader.h"
+#include "native/java_lang_invoke_MethodHandle.h"
 #include "native/java_lang_invoke_MethodHandleImpl.h"
 #include "native/java_lang_ref_FinalizerReference.h"
 #include "native/java_lang_ref_Reference.h"
@@ -705,11 +706,16 @@ class FindNativeMethodsVisitor : public ClassVisitor {
   bool operator()(ObjPtr<mirror::Class> klass) override REQUIRES_SHARED(Locks::mutator_lock_) {
     bool is_initialized = klass->IsVisiblyInitialized();
     for (ArtMethod& method : klass->GetDeclaredMethods(kRuntimePointerSize)) {
-      if (method.IsNative() && (!NeedsClinitCheckBeforeCall(&method) || is_initialized)) {
-        const void* native_code =
-            vm_->FindCodeForNativeMethod(&method, /*error_msg=*/ nullptr, /*can_suspend=*/ false);
-        if (native_code != nullptr) {
-          class_linker_->RegisterNative(self_, &method, native_code);
+      if (method.IsNative() && (is_initialized || !NeedsClinitCheckBeforeCall(&method))) {
+        const void* existing = method.GetEntryPointFromJni();
+        if (method.IsCriticalNative()
+                ? class_linker_->IsJniDlsymLookupCriticalStub(existing)
+                : class_linker_->IsJniDlsymLookupStub(existing)) {
+          const void* native_code =
+              vm_->FindCodeForNativeMethod(&method, /*error_msg=*/ nullptr, /*can_suspend=*/ false);
+          if (native_code != nullptr) {
+            class_linker_->RegisterNative(self_, &method, native_code);
+          }
         }
       }
     }
@@ -2219,6 +2225,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_dalvik_system_ZygoteHooks(env);
   register_java_lang_Class(env);
   register_java_lang_Object(env);
+  register_java_lang_invoke_MethodHandle(env);
   register_java_lang_invoke_MethodHandleImpl(env);
   register_java_lang_ref_FinalizerReference(env);
   register_java_lang_reflect_Array(env);
@@ -3388,6 +3395,15 @@ void Runtime::MadviseFileForRange(size_t madvise_size_limit_bytes,
       }
     }
   }
+}
+
+bool Runtime::HasImageWithProfile() const {
+  for (gc::space::ImageSpace* space : GetHeap()->GetBootImageSpaces()) {
+    if (!space->GetProfileFiles().empty()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace art

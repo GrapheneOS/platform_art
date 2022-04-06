@@ -312,12 +312,7 @@ END_FUNCTION \name
     // Update counter.
     addl $$-1, %ecx
     movw %cx, ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
-    // If the counter overflows, handle this in the runtime.
-    jz NterpHandleHotnessOverflow
-    // Otherwise, do a suspend check.
-    testl   $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
-    jz      2b
-    jmp NterpCallSuspend
+    DO_SUSPEND_CHECK continue_label=2b
 .endm
 
 // Expects:
@@ -978,25 +973,27 @@ END_FUNCTION \name
 #error Expected 0 for hotness value
 #endif
    // If the counter is at zero, handle this in the runtime.
-   testw %cx, %cx
-   je 2f
+   testl %ecx, %ecx
+   je 3f
    // Update counter.
    addl $$-1, %ecx
    movw %cx, ART_METHOD_HOTNESS_COUNT_OFFSET(%eax)
-   jz 2f
+1:
    testl $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
-   jz 1f
+   jz 2f
    EXPORT_PC
    call SYMBOL(art_quick_test_suspend)
    RESTORE_IBASE
-1:
+2:
    FETCH_INST
    GOTO_NEXT
-2:
+3:
+   CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot=4f, if_not_hot=1b
+4:
    movl $$0, ARG1
    movl rFP, ARG2
    call nterp_hot_method
-   jmp 1b
+   jmp 2b
 .endm
 
 .macro SPILL_ALL_CALLEE_SAVES
@@ -1733,6 +1730,24 @@ END_FUNCTION \name
     jne 1b
 .endm
 
+.macro DO_SUSPEND_CHECK continue_label
+    testl   $$(THREAD_SUSPEND_OR_CHECKPOINT_REQUEST), rSELF:THREAD_FLAGS_OFFSET
+    jz      \continue_label
+    jmp     NterpCallSuspendAndGotoNext
+.endm
+
+.macro CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot, if_not_hot
+    testl $$ART_METHOD_IS_MEMORY_SHARED_FLAG, ART_METHOD_ACCESS_FLAGS_OFFSET(%eax)
+    jz \if_hot
+    movzwl rSELF:THREAD_SHARED_METHOD_HOTNESS_OFFSET, %ecx
+    testl %ecx, %ecx
+    je \if_hot
+    addl $$-1, %ecx
+    movw %cx, rSELF:THREAD_SHARED_METHOD_HOTNESS_OFFSET
+    jmp \if_not_hot
+.endm
+
+
 %def entry():
 /*
  * ArtMethod entry point.
@@ -2230,7 +2245,7 @@ NterpGetWideInstanceField:
 NterpGetInstanceField:
   OP_IGET load="movl", wide=0
 
-NterpCallSuspend:
+NterpCallSuspendAndGotoNext:
     EXPORT_PC
     // Save branch offset.
     movl rINST, LOCAL0(%esp)
@@ -2241,18 +2256,21 @@ NterpCallSuspend:
     GOTO_NEXT
 
 NterpHandleHotnessOverflow:
+    CHECK_AND_UPDATE_SHARED_MEMORY_METHOD if_hot=1f, if_not_hot=4f
+1:
     movl rPC, %ecx
     movl rFP, ARG2
     // Save next PC.
     movl %ecx, LOCAL0(%esp)
     call nterp_hot_method
     testl %eax, %eax
-    jne 1f
+    jne 3f
     // Fetch next PC.
     mov LOCAL0(%esp), rPC
+2:
     FETCH_INST
     GOTO_NEXT
-1:
+3:
     // Drop the current frame.
     movl -4(rREFS), %esp
     CFI_DEF_CFA(esp, PARAMETERS_SAVES_SIZE+CALLEE_SAVES_SIZE)
@@ -2288,6 +2306,9 @@ NterpHandleHotnessOverflow:
 
     // Jump to the compiled code.
     ret
+4:
+    DO_SUSPEND_CHECK continue_label=2b
+
 
 NterpHandleInvokeInterfaceOnObjectMethodRange:
    shrl $$16, %eax
