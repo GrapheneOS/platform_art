@@ -517,7 +517,7 @@ class HashSet {
       DCHECK_LT(num_elements_, elements_until_expand_);
     }
     bool find_failed = false;
-    auto find_fail_fn = [&](size_t index) {
+    auto find_fail_fn = [&](size_t index) ALWAYS_INLINE {
       find_failed = true;
       return index;
     };
@@ -544,7 +544,7 @@ class HashSet {
       Expand();
       DCHECK_LT(num_elements_, elements_until_expand_);
     }
-    auto find_fail_fn = [](size_t index) { return index; };
+    auto find_fail_fn = [](size_t index) ALWAYS_INLINE { return index; };
     size_t index = FindIndexImpl</*kCanFind=*/ false>(element, hash, find_fail_fn);
     data_[index] = std::forward<U>(element);
     ++num_elements_;
@@ -696,17 +696,19 @@ class HashSet {
   // Find the hash table slot for an element, or return NumBuckets() if not found.
   // This value for not found is important so that iterator(this, FindIndex(...)) == end().
   template <typename K>
+  ALWAYS_INLINE
   size_t FindIndex(const K& element, size_t hash) const {
     // Guard against failing to get an element for a non-existing index.
     if (UNLIKELY(NumBuckets() == 0)) {
       return 0;
     }
-    auto fail_fn = [&](size_t index ATTRIBUTE_UNUSED) { return NumBuckets(); };
+    auto fail_fn = [&](size_t index ATTRIBUTE_UNUSED) ALWAYS_INLINE { return NumBuckets(); };
     return FindIndexImpl(element, hash, fail_fn);
   }
 
   // Find the hash table slot for an element, or return an empty slot index if not found.
   template <bool kCanFind = true, typename K, typename FailFn>
+  ALWAYS_INLINE
   size_t FindIndexImpl(const K& element, size_t hash, FailFn fail_fn) const {
     DCHECK_NE(NumBuckets(), 0u);
     DCHECK_EQ(hashfn_(element), hash);
