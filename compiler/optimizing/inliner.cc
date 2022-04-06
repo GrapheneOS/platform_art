@@ -1744,13 +1744,11 @@ static bool CanEncodeInlinedMethodInStackMap(const DexFile& outer_dex_file,
 
   // Inline across dexfiles if the callee's DexFile is:
   // 1) in the bootclasspath, or
-  if (callee->GetDeclaringClass()->GetClassLoader() == nullptr) {
+  if (callee->GetDeclaringClass()->IsBootStrapClassLoaded()) {
     // In multi-image, each BCP DexFile has their own OatWriter. Since they don't cooperate with
     // each other, we request the BSS check for them.
-    // TODO(solanes): Add .bss support for BCP multi-image.
-    const bool is_multi_image = codegen->GetCompilerOptions().IsBootImage() ||
-                                codegen->GetCompilerOptions().IsBootImageExtension();
-    *out_needs_bss_check = is_multi_image;
+    // TODO(solanes, 154012332): Add .bss support for BCP multi-image.
+    *out_needs_bss_check = codegen->GetCompilerOptions().IsMultiImage();
     return true;
   }
 
@@ -1939,13 +1937,14 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
         return false;
       }
 
-      // We currently don't have support for inlining across dex files if the inlined method needs a
-      // .bss entry. This only happens when we are:
+      // We currently don't have support for inlining across dex files if we are:
       // 1) In AoT,
-      // 2) cross-dex inlining, and
-      // 3) have an instruction that needs a bss entry, which will always be
-      // 3)b) an instruction that needs an environment.
-      // TODO(solanes, 154012332): Add this support.
+      // 2) cross-dex inlining,
+      // 3) the callee is a BCP DexFile,
+      // 4) we are compiling multi image, and
+      // 5) have an instruction that needs a bss entry, which will always be
+      // 5)b) an instruction that needs an environment.
+      // 1) - 4) are encoded in `needs_bss_check` (see CanEncodeInlinedMethodInStackMap).
       if (needs_bss_check && current->NeedsBss()) {
         DCHECK(current->NeedsEnvironment());
         LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedBss)

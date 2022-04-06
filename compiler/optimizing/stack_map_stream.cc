@@ -224,7 +224,7 @@ void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
       ScopedObjectAccess soa(Thread::Current());
       const DexFile* dex_file = method->GetDexFile();
       if (!IsSameDexFile(*outer_dex_file, *dex_file)) {
-        if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
+        if (method->GetDeclaringClass()->IsBootStrapClassLoaded()) {
           ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
           const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
           auto it = std::find_if(
@@ -269,7 +269,7 @@ void StackMapStream::BeginInlineInfoEntry(ArtMethod* method,
         ScopedObjectAccess soa(Thread::Current());
         if (inline_info.GetDexPc() != static_cast<uint32_t>(-1) &&
             !IsSameDexFile(*outer_dex_file, *method->GetDexFile())) {
-          if (method->GetDeclaringClass()->GetClassLoader() == nullptr) {
+          if (method->GetDeclaringClass()->IsBootStrapClassLoaded()) {
             CHECK_EQ(method_info.GetDexFileIndexKind(), MethodInfo::kKindBCP);
             ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
             const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();

@@ -26,6 +26,7 @@
 #include "base/globals.h"
 #include "base/hash_set.h"
 #include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/utils.h"
 #include "optimizing/register_allocator.h"
 
@@ -377,9 +378,9 @@ class CompilerOptions final {
     return initialize_app_image_classes_;
   }
 
+  // Returns true if `dex_file` is within an oat file we're producing right now.
   bool WithinOatFile(const DexFile* dex_file) const {
-    return std::find(GetDexFilesForOatFile().begin(), GetDexFilesForOatFile().end(), dex_file) !=
-           GetDexFilesForOatFile().end();
+    return ContainsElement(GetDexFilesForOatFile(), dex_file);
   }
 
  private:
