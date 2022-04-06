@@ -739,11 +739,11 @@ void CmdlineParser<TVariantMap, TVariantMapKey>::DumpHelp(VariableIndentationOut
   std::unordered_map<std::string, std::vector<detail::CmdlineParseArgumentAny*>> args;
   for (const std::unique_ptr<detail::CmdlineParseArgumentAny>& it : completed_arguments_) {
     auto cat = it->GetCategory();
-    if (cat) {
-      if (args.find(cat.value()) == args.end()) {
-        args[cat.value()] = {};
+    if (cat.has_value()) {
+      if (args.find(*cat) == args.end()) {
+        args[*cat] = {};
       }
-      args.at(cat.value()).push_back(it.get());
+      args.at(*cat).push_back(it.get());
     } else {
       uncat.push_back(it.get());
     }

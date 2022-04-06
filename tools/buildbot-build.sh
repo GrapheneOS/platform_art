@@ -39,7 +39,7 @@ else
 fi
 
 java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
-common_targets="vogar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests libartpalette-system mockito-target"
+common_targets="vogar core-tests core-ojtests apache-harmony-jdwp-tests-hostdex jsr166-tests libartpalette-system mockito-target"
 # These build targets have different names on device and host.
 specific_targets="libjavacoretests libwrapagentproperties libwrapagentpropertiesd"
 build_host="no"
