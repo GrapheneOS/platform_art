@@ -108,7 +108,7 @@ public class Main {
         System.out.println("testOomeSmall succeeded");
     }
 
-    private static void testOomeToCharArray() {
+    private static Object testOomeToCharArray() {
         Object[] o = new Object[2000000];
         String test = "test";
         int i = 0;
@@ -123,5 +123,6 @@ public class Main {
             o = null;
             System.out.println("Got expected toCharArray OOM");
         }
+        return o;
     }
 }
