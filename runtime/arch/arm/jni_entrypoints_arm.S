@@ -114,11 +114,13 @@ ENTRY art_jni_dlsym_lookup_stub
     add    sp, #12                        @ restore stack pointer
     .cfi_adjust_cfa_offset -12
     cbz    r0, 1f                         @ is method code null?
+    .cfi_remember_state
     pop    {r0, r1, r2, r3, lr}           @ restore regs
     .cfi_adjust_cfa_offset -20
     .cfi_restore lr
     bx     r12                            @ if non-null, tail call to method's code
 1:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, 20
     pop    {r0, r1, r2, r3, pc}           @ restore regs and return to caller to handle exception
 END art_jni_dlsym_lookup_stub
 
