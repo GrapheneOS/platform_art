@@ -24,6 +24,7 @@
 
 namespace art {
 
+class ArenaAllocator;
 class ArtMethod;
 class CompilerOptions;
 class DexFile;
@@ -65,7 +66,8 @@ class JniCompiledMethod {
 JniCompiledMethod ArtQuickJniCompileMethod(const CompilerOptions& compiler_options,
                                            uint32_t access_flags,
                                            uint32_t method_idx,
-                                           const DexFile& dex_file);
+                                           const DexFile& dex_file,
+                                           ArenaAllocator* allocator);
 
 }  // namespace art
 
