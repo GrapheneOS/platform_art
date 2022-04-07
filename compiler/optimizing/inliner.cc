@@ -140,7 +140,8 @@ bool HInliner::Run() {
     return false;
   }
 
-  bool didInline = false;
+  bool did_inline = false;
+  bool did_set_always_throws = false;
 
   // Initialize the number of instructions for the method being compiled. Recursive calls
   // to HInliner::Run have already updated the instruction count.
@@ -181,8 +182,8 @@ bool HInliner::Run() {
               call->GetMethodReference().PrettyMethod(/* with_signature= */ false);
           // Tests prevent inlining by having $noinline$ in their method names.
           if (callee_name.find("$noinline$") == std::string::npos) {
-            if (TryInline(call)) {
-              didInline = true;
+            if (TryInline(call, &did_set_always_throws)) {
+              did_inline = true;
             } else if (honor_inline_directives) {
               bool should_have_inlined = (callee_name.find("$inline$") != std::string::npos);
               CHECK(!should_have_inlined) << "Could not inline " << callee_name;
@@ -191,8 +192,8 @@ bool HInliner::Run() {
         } else {
           DCHECK(!honor_inline_directives);
           // Normal case: try to inline.
-          if (TryInline(call)) {
-            didInline = true;
+          if (TryInline(call, &did_set_always_throws)) {
+            did_inline = true;
           }
         }
       }
@@ -200,7 +201,7 @@ bool HInliner::Run() {
     }
   }
 
-  return didInline;
+  return did_inline || did_set_always_throws;
 }
 
 static bool IsMethodOrDeclaringClassFinal(ArtMethod* method)
@@ -435,7 +436,7 @@ static bool AlwaysThrows(ArtMethod* method)
   return throw_seen;
 }
 
-bool HInliner::TryInline(HInvoke* invoke_instruction) {
+bool HInliner::TryInline(HInvoke* invoke_instruction, /*inout*/ bool* did_set_always_throws) {
   MaybeRecordStat(stats_, MethodCompilationStat::kTryInline);
 
   // Don't bother to move further if we know the method is unresolved or the invocation is
@@ -490,6 +491,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
       // target.
       if (AlwaysThrows(actual_method)) {
         invoke_to_analyze->SetAlwaysThrows(true);
+        *did_set_always_throws = true;
       }
     }
     return result;
