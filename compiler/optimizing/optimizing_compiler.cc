@@ -637,7 +637,7 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
            "dead_code_elimination$initial"),
     // Inlining.
     OptDef(OptimizationPass::kInliner),
-    // Simplification (only if inlining occurred).
+    // Simplification (if inlining occurred, or if we analyzed the invoke as "always throwing").
     OptDef(OptimizationPass::kConstantFolding,
            "constant_folding$after_inlining",
            OptimizationPass::kInliner),
