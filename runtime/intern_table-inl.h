@@ -28,6 +28,7 @@
 
 namespace art {
 
+ALWAYS_INLINE
 inline uint32_t InternTable::Utf8String::Hash(uint32_t utf16_length, const char* utf8_data) {
   DCHECK_EQ(utf16_length, CountModifiedUtf8Chars(utf8_data));
   if (LIKELY(utf8_data[utf16_length] == 0)) {
@@ -39,6 +40,7 @@ inline uint32_t InternTable::Utf8String::Hash(uint32_t utf16_length, const char*
   }
 }
 
+ALWAYS_INLINE
 inline size_t InternTable::StringHash::operator()(const GcRoot<mirror::String>& root) const {
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
@@ -50,6 +52,7 @@ inline size_t InternTable::StringHash::operator()(const GcRoot<mirror::String>& 
   return static_cast<uint32_t>(hash);
 }
 
+ALWAYS_INLINE
 inline bool InternTable::StringEquals::operator()(const GcRoot<mirror::String>& a,
                                                   const GcRoot<mirror::String>& b) const {
   if (kIsDebugBuild) {
@@ -58,6 +61,7 @@ inline bool InternTable::StringEquals::operator()(const GcRoot<mirror::String>& 
   return a.Read<kWithoutReadBarrier>()->Equals(b.Read<kWithoutReadBarrier>());
 }
 
+ALWAYS_INLINE
 inline bool InternTable::StringEquals::operator()(const GcRoot<mirror::String>& a,
                                                   const Utf8String& b) const {
   if (kIsDebugBuild) {
