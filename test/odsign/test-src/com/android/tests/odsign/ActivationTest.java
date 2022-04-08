@@ -18,6 +18,7 @@ package com.android.tests.odsign;
 
 import static org.junit.Assert.assertTrue;
 
+import com.android.tests.odsign.annotation.CtsTestCase;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
@@ -46,6 +47,7 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    @CtsTestCase
     public void verifyArtUpgradeSignsFiles() throws Exception {
         installPackage(TEST_APP_APK);
         DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
@@ -55,6 +57,7 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    @CtsTestCase
     public void verifyArtUpgradeGeneratesAnyArtifacts() throws Exception {
         installPackage(TEST_APP_APK);
         DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
@@ -65,11 +68,6 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyArtUpgradeGeneratesRequiredArtifacts() throws Exception {
-        // This test does not actually require root access, but we use `enableAdbRootOrSkipTest` as
-        // a way to skip the test in CTS. This test should not run in CTS because it has assumptions
-        // on the ART module's behavior.
-        mTestUtils.enableAdbRootOrSkipTest();
-
         installPackage(TEST_APP_APK);
         DeviceTestRunOptions options = new DeviceTestRunOptions(TEST_APP_PACKAGE_NAME);
         options.setTestClassName(TEST_APP_PACKAGE_NAME + ".ArtifactsSignedTest");
@@ -79,9 +77,6 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyGeneratedArtifactsLoaded() throws Exception {
-        // Checking zygote and system_server need the device have adb root to walk process maps.
-        mTestUtils.enableAdbRootOrSkipTest();
-
         // Check both zygote and system_server processes to see that they have loaded the
         // artifacts compiled and signed by odrefresh and odsign. We check both here rather than
         // having a separate test because the device reboots between each @Test method and
@@ -92,16 +87,12 @@ abstract class ActivationTest extends BaseHostJUnit4Test {
 
     @Test
     public void verifyGeneratedArtifactsLoadedAfterReboot() throws Exception {
-        mTestUtils.enableAdbRootOrSkipTest();
-
         mTestUtils.reboot();
         verifyGeneratedArtifactsLoaded();
     }
 
     @Test
     public void verifyGeneratedArtifactsLoadedAfterPartialCompilation() throws Exception {
-        mTestUtils.enableAdbRootOrSkipTest();
-
         Set<String> mappedArtifacts = mTestUtils.getSystemServerLoadedArtifacts();
         // Delete an arbitrary artifact.
         getDevice().deleteFile(mappedArtifacts.iterator().next());
