@@ -679,11 +679,6 @@ public class Main {
       }
     } catch (NullPointerException e) {
     }
-
-    // We want to use obj over here so that it doesn't get deleted by LSE.
-    if (obj.x == 123) {
-      return 123;
-    }
     return x;
   }
 
