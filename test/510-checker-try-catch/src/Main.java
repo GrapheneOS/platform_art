@@ -45,16 +45,13 @@ public class Main {
   /// CHECK-DAG: <<ArrayA:l\d+>>       ParameterValue
   /// CHECK-DAG: <<ArrayB:l\d+>>       ParameterValue
   //
-
   /// CHECK-DAG: <<NullCh1:l\d+>>      NullCheck [<<ArrayA>>]
   /// CHECK-DAG: <<LengthA:i\d+>>      ArrayLength
   /// CHECK-DAG: <<BoundsCh1:i\d+>>    BoundsCheck [<<IndexParam>>,<<LengthA>>]
-  /// CHECK-DAG: <<IntAddr1:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
-  /// CHECK-DAG:                       ArraySet [<<IntAddr1>>,<<BoundsCh1>>,<<Const1>>]
   /// CHECK-DAG:                       TryBoundary
   //
-  /// CHECK-DAG: <<IntAddr2:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
-  /// CHECK-DAG:                       ArraySet [<<IntAddr2>>,<<BoundsCh1>>,<<Const2>>]
+  /// CHECK-DAG: <<IntAddr1:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
+  /// CHECK-DAG:                       ArraySet [<<IntAddr1>>,<<BoundsCh1>>,<<Const2>>]
   /// CHECK-DAG: <<NullChB:l\d+>>      NullCheck [<<ArrayB>>]
   /// CHECK-DAG: <<LengthB:i\d+>>      ArrayLength
   /// CHECK-DAG: <<BoundsChB:i\d+>>    BoundsCheck [<<Const0>>,<<LengthB>>]
@@ -63,13 +60,13 @@ public class Main {
   /// CHECK-DAG: <<Div:i\d+>>          Div [<<GetB>>,<<ZeroCheck>>]
   /// CHECK-DAG: <<Xplus1:i\d+>>       Add [<<IndexParam>>,<<Const1>>]
   /// CHECK-DAG: <<BoundsCh2:i\d+>>    BoundsCheck [<<Xplus1>>,<<LengthA>>]
-  /// CHECK-DAG: <<IntAddr3:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
-  /// CHECK-DAG:                       ArraySet [<<IntAddr3>>,<<BoundsCh2>>,<<Div>>]
+  /// CHECK-DAG: <<IntAddr2:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
+  /// CHECK-DAG:                       ArraySet [<<IntAddr2>>,<<BoundsCh2>>,<<Div>>]
   /// CHECK-DAG:                       TryBoundary
   //
   /// CHECK-DAG:                       ClearException
-  /// CHECK-DAG: <<IntAddr4:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
-  /// CHECK-DAG:                       ArraySet [<<IntAddr4>>,<<BoundsCh1>>,<<Const1>>]
+  /// CHECK-DAG: <<IntAddr3:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
+  /// CHECK-DAG:                       ArraySet [<<IntAddr3>>,<<BoundsCh1>>,<<Const1>>]
   //
   /// CHECK-NOT:                       NullCheck
   /// CHECK-NOT:                       IntermediateAddress
@@ -86,10 +83,9 @@ public class Main {
   /// CHECK-DAG: <<NullCh1:l\d+>>      NullCheck [<<ArrayA>>]
   /// CHECK-DAG: <<LengthA:i\d+>>      ArrayLength
   /// CHECK-DAG: <<BoundsCh1:i\d+>>    BoundsCheck [<<IndexParam>>,<<LengthA>>]
-  /// CHECK-DAG: <<IntAddr1:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
-  /// CHECK-DAG:                       ArraySet [<<IntAddr1>>,<<BoundsCh1>>,<<Const1>>]
   /// CHECK-DAG:                       TryBoundary
   //
+  /// CHECK-DAG: <<IntAddr1:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
   /// CHECK-DAG:                       ArraySet [<<IntAddr1>>,<<BoundsCh1>>,<<Const2>>]
   /// CHECK-DAG: <<NullChB:l\d+>>      NullCheck [<<ArrayB>>]
   /// CHECK-DAG: <<LengthB:i\d+>>      ArrayLength
@@ -103,14 +99,16 @@ public class Main {
   /// CHECK-DAG:                       TryBoundary
   //
   /// CHECK-DAG:                       ClearException
-  /// CHECK-DAG: <<IntAddr4:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
-  /// CHECK-DAG:                       ArraySet [<<IntAddr4>>,<<BoundsCh1>>,<<Const1>>]
+  /// CHECK-DAG: <<IntAddr3:i\d+>>     IntermediateAddress [<<NullCh1>>,<<Offset>>]
+  /// CHECK-DAG:                       ArraySet [<<IntAddr3>>,<<BoundsCh1>>,<<Const1>>]
   //
   /// CHECK-NOT:                       NullCheck
   /// CHECK-NOT:                       IntermediateAddress
 
   //  Make sure that BoundsCheck, DivZeroCheck and NullCheck don't stop IntermediateAddress sharing.
   public static void boundsCheckAndCatch(int x, int[] a, int[] b) {
+    // This a[x] = 1 will be eliminated by LSE, but its related instructions (e.g. NullCheck and
+    // BoundsCheck) will remain.
     a[x] = 1;
     try {
       a[x] = 2;
