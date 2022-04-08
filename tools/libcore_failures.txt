@@ -283,5 +283,53 @@
           "libcore.javax.net.ssl.DefaultHostnameVerifierTest#testSubjectWithWildAltNamesCert",
           "libcore.javax.net.ssl.DefaultHostnameVerifierTest#testWildAltNameOnlyCert"],
   bug: 166619732
+},
+{
+  description: "test.* fail on host x86 and device; org.* fail on host x64",
+  result: EXEC_FAILED,
+  bug: 228441328,
+  names: ["test.java.lang.Math.CeilAndFloorTests#nearIntegerTests",
+          "test.java.time.chrono.TestEraDisplayName",
+          "test.java.time.format.TestDateTimeFormatterBuilderWithLocale",
+          "test.java.util.TestFormatter"]
+},
+{
+  description: "Fails on armv8 device",
+  result: EXEC_FAILED,
+  modes: [device],
+  bug: 228441328,
+  names: ["test.java.util.zip.ZipFile.Zip64SizeTest#validateZipEntrySizes"]
+},
+{
+  description: "libcore.android.system.OsTest socket tests work on device only",
+  result: EXEC_FAILED,
+  modes: [host],
+  names: ["libcore.android.system.OsTest#test_sendmsg_af_inet6_4K",
+          "libcore.android.system.OsTest#test_sendmsg_af_inet6_4K_directBuffer",
+          "libcore.android.system.OsTest#test_sendmsg_af_inet_16K_receiveall_without_recv_msgname",
+          "libcore.android.system.OsTest#test_sendmsg_af_inet_16K_reciveall",
+          "libcore.android.system.OsTest#test_sendmsg_af_inet_16K_recvparts",
+          "libcore.android.system.OsTest#test_sendmsg_af_inet_16K_without_send_msgcontrl",
+          "libcore.android.system.OsTest#test_sendmsg_af_inet_4K",
+          "libcore.android.system.OsTest#test_socket_udpGro_setAndGet",
+          "libcore.android.system.OsTest#test_socket_udpGso_set",
+          "libcore.android.system.OsTest#testUnixDomainSocket_abstract_name"]
+},
+{
+  description: "java.lang.Math sin/cos/cbrt on host differs from device",
+  result: ERROR,
+  modes: [host],
+  bug: 228174249,
+  names: ["test.java.lang.Math.SinCosCornerCasesTests#testCornerCasesCos",
+          "test.java.lang.Math.SinCosCornerCasesTests#testCornerCasesSin",
+          "test.java.lang.Math.CubeRootTests#testCubeRoot",
+          "org.apache.harmony.tests.java.lang.MathTest#test_cbrt_D"]
+},
+{
+  description: "Multiple failures",
+  result: ERROR,
+  bug: 228441328,
+  names: ["tck.java.time",
+          "test.java.time"]
 }
 ]
