@@ -78,8 +78,6 @@
  *    all back-edges. We use Phi placeholders also for array heap locations with
  *    index defined inside the loop but this helps only when the value remains
  *    zero from the array allocation throughout the loop.
- *  - For catch blocks, we clear all assumptions since we arrived due to an
- *    instruction throwing.
  *  - For other basic blocks, we merge incoming values from the end of all
  *    predecessors. If any incoming value is unknown, the start value for this
  *    block is also unknown. Otherwise, if all the incoming values are the same
@@ -115,6 +113,8 @@
  *  - SIMD graphs (with VecLoad and VecStore instructions) are also handled. Any
  *    partial overlap access among ArrayGet/ArraySet/VecLoad/Store is seen as
  *    alias and no load/store is eliminated in such case.
+ *  - Currently this LSE algorithm doesn't handle graph with try-catch, due to
+ *    the special block merging structure.
  *
  * The time complexity of the initial phase has several components. The total
  * time for the initialization of heap values for all blocks is
@@ -1618,9 +1618,8 @@ void LSEVisitor::MergePredecessorRecords(HBasicBlock* block) {
   ScopedArenaVector<ValueRecord>& heap_values = heap_values_for_[block->GetBlockId()];
   DCHECK(heap_values.empty());
   size_t num_heap_locations = heap_location_collector_.GetNumberOfHeapLocations();
-  if (block->GetPredecessors().empty() || (block->GetTryCatchInformation() != nullptr &&
-                                           block->GetTryCatchInformation()->IsCatchBlock())) {
-    DCHECK_IMPLIES(block->GetPredecessors().empty(), block->IsEntryBlock());
+  if (block->GetPredecessors().empty()) {
+    DCHECK(block->IsEntryBlock());
     heap_values.resize(num_heap_locations,
                        {/*value=*/Value::PureUnknown(), /*stored_by=*/Value::PureUnknown()});
     return;
@@ -3878,8 +3877,9 @@ class LSEVisitorWrapper : public DeletableArenaObject<kArenaAllocLSE> {
 };
 
 bool LoadStoreElimination::Run(bool enable_partial_lse) {
-  if (graph_->IsDebuggable()) {
+  if (graph_->IsDebuggable() || graph_->HasTryCatch()) {
     // Debugger may set heap values or trigger deoptimization of callers.
+    // Try/catch support not implemented yet.
     // Skip this optimization.
     return false;
   }
