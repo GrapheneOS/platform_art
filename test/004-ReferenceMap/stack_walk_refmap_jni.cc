@@ -52,6 +52,7 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
     // we know the Dex registers with live reference values. Assert that what we
     // find is what is expected.
     if (m_name.compare("f") == 0) {
+      CHECK_REGS_CONTAIN_REFS(0x03U, true, 8);  // v8: this
       CHECK_REGS_CONTAIN_REFS(0x06U, true, 8, 1);  // v8: this, v1: x
       CHECK_REGS_CONTAIN_REFS(0x0cU, true, 8, 3, 1);  // v8: this, v3: y, v1: x
       CHECK_REGS_CONTAIN_REFS(0x10U, true, 8, 3, 1);  // v8: this, v3: y, v1: x
