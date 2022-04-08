@@ -28,6 +28,7 @@
 #include "base/enums.h"
 #include "base/logging.h"  // For VLOG.
 #include "base/macros.h"
+#include "base/malloc_arena_pool.h"
 #include "base/memory_region.h"
 #include "base/utils.h"
 #include "calling_convention.h"
@@ -83,8 +84,7 @@ template <PointerSize kPointerSize>
 static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& compiler_options,
                                                      uint32_t access_flags,
                                                      uint32_t method_idx,
-                                                     const DexFile& dex_file,
-                                                     ArenaAllocator* allocator) {
+                                                     const DexFile& dex_file) {
   constexpr size_t kRawPointerSize = static_cast<size_t>(kPointerSize);
   const bool is_native = (access_flags & kAccNative) != 0;
   CHECK(is_native);
@@ -143,9 +143,12 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     }
   }
 
+  MallocArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
   // Calling conventions used to iterate over parameters to method
   std::unique_ptr<JniCallingConvention> main_jni_conv =
-      JniCallingConvention::Create(allocator,
+      JniCallingConvention::Create(&allocator,
                                    is_static,
                                    is_synchronized,
                                    is_fast_native,
@@ -156,11 +159,11 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
 
   std::unique_ptr<ManagedRuntimeCallingConvention> mr_conv(
       ManagedRuntimeCallingConvention::Create(
-          allocator, is_static, is_synchronized, shorty, instruction_set));
+          &allocator, is_static, is_synchronized, shorty, instruction_set));
 
   // Assembler that holds generated instructions
   std::unique_ptr<JNIMacroAssembler<kPointerSize>> jni_asm =
-      GetMacroAssembler<kPointerSize>(allocator, instruction_set, instruction_set_features);
+      GetMacroAssembler<kPointerSize>(&allocator, instruction_set, instruction_set_features);
   jni_asm->cfi().SetEnabled(compiler_options.GenerateAnyDebugInfo());
   jni_asm->SetEmitRunTimeChecksInDebugMode(compiler_options.EmitRunTimeChecksInDebugMode());
 
@@ -196,9 +199,9 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   // 1.3 Spill reference register arguments.
   constexpr FrameOffset kInvalidReferenceOffset =
       JNIMacroAssembler<kPointerSize>::kInvalidReferenceOffset;
-  ArenaVector<ArgumentLocation> src_args(allocator->Adapter());
-  ArenaVector<ArgumentLocation> dest_args(allocator->Adapter());
-  ArenaVector<FrameOffset> refs(allocator->Adapter());
+  ArenaVector<ArgumentLocation> src_args(allocator.Adapter());
+  ArenaVector<ArgumentLocation> dest_args(allocator.Adapter());
+  ArenaVector<FrameOffset> refs(allocator.Adapter());
   if (LIKELY(!is_critical_native)) {
     mr_conv->ResetIterator(FrameOffset(current_frame_size));
     for (; mr_conv->HasNext(); mr_conv->Next()) {
@@ -696,14 +699,13 @@ static void SetNativeParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
 JniCompiledMethod ArtQuickJniCompileMethod(const CompilerOptions& compiler_options,
                                            uint32_t access_flags,
                                            uint32_t method_idx,
-                                           const DexFile& dex_file,
-                                           ArenaAllocator* allocator) {
+                                           const DexFile& dex_file) {
   if (Is64BitInstructionSet(compiler_options.GetInstructionSet())) {
     return ArtJniCompileMethodInternal<PointerSize::k64>(
-        compiler_options, access_flags, method_idx, dex_file, allocator);
+        compiler_options, access_flags, method_idx, dex_file);
   } else {
     return ArtJniCompileMethodInternal<PointerSize::k32>(
-        compiler_options, access_flags, method_idx, dex_file, allocator);
+        compiler_options, access_flags, method_idx, dex_file);
   }
 }
 
