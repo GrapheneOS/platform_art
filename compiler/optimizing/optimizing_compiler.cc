@@ -1183,7 +1183,7 @@ CompiledMethod* OptimizingCompiler::JniCompile(uint32_t access_flags,
   }
 
   JniCompiledMethod jni_compiled_method = ArtQuickJniCompileMethod(
-      compiler_options, access_flags, method_idx, dex_file, &allocator);
+      compiler_options, access_flags, method_idx, dex_file);
   MaybeRecordStat(compilation_stats_.get(), MethodCompilationStat::kCompiledNativeStub);
 
   ScopedArenaAllocator stack_map_allocator(&arena_stack);  // Will hold the stack map.
@@ -1234,7 +1234,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
 
   if (UNLIKELY(method->IsNative())) {
     JniCompiledMethod jni_compiled_method = ArtQuickJniCompileMethod(
-        compiler_options, access_flags, method_idx, *dex_file, &allocator);
+        compiler_options, access_flags, method_idx, *dex_file);
     std::vector<Handle<mirror::Object>> roots;
     ArenaSet<ArtMethod*, std::less<ArtMethod*>> cha_single_implementation_list(
         allocator.Adapter(kArenaAllocCHA));
