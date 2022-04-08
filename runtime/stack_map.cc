@@ -32,10 +32,10 @@ template<typename DecodeCallback>
 CodeInfo::CodeInfo(const uint8_t* data, size_t* num_read_bits, DecodeCallback callback) {
   BitMemoryReader reader(data);
   std::array<uint32_t, kNumHeaders> header = reader.ReadInterleavedVarints<kNumHeaders>();
-  ForEachHeaderField([this, &header](size_t i, auto member_pointer) {
+  ForEachHeaderField([this, &header](size_t i, auto member_pointer) ALWAYS_INLINE {
     this->*member_pointer = header[i];
   });
-  ForEachBitTableField([this, &reader, &callback](size_t i, auto member_pointer) {
+  ForEachBitTableField([this, &reader, &callback](size_t i, auto member_pointer) ALWAYS_INLINE {
     auto& table = this->*member_pointer;
     if (LIKELY(HasBitTable(i))) {
       if (UNLIKELY(IsBitTableDeduped(i))) {
@@ -56,7 +56,7 @@ CodeInfo::CodeInfo(const uint8_t* data, size_t* num_read_bits, DecodeCallback ca
 }
 
 CodeInfo::CodeInfo(const uint8_t* data, size_t* num_read_bits)
-    : CodeInfo(data, num_read_bits, [](size_t, auto*, BitMemoryRegion){}) {}
+    : CodeInfo(data, num_read_bits, [](size_t, auto*, BitMemoryRegion) ALWAYS_INLINE {}) {}
 
 CodeInfo::CodeInfo(const OatQuickMethodHeader* header)
     : CodeInfo(header->GetOptimizedCodeInfoPtr()) {}
