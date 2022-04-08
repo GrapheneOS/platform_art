@@ -27,6 +27,7 @@
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "base/enums.h"
+#include "base/logging.h"
 #include "base/macros.h"
 #include "base/runtime_debug.h"
 #include "dex/dex_file_structs.h"
@@ -115,6 +116,9 @@ class ArtMethod final {
   // concurrency so there is no need to guarantee atomicity. For example,
   // before the method is linked.
   void SetAccessFlags(uint32_t new_access_flags) REQUIRES_SHARED(Locks::mutator_lock_) {
+    // The following check ensures that we do not set `Intrinsics::kNone` (see b/228049006).
+    DCHECK_IMPLIES((new_access_flags & kAccIntrinsic) != 0,
+                   (new_access_flags & kAccIntrinsicBits) != 0);
     access_flags_.store(new_access_flags, std::memory_order_relaxed);
   }
 
@@ -882,7 +886,8 @@ class ArtMethod final {
 
   static inline bool IsValidIntrinsicUpdate(uint32_t modifier) {
     return (((modifier & kAccIntrinsic) == kAccIntrinsic) &&
-            (((modifier & ~(kAccIntrinsic | kAccIntrinsicBits)) == 0)));
+            ((modifier & ~(kAccIntrinsic | kAccIntrinsicBits)) == 0) &&
+            ((modifier & kAccIntrinsicBits) != 0));  // b/228049006: ensure intrinsic is not `kNone`
   }
 
   static inline bool OverlapsIntrinsicBits(uint32_t modifier) {
@@ -891,14 +896,14 @@ class ArtMethod final {
 
   // This setter guarantees atomicity.
   void AddAccessFlags(uint32_t flag) REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(!IsIntrinsic() || !OverlapsIntrinsicBits(flag) || IsValidIntrinsicUpdate(flag));
+    DCHECK_IMPLIES(IsIntrinsic(), !OverlapsIntrinsicBits(flag) || IsValidIntrinsicUpdate(flag));
     // None of the readers rely ordering.
     access_flags_.fetch_or(flag, std::memory_order_relaxed);
   }
 
   // This setter guarantees atomicity.
   void ClearAccessFlags(uint32_t flag) REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(!IsIntrinsic() || !OverlapsIntrinsicBits(flag) || IsValidIntrinsicUpdate(flag));
+    DCHECK_IMPLIES(IsIntrinsic(), !OverlapsIntrinsicBits(flag) || IsValidIntrinsicUpdate(flag));
     access_flags_.fetch_and(~flag, std::memory_order_relaxed);
   }
 
