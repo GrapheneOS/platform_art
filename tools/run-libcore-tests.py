@@ -49,7 +49,6 @@ ART_TEST_CHROOT = os.environ.get("ART_TEST_CHROOT")
 ANDROID_PRODUCT_OUT = os.environ.get("ANDROID_PRODUCT_OUT")
 
 LIBCORE_TEST_NAMES = [
-  ### luni tests. ###
   # Naive critical path optimization: Run the longest tests first.
   "org.apache.harmony.tests.java.util",  # 90min under gcstress
   "libcore.java.lang",                   # 90min under gcstress
@@ -67,7 +66,7 @@ LIBCORE_TEST_NAMES = [
   "libcore.highmemorytest.java.util.CalendarTest",
   "libcore.highmemorytest.java.util.CurrencyTest",
   "libcore.highmemorytest.libcore.icu.SimpleDateFormatDataTest",
-  # All other luni tests in alphabetical order.
+  # All other tests in alphabetical order.
   "libcore.android.system",
   "libcore.build",
   "libcore.dalvik.system",
@@ -99,87 +98,6 @@ LIBCORE_TEST_NAMES = [
   "org.apache.harmony.tests.java.math",
   "org.apache.harmony.tests.javax.security",
   "tests.java.lang.String",
-  ### OpenJDK upstream tests (ojluni). ###
-  # "test.java.awt",
-  "test.java.awt",
-  # test.java.io
-  "test.java.io.ByteArrayInputStream",
-  "test.java.io.ByteArrayOutputStream",
-  "test.java.io.FileReader",
-  "test.java.io.FileWriter",
-  "test.java.io.InputStream",
-  "test.java.io.OutputStream",
-  "test.java.io.PrintStream",
-  "test.java.io.PrintWriter",
-  "test.java.io.Reader",
-  "test.java.io.Writer",
-  # test.java.lang
-  "test.java.lang.Boolean",
-  "test.java.lang.ClassLoader",
-  "test.java.lang.Double",
-  "test.java.lang.Float",
-  "test.java.lang.Integer",
-  "test.java.lang.Long",
-  "test.java.lang.Math",
-  "test.java.lang.StrictMath",
-  "test.java.lang.String",
-  "test.java.lang.Thread",
-  # test.java.lang.invoke
-  "test.java.lang.invoke",
-  # test.java.lang.ref
-  "test.java.lang.ref.SoftReference",
-  "test.java.lang.ref.BasicTest",
-  "test.java.lang.ref.EnqueueNullRefTest",
-  "test.java.lang.ref.EnqueuePollRaceTest",
-  "test.java.lang.ref.ReferenceCloneTest",
-  "test.java.lang.ref.ReferenceEnqueuePendingTest",
-  # test.java.math
-  "test.java.math.BigDecimal",
-  "test.java.math.BigInteger",
-  "test.java.math.RoundingMode",
-  # test.java.net
-  "test.java.net.DatagramSocket",
-  "test.java.net.Socket",
-  "test.java.net.SocketOptions",
-  "test.java.net.URLDecoder",
-  "test.java.net.URLEncoder",
-  # test.java.nio
-  "test.java.nio.channels.Channels",
-  "test.java.nio.channels.SelectionKey",
-  "test.java.nio.channels.Selector",
-  "test.java.nio.file",
-  # test.java.security
-  "test.java.security.cert",
-  "test.java.security.KeyAgreement",
-  "test.java.security.KeyStore",
-  "test.java.security.Provider",
-  # test.java.time
-  "test.java.time",
-  # test.java.util
-  "test.java.util.Arrays",
-  "test.java.util.Collection",
-  "test.java.util.Collections",
-  "test.java.util.Date",
-  "test.java.util.EnumMap",
-  "test.java.util.EnumSet",
-  "test.java.util.GregorianCalendar",
-  "test.java.util.LinkedHashMap",
-  "test.java.util.LinkedHashSet",
-  "test.java.util.List",
-  "test.java.util.Map",
-  "test.java.util.Optional",
-  "test.java.util.TestFormatter",
-  "test.java.util.TimeZone",
-  # test.java.util.concurrent
-  "test.java.util.concurrent",
-  # test.java.util.function
-  "test.java.util.function",
-  # test.java.util.stream
-  "test.java.util.stream",
-  # test.java.util.zip
-  "test.java.util.zip.ZipFile",
-  # tck.java.time
-  "tck.java.time",
 ]
 # "org.apache.harmony.security",  # We don't have rights to revert changes in case of failures.
 
