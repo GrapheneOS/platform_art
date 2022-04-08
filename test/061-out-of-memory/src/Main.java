@@ -23,25 +23,25 @@ import java.util.LinkedList;
 public class Main {
     public static void main(String args[]) {
         System.out.println("tests beginning");
-        testHugeArray();
-        testOomeLarge();
-        testOomeSmall();
-        testOomeToCharArray();
+        $noinline$testHugeArray();
+        $noinline$testOomeLarge();
+        $noinline$testOomeSmall();
+        $noinline$testOomeToCharArray();
         System.out.println("tests succeeded");
     }
 
-    private static void testHugeArray() {
+    private static int[] $noinline$testHugeArray() {
+        int[] tooBig = null;
         try {
             final int COUNT = 32768*32768 + 4;
-            int[] tooBig = new int[COUNT];
-
-            Arrays.fill(tooBig, 0xdd);
+            tooBig = new int[COUNT];
         } catch (OutOfMemoryError oom) {
             System.out.println("Got expected huge-array OOM");
         }
+        return tooBig;
     }
 
-    private static void testOomeLarge() {
+    private static void $noinline$testOomeLarge() {
         System.out.println("testOomeLarge beginning");
 
         Boolean sawEx = false;
@@ -52,7 +52,6 @@ public class Main {
             // try to allocate it instead of short-circuiting.
             a = new byte[(int) Runtime.getRuntime().maxMemory() - 32];
         } catch (OutOfMemoryError oom) {
-            //Log.i(TAG, "HeapTest/OomeLarge caught " + oom);
             sawEx = true;
         }
 
@@ -96,7 +95,7 @@ public class Main {
         return true;
     }
 
-    private static void testOomeSmall() {
+    private static void $noinline$testOomeSmall() {
         System.out.println("testOomeSmall beginning");
         if (!testOomeSmallInternal()) {
             /* Can't reliably throw this from inside the internal function, because
@@ -108,7 +107,7 @@ public class Main {
         System.out.println("testOomeSmall succeeded");
     }
 
-    private static void testOomeToCharArray() {
+    private static Object $noinline$testOomeToCharArray() {
         Object[] o = new Object[2000000];
         String test = "test";
         int i = 0;
@@ -123,5 +122,6 @@ public class Main {
             o = null;
             System.out.println("Got expected toCharArray OOM");
         }
+        return o;
     }
 }
