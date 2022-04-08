@@ -1645,11 +1645,13 @@ ENTRY art_quick_proxy_invoke_handler
     bl      artQuickProxyInvokeHandler  // (Method* proxy method, receiver, Thread*, SP)
     ldr     x2, [xSELF, THREAD_EXCEPTION_OFFSET]
     cbnz    x2, .Lexception_in_proxy    // success if no exception is pending
+    .cfi_remember_state
     RESTORE_SAVE_REFS_AND_ARGS_FRAME    // Restore frame
     REFRESH_MARKING_REGISTER
     fmov    d0, x0                      // Store result in d0 in case it was float or double
     ret                                 // return on success
 .Lexception_in_proxy:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
@@ -1692,12 +1694,14 @@ ENTRY art_quick_resolution_trampoline
     mov x3, sp
     bl artQuickResolutionTrampoline  // (called, receiver, Thread*, SP)
     cbz x0, 1f
+    .cfi_remember_state
     mov xIP0, x0            // Remember returned code pointer in xIP0.
     ldr x0, [sp, #0]        // artQuickResolutionTrampoline puts called method in *SP.
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     REFRESH_MARKING_REGISTER
     br xIP0
 1:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_REFS_AND_ARGS
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     DELIVER_PENDING_EXCEPTION
 END art_quick_resolution_trampoline
@@ -1924,6 +1928,7 @@ ENTRY art_quick_instrumentation_exit
     bl   artInstrumentationMethodExitFromCode    // (Thread*, SP, gpr_res*, fpr_res*)
 
     cbz   x0, .Ldo_deliver_instrumentation_exception
+    .cfi_remember_state
                               // Handle error
     cbnz  x1, .Ldeoptimize
     // Normal return.
@@ -1933,6 +1938,7 @@ ENTRY art_quick_instrumentation_exit
     REFRESH_MARKING_REGISTER
     br    lr
 .Ldo_deliver_instrumentation_exception:
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 .Ldeoptimize:
     str   x1, [sp, #FRAME_SIZE_SAVE_EVERYTHING - 8]

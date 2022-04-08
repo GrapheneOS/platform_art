@@ -17,12 +17,28 @@
 import pkg1.A;
 import pkg1.C;
 import pkg1.C2;
+import pkg1.C2I1;
+import pkg1.C2I2;
+import pkg1.CXI1;
+import pkg1.CXI2;
+import pkg1.I1;
 import pkg2.B;
 import pkg2.D;
 import pkg2.D2;
+import pkg2.D2I1;
+import pkg2.D2I2;
+import pkg2.DXI1;
+import pkg2.DXI2;
+import pkg2.I2;
 
 public class Main {
     public static void main(String args[]) {
+        try {
+            Class.forName("dalvik.system.PathClassLoader");
+        } catch (ClassNotFoundException e) {
+            usingRI = true;
+        }
+
         // A single method signature can result in multiple vtable entries
         // when package-private methods from different packages are involved.
         // All classes here define the method `void foo()` but classes
@@ -63,5 +79,82 @@ public class Main {
         d2.callBFoo();  // pkg2.D2.foo (overrides package-private pkg2.B.foo in the same package)
         d2.callC2Foo();  // pkg2.D2.foo (overrides public pkg2.C2.foo)
         d2.callD2Foo();  // pkg2.D2.foo
+
+        // Interface methods always target the method in the most-derived class with implementation
+        // even when package-private methods from different packages are involved.
+        //
+        // Test interface calls through the following interfaces:
+        //    interface pkg1.I1 { ... }
+        //    interface pkg2.I2 { ... }
+        // that declare a public `void foo()` for concrete classes
+        //    class pkg1.C2I1 extends pkg1.C2 implements pkg1.I1 {}
+        //    class pkg1.C2I2 extends pkg1.C2 implements pkg2.I2 {}
+        //    class pkg2.D2I1 extends pkg2.D2 implements pkg1.I1 {}
+        //    class pkg2.D2I2 extends pkg2.D2 implements pkg2.I2 {}
+        //    class pkg1.CXI1 extends pkg1.CX implements pkg1.I1 {}
+        //    class pkg1.CXI2 extends pkg1.CX implements pkg2.I2 {}
+        //    class pkg2.DXI1 extends pkg2.DX implements pkg1.I1 {}
+        //    class pkg2.DXI2 extends pkg2.DX implements pkg2.I2 {}
+        // with helper classes `pkg1.C2` and `pkg2.D2` from previous tests and helper class
+        //    class pkg2.BX extends pkg1.A { ... }
+        // defining a public `void foo()` but helper classes
+        //    class pkg1.CX extends pkg2.BX { ... }
+        //    class pkg2.DX extends pkg1.CX { ... }
+        // defining a package-private `void foo()`. This is a compilation error in Java,
+        // so we're using different definitions for `pkg1.I1`, `pkg2.I2` and `pkg2.BX` in
+        // src/ for compiling other classes and in src2/ for their run-time definition.
+
+        C2I1 c2i1 = new C2I1();
+        I1.callI1Foo(c2i1);  // pkg1.C2.foo
+
+        C2I2 c2i2 = new C2I2();
+        I2.callI2Foo(c2i2);  // pkg1.C2.foo
+
+        D2I1 d2i1 = new D2I1();
+        I1.callI1Foo(d2i1);  // pkg1.D2.foo
+
+        D2I2 d2i2 = new D2I2();
+        I2.callI2Foo(d2i2);  // pkg1.D2.foo
+
+        try {
+            CXI1 cxi1 = new CXI1();
+            I1.callI1Foo(cxi1);
+        } catch (IllegalAccessError expected) {
+            printOnDalvik("Calling pkg1.I1.foo on pkg1.CXI1");
+            System.out.println("Caught IllegalAccessError");
+        }
+
+        try {
+            CXI2 cxi2 = new CXI2();
+            I2.callI2Foo(cxi2);
+        } catch (IllegalAccessError expected) {
+            printOnDalvik("Calling pkg2.I2.foo on pkg1.CXI2");
+            System.out.println("Caught IllegalAccessError");
+        }
+
+        try {
+            DXI1 dxi1 = new DXI1();
+            I1.callI1Foo(dxi1);
+        } catch (IllegalAccessError expected) {
+            printOnDalvik("Calling pkg1.I1.foo on pkg2.DXI1");
+            System.out.println("Caught IllegalAccessError");
+        }
+
+        try {
+            DXI2 dxi2 = new DXI2();
+            I2.callI2Foo(dxi2);
+        } catch (IllegalAccessError expected) {
+            printOnDalvik("Calling pkg2.I2.foo on pkg2.DXI2");
+            System.out.println("Caught IllegalAccessError");
+        }
     }
+
+    private static void printOnDalvik(String line) {
+        if (!usingRI) {
+            // FIXME: Delay IAE until calling the method. Bug: 211854716
+            System.out.println(line);
+        }
+    }
+
+    private static boolean usingRI = false;
 }

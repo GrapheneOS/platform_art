@@ -168,6 +168,7 @@
     .cfi_def_cfa sp, CALLEE_SAVES_SIZE
     RESTORE_ALL_CALLEE_SAVES lr_to_pc=1
     .cfi_restore_state
+    CFI_DEF_CFA_BREG_PLUS_UCONST CFI_REFS, -4, CALLEE_SAVES_SIZE
 
 %def op_return_object():
 %  op_return(is_object="1", is_void="0", is_wide="0")
