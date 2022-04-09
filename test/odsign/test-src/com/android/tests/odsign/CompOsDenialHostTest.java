@@ -57,7 +57,6 @@ public class CompOsDenialHostTest extends BaseHostJUnit4Test {
         CompOsTestUtils compOsTestUtils = new CompOsTestUtils(device);
 
         compOsTestUtils.assumeCompOsPresent();
-        testUtils.enableAdbRootOrSkipTest();
 
         testUtils.installTestApex();
 
@@ -82,7 +81,6 @@ public class CompOsDenialHostTest extends BaseHostJUnit4Test {
 
         // Reboot should restore the device back to a good state.
         testUtils.reboot();
-        testUtils.restoreAdbRoot();
     }
 
     @Before
