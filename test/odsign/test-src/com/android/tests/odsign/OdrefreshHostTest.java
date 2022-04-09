@@ -60,7 +60,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
-        testUtils.enableAdbRootOrSkipTest();
         testUtils.installTestApex();
         testUtils.reboot();
 
@@ -81,7 +80,6 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
         OdsignTestUtils testUtils = new OdsignTestUtils(testInfo);
         testUtils.uninstallTestApex();
         testUtils.reboot();
-        testUtils.restoreAdbRoot();
     }
 
     @Before

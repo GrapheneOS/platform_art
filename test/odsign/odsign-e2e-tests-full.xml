@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2021 The Android Open Source Project
+<!-- Copyright (C) 2022 The Android Open Source Project
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -13,19 +13,14 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 -->
-<configuration description="Config for a subset of on-device signing ART e2e test cases that run in CTS">
-    <option name="test-suite-tag" value="odsign_e2e_tests" />
+<configuration description="Config for all on-device signing ART e2e test cases">
+    <option name="test-suite-tag" value="odsign_e2e_tests_full" />
     <option name="test-suite-tag" value="apct" />
-    <option name="test-suite-tag" value="cts" />
-    <option name="config-descriptor:metadata" key="component" value="art" />
-    <option name="config-descriptor:metadata" key="parameter" value="not_instant_app" />
-    <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
-    <!-- odsign runs on early boot, so multi-user doesn't apply. -->
-    <option name="config-descriptor:metadata" key="parameter" value="not_secondary_user" />
+
+    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
 
     <test class="com.android.tradefed.testtype.HostTest" >
-        <option name="jar" value="odsign_e2e_tests.jar" />
-        <option name="include-annotation" value="com.android.tests.odsign.annotation.CtsTestCase" />
+        <option name="jar" value="odsign_e2e_tests_full.jar" />
     </test>
 
     <!-- Only run tests if the device under test is SDK version 31 (Android 12) or above. -->
