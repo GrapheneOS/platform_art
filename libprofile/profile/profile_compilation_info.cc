@@ -2020,9 +2020,11 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>& 
     os << " [num_method_ids=" << dex_data->num_method_ids << "]";
     const DexFile* dex_file = nullptr;
     for (const DexFile* current : dex_files) {
-      if (GetBaseKeyViewFromAugmentedKey(dex_data->profile_key) == current->GetLocation() &&
-          dex_data->checksum == current->GetLocationChecksum()) {
+      if (GetBaseKeyViewFromAugmentedKey(dex_data->profile_key) ==
+          GetProfileDexFileBaseKeyView(current->GetLocation()) &&
+          ChecksumMatch(dex_data->checksum, current->GetLocationChecksum())) {
         dex_file = current;
+        break;
       }
     }
     os << "\n\thot methods: ";
