@@ -16,14 +16,7 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-soong_config_module_type_import {
-    from: "art/build/SoongConfig.bp",
-    module_types: [
-        "art_module_java_defaults",
-    ],
-}
-
-art_module_java_defaults {
+java_defaults {
     name: "odsign_e2e_tests_defaults",
     defaults: ["art_module_source_build_java_defaults"],
     srcs: ["test-src/**/*.java"],
@@ -32,14 +25,16 @@ art_module_java_defaults {
         "cts-install-lib-host",
         "frameworks-base-hostutils",
     ],
-    data: [
-        ":odsign_e2e_test_app",
-    ],
 }
 
 java_test_host {
     name: "odsign_e2e_tests",
     defaults: ["odsign_e2e_tests_defaults"],
+    // TODO(b/228838581): Do not add `data` to the defaults unless the bug is
+    // fixed.
+    data: [
+        ":odsign_e2e_test_app",
+    ],
     test_config: "odsign-e2e-tests.xml",
     test_suites: [
         "general-tests",
@@ -50,6 +45,11 @@ java_test_host {
 java_test_host {
     name: "odsign_e2e_tests_full",
     defaults: ["odsign_e2e_tests_defaults"],
+    // TODO(b/228838581): Do not add `data` to the defaults unless the bug is
+    // fixed.
+    data: [
+        ":odsign_e2e_test_app",
+    ],
     test_config: "odsign-e2e-tests-full.xml",
     test_suites: [
         "general-tests",
