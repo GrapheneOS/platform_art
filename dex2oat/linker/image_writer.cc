@@ -1108,12 +1108,20 @@ class ImageWriter::PruneClassesVisitor : public ClassVisitor {
   size_t Prune() REQUIRES_SHARED(Locks::mutator_lock_) {
     ClassTable* class_table =
         Runtime::Current()->GetClassLinker()->ClassTableForClassLoader(class_loader_);
+    WriterMutexLock mu(Thread::Current(), class_table->lock_);
     for (mirror::Class* klass : classes_to_prune_) {
-      std::string storage;
-      const char* descriptor = klass->GetDescriptor(&storage);
-      bool result = class_table->Remove(descriptor);
-      DCHECK(result);
-      DCHECK(!class_table->Remove(descriptor)) << descriptor;
+      uint32_t hash = ClassTable::TableSlot::HashDescriptor(klass);
+      DCHECK(!class_table->classes_.empty());
+      ClassTable::ClassSet& last_class_set = class_table->classes_.back();
+      auto it = last_class_set.FindWithHash(ClassTable::TableSlot(klass, hash), hash);
+      DCHECK(it != last_class_set.end());
+      last_class_set.erase(it);
+      DCHECK(std::none_of(class_table->classes_.begin(),
+                          class_table->classes_.end(),
+                          [klass, hash](ClassTable::ClassSet& class_set) {
+                            ClassTable::TableSlot slot(klass, hash);
+                            return class_set.FindWithHash(slot, hash) != class_set.end();
+                          }));
     }
     return defined_class_count_;
   }

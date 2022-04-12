@@ -220,11 +220,6 @@ class ClassTable {
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Returns true if the class was found and removed, false otherwise.
-  bool Remove(const char* descriptor)
-      REQUIRES(!lock_)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Return true if we inserted the strong root, false if it already exists.
   bool InsertStrongRoot(ObjPtr<mirror::Object> obj)
       REQUIRES(!lock_)
