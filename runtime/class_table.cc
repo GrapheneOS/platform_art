@@ -153,19 +153,6 @@ void ClassTable::InsertWithHash(ObjPtr<mirror::Class> klass, size_t hash) {
   classes_.back().InsertWithHash(TableSlot(klass, hash), hash);
 }
 
-bool ClassTable::Remove(const char* descriptor) {
-  DescriptorHashPair pair(descriptor, ComputeModifiedUtf8Hash(descriptor));
-  WriterMutexLock mu(Thread::Current(), lock_);
-  for (ClassSet& class_set : classes_) {
-    auto it = class_set.find(pair);
-    if (it != class_set.end()) {
-      class_set.erase(it);
-      return true;
-    }
-  }
-  return false;
-}
-
 bool ClassTable::InsertStrongRoot(ObjPtr<mirror::Object> obj) {
   WriterMutexLock mu(Thread::Current(), lock_);
   DCHECK(obj != nullptr);
