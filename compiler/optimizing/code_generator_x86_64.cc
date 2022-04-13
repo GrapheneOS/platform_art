@@ -203,39 +203,54 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCode {
     __ Bind(GetEntryLabel());
     if (instruction_->CanThrowIntoCatchBlock()) {
       // Live registers will be restored in the catch block if caught.
-      SaveLiveRegisters(codegen, instruction_->GetLocations());
-    }
-    // Are we using an array length from memory?
-    HInstruction* array_length = instruction_->InputAt(1);
-    Location length_loc = locations->InAt(1);
-    InvokeRuntimeCallingConvention calling_convention;
-    if (array_length->IsArrayLength() && array_length->IsEmittedAtUseSite()) {
-      // Load the array length into our temporary.
-      HArrayLength* length = array_length->AsArrayLength();
-      uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(length);
-      Location array_loc = array_length->GetLocations()->InAt(0);
-      Address array_len(array_loc.AsRegister<CpuRegister>(), len_offset);
-      length_loc = Location::RegisterLocation(calling_convention.GetRegisterAt(1));
-      // Check for conflicts with index.
-      if (length_loc.Equals(locations->InAt(0))) {
-        // We know we aren't using parameter 2.
-        length_loc = Location::RegisterLocation(calling_convention.GetRegisterAt(2));
-      }
-      __ movl(length_loc.AsRegister<CpuRegister>(), array_len);
-      if (mirror::kUseStringCompression && length->IsStringLength()) {
-        __ shrl(length_loc.AsRegister<CpuRegister>(), Immediate(1));
-      }
+      SaveLiveRegisters(codegen, locations);
     }
 
-    // We're moving two locations to locations that could overlap, so we need a parallel
-    // move resolver.
-    codegen->EmitParallelMoves(
-        locations->InAt(0),
-        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-        DataType::Type::kInt32,
-        length_loc,
-        Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
-        DataType::Type::kInt32);
+    Location index_loc = locations->InAt(0);
+    Location length_loc = locations->InAt(1);
+    InvokeRuntimeCallingConvention calling_convention;
+    Location index_arg = Location::RegisterLocation(calling_convention.GetRegisterAt(0));
+    Location length_arg = Location::RegisterLocation(calling_convention.GetRegisterAt(1));
+
+    // Are we using an array length from memory?
+    if (!length_loc.IsValid()) {
+      DCHECK(instruction_->InputAt(1)->IsArrayLength());
+      HArrayLength* array_length = instruction_->InputAt(1)->AsArrayLength();
+      DCHECK(array_length->IsEmittedAtUseSite());
+      uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(array_length);
+      Location array_loc = array_length->GetLocations()->InAt(0);
+      Address array_len(array_loc.AsRegister<CpuRegister>(), len_offset);
+      if (!index_loc.Equals(length_arg)) {
+        // The index is not clobbered by loading the length directly to `length_arg`.
+        __ movl(length_arg.AsRegister<CpuRegister>(), array_len);
+        x86_64_codegen->Move(index_arg, index_loc);
+      } else if (!array_loc.Equals(index_arg)) {
+        // The array reference is not clobbered by the index move.
+        x86_64_codegen->Move(index_arg, index_loc);
+        __ movl(length_arg.AsRegister<CpuRegister>(), array_len);
+      } else {
+        // Load the array length into `TMP`.
+        DCHECK(codegen->IsBlockedCoreRegister(TMP));
+        __ movl(CpuRegister(TMP), array_len);
+        // Single move to CPU register does not clobber `TMP`.
+        x86_64_codegen->Move(index_arg, index_loc);
+        __ movl(length_arg.AsRegister<CpuRegister>(), CpuRegister(TMP));
+      }
+      if (mirror::kUseStringCompression && array_length->IsStringLength()) {
+        __ shrl(length_arg.AsRegister<CpuRegister>(), Immediate(1));
+      }
+    } else {
+      // We're moving two locations to locations that could overlap,
+      // so we need a parallel move resolver.
+      codegen->EmitParallelMoves(
+          index_loc,
+          index_arg,
+          DataType::Type::kInt32,
+          length_loc,
+          length_arg,
+          DataType::Type::kInt32);
+    }
+
     QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt()
         ? kQuickThrowStringBounds
         : kQuickThrowArrayBounds;
