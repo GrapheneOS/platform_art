@@ -899,6 +899,8 @@ class JNI {
       // going quite the way they expect.
       LOG(WARNING) << "JNI WARNING: DeleteLocalRef(" << obj << ") "
                    << "failed to find entry";
+      // Investigating b/228295454: Scudo ERROR: internal map failure (NO MEMORY).
+      soa.Self()->DumpJavaStack(LOG_STREAM(WARNING));
     }
   }
 
