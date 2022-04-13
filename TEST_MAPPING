@@ -1187,6 +1187,9 @@
       "name": "art-run-test-730-checker-inlining-super[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-731-bounds-check-slow-path[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-805-TooDeepClassInstanceOf[com.google.android.art.apex]"
     },
     {
@@ -2477,6 +2480,9 @@
     },
     {
       "name": "art-run-test-730-checker-inlining-super"
+    },
+    {
+      "name": "art-run-test-731-bounds-check-slow-path"
     },
     {
       "name": "art-run-test-805-TooDeepClassInstanceOf"
