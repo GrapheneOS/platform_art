@@ -21,11 +21,9 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-soong_args=""
-
 # Switch the build system to unbundled mode in the reduced manifest branch.
 if [ ! -d frameworks/base ]; then
-  soong_args="$soong_args TARGET_BUILD_UNBUNDLED=true"
+  export TARGET_BUILD_UNBUNDLED=true
 fi
 
 vars="$(build/soong/soong_ui.bash --dumpvars-mode --vars="OUT_DIR HOST_OUT")"
@@ -33,35 +31,17 @@ vars="$(build/soong/soong_ui.bash --dumpvars-mode --vars="OUT_DIR HOST_OUT")"
 # the command substitution if it's directly on the eval line.
 eval $vars
 
-# TODO(b/31559095) Figure out a better way to do this.
-#
-# There is no good way to force soong to generate host-bionic builds currently
-# so this is a hacky workaround.
-
 # First build all the targets still in .mk files (also build normal glibc host
 # targets so we know what's needed to run the tests).
-build/soong/soong_ui.bash --make-mode $soong_args "$@" test-art-host-run-test-dependencies build-art-host-tests
+build/soong/soong_ui.bash --make-mode "$@" test-art-host-run-test-dependencies build-art-host-tests
 
-tmp_soong_var=$(mktemp --tmpdir soong.variables.bak.XXXXXX)
+# Next build the Linux host Bionic targets in --soong-only mode.
+export TARGET_PRODUCT=linux_bionic
 
-echo "Saving soong.variables to " $tmp_soong_var
-cat $OUT_DIR/soong/soong.variables > ${tmp_soong_var}
-python3 <<END - ${tmp_soong_var} ${OUT_DIR}/soong/soong.variables
-import json
-import sys
-x = json.load(open(sys.argv[1]))
-x['Allow_missing_dependencies'] = True
-x['HostArch'] = 'x86_64'
-x['CrossHost'] = 'linux_bionic'
-x['CrossHostArch'] = 'x86_64'
-if 'CrossHostSecondaryArch' in x:
-  del x['CrossHostSecondaryArch']
-json.dump(x, open(sys.argv[2], mode='w'))
-END
-if [ $? != 0 ]; then
-  mv $tmp_soong_var $OUT_DIR/soong/soong.variables
-  exit 2
-fi
+# Avoid Soong error about invalid dependencies on disabled libLLVM_android,
+# which we get due to the --soong-only mode. (Another variant is to set
+# SOONG_ALLOW_MISSING_DEPENDENCIES).
+export FORCE_BUILD_LLVM_COMPONENTS=true
 
 soong_out=$OUT_DIR/soong/host/linux_bionic-x86
 declare -a bionic_targets
@@ -87,16 +67,4 @@ bionic_targets=(
 
 echo building ${bionic_targets[*]}
 
-build/soong/soong_ui.bash --make-mode --skip-config --soong-only $soong_args "$@" ${bionic_targets[*]}
-ret=$?
-
-mv $tmp_soong_var $OUT_DIR/soong/soong.variables
-
-# Having built with host-bionic confuses soong somewhat by making it think the
-# linux_bionic targets are needed for art phony targets like
-# test-art-host-run-test-dependencies. To work around this blow away all
-# ninja files in OUT_DIR. The build system is smart enough to not need to
-# rebuild stuff so this should be fine.
-rm -f $OUT_DIR/*.ninja $OUT_DIR/soong/*.ninja
-
-exit $ret
+build/soong/soong_ui.bash --make-mode --soong-only "$@" ${bionic_targets[*]}
