@@ -395,8 +395,7 @@ struct VariantMap {
 
   template <typename TK, typename TValue, typename ... Rest>
   void InitializeParameters(const TK& key, const TValue& value, const Rest& ... rest) {
-    static_assert(
-        std::is_same<TK, TKey<TValue>>::value, "The 0th/2nd/4th/etc parameters must be a key");
+    static_assert(std::is_same_v<TK, TKey<TValue>>, "The 0th/2nd/4th/etc parameters must be a key");
 
     const TKey<TValue>& key_refined = key;
 
@@ -459,7 +458,7 @@ struct VariantMap {
 
   template <typename TValue>
   static void StaticAssertKeyType() {
-    static_assert(std::is_base_of<VariantMapKey<TValue>, TKey<TValue>>::value,
+    static_assert(std::is_base_of_v<VariantMapKey<TValue>, TKey<TValue>>,
                   "The provided key type (TKey) must be a subclass of VariantMapKey");
   }
 

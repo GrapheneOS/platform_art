@@ -290,7 +290,7 @@ static inline IterationRange<FilterIterator<Iter, Filter>> Filter(
 template <typename Val>
 struct NonNullFilter {
  public:
-  static_assert(std::is_pointer<Val>::value, "Must be pointer type!");
+  static_assert(std::is_pointer_v<Val>, "Must be pointer type!");
   constexpr bool operator()(Val v) const {
     return v != nullptr;
   }
