@@ -65,7 +65,7 @@ class ArrayRef {
 
   template <typename U,
             size_t size,
-            typename = typename std::enable_if<std::is_same<T, const U>::value>::type>
+            typename = std::enable_if_t<std::is_same_v<T, const U>>>
   explicit constexpr ArrayRef(U (&array)[size])
       : array_(array), size_(size) {
   }
@@ -75,17 +75,14 @@ class ArrayRef {
   }
 
   template <typename Vector,
-            typename = typename std::enable_if<
-                std::is_same<typename Vector::value_type, value_type>::value>::type>
+            typename = std::enable_if_t<std::is_same_v<typename Vector::value_type, value_type>>>
   explicit ArrayRef(Vector& v)
       : array_(v.data()), size_(v.size()) {
   }
 
   template <typename Vector,
-            typename = typename std::enable_if<
-                std::is_same<
-                    typename std::add_const<typename Vector::value_type>::type,
-                    value_type>::value>::type>
+            typename = std::enable_if_t<
+                std::is_same_v<std::add_const_t<typename Vector::value_type>, value_type>>>
   explicit ArrayRef(const Vector& v)
       : array_(v.data()), size_(v.size()) {
   }
@@ -101,7 +98,7 @@ class ArrayRef {
   }
 
   template <typename U>
-  typename std::enable_if<std::is_same<T, const U>::value, ArrayRef>::type&
+  std::enable_if_t<std::is_same_v<T, const U>, ArrayRef>&
   operator=(const ArrayRef<U>& other) {
     return *this = ArrayRef(other);
   }
