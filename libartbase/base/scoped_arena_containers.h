@@ -274,7 +274,7 @@ template <typename T>
 class ArenaDelete<T[]> {
  public:
   void operator()(T* ptr ATTRIBUTE_UNUSED) const {
-    static_assert(std::is_trivially_destructible<T>::value,
+    static_assert(std::is_trivially_destructible_v<T>,
                   "ArenaUniquePtr does not support non-trivially-destructible arrays.");
     // TODO: Implement debug checks, and MEMORY_TOOL support.
   }

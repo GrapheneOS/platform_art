@@ -216,7 +216,7 @@ static inline bool IsLeb128Terminator(const uint8_t* ptr) {
 // (2) there is another Leb128 value before this one.
 template <typename T>
 static inline T* ReverseSearchUnsignedLeb128(T* end_ptr) {
-  static_assert(std::is_same<typename std::remove_const<T>::type, uint8_t>::value,
+  static_assert(std::is_same_v<std::remove_const_t<T>, uint8_t>,
                 "T must be a uint8_t");
   T* ptr = end_ptr;
 
@@ -257,7 +257,7 @@ static inline uint8_t* EncodeUnsignedLeb128(uint8_t* dest, uint32_t value) {
 
 template <typename Vector>
 static inline void EncodeUnsignedLeb128(Vector* dest, uint32_t value) {
-  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+  static_assert(std::is_same_v<typename Vector::value_type, uint8_t>, "Invalid value type");
   uint8_t out = value & 0x7f;
   value >>= 7;
   while (value != 0) {
@@ -296,7 +296,7 @@ static inline uint8_t* EncodeSignedLeb128(uint8_t* dest, int32_t value) {
 
 template<typename Vector>
 static inline void EncodeSignedLeb128(Vector* dest, int32_t value) {
-  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+  static_assert(std::is_same_v<typename Vector::value_type, uint8_t>, "Invalid value type");
   uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
   uint8_t out = value & 0x7f;
   while (extra_bits != 0u) {
@@ -311,7 +311,7 @@ static inline void EncodeSignedLeb128(Vector* dest, int32_t value) {
 // An encoder that pushes int32_t/uint32_t data onto the given std::vector.
 template <typename Vector = std::vector<uint8_t>>
 class Leb128Encoder {
-  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+  static_assert(std::is_same_v<typename Vector::value_type, uint8_t>, "Invalid value type");
 
  public:
   explicit Leb128Encoder(Vector* data) : data_(data) {
@@ -359,7 +359,7 @@ class Leb128Encoder {
 template <typename Vector = std::vector<uint8_t>>
 class Leb128EncodingVector final : private Vector,
                                    public Leb128Encoder<Vector> {
-  static_assert(std::is_same<typename Vector::value_type, uint8_t>::value, "Invalid value type");
+  static_assert(std::is_same_v<typename Vector::value_type, uint8_t>, "Invalid value type");
 
  public:
   Leb128EncodingVector() : Leb128Encoder<Vector>(this) { }
