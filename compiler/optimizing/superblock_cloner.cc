@@ -855,9 +855,18 @@ void SuperblockCloner::SetSuccessorRemappingInfo(const HEdgeSet* remap_orig_inte
 }
 
 bool SuperblockCloner::IsSubgraphClonable() const {
-  // TODO: Support irreducible graphs and graphs with try-catch.
-  if (graph_->HasIrreducibleLoops() || graph_->HasTryCatch()) {
+  // TODO: Support irreducible graphs and subgraphs with try-catch.
+  if (graph_->HasIrreducibleLoops()) {
     return false;
+  }
+
+  for (HBasicBlock* block : graph_->GetReversePostOrder()) {
+    if (!IsInOrigBBSet(block)) {
+      continue;
+    }
+    if (block->GetTryCatchInformation() != nullptr) {
+      return false;
+    }
   }
 
   HInstructionMap live_outs(
