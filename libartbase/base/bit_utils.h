@@ -30,8 +30,8 @@ namespace art {
 // Like sizeof, but count how many bits a type takes. Pass type explicitly.
 template <typename T>
 constexpr size_t BitSizeOf() {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  using unsigned_type = std::make_unsigned_t<T>;
   static_assert(sizeof(T) == sizeof(unsigned_type), "Unexpected type size mismatch!");
   static_assert(std::numeric_limits<unsigned_type>::radix == 2, "Unexpected radix!");
   return std::numeric_limits<unsigned_type>::digits;
@@ -45,8 +45,8 @@ constexpr size_t BitSizeOf(T /*x*/) {
 
 template<typename T>
 constexpr int CLZ(T x) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  static_assert(std::is_unsigned_v<T>, "T must be unsigned");
   static_assert(std::numeric_limits<T>::radix == 2, "Unexpected radix!");
   static_assert(sizeof(T) == sizeof(uint64_t) || sizeof(T) <= sizeof(uint32_t),
                 "Unsupported sizeof(T)");
@@ -60,14 +60,14 @@ constexpr int CLZ(T x) {
 // Similar to CLZ except that on zero input it returns bitwidth and supports signed integers.
 template<typename T>
 constexpr int JAVASTYLE_CLZ(T x) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  using unsigned_type = std::make_unsigned_t<T>;
   return (x == 0) ? BitSizeOf<T>() : CLZ(static_cast<unsigned_type>(x));
 }
 
 template<typename T>
 constexpr int CTZ(T x) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
+  static_assert(std::is_integral_v<T>, "T must be integral");
   // It is not unreasonable to ask for trailing zeros in a negative number. As such, do not check
   // that T is an unsigned type.
   static_assert(sizeof(T) == sizeof(uint64_t) || sizeof(T) <= sizeof(uint32_t),
@@ -79,8 +79,8 @@ constexpr int CTZ(T x) {
 // Similar to CTZ except that on zero input it returns bitwidth and supports signed integers.
 template<typename T>
 constexpr int JAVASTYLE_CTZ(T x) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  using unsigned_type = std::make_unsigned_t<T>;
   return (x == 0) ? BitSizeOf<T>() : CTZ(static_cast<unsigned_type>(x));
 }
 
@@ -105,8 +105,8 @@ constexpr T BSWAP(T x) {
 // Find the bit position of the most significant bit (0-based), or -1 if there were no bits set.
 template <typename T>
 constexpr ssize_t MostSignificantBit(T value) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  static_assert(std::is_unsigned_v<T>, "T must be unsigned");
   static_assert(std::numeric_limits<T>::radix == 2, "Unexpected radix!");
   return (value == 0) ? -1 : std::numeric_limits<T>::digits - 1 - CLZ(value);
 }
@@ -114,8 +114,8 @@ constexpr ssize_t MostSignificantBit(T value) {
 // Find the bit position of the least significant bit (0-based), or -1 if there were no bits set.
 template <typename T>
 constexpr ssize_t LeastSignificantBit(T value) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  static_assert(std::is_unsigned_v<T>, "T must be unsigned");
   return (value == 0) ? -1 : CTZ(value);
 }
 
@@ -127,8 +127,8 @@ constexpr size_t MinimumBitsToStore(T value) {
 
 template <typename T>
 constexpr T RoundUpToPowerOfTwo(T x) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  static_assert(std::is_unsigned_v<T>, "T must be unsigned");
   // NOTE: Undefined if x > (1 << (std::numeric_limits<T>::digits - 1)).
   return (x < 2u) ? x : static_cast<T>(1u) << (std::numeric_limits<T>::digits - CLZ(x - 1u));
 }
@@ -136,21 +136,21 @@ constexpr T RoundUpToPowerOfTwo(T x) {
 // Return highest possible N - a power of two - such that val >= N.
 template <typename T>
 constexpr T TruncToPowerOfTwo(T val) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  static_assert(std::is_unsigned_v<T>, "T must be unsigned");
   return (val != 0) ? static_cast<T>(1u) << (BitSizeOf<T>() - CLZ(val) - 1u) : 0;
 }
 
 template<typename T>
 constexpr bool IsPowerOfTwo(T x) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
+  static_assert(std::is_integral_v<T>, "T must be integral");
   // TODO: assert unsigned. There is currently many uses with signed values.
   return (x & (x - 1)) == 0;
 }
 
 template<typename T>
 constexpr int WhichPowerOf2(T x) {
-  static_assert(std::is_integral<T>::value, "T must be integral");
+  static_assert(std::is_integral_v<T>, "T must be integral");
   // TODO: assert unsigned. There is currently many uses with signed values.
   DCHECK((x != 0) && IsPowerOfTwo(x));
   return CTZ(x);
@@ -168,10 +168,10 @@ constexpr T RoundDown(T x, typename Identity<T>::type n) {
 }
 
 template<typename T>
-constexpr T RoundUp(T x, typename std::remove_reference<T>::type n) WARN_UNUSED;
+constexpr T RoundUp(T x, std::remove_reference_t<T> n) WARN_UNUSED;
 
 template<typename T>
-constexpr T RoundUp(T x, typename std::remove_reference<T>::type n) {
+constexpr T RoundUp(T x, std::remove_reference_t<T> n) {
   return RoundDown(x + n - 1, n);
 }
 
@@ -265,7 +265,7 @@ template <size_t kBits, typename T>
 constexpr bool IsInt(T value) {
   static_assert(kBits > 0, "kBits cannot be zero.");
   static_assert(kBits <= BitSizeOf<T>(), "kBits must be <= max.");
-  static_assert(std::is_signed<T>::value, "Needs a signed type.");
+  static_assert(std::is_signed_v<T>, "Needs a signed type.");
   // Corner case for "use all bits." Can't use the limits, as they would overflow, but it is
   // trivially true.
   return (kBits == BitSizeOf<T>()) ?
@@ -277,12 +277,12 @@ template <size_t kBits, typename T>
 constexpr bool IsUint(T value) {
   static_assert(kBits > 0, "kBits cannot be zero.");
   static_assert(kBits <= BitSizeOf<T>(), "kBits must be <= max.");
-  static_assert(std::is_integral<T>::value, "Needs an integral type.");
+  static_assert(std::is_integral_v<T>, "Needs an integral type.");
   // Corner case for "use all bits." Can't use the limits, as they would overflow, but it is
   // trivially true.
   // NOTE: To avoid triggering assertion in GetIntLimit(kBits+1) if kBits+1==BitSizeOf<T>(),
   // use GetIntLimit(kBits)*2u. The unsigned arithmetic works well for us if it overflows.
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  using unsigned_type = std::make_unsigned_t<T>;
   return (0 <= value) &&
       (kBits == BitSizeOf<T>() ||
           (static_cast<unsigned_type>(value) <= GetIntLimit<unsigned_type>(kBits) * 2u - 1u));
@@ -291,8 +291,8 @@ constexpr bool IsUint(T value) {
 template <size_t kBits, typename T>
 constexpr bool IsAbsoluteUint(T value) {
   static_assert(kBits <= BitSizeOf<T>(), "kBits must be <= max.");
-  static_assert(std::is_integral<T>::value, "Needs an integral type.");
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  static_assert(std::is_integral_v<T>, "Needs an integral type.");
+  using unsigned_type = std::make_unsigned_t<T>;
   return (kBits == BitSizeOf<T>())
       ? true
       : IsUint<kBits>(value < 0
@@ -303,23 +303,23 @@ constexpr bool IsAbsoluteUint(T value) {
 // Generate maximum/minimum values for signed/unsigned n-bit integers
 template <typename T>
 constexpr T MaxInt(size_t bits) {
-  DCHECK(std::is_unsigned<T>::value || bits > 0u) << "bits cannot be zero for signed.";
+  DCHECK(std::is_unsigned_v<T> || bits > 0u) << "bits cannot be zero for signed.";
   DCHECK_LE(bits, BitSizeOf<T>());
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  using unsigned_type = std::make_unsigned_t<T>;
   return bits == BitSizeOf<T>()
       ? std::numeric_limits<T>::max()
-      : std::is_signed<T>::value
+      : std::is_signed_v<T>
           ? ((bits == 1u) ? 0 : static_cast<T>(MaxInt<unsigned_type>(bits - 1)))
           : static_cast<T>(UINT64_C(1) << bits) - static_cast<T>(1);
 }
 
 template <typename T>
 constexpr T MinInt(size_t bits) {
-  DCHECK(std::is_unsigned<T>::value || bits > 0) << "bits cannot be zero for signed.";
+  DCHECK(std::is_unsigned_v<T> || bits > 0) << "bits cannot be zero for signed.";
   DCHECK_LE(bits, BitSizeOf<T>());
   return bits == BitSizeOf<T>()
       ? std::numeric_limits<T>::min()
-      : std::is_signed<T>::value
+      : std::is_signed_v<T>
           ? ((bits == 1u) ? -1 : static_cast<T>(-1) - MaxInt<T>(bits))
           : static_cast<T>(0);
 }
@@ -334,7 +334,7 @@ inline static kind LowestOneBitValue(kind opnd) {
 // Returns value with bit set in hightest one-bit position or 0 if 0.  (java.lang.X.highestOneBit).
 template <typename T>
 inline static T HighestOneBitValue(T opnd) {
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  using unsigned_type = std::make_unsigned_t<T>;
   T res;
   if (opnd == 0) {
     res = 0;
@@ -351,7 +351,7 @@ inline static T Rot(T opnd, int distance) {
   int mask = BitSizeOf<T>() - 1;
   int unsigned_right_shift = left ? (-distance & mask) : (distance & mask);
   int signed_left_shift = left ? (distance & mask) : (-distance & mask);
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  using unsigned_type = std::make_unsigned_t<T>;
   return (static_cast<unsigned_type>(opnd) >> unsigned_right_shift) | (opnd << signed_left_shift);
 }
 
@@ -485,7 +485,7 @@ inline static constexpr T BitFieldExtract(T value, size_t lsb, size_t width) {
 
   const T bitfield_unsigned =
       static_cast<T>((val >> lsb) & MaskLeastSignificant<T>(width));
-  if (std::is_signed<T>::value) {
+  if (std::is_signed_v<T>) {
     // Perform sign extension
     if (width == 0) {  // Avoid underflow.
       return static_cast<T>(0);
