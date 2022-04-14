@@ -71,7 +71,7 @@ inline To implicit_cast(From const &f) {
 
 template<typename To, typename From>     // use like this: down_cast<T*>(foo);
 inline To down_cast(From* f) {                   // so we only accept pointers
-  static_assert(std::is_base_of<From, typename std::remove_pointer<To>::type>::value,
+  static_assert(std::is_base_of_v<From, std::remove_pointer_t<To>>,
                 "down_cast unsafe as To is not a subtype of From");
 
   return static_cast<To>(f);
@@ -79,7 +79,7 @@ inline To down_cast(From* f) {                   // so we only accept pointers
 
 template<typename To, typename From>     // use like this: down_cast<T&>(foo);
 inline To down_cast(From& f) {           // so we only accept references
-  static_assert(std::is_base_of<From, typename std::remove_reference<To>::type>::value,
+  static_assert(std::is_base_of_v<From, std::remove_reference_t<To>>,
                 "down_cast unsafe as To is not a subtype of From");
 
   return static_cast<To>(f);
@@ -121,24 +121,22 @@ constexpr Dest dchecked_integral_cast(Source source) {
 
 template <typename Dest, typename Source>
 constexpr
-typename std::enable_if<!std::is_enum<Source>::value, Dest>::type
-enum_cast(Source value) {
-  return static_cast<Dest>(
-      dchecked_integral_cast<typename std::underlying_type<Dest>::type>(value));
+std::enable_if_t<!std::is_enum_v<Source>, Dest> enum_cast(Source value) {
+  return static_cast<Dest>(dchecked_integral_cast<std::underlying_type_t<Dest>>(value));
 }
 
 template <typename Dest = void, typename Source>
 constexpr
-typename std::enable_if<std::is_enum<Source>::value,
-                        typename std::conditional<std::is_same<Dest, void>::value,
-                                                  std::underlying_type<Source>,
-                                                  Identity<Dest>>::type>::type::type
+typename std::enable_if_t<std::is_enum_v<Source>,
+                          std::conditional_t<std::is_same_v<Dest, void>,
+                                             std::underlying_type<Source>,
+                                             Identity<Dest>>>::type
 enum_cast(Source value) {
-  using return_type = typename std::conditional<std::is_same<Dest, void>::value,
-                                                std::underlying_type<Source>,
-                                                Identity<Dest>>::type::type;
+  using return_type = typename std::conditional_t<std::is_same_v<Dest, void>,
+                                                  std::underlying_type<Source>,
+                                                  Identity<Dest>>::type;
   return dchecked_integral_cast<return_type>(
-      static_cast<typename std::underlying_type<Source>::type>(value));
+      static_cast<std::underlying_type_t<Source>>(value));
 }
 
 // A version of reinterpret_cast<>() between pointers and int64_t/uint64_t
@@ -147,9 +145,9 @@ enum_cast(Source value) {
 template <typename Dest, typename Source>
 inline Dest reinterpret_cast64(Source source) {
   // This is the overload for casting from int64_t/uint64_t to a pointer.
-  static_assert(std::is_same<Source, int64_t>::value || std::is_same<Source, uint64_t>::value,
+  static_assert(std::is_same_v<Source, int64_t> || std::is_same_v<Source, uint64_t>,
                 "Source must be int64_t or uint64_t.");
-  static_assert(std::is_pointer<Dest>::value, "Dest must be a pointer.");
+  static_assert(std::is_pointer_v<Dest>, "Dest must be a pointer.");
   // Check that we don't lose any non-0 bits here.
   DCHECK_EQ(static_cast<Source>(static_cast<uintptr_t>(source)), source);
   return reinterpret_cast<Dest>(static_cast<uintptr_t>(source));
@@ -158,7 +156,7 @@ inline Dest reinterpret_cast64(Source source) {
 template <typename Dest, typename Source>
 inline Dest reinterpret_cast64(Source* ptr) {
   // This is the overload for casting from a pointer to int64_t/uint64_t.
-  static_assert(std::is_same<Dest, int64_t>::value || std::is_same<Dest, uint64_t>::value,
+  static_assert(std::is_same_v<Dest, int64_t> || std::is_same_v<Dest, uint64_t>,
                 "Dest must be int64_t or uint64_t.");
   static_assert(sizeof(uintptr_t) <= sizeof(Dest), "Expecting at most 64-bit pointers.");
   return static_cast<Dest>(reinterpret_cast<uintptr_t>(ptr));
@@ -170,9 +168,9 @@ inline Dest reinterpret_cast64(Source* ptr) {
 template <typename Dest, typename Source>
 inline Dest reinterpret_cast32(Source source) {
   // This is the overload for casting from int32_t/uint32_t to a pointer.
-  static_assert(std::is_same<Source, int32_t>::value || std::is_same<Source, uint32_t>::value,
+  static_assert(std::is_same_v<Source, int32_t> || std::is_same_v<Source, uint32_t>,
                 "Source must be int32_t or uint32_t.");
-  static_assert(std::is_pointer<Dest>::value, "Dest must be a pointer.");
+  static_assert(std::is_pointer_v<Dest>, "Dest must be a pointer.");
   // Check that we don't lose any non-0 bits here.
   static_assert(sizeof(uintptr_t) >= sizeof(Source), "Expecting at least 32-bit pointers.");
   return reinterpret_cast<Dest>(static_cast<uintptr_t>(static_cast<uint32_t>(source)));
@@ -181,7 +179,7 @@ inline Dest reinterpret_cast32(Source source) {
 template <typename Dest, typename Source>
 inline Dest reinterpret_cast32(Source* ptr) {
   // This is the overload for casting from a pointer to int32_t/uint32_t.
-  static_assert(std::is_same<Dest, int32_t>::value || std::is_same<Dest, uint32_t>::value,
+  static_assert(std::is_same_v<Dest, int32_t> || std::is_same_v<Dest, uint32_t>,
                 "Dest must be int32_t or uint32_t.");
   static_assert(sizeof(uintptr_t) >= sizeof(Dest), "Expecting at least 32-bit pointers.");
   return static_cast<Dest>(dchecked_integral_cast<uint32_t>(reinterpret_cast<uintptr_t>(ptr)));

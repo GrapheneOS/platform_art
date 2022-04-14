@@ -101,8 +101,8 @@ class BitMemoryRegion final : public ValueObject {
   ATTRIBUTE_NO_SANITIZE_ADDRESS  // We might touch extra bytes due to the alignment.
   ATTRIBUTE_NO_SANITIZE_HWADDRESS  // The hwasan uses different attribute.
   ALWAYS_INLINE Result LoadBits(size_t bit_offset, size_t bit_length) const {
-    static_assert(std::is_integral<Result>::value, "Result must be integral");
-    static_assert(std::is_unsigned<Result>::value, "Result must be unsigned");
+    static_assert(std::is_integral_v<Result>, "Result must be integral");
+    static_assert(std::is_unsigned_v<Result>, "Result must be unsigned");
     DCHECK(IsAligned<sizeof(Result)>(data_));
     DCHECK_LE(bit_offset, bit_size_);
     DCHECK_LE(bit_length, bit_size_ - bit_offset);
