@@ -57,12 +57,23 @@ class HLoopOptimization : public HOptimization {
           outer(nullptr),
           inner(nullptr),
           previous(nullptr),
-          next(nullptr) {}
+          next(nullptr),
+          try_catch_kind(TryCatchKind::kUnknown) {}
+
+    enum class TryCatchKind {
+      kUnknown,
+      // Either if we have a try catch in the loop, or if the loop is inside of an outer try catch,
+      // we set `kHasTryCatch`.
+      kHasTryCatch,
+      kNoTryCatch
+    };
+
     HLoopInformation* loop_info;
     LoopNode* outer;
     LoopNode* inner;
     LoopNode* previous;
     LoopNode* next;
+    TryCatchKind try_catch_kind;
   };
 
   /*
@@ -130,6 +141,11 @@ class HLoopOptimization : public HOptimization {
   // Traverses all loops inner to outer to perform simplifications and optimizations.
   // Returns true if loops nested inside current loop (node) have changed.
   bool TraverseLoopsInnerToOuter(LoopNode* node);
+
+  // Calculates `node`'s `try_catch_kind` and sets it to:
+  // 1) kHasTryCatch if it has try catches (or if it's inside of an outer try catch)
+  // 2) kNoTryCatch otherwise.
+  void CalculateAndSetTryCatchKind(LoopNode* node);
 
   //
   // Optimization.
