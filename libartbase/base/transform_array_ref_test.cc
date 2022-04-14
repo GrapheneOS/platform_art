@@ -44,12 +44,11 @@ TEST(TransformArrayRef, ConstRefAdd1) {
   auto taref = MakeTransformArrayRef(input, add1);
   using TarefIter = decltype(taref)::iterator;
   using ConstTarefIter = decltype(taref)::const_iterator;
-  static_assert(std::is_same<int, decltype(taref)::value_type>::value, "value_type");
-  static_assert(std::is_same<TarefIter, decltype(taref)::pointer>::value, "pointer");
-  static_assert(std::is_same<int, decltype(taref)::reference>::value, "reference");
-  static_assert(std::is_same<ConstTarefIter, decltype(taref)::const_pointer>::value,
-                "const_pointer");
-  static_assert(std::is_same<int, decltype(taref)::const_reference>::value, "const_reference");
+  static_assert(std::is_same_v<int, decltype(taref)::value_type>);
+  static_assert(std::is_same_v<TarefIter, decltype(taref)::pointer>);
+  static_assert(std::is_same_v<int, decltype(taref)::reference>);
+  static_assert(std::is_same_v<ConstTarefIter, decltype(taref)::const_pointer>);
+  static_assert(std::is_same_v<int, decltype(taref)::const_reference>);
 
   std::copy(taref.begin(), taref.end(), std::back_inserter(output));
   ASSERT_EQ(std::vector<int>({ 8, 7, 5, 1 }), output);
@@ -84,12 +83,12 @@ TEST(TransformArrayRef, NonConstRefSub1) {
 
   auto taref = MakeTransformArrayRef(input, sub1);
   using TarefIter = decltype(taref)::iterator;
-  static_assert(std::is_same<void, decltype(taref)::const_iterator>::value, "const_iterator");
-  static_assert(std::is_same<int, decltype(taref)::value_type>::value, "value_type");
-  static_assert(std::is_same<TarefIter, decltype(taref)::pointer>::value, "pointer");
-  static_assert(std::is_same<int, decltype(taref)::reference>::value, "reference");
-  static_assert(std::is_same<void, decltype(taref)::const_pointer>::value, "const_pointer");
-  static_assert(std::is_same<void, decltype(taref)::const_reference>::value, "const_reference");
+  static_assert(std::is_same_v<void, decltype(taref)::const_iterator>);
+  static_assert(std::is_same_v<int, decltype(taref)::value_type>);
+  static_assert(std::is_same_v<TarefIter, decltype(taref)::pointer>);
+  static_assert(std::is_same_v<int, decltype(taref)::reference>);
+  static_assert(std::is_same_v<void, decltype(taref)::const_pointer>);
+  static_assert(std::is_same_v<void, decltype(taref)::const_reference>);
 
   std::copy(taref.begin(), taref.end(), std::back_inserter(output));
   ASSERT_EQ(std::vector<int>({ 3, 3, 4, 6, 9 }), output);
@@ -119,12 +118,11 @@ TEST(TransformArrayRef, ConstAndNonConstRef) {
   std::vector<int> output;
 
   auto taref = MakeTransformArrayRef(input, ref);
-  static_assert(std::is_same<int, decltype(taref)::value_type>::value, "value_type");
-  static_assert(std::is_same<int*, decltype(taref)::pointer>::value, "pointer");
-  static_assert(std::is_same<int&, decltype(taref)::reference>::value, "reference");
-  static_assert(std::is_same<const int*, decltype(taref)::const_pointer>::value, "const_pointer");
-  static_assert(std::is_same<const int&, decltype(taref)::const_reference>::value,
-                "const_reference");
+  static_assert(std::is_same_v<int, decltype(taref)::value_type>);
+  static_assert(std::is_same_v<int*, decltype(taref)::pointer>);
+  static_assert(std::is_same_v<int&, decltype(taref)::reference>);
+  static_assert(std::is_same_v<const int*, decltype(taref)::const_pointer>);
+  static_assert(std::is_same_v<const int&, decltype(taref)::const_reference>);
 
   std::copy(taref.begin(), taref.end(), std::back_inserter(output));
   ASSERT_EQ(std::vector<int>({ 1, 0, 1, 0, 3, 1 }), output);
@@ -163,12 +161,11 @@ TEST(TransformArrayRef, ConstAndNonConstRef) {
   const std::vector<ValueHolder>& cinput = input;
 
   auto ctaref = MakeTransformArrayRef(cinput, ref);
-  static_assert(std::is_same<int, decltype(ctaref)::value_type>::value, "value_type");
-  static_assert(std::is_same<const int*, decltype(ctaref)::pointer>::value, "pointer");
-  static_assert(std::is_same<const int&, decltype(ctaref)::reference>::value, "reference");
-  static_assert(std::is_same<const int*, decltype(ctaref)::const_pointer>::value, "const_pointer");
-  static_assert(std::is_same<const int&, decltype(ctaref)::const_reference>::value,
-                "const_reference");
+  static_assert(std::is_same_v<int, decltype(ctaref)::value_type>);
+  static_assert(std::is_same_v<const int*, decltype(ctaref)::pointer>);
+  static_assert(std::is_same_v<const int&, decltype(ctaref)::reference>);
+  static_assert(std::is_same_v<const int*, decltype(ctaref)::const_pointer>);
+  static_assert(std::is_same_v<const int&, decltype(ctaref)::const_reference>);
 
   std::copy(ctaref.begin(), ctaref.end(), std::back_inserter(output));
   ASSERT_EQ(std::vector<int>({ 1, 0, 1, 0, 3, 1 }), output);

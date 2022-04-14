@@ -731,7 +731,7 @@ TEST_F(IntrusiveForwardListTest, ModifyValue) {
   ModifyValue<IFLTestValueList>();
   // Does not compile with ConstIFLTestValueList because LHS of the assignment is const.
   // ModifyValue<ConstIFLTestValueList>();
-  static_assert(std::is_const<ConstIFLTestValueList::iterator::value_type>::value, "Const check.");
+  static_assert(std::is_const_v<ConstIFLTestValueList::iterator::value_type>);
   ModifyValue<IFLTestValue2List>();
 }
 
