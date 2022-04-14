@@ -23,34 +23,6 @@
 
 namespace art {
 
-uint32_t ClassTable::TableSlot::UpdateHashForProxyClass(
-    uint32_t hash, ObjPtr<mirror::Class> proxy_class) {
-  // No read barrier needed, the `name` field is constant for proxy classes and
-  // the contents of the String are also constant. See ReadBarrierOption.
-  // Note: The `proxy_class` can be a from-space reference.
-  DCHECK(proxy_class->IsProxyClass());
-  ObjPtr<mirror::String> name = proxy_class->GetName<kVerifyNone, kWithoutReadBarrier>();
-  DCHECK(name != nullptr);
-  // Update hash for characters we would get from `DotToDescriptor(name->ToModifiedUtf8())`.
-  DCHECK_NE(name->GetLength(), 0);
-  DCHECK_NE(name->CharAt(0), '[');
-  hash = UpdateModifiedUtf8Hash(hash, 'L');
-  if (name->IsCompressed()) {
-    std::string_view dot_name(reinterpret_cast<const char*>(name->GetValueCompressed()),
-                              name->GetLength());
-    for (char c : dot_name) {
-      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
-    }
-  } else {
-    std::string dot_name = name->ToModifiedUtf8();
-    for (char c : dot_name) {
-      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
-    }
-  }
-  hash = UpdateModifiedUtf8Hash(hash, ';');
-  return hash;
-}
-
 ClassTable::ClassTable() : lock_("Class loader classes", kClassLoaderClassesLock) {
   Runtime* const runtime = Runtime::Current();
   classes_.push_back(ClassSet(runtime->GetHashTableMinLoadFactor(),
@@ -150,7 +122,7 @@ ObjPtr<mirror::Class> ClassTable::Lookup(const char* descriptor, size_t hash) {
 }
 
 void ClassTable::Insert(ObjPtr<mirror::Class> klass) {
-  InsertWithHash(klass, TableSlot::HashDescriptor(klass));
+  InsertWithHash(klass, klass->DescriptorHash());
 }
 
 void ClassTable::InsertWithHash(ObjPtr<mirror::Class> klass, size_t hash) {
