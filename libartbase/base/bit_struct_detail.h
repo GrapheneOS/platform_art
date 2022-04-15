@@ -35,13 +35,12 @@ namespace detail {
 template <size_t kBitSize>
 struct MinimumTypeUnsignedHelper {
   using type =
-    typename std::conditional<kBitSize == 0, void,       // NOLINT [whitespace/operators] [3]
-    typename std::conditional<kBitSize <= 8, uint8_t,    // NOLINT [whitespace/operators] [3]
-    typename std::conditional<kBitSize <= 16, uint16_t,  // NOLINT [whitespace/operators] [3]
-    typename std::conditional<kBitSize <= 32, uint32_t,
-    typename std::conditional<kBitSize <= 64, uint64_t,
-    typename std::conditional<kBitSize <= BitSizeOf<uintmax_t>(), uintmax_t,
-                              void>::type>::type>::type>::type>::type>::type;
+    std::conditional_t<kBitSize == 0, void,       // NOLINT [whitespace/operators] [3]
+    std::conditional_t<kBitSize <= 8, uint8_t,    // NOLINT [whitespace/operators] [3]
+    std::conditional_t<kBitSize <= 16, uint16_t,  // NOLINT [whitespace/operators] [3]
+    std::conditional_t<kBitSize <= 32, uint32_t,
+    std::conditional_t<kBitSize <= 64, uint64_t,
+    std::conditional_t<kBitSize <= BitSizeOf<uintmax_t>(), uintmax_t, void>>>>>>;
 };
 
 // Select the smallest [u]intX_t that will fit kBitSize bits.
@@ -51,9 +50,9 @@ struct MinimumTypeHelper {
   using type_unsigned = typename MinimumTypeUnsignedHelper<kBitSize>::type;
 
   using type =
-    typename std::conditional</* if */   std::is_signed<T>::value,
-                              /* then */ typename std::make_signed<type_unsigned>::type,
-                              /* else */ type_unsigned>::type;
+    std::conditional_t</* if */   std::is_signed_v<T>,
+                       /* then */ std::make_signed_t<type_unsigned>,
+                       /* else */ type_unsigned>;
 };
 
 // Helper for converting to and from T to an integral type.
@@ -119,8 +118,8 @@ struct DefineBitStructSize {
 template <typename T>
 struct HasUnderscoreField {
  private:
-  using TrueT = std::integral_constant<bool, true>::type;
-  using FalseT = std::integral_constant<bool, false>::type;
+  using TrueT = std::bool_constant<true>::type;
+  using FalseT = std::bool_constant<false>::type;
 
   template <typename C>
   static constexpr auto Test(void*) -> decltype(std::declval<C>()._, TrueT{});
@@ -140,13 +139,13 @@ M GetMemberType(M T:: *);
 // Nominally used by the BITSTRUCT_DEFINE_END macro.
 template <typename T>
 static constexpr bool ValidateBitStructSize() {
-  static_assert(std::is_union<T>::value, "T must be union");
-  static_assert(std::is_standard_layout<T>::value, "T must be standard-layout");
+  static_assert(std::is_union_v<T>, "T must be union");
+  static_assert(std::is_standard_layout_v<T>, "T must be standard-layout");
   static_assert(HasUnderscoreField<T>::value, "T must have the _ DefineBitStructSize");
 
   const size_t kBitStructSizeOf = BitStructSizeOf<T>();
-  static_assert(std::is_same<decltype(GetMemberType(&T::_)),
-                             DefineBitStructSize<kBitStructSizeOf>>::value,
+  static_assert(std::is_same_v<decltype(GetMemberType(&T::_)),
+                               DefineBitStructSize<kBitStructSizeOf>>,
                 "T::_ must be a DefineBitStructSize of the same size");
 
   const size_t kExpectedSize = (BitStructSizeOf<T>() < kBitsPerByte)
