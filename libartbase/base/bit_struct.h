@@ -112,7 +112,7 @@ template <typename T,
           size_t kBitWidth,
           typename StorageType>
 struct BitStructField {
-  static_assert(std::is_standard_layout<T>::value, "T must be standard layout");
+  static_assert(std::is_standard_layout_v<T>, "T must be standard layout");
 
   operator T() const {
     return Get();
@@ -120,7 +120,7 @@ struct BitStructField {
 
   // Exclude overload when T==StorageType.
   template <typename _ = void,
-            typename = std::enable_if_t<std::is_same<T, StorageType>::value, _>>
+            typename = std::enable_if_t<std::is_same_v<T, StorageType>, _>>
   explicit operator StorageType() const {
     return BitFieldExtract(storage_, kBitOffset, kBitWidth);
   }
@@ -151,7 +151,7 @@ struct BitStructField {
     // Since C++ doesn't allow the type of operator= to change out
     // in the subclass, reimplement operator= in each subclass
     // manually and call this helper function.
-    static_assert(std::is_base_of<BitStructField, T2>::value, "T2 must inherit BitStructField");
+    static_assert(std::is_base_of_v<BitStructField, T2>, "T2 must inherit BitStructField");
     what.Set(value);
     return what;
   }
@@ -172,10 +172,9 @@ struct BitStructField {
  private:
   using ValueConverter = detail::ValueConverter<T>;
   using ConversionType = typename ValueConverter::StorageType;
-  using ExtractionType =
-      typename std::conditional<std::is_signed_v<ConversionType>,
-                                std::make_signed_t<StorageType>,
-                                StorageType>::type;
+  using ExtractionType = std::conditional_t<std::is_signed_v<ConversionType>,
+                                            std::make_signed_t<StorageType>,
+                                            StorageType>;
 
   StorageType storage_;
 };

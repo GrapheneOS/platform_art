@@ -34,8 +34,8 @@ namespace art {
 template <typename T, typename Iter>
 class BitIteratorBase
     : public std::iterator<std::forward_iterator_tag, uint32_t, ptrdiff_t, void, void> {
-  static_assert(std::is_integral<T>::value, "T must be integral");
-  static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+  static_assert(std::is_integral_v<T>, "T must be integral");
+  static_assert(std::is_unsigned_v<T>, "T must be unsigned");
 
   static_assert(sizeof(T) == sizeof(uint32_t) || sizeof(T) == sizeof(uint64_t), "Unsupported size");
 

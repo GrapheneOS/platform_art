@@ -38,7 +38,7 @@ inline std::ostream& operator<<(std::ostream& os, const BitStringChar& bc);
  */
 struct BitStringChar {
   using StorageType = uint32_t;
-  static_assert(std::is_unsigned<StorageType>::value, "BitStringChar::StorageType must be unsigned");
+  static_assert(std::is_unsigned_v<StorageType>, "BitStringChar::StorageType must be unsigned");
 
   // BitStringChars are always zero-initialized by default. Equivalent to BitStringChar(0,0).
   BitStringChar() : data_(0u), bitlength_(0u) { }
