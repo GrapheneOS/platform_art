@@ -340,6 +340,8 @@ ObjPtr<mirror::String> InternTable::Table::Find(ObjPtr<mirror::String> s,
   for (Table::InternalTable& table : MakeIterationRange(tables_.begin(), mid)) {
     DCHECK(table.set_.FindWithHash(GcRoot<mirror::String>(s), hash) == table.set_.end());
   }
+  // Search from the last table, assuming that apps shall search for their own
+  // strings more often than for boot image strings.
   for (Table::InternalTable& table : ReverseRange(MakeIterationRange(mid, tables_.end()))) {
     auto it = table.set_.FindWithHash(GcRoot<mirror::String>(s), hash);
     if (it != table.set_.end()) {
@@ -352,6 +354,8 @@ ObjPtr<mirror::String> InternTable::Table::Find(ObjPtr<mirror::String> s,
 FLATTEN
 ObjPtr<mirror::String> InternTable::Table::Find(const Utf8String& string, uint32_t hash) {
   Locks::intern_table_lock_->AssertHeld(Thread::Current());
+  // Search from the last table, assuming that apps shall search for their own
+  // strings more often than for boot image strings.
   for (InternalTable& table : ReverseRange(tables_)) {
     auto it = table.set_.FindWithHash(string, hash);
     if (it != table.set_.end()) {
