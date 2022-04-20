@@ -35,7 +35,7 @@ template <typename MirrorType, bool kIsVolatile, ReadBarrierOption kReadBarrierO
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   constexpr bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
-  if (kUseReadBarrier && with_read_barrier) {
+  if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
       if (self != nullptr) {
@@ -93,7 +93,7 @@ inline MirrorType* ReadBarrier::Barrier(
       UNREACHABLE();
     }
   } else if (kReadBarrierOption == kWithFromSpaceBarrier) {
-    CHECK(kUseUserfaultfd);
+    CHECK(gUseUserfaultfd);
     MirrorType* old = ref_addr->template AsMirrorPtr<kIsVolatile>();
     mirror::Object* ref =
         Runtime::Current()->GetHeap()->MarkCompactCollector()->GetFromSpaceAddrFromBarrier(old);
@@ -109,7 +109,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
                                                GcRootSource* gc_root_source) {
   MirrorType* ref = *root;
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
-  if (kUseReadBarrier && with_read_barrier) {
+  if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
       if (self != nullptr) {
@@ -154,7 +154,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
                                                GcRootSource* gc_root_source) {
   MirrorType* ref = root->AsMirrorPtr();
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
-  if (kUseReadBarrier && with_read_barrier) {
+  if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
       if (self != nullptr) {
@@ -199,7 +199,7 @@ template <typename MirrorType>
 inline MirrorType* ReadBarrier::IsMarked(MirrorType* ref) {
   // Only read-barrier configurations can have mutators run while
   // the GC is marking.
-  if (!kUseReadBarrier) {
+  if (!gUseReadBarrier) {
     return ref;
   }
   // IsMarked does not handle null, so handle it here.

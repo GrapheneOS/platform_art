@@ -435,7 +435,7 @@ extern "C" int artSet16InstanceFromCode(uint32_t field_idx,
 }
 
 extern "C" mirror::Object* artReadBarrierMark(mirror::Object* obj) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   return ReadBarrier::Mark(obj);
 }
 
@@ -443,14 +443,12 @@ extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUS
                                               mirror::Object* obj,
                                               uint32_t offset) {
   // Used only in connection with non-volatile loads.
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   uint8_t* raw_addr = reinterpret_cast<uint8_t*>(obj) + offset;
   mirror::HeapReference<mirror::Object>* ref_addr =
      reinterpret_cast<mirror::HeapReference<mirror::Object>*>(raw_addr);
-  constexpr ReadBarrierOption kReadBarrierOption =
-      kUseReadBarrier ? kWithReadBarrier : kWithoutReadBarrier;
   mirror::Object* result =
-      ReadBarrier::Barrier<mirror::Object, /* kIsVolatile= */ false, kReadBarrierOption>(
+      ReadBarrier::Barrier<mirror::Object, /* kIsVolatile= */ false, kWithReadBarrier>(
         obj,
         MemberOffset(offset),
         ref_addr);
@@ -458,7 +456,7 @@ extern "C" mirror::Object* artReadBarrierSlow(mirror::Object* ref ATTRIBUTE_UNUS
 }
 
 extern "C" mirror::Object* artReadBarrierForRootSlow(GcRoot<mirror::Object>* root) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   return root->Read();
 }
 

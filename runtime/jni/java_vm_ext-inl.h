@@ -26,7 +26,7 @@ namespace art {
 
 inline bool JavaVMExt::MayAccessWeakGlobals(Thread* self) const {
   DCHECK(self != nullptr);
-  return kUseReadBarrier
+  return gUseReadBarrier
       ? self->GetWeakRefAccessEnabled()
       : allow_accessing_weak_globals_.load(std::memory_order_seq_cst);
 }
