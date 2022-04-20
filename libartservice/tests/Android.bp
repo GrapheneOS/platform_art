@@ -27,7 +27,7 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-java_test {
+android_test {
     name: "ArtServiceTests",
 
     // Include all test java files.
@@ -36,9 +36,15 @@ java_test {
     ],
 
     static_libs: [
+        "androidx.test.ext.junit",
+        "androidx.test.ext.truth",
         "androidx.test.runner",
+        "mockito-target-minus-junit4",
         "service-art.impl",
     ],
+
+    sdk_version: "system_server_current",
+    min_sdk_version: "31",
 
     test_suites: ["general-tests"],
 }
