@@ -17,28 +17,6 @@
 # Stop if something fails.
 set -e
 
-export ORIGINAL_JAVAC="$JAVAC"
-
-# Wrapper function for javac which invokes the compiler and applies
-# additional setup steps for the test.
-cat >javac_wrapper.sh <<"EOF"
-  set -e # Stop on error - the caller script may not have this set.
-
-  if [[ "$*" != *"classes2"* ]]; then
-    # First invocation: compile src/ files.
-    $ORIGINAL_JAVAC "$@"
-  else
-    # Second invocation: move MirandaInterface.class for placement in
-    # a secondary dex file. There are no other source files for the
-    # secondary DEX so no compilation required.
-    mv classes/MirandaInterface.class classes2
-  fi
-  exit $?
-EOF
-export JAVAC=./javac_wrapper.sh
-
-######################################################################
-
 # Signal to default-build that this is a multidex test.
 mkdir src-multidex
 ./default-build "$@"
