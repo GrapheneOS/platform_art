@@ -37,7 +37,7 @@ static jobject Reference_getReferent(JNIEnv* env, jobject javaThis) {
 }
 
 static jboolean Reference_refersTo0(JNIEnv* env, jobject javaThis, jobject o) {
-  if (kUseReadBarrier && !kUseBakerReadBarrier) {
+  if (gUseReadBarrier && !kUseBakerReadBarrier) {
     // Fall back to naive implementation that may block and needlessly preserve javaThis.
     return env->IsSameObject(Reference_getReferent(env, javaThis), o);
   }
@@ -48,7 +48,7 @@ static jboolean Reference_refersTo0(JNIEnv* env, jobject javaThis, jobject o) {
   if (referent == other) {
       return JNI_TRUE;
   }
-  if (!kUseReadBarrier || referent.IsNull() || other.IsNull()) {
+  if (!gUseReadBarrier || referent.IsNull() || other.IsNull()) {
     return JNI_FALSE;
   }
   // Explicitly handle the case in which referent is a from-space pointer.  Don't use a

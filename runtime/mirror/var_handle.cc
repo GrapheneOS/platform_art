@@ -205,7 +205,7 @@ static ObjPtr<Class> GetReturnType(VarHandle::AccessModeTemplate access_mode_tem
 // Method to insert a read barrier for accessors to reference fields.
 inline void ReadBarrierForVarHandleAccess(ObjPtr<Object> obj, MemberOffset field_offset)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (kUseReadBarrier) {
+  if (gUseReadBarrier) {
     // We need to ensure that the reference stored in the field is a to-space one before attempting
     // the CompareAndSet/CompareAndExchange/Exchange operation otherwise it will fail incorrectly
     // if obj is in the process of being moved.

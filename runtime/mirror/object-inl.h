@@ -104,7 +104,7 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
 }
 
 inline uint32_t Object::GetMarkBit() {
-  CHECK(kUseReadBarrier);
+  CHECK(gUseReadBarrier);
   return GetLockWord(false).MarkBitState();
 }
 

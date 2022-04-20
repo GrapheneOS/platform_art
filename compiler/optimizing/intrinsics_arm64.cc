@@ -92,7 +92,7 @@ class ReadBarrierSystemArrayCopySlowPathARM64 : public SlowPathCodeARM64 {
  public:
   ReadBarrierSystemArrayCopySlowPathARM64(HInstruction* instruction, Location tmp)
       : SlowPathCodeARM64(instruction), tmp_(tmp) {
-    DCHECK(kEmitCompilerReadBarrier);
+    DCHECK(gUseReadBarrier);
     DCHECK(kUseBakerReadBarrier);
   }
 
@@ -711,7 +711,7 @@ static void GenUnsafeGet(HInvoke* invoke,
   Location trg_loc = locations->Out();
   Register trg = RegisterFrom(trg_loc, type);
 
-  if (type == DataType::Type::kReference && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+  if (type == DataType::Type::kReference && gUseReadBarrier && kUseBakerReadBarrier) {
     // UnsafeGetObject/UnsafeGetObjectVolatile with Baker's read barrier case.
     Register temp = WRegisterFrom(locations->GetTemp(0));
     MacroAssembler* masm = codegen->GetVIXLAssembler();
@@ -754,7 +754,7 @@ static bool UnsafeGetIntrinsicOnCallList(Intrinsics intrinsic) {
 }
 
 static void CreateIntIntIntToIntLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  bool can_call = kEmitCompilerReadBarrier && UnsafeGetIntrinsicOnCallList(invoke->GetIntrinsic());
+  bool can_call = gUseReadBarrier && UnsafeGetIntrinsicOnCallList(invoke->GetIntrinsic());
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -1096,7 +1096,7 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafePutLongRelease(HInvoke* invoke) 
 }
 
 static void CreateUnsafeCASLocations(ArenaAllocator* allocator, HInvoke* invoke) {
-  const bool can_call = kEmitCompilerReadBarrier && IsUnsafeCASObject(invoke);
+  const bool can_call = gUseReadBarrier && IsUnsafeCASObject(invoke);
   LocationSummary* locations =
       new (allocator) LocationSummary(invoke,
                                       can_call
@@ -1448,7 +1448,7 @@ static void GenUnsafeCas(HInvoke* invoke, DataType::Type type, CodeGeneratorARM6
   vixl::aarch64::Label* exit_loop = &exit_loop_label;
   vixl::aarch64::Label* cmp_failure = &exit_loop_label;
 
-  if (kEmitCompilerReadBarrier && type == DataType::Type::kReference) {
+  if (gUseReadBarrier && type == DataType::Type::kReference) {
     // We need to store the `old_value` in a non-scratch register to make sure
     // the read barrier in the slow path does not clobber it.
     old_value = WRegisterFrom(locations->GetTemp(0));  // The old value from main path.
@@ -1523,12 +1523,12 @@ void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetLong(HInvoke* in
 }
 void IntrinsicLocationsBuilderARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
   // The only supported read barrier implementation is the Baker-style read barriers.
-  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
+  if (gUseReadBarrier && !kUseBakerReadBarrier) {
     return;
   }
 
   CreateUnsafeCASLocations(allocator_, invoke);
-  if (kEmitCompilerReadBarrier) {
+  if (gUseReadBarrier) {
     // We need two non-scratch temporary registers for read barrier.
     LocationSummary* locations = invoke->GetLocations();
     if (kUseBakerReadBarrier) {
@@ -1578,7 +1578,7 @@ void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetLong(HInvoke* invok
 }
 void IntrinsicCodeGeneratorARM64::VisitJdkUnsafeCompareAndSetObject(HInvoke* invoke) {
   // The only supported read barrier implementation is the Baker-style read barriers.
-  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
 
   GenUnsafeCas(invoke, DataType::Type::kReference, codegen_);
 }
@@ -2814,7 +2814,7 @@ static constexpr int32_t kSystemArrayCopyThreshold = 128;
 void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
-  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
+  if (gUseReadBarrier && !kUseBakerReadBarrier) {
     return;
   }
 
@@ -2866,7 +2866,7 @@ void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopy(HInvoke* invoke) {
 
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
-  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+  if (gUseReadBarrier && kUseBakerReadBarrier) {
     // Temporary register IP0, obtained from the VIXL scratch register
     // pool, cannot be used in ReadBarrierSystemArrayCopySlowPathARM64
     // (because that register is clobbered by ReadBarrierMarkRegX
@@ -2884,7 +2884,7 @@ void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopy(HInvoke* invoke) {
 void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
   // The only read barrier implementation supporting the
   // SystemArrayCopy intrinsic is the Baker-style read barriers.
-  DCHECK_IMPLIES(kEmitCompilerReadBarrier, kUseBakerReadBarrier);
+  DCHECK_IMPLIES(gUseReadBarrier, kUseBakerReadBarrier);
 
   MacroAssembler* masm = GetVIXLAssembler();
   LocationSummary* locations = invoke->GetLocations();
@@ -2991,7 +2991,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
     UseScratchRegisterScope temps(masm);
     Location temp3_loc;  // Used only for Baker read barrier.
     Register temp3;
-    if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    if (gUseReadBarrier && kUseBakerReadBarrier) {
       temp3_loc = locations->GetTemp(2);
       temp3 = WRegisterFrom(temp3_loc);
     } else {
@@ -3004,7 +3004,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
       // or the destination is Object[]. If none of these checks succeed, we go to the
       // slow path.
 
-      if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      if (gUseReadBarrier && kUseBakerReadBarrier) {
         if (!optimizations.GetSourceIsNonPrimitiveArray()) {
           // /* HeapReference<Class> */ temp1 = src->klass_
           codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
@@ -3165,7 +3165,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
     } else if (!optimizations.GetSourceIsNonPrimitiveArray()) {
       DCHECK(optimizations.GetDestinationIsNonPrimitiveArray());
       // Bail out if the source is not a non primitive array.
-      if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      if (gUseReadBarrier && kUseBakerReadBarrier) {
         // /* HeapReference<Class> */ temp1 = src->klass_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
                                                         temp1_loc,
@@ -3215,7 +3215,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
         __ Cbz(WRegisterFrom(length), &done);
       }
 
-      if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+      if (gUseReadBarrier && kUseBakerReadBarrier) {
         // TODO: Also convert this intrinsic to the IsGcMarking strategy?
 
         // SystemArrayCopy implementation for Baker read barriers (see
@@ -3451,7 +3451,7 @@ void IntrinsicCodeGeneratorARM64::VisitIntegerValueOf(HInvoke* invoke) {
 void IntrinsicLocationsBuilderARM64::VisitReferenceGetReferent(HInvoke* invoke) {
   IntrinsicVisitor::CreateReferenceGetReferentLocations(invoke, codegen_);
 
-  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier && invoke->GetLocations() != nullptr) {
+  if (gUseReadBarrier && kUseBakerReadBarrier && invoke->GetLocations() != nullptr) {
     invoke->GetLocations()->AddTemp(Location::RequiresRegister());
   }
 }
@@ -3466,7 +3466,7 @@ void IntrinsicCodeGeneratorARM64::VisitReferenceGetReferent(HInvoke* invoke) {
   SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
   codegen_->AddSlowPath(slow_path);
 
-  if (kEmitCompilerReadBarrier) {
+  if (gUseReadBarrier) {
     // Check self->GetWeakRefAccessEnabled().
     UseScratchRegisterScope temps(masm);
     Register temp = temps.AcquireW();
@@ -3493,7 +3493,7 @@ void IntrinsicCodeGeneratorARM64::VisitReferenceGetReferent(HInvoke* invoke) {
 
   // Load the value from the field.
   uint32_t referent_offset = mirror::Reference::ReferentOffset().Uint32Value();
-  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+  if (gUseReadBarrier && kUseBakerReadBarrier) {
     codegen_->GenerateFieldLoadWithBakerReadBarrier(invoke,
                                                     out,
                                                     WRegisterFrom(obj),
@@ -3533,7 +3533,7 @@ void IntrinsicCodeGeneratorARM64::VisitReferenceRefersTo(HInvoke* invoke) {
 
   __ Cmp(tmp, other);
 
-  if (kEmitCompilerReadBarrier) {
+  if (gUseReadBarrier) {
     DCHECK(kUseBakerReadBarrier);
 
     vixl::aarch64::Label calculate_result;
@@ -4629,7 +4629,7 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
                                          method.X(),
                                          ArtField::DeclaringClassOffset().Int32Value(),
                                          /*fixup_label=*/ nullptr,
-                                         kCompilerReadBarrierOption);
+                                         gCompilerReadBarrierOption);
       }
     }
   } else {
@@ -4683,7 +4683,7 @@ static LocationSummary* CreateVarHandleCommonLocations(HInvoke* invoke) {
   }
 
   // Add a temporary for offset.
-  if ((kEmitCompilerReadBarrier && !kUseBakerReadBarrier) &&
+  if ((gUseReadBarrier && !kUseBakerReadBarrier) &&
       GetExpectedVarHandleCoordinatesCount(invoke) == 0u) {  // For static fields.
     // To preserve the offset value across the non-Baker read barrier slow path
     // for loading the declaring class, use a fixed callee-save register.
@@ -4706,7 +4706,7 @@ static void CreateVarHandleGetLocations(HInvoke* invoke) {
     return;
   }
 
-  if ((kEmitCompilerReadBarrier && !kUseBakerReadBarrier) &&
+  if ((gUseReadBarrier && !kUseBakerReadBarrier) &&
       invoke->GetType() == DataType::Type::kReference &&
       invoke->GetIntrinsic() != Intrinsics::kVarHandleGet &&
       invoke->GetIntrinsic() != Intrinsics::kVarHandleGetOpaque) {
@@ -4746,7 +4746,7 @@ static void GenerateVarHandleGet(HInvoke* invoke,
   DCHECK(use_load_acquire || order == std::memory_order_relaxed);
 
   // Load the value from the target location.
-  if (type == DataType::Type::kReference && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+  if (type == DataType::Type::kReference && gUseReadBarrier && kUseBakerReadBarrier) {
     // Piggy-back on the field load path using introspection for the Baker read barrier.
     // The `target.offset` is a temporary, use it for field address.
     Register tmp_ptr = target.offset.X();
@@ -4947,7 +4947,7 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke, boo
 
   uint32_t number_of_arguments = invoke->GetNumberOfArguments();
   DataType::Type value_type = GetDataTypeFromShorty(invoke, number_of_arguments - 1u);
-  if ((kEmitCompilerReadBarrier && !kUseBakerReadBarrier) &&
+  if ((gUseReadBarrier && !kUseBakerReadBarrier) &&
       value_type == DataType::Type::kReference) {
     // Unsupported for non-Baker read barrier because the artReadBarrierSlow() ignores
     // the passed reference and reloads it from the field. This breaks the read barriers
@@ -4961,7 +4961,7 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke, boo
 
   LocationSummary* locations = CreateVarHandleCommonLocations(invoke);
 
-  if (kEmitCompilerReadBarrier && !kUseBakerReadBarrier) {
+  if (gUseReadBarrier && !kUseBakerReadBarrier) {
     // We need callee-save registers for both the class object and offset instead of
     // the temporaries reserved in CreateVarHandleCommonLocations().
     static_assert(POPCOUNT(kArm64CalleeSaveRefSpills) >= 2u);
@@ -5002,7 +5002,7 @@ static void CreateVarHandleCompareAndSetOrExchangeLocations(HInvoke* invoke, boo
       locations->AddTemp(Location::RequiresRegister());
     }
   }
-  if (kEmitCompilerReadBarrier && value_type == DataType::Type::kReference) {
+  if (gUseReadBarrier && value_type == DataType::Type::kReference) {
     // Add a temporary for the `old_value_temp` in slow path.
     locations->AddTemp(Location::RequiresRegister());
   }
@@ -5068,7 +5068,7 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   // except for references that need the offset for the read barrier.
   UseScratchRegisterScope temps(masm);
   Register tmp_ptr = target.offset.X();
-  if (kEmitCompilerReadBarrier && value_type == DataType::Type::kReference) {
+  if (gUseReadBarrier && value_type == DataType::Type::kReference) {
     tmp_ptr = temps.AcquireX();
   }
   __ Add(tmp_ptr, target.object.X(), target.offset.X());
@@ -5151,7 +5151,7 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   vixl::aarch64::Label* exit_loop = &exit_loop_label;
   vixl::aarch64::Label* cmp_failure = &exit_loop_label;
 
-  if (kEmitCompilerReadBarrier && value_type == DataType::Type::kReference) {
+  if (gUseReadBarrier && value_type == DataType::Type::kReference) {
     // The `old_value_temp` is used first for the marked `old_value` and then for the unmarked
     // reloaded old value for subsequent CAS in the slow path. It cannot be a scratch register.
     size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
@@ -5296,7 +5296,7 @@ static void CreateVarHandleGetAndUpdateLocations(HInvoke* invoke,
     return;
   }
 
-  if ((kEmitCompilerReadBarrier && !kUseBakerReadBarrier) &&
+  if ((gUseReadBarrier && !kUseBakerReadBarrier) &&
       invoke->GetType() == DataType::Type::kReference) {
     // Unsupported for non-Baker read barrier because the artReadBarrierSlow() ignores
     // the passed reference and reloads it from the field, thus seeing the new value
@@ -5372,7 +5372,7 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
   // except for references that need the offset for the non-Baker read barrier.
   UseScratchRegisterScope temps(masm);
   Register tmp_ptr = target.offset.X();
-  if ((kEmitCompilerReadBarrier && !kUseBakerReadBarrier) &&
+  if ((gUseReadBarrier && !kUseBakerReadBarrier) &&
       value_type == DataType::Type::kReference) {
     tmp_ptr = temps.AcquireX();
   }
@@ -5402,7 +5402,7 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
       // the new value unless it is zero bit pattern (+0.0f or +0.0) and need another one
       // in GenerateGetAndUpdate(). We have allocated a normal temporary to handle that.
       old_value = CPURegisterFrom(locations->GetTemp(1u), load_store_type);
-    } else if ((kEmitCompilerReadBarrier && kUseBakerReadBarrier) &&
+    } else if ((gUseReadBarrier && kUseBakerReadBarrier) &&
                value_type == DataType::Type::kReference) {
       // Load the old value initially to a scratch register.
       // We shall move it to `out` later with a read barrier.
@@ -5450,7 +5450,7 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     __ Sxtb(out.W(), old_value.W());
   } else if (value_type == DataType::Type::kInt16) {
     __ Sxth(out.W(), old_value.W());
-  } else if (kEmitCompilerReadBarrier && value_type == DataType::Type::kReference) {
+  } else if (gUseReadBarrier && value_type == DataType::Type::kReference) {
     if (kUseBakerReadBarrier) {
       codegen->GenerateIntrinsicCasMoveWithBakerReadBarrier(out.W(), old_value.W());
     } else {

@@ -65,11 +65,11 @@ enum CollectorType {
 std::ostream& operator<<(std::ostream& os, CollectorType collector_type);
 
 static constexpr CollectorType kCollectorTypeDefault =
-#if ART_DEFAULT_GC_TYPE_IS_CMS
-    kCollectorTypeCMS
+#if ART_DEFAULT_GC_TYPE_IS_CMC
+    kCollectorTypeCMC
 #elif ART_DEFAULT_GC_TYPE_IS_SS
     kCollectorTypeSS
-#else
+#elif ART_DEFAULT_GC_TYPE_IS_CMS
     kCollectorTypeCMS
 #error "ART default GC type must be set"
 #endif

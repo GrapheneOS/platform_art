@@ -50,7 +50,6 @@
 #if defined(__linux__)
 #include <linux/unistd.h>
 #include <sys/syscall.h>
-#include <sys/utsname.h>
 #endif
 
 #if defined(_WIN32)
@@ -158,6 +157,17 @@ bool FlushCpuCaches(void* begin, void* end) {
 
 #endif
 
+#if defined(__linux__)
+bool IsKernelVersionAtLeast(int reqd_major, int reqd_minor) {
+  struct utsname uts;
+  int major, minor;
+  CHECK_EQ(uname(&uts), 0);
+  CHECK_EQ(strcmp(uts.sysname, "Linux"), 0);
+  CHECK_EQ(sscanf(uts.release, "%d.%d:", &major, &minor), 2);
+  return major > reqd_major || (major == reqd_major && minor >= reqd_minor);
+}
+#endif
+
 bool CacheOperationsMaySegFault() {
 #if defined(__linux__) && defined(__aarch64__)
   // Avoid issue on older ARM64 kernels where data cache operations could be classified as writes
@@ -167,18 +177,10 @@ bool CacheOperationsMaySegFault() {
   //
   // This behaviour means we should avoid the dual view JIT on the device. This is just
   // an issue when running tests on devices that have an old kernel.
-  static constexpr int kRequiredMajor = 3;
-  static constexpr int kRequiredMinor = 12;
-  struct utsname uts;
-  int major, minor;
-  if (uname(&uts) != 0 ||
-      strcmp(uts.sysname, "Linux") != 0 ||
-      sscanf(uts.release, "%d.%d", &major, &minor) != 2 ||
-      (major < kRequiredMajor || (major == kRequiredMajor && minor < kRequiredMinor))) {
-    return true;
-  }
-#endif
+  return !IsKernelVersionAtLeast(3, 12);
+#else
   return false;
+#endif
 }
 
 uint32_t GetTid() {

@@ -305,7 +305,7 @@ class CheckJniAbortCatcher {
   }
 
 #define TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS() \
-  if (!kEmitCompilerReadBarrier || !kUseBakerReadBarrier) { \
+  if (!gUseReadBarrier || !kUseBakerReadBarrier) { \
     printf("WARNING: TEST DISABLED FOR GC WITHOUT BAKER READ BARRIER\n"); \
     return; \
   }
@@ -317,7 +317,7 @@ class CheckJniAbortCatcher {
   }
 
 #define TEST_DISABLED_FOR_MEMORY_TOOL_WITH_HEAP_POISONING_WITHOUT_READ_BARRIERS() \
-  if (kRunningOnMemoryTool && kPoisonHeapReferences && !kEmitCompilerReadBarrier) { \
+  if (kRunningOnMemoryTool && kPoisonHeapReferences && !gUseReadBarrier) { \
     printf("WARNING: TEST DISABLED FOR MEMORY TOOL WITH HEAP POISONING WITHOUT READ BARRIERS\n"); \
     return; \
   }

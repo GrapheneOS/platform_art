@@ -35,7 +35,7 @@ namespace art {
 namespace interpreter {
 
 bool IsNterpSupported() {
-  return !kPoisonHeapReferences && kUseReadBarrier;
+  return !kPoisonHeapReferences && gUseReadBarrier;
 }
 
 bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -90,7 +90,6 @@ inline void UpdateHotness(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock
 
 template<typename T>
 inline void UpdateCache(Thread* self, uint16_t* dex_pc_ptr, T value) {
-  DCHECK(kUseReadBarrier) << "Nterp only works with read barriers";
   self->GetInterpreterCache()->Set(self, dex_pc_ptr, value);
 }
 

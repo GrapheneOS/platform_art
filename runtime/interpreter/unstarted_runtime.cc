@@ -1557,7 +1557,7 @@ void UnstartedRuntime::UnstartedJdkUnsafeCompareAndSwapObject(
   mirror::Object* new_value = shadow_frame->GetVRegReference(arg_offset + 5);
 
   // Must use non transactional mode.
-  if (kUseReadBarrier) {
+  if (gUseReadBarrier) {
     // Need to make sure the reference stored in the field is a to-space one before attempting the
     // CAS or the CAS could fail incorrectly.
     mirror::HeapReference<mirror::Object>* field_addr =

@@ -209,10 +209,8 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
       }
       // IsGcConcurrent() isn't known at compile time so we can optimize by not checking it for the
       // BumpPointer or TLAB allocators. This is nice since it allows the entire if statement to be
-      // optimized out. And for the other allocators, AllocatorMayHaveConcurrentGC is a constant
-      // since the allocator_type should be constant propagated.
-      if (AllocatorMayHaveConcurrentGC(allocator) && IsGcConcurrent()
-          && UNLIKELY(ShouldConcurrentGCForJava(new_num_bytes_allocated))) {
+      // optimized out.
+      if (IsGcConcurrent() && UNLIKELY(ShouldConcurrentGCForJava(new_num_bytes_allocated))) {
         need_gc = true;
       }
       GetMetrics()->TotalBytesAllocated()->Add(bytes_tl_bulk_allocated);
@@ -442,7 +440,7 @@ inline bool Heap::ShouldAllocLargeObject(ObjPtr<mirror::Class> c, size_t byte_co
   return byte_count >= large_object_threshold_ && (c->IsPrimitiveArray() || c->IsStringClass());
 }
 
-inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type,
+inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type ATTRIBUTE_UNUSED,
                                             size_t alloc_size,
                                             bool grow) {
   size_t old_target = target_footprint_.load(std::memory_order_relaxed);
@@ -457,7 +455,7 @@ inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type,
       return true;
     }
     // We are between target_footprint_ and growth_limit_ .
-    if (AllocatorMayHaveConcurrentGC(allocator_type) && IsGcConcurrent()) {
+    if (IsGcConcurrent()) {
       return false;
     } else {
       if (grow) {

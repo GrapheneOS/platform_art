@@ -42,7 +42,7 @@ static_assert(sizeof(IRTSegmentState) == sizeof(uint32_t), "IRTSegmentState size
 static_assert(std::is_trivial<IRTSegmentState>::value, "IRTSegmentState not trivial");
 
 extern "C" void artJniReadBarrier(ArtMethod* method) {
-  DCHECK(kUseReadBarrier);
+  DCHECK(gUseReadBarrier);
   mirror::CompressedReference<mirror::Object>* declaring_class =
       method->GetDeclaringClassAddressWithoutBarrier();
   if (kUseBakerReadBarrier) {

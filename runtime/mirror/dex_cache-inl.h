@@ -60,7 +60,7 @@ T* DexCache::AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t
     return nullptr;
   }
   mirror::DexCache* dex_cache = this;
-  if (kUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+  if (gUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
     // Several code paths use DexCache without read-barrier for performance.
     // We have to check the "to-space" object here to avoid allocating twice.
     dex_cache = reinterpret_cast<DexCache*>(ReadBarrier::Mark(dex_cache));

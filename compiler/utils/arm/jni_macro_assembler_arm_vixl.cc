@@ -155,7 +155,7 @@ void ArmVIXLJNIMacroAssembler::RemoveFrame(size_t frame_size,
 
   // Pop LR to PC unless we need to emit some read barrier code just before returning.
   bool emit_code_before_return =
-      (kEmitCompilerReadBarrier && kUseBakerReadBarrier) &&
+      (gUseReadBarrier && kUseBakerReadBarrier) &&
       (may_suspend || (kIsDebugBuild && emit_run_time_checks_in_debug_mode_));
   if ((core_spill_mask & (1u << lr.GetCode())) != 0u && !emit_code_before_return) {
     DCHECK_EQ(core_spill_mask & (1u << pc.GetCode()), 0u);
@@ -215,7 +215,9 @@ void ArmVIXLJNIMacroAssembler::RemoveFrame(size_t frame_size,
     }
   }
 
-  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+  // Emit marking register refresh even with uffd-GC as we are still using the
+  // register due to nterp's dependency.
+  if ((gUseReadBarrier || gUseUserfaultfd) && kUseBakerReadBarrier) {
     if (may_suspend) {
       // The method may be suspended; refresh the Marking Register.
       ___ Ldr(mr, MemOperand(tr, Thread::IsGcMarkingOffset<kArmPointerSize>().Int32Value()));
@@ -1165,7 +1167,7 @@ void ArmVIXLJNIMacroAssembler::TestGcMarking(JNIMacroLabel* label, JNIMacroUnary
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   vixl32::Register test_reg;
   DCHECK_EQ(Thread::IsGcMarkingSize(), 4u);
-  DCHECK(kUseReadBarrier);
+  DCHECK(gUseReadBarrier);
   if (kUseBakerReadBarrier) {
     // TestGcMarking() is used in the JNI stub entry when the marking register is up to date.
     if (kIsDebugBuild && emit_run_time_checks_in_debug_mode_) {

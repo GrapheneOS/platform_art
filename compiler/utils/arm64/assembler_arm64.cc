@@ -188,7 +188,7 @@ void Arm64Assembler::MaybeUnpoisonHeapReference(Register reg) {
 
 void Arm64Assembler::GenerateMarkingRegisterCheck(Register temp, int code) {
   // The Marking Register is only used in the Baker read barrier configuration.
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
   vixl::aarch64::Register mr = reg_x(MR);  // Marking Register.

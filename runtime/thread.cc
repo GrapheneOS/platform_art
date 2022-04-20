@@ -166,7 +166,7 @@ void InitEntryPoints(JniEntryPoints* jpoints,
 void UpdateReadBarrierEntrypoints(QuickEntryPoints* qpoints, bool is_active);
 
 void Thread::SetIsGcMarkingAndUpdateEntrypoints(bool is_marking) {
-  CHECK(kUseReadBarrier);
+  CHECK(gUseReadBarrier);
   tls32_.is_gc_marking = is_marking;
   UpdateReadBarrierEntrypoints(&tlsPtr_.quick_entrypoints, /* is_active= */ is_marking);
 }
@@ -1473,7 +1473,7 @@ bool Thread::ModifySuspendCountInternal(Thread* self,
     return false;
   }
 
-  if (kUseReadBarrier && delta > 0 && this != self && tlsPtr_.flip_function != nullptr) {
+  if (gUseReadBarrier && delta > 0 && this != self && tlsPtr_.flip_function != nullptr) {
     // Force retry of a suspend request if it's in the middle of a thread flip to avoid a
     // deadlock. b/31683379.
     return false;
@@ -2559,7 +2559,7 @@ void Thread::Destroy() {
   }
   // Mark-stack revocation must be performed at the very end. No
   // checkpoint/flip-function or read-barrier should be called after this.
-  if (kUseReadBarrier) {
+  if (gUseReadBarrier) {
     Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->RevokeThreadLocalMarkStack(this);
   }
 }
@@ -4557,7 +4557,7 @@ bool Thread::IsAotCompiler() {
 mirror::Object* Thread::GetPeerFromOtherThread() const {
   DCHECK(tlsPtr_.jpeer == nullptr);
   mirror::Object* peer = tlsPtr_.opeer;
-  if (kUseReadBarrier && Current()->GetIsGcMarking()) {
+  if (gUseReadBarrier && Current()->GetIsGcMarking()) {
     // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
     // may have not been flipped yet and peer may be a from-space (stale) ref. So explicitly
     // mark/forward it here.

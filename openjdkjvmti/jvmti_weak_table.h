@@ -152,7 +152,7 @@ class JvmtiWeakTable : public art::gc::SystemWeakHolder {
 
     // Performance optimization: To avoid multiple table updates, ensure that during GC we
     // only update once. See the comment on the implementation of GetTagSlowPath.
-    if (art::kUseReadBarrier &&
+    if (art::gUseReadBarrier &&
         self != nullptr &&
         self->GetIsGcMarking() &&
         !update_since_last_sweep_) {

@@ -1944,7 +1944,7 @@ class BuildGenericJniFrameVisitor final : public QuickArgumentVisitor {
         // The declaring class must be marked.
         auto* declaring_class = reinterpret_cast<mirror::CompressedReference<mirror::Class>*>(
             method->GetDeclaringClassAddressWithoutBarrier());
-        if (kUseReadBarrier) {
+        if (gUseReadBarrier) {
           artJniReadBarrier(method);
         }
         sm_.AdvancePointer(declaring_class);

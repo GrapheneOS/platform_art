@@ -417,7 +417,7 @@ Heap::Heap(size_t initial_size,
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
-  if (kUseReadBarrier) {
+  if (gUseReadBarrier) {
     CHECK_EQ(foreground_collector_type_, kCollectorTypeCC);
     CHECK_EQ(background_collector_type_, kCollectorTypeCCBackground);
   } else if (background_collector_type_ != gc::kCollectorTypeHomogeneousSpaceCompact) {
@@ -999,7 +999,7 @@ void Heap::IncrementDisableThreadFlip(Thread* self) {
 }
 
 void Heap::EnsureObjectUserfaulted(ObjPtr<mirror::Object> obj) {
-  if (kUseUserfaultfd) {
+  if (gUseUserfaultfd) {
     // Use volatile to ensure that compiler loads from memory to trigger userfaults, if required.
     volatile uint8_t volatile_sum;
     volatile uint8_t* start = reinterpret_cast<volatile uint8_t*>(obj.Ptr());
@@ -1533,7 +1533,7 @@ void Heap::DoPendingCollectorTransition() {
       VLOG(gc) << "Homogeneous compaction ignored due to jank perceptible process state";
     }
   } else if (desired_collector_type == kCollectorTypeCCBackground) {
-    DCHECK(kUseReadBarrier);
+    DCHECK(gUseReadBarrier);
     if (!CareAboutPauseTimes()) {
       // Invoke CC full compaction.
       CollectGarbageInternal(collector::kGcTypeFull,
@@ -4251,7 +4251,7 @@ void Heap::SweepAllocationRecords(IsMarkedVisitor* visitor) const {
 }
 
 void Heap::AllowNewAllocationRecords() const {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
   AllocRecordObjectMap* allocation_records = GetAllocationRecords();
   if (allocation_records != nullptr) {
@@ -4260,7 +4260,7 @@ void Heap::AllowNewAllocationRecords() const {
 }
 
 void Heap::DisallowNewAllocationRecords() const {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   MutexLock mu(Thread::Current(), *Locks::alloc_tracker_lock_);
   AllocRecordObjectMap* allocation_records = GetAllocationRecords();
   if (allocation_records != nullptr) {
@@ -4637,7 +4637,7 @@ void Heap::PostForkChildAction(Thread* self) {
   uint64_t last_adj_time = NanoTime();
   next_gc_type_ = NonStickyGcType();  // Always start with a full gc.
 
-  if (kUseUserfaultfd) {
+  if (gUseUserfaultfd) {
     DCHECK_NE(mark_compact_, nullptr);
     mark_compact_->CreateUserfaultfd(/*post_fork*/true);
   }

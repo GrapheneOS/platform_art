@@ -1139,7 +1139,7 @@ ObjPtr<mirror::Object> Monitor::MonitorEnter(Thread* self,
                                                           lock_word.GCState()));
             // Only this thread pays attention to the count. Thus there is no need for stronger
             // than relaxed memory ordering.
-            if (!kUseReadBarrier) {
+            if (!gUseReadBarrier) {
               h_obj->SetLockWord(thin_locked, /* as_volatile= */ false);
               AtraceMonitorLock(self, h_obj.Get(), /* is_wait= */ false);
               return h_obj.Get();  // Success!
@@ -1239,7 +1239,7 @@ bool Monitor::MonitorExit(Thread* self, ObjPtr<mirror::Object> obj) {
           } else {
             new_lw = LockWord::FromDefault(lock_word.GCState());
           }
-          if (!kUseReadBarrier) {
+          if (!gUseReadBarrier) {
             DCHECK_EQ(new_lw.ReadBarrierState(), 0U);
             // TODO: This really only needs memory_order_release, but we currently have
             // no way to specify that. In fact there seem to be no legitimate uses of SetLockWord
@@ -1409,7 +1409,7 @@ ThreadState Monitor::FetchState(const Thread* thread,
     {
       ObjPtr<mirror::Object> lock_object = thread->GetMonitorEnterObject();
       if (lock_object != nullptr) {
-        if (kUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+        if (gUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
           // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
           // may have not been flipped yet and "pretty_object" may be a from-space (stale) ref, in
           // which case the GetLockOwnerThreadId() call below will crash. So explicitly mark/forward
@@ -1613,13 +1613,13 @@ MonitorList::~MonitorList() {
 }
 
 void MonitorList::DisallowNewMonitors() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   MutexLock mu(Thread::Current(), monitor_list_lock_);
   allow_new_monitors_ = false;
 }
 
 void MonitorList::AllowNewMonitors() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, monitor_list_lock_);
   allow_new_monitors_ = true;
@@ -1637,8 +1637,8 @@ void MonitorList::Add(Monitor* m) {
   MutexLock mu(self, monitor_list_lock_);
   // CMS needs this to block for concurrent reference processing because an object allocated during
   // the GC won't be marked and concurrent reference processing would incorrectly clear the JNI weak
-  // ref. But CC (kUseReadBarrier == true) doesn't because of the to-space invariant.
-  while (!kUseReadBarrier && UNLIKELY(!allow_new_monitors_)) {
+  // ref. But CC (gUseReadBarrier == true) doesn't because of the to-space invariant.
+  while (!gUseReadBarrier && UNLIKELY(!allow_new_monitors_)) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
     self->CheckEmptyCheckpointFromWeakRefAccess(&monitor_list_lock_);
