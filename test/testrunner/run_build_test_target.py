@@ -81,7 +81,7 @@ if subprocess.call(clean_command.split()):
 if 'build' in target:
   build_command = target.get('build').format(
       ANDROID_BUILD_TOP = env.ANDROID_BUILD_TOP,
-      MAKE_OPTIONS='DX=  -j{threads}'.format(threads = n_threads))
+      MAKE_OPTIONS='D8= -j{threads}'.format(threads = n_threads))
   sys.stdout.write(str(build_command) + '\n')
   sys.stdout.flush()
   if subprocess.call(build_command.split()):
@@ -90,7 +90,7 @@ if 'build' in target:
 # make runs soong/kati to build the target listed in the entry.
 if 'make' in target:
   build_command = 'build/soong/soong_ui.bash --make-mode'
-  build_command += ' DX='
+  build_command += ' D8='
   build_command += ' -j' + str(n_threads)
   build_command += ' ' + target.get('make')
   if env.DIST_DIR:
