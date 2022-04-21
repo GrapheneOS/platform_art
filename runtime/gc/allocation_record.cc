@@ -32,7 +32,14 @@ namespace gc {
 
 int32_t AllocRecordStackTraceElement::ComputeLineNumber() const {
   DCHECK(method_ != nullptr);
-  return method_->GetLineNumFromDexPC(dex_pc_);
+  int32_t line_number = method_->GetLineNumFromDexPC(dex_pc_);
+  if (line_number == -1 && !method_->IsProxyMethod()) {
+    // If we failed to map the dex pc to a line number, then most probably there is no debug info.
+    // Make the line_number same as the dex pc - it can be decoded later using a map file.
+    // See b/30183883 and b/228000954.
+    line_number = static_cast<int32_t>(dex_pc_);
+  }
+  return line_number;
 }
 
 const char* AllocRecord::GetClassDescriptor(std::string* storage) const {

@@ -19,50 +19,9 @@ set -e
 
 export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-9.2.jar"
 
-export ORIGINAL_JAVAC="$JAVAC"
-
-# Wrapper function for javac which invokes the compiler and applies
-# transforms to class files after compilation.
-cat >javac_wrapper.sh <<"EOF"
-  set -e # Stop on error - the caller script may not have this set.
-
-  # Update arguments to add transformer and ASM to the compiler classpath.
-  classpath="./transformer.jar:$ASM_JAR"
-  args=(-cp $classpath)
-  while [ $# -ne 0 ] ; do
-    case $1 in
-      -cp|-classpath|--class-path)
-        shift
-        shift
-        ;;
-      *)
-        args+=("$1")
-        shift
-        ;;
-    esac
-  done
-
-  # Compile.
-  $ORIGINAL_JAVAC "${args[@]}"
-
-  # Move original classes to intermediate location.
-  mv classes intermediate-classes
-  mkdir classes
-
-  # Transform intermediate classes.
-  transformer_args="-cp ${ASM_JAR}:transformer.jar transformer.IndyTransformer"
-  for class in intermediate-classes/*.class ; do
-    transformed_class=classes/$(basename ${class})
-    ${JAVA:-java} ${transformer_args} $PWD/${class} ${transformed_class}
-  done
-EOF
-export JAVAC=./javac_wrapper.sh
-
-######################################################################
-
 # Build the transformer to apply to compiled classes.
 mkdir classes
-${ORIGINAL_JAVAC:-javac} ${JAVAC_ARGS} -cp "${ASM_JAR}" -d classes $(find util-src -name '*.java')
+${JAVAC:-javac} ${JAVAC_ARGS} -cp "${ASM_JAR}" -d classes $(find util-src -name '*.java')
 ${SOONG_ZIP} --jar -o transformer.jar -C classes -D classes
 rm -rf classes
 

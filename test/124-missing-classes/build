@@ -17,22 +17,4 @@
 # Stop if something fails.
 set -e
 
-export ORIGINAL_JAVAC="$JAVAC"
-
-# Wrapper function for javac which invokes the compiler and applies
-# additional setup steps for the test.
-
-cat >javac_wrapper.sh <<"EOF"
-  set -e # Stop on error - the caller script may not have this set.
-
-  # Some classes are available at compile time...
-  $ORIGINAL_JAVAC "$@"
-
-  # ...but not at run time.
-  rm 'classes/MissingClass.class' 'classes/Main$MissingInnerClass.class'
-EOF
-export JAVAC=./javac_wrapper.sh
-
-######################################################################
-
 ./default-build "$@"

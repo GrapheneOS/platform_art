@@ -17,17 +17,6 @@
 # Stop if something fails.
 set -e
 
-# This test depends on the exact format of the DEX file. Since dx is deprecated,
-# the classes.dex file is packaged as a test input. See src/Main.java file
-# to check how it was created.
-
-# Wrapper function for javac which for this test does nothing as the
-# test uses a pre-built DEX file.
-cat >javac_wrapper.sh <<"EOF"
-  return 0
-EOF
-export JAVAC=./javac_wrapper.sh
-
 # Do not invoke D8 for this test.
 export D8=':'
 

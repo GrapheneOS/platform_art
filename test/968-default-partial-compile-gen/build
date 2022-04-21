@@ -21,7 +21,7 @@ if [[ $@ == *"--jvm"* ]]; then
   # Build the Java files if we are running a --jvm test
   mkdir -p classes
   mkdir -p src
-  echo "${JAVAC} \$@" >> ./javac_exec.sh
+  echo "${JAVAC} ${JAVAC_ARGS} \$@" >> ./javac_exec.sh
   # This will use java_exec.sh to execute the javac compiler. It will place the
   # compiled class files in ./classes and the expected values in expected-stdout.txt
   #

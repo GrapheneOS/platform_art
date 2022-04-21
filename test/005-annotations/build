@@ -17,28 +17,6 @@
 # Stop if something fails.
 set -e
 
-export ORIGINAL_JAVAC="$JAVAC"
-
-# Wrapper function for javac which invokes the compiler and applies
-# additional setup steps for the test.
-cat >javac_wrapper.sh <<"EOF"
-  set -e # Stop on error - the caller script may not have this set.
-
-  $ORIGINAL_JAVAC "$@"
-
-  # Classes available at compile time, but not at runtime.
-  rm -f classes/android/test/anno/MissingAnnotation.class
-  rm -f 'classes/android/test/anno/ClassWithInnerAnnotationClass$MissingInnerAnnotationClass.class'
-
-  # overwrite RenamedEnum in classes
-  if [ -f classes2/android/test/anno/RenamedEnumClass.java ] ; then
-    mv classes2/android/test/anno/RenamedEnumClass.java classes/android/test/anno/RenamedEnumClass.java
-  fi
-EOF
-export JAVAC=./javac_wrapper.sh
-
-######################################################################
-
 # Build intermediate object to preserve class-retention annotations.
 export D8_FLAGS=--intermediate
 ./default-build "$@"

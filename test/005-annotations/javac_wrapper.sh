@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (C) 2015 The Android Open Source Project
+# Copyright (C) 2022 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Stop if something fails.
-set -e
+set -e # Stop on error - the caller script may not have this set.
 
-# Do not invoke D8 for this test.
-export D8=':'
+$JAVAC "$@"
 
-######################################################################
+# Classes available at compile time, but not at runtime.
+rm -f classes/android/test/anno/MissingAnnotation.class
+rm -f 'classes/android/test/anno/ClassWithInnerAnnotationClass$MissingInnerAnnotationClass.class'
 
-${SOONG_ZIP} --jar -o classes.jar -f classes.dex
-./default-build "$@"
+# overwrite RenamedEnum in classes
+if [ -f classes2/android/test/anno/RenamedEnumClass.java ] ; then
+  mv classes2/android/test/anno/RenamedEnumClass.java classes/android/test/anno/RenamedEnumClass.java
+fi

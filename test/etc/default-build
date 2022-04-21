@@ -158,6 +158,9 @@ smali = functools.partial(run, os.environ["SMALI"])
 d8 = functools.partial(run, os.environ["D8"])
 hiddenapi = functools.partial(run, os.environ["HIDDENAPI"])
 
+# If wrapper script exists, use it instead of the default javac.
+if os.path.exists("javac_wrapper.sh"):
+  javac = functools.partial(run, "javac_wrapper.sh")
 
 def find(root, name):
   return sorted(glob.glob(path.join(root, "**", name), recursive=True))

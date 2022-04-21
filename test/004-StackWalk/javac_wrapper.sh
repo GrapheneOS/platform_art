@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (C) 2015 The Android Open Source Project
+# Copyright (C) 2022 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Stop if something fails.
-set -e
-
-# Do not invoke D8 for this test.
-export D8=':'
-
-######################################################################
-
-${SOONG_ZIP} --jar -o classes.jar -f classes.dex
-./default-build "$@"
+# This test depends on the exact format of the DEX file. Since dx is deprecated,
+# the classes.dex file is packaged as a test input. See src/Main.java file
+# to check how it was created.
+return 0

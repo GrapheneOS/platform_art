@@ -19,35 +19,9 @@ set -e
 
 export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-9.2.jar"
 
-export ORIGINAL_JAVAC="$JAVAC"
-
-cat >javac_wrapper.sh <<"EOF"
-  set -e
-
-  # Add annotation src files to our compiler inputs.
-  asrcs=util-src/annotations/*.java
-
-  # Compile.
-  $ORIGINAL_JAVAC "$@" $asrcs
-
-  # Move original classes to intermediate location.
-  mv classes intermediate-classes
-  mkdir classes
-
-  # Transform intermediate classes.
-  transformer_args="-cp ${ASM_JAR}:$PWD/transformer.jar transformer.ConstantTransformer"
-  for class in intermediate-classes/*.class ; do
-    transformed_class=classes/$(basename ${class})
-    ${JAVA:-java} ${transformer_args} ${class} ${transformed_class}
-  done
-EOF
-export JAVAC=./javac_wrapper.sh
-
-######################################################################
-
 # Build the transformer to apply to compiled classes.
 mkdir classes
-${ORIGINAL_JAVAC:-javac} ${JAVAC_ARGS} -cp "${ASM_JAR}" -d classes $(find util-src -name '*.java')
+${JAVAC:-javac} ${JAVAC_ARGS} -cp "${ASM_JAR}" -d classes $(find util-src -name '*.java')
 ${SOONG_ZIP} --jar -o transformer.jar -C classes -D classes
 rm -rf classes
 
