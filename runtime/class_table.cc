@@ -135,6 +135,11 @@ size_t ClassTable::NumReferencedNonZygoteClasses() const {
 ObjPtr<mirror::Class> ClassTable::Lookup(const char* descriptor, size_t hash) {
   DescriptorHashPair pair(descriptor, hash);
   ReaderMutexLock mu(Thread::Current(), lock_);
+  // Search from the last table, assuming that apps shall search for their own classes
+  // more often than for boot image classes. For prebuilt boot images, this also helps
+  // by searching the large table from the framework boot image extension compiled as
+  // single-image before the individual small tables from the primary boot image
+  // compiled as multi-image.
   for (ClassSet& class_set : ReverseRange(classes_)) {
     auto it = class_set.FindWithHash(pair, hash);
     if (it != class_set.end()) {
