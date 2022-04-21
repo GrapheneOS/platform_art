@@ -4422,24 +4422,26 @@ static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
     __ Cbz(object, slow_path->GetEntryLabel());
   }
 
-  UseScratchRegisterScope temps(masm);
-  Register temp = temps.AcquireW();
-  Register temp2 = temps.AcquireW();
+  if (!optimizations.GetUseKnownBootImageVarHandle()) {
+    UseScratchRegisterScope temps(masm);
+    Register temp = temps.AcquireW();
+    Register temp2 = temps.AcquireW();
 
-  // Check that the VarHandle references an instance field by checking that
-  // coordinateType1 == null. coordinateType0 should not be null, but this is handled by the
-  // type compatibility check with the source object's type, which will fail for null.
-  DCHECK_EQ(coordinate_type0_offset.Int32Value() + 4, coordinate_type1_offset.Int32Value());
-  __ Ldp(temp, temp2, HeapOperand(varhandle, coordinate_type0_offset.Int32Value()));
-  codegen->GetAssembler()->MaybeUnpoisonHeapReference(temp);
-  // No need for read barrier or unpoisoning of coordinateType1 for comparison with null.
-  __ Cbnz(temp2, slow_path->GetEntryLabel());
+    // Check that the VarHandle references an instance field by checking that
+    // coordinateType1 == null. coordinateType0 should not be null, but this is handled by the
+    // type compatibility check with the source object's type, which will fail for null.
+    DCHECK_EQ(coordinate_type0_offset.Int32Value() + 4, coordinate_type1_offset.Int32Value());
+    __ Ldp(temp, temp2, HeapOperand(varhandle, coordinate_type0_offset.Int32Value()));
+    codegen->GetAssembler()->MaybeUnpoisonHeapReference(temp);
+    // No need for read barrier or unpoisoning of coordinateType1 for comparison with null.
+    __ Cbnz(temp2, slow_path->GetEntryLabel());
 
-  // Check that the object has the correct type.
-  // We deliberately avoid the read barrier, letting the slow path handle the false negatives.
-  temps.Release(temp2);  // Needed by GenerateSubTypeObjectCheckNoReadBarrier().
-  GenerateSubTypeObjectCheckNoReadBarrier(
-      codegen, slow_path, object, temp, /*object_can_be_null=*/ false);
+    // Check that the object has the correct type.
+    // We deliberately avoid the read barrier, letting the slow path handle the false negatives.
+    temps.Release(temp2);  // Needed by GenerateSubTypeObjectCheckNoReadBarrier().
+    GenerateSubTypeObjectCheckNoReadBarrier(
+        codegen, slow_path, object, temp, /*object_can_be_null=*/ false);
+  }
 }
 
 static void GenerateVarHandleArrayChecks(HInvoke* invoke,
@@ -4545,11 +4547,22 @@ static VarHandleSlowPathARM64* GenerateVarHandleChecks(HInvoke* invoke,
                                                        CodeGeneratorARM64* codegen,
                                                        std::memory_order order,
                                                        DataType::Type type) {
+  size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
+  VarHandleOptimizations optimizations(invoke);
+  if (optimizations.GetUseKnownBootImageVarHandle()) {
+    DCHECK_NE(expected_coordinates_count, 2u);
+    if (expected_coordinates_count == 0u || optimizations.GetSkipObjectNullCheck()) {
+      return nullptr;
+    }
+  }
+
   VarHandleSlowPathARM64* slow_path =
       new (codegen->GetScopedAllocator()) VarHandleSlowPathARM64(invoke, order);
   codegen->AddSlowPath(slow_path);
 
-  GenerateVarHandleAccessModeAndVarTypeChecks(invoke, codegen, slow_path, type);
+  if (!optimizations.GetUseKnownBootImageVarHandle()) {
+    GenerateVarHandleAccessModeAndVarTypeChecks(invoke, codegen, slow_path, type);
+  }
   GenerateVarHandleCoordinateChecks(invoke, codegen, slow_path);
 
   return slow_path;
@@ -4582,25 +4595,42 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
 
   if (expected_coordinates_count <= 1u) {
-    // For static fields, we need to fill the `target.object` with the declaring class,
-    // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
-    // we do not need the declaring class, so we can forget the `ArtMethod*` when
-    // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
-    Register method = (expected_coordinates_count == 0) ? target.object : target.offset;
+    if (VarHandleOptimizations(invoke).GetUseKnownBootImageVarHandle()) {
+      ScopedObjectAccess soa(Thread::Current());
+      ArtField* target_field = GetBootImageVarHandleField(invoke);
+      if (expected_coordinates_count == 0u) {
+        ObjPtr<mirror::Class> declaring_class = target_field->GetDeclaringClass();
+        if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(declaring_class)) {
+          uint32_t boot_image_offset = CodeGenerator::GetBootImageOffset(declaring_class);
+          codegen->LoadBootImageRelRoEntry(target.object, boot_image_offset);
+        } else {
+          codegen->LoadTypeForBootImageIntrinsic(
+              target.object,
+              TypeReference(&declaring_class->GetDexFile(), declaring_class->GetDexTypeIndex()));
+        }
+      }
+      __ Mov(target.offset, target_field->GetOffset().Uint32Value());
+    } else {
+      // For static fields, we need to fill the `target.object` with the declaring class,
+      // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
+      // we do not need the declaring class, so we can forget the `ArtMethod*` when
+      // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
+      Register method = (expected_coordinates_count == 0) ? target.object : target.offset;
 
-    const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
-    const MemberOffset offset_offset = ArtField::OffsetOffset();
+      const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
+      const MemberOffset offset_offset = ArtField::OffsetOffset();
 
-    // Load the ArtField, the offset and, if needed, declaring class.
-    __ Ldr(method.X(), HeapOperand(varhandle, art_field_offset.Int32Value()));
-    __ Ldr(target.offset, MemOperand(method.X(), offset_offset.Int32Value()));
-    if (expected_coordinates_count == 0u) {
-      codegen->GenerateGcRootFieldLoad(invoke,
-                                       LocationFrom(target.object),
-                                       method.X(),
-                                       ArtField::DeclaringClassOffset().Int32Value(),
-                                       /*fixup_label=*/ nullptr,
-                                       kCompilerReadBarrierOption);
+      // Load the ArtField, the offset and, if needed, declaring class.
+      __ Ldr(method.X(), HeapOperand(varhandle, art_field_offset.Int32Value()));
+      __ Ldr(target.offset, MemOperand(method.X(), offset_offset.Int32Value()));
+      if (expected_coordinates_count == 0u) {
+        codegen->GenerateGcRootFieldLoad(invoke,
+                                         LocationFrom(target.object),
+                                         method.X(),
+                                         ArtField::DeclaringClassOffset().Int32Value(),
+                                         /*fixup_label=*/ nullptr,
+                                         kCompilerReadBarrierOption);
+      }
     }
   } else {
     DCHECK_EQ(expected_coordinates_count, 2u);
@@ -4705,7 +4735,9 @@ static void GenerateVarHandleGet(HInvoke* invoke,
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, type);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   // ARM64 load-acquire instructions are implicitly sequentially consistent.
@@ -4760,7 +4792,8 @@ static void GenerateVarHandleGet(HInvoke* invoke,
     }
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }
@@ -4821,7 +4854,9 @@ static void GenerateVarHandleSet(HInvoke* invoke,
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, value_type);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   // ARM64 store-release instructions are implicitly sequentially consistent.
@@ -4866,7 +4901,8 @@ static void GenerateVarHandleSet(HInvoke* invoke,
     codegen->MarkGCCard(target.object, Register(value), /*value_can_be_null=*/ true);
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }
@@ -5014,9 +5050,11 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   VarHandleSlowPathARM64* slow_path = nullptr;
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, value_type);
-    slow_path->SetCompareAndSetOrExchangeArgs(return_success, strong);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      slow_path->SetCompareAndSetOrExchangeArgs(return_success, strong);
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   // This needs to be before the temp registers, as MarkGCCard also uses VIXL temps.
@@ -5173,7 +5211,8 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
     __ Sxth(out.W(), old_value);
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }
@@ -5314,9 +5353,11 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
   VarHandleSlowPathARM64* slow_path = nullptr;
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, value_type);
-    slow_path->SetGetAndUpdateOp(get_and_update_op);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      slow_path->SetGetAndUpdateOp(get_and_update_op);
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   // This needs to be before the temp registers, as MarkGCCard also uses VIXL temps.
@@ -5423,7 +5464,8 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     }
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }
