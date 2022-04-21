@@ -230,6 +230,17 @@ class VarHandleOptimizations : public IntrinsicOptimizations {
 
   INTRINSIC_OPTIMIZATION(DoNotIntrinsify, 0);  // One of the checks is statically known to fail.
   INTRINSIC_OPTIMIZATION(SkipObjectNullCheck, 1);  // Not applicable for static fields.
+
+  // Use known `VarHandle` from the boot image. To apply this optimization, the following
+  // `VarHandle` checks must pass based on static analysis:
+  //   - `VarHandle` type check (must match the coordinate count),
+  //   - access mode check,
+  //   - var type check (including assignability for reference types),
+  //   - object type check (except for static field VarHandles that do not take an object).
+  // Note that the object null check is controlled by the above flag `SkipObjectNullCheck`
+  // and arrays and byte array views (which always need a range check and sometimes also
+  // array type check) are currently unsupported.
+  INTRINSIC_OPTIMIZATION(UseKnownBootImageVarHandle, 2);
 };
 
 #undef INTRISIC_OPTIMIZATION
