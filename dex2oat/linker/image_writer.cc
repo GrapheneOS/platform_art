@@ -1109,10 +1109,13 @@ class ImageWriter::PruneClassesVisitor : public ClassVisitor {
     ClassTable* class_table =
         Runtime::Current()->GetClassLinker()->ClassTableForClassLoader(class_loader_);
     WriterMutexLock mu(Thread::Current(), class_table->lock_);
+    // App class loader class tables contain only one internal set. The boot class path class
+    // table also contains class sets from boot images we're compiling against but we are not
+    // pruning these boot image classes, so all classes to remove are in the last set.
+    DCHECK(!class_table->classes_.empty());
+    ClassTable::ClassSet& last_class_set = class_table->classes_.back();
     for (mirror::Class* klass : classes_to_prune_) {
       uint32_t hash = ClassTable::TableSlot::HashDescriptor(klass);
-      DCHECK(!class_table->classes_.empty());
-      ClassTable::ClassSet& last_class_set = class_table->classes_.back();
       auto it = last_class_set.FindWithHash(ClassTable::TableSlot(klass, hash), hash);
       DCHECK(it != last_class_set.end());
       last_class_set.erase(it);
