@@ -55,24 +55,24 @@ class ArtField final {
     return access_flags_;
   }
 
-  void SetAccessFlags(uint32_t new_access_flags) REQUIRES_SHARED(Locks::mutator_lock_) {
+  void SetAccessFlags(uint32_t new_access_flags) {
     // Not called within a transaction.
     access_flags_ = new_access_flags;
   }
 
-  bool IsPublic() REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool IsPublic() {
     return (GetAccessFlags() & kAccPublic) != 0;
   }
 
-  bool IsStatic() REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool IsStatic() {
     return (GetAccessFlags() & kAccStatic) != 0;
   }
 
-  bool IsFinal() REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool IsFinal() {
     return (GetAccessFlags() & kAccFinal) != 0;
   }
 
-  bool IsPrivate() REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool IsPrivate() {
     return (GetAccessFlags() & kAccPrivate) != 0;
   }
 
@@ -86,7 +86,7 @@ class ArtField final {
   }
 
   // Offset to field within an Object.
-  MemberOffset GetOffset() REQUIRES_SHARED(Locks::mutator_lock_) {
+  MemberOffset GetOffset() {
     return MemberOffset(offset_);
   }
 
@@ -179,7 +179,7 @@ class ArtField final {
     visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
   }
 
-  bool IsVolatile() REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool IsVolatile() {
     return (GetAccessFlags() & kAccVolatile) != 0;
   }
 
