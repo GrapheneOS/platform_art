@@ -1266,9 +1266,9 @@ void CodeGeneratorX86_64::RecordMethodBssEntryPatch(HInvoke* invoke) {
   __ Bind(&method_bss_entry_patches_.back().label);
 }
 
-void CodeGeneratorX86_64::RecordBootImageTypePatch(HLoadClass* load_class) {
-  boot_image_type_patches_.emplace_back(
-      &load_class->GetDexFile(), load_class->GetTypeIndex().index_);
+void CodeGeneratorX86_64::RecordBootImageTypePatch(const DexFile& dex_file,
+                                                   dex::TypeIndex type_index) {
+  boot_image_type_patches_.emplace_back(&dex_file, type_index.index_);
   __ Bind(&boot_image_type_patches_.back().label);
 }
 
@@ -6425,7 +6425,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) NO_THREAD_S
       DCHECK_EQ(read_barrier_option, kWithoutReadBarrier);
       __ leal(out,
               Address::Absolute(CodeGeneratorX86_64::kPlaceholder32BitOffset, /* no_rip= */ false));
-      codegen_->RecordBootImageTypePatch(cls);
+      codegen_->RecordBootImageTypePatch(cls->GetDexFile(), cls->GetTypeIndex());
       break;
     case HLoadClass::LoadKind::kBootImageRelRo: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
