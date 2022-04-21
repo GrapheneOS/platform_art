@@ -78,9 +78,6 @@ class ClassTable {
       return MaskHash(other) == Hash();
     }
 
-    static uint32_t HashDescriptor(ObjPtr<mirror::Class> klass)
-        REQUIRES_SHARED(Locks::mutator_lock_);
-
     template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
     ObjPtr<mirror::Class> Read() const REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -94,9 +91,6 @@ class ClassTable {
         REQUIRES_SHARED(Locks::mutator_lock_);
 
     static uint32_t Encode(ObjPtr<mirror::Class> klass, uint32_t hash_bits)
-        REQUIRES_SHARED(Locks::mutator_lock_);
-
-    static uint32_t UpdateHashForProxyClass(uint32_t hash, ObjPtr<mirror::Class> proxy_class)
         REQUIRES_SHARED(Locks::mutator_lock_);
 
     // Data contains the class pointer GcRoot as well as the low bits of the descriptor hash.
