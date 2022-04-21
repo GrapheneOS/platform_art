@@ -150,6 +150,9 @@ class MANAGED VarHandle : public Object {
   // Gets the variable type that is operated on by this VarHandle instance.
   ObjPtr<Class> GetVarType() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Gets the type of the object that this VarHandle operates on, null for StaticFieldVarHandle.
+  ObjPtr<Class> GetCoordinateType0() REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Gets the return type descriptor for a named accessor method,
   // nullptr if accessor_method is not supported.
   static const char* GetReturnTypeDescriptor(const char* accessor_method);
@@ -187,7 +190,6 @@ class MANAGED VarHandle : public Object {
   }
 
  private:
-  ObjPtr<Class> GetCoordinateType0() REQUIRES_SHARED(Locks::mutator_lock_);
   ObjPtr<Class> GetCoordinateType1() REQUIRES_SHARED(Locks::mutator_lock_);
   int32_t GetAccessModesBitMask() REQUIRES_SHARED(Locks::mutator_lock_);
 

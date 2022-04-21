@@ -639,6 +639,7 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
                                                 dex::TypeIndex type_index,
                                                 Handle<mirror::Class> handle);
 
+  void LoadBootImageRelRoEntry(vixl::aarch32::Register reg, uint32_t boot_image_offset);
   void LoadBootImageAddress(vixl::aarch32::Register reg, uint32_t boot_image_reference);
   void LoadTypeForBootImageIntrinsic(vixl::aarch32::Register reg, TypeReference type_reference);
   void LoadIntrinsicDeclaringClass(vixl::aarch32::Register reg, HInvoke* invoke);

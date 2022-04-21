@@ -816,6 +816,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                 vixl::aarch64::Register out,
                                 vixl::aarch64::Register base);
 
+  void LoadBootImageRelRoEntry(vixl::aarch64::Register reg, uint32_t boot_image_offset);
   void LoadBootImageAddress(vixl::aarch64::Register reg, uint32_t boot_image_reference);
   void LoadTypeForBootImageIntrinsic(vixl::aarch64::Register reg, TypeReference type_reference);
   void LoadIntrinsicDeclaringClass(vixl::aarch64::Register reg, HInvoke* invoke);
