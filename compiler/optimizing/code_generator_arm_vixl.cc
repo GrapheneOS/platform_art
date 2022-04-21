@@ -7527,10 +7527,8 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) NO_THREAD_
     }
     case HLoadClass::LoadKind::kBootImageRelRo: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
-      CodeGeneratorARMVIXL::PcRelativePatchInfo* labels =
-          codegen_->NewBootImageRelRoPatch(CodeGenerator::GetBootImageOffset(cls));
-      codegen_->EmitMovwMovtPlaceholder(labels, out);
-      __ Ldr(out, MemOperand(out, /* offset= */ 0));
+      uint32_t boot_image_offset = CodeGenerator::GetBootImageOffset(cls);
+      codegen_->LoadBootImageRelRoEntry(out, boot_image_offset);
       break;
     }
     case HLoadClass::LoadKind::kBssEntry:
@@ -7539,7 +7537,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) NO_THREAD_
       CodeGeneratorARMVIXL::PcRelativePatchInfo* labels = codegen_->NewTypeBssEntryPatch(cls);
       codegen_->EmitMovwMovtPlaceholder(labels, out);
       // All aligned loads are implicitly atomic consume operations on ARM.
-      codegen_->GenerateGcRootFieldLoad(cls, out_loc, out, /* offset= */ 0, read_barrier_option);
+      codegen_->GenerateGcRootFieldLoad(cls, out_loc, out, /*offset=*/ 0, read_barrier_option);
       generate_null_check = true;
       break;
     }
@@ -7555,7 +7553,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadClass(HLoadClass* cls) NO_THREAD_
                                                        cls->GetTypeIndex(),
                                                        cls->GetClass()));
       // /* GcRoot<mirror::Class> */ out = *out
-      codegen_->GenerateGcRootFieldLoad(cls, out_loc, out, /* offset= */ 0, read_barrier_option);
+      codegen_->GenerateGcRootFieldLoad(cls, out_loc, out, /*offset=*/ 0, read_barrier_option);
       break;
     }
     case HLoadClass::LoadKind::kRuntimeCall:
@@ -7752,10 +7750,8 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) NO_THRE
     }
     case HLoadString::LoadKind::kBootImageRelRo: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
-      CodeGeneratorARMVIXL::PcRelativePatchInfo* labels =
-          codegen_->NewBootImageRelRoPatch(CodeGenerator::GetBootImageOffset(load));
-      codegen_->EmitMovwMovtPlaceholder(labels, out);
-      __ Ldr(out, MemOperand(out, /* offset= */ 0));
+      uint32_t boot_image_offset = CodeGenerator::GetBootImageOffset(load);
+      codegen_->LoadBootImageRelRoEntry(out, boot_image_offset);
       return;
     }
     case HLoadString::LoadKind::kBssEntry: {
@@ -7764,7 +7760,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) NO_THRE
       codegen_->EmitMovwMovtPlaceholder(labels, out);
       // All aligned loads are implicitly atomic consume operations on ARM.
       codegen_->GenerateGcRootFieldLoad(
-          load, out_loc, out, /* offset= */ 0, kCompilerReadBarrierOption);
+          load, out_loc, out, /*offset=*/ 0, kCompilerReadBarrierOption);
       LoadStringSlowPathARMVIXL* slow_path =
           new (codegen_->GetScopedAllocator()) LoadStringSlowPathARMVIXL(load);
       codegen_->AddSlowPath(slow_path);
@@ -7785,7 +7781,7 @@ void InstructionCodeGeneratorARMVIXL::VisitLoadString(HLoadString* load) NO_THRE
                                                         load->GetString()));
       // /* GcRoot<mirror::String> */ out = *out
       codegen_->GenerateGcRootFieldLoad(
-          load, out_loc, out, /* offset= */ 0, kCompilerReadBarrierOption);
+          load, out_loc, out, /*offset=*/ 0, kCompilerReadBarrierOption);
       return;
     }
     default:
@@ -9222,10 +9218,7 @@ void CodeGeneratorARMVIXL::LoadMethod(MethodLoadKind load_kind, Location temp, H
     }
     case MethodLoadKind::kBootImageRelRo: {
       uint32_t boot_image_offset = GetBootImageOffset(invoke);
-      PcRelativePatchInfo* labels = NewBootImageRelRoPatch(boot_image_offset);
-      vixl32::Register temp_reg = RegisterFrom(temp);
-      EmitMovwMovtPlaceholder(labels, temp_reg);
-      GetAssembler()->LoadFromOffset(kLoadWord, temp_reg, temp_reg, /* offset*/ 0);
+      LoadBootImageRelRoEntry(RegisterFrom(temp), boot_image_offset);
       break;
     }
     case MethodLoadKind::kBssEntry: {
@@ -9520,6 +9513,13 @@ VIXLUInt32Literal* CodeGeneratorARMVIXL::DeduplicateJitClassLiteral(const DexFil
       });
 }
 
+void CodeGeneratorARMVIXL::LoadBootImageRelRoEntry(vixl32::Register reg,
+                                                   uint32_t boot_image_offset) {
+  CodeGeneratorARMVIXL::PcRelativePatchInfo* labels = NewBootImageRelRoPatch(boot_image_offset);
+  EmitMovwMovtPlaceholder(labels, reg);
+  __ Ldr(reg, MemOperand(reg, /*offset=*/ 0));
+}
+
 void CodeGeneratorARMVIXL::LoadBootImageAddress(vixl32::Register reg,
                                                 uint32_t boot_image_reference) {
   if (GetCompilerOptions().IsBootImage()) {
@@ -9527,10 +9527,7 @@ void CodeGeneratorARMVIXL::LoadBootImageAddress(vixl32::Register reg,
         NewBootImageIntrinsicPatch(boot_image_reference);
     EmitMovwMovtPlaceholder(labels, reg);
   } else if (GetCompilerOptions().GetCompilePic()) {
-    CodeGeneratorARMVIXL::PcRelativePatchInfo* labels =
-        NewBootImageRelRoPatch(boot_image_reference);
-    EmitMovwMovtPlaceholder(labels, reg);
-    __ Ldr(reg, MemOperand(reg, /* offset= */ 0));
+    LoadBootImageRelRoEntry(reg, boot_image_reference);
   } else {
     DCHECK(GetCompilerOptions().IsJitCompiler());
     gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -9544,7 +9541,7 @@ void CodeGeneratorARMVIXL::LoadBootImageAddress(vixl32::Register reg,
 void CodeGeneratorARMVIXL::LoadTypeForBootImageIntrinsic(vixl::aarch32::Register reg,
                                                          TypeReference target_type) {
   // Load the class the same way as for HLoadClass::LoadKind::kBootImageLinkTimePcRelative.
-  DCHECK(GetCompilerOptions().IsBootImage());
+  DCHECK(GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsBootImageExtension());
   PcRelativePatchInfo* labels =
       NewBootImageTypePatch(*target_type.dex_file, target_type.TypeIndex());
   EmitMovwMovtPlaceholder(labels, reg);
