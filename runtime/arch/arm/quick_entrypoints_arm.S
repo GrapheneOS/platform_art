@@ -134,50 +134,16 @@
     .cfi_adjust_cfa_offset -52
 .endm
 
-.macro RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-    ldr r1, [rSELF, # THREAD_EXCEPTION_OFFSET]  // Get exception field.
-    cbnz r1, 1f
-    DEOPT_OR_RETURN r1                          // Check if deopt is required
+.macro RETURN_IF_RESULT_IS_ZERO
+    cbnz   r0, 1f              @ result non-zero branch over
+    bx     lr                  @ return
 1:
-    DELIVER_PENDING_EXCEPTION
 .endm
 
-.macro DEOPT_OR_RETURN temp, is_ref = 0
-  ldr \temp, [rSELF, #THREAD_DEOPT_CHECK_REQUIRED_OFFSET]
-  cbnz \temp, 2f
-  bx     lr
-2:
-  SETUP_SAVE_EVERYTHING_FRAME \temp
-  mov r2, \is_ref                      // pass if result is a reference
-  mov r1, r0                           // pass the result
-  mov r0, rSELF                        // Thread::Current
-  bl artDeoptimizeIfNeeded
-  .cfi_remember_state
-  RESTORE_SAVE_EVERYTHING_FRAME
-  REFRESH_MARKING_REGISTER
-  bx     lr
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
-.endm
-
-.macro DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_R0 temp, is_ref
-  ldr \temp, [rSELF, #THREAD_DEOPT_CHECK_REQUIRED_OFFSET]
-  cbnz \temp, 2f
-  .cfi_remember_state
-  RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
-  REFRESH_MARKING_REGISTER
-  bx     lr
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
-2:
-  str    r0, [sp, SAVE_EVERYTHING_FRAME_R0_OFFSET] // update result in the frame
-  mov r2, \is_ref                                  // pass if result is a reference
-  mov r1, r0                                       // pass the result
-  mov r0, rSELF                                    // Thread::Current
-  bl artDeoptimizeIfNeeded
-  .cfi_remember_state
-  RESTORE_SAVE_EVERYTHING_FRAME
-  REFRESH_MARKING_REGISTER
-  bx     lr
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
+.macro RETURN_IF_RESULT_IS_NON_ZERO
+    cbz    r0, 1f              @ result zero branch over
+    bx     lr                  @ return
+1:
 .endm
 
 .macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
@@ -217,16 +183,12 @@ END \c_name
 .endm
 
 .macro RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
-    cbnz   r0, 1f              @ result non-zero branch over
-    DEOPT_OR_RETURN r1
-1:
+    RETURN_IF_RESULT_IS_ZERO
     DELIVER_PENDING_EXCEPTION
 .endm
 
-.macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
-    cbz    r0, 1f              @ result zero branch over
-    DEOPT_OR_RETURN r1, /*is_ref=*/1
-1:
+.macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO
     DELIVER_PENDING_EXCEPTION
 .endm
 
@@ -555,7 +517,8 @@ ENTRY art_quick_lock_object_no_inline
     bl     artLockObjectFromCode      @ (Object* obj, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
 END art_quick_lock_object_no_inline
 
     /*
@@ -585,7 +548,8 @@ ENTRY art_quick_unlock_object_no_inline
     bl     artUnlockObjectFromCode    @ (Object* obj, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
 END art_quick_unlock_object_no_inline
 
     /*
@@ -818,8 +782,11 @@ ENTRY \name
     mov    r1, rSELF                  @ pass Thread::Current
     bl     \entrypoint                @ (uint32_t index, Thread*)
     cbz    r0, 1f                     @ If result is null, deliver the OOME.
-    str    r0, [sp, #136]             @ store result in the frame
-    DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_R0 r1, /* is_ref= */ 1
+    .cfi_remember_state
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_R0
+    REFRESH_MARKING_REGISTER
+    bx     lr
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
 1:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END \name
@@ -842,12 +809,12 @@ ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromC
     /*
      * Called by managed code to resolve a static field and load a non-wide value.
      */
-ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
     /*
      * Called by managed code to resolve a static field and load a 64-bit primitive value.
      */
@@ -860,7 +827,7 @@ ENTRY art_quick_get64_static
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
     cbnz   r2, 1f                        @ success if no exception pending
-    DEOPT_OR_RETURN r2                   @ check if deopt is required or return
+    bx     lr                            @ return on success
 1:
     DELIVER_PENDING_EXCEPTION
 END art_quick_get64_static
@@ -868,12 +835,12 @@ END art_quick_get64_static
     /*
      * Called by managed code to resolve an instance field and load a non-wide value.
      */
-TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
+TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_R1
     /*
      * Called by managed code to resolve an instance field and load a 64-bit primitive value.
      */
@@ -886,7 +853,7 @@ ENTRY art_quick_get64_instance
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
     cbnz   r2, 1f                        @ success if no exception pending
-    DEOPT_OR_RETURN r2                   @ check if deopt is required or return
+    bx     lr                            @ return on success
 1:
     DELIVER_PENDING_EXCEPTION
 END art_quick_get64_instance
@@ -921,7 +888,8 @@ ENTRY art_quick_set64_instance
     .cfi_adjust_cfa_offset -16
     RESTORE_SAVE_REFS_ONLY_FRAME         @ TODO: we can clearly save an add here
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
 END art_quick_set64_instance
 
     .extern artSet64StaticFromCompiledCode
@@ -935,7 +903,8 @@ ENTRY art_quick_set64_static
     .cfi_adjust_cfa_offset -16
     RESTORE_SAVE_REFS_ONLY_FRAME          @ TODO: we can clearly save an add here
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_ZERO_OR_DELIVER
+    RETURN_IF_RESULT_IS_ZERO
+    DELIVER_PENDING_EXCEPTION
 END art_quick_set64_static
 
 // Generate the allocation entrypoints for each allocator.
@@ -1068,7 +1037,7 @@ ENTRY \c_name
     bl     \cxx_name                  @ (mirror::Class* cls, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \c_name
 .endm
 
@@ -1153,7 +1122,7 @@ ENTRY \name
     bl     \entrypoint                                        // (mirror::Class* klass, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \name
 .endm
 
@@ -1226,7 +1195,7 @@ ENTRY \name
     bl     \entrypoint
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \name
 .endm
 
@@ -1914,7 +1883,7 @@ ENTRY art_quick_string_builder_append
     bl     artStringBuilderAppend       @ (uint32_t, const unit32_t*, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END art_quick_string_builder_append
 
     /*
