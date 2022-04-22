@@ -555,7 +555,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   // For native methods this case is handled by the caller by checking the quick frame tag. See
   // StackVisitor::WalkStack for more details. For non-native methods pc can be 0 only for runtime
   // methods or proxy invoke handlers which are handled earlier.
-  DCHECK_NE(pc, 0);
+  DCHECK(pc != 0);
 
   // Check whether the current entry point contains this pc.
   if (!class_linker->IsQuickGenericJniStub(existing_entry_point) &&
