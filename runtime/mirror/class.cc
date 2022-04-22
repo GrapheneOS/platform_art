@@ -1702,6 +1702,33 @@ bool Class::ProxyDescriptorEquals(const char* match) {
   return storage == match;
 }
 
+uint32_t Class::UpdateHashForProxyClass(uint32_t hash, ObjPtr<mirror::Class> proxy_class) {
+  // No read barrier needed, the `name` field is constant for proxy classes and
+  // the contents of the String are also constant. See ReadBarrierOption.
+  // Note: The `proxy_class` can be a from-space reference.
+  DCHECK(proxy_class->IsProxyClass());
+  ObjPtr<mirror::String> name = proxy_class->GetName<kVerifyNone, kWithoutReadBarrier>();
+  DCHECK(name != nullptr);
+  // Update hash for characters we would get from `DotToDescriptor(name->ToModifiedUtf8())`.
+  DCHECK_NE(name->GetLength(), 0);
+  DCHECK_NE(name->CharAt(0), '[');
+  hash = UpdateModifiedUtf8Hash(hash, 'L');
+  if (name->IsCompressed()) {
+    std::string_view dot_name(reinterpret_cast<const char*>(name->GetValueCompressed()),
+                              name->GetLength());
+    for (char c : dot_name) {
+      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
+    }
+  } else {
+    std::string dot_name = name->ToModifiedUtf8();
+    for (char c : dot_name) {
+      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
+    }
+  }
+  hash = UpdateModifiedUtf8Hash(hash, ';');
+  return hash;
+}
+
 // TODO: Move this to java_lang_Class.cc?
 ArtMethod* Class::GetDeclaredConstructor(
     Thread* self, Handle<ObjectArray<Class>> args, PointerSize pointer_size) {

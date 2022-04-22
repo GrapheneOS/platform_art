@@ -19,6 +19,7 @@
 
 #include "base/casts.h"
 #include "base/macros.h"
+#include "class_root-inl.h"
 #include "code_generator.h"
 #include "data_type-inl.h"
 #include "dex/dex_file-inl.h"
@@ -194,6 +195,28 @@ static inline DataType::Type GetVarHandleExpectedValueType(HInvoke* invoke,
   } else {
     return GetDataTypeFromShorty(invoke, number_of_arguments - 1u);
   }
+}
+
+static inline ArtField* GetBootImageVarHandleField(HInvoke* invoke)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  DCHECK_LE(GetExpectedVarHandleCoordinatesCount(invoke), 1u);
+  DCHECK(VarHandleOptimizations(invoke).GetUseKnownBootImageVarHandle());
+  HInstruction* var_handle_instruction = invoke->InputAt(0);
+  if (var_handle_instruction->IsNullCheck()) {
+    var_handle_instruction = var_handle_instruction->InputAt(0);
+  }
+  DCHECK(var_handle_instruction->IsStaticFieldGet());
+  ArtField* field = var_handle_instruction->AsStaticFieldGet()->GetFieldInfo().GetField();
+  DCHECK(field->IsStatic());
+  DCHECK(field->IsFinal());
+  DCHECK(var_handle_instruction->InputAt(0)->AsLoadClass()->IsInBootImage());
+  ObjPtr<mirror::Object> var_handle = field->GetObject(field->GetDeclaringClass());
+  DCHECK(var_handle->GetClass() ==
+         (GetExpectedVarHandleCoordinatesCount(invoke) == 0u
+             ? GetClassRoot<mirror::StaticFieldVarHandle>()
+             : GetClassRoot<mirror::FieldVarHandle>()));
+  static_assert(std::is_base_of_v<mirror::FieldVarHandle, mirror::StaticFieldVarHandle>);
+  return ObjPtr<mirror::FieldVarHandle>::DownCast(var_handle)->GetArtField();
 }
 
 }  // namespace art

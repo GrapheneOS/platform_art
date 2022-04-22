@@ -20,6 +20,7 @@
 #include "class_linker-inl.h"
 #include "class_root-inl.h"
 #include "data_type-inl.h"
+#include "driver/compiler_options.h"
 #include "escape.h"
 #include "intrinsics.h"
 #include "intrinsics_utils.h"
@@ -124,6 +125,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyAllocationIntrinsic(HInvoke* invoke);
   void SimplifyVarHandleIntrinsic(HInvoke* invoke);
 
+  bool CanUseKnownBootImageVarHandle(HInvoke* invoke);
   static bool CanEnsureNotNullAt(HInstruction* input, HInstruction* at);
 
   CodeGenerator* codegen_;
@@ -2884,7 +2886,7 @@ void InstructionSimplifierVisitor::SimplifyVarHandleIntrinsic(HInvoke* invoke) {
   }
 
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
-  if (expected_coordinates_count == 1u) {
+  if (expected_coordinates_count != 0u) {
     HInstruction* object = invoke->InputAt(1);
     // The following has been ensured by static checks in the instruction builder.
     DCHECK(object->GetType() == DataType::Type::kReference);
@@ -2898,6 +2900,127 @@ void InstructionSimplifierVisitor::SimplifyVarHandleIntrinsic(HInvoke* invoke) {
       optimizations.SetSkipObjectNullCheck();
     }
   }
+
+  if (CanUseKnownBootImageVarHandle(invoke)) {
+    optimizations.SetUseKnownBootImageVarHandle();
+  }
+}
+
+bool InstructionSimplifierVisitor::CanUseKnownBootImageVarHandle(HInvoke* invoke) {
+  // If the `VarHandle` comes from a static final field of an initialized class in
+  // the boot image, we can do the checks at compile time. We do this optimization only
+  // for AOT and only for field handles when we can avoid all checks. This avoids the
+  // possibility of the code concurrently messing with the `VarHandle` using reflection,
+  // we simply perform the operation with the `VarHandle` as seen at compile time.
+  // TODO: Extend this to arrays to support the `AtomicIntegerArray` class.
+  const CompilerOptions& compiler_options = codegen_->GetCompilerOptions();
+  if (!compiler_options.IsAotCompiler()) {
+    return false;
+  }
+  size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
+  if (expected_coordinates_count == 2u) {
+    return false;
+  }
+  HInstruction* var_handle_instruction = invoke->InputAt(0);
+  if (var_handle_instruction->IsNullCheck()) {
+    var_handle_instruction = var_handle_instruction->InputAt(0);
+  }
+  if (!var_handle_instruction->IsStaticFieldGet()) {
+    return false;
+  }
+  ArtField* field = var_handle_instruction->AsStaticFieldGet()->GetFieldInfo().GetField();
+  DCHECK(field->IsStatic());
+  if (!field->IsFinal()) {
+    return false;
+  }
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::Class> declaring_class = field->GetDeclaringClass();
+  if (!declaring_class->IsVisiblyInitialized()) {
+    // During AOT compilation, dex2oat ensures that initialized classes are visibly initialized.
+    DCHECK(!declaring_class->IsInitialized());
+    return false;
+  }
+  HLoadClass* load_class = var_handle_instruction->InputAt(0)->AsLoadClass();
+  if (kIsDebugBuild) {
+    bool is_in_boot_image = false;
+    if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(declaring_class)) {
+      is_in_boot_image = true;
+    } else if (compiler_options.IsBootImage() || compiler_options.IsBootImageExtension()) {
+      std::string storage;
+      const char* descriptor = declaring_class->GetDescriptor(&storage);
+      is_in_boot_image = compiler_options.IsImageClass(descriptor);
+    }
+    CHECK_EQ(is_in_boot_image, load_class->IsInBootImage());
+  }
+  if (!load_class->IsInBootImage()) {
+    return false;
+  }
+
+  // Get the `VarHandle` object and check its class.
+  ObjPtr<mirror::Class> expected_var_handle_class;
+  switch (expected_coordinates_count) {
+    case 0:
+      expected_var_handle_class = GetClassRoot<mirror::StaticFieldVarHandle>();
+      break;
+    default:
+      DCHECK_EQ(expected_coordinates_count, 1u);
+      expected_var_handle_class = GetClassRoot<mirror::FieldVarHandle>();
+      break;
+  }
+  ObjPtr<mirror::Object> var_handle_object = field->GetObject(declaring_class);
+  if (var_handle_object == nullptr || var_handle_object->GetClass() != expected_var_handle_class) {
+    return false;
+  }
+  ObjPtr<mirror::VarHandle> var_handle = ObjPtr<mirror::VarHandle>::DownCast(var_handle_object);
+
+  // Check access mode.
+  mirror::VarHandle::AccessMode access_mode =
+      mirror::VarHandle::GetAccessModeByIntrinsic(invoke->GetIntrinsic());
+  if (!var_handle->IsAccessModeSupported(access_mode)) {
+    return false;
+  }
+
+  // Check argument types.
+  ObjPtr<mirror::Class> var_type = var_handle->GetVarType();
+  mirror::VarHandle::AccessModeTemplate access_mode_template =
+      mirror::VarHandle::GetAccessModeTemplate(access_mode);
+  // Note: The data type of input arguments does not need to match the type from shorty
+  // due to implicit conversions or avoiding unnecessary conversions before narrow stores.
+  DataType::Type type = (access_mode_template == mirror::VarHandle::AccessModeTemplate::kGet)
+      ? invoke->GetType()
+      : GetDataTypeFromShorty(invoke, invoke->GetNumberOfArguments() - 1u);
+  if (type != DataTypeFromPrimitive(var_type->GetPrimitiveType())) {
+    return false;
+  }
+  if (type == DataType::Type::kReference) {
+    uint32_t arguments_start = /* VarHandle object */ 1u + expected_coordinates_count;
+    uint32_t number_of_arguments = invoke->GetNumberOfArguments();
+    for (size_t arg_index = arguments_start; arg_index != number_of_arguments; ++arg_index) {
+      HInstruction* arg = invoke->InputAt(arg_index);
+      DCHECK_EQ(arg->GetType(), DataType::Type::kReference);
+      if (!arg->IsNullConstant()) {
+        ReferenceTypeInfo arg_type_info = arg->GetReferenceTypeInfo();
+        if (!arg_type_info.IsValid() ||
+            !var_type->IsAssignableFrom(arg_type_info.GetTypeHandle().Get())) {
+          return false;
+        }
+      }
+    }
+  }
+
+  // Check the first coordinate.
+  if (expected_coordinates_count != 0u) {
+    ObjPtr<mirror::Class> coordinate0_type = var_handle->GetCoordinateType0();
+    DCHECK(coordinate0_type != nullptr);
+    ReferenceTypeInfo object_type_info = invoke->InputAt(1)->GetReferenceTypeInfo();
+    if (!object_type_info.IsValid() ||
+        !coordinate0_type->IsAssignableFrom(object_type_info.GetTypeHandle().Get())) {
+      return false;
+    }
+  }
+
+  // All required checks passed.
+  return true;
 }
 
 void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {

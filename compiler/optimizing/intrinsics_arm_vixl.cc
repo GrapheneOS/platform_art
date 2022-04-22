@@ -4139,28 +4139,30 @@ static void GenerateVarHandleInstanceFieldChecks(HInvoke* invoke,
     __ B(eq, slow_path->GetEntryLabel());
   }
 
-  // Use the first temporary register, whether it's for the declaring class or the offset.
-  // It is not used yet at this point.
-  vixl32::Register temp = RegisterFrom(invoke->GetLocations()->GetTemp(0u));
+  if (!optimizations.GetUseKnownBootImageVarHandle()) {
+    // Use the first temporary register, whether it's for the declaring class or the offset.
+    // It is not used yet at this point.
+    vixl32::Register temp = RegisterFrom(invoke->GetLocations()->GetTemp(0u));
 
-  // Check that the VarHandle references an instance field by checking that
-  // coordinateType1 == null. coordinateType0 should not be null, but this is handled by the
-  // type compatibility check with the source object's type, which will fail for null.
-  {
-    UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
-    vixl32::Register temp2 = temps.Acquire();
-    DCHECK_EQ(coordinate_type0_offset.Int32Value() + 4, coordinate_type1_offset.Int32Value());
-    __ Ldrd(temp, temp2, MemOperand(varhandle, coordinate_type0_offset.Int32Value()));
-    assembler->MaybeUnpoisonHeapReference(temp);
-    // No need for read barrier or unpoisoning of coordinateType1 for comparison with null.
-    __ Cmp(temp2, 0);
-    __ B(ne, slow_path->GetEntryLabel());
+    // Check that the VarHandle references an instance field by checking that
+    // coordinateType1 == null. coordinateType0 should not be null, but this is handled by the
+    // type compatibility check with the source object's type, which will fail for null.
+    {
+      UseScratchRegisterScope temps(assembler->GetVIXLAssembler());
+      vixl32::Register temp2 = temps.Acquire();
+      DCHECK_EQ(coordinate_type0_offset.Int32Value() + 4, coordinate_type1_offset.Int32Value());
+      __ Ldrd(temp, temp2, MemOperand(varhandle, coordinate_type0_offset.Int32Value()));
+      assembler->MaybeUnpoisonHeapReference(temp);
+      // No need for read barrier or unpoisoning of coordinateType1 for comparison with null.
+      __ Cmp(temp2, 0);
+      __ B(ne, slow_path->GetEntryLabel());
+    }
+
+    // Check that the object has the correct type.
+    // We deliberately avoid the read barrier, letting the slow path handle the false negatives.
+    GenerateSubTypeObjectCheckNoReadBarrier(
+        codegen, slow_path, object, temp, /*object_can_be_null=*/ false);
   }
-
-  // Check that the object has the correct type.
-  // We deliberately avoid the read barrier, letting the slow path handle the false negatives.
-  GenerateSubTypeObjectCheckNoReadBarrier(
-      codegen, slow_path, object, temp, /*object_can_be_null=*/ false);
 }
 
 static void GenerateVarHandleArrayChecks(HInvoke* invoke,
@@ -4268,11 +4270,22 @@ static VarHandleSlowPathARMVIXL* GenerateVarHandleChecks(HInvoke* invoke,
                                                          CodeGeneratorARMVIXL* codegen,
                                                          std::memory_order order,
                                                          DataType::Type type) {
+  size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
+  VarHandleOptimizations optimizations(invoke);
+  if (optimizations.GetUseKnownBootImageVarHandle()) {
+    DCHECK_NE(expected_coordinates_count, 2u);
+    if (expected_coordinates_count == 0u || optimizations.GetSkipObjectNullCheck()) {
+      return nullptr;
+    }
+  }
+
   VarHandleSlowPathARMVIXL* slow_path =
       new (codegen->GetScopedAllocator()) VarHandleSlowPathARMVIXL(invoke, order);
   codegen->AddSlowPath(slow_path);
 
-  GenerateVarHandleAccessModeAndVarTypeChecks(invoke, codegen, slow_path, type);
+  if (!optimizations.GetUseKnownBootImageVarHandle()) {
+    GenerateVarHandleAccessModeAndVarTypeChecks(invoke, codegen, slow_path, type);
+  }
   GenerateVarHandleCoordinateChecks(invoke, codegen, slow_path);
 
   return slow_path;
@@ -4305,24 +4318,41 @@ static void GenerateVarHandleTarget(HInvoke* invoke,
   size_t expected_coordinates_count = GetExpectedVarHandleCoordinatesCount(invoke);
 
   if (expected_coordinates_count <= 1u) {
-    // For static fields, we need to fill the `target.object` with the declaring class,
-    // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
-    // we do not need the declaring class, so we can forget the `ArtMethod*` when
-    // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
-    vixl32::Register method = (expected_coordinates_count == 0) ? target.object : target.offset;
+    if (VarHandleOptimizations(invoke).GetUseKnownBootImageVarHandle()) {
+      ScopedObjectAccess soa(Thread::Current());
+      ArtField* target_field = GetBootImageVarHandleField(invoke);
+      if (expected_coordinates_count == 0u) {
+        ObjPtr<mirror::Class> declaring_class = target_field->GetDeclaringClass();
+        if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(declaring_class)) {
+          uint32_t boot_image_offset = CodeGenerator::GetBootImageOffset(declaring_class);
+          codegen->LoadBootImageRelRoEntry(target.object, boot_image_offset);
+        } else {
+          codegen->LoadTypeForBootImageIntrinsic(
+              target.object,
+              TypeReference(&declaring_class->GetDexFile(), declaring_class->GetDexTypeIndex()));
+        }
+      }
+      __ Mov(target.offset, target_field->GetOffset().Uint32Value());
+    } else {
+      // For static fields, we need to fill the `target.object` with the declaring class,
+      // so we can use `target.object` as temporary for the `ArtMethod*`. For instance fields,
+      // we do not need the declaring class, so we can forget the `ArtMethod*` when
+      // we load the `target.offset`, so use the `target.offset` to hold the `ArtMethod*`.
+      vixl32::Register method = (expected_coordinates_count == 0) ? target.object : target.offset;
 
-    const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
-    const MemberOffset offset_offset = ArtField::OffsetOffset();
+      const MemberOffset art_field_offset = mirror::FieldVarHandle::ArtFieldOffset();
+      const MemberOffset offset_offset = ArtField::OffsetOffset();
 
-    // Load the ArtField, the offset and, if needed, declaring class.
-    __ Ldr(method, MemOperand(varhandle, art_field_offset.Int32Value()));
-    __ Ldr(target.offset, MemOperand(method, offset_offset.Int32Value()));
-    if (expected_coordinates_count == 0u) {
-      codegen->GenerateGcRootFieldLoad(invoke,
-                                       LocationFrom(target.object),
-                                       method,
-                                       ArtField::DeclaringClassOffset().Int32Value(),
-                                       kCompilerReadBarrierOption);
+      // Load the ArtField, the offset and, if needed, declaring class.
+      __ Ldr(method, MemOperand(varhandle, art_field_offset.Int32Value()));
+      __ Ldr(target.offset, MemOperand(method, offset_offset.Int32Value()));
+      if (expected_coordinates_count == 0u) {
+        codegen->GenerateGcRootFieldLoad(invoke,
+                                         LocationFrom(target.object),
+                                         method,
+                                         ArtField::DeclaringClassOffset().Int32Value(),
+                                         kCompilerReadBarrierOption);
+      }
     }
   } else {
     DCHECK_EQ(expected_coordinates_count, 2u);
@@ -4436,9 +4466,11 @@ static void GenerateVarHandleGet(HInvoke* invoke,
   VarHandleSlowPathARMVIXL* slow_path = nullptr;
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, type);
-    slow_path->SetAtomic(atomic);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      slow_path->SetAtomic(atomic);
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   Location maybe_temp = Location::NoLocation();
@@ -4502,7 +4534,8 @@ static void GenerateVarHandleGet(HInvoke* invoke,
     }
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }
@@ -4591,9 +4624,11 @@ static void GenerateVarHandleSet(HInvoke* invoke,
   VarHandleSlowPathARMVIXL* slow_path = nullptr;
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, value_type);
-    slow_path->SetAtomic(atomic);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      slow_path->SetAtomic(atomic);
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   Location maybe_temp = Location::NoLocation();
@@ -4667,7 +4702,8 @@ static void GenerateVarHandleSet(HInvoke* invoke,
     codegen->MarkGCCard(temp, card, target.object, value_reg, /*value_can_be_null=*/ true);
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }
@@ -4792,9 +4828,11 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
   VarHandleSlowPathARMVIXL* slow_path = nullptr;
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, value_type);
-    slow_path->SetCompareAndSetOrExchangeArgs(return_success, strong);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      slow_path->SetCompareAndSetOrExchangeArgs(return_success, strong);
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   bool seq_cst_barrier = (order == std::memory_order_seq_cst);
@@ -4963,7 +5001,8 @@ static void GenerateVarHandleCompareAndSetOrExchange(HInvoke* invoke,
     codegen->MarkGCCard(temp, card, target.object, RegisterFrom(new_value), new_value_can_be_null);
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }
@@ -5116,9 +5155,11 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
   VarHandleSlowPathARMVIXL* slow_path = nullptr;
   if (!byte_swap) {
     slow_path = GenerateVarHandleChecks(invoke, codegen, order, value_type);
-    slow_path->SetGetAndUpdateOp(get_and_update_op);
     GenerateVarHandleTarget(invoke, target, codegen);
-    __ Bind(slow_path->GetNativeByteOrderLabel());
+    if (slow_path != nullptr) {
+      slow_path->SetGetAndUpdateOp(get_and_update_op);
+      __ Bind(slow_path->GetNativeByteOrderLabel());
+    }
   }
 
   bool seq_cst_barrier = (order == std::memory_order_seq_cst);
@@ -5279,7 +5320,8 @@ static void GenerateVarHandleGetAndUpdate(HInvoke* invoke,
     codegen->MarkGCCard(temp, card, target.object, RegisterFrom(arg), new_value_can_be_null);
   }
 
-  if (!byte_swap) {
+  if (slow_path != nullptr) {
+    DCHECK(!byte_swap);
     __ Bind(slow_path->GetExitLabel());
   }
 }

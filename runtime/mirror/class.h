@@ -1208,6 +1208,8 @@ class MANAGED Class final : public Object {
 
   bool DescriptorEquals(const char* match) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  uint32_t DescriptorHash() REQUIRES_SHARED(Locks::mutator_lock_);
+
   const dex::ClassDef* GetClassDef() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE uint32_t NumDirectInterfaces() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1393,6 +1395,9 @@ class MANAGED Class final : public Object {
   ALWAYS_INLINE uint32_t GetDirectMethodsStartOffset() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool ProxyDescriptorEquals(const char* match) REQUIRES_SHARED(Locks::mutator_lock_);
+  static uint32_t UpdateHashForProxyClass(uint32_t hash, ObjPtr<mirror::Class> proxy_class)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
 
   template<VerifyObjectFlags kVerifyFlags>
   void GetAccessFlagsDCheck() REQUIRES_SHARED(Locks::mutator_lock_);
