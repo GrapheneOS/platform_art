@@ -23,34 +23,6 @@
 
 namespace art {
 
-uint32_t ClassTable::TableSlot::UpdateHashForProxyClass(
-    uint32_t hash, ObjPtr<mirror::Class> proxy_class) {
-  // No read barrier needed, the `name` field is constant for proxy classes and
-  // the contents of the String are also constant. See ReadBarrierOption.
-  // Note: The `proxy_class` can be a from-space reference.
-  DCHECK(proxy_class->IsProxyClass());
-  ObjPtr<mirror::String> name = proxy_class->GetName<kVerifyNone, kWithoutReadBarrier>();
-  DCHECK(name != nullptr);
-  // Update hash for characters we would get from `DotToDescriptor(name->ToModifiedUtf8())`.
-  DCHECK_NE(name->GetLength(), 0);
-  DCHECK_NE(name->CharAt(0), '[');
-  hash = UpdateModifiedUtf8Hash(hash, 'L');
-  if (name->IsCompressed()) {
-    std::string_view dot_name(reinterpret_cast<const char*>(name->GetValueCompressed()),
-                              name->GetLength());
-    for (char c : dot_name) {
-      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
-    }
-  } else {
-    std::string dot_name = name->ToModifiedUtf8();
-    for (char c : dot_name) {
-      hash = UpdateModifiedUtf8Hash(hash, (c != '.') ? c : '/');
-    }
-  }
-  hash = UpdateModifiedUtf8Hash(hash, ';');
-  return hash;
-}
-
 ClassTable::ClassTable() : lock_("Class loader classes", kClassLoaderClassesLock) {
   Runtime* const runtime = Runtime::Current();
   classes_.push_back(ClassSet(runtime->GetHashTableMinLoadFactor(),
@@ -135,6 +107,11 @@ size_t ClassTable::NumReferencedNonZygoteClasses() const {
 ObjPtr<mirror::Class> ClassTable::Lookup(const char* descriptor, size_t hash) {
   DescriptorHashPair pair(descriptor, hash);
   ReaderMutexLock mu(Thread::Current(), lock_);
+  // Search from the last table, assuming that apps shall search for their own classes
+  // more often than for boot image classes. For prebuilt boot images, this also helps
+  // by searching the large table from the framework boot image extension compiled as
+  // single-image before the individual small tables from the primary boot image
+  // compiled as multi-image.
   for (ClassSet& class_set : ReverseRange(classes_)) {
     auto it = class_set.FindWithHash(pair, hash);
     if (it != class_set.end()) {
@@ -145,7 +122,7 @@ ObjPtr<mirror::Class> ClassTable::Lookup(const char* descriptor, size_t hash) {
 }
 
 void ClassTable::Insert(ObjPtr<mirror::Class> klass) {
-  InsertWithHash(klass, TableSlot::HashDescriptor(klass));
+  InsertWithHash(klass, klass->DescriptorHash());
 }
 
 void ClassTable::InsertWithHash(ObjPtr<mirror::Class> klass, size_t hash) {
