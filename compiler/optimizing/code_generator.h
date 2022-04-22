@@ -33,7 +33,6 @@
 #include "graph_visualizer.h"
 #include "locations.h"
 #include "nodes.h"
-#include "oat_quick_method_header.h"
 #include "optimizing_compiler_stats.h"
 #include "read_barrier_option.h"
 #include "stack.h"
