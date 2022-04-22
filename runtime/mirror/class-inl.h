@@ -898,6 +898,34 @@ inline bool Class::DescriptorEquals(const char* match) {
   }
 }
 
+inline uint32_t Class::DescriptorHash() {
+  // No read barriers needed, we're reading a chain of constant references for comparison with null
+  // and retrieval of constant primitive data. See `ReadBarrierOption` and `Class::GetDescriptor()`.
+  ObjPtr<mirror::Class> klass = this;
+  uint32_t hash = StartModifiedUtf8Hash();
+  while (klass->IsArrayClass()) {
+    klass = klass->GetComponentType<kDefaultVerifyFlags, kWithoutReadBarrier>();
+    hash = UpdateModifiedUtf8Hash(hash, '[');
+  }
+  if (UNLIKELY(klass->IsProxyClass())) {
+    hash = UpdateHashForProxyClass(hash, klass);
+  } else if (klass->IsPrimitive()) {
+    hash = UpdateModifiedUtf8Hash(hash, Primitive::Descriptor(klass->GetPrimitiveType())[0]);
+  } else {
+    const DexFile& dex_file = klass->GetDexFile();
+    const dex::TypeId& type_id = dex_file.GetTypeId(klass->GetDexTypeIndex());
+    std::string_view descriptor = dex_file.GetTypeDescriptorView(type_id);
+    hash = UpdateModifiedUtf8Hash(hash, descriptor);
+  }
+
+  if (kIsDebugBuild) {
+    std::string temp;
+    CHECK_EQ(hash, ComputeModifiedUtf8Hash(GetDescriptor(&temp)));
+  }
+
+  return hash;
+}
+
 inline void Class::AssertInitializedOrInitializingInThread(Thread* self) {
   if (kIsDebugBuild && !IsInitialized()) {
     CHECK(IsInitializing()) << PrettyClass() << " is not initializing: " << GetStatus();
