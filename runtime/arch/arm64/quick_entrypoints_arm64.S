@@ -194,56 +194,26 @@
     RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
 .endm
 
-.macro RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-    ldr x1, [xSELF, # THREAD_EXCEPTION_OFFSET]  // Get exception field.
-    cbnz x1, 1f
-    DEOPT_OR_RETURN x1                         // Check if deopt is required
-1:                                             // deliver exception on current thread
-    DELIVER_PENDING_EXCEPTION
+.macro RETURN_IF_RESULT_IS_ZERO
+    cbnz x0, 1f                // result non-zero branch over
+    ret                        // return
+1:
 .endm
 
-.macro DEOPT_OR_RETURN temp, is_ref = 0
-  ldr \temp, [xSELF, #THREAD_DEOPT_CHECK_REQUIRED_OFFSET]
-  cbnz \temp, 2f
-  ret
-2:
-  SETUP_SAVE_EVERYTHING_FRAME
-  mov x2, \is_ref                   // pass if result is a reference
-  mov x1, x0                        // pass the result
-  mov x0, xSELF                     // Thread::Current
-  bl artDeoptimizeIfNeeded
-  .cfi_remember_state
-  RESTORE_SAVE_EVERYTHING_FRAME
-  REFRESH_MARKING_REGISTER
-  ret
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
+.macro RETURN_IF_RESULT_IS_NON_ZERO
+    cbz x0, 1f                 // result zero branch over
+    ret                        // return
+1:
 .endm
 
-.macro DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_X0 temp, is_ref
-  ldr \temp, [xSELF, #THREAD_DEOPT_CHECK_REQUIRED_OFFSET]
-  cbnz \temp, 2f
-  .cfi_remember_state
-  RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
-  REFRESH_MARKING_REGISTER
-  ret
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
-2:
-  str x0, [sp, #SAVE_EVERYTHING_FRAME_X0_OFFSET] // update result in the frame
-  mov x2, \is_ref                                // pass if result is a reference
-  mov x1, x0                                     // pass the result
-  mov x0, xSELF                                  // Thread::Current
-  bl artDeoptimizeIfNeeded
-  .cfi_remember_state
-  RESTORE_SAVE_EVERYTHING_FRAME
-  REFRESH_MARKING_REGISTER
-  ret
-  CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
+// Same as above with x1. This is helpful in stubs that want to avoid clobbering another register.
+.macro RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+    RETURN_OR_DELIVER_PENDING_EXCEPTION_REG x1
 .endm
-
 
 .macro RETURN_IF_W0_IS_ZERO_OR_DELIVER
     cbnz w0, 1f                // result non-zero branch over
-    DEOPT_OR_RETURN x1
+    ret                        // return
 1:
     DELIVER_PENDING_EXCEPTION
 .endm
@@ -1244,7 +1214,11 @@ ENTRY \name
     mov   x1, xSELF                   // pass Thread::Current
     bl    \entrypoint                 // (int32_t index, Thread* self)
     cbz   w0, 1f                      // If result is null, deliver the OOME.
-    DEOPT_OR_RESTORE_SAVE_EVERYTHING_FRAME_AND_RETURN_X0 x1, /* is_ref= */ 1
+    .cfi_remember_state
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_X0
+    REFRESH_MARKING_REGISTER
+    ret                        // return
+    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
 1:
     DELIVER_PENDING_EXCEPTION_FRAME_READY
 END \name
@@ -1254,13 +1228,12 @@ END \name
     ONE_ARG_SAVE_EVERYTHING_DOWNCALL \name, \entrypoint, RUNTIME_SAVE_EVERYTHING_FOR_CLINIT_METHOD_OFFSET
 .endm
 
-.macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
-    cbz w0, 1f                       // result zero branch over
-    DEOPT_OR_RETURN x1, /*is_ref=*/1 // check for deopt or return
+.macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+    cbz w0, 1f                 // result zero branch over
+    ret                        // return
 1:
     DELIVER_PENDING_EXCEPTION
 .endm
-
 
     /*
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
@@ -1283,21 +1256,21 @@ ONE_ARG_SAVE_EVERYTHING_DOWNCALL art_quick_resolve_string, artResolveStringFromC
 // Note: Functions `art{Get,Set}<Kind>{Static,Instance}FromCompiledCode` are
 // defined with a macro in runtime/entrypoints/quick/quick_field_entrypoints.cc.
 
-ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get64_static, artGet64StaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+ONE_ARG_REF_DOWNCALL art_quick_get_boolean_static, artGetBooleanStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+ONE_ARG_REF_DOWNCALL art_quick_get_byte_static, artGetByteStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+ONE_ARG_REF_DOWNCALL art_quick_get_char_static, artGetCharStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+ONE_ARG_REF_DOWNCALL art_quick_get_short_static, artGetShortStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+ONE_ARG_REF_DOWNCALL art_quick_get32_static, artGet32StaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+ONE_ARG_REF_DOWNCALL art_quick_get64_static, artGet64StaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
 
-TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get64_instance, artGet64InstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
-TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCompiledCode, RETURN_OR_DEOPT_OR_DELIVER_PENDING_EXCEPTION
+TWO_ARG_REF_DOWNCALL art_quick_get_boolean_instance, artGetBooleanInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+TWO_ARG_REF_DOWNCALL art_quick_get_byte_instance, artGetByteInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+TWO_ARG_REF_DOWNCALL art_quick_get_char_instance, artGetCharInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+TWO_ARG_REF_DOWNCALL art_quick_get_short_instance, artGetShortInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+TWO_ARG_REF_DOWNCALL art_quick_get32_instance, artGet32InstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+TWO_ARG_REF_DOWNCALL art_quick_get64_instance, artGet64InstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
+TWO_ARG_REF_DOWNCALL art_quick_get_obj_instance, artGetObjInstanceFromCompiledCode, RETURN_OR_DELIVER_PENDING_EXCEPTION_X1
 
 TWO_ARG_REF_DOWNCALL art_quick_set8_static, artSet8StaticFromCompiledCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
 TWO_ARG_REF_DOWNCALL art_quick_set16_static, artSet16StaticFromCompiledCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
@@ -1437,7 +1410,7 @@ ENTRY \c_name
     bl     \cxx_name
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \c_name
 .endm
 
@@ -1492,7 +1465,7 @@ ENTRY \name
     bl     \entrypoint                         // (mirror::Class*, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \name
 .endm
 
@@ -1566,7 +1539,7 @@ ENTRY \name
     bl     \entrypoint
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END \name
 .endm
 
@@ -2129,7 +2102,7 @@ ENTRY art_quick_string_builder_append
     bl     artStringBuilderAppend       // (uint32_t, const unit32_t*, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DEOPT_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END art_quick_string_builder_append
 
     /*

@@ -272,7 +272,6 @@ void Thread::PushDeoptimizationContext(const JValue& return_value,
                                        ObjPtr<mirror::Throwable> exception,
                                        bool from_code,
                                        DeoptimizationMethodType method_type) {
-  DCHECK(exception != Thread::GetDeoptimizationException());
   DeoptimizationContextRecord* record = new DeoptimizationContextRecord(
       return_value,
       is_reference,
@@ -3697,9 +3696,6 @@ void Thread::QuickDeliverException() {
   ObjPtr<mirror::Throwable> exception = GetException();
   CHECK(exception != nullptr);
   if (exception == GetDeoptimizationException()) {
-    // This wasn't a real exception, so just clear it here. If there was an actual exception it
-    // will be recorded in the DeoptimizationContext and it will be restored later.
-    ClearException();
     artDeoptimize(this);
     UNREACHABLE();
   }
