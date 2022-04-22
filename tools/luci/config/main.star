@@ -153,7 +153,7 @@ def ci_builder(name, category, short_name):
         bucket = "ci",
         executable = luci.recipe(
             cipd_package = "infra/recipe_bundles/chromium.googlesource.com/chromium/tools/build",
-            cipd_version = "refs/heads/master",
+            cipd_version = "refs/heads/main",
             name = "art",
         ),
         dimensions = {
