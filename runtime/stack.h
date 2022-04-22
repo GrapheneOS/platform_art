@@ -58,6 +58,11 @@ enum VRegKind {
 };
 std::ostream& operator<<(std::ostream& os, VRegKind rhs);
 
+// Size in bytes of the should_deoptimize flag on stack.
+// We just need 4 bytes for our purpose regardless of the architecture. Frame size
+// calculation will automatically do alignment for the final frame size.
+static constexpr size_t kShouldDeoptimizeFlagSize = 4;
+
 /*
  * Our current stack layout.
  * The Dalvik registers come first, followed by the
@@ -299,11 +304,6 @@ class StackVisitor {
 
   uint8_t GetShouldDeoptimizeFlag() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return *GetShouldDeoptimizeFlagAddr();
-  }
-
-  bool IsShouldDeoptimizeFlagForDebugSet() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    uint8_t should_deopt_flag = GetShouldDeoptimizeFlag();
-    return (should_deopt_flag & static_cast<uint8_t>(DeoptimizeFlagValue::kDebug)) != 0;
   }
 
  private:
