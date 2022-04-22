@@ -551,12 +551,6 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
     return nullptr;
   }
 
-  // We should not reach here with a pc of 0. pc can be 0 for downcalls when walking the stack.
-  // For native methods this case is handled by the caller by checking the quick frame tag. See
-  // StackVisitor::WalkStack for more details. For non-native methods pc can be 0 only for runtime
-  // methods or proxy invoke handlers which are handled earlier.
-  DCHECK(pc != 0);
-
   // Check whether the current entry point contains this pc.
   if (!class_linker->IsQuickGenericJniStub(existing_entry_point) &&
       !class_linker->IsQuickResolutionStub(existing_entry_point) &&
@@ -598,17 +592,21 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   OatFile::OatMethod oat_method =
       FindOatMethodFor(this, class_linker->GetImagePointerSize(), &found);
   if (!found) {
-    CHECK(IsNative());
-    // We are running the GenericJNI stub. The entrypoint may point
-    // to different entrypoints or to a JIT-compiled JNI stub.
-    DCHECK(class_linker->IsQuickGenericJniStub(existing_entry_point) ||
-           class_linker->IsQuickResolutionStub(existing_entry_point) ||
-           existing_entry_point == GetQuickInstrumentationEntryPoint() ||
-           (jit != nullptr && jit->GetCodeCache()->ContainsPc(existing_entry_point)))
-        << " entrypoint: " << existing_entry_point
-        << " size: " << OatQuickMethodHeader::FromEntryPoint(existing_entry_point)->GetCodeSize()
-        << " pc: " << reinterpret_cast<const void*>(pc);
-    return nullptr;
+    if (IsNative()) {
+      // We are running the GenericJNI stub. The entrypoint may point
+      // to different entrypoints or to a JIT-compiled JNI stub.
+      DCHECK(class_linker->IsQuickGenericJniStub(existing_entry_point) ||
+             class_linker->IsQuickResolutionStub(existing_entry_point) ||
+             existing_entry_point == GetQuickInstrumentationEntryPoint() ||
+             (jit != nullptr && jit->GetCodeCache()->ContainsPc(existing_entry_point)))
+          << " entrypoint: " << existing_entry_point
+          << " size: " << OatQuickMethodHeader::FromEntryPoint(existing_entry_point)->GetCodeSize()
+          << " pc: " << reinterpret_cast<const void*>(pc);
+      return nullptr;
+    }
+    // Only for unit tests.
+    // TODO(ngeoffray): Update these tests to pass the right pc?
+    return OatQuickMethodHeader::FromEntryPoint(existing_entry_point);
   }
   const void* oat_entry_point = oat_method.GetQuickCode();
   if (oat_entry_point == nullptr || class_linker->IsQuickGenericJniStub(oat_entry_point)) {
@@ -617,6 +615,12 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
 
   OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromEntryPoint(oat_entry_point);
+  if (pc == 0) {
+    // This is a downcall, it can only happen for a native method.
+    DCHECK(IsNative());
+    return method_header;
+  }
+
   DCHECK(method_header->Contains(pc))
       << PrettyMethod()
       << " " << std::hex << pc << " " << oat_entry_point
