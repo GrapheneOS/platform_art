@@ -86,6 +86,7 @@ java_sdk_library {
     ],
 
     libs: [
+        "modules-utils-shell-command-handler",
     ],
 
     plugins: ["java_api_finder"],

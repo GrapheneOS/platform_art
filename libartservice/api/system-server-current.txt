@@ -3,6 +3,7 @@ package com.android.server.art {
 
   public final class ArtManagerLocal {
     ctor public ArtManagerLocal();
+    method public int handleShellCommand(@NonNull android.os.Binder, @NonNull java.io.FileDescriptor, @NonNull java.io.FileDescriptor, @NonNull java.io.FileDescriptor, @NonNull String[]);
   }
 
 }
