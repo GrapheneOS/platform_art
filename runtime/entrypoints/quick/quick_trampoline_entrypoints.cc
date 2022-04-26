@@ -2717,6 +2717,7 @@ extern "C" int artMethodExitHook(Thread* self,
     if (is_ref) {
       // Restore the return value if it's a reference since it might have moved.
       *reinterpret_cast<mirror::Object**>(gpr_result) = res.Get();
+      return_value.SetL(res.Get());
     }
   }
 
