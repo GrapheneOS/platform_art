@@ -1254,126 +1254,102 @@ MACRO2(POP_REG_NE, reg, exclude_reg)
     .endif
 END_MACRO
 
-    /*
-     * Macro to insert read barrier, only used in art_quick_aput_obj.
-     * obj_reg and dest_reg are registers, offset is a defined literal such as
-     * MIRROR_OBJECT_CLASS_OFFSET.
-     * pop_eax is a boolean flag, indicating if eax is popped after the call.
-     * TODO: When read barrier has a fast path, add heap unpoisoning support for the fast path.
-     */
-MACRO4(READ_BARRIER, obj_reg, offset, dest_reg, pop_eax)
-#ifdef USE_READ_BARRIER
-    PUSH eax                        // save registers used in art_quick_aput_obj
-    PUSH ebx
-    PUSH edx
-    PUSH ecx
-    // Outgoing argument set up
-    pushl MACRO_LITERAL((RAW_VAR(offset)))  // pass offset, double parentheses are necessary
-    CFI_ADJUST_CFA_OFFSET(4)
-    PUSH RAW_VAR(obj_reg)           // pass obj_reg
-    PUSH eax                        // pass ref, just pass eax for now since parameter ref is unused
-    call SYMBOL(artReadBarrierSlow) // artReadBarrierSlow(ref, obj_reg, offset)
-    // No need to unpoison return value in eax, artReadBarrierSlow() would do the unpoisoning.
-    .ifnc RAW_VAR(dest_reg), eax
-      movl %eax, REG_VAR(dest_reg)  // save loaded ref in dest_reg
-    .endif
-    addl MACRO_LITERAL(12), %esp    // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-12)
-    POP_REG_NE ecx, RAW_VAR(dest_reg) // Restore args except dest_reg
-    POP_REG_NE edx, RAW_VAR(dest_reg)
-    POP_REG_NE ebx, RAW_VAR(dest_reg)
-    .ifc RAW_VAR(pop_eax), true
-      POP_REG_NE eax, RAW_VAR(dest_reg)
-    .endif
-#else
-    movl RAW_VAR(offset)(REG_VAR(obj_reg)), REG_VAR(dest_reg)
-    UNPOISON_HEAP_REF RAW_VAR(dest_reg)
-#endif  // USE_READ_BARRIER
-END_MACRO
-
 DEFINE_FUNCTION art_quick_aput_obj
     test %edx, %edx              // store of null
-    jz .Ldo_aput_null
-    READ_BARRIER eax, MIRROR_OBJECT_CLASS_OFFSET, ebx, true
-    READ_BARRIER ebx, MIRROR_CLASS_COMPONENT_TYPE_OFFSET, ebx, true
-    // value's type == array's component type - trivial assignability
-#if defined(USE_READ_BARRIER)
-    READ_BARRIER edx, MIRROR_OBJECT_CLASS_OFFSET, eax, false
-    cmpl %eax, %ebx
-    POP eax                      // restore eax from the push in the beginning of READ_BARRIER macro
-    // This asymmetric push/pop saves a push of eax and maintains stack alignment.
-#elif defined(USE_HEAP_POISONING)
-    PUSH eax                     // save eax
-    movl MIRROR_OBJECT_CLASS_OFFSET(%edx), %eax
-    UNPOISON_HEAP_REF eax
-    cmpl %eax, %ebx
-    POP eax                      // restore eax
-#else
-    cmpl MIRROR_OBJECT_CLASS_OFFSET(%edx), %ebx
-#endif
-    jne .Lcheck_assignability
-.Ldo_aput:
+    jz .Laput_obj_null
+    movl MIRROR_OBJECT_CLASS_OFFSET(%eax), %ebx
+    UNPOISON_HEAP_REF ebx
+#ifdef USE_READ_BARRIER
+    cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
+    jnz .Laput_obj_gc_marking
+#endif  // USE_READ_BARRIER
+    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%ebx), %ebx
+    cmpl MIRROR_OBJECT_CLASS_OFFSET(%edx), %ebx  // Both poisoned if heap poisoning is enabled.
+    jne .Laput_obj_check_assignability
+.Laput_obj_store:
     POISON_HEAP_REF edx
     movl %edx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)
     movl %fs:THREAD_CARD_TABLE_OFFSET, %edx
     shrl LITERAL(CARD_TABLE_CARD_SHIFT), %eax
     movb %dl, (%edx, %eax)
     ret
-.Ldo_aput_null:
+
+.Laput_obj_null:
     movl %edx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)
     ret
-.Lcheck_assignability:
-    PUSH eax                      // save arguments
-    PUSH ecx
-    PUSH edx
-#if defined(USE_READ_BARRIER)
-    subl LITERAL(4), %esp         // alignment padding
-    CFI_ADJUST_CFA_OFFSET(4)
-    READ_BARRIER edx, MIRROR_OBJECT_CLASS_OFFSET, eax, true
-    subl LITERAL(4), %esp         // alignment padding
-    CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                      // pass arg2 - type of the value to be stored
-#elif defined(USE_HEAP_POISONING)
-    subl LITERAL(8), %esp         // alignment padding
-    CFI_ADJUST_CFA_OFFSET(8)
+
+.Laput_obj_check_assignability:
+    UNPOISON_HEAP_REF ebx         // Unpoison array component type if poisoning is enabled.
+    PUSH_ARG eax                  // Save `art_quick_aput_obj()` arguments.
+    PUSH_ARG ecx
+    PUSH_ARG edx
+    INCREASE_FRAME 8              // Alignment padding.
+    // Pass arg2 - type of the value to be stored.
+#if defined(USE_HEAP_POISONING)
     movl MIRROR_OBJECT_CLASS_OFFSET(%edx), %eax
     UNPOISON_HEAP_REF eax
-    PUSH eax                      // pass arg2 - type of the value to be stored
+    PUSH_ARG eax
 #else
-    subl LITERAL(8), %esp         // alignment padding
-    CFI_ADJUST_CFA_OFFSET(8)
-    pushl MIRROR_OBJECT_CLASS_OFFSET(%edx)  // pass arg2 - type of the value to be stored
+    pushl MIRROR_OBJECT_CLASS_OFFSET(%edx)
     CFI_ADJUST_CFA_OFFSET(4)
 #endif
-    PUSH ebx                      // pass arg1 - component type of the array
+.Laput_obj_check_assignability_call:
+    PUSH_ARG ebx                  // Pass arg1 - component type of the array.
     call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b)
-    addl LITERAL(16), %esp        // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-16)
+    DECREASE_FRAME 16             // Pop `artIsAssignableFromCode()` arguments
     testl %eax, %eax
+    POP_ARG edx                   // Pop `art_quick_aput_obj()` arguments; flags unaffected.
+    POP_ARG ecx
+    POP_ARG eax
     jz   .Lthrow_array_store_exception
-    POP  edx
-    POP  ecx
-    POP  eax
     POISON_HEAP_REF edx
-    movl %edx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)  // do the aput
+    movl %edx, MIRROR_OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4)  // Do the aput.
     movl %fs:THREAD_CARD_TABLE_OFFSET, %edx
     shrl LITERAL(CARD_TABLE_CARD_SHIFT), %eax
     movb %dl, (%edx, %eax)
     ret
-    CFI_ADJUST_CFA_OFFSET(12)     // 3 POP after the jz for unwinding.
+
 .Lthrow_array_store_exception:
-    POP  edx
-    POP  ecx
-    POP  eax
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx // save all registers as basis for long jump context
-    // Outgoing argument set up
-    PUSH eax                      // alignment padding
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    CFI_ADJUST_CFA_OFFSET(4)
-    PUSH edx                      // pass arg2 - value
-    PUSH eax                      // pass arg1 - array
+#ifdef USE_READ_BARRIER
+    CFI_REMEMBER_STATE
+#endif  // USE_READ_BARRIER
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx // Save all registers as basis for long jump context.
+    // Outgoing argument set up.
+    PUSH_ARG eax                  // Alignment padding.
+    PUSH_ARG fs:THREAD_SELF_OFFSET  // Pass Thread::Current()
+    PUSH_ARG edx                  // Pass arg2 - value.
+    PUSH_ARG eax                  // Pass arg1 - array.
     call SYMBOL(artThrowArrayStoreException) // (array, value, Thread*)
     UNREACHABLE
+
+#ifdef USE_READ_BARRIER
+    CFI_RESTORE_STATE_AND_DEF_CFA esp, 4
+.Laput_obj_gc_marking:
+    PUSH_ARG eax                  // Save `art_quick_aput_obj()` arguments.
+    PUSH_ARG ecx                  // We need to align stack for `art_quick_read_barrier_mark_regNN`
+    PUSH_ARG edx                  // and use a register (EAX) as a temporary for the object class.
+    call SYMBOL(art_quick_read_barrier_mark_reg03)  // Mark EBX.
+    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%ebx), %ebx
+    UNPOISON_HEAP_REF ebx
+    call SYMBOL(art_quick_read_barrier_mark_reg03)  // Mark EBX.
+    movl MIRROR_OBJECT_CLASS_OFFSET(%edx), %eax
+    UNPOISON_HEAP_REF eax
+    call SYMBOL(art_quick_read_barrier_mark_reg00)  // Mark EAX.
+    cmpl %eax, %ebx
+    jne .Laput_obj_check_assignability_gc_marking
+    POP_ARG edx                   // Restore `art_quick_aput_obj()` arguments.
+    POP_ARG ecx
+    POP_ARG eax
+    jmp .Laput_obj_store
+
+.Laput_obj_check_assignability_gc_marking:
+    // Prepare arguments in line with `.Laput_obj_check_assignability_call` and jump there.
+    // (EAX, ECX and EDX were already saved in the right stack slots.)
+    INCREASE_FRAME 8              // Alignment padding.
+    PUSH_ARG eax                  // Pass arg2 - type of the value to be stored.
+    // The arg1 shall be pushed at `.Laput_obj_check_assignability_call`.
+    jmp .Laput_obj_check_assignability_call
+#endif  // USE_READ_BARRIER
 END_FUNCTION art_quick_aput_obj
 
 DEFINE_FUNCTION art_quick_memcpy
@@ -1993,15 +1969,10 @@ END_FUNCTION art_quick_string_builder_append
 // getting its argument and returning its result through register
 // `reg`, saving and restoring all caller-save registers.
 //
-// If `reg` is different from `eax`, the generated function follows a
-// non-standard runtime calling convention:
-// - register `reg` is used to pass the (sole) argument of this function
-//   (instead of EAX);
-// - register `reg` is used to return the result of this function
-//   (instead of EAX);
-// - EAX is treated like a normal (non-argument) caller-save register;
-// - everything else is the same as in the standard runtime calling
-//   convention (e.g. standard callee-save registers are preserved).
+// The generated function follows a non-standard runtime calling convention:
+// - register `reg` (which may differ from EAX) is used to pass the (sole) argument,
+// - register `reg` (which may differ from EAX) is used to return the result,
+// - all other registers are callee-save (the values they hold are preserved).
 MACRO2(READ_BARRIER_MARK_REG, name, reg)
     DEFINE_FUNCTION VAR(name)
     // Null check so that we can load the lock word.
