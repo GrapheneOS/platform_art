@@ -828,6 +828,16 @@ bool OatFileBase::Setup(int zip_fd,
           external_dex_files_.push_back(std::move(dex_file));
         }
       }
+      // Defensively verify external dex file checksum.
+      if (dex_file_checksum != external_dex_files_[i]->GetLocationChecksum()) {
+        *error_msg = StringPrintf("In oat file '%s', dex file checksum 0x%08x does not match"
+                                      " checksum 0x%08x of external dex file '%s'",
+                                  GetLocation().c_str(),
+                                  dex_file_checksum,
+                                  external_dex_files_[i]->GetLocationChecksum(),
+                                  external_dex_files_[i]->GetLocation().c_str());
+        return false;
+      }
       dex_file_pointer = external_dex_files_[i]->Begin();
     } else {
       // Do not support mixed-mode oat files.
@@ -961,16 +971,14 @@ bool OatFileBase::Setup(int zip_fd,
     const IndexBssMapping* public_type_bss_mapping;
     const IndexBssMapping* package_type_bss_mapping;
     const IndexBssMapping* string_bss_mapping;
-    if (!ReadIndexBssMapping(
-            this, &oat, i, dex_file_location, "method", &method_bss_mapping, error_msg) ||
-        !ReadIndexBssMapping(
-            this, &oat, i, dex_file_location, "type", &type_bss_mapping, error_msg) ||
-        !ReadIndexBssMapping(
-            this, &oat, i, dex_file_location, "type", &public_type_bss_mapping, error_msg) ||
-        !ReadIndexBssMapping(
-            this, &oat, i, dex_file_location, "type", &package_type_bss_mapping, error_msg) ||
-        !ReadIndexBssMapping(
-            this, &oat, i, dex_file_location, "string", &string_bss_mapping, error_msg)) {
+    auto read_index_bss_mapping = [&](const char* tag, /*out*/const IndexBssMapping** mapping) {
+      return ReadIndexBssMapping(this, &oat, i, dex_file_location, tag, mapping, error_msg);
+    };
+    if (!read_index_bss_mapping("method", &method_bss_mapping) ||
+        !read_index_bss_mapping("type", &type_bss_mapping) ||
+        !read_index_bss_mapping("public type", &public_type_bss_mapping) ||
+        !read_index_bss_mapping("package type", &package_type_bss_mapping) ||
+        !read_index_bss_mapping("string", &string_bss_mapping)) {
       return false;
     }
 
@@ -1041,41 +1049,15 @@ bool OatFileBase::Setup(int zip_fd,
       const std::string& dex_file_location = linker != nullptr ?
                                                  linker->GetBootClassPath()[i]->GetLocation() :
                                                  "No runtime/linker therefore no DexFile location";
-      if (!ReadIndexBssMapping(this,
-                               &bcp_info_begin,
-                               i,
-                               dex_file_location,
-                               "method",
-                               &bcp_bss_info_[i].method_bss_mapping,
-                               error_msg) ||
-          !ReadIndexBssMapping(this,
-                               &bcp_info_begin,
-                               i,
-                               dex_file_location,
-                               "type",
-                               &bcp_bss_info_[i].type_bss_mapping,
-                               error_msg) ||
-          !ReadIndexBssMapping(this,
-                               &bcp_info_begin,
-                               i,
-                               dex_file_location,
-                               "type",
-                               &bcp_bss_info_[i].public_type_bss_mapping,
-                               error_msg) ||
-          !ReadIndexBssMapping(this,
-                               &bcp_info_begin,
-                               i,
-                               dex_file_location,
-                               "type",
-                               &bcp_bss_info_[i].package_type_bss_mapping,
-                               error_msg) ||
-          !ReadIndexBssMapping(this,
-                               &bcp_info_begin,
-                               i,
-                               dex_file_location,
-                               "string",
-                               &bcp_bss_info_[i].string_bss_mapping,
-                               error_msg)) {
+      auto read_index_bss_mapping = [&](const char* tag, /*out*/const IndexBssMapping** mapping) {
+        return ReadIndexBssMapping(
+            this, &bcp_info_begin, i, dex_file_location, tag, mapping, error_msg);
+      };
+      if (!read_index_bss_mapping("method", &bcp_bss_info_[i].method_bss_mapping) ||
+          !read_index_bss_mapping("type", &bcp_bss_info_[i].type_bss_mapping) ||
+          !read_index_bss_mapping("public type", &bcp_bss_info_[i].public_type_bss_mapping) ||
+          !read_index_bss_mapping("package type", &bcp_bss_info_[i].package_type_bss_mapping) ||
+          !read_index_bss_mapping("string", &bcp_bss_info_[i].string_bss_mapping)) {
         return false;
       }
     }
@@ -2476,7 +2458,7 @@ const char* OatFile::GetCompilationReason() const {
 OatFile::OatClass OatFile::FindOatClass(const DexFile& dex_file,
                                         uint16_t class_def_idx,
                                         bool* found) {
-  DCHECK_NE(class_def_idx, DexFile::kDexNoIndex16);
+  CHECK_LT(class_def_idx, dex_file.NumClassDefs());
   const OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   if (oat_dex_file == nullptr || oat_dex_file->GetOatFile() == nullptr) {
     *found = false;
