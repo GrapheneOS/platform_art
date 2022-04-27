@@ -39,7 +39,7 @@ public class Main {
   }
 
   private static final int TASK_COUNT = 10000;
-  private static final int THREAD_COUNT = 100;
+  private static final int THREAD_COUNT = 20;
   /* Each test may need several retries before a concurrent failure is seen. In the past, for a
    * known bug, between 5 and 10 retries were sufficient. Use RETRIES to configure how many
    * iterations to retry for each test scenario. However, to avoid the test running for too long,
