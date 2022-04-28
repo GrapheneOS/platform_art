@@ -23,6 +23,7 @@
 #include "dex/dex_file_types.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
+#include "jvalue-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
