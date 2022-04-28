@@ -23,7 +23,7 @@ After modifying this file execute it ('./main.star') to regenerate the configs.
 lucicfg.check_version("1.30.9", "Please update depot_tools")
 
 luci.builder.defaults.experiments.set({
-    "luci.recipes.use_python3": 10,
+    "luci.recipes.use_python3": 100,
 })
 
 # Use LUCI Scheduler BBv2 names and add Scheduler realms configs.
