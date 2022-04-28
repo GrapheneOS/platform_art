@@ -1983,6 +1983,16 @@ bool ClassLinker::AddImageSpace(
   }
 
   if (!runtime->IsAotCompiler()) {
+    // If we are profiling the boot classpath, disable the shared memory for
+    // boot image method optimization. We need to disable it before doing
+    // ResetCounter below, as counters of shared memory method always hold the
+    // "hot" value.
+    if (runtime->GetJITOptions()->GetProfileSaverOptions().GetProfileBootClassPath()) {
+      header.VisitPackedArtMethods([&](ArtMethod& method) REQUIRES_SHARED(Locks::mutator_lock_) {
+        method.ClearMemorySharedMethod();
+      }, space->Begin(), image_pointer_size_);
+    }
+
     ScopedTrace trace("AppImage:UpdateCodeItemAndNterp");
     bool can_use_nterp = interpreter::CanRuntimeUseNterp();
     uint16_t hotness_threshold = runtime->GetJITOptions()->GetWarmupThreshold();
@@ -3762,7 +3772,8 @@ void ClassLinker::LoadMethod(const DexFile& dex_file,
     }
   }
 
-  if (Runtime::Current()->IsZygote()) {
+  if (Runtime::Current()->IsZygote() &&
+      !Runtime::Current()->GetJITOptions()->GetProfileSaverOptions().GetProfileBootClassPath()) {
     dst->SetMemorySharedMethod();
   }
 }
