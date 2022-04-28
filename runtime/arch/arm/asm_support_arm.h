@@ -25,6 +25,8 @@
 #define FRAME_SIZE_SAVE_EVERYTHING 192
 #define FRAME_SIZE_SAVE_EVERYTHING_FOR_CLINIT FRAME_SIZE_SAVE_EVERYTHING
 #define FRAME_SIZE_SAVE_EVERYTHING_FOR_SUSPEND_CHECK FRAME_SIZE_SAVE_EVERYTHING
+#define SAVE_EVERYTHING_FRAME_R0_OFFSET \
+    (FRAME_SIZE_SAVE_EVERYTHING - CALLEE_SAVE_EVERYTHING_NUM_CORE_SPILLS * POINTER_SIZE)
 
 // The offset from the art_quick_read_barrier_mark_introspection (used for field
 // loads with 32-bit LDR) to the entrypoint for field loads with 16-bit LDR,
