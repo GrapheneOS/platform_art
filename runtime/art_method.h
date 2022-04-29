@@ -265,6 +265,15 @@ class ArtMethod final {
     }
   }
 
+  void ClearMemorySharedMethod() REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (IsIntrinsic() || IsAbstract()) {
+      return;
+    }
+    if (IsMemorySharedMethod()) {
+      ClearAccessFlags(kAccMemorySharedMethod);
+    }
+  }
+
   void ClearPreCompiled() REQUIRES_SHARED(Locks::mutator_lock_) {
     ClearAccessFlags(kAccPreCompiled | kAccCompileDontBother);
   }

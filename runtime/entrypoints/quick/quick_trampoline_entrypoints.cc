@@ -713,41 +713,34 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   // Pop transition.
   self->PopManagedStackFragment(fragment);
 
-  // Request a stack deoptimization if needed
-  ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
-  uintptr_t caller_pc = QuickArgumentVisitor::GetCallingPc(sp);
+  // Check if caller needs to be deoptimized for instrumentation reasons.
+  instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   // If caller_pc is the instrumentation exit stub, the stub will check to see if deoptimization
   // should be done and it knows the real return pc. NB If the upcall is null we don't need to do
   // anything. This can happen during shutdown or early startup.
-  if (UNLIKELY(
-          caller != nullptr &&
-          caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) &&
-          (self->IsForceInterpreter() || Dbg::IsForcedInterpreterNeededForUpcall(self, caller)))) {
-    if (!Runtime::Current()->IsAsyncDeoptimizeable(caller_pc)) {
-      LOG(WARNING) << "Got a deoptimization request on un-deoptimizable method "
-                   << caller->PrettyMethod();
-    } else {
-      VLOG(deopt) << "Forcing deoptimization on return from method " << method->PrettyMethod()
-                  << " to " << caller->PrettyMethod()
-                  << (force_frame_pop ? " for frame-pop" : "");
-      DCHECK_IMPLIES(force_frame_pop, result.GetJ() == 0)
-          << "Force frame pop should have no result.";
-      if (force_frame_pop && self->GetException() != nullptr) {
-        LOG(WARNING) << "Suppressing exception for instruction-retry: "
-                     << self->GetException()->Dump();
-      }
-      // Push the context of the deoptimization stack so we can restore the return value and the
-      // exception before executing the deoptimized frames.
-      self->PushDeoptimizationContext(
-          result,
-          shorty[0] == 'L' || shorty[0] == '[',  /* class or array */
-          force_frame_pop ? nullptr : self->GetException(),
-          /* from_code= */ false,
-          DeoptimizationMethodType::kDefault);
-
-      // Set special exception to cause deoptimization.
-      self->SetException(Thread::GetDeoptimizationException());
+  if (UNLIKELY(instr->ShouldDeoptimizeCaller(self, sp))) {
+    ArtMethod* caller = QuickArgumentVisitor::GetOuterMethod(sp);
+    uintptr_t caller_pc = QuickArgumentVisitor::GetCallingPc(sp);
+    DCHECK(Runtime::Current()->IsAsyncDeoptimizeable(caller_pc));
+    DCHECK(caller != nullptr);
+    VLOG(deopt) << "Forcing deoptimization on return from method " << method->PrettyMethod()
+                << " to " << caller->PrettyMethod() << (force_frame_pop ? " for frame-pop" : "");
+    DCHECK(!force_frame_pop || result.GetJ() == 0) << "Force frame pop should have no result.";
+    if (force_frame_pop && self->GetException() != nullptr) {
+      LOG(WARNING) << "Suppressing exception for instruction-retry: "
+                   << self->GetException()->Dump();
     }
+    DCHECK(self->GetException() != Thread::GetDeoptimizationException());
+    // Push the context of the deoptimization stack so we can restore the return value and the
+    // exception before executing the deoptimized frames.
+    self->PushDeoptimizationContext(result,
+                                    shorty[0] == 'L' || shorty[0] == '[', /* class or array */
+                                    force_frame_pop ? nullptr : self->GetException(),
+                                    /* from_code= */ false,
+                                    DeoptimizationMethodType::kDefault);
+
+    // Set special exception to cause deoptimization.
+    self->SetException(Thread::GetDeoptimizationException());
   }
 
   // No need to restore the args since the method has already been run by the interpreter.
@@ -1076,6 +1069,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
     }
   }
 
+  DCHECK(!method->IsRuntimeMethod());
   instrumentation->PushInstrumentationStackFrame(self,
                                                  is_static ? nullptr : h_object.Get(),
                                                  method,
@@ -2600,6 +2594,10 @@ extern "C" uint64_t artInvokePolymorphic(mirror::Object* raw_receiver, Thread* s
   // Pop transition record.
   self->PopManagedStackFragment(fragment);
 
+  bool is_ref = (shorty[0] == 'L');
+  Runtime::Current()->GetInstrumentation()->PushDeoptContextIfNeeded(
+      self, DeoptimizationMethodType::kDefault, is_ref, result);
+
   return result.GetJ();
 }
 
@@ -2658,6 +2656,10 @@ extern "C" uint64_t artInvokeCustom(uint32_t call_site_idx, Thread* self, ArtMet
   // Pop transition record.
   self->PopManagedStackFragment(fragment);
 
+  bool is_ref = (shorty[0] == 'L');
+  Runtime::Current()->GetInstrumentation()->PushDeoptContextIfNeeded(
+      self, DeoptimizationMethodType::kDefault, is_ref, result);
+
   return result.GetJ();
 }
 
@@ -2688,7 +2690,7 @@ extern "C" int artMethodExitHook(Thread* self,
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   DCHECK(instr->AreExitStubsInstalled());
   bool is_ref;
-  JValue return_value = instr->GetReturnValue(self, method, &is_ref, gpr_result, fpr_result);
+  JValue return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
   bool deoptimize = false;
   {
     StackHandleScope<1> hs(self);
@@ -2703,7 +2705,7 @@ extern "C" int artMethodExitHook(Thread* self,
     // back to an upcall.
     NthCallerVisitor visitor(self, 1, /*include_runtime_and_upcalls=*/false);
     visitor.WalkStack(true);
-    deoptimize = instr->ShouldDeoptimizeMethod(self, visitor);
+    deoptimize = instr->ShouldDeoptimizeCaller(self, visitor);
 
     // If we need a deoptimization MethodExitEvent will be called by the interpreter when it
     // re-executes the return instruction.
