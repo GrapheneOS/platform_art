@@ -696,11 +696,20 @@ END art_quick_check_instance_of
     pop {lr}                        @ restore lr
     .cfi_adjust_cfa_offset -4
     .cfi_restore lr
+.endm
 #endif // USE_BAKER_READ_BARRIER
 #endif  // USE_READ_BARRIER
 
     .hidden art_quick_aput_obj
 ENTRY art_quick_aput_obj
+#if defined(USE_READ_BARRIER) && !defined(USE_BAKER_READ_BARRIER)
+    @ The offset to .Ldo_aput_null is too large to use cbz due to expansion from `READ_BARRIER_SLOW`.
+    tst r2, r2
+    beq .Laput_obj_null
+    READ_BARRIER_SLOW r3, r0, MIRROR_OBJECT_CLASS_OFFSET
+    READ_BARRIER_SLOW r3, r3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET
+    READ_BARRIER_SLOW r4, r2, MIRROR_OBJECT_CLASS_OFFSET
+#else  // !defined(USE_READ_BARRIER) || defined(USE_BAKER_READ_BARRIER)
     cbz r2, .Laput_obj_null
 #ifdef USE_READ_BARRIER
     cmp rMR, #0
@@ -713,6 +722,7 @@ ENTRY art_quick_aput_obj
     UNPOISON_HEAP_REF r4
     ldr r3, [r3, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
     UNPOISON_HEAP_REF r3
+#endif  // !defined(USE_READ_BARRIER) || defined(USE_BAKER_READ_BARRIER)
     cmp r3, r4  @ value's type == array's component type - trivial assignability
     bne .Laput_obj_check_assignability
 .Laput_obj_store:
@@ -754,19 +764,18 @@ ENTRY art_quick_aput_obj
     pop {r0-r2, lr}
     .cfi_restore lr
     .cfi_adjust_cfa_offset -16
-#ifdef USE_READ_BARRIER
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
     .cfi_remember_state
-#endif  // USE_READ_BARRIER
+#endif  // defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r3
     mov r1, r2
     mov r2, rSELF                  @ Pass Thread::Current.
     bl artThrowArrayStoreException @ (Class*, Class*, Thread*)
     bkpt                           @ Unreachable.
 
-#ifdef USE_READ_BARRIER
+#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
     CFI_RESTORE_STATE_AND_DEF_CFA sp, 0
 .Laput_obj_gc_marking:
-#ifdef USE_BAKER_READ_BARRIER
     BAKER_RB_CHECK_GRAY_BIT_AND_LOAD \
         r3, r0, MIRROR_OBJECT_CLASS_OFFSET, .Laput_obj_mark_array_class
 .Laput_obj_mark_array_class_continue:
@@ -776,18 +785,12 @@ ENTRY art_quick_aput_obj
     BAKER_RB_CHECK_GRAY_BIT_AND_LOAD \
         r4, r2, MIRROR_OBJECT_CLASS_OFFSET, .Laput_obj_mark_object_class
 .Laput_obj_mark_object_class_continue:
-#else  // USE_BAKER_READ_BARRIER
-    READ_BARRIER_SLOW r3, r0, MIRROR_OBJECT_CLASS_OFFSET
-    READ_BARRIER_SLOW r3, r3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET
-    READ_BARRIER_SLOW r4, r2, MIRROR_OBJECT_CLASS_OFFSET
-#endif  // USE_BAKER_READ_BARRIER
 
     cmp r3, r4  @ value's type == array's component type - trivial assignability
     // All registers are set up for correctly `.Laput_obj_check_assignability`.
     bne .Laput_obj_check_assignability
     b   .Laput_obj_store
 
-#ifdef USE_BAKER_READ_BARRIER
 .Laput_obj_mark_array_class:
     BAKER_RB_LOAD_AND_MARK r3, r0, MIRROR_OBJECT_CLASS_OFFSET, art_quick_read_barrier_mark_reg03
     b .Laput_obj_mark_array_class_continue
@@ -800,8 +803,7 @@ ENTRY art_quick_aput_obj
 .Laput_obj_mark_object_class:
     BAKER_RB_LOAD_AND_MARK r4, r2, MIRROR_OBJECT_CLASS_OFFSET, art_quick_read_barrier_mark_reg04
     b .Laput_obj_mark_object_class_continue
-#endif  // USE_BAKER_READ_BARRIER
-#endif  // USE_READ_BARRIER
+#endif  // defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
 END art_quick_aput_obj
 
 // Macro to facilitate adding new allocation entrypoints.
