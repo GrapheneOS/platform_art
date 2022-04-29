@@ -30,10 +30,8 @@ ASM_DEFINE(LOCK_WORD_MARK_BIT_MASK_SHIFTED,
            art::LockWord::kMarkBitStateMaskShifted)
 ASM_DEFINE(LOCK_WORD_MARK_BIT_SHIFT,
            art::LockWord::kMarkBitStateShift)
-ASM_DEFINE(LOCK_WORD_READ_BARRIER_STATE_MASK,
+ASM_DEFINE(LOCK_WORD_READ_BARRIER_STATE_MASK_SHIFTED,
            art::LockWord::kReadBarrierStateMaskShifted)
-ASM_DEFINE(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED,
-           art::LockWord::kReadBarrierStateMaskShiftedToggled)
 ASM_DEFINE(LOCK_WORD_READ_BARRIER_STATE_SHIFT,
            art::LockWord::kReadBarrierStateShift)
 ASM_DEFINE(LOCK_WORD_STATE_FORWARDING_ADDRESS,
