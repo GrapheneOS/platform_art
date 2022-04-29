@@ -215,7 +215,7 @@ class JitCodeCache {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::jit_lock_);
 
-  void DoneCompiling(ArtMethod* method, Thread* self, CompilationKind compilation_kind)
+  void DoneCompiling(ArtMethod* method, Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::jit_lock_);
 
@@ -403,6 +403,20 @@ class JitCodeCache {
   ProfilingInfo* GetProfilingInfo(ArtMethod* method, Thread* self);
   void ResetHotnessCounter(ArtMethod* method, Thread* self);
 
+  void VisitRoots(RootVisitor* visitor);
+
+  // Return whether `method` is being compiled with the given mode.
+  bool IsMethodBeingCompiled(ArtMethod* method, CompilationKind compilation_kind)
+      REQUIRES(Locks::jit_lock_);
+
+  // Remove `method` from the list of methods meing compiled with the given mode.
+  void RemoveMethodBeingCompiled(ArtMethod* method, CompilationKind compilation_kind)
+      REQUIRES(Locks::jit_lock_);
+
+  // Record that `method` is being compiled with the given mode.
+  void AddMethodBeingCompiled(ArtMethod* method, CompilationKind compilation_kind)
+      REQUIRES(Locks::jit_lock_);
+
  private:
   JitCodeCache();
 
@@ -491,18 +505,6 @@ class JitCodeCache {
   void WaitUntilInlineCacheAccessible(Thread* self)
       REQUIRES(!Locks::jit_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Record that `method` is being compiled with the given mode.
-  void AddMethodBeingCompiled(ArtMethod* method, CompilationKind compilation_kind)
-      REQUIRES(Locks::jit_lock_);
-
-  // Remove `method` from the list of methods meing compiled with the given mode.
-  void RemoveMethodBeingCompiled(ArtMethod* method, CompilationKind compilation_kind)
-      REQUIRES(Locks::jit_lock_);
-
-  // Return whether `method` is being compiled with the given mode.
-  bool IsMethodBeingCompiled(ArtMethod* method, CompilationKind compilation_kind)
-      REQUIRES(Locks::jit_lock_);
 
   // Return whether `method` is being compiled in any mode.
   bool IsMethodBeingCompiled(ArtMethod* method) REQUIRES(Locks::jit_lock_);
