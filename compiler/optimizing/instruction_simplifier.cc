@@ -2940,7 +2940,7 @@ bool InstructionSimplifierVisitor::CanUseKnownBootImageVarHandle(HInvoke* invoke
     DCHECK(!declaring_class->IsInitialized());
     return false;
   }
-  HInstruction* load_class = var_handle_instruction->InputAt(0)->AsLoadClass();
+  HInstruction* load_class = var_handle_instruction->InputAt(0);
   if (kIsDebugBuild) {
     bool is_in_boot_image = false;
     if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(declaring_class)) {
