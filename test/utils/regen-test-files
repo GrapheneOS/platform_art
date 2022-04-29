@@ -205,6 +205,10 @@ known_failing_tests = frozenset([
   "832-cha-recursive",
 ])
 
+known_failing_on_hwasan_tests = frozenset([
+  "art_standalone_dex2oat_tests",  # b/228881278
+])
+
 # ART gtests that do not need root access to the device.
 art_gtest_user_module_names = [
     "art_libnativebridge_cts_tests",
@@ -524,6 +528,8 @@ class Generator:
     ]
     presubmit_tests = other_presubmit_tests + run_test_module_names + art_gtest_module_names
     presubmit_tests_dict = [{"name": t} for t in presubmit_tests]
+    hwasan_presubmit_tests_dict = [{"name": t} for t in presubmit_tests
+                                   if t not in known_failing_on_hwasan_tests]
 
     # Use an `OrderedDict` container to preserve the order in which items are inserted.
     # Do not produce an entry for a test group if it is empty.
@@ -533,6 +539,7 @@ class Generator:
         in [
             ("mainline-presubmit", mainline_presubmit_tests_dict),
             ("presubmit", presubmit_tests_dict),
+            ("hwasan-presubmit", hwasan_presubmit_tests_dict),
         ]
         if test_group_dict
     ])
