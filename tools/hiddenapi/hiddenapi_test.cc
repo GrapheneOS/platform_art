@@ -729,8 +729,7 @@ TEST_F(HiddenApiTest, InstanceFieldMaxSdkHigherThanMaxHiddenApiLevel) {
   OpenStream(flags_csv)
       << "LMain;->ifield:I,max-target-r" << std::endl;
   auto dex_file = RunHiddenapiEncode(flags_csv, {"--max-hiddenapi-level=max-target-q"}, dex);
-  ASSERT_NE(dex_file.get(), nullptr);
-  ASSERT_EQ(hiddenapi::ApiList::Unsupported(), GetIFieldHiddenFlags(*dex_file));
+  ASSERT_EQ(dex_file.get(), nullptr);
 }
 
 TEST_F(HiddenApiTest, InstanceFieldMaxSdkEqualsMaxHiddenApiLevel) {
