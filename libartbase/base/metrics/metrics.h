@@ -129,7 +129,7 @@ constexpr CompilationReason CompilationReasonFromName(std::string_view name) {
 }
 
 #undef REASON_NAME
-#undef ReasonFromName
+#undef REASON_FROM_NAME
 
 #define COMPILER_FILTER_REPORTING_LIST(V) \
   V(kError, "error") /* Error (invalid value) condition */ \
