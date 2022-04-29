@@ -168,8 +168,6 @@ LIBCORE_TEST_NAMES = [
   "test.java.math.BigInteger#testSquareLarge",
   "test.java.math.BigInteger#testSquareRootAndReminder",
   "test.java.math.BigInteger#testStringConv_generic",
-  "test.java.math.BigInteger#testStringConv_schoenhage_threshold_pow0",
-  "test.java.math.BigInteger#testStringConv_schoenhage_threshold_pow2",
   "test.java.math.RoundingMode",
   # test.java.net
   "test.java.net.DatagramSocket",
