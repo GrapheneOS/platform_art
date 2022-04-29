@@ -2457,6 +2457,9 @@ void Runtime::VisitConcurrentRoots(RootVisitor* visitor, VisitRootFlags flags) {
   class_linker_->VisitRoots(visitor, flags);
   jni_id_manager_->VisitRoots(visitor);
   heap_->VisitAllocationRecords(visitor);
+  if (jit_ != nullptr) {
+    jit_->GetCodeCache()->VisitRoots(visitor);
+  }
   if ((flags & kVisitRootFlagNewRoots) == 0) {
     // Guaranteed to have no new roots in the constant roots.
     VisitConstantRoots(visitor);
