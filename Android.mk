@@ -882,7 +882,7 @@ endef
 define create_public_sdk_dex
 public_sdk_$(1)_stub := $$(call get_public_sdk_stub_dex,$(1))
 $$(public_sdk_$(1)_stub): PRIVATE_MIN_SDK_VERSION := $(1)
-$$(public_sdk_$(1)_stub): $$(call resolve-prebuilt-sdk-jar-path,$(1)) $$(DX) $$(ZIP2ZIP)
+$$(public_sdk_$(1)_stub): $$(call resolve-prebuilt-sdk-jar-path,$(1)) $$(D8) $$(ZIP2ZIP)
 	$$(transform-classes.jar-to-dex)
 
 $$(call declare-1p-target,$$(public_sdk_$(1)_stub),art)
