@@ -77,6 +77,8 @@
         <option name="mainline-module-package-name" value="com.android.art" />
     </object>
 
+    <!-- Skip on HWASan. TODO(b/230394041): Re-enable -->
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.SkipHWASanModuleController" />
     <!-- Only run tests if the device under test is SDK version 31 (Android 12) or above. -->
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
 </configuration>
