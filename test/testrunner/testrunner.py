@@ -1241,7 +1241,7 @@ def main():
     if 'jvm' in _user_input_variants['target']:
       build_targets += 'test-art-host-run-test-dependencies '
     build_command = env.ANDROID_BUILD_TOP + '/build/soong/soong_ui.bash --make-mode'
-    build_command += ' DX='
+    build_command += ' D8='
     if dist:
       build_command += ' dist'
     build_command += ' ' + build_targets
