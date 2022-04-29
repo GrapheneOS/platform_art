@@ -1594,28 +1594,10 @@ bool JitCodeCache::IsOsrCompiled(ArtMethod* method) {
   return osr_code_map_.find(method) != osr_code_map_.end();
 }
 
-void JitCodeCache::VisitRoots(RootVisitor* visitor) {
-  MutexLock mu(Thread::Current(), *Locks::jit_lock_);
-  UnbufferedRootVisitor root_visitor(visitor, RootInfo(kRootStickyClass));
-  for (ArtMethod* method : current_optimized_compilations_) {
-    method->VisitRoots(root_visitor, kRuntimePointerSize);
-  }
-  for (ArtMethod* method : current_baseline_compilations_) {
-    method->VisitRoots(root_visitor, kRuntimePointerSize);
-  }
-  for (ArtMethod* method : current_osr_compilations_) {
-    method->VisitRoots(root_visitor, kRuntimePointerSize);
-  }
-}
-
 bool JitCodeCache::NotifyCompilationOf(ArtMethod* method,
                                        Thread* self,
                                        CompilationKind compilation_kind,
                                        bool prejit) {
-  if (kIsDebugBuild) {
-    MutexLock mu(self, *Locks::jit_lock_);
-    CHECK(IsMethodBeingCompiled(method, compilation_kind));
-  }
   const void* existing_entry_point = method->GetEntryPointFromQuickCompiledCode();
   if (compilation_kind != CompilationKind::kOsr && ContainsPc(existing_entry_point)) {
     OatQuickMethodHeader* method_header =
@@ -1704,8 +1686,13 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method,
         }
       }
     }
+    MutexLock mu(self, *Locks::jit_lock_);
+    if (IsMethodBeingCompiled(method, compilation_kind)) {
+      return false;
+    }
+    AddMethodBeingCompiled(method, compilation_kind);
+    return true;
   }
-  return true;
 }
 
 ProfilingInfo* JitCodeCache::NotifyCompilerUse(ArtMethod* method, Thread* self) {
@@ -1728,7 +1715,9 @@ void JitCodeCache::DoneCompilerUse(ArtMethod* method, Thread* self) {
   it->second->DecrementInlineUse();
 }
 
-void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self) {
+void JitCodeCache::DoneCompiling(ArtMethod* method,
+                                 Thread* self,
+                                 CompilationKind compilation_kind) {
   DCHECK_EQ(Thread::Current(), self);
   MutexLock mu(self, *Locks::jit_lock_);
   if (UNLIKELY(method->IsNative())) {
@@ -1740,6 +1729,8 @@ void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self) {
       // Failed to compile; the JNI compiler never fails, but the cache may be full.
       jni_stubs_map_.erase(it);  // Remove the entry added in NotifyCompilationOf().
     }  // else Commit() updated entrypoints of all methods in the JniStubData.
+  } else {
+    RemoveMethodBeingCompiled(method, compilation_kind);
   }
 }
 
