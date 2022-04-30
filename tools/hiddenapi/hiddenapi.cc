@@ -922,7 +922,8 @@ class HiddenApi final {
           } else if (option == "--no-force-assign-all") {
             force_assign_all_ = false;
           } else if (StartsWith(option, "--max-hiddenapi-level=")) {
-            max_hiddenapi_level_ = std::string(option.substr(strlen("--max-hiddenapi-level=")));
+            std::string value = std::string(option.substr(strlen("--max-hiddenapi-level=")));
+            max_hiddenapi_level_ = ApiList::FromName(value);
           } else {
             Usage("Unknown argument '%s'", raw_option);
           }
@@ -985,6 +986,7 @@ class HiddenApi final {
     std::map<std::string, ApiList> api_list = OpenApiFile(api_flags_path_);
 
     // Iterate over input dex files and insert HiddenapiClassData sections.
+    bool max_hiddenapi_level_error = false;
     for (size_t i = 0; i < boot_dex_paths_.size(); ++i) {
       const std::string& input_path = boot_dex_paths_[i];
       const std::string& output_path = output_dex_paths_[i];
@@ -1001,11 +1003,22 @@ class HiddenApi final {
         builder.BeginClassDef(boot_class.GetClassDefIndex());
         if (boot_class.GetData() != nullptr) {
           auto fn_shared = [&](const DexMember& boot_member) {
-            auto it = api_list.find(boot_member.GetApiEntry());
+            auto signature = boot_member.GetApiEntry();
+            auto it = api_list.find(signature);
             bool api_list_found = (it != api_list.end());
             CHECK(!force_assign_all_ || api_list_found)
-                << "Could not find hiddenapi flags for dex entry: " << boot_member.GetApiEntry();
-            builder.WriteFlags(api_list_found ? it->second : ApiList::Sdk());
+                << "Could not find hiddenapi flags for dex entry: " << signature;
+            if (api_list_found && it->second.GetIntValue() > max_hiddenapi_level_.GetIntValue()) {
+              ApiList without_domain(it->second.GetIntValue());
+              LOG(ERROR) << "Hidden api flag " << without_domain
+                         << " for member " << signature
+                         << " in " << input_path
+                         << " exceeds maximum allowable flag "
+                         << max_hiddenapi_level_;
+              max_hiddenapi_level_error = true;
+            } else {
+              builder.WriteFlags(api_list_found ? it->second : ApiList::Sdk());
+            }
           };
           auto fn_field = [&](const ClassAccessor::Field& boot_field) {
             fn_shared(DexMember(boot_class, boot_field));
@@ -1021,6 +1034,18 @@ class HiddenApi final {
       DexFileEditor dex_editor(input_dex, builder.GetData());
       dex_editor.Encode();
       dex_editor.WriteTo(output_path);
+    }
+
+    if (max_hiddenapi_level_error) {
+      LOG(ERROR)
+          << "Some hidden API flags could not be encoded within the dex file as"
+          << " they exceed the maximum allowable level of " << max_hiddenapi_level_
+          << " which is determined by the min_sdk_version of the source Java library.\n"
+          << "The affected DEX members are reported in previous error messages.\n"
+          << "The unsupported flags are being generated from the maxTargetSdk property"
+          << " of the member's @UnsupportedAppUsage annotation.\n"
+          << "See b/172453495 and/or contact art-team@ or compat-team@ for more info.\n";
+      exit(EXIT_FAILURE);
     }
   }
 
@@ -1041,22 +1066,13 @@ class HiddenApi final {
 
       const std::string& signature = values[0];
 
-      // Skip signature
-      std::vector<std::string>::iterator apiListBegin = values.begin() + 1;
-      std::vector<std::string>::iterator apiListEnd = values.end();
-      if (!max_hiddenapi_level_.empty()) {
-          auto clamp_fn = [this](const std::string& apiListName) {
-              return ApiList::CoerceAtMost(apiListName,
-                                           max_hiddenapi_level_);
-          };
-          std::transform(apiListBegin, apiListEnd, apiListBegin, clamp_fn);
-      }
-
       CHECK(api_flag_map.find(signature) == api_flag_map.end()) << path << ":" << line_number
           << ": Duplicate entry: " << signature << kErrorHelp;
 
       ApiList membership;
 
+      std::vector<std::string>::iterator apiListBegin = values.begin() + 1;
+      std::vector<std::string>::iterator apiListEnd = values.end();
       bool success = ApiList::FromNames(apiListBegin, apiListEnd, &membership);
       CHECK(success) << path << ":" << line_number
           << ": Some flags were not recognized: " << line << kErrorHelp;
@@ -1189,8 +1205,11 @@ class HiddenApi final {
   // This could be both an input and output path.
   std::string api_flags_path_;
 
-  // Override limit for sdk-max-* hidden APIs.
-  std::string max_hiddenapi_level_;
+  // Maximum allowable hidden API level that can be encoded into the dex file.
+  //
+  // By default this returns a GetIntValue() that is guaranteed to be bigger than
+  // any valid value returned by GetIntValue().
+  ApiList max_hiddenapi_level_;
 
   // Whether the input is only a fragment of the whole bootclasspath and may
   // not include a complete set of classes. That requires the tool to ignore missing
