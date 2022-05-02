@@ -19,12 +19,6 @@ set -e
 # Builds the given targets using linux-bionic and moves the output files to the
 # DIST_DIR. Takes normal make arguments.
 
-if [[ -z $ANDROID_BUILD_TOP ]]; then
-  pushd .
-else
-  pushd $ANDROID_BUILD_TOP
-fi
-
 if [[ -z $DIST_DIR ]]; then
   echo "DIST_DIR must be set!"
   exit 1
@@ -35,10 +29,12 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-source build/envsetup.sh >&/dev/null # for get_build_var
-out_dir=$(get_build_var OUT_DIR)
+vars="$(build/soong/soong_ui.bash --dumpvars-mode --vars="OUT_DIR")"
+# Assign to a variable and eval that, since bash ignores any error status from
+# the command substitution if it's directly on the eval line.
+eval $vars
 
-./art/tools/build_linux_bionic.sh $@
+./art/tools/build_linux_bionic.sh "$@"
 
 mkdir -p $DIST_DIR
-cp -R ${out_dir}/soong/host/* $DIST_DIR/
+cp -R ${OUT_DIR}/soong/host/* $DIST_DIR/
