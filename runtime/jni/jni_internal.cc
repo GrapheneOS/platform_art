@@ -2847,17 +2847,19 @@ class JNI {
   static jint EnsureLocalCapacityInternal(ScopedObjectAccess& soa, jint desired_capacity,
                                           const char* caller)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (desired_capacity < 0) {
+    if (desired_capacity > 0) {
+      std::string error_msg;
+      if (!soa.Env()->locals_.EnsureFreeCapacity(static_cast<size_t>(desired_capacity),
+                                                 &error_msg)) {
+        std::string caller_error = android::base::StringPrintf("%s: %s", caller,
+                                                               error_msg.c_str());
+        soa.Self()->ThrowOutOfMemoryError(caller_error.c_str());
+        return JNI_ERR;
+      }
+    } else if (desired_capacity < 0) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
       return JNI_ERR;
-    }
-
-    std::string error_msg;
-    if (!soa.Env()->locals_.EnsureFreeCapacity(static_cast<size_t>(desired_capacity), &error_msg)) {
-      std::string caller_error = android::base::StringPrintf("%s: %s", caller, error_msg.c_str());
-      soa.Self()->ThrowOutOfMemoryError(caller_error.c_str());
-      return JNI_ERR;
-    }
+    }  // The zero case is a no-op.
     return JNI_OK;
   }
 
