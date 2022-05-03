@@ -561,8 +561,14 @@ void IndirectReferenceTable::SetSegmentState(IRTSegmentState new_state) {
 }
 
 bool IndirectReferenceTable::EnsureFreeCapacity(size_t free_capacity, std::string* error_msg) {
+  DCHECK_GE(free_capacity, static_cast<size_t>(1));
+  if (free_capacity > kMaxTableSizeInBytes) {
+    // Arithmetic might even overflow.
+    *error_msg = "Requested table size implausibly large";
+    return false;
+  }
   size_t top_index = segment_state_.top_index;
-  if (top_index < max_entries_ && top_index + free_capacity <= max_entries_) {
+  if (top_index + free_capacity <= max_entries_) {
     return true;
   }
 
@@ -573,13 +579,6 @@ bool IndirectReferenceTable::EnsureFreeCapacity(size_t free_capacity, std::strin
   }
 
   // Try to increase the table size.
-
-  // Would this overflow?
-  if (std::numeric_limits<size_t>::max() - free_capacity < top_index) {
-    *error_msg = "Cannot resize table, overflow.";
-    return false;
-  }
-
   if (!Resize(top_index + free_capacity, error_msg)) {
     LOG(WARNING) << "JNI ERROR: Unable to reserve space in EnsureFreeCapacity (" << free_capacity
                  << "): " << std::endl
