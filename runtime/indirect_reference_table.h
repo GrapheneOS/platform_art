@@ -336,6 +336,7 @@ class IndirectReferenceTable {
   }
 
   // Ensure that at least free_capacity elements are available, or return false.
+  // Caller ensures free_capacity > 0.
   bool EnsureFreeCapacity(size_t free_capacity, std::string* error_msg)
       REQUIRES_SHARED(Locks::mutator_lock_);
   // See implementation of EnsureFreeCapacity. We'll only state here how much is trivially free,
