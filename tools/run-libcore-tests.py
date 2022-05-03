@@ -235,6 +235,20 @@ BOOT_CLASSPATH = [
 
 CLASSPATH = ["core-tests", "core-ojtests", "jsr166-tests", "mockito-target"]
 
+SLOW_OJLUNI_TESTS = {
+  "test.java.awt",
+  "test.java.lang.String",
+  "test.java.lang.invoke",
+  "test.java.nio.channels.Selector",
+  "test.java.time",
+  "test.java.util.Arrays",
+  "test.java.util.Map",
+  "test.java.util.concurrent",
+  "test.java.util.stream",
+  "test.java.util.zip.ZipFile",
+  "tck.java.time",
+}
+
 def get_jar_filename(classpath):
   base_path = (ANDROID_PRODUCT_OUT + "/../..") if ANDROID_PRODUCT_OUT else "out/target"
   base_path = os.path.normpath(base_path)  # Normalize ".." components for readability.
@@ -268,6 +282,7 @@ def get_test_names():
   # See b/78228743 and b/178351808.
   if args.gcstress or args.debug or args.mode == "jvm":
     test_names = list(t for t in test_names if not t.startswith("libcore.highmemorytest"))
+    test_names = list(filter(lambda x: x not in SLOW_OJLUNI_TESTS, test_names))
   return test_names
 
 def get_vogar_command(test_name):
