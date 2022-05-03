@@ -2940,7 +2940,7 @@ bool InstructionSimplifierVisitor::CanUseKnownBootImageVarHandle(HInvoke* invoke
     DCHECK(!declaring_class->IsInitialized());
     return false;
   }
-  HLoadClass* load_class = var_handle_instruction->InputAt(0)->AsLoadClass();
+  HInstruction* load_class = var_handle_instruction->InputAt(0);
   if (kIsDebugBuild) {
     bool is_in_boot_image = false;
     if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(declaring_class)) {
@@ -2950,9 +2950,10 @@ bool InstructionSimplifierVisitor::CanUseKnownBootImageVarHandle(HInvoke* invoke
       const char* descriptor = declaring_class->GetDescriptor(&storage);
       is_in_boot_image = compiler_options.IsImageClass(descriptor);
     }
-    CHECK_EQ(is_in_boot_image, load_class->IsInBootImage());
+    CHECK_EQ(is_in_boot_image,
+             load_class->IsLoadClass() && load_class->AsLoadClass()->IsInBootImage());
   }
-  if (!load_class->IsInBootImage()) {
+  if (!load_class->IsLoadClass() || !load_class->AsLoadClass()->IsInBootImage()) {
     return false;
   }
 
