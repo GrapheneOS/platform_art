@@ -222,8 +222,7 @@ while true; do
         option="$1"
         FLAGS="${FLAGS} $option"
         if [ "x$option" = "x-Xmethod-trace" ]; then
-            # Method tracing can slow some tests down a lot, in particular
-            # 530-checker-lse2.
+            # Method tracing can slow some tests down a lot.
             TIME_OUT_EXTRA=$((${TIME_OUT_EXTRA} + 1200))
         fi
         shift

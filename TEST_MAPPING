@@ -776,9 +776,6 @@
       "name": "art-run-test-530-checker-lse-simd[com.google.android.art.apex]"
     },
     {
-      "name": "art-run-test-530-checker-lse2[com.google.android.art.apex]"
-    },
-    {
       "name": "art-run-test-530-instanceof-checkcast[com.google.android.art.apex]"
     },
     {
@@ -2069,9 +2066,6 @@
     },
     {
       "name": "art-run-test-530-checker-lse-simd"
-    },
-    {
-      "name": "art-run-test-530-checker-lse2"
     },
     {
       "name": "art-run-test-530-instanceof-checkcast"
