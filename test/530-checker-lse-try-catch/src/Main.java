@@ -30,6 +30,8 @@ public class Main {
     assertEquals(1, $noinline$testTryCatchBlocking(new Point(), boolean_throw));
     assertEquals(1, $noinline$testTryCatchPhi(new Point(), boolean_throw));
     assertEquals(2, $noinline$testTryCatchPhiWithTwoCatches(new Point(), new int[0]));
+    assertEquals(1, $noinline$testKeepStoreInsideTryCatch());
+    assertEquals(150, $noinline$test40());
   }
 
   /// CHECK-START: int Main.$noinline$testDifferentFields(Point, Point, boolean, boolean) load_store_elimination (before)
@@ -199,9 +201,113 @@ public class Main {
     return obj.y;
   }
 
+  // Check that we don't eliminate the first store to `main.sumForKeepStoreInsideTryCatch` since it
+  // is observable.
+
+  // Consistency check to make sure the try/catch wasn't removed by an earlier pass.
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTryCatch() load_store_elimination (after)
+  /// CHECK-DAG: TryBoundary kind:entry
+
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTryCatch() load_store_elimination (before)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTryCatch() load_store_elimination (after)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  private static int $noinline$testKeepStoreInsideTryCatch() {
+    Main main = new Main();
+    main.sumForKeepStoreInsideTryCatch = 0;
+    try {
+      int[] array = {1};
+      main.sumForKeepStoreInsideTryCatch += array[0];
+      main.sumForKeepStoreInsideTryCatch += array[1];
+      throw new RuntimeException("Unreachable");
+    } catch (ArrayIndexOutOfBoundsException e) {
+      return main.sumForKeepStoreInsideTryCatch;
+    }
+  }
+
+  /// CHECK-START: int Main.$noinline$test40() load_store_elimination (before)
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  /// CHECK:                     ArraySet
+  //
+  /// CHECK:                     ArraySet
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  //
+  /// CHECK:                     ArraySet
+  /// CHECK:                     ArraySet
+  /// CHECK:                     ArraySet
+  /// CHECK-NOT:                 ArraySet
+
+  /// CHECK-START: int Main.$noinline$test40() load_store_elimination (after)
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  //
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  //
+  /// CHECK-NOT:                 ArraySet
+
+  // Like `test40` from 530-checker-lse but with $inline$ for the inner method so we check that we
+  // have the array set inside try catches too.
+  // Since we are inlining, we know the parameters and are able to elimnate (some) of the
+  // `ArraySet`s.
+  private static int $noinline$test40() {
+    int[] array = new int[1];
+    try {
+      $inline$fillArrayTest40(array, 100, 0);
+      System.out.println("UNREACHABLE");
+    } catch (Throwable expected) {
+    }
+    assertEquals(1, array[0]);
+    try {
+      $inline$fillArrayTest40(array, 100, 1);
+      System.out.println("UNREACHABLE");
+    } catch (Throwable expected) {
+    }
+    assertEquals(2, array[0]);
+    $inline$fillArrayTest40(array, 100, 2);
+    assertEquals(150, array[0]);
+    return array[0];
+  }
+
+  /// CHECK-START: void Main.$inline$fillArrayTest40(int[], int, int) load_store_elimination (before)
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  /// CHECK-NOT:                 ArraySet
+
+  /// CHECK-START: void Main.$inline$fillArrayTest40(int[], int, int) load_store_elimination (after)
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  /// CHECK:                     DivZeroCheck
+  /// CHECK:                     ArraySet
+  /// CHECK-NOT:                 ArraySet
+
+  // Check that the stores to array[0] are not eliminated since we can throw in between the stores.
+  private static void $inline$fillArrayTest40(int[] array, int a, int b) {
+    array[0] = 1;
+    int x = a / b;
+    array[0] = 2;
+    int y = a / (b - 1);
+    array[0] = x + y;
+  }
+
   private static void assertEquals(int expected, int actual) {
     if (expected != actual) {
       throw new AssertionError("Expected: " + expected + ", Actual: " + actual);
     }
   }
+
+  int sumForKeepStoreInsideTryCatch;
 }
