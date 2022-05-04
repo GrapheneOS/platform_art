@@ -337,5 +337,11 @@
   bug: 231283845,
   names: ["test.java.lang.invoke.MethodTypeTest#testGeneric",
           "test.java.lang.invoke.MethodTypeTest#testMakeGeneric"]
+},
+{
+  description: "Timing out after ojluni tests were enabled",
+  result: ERROR,
+  bug: 231439593,
+  names: ["org.apache.harmony.tests.java.math.BigIntegerConstructorsTest#testConstructorPrime"]
 }
 ]
