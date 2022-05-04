@@ -98,12 +98,11 @@ class ApiList {
     kMaxTargetP = 4,
     kMaxTargetQ = 5,
     kMaxTargetR = 6,
-    kMaxTargetS = 7,
 
     // Special values
     kInvalid =      (static_cast<uint32_t>(-1) & kValueBitMask),
     kMin =          kSdk,
-    kMax =          kMaxTargetS,
+    kMax =          kMaxTargetR,
   };
 
   // Additional bit flags after the first kValueBitSize bits in dex flags.
@@ -140,7 +139,6 @@ class ApiList {
     "max-target-p",
     "max-target-q",
     "max-target-r",
-    "max-target-s",
   };
 
   // A magic marker used by tests to mimic a hiddenapi list which doesn't exist
@@ -162,7 +160,6 @@ class ApiList {
     /* max-target-p */ SdkVersion::kP,
     /* max-target-q */ SdkVersion::kQ,
     /* max-target-r */ SdkVersion::kR,
-    /* max-target-s */ SdkVersion::kS,
   };
 
   explicit ApiList(Value val, uint32_t domain_apis = 0u)
@@ -207,7 +204,6 @@ class ApiList {
   static ApiList MaxTargetP() { return ApiList(Value::kMaxTargetP); }
   static ApiList MaxTargetQ() { return ApiList(Value::kMaxTargetQ); }
   static ApiList MaxTargetR() { return ApiList(Value::kMaxTargetR); }
-  static ApiList MaxTargetS() { return ApiList(Value::kMaxTargetS); }
   static ApiList CorePlatformApi() { return ApiList(DomainApi::kCorePlatformApi); }
   static ApiList TestApi() { return ApiList(DomainApi::kTestApi); }
 
