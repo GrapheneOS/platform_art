@@ -50,7 +50,6 @@
           "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnectionTest#testConsequentProxyConnection",
           "org.apache.harmony.tests.java.lang.ref.ReferenceQueueTest#test_removeJ",
           "org.apache.harmony.tests.java.lang.ProcessManagerTest#testSleep",
-          "org.apache.harmony.tests.java.math.BigIntegerConstructorsTest#testConstructorPrime",
           "org.apache.harmony.tests.java.util.TimerTest#testOverdueTaskExecutesImmediately",
           "org.apache.harmony.tests.java.util.WeakHashMapTest#test_keySet_hasNext"
   ]
