@@ -27,6 +27,7 @@
     <!-- True if the cache info is generated in the Compilation OS. -->
     <xs:attribute name="compilationOsMode" type="xs:boolean" />
     <xs:sequence>
+      <xs:element name="systemProperties" minOccurs="1" maxOccurs="1" type="t:keyValuePairList" />
       <xs:element name="artModuleInfo" minOccurs="1" maxOccurs="1" type="t:moduleInfo" />
       <xs:element name="moduleInfoList" minOccurs="1" maxOccurs="1" type="t:moduleInfoList" />
       <xs:element name="bootClasspath" minOccurs="1" maxOccurs="1" type="t:classpath" />
@@ -35,6 +36,19 @@
     </xs:sequence>
     </xs:complexType>
   </xs:element>
+
+  <!-- List of key-value pairs. -->
+  <xs:complexType name="keyValuePairList">
+    <xs:sequence>
+      <xs:element name="item" type="t:keyValuePair" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- A key-value pair. -->
+  <xs:complexType name="keyValuePair">
+    <xs:attribute name="k" type="xs:string" use="required" />
+    <xs:attribute name="v" type="xs:string" use="required" />
+  </xs:complexType>
 
   <!-- List of modules. -->
   <xs:complexType name="moduleInfoList">
