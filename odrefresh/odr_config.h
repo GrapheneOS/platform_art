@@ -19,9 +19,11 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "android-base/file.h"
+#include "android-base/no_destructor.h"
 #include "arch/instruction_set.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
@@ -31,6 +33,17 @@
 
 namespace art {
 namespace odrefresh {
+
+struct SystemPropertyConfig {
+  const char* name;
+  const char* default_value;
+};
+
+// The system properties that odrefresh keeps track of. Odrefresh will recompile everything if any
+// property changes.
+const android::base::NoDestructor<std::vector<SystemPropertyConfig>> kSystemProperties{
+    {SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.enable_uffd_gc",
+                          .default_value = "false"}}};
 
 // An enumeration of the possible zygote configurations on Android.
 enum class ZygoteKind : uint8_t {
@@ -65,6 +78,9 @@ class OdrConfig final {
   std::string standalone_system_server_jars_;
   bool compilation_os_mode_ = false;
   bool minimal_ = false;
+
+  // The current values of system properties listed in `kSystemProperties`.
+  std::unordered_map<std::string, std::string> system_properties_;
 
   // Staging directory for artifacts. The directory must exist and will be automatically removed
   // after compilation. If empty, use the default directory.
@@ -148,6 +164,9 @@ class OdrConfig final {
   }
   bool GetCompilationOsMode() const { return compilation_os_mode_; }
   bool GetMinimal() const { return minimal_; }
+  const std::unordered_map<std::string, std::string>& GetSystemProperties() const {
+    return system_properties_;
+  }
 
   void SetApexInfoListFile(const std::string& file_path) { apex_info_list_file_ = file_path; }
   void SetArtBinDir(const std::string& art_bin_dir) { art_bin_dir_ = art_bin_dir; }
@@ -198,6 +217,10 @@ class OdrConfig final {
   void SetCompilationOsMode(bool value) { compilation_os_mode_ = value; }
 
   void SetMinimal(bool value) { minimal_ = value; }
+
+  std::unordered_map<std::string, std::string>* MutableSystemProperties() {
+    return &system_properties_;
+  }
 
  private:
   // Returns a pair for the possible instruction sets for the configured instruction set
