@@ -8,12 +8,14 @@ package com.android.art {
     method public boolean getCompilationOsMode();
     method public com.android.art.Classpath getDex2oatBootClasspath();
     method public com.android.art.ModuleInfoList getModuleInfoList();
+    method public com.android.art.KeyValuePairList getSystemProperties();
     method public com.android.art.SystemServerComponents getSystemServerComponents();
     method public void setArtModuleInfo(com.android.art.ModuleInfo);
     method public void setBootClasspath(com.android.art.Classpath);
     method public void setCompilationOsMode(boolean);
     method public void setDex2oatBootClasspath(com.android.art.Classpath);
     method public void setModuleInfoList(com.android.art.ModuleInfoList);
+    method public void setSystemProperties(com.android.art.KeyValuePairList);
     method public void setSystemServerComponents(com.android.art.SystemServerComponents);
   }
 
@@ -31,6 +33,20 @@ package com.android.art {
     method public void setChecksums(String);
     method public void setFile(String);
     method public void setSize(java.math.BigInteger);
+  }
+
+  public class KeyValuePair {
+    ctor public KeyValuePair();
+    method public String getK();
+    method public String getV();
+    method public void setK(String);
+    method public void setV(String);
+  }
+
+  public class KeyValuePairList {
+    ctor public KeyValuePairList();
+    method public com.android.art.KeyValuePair getItem();
+    method public void setItem(com.android.art.KeyValuePair);
   }
 
   public class ModuleInfo {
