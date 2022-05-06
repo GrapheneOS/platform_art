@@ -51,6 +51,10 @@ public class FloatLoop implements Runnable {
         }
     }
 
+    // Create an empty int[] to force loading the int[] class before compiling $noinline$busyLoop.
+    // This makes sure the compiler can properly type int[] and not bail.
+    static int[] emptyArray = new int[0];
+
     public void $noinline$busyLoop() {
         Main.assertIsManaged();
 
