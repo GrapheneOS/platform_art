@@ -18,6 +18,7 @@
 
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #include "android-base/properties.h"
 #include "android-base/stringprintf.h"
@@ -34,14 +35,17 @@
 
 namespace {
 
+using ::android::base::GetProperty;
 using ::art::odrefresh::CompilationOptions;
 using ::art::odrefresh::ExitCode;
+using ::art::odrefresh::kSystemProperties;
 using ::art::odrefresh::OdrCompilationLog;
 using ::art::odrefresh::OdrConfig;
 using ::art::odrefresh::OdrMetrics;
 using ::art::odrefresh::OnDeviceRefresh;
 using ::art::odrefresh::QuotePath;
 using ::art::odrefresh::ShouldDisableRefresh;
+using ::art::odrefresh::SystemPropertyConfig;
 using ::art::odrefresh::ZygoteKind;
 
 void UsageMsgV(const char* fmt, va_list ap) {
@@ -155,7 +159,7 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
 
   if (zygote.empty()) {
     // Use ro.zygote by default, if not overridden by --zygote-arch flag.
-    zygote = android::base::GetProperty("ro.zygote", {});
+    zygote = GetProperty("ro.zygote", {});
   }
   ZygoteKind zygote_kind;
   if (!ParseZygoteKind(zygote.c_str(), &zygote_kind)) {
@@ -164,17 +168,22 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
   config->SetZygoteKind(zygote_kind);
 
   if (config->GetSystemServerCompilerFilter().empty()) {
-    std::string filter =
-        android::base::GetProperty("dalvik.vm.systemservercompilerfilter", "speed");
+    std::string filter = GetProperty("dalvik.vm.systemservercompilerfilter", "speed");
     config->SetSystemServerCompilerFilter(filter);
   }
 
-  if (ShouldDisableRefresh(
-          android::base::GetProperty("ro.build.version.sdk", /*default_value=*/""))) {
+  if (ShouldDisableRefresh(GetProperty("ro.build.version.sdk", /*default_value=*/""))) {
     config->SetRefresh(false);
   }
 
   return n;
+}
+
+void GetSystemProperties(std::unordered_map<std::string, std::string>* system_properties) {
+  for (const SystemPropertyConfig& system_property_config : *kSystemProperties.get()) {
+    (*system_properties)[system_property_config.name] =
+        GetProperty(system_property_config.name, system_property_config.default_value);
+  }
 }
 
 NO_RETURN void UsageHelp(const char* argv0) {
@@ -229,6 +238,7 @@ int main(int argc, char** argv) {
   if (argc != 1) {
     ArgumentError("Expected 1 argument, but have %d.", argc);
   }
+  GetSystemProperties(config.MutableSystemProperties());
 
   OdrMetrics metrics(config.GetArtifactDirectory());
   OnDeviceRefresh odr(config);
@@ -268,6 +278,6 @@ int main(int argc, char** argv) {
   } else if (action == "--help") {
     UsageHelp(argv[0]);
   } else {
-    ArgumentError("Unknown argument: ", action);
+    ArgumentError("Unknown argument: %s", action.data());
   }
 }
