@@ -68,12 +68,12 @@ enum LockLevel : uint8_t {
   // Can be held while GC related work is done, and thus must be above kMarkSweepMarkStackLock
   kThreadWaitLock,
   kCHALock,
-  kJitCodeCacheLock,
   kRosAllocGlobalLock,
   kRosAllocBracketLock,
   kRosAllocBulkFreeLock,
   kAllocSpaceLock,
   kTaggingLockLevel,
+  kJitCodeCacheLock,
   kTransactionLogLock,
   kCustomTlsLock,
   kJniFunctionTableLock,
