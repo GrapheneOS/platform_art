@@ -25,7 +25,7 @@ package {
 aidl_interface {
     name: "artd-aidl",
     srcs: [
-        "android/os/IArtd.aidl",
+        "com/android/server/art/*.aidl",
     ],
     host_supported: true,
     backend: {
