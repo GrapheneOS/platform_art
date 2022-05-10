@@ -16,10 +16,11 @@
 
 package com.android.art;
 
-import android.os.IArtd;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+
+import com.android.server.art.IArtd;
 
 import org.junit.After;
 import org.junit.Assert;

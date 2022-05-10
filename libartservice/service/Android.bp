@@ -29,7 +29,7 @@ cc_library {
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
-        "service/native/service.cc",
+        "native/service.cc",
     ],
     export_include_dirs: ["."],
     apex_available: [
@@ -82,7 +82,7 @@ java_sdk_library {
     compile_dex: true,
 
     srcs: [
-        "service/java/**/*.java",
+        "java/**/*.java",
     ],
 
     libs: [
@@ -95,7 +95,7 @@ java_sdk_library {
 art_cc_defaults {
     name: "art_libartservice_tests_defaults",
     srcs: [
-        "service/native/service_test.cc",
+        "native/service_test.cc",
     ],
     shared_libs: [
         "libbase",
@@ -121,4 +121,26 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_libartservice_tests_defaults",
     ],
+}
+
+android_test {
+    name: "ArtServiceTests",
+
+    // Include all test java files.
+    srcs: [
+        "javatests/**/*.java",
+    ],
+
+    static_libs: [
+        "androidx.test.ext.junit",
+        "androidx.test.ext.truth",
+        "androidx.test.runner",
+        "mockito-target-minus-junit4",
+        "service-art.impl",
+    ],
+
+    sdk_version: "system_server_current",
+    min_sdk_version: "31",
+
+    test_suites: ["general-tests"],
 }
