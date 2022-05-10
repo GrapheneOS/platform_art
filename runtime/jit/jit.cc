@@ -208,7 +208,6 @@ Jit* Jit::Create(JitCodeCache* code_cache, JitOptions* options) {
   // Jit GC for now (b/147208992).
   if (code_cache->GetGarbageCollectCode()) {
     code_cache->SetGarbageCollectCode(!jit_compiler_->GenerateDebugInfo() &&
-        !Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled() &&
         !jit->JitAtFirstUse());
   }
 
@@ -1662,7 +1661,6 @@ void Jit::PostForkChildAction(bool is_system_server, bool is_zygote) {
   // Jit GC for now (b/147208992).
   code_cache_->SetGarbageCollectCode(
       !jit_compiler_->GenerateDebugInfo() &&
-      !runtime->GetInstrumentation()->AreExitStubsInstalled() &&
       !JitAtFirstUse());
 
   if (is_system_server && runtime->HasImageWithProfile()) {
