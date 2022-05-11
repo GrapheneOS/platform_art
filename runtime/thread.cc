@@ -1981,6 +1981,9 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     if (thread->IsStillStarting()) {
       os << " (still starting up)";
     }
+    if (thread->tls32_.disable_thread_flip_count != 0) {
+      os << " DisableFlipCount = " << thread->tls32_.disable_thread_flip_count;
+    }
     os << "\n";
   } else {
     os << '"' << ::art::GetThreadName(tid) << '"'
