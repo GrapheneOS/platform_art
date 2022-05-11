@@ -2589,9 +2589,6 @@
   ],
   "hwasan-presubmit": [
     {
-      "name": "BootImageProfileTest"
-    },
-    {
       "name": "ArtServiceTests"
     },
     {
