@@ -16,22 +16,29 @@
 
 package com.android.server.art;
 
-import static org.junit.Assert.assertTrue;
+import static com.google.common.truth.Truth.assertThat;
 
-import androidx.test.runner.AndroidJUnit4;
+import androidx.test.filters.SmallTest;
 
 import com.android.server.art.ArtManagerLocal;
 
-import junit.framework.TestCase;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.junit.MockitoJUnitRunner;
 
-public class ArtManagerLocalTests extends TestCase {
+@SmallTest
+@RunWith(MockitoJUnitRunner.class)
+public class ArtManagerLocalTests {
     private ArtManagerLocal mArtManagerLocal;
 
-    public void setup() {
+    @Before
+    public void setUp() {
         mArtManagerLocal = new ArtManagerLocal();
     }
 
+    @Test
     public void testScaffolding() {
-        assertTrue(true);
+        assertThat(true).isTrue();
     }
 }
