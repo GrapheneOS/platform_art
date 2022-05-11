@@ -126,10 +126,17 @@ void MetricsReporter::BackgroundThreadRun() {
 
   // Configure the backends
   if (config_.dump_to_logcat) {
-    backends_.emplace_back(new LogBackend(LogSeverity::INFO));
+    backends_.emplace_back(new LogBackend(std::make_unique<TextFormatter>(), LogSeverity::INFO));
   }
   if (config_.dump_to_file.has_value()) {
-    backends_.emplace_back(new FileBackend(config_.dump_to_file.value()));
+    std::unique_ptr<MetricsFormatter> formatter;
+    if (config_.metrics_format == "xml") {
+      formatter = std::make_unique<XmlFormatter>();
+    } else {
+      formatter = std::make_unique<TextFormatter>();
+    }
+
+    backends_.emplace_back(new FileBackend(std::move(formatter), config_.dump_to_file.value()));
   }
   if (config_.dump_to_statsd) {
     auto backend = CreateStatsdBackend();
@@ -291,6 +298,7 @@ ReportingConfig ReportingConfig::FromFlags(bool is_system_server) {
       .dump_to_logcat = gFlags.MetricsWriteToLogcat(),
       .dump_to_file = gFlags.MetricsWriteToFile.GetValueOptional(),
       .dump_to_statsd = gFlags.MetricsWriteToStatsd(),
+      .metrics_format = gFlags.MetricsFormat(),
       .period_spec = period_spec,
       .reporting_num_mods = reporting_num_mods,
       .reporting_mods = reporting_mods,
