@@ -191,6 +191,12 @@ extern "C" JNIEXPORT jobjectArray JNICALL Java_art_Test913_followReferences(
         return 0;
       }
 
+      // Ignore system classes, which may come from the JIT compiling a method
+      // in these classes.
+      if (reference_kind == JVMTI_HEAP_REFERENCE_SYSTEM_CLASS) {
+        return 0;
+      }
+
       // Only check tagged objects.
       if (tag == 0) {
         return JVMTI_VISIT_OBJECTS;
