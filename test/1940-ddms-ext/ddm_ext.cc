@@ -21,8 +21,8 @@
 
 // Test infrastructure
 #include "jvmti_helper.h"
-#include "nativehelper/scoped_local_ref.h"
-#include "nativehelper/scoped_primitive_array.h"
+#include "scoped_local_ref.h"
+#include "scoped_primitive_array.h"
 #include "test_env.h"
 
 namespace art {
