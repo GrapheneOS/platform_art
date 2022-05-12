@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.os;
+package com.android.server.art;
 
 /** {@hide} */
 interface IArtd {
