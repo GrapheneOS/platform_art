@@ -276,7 +276,20 @@ static void ForceJitCompiled(Thread* self,
     // this before checking if we will execute JIT code in case the request
     // is for an 'optimized' compilation.
     jit->CompileMethod(method, self, kind, /*prejit=*/ false);
-  } while (!code_cache->ContainsPc(method->GetEntryPointFromQuickCompiledCode()));
+    const void* entry_point = method->GetEntryPointFromQuickCompiledCode();
+    if (code_cache->ContainsPc(entry_point)) {
+      // If we're running baseline or not requesting optimized, we're good to go.
+      if (jit->GetJitCompiler()->IsBaselineCompiler() || kind != CompilationKind::kOptimized) {
+        break;
+      }
+      // If we're requesting optimized, check that we did get the method
+      // compiled optimized.
+      OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromEntryPoint(entry_point);
+      if (!CodeInfo::IsBaseline(method_header->GetOptimizedCodeInfoPtr())) {
+        break;
+      }
+    }
+  } while (true);
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_ensureMethodJitCompiled(JNIEnv*, jclass, jobject meth) {
