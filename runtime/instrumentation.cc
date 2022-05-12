@@ -230,32 +230,9 @@ static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_)
       method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;");
 }
 
-static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (kIsDebugBuild) {
-    if (NeedsClinitCheckBeforeCall(method) &&
-        !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-      CHECK(CanHandleInitializationCheck(quick_code));
-    }
-    jit::Jit* jit = Runtime::Current()->GetJit();
-    if (jit != nullptr && jit->GetCodeCache()->ContainsPc(quick_code)) {
-      // Ensure we always have the thumb entrypoint for JIT on arm32.
-      if (kRuntimeISA == InstructionSet::kArm) {
-        CHECK_EQ(reinterpret_cast<uintptr_t>(quick_code) & 1, 1u);
-      }
-    }
-    if (IsProxyInit(method)) {
-      CHECK_NE(quick_code, GetQuickInstrumentationEntryPoint());
-    }
-  }
-  // If the method is from a boot image, don't dirty it if the entrypoint
-  // doesn't change.
-  if (method->GetEntryPointFromQuickCompiledCode() != quick_code) {
-    method->SetEntryPointFromQuickCompiledCode(quick_code);
-  }
-}
-
-bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
+// Returns true if we need entry exit stub to call entry hooks. JITed code
+// directly call entry / exit hooks and don't need the stub.
+static bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Proxy.init should never have entry/exit stubs.
   if (IsProxyInit(method)) {
@@ -292,6 +269,36 @@ bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method
     return false;
   }
   return true;
+}
+
+static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (kIsDebugBuild) {
+    if (NeedsClinitCheckBeforeCall(method) &&
+        !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+      CHECK(CanHandleInitializationCheck(quick_code));
+    }
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    if (jit != nullptr && jit->GetCodeCache()->ContainsPc(quick_code)) {
+      // Ensure we always have the thumb entrypoint for JIT on arm32.
+      if (kRuntimeISA == InstructionSet::kArm) {
+        CHECK_EQ(reinterpret_cast<uintptr_t>(quick_code) & 1, 1u);
+      }
+    }
+    if (IsProxyInit(method)) {
+      CHECK_NE(quick_code, GetQuickInstrumentationEntryPoint());
+    }
+    const Instrumentation* instr = Runtime::Current()->GetInstrumentation();
+    if (instr->EntryExitStubsInstalled()) {
+      DCHECK(quick_code == GetQuickInstrumentationEntryPoint() ||
+             !CodeNeedsEntryExitStub(quick_code, method));
+    }
+  }
+  // If the method is from a boot image, don't dirty it if the entrypoint
+  // doesn't change.
+  if (method->GetEntryPointFromQuickCompiledCode() != quick_code) {
+    method->SetEntryPointFromQuickCompiledCode(quick_code);
+  }
 }
 
 bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1199,7 +1206,11 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
     UpdateEntryPoints(method, GetQuickToInterpreterBridge());
   } else if (NeedsClinitCheckBeforeCall(method) &&
              !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-    UpdateEntryPoints(method, GetQuickResolutionStub());
+    if (EntryExitStubsInstalled()) {
+      UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
+    } else {
+      UpdateEntryPoints(method, GetQuickResolutionStub());
+    }
   } else {
     UpdateEntryPoints(method, GetMaybeInstrumentedCodeForInvoke(method));
   }
