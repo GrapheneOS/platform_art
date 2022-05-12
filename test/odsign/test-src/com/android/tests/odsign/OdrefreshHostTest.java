@@ -146,9 +146,12 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     @Test
     public void verifyEnableUffdGcChangeTriggersCompilation() throws Exception {
         try {
-            // Disable phenotype flag syncing.
+            // Disable phenotype flag syncing. Potentially, we can set
+            // `set_sync_disabled_for_tests` to `until_reboot`, but setting it to
+            // `persistent` prevents unrelated system crashes/restarts from affecting the
+            // test. `set_sync_disabled_for_tests` is reset in the `finally` block anyway.
             getDevice().executeShellV2Command(
-                    "device_config set_sync_disabled_for_tests until_reboot");
+                    "device_config set_sync_disabled_for_tests persistent");
 
             // Simulate that the phenotype flag is set to the default value.
             getDevice().executeShellV2Command(
