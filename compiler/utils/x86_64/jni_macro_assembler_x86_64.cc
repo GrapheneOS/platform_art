@@ -217,8 +217,15 @@ void X86_64JNIMacroAssembler::StoreStackOffsetToThread(ThreadOffset64 thr_offs,
   __ gs()->movq(Address::Absolute(thr_offs, true), scratch);
 }
 
-void X86_64JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset64 thr_offs) {
-  __ gs()->movq(Address::Absolute(thr_offs, true), CpuRegister(RSP));
+void X86_64JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset64 thr_offs, bool tag_sp) {
+  if (tag_sp) {
+    CpuRegister reg = GetScratchRegister();
+    __ movq(reg, CpuRegister(RSP));
+    __ orq(reg, Immediate(0x2));
+    __ gs()->movq(Address::Absolute(thr_offs, true), reg);
+  } else {
+    __ gs()->movq(Address::Absolute(thr_offs, true), CpuRegister(RSP));
+  }
 }
 
 void X86_64JNIMacroAssembler::StoreSpanning(FrameOffset /*dst*/,
