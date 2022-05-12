@@ -1358,8 +1358,13 @@
         "description": "Interpreting BigInteger.add() is too slow (timeouts)"
     },
     {
-        "tests": ["2029-contended-monitors"],
+        "tests": ["2029-contended-monitors", "2043-reference-pauses"],
         "variant": "interpreter | interp-ac | gcstress | trace",
+        "description": ["Slow tests. Prone to timeouts."]
+    },
+    {
+        "tests": ["2042-reference-processing"],
+        "variant": "interpreter | interp-ac | gcstress | trace | debuggable",
         "description": ["Slow test. Prone to timeouts."]
     },
     {
