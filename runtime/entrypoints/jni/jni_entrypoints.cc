@@ -87,11 +87,11 @@ extern "C" const void* artFindNativeMethodRunnable(Thread* self)
     }
 
     // Replace the runtime method on the stack with the target method.
-    DCHECK(!self->GetManagedStack()->GetTopQuickFrameGenericJniTag());
+    DCHECK(!self->GetManagedStack()->GetTopQuickFrameTag());
     ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrameKnownNotTagged();
     DCHECK(*sp == Runtime::Current()->GetCalleeSaveMethod(CalleeSaveType::kSaveRefsAndArgs));
     *sp = target_method;
-    self->SetTopOfStackGenericJniTagged(sp);  // Fake GenericJNI frame.
+    self->SetTopOfStackTagged(sp);  // Fake GenericJNI frame.
 
     // Continue with the target method.
     method = target_method;

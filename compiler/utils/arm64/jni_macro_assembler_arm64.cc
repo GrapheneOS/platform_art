@@ -218,13 +218,10 @@ void Arm64JNIMacroAssembler::StoreStackOffsetToThread(ThreadOffset64 tr_offs, Fr
   ___ Str(scratch, MEM_OP(reg_x(TR), tr_offs.Int32Value()));
 }
 
-void Arm64JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset64 tr_offs, bool tag_sp) {
+void Arm64JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset64 tr_offs) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   Register scratch = temps.AcquireX();
   ___ Mov(scratch, reg_x(SP));
-  if (tag_sp) {
-    ___ Orr(scratch, scratch, 0x2);
-  }
   ___ Str(scratch, MEM_OP(reg_x(TR), tr_offs.Int32Value()));
 }
 
