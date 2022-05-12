@@ -310,11 +310,16 @@ bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mu
          Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method);
 }
 
-static bool CanUseAotCode(const void* quick_code)
+static bool CanUseAotCode(ArtMethod* method, const void* quick_code)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (quick_code == nullptr) {
     return false;
   }
+  if (method->IsNative()) {
+    // AOT code for native methods can always be used.
+    return true;
+  }
+
   Runtime* runtime = Runtime::Current();
   // For simplicity, we never use AOT code for debuggable.
   if (runtime->IsJavaDebuggable()) {
@@ -350,7 +355,7 @@ static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks:
   // In debuggable mode, we can only use AOT code for native methods.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const void* aot_code = method->GetOatMethodQuickCode(class_linker->GetImagePointerSize());
-  if (CanUseAotCode(aot_code)) {
+  if (CanUseAotCode(method, aot_code)) {
     return aot_code;
   }
 
@@ -409,7 +414,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
   }
 
   // Use the provided AOT code if possible.
-  if (CanUseAotCode(aot_code)) {
+  if (CanUseAotCode(method, aot_code)) {
     UpdateEntryPoints(method, aot_code);
     return;
   }
