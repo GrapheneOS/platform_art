@@ -414,7 +414,7 @@ void JniCompilerTest::AssertCallerObjectLocked(JNIEnv* env) {
   CHECK(!caller->IsCriticalNative());
   CHECK(caller->IsSynchronized());
   ObjPtr<mirror::Object> lock;
-  if (self->GetManagedStack()->GetTopQuickFrameTag()) {
+  if (self->GetManagedStack()->GetTopQuickFrameGenericJniTag()) {
     // Generic JNI.
     lock = GetGenericJniSynchronizationObject(self, caller);
   } else if (caller->IsStatic()) {

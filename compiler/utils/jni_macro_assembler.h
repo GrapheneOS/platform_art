@@ -126,7 +126,11 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void StoreStackOffsetToThread(ThreadOffset<kPointerSize> thr_offs,
                                         FrameOffset fr_offs) = 0;
 
-  virtual void StoreStackPointerToThread(ThreadOffset<kPointerSize> thr_offs) = 0;
+  // Stores stack pointer by tagging it if required so we can walk the stack. In debuggable runtimes
+  // we use tag to tell if we are using JITed code or AOT code. In non-debuggable runtimes we never
+  // use JITed code when AOT code is present. So checking for AOT code is sufficient to detect which
+  // code is being executed. We avoid tagging in non-debuggable runtimes to reduce instructions.
+  virtual void StoreStackPointerToThread(ThreadOffset<kPointerSize> thr_offs, bool tag_sp) = 0;
 
   virtual void StoreSpanning(FrameOffset dest,
                              ManagedRegister src,
