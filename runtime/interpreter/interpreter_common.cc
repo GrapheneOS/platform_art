@@ -185,7 +185,6 @@ bool MoveToExceptionHandler(Thread* self,
       // Exception is not caught by the current method. We will unwind to the
       // caller. Notify any instrumentation listener.
       instrumentation->MethodUnwindEvent(self,
-                                         shadow_frame.GetThisObject(),
                                          shadow_frame.GetMethod(),
                                          shadow_frame.GetDexPC());
     }
