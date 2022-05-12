@@ -95,6 +95,13 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   const InstructionSetFeatures* instruction_set_features =
       compiler_options.GetInstructionSetFeatures();
 
+  // When  walking the stack the top frame doesn't have a pc associated with it. We then depend on
+  // the invariant that we don't have JITed code when AOT code is available. In debuggable runtimes
+  // this invariant doesn't hold. So we tag the SP for JITed code to indentify if we are executing
+  // JITed code or AOT code. Since tagging involves additional instructions we tag only in
+  // debuggable runtimes.
+  bool should_tag_sp = compiler_options.GetDebuggable() && compiler_options.IsJitCompiler();
+
   // i.e. if the method was annotated with @FastNative
   const bool is_fast_native = (access_flags & kAccFastNative) != 0u;
 
@@ -219,7 +226,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   //       because garbage collections are disabled within the execution of a
   //       @CriticalNative method.
   if (LIKELY(!is_critical_native)) {
-    __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset<kPointerSize>());
+    __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset<kPointerSize>(), should_tag_sp);
   }
 
   // 2. Lock the object (if synchronized) and transition out of Runnable (if normal native).
@@ -605,7 +612,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     if (reference_return) {
       // Suspend check entry point overwrites top of managed stack and leaves it clobbered.
       // We need to restore the top for subsequent runtime call to `JniDecodeReferenceResult()`.
-      __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset<kPointerSize>());
+      __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset<kPointerSize>(), should_tag_sp);
     }
     if (reference_return && main_out_arg_size != 0) {
       __ IncreaseFrameSize(main_out_arg_size);

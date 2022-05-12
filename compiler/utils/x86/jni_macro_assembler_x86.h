@@ -66,7 +66,7 @@ class X86JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86Assembler, Poi
 
   void StoreStackOffsetToThread(ThreadOffset32 thr_offs, FrameOffset fr_offs) override;
 
-  void StoreStackPointerToThread(ThreadOffset32 thr_offs) override;
+  void StoreStackPointerToThread(ThreadOffset32 thr_offs, bool tag_sp) override;
 
   void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off) override;
 
