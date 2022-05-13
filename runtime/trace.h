@@ -184,7 +184,6 @@ class Trace final : public instrumentation::InstrumentationListener {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!unique_methods_lock_, !streaming_lock_)
       override;
   void MethodUnwind(Thread* thread,
-                    Handle<mirror::Object> this_object,
                     ArtMethod* method,
                     uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!unique_methods_lock_, !streaming_lock_)

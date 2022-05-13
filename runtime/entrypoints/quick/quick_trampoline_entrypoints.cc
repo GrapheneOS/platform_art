@@ -855,7 +855,6 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
     instr->MethodEnterEvent(soa.Self(), proxy_method);
     if (soa.Self()->IsExceptionPending()) {
       instr->MethodUnwindEvent(self,
-                               soa.Decode<mirror::Object>(rcvr_jobj),
                                proxy_method,
                                0);
       return 0;
@@ -865,7 +864,6 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
   if (soa.Self()->IsExceptionPending()) {
     if (instr->HasMethodUnwindListeners()) {
       instr->MethodUnwindEvent(self,
-                               soa.Decode<mirror::Object>(rcvr_jobj),
                                proxy_method,
                                0);
     }
