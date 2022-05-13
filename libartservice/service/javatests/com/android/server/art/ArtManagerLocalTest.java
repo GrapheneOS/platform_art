@@ -29,7 +29,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 @SmallTest
 @RunWith(MockitoJUnitRunner.class)
-public class ArtManagerLocalTests {
+public class ArtManagerLocalTest {
     private ArtManagerLocal mArtManagerLocal;
 
     @Before
