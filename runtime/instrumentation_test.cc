@@ -77,7 +77,6 @@ class TestInstrumentationListener final : public instrumentation::Instrumentatio
   }
 
   void MethodUnwind(Thread* thread ATTRIBUTE_UNUSED,
-                    Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                     ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED)
       override REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -387,7 +386,7 @@ class InstrumentationTest : public CommonRuntimeTest {
         break;
       }
       case instrumentation::Instrumentation::kMethodUnwind:
-        instr->MethodUnwindEvent(self, obj, method, dex_pc);
+        instr->MethodUnwindEvent(self, method, dex_pc);
         break;
       case instrumentation::Instrumentation::kDexPcMoved:
         instr->DexPcMovedEvent(self, obj, method, dex_pc);
