@@ -60,7 +60,6 @@ class Tracer final : public art::instrumentation::InstrumentationListener {
       override REQUIRES_SHARED(art::Locks::mutator_lock_) { }
 
   void MethodUnwind(art::Thread* thread ATTRIBUTE_UNUSED,
-                    art::Handle<art::mirror::Object> this_object ATTRIBUTE_UNUSED,
                     art::ArtMethod* method ATTRIBUTE_UNUSED,
                     uint32_t dex_pc ATTRIBUTE_UNUSED)
       override REQUIRES_SHARED(art::Locks::mutator_lock_) { }
