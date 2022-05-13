@@ -401,6 +401,12 @@
       "name": "art-run-test-2042-checker-dce-always-throw[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-2042-reference-processing[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-2043-reference-pauses[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning[com.google.android.art.apex]"
     },
     {
@@ -1699,6 +1705,12 @@
       "name": "art-run-test-2042-checker-dce-always-throw"
     },
     {
+      "name": "art-run-test-2042-reference-processing"
+    },
+    {
+      "name": "art-run-test-2043-reference-pauses"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning"
     },
     {
@@ -2588,9 +2600,6 @@
     }
   ],
   "hwasan-presubmit": [
-    {
-      "name": "BootImageProfileTest"
-    },
     {
       "name": "ArtServiceTests"
     },

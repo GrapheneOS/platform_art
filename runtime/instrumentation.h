@@ -580,11 +580,6 @@ class Instrumentation {
   // False otherwise.
   bool RequiresInstrumentationInstallation(InstrumentationLevel new_level) const;
 
-  // Returns true if we need entry exit stub to call entry hooks. JITed code
-  // directly call entry / exit hooks and don't need the stub.
-  static bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Update the current instrumentation_level_.
   void UpdateInstrumentationLevel(InstrumentationLevel level);
 

@@ -72,7 +72,7 @@ class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler,
   void StoreRawPtr(FrameOffset dest, ManagedRegister src) override;
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm) override;
   void StoreStackOffsetToThread(ThreadOffset64 thr_offs, FrameOffset fr_offs) override;
-  void StoreStackPointerToThread(ThreadOffset64 thr_offs) override;
+  void StoreStackPointerToThread(ThreadOffset64 thr_offs, bool tag_sp) override;
   void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off) override;
 
   // Load routines.

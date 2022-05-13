@@ -230,32 +230,9 @@ static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_)
       method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;");
 }
 
-static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (kIsDebugBuild) {
-    if (NeedsClinitCheckBeforeCall(method) &&
-        !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-      CHECK(CanHandleInitializationCheck(quick_code));
-    }
-    jit::Jit* jit = Runtime::Current()->GetJit();
-    if (jit != nullptr && jit->GetCodeCache()->ContainsPc(quick_code)) {
-      // Ensure we always have the thumb entrypoint for JIT on arm32.
-      if (kRuntimeISA == InstructionSet::kArm) {
-        CHECK_EQ(reinterpret_cast<uintptr_t>(quick_code) & 1, 1u);
-      }
-    }
-    if (IsProxyInit(method)) {
-      CHECK_NE(quick_code, GetQuickInstrumentationEntryPoint());
-    }
-  }
-  // If the method is from a boot image, don't dirty it if the entrypoint
-  // doesn't change.
-  if (method->GetEntryPointFromQuickCompiledCode() != quick_code) {
-    method->SetEntryPointFromQuickCompiledCode(quick_code);
-  }
-}
-
-bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
+// Returns true if we need entry exit stub to call entry hooks. JITed code
+// directly call entry / exit hooks and don't need the stub.
+static bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Proxy.init should never have entry/exit stubs.
   if (IsProxyInit(method)) {
@@ -294,6 +271,36 @@ bool Instrumentation::CodeNeedsEntryExitStub(const void* code, ArtMethod* method
   return true;
 }
 
+static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (kIsDebugBuild) {
+    if (NeedsClinitCheckBeforeCall(method) &&
+        !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+      CHECK(CanHandleInitializationCheck(quick_code));
+    }
+    jit::Jit* jit = Runtime::Current()->GetJit();
+    if (jit != nullptr && jit->GetCodeCache()->ContainsPc(quick_code)) {
+      // Ensure we always have the thumb entrypoint for JIT on arm32.
+      if (kRuntimeISA == InstructionSet::kArm) {
+        CHECK_EQ(reinterpret_cast<uintptr_t>(quick_code) & 1, 1u);
+      }
+    }
+    if (IsProxyInit(method)) {
+      CHECK_NE(quick_code, GetQuickInstrumentationEntryPoint());
+    }
+    const Instrumentation* instr = Runtime::Current()->GetInstrumentation();
+    if (instr->EntryExitStubsInstalled()) {
+      DCHECK(quick_code == GetQuickInstrumentationEntryPoint() ||
+             !CodeNeedsEntryExitStub(quick_code, method));
+    }
+  }
+  // If the method is from a boot image, don't dirty it if the entrypoint
+  // doesn't change.
+  if (method->GetEntryPointFromQuickCompiledCode() != quick_code) {
+    method->SetEntryPointFromQuickCompiledCode(quick_code);
+  }
+}
+
 bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
   if (method->IsNative()) {
     return false;
@@ -303,16 +310,11 @@ bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mu
          Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method);
 }
 
-static bool CanUseAotCode(ArtMethod* method, const void* quick_code)
+static bool CanUseAotCode(const void* quick_code)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (quick_code == nullptr) {
     return false;
   }
-  if (method->IsNative()) {
-    // AOT code for native methods can always be used.
-    return true;
-  }
-
   Runtime* runtime = Runtime::Current();
   // For simplicity, we never use AOT code for debuggable.
   if (runtime->IsJavaDebuggable()) {
@@ -348,7 +350,7 @@ static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks:
   // In debuggable mode, we can only use AOT code for native methods.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const void* aot_code = method->GetOatMethodQuickCode(class_linker->GetImagePointerSize());
-  if (CanUseAotCode(method, aot_code)) {
+  if (CanUseAotCode(aot_code)) {
     return aot_code;
   }
 
@@ -407,7 +409,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
   }
 
   // Use the provided AOT code if possible.
-  if (CanUseAotCode(method, aot_code)) {
+  if (CanUseAotCode(aot_code)) {
     UpdateEntryPoints(method, aot_code);
     return;
   }
@@ -1204,7 +1206,11 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
     UpdateEntryPoints(method, GetQuickToInterpreterBridge());
   } else if (NeedsClinitCheckBeforeCall(method) &&
              !method->GetDeclaringClass()->IsVisiblyInitialized()) {
-    UpdateEntryPoints(method, GetQuickResolutionStub());
+    if (EntryExitStubsInstalled()) {
+      UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
+    } else {
+      UpdateEntryPoints(method, GetQuickResolutionStub());
+    }
   } else {
     UpdateEntryPoints(method, GetMaybeInstrumentedCodeForInvoke(method));
   }
