@@ -259,7 +259,9 @@ class ArtMethod final {
   }
 
   void SetMemorySharedMethod() REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!IsIntrinsic() && !IsAbstract()) {
+    // Disable until we make sure critical code is AOTed.
+    static constexpr bool kEnabledMemorySharedMethod = false;
+    if (kEnabledMemorySharedMethod && !IsIntrinsic() && !IsAbstract()) {
       AddAccessFlags(kAccMemorySharedMethod);
       SetHotCounter();
     }
