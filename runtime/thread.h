@@ -573,8 +573,8 @@ class Thread {
     tlsPtr_.managed_stack.SetTopQuickFrame(top_method);
   }
 
-  void SetTopOfStackTagged(ArtMethod** top_method) {
-    tlsPtr_.managed_stack.SetTopQuickFrameTagged(top_method);
+  void SetTopOfStackGenericJniTagged(ArtMethod** top_method) {
+    tlsPtr_.managed_stack.SetTopQuickFrameGenericJniTagged(top_method);
   }
 
   void SetTopOfShadowStack(ShadowFrame* top) {
