@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <utils/Errors.h>
 
-#include "aidl/android/os/BnArtd.h"
+#include "aidl/com/android/server/art/BnArtd.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "tools/tools.h"
@@ -32,7 +32,7 @@ using ::ndk::ScopedAStatus;
 namespace android {
 namespace artd {
 
-class Artd : public aidl::android::os::BnArtd {
+class Artd : public aidl::com::android::server::art::BnArtd {
   constexpr static const char* const SERVICE_NAME = "artd";
 
  public:
