@@ -757,7 +757,6 @@ void Trace::MethodExited(Thread* thread,
 }
 
 void Trace::MethodUnwind(Thread* thread,
-                         Handle<mirror::Object> this_object ATTRIBUTE_UNUSED,
                          ArtMethod* method,
                          uint32_t dex_pc ATTRIBUTE_UNUSED) {
   uint32_t thread_clock_diff = 0;

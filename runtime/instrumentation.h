@@ -93,7 +93,6 @@ struct InstrumentationListener {
   // Call-back for when a method is popped due to an exception throw. A method will either cause a
   // MethodExited call-back or a MethodUnwind call-back when its activation is removed.
   virtual void MethodUnwind(Thread* thread,
-                            Handle<mirror::Object> this_object,
                             ArtMethod* method,
                             uint32_t dex_pc)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
@@ -414,7 +413,6 @@ class Instrumentation {
 
   // Inform listeners that a method has been exited due to an exception.
   void MethodUnwindEvent(Thread* thread,
-                         ObjPtr<mirror::Object> this_object,
                          ArtMethod* method,
                          uint32_t dex_pc) const
       REQUIRES_SHARED(Locks::mutator_lock_);

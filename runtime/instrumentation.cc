@@ -151,7 +151,7 @@ bool InstrumentationStackPopper::PopFramesTo(uintptr_t stack_pointer,
       LOG(INFO) << "Popping for unwind " << method->PrettyMethod();
     }
     if (!method->IsRuntimeMethod() && !frame.interpreter_entry_) {
-      instrumentation_->MethodUnwindEvent(self_, frame.this_object_, method, dex_pc);
+      instrumentation_->MethodUnwindEvent(self_, method, dex_pc);
       new_exception_thrown = self_->GetException() != exception.Get();
       if (new_exception_thrown) {
         pop_until_ = i->first;
@@ -1368,16 +1368,12 @@ template<> void Instrumentation::MethodExitEventImpl(Thread* thread,
 }
 
 void Instrumentation::MethodUnwindEvent(Thread* thread,
-                                        ObjPtr<mirror::Object> this_object,
                                         ArtMethod* method,
                                         uint32_t dex_pc) const {
   if (HasMethodUnwindListeners()) {
-    Thread* self = Thread::Current();
-    StackHandleScope<1> hs(self);
-    Handle<mirror::Object> thiz(hs.NewHandle(this_object));
     for (InstrumentationListener* listener : method_unwind_listeners_) {
       if (listener != nullptr) {
-        listener->MethodUnwind(thread, thiz, method, dex_pc);
+        listener->MethodUnwind(thread, method, dex_pc);
       }
     }
   }
@@ -1512,7 +1508,7 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self,
   if (!interpreter_entry) {
     MethodEnterEvent(self, method);
     if (self->IsExceptionPending()) {
-      MethodUnwindEvent(self, h_this.Get(), method, 0);
+      MethodUnwindEvent(self, method, 0);
       return;
     }
   }
