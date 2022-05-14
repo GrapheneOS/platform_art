@@ -428,8 +428,15 @@ void ArmVIXLJNIMacroAssembler::StoreStackOffsetToThread(ThreadOffset32 thr_offs,
   asm_.StoreToOffset(kStoreWord, scratch, tr, thr_offs.Int32Value());
 }
 
-void ArmVIXLJNIMacroAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs) {
-  asm_.StoreToOffset(kStoreWord, sp, tr, thr_offs.Int32Value());
+void ArmVIXLJNIMacroAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs, bool tag_sp) {
+  if (tag_sp) {
+    UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+    vixl32::Register reg = temps.Acquire();
+    ___ Orr(reg, sp, 0x2);
+    asm_.StoreToOffset(kStoreWord, reg, tr, thr_offs.Int32Value());
+  } else {
+    asm_.StoreToOffset(kStoreWord, sp, tr, thr_offs.Int32Value());
+  }
 }
 
 void ArmVIXLJNIMacroAssembler::SignExtend(ManagedRegister mreg ATTRIBUTE_UNUSED,
