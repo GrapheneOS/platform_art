@@ -16,6 +16,7 @@
 
 package art;
 
+import java.lang.reflect.Field;
 import org.apache.harmony.dalvik.ddmc.*;
 import dalvik.system.VMDebug;
 
@@ -50,18 +51,21 @@ public class Test1940 {
     }
   }
 
-  private static boolean chunkEq(Chunk a, Chunk b) {
-    return a.type == b.type &&
-           a.offset == b.offset &&
-           a.length == b.length &&
-           Arrays.equals(a.data, b.data);
+  private static boolean chunkEq(Chunk c1, Chunk c2) {
+    ChunkWrapper a = new ChunkWrapper(c1);
+    ChunkWrapper b = new ChunkWrapper(c2);
+    return a.type() == b.type() &&
+           a.offset() == b.offset() &&
+           a.length() == b.length() &&
+           Arrays.equals(a.data(), b.data());
   }
 
   private static String printChunk(Chunk k) {
-    byte[] out = new byte[k.length];
-    System.arraycopy(k.data, k.offset, out, 0, k.length);
+    ChunkWrapper c = new ChunkWrapper(k);
+    byte[] out = new byte[c.length()];
+    System.arraycopy(c.data(), c.offset(), out, 0, c.length());
     return String.format("Chunk(Type: 0x%X, Len: %d, data: %s)",
-        k.type, k.length, Arrays.toString(out));
+        c.type(), c.length(), Arrays.toString(out));
   }
 
   private static final class MyDdmHandler extends ChunkHandler {
@@ -73,7 +77,8 @@ public class Test1940 {
         // For this test we will simply calculate the checksum
         ByteBuffer b = ByteBuffer.wrap(new byte[8]);
         Adler32 a = new Adler32();
-        a.update(req.data, req.offset, req.length);
+        ChunkWrapper reqWrapper = new ChunkWrapper(req);
+        a.update(reqWrapper.data(), reqWrapper.offset(), reqWrapper.length());
         b.order(ByteOrder.BIG_ENDIAN);
         long val = a.getValue();
         b.putLong(val);
@@ -88,6 +93,49 @@ public class Test1940 {
         return new Chunk(MY_DDMS_RESPONSE_TYPE, new byte[] { 0 }, /*offset*/ 12, /*length*/ 55);
       } else {
         throw new TestError("Unknown ddm request type: " + req.type);
+      }
+    }
+  }
+
+
+  /**
+   * Wrapper for accessing the hidden fields in {@link Chunk} in CTS.
+   */
+  private static class ChunkWrapper {
+    private Chunk c;
+
+    ChunkWrapper(Chunk c) {
+      this.c = c;
+    }
+
+    int type() {
+      return c.type;
+    }
+
+    int length() {
+      try {
+        Field f = Chunk.class.getField("length");
+        return (int) f.get(c);
+      } catch (NoSuchFieldException | IllegalAccessException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    byte[] data() {
+      try {
+        Field f = Chunk.class.getField("data");
+        return (byte[]) f.get(c);
+      } catch (NoSuchFieldException | IllegalAccessException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    int offset() {
+      try {
+        Field f = Chunk.class.getField("offset");
+        return (int) f.get(c);
+      } catch (NoSuchFieldException | IllegalAccessException e) {
+        throw new RuntimeException(e);
       }
     }
   }
