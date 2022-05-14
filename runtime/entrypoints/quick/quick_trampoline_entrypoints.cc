@@ -2083,7 +2083,7 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
   }
 
   // Fix up managed-stack things in Thread. After this we can walk the stack.
-  self->SetTopOfStackTagged(managed_sp);
+  self->SetTopOfStackGenericJniTagged(managed_sp);
 
   self->VerifyStack();
 
@@ -2177,7 +2177,7 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self,
   // anything that requires a mutator lock before that would cause problems as GC may have the
   // exclusive mutator lock and may be moving objects, etc.
   ArtMethod** sp = self->GetManagedStack()->GetTopQuickFrame();
-  DCHECK(self->GetManagedStack()->GetTopQuickFrameTag());
+  DCHECK(self->GetManagedStack()->GetTopQuickFrameGenericJniTag());
   uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
   ArtMethod* called = *sp;
   uint32_t cookie = *(sp32 - 1);

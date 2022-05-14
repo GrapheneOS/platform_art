@@ -800,10 +800,20 @@ void StackVisitor::WalkStack(bool include_transitions) {
         // between GenericJNI frame and JIT-compiled JNI stub; the entrypoint may have
         // changed since the frame was entered. The top quick frame tag indicates
         // GenericJNI here, otherwise it's either AOT-compiled or JNI-compiled JNI stub.
-        if (UNLIKELY(current_fragment->GetTopQuickFrameTag())) {
+        if (UNLIKELY(current_fragment->GetTopQuickFrameGenericJniTag())) {
           // The generic JNI does not have any method header.
           cur_oat_quick_method_header_ = nullptr;
+        } else if (UNLIKELY(current_fragment->GetTopQuickFrameJitJniTag())) {
+          // Should be JITed code.
+          Runtime* runtime = Runtime::Current();
+          const void* code = runtime->GetJit()->GetCodeCache()->GetJniStubCode(method);
+          CHECK(code != nullptr) << method->PrettyMethod();
+          cur_oat_quick_method_header_ = OatQuickMethodHeader::FromCodePointer(code);
         } else {
+          // We are sure we are not running GenericJni here. Though the entry point could still be
+          // GenericJnistub. The entry point is usually JITed, AOT or instrumentation stub when
+          // instrumentation is enabled. It could be lso a resolution stub if the class isn't
+          // visibly initialized yet.
           const void* existing_entry_point = method->GetEntryPointFromQuickCompiledCode();
           CHECK(existing_entry_point != nullptr);
           Runtime* runtime = Runtime::Current();
@@ -819,7 +829,11 @@ void StackVisitor::WalkStack(bool include_transitions) {
             if (code != nullptr) {
               cur_oat_quick_method_header_ = OatQuickMethodHeader::FromEntryPoint(code);
             } else {
-              // This must be a JITted JNI stub frame.
+              // This must be a JITted JNI stub frame. For non-debuggable runtimes we only generate
+              // JIT stubs if there are no AOT stubs for native methods. Since we checked for AOT
+              // code earlier, we must be running JITed code. For debuggable runtimes we might have
+              // JIT code even when AOT code is present but we tag SP in JITed JNI stubs
+              // in debuggable runtimes. This case is handled earlier.
               CHECK(runtime->GetJit() != nullptr);
               code = runtime->GetJit()->GetCodeCache()->GetJniStubCode(method);
               CHECK(code != nullptr) << method->PrettyMethod();
