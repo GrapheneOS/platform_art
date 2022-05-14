@@ -43,6 +43,8 @@ template <typename T> class StackReference;
 // code.
 class PACKED(4) ManagedStack {
  public:
+  static size_t constexpr kTaggedJniSpMask = 0x3;
+
   ManagedStack()
       : tagged_top_quick_frame_(TaggedTopQuickFrame::CreateNotTagged(nullptr)),
         link_(nullptr),
@@ -75,8 +77,12 @@ class PACKED(4) ManagedStack {
     return tagged_top_quick_frame_.GetSp();
   }
 
-  bool GetTopQuickFrameTag() const {
-    return tagged_top_quick_frame_.GetTag();
+  bool GetTopQuickFrameGenericJniTag() const {
+    return tagged_top_quick_frame_.GetGenericJniTag();
+  }
+
+  bool GetTopQuickFrameJitJniTag() const {
+    return tagged_top_quick_frame_.GetJitJniTag();
   }
 
   bool HasTopQuickFrame() const {
@@ -89,10 +95,10 @@ class PACKED(4) ManagedStack {
     tagged_top_quick_frame_ = TaggedTopQuickFrame::CreateNotTagged(top);
   }
 
-  void SetTopQuickFrameTagged(ArtMethod** top) {
+  void SetTopQuickFrameGenericJniTagged(ArtMethod** top) {
     DCHECK(top_shadow_frame_ == nullptr);
     DCHECK_ALIGNED(top, 4u);
-    tagged_top_quick_frame_ = TaggedTopQuickFrame::CreateTagged(top);
+    tagged_top_quick_frame_ = TaggedTopQuickFrame::CreateGenericJniTagged(top);
   }
 
   static constexpr size_t TaggedTopQuickFrameOffset() {
@@ -129,24 +135,28 @@ class PACKED(4) ManagedStack {
       return TaggedTopQuickFrame(reinterpret_cast<uintptr_t>(sp));
     }
 
-    static TaggedTopQuickFrame CreateTagged(ArtMethod** sp) {
+    static TaggedTopQuickFrame CreateGenericJniTagged(ArtMethod** sp) {
       DCHECK_ALIGNED(sp, 4u);
       return TaggedTopQuickFrame(reinterpret_cast<uintptr_t>(sp) | 1u);
     }
 
     // Get SP known to be not tagged and non-null.
     ArtMethod** GetSpKnownNotTagged() const {
-      DCHECK(!GetTag());
+      DCHECK(!GetGenericJniTag() && !GetJitJniTag());
       DCHECK_NE(tagged_sp_, 0u);
       return reinterpret_cast<ArtMethod**>(tagged_sp_);
     }
 
     ArtMethod** GetSp() const {
-      return reinterpret_cast<ArtMethod**>(tagged_sp_ & ~static_cast<uintptr_t>(1u));
+      return reinterpret_cast<ArtMethod**>(tagged_sp_ & ~static_cast<uintptr_t>(kTaggedJniSpMask));
     }
 
-    bool GetTag() const {
+    bool GetGenericJniTag() const {
       return (tagged_sp_ & 1u) != 0u;
+    }
+
+    bool GetJitJniTag() const {
+      return (tagged_sp_ & 2u) != 0u;
     }
 
     uintptr_t GetTaggedSp() const {
