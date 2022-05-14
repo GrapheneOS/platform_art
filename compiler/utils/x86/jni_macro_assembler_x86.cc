@@ -187,8 +187,18 @@ void X86JNIMacroAssembler::StoreStackOffsetToThread(ThreadOffset32 thr_offs, Fra
   __ fs()->movl(Address::Absolute(thr_offs), scratch);
 }
 
-void X86JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs) {
-  __ fs()->movl(Address::Absolute(thr_offs), ESP);
+void X86JNIMacroAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs, bool tag_sp) {
+  if (tag_sp) {
+    // There is no free register, store contents onto stack and restore back later.
+    Register scratch = ECX;
+    __ movl(Address(ESP, -32), scratch);
+    __ movl(scratch, ESP);
+    __ orl(scratch, Immediate(0x2));
+    __ fs()->movl(Address::Absolute(thr_offs), scratch);
+    __ movl(scratch, Address(ESP, -32));
+  } else {
+    __ fs()->movl(Address::Absolute(thr_offs), ESP);
+  }
 }
 
 void X86JNIMacroAssembler::StoreSpanning(FrameOffset /*dst*/,
