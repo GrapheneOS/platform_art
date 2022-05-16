@@ -141,11 +141,12 @@ class OnDeviceRefresh final {
       /*out*/ std::vector<std::string>* checked_artifacts = nullptr) const;
 
   // Returns true if all of the system properties listed in `kSystemProperties` are set to the
-  // default values.
+  // default values. This function is usually called when cache-info.xml does not exist (i.e.,
+  // compilation has not been done before).
   WARN_UNUSED bool CheckSystemPropertiesAreDefault() const;
 
   // Returns true if none of the system properties listed in `kSystemProperties` has changed since
-  // the last compilation.
+  // the last compilation. This function is usually called when cache-info.xml exists.
   WARN_UNUSED bool CheckSystemPropertiesHaveNotChanged(
       const com::android::art::CacheInfo& cache_info) const;
 
