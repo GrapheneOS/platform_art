@@ -36,8 +36,10 @@
 namespace {
 
 using ::android::base::GetProperty;
+using ::android::base::StartsWith;
 using ::art::odrefresh::CompilationOptions;
 using ::art::odrefresh::ExitCode;
+using ::art::odrefresh::kCheckedSystemPropertyPrefixes;
 using ::art::odrefresh::kSystemProperties;
 using ::art::odrefresh::OdrCompilationLog;
 using ::art::odrefresh::OdrConfig;
@@ -47,6 +49,7 @@ using ::art::odrefresh::QuotePath;
 using ::art::odrefresh::ShouldDisablePartialCompilation;
 using ::art::odrefresh::ShouldDisableRefresh;
 using ::art::odrefresh::SystemPropertyConfig;
+using ::art::odrefresh::SystemPropertyForeach;
 using ::art::odrefresh::ZygoteKind;
 
 void UsageMsgV(const char* fmt, va_list ap) {
@@ -187,6 +190,16 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
 }
 
 void GetSystemProperties(std::unordered_map<std::string, std::string>* system_properties) {
+  SystemPropertyForeach([&](const char* name, const char* value) {
+    if (strlen(value) == 0) {
+      return;
+    }
+    for (const char* prefix : kCheckedSystemPropertyPrefixes) {
+      if (StartsWith(name, prefix)) {
+        (*system_properties)[name] = value;
+      }
+    }
+  });
   for (const SystemPropertyConfig& system_property_config : *kSystemProperties.get()) {
     (*system_properties)[system_property_config.name] =
         GetProperty(system_property_config.name, system_property_config.default_value);
