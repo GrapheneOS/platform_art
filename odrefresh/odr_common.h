@@ -44,6 +44,9 @@ bool ShouldDisablePartialCompilation(const std::string& security_patch_str);
 // `ro.build.version.sdk`, which represents the SDK version.
 bool ShouldDisableRefresh(const std::string& sdk_version_str);
 
+// Passes the name and the value for each system property to the provided callback.
+void SystemPropertyForeach(std::function<void(const char* name, const char* value)> action);
+
 }  // namespace odrefresh
 }  // namespace art
 
