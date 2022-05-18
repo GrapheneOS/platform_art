@@ -32,6 +32,7 @@
 #include "hidden_api.h"
 #include "jni/jni_internal.h"
 #include "mirror/class-alloc-inl.h"
+#include "mirror/class_ext.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field.h"
@@ -750,6 +751,17 @@ static jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
   return soa.AddLocalReference<jclass>(annotations::GetDeclaringClass(klass));
 }
 
+static jobject Class_ensureExtDataPresent(JNIEnv* env, jobject javaThis) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::Class> klass = hs.NewHandle(DecodeClass(soa, javaThis));
+
+  ObjPtr<mirror::Object> extDataPtr =
+    mirror::Class::EnsureExtDataPresent(klass, Thread::Current());
+
+  return soa.AddLocalReference<jobject>(extDataPtr);
+}
+
 static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<4> hs(soa.Self());
@@ -841,6 +853,7 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
 static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Class, classForName,
                 "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(Class, ensureExtDataPresent, "()Ldalvik/system/ClassExt;"),
   FAST_NATIVE_METHOD(Class, getDeclaredAnnotation,
                 "(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
   FAST_NATIVE_METHOD(Class, getDeclaredAnnotations, "()[Ljava/lang/annotation/Annotation;"),

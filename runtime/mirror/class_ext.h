@@ -156,6 +156,10 @@ class MANAGED ClassExt : public Object {
   bool EnsureJniIdsArrayPresent(MemberOffset off, size_t count)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Backing store of user-defined values pertaining to a class.
+  // Maintained by the ClassValue class.
+  HeapReference<Object> class_value_map_;
+
   // The saved error for this class being erroneous.
   HeapReference<Throwable> erroneous_state_error_;
 
@@ -181,9 +185,10 @@ class MANAGED ClassExt : public Object {
   // classes sfields_ array or '0' if no id has been assigned to that field yet.
   HeapReference<PointerArray> static_jfield_ids_;
 
+  int32_t pre_redefine_class_def_index_;
+
   // Native pointer to DexFile and ClassDef index of this class before it was JVMTI-redefined.
   int64_t pre_redefine_dex_file_ptr_;
-  int32_t pre_redefine_class_def_index_;
 
   friend struct art::ClassExtOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassExt);
