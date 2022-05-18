@@ -72,9 +72,6 @@ $(call declare-1p-container,$(VERIDEX_FILES_PATH),art)
 $(call declare-container-license-deps,$(VERIDEX_FILES_PATH),$(INTERNAL_PLATFORM_HIDDENAPI_FLAGS) \
     $(HOST_OUT_EXECUTABLES)/veridex $(system_stub_dex) $(oahl_stub_dex),$(VERIDEX_FILES_PATH):)
 
-# Make the zip file available for prebuilts.
-$(call dist-for-goals,sdk,$(VERIDEX_FILES_PATH))
-
 VERIDEX_FILES :=
 system_stub_dex :=
 oahl_stub_dex :=
