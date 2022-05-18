@@ -47,7 +47,6 @@ cc_defaults {
     ],
     static_libs: [
         "libc++fs",
-        "libtinyxml2",
     ],
     tidy: true,
     tidy_disabled_srcs: [":art-apex-cache-info"],
