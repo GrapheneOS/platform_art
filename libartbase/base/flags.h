@@ -304,6 +304,12 @@ struct Flags {
   // Note that the actual write is still controlled by
   // MetricsReportingMods and MetricsReportingNumMods.
   Flag<std::string> MetricsWriteToFile{"metrics.write-to-file", "", FlagType::kCmdlineOnly};
+
+  // The output format for metrics. This is only used
+  // when writing metrics to a file; metrics written
+  // to logcat will be in human-readable text format.
+  // Supported values are "text" and "xml".
+  Flag<std::string> MetricsFormat{"metrics.format", "text", FlagType::kCmdlineOnly};
 };
 
 // This is the actual instance of all the flags.
