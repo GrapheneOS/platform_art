@@ -16,6 +16,7 @@
 
 #include "metrics.h"
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "metrics_test.h"
 
@@ -248,7 +249,7 @@ TEST_F(MetricsTest, HistogramTimer) {
 // Makes sure all defined metrics are included when dumping through StreamBackend.
 TEST_F(MetricsTest, StreamBackendDumpAllMetrics) {
   ArtMetrics metrics;
-  StringBackend backend;
+  StringBackend backend(std::make_unique<TextFormatter>());
 
   metrics.ReportAllMetrics(&backend);
 
@@ -303,6 +304,266 @@ TEST_F(MetricsTest, ResetMetrics) {
   } zero_backend;
 
   metrics.ReportAllMetrics(&zero_backend);
+}
+
+TEST(TextFormatterTest, ReportMetrics_WithBuckets) {
+  TextFormatter text_formatter;
+  SessionData session_data {
+      .session_id = 1000,
+      .uid = 50,
+      .compilation_reason = CompilationReason::kInstall,
+      .compiler_filter = CompilerFilterReporting::kSpeed,
+  };
+
+  text_formatter.FormatBeginReport(200, session_data);
+  text_formatter.FormatReportCounter(DatumId::kFullGcCount, 1u);
+  text_formatter.FormatReportHistogram(DatumId::kFullGcCollectionTime,
+                                       50,
+                                       200,
+                                       {2, 4, 7, 1});
+  text_formatter.FormatEndReport();
+
+  const std::string result = text_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "\n*** ART internal metrics ***\n"
+            "  Metadata:\n"
+            "    timestamp_since_start_ms: 200\n"
+            "    session_id: 1000\n"
+            "    uid: 50\n"
+            "    compilation_reason: install\n"
+            "    compiler_filter: speed\n"
+            "  Metrics:\n"
+            "    FullGcCount: count = 1\n"
+            "    FullGcCollectionTime: range = 50...200, buckets: 2,4,7,1\n"
+            "*** Done dumping ART internal metrics ***\n");
+}
+
+TEST(TextFormatterTest, ReportMetrics_NoBuckets) {
+  TextFormatter text_formatter;
+  SessionData session_data {
+      .session_id = 500,
+      .uid = 15,
+      .compilation_reason = CompilationReason::kCmdLine,
+      .compiler_filter = CompilerFilterReporting::kExtract,
+  };
+
+  text_formatter.FormatBeginReport(400, session_data);
+  text_formatter.FormatReportHistogram(DatumId::kFullGcCollectionTime, 10, 20, {});
+  text_formatter.FormatEndReport();
+
+  std::string result = text_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "\n*** ART internal metrics ***\n"
+            "  Metadata:\n"
+            "    timestamp_since_start_ms: 400\n"
+            "    session_id: 500\n"
+            "    uid: 15\n"
+            "    compilation_reason: cmdline\n"
+            "    compiler_filter: extract\n"
+            "  Metrics:\n"
+            "    FullGcCollectionTime: range = 10...20, no buckets\n"
+            "*** Done dumping ART internal metrics ***\n");
+}
+
+TEST(TextFormatterTest, BeginReport_NoSessionData) {
+  TextFormatter text_formatter;
+  std::optional<SessionData> empty_session_data;
+
+  text_formatter.FormatBeginReport(100, empty_session_data);
+  text_formatter.FormatEndReport();
+
+  std::string result = text_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "\n*** ART internal metrics ***\n"
+            "  Metadata:\n"
+            "    timestamp_since_start_ms: 100\n"
+            "  Metrics:\n"
+            "*** Done dumping ART internal metrics ***\n");
+}
+
+TEST(TextFormatterTest, GetAndResetBuffer_ActuallyResetsBuffer) {
+  TextFormatter text_formatter;
+  std::optional<SessionData> empty_session_data;
+
+  text_formatter.FormatBeginReport(200, empty_session_data);
+  text_formatter.FormatReportCounter(DatumId::kFullGcCount, 1u);
+  text_formatter.FormatEndReport();
+
+  std::string result = text_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "\n*** ART internal metrics ***\n"
+            "  Metadata:\n"
+            "    timestamp_since_start_ms: 200\n"
+            "  Metrics:\n"
+            "    FullGcCount: count = 1\n"
+            "*** Done dumping ART internal metrics ***\n");
+
+  text_formatter.FormatBeginReport(300, empty_session_data);
+  text_formatter.FormatReportCounter(DatumId::kFullGcCount, 5u);
+  text_formatter.FormatEndReport();
+
+  result = text_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "\n*** ART internal metrics ***\n"
+            "  Metadata:\n"
+            "    timestamp_since_start_ms: 300\n"
+            "  Metrics:\n"
+            "    FullGcCount: count = 5\n"
+            "*** Done dumping ART internal metrics ***\n");
+}
+
+TEST(XmlFormatterTest, ReportMetrics_WithBuckets) {
+  XmlFormatter xml_formatter;
+  SessionData session_data {
+      .session_id = 123,
+      .uid = 456,
+      .compilation_reason = CompilationReason::kFirstBoot,
+      .compiler_filter = CompilerFilterReporting::kSpace,
+  };
+
+  xml_formatter.FormatBeginReport(250, session_data);
+  xml_formatter.FormatReportCounter(DatumId::kYoungGcCount, 3u);
+  xml_formatter.FormatReportHistogram(DatumId::kYoungGcCollectionTime,
+                                      300,
+                                      600,
+                                      {1, 5, 3});
+  xml_formatter.FormatEndReport();
+
+  const std::string result = xml_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "<art_runtime_metrics>"
+              "<version>1.0</version>"
+              "<metadata>"
+                "<timestamp_since_start_ms>250</timestamp_since_start_ms>"
+                "<session_id>123</session_id>"
+                "<uid>456</uid>"
+                "<compilation_reason>first-boot</compilation_reason>"
+                "<compiler_filter>space</compiler_filter>"
+              "</metadata>"
+              "<metrics>"
+                "<YoungGcCount>"
+                  "<counter_type>count</counter_type>"
+                  "<value>3</value>"
+                "</YoungGcCount>"
+                "<YoungGcCollectionTime>"
+                  "<counter_type>histogram</counter_type>"
+                  "<minimum_value>300</minimum_value>"
+                  "<maximum_value>600</maximum_value>"
+                  "<buckets>"
+                    "<bucket>1</bucket>"
+                    "<bucket>5</bucket>"
+                    "<bucket>3</bucket>"
+                  "</buckets>"
+                "</YoungGcCollectionTime>"
+              "</metrics>"
+            "</art_runtime_metrics>");
+}
+
+TEST(XmlFormatterTest, ReportMetrics_NoBuckets) {
+  XmlFormatter xml_formatter;
+  SessionData session_data {
+      .session_id = 234,
+      .uid = 345,
+      .compilation_reason = CompilationReason::kFirstBoot,
+      .compiler_filter = CompilerFilterReporting::kSpace,
+  };
+
+  xml_formatter.FormatBeginReport(160, session_data);
+  xml_formatter.FormatReportCounter(DatumId::kYoungGcCount, 4u);
+  xml_formatter.FormatReportHistogram(DatumId::kYoungGcCollectionTime, 20, 40, {});
+  xml_formatter.FormatEndReport();
+
+  const std::string result = xml_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "<art_runtime_metrics>"
+              "<version>1.0</version>"
+              "<metadata>"
+                "<timestamp_since_start_ms>160</timestamp_since_start_ms>"
+                "<session_id>234</session_id>"
+                "<uid>345</uid>"
+                "<compilation_reason>first-boot</compilation_reason>"
+                "<compiler_filter>space</compiler_filter>"
+              "</metadata>"
+              "<metrics>"
+                "<YoungGcCount>"
+                  "<counter_type>count</counter_type>"
+                  "<value>4</value>"
+                "</YoungGcCount>"
+                "<YoungGcCollectionTime>"
+                  "<counter_type>histogram</counter_type>"
+                  "<minimum_value>20</minimum_value>"
+                  "<maximum_value>40</maximum_value>"
+                  "<buckets/>"
+                "</YoungGcCollectionTime>"
+              "</metrics>"
+            "</art_runtime_metrics>");
+}
+
+TEST(XmlFormatterTest, BeginReport_NoSessionData) {
+  XmlFormatter xml_formatter;
+  std::optional<SessionData> empty_session_data;
+
+  xml_formatter.FormatBeginReport(100, empty_session_data);
+  xml_formatter.FormatReportCounter(DatumId::kYoungGcCount, 3u);
+  xml_formatter.FormatEndReport();
+
+  std::string result = xml_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "<art_runtime_metrics>"
+              "<version>1.0</version>"
+              "<metadata>"
+                "<timestamp_since_start_ms>100</timestamp_since_start_ms>"
+              "</metadata>"
+              "<metrics>"
+                "<YoungGcCount>"
+                  "<counter_type>count</counter_type>"
+                  "<value>3</value>"
+                "</YoungGcCount>"
+              "</metrics>"
+            "</art_runtime_metrics>");
+}
+
+TEST(XmlFormatterTest, GetAndResetBuffer_ActuallyResetsBuffer) {
+  XmlFormatter xml_formatter;
+  std::optional<SessionData> empty_session_data;
+
+  xml_formatter.FormatBeginReport(200, empty_session_data);
+  xml_formatter.FormatReportCounter(DatumId::kFullGcCount, 1u);
+  xml_formatter.FormatEndReport();
+
+  std::string result = xml_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "<art_runtime_metrics>"
+              "<version>1.0</version>"
+              "<metadata>"
+                "<timestamp_since_start_ms>200</timestamp_since_start_ms>"
+              "</metadata>"
+              "<metrics>"
+                "<FullGcCount>"
+                  "<counter_type>count</counter_type>"
+                  "<value>1</value>"
+                "</FullGcCount>"
+              "</metrics>"
+            "</art_runtime_metrics>");
+
+  xml_formatter.FormatBeginReport(300, empty_session_data);
+  xml_formatter.FormatReportCounter(DatumId::kFullGcCount, 5u);
+  xml_formatter.FormatEndReport();
+
+  result = xml_formatter.GetAndResetBuffer();
+  ASSERT_EQ(result,
+            "<art_runtime_metrics>"
+              "<version>1.0</version>"
+              "<metadata>"
+                "<timestamp_since_start_ms>300</timestamp_since_start_ms>"
+              "</metadata>"
+              "<metrics>"
+                "<FullGcCount>"
+                  "<counter_type>count</counter_type>"
+                  "<value>5</value>"
+                "</FullGcCount>"
+              "</metrics>"
+            "</art_runtime_metrics>");
 }
 
 TEST(CompilerFilterReportingTest, FromName) {

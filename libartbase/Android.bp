@@ -70,6 +70,7 @@ cc_defaults {
                 // ZipArchive support, the order matters here to get all symbols.
                 "libziparchive",
             ],
+            whole_static_libs: ["libtinyxml2"],
             shared_libs: [
                 "libz",
                 "liblog",
@@ -88,6 +89,7 @@ cc_defaults {
             static: {
                 cflags: ["-DART_STATIC_LIBARTBASE"],
             },
+            whole_static_libs: ["libtinyxml2"],
             shared_libs: [
                 "libziparchive",
                 "libz",
@@ -112,6 +114,7 @@ cc_defaults {
                 // For common macros.
                 "libbase",
             ],
+            whole_static_libs: ["libtinyxml2"],
             export_static_lib_headers: ["libbase"], // ART's macros.h depends on libbase's macros.h.
 
             cflags: ["-Wno-thread-safety"],
@@ -390,6 +393,8 @@ cc_library_headers {
     export_include_dirs: ["."],
     shared_libs: ["libbase"],
     export_shared_lib_headers: ["libbase"],
+
+    whole_static_libs: ["libtinyxml2"],
 
     apex_available: [
         "com.android.art",
