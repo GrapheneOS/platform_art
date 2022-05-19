@@ -16,6 +16,9 @@
 
 #include "odr_common.h"
 
+#include <sys/system_properties.h>
+
+#include <functional>
 #include <initializer_list>
 #include <sstream>
 #include <string>
@@ -46,6 +49,22 @@ bool ShouldDisableRefresh(const std::string& sdk_version_str) {
     return false;
   }
   return sdk_version >= 32;
+}
+
+void SystemPropertyForeach(std::function<void(const char* name, const char* value)> action) {
+  __system_property_foreach(
+      [](const prop_info* pi, void* cookie) {
+        __system_property_read_callback(
+            pi,
+            [](void* cookie, const char* name, const char* value, unsigned) {
+              auto action =
+                  reinterpret_cast<std::function<void(const char* name, const char* value)>*>(
+                      cookie);
+              (*action)(name, value);
+            },
+            cookie);
+      },
+      &action);
 }
 
 }  // namespace odrefresh

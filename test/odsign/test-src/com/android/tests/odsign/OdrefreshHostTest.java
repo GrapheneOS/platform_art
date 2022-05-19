@@ -201,6 +201,60 @@ public class OdrefreshHostTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    public void verifySystemPropertyMismatchTriggersCompilation() throws Exception {
+        // Change a system property from empty to a value.
+        getDevice().setProperty("dalvik.vm.foo", "1");
+        long timeMs = mTestUtils.getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
+
+        // Run again with the same value.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        // Artifacts should not be re-compiled.
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+
+        // Change the system property to another value.
+        getDevice().setProperty("dalvik.vm.foo", "2");
+        timeMs = mTestUtils.getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
+
+        // Run again with the same value.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        // Artifacts should not be re-compiled.
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+
+        // Change the system property to empty.
+        getDevice().setProperty("dalvik.vm.foo", "");
+        timeMs = mTestUtils.getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        // Artifacts should be re-compiled.
+        assertArtifactsModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsModifiedAfter(getSystemServerArtifacts(), timeMs);
+
+        // Run again with the same value.
+        timeMs = mTestUtils.getCurrentTimeMs();
+        getDevice().executeShellV2Command(ODREFRESH_COMMAND);
+
+        // Artifacts should not be re-compiled.
+        assertArtifactsNotModifiedAfter(getZygoteArtifacts(), timeMs);
+        assertArtifactsNotModifiedAfter(getSystemServerArtifacts(), timeMs);
+    }
+
+    @Test
     public void verifyNoCompilationWhenCacheIsGood() throws Exception {
         mTestUtils.removeCompilationLogToAvoidBackoff();
         long timeMs = mTestUtils.getCurrentTimeMs();

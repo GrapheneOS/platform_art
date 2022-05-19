@@ -17,6 +17,7 @@
 #ifndef ART_ODREFRESH_ODR_CONFIG_H_
 #define ART_ODREFRESH_ODR_CONFIG_H_
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -24,6 +25,7 @@
 
 #include "android-base/file.h"
 #include "android-base/no_destructor.h"
+#include "android-base/strings.h"
 #include "arch/instruction_set.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
@@ -34,13 +36,23 @@
 namespace art {
 namespace odrefresh {
 
+// The prefixes of system properties that odrefresh keeps track of. Odrefresh will recompile
+// everything if any property matching a prefix changes.
+constexpr const char* kCheckedSystemPropertyPrefixes[]{"dalvik.vm.", "ro.dalvik.vm."};
+
 struct SystemPropertyConfig {
   const char* name;
   const char* default_value;
 };
 
-// The system properties that odrefresh keeps track of. Odrefresh will recompile everything if any
-// property changes.
+// The system properties that odrefresh keeps track of, in addition to the ones matching the
+// prefixes in `kCheckedSystemPropertyPrefixes`. Odrefresh will recompile everything if any property
+// changes.
+// All phenotype flags under the `runtime_native_boot` namespace that affects the compiler's
+// behavior must be explicitly listed below. We cannot use a prefix to match all phenotype flags
+// because a default value is required for each flag. Changing the flag value from empty to the
+// default value should not trigger re-compilation. This is to comply with the phenotype flag
+// requirement (go/platform-experiments-flags#pre-requisites).
 const android::base::NoDestructor<std::vector<SystemPropertyConfig>> kSystemProperties{
     {SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.enable_uffd_gc",
                           .default_value = "false"}}};
