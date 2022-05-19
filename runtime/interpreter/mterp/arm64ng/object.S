@@ -99,7 +99,7 @@
    // not going to slow path if the super class hierarchy check fails.
    TEST_IF_MARKING 4f
    ldr     w3, [x1, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
-   tbnz    w3, #MIRROR_CLASS_IS_INTERFACE_FLAG_BIT, 4f
+   tbnz    w3, #MIRROR_CLASS_IS_INTERFACE_FLAG_BIT, 5f
    ldr     w3, [x1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
    cbnz    w3, 3f
 1:
