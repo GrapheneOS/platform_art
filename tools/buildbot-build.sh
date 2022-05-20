@@ -181,7 +181,7 @@ if [[ $build_target == "yes" ]]; then
     fi
   done
 
-  # Replace stub libraries with implemenation libraries: because we do chroot
+  # Replace stub libraries with implementation libraries: because we do chroot
   # testing, we need to install an implementation of the libraries (and cannot
   # rely on the one already installed on the device, if the device is post R and
   # has it).
