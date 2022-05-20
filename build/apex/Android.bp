@@ -59,7 +59,6 @@ art_runtime_base_native_shared_libs_minus_libart = [
     // TODO(b/124476339): Clean up the following libraries once "required"
     // dependencies work with APEX libraries.
     "libart-compiler",
-    "libartservice",
     "libdt_fd_forward",
     "libdt_socket",
     "libjdwp",
@@ -267,6 +266,9 @@ apex_defaults {
     native_shared_libs: art_runtime_base_native_shared_libs +
         art_runtime_base_native_device_only_shared_libs +
         libcore_native_shared_libs,
+    jni_libs: [
+        "libartservice",
+    ],
     binaries: [
         "artd",
     ],
