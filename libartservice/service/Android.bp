@@ -85,6 +85,10 @@ java_sdk_library {
         "java/**/*.java",
     ],
 
+    required: [
+        "libartservice",
+    ],
+
     libs: [
     ],
 
