@@ -519,7 +519,7 @@ Runtime::~Runtime() {
   // Destroy allocators before shutting down the MemMap because they may use it.
   java_vm_.reset();
   linear_alloc_.reset();
-  low_4gb_arena_pool_.reset();
+  linear_alloc_arena_pool_.reset();
   arena_pool_.reset();
   jit_arena_pool_.reset();
   protected_fault_page_.Reset();
@@ -1744,9 +1744,14 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     jit_arena_pool_.reset(new MemMapArenaPool(/* low_4gb= */ false, "CompilerMetadata"));
   }
 
-  if (IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA)) {
-    // 4gb, no malloc. Explanation in header.
-    low_4gb_arena_pool_.reset(new MemMapArenaPool(/* low_4gb= */ true));
+  // For 64 bit compilers, it needs to be in low 4GB in the case where we are cross compiling for a
+  // 32 bit target. In this case, we have 32 bit pointers in the dex cache arrays which can't hold
+  // when we have 64 bit ArtMethod pointers.
+  const bool low_4gb = IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA);
+  if (gUseUserfaultfd) {
+    linear_alloc_arena_pool_.reset(new GcVisitedArenaPool(low_4gb));
+  } else if (low_4gb) {
+    linear_alloc_arena_pool_.reset(new MemMapArenaPool(low_4gb));
   }
   linear_alloc_.reset(CreateLinearAlloc());
 
@@ -3117,13 +3122,12 @@ bool Runtime::IsAsyncDeoptimizeable(ArtMethod* method, uintptr_t code) const {
   return false;
 }
 
+
 LinearAlloc* Runtime::CreateLinearAlloc() {
-  // For 64 bit compilers, it needs to be in low 4GB in the case where we are cross compiling for a
-  // 32 bit target. In this case, we have 32 bit pointers in the dex cache arrays which can't hold
-  // when we have 64 bit ArtMethod pointers.
-  return (IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA))
-      ? new LinearAlloc(low_4gb_arena_pool_.get())
-      : new LinearAlloc(arena_pool_.get());
+  ArenaPool* pool = linear_alloc_arena_pool_.get();
+  return pool != nullptr
+      ? new LinearAlloc(pool, gUseUserfaultfd)
+      : new LinearAlloc(arena_pool_.get(), /*track_allocs=*/ false);
 }
 
 double Runtime::GetHashTableMinLoadFactor() const {
