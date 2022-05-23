@@ -26,7 +26,7 @@
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "imt_conflict_table.h"
 #include "jni/jni_internal.h"
-#include "linear_alloc.h"
+#include "linear_alloc-inl.h"
 #include "mirror/class-alloc-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/object_array-alloc-inl.h"
@@ -1777,7 +1777,8 @@ TEST_F(StubTest, DISABLED_IMT) {
       Runtime::Current()->GetClassLinker()->CreateImtConflictTable(/*count=*/0u, linear_alloc);
   void* data = linear_alloc->Alloc(
       self,
-      ImtConflictTable::ComputeSizeWithOneMoreEntry(empty_conflict_table, kRuntimePointerSize));
+      ImtConflictTable::ComputeSizeWithOneMoreEntry(empty_conflict_table, kRuntimePointerSize),
+      LinearAllocKind::kNoGCRoots);
   ImtConflictTable* new_table = new (data) ImtConflictTable(
       empty_conflict_table, inf_contains, contains_amethod, kRuntimePointerSize);
   conflict_method->SetImtConflictTable(new_table, kRuntimePointerSize);

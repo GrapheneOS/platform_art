@@ -27,6 +27,7 @@
 namespace art {
 
 class DexFile;
+template<typename T> class LengthPrefixedArray;
 class ScopedObjectAccessAlreadyRunnable;
 
 namespace mirror {
@@ -39,6 +40,15 @@ class String;
 
 class ArtField final {
  public:
+  // Visit declaring classes of all the art-fields in 'array' that reside
+  // in [start_boundary, end_boundary).
+  template<typename RootVisitorType>
+  static void VisitArrayRoots(RootVisitorType& visitor,
+                              uint8_t* start_boundary,
+                              uint8_t* end_boundary,
+                              LengthPrefixedArray<ArtField>* array)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ObjPtr<mirror::Class> GetDeclaringClass() REQUIRES_SHARED(Locks::mutator_lock_);
 

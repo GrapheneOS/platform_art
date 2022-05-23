@@ -27,6 +27,7 @@
 #include "object_array.h"
 
 namespace art {
+enum class LinearAllocKind : uint32_t;
 
 namespace linker {
 class ImageWriter;
@@ -37,7 +38,6 @@ class ArtMethod;
 struct DexCacheOffsets;
 class DexFile;
 union JValue;
-class LinearAlloc;
 class ReflectiveValueVisitor;
 class Thread;
 
@@ -188,6 +188,14 @@ class MANAGED DexCache final : public Object {
   static constexpr uint32_t InstanceSize() {
     return sizeof(DexCache);
   }
+
+  // Visit gc-roots in DexCachePair array in [pairs_begin, pairs_end) range.
+  template <typename Visitor>
+  static void VisitDexCachePairRoots(Visitor& visitor,
+                                     DexCachePair<Object>* pairs_begin,
+                                     DexCachePair<Object>* pairs_end)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
 
   void Initialize(const DexFile* dex_file, ObjPtr<ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -453,7 +461,7 @@ class MANAGED DexCache final : public Object {
  private:
   // Allocate new array in linear alloc and save it in the given fields.
   template<typename T, size_t kMaxCacheSize>
-  T* AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t num)
+  T* AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t num, LinearAllocKind kind)
      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit instance fields of the dex cache as well as its associated arrays.

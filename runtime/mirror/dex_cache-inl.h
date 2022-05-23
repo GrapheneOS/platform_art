@@ -29,7 +29,7 @@
 #include "class_linker.h"
 #include "dex/dex_file.h"
 #include "gc_root-inl.h"
-#include "linear_alloc.h"
+#include "linear_alloc-inl.h"
 #include "mirror/call_site.h"
 #include "mirror/class.h"
 #include "mirror/method_type.h"
@@ -54,7 +54,10 @@ static void InitializeArray(GcRoot<T>*) {
 }
 
 template<typename T, size_t kMaxCacheSize>
-T* DexCache::AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t num) {
+T* DexCache::AllocArray(MemberOffset obj_offset,
+                        MemberOffset num_offset,
+                        size_t num,
+                        LinearAllocKind kind) {
   num = std::min<size_t>(num, kMaxCacheSize);
   if (num == 0) {
     return nullptr;
@@ -74,7 +77,7 @@ T* DexCache::AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t
     DCHECK(alloc->Contains(array));
     return array;  // Other thread just allocated the array.
   }
-  array = reinterpret_cast<T*>(alloc->AllocAlign16(self, RoundUp(num * sizeof(T), 16)));
+  array = reinterpret_cast<T*>(alloc->AllocAlign16(self, RoundUp(num * sizeof(T), 16), kind));
   InitializeArray(array);  // Ensure other threads see the array initialized.
   dex_cache->SetField32Volatile<false, false>(num_offset, num);
   dex_cache->SetField64Volatile<false, false>(obj_offset, reinterpret_cast64<uint64_t>(array));
@@ -136,7 +139,10 @@ inline void DexCache::SetResolvedString(dex::StringIndex string_idx, ObjPtr<Stri
   StringDexCacheType* strings = GetStrings();
   if (UNLIKELY(strings == nullptr)) {
     strings = AllocArray<StringDexCacheType, kDexCacheStringCacheSize>(
-        StringsOffset(), NumStringsOffset(), GetDexFile()->NumStringIds());
+        StringsOffset(),
+        NumStringsOffset(),
+        GetDexFile()->NumStringIds(),
+        LinearAllocKind::kDexCacheArray);
   }
   strings[StringSlotIndex(string_idx)].store(
       StringDexCachePair(resolved, string_idx.index_), std::memory_order_relaxed);
@@ -188,7 +194,10 @@ inline void DexCache::SetResolvedType(dex::TypeIndex type_idx, ObjPtr<Class> res
   TypeDexCacheType* resolved_types = GetResolvedTypes();
   if (UNLIKELY(resolved_types == nullptr)) {
     resolved_types = AllocArray<TypeDexCacheType, kDexCacheTypeCacheSize>(
-        ResolvedTypesOffset(), NumResolvedTypesOffset(), GetDexFile()->NumTypeIds());
+        ResolvedTypesOffset(),
+        NumResolvedTypesOffset(),
+        GetDexFile()->NumTypeIds(),
+        LinearAllocKind::kDexCacheArray);
   }
   // TODO default transaction support.
   // Use a release store for SetResolvedType. This is done to prevent other threads from seeing a
@@ -237,7 +246,10 @@ inline void DexCache::SetResolvedMethodType(dex::ProtoIndex proto_idx, MethodTyp
   MethodTypeDexCacheType* methods = GetResolvedMethodTypes();
   if (UNLIKELY(methods == nullptr)) {
     methods = AllocArray<MethodTypeDexCacheType, kDexCacheMethodTypeCacheSize>(
-        ResolvedMethodTypesOffset(), NumResolvedMethodTypesOffset(), GetDexFile()->NumProtoIds());
+        ResolvedMethodTypesOffset(),
+        NumResolvedMethodTypesOffset(),
+        GetDexFile()->NumProtoIds(),
+        LinearAllocKind::kDexCacheArray);
   }
   methods[MethodTypeSlotIndex(proto_idx)].store(
       MethodTypeDexCachePair(resolved, proto_idx.index_), std::memory_order_relaxed);
@@ -285,7 +297,10 @@ inline ObjPtr<CallSite> DexCache::SetResolvedCallSite(uint32_t call_site_idx,
   GcRoot<CallSite>* call_sites = GetResolvedCallSites();
   if (UNLIKELY(call_sites == nullptr)) {
     call_sites = AllocArray<GcRoot<CallSite>, std::numeric_limits<size_t>::max()>(
-        ResolvedCallSitesOffset(), NumResolvedCallSitesOffset(), GetDexFile()->NumCallSiteIds());
+        ResolvedCallSitesOffset(),
+        NumResolvedCallSitesOffset(),
+        GetDexFile()->NumCallSiteIds(),
+        LinearAllocKind::kGCRootArray);
   }
   GcRoot<mirror::CallSite>& target = call_sites[call_site_idx];
 
@@ -323,7 +338,10 @@ inline void DexCache::SetResolvedField(uint32_t field_idx, ArtField* field) {
   FieldDexCacheType* fields = GetResolvedFields();
   if (UNLIKELY(fields == nullptr)) {
     fields = AllocArray<FieldDexCacheType, kDexCacheFieldCacheSize>(
-        ResolvedFieldsOffset(), NumResolvedFieldsOffset(), GetDexFile()->NumFieldIds());
+        ResolvedFieldsOffset(),
+        NumResolvedFieldsOffset(),
+        GetDexFile()->NumFieldIds(),
+        LinearAllocKind::kNoGCRoots);
   }
   SetNativePair(fields, FieldSlotIndex(field_idx), pair);
 }
@@ -350,7 +368,10 @@ inline void DexCache::SetResolvedMethod(uint32_t method_idx, ArtMethod* method) 
   MethodDexCacheType* methods = GetResolvedMethods();
   if (UNLIKELY(methods == nullptr)) {
     methods = AllocArray<MethodDexCacheType, kDexCacheMethodCacheSize>(
-        ResolvedMethodsOffset(), NumResolvedMethodsOffset(), GetDexFile()->NumMethodIds());
+        ResolvedMethodsOffset(),
+        NumResolvedMethodsOffset(),
+        GetDexFile()->NumMethodIds(),
+        LinearAllocKind::kNoGCRoots);
   }
   SetNativePair(methods, MethodSlotIndex(method_idx), pair);
 }
@@ -393,6 +414,15 @@ inline void VisitDexCachePairs(std::atomic<DexCachePair<T>>* pairs,
     if (source.object.template Read<kReadBarrierOption>() != before) {
       pairs[i].store(source, std::memory_order_relaxed);
     }
+  }
+}
+
+template <typename Visitor>
+void DexCache::VisitDexCachePairRoots(Visitor& visitor,
+                                      DexCachePair<Object>* pairs_begin,
+                                      DexCachePair<Object>* pairs_end) {
+  for (; pairs_begin < pairs_end; pairs_begin++) {
+    visitor.VisitRootIfNonNull(pairs_begin->object.AddressWithoutBarrier());
   }
 }
 
