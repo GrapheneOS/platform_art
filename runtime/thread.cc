@@ -4613,7 +4613,9 @@ void ScopedExceptionStorage::SuppressOldException(const char* message) {
   CHECK(self_->IsExceptionPending()) << *self_;
   ObjPtr<mirror::Throwable> old_suppressed(excp_.Get());
   excp_.Assign(self_->GetException());
-  LOG(WARNING) << message << "Suppressing old exception: " << old_suppressed->Dump();
+  if (old_suppressed != nullptr) {
+    LOG(WARNING) << message << "Suppressing old exception: " << old_suppressed->Dump();
+  }
   self_->ClearException();
 }
 
