@@ -253,10 +253,21 @@ public class Test988 {
         }
     }
 
-    private static List<Printable> results = new ArrayList<>();
+    private static ArrayList<Printable> results = new ArrayList<>();
+    private static int results_index = 0;
     // Starts with => enableMethodTracing
     //             .=> enableTracing
     private static int cnt = 2;
+
+    static void addToResults(Printable obj) {
+      // Reserve space for the current object. If any other method entry callbacks are called they
+      // will reserve more space. Without this we may get into strange problems where ArrayList::add
+      // cecks there is enough space (which involves a couple of method calls) which then use up the
+      // space and by the time we actually add this record there is no capacity left.
+      results_index++;
+      results.ensureCapacity(results_index + 1);
+      results.add(obj);
+    }
 
     // Iterative version
     static final class IterOp implements IntUnaryOperator {
@@ -319,7 +330,7 @@ public class Test988 {
         if ((cnt - 1) > METHOD_TRACING_IGNORE_DEPTH && sMethodTracingIgnore) {
           return;
         }
-        results.add(new MethodEntry(m, cnt - 1));
+        addToResults(new MethodEntry(m, cnt - 1));
     }
 
     public static void notifyMethodExit(Executable m, boolean exception, Object result) {
@@ -330,9 +341,9 @@ public class Test988 {
         }
 
         if (exception) {
-            results.add(new MethodThrownThrough(m, cnt));
+            addToResults(new MethodThrownThrough(m, cnt));
         } else {
-            results.add(new MethodReturn(m, result, cnt));
+            addToResults(new MethodReturn(m, result, cnt));
         }
     }
 
@@ -400,9 +411,9 @@ public class Test988 {
     public static void doFibTest(int x, IntUnaryOperator op) {
       try {
         int y = op.applyAsInt(x);
-        results.add(new FibResult("fibonacci(%d)=%d\n", x, y));
+        addToResults(new FibResult("fibonacci(%d)=%d\n", x, y));
       } catch (Throwable t) {
-        results.add(new FibThrow("fibonacci(%d) -> %s\n", x, t));
+        addToResults(new FibThrow("fibonacci(%d) -> %s\n", x, t));
       }
     }
 
