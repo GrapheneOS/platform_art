@@ -398,6 +398,9 @@
       "name": "art-run-test-2030-long-running-child[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-2042-checker-dce-always-throw[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning[com.google.android.art.apex]"
     },
     {
@@ -752,6 +755,9 @@
       "name": "art-run-test-529-long-split[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-530-checker-loops-try-catch[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-530-checker-loops1[com.google.android.art.apex]"
     },
     {
@@ -774,6 +780,9 @@
     },
     {
       "name": "art-run-test-530-checker-lse-simd[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-530-checker-lse-try-catch[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-530-instanceof-checkcast[com.google.android.art.apex]"
@@ -1122,9 +1131,6 @@
     },
     {
       "name": "art-run-test-678-quickening[com.google.android.art.apex]"
-    },
-    {
-      "name": "art-run-test-680-sink-regression[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-684-checker-simd-dotprod[com.google.android.art.apex]"
@@ -1690,6 +1696,9 @@
       "name": "art-run-test-2030-long-running-child"
     },
     {
+      "name": "art-run-test-2042-checker-dce-always-throw"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning"
     },
     {
@@ -2044,6 +2053,9 @@
       "name": "art-run-test-529-long-split"
     },
     {
+      "name": "art-run-test-530-checker-loops-try-catch"
+    },
+    {
       "name": "art-run-test-530-checker-loops1"
     },
     {
@@ -2066,6 +2078,9 @@
     },
     {
       "name": "art-run-test-530-checker-lse-simd"
+    },
+    {
+      "name": "art-run-test-530-checker-lse-try-catch"
     },
     {
       "name": "art-run-test-530-instanceof-checkcast"
@@ -2414,9 +2429,6 @@
     },
     {
       "name": "art-run-test-678-quickening"
-    },
-    {
-      "name": "art-run-test-680-sink-regression"
     },
     {
       "name": "art-run-test-684-checker-simd-dotprod"
