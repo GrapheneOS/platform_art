@@ -16,6 +16,7 @@
 
 #include "quick_exception_handler.h"
 #include <ios>
+#include <queue>
 
 #include "arch/context.h"
 #include "art_method-inl.h"
@@ -95,7 +96,19 @@ class CatchBlockStackVisitor final : public StackVisitor {
       DCHECK(method->IsCalleeSaveMethod());
       return true;
     }
-    return HandleTryItems(method);
+    bool continue_stack_walk = HandleTryItems(method);
+    // Collect methods for which MethodUnwind callback needs to be invoked. MethodUnwind callback
+    // can potentially throw, so we want to call these after we find the catch block.
+    // We stop the stack walk when we find the catch block. If we are ending the stack walk we don't
+    // have to unwind this method so don't record it.
+    if (continue_stack_walk) {
+      unwound_methods_.push(method);
+    }
+    return continue_stack_walk;
+  }
+
+  std::queue<ArtMethod*>& GetUnwoundMethods() {
+    return unwound_methods_;
   }
 
  private:
@@ -139,6 +152,9 @@ class CatchBlockStackVisitor final : public StackVisitor {
   QuickExceptionHandler* const exception_handler_;
   // The number of frames to skip searching for catches in.
   uint32_t skip_frames_;
+  // The list of methods we would skip to reach the catch block. We record these to call
+  // MethodUnwind callbacks.
+  std::queue<ArtMethod*> unwound_methods_;
 
   DISALLOW_COPY_AND_ASSIGN(CatchBlockStackVisitor);
 };
@@ -147,7 +163,7 @@ class CatchBlockStackVisitor final : public StackVisitor {
 // Note that this might change the exception being thrown.
 void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception) {
   DCHECK(!is_deoptimization_);
-  instrumentation::InstrumentationStackPopper popper(self_);
+  instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   // The number of total frames we have so far popped.
   uint32_t already_popped = 0;
   bool popped_to_top = true;
@@ -195,9 +211,13 @@ void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception) {
         handler_method_header_->IsOptimized()) {
       SetCatchEnvironmentForOptimizedHandler(&visitor);
     }
-    popped_to_top =
-        popper.PopFramesTo(reinterpret_cast<uintptr_t>(handler_quick_frame_), exception_ref);
+    popped_to_top = instr->ProcessMethodUnwindCallbacks(self_,
+                                                        visitor.GetUnwoundMethods(),
+                                                        exception_ref);
   } while (!popped_to_top);
+
+  // Pop off frames on instrumentation stack to keep it in sync with what is on the stack.
+  instr->PopInstrumentationStackUntil(self_, reinterpret_cast<uintptr_t>(handler_quick_frame_));
   if (!clear_exception_) {
     // Put exception back in root set with clear throw location.
     self_->SetException(exception_ref.Get());
@@ -642,7 +662,7 @@ uintptr_t QuickExceptionHandler::UpdateInstrumentationStack() {
   uintptr_t return_pc = 0;
   if (method_tracing_active_) {
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-    return_pc = instrumentation->PopFramesForDeoptimization(
+    return_pc = instrumentation->PopInstrumentationStackUntil(
         self_, reinterpret_cast<uintptr_t>(handler_quick_frame_));
   }
   return return_pc;

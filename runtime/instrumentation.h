@@ -23,6 +23,7 @@
 #include <list>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <unordered_set>
 
 #include "arch/instruction_set.h"
@@ -528,9 +529,9 @@ class Instrumentation {
                                              uint64_t* fpr_result)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
-  // Pops nframes instrumentation frames from the current thread. Returns the return pc for the last
-  // instrumentation frame that's popped.
-  uintptr_t PopFramesForDeoptimization(Thread* self, uintptr_t stack_pointer) const
+  // Pops instrumentation frames until the specified stack_pointer from the current thread. Returns
+  // the return pc for the last instrumentation frame that's popped.
+  uintptr_t PopInstrumentationStackUntil(Thread* self, uintptr_t stack_pointer) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Call back for configure stubs.
@@ -570,6 +571,11 @@ class Instrumentation {
   bool AllocEntrypointsInstrumented() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return alloc_entrypoints_instrumented_;
   }
+
+  bool ProcessMethodUnwindCallbacks(Thread* self,
+                                    std::queue<ArtMethod*>& methods,
+                                    MutableHandle<mirror::Throwable>& exception)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   InstrumentationLevel GetCurrentInstrumentationLevel() const;
 
