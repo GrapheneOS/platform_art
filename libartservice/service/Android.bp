@@ -21,25 +21,29 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
-cc_library {
-    // This native library contains JNI support code for the ART Service Java
-    // Language library.
-
-    name: "libartservice",
+// This native library contains JNI support code for the ART Service Java
+// Language library.
+cc_defaults {
+    name: "libartservice_defaults",
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
         "native/service.cc",
     ],
-    export_include_dirs: ["."],
+    shared_libs: [
+        "libbase",
+    ],
+}
+
+cc_library {
+    name: "libartservice",
+    defaults: ["libartservice_defaults"],
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
     ],
     shared_libs: [
-        "libbase",
     ],
-    export_shared_lib_headers: ["libbase"],
 }
 
 // Provides the API and implementation of the ART Service class that will be
@@ -98,12 +102,9 @@ java_sdk_library {
 
 art_cc_defaults {
     name: "art_libartservice_tests_defaults",
+    defaults: ["libartservice_defaults"],
     srcs: [
         "native/service_test.cc",
-    ],
-    shared_libs: [
-        "libbase",
-        "libartservice",
     ],
 }
 
