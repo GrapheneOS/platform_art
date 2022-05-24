@@ -78,6 +78,7 @@
   V(JniLockObject, void, mirror::Object*) \
   V(JniUnlockObject, void, mirror::Object*) \
   V(QuickGenericJniTrampoline, void, ArtMethod*) \
+  V(JniMethodEntryHook, void) \
 \
   V(LockObject, void, mirror::Object*) \
   V(UnlockObject, void, mirror::Object*) \
