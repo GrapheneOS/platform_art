@@ -1502,5 +1502,15 @@
         "variant": "target & ndebug & 64",
         "bug": "b/224733324",
         "description": ["segfault in VarHandle::GetMethodTypeMatchForAccessMode"]
+    },
+    {
+        "tests": ["2043-reference-pauses"],
+        "env_vars": {"ART_TEST_DEBUG_GC": "true"},
+        "description": ["Test timing out on debug gc."]
+    },
+    {
+        "tests": ["837-deopt"],
+        "description": ["Tests deoptimization and OSR, which never happens when tracing."],
+        "variant": "trace | stream | interpreter | interp-ac"
     }
 ]
