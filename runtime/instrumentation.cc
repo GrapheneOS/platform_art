@@ -143,7 +143,7 @@ bool Instrumentation::ProcessMethodUnwindCallbacks(Thread* self,
   bool new_exception_thrown = false;
 
   // Process callbacks for all methods that would be unwound until a new exception is thrown.
-  while(!methods.empty()) {
+  while (!methods.empty()) {
     ArtMethod* method = methods.front();
     methods.pop();
     if (kVerboseInstrumentation) {
