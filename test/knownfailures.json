@@ -1368,6 +1368,13 @@
         "description": ["Slow test. Prone to timeouts."]
     },
     {
+        "tests": ["2043-reference-pauses"],
+        "env_vars": {"ART_USE_READ_BARRIER": "false"},
+        "variant": "host",
+        "bug": "b/232459100",
+        "description": ["Fails intermittently for CMS."]
+    },
+    {
         "tests": ["096-array-copy-concurrent-gc"],
         "variant": "gcstress & debuggable & debug & host",
         "bug": "b/149708943",
