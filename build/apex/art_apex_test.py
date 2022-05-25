@@ -616,6 +616,7 @@ class DebugChecker:
     self._checker.check_native_library('libartd-compiler')
     self._checker.check_native_library('libartd-dexlayout')
     self._checker.check_native_library('libartd-disassembler')
+    self._checker.check_native_library('libartserviced')
     self._checker.check_native_library('libopenjdkjvmd')
     self._checker.check_native_library('libopenjdkjvmtid')
     self._checker.check_native_library('libprofiled')
