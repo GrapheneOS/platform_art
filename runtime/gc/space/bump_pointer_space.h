@@ -118,6 +118,11 @@ class BumpPointerSpace final : public ContinuousMemMapAllocSpace {
       REQUIRES(!*Locks::runtime_shutdown_lock_, !*Locks::thread_list_lock_, !block_lock_);
   uint64_t GetObjectsAllocated() override REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!*Locks::runtime_shutdown_lock_, !*Locks::thread_list_lock_, !block_lock_);
+  // Return the pre-determined allocated object count. This could be beneficial
+  // when we know that all the TLABs are revoked.
+  int32_t GetAccumulatedObjectsAllocated() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return objects_allocated_.load(std::memory_order_relaxed);
+  }
   bool IsEmpty() const {
     return Begin() == End();
   }

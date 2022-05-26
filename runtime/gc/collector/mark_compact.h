@@ -374,6 +374,7 @@ class MarkCompact : public GarbageCollector {
 
   // Update the live-words bitmap as well as add the object size to the
   // chunk-info vector. Both are required for computation of post-compact addresses.
+  // Also updates freed_objects_ counter.
   void UpdateLivenessInfo(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ProcessReferences(Thread* self)
@@ -519,6 +520,11 @@ class MarkCompact : public GarbageCollector {
   void* stack_end_;
 
   uint8_t* conc_compaction_termination_page_;
+  // Number of objects freed during this GC in moving space. It is decremented
+  // every time an object is discovered. And total-object count is added to it
+  // in MarkingPause(). It reaches the correct count only once the marking phase
+  // is completed.
+  int32_t freed_objects_;
   // Userfault file descriptor, accessed only by the GC itself.
   // kFallbackMode value indicates that we are in the fallback mode.
   int uffd_;
