@@ -69,6 +69,9 @@ while true; do
   elif [[ "$1" == "--showcommands" ]]; then
     showcommands="showcommands"
     shift
+  elif [[ "$1" == "--dist" ]]; then
+    common_targets="$common_targets dist"
+    shift
   elif [[ "$1" == "" ]]; then
     break
   else
