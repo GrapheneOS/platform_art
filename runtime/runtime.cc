@@ -1328,9 +1328,9 @@ static inline void CreatePreAllocatedException(Thread* self,
   detailMessageField->SetObject</* kTransactionActive= */ false>(exception->Read(), message);
 }
 
-void Runtime::InitializeApexVersions() {
+std::string Runtime::GetApexVersions(ArrayRef<const std::string> boot_class_path_locations) {
   std::vector<std::string_view> bcp_apexes;
-  for (std::string_view jar : Runtime::Current()->GetBootClassPathLocations()) {
+  for (std::string_view jar : boot_class_path_locations) {
     std::string_view apex = ApexNameFromLocation(jar);
     if (!apex.empty()) {
       bcp_apexes.push_back(apex);
@@ -1338,20 +1338,20 @@ void Runtime::InitializeApexVersions() {
   }
   static const char* kApexFileName = "/apex/apex-info-list.xml";
   // Start with empty markers.
-  apex_versions_ = std::string(bcp_apexes.size(), '/');
+  std::string empty_apex_versions(bcp_apexes.size(), '/');
   // When running on host or chroot, we just use empty markers.
   if (!kIsTargetBuild || !OS::FileExists(kApexFileName)) {
-    return;
+    return empty_apex_versions;
   }
 #ifdef ART_TARGET_ANDROID
   if (access(kApexFileName, R_OK) != 0) {
     PLOG(WARNING) << "Failed to read " << kApexFileName;
-    return;
+    return empty_apex_versions;
   }
   auto info_list = apex::readApexInfoList(kApexFileName);
   if (!info_list.has_value()) {
     LOG(WARNING) << "Failed to parse " << kApexFileName;
-    return;
+    return empty_apex_versions;
   }
 
   std::string result;
@@ -1375,8 +1375,13 @@ void Runtime::InitializeApexVersions() {
       android::base::StringAppendF(&result, "/%" PRIu64, version);
     }
   }
-  apex_versions_ = result;
+  return result;
 #endif
+}
+
+void Runtime::InitializeApexVersions() {
+  apex_versions_ =
+      GetApexVersions(ArrayRef<const std::string>(Runtime::Current()->GetBootClassPathLocations()));
 }
 
 void Runtime::ReloadAllFlags(const std::string& caller) {

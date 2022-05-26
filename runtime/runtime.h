@@ -257,6 +257,13 @@ class Runtime {
     return instance_;
   }
 
+  // Set the current runtime to be the given instance.
+  // Note that this function is not responsible for cleaning up the old instance or taking the
+  // ownership of the new instance.
+  //
+  // For test use only.
+  static void TestOnlySetCurrent(Runtime* instance) { instance_ = instance; }
+
   // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
   // callers should prefer.
   NO_RETURN static void Abort(const char* msg) REQUIRES(!Locks::abort_lock_);
@@ -1084,6 +1091,10 @@ class Runtime {
   // See Flags::ReloadAllFlags as well.
   static void ReloadAllFlags(const std::string& caller);
 
+  // Parses /apex/apex-info-list.xml to build a string containing apex versions of boot classpath
+  // jars, which is encoded into .oat files.
+  static std::string GetApexVersions(ArrayRef<const std::string> boot_class_path_locations);
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -1124,8 +1135,7 @@ class Runtime {
   ThreadPool* AcquireThreadPool() REQUIRES(!Locks::runtime_thread_pool_lock_);
   void ReleaseThreadPool() REQUIRES(!Locks::runtime_thread_pool_lock_);
 
-  // Parses /apex/apex-info-list.xml to initialize a string containing versions
-  // of boot classpath jars and encoded into .oat files.
+  // Caches the apex versions produced by `GetApexVersions`.
   void InitializeApexVersions();
 
   // A pointer to the active runtime or null.
