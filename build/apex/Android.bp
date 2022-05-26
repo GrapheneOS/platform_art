@@ -323,6 +323,9 @@ apex_defaults {
         art_runtime_run_test_libs +
         art_runtime_debug_native_shared_libs +
         libcore_debug_native_shared_libs,
+    jni_libs: [
+        "libartserviced",
+    ],
     multilib: {
         both: {
             binaries: art_tools_debug_binaries_both +
