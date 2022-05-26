@@ -24,7 +24,7 @@ public class Main {
   int allocated = 0;
   int deallocated = 0;
   static Object lock = new Object();
-  final static int MAX_TRIES = 4;
+  final static int MAX_TRIES = 10;
   WeakReference<BufferHolder>[] references = new WeakReference[HOW_MANY_HUGE];
 
   class BufferHolder {
@@ -61,6 +61,14 @@ public class Main {
       if (new Main().tryToRun(i == MAX_TRIES)) {
         break;
       }
+      if (i == MAX_TRIES / 2) {
+        // Maybe some transient CPU load is causing issues here?
+        try {
+          Thread.sleep(3000);
+        } catch (InterruptedException ignored) {
+          System.out.println("Unexpected interrupt");
+        }
+      }
       // Clean up and try again.
       Runtime.getRuntime().gc();
       System.runFinalization();
@@ -84,7 +92,10 @@ public class Main {
 
     if (startingGcNum != getGcNum()) {
       // Happens rarely, fail and retry.
-      return false;
+      if (!lastChance) {
+        return false;
+      }
+      System.out.println("Triggered early GC");
     }
     // One of the notifications should block for GC to catch up.
     long actualTime = timeNotifications();
