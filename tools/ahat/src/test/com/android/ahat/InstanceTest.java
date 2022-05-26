@@ -224,6 +224,7 @@ public class InstanceTest {
   @Test
   public void reachability() throws IOException {
     TestDump dump = TestDump.getTestDump();
+    // We were careful to avoid GC before dumping, so nothing here should be null.
     AhatInstance strong1 = dump.getDumpedAhatInstance("reachabilityReferenceChain");
     AhatInstance soft1 = strong1.getField("referent").asAhatInstance();
     AhatInstance strong2 = soft1.getField("referent").asAhatInstance();
