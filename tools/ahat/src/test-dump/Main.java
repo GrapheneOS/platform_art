@@ -43,6 +43,10 @@ public class Main {
     // Allocate the instance of DumpedStuff.
     stuff = new DumpedStuff(baseline);
 
+    // Preemptively garbage collect to avoid an inopportune GC triggering
+    // after this.
+    Runtime.getRuntime().gc();
+
     // Create a bunch of unreachable objects pointing to basicString for the
     // reverseReferencesAreNotUnreachable test
     for (int i = 0; i < 100; i++) {
