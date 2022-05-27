@@ -106,6 +106,30 @@ constexpr std::optional<int32_t> EncodeDatumId(DatumId datum_id) {
     case DatumId::kFullGcTracingThroughputAvg:
       return std::make_optional(
           statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_TRACING_THROUGHPUT_AVG_MB_PER_SEC);
+    case DatumId::kGcWorldStopTime:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_WORLD_STOP_TIME_US);
+    case DatumId::kGcWorldStopCount:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_WORLD_STOP_COUNT);
+    case DatumId::kYoungGcScannedBytes:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_YOUNG_GENERATION_COLLECTION_SCANNED_BYTES);
+    case DatumId::kYoungGcFreedBytes:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_YOUNG_GENERATION_COLLECTION_FREED_BYTES);
+    case DatumId::kYoungGcDuration:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_YOUNG_GENERATION_COLLECTION_DURATION_MS);
+    case DatumId::kFullGcScannedBytes:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_COLLECTION_SCANNED_BYTES);
+    case DatumId::kFullGcFreedBytes:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_COLLECTION_FREED_BYTES);
+    case DatumId::kFullGcDuration:
+      return std::make_optional(
+          statsd::ART_DATUM_REPORTED__KIND__ART_DATUM_GC_FULL_HEAP_COLLECTION_DURATION_MS);
   }
 }
 
