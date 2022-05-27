@@ -217,6 +217,8 @@ class Checker:
       return False, 'Could not find %s'
     if fs_object.is_dir:
       return False, '%s is a directory'
+    if fs_object.is_symlink:
+      return False, '%s is a symlink'
     return True, ''
 
   def is_dir(self, path):
