@@ -435,7 +435,21 @@ apex_test {
     certificate: ":com.android.art.certificate",
     tests: art_gtests,
     binaries: ["signal_dumper"], // Need signal_dumper for run-tests.
+    // Mark this test APEX as non-updatable, as its contains
+    // additional files (used only for testing) that would not pass
+    // dependency checks performed on updatable APEXes (see
+    // go/apex-allowed-deps-error).
     updatable: false,
+    // Because this APEX is non-updatable, some of its native shared
+    // libraries (implicitly added as dependencies) are eligible to
+    // the symlink optimization. As we want this APEX to be
+    // self-contained (for testing purposes), we want to package
+    // these dependencies in this APEX, instead of symbolic links to
+    // their counterparts on the `system` partition, which may not
+    // even exist, as in the case of `libbacktrace` (see b/232790938
+    // and b/233357459). Marking this APEX as "future updatable"
+    // disables all symlink optimizations for it.
+    future_updatable: true,
 }
 
 // TODO: Do this better. art_apex_test_host will disable host builds when
