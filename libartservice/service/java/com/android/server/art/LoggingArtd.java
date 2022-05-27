@@ -43,6 +43,15 @@ public class LoggingArtd implements IArtd {
         return 0;
     }
 
+    @Override
+    public GetOptimizationStatusResult getOptimizationStatus(
+            String dexFile, String instructionSet, String classLoaderContext) {
+        Log.i(TAG,
+                "getOptimizationStatus " + dexFile + ", " + instructionSet + ", "
+                        + classLoaderContext);
+        return new GetOptimizationStatusResult();
+    }
+
     private String artifactsPathToString(ArtifactsPath artifactsPath) {
         return String.format("ArtifactsPath{dexPath = \"%s\", isa = \"%s\", isInDalvikCache = %s}",
                 artifactsPath.dexPath, artifactsPath.isa,

@@ -16,6 +16,8 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.any;
@@ -34,6 +36,8 @@ import androidx.test.filters.SmallTest;
 
 import com.android.server.art.model.DeleteOptions;
 import com.android.server.art.model.DeleteResult;
+import com.android.server.art.model.GetStatusOptions;
+import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
@@ -131,6 +135,65 @@ public class ArtManagerLocalTest {
                 mock(PackageDataSnapshot.class), PKG_NAME, new DeleteOptions.Builder().build());
     }
 
+    @Test
+    public void testGetOptimizationStatus() throws Exception {
+        when(mArtd.getOptimizationStatus(any(), any(), any()))
+                .thenReturn(createGetOptimizationStatusResult(
+                                    "speed", "compilation-reason-0", "location-debug-string-0"),
+                        createGetOptimizationStatusResult(
+                                "speed-profile", "compilation-reason-1", "location-debug-string-1"),
+                        createGetOptimizationStatusResult(
+                                "verify", "compilation-reason-2", "location-debug-string-2"),
+                        createGetOptimizationStatusResult(
+                                "extract", "compilation-reason-3", "location-debug-string-3"));
+
+        OptimizationStatus result = mArtManagerLocal.getOptimizationStatus(
+                mock(PackageDataSnapshot.class), PKG_NAME, new GetStatusOptions.Builder().build());
+
+        List<DexFileOptimizationStatus> statuses = result.getDexFileOptimizationStatuses();
+        assertThat(statuses.size()).isEqualTo(4);
+
+        assertThat(statuses.get(0).getDexFile()).isEqualTo("/data/app/foo/base.apk");
+        assertThat(statuses.get(0).getInstructionSet()).isEqualTo("arm64");
+        assertThat(statuses.get(0).getCompilerFilter()).isEqualTo("speed");
+        assertThat(statuses.get(0).getCompilationReason()).isEqualTo("compilation-reason-0");
+        assertThat(statuses.get(0).getLocationDebugString()).isEqualTo("location-debug-string-0");
+
+        assertThat(statuses.get(1).getDexFile()).isEqualTo("/data/app/foo/base.apk");
+        assertThat(statuses.get(1).getInstructionSet()).isEqualTo("arm");
+        assertThat(statuses.get(1).getCompilerFilter()).isEqualTo("speed-profile");
+        assertThat(statuses.get(1).getCompilationReason()).isEqualTo("compilation-reason-1");
+        assertThat(statuses.get(1).getLocationDebugString()).isEqualTo("location-debug-string-1");
+
+        assertThat(statuses.get(2).getDexFile()).isEqualTo("/data/app/foo/split_0.apk");
+        assertThat(statuses.get(2).getInstructionSet()).isEqualTo("arm64");
+        assertThat(statuses.get(2).getCompilerFilter()).isEqualTo("verify");
+        assertThat(statuses.get(2).getCompilationReason()).isEqualTo("compilation-reason-2");
+        assertThat(statuses.get(2).getLocationDebugString()).isEqualTo("location-debug-string-2");
+
+        assertThat(statuses.get(3).getDexFile()).isEqualTo("/data/app/foo/split_0.apk");
+        assertThat(statuses.get(3).getInstructionSet()).isEqualTo("arm");
+        assertThat(statuses.get(3).getCompilerFilter()).isEqualTo("extract");
+        assertThat(statuses.get(3).getCompilationReason()).isEqualTo("compilation-reason-3");
+        assertThat(statuses.get(3).getLocationDebugString()).isEqualTo("location-debug-string-3");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetOptimizationStatusPackageNotFound() throws Exception {
+        when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME))).thenReturn(null);
+
+        mArtManagerLocal.getOptimizationStatus(
+                mock(PackageDataSnapshot.class), PKG_NAME, new GetStatusOptions.Builder().build());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testGetOptimizationStatusNoPackage() throws Exception {
+        when(mPkgState.getAndroidPackage()).thenReturn(null);
+
+        mArtManagerLocal.getOptimizationStatus(
+                mock(PackageDataSnapshot.class), PKG_NAME, new GetStatusOptions.Builder().build());
+    }
+
     private AndroidPackageApi createPackage() {
         AndroidPackageApi pkg = mock(AndroidPackageApi.class);
 
@@ -162,5 +225,14 @@ public class ArtManagerLocalTest {
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
 
         return pkgState;
+    }
+
+    private GetOptimizationStatusResult createGetOptimizationStatusResult(
+            String compilerFilter, String compilationReason, String locationDebugString) {
+        var getOptimizationStatusResult = new GetOptimizationStatusResult();
+        getOptimizationStatusResult.compilerFilter = compilerFilter;
+        getOptimizationStatusResult.compilationReason = compilationReason;
+        getOptimizationStatusResult.locationDebugString = locationDebugString;
+        return getOptimizationStatusResult;
     }
 }

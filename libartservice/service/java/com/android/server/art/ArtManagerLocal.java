@@ -16,7 +16,9 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.PrimaryDexUtils.DetailedPrimaryDexInfo;
 import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
+import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
@@ -28,12 +30,16 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.IArtd;
 import com.android.server.art.model.DeleteOptions;
 import com.android.server.art.model.DeleteResult;
+import com.android.server.art.model.GetStatusOptions;
+import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
 
 import java.io.FileDescriptor;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class provides a system API for functionality provided by the ART module.
@@ -97,15 +103,8 @@ public final class ArtManagerLocal {
             throw new IllegalArgumentException("Nothing to delete");
         }
 
-        PackageState pkgState = mInjector.getPackageManagerLocal().getPackageState(
-                snapshot, Binder.getCallingUid(), packageName);
-        if (pkgState == null) {
-            throw new IllegalArgumentException("Package not found: " + packageName);
-        }
-        AndroidPackageApi pkg = pkgState.getAndroidPackage();
-        if (pkg == null) {
-            throw new IllegalStateException("Unable to get package " + pkgState.getPackageName());
-        }
+        PackageState pkgState = getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackageApi pkg = getPackageOrThrow(pkgState);
 
         try {
             long freedBytes = 0;
@@ -133,6 +132,74 @@ public final class ArtManagerLocal {
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }
+    }
+
+    /**
+     * Returns the optimization status of a package.
+     *
+     * @throws IllegalArgumentException if the package is not found or the options are illegal
+     * @throws IllegalStateException if an internal error occurs
+     *
+     * @hide
+     */
+    @NonNull
+    public OptimizationStatus getOptimizationStatus(@NonNull PackageDataSnapshot snapshot,
+            @NonNull String packageName, @NonNull GetStatusOptions options) {
+        if (!options.isForPrimaryDex() && !options.isForSecondaryDex()) {
+            throw new IllegalArgumentException("Nothing to check");
+        }
+
+        PackageState pkgState = getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackageApi pkg = getPackageOrThrow(pkgState);
+
+        try {
+            List<DexFileOptimizationStatus> statuses = new ArrayList<>();
+
+            if (options.isForPrimaryDex()) {
+                for (DetailedPrimaryDexInfo dexInfo :
+                        PrimaryDexUtils.getDetailedDexInfo(pkgState, pkg)) {
+                    if (!dexInfo.hasCode()) {
+                        continue;
+                    }
+                    for (String isa : Utils.getAllIsas(pkgState)) {
+                        GetOptimizationStatusResult result =
+                                mInjector.getArtd().getOptimizationStatus(
+                                        dexInfo.dexPath(), isa, dexInfo.classLoaderContext());
+                        statuses.add(new DexFileOptimizationStatus(dexInfo.dexPath(), isa,
+                                result.compilerFilter, result.compilationReason,
+                                result.locationDebugString));
+                    }
+                }
+            }
+
+            if (options.isForSecondaryDex()) {
+                // TODO(jiakaiz): Implement this.
+                throw new UnsupportedOperationException(
+                        "Getting optimization status of secondary dex'es is not implemented yet");
+            }
+
+            return new OptimizationStatus(statuses);
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
+    }
+
+    private PackageState getPackageStateOrThrow(
+            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
+        PackageState pkgState = mInjector.getPackageManagerLocal().getPackageState(
+                snapshot, Binder.getCallingUid(), packageName);
+        if (pkgState == null) {
+            throw new IllegalArgumentException("Package not found: " + packageName);
+        }
+        return pkgState;
+    }
+
+    private AndroidPackageApi getPackageOrThrow(@NonNull PackageState pkgState) {
+        AndroidPackageApi pkg = pkgState.getAndroidPackage();
+        if (pkg == null) {
+            throw new IllegalStateException("Unable to get package " + pkgState.getPackageName());
+        }
+        return pkg;
     }
 
     /**

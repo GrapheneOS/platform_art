@@ -16,12 +16,16 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
+
 import android.os.Binder;
 import android.os.Process;
 
 import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.server.art.model.DeleteOptions;
 import com.android.server.art.model.DeleteResult;
+import com.android.server.art.model.GetStatusOptions;
+import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
 
@@ -55,6 +59,18 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                         snapshot, getNextArgRequired(), new DeleteOptions.Builder().build());
                 pw.printf("Freed %d bytes\n", result.getFreedBytes());
                 return 0;
+            case "get-optimization-status":
+                OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
+                        snapshot, getNextArgRequired(), new GetStatusOptions.Builder().build());
+                for (DexFileOptimizationStatus status :
+                        optimizationStatus.getDexFileOptimizationStatuses()) {
+                    pw.printf("dexFile = %s, instructionSet = %s, compilerFilter = %s, "
+                                    + "compilationReason = %s, locationDebugString = %s\n",
+                            status.getDexFile(), status.getInstructionSet(),
+                            status.getCompilerFilter(), status.getCompilationReason(),
+                            status.getLocationDebugString());
+                }
+                return 0;
             default:
                 // Handles empty, help, and invalid commands.
                 return handleDefaultCommands(cmd);
@@ -77,6 +93,10 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("  delete-optimized-artifacts <package-name>");
         pw.println("    Delete the optimized artifacts of a package.");
         pw.println("    By default, the command only deletes the optimized artifacts of primary "
+                + "dex'es.");
+        pw.println("  get-optimization-status <package-name>");
+        pw.println("    Print the optimization status of a package.");
+        pw.println("    By default, the command only prints the optimization status of primary "
                 + "dex'es.");
     }
 

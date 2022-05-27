@@ -33,6 +33,7 @@ namespace {
 
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::BnArtd;
+using ::aidl::com::android::server::art::GetOptimizationStatusResult;
 using ::android::base::Error;
 using ::android::base::Result;
 using ::ndk::ScopedAStatus;
@@ -51,6 +52,17 @@ class Artd : public BnArtd {
   ScopedAStatus deleteArtifacts(const ArtifactsPath& in_artifactsPath,
                                 int64_t* _aidl_return) override {
     (void)in_artifactsPath;
+    (void)_aidl_return;
+    return ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+  }
+
+  ScopedAStatus getOptimizationStatus(const std::string& in_dexFile,
+                                      const std::string& in_instructionSet,
+                                      const std::string& in_classLoaderContext,
+                                      GetOptimizationStatusResult* _aidl_return) override {
+    (void)in_dexFile;
+    (void)in_instructionSet;
+    (void)in_classLoaderContext;
     (void)_aidl_return;
     return ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
   }
