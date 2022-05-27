@@ -101,7 +101,7 @@
    TEST_IF_MARKING 4f
    ldr     r3, [r1, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
    tst     r3, #MIRROR_CLASS_IS_INTERFACE_FLAG
-   bne     4f
+   bne     5f
    ldr     r3, [r1, #MIRROR_CLASS_COMPONENT_TYPE_OFFSET]
    cmp     r3, #0
    bne     3f
