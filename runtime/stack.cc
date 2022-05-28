@@ -129,7 +129,7 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
           GetCurrentQuickFrame(), cur_quick_frame_pc_, abort_on_failure);
     } else if (cur_oat_quick_method_header_->IsOptimized()) {
       StackMap* stack_map = GetCurrentStackMap();
-      DCHECK(stack_map->IsValid());
+      CHECK(stack_map->IsValid()) << "StackMap not found for " << std::hex << cur_quick_frame_pc_;
       return stack_map->GetDexPc();
     } else {
       DCHECK(cur_oat_quick_method_header_->IsNterpMethodHeader());
