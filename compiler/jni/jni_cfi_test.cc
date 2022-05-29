@@ -124,22 +124,31 @@ class JNICFITest : public CFITest {
     TestImpl(InstructionSet::isa, #isa, expected_asm, expected_cfi);  \
   }
 
+// We can't use compile-time macros for read-barrier as the introduction
+// of userfaultfd-GC has made it a runtime choice.
+#define TEST_ISA_ONLY_CC(isa)                                           \
+  TEST_F(JNICFITest, isa) {                                             \
+    if (kUseBakerReadBarrier && gUseReadBarrier) {                      \
+      std::vector<uint8_t> expected_asm(expected_asm_##isa,             \
+          expected_asm_##isa + arraysize(expected_asm_##isa));          \
+      std::vector<uint8_t> expected_cfi(expected_cfi_##isa,             \
+          expected_cfi_##isa + arraysize(expected_cfi_##isa));          \
+      TestImpl(InstructionSet::isa, #isa, expected_asm, expected_cfi);  \
+    }                                                                   \
+  }
+
 #ifdef ART_ENABLE_CODEGEN_arm
 // Run the tests for ARM only with Baker read barriers, as the
 // expected generated code contains a Marking Register refresh
 // instruction.
-#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
-TEST_ISA(kThumb2)
-#endif
+TEST_ISA_ONLY_CC(kThumb2)
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64
 // Run the tests for ARM64 only with Baker read barriers, as the
 // expected generated code contains a Marking Register refresh
 // instruction.
-#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
-TEST_ISA(kArm64)
-#endif
+TEST_ISA_ONLY_CC(kArm64)
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_x86
