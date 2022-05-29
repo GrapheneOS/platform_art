@@ -469,11 +469,20 @@ filegroup {
     ],
 }
 
-// Same as above, but with a longer timeout.
+// Same as `art-run-test-target-template`, but with a longer timeout.
 filegroup {
     name: "art-run-test-target-slow-template",
     srcs: [
         "art-run-test-target-slow-template.xml",
+    ],
+}
+
+// Same as `art-run-test-target-template`, but contains additional
+// options to also make the test part of ART CTS.
+filegroup {
+    name: "art-run-test-target-cts-template",
+    srcs: [
+        "art-run-test-target-cts-template.xml",
     ],
 }
 
