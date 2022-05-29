@@ -428,15 +428,32 @@ class Generator:
     run_test_path = os.path.join(self.art_test_dir, run_test)
     bp_file = os.path.join(run_test_path, "Android.bp")
 
+    # Optional test metadata (JSON file).
+    metadata_file = os.path.join(run_test_path, "test-metadata.json")
+    metadata = {}
+    if os.path.exists(metadata_file):
+      with open(metadata_file, "r") as f:
+        metadata = json.load(f)
+
     run_test_module_name = ART_RUN_TEST_MODULE_NAME_PREFIX + run_test
 
+    # Set the test configuration template.
     if self.is_runnable(run_test):
-      if self.is_slow(run_test):
-        test_config_template= "art-run-test-target-slow-template"
+      if "cts" in metadata.get("test_suites", []):
+        test_config_template = "art-run-test-target-cts-template"
+      elif self.is_slow(run_test):
+        test_config_template = "art-run-test-target-slow-template"
       else:
         test_config_template = "art-run-test-target-template"
     else:
       test_config_template = "art-run-test-target-no-test-suite-tag-template"
+
+    # Define `test_suites`, if present in the test's metadata.
+    test_suites = ""
+    if metadata.get("test_suites"):
+      test_suites = f"""\
+
+          test_suites: {json.dumps(metadata.get("test_suites"))},"""
 
     if is_checker_test(run_test):
       include_src = """\
@@ -478,7 +495,7 @@ class Generator:
           data: [
               ":{run_test_module_name}-expected-stdout",
               ":{run_test_module_name}-expected-stderr",
-          ],{include_src}
+          ],{test_suites}{include_src}
       }}
 
       // Test's expected standard output.
