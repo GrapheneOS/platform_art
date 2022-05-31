@@ -125,6 +125,14 @@
     "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testGenerateSeedint03",
     "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testNextBytesbyteArray03",
     "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testSetSeedbyteArray02",
+  ]
+},
+{
+  description: "Test using the getrandom() syscall, only available from Linux 3.17.",
+  result: ERROR,
+  bug: 141230711,
+  modes: [device],
+  names: [
     "test.java.awt",
     "test.java.io.ByteArrayInputStream",
     "test.java.io.ByteArrayOutputStream",
