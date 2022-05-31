@@ -93,7 +93,7 @@
         <option name="exclude-filter" value="HiddenApiTest.DexDomain_SystemSystemExtFrameworkDir" />
         <option name="exclude-filter" value="HiddenApiTest.DexDomain_SystemSystemExtFrameworkDir_MultiDex" />
         <option name="exclude-filter" value="JniInternalTest.CallVarArgMethodBadPrimitive" />
-        <option name="exclude-filter" value="OatFileAssistantTest.SystemFrameworkDir" />
+        <option name="exclude-filter" value="OatFileAssistantBaseTest.SystemFrameworkDir" />
         <option name="exclude-filter" value="StubTest.Fields16" />
         <option name="exclude-filter" value="StubTest.Fields32" />
         <option name="exclude-filter" value="StubTest.Fields64" />
