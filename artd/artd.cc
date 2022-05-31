@@ -1,81 +1,78 @@
 /*
-** Copyright 2021, The Android Open Source Project
-**
-** Licensed under the Apache License, Version 2.0 (the "License");
-** you may not use this file except in compliance with the License.
-** You may obtain a copy of the License at
-**
-**     http://www.apache.org/licenses/LICENSE-2.0
-**
-** Unless required by applicable law or agreed to in writing, software
-** distributed under the License is distributed on an "AS IS" BASIS,
-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-** See the License for the specific language governing permissions and
-** limitations under the License.
-*/
+ * Copyright (C) 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <unistd.h>
 
 #include <string>
-#define LOG_TAG "artd"
-
-#include <android/binder_manager.h>
-#include <android/binder_process.h>
-#include <unistd.h>
-#include <utils/Errors.h>
 
 #include "aidl/com/android/server/art/BnArtd.h"
-#include "base/logging.h"
-#include "base/macros.h"
+#include "android-base/logging.h"
+#include "android-base/result.h"
+#include "android/binder_auto_utils.h"
+#include "android/binder_manager.h"
+#include "android/binder_process.h"
 #include "tools/tools.h"
 
-using ::ndk::ScopedAStatus;
-
-namespace android {
+namespace art {
 namespace artd {
 
-class Artd : public aidl::com::android::server::art::BnArtd {
-  constexpr static const char* const SERVICE_NAME = "artd";
+namespace {
+
+using ::aidl::com::android::server::art::BnArtd;
+using ::android::base::Error;
+using ::android::base::Result;
+using ::ndk::ScopedAStatus;
+
+}  // namespace
+
+class Artd : public BnArtd {
+  constexpr static const char* kServiceName = "artd";
 
  public:
-  Artd() {}
-
-  /*
-   * Binder API
-   */
-
-  ScopedAStatus isAlive(bool* _aidl_return) {
+  ScopedAStatus isAlive(bool* _aidl_return) override {
     *_aidl_return = true;
     return ScopedAStatus::ok();
   }
 
-  /*
-   * Server API
-   */
-
-  ScopedAStatus Start() {
+  Result<void> Start() {
     LOG(INFO) << "Starting artd";
 
-    status_t ret = AServiceManager_addService(this->asBinder().get(), SERVICE_NAME);
-    if (ret != android::OK) {
-      return ScopedAStatus::fromStatus(ret);
+    ScopedAStatus status = ScopedAStatus::fromStatus(
+        AServiceManager_registerLazyService(this->asBinder().get(), kServiceName));
+    if (!status.isOk()) {
+      return Error() << status.getDescription();
     }
 
     ABinderProcess_startThreadPool();
 
-    return ScopedAStatus::ok();
+    return {};
   }
 };
 
 }  // namespace artd
-}  // namespace android
+}  // namespace art
 
 int main(const int argc __attribute__((unused)), char* argv[]) {
   setenv("ANDROID_LOG_TAGS", "*:v", 1);
   android::base::InitLogging(argv);
 
-  android::artd::Artd artd;
+  art::artd::Artd artd;
 
-  if (auto ret = artd.Start(); !ret.isOk()) {
-    LOG(ERROR) << "Unable to start artd: " << ret.getMessage();
+  if (auto ret = artd.Start(); !ret.ok()) {
+    LOG(ERROR) << "Unable to start artd: " << ret.error();
     exit(1);
   }
 
