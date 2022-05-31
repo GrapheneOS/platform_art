@@ -17,11 +17,13 @@
 package com.android.server.art.model;
 
 import android.annotation.IntDef;
+import android.annotation.SystemApi;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /** @hide */
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public class ArtFlags {
     /** Whether the operation is applied for primary dex'es. */
     public static final int FLAG_FOR_PRIMARY_DEX = 1 << 0;

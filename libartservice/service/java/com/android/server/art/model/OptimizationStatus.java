@@ -17,6 +17,7 @@
 package com.android.server.art.model;
 
 import android.annotation.NonNull;
+import android.annotation.SystemApi;
 
 import com.android.internal.annotations.Immutable;
 
@@ -28,6 +29,7 @@ import java.util.List;
  *
  * @hide
  */
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
 public class OptimizationStatus {
     private final @NonNull List<DexFileOptimizationStatus> mDexFileOptimizationStatuses;

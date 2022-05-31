@@ -98,8 +98,17 @@ public final class ArtManagerLocal {
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if an internal error occurs
+     */
+    @NonNull
+    public DeleteResult deleteOptimizedArtifacts(
+            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
+        return deleteOptimizedArtifacts(snapshot, packageName, ArtFlags.defaultDeleteFlags());
+    }
+
+    /**
+     * Same as above, but allows to specify flags.
      *
-     * @hide
+     * @see #deleteOptimizedArtifacts(PackageDataSnapshot, String)
      */
     @NonNull
     public DeleteResult deleteOptimizedArtifacts(@NonNull PackageDataSnapshot snapshot,
@@ -141,25 +150,21 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Same as above, but with default flags.
-     *
-     * @see #deleteOptimizedArtifacts(PackageDataSnapshot, String, int)
-     *
-     * @hide
-     */
-    @NonNull
-    public DeleteResult deleteOptimizedArtifacts(
-            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
-        return deleteOptimizedArtifacts(snapshot, packageName, ArtFlags.defaultDeleteFlags());
-    }
-
-    /**
      * Returns the optimization status of a package.
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if an internal error occurs
+     */
+    @NonNull
+    public OptimizationStatus getOptimizationStatus(
+            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
+        return getOptimizationStatus(snapshot, packageName, ArtFlags.defaultGetStatusFlags());
+    }
+
+    /**
+     * Same as above, but allows to specify flags.
      *
-     * @hide
+     * @see #getOptimizationStatus(PackageDataSnapshot, String)
      */
     @NonNull
     public OptimizationStatus getOptimizationStatus(@NonNull PackageDataSnapshot snapshot,
@@ -202,19 +207,6 @@ public final class ArtManagerLocal {
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }
-    }
-
-    /**
-     * Same as above, but with default flags.
-     *
-     * @see #getOptimizationStatus(PackageDataSnapshot, String, int)
-     *
-     * @hide
-     */
-    @NonNull
-    public OptimizationStatus getOptimizationStatus(
-            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
-        return getOptimizationStatus(snapshot, packageName, ArtFlags.defaultGetStatusFlags());
     }
 
     private PackageState getPackageStateOrThrow(
