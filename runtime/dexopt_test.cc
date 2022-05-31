@@ -178,6 +178,7 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
         ArrayRef<const std::string>(Runtime::Current()->GetBootClassPath()),
         ArrayRef<const int>(Runtime::Current()->GetBootClassPathFds()),
         kRuntimeISA,
+        Runtime::Current()->GetApexVersions(),
         &error_msg);
     ASSERT_EQ(!with_alternate_image, match) << error_msg;
   }

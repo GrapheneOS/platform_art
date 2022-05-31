@@ -196,11 +196,11 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     LOG(WARNING) << "Opening an oat file without a class loader. "
                  << "Are you using the deprecated DexFile APIs?";
   } else if (context != nullptr) {
-    OatFileAssistant oat_file_assistant(dex_location,
-                                        kRuntimeISA,
-                                        context.get(),
-                                        runtime->GetOatFilesExecutable(),
-                                        only_use_system_oat_files_);
+    auto oat_file_assistant = std::make_unique<OatFileAssistant>(dex_location,
+                                                                 kRuntimeISA,
+                                                                 context.get(),
+                                                                 runtime->GetOatFilesExecutable(),
+                                                                 only_use_system_oat_files_);
 
     // Get the current optimization status for trace debugging.
     // Implementation detail note: GetOptimizationStatus will select the same
@@ -210,11 +210,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     std::string compilation_filter;
     std::string compilation_reason;
     std::string odex_status;
-    oat_file_assistant.GetOptimizationStatus(
-        &odex_location,
-        &compilation_filter,
-        &compilation_reason,
-        &odex_status);
+    oat_file_assistant->GetOptimizationStatus(
+        &odex_location, &compilation_filter, &compilation_reason, &odex_status);
 
     Runtime::Current()->GetAppInfo()->RegisterOdexStatus(
         dex_location,
@@ -230,7 +227,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
         compilation_reason.c_str()));
 
     // Proceed with oat file loading.
-    std::unique_ptr<const OatFile> oat_file(oat_file_assistant.GetBestOatFile().release());
+    std::unique_ptr<const OatFile> oat_file(oat_file_assistant->GetBestOatFile().release());
     VLOG(oat) << "OatFileAssistant(" << dex_location << ").GetBestOatFile()="
               << (oat_file != nullptr ? oat_file->GetLocation() : "")
               << " (executable=" << (oat_file != nullptr ? oat_file->IsExecutable() : false) << ")";
@@ -250,7 +247,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
         // image is not otherwise we might get classes with inlined methods or other such things.
         std::unique_ptr<gc::space::ImageSpace> image_space;
         if (ShouldLoadAppImage(oat_file.get())) {
-          image_space = oat_file_assistant.OpenImageSpace(oat_file.get());
+          image_space = oat_file_assistant->OpenImageSpace(oat_file.get());
         }
         if (image_space != nullptr) {
           ScopedObjectAccess soa(self);
@@ -310,12 +307,13 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
                        << oat_file->GetLocation()
                        << " non-executable as it requires an image which we failed to load";
           // file as non-executable.
-          OatFileAssistant nonexecutable_oat_file_assistant(dex_location,
-                                                            kRuntimeISA,
-                                                            context.get(),
-                                                            /*load_executable=*/false,
-                                                            only_use_system_oat_files_);
-          oat_file.reset(nonexecutable_oat_file_assistant.GetBestOatFile().release());
+          auto nonexecutable_oat_file_assistant =
+              std::make_unique<OatFileAssistant>(dex_location,
+                                                 kRuntimeISA,
+                                                 context.get(),
+                                                 /*load_executable=*/false,
+                                                 only_use_system_oat_files_);
+          oat_file.reset(nonexecutable_oat_file_assistant->GetBestOatFile().release());
 
           // The file could be deleted concurrently (for example background
           // dexopt, or secondary oat file being deleted by the app).
@@ -325,7 +323,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
         }
 
         if (oat_file != nullptr) {
-          dex_files = oat_file_assistant.LoadDexFiles(*oat_file.get(), dex_location);
+          dex_files = oat_file_assistant->LoadDexFiles(*oat_file.get(), dex_location);
 
           // Register for tracking.
           for (const auto& dex_file : dex_files) {
@@ -365,7 +363,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
       // If so, report an error with the current stack trace.
       // Most likely the developer didn't intend to do this because it will waste
       // performance and memory.
-      if (oat_file_assistant.GetBestStatus() == OatFileAssistant::kOatContextOutOfDate) {
+      if (oat_file_assistant->GetBestStatus() == OatFileAssistant::kOatContextOutOfDate) {
         std::set<const DexFile*> already_exists_in_classpath =
             context->CheckForDuplicateDexFiles(MakeNonOwningPointerVector(dex_files));
         if (!already_exists_in_classpath.empty()) {
