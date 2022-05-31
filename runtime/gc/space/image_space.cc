@@ -23,7 +23,9 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <vector>
 
+#include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android-base/unique_fd.h"
@@ -1424,14 +1426,16 @@ class ImageSpace::BootImageLayout {
                   ArrayRef<const int> boot_class_path_fds,
                   ArrayRef<const int> boot_class_path_image_fds,
                   ArrayRef<const int> boot_class_path_vdex_fds,
-                  ArrayRef<const int> boot_class_path_oat_fds)
-     : image_locations_(image_locations),
-       boot_class_path_(boot_class_path),
-       boot_class_path_locations_(boot_class_path_locations),
-       boot_class_path_fds_(boot_class_path_fds),
-       boot_class_path_image_fds_(boot_class_path_image_fds),
-       boot_class_path_vdex_fds_(boot_class_path_vdex_fds),
-       boot_class_path_oat_fds_(boot_class_path_oat_fds) {}
+                  ArrayRef<const int> boot_class_path_oat_fds,
+                  const std::string* apex_versions = nullptr)
+      : image_locations_(image_locations),
+        boot_class_path_(boot_class_path),
+        boot_class_path_locations_(boot_class_path_locations),
+        boot_class_path_fds_(boot_class_path_fds),
+        boot_class_path_image_fds_(boot_class_path_image_fds),
+        boot_class_path_vdex_fds_(boot_class_path_vdex_fds),
+        boot_class_path_oat_fds_(boot_class_path_oat_fds),
+        apex_versions_(GetApexVersions(apex_versions)) {}
 
   std::string GetPrimaryImageLocation();
 
@@ -1550,6 +1554,17 @@ class ImageSpace::BootImageLayout {
                                 /*inout*/std::string_view* oat_checksums,
                                 /*out*/std::string* error_msg);
 
+  // This function prefers taking APEX versions from the input instead of from the runtime if
+  // possible. If the input is present, `ValidateFromSystem` can work without an active runtime.
+  static const std::string& GetApexVersions(const std::string* apex_versions) {
+    if (apex_versions == nullptr) {
+      DCHECK(Runtime::Current() != nullptr);
+      return Runtime::Current()->GetApexVersions();
+    } else {
+      return *apex_versions;
+    }
+  }
+
   ArrayRef<const std::string> image_locations_;
   ArrayRef<const std::string> boot_class_path_;
   ArrayRef<const std::string> boot_class_path_locations_;
@@ -1563,6 +1578,7 @@ class ImageSpace::BootImageLayout {
   size_t next_bcp_index_ = 0u;
   size_t total_component_count_ = 0u;
   size_t total_reservation_size_ = 0u;
+  const std::string& apex_versions_;
 };
 
 std::string ImageSpace::BootImageLayout::GetPrimaryImageLocation() {
@@ -1886,7 +1902,7 @@ bool ImageSpace::BootImageLayout::ValidateOatFile(
                               error_msg->c_str());
     return false;
   }
-  if (!ImageSpace::ValidateOatFile(*oat_file, error_msg, dex_filenames, dex_fds)) {
+  if (!ImageSpace::ValidateOatFile(*oat_file, error_msg, dex_filenames, dex_fds, apex_versions_)) {
     return false;
   }
   return true;
@@ -3519,7 +3535,9 @@ void ImageSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-bool ImageSpace::ValidateApexVersions(const OatFile& oat_file, std::string* error_msg) {
+bool ImageSpace::ValidateApexVersions(const OatFile& oat_file,
+                                      const std::string& apex_versions,
+                                      std::string* error_msg) {
   // For a boot image, the key value store only exists in the first OAT file. Skip other OAT files.
   if (oat_file.GetOatHeader().GetKeyValueStoreSize() == 0) {
     return true;
@@ -3542,27 +3560,33 @@ bool ImageSpace::ValidateApexVersions(const OatFile& oat_file, std::string* erro
   // For a boot image, it can be generated from a subset of the bootclasspath.
   // For an app image, some dex files get compiled with a subset of the bootclasspath.
   // For such cases, the OAT APEX versions will be a prefix of the runtime APEX versions.
-  if (!android::base::StartsWith(Runtime::Current()->GetApexVersions(), oat_apex_versions)) {
+  if (!android::base::StartsWith(apex_versions, oat_apex_versions)) {
     *error_msg = StringPrintf(
         "ValidateApexVersions found APEX versions mismatch between oat file '%s' and the runtime "
         "(Oat file: '%s', Runtime: '%s')",
         oat_file.GetLocation().c_str(),
         oat_apex_versions,
-        Runtime::Current()->GetApexVersions().c_str());
+        apex_versions.c_str());
     return false;
   }
   return true;
 }
 
 bool ImageSpace::ValidateOatFile(const OatFile& oat_file, std::string* error_msg) {
-  return ValidateOatFile(oat_file, error_msg, ArrayRef<const std::string>(), ArrayRef<const int>());
+  DCHECK(Runtime::Current() != nullptr);
+  return ValidateOatFile(oat_file,
+                         error_msg,
+                         ArrayRef<const std::string>(),
+                         ArrayRef<const int>(),
+                         Runtime::Current()->GetApexVersions());
 }
 
 bool ImageSpace::ValidateOatFile(const OatFile& oat_file,
                                  std::string* error_msg,
                                  ArrayRef<const std::string> dex_filenames,
-                                 ArrayRef<const int> dex_fds) {
-  if (!ValidateApexVersions(oat_file, error_msg)) {
+                                 ArrayRef<const int> dex_fds,
+                                 const std::string& apex_versions) {
+  if (!ValidateApexVersions(oat_file, apex_versions, error_msg)) {
     return false;
   }
 
@@ -3734,6 +3758,7 @@ bool ImageSpace::VerifyBootClassPathChecksums(std::string_view oat_checksums,
                                               ArrayRef<const std::string> boot_class_path,
                                               ArrayRef<const int> boot_class_path_fds,
                                               InstructionSet image_isa,
+                                              const std::string& apex_versions,
                                               /*out*/std::string* error_msg) {
   if (oat_checksums.empty() || oat_boot_class_path.empty()) {
     *error_msg = oat_checksums.empty() ? "Empty checksums." : "Empty boot class path.";
@@ -3761,7 +3786,8 @@ bool ImageSpace::VerifyBootClassPathChecksums(std::string_view oat_checksums,
                            bcp_fds,
                            /*boot_class_path_image_fds=*/ ArrayRef<const int>(),
                            /*boot_class_path_vdex_fds=*/ ArrayRef<const int>(),
-                           /*boot_class_path_oat_fds=*/ ArrayRef<const int>());
+                           /*boot_class_path_oat_fds=*/ ArrayRef<const int>(),
+                           &apex_versions);
     std::string primary_image_location = layout.GetPrimaryImageLocation();
     std::string system_filename;
     bool has_system = false;
@@ -3829,6 +3855,34 @@ bool ImageSpace::VerifyBootClassPathChecksums(std::string_view oat_checksums,
     return false;
   }
   return true;
+}
+
+bool ImageSpace::VerifyBootImages(ArrayRef<const std::string> image_locations,
+                                  ArrayRef<const std::string> boot_class_path_locations,
+                                  ArrayRef<const std::string> boot_class_path,
+                                  ArrayRef<const int> boot_class_path_fds,
+                                  InstructionSet image_isa,
+                                  const std::string& apex_versions,
+                                  /*out*/std::string* error_msg) {
+  // Remove profiles to prevent compilation. We only need to verify boot images.
+  std::vector<std::string> image_location_without_profiles;
+  for (std::string location : image_locations) {
+    size_t profile_separator_pos = location.find(kProfileSeparator);
+    if (profile_separator_pos != std::string::npos) {
+      location.resize(profile_separator_pos);
+    }
+    image_location_without_profiles.push_back(std::move(location));
+  }
+
+  BootImageLayout layout(ArrayRef<const std::string>(image_location_without_profiles),
+                         boot_class_path,
+                         boot_class_path_locations,
+                         boot_class_path_fds,
+                         /*boot_class_path_image_fds=*/ ArrayRef<const int>(),
+                         /*boot_class_path_vdex_fds=*/ ArrayRef<const int>(),
+                         /*boot_class_path_oat_fds=*/ ArrayRef<const int>(),
+                         &apex_versions);
+  return layout.LoadFromSystem(image_isa, error_msg);
 }
 
 bool ImageSpace::VerifyBootClassPathChecksums(

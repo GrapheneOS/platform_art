@@ -343,6 +343,7 @@ TEST_F(DexoptTest, Checksums) {
         ArrayRef<const std::string>(bcp),
         /*boot_class_path_fds=*/ ArrayRef<const int>(),
         kRuntimeISA,
+        runtime->GetApexVersions(),
         &error_msg);
   };
 

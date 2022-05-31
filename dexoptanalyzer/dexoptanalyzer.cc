@@ -324,6 +324,7 @@ class DexoptAnalyzer final {
                                                             class_loader_context.get(),
                                                             /*load_executable=*/ false,
                                                             /*only_load_trusted_executable=*/ false,
+                                                            /*runtime_options=*/ nullptr,
                                                             vdex_fd_,
                                                             oat_fd_,
                                                             zip_fd_);
@@ -395,6 +396,7 @@ class DexoptAnalyzer final {
                                                   ArrayRef<const std::string>(bcp),
                                                   ArrayRef<const int>(bcp_fds),
                                                   runtime->GetInstructionSet(),
+                                                  runtime->GetApexVersions(),
                                                   &error_msg)) {
       LOG(INFO) << "Failed to verify boot class path checksums: " << error_msg;
       return ReturnCode::kDex2OatFromScratch;
