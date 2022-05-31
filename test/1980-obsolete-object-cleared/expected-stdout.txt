@@ -154,6 +154,10 @@ Calling public int java.lang.Class.getModifiers() with params: []
 public int java.lang.Class.getModifiers() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public java.lang.String java.lang.Class.getName() with params: []
 public java.lang.String java.lang.Class.getName() on (obsolete)class Main$Transform with [] = Main$Transform
+Calling public java.lang.Class java.lang.Class.getNestHost() with params: []
+public java.lang.Class java.lang.Class.getNestHost() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
+Calling public java.lang.Class[] java.lang.Class.getNestMembers() with params: []
+public java.lang.Class[] java.lang.Class.getNestMembers() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public java.lang.Package java.lang.Class.getPackage() with params: []
 public java.lang.Package java.lang.Class.getPackage() on (obsolete)class Main$Transform with [] = null
 Calling public java.lang.String java.lang.Class.getPackageName() with params: []
@@ -367,6 +371,10 @@ Calling public int java.lang.Class.getModifiers() with params: []
 public int java.lang.Class.getModifiers() on class Main$Transform with [] = 9
 Calling public java.lang.String java.lang.Class.getName() with params: []
 public java.lang.String java.lang.Class.getName() on class Main$Transform with [] = Main$Transform
+Calling public java.lang.Class java.lang.Class.getNestHost() with params: []
+public java.lang.Class java.lang.Class.getNestHost() on class Main$Transform with [] = class Main$Transform
+Calling public java.lang.Class[] java.lang.Class.getNestMembers() with params: []
+public java.lang.Class[] java.lang.Class.getNestMembers() on class Main$Transform with [] = [class Main$Transform]
 Calling public java.lang.Package java.lang.Class.getPackage() with params: []
 public java.lang.Package java.lang.Class.getPackage() on class Main$Transform with [] = null
 Calling public java.lang.String java.lang.Class.getPackageName() with params: []

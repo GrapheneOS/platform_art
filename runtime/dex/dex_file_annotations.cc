@@ -1714,6 +1714,61 @@ const char* GetSourceDebugExtension(Handle<mirror::Class> klass) {
   return data.GetDexFile().StringDataByIdx(index);
 }
 
+ObjPtr<mirror::Class> GetNestHost(Handle<mirror::Class> klass) {
+  ClassData data(klass);
+  const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
+  if (annotation_set == nullptr) {
+    return nullptr;
+  }
+  const AnnotationItem* annotation_item =
+      SearchAnnotationSet(data.GetDexFile(), annotation_set, "Ldalvik/annotation/NestHost;",
+                          DexFile::kDexVisibilitySystem);
+  if (annotation_item == nullptr) {
+    return nullptr;
+  }
+  ObjPtr<mirror::Object> obj = GetAnnotationValue(data,
+                                                  annotation_item,
+                                                  "host",
+                                                  ScopedNullHandle<mirror::Class>(),
+                                                  DexFile::kDexAnnotationType);
+  if (obj == nullptr) {
+    return nullptr;
+  }
+  if (!obj->IsClass()) {
+    // TypeNotPresentException, throw the NoClassDefFoundError.
+    Thread::Current()->SetException(obj->AsThrowable()->GetCause());
+    return nullptr;
+  }
+  return obj->AsClass();
+}
+
+ObjPtr<mirror::ObjectArray<mirror::Class>> GetNestMembers(Handle<mirror::Class> klass) {
+  ClassData data(klass);
+  const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
+  if (annotation_set == nullptr) {
+    return nullptr;
+  }
+  const AnnotationItem* annotation_item =
+      SearchAnnotationSet(data.GetDexFile(), annotation_set, "Ldalvik/annotation/NestMembers;",
+                          DexFile::kDexVisibilitySystem);
+  if (annotation_item == nullptr) {
+    return nullptr;
+  }
+  StackHandleScope<1> hs(Thread::Current());
+  Handle<mirror::Class> class_array_class =
+      hs.NewHandle(GetClassRoot<mirror::ObjectArray<mirror::Class>>());
+  DCHECK(class_array_class != nullptr);
+  ObjPtr<mirror::Object> obj = GetAnnotationValue(data,
+                                                  annotation_item,
+                                                  "classes",
+                                                  class_array_class,
+                                                  DexFile::kDexAnnotationArray);
+  if (obj == nullptr) {
+    return nullptr;
+  }
+  return obj->AsObjectArray<mirror::Class>();
+}
+
 bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class> annotation_class) {
   ClassData data(klass);
   const AnnotationSetItem* annotation_set = FindAnnotationSetForClass(data);
