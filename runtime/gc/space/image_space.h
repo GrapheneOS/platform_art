@@ -249,7 +249,17 @@ class ImageSpace : public MemMapSpace {
                                            ArrayRef<const std::string> boot_class_path,
                                            ArrayRef<const int> boot_class_path_fds,
                                            InstructionSet image_isa,
+                                           const std::string& apex_versions,
                                            /*out*/std::string* error_msg);
+
+  // Returns whether all the boot images listed in `image_locations` are valid.
+  static bool VerifyBootImages(ArrayRef<const std::string> image_locations,
+                               ArrayRef<const std::string> boot_class_path_locations,
+                               ArrayRef<const std::string> boot_class_path,
+                               ArrayRef<const int> boot_class_path_fds,
+                               InstructionSet image_isa,
+                               const std::string& apex_versions,
+                               /*out*/std::string* error_msg);
 
   // Returns whether the oat checksums and boot class path description are valid
   // for the given boot image spaces and boot class path. Used for boot image extensions.
@@ -267,8 +277,10 @@ class ImageSpace : public MemMapSpace {
       const std::string& image_location,
       bool boot_image_extension = false);
 
-  // Returns true if the APEX versions in the OAT file match the current APEX versions.
-  static bool ValidateApexVersions(const OatFile& oat_file, std::string* error_msg);
+  // Returns true if the APEX versions in the OAT file match the given APEX versions.
+  static bool ValidateApexVersions(const OatFile& oat_file,
+                                   const std::string& apex_versions,
+                                   std::string* error_msg);
 
   // Returns true if the dex checksums in the given oat file match the
   // checksums of the original dex files on disk. This is intended to be used
@@ -279,17 +291,23 @@ class ImageSpace : public MemMapSpace {
   // oat and odex file.
   //
   // This function is exposed for testing purposes.
+  //
+  // Calling this function requires an active runtime.
   static bool ValidateOatFile(const OatFile& oat_file, std::string* error_msg);
 
   // Same as above, but allows to use `dex_filenames` and `dex_fds` to find the dex files instead of
-  // using the dex filenames in the header of the oat file. This overload is useful when the actual
-  // dex filenames are different from what's in the header (e.g., when we run dex2oat on host), or
-  // when the runtime can only access files through FDs (e.g., when we run dex2oat on target in a
-  // restricted SELinux domain).
+  // using the dex filenames in the header of the oat file, and also takes `apex_versions` from the
+  // input. This overload is useful when the actual dex filenames are different from what's in the
+  // header (e.g., when we run dex2oat on host), when the runtime can only access files through FDs
+  // (e.g., when we run dex2oat on target in a restricted SELinux domain), or when there is no
+  // active runtime.
+  //
+  // Calling this function does not require an active runtime.
   static bool ValidateOatFile(const OatFile& oat_file,
                               std::string* error_msg,
                               ArrayRef<const std::string> dex_filenames,
-                              ArrayRef<const int> dex_fds);
+                              ArrayRef<const int> dex_fds,
+                              const std::string& apex_versions);
 
   // Return the end of the image which includes non-heap objects such as ArtMethods and ArtFields.
   uint8_t* GetImageEnd() const {
