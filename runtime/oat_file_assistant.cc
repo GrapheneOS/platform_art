@@ -16,15 +16,16 @@
 
 #include "oat_file_assistant.h"
 
-#include <sstream>
-
 #include <sys/stat.h>
-#include "zlib.h"
+
+#include <memory>
+#include <sstream>
 
 #include "android-base/file.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
-
+#include "arch/instruction_set.h"
+#include "base/array_ref.h"
 #include "base/compiler_filter.h"
 #include "base/file_utils.h"
 #include "base/logging.h"  // For VLOG.
@@ -47,6 +48,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "vdex_file.h"
+#include "zlib.h"
 
 namespace art {
 
@@ -82,22 +84,24 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const InstructionSet isa,
                                    ClassLoaderContext* context,
                                    bool load_executable,
-                                   bool only_load_trusted_executable)
+                                   bool only_load_trusted_executable,
+                                   std::unique_ptr<RuntimeOptions> runtime_options)
     : OatFileAssistant(dex_location,
                        isa,
                        context,
                        load_executable,
                        only_load_trusted_executable,
+                       std::move(runtime_options),
                        /*vdex_fd=*/ -1,
                        /*oat_fd=*/ -1,
                        /*zip_fd=*/ -1) {}
-
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const InstructionSet isa,
                                    ClassLoaderContext* context,
                                    bool load_executable,
                                    bool only_load_trusted_executable,
+                                   std::unique_ptr<RuntimeOptions> runtime_options,
                                    int vdex_fd,
                                    int oat_fd,
                                    int zip_fd)
@@ -105,6 +109,7 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
       isa_(isa),
       load_executable_(load_executable),
       only_load_trusted_executable_(only_load_trusted_executable),
+      runtime_options_(std::move(runtime_options)),
       odex_(this, /*is_oat_location=*/ false),
       oat_(this, /*is_oat_location=*/ true),
       vdex_for_odex_(this, /*is_oat_location=*/ false),
@@ -127,10 +132,45 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
 
   dex_location_.assign(dex_location);
 
+  Runtime* runtime = Runtime::Current();
+
+  if (load_executable_ && runtime == nullptr) {
+    LOG(WARNING) << "OatFileAssistant: Load executable specified, "
+                 << "but no active runtime is found. Will not attempt to load executable.";
+    load_executable_ = false;
+  }
+
   if (load_executable_ && isa != kRuntimeISA) {
     LOG(WARNING) << "OatFileAssistant: Load executable specified, "
       << "but isa is not kRuntimeISA. Will not attempt to load executable.";
     load_executable_ = false;
+  }
+
+  if (runtime_options_ == nullptr) {
+    CHECK(runtime != nullptr) << "runtime_options is not provided, and no active runtime is found.";
+
+    runtime_options_ = std::make_unique<RuntimeOptions>(RuntimeOptions{
+        .image_locations = runtime->GetImageLocations(),
+        .boot_class_path = runtime->GetBootClassPath(),
+        .boot_class_path_locations = runtime->GetBootClassPathLocations(),
+        .boot_class_path_fds = &runtime->GetBootClassPathFds(),
+        .use_jit_zygote = runtime->HasImageWithProfile(),
+        .deny_art_apex_data_files = runtime->DenyArtApexDataFiles(),
+        .apex_versions = runtime->GetApexVersions(),
+    });
+
+    if (isa == kRuntimeISA) {
+      // For the fast path that checks the OAT files against the runtime boot classpath checksums
+      // and boot classpath locations.
+      cached_boot_class_path_ = android::base::Join(runtime->GetBootClassPathLocations(), ":");
+      cached_boot_class_path_checksums_ = runtime->GetBootClassPathChecksums();
+    }
+  }
+
+  if (runtime == nullptr) {
+    // We need `MemMap` for mapping files. We don't have to initialize it when there is a runtime
+    // because the runtime initializes it.
+    MemMap::Init();
   }
 
   // Get the odex filename.
@@ -159,7 +199,11 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
   if (!UseFdToReadFiles()) {
     // Get the oat filename.
     std::string oat_file_name;
-    if (DexLocationToOatFilename(dex_location_, isa_, &oat_file_name, &error_msg)) {
+    if (DexLocationToOatFilename(dex_location_,
+                                 isa_,
+                                 runtime_options_->deny_art_apex_data_files,
+                                 &oat_file_name,
+                                 &error_msg)) {
       oat_.Reset(oat_file_name, /*use_fd=*/ false);
       std::string vdex_file_name = GetVdexFilename(oat_file_name);
       vdex_for_oat_.Reset(vdex_file_name, UseFdToReadFiles(), zip_fd, vdex_fd, oat_fd);
@@ -199,11 +243,8 @@ bool OatFileAssistant::IsInBootClassPath() {
   // specified by the user. This is okay, because the boot class path should
   // be the same for all ISAs.
   // TODO: Can we verify the boot class path is the same for all ISAs?
-  Runtime* runtime = Runtime::Current();
-  ClassLinker* class_linker = runtime->GetClassLinker();
-  const auto& boot_class_path = class_linker->GetBootClassPath();
-  for (size_t i = 0; i < boot_class_path.size(); i++) {
-    if (boot_class_path[i]->GetLocation() == dex_location_) {
+  for (const std::string& boot_class_path_location : runtime_options_->boot_class_path_locations) {
+    if (boot_class_path_location == dex_location_) {
       VLOG(oat) << "Dex location " << dex_location_ << " is in boot class path";
       return true;
     }
@@ -443,7 +484,8 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
       VLOG(oat) << "Oat image checksum does not match image checksum.";
       return kOatBootImageOutOfDate;
     }
-    if (!gc::space::ImageSpace::ValidateApexVersions(file, &error_msg)) {
+    if (!gc::space::ImageSpace::ValidateApexVersions(
+            file, runtime_options_->apex_versions, &error_msg)) {
       VLOG(oat) << error_msg;
       return kOatBootImageOutOfDate;
     }
@@ -454,9 +496,8 @@ OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& 
   // zip_file_only_contains_uncompressed_dex_ is only set during fetching the dex checksums.
   DCHECK(required_dex_checksums_attempted_);
   if (only_load_trusted_executable_ &&
-      !LocationIsTrusted(file.GetLocation(), !Runtime::Current()->DenyArtApexDataFiles()) &&
-      file.ContainsDexCode() &&
-      zip_file_only_contains_uncompressed_dex_) {
+      !LocationIsTrusted(file.GetLocation(), !runtime_options_->deny_art_apex_data_files) &&
+      file.ContainsDexCode() && zip_file_only_contains_uncompressed_dex_) {
     LOG(ERROR) << "Not loading "
                << dex_location_
                << ": oat file has dex code, but APK has uncompressed dex code";
@@ -474,6 +515,11 @@ bool OatFileAssistant::AnonymousDexVdexLocation(const std::vector<const DexFile:
                                                 InstructionSet isa,
                                                 /* out */ std::string* dex_location,
                                                 /* out */ std::string* vdex_filename) {
+  // Normally, OatFileAssistant should not assume that there is an active runtime. However, we
+  // reference the runtime here. This is okay because we are in a static function that is unrelated
+  // to other parts of OatFileAssistant.
+  DCHECK(Runtime::Current() != nullptr);
+
   uint32_t checksum = adler32(0L, Z_NULL, 0);
   for (const DexFile::Header* header : headers) {
     checksum = adler32_combine(checksum,
@@ -571,13 +617,23 @@ bool OatFileAssistant::DexLocationToOatFilename(const std::string& location,
                                                 InstructionSet isa,
                                                 std::string* oat_filename,
                                                 std::string* error_msg) {
+  DCHECK(Runtime::Current() != nullptr);
+  return DexLocationToOatFilename(
+      location, isa, Runtime::Current()->DenyArtApexDataFiles(), oat_filename, error_msg);
+}
+
+bool OatFileAssistant::DexLocationToOatFilename(const std::string& location,
+                                                InstructionSet isa,
+                                                bool deny_art_apex_data_files,
+                                                std::string* oat_filename,
+                                                std::string* error_msg) {
   CHECK(oat_filename != nullptr);
   CHECK(error_msg != nullptr);
 
   // Check if `location` could have an oat file in the ART APEX data directory. If so, and the
   // file exists, use it.
   const std::string apex_data_file = GetApexDataOdexFilename(location, isa);
-  if (!apex_data_file.empty() && !Runtime::Current()->DenyArtApexDataFiles()) {
+  if (!apex_data_file.empty() && !deny_art_apex_data_files) {
     if (OS::FileExists(apex_data_file.c_str(), /*check_file_type=*/true)) {
       *oat_filename = apex_data_file;
       return true;
@@ -656,26 +712,19 @@ bool OatFileAssistant::ValidateBootClassPathChecksums(const OatFile& oat_file) {
     return true;
   }
 
-  Runtime* runtime = Runtime::Current();
   std::string error_msg;
-  bool result = false;
-  // Fast path when the runtime boot classpath cheksums and boot classpath
-  // locations directly match.
-  if (oat_boot_class_path_checksums_view == runtime->GetBootClassPathChecksums() &&
-      isa_ == kRuntimeISA &&
-      oat_boot_class_path_view == android::base::Join(runtime->GetBootClassPathLocations(), ":")) {
-    result = true;
-  } else {
-    result = gc::space::ImageSpace::VerifyBootClassPathChecksums(
-        oat_boot_class_path_checksums_view,
-        oat_boot_class_path_view,
-        ArrayRef<const std::string>(runtime->GetImageLocations()),
-        ArrayRef<const std::string>(runtime->GetBootClassPathLocations()),
-        ArrayRef<const std::string>(runtime->GetBootClassPath()),
-        ArrayRef<const int>(runtime->GetBootClassPathFds()),
-        isa_,
-        &error_msg);
-  }
+  bool result = gc::space::ImageSpace::VerifyBootClassPathChecksums(
+      oat_boot_class_path_checksums_view,
+      oat_boot_class_path_view,
+      ArrayRef<const std::string>(runtime_options_->image_locations),
+      ArrayRef<const std::string>(runtime_options_->boot_class_path_locations),
+      ArrayRef<const std::string>(runtime_options_->boot_class_path),
+      runtime_options_->boot_class_path_fds != nullptr ?
+          ArrayRef<const int>(*runtime_options_->boot_class_path_fds) :
+          ArrayRef<const int>(),
+      isa_,
+      runtime_options_->apex_versions,
+      &error_msg);
   if (!result) {
     VLOG(oat) << "Failed to verify checksums of oat file " << oat_file.GetLocation()
         << " error: " << error_msg;
@@ -686,6 +735,31 @@ bool OatFileAssistant::ValidateBootClassPathChecksums(const OatFile& oat_file) {
   cached_boot_class_path_ = oat_boot_class_path_view;
   cached_boot_class_path_checksums_ = oat_boot_class_path_checksums_view;
   return true;
+}
+
+bool OatFileAssistant::IsPrimaryBootImageUsable() {
+  if (cached_is_boot_image_usable_.has_value()) {
+    return cached_is_boot_image_usable_.value();
+  }
+
+  if (runtime_options_->image_locations.empty() || runtime_options_->use_jit_zygote) {
+    return false;
+  }
+
+  std::string ignored_error_msg;
+  // Only verify the primary boot image.
+  cached_is_boot_image_usable_ = gc::space::ImageSpace::VerifyBootImages(
+      ArrayRef<const std::string>(runtime_options_->image_locations)
+          .SubArray(/*pos=*/0u, /*size=*/1u),
+      ArrayRef<const std::string>(runtime_options_->boot_class_path_locations),
+      ArrayRef<const std::string>(runtime_options_->boot_class_path),
+      runtime_options_->boot_class_path_fds != nullptr ?
+          ArrayRef<const int>(*runtime_options_->boot_class_path_fds) :
+          ArrayRef<const int>(),
+      isa_,
+      runtime_options_->apex_versions,
+      &ignored_error_msg);
+  return cached_is_boot_image_usable_.value();
 }
 
 OatFileAssistant::OatFileInfo& OatFileAssistant::GetBestInfo() {
@@ -840,7 +914,8 @@ const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
     return nullptr;
   }
 
-  if (LocationIsOnArtApexData(filename_) && Runtime::Current()->DenyArtApexDataFiles()) {
+  if (LocationIsOnArtApexData(filename_) &&
+      oat_file_assistant_->runtime_options_->deny_art_apex_data_files) {
     LOG(WARNING) << "OatFileAssistant rejected file " << filename_
                  << ": ART apexdata is untrusted.";
     return nullptr;
@@ -961,7 +1036,7 @@ bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
         file->GetOatHeader().GetStoreValueByKey(OatHeader::kBootClassPathChecksumsKey);
     if (oat_boot_class_path_checksums != nullptr &&
         !StartsWith(oat_boot_class_path_checksums, "i") &&
-        !Runtime::Current()->HasImageWithProfile()) {
+        oat_file_assistant_->IsPrimaryBootImageUsable()) {
       DCHECK(!file->GetOatHeader().RequiresImage());
       return false;
     }
@@ -1044,17 +1119,19 @@ std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFileForUse() {
 // TODO(calin): we could provide a more refined status here
 // (e.g. run from uncompressed apk, run with vdex but not oat etc). It will allow us to
 // track more experiments but adds extra complexity.
-void OatFileAssistant::GetOptimizationStatus(
-    const std::string& filename,
-    InstructionSet isa,
-    std::string* out_compilation_filter,
-    std::string* out_compilation_reason) {
+void OatFileAssistant::GetOptimizationStatus(const std::string& filename,
+                                             InstructionSet isa,
+                                             std::string* out_compilation_filter,
+                                             std::string* out_compilation_reason,
+                                             std::unique_ptr<RuntimeOptions> runtime_options) {
   // It may not be possible to load an oat file executable (e.g., selinux restrictions). Load
   // non-executable and check the status manually.
   OatFileAssistant oat_file_assistant(filename.c_str(),
                                       isa,
-                                      /* context= */ nullptr,
-                                      /*load_executable=*/ false);
+                                      /*context=*/nullptr,
+                                      /*load_executable=*/false,
+                                      /*only_load_trusted_executable=*/false,
+                                      std::move(runtime_options));
   std::string out_odex_location;  // unused
   std::string out_odex_status;  // unused
   oat_file_assistant.GetOptimizationStatus(

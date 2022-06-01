@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This service is disabled until b/192042812 is resolved.
+# A lazy service that is started and stopped dynamically as needed.
 service artd /apex/com.android.art/bin/artd
-    disabled
+    interface aidl artd
+    disabled  # Prevents the service from automatically starting at boot.
+    oneshot  # Prevents the service from automatically restarting each time it is stopped.
     class core
     user artd
