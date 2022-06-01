@@ -32,6 +32,7 @@ art_cc_binary {
 
     shared_libs: [
         "artd-aidl-ndk",
+        "libart",
         "libartbase",
         "libarttools",
         "libbase",
