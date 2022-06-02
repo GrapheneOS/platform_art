@@ -16,10 +16,18 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
+
 import android.os.Binder;
 import android.os.Process;
 
 import com.android.modules.utils.BasicShellCommandHandler;
+import com.android.server.art.model.DeleteOptions;
+import com.android.server.art.model.DeleteResult;
+import com.android.server.art.model.GetStatusOptions;
+import com.android.server.art.model.OptimizationStatus;
+import com.android.server.art.wrapper.PackageDataSnapshot;
+import com.android.server.art.wrapper.PackageManagerLocal;
 
 import java.io.PrintWriter;
 
@@ -32,16 +40,41 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     private static final String TAG = "ArtShellCommand";
 
     private final ArtManagerLocal mArtManagerLocal;
+    private final PackageManagerLocal mPackageManagerLocal;
 
-    public ArtShellCommand(ArtManagerLocal artManagerLocal) {
+    public ArtShellCommand(
+            ArtManagerLocal artManagerLocal, PackageManagerLocal packageManagerLocal) {
         mArtManagerLocal = artManagerLocal;
+        mPackageManagerLocal = packageManagerLocal;
     }
 
     @Override
     public int onCommand(String cmd) {
         enforceRoot();
-        // Handles empty, help, and invalid commands.
-        return handleDefaultCommands(cmd);
+        PrintWriter pw = getOutPrintWriter();
+        PackageDataSnapshot snapshot = mPackageManagerLocal.snapshot();
+        switch (cmd) {
+            case "delete-optimized-artifacts":
+                DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
+                        snapshot, getNextArgRequired(), new DeleteOptions.Builder().build());
+                pw.printf("Freed %d bytes\n", result.getFreedBytes());
+                return 0;
+            case "get-optimization-status":
+                OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
+                        snapshot, getNextArgRequired(), new GetStatusOptions.Builder().build());
+                for (DexFileOptimizationStatus status :
+                        optimizationStatus.getDexFileOptimizationStatuses()) {
+                    pw.printf("dexFile = %s, instructionSet = %s, compilerFilter = %s, "
+                                    + "compilationReason = %s, locationDebugString = %s\n",
+                            status.getDexFile(), status.getInstructionSet(),
+                            status.getCompilerFilter(), status.getCompilationReason(),
+                            status.getLocationDebugString());
+                }
+                return 0;
+            default:
+                // Handles empty, help, and invalid commands.
+                return handleDefaultCommands(cmd);
+        }
     }
 
     @Override
@@ -56,6 +89,15 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("Supported commands:");
         pw.println("  help or -h");
         pw.println("    Print this help text.");
+        // TODO(jiakaiz): Also do operations for secondary dex'es by default.
+        pw.println("  delete-optimized-artifacts <package-name>");
+        pw.println("    Delete the optimized artifacts of a package.");
+        pw.println("    By default, the command only deletes the optimized artifacts of primary "
+                + "dex'es.");
+        pw.println("  get-optimization-status <package-name>");
+        pw.println("    Print the optimization status of a package.");
+        pw.println("    By default, the command only prints the optimization status of primary "
+                + "dex'es.");
     }
 
     private void enforceRoot() {

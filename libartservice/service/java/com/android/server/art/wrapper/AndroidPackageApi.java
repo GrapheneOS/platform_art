@@ -28,6 +28,10 @@ public class AndroidPackageApi {
         mPkg = pkg;
     }
 
+    Object getRealInstance() {
+        return mPkg;
+    }
+
     @NonNull
     public String getBaseApkPath() {
         try {
