@@ -27,6 +27,7 @@ cc_defaults {
     defaults: ["art_defaults"],
     srcs: [
         "artd.cc",
+        "path_utils.cc",
     ],
     shared_libs: [
         "libarttools",
@@ -35,6 +36,7 @@ cc_defaults {
     ],
     static_libs: [
         "artd-aidl-ndk",
+        "libc++fs",
     ],
 }
 
@@ -64,8 +66,13 @@ prebuilt_etc {
 art_cc_defaults {
     name: "art_artd_tests_defaults",
     defaults: ["artd_defaults"],
+    static_libs: [
+        "libcap",
+        "libgmock",
+    ],
     srcs: [
         "artd_test.cc",
+        "path_utils_test.cc",
     ],
 }
 
