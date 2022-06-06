@@ -2673,15 +2673,9 @@ ENTRY art_quick_method_exit_hook
     mov x0, xSELF                             // Thread::Current
     bl  artMethodExitHook                     // (Thread*, ArtMethod*, gpr_res*, fpr_res*)
 
-    .cfi_remember_state
-    cbnz x0, .Ldo_deliver_instrumentation_exception_exit // Handle exception
-
     // Normal return.
     RESTORE_SAVE_EVERYTHING_FRAME
     REFRESH_MARKING_REGISTER
     ret
-.Ldo_deliver_instrumentation_exception_exit:
-    CFI_RESTORE_STATE_AND_DEF_CFA sp, FRAME_SIZE_SAVE_EVERYTHING
-    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END art_quick_method_exit_hook
 

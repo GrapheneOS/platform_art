@@ -2376,16 +2376,9 @@ DEFINE_FUNCTION art_quick_method_exit_hook
     addl LITERAL(32), %esp         // Pop arguments and grp_result.
     CFI_ADJUST_CFA_OFFSET(-32)
 
-    cmpl LITERAL(1), %eax          // Check if we returned error.
-    CFI_REMEMBER_STATE
-    je .Ldo_deliver_instrumentation_exception_exit
-
     // Normal return.
     RESTORE_SAVE_EVERYTHING_FRAME
     ret
-.Ldo_deliver_instrumentation_exception_exit:
-    CFI_RESTORE_STATE_AND_DEF_CFA esp, FRAME_SIZE_SAVE_EVERYTHING
-    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_FUNCTION art_quick_method_exit_hook
 
 
