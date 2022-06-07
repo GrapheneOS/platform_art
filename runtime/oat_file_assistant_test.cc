@@ -1362,7 +1362,7 @@ TEST_F(OatFileAssistantBaseTest, RaceToGenerate) {
   // take a while to generate.
   Copy(GetLibCoreDexFileNames()[0], dex_location);
 
-  const size_t kNumThreads = 32;
+  const size_t kNumThreads = 16;
   Thread* self = Thread::Current();
   ThreadPool thread_pool("Oat file assistant test thread pool", kNumThreads);
   std::vector<std::unique_ptr<RaceGenerateTask>> tasks;
