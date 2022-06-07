@@ -390,8 +390,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     static constexpr bool kVerifyChecksum = true;
     const ArtDexFileLoader dex_file_loader;
     int fd;
-    if (!strncmp("/proc/self/fd/", dex_location, strlen("/proc/self/fd/")) &&
-          sscanf(dex_location, "/proc/self/fd/%d", &fd) == 1) {
+    if (!strncmp("/gmscompat_fd_", dex_location, strlen("/gmscompat_fd_")) &&
+          sscanf(dex_location, "/gmscompat_fd_%d", &fd) == 1) {
       fd = dup(fd);
     } else {
       fd = open(dex_location, O_RDONLY | O_CLOEXEC);
