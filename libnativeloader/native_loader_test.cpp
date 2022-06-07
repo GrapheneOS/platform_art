@@ -169,7 +169,7 @@ INSTANTIATE_TEST_SUITE_P(NativeLoaderTests, NativeLoaderTest, testing::Bool());
 
 std::string default_public_and_extended_libraries() {
   std::string public_libs = default_public_libraries();
-  std::string ext_libs = extended_public_libraries();
+  const std::string& ext_libs = extended_public_libraries();
   if (!ext_libs.empty()) {
     public_libs = public_libs + ":" + ext_libs;
   }
