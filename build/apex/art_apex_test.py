@@ -473,7 +473,6 @@ class ReleaseChecker:
     self._checker.check_native_library('libart-disassembler')
     self._checker.check_native_library('libartbase')
     self._checker.check_native_library('libartpalette')
-    self._checker.check_native_library('libartservice')
     self._checker.check_native_library('libarttools')
     self._checker.check_native_library('libdt_fd_forward')
     self._checker.check_native_library('libopenjdkjvm')
@@ -552,6 +551,7 @@ class ReleaseTargetChecker:
     self._checker.check_symlinked_multilib_executable('dex2oat')
 
     # Check internal libraries for ART.
+    self._checker.check_native_library('libartservice')
     self._checker.check_native_library('libperfetto_hprof')
     self._checker.check_prefer64_library('artd-aidl-ndk')
 
@@ -618,7 +618,6 @@ class DebugChecker:
     self._checker.check_native_library('libartd-compiler')
     self._checker.check_native_library('libartd-dexlayout')
     self._checker.check_native_library('libartd-disassembler')
-    self._checker.check_native_library('libartserviced')
     self._checker.check_native_library('libopenjdkjvmd')
     self._checker.check_native_library('libopenjdkjvmtid')
     self._checker.check_native_library('libprofiled')
@@ -640,6 +639,7 @@ class DebugTargetChecker:
     self._checker.check_symlinked_multilib_executable('dex2oatd')
 
     # Check ART internal libraries.
+    self._checker.check_native_library('libartserviced')
     self._checker.check_native_library('libperfetto_hprofd')
 
     # Check internal native library dependencies.
