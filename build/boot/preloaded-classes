@@ -2123,6 +2123,7 @@ java.util.stream.DistinctOps$1$1
 java.util.stream.DistinctOps$1$2
 java.util.stream.DistinctOps$1
 java.util.stream.DistinctOps
+java.util.stream.DoublePipeline$$ExternalSyntheticLambda0
 java.util.stream.DoublePipeline$$ExternalSyntheticLambda4
 java.util.stream.DoublePipeline$$ExternalSyntheticLambda9
 java.util.stream.DoublePipeline$StatelessOp
