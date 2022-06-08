@@ -132,7 +132,10 @@ ART_TEST_MODULES_COMMON := \
     art_runtime_tests \
     art_sigchain_tests \
 
-ART_TEST_MODULES_TARGET := $(ART_TEST_MODULES_COMMON) art_odrefresh_tests
+ART_TEST_MODULES_TARGET := $(ART_TEST_MODULES_COMMON) \
+    art_artd_tests \
+    art_odrefresh_tests \
+
 ART_TEST_MODULES_HOST := $(ART_TEST_MODULES_COMMON)
 
 ART_TARGET_GTEST_NAMES := $(foreach tm,$(ART_TEST_MODULES_TARGET),\
