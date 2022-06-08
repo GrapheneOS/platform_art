@@ -69,7 +69,7 @@ using android::base::StringPrintf;
 static constexpr bool kUseAddr2line = !kIsTargetBuild;
 
 std::string FindAddr2line() {
-#if !defined(ART_TARGET_ANDROID) and !defined(ART_CLANG_PATH)
+#if !defined(ART_TARGET) && !defined(ART_CLANG_PATH)
   #error "ART_CLANG_PATH must be defined on host build"
 #endif
 #if defined(ART_CLANG_PATH)
