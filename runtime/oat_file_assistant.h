@@ -204,7 +204,7 @@ class OatFileAssistant {
   //   - out_compilation_reason: the optimization reason. The reason might
   //        be "unknown" if the compiler artifacts were not annotated during optimizations.
   //   - out_odex_status: a human readable refined status of the validity of the odex file.
-  //        E.g. up-to-date, boot-image-more-recent, apk-more-recent.
+  //        E.g. up-to-date, apk-more-recent.
   //
   // This method will try to mimic the runtime effect of loading the dex file.
   // For example, if there is no usable oat file, the compiler filter will be set
@@ -219,6 +219,18 @@ class OatFileAssistant {
                                     std::string* out_compilation_filter,
                                     std::string* out_compilation_reason,
                                     std::unique_ptr<RuntimeOptions> runtime_options = nullptr);
+
+  // A convenient version of `GetOptimizationStatus` that accepts ISA and class loader context in
+  // strings. Returns true on success, or returns false and outputs an error message if it fails to
+  // parse the input strings.
+  static bool GetOptimizationStatus(const std::string& filename,
+                                    const std::string& isa_str,
+                                    const std::string& context_str,
+                                    std::unique_ptr<RuntimeOptions> runtime_options,
+                                    /*out*/ std::string* compiler_filter,
+                                    /*out*/ std::string* compilation_reason,
+                                    /*out*/ std::string* odex_location,
+                                    /*out*/ std::string* error_msg);
 
   // Open and returns an image space associated with the oat file.
   static std::unique_ptr<gc::space::ImageSpace> OpenImageSpace(const OatFile* oat_file);
