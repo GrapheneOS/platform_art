@@ -187,7 +187,7 @@ public class Main {
         // which should thus not get cleared.
         Integer[] strongRefs = new Integer[NREFS];
         for (int i = 0; i < NBATCHES; ++i) {
-            for (int j = i * REFS_PER_BATCH; j < (i + 1) * NREFS / NBATCHES; ++j) {
+            for (int j = i * REFS_PER_BATCH; j < (i + 1) * REFS_PER_BATCH; ++j) {
                 Integer newObj = new Integer(j);
                 strongRefs[j] = newObj;
                 weakRefs.set(j, new WeakReference(newObj));
