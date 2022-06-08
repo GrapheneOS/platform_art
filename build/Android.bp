@@ -30,6 +30,7 @@ bootstrap_go_package {
 art_clang_tidy_errors = [
     "android-cloexec-open",
     "bugprone-lambda-function-name",
+    "bugprone-macro-parentheses",
     "bugprone-unused-raii", // Protect scoped things like MutexLock.
     "bugprone-virtual-near-miss",
     "modernize-use-bool-literals",
