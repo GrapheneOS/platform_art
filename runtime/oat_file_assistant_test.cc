@@ -23,6 +23,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "android-base/scopeguard.h"
@@ -53,49 +54,73 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
     with_runtime_ = GetParam();
   }
 
-  void VerifyOptimizationStatus(OatFileAssistant* assistant,
-                                const std::string& file,
-                                const std::string& expected_filter,
+  // Verifies all variants of `GetOptimizationStatus`.
+  //
+  // `expected_filter` can be either a value of `CompilerFilter::Filter` or a string.
+  // If `check_context` is true, only verifies the variants that checks class loader context.
+  template <typename T>
+  void VerifyOptimizationStatus(const std::string& file,
+                                ClassLoaderContext* context,
+                                const T& expected_filter,
                                 const std::string& expected_reason,
-                                const std::string& expected_odex_status) {
-    // Verify the static methods (called from PM for dexOptNeeded).
-    std::string compilation_filter1;
-    std::string compilation_reason1;
+                                const std::string& expected_odex_status,
+                                bool check_context = false) {
+    std::string expected_filter_name;
+    if constexpr (std::is_same_v<T, CompilerFilter::Filter>) {
+      expected_filter_name = CompilerFilter::NameOfFilter(expected_filter);
+    } else {
+      expected_filter_name = expected_filter;
+    }
 
-    OatFileAssistant::GetOptimizationStatus(
-        file, kRuntimeISA, &compilation_filter1, &compilation_reason1, MaybeCreateRuntimeOptions());
+    // Verify the static method (called from PM for dumpsys).
+    // This variant does not check class loader context.
+    if (!check_context) {
+      std::string compilation_filter1;
+      std::string compilation_reason1;
 
-    ASSERT_EQ(expected_filter, compilation_filter1);
-    ASSERT_EQ(expected_reason, compilation_reason1);
+      OatFileAssistant::GetOptimizationStatus(file,
+                                              kRuntimeISA,
+                                              &compilation_filter1,
+                                              &compilation_reason1,
+                                              MaybeCreateRuntimeOptions());
 
-    // Verify the instance methods (called at runtime for systrace).
-    std::string odex_location2;  // ignored
+      ASSERT_EQ(expected_filter_name, compilation_filter1);
+      ASSERT_EQ(expected_reason, compilation_reason1);
+    }
+
+    // Verify the static method (called from artd).
     std::string compilation_filter2;
     std::string compilation_reason2;
-    std::string odex_status2;
+    std::string odex_location2;  // ignored
+    std::string error_msg;       // ignored
 
-    assistant->GetOptimizationStatus(
-        &odex_location2,
-        &compilation_filter2,
-        &compilation_reason2,
-        &odex_status2);
+    ASSERT_TRUE(
+        OatFileAssistant::GetOptimizationStatus(file,
+                                                GetInstructionSetString(kRuntimeISA),
+                                                context->EncodeContextForDex2oat(/*base_dir=*/""),
+                                                MaybeCreateRuntimeOptions(),
+                                                &compilation_filter2,
+                                                &compilation_reason2,
+                                                &odex_location2,
+                                                &error_msg));
 
-    ASSERT_EQ(expected_filter, compilation_filter2);
+    ASSERT_EQ(expected_filter_name, compilation_filter2);
     ASSERT_EQ(expected_reason, compilation_reason2);
-    ASSERT_EQ(expected_odex_status, odex_status2);
-  }
 
-  void VerifyOptimizationStatus(OatFileAssistant* assistant,
-                                const std::string& file,
-                                CompilerFilter::Filter expected_filter,
-                                const std::string& expected_reason,
-                                const std::string& expected_odex_status) {
-      VerifyOptimizationStatus(
-          assistant,
-          file,
-          CompilerFilter::NameOfFilter(expected_filter),
-          expected_reason,
-          expected_odex_status);
+    // Verify the instance methods (called at runtime).
+    OatFileAssistant assistant = CreateOatFileAssistant(file.c_str(), context);
+
+    std::string odex_location3;  // ignored
+    std::string compilation_filter3;
+    std::string compilation_reason3;
+    std::string odex_status3;
+
+    assistant.GetOptimizationStatus(
+        &odex_location3, &compilation_filter3, &compilation_reason3, &odex_status3);
+
+    ASSERT_EQ(expected_filter_name, compilation_filter3);
+    ASSERT_EQ(expected_reason, compilation_reason3);
+    ASSERT_EQ(expected_odex_status, odex_status3);
   }
 
   void InsertNewBootClasspathEntry() {
@@ -329,11 +354,7 @@ TEST_P(OatFileAssistantTest, DexNoOat) {
   EXPECT_TRUE(oat_file_assistant.HasDexFiles());
 
   VerifyOptimizationStatus(
-      &oat_file_assistant,
-      dex_location,
-      "run-from-apk",
-      "unknown",
-      "io-error-no-oat");
+      dex_location, default_context_.get(), "run-from-apk", "unknown", "io-error-no-oat");
 }
 
 // Case: We have no DEX file and no OAT file.
@@ -382,11 +403,7 @@ TEST_P(OatFileAssistantTest, OdexUpToDate) {
   EXPECT_TRUE(oat_file_assistant.HasDexFiles());
 
   VerifyOptimizationStatus(
-      &oat_file_assistant,
-      dex_location,
-      CompilerFilter::kSpeed,
-      "install",
-      "up-to-date");
+      dex_location, default_context_.get(), CompilerFilter::kSpeed, "install", "up-to-date");
 }
 
 // Case: We have an ODEX file compiled against partial boot image.
@@ -420,11 +437,7 @@ TEST_P(OatFileAssistantTest, OdexUpToDatePartialBootImage) {
   EXPECT_TRUE(oat_file_assistant.HasDexFiles());
 
   VerifyOptimizationStatus(
-      &oat_file_assistant,
-      dex_location,
-      CompilerFilter::kSpeed,
-      "install",
-      "up-to-date");
+      dex_location, default_context_.get(), CompilerFilter::kSpeed, "install", "up-to-date");
 }
 
 // Case: We have a DEX file and a PIC ODEX file, but no OAT file. We load the dex
@@ -498,11 +511,7 @@ TEST_P(OatFileAssistantTest, OatUpToDate) {
   EXPECT_TRUE(oat_file_assistant.HasDexFiles());
 
   VerifyOptimizationStatus(
-      &oat_file_assistant,
-      dex_location,
-      CompilerFilter::kSpeed,
-      "unknown",
-      "up-to-date");
+      dex_location, default_context_.get(), CompilerFilter::kSpeed, "unknown", "up-to-date");
 }
 
 // Case: Passing valid file descriptors of updated odex/vdex files along with the dex file.
@@ -663,12 +672,7 @@ TEST_P(OatFileAssistantTest, VdexUpToDateNoOdex) {
   // care what the actual dumped value is.
   oat_file_assistant.GetStatusDump();
 
-  VerifyOptimizationStatus(
-      &oat_file_assistant,
-      dex_location,
-      "verify",
-      "vdex",
-      "up-to-date");
+  VerifyOptimizationStatus(dex_location, default_context_.get(), "verify", "vdex", "up-to-date");
 }
 
 // Case: We have a DEX file and empty VDEX and ODEX files.
@@ -855,11 +859,7 @@ TEST_P(OatFileAssistantTest, OatDexOutOfDate) {
   EXPECT_TRUE(oat_file_assistant.HasDexFiles());
 
   VerifyOptimizationStatus(
-      &oat_file_assistant,
-      dex_location,
-      "run-from-apk-fallback",
-      "unknown",
-      "apk-more-recent");
+      dex_location, default_context_.get(), "run-from-apk-fallback", "unknown", "apk-more-recent");
 }
 
 // Case: We have a DEX file and an (ODEX) VDEX file out of date with respect
@@ -934,12 +934,36 @@ TEST_P(OatFileAssistantTest, OatImageOutOfDate) {
   EXPECT_EQ(OatFileAssistant::kOatBootImageOutOfDate, oat_file_assistant.OatFileStatus());
   EXPECT_TRUE(oat_file_assistant.HasDexFiles());
 
+  VerifyOptimizationStatus(dex_location, default_context_.get(), "verify", "vdex", "up-to-date");
+}
+
+TEST_P(OatFileAssistantTest, OatContextOutOfDate) {
+  std::string dex_location = GetScratchDir() + "/TestDex.jar";
+  std::string odex_location = GetOdexDir() + "/TestDex.odex";
+
+  std::string context_location = GetScratchDir() + "/ContextDex.jar";
+  Copy(GetDexSrc1(), dex_location);
+  Copy(GetDexSrc2(), context_location);
+
+  std::string error_msg;
+  std::vector<std::string> args;
+  args.push_back("--dex-file=" + dex_location);
+  args.push_back("--oat-file=" + odex_location);
+  args.push_back("--class-loader-context=PCL[" + context_location + "]");
+  ASSERT_TRUE(Dex2Oat(args, &error_msg)) << error_msg;
+
+  // Update the context by overriding the jar file.
+  Copy(GetMultiDexSrc2(), context_location);
+
+  std::unique_ptr<ClassLoaderContext> context =
+      ClassLoaderContext::Create("PCL[" + context_location + "]");
+  ASSERT_TRUE(context != nullptr);
+  ASSERT_TRUE(context->OpenDexFiles());
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
   VerifyOptimizationStatus(
-      &oat_file_assistant,
-      dex_location,
-      "verify",
-      "vdex",
-      "up-to-date");
+      dex_location.c_str(), context.get(), "verify", "vdex", "up-to-date", /*check_context=*/true);
 }
 
 // Case: We have a DEX file and a verify-at-runtime OAT file out of date with
@@ -1770,6 +1794,84 @@ TEST_P(OatFileAssistantTest, GetDexOptNeededWithApexVersions) {
     OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
     EXPECT_EQ(OatFileAssistant::kOatBootImageOutOfDate, oat_file_assistant.OdexFileStatus());
   }
+}
+
+TEST_P(OatFileAssistantTest, ErrorOnInvalidIsaString) {
+  std::string dex_location = GetScratchDir() + "/OdexUpToDate.jar";
+  std::string odex_location = GetOdexDir() + "/OdexUpToDate.odex";
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed, "install");
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  std::string ignored_compilation_filter;
+  std::string ignored_compilation_reason;
+  std::string ignored_odex_location;
+  std::string error_msg;
+  EXPECT_FALSE(OatFileAssistant::GetOptimizationStatus(
+      dex_location,
+      /*isa_str=*/"foo",
+      default_context_->EncodeContextForDex2oat(/*base_dir=*/""),
+      MaybeCreateRuntimeOptions(),
+      &ignored_compilation_filter,
+      &ignored_compilation_reason,
+      &ignored_odex_location,
+      &error_msg));
+  EXPECT_EQ(error_msg, "Instruction set 'foo' is invalid");
+}
+
+TEST_P(OatFileAssistantTest, ErrorOnInvalidContextString) {
+  std::string dex_location = GetScratchDir() + "/OdexUpToDate.jar";
+  std::string odex_location = GetOdexDir() + "/OdexUpToDate.odex";
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed, "install");
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  std::string ignored_compilation_filter;
+  std::string ignored_compilation_reason;
+  std::string ignored_odex_location;
+  std::string error_msg;
+  EXPECT_FALSE(OatFileAssistant::GetOptimizationStatus(dex_location,
+                                                       GetInstructionSetString(kRuntimeISA),
+                                                       /*context_str=*/"foo",
+                                                       MaybeCreateRuntimeOptions(),
+                                                       &ignored_compilation_filter,
+                                                       &ignored_compilation_reason,
+                                                       &ignored_odex_location,
+                                                       &error_msg));
+  EXPECT_EQ(error_msg, "Class loader context 'foo' is invalid");
+}
+
+TEST_P(OatFileAssistantTest, ErrorOnInvalidContextFile) {
+  std::string dex_location = GetScratchDir() + "/OdexUpToDate.jar";
+  std::string odex_location = GetOdexDir() + "/OdexUpToDate.odex";
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed, "install");
+
+  // Create a broken context file.
+  std::string context_location = GetScratchDir() + "/BrokenContext.jar";
+  std::ofstream output(context_location);
+  output.close();
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  std::string ignored_compilation_filter;
+  std::string ignored_compilation_reason;
+  std::string ignored_odex_location;
+  std::string error_msg;
+  EXPECT_FALSE(
+      OatFileAssistant::GetOptimizationStatus(dex_location,
+                                              GetInstructionSetString(kRuntimeISA),
+                                              /*context_str=*/"PCL[" + context_location + "]",
+                                              MaybeCreateRuntimeOptions(),
+                                              &ignored_compilation_filter,
+                                              &ignored_compilation_reason,
+                                              &ignored_odex_location,
+                                              &error_msg));
+  EXPECT_EQ(error_msg,
+            "Failed to load class loader context files for '" + dex_location +
+                "' with context 'PCL[" + context_location + "]'");
 }
 
 // TODO: More Tests:
