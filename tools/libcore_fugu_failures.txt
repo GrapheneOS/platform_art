@@ -124,7 +124,7 @@
     "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testGenerateSeedint02",
     "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testGenerateSeedint03",
     "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testNextBytesbyteArray03",
-    "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testSetSeedbyteArray02",
+    "org.apache.harmony.tests.javax.security.OldSHA1PRNGSecureRandomTest#testSetSeedbyteArray02"
   ]
 },
 {

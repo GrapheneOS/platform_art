@@ -152,7 +152,6 @@ void ThrowWrappedBootstrapMethodError(const char* fmt, ...) {
 // ClassCastException
 
 void ThrowClassCastException(ObjPtr<mirror::Class> dest_type, ObjPtr<mirror::Class> src_type) {
-  DumpB77342775DebugData(dest_type, src_type);
   ThrowException("Ljava/lang/ClassCastException;", nullptr,
                  StringPrintf("%s cannot be cast to %s",
                               mirror::Class::PrettyDescriptor(src_type).c_str(),
@@ -281,7 +280,6 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* inter
       << "' does not implement interface '"
       << mirror::Class::PrettyDescriptor(interface_method->GetDeclaringClass())
       << "' in call to '" << ArtMethod::PrettyMethod(interface_method) << "'";
-  DumpB77342775DebugData(interface_method->GetDeclaringClass(), this_object->GetClass());
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());
