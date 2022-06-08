@@ -94,7 +94,7 @@ class JvmtiAllocator : public dex::Writer::Allocator {
   jvmtiEnv* jvmti_;
 };
 
-static void Transform(std::shared_ptr<ir::DexFile> ir) {
+static void Transform(const std::shared_ptr<ir::DexFile>& ir) {
   std::unique_ptr<ir::Builder> builder;
   for (auto& method : ir->encoded_methods) {
     // Do not look into abstract/bridge/native/synthetic methods.
