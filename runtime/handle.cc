@@ -42,6 +42,7 @@
 
 namespace art {
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define MAKE_OBJECT_FOR_GDB(ROOT, NAME, MIRROR)                 \
   template <> MIRROR* Handle<MIRROR>::GetFromGdb() {            \
     return Get();                                               \
@@ -53,5 +54,6 @@ namespace art {
 CLASS_MIRROR_ROOT_LIST(MAKE_OBJECT_FOR_GDB)
 
 #undef MAKE_OBJECT_FOR_GDB
+// NOLINTEND(bugprone-macro-parentheses)
 
 }  // namespace art
