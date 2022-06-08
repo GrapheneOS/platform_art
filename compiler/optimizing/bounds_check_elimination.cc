@@ -1818,6 +1818,7 @@ class BCEVisitor : public HGraphVisitor {
                          HInstruction* condition,
                          bool is_null_check = false) {
     HInstruction* suspend = loop->GetSuspendCheck();
+    DCHECK(suspend != nullptr);
     block->InsertInstructionBefore(condition, block->GetLastInstruction());
     DeoptimizationKind kind =
         is_null_check ? DeoptimizationKind::kLoopNullBCE : DeoptimizationKind::kLoopBoundsBCE;
