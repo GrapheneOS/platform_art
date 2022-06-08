@@ -116,7 +116,7 @@ enum class CompilationReason {
 #define REASON_NAME(kind, kind_name) \
     case CompilationReason::kind: return kind_name;
 #define REASON_FROM_NAME(kind, kind_name) \
-    if (name == kind_name) { return CompilationReason::kind; }
+    if (name == (kind_name)) { return CompilationReason::kind; }
 
 constexpr const char* CompilationReasonName(CompilationReason reason) {
   switch (reason) {
@@ -157,7 +157,7 @@ enum class CompilerFilterReporting {
 #define FILTER_NAME(kind, kind_name) \
     case CompilerFilterReporting::kind: return kind_name;
 #define FILTER_FROM_NAME(kind, kind_name) \
-    if (name == kind_name) { return CompilerFilterReporting::kind; }
+    if (name == (kind_name)) { return CompilerFilterReporting::kind; }
 
 constexpr const char* CompilerFilterReportingName(CompilerFilterReporting filter) {
   switch (filter) {

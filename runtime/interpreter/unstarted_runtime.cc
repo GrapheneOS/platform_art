@@ -2163,6 +2163,7 @@ using JNIHandler = void(*)(Thread* self,
                            uint32_t* args,
                            JValue* result);
 
+// NOLINTNEXTLINE
 #define ONE_PLUS(ShortNameIgnored, DescriptorIgnored, NameIgnored, SignatureIgnored) 1 +
 static constexpr size_t kInvokeHandlersSize = UNSTARTED_RUNTIME_DIRECT_LIST(ONE_PLUS) 0;
 static constexpr size_t kJniHandlersSize = UNSTARTED_RUNTIME_JNI_LIST(ONE_PLUS) 0;
