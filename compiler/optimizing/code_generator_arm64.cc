@@ -1974,6 +1974,13 @@ bool CodeGeneratorARM64::CanUseImplicitSuspendCheck() const {
 
 void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruction,
                                                          HBasicBlock* successor) {
+  if (instruction->IsNoOp()) {
+    if (successor != nullptr) {
+      __ B(codegen_->GetLabelOf(successor));
+    }
+    return;
+  }
+
   if (codegen_->CanUseImplicitSuspendCheck()) {
     __ Ldr(kImplicitSuspendCheckRegister, MemOperand(kImplicitSuspendCheckRegister));
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
