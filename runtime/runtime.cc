@@ -1376,6 +1376,8 @@ std::string Runtime::GetApexVersions(ArrayRef<const std::string> boot_class_path
     }
   }
   return result;
+#else
+  return empty_apex_versions;  // Not an Android build.
 #endif
 }
 
