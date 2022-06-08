@@ -1097,6 +1097,12 @@
         "description": ["Failing on RI. Needs further investigating. Some of these use smali."]
     },
     {
+        "tests": ["2042-reference-processing",
+                  "2043-reference-pauses"],
+        "variant": "jvm",
+        "description": ["Flakey behavior of RI."]
+    },
+    {
       "tests": [
                   "1974-resize-array",
                   "1975-hello-structural-transformation",
