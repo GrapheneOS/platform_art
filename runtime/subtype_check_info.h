@@ -153,7 +153,7 @@ struct SubtypeCheckInfo {
   // Create from the depth and the bitstring+of state.
   // This is done for convenience to avoid passing in "depth" everywhere,
   // since our current state is almost always a function of depth.
-  static SubtypeCheckInfo Create(SubtypeCheckBits compressed_value, size_t depth) {
+  static SubtypeCheckInfo Create(const SubtypeCheckBits& compressed_value, size_t depth) {
     SubtypeCheckInfo io;
     io.depth_ = depth;
     io.bitstring_and_of_ = compressed_value;
