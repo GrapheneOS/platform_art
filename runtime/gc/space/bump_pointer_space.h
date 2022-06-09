@@ -39,7 +39,7 @@ namespace space {
 // implementation as its intended to be evacuated.
 class BumpPointerSpace final : public ContinuousMemMapAllocSpace {
  public:
-  typedef void(*WalkCallback)(void *start, void *end, size_t num_bytes, void* callback_arg);
+  using WalkCallback = void (*)(void *, void *, int, void *);
 
   SpaceType GetType() const override {
     return kSpaceTypeBumpPointerSpace;

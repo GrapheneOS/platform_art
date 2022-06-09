@@ -59,7 +59,7 @@ class AssemblerTest : public AssemblerTestBase {
     return assembler_.get();
   }
 
-  typedef std::string (*TestFn)(AssemblerTest* assembler_test, Ass* assembler);
+  using TestFn = std::string (*)(AssemblerTest *, Ass *);
 
   void DriverFn(TestFn f, const std::string& test_name) {
     DriverWrapper(f(this, assembler_.get()), test_name);
