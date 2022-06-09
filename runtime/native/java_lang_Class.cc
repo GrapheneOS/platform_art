@@ -751,6 +751,43 @@ static jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
   return soa.AddLocalReference<jclass>(annotations::GetDeclaringClass(klass));
 }
 
+static jclass Class_getNestHostFromAnnotation(JNIEnv* env, jobject javaThis) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
+  if (klass->IsObsoleteObject()) {
+    ThrowRuntimeException("Obsolete Object!");
+    return nullptr;
+  }
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    return nullptr;
+  }
+  ObjPtr<mirror::Class> hostClass = annotations::GetNestHost(klass);
+  if (hostClass == nullptr) {
+    return nullptr;
+  }
+  return soa.AddLocalReference<jclass>(hostClass);
+}
+
+static jobjectArray Class_getNestMembersFromAnnotation(JNIEnv* env, jobject javaThis) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
+  if (klass->IsObsoleteObject()) {
+    ThrowRuntimeException("Obsolete Object!");
+    return nullptr;
+  }
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    return nullptr;
+  }
+  ObjPtr<mirror::ObjectArray<mirror::Class>> classes = annotations::GetNestMembers(klass);
+  if (classes == nullptr) {
+    return nullptr;
+  }
+  return soa.AddLocalReference<jobjectArray>(classes);
+}
+
+
 static jobject Class_ensureExtDataPresent(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<2> hs(soa.Self());
@@ -878,6 +915,8 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Class, getInterfacesInternal, "()[Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getPrimitiveClass, "(Ljava/lang/String;)Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(Class, getNestHostFromAnnotation, "()Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(Class, getNestMembersFromAnnotation, "()[Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getPublicDeclaredFields, "()[Ljava/lang/reflect/Field;"),
   FAST_NATIVE_METHOD(Class, getSignatureAnnotation, "()[Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Class, isAnonymousClass, "()Z"),
