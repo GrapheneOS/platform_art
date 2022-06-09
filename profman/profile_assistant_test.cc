@@ -267,7 +267,7 @@ class ProfileAssistantTest : public CommonRuntimeTest, public ProfileTestHelper 
 
   bool CreateAndDump(const std::string& input_file_contents,
                      std::string* output_file_contents,
-                     std::optional<const std::string> target = std::nullopt) {
+                     const std::optional<const std::string>& target = std::nullopt) {
     ScratchFile profile_file;
     EXPECT_TRUE(CreateProfile(input_file_contents,
                               profile_file.GetFilename(),

@@ -411,7 +411,7 @@ class ReportingPeriodSpecTest : public testing::Test {
       const std::string& spec_str,
       bool startup_first,
       bool continuous,
-      std::vector<uint32_t> periods) {
+      const std::vector<uint32_t>& periods) {
     Verify(spec_str, true, startup_first, continuous, periods);
   }
 
@@ -420,7 +420,7 @@ class ReportingPeriodSpecTest : public testing::Test {
       bool valid,
       bool startup_first,
       bool continuous,
-      std::vector<uint32_t> periods) {
+      const std::vector<uint32_t>& periods) {
     std::string error_msg;
     std::optional<ReportingPeriodSpec> spec = ReportingPeriodSpec::Parse(spec_str, &error_msg);
 
