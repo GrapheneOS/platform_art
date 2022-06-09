@@ -36,6 +36,7 @@ art_clang_tidy_errors = [
     "modernize-use-bool-literals",
     "performance-implicit-conversion-in-loop",
     "performance-unnecessary-copy-initialization",
+    "performance-unnecessary-value-param",
 ]
 
 art_clang_tidy_allowed = [
@@ -50,7 +51,6 @@ art_clang_tidy_allowed = [
     "performance-faster-string-find",
     "performance-for-range-copy",
     "performance-noexcept-move-constructor",
-    "performance-unnecessary-value-param",
 ]
 
 art_clang_tidy_disabled = [
