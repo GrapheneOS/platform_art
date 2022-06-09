@@ -104,7 +104,6 @@ art_cc_library {
             ],
         },
     },
-
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
@@ -130,5 +129,40 @@ cc_library_headers {
     apex_available: [
         "com.android.art.debug",
         "com.android.art",
+    ],
+}
+
+art_cc_defaults {
+    name: "art_disassembler_tests_defaults",
+    codegen: {
+        arm64: {
+            srcs: ["disassembler_arm64_test.cc"],
+        },
+    },
+}
+
+// Version of ART gtest `art_disassembler_tests` bundled with the ART APEX on target.
+// TODO(b/192274705): Remove this module when the migration to standalone ART gtests is complete.
+art_cc_test {
+    name: "art_disassembler_tests",
+    defaults: [
+        "art_gtest_defaults",
+        "art_disassembler_tests_defaults",
+    ],
+    static_libs: [
+        "libvixld",
+    ],
+}
+
+// Standalone version of ART gtest `art_disassembler_tests`,
+// not bundled with the ART APEX on target.
+art_cc_test {
+    name: "art_standalone_disassembler_tests",
+    defaults: [
+        "art_standalone_gtest_defaults",
+        "art_disassembler_tests_defaults",
+    ],
+    static_libs: [
+        "libvixl",
     ],
 }
