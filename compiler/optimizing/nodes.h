@@ -678,6 +678,13 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     return cha_single_implementation_list_;
   }
 
+  // In case of OSR we intend to use SuspendChecks as an entry point to the
+  // function; for debuggable graphs we might deoptimize to interpreter from
+  // SuspendChecks. In these cases we should always generate code for them.
+  bool SuspendChecksAreAllowedToNoOp() const {
+    return !IsDebuggable() && !IsCompilingOsr();
+  }
+
   void AddCHASingleImplementationDependency(ArtMethod* method) {
     cha_single_implementation_list_.insert(method);
   }
@@ -719,7 +726,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
     return ReferenceTypeInfo::Create(handle_cache_.GetObjectClassHandle(), /* is_exact= */ false);
   }
 
-  uint32_t GetNumberOfCHAGuards() { return number_of_cha_guards_; }
+  uint32_t GetNumberOfCHAGuards() const { return number_of_cha_guards_; }
   void SetNumberOfCHAGuards(uint32_t num) { number_of_cha_guards_ = num; }
   void IncrementNumberOfCHAGuards() { number_of_cha_guards_++; }
 
@@ -6714,9 +6721,10 @@ class HBoundsCheck final : public HExpression<2> {
 
 class HSuspendCheck final : public HExpression<0> {
  public:
-  explicit HSuspendCheck(uint32_t dex_pc = kNoDexPc)
+  explicit HSuspendCheck(uint32_t dex_pc = kNoDexPc, bool is_no_op = false)
       : HExpression(kSuspendCheck, SideEffects::CanTriggerGC(), dex_pc),
         slow_path_(nullptr) {
+    SetPackedFlag<kFlagIsNoOp>(is_no_op);
   }
 
   bool IsClonable() const override { return true; }
@@ -6725,6 +6733,10 @@ class HSuspendCheck final : public HExpression<0> {
     return true;
   }
 
+  void SetIsNoOp(bool is_no_op) { SetPackedFlag<kFlagIsNoOp>(is_no_op); }
+  bool IsNoOp() const { return GetPackedFlag<kFlagIsNoOp>(); }
+
+
   void SetSlowPath(SlowPathCode* slow_path) { slow_path_ = slow_path; }
   SlowPathCode* GetSlowPath() const { return slow_path_; }
 
@@ -6732,6 +6744,15 @@ class HSuspendCheck final : public HExpression<0> {
 
  protected:
   DEFAULT_COPY_CONSTRUCTOR(SuspendCheck);
+
+  // True if the HSuspendCheck should not emit any code during codegen. It is
+  // not possible to simply remove this instruction to disable codegen, as
+  // other optimizations (e.g: CHAGuardVisitor::HoistGuard) depend on
+  // HSuspendCheck being present in every loop.
+  static constexpr size_t kFlagIsNoOp = kNumberOfGenericPackedBits;
+  static constexpr size_t kNumberOfSuspendCheckPackedBits = kFlagIsNoOp + 1;
+  static_assert(kNumberOfSuspendCheckPackedBits <= HInstruction::kMaxNumberOfPackedBits,
+                "Too many packed fields.");
 
  private:
   // Only used for code generation, in order to share the same slow path between back edges

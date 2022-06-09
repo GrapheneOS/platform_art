@@ -24,6 +24,7 @@ import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.os.Binder;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -210,7 +211,6 @@ public final class ArtManagerLocal {
     @VisibleForTesting
     public static class Injector {
         private final PackageManagerLocal mPackageManagerLocal;
-        private final IArtd mArtd;
 
         Injector() {
             PackageManagerLocal packageManagerLocal = null;
@@ -225,9 +225,6 @@ public final class ArtManagerLocal {
                 Log.w(TAG, "Unable to get fake PackageManagerLocal", e);
             }
             mPackageManagerLocal = packageManagerLocal;
-
-            // TODO(jiakaiz): Use real artd.
-            mArtd = new LoggingArtd();
         }
 
         public PackageManagerLocal getPackageManagerLocal() {
@@ -235,7 +232,11 @@ public final class ArtManagerLocal {
         }
 
         public IArtd getArtd() {
-            return mArtd;
+            IArtd artd = IArtd.Stub.asInterface(ServiceManager.waitForService("artd"));
+            if (artd == null) {
+                throw new IllegalStateException("Unable to connect to artd");
+            }
+            return artd;
         }
     }
 }

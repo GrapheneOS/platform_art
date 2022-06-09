@@ -674,13 +674,14 @@ void GraphChecker::HandleLoop(HBasicBlock* loop_header) {
         loop_information->GetPreHeader()->GetSuccessors().size()));
   }
 
-  if (loop_information->GetSuspendCheck() == nullptr) {
-    AddError(StringPrintf(
-        "Loop with header %d does not have a suspend check.",
-        loop_header->GetBlockId()));
+  if (!GetGraph()->SuspendChecksAreAllowedToNoOp() &&
+      loop_information->GetSuspendCheck() == nullptr) {
+    AddError(StringPrintf("Loop with header %d does not have a suspend check.",
+                          loop_header->GetBlockId()));
   }
 
-  if (loop_information->GetSuspendCheck() != loop_header->GetFirstInstructionDisregardMoves()) {
+  if (!GetGraph()->SuspendChecksAreAllowedToNoOp() &&
+      loop_information->GetSuspendCheck() != loop_header->GetFirstInstructionDisregardMoves()) {
     AddError(StringPrintf(
         "Loop header %d does not have the loop suspend check as the first instruction.",
         loop_header->GetBlockId()));
