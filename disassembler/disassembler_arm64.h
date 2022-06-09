@@ -47,16 +47,20 @@ class CustomDisassembler final : public vixl::aarch64::Disassembler {
   void AppendRegisterNameToOutput(const vixl::aarch64::Instruction* instr,
                                   const vixl::aarch64::CPURegister& reg) override;
 
-  // Improve the disassembly of literal load instructions.
-  void VisitLoadLiteral(const vixl::aarch64::Instruction* instr) override;
-
-  // Improve the disassembly of thread offset.
-  void VisitLoadStoreUnsignedOffset(const vixl::aarch64::Instruction* instr) override;
-
-  // Improve the disassembly of branch to thunk jumping to pointer from thread entrypoint.
-  void VisitUnconditionalBranch(const vixl::aarch64::Instruction* instr) override;
+  // Intercepts the instruction flow captured by the parent method,
+  // to specially instrument for particular instruction types.
+  void Visit(vixl::aarch64::Metadata* metadata, const vixl::aarch64::Instruction* instr) override;
 
  private:
+  // Improve the disassembly of literal load instructions.
+  void VisitLoadLiteralInstr(const vixl::aarch64::Instruction* instr);
+
+  // Improve the disassembly of thread offset.
+  void VisitLoadStoreUnsignedOffsetInstr(const vixl::aarch64::Instruction* instr);
+
+  // Improve the disassembly of branch to thunk jumping to pointer from thread entrypoint.
+  void VisitUnconditionalBranchInstr(const vixl::aarch64::Instruction* instr);
+
   void AppendThreadOfsetName(const vixl::aarch64::Instruction* instr);
 
   // Indicate if the disassembler should read data loaded from literal pools.
