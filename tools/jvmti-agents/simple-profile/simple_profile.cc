@@ -26,6 +26,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "android-base/unique_fd.h"
@@ -55,7 +56,7 @@ class SimpleProfileData {
   SimpleProfileData(
       jvmtiEnv* env, std::string out_fd_name, int fd, bool dump_on_shutdown, bool dump_on_main_stop)
       : dump_id_(0),
-        out_fd_name_(out_fd_name),
+        out_fd_name_(std::move(out_fd_name)),
         out_fd_(fd),
         shutdown_(false),
         dump_on_shutdown_(dump_on_shutdown || dump_on_main_stop),
@@ -79,7 +80,7 @@ class SimpleProfileData {
   void Shutdown(jvmtiEnv* jvmti, JNIEnv* jni);
 
  private:
-  void DoDump(jvmtiEnv* jvmti, JNIEnv* jni, std::unordered_map<jmethodID, uint64_t> copy);
+  void DoDump(jvmtiEnv* jvmti, JNIEnv* jni, const std::unordered_map<jmethodID, uint64_t>& copy);
 
   jlong dump_id_;
   jrawMonitorID mon_;
@@ -320,7 +321,7 @@ std::ostream& operator<<(std::ostream& os, ScopedMethodInfo const& method) {
 
 void SimpleProfileData::DoDump(jvmtiEnv* jvmti,
                                JNIEnv* jni,
-                               std::unordered_map<jmethodID, uint64_t> copy) {
+                               const std::unordered_map<jmethodID, uint64_t>& copy) {
   std::ostringstream oss;
   oss << "[";
   bool is_first = true;

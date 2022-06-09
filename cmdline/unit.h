@@ -27,7 +27,7 @@ struct Unit {
   Unit() {}
   Unit(const Unit&) = default;
   ~Unit() {}
-  bool operator==(Unit) const {
+  bool operator==(const Unit&) const {
     return true;
   }
 };
