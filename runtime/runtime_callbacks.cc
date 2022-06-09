@@ -105,9 +105,9 @@ void RuntimeCallbacks::RemoveMethodInspectionCallback(MethodInspectionCallback* 
   Remove(cb, &method_inspection_callbacks_);
 }
 
-bool RuntimeCallbacks::IsMethodBeingInspected(ArtMethod* m) {
+bool RuntimeCallbacks::HaveLocalsChanged() {
   for (MethodInspectionCallback* cb : COPY(method_inspection_callbacks_)) {
-    if (cb->IsMethodBeingInspected(m)) {
+    if (cb->HaveLocalsChanged()) {
       return true;
     }
   }
