@@ -22,12 +22,18 @@
 #include <nativebridge/native_bridge.h>
 #include <gtest/gtest.h>
 
-constexpr const char* kNativeBridgeLibrary = "libnativebridge-test-case.so";
+#if defined(__LP64__)
+#define LIB_SUFFIX "64"
+#else
+#define LIB_SUFFIX "32"
+#endif
+
+constexpr const char* kNativeBridgeLibrary = "libnativebridge-test-case" LIB_SUFFIX ".so";
 constexpr const char* kCodeCache = "./code_cache";
 constexpr const char* kCodeCacheStatFail = "./code_cache/temp";
-constexpr const char* kNativeBridgeLibrary2 = "libnativebridge2-test-case.so";
-constexpr const char* kNativeBridgeLibrary3 = "libnativebridge3-test-case.so";
-constexpr const char* kNativeBridgeLibrary6 = "libnativebridge6-test-case.so";
+constexpr const char* kNativeBridgeLibrary2 = "libnativebridge2-test-case" LIB_SUFFIX ".so";
+constexpr const char* kNativeBridgeLibrary3 = "libnativebridge3-test-case" LIB_SUFFIX ".so";
+constexpr const char* kNativeBridgeLibrary6 = "libnativebridge6-test-case" LIB_SUFFIX ".so";
 
 namespace android {
 
