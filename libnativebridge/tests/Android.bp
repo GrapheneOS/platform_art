@@ -172,6 +172,20 @@ cc_test {
     ],
     header_libs: ["libbase_headers"],
 
+    // Support multilib variants (using different suffix per sub-architecture),
+    // which is needed on build targets with secondary architectures, as the CTS
+    // test suite packaging logic flattens all test artifacts into a single
+    // `testcases` directory.
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
+
     test_config_template: ":art-gtests-target-standalone-cts-template",
     test_suites: [
         "cts",
