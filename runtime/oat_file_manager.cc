@@ -229,6 +229,16 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
         compilation_filter.c_str(),
         compilation_reason.c_str()));
 
+    const bool has_registered_app_info = Runtime::Current()->GetAppInfo()->HasRegisteredAppInfo();
+    const AppInfo::CodeType code_type =
+        Runtime::Current()->GetAppInfo()->GetRegisteredCodeType(dex_location);
+    // We only want to madvise primary/split dex artifacts as a startup optimization. However,
+    // as the code_type for those artifacts may not be set until the initial app info registration,
+    // we conservatively madvise everything until the app info registration is complete.
+    const bool should_madvise_vdex_and_odex = !has_registered_app_info ||
+                                              code_type == AppInfo::CodeType::kPrimaryApk ||
+                                              code_type == AppInfo::CodeType::kSplitApk;
+
     // Proceed with oat file loading.
     std::unique_ptr<const OatFile> oat_file(oat_file_assistant.GetBestOatFile().release());
     VLOG(oat) << "OatFileAssistant(" << dex_location << ").GetBestOatFile()="
@@ -244,6 +254,16 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
       // Load the dex files from the oat file.
       bool added_image_space = false;
       if (oat_file->IsExecutable()) {
+        if (should_madvise_vdex_and_odex) {
+          VLOG(oat) << "Madvising oat file: " << oat_file->GetLocation();
+          size_t madvise_size_limit = runtime->GetMadviseWillNeedSizeOdex();
+          Runtime::MadviseFileForRange(madvise_size_limit,
+                                       oat_file->Size(),
+                                       oat_file->Begin(),
+                                       oat_file->End(),
+                                       oat_file->GetLocation());
+        }
+
         ScopedTrace app_image_timing("AppImage:Loading");
 
         // We need to throw away the image space if we are debuggable but the oat-file source of the
@@ -345,7 +365,8 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
 
       if (oat_file != nullptr) {
         VdexFile* vdex_file = oat_file->GetVdexFile();
-        if (vdex_file != nullptr) {
+        if (should_madvise_vdex_and_odex && vdex_file != nullptr) {
+          VLOG(oat) << "Madvising vdex file: " << vdex_file->GetName();
           // Opened vdex file from an oat file, madvise it to its loaded state.
           // TODO(b/196052575): Unify dex and vdex madvise knobs and behavior.
           const size_t madvise_size_limit = Runtime::Current()->GetMadviseWillNeedSizeVdex();
