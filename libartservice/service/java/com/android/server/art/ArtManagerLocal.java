@@ -25,6 +25,7 @@ import static com.android.server.art.model.OptimizationStatus.DexFileOptimizatio
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.os.Binder;
+import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
@@ -39,7 +40,6 @@ import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
 
-import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -85,10 +85,12 @@ public final class ArtManagerLocal {
      * @throws IllegalArgumentException if the arguments are illegal
      * @see ArtShellCommand#onHelp()
      */
-    public int handleShellCommand(@NonNull Binder target, @NonNull FileDescriptor in,
-            @NonNull FileDescriptor out, @NonNull FileDescriptor err, @NonNull String[] args) {
+    public int handleShellCommand(@NonNull Binder target, @NonNull ParcelFileDescriptor in,
+            @NonNull ParcelFileDescriptor out, @NonNull ParcelFileDescriptor err,
+            @NonNull String[] args) {
         return new ArtShellCommand(this, mInjector.getPackageManagerLocal())
-                .exec(target, in, out, err, args);
+                .exec(target, in.getFileDescriptor(), out.getFileDescriptor(),
+                        err.getFileDescriptor(), args);
     }
 
     /**
