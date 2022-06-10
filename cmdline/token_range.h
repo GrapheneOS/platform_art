@@ -81,7 +81,7 @@ struct TokenRange {
   {}
 
   // Non-copying constructor. Retain reference to existing list of tokens.
-  TokenRange(std::shared_ptr<TokenList> token_list,
+  TokenRange(const std::shared_ptr<TokenList>& token_list,
              TokenList::const_iterator it_begin,
              TokenList::const_iterator it_end)
     : token_list_(token_list),
@@ -98,7 +98,7 @@ struct TokenRange {
   TokenRange(TokenRange&&) = default;
 
   // Non-copying constructor. Retains reference to an existing list of tokens, with offset.
-  explicit TokenRange(std::shared_ptr<TokenList> token_list)
+  explicit TokenRange(const std::shared_ptr<TokenList>& token_list)
     : token_list_(token_list),
       begin_(token_list_->begin()),
       end_(token_list_->end())

@@ -53,7 +53,7 @@ enum class StartType {
   OnLoad,
 };
 
-static std::pair<std::string, std::string> Split(std::string source, char delim) {
+static std::pair<std::string, std::string> Split(const std::string& source, char delim) {
   std::string first(source.substr(0, source.find(delim)));
   if (source.find(delim) == std::string::npos) {
     return std::pair(first, "");

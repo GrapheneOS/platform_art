@@ -114,6 +114,7 @@ ART_TEST_MODULES_COMMON := \
     art_dexlayout_tests \
     art_dexlist_tests \
     art_dexoptanalyzer_tests \
+    art_disassembler_tests \
     art_hiddenapi_tests \
     art_imgdiag_tests \
     art_libartbase_tests \
