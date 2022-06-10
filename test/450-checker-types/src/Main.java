@@ -743,7 +743,7 @@ public class Main {
   /// CHECK-START: void Main.testLoopPhiWithNullFirstInput(boolean) builder (after)
   /// CHECK-DAG:  <<Null:l\d+>>      NullConstant
   /// CHECK-DAG:  <<Main:l\d+>>      NewInstance klass:Main exact:true
-  /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<Main>>,<<LoopPhi>>] klass:Main exact:true
+  /// CHECK-DAG:  <<LoopPhi:l\d+>>   Phi [<<Null>>,<<LoopPhi>>,<<Main>>] klass:Main exact:true
   private void testLoopPhiWithNullFirstInput(boolean cond) {
     Main a = null;
     while (a == null) {
