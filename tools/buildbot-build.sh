@@ -129,7 +129,6 @@ if [[ $build_target == "yes" ]]; then
   # Note these go into out/target/common/obj/JAVA_LIBRARIES which isn't removed
   # by "m installclean".
   make_command+=" i18n.module.public.api.stubs conscrypt.module.public.api.stubs"
-  make_command+=" ${ANDROID_PRODUCT_OUT#"${ANDROID_BUILD_TOP}/"}/system/etc/public.libraries.txt"
   # Targets required to generate a linker configuration for device within the
   # chroot environment. The *.libraries.txt targets are required by
   # the source linkerconfig but not included in the prebuilt one.
@@ -301,6 +300,11 @@ if [[ $build_target == "yes" ]]; then
   # Linkerconfig reads files from /system/etc
   mkdir -p $linkerconfig_root/system
   cp -r $ANDROID_PRODUCT_OUT/system/etc $linkerconfig_root/system
+
+  # Use our smaller public.libraries.txt that contains only the public libraries
+  # pushed to the chroot directory.
+  cp $ANDROID_BUILD_TOP/art/tools/public.libraries.buildbot.txt \
+    $linkerconfig_root/system/etc/public.libraries.txt
 
   # For linkerconfig to pick up the APEXes correctly we need to make them
   # available in $linkerconfig_root/apex.
