@@ -367,7 +367,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
     return;
   }
 
-  if (UNLIKELY(IsForcedInterpretOnly())) {
+  if (UNLIKELY(IsForcedInterpretOnly() || IsDeoptimized(method))) {
     UpdateEntryPoints(
         method, method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
     return;
@@ -889,11 +889,6 @@ void Instrumentation::ConfigureStubs(const char* key, InstrumentationLevel desir
   UpdateStubs();
 }
 
-void Instrumentation::EnableSingleThreadDeopt(const char* key) {
-  // Prepare for single thread deopt by installing instrumentation stubs.
-  ConfigureStubs(key, InstrumentationLevel::kInstrumentWithInstrumentationStubs);
-}
-
 void Instrumentation::UpdateInstrumentationLevel(InstrumentationLevel requested_level) {
   instrumentation_level_ = requested_level;
 }
@@ -915,7 +910,9 @@ void Instrumentation::MaybeRestoreInstrumentationStack() {
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   Runtime::Current()->GetThreadList()->ForEach([&](Thread* t) NO_THREAD_SAFETY_ANALYSIS {
     no_remaining_deopts =
-        no_remaining_deopts && !t->IsForceInterpreter() &&
+        no_remaining_deopts &&
+        !t->IsForceInterpreter() &&
+        !t->HasDebuggerShadowFrames() &&
         std::all_of(t->GetInstrumentationStack()->cbegin(),
                     t->GetInstrumentationStack()->cend(),
                     [&](const auto& frame) REQUIRES_SHARED(Locks::mutator_lock_) {
