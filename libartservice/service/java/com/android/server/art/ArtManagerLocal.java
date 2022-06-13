@@ -36,9 +36,9 @@ import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
+import com.android.server.pm.snapshot.PackageDataSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
