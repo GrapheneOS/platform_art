@@ -104,10 +104,10 @@ art_module_cc_defaults {
     ],
 }
 
-// Variant of art_test_defaults that installs the library in a location which
-// will be added to the default namespace, and hence also the com_android_art
-// namespace. That allows the library to have shared_libs dependencies on all
-// ART internal libraries.
+// Variant of art_test_defaults for test libraries that installs them in a
+// location which will be added to the default namespace, and hence also the
+// com_android_art namespace. That allows them to have shared_libs
+// dependencies on all ART internal libraries.
 //
 // Currently this only works for run tests where run-test-jar sets
 // LD_LIBRARY_PATH and NATIVELOADER_DEFAULT_NAMESPACE_LIBS.
@@ -170,6 +170,21 @@ art_cc_defaults {
     // eventually.
     host_supported: false,
     test_config_template: ":art-gtests-target-standalone-template",
+
+    // Support multilib variants (using different suffix per sub-architecture),
+    // which is needed on build targets with secondary architectures, as the
+    // CTS/MTS/etc test suite packaging logic flattens all test artifacts into a
+    // single `testcases` directory. Also, there is CI testing that expects
+    // 64-bit multilib test suites to work for 32-bit devices (b/233550842).
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
 }
 
 // Properties common to `art_gtest_defaults` and `art_standalone_gtest_defaults`.
