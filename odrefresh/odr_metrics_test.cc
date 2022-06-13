@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 
+#include "android-base/result-gmock.h"
 #include "base/common_art_test.h"
 
 namespace art {
@@ -35,7 +36,7 @@ class OdrMetricsTest : public CommonArtTest {
     CommonArtTest::SetUp();
 
     scratch_dir_ = std::make_unique<ScratchDir>();
-    metrics_file_path_ = scratch_dir_->GetPath() + "/metrics.txt";
+    metrics_file_path_ = scratch_dir_->GetPath() + "/metrics.xml";
     cache_directory_ = scratch_dir_->GetPath() + "/dir";
     mkdir(cache_directory_.c_str(), S_IRWXU);
   }
@@ -207,11 +208,8 @@ TEST_F(OdrMetricsTest, CacheSpaceValuesAreUpdated) {
     EXPECT_EQ(0, snap.cache_space_free_end_mib);
   }
 
-  OdrMetricsRecord on_disk;
-  std::ifstream ifs(GetMetricsFilePath());
-  EXPECT_TRUE(ifs);
-  ifs >> on_disk;
-  EXPECT_TRUE(ifs);
+  OdrMetricsRecord on_disk{};
+  EXPECT_THAT(on_disk.ReadFromFile(GetMetricsFilePath()), android::base::testing::Ok());
   EXPECT_EQ(snap.cache_space_free_start_mib, on_disk.cache_space_free_start_mib);
   EXPECT_NE(0, on_disk.cache_space_free_end_mib);
 }
