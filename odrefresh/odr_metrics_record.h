@@ -20,16 +20,23 @@
 #include <cstdint>
 #include <iosfwd>  // For forward-declaration of std::string.
 
+#include "android-base/result.h"
+#include "tinyxml2.h"
+
 namespace art {
 namespace odrefresh {
 
 // Default location for storing metrics from odrefresh.
-constexpr const char* kOdrefreshMetricsFile = "/data/misc/odrefresh/odrefresh-metrics.txt";
+constexpr const char* kOdrefreshMetricsFile = "/data/misc/odrefresh/odrefresh-metrics.xml";
+
+// Initial OdrefreshMetrics version
+static constexpr int32_t kOdrefreshMetricsVersion = 1;
 
 // MetricsRecord is a simpler container for Odrefresh metric values reported to statsd. The order
 // and types of fields here mirror definition of `OdrefreshReported` in
 // frameworks/proto_logging/stats/atoms.proto.
 struct OdrMetricsRecord {
+  int32_t odrefresh_metrics_version;
   int64_t art_apex_version;
   int32_t trigger;
   int32_t stage_reached;
@@ -39,23 +46,15 @@ struct OdrMetricsRecord {
   int32_t system_server_compilation_seconds;
   int32_t cache_space_free_start_mib;
   int32_t cache_space_free_end_mib;
+
+  // Reads a `MetricsRecord` from an XML file.
+  // Returns an error if the XML document was not found or parsed correctly.
+  android::base::Result<void> ReadFromFile(const std::string& filename);
+
+  // Writes a `MetricsRecord` to an XML file.
+  // Returns an error if the XML document was not saved correctly.
+  android::base::Result<void> WriteToFile(const std::string& filename) const;
 };
-
-// Read a `MetricsRecord` from an `istream`.
-//
-// This method blocks istream related exceptions, the caller should check `is.fail()` is false after
-// calling.
-//
-// Returns `is`.
-std::istream& operator>>(std::istream& is, OdrMetricsRecord& record);
-
-// Write a `MetricsRecord` to an `ostream`.
-//
-// This method blocks ostream related exceptions, the caller should check `os.fail()` is false after
-// calling.
-//
-// Returns `os`
-std::ostream& operator<<(std::ostream& os, const OdrMetricsRecord& record);
 
 }  // namespace odrefresh
 }  // namespace art
