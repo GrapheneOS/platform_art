@@ -15,6 +15,7 @@
  */
 
 #include <dirent.h>
+#include <inttypes.h>
 #include <poll.h>
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
@@ -38,8 +39,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
-#include <backtrace/Backtrace.h>
-#include <backtrace/BacktraceMap.h>
+#include <unwindstack/AndroidUnwinder.h>
 
 namespace art {
 namespace {
@@ -492,11 +492,10 @@ constexpr bool kIs64Bit = true;
 constexpr bool kIs64Bit = false;
 #endif
 
-void DumpThread(pid_t pid,
+void DumpThread(unwindstack::AndroidRemoteUnwinder& unwinder, pid_t pid,
                 pid_t tid,
                 const std::string* addr2line_path,
-                const char* prefix,
-                BacktraceMap* map) {
+                const char* prefix) {
   LOG(ERROR) << std::endl << "=== pid: " << pid << " tid: " << tid << " ===" << std::endl;
 
   constexpr uint32_t kMaxWaitMicros = 1000 * 1000;  // 1s.
@@ -504,50 +503,41 @@ void DumpThread(pid_t pid,
     LOG(ERROR) << "Failed to wait for sigstop on " << tid;
   }
 
-  std::unique_ptr<Backtrace> backtrace(Backtrace::Create(pid, tid, map));
-  if (backtrace == nullptr) {
-    LOG(ERROR) << prefix << "(failed to create Backtrace for thread " << tid << ")";
-    return;
-  }
-  backtrace->SetSkipFrames(false);
-  if (!backtrace->Unwind(0, nullptr)) {
-    LOG(ERROR) << prefix << "(backtrace::Unwind failed for thread " << tid
-               << ": " <<  backtrace->GetErrorString(backtrace->GetError()) << ")";
-    return;
-  }
-  if (backtrace->NumFrames() == 0) {
-    LOG(ERROR) << prefix << "(no native stack frames for thread " << tid << ")";
+  unwindstack::AndroidUnwinderData data;
+  if (!unwinder.Unwind(tid, data)) {
+    LOG(ERROR) << prefix << "(Unwind failed for thread " << tid << ": "
+               <<  data.GetErrorString() << ")";
     return;
   }
 
   std::unique_ptr<addr2line::Addr2linePipe> addr2line_state;
-
-  for (Backtrace::const_iterator it = backtrace->begin();
-      it != backtrace->end(); ++it) {
+  data.DemangleFunctionNames();
+  for (const unwindstack::FrameData& frame : data.frames) {
     std::ostringstream oss;
-    oss << prefix << StringPrintf("#%02zu pc ", it->num);
+    oss << prefix << StringPrintf("#%02zu pc ", frame.num);
     bool try_addr2line = false;
-    if (!BacktraceMap::IsValid(it->map)) {
-      oss << StringPrintf(kIs64Bit ? "%016" PRIx64 "  ???" : "%08" PRIx64 "  ???", it->pc);
+    if (frame.map_info == nullptr) {
+      oss << StringPrintf(kIs64Bit ? "%016" PRIx64 "  ???" : "%08" PRIx64 "  ???", frame.pc);
     } else {
-      oss << StringPrintf(kIs64Bit ? "%016" PRIx64 "  " : "%08" PRIx64 "  ", it->rel_pc);
-      if (it->map.name.empty()) {
-        oss << StringPrintf("<anonymous:%" PRIx64 ">", it->map.start);
+      oss << StringPrintf(kIs64Bit ? "%016" PRIx64 "  " : "%08" PRIx64 "  ", frame.rel_pc);
+      if (frame.map_info->name().empty()) {
+        oss << StringPrintf("<anonymous:%" PRIx64 ">", frame.map_info->start());
       } else {
-        oss << it->map.name;
+        oss << frame.map_info->name().c_str();
       }
-      if (it->map.offset != 0) {
-        oss << StringPrintf(" (offset %" PRIx64 ")", it->map.offset);
+      if (frame.map_info->offset() != 0) {
+        oss << StringPrintf(" (offset %" PRIx64 ")", frame.map_info->offset());
       }
       oss << " (";
-      if (!it->func_name.empty()) {
-        oss << it->func_name;
-        if (it->func_offset != 0) {
-          oss << "+" << it->func_offset;
+      const std::string& function_name = frame.function_name;
+      if (!function_name.empty()) {
+        oss << function_name;
+        if (frame.function_offset != 0) {
+          oss << "+" << frame.function_offset;
         }
         // Functions found using the gdb jit interface will be in an empty
         // map that cannot be found using addr2line.
-        if (!it->map.name.empty()) {
+        if (!frame.map_info->name().empty()) {
           try_addr2line = true;
         }
       } else {
@@ -558,8 +548,8 @@ void DumpThread(pid_t pid,
     LOG(ERROR) << oss.str() << std::endl;
     if (try_addr2line && addr2line_path != nullptr) {
       addr2line::Addr2line(*addr2line_path,
-                           it->map.name,
-                           it->rel_pc,
+                           frame.map_info->name(),
+                           frame.rel_pc,
                            LOG_STREAM(ERROR),
                            prefix,
                            &addr2line_state);
@@ -593,14 +583,9 @@ void DumpProcess(pid_t forked_pid, const std::atomic<bool>& saw_wif_stopped_for_
     LOG(ERROR) << "Did not receive SIGSTOP for pid " << forked_pid;
   }
 
-  std::unique_ptr<BacktraceMap> backtrace_map(BacktraceMap::Create(forked_pid));
-  if (backtrace_map == nullptr) {
-    LOG(ERROR) << "Could not create BacktraceMap";
-    return;
-  }
-
+  unwindstack::AndroidRemoteUnwinder unwinder(forked_pid);
   for (pid_t tid : tids) {
-    DumpThread(forked_pid, tid, addr2line_path.get(), "  ", backtrace_map.get());
+    DumpThread(unwinder, forked_pid, tid, addr2line_path.get(), "  ");
   }
 }
 

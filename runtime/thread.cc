@@ -41,6 +41,8 @@
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 
+#include "unwindstack/AndroidUnwinder.h"
+
 #include "arch/context-inl.h"
 #include "arch/context.h"
 #include "art_field-inl.h"
@@ -1391,10 +1393,15 @@ void Thread::ShortDump(std::ostream& os) const {
   tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
 }
 
-void Thread::Dump(std::ostream& os, bool dump_native_stack, BacktraceMap* backtrace_map,
-                  bool force_dump_stack) const {
+void Thread::Dump(std::ostream& os, bool dump_native_stack, bool force_dump_stack) const {
   DumpState(os);
-  DumpStack(os, dump_native_stack, backtrace_map, force_dump_stack);
+  DumpStack(os, dump_native_stack, force_dump_stack);
+}
+
+void Thread::Dump(std::ostream& os, unwindstack::AndroidLocalUnwinder& unwinder,
+                  bool dump_native_stack, bool force_dump_stack) const {
+  DumpState(os);
+  DumpStack(os, unwinder, dump_native_stack, force_dump_stack);
 }
 
 ObjPtr<mirror::String> Thread::GetThreadName() const {
@@ -2280,7 +2287,14 @@ void Thread::DumpJavaStack(std::ostream& os, bool check_suspended, bool dump_loc
 
 void Thread::DumpStack(std::ostream& os,
                        bool dump_native_stack,
-                       BacktraceMap* backtrace_map,
+                       bool force_dump_stack) const {
+  unwindstack::AndroidLocalUnwinder unwinder;
+  DumpStack(os, unwinder, dump_native_stack, force_dump_stack);
+}
+
+void Thread::DumpStack(std::ostream& os,
+                       unwindstack::AndroidLocalUnwinder& unwinder,
+                       bool dump_native_stack,
                        bool force_dump_stack) const {
   // TODO: we call this code when dying but may not have suspended the thread ourself. The
   //       IsSuspended check is therefore racy with the use for dumping (normally we inhibit
@@ -2299,7 +2313,7 @@ void Thread::DumpStack(std::ostream& os,
           GetCurrentMethod(nullptr,
                            /*check_suspended=*/ !force_dump_stack,
                            /*abort_on_error=*/ !(dump_for_abort || force_dump_stack));
-      DumpNativeStack(os, GetTid(), backtrace_map, "  native: ", method);
+      DumpNativeStack(os, unwinder, GetTid(), "  native: ", method);
     }
     DumpJavaStack(os,
                   /*check_suspended=*/ !force_dump_stack,
