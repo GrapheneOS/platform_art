@@ -293,7 +293,7 @@ art_cc_defaults {
     ],
     header_libs: ["jni_headers"],
     shared_libs: [
-        "libbacktrace",
+        "libunwindstack",
         "libziparchive",
     ],
 }

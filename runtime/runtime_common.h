@@ -42,7 +42,7 @@ struct Backtrace {
   void Dump(std::ostream& os) const {
     // This is a backtrace from a crash, do not skip any frames in case the
     // crash is in the unwinder itself.
-    DumpNativeStack(os, GetTid(), nullptr, "\t", nullptr, raw_context_, false);
+    DumpNativeStack(os, GetTid(), "\t", nullptr, raw_context_, false);
   }
  private:
   // Stores the context of the signal that was unexpected and will terminate the runtime. The
