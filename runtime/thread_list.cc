@@ -24,9 +24,9 @@
 #include <vector>
 
 #include "android-base/stringprintf.h"
-#include "backtrace/BacktraceMap.h"
 #include "nativehelper/scoped_local_ref.h"
 #include "nativehelper/scoped_utf_chars.h"
+#include "unwindstack/AndroidUnwinder.h"
 
 #include "base/aborting.h"
 #include "base/histogram-inl.h"
@@ -124,10 +124,10 @@ pid_t ThreadList::GetLockOwner() {
 
 void ThreadList::DumpNativeStacks(std::ostream& os) {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-  std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid()));
+  unwindstack::AndroidLocalUnwinder unwinder;
   for (const auto& thread : list_) {
     os << "DUMPING THREAD " << thread->GetTid() << "\n";
-    DumpNativeStack(os, thread->GetTid(), map.get(), "\t");
+    DumpNativeStack(os, unwinder, thread->GetTid(), "\t");
     os << "\n";
   }
 }
@@ -153,7 +153,7 @@ static void DumpUnattachedThread(std::ostream& os, pid_t tid, bool dump_native_s
   // refactor DumpState to avoid skipping analysis.
   Thread::DumpState(os, nullptr, tid);
   if (dump_native_stack) {
-    DumpNativeStack(os, tid, nullptr, "  native: ");
+    DumpNativeStack(os, tid, "  native: ");
   }
   os << std::endl;
 }
@@ -195,11 +195,8 @@ class DumpCheckpoint final : public Closure {
         // Avoid verifying count in case a thread doesn't end up passing through the barrier.
         // This avoids a SIGABRT that would otherwise happen in the destructor.
         barrier_(0, /*verify_count_on_shutdown=*/false),
-        backtrace_map_(dump_native_stack ? BacktraceMap::Create(getpid()) : nullptr),
+        unwinder_(std::vector<std::string>{}, std::vector<std::string> {"oat", "odex"}),
         dump_native_stack_(dump_native_stack) {
-    if (backtrace_map_ != nullptr) {
-      backtrace_map_->SetSuffixesToIgnore(std::vector<std::string> { "oat", "odex" });
-    }
   }
 
   void Run(Thread* thread) override {
@@ -210,7 +207,7 @@ class DumpCheckpoint final : public Closure {
     std::ostringstream local_os;
     {
       ScopedObjectAccess soa(self);
-      thread->Dump(local_os, dump_native_stack_, backtrace_map_.get());
+      thread->Dump(local_os, unwinder_, dump_native_stack_);
     }
     {
       // Use the logging lock to ensure serialization when writing to the common ostream.
@@ -237,7 +234,7 @@ class DumpCheckpoint final : public Closure {
   // The barrier to be passed through and for the requestor to wait upon.
   Barrier barrier_;
   // A backtrace map, so that all threads use a shared info and don't reacquire/parse separately.
-  std::unique_ptr<BacktraceMap> backtrace_map_;
+  unwindstack::AndroidLocalUnwinder unwinder_;
   // Whether we should dump the native stack.
   const bool dump_native_stack_;
 };
@@ -486,7 +483,6 @@ void ThreadList::RunEmptyCheckpoint() {
               // Assume it's stuck and safe to dump its stack.
               thread->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT),
                            /*dump_native_stack=*/ true,
-                           /*backtrace_map=*/ nullptr,
                            /*force_dump_stack=*/ true);
             }
           }
@@ -1324,7 +1320,7 @@ void ThreadList::Unregister(Thread* self) {
         std::string thread_name;
         self->GetThreadName(thread_name);
         std::ostringstream os;
-        DumpNativeStack(os, GetTid(), nullptr, "  native: ", nullptr);
+        DumpNativeStack(os, GetTid(), "  native: ", nullptr);
         LOG(ERROR) << "Request to unregister unattached thread " << thread_name << "\n" << os.str();
         break;
       } else {

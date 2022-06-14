@@ -24,8 +24,7 @@
 #include "art_method.h"
 
 // For DumpNativeStack.
-#include <backtrace/Backtrace.h>
-#include <backtrace/BacktraceMap.h>
+#include <unwindstack/AndroidUnwinder.h>
 
 #if defined(__linux__)
 
@@ -324,27 +323,33 @@ static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFET
 
 void DumpNativeStack(std::ostream& os,
                      pid_t tid,
-                     BacktraceMap* existing_map,
+                     const char* prefix,
+                     ArtMethod* current_method,
+                     void* ucontext_ptr,
+                     bool skip_frames) {
+  unwindstack::AndroidLocalUnwinder unwinder;
+  DumpNativeStack(os, unwinder, tid, prefix, current_method, ucontext_ptr, skip_frames);
+}
+
+void DumpNativeStack(std::ostream& os,
+                     unwindstack::AndroidLocalUnwinder& unwinder,
+                     pid_t tid,
                      const char* prefix,
                      ArtMethod* current_method,
                      void* ucontext_ptr,
                      bool skip_frames) {
   // Historical note: This was disabled when running under Valgrind (b/18119146).
 
-  BacktraceMap* map = existing_map;
-  std::unique_ptr<BacktraceMap> tmp_map;
-  if (map == nullptr) {
-    tmp_map.reset(BacktraceMap::Create(getpid()));
-    map = tmp_map.get();
+  unwindstack::AndroidUnwinderData data(!skip_frames /*show_all_frames*/);
+  bool unwind_ret;
+  if (ucontext_ptr != nullptr) {
+    unwind_ret = unwinder.Unwind(ucontext_ptr, data);
+  } else {
+    unwind_ret = unwinder.Unwind(tid, data);
   }
-  std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid, map));
-  backtrace->SetSkipFrames(skip_frames);
-  if (!backtrace->Unwind(0, reinterpret_cast<ucontext*>(ucontext_ptr))) {
-    os << prefix << "(backtrace::Unwind failed for thread " << tid
-       << ": " <<  backtrace->GetErrorString(backtrace->GetError()) << ")" << std::endl;
-    return;
-  } else if (backtrace->NumFrames() == 0) {
-    os << prefix << "(no native stack frames for thread " << tid << ")" << std::endl;
+  if (!unwind_ret) {
+    os << prefix << "(Unwind failed for thread " << tid << ": "
+       <<  data.GetErrorString() << ")" << std::endl;
     return;
   }
 
@@ -359,9 +364,8 @@ void DumpNativeStack(std::ostream& os,
   }
 
   std::unique_ptr<Addr2linePipe> addr2line_state;
-
-  for (Backtrace::const_iterator it = backtrace->begin();
-       it != backtrace->end(); ++it) {
+  data.DemangleFunctionNames();
+  for (const unwindstack::FrameData& frame : data.frames) {
     // We produce output like this:
     // ]    #00 pc 000075bb8  /system/lib/libc.so (unwind_backtrace_thread+536)
     // In order for parsing tools to continue to function, the stack dump
@@ -370,53 +374,55 @@ void DumpNativeStack(std::ostream& os,
     // The parsers require a single space before and after pc, and two spaces
     // after the <RELATIVE_ADDR>. There can be any prefix data before the
     // #XX. <RELATIVE_ADDR> has to be a hex number but with no 0x prefix.
-    os << prefix << StringPrintf("#%02zu pc ", it->num);
+    os << prefix << StringPrintf("#%02zu pc ", frame.num);
     bool try_addr2line = false;
-    if (!BacktraceMap::IsValid(it->map)) {
+    if (frame.map_info == nullptr) {
       os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIx64 "  ???"
                                                             : "%08" PRIx64 "  ???",
-                         it->pc);
+                         frame.pc);
     } else {
       os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIx64 "  "
                                                             : "%08" PRIx64 "  ",
-                         it->rel_pc);
-      if (it->map.name.empty()) {
-        os << StringPrintf("<anonymous:%" PRIx64 ">", it->map.start);
+                         frame.rel_pc);
+      const std::shared_ptr<unwindstack::MapInfo>& map_info = frame.map_info;
+      if (map_info->name().empty()) {
+        os << StringPrintf("<anonymous:%" PRIx64 ">", map_info->start());
       } else {
-        os << it->map.name;
+        os << map_info->name().c_str();
       }
-      if (it->map.offset != 0) {
-        os << StringPrintf(" (offset %" PRIx64 ")", it->map.offset);
+      if (map_info->elf_start_offset() != 0) {
+        os << StringPrintf(" (offset %" PRIx64 ")", map_info->elf_start_offset());
       }
       os << " (";
-      if (!it->func_name.empty()) {
-        os << it->func_name;
-        if (it->func_offset != 0) {
-          os << "+" << it->func_offset;
+      if (!frame.function_name.empty()) {
+        os << frame.function_name.c_str();
+        if (frame.function_offset != 0) {
+          os << "+" << frame.function_offset;
         }
         // Functions found using the gdb jit interface will be in an empty
         // map that cannot be found using addr2line.
-        if (!it->map.name.empty()) {
+        if (!map_info->name().empty()) {
           try_addr2line = true;
         }
       } else if (current_method != nullptr &&
           Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
-          PcIsWithinQuickCode(current_method, it->pc)) {
+          PcIsWithinQuickCode(current_method, frame.pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << current_method->JniLongName() << "+"
-           << (it->pc - reinterpret_cast<uint64_t>(start_of_code));
+           << (frame.pc - reinterpret_cast<uint64_t>(start_of_code));
       } else {
         os << "???";
       }
       os << ")";
-      std::string build_id = map->GetBuildId(it->pc);
+      std::string build_id = map_info->GetPrintableBuildID();
       if (!build_id.empty()) {
         os << " (BuildId: " << build_id << ")";
       }
     }
     os << std::endl;
     if (try_addr2line && use_addr2line) {
-      Addr2line(it->map.name, it->rel_pc, os, prefix, &addr2line_state);
+      // Guaranteed that map_info is not nullptr and name is non-empty.
+      Addr2line(frame.map_info->name(), frame.rel_pc, os, prefix, &addr2line_state);
     }
   }
 
@@ -429,7 +435,15 @@ void DumpNativeStack(std::ostream& os,
 
 void DumpNativeStack(std::ostream& os ATTRIBUTE_UNUSED,
                      pid_t tid ATTRIBUTE_UNUSED,
-                     BacktraceMap* existing_map ATTRIBUTE_UNUSED,
+                     const char* prefix ATTRIBUTE_UNUSED,
+                     ArtMethod* current_method ATTRIBUTE_UNUSED,
+                     void* ucontext_ptr ATTRIBUTE_UNUSED,
+                     bool skip_frames ATTRIBUTE_UNUSED) {
+}
+
+void DumpNativeStack(std::ostream& os ATTRIBUTE_UNUSED,
+                     unwindstack::AndroidLocalUnwinder& existing_map ATTRIBUTE_UNUSED,
+                     pid_t tid ATTRIBUTE_UNUSED,
                      const char* prefix ATTRIBUTE_UNUSED,
                      ArtMethod* current_method ATTRIBUTE_UNUSED,
                      void* ucontext_ptr ATTRIBUTE_UNUSED,

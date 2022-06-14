@@ -26,7 +26,7 @@ class Unwinder;
 
 namespace art {
 
-// Using libbacktrace
+// Using libunwindstack
 class BacktraceCollector {
  public:
   BacktraceCollector(uintptr_t* out_frames, size_t max_depth, size_t skip_count)

@@ -465,8 +465,8 @@ art_cc_defaults {
     ],
 
     shared_libs: [
-        "libbacktrace",
         "libnativeloader",
+        "libunwindstack",
     ],
 
     target: {
