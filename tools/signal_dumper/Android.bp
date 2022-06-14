@@ -48,18 +48,6 @@ cc_defaults {
     },
 }
 
-cc_defaults {
-    name: "signal_dumper_libbacktrace_static_deps",
-    defaults: [
-        "signal_dumper_libbase_static_deps",
-        "signal_dumper_libunwindstack_static_deps",
-    ],
-    static_libs: [
-        "libbase",
-        "libunwindstack",
-    ],
-}
-
 art_cc_binary {
     name: "signal_dumper",
 
@@ -73,14 +61,14 @@ art_cc_binary {
 
     defaults: [
         "art_defaults",
-        "signal_dumper_libbacktrace_static_deps",
         "signal_dumper_libbase_static_deps",
+        "signal_dumper_libunwindstack_static_deps",
     ],
 
     srcs: ["signal_dumper.cc"],
 
     static_libs: [
-        "libbacktrace",
         "libbase",
+        "libunwindstack",
     ],
 }
