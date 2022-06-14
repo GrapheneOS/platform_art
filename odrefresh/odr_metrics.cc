@@ -119,6 +119,7 @@ bool OdrMetrics::ToRecord(/*out*/OdrMetricsRecord* record) const {
   if (!trigger_.has_value()) {
     return false;
   }
+  record->odrefresh_metrics_version = kOdrefreshMetricsVersion;
   record->art_apex_version = art_apex_version_;
   record->trigger = static_cast<uint32_t>(trigger_.value());
   record->stage_reached = static_cast<uint32_t>(stage_);
@@ -132,15 +133,17 @@ bool OdrMetrics::ToRecord(/*out*/OdrMetricsRecord* record) const {
 }
 
 void OdrMetrics::WriteToFile(const std::string& path, const OdrMetrics* metrics) {
-  OdrMetricsRecord record;
+  OdrMetricsRecord record{};
   if (!metrics->ToRecord(&record)) {
     LOG(ERROR) << "Attempting to report metrics without a compilation trigger.";
     return;
   }
 
-  // Preserve order from frameworks/proto_logging/stats/atoms.proto in metrics file written.
-  std::ofstream ofs(path);
-  ofs << record;
+  const android::base::Result<void>& result = record.WriteToFile(path);
+  if (!result.ok()) {
+    LOG(ERROR) << "Failed to report metrics to file: " << path
+               << ", error: " << result.error().message();
+  }
 }
 
 }  // namespace odrefresh

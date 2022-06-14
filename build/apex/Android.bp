@@ -400,6 +400,7 @@ apex {
 
 // ART gtests with dependencies on internal ART APEX libraries.
 art_gtests = [
+    "art_artd_tests",
     "art_cmdline_tests",
     "art_compiler_tests",
     "art_dex2oat_tests",
