@@ -460,15 +460,7 @@ void DeoptManager::AddDeoptimizationRequester() {
   art::ScopedThreadStateChange stsc(self, art::ThreadState::kSuspended);
   deoptimization_status_lock_.ExclusiveLock(self);
   deopter_count_++;
-  if (deopter_count_ == 1) {
-    ScopedDeoptimizationContext sdc(self, this);
-    art::instrumentation::Instrumentation* instrumentation =
-        art::Runtime::Current()->GetInstrumentation();
-    // Tell instrumentation we will be deopting single threads.
-    instrumentation->EnableSingleThreadDeopt(kInstrumentationKey);
-  } else {
-    deoptimization_status_lock_.ExclusiveUnlock(self);
-  }
+  deoptimization_status_lock_.ExclusiveUnlock(self);
 }
 
 void DeoptManager::DeoptimizeThread(art::Thread* target) {
