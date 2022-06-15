@@ -787,6 +787,23 @@ static jobjectArray Class_getNestMembersFromAnnotation(JNIEnv* env, jobject java
   return soa.AddLocalReference<jobjectArray>(classes);
 }
 
+static jobjectArray Class_getPermittedSubclassesFromAnnotation(JNIEnv* env, jobject javaThis) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
+  if (klass->IsObsoleteObject()) {
+    ThrowRuntimeException("Obsolete Object!");
+    return nullptr;
+  }
+  if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
+    return nullptr;
+  }
+  ObjPtr<mirror::ObjectArray<mirror::Class>> classes = annotations::GetPermittedSubclasses(klass);
+  if (classes == nullptr) {
+    return nullptr;
+  }
+  return soa.AddLocalReference<jobjectArray>(classes);
+}
 
 static jobject Class_ensureExtDataPresent(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
@@ -917,6 +934,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Class, getNestHostFromAnnotation, "()Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getNestMembersFromAnnotation, "()[Ljava/lang/Class;"),
+  FAST_NATIVE_METHOD(Class, getPermittedSubclassesFromAnnotation, "()[Ljava/lang/Class;"),
   FAST_NATIVE_METHOD(Class, getPublicDeclaredFields, "()[Ljava/lang/reflect/Field;"),
   FAST_NATIVE_METHOD(Class, getSignatureAnnotation, "()[Ljava/lang/String;"),
   FAST_NATIVE_METHOD(Class, isAnonymousClass, "()Z"),
