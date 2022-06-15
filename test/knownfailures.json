@@ -1273,7 +1273,7 @@
         "tests": ["141-class-unload", "071-dexfile"],
         "variant": "gcstress",
         "bug": "b/111543628",
-        "description" : ["Test seems to timeout when run with gcstress due to slower unwinding by libbacktrace"]
+        "description" : ["Test seems to timeout when run with gcstress due to slower unwinding by libunwindstack"]
     },
     {
         "tests": ["708-jit-cache-churn"],
@@ -1285,7 +1285,7 @@
         "tests": ["712-varhandle-invocations"],
         "variant": "gcstress",
         "bug": "b/111630237",
-        "description": ["Test timing out under gcstress possibly due to slower unwinding by libbacktrace"]
+        "description": ["Test timing out under gcstress possibly due to slower unwinding by libunwindstack"]
     },
     {
         "tests": ["1336-short-finalizer-timeout"],
