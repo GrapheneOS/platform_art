@@ -1507,10 +1507,6 @@ ART_QUICK_ALLOC_OBJECT_ROSALLOC art_quick_alloc_object_initialized_rosalloc, art
     str    x5, [xSELF, #THREAD_LOCAL_OBJECTS_OFFSET]
     POISON_HEAP_REF w0
     str    w0, [x4, #MIRROR_OBJECT_CLASS_OFFSET]              // Store the class pointer.
-                                                              // Fence. This is "ish" not "ishst" so
-                                                              // that the code after this allocation
-                                                              // site will see the right values in
-                                                              // the fields of the class.
     mov    x0, x4
     // No barrier. The class is already observably initialized (otherwise the fast
     // path size check above would fail) and new-instance allocations are protected
@@ -1578,7 +1574,6 @@ GENERATE_ALLOC_OBJECT_RESOLVED_TLAB art_quick_alloc_object_initialized_tlab, art
     POISON_HEAP_REF \wClass
     str    \wClass, [x0, #MIRROR_OBJECT_CLASS_OFFSET]         // Store the class pointer.
     str    \wCount, [x0, #MIRROR_ARRAY_LENGTH_OFFSET]         // Store the array length.
-                                                              // Fence.
 // new-array is special. The class is loaded and immediately goes to the Initialized state
 // before it is published. Therefore the only fence needed is for the publication of the object.
 // See ClassLinker::CreateArrayClass() for more details.
