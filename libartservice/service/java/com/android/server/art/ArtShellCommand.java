@@ -22,9 +22,8 @@ import android.os.Binder;
 import android.os.Process;
 
 import com.android.modules.utils.BasicShellCommandHandler;
-import com.android.server.art.model.DeleteOptions;
+import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
-import com.android.server.art.model.GetStatusOptions;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
@@ -56,12 +55,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         switch (cmd) {
             case "delete-optimized-artifacts":
                 DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
-                        snapshot, getNextArgRequired(), new DeleteOptions.Builder().build());
+                        snapshot, getNextArgRequired(), ArtFlags.defaultDeleteFlags());
                 pw.printf("Freed %d bytes\n", result.getFreedBytes());
                 return 0;
             case "get-optimization-status":
                 OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
-                        snapshot, getNextArgRequired(), new GetStatusOptions.Builder().build());
+                        snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
                 for (DexFileOptimizationStatus status :
                         optimizationStatus.getDexFileOptimizationStatuses()) {
                     pw.printf("dexFile = %s, instructionSet = %s, compilerFilter = %s, "

@@ -34,9 +34,7 @@ import android.content.pm.ApplicationInfo;
 
 import androidx.test.filters.SmallTest;
 
-import com.android.server.art.model.DeleteOptions;
 import com.android.server.art.model.DeleteResult;
-import com.android.server.art.model.GetStatusOptions;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageDataSnapshot;
@@ -97,7 +95,7 @@ public class ArtManagerLocalTest {
         when(mArtd.deleteArtifacts(any())).thenReturn(1l);
 
         DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
-                mock(PackageDataSnapshot.class), PKG_NAME, new DeleteOptions.Builder().build());
+                mock(PackageDataSnapshot.class), PKG_NAME);
         assertThat(result.getFreedBytes()).isEqualTo(4);
 
         verify(mArtd).deleteArtifacts(argThat(artifactsPath
@@ -123,16 +121,14 @@ public class ArtManagerLocalTest {
     public void testDeleteOptimizedArtifactsPackageNotFound() throws Exception {
         when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME))).thenReturn(null);
 
-        mArtManagerLocal.deleteOptimizedArtifacts(
-                mock(PackageDataSnapshot.class), PKG_NAME, new DeleteOptions.Builder().build());
+        mArtManagerLocal.deleteOptimizedArtifacts(mock(PackageDataSnapshot.class), PKG_NAME);
     }
 
     @Test(expected = IllegalStateException.class)
     public void testDeleteOptimizedArtifactsNoPackage() throws Exception {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
-        mArtManagerLocal.deleteOptimizedArtifacts(
-                mock(PackageDataSnapshot.class), PKG_NAME, new DeleteOptions.Builder().build());
+        mArtManagerLocal.deleteOptimizedArtifacts(mock(PackageDataSnapshot.class), PKG_NAME);
     }
 
     @Test
@@ -147,8 +143,8 @@ public class ArtManagerLocalTest {
                         createGetOptimizationStatusResult(
                                 "extract", "compilation-reason-3", "location-debug-string-3"));
 
-        OptimizationStatus result = mArtManagerLocal.getOptimizationStatus(
-                mock(PackageDataSnapshot.class), PKG_NAME, new GetStatusOptions.Builder().build());
+        OptimizationStatus result =
+                mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
 
         List<DexFileOptimizationStatus> statuses = result.getDexFileOptimizationStatuses();
         assertThat(statuses.size()).isEqualTo(4);
@@ -182,16 +178,14 @@ public class ArtManagerLocalTest {
     public void testGetOptimizationStatusPackageNotFound() throws Exception {
         when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME))).thenReturn(null);
 
-        mArtManagerLocal.getOptimizationStatus(
-                mock(PackageDataSnapshot.class), PKG_NAME, new GetStatusOptions.Builder().build());
+        mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
     }
 
     @Test(expected = IllegalStateException.class)
     public void testGetOptimizationStatusNoPackage() throws Exception {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
-        mArtManagerLocal.getOptimizationStatus(
-                mock(PackageDataSnapshot.class), PKG_NAME, new GetStatusOptions.Builder().build());
+        mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
     }
 
     private AndroidPackageApi createPackage() {
