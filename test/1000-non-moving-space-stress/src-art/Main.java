@@ -15,8 +15,11 @@
  */
 
 import dalvik.system.VMRuntime;
+import java.lang.ref.Reference;  // For reachabilityFence.
+import java.util.ArrayList;
 
 public class Main {
+  private static final boolean SHOULD_PRINT = false;  // True causes failure.
 
   public static void main(String[] args) throws Exception {
     VMRuntime runtime = VMRuntime.getRuntime();
@@ -35,15 +38,40 @@ public class Main {
         Object[] moving_array = new Object[S];
       }
     } catch (OutOfMemoryError e) {
-      // Stop here.
+      System.out.println("Unexpected OOME");
     }
-    System.out.println("passed");
+    Runtime.getRuntime().gc();
+    int numAllocs = 0;
+    ArrayList<Object> chunks = new ArrayList<>();
+    try {
+      final int MAX_PLAUSIBLE_ALLOCS = 1024 * 1024;
+      for (numAllocs = 0; numAllocs < MAX_PLAUSIBLE_ALLOCS; ++numAllocs) {
+        chunks.add(runtime.newNonMovableArray(Object.class, 252));  // About 1KB
+      }
+      // If we get here, we've allocated about 1GB of nonmovable memory, which
+      // should be impossible.
+    } catch (OutOfMemoryError e) {
+      chunks.remove(0);  // Give us a little space back.
+      if (((Object[]) (chunks.get(42)))[17] != null) {
+        System.out.println("Bad entry in chunks array");
+      } else {
+        chunks.clear();  // Recover remaining space.
+        if (SHOULD_PRINT) {
+          System.out.println("Successfully allocated " + numAllocs + " non-movable KBs");
+        }
+        System.out.println("passed");
+      }
+      Reference.reachabilityFence(chunks);
+      return;
+    }
+    Reference.reachabilityFence(chunks);
+    System.out.println("Failed to exhaust non-movable space");
   }
 
   // When using the Concurrent Copying (CC) collector (default collector),
   // this method allocates an object in the non-moving space and an object
   // in the region space, make the former reference the later, and returns
-  // nothing (so that none of these objects are reachable when upon return).
+  // nothing (so that none of these objects are reachable upon return).
   static void $noinline$Alloc(VMRuntime runtime) {
     Object[] non_moving_array = (Object[]) runtime.newNonMovableArray(Object.class, 1);
     // Small object, unlikely to trigger garbage collection.
