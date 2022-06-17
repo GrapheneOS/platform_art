@@ -162,6 +162,8 @@ Calling public java.lang.Package java.lang.Class.getPackage() with params: []
 public java.lang.Package java.lang.Class.getPackage() on (obsolete)class Main$Transform with [] = null
 Calling public java.lang.String java.lang.Class.getPackageName() with params: []
 public java.lang.String java.lang.Class.getPackageName() on (obsolete)class Main$Transform with [] = 
+Calling public java.lang.Class[] java.lang.Class.getPermittedSubclasses() with params: []
+public java.lang.Class[] java.lang.Class.getPermittedSubclasses() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() with params: []
 public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() on (obsolete)class Main$Transform with [] = null
 Calling public java.net.URL java.lang.Class.getResource(java.lang.String) with params: [[NOT_USED_STRING, foo, SECRET_ARRAY]]
@@ -221,6 +223,8 @@ Calling public boolean java.lang.Class.isPrimitive() with params: []
 public boolean java.lang.Class.isPrimitive() on (obsolete)class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isProxy() with params: []
 public boolean java.lang.Class.isProxy() on (obsolete)class Main$Transform with [] = false
+Calling public boolean java.lang.Class.isSealed() with params: []
+public boolean java.lang.Class.isSealed() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public boolean java.lang.Class.isSynthetic() with params: []
 public boolean java.lang.Class.isSynthetic() with [] throws java.lang.reflect.InvocationTargetException: java.lang.RuntimeException: Obsolete Object!
 Calling public native java.lang.Object java.lang.Class.newInstance() throws java.lang.InstantiationException,java.lang.IllegalAccessException with params: []
@@ -379,6 +383,8 @@ Calling public java.lang.Package java.lang.Class.getPackage() with params: []
 public java.lang.Package java.lang.Class.getPackage() on class Main$Transform with [] = null
 Calling public java.lang.String java.lang.Class.getPackageName() with params: []
 public java.lang.String java.lang.Class.getPackageName() on class Main$Transform with [] = 
+Calling public java.lang.Class[] java.lang.Class.getPermittedSubclasses() with params: []
+public java.lang.Class[] java.lang.Class.getPermittedSubclasses() on class Main$Transform with [] = null
 Calling public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() with params: []
 public java.security.ProtectionDomain java.lang.Class.getProtectionDomain() on class Main$Transform with [] = null
 Calling public java.net.URL java.lang.Class.getResource(java.lang.String) with params: [[NOT_USED_STRING, foo, SECRET_ARRAY]]
@@ -438,6 +444,8 @@ Calling public boolean java.lang.Class.isPrimitive() with params: []
 public boolean java.lang.Class.isPrimitive() on class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isProxy() with params: []
 public boolean java.lang.Class.isProxy() on class Main$Transform with [] = false
+Calling public boolean java.lang.Class.isSealed() with params: []
+public boolean java.lang.Class.isSealed() on class Main$Transform with [] = false
 Calling public boolean java.lang.Class.isSynthetic() with params: []
 public boolean java.lang.Class.isSynthetic() on class Main$Transform with [] = false
 Calling public native java.lang.Object java.lang.Class.newInstance() throws java.lang.InstantiationException,java.lang.IllegalAccessException with params: []
