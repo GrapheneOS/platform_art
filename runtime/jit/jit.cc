@@ -762,7 +762,11 @@ class ScopedCompilation {
         compilation_kind_(compilation_kind),
         owns_compilation_(true) {
     MutexLock mu(Thread::Current(), *Locks::jit_lock_);
-    if (jit_->GetCodeCache()->IsMethodBeingCompiled(method_, compilation_kind_)) {
+    // We don't want to enqueue any new tasks when thread pool has stopped. This simplifies
+    // the implementation of redefinition feature in jvmti.
+    if (jit_->GetThreadPool() == nullptr ||
+        !jit_->GetThreadPool()->HasStarted(Thread::Current()) ||
+        jit_->GetCodeCache()->IsMethodBeingCompiled(method_, compilation_kind_)) {
       owns_compilation_ = false;
       return;
     }
@@ -772,7 +776,6 @@ class ScopedCompilation {
   bool OwnsCompilation() const {
     return owns_compilation_;
   }
-
 
   ~ScopedCompilation() {
     if (owns_compilation_) {
