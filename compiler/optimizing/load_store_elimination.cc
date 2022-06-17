@@ -1764,7 +1764,6 @@ static HInstruction* FindOrConstructNonLoopPhi(
   if (type == DataType::Type::kReference) {
     // Update reference type information. Pass invalid handles, these are not used for Phis.
     ReferenceTypePropagation rtp_fixup(block->GetGraph(),
-                                       Handle<mirror::ClassLoader>(),
                                        Handle<mirror::DexCache>(),
                                        /* is_first_run= */ false);
     rtp_fixup.Visit(phi);
@@ -2352,7 +2351,6 @@ bool LSEVisitor::MaterializeLoopPhis(ArrayRef<const size_t> phi_placeholder_inde
     }
     // Update reference type information. Pass invalid handles, these are not used for Phis.
     ReferenceTypePropagation rtp_fixup(GetGraph(),
-                                       Handle<mirror::ClassLoader>(),
                                        Handle<mirror::DexCache>(),
                                        /* is_first_run= */ false);
     rtp_fixup.Visit(ArrayRef<HInstruction* const>(phis));
@@ -3013,7 +3011,6 @@ class PartialLoadStoreEliminationHelper {
       return;
     }
     ReferenceTypePropagation rtp_fixup(GetGraph(),
-                                       Handle<mirror::ClassLoader>(),
                                        Handle<mirror::DexCache>(),
                                        /* is_first_run= */ false);
     rtp_fixup.Visit(ArrayRef<HInstruction* const>(new_ref_phis_));
