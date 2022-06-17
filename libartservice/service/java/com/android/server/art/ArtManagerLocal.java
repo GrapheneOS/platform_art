@@ -25,6 +25,7 @@ import static com.android.server.art.model.OptimizationStatus.DexFileOptimizatio
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.os.Binder;
+import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.util.Log;
@@ -35,11 +36,10 @@ import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
+import com.android.server.pm.snapshot.PackageDataSnapshot;
 
-import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -85,10 +85,12 @@ public final class ArtManagerLocal {
      * @throws IllegalArgumentException if the arguments are illegal
      * @see ArtShellCommand#onHelp()
      */
-    public int handleShellCommand(@NonNull Binder target, @NonNull FileDescriptor in,
-            @NonNull FileDescriptor out, @NonNull FileDescriptor err, @NonNull String[] args) {
+    public int handleShellCommand(@NonNull Binder target, @NonNull ParcelFileDescriptor in,
+            @NonNull ParcelFileDescriptor out, @NonNull ParcelFileDescriptor err,
+            @NonNull String[] args) {
         return new ArtShellCommand(this, mInjector.getPackageManagerLocal())
-                .exec(target, in, out, err, args);
+                .exec(target, in.getFileDescriptor(), out.getFileDescriptor(),
+                        err.getFileDescriptor(), args);
     }
 
     /**
@@ -96,8 +98,17 @@ public final class ArtManagerLocal {
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if an internal error occurs
+     */
+    @NonNull
+    public DeleteResult deleteOptimizedArtifacts(
+            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
+        return deleteOptimizedArtifacts(snapshot, packageName, ArtFlags.defaultDeleteFlags());
+    }
+
+    /**
+     * Same as above, but allows to specify flags.
      *
-     * @hide
+     * @see #deleteOptimizedArtifacts(PackageDataSnapshot, String)
      */
     @NonNull
     public DeleteResult deleteOptimizedArtifacts(@NonNull PackageDataSnapshot snapshot,
@@ -139,25 +150,21 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Same as above, but with default flags.
-     *
-     * @see #deleteOptimizedArtifacts(PackageDataSnapshot, String, int)
-     *
-     * @hide
-     */
-    @NonNull
-    public DeleteResult deleteOptimizedArtifacts(
-            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
-        return deleteOptimizedArtifacts(snapshot, packageName, ArtFlags.defaultDeleteFlags());
-    }
-
-    /**
      * Returns the optimization status of a package.
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if an internal error occurs
+     */
+    @NonNull
+    public OptimizationStatus getOptimizationStatus(
+            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
+        return getOptimizationStatus(snapshot, packageName, ArtFlags.defaultGetStatusFlags());
+    }
+
+    /**
+     * Same as above, but allows to specify flags.
      *
-     * @hide
+     * @see #getOptimizationStatus(PackageDataSnapshot, String)
      */
     @NonNull
     public OptimizationStatus getOptimizationStatus(@NonNull PackageDataSnapshot snapshot,
@@ -200,19 +207,6 @@ public final class ArtManagerLocal {
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }
-    }
-
-    /**
-     * Same as above, but with default flags.
-     *
-     * @see #getOptimizationStatus(PackageDataSnapshot, String, int)
-     *
-     * @hide
-     */
-    @NonNull
-    public OptimizationStatus getOptimizationStatus(
-            @NonNull PackageDataSnapshot snapshot, @NonNull String packageName) {
-        return getOptimizationStatus(snapshot, packageName, ArtFlags.defaultGetStatusFlags());
     }
 
     private PackageState getPackageStateOrThrow(

@@ -16,10 +16,14 @@
 
 package com.android.server.art.model;
 
+import android.annotation.SystemApi;
+
 /** @hide */
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public class DeleteResult {
     private long mFreedBytes;
 
+    /** @hide */
     public DeleteResult(long freedBytes) {
         mFreedBytes = freedBytes;
     }

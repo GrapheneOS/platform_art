@@ -6,7 +6,6 @@ correspond to system APIs planned to be exposed.
 The mappings are:
 
 - `AndroidPackageApi`: `com.android.server.pm.pkg.AndroidPackageApi`
-- `PackageDataSnapshot`: `com.android.server.pm.snapshot.PackageDataSnapshot`
 - `PackageManagerLocal`: `com.android.server.pm.PackageManagerLocal`
 - `PackageState`: `com.android.server.pm.pkg.PackageState`
 - `SharedLibraryInfo`: `android.content.pm.SharedLibraryInfo`

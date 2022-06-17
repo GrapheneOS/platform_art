@@ -37,9 +37,9 @@ import androidx.test.filters.SmallTest;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageDataSnapshot;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
+import com.android.server.pm.snapshot.PackageDataSnapshot;
 
 import org.junit.Before;
 import org.junit.Rule;

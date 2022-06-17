@@ -3,7 +3,38 @@ package com.android.server.art {
 
   public final class ArtManagerLocal {
     ctor public ArtManagerLocal();
-    method public int handleShellCommand(@NonNull android.os.Binder, @NonNull java.io.FileDescriptor, @NonNull java.io.FileDescriptor, @NonNull java.io.FileDescriptor, @NonNull String[]);
+    method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String);
+    method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String, int);
+    method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String);
+    method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String, int);
+    method public int handleShellCommand(@NonNull android.os.Binder, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull String[]);
+  }
+
+}
+
+package com.android.server.art.model {
+
+  public class ArtFlags {
+    method public static int defaultDeleteFlags();
+    method public static int defaultGetStatusFlags();
+    field public static final int FLAG_FOR_PRIMARY_DEX = 1; // 0x1
+    field public static final int FLAG_FOR_SECONDARY_DEX = 2; // 0x2
+  }
+
+  public class DeleteResult {
+    method public long getFreedBytes();
+  }
+
+  public class OptimizationStatus {
+    method @NonNull public java.util.List<com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus> getDexFileOptimizationStatuses();
+  }
+
+  public static class OptimizationStatus.DexFileOptimizationStatus {
+    method @NonNull public String getCompilationReason();
+    method @NonNull public String getCompilerFilter();
+    method @NonNull public String getDexFile();
+    method @NonNull public String getInstructionSet();
+    method @NonNull public String getLocationDebugString();
   }
 
 }

@@ -20,6 +20,8 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.os.UserHandle;
 
+import com.android.server.pm.snapshot.PackageDataSnapshot;
+
 /** @hide */
 public class PackageManagerLocal {
     private final Object mPackageManagerInternal;
@@ -50,10 +52,9 @@ public class PackageManagerLocal {
     @NonNull
     public PackageDataSnapshot snapshot() {
         try {
-            Object snapshot = mPackageManagerInternal.getClass()
-                                      .getMethod("snapshot")
-                                      .invoke(mPackageManagerInternal);
-            return new PackageDataSnapshot(snapshot);
+            return (PackageDataSnapshot) mPackageManagerInternal.getClass()
+                    .getMethod("snapshot")
+                    .invoke(mPackageManagerInternal);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
@@ -66,11 +67,10 @@ public class PackageManagerLocal {
             int userId = (int) UserHandle.class.getMethod("getUserId", int.class)
                                  .invoke(null, callingUid);
             Class<?> computerClass = Class.forName("com.android.server.pm.Computer");
-            Object packageState =
-                    computerClass
-                            .getMethod("getPackageStateForInstalledAndFiltered", String.class,
-                                    int.class, int.class)
-                            .invoke(snapshot.getRealInstance(), packageName, callingUid, userId);
+            Object packageState = computerClass
+                                          .getMethod("getPackageStateForInstalledAndFiltered",
+                                                  String.class, int.class, int.class)
+                                          .invoke(snapshot, packageName, callingUid, userId);
             return packageState != null ? new PackageState(packageState) : null;
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
