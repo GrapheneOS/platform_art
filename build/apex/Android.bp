@@ -400,6 +400,9 @@ apex {
 
 // ART gtests with dependencies on internal ART APEX libraries.
 art_gtests = [
+    // TODO(b/235464166): art_artd_tests doesn't work on master-art because of
+    // the dependency on libbinder_ndk.
+    // "art_artd_tests",
     "art_cmdline_tests",
     "art_compiler_tests",
     "art_dex2oat_tests",

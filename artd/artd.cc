@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "artd.h"
+
 #include <unistd.h>
 
 #include <string>
@@ -31,54 +33,30 @@ namespace artd {
 
 namespace {
 
-using ::aidl::com::android::server::art::BnArtd;
 using ::android::base::Error;
 using ::android::base::Result;
 using ::ndk::ScopedAStatus;
 
+constexpr const char* kServiceName = "artd";
+
 }  // namespace
 
-class Artd : public BnArtd {
-  constexpr static const char* kServiceName = "artd";
+ScopedAStatus Artd::isAlive(bool* _aidl_return) {
+  *_aidl_return = true;
+  return ScopedAStatus::ok();
+}
 
- public:
-  ScopedAStatus isAlive(bool* _aidl_return) override {
-    *_aidl_return = true;
-    return ScopedAStatus::ok();
+Result<void> Artd::Start() {
+  ScopedAStatus status = ScopedAStatus::fromStatus(
+      AServiceManager_registerLazyService(this->asBinder().get(), kServiceName));
+  if (!status.isOk()) {
+    return Error() << status.getDescription();
   }
 
-  Result<void> Start() {
-    LOG(INFO) << "Starting artd";
+  ABinderProcess_startThreadPool();
 
-    ScopedAStatus status = ScopedAStatus::fromStatus(
-        AServiceManager_registerLazyService(this->asBinder().get(), kServiceName));
-    if (!status.isOk()) {
-      return Error() << status.getDescription();
-    }
-
-    ABinderProcess_startThreadPool();
-
-    return {};
-  }
-};
+  return {};
+}
 
 }  // namespace artd
 }  // namespace art
-
-int main(const int argc __attribute__((unused)), char* argv[]) {
-  setenv("ANDROID_LOG_TAGS", "*:v", 1);
-  android::base::InitLogging(argv);
-
-  art::artd::Artd artd;
-
-  if (auto ret = artd.Start(); !ret.ok()) {
-    LOG(ERROR) << "Unable to start artd: " << ret.error();
-    exit(1);
-  }
-
-  ABinderProcess_joinThreadPool();
-
-  LOG(INFO) << "artd shutting down";
-
-  return 0;
-}
