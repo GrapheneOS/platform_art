@@ -123,6 +123,9 @@ class ThreadPool {
   // Do not allow workers to grab any new tasks.
   void StopWorkers(Thread* self) REQUIRES(!task_queue_lock_);
 
+  // Returns if the thread pool has started.
+  bool HasStarted(Thread* self) REQUIRES(!task_queue_lock_);
+
   // Add a new task, the first available started worker will process it. Does not delete the task
   // after running it, it is the caller's responsibility.
   void AddTask(Thread* self, Task* task) REQUIRES(!task_queue_lock_);
