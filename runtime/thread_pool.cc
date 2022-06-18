@@ -246,6 +246,11 @@ void ThreadPool::StopWorkers(Thread* self) {
   started_ = false;
 }
 
+bool ThreadPool::HasStarted(Thread* self) {
+  MutexLock mu(self, task_queue_lock_);
+  return started_;
+}
+
 Task* ThreadPool::GetTask(Thread* self) {
   MutexLock mu(self, task_queue_lock_);
   while (!IsShuttingDown()) {
