@@ -19,8 +19,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -29,6 +32,7 @@
 #include "android-base/logging.h"
 #include "android-base/properties.h"
 #include "android-base/result.h"
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android/binder_auto_utils.h"
 #include "android/binder_manager.h"
@@ -36,6 +40,7 @@
 #include "base/array_ref.h"
 #include "base/file_utils.h"
 #include "oat_file_assistant.h"
+#include "path_utils.h"
 #include "runtime.h"
 #include "tools/tools.h"
 
@@ -50,6 +55,7 @@ using ::android::base::Error;
 using ::android::base::GetBoolProperty;
 using ::android::base::Result;
 using ::android::base::Split;
+using ::android::base::StringPrintf;
 using ::ndk::ScopedAStatus;
 
 constexpr const char* kServiceName = "artd";
@@ -92,6 +98,28 @@ bool DenyArtApexDataFiles() {
   return !GetBoolProperty("odsign.verification.success", /*default_value=*/false);
 }
 
+// Deletes a file. Returns the size of the deleted file, or 0 if the deleted file is empty or an
+// error occurs.
+int64_t GetSizeAndDeleteFile(const std::string& path) {
+  std::error_code ec;
+  int64_t size = std::filesystem::file_size(path, ec);
+  if (ec) {
+    // It is okay if the file does not exist. We don't have to log it.
+    if (ec.value() != ENOENT) {
+      LOG(ERROR) << StringPrintf(
+          "Failed to get the file size of '%s': %s", path.c_str(), ec.message().c_str());
+    }
+    return 0;
+  }
+
+  if (!std::filesystem::remove(path, ec)) {
+    LOG(ERROR) << StringPrintf("Failed to remove '%s': %s", path.c_str(), ec.message().c_str());
+    return 0;
+  }
+
+  return size;
+}
+
 }  // namespace
 
 ScopedAStatus Artd::isAlive(bool* _aidl_return) {
@@ -100,9 +128,18 @@ ScopedAStatus Artd::isAlive(bool* _aidl_return) {
 }
 
 ScopedAStatus Artd::deleteArtifacts(const ArtifactsPath& in_artifactsPath, int64_t* _aidl_return) {
-  (void)in_artifactsPath;
-  (void)_aidl_return;
-  return ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+  Result<std::string> oat_path = BuildOatPath(in_artifactsPath);
+  if (!oat_path.ok()) {
+    return ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
+                                                       oat_path.error().message().c_str());
+  }
+
+  *_aidl_return = 0;
+  *_aidl_return += GetSizeAndDeleteFile(*oat_path);
+  *_aidl_return += GetSizeAndDeleteFile(OatPathToVdexPath(*oat_path));
+  *_aidl_return += GetSizeAndDeleteFile(OatPathToArtPath(*oat_path));
+
+  return ScopedAStatus::ok();
 }
 
 ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
