@@ -45,7 +45,7 @@
 
 namespace art {
 
-typedef CodeGenerator* (*CreateCodegenFn)(HGraph*, const CompilerOptions&);
+using CreateCodegenFn = CodeGenerator* (*)(HGraph*, const CompilerOptions&);
 
 class CodegenTargetConfig {
  public:
@@ -257,7 +257,7 @@ static void Run(const InternalCodeAllocator& allocator,
   const void* code_ptr =
       code_holder.MakeExecutable(allocator.GetMemory(), ArrayRef<const uint8_t>(), target_isa);
 
-  typedef Expected (*fptr)();
+  using fptr = Expected (*)();
   fptr f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(code_ptr));
   if (target_isa == InstructionSet::kThumb2) {
     // For thumb we need the bottom bit set.
