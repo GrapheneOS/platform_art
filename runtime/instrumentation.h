@@ -541,13 +541,6 @@ class Instrumentation {
   void InstallStubsForMethod(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!GetDeoptimizedMethodsLock());
 
-  // Sets up instrumentation to allow single thread deoptimization using ForceInterpreterCount.
-  void EnableSingleThreadDeopt(const char* key)
-      REQUIRES(Locks::mutator_lock_, Roles::uninterruptible_)
-      REQUIRES(!Locks::thread_list_lock_,
-               !Locks::classlinker_classes_lock_,
-               !GetDeoptimizedMethodsLock());
-
   // Install instrumentation exit stub on every method of the stack of the given thread.
   // This is used by:
   //  - the debugger to cause a deoptimization of the all frames in thread's stack (for
