@@ -201,6 +201,17 @@ $ art/test.py --target -r -t 001-HelloWorld
 ## Running one gtest on the build host
 
 ```sh
+$ m test-art-host-gtest-art_runtime_tests
+```
+
+Note: Although this is a build command, it actually builds the test with
+dependencies and runs the test.
+
+If you want to run the test with more options, use the following commands
+instead. Note that you need to run the test with the command above at least once
+before you run the commands below.
+
+```sh
 $ find out/host/ -type f -name art_runtime_tests  # Find the path of the test.
 $ out/host/linux-x86/nativetest/art_runtime_tests/art_runtime_tests
 ```
