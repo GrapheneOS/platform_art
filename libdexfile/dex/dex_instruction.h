@@ -22,8 +22,8 @@
 #include "base/globals.h"
 #include "base/macros.h"
 
-typedef uint8_t uint4_t;
-typedef int8_t int4_t;
+using uint4_t = uint8_t;
+using int4_t = int8_t;
 
 namespace art {
 

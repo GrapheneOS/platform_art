@@ -35,11 +35,11 @@ template <typename ElfTypes>
 class ElfDebugReader {
  public:
   // Note that the input buffer might be misaligned.
-  typedef typename ElfTypes::Ehdr ALIGNED(1) Elf_Ehdr;
-  typedef typename ElfTypes::Phdr ALIGNED(1) Elf_Phdr;
-  typedef typename ElfTypes::Shdr ALIGNED(1) Elf_Shdr;
-  typedef typename ElfTypes::Sym ALIGNED(1) Elf_Sym;
-  typedef typename ElfTypes::Addr ALIGNED(1) Elf_Addr;
+  using Elf_Ehdr ALIGNED(1) = typename ElfTypes::Ehdr;
+  using Elf_Phdr ALIGNED(1) = typename ElfTypes::Phdr;
+  using Elf_Shdr ALIGNED(1) = typename ElfTypes::Shdr;
+  using Elf_Sym ALIGNED(1) = typename ElfTypes::Sym;
+  using Elf_Addr ALIGNED(1) = typename ElfTypes::Addr;
 
   // Call Frame Information.
   struct CFI {

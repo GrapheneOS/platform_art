@@ -47,7 +47,7 @@ art_clang_tidy_allowed = [
     "bugprone-unused-return-value",
     "misc-unused-using-decls",
     "modernize-use-nullptr",
-    "modernize-use-using",
+    "modernize-use-using", // TODO: move to art_clang_tidy_errors after b/236243696 is done
     "performance-faster-string-find",
     "performance-for-range-copy",
     "performance-noexcept-move-constructor",
