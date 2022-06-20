@@ -570,7 +570,7 @@ class DexFile {
   };
 
   // Callback for "new locals table entry".
-  typedef void (*DexDebugNewLocalCb)(void* context, const LocalInfo& entry);
+  using DexDebugNewLocalCb = void (*)(void* context, const LocalInfo& entry);
 
   const dex::AnnotationsDirectoryItem* GetAnnotationsDirectory(const dex::ClassDef& class_def)
       const {

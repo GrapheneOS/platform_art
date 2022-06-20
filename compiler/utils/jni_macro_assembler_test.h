@@ -39,7 +39,7 @@ class JNIMacroAssemblerTest : public AssemblerTestBase {
     return assembler_.get();
   }
 
-  typedef std::string (*TestFn)(JNIMacroAssemblerTest* assembler_test, Ass* assembler);
+  using TestFn = std::string (*)(JNIMacroAssemblerTest *, Ass *);
 
   void DriverFn(TestFn f, const std::string& test_name) {
     DriverWrapper(f(this, assembler_.get()), test_name);
