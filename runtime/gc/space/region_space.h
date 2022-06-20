@@ -46,7 +46,7 @@ static constexpr bool kCyclicRegionAllocation = kIsDebugBuild;
 // A space that consists of equal-sized regions.
 class RegionSpace final : public ContinuousMemMapAllocSpace {
  public:
-  typedef void(*WalkCallback)(void *start, void *end, size_t num_bytes, void* callback_arg);
+  using WalkCallback = void (*)(void *start, void *end, size_t num_bytes, void* callback_arg);
 
   enum EvacMode {
     kEvacModeNewlyAllocated,

@@ -559,7 +559,7 @@ class OptimizingUnitTestHelper {
 class OptimizingUnitTest : public CommonArtTest, public OptimizingUnitTestHelper {};
 
 // Naive string diff data type.
-typedef std::list<std::pair<std::string, std::string>> diff_t;
+using diff_t = std::list<std::pair<std::string, std::string>>;
 
 // An alias for the empty string used to make it clear that a line is
 // removed in a diff.

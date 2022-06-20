@@ -23,7 +23,7 @@
 extern "C" {
 #endif  // __cplusplus
 
-typedef int32_t palette_status_t;
+using palette_status_t = int32_t;
 
 // Palette function return value when the function completed successfully.
 #define PALETTE_STATUS_OK                 ((palette_status_t) 0)

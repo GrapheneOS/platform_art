@@ -44,7 +44,7 @@ class DataHash {
       uint32_t hash = Murmur3Start();
 
       const size_t nblocks = length_in_bytes / 4;
-      typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
+      using unaligned_uint32_t __attribute__((__aligned__(1))) = uint32_t;
       const unaligned_uint32_t* blocks = reinterpret_cast<const unaligned_uint32_t*>(data);
       for (size_t i = 0; i != nblocks; ++i) {
         hash = Murmur3Update(hash, blocks[i]);
