@@ -42,7 +42,7 @@ class Platform {
   // Instead of having two set of mock APIs for the two, define only one set with an additional
   // argument 'bool bridged' to identify the context (i.e., called for libdl_android or
   // libnativebridge).
-  typedef char* mock_namespace_handle;
+  using mock_namespace_handle = char*;
   virtual bool mock_init_anonymous_namespace(bool bridged, const char* sonames,
                                              const char* search_paths) = 0;
   virtual mock_namespace_handle mock_create_namespace(
