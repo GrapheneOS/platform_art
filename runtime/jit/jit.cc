@@ -568,7 +568,12 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   // Before allowing the jump, make sure no code is actively inspecting the method to avoid
   // jumping from interpreter to OSR while e.g. single stepping. Note that we could selectively
   // disable OSR when single stepping, but that's currently hard to know at this point.
-  if (Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method)) {
+  if (Runtime::Current()->GetInstrumentation()->InterpreterStubsInstalled() ||
+      Runtime::Current()->GetInstrumentation()->IsDeoptimized(method) ||
+      thread->IsForceInterpreter() ||
+      method->GetDeclaringClass()->IsObsoleteObject() ||
+      Dbg::IsForcedInterpreterNeededForUpcall(thread, method) ||
+      Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method)) {
     return false;
   }
 
