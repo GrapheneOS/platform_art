@@ -32,6 +32,7 @@ Steps to setup CLion.
 (Also, exclude projects that you don't bother about. This will make
 the indexing faster).
 """
+from __future__ import print_function
 
 import sys
 import os
@@ -47,7 +48,7 @@ def get_android_build_top():
     path_to_top = os.path.realpath(path_to_top)
 
   if not os.path.exists(os.path.join(path_to_top, 'build/envsetup.sh')):
-    print path_to_top
+    print(path_to_top)
     raise AssertionError("geneate_cmake_lists.py must be located inside an android source tree")
 
   return path_to_top
