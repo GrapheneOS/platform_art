@@ -68,12 +68,15 @@ class CatchBlockStackVisitor final : public StackVisitor {
                          Context* context,
                          Handle<mirror::Throwable>* exception,
                          QuickExceptionHandler* exception_handler,
-                         uint32_t skip_frames)
+                         uint32_t skip_frames,
+                         bool skip_top_unwind_callback)
       REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         exception_(exception),
         exception_handler_(exception_handler),
-        skip_frames_(skip_frames) {
+        skip_frames_(skip_frames),
+        skip_unwind_callback_(skip_top_unwind_callback) {
+    DCHECK_IMPLIES(skip_unwind_callback_, skip_frames_ == 0);
   }
 
   bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -101,9 +104,14 @@ class CatchBlockStackVisitor final : public StackVisitor {
     // can potentially throw, so we want to call these after we find the catch block.
     // We stop the stack walk when we find the catch block. If we are ending the stack walk we don't
     // have to unwind this method so don't record it.
-    if (continue_stack_walk) {
+    if (continue_stack_walk && !skip_unwind_callback_) {
+      // Skip unwind callback is only used when method exit callback has thrown an exception. In
+      // that case, we should have runtime method (artMethodExitHook) on top of stack and the
+      // second should be the method for which method exit was called.
+      DCHECK_IMPLIES(skip_unwind_callback_, GetFrameDepth() == 2);
       unwound_methods_.push(method);
     }
+    skip_unwind_callback_ = false;
     return continue_stack_walk;
   }
 
@@ -155,13 +163,18 @@ class CatchBlockStackVisitor final : public StackVisitor {
   // The list of methods we would skip to reach the catch block. We record these to call
   // MethodUnwind callbacks.
   std::queue<ArtMethod*> unwound_methods_;
+  // Specifies if the unwind callback should be ignored for method at the top of the stack.
+  bool skip_unwind_callback_;
 
   DISALLOW_COPY_AND_ASSIGN(CatchBlockStackVisitor);
 };
 
 // Finds the appropriate exception catch after calling all method exit instrumentation functions.
-// Note that this might change the exception being thrown.
-void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception) {
+// Note that this might change the exception being thrown. If is_method_exit_exception is true
+// skip the method unwind call for the method on top of the stack as the exception was thrown by
+// method exit callback.
+void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception,
+                                      bool is_method_exit_exception) {
   DCHECK(!is_deoptimization_);
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   // The number of total frames we have so far popped.
@@ -169,6 +182,7 @@ void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception) {
   bool popped_to_top = true;
   StackHandleScope<1> hs(self_);
   MutableHandle<mirror::Throwable> exception_ref(hs.NewHandle(exception));
+  bool skip_top_unwind_callback = is_method_exit_exception;
   // Sending the instrumentation events (done by the InstrumentationStackPopper) can cause new
   // exceptions to be thrown which will override the current exception. Therefore we need to perform
   // the search for a catch in a loop until we have successfully popped all the way to a catch or
@@ -182,11 +196,15 @@ void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception) {
     }
 
     // Walk the stack to find catch handler.
-    CatchBlockStackVisitor visitor(self_, context_,
+    CatchBlockStackVisitor visitor(self_,
+                                   context_,
                                    &exception_ref,
                                    this,
-                                   /*skip_frames=*/already_popped);
+                                   /*skip_frames=*/already_popped,
+                                   skip_top_unwind_callback);
     visitor.WalkStack(true);
+    skip_top_unwind_callback = false;
+
     uint32_t new_pop_count = handler_frame_depth_;
     DCHECK_GE(new_pop_count, already_popped);
     already_popped = new_pop_count;
