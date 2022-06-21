@@ -254,6 +254,7 @@ ALWAYS_INLINE void CopyRegisters(ShadowFrame& caller_frame,
 
 // END DECLARATIONS.
 
+NO_STACK_PROTECTOR
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                         ArtMethod* caller,
                                         ShadowFrame* shadow_frame,
@@ -1410,6 +1411,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 }
 
 template<bool is_range, bool do_assignability_check>
+NO_STACK_PROTECTOR
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
   // Argument word count.

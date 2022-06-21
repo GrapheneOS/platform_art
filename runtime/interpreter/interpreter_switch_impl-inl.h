@@ -1834,6 +1834,7 @@ DEX_INSTRUCTION_LIST(OPCODE_CASE)
 #undef OPCODE_CASE
 
 template<bool do_access_check, bool transaction_active>
+NO_STACK_PROTECTOR
 void ExecuteSwitchImplCpp(SwitchImplContext* ctx) {
   Thread* self = ctx->self;
   const CodeItemDataAccessor& accessor = ctx->accessor;
