@@ -1028,7 +1028,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
       << "Proxy method " << method->PrettyMethod()
       << " (declaring class: " << method->GetDeclaringClass()->PrettyClass() << ")"
       << " should not hit instrumentation entrypoint.";
-  DCHECK(!instrumentation->IsDeoptimized(method));
+  DCHECK(!instrumentation->IsDeoptimized(method)) << method->PrettyMethod();
   // This will get the entry point either from the oat file, the JIT or the appropriate bridge
   // method if none of those can be found.
   result = instrumentation->GetCodeForInvoke(method);
