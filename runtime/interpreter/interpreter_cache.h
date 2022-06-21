@@ -47,7 +47,7 @@ class Thread;
 class ALIGNED(16) InterpreterCache {
  public:
   // Aligned since we load the whole entry in single assembly instruction.
-  typedef std::pair<const void*, size_t> Entry ALIGNED(2 * sizeof(size_t));
+  using Entry ALIGNED(2 * sizeof(size_t)) = std::pair<const void*, size_t>;
 
   // 2x size increase/decrease corresponds to ~0.5% interpreter performance change.
   // Value of 256 has around 75% cache hit rate.

@@ -40,7 +40,7 @@ struct NativeBridgeRuntimeValues;
 // Function pointer type for sigaction. This is mostly the signature of a signal handler, except
 // for the return type. The runtime needs to know whether the signal was handled or should be given
 // to the chain.
-typedef bool (*NativeBridgeSignalHandlerFn)(int, siginfo_t*, void*);
+typedef bool (*NativeBridgeSignalHandlerFn)(int, siginfo_t*, void*);  // NOLINT
 
 // Open the native bridge, if any. Should be called by Runtime::Init(). A null library filename
 // signals that we do not want to load a native bridge.

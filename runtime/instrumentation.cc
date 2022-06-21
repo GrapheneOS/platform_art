@@ -630,12 +630,10 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
         return true;  // Ignore upcalls and runtime methods.
       }
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
-      // For JITed frames, we don't install instrumentation stubs.
       if (method_header != nullptr && method_header->HasShouldDeoptimizeFlag()) {
         if (IsShouldDeoptimizeFlagForDebugSet()) {
           runtime_methods_need_deopt_check_ = true;
         }
-        return true;
       }
       auto it = instrumentation_stack_->find(GetReturnPcAddr());
       if (it != instrumentation_stack_->end()) {

@@ -28,10 +28,10 @@ __BEGIN_DECLS
 // may only be added here. C++ users should use dex_file_support.h instead.
 
 struct ADexFile;
-typedef struct ADexFile ADexFile;
+typedef struct ADexFile ADexFile; // NOLINT
 
 struct ADexFile_Method;
-typedef struct ADexFile_Method ADexFile_Method;
+typedef struct ADexFile_Method ADexFile_Method; // NOLINT
 
 enum ADexFile_Error : uint32_t {
   ADEXFILE_ERROR_OK = 0,
@@ -39,10 +39,11 @@ enum ADexFile_Error : uint32_t {
   ADEXFILE_ERROR_INVALID_HEADER = 2,
   ADEXFILE_ERROR_NOT_ENOUGH_DATA = 3,
 };
-typedef enum ADexFile_Error ADexFile_Error;
+typedef enum ADexFile_Error ADexFile_Error; // NOLINT
 
 // Callback used to return information about a dex method.
 // The method information is valid only during the callback.
+// NOLINTNEXTLINE
 typedef void ADexFile_MethodCallback(void* _Nullable callback_data,
                                      const ADexFile_Method* _Nonnull method);
 
