@@ -50,19 +50,61 @@ Note that using this chroot-based approach requires root access to the device
     ```
 2. Set lunch target and ADB:
     * With a minimal `aosp/master-art` tree:
-        ```bash
-        export SOONG_ALLOW_MISSING_DEPENDENCIES=true
-        . ./build/envsetup.sh
-        lunch armv8-eng  # or arm_krait-eng for 32-bit ARM
-        export PATH="$(pwd)/prebuilts/runtime:$PATH"
-        export ADB="$ANDROID_BUILD_TOP/prebuilts/runtime/adb"
-        ```
+        1. Initialize the environment:
+            ```bash
+            export SOONG_ALLOW_MISSING_DEPENDENCIES=true
+            . ./build/envsetup.sh
+            ```
+        2. Select a lunch target corresponding to the architecture you want to
+           build and test:
+            * For (32-bit) Arm:
+                ```bash
+                lunch arm_krait-eng
+                ```
+            * For (64-bit only) Arm64:
+                ```bash
+                lunch armv8-eng
+                ```
+            * For (32- and 64-bit) Arm64:
+                ```bash
+                lunch arm_v7_v8-eng
+                ```
+            * For (32-bit) Intel x86:
+                ```bash
+                lunch silvermont-eng
+                ```
+        3. Set up the environment to use a pre-built ADB:
+            ```bash
+            export PATH="$(pwd)/prebuilts/runtime:$PATH"
+            export ADB="$ANDROID_BUILD_TOP/prebuilts/runtime/adb"
+            ```
     * With a full Android (AOSP) `aosp/master` tree:
-        ```bash
-        . ./build/envsetup.sh
-        lunch aosp_arm64-eng  # or aosp_arm-eng for 32-bit ARM
-        m adb
-        ```
+        1. Initialize the environment:
+            ```bash
+            . ./build/envsetup.sh
+            ```
+        2. Select a lunch target corresponding to the architecture you want to
+           build and test:
+            * For (32-bit) Arm:
+                ```bash
+                lunch aosp_arm-eng
+                ```
+            * For (32- and 64-bit) Arm64:
+                ```bash
+                lunch aosp_arm64-eng
+                ```
+            * For (32-bit) Intel x86:
+                ```bash
+                lunch aosp_x86-eng
+                ```
+            * For (32- and 64-bit) Intel x86-64:
+                ```bash
+                lunch aosp_x86_64-eng
+                ```
+        3. Build ADB:
+            ```bash
+            m adb
+            ```
 3. Build ART and required dependencies:
     ```bash
     art/tools/buildbot-build.sh --target
