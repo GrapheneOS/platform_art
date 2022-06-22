@@ -1174,6 +1174,7 @@
                   "831-unresolved-field",
                   "833-background-verification",
                   "836-32768classes",
+                  "837-deopt",
                   "999-redefine-hiddenapi",
                   "1000-non-moving-space-stress",
                   "1001-app-image-regions",
@@ -1520,5 +1521,10 @@
         "tests": ["2043-reference-pauses"],
         "env_vars": {"ART_TEST_DEBUG_GC": "true"},
         "description": ["Test timing out on debug gc."]
+    },
+    {
+        "tests": ["837-deopt"],
+        "description": ["Tests deoptimization and OSR, which never happens when tracing."],
+        "variant": "trace | stream"
     }
 ]
