@@ -143,9 +143,8 @@ class MethodInspectionCallback {
  public:
   virtual ~MethodInspectionCallback() {}
 
-  // Returns true if the method is being inspected currently and the runtime should not modify it in
-  // potentially dangerous ways (i.e. replace with compiled version, JIT it, etc).
-  virtual bool IsMethodBeingInspected(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) = 0;
+  // Returns true if any locals have changed. If any locals have changed we shouldn't OSR.
+  virtual bool HaveLocalsChanged() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
 
 // Callback to let something request to be notified when reflective objects are being visited and
@@ -225,9 +224,9 @@ class RuntimeCallbacks {
   void AddParkCallback(ParkCallback* cb) REQUIRES_SHARED(Locks::mutator_lock_);
   void RemoveParkCallback(ParkCallback* cb) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Returns true if some MethodInspectionCallback indicates the method is being inspected/depended
-  // on by some code.
-  bool IsMethodBeingInspected(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Returns true if any locals have changed. This is used to prevent OSRing frames that have
+  // some locals changed.
+  bool HaveLocalsChanged() REQUIRES_SHARED(Locks::mutator_lock_);
 
   void AddMethodInspectionCallback(MethodInspectionCallback* cb)
       REQUIRES_SHARED(Locks::mutator_lock_);
