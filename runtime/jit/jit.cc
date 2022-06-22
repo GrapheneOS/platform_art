@@ -282,9 +282,8 @@ bool Jit::CompileMethodInternal(ArtMethod* method,
     compilation_kind = CompilationKind::kOptimized;
   }
 
-  RuntimeCallbacks* cb = Runtime::Current()->GetRuntimeCallbacks();
   // Don't compile the method if it has breakpoints.
-  if (cb->IsMethodBeingInspected(method)) {
+  if (Runtime::Current()->GetInstrumentation()->IsDeoptimized(method)) {
     VLOG(jit) << "JIT not compiling " << method->PrettyMethod()
               << " due to not being safe to jit according to runtime-callbacks. For example, there"
               << " could be breakpoints in this method.";
@@ -571,8 +570,11 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   // Before allowing the jump, make sure no code is actively inspecting the method to avoid
   // jumping from interpreter to OSR while e.g. single stepping. Note that we could selectively
   // disable OSR when single stepping, but that's currently hard to know at this point.
+  // Currently, HaveLocalsChanged is not frame specific. It is possible to make it frame specific
+  // to allow OSR of frames that don't have any locals changed but it isn't worth the additional
+  // complexity.
   if (Runtime::Current()->GetInstrumentation()->NeedsSlowInterpreterForMethod(thread, method) ||
-      Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method)) {
+      Runtime::Current()->GetRuntimeCallbacks()->HaveLocalsChanged()) {
     return false;
   }
 
