@@ -625,6 +625,10 @@ bool MethodHandleFieldAccess(Thread* self,
     case mirror::MethodHandle::kInstanceGet: {
       size_t obj_reg = operands->GetOperand(0);
       ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(obj_reg);
+      if (obj == nullptr) {
+        ThrowNullPointerException("Receiver is null");
+        return false;
+      }
       MethodHandleFieldGet(self, shadow_frame, obj, field, field_type, result);
       return true;
     }
@@ -648,6 +652,10 @@ bool MethodHandleFieldAccess(Thread* self,
           callsite_type->GetPTypes()->Get(kPTypeIndex)->GetPrimitiveType(),
           value_reg);
       ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(obj_reg);
+      if (obj == nullptr) {
+        ThrowNullPointerException("Receiver is null");
+        return false;
+      }
       return MethodHandleFieldPut(self, shadow_frame, obj, field, field_type, value);
     }
     case mirror::MethodHandle::kStaticPut: {

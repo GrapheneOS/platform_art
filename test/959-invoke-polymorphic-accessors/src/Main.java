@@ -793,6 +793,10 @@ public class Main {
                 Long z = (Long) h0.invoke(valueHolder);
                 fail();
             } catch (WrongMethodTypeException expected) {}
+            try {
+                int x = (int) h0.invokeExact((ValueHolder) null);
+                fail();
+            } catch (NullPointerException expected) {}
         }
 
         /*package*/ static Number getDoubleAsNumber() {
@@ -822,6 +826,10 @@ public class Main {
               h0.invoke(valueHolder, (Float) null);
               fail();
             } catch (NullPointerException expected) {}
+            try {
+                h0.invoke((ValueHolder) null, Float.valueOf(1.0f));
+                fail();
+              } catch (NullPointerException expected) {}
 
             // Test that type conversion checks work on small field types.
             short temp = (short) s0.invoke(valueHolder, new Byte((byte) 45));
