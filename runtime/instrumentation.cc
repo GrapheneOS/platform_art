@@ -285,9 +285,7 @@ bool Instrumentation::InterpretOnly(ArtMethod* method) REQUIRES_SHARED(Locks::mu
   if (method->IsNative()) {
     return false;
   }
-  return InterpretOnly() ||
-         IsDeoptimized(method) ||
-         Runtime::Current()->GetRuntimeCallbacks()->IsMethodBeingInspected(method);
+  return InterpretOnly() || IsDeoptimized(method);
 }
 
 static bool CanUseAotCode(const void* quick_code)

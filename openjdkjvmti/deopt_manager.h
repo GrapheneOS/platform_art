@@ -57,8 +57,7 @@ struct JvmtiMethodInspectionCallback : public art::MethodInspectionCallback {
  public:
   explicit JvmtiMethodInspectionCallback(DeoptManager* manager) : manager_(manager) {}
 
-  bool IsMethodBeingInspected(art::ArtMethod* method)
-      override REQUIRES_SHARED(art::Locks::mutator_lock_);
+  bool HaveLocalsChanged() override REQUIRES_SHARED(art::Locks::mutator_lock_);
 
  private:
   DeoptManager* manager_;
