@@ -36,6 +36,11 @@ class Main {
 
   public static void main(String[] args) throws Throwable {
     System.loadLibrary(args[0]);
+    if (isDebuggable()) {
+      // We do not deoptimize with inline caches when the app is debuggable, so just don't run the
+      // test.
+      return;
+    }
     test1();
     test2();
   }
@@ -77,6 +82,7 @@ class Main {
   public static native void ensureJitCompiled(Class<?> cls, String methodName);
   public static native void ensureJitBaselineCompiled(Class<?> cls, String methodName);
   public static native boolean isInOsrCode(String methodName);
+  public static native boolean isDebuggable();
 }
 
 // Define a subclass with another implementation of returnValue to deoptimize $noinline$foo and
