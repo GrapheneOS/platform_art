@@ -647,6 +647,7 @@ static void HandleDeoptimization(JValue* result,
                                               method_type);
 }
 
+NO_STACK_PROTECTOR
 extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in the shadow
@@ -1028,7 +1029,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
       << "Proxy method " << method->PrettyMethod()
       << " (declaring class: " << method->GetDeclaringClass()->PrettyClass() << ")"
       << " should not hit instrumentation entrypoint.";
-  DCHECK(!instrumentation->IsDeoptimized(method));
+  DCHECK(!instrumentation->IsDeoptimized(method)) << method->PrettyMethod();
   // This will get the entry point either from the oat file, the JIT or the appropriate bridge
   // method if none of those can be found.
   result = instrumentation->GetCodeForInvoke(method);
@@ -2662,7 +2663,7 @@ extern "C" void artMethodEntryHook(ArtMethod* method, Thread* self, ArtMethod** 
   }
 }
 
-extern "C" int artMethodExitHook(Thread* self,
+extern "C" void artMethodExitHook(Thread* self,
                                  ArtMethod* method,
                                  uint64_t* gpr_result,
                                  uint64_t* fpr_result)
@@ -2711,7 +2712,10 @@ extern "C" int artMethodExitHook(Thread* self,
   }
 
   if (self->IsExceptionPending() || self->ObserveAsyncException()) {
-    return 1;
+    // The exception was thrown from the method exit callback. We should not call  method unwind
+    // callbacks for this case.
+    self->QuickDeliverException(/* is_method_exit_exception= */ true);
+    UNREACHABLE();
   }
 
   if (deoptimize) {
@@ -2720,8 +2724,6 @@ extern "C" int artMethodExitHook(Thread* self,
     artDeoptimize(self);
     UNREACHABLE();
   }
-
-  return 0;
 }
 
 }  // namespace art
