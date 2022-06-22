@@ -67,51 +67,24 @@ java_sdk_library {
     // for JAR files in the System Server.
     name: "service-art",
     defaults: ["framework-system-server-module-defaults"],
-
     permitted_packages: ["com.android.server.art"],
-
     visibility: [
         "//art:__subpackages__",
         "//frameworks/base/services/core",
     ],
-
-    impl_library_visibility: [
-        "//art/libartservice/tests",
-    ],
-
-    stubs_library_visibility: ["//visibility:public"],
-    stubs_source_visibility: ["//visibility:private"],
-
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
     ],
     sdk_version: "system_server_current",
     min_sdk_version: "31",
-
-    // Temporarily disable compatibility with previous released APIs.
-    // TODO - remove once prototype has stabilized
-    //   running "m update-api" will give instructions on what to do next
-    unsafe_ignore_missing_latest_api: true,
-
-    // This cannot be accessed by apps using <uses-library> in their manifest.
-    shared_library: false,
-    // TODO(b/188773212): force dex compilation for inclusion in bootclasspath_fragment.
-    compile_dex: true,
-
     srcs: [
         "java/**/*.java",
     ],
-
-    required: [
-        "libartservice",
+    static_libs: [
     ],
-
-    libs: [
-    ],
-
     plugins: ["java_api_finder"],
-    dist_group: "android",
+    jarjar_rules: "jarjar-rules.txt",
 }
 
 art_cc_defaults {
