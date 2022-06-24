@@ -225,7 +225,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                          pJniUnlockObject, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniUnlockObject,
                          pQuickGenericJniTrampoline, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pQuickGenericJniTrampoline, pLockObject, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pQuickGenericJniTrampoline,
+                         pJniMethodEntryHook, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodEntryHook, pLockObject, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pLockObject, pUnlockObject, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pUnlockObject, pCmpgDouble, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pCmpgDouble, pCmpgFloat, sizeof(void*));

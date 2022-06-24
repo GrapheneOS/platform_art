@@ -38,6 +38,11 @@
 
 namespace art {
 
+extern "C" int artMethodExitHook(Thread* self,
+                                 ArtMethod* method,
+                                 uint64_t* gpr_result,
+                                 uint64_t* fpr_result);
+
 static_assert(sizeof(IRTSegmentState) == sizeof(uint32_t), "IRTSegmentState size unexpected");
 static_assert(std::is_trivial<IRTSegmentState>::value, "IRTSegmentState not trivial");
 
@@ -174,11 +179,11 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
     artJniUnlockObject(lock.Ptr(), self);
   }
   char return_shorty_char = called->GetShorty()[0];
+  uint64_t ret;
   if (return_shorty_char == 'L') {
-    uint64_t ret = reinterpret_cast<uint64_t>(
+    ret = reinterpret_cast<uint64_t>(
         UNLIKELY(self->IsExceptionPending()) ? nullptr : JniDecodeReferenceResult(result.l, self));
     PopLocalReferences(saved_local_ref_cookie, self);
-    return ret;
   } else {
     if (LIKELY(!critical_native)) {
       PopLocalReferences(saved_local_ref_cookie, self);
@@ -188,32 +193,54 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
         if (kRuntimeISA == InstructionSet::kX86) {
           // Convert back the result to float.
           double d = bit_cast<double, uint64_t>(result_f);
-          return bit_cast<uint32_t, float>(static_cast<float>(d));
+          ret = bit_cast<uint32_t, float>(static_cast<float>(d));
         } else {
-          return result_f;
+          ret = result_f;
         }
       }
+      break;
       case 'D':
-        return result_f;
+        ret = result_f;
+        break;
       case 'Z':
-        return result.z;
+        ret = result.z;
+        break;
       case 'B':
-        return result.b;
+        ret = result.b;
+        break;
       case 'C':
-        return result.c;
+        ret = result.c;
+        break;
       case 'S':
-        return result.s;
+        ret = result.s;
+        break;
       case 'I':
-        return result.i;
+        ret = result.i;
+        break;
       case 'J':
-        return result.j;
+        ret = result.j;
+        break;
       case 'V':
-        return 0;
+        ret = 0;
+        break;
       default:
         LOG(FATAL) << "Unexpected return shorty character " << return_shorty_char;
         UNREACHABLE();
     }
   }
+
+  instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
+  // @CriticalNative methods don't do a suspend check so there is no need to check for a
+  // deoptimization here but we need method exit hooks for processing method exit callbacks.
+  // Don't call method exit hooks when there is a pending exception. Method exit hooks are expected
+  // to be called only on regular exits. When there is an exception method unwind events are called.
+  // Exceptions are handled later in art_quick_generic_jni_trampoline so just return here.
+  if (UNLIKELY(instr->AreExitStubsInstalled() &&
+               !self->IsExceptionPending() &&
+               Runtime::Current()->IsJavaDebuggable())) {
+    artMethodExitHook(self, called, &ret, &ret);
+  }
+  return ret;
 }
 
 extern "C" void artJniMonitoredMethodStart(Thread* self) {
