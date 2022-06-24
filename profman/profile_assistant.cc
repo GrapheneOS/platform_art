@@ -18,6 +18,7 @@
 
 #include "base/os.h"
 #include "base/unix_file/fd_file.h"
+#include "profman/profman_result.h"
 
 namespace art {
 
@@ -26,25 +27,22 @@ namespace art {
 static constexpr const uint32_t kMinNewMethodsForCompilation = 100;
 static constexpr const uint32_t kMinNewClassesForCompilation = 50;
 
-
-ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
-        const std::vector<ScopedFlock>& profile_files,
-        const ScopedFlock& reference_profile_file,
-        const ProfileCompilationInfo::ProfileLoadFilterFn& filter_fn,
-        const Options& options) {
-  DCHECK(!profile_files.empty());
-
+ProfmanResult::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
+    const std::vector<ScopedFlock>& profile_files,
+    const ScopedFlock& reference_profile_file,
+    const ProfileCompilationInfo::ProfileLoadFilterFn& filter_fn,
+    const Options& options) {
   ProfileCompilationInfo info(options.IsBootImageMerge());
 
   // Load the reference profile.
   if (!info.Load(reference_profile_file->Fd(), /*merge_classes=*/ true, filter_fn)) {
     LOG(WARNING) << "Could not load reference profile file";
-    return kErrorBadProfiles;
+    return ProfmanResult::kErrorBadProfiles;
   }
 
   if (options.IsBootImageMerge() && !info.IsForBootImage()) {
     LOG(WARNING) << "Requested merge for boot image profile but the reference profile is regular.";
-    return kErrorBadProfiles;
+    return ProfmanResult::kErrorBadProfiles;
   }
 
   // Store the current state of the reference profile before merging with the current profiles.
@@ -65,21 +63,21 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
       // TODO: Do we really need to use a different error code for version mismatch?
       ProfileCompilationInfo wrong_info(!options.IsBootImageMerge());
       if (wrong_info.Load(profile_files[i]->Fd(), /*merge_classes=*/ true, filter_fn)) {
-        return kErrorDifferentVersions;
+        return ProfmanResult::kErrorDifferentVersions;
       }
-      return kErrorBadProfiles;
+      return ProfmanResult::kErrorBadProfiles;
     }
 
     if (!info.MergeWith(cur_info)) {
       LOG(WARNING) << "Could not merge profile file at index " << i;
-      return kErrorBadProfiles;
+      return ProfmanResult::kErrorBadProfiles;
     }
   }
 
   // If we perform a forced merge do not analyze the difference between profiles.
   if (!options.IsForceMerge()) {
     if (info.IsEmpty()) {
-      return kSkipCompilationEmptyProfiles;
+      return ProfmanResult::kSkipCompilationEmptyProfiles;
     }
     uint32_t min_change_in_methods_for_compilation = std::max(
         (options.GetMinNewMethodsPercentChangeForCompilation() * number_of_methods) / 100,
@@ -91,21 +89,21 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfilesInternal(
     if (((info.GetNumberOfMethods() - number_of_methods) < min_change_in_methods_for_compilation) &&
         ((info.GetNumberOfResolvedClasses() - number_of_classes)
             < min_change_in_classes_for_compilation)) {
-      return kSkipCompilationSmallDelta;
+      return ProfmanResult::kSkipCompilationSmallDelta;
     }
   }
 
   // We were successful in merging all profile information. Update the reference profile.
   if (!reference_profile_file->ClearContent()) {
     PLOG(WARNING) << "Could not clear reference profile file";
-    return kErrorIO;
+    return ProfmanResult::kErrorIO;
   }
   if (!info.Save(reference_profile_file->Fd())) {
     LOG(WARNING) << "Could not save reference profile file";
-    return kErrorIO;
+    return ProfmanResult::kErrorIO;
   }
 
-  return options.IsForceMerge() ? kSuccess : kCompile;
+  return options.IsForceMerge() ? ProfmanResult::kSuccess : ProfmanResult::kCompile;
 }
 
 class ScopedFlockList {
@@ -144,7 +142,7 @@ class ScopedFlockList {
   std::vector<ScopedFlock> flocks_;
 };
 
-ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
+ProfmanResult::ProcessingResult ProfileAssistant::ProcessProfiles(
         const std::vector<int>& profile_files_fd,
         int reference_profile_file_fd,
         const ProfileCompilationInfo::ProfileLoadFilterFn& filter_fn,
@@ -155,7 +153,7 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
   ScopedFlockList profile_files(profile_files_fd.size());
   if (!profile_files.Init(profile_files_fd, &error)) {
     LOG(WARNING) << "Could not lock profile files: " << error;
-    return kErrorCannotLock;
+    return ProfmanResult::kErrorCannotLock;
   }
 
   // The reference_profile_file is opened in read/write mode because it's
@@ -166,7 +164,7 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
                                                          &error);
   if (reference_profile_file.get() == nullptr) {
     LOG(WARNING) << "Could not lock reference profiled files: " << error;
-    return kErrorCannotLock;
+    return ProfmanResult::kErrorCannotLock;
   }
 
   return ProcessProfilesInternal(profile_files.Get(),
@@ -175,7 +173,7 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
                                  options);
 }
 
-ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
+ProfmanResult::ProcessingResult ProfileAssistant::ProcessProfiles(
         const std::vector<std::string>& profile_files,
         const std::string& reference_profile_file,
         const ProfileCompilationInfo::ProfileLoadFilterFn& filter_fn,
@@ -185,14 +183,14 @@ ProfileAssistant::ProcessingResult ProfileAssistant::ProcessProfiles(
   ScopedFlockList profile_files_list(profile_files.size());
   if (!profile_files_list.Init(profile_files, &error)) {
     LOG(WARNING) << "Could not lock profile files: " << error;
-    return kErrorCannotLock;
+    return ProfmanResult::kErrorCannotLock;
   }
 
   ScopedFlock locked_reference_profile_file = LockedFile::Open(
       reference_profile_file.c_str(), O_RDWR, /* block= */ true, &error);
   if (locked_reference_profile_file.get() == nullptr) {
     LOG(WARNING) << "Could not lock reference profile files: " << error;
-    return kErrorCannotLock;
+    return ProfmanResult::kErrorCannotLock;
   }
 
   return ProcessProfilesInternal(profile_files_list.Get(),

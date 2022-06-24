@@ -22,24 +22,12 @@
 
 #include "base/scoped_flock.h"
 #include "profile/profile_compilation_info.h"
+#include "profman/profman_result.h"
 
 namespace art {
 
 class ProfileAssistant {
  public:
-  // These also serve as return codes of profman and are processed by installd
-  // (frameworks/native/cmds/installd/commands.cpp)
-  enum ProcessingResult {
-    kSuccess = 0,  // Generic success code for non-analysis runs.
-    kCompile = 1,
-    kSkipCompilationSmallDelta = 2,
-    kErrorBadProfiles = 3,
-    kErrorIO = 4,
-    kErrorCannotLock = 5,
-    kErrorDifferentVersions = 6,
-    kSkipCompilationEmptyProfiles = 7,
-  };
-
   class Options {
    public:
     static constexpr bool kForceMergeDefault = false;
@@ -101,14 +89,14 @@ class ProfileAssistant {
   // this case no file will be updated. A variation of this code is
   // kSkipCompilationEmptyProfiles which indicates that all the profiles are empty.
   // This allow the caller to make fine grain decisions on the compilation strategy.
-  static ProcessingResult ProcessProfiles(
+  static ProfmanResult::ProcessingResult ProcessProfiles(
       const std::vector<std::string>& profile_files,
       const std::string& reference_profile_file,
       const ProfileCompilationInfo::ProfileLoadFilterFn& filter_fn
           = ProfileCompilationInfo::ProfileFilterFnAcceptAll,
       const Options& options = Options());
 
-  static ProcessingResult ProcessProfiles(
+  static ProfmanResult::ProcessingResult ProcessProfiles(
       const std::vector<int>& profile_files_fd_,
       int reference_profile_file_fd,
       const ProfileCompilationInfo::ProfileLoadFilterFn& filter_fn
@@ -116,7 +104,7 @@ class ProfileAssistant {
       const Options& options = Options());
 
  private:
-  static ProcessingResult ProcessProfilesInternal(
+  static ProfmanResult::ProcessingResult ProcessProfilesInternal(
       const std::vector<ScopedFlock>& profile_files,
       const ScopedFlock& reference_profile_file,
       const ProfileCompilationInfo::ProfileLoadFilterFn& filter_fn,
