@@ -57,33 +57,61 @@ uint32_t OatQuickMethodHeader::ToDexPc(ArtMethod** frame,
 
 uintptr_t OatQuickMethodHeader::ToNativeQuickPc(ArtMethod* method,
                                                 const uint32_t dex_pc,
-                                                bool is_for_catch_handler,
                                                 bool abort_on_failure) const {
   const void* entry_point = GetEntryPoint();
   DCHECK(!method->IsNative());
+  // For catch handlers use the ArrayRef<const uint32_t> version of ToNativeQuickPc.
+  DCHECK(!IsNterpMethodHeader());
+  DCHECK(IsOptimized());
+  // Search for the dex-to-pc mapping in stack maps.
+  CodeInfo code_info = CodeInfo::DecodeInlineInfoOnly(this);
+
+  StackMap stack_map = code_info.GetStackMapForDexPc(dex_pc);
+  if (stack_map.IsValid()) {
+    return reinterpret_cast<uintptr_t>(entry_point) + stack_map.GetNativePcOffset(kRuntimeISA);
+  }
+  if (abort_on_failure) {
+    ScopedObjectAccess soa(Thread::Current());
+    LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc << " in "
+               << method->PrettyMethod();
+  }
+  return UINTPTR_MAX;
+}
+
+uintptr_t OatQuickMethodHeader::ToNativeQuickPcForCatchHandlers(
+    ArtMethod* method,
+    ArrayRef<const uint32_t> dex_pc_list,
+    /* out */ uint32_t* stack_map_row,
+    bool abort_on_failure) const {
+  const void* entry_point = GetEntryPoint();
+  DCHECK(!method->IsNative());
   if (IsNterpMethodHeader()) {
-    // This should only be called on an nterp frame for getting a catch handler.
-    CHECK(is_for_catch_handler);
     return NterpGetCatchHandler();
   }
   DCHECK(IsOptimized());
   // Search for the dex-to-pc mapping in stack maps.
   CodeInfo code_info = CodeInfo::DecodeInlineInfoOnly(this);
 
-  // All stack maps are stored in the same CodeItem section, safepoint stack
-  // maps first, then catch stack maps. We use `is_for_catch_handler` to select
-  // the order of iteration.
-  StackMap stack_map =
-      LIKELY(is_for_catch_handler) ? code_info.GetCatchStackMapForDexPc(dex_pc)
-                                   : code_info.GetStackMapForDexPc(dex_pc);
+  StackMap stack_map = code_info.GetCatchStackMapForDexPc(dex_pc_list);
+  *stack_map_row = stack_map.Row();
   if (stack_map.IsValid()) {
     return reinterpret_cast<uintptr_t>(entry_point) +
            stack_map.GetNativePcOffset(kRuntimeISA);
   }
   if (abort_on_failure) {
+    std::stringstream ss;
+    bool first = true;
+    ss << "Failed to find native offset for dex pcs (from outermost to innermost) " << std::hex;
+    for (auto dex_pc : dex_pc_list) {
+      if (!first) {
+        ss << ", ";
+      }
+      first = false;
+      ss << "0x" << dex_pc;
+    }
     ScopedObjectAccess soa(Thread::Current());
-    LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
-               << " in " << method->PrettyMethod();
+    ss << " in " << method->PrettyMethod();
+    LOG(FATAL) << ss.str();
   }
   return UINTPTR_MAX;
 }
