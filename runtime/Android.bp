@@ -676,6 +676,7 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libbase",
+        "libziparchive",
     ],
     static_libs: [
         "libprocinfo",
@@ -846,6 +847,7 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libunwindstack",
+        "libziparchive",
     ],
     header_libs: [
         "art_cmdlineparser_headers", // For parsed_options_test.
