@@ -1220,14 +1220,6 @@ void ArmVIXLJNIMacroAssembler::TestMarkBit(ManagedRegister mref,
   }
 }
 
-void ArmVIXLJNIMacroAssembler::TestByteAndJumpIfNotZero(uintptr_t address, JNIMacroLabel* label) {
-  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
-  vixl32::Register scratch = temps.Acquire();
-  ___ Mov(scratch, static_cast<uint32_t>(address));
-  ___ Ldrb(scratch, MemOperand(scratch, 0));
-  ___ CompareAndBranchIfNonZero(scratch, ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
-}
-
 void ArmVIXLJNIMacroAssembler::Bind(JNIMacroLabel* label) {
   CHECK(label != nullptr);
   ___ Bind(ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
