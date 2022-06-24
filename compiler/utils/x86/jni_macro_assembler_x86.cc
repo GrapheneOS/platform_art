@@ -734,6 +734,12 @@ void X86JNIMacroAssembler::TestMarkBit(ManagedRegister mref,
   __ j(UnaryConditionToX86Condition(cond), X86JNIMacroLabel::Cast(label)->AsX86());
 }
 
+
+void X86JNIMacroAssembler::TestByteAndJumpIfNotZero(uintptr_t address, JNIMacroLabel* label) {
+  __ cmpb(Address::Absolute(address), Immediate(0));
+  __ j(kNotZero, X86JNIMacroLabel::Cast(label)->AsX86());
+}
+
 void X86JNIMacroAssembler::Bind(JNIMacroLabel* label) {
   CHECK(label != nullptr);
   __ Bind(X86JNIMacroLabel::Cast(label)->AsX86());
