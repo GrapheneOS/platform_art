@@ -286,8 +286,6 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void TestMarkBit(ManagedRegister ref,
                            JNIMacroLabel* label,
                            JNIMacroUnaryCondition cond) = 0;
-  // Emit a conditional jump to label if the loaded value from specified locations is not zero.
-  virtual void TestByteAndJumpIfNotZero(uintptr_t address, JNIMacroLabel* label) = 0;
   // Code at this offset will serve as the target for the Jump call.
   virtual void Bind(JNIMacroLabel* label) = 0;
 
