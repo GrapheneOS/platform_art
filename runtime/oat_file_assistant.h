@@ -156,6 +156,17 @@ class OatFileAssistant {
                    int oat_fd,
                    int zip_fd);
 
+  // A convenient factory function that accepts ISA, class loader context, and compiler filter in
+  // strings. Returns the created instance on success, or returns nullptr and outputs an error
+  // message if it fails to parse the input strings.
+  static std::unique_ptr<OatFileAssistant> Create(const std::string& filename,
+                                                  const std::string& isa_str,
+                                                  const std::string& context_str,
+                                                  bool load_executable,
+                                                  bool only_load_trusted_executable,
+                                                  std::unique_ptr<RuntimeOptions> runtime_options,
+                                                  std::string* error_msg);
+
   // Returns true if the dex location refers to an element of the boot class
   // path.
   bool IsInBootClassPath();
@@ -204,7 +215,7 @@ class OatFileAssistant {
   //   - out_compilation_reason: the optimization reason. The reason might
   //        be "unknown" if the compiler artifacts were not annotated during optimizations.
   //   - out_odex_status: a human readable refined status of the validity of the odex file.
-  //        E.g. up-to-date, apk-more-recent.
+  //        Possible values are: "up-to-date", "apk-more-recent", and "io-error-no-oat".
   //
   // This method will try to mimic the runtime effect of loading the dex file.
   // For example, if there is no usable oat file, the compiler filter will be set
@@ -219,18 +230,6 @@ class OatFileAssistant {
                                     std::string* out_compilation_filter,
                                     std::string* out_compilation_reason,
                                     std::unique_ptr<RuntimeOptions> runtime_options = nullptr);
-
-  // A convenient version of `GetOptimizationStatus` that accepts ISA and class loader context in
-  // strings. Returns true on success, or returns false and outputs an error message if it fails to
-  // parse the input strings.
-  static bool GetOptimizationStatus(const std::string& filename,
-                                    const std::string& isa_str,
-                                    const std::string& context_str,
-                                    std::unique_ptr<RuntimeOptions> runtime_options,
-                                    /*out*/ std::string* compiler_filter,
-                                    /*out*/ std::string* compilation_reason,
-                                    /*out*/ std::string* odex_location,
-                                    /*out*/ std::string* error_msg);
 
   // Open and returns an image space associated with the oat file.
   static std::unique_ptr<gc::space::ImageSpace> OpenImageSpace(const OatFile* oat_file);
@@ -472,6 +471,7 @@ class OatFileAssistant {
   std::string dex_location_;
 
   ClassLoaderContext* context_;
+  std::unique_ptr<ClassLoaderContext> owned_context_;
 
   // Whether or not the parent directory of the dex file is writable.
   bool dex_parent_writable_ = false;
