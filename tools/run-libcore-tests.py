@@ -249,6 +249,18 @@ SLOW_OJLUNI_TESTS = {
   "tck.java.time",
 }
 
+# Disabled to unblock art-buildbot
+# These tests fail with "java.io.IOException: Stream closed", tracked in
+# http://b/235566533 and http://b/208639267
+DISABLED_GCSTRESS_DEBUG_TESTS = {
+  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard1",
+  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard2",
+  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard3",
+  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard4",
+  "test.java.math.BigDecimal",
+  "test.java.math.BigInteger_testConstructor",
+}
+
 def get_jar_filename(classpath):
   base_path = (ANDROID_PRODUCT_OUT + "/../..") if ANDROID_PRODUCT_OUT else "out/target"
   base_path = os.path.normpath(base_path)  # Normalize ".." components for readability.
@@ -283,6 +295,7 @@ def get_test_names():
   if args.gcstress or args.debug or args.mode == "jvm":
     test_names = list(t for t in test_names if not t.startswith("libcore.highmemorytest"))
     test_names = list(filter(lambda x: x not in SLOW_OJLUNI_TESTS, test_names))
+    test_names = list(filter(lambda x: x not in DISABLED_GCSTRESS_DEBUG_TESTS, test_names))
   return test_names
 
 def get_vogar_command(test_name):
