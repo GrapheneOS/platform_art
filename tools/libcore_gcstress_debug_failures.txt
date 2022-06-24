@@ -70,18 +70,5 @@
   names: ["jsr166.CompletableFutureTest#testCompleteOnTimeout_completed",
           "jsr166.CompletableFutureTest#testDelayedExecutor"
          ]
-},
-{
-  description: "Timeouts on host with gcstress and debug",
-  bug: 234324321,
-  result: ERROR,
-  modes: [host],
-  names: ["test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard1",
-          "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard2",
-          "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard3",
-          "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard4",
-          "test.java.math.BigDecimal",
-          "test.java.math.BigInteger_testConstructor"
-  ]
 }
 ]
