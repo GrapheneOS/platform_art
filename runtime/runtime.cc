@@ -3195,12 +3195,14 @@ void Runtime::DeoptimizeBootImage() {
   // If we've already started and we are setting this runtime to debuggable,
   // we patch entry points of methods in boot image to interpreter bridge, as
   // boot image code may be AOT compiled as not debuggable.
-  UpdateEntryPointsClassVisitor visitor(GetInstrumentation());
-  GetClassLinker()->VisitClasses(&visitor);
-  jit::Jit* jit = GetJit();
-  if (jit != nullptr) {
-    // Code previously compiled may not be compiled debuggable.
-    jit->GetCodeCache()->TransitionToDebuggable();
+  if (!GetInstrumentation()->IsForcedInterpretOnly()) {
+    UpdateEntryPointsClassVisitor visitor(GetInstrumentation());
+    GetClassLinker()->VisitClasses(&visitor);
+    jit::Jit* jit = GetJit();
+    if (jit != nullptr) {
+      // Code previously compiled may not be compiled debuggable.
+      jit->GetCodeCache()->TransitionToDebuggable();
+    }
   }
 }
 
