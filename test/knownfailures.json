@@ -1525,6 +1525,6 @@
     {
         "tests": ["837-deopt"],
         "description": ["Tests deoptimization and OSR, which never happens when tracing."],
-        "variant": "trace | stream"
+        "variant": "trace | stream | jit-on-first-use"
     }
 ]
