@@ -1,8 +1,0 @@
-Starting
-Starting helper
-Starting helper
-Starting helper
-Starting helper
-Starting helper
-Finished worker stack traces
-Finished
