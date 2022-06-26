@@ -1,4 +1,0 @@
-Tests multiple simultaneous calls to Thread.getStackTrace()
-
-This is a stress test for code under suspicion in the context of b/234542166
-and others.
