@@ -407,9 +407,6 @@
       "name": "art-run-test-2043-reference-pauses[com.google.android.art.apex]"
     },
     {
-      "name": "art-run-test-2044-get-stack-traces[com.google.android.art.apex]"
-    },
-    {
       "name": "art-run-test-2231-checker-heap-poisoning[com.google.android.art.apex]"
     },
     {
@@ -1714,9 +1711,6 @@
       "name": "art-run-test-2043-reference-pauses"
     },
     {
-      "name": "art-run-test-2044-get-stack-traces"
-    },
-    {
       "name": "art-run-test-2231-checker-heap-poisoning"
     },
     {
@@ -3010,15 +3004,6 @@
     },
     {
       "name": "art-run-test-2042-checker-dce-always-throw"
-    },
-    {
-      "name": "art-run-test-2042-reference-processing"
-    },
-    {
-      "name": "art-run-test-2043-reference-pauses"
-    },
-    {
-      "name": "art-run-test-2044-get-stack-traces"
     },
     {
       "name": "art-run-test-2231-checker-heap-poisoning"
