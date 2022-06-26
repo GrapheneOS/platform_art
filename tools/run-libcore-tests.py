@@ -418,7 +418,7 @@ def get_vogar_command(test_name):
     if ART_TEST_CHROOT:
       cmd.append(f"--chroot {ART_TEST_CHROOT} --device-dir=/tmp/vogar/test-{test_name}")
     else:
-      cmd.append("--device-dir=/data/local/tmp/vogar/test-{test_name}")
+      cmd.append(f"--device-dir=/data/local/tmp/vogar/test-{test_name}")
     cmd.append(f"--vm-command={ART_TEST_ANDROID_ROOT}/bin/art")
   else:
     cmd.append(f"--device-dir=/tmp/vogar/test-{test_name}")
