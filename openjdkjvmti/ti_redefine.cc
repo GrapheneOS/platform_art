@@ -2910,6 +2910,27 @@ void Redefiner::ClassRedefinition::UpdateClassStructurally(const RedefinitionDat
   // be undone. This replaces the mirror::Class in 'holder' as well. It's magic!
   HeapExtensions::ReplaceReferences(driver_->self_, map);
 
+  // Undo the replacement of old_class with new_class for the methods / fields on the old_class.
+  // It is hard to ensure that we don't replace the declaring class of the old class field / methods
+  // isn't impacted by ReplaceReferences. It is just simpler to undo the replacement here.
+  std::for_each(
+      old_classes_vec.cbegin(),
+      old_classes_vec.cend(),
+      [](art::ObjPtr<art::mirror::Class> orig) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+        orig->VisitMethods(
+            [&](art::ArtMethod* method) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+              if (method->IsCopied()) {
+                // Copied methods have interfaces as their declaring class.
+                return;
+              }
+              method->SetDeclaringClass(orig);
+            },
+            art::kRuntimePointerSize);
+        orig->VisitFields([&](art::ArtField* field) REQUIRES_SHARED(art::Locks::mutator_lock_) {
+          field->SetDeclaringClass(orig);
+        });
+      });
+
   // Save the old class so that the JIT gc doesn't get confused by it being collected before the
   // jit code. This is also needed to keep the dex-caches of any obsolete methods live.
   for (auto [new_class, old_class] :
