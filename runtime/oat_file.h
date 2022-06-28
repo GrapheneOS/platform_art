@@ -270,7 +270,7 @@ class OatFile {
       return OatClass(/* oat_file= */ nullptr,
                       ClassStatus::kErrorUnresolved,
                       OatClassType::kNoneCompiled,
-                      /* bitmap_size= */ 0,
+                      /* num_methods= */ 0,
                       /* bitmap_pointer= */ nullptr,
                       /* methods_pointer= */ nullptr);
     }

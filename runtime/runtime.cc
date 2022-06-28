@@ -1129,8 +1129,8 @@ void Runtime::InitNonZygoteOrPostFork(
       std::vector<std::string> jars = android::base::Split(system_server_classpath, ":");
       app_info_.RegisterAppInfo("android",
                                 jars,
-                                /*cur_profile_path=*/ "",
-                                /*ref_profile_path=*/ "",
+                                /*profile_output_filename=*/ "",
+                                /*ref_profile_filename=*/ "",
                                 AppInfo::CodeType::kPrimaryApk);
     }
 
