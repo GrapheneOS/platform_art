@@ -19,7 +19,9 @@ This scripts compiles Java files which are needed to execute run-tests.
 It is intended to be used only from soong genrule.
 """
 
-import argparse, os, tempfile, shutil, subprocess, glob, textwrap, re, json, concurrent.futures
+import argparse, os, shutil, subprocess, glob, re, json, multiprocessing, pathlib
+import art_build_rules
+from importlib.machinery import SourceFileLoader
 
 ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
 BUILDFAILURES = json.loads(open(os.path.join("art", "test", "buildfailures.json"), "rt").read())
@@ -41,7 +43,7 @@ def copy_sources(args, tmp, mode, srcdir):
   shutil.copytree(srcdir, dstdir)
 
   # Copy the default scripts if the test does not have a custom ones.
-  for name in ["build", "run", "check"]:
+  for name in ["build.py", "run", "check"]:
     src, dst = f"art/test/etc/default-{name}", join(dstdir, name)
     if os.path.exists(dst):
       shutil.copy2(src, dstdir)  # Copy default script next to the custom script.
@@ -51,18 +53,20 @@ def copy_sources(args, tmp, mode, srcdir):
 
   return dstdir
 
-def build_test(args, mode, dstdir):
+def build_test(args, mode, build_top, sbox, dstdir):
   """Run the build script for single run-test"""
 
   join = os.path.join
-  build_top = os.getcwd()
   java_home = os.environ.get("JAVA_HOME")
   tools_dir = os.path.abspath(join(os.path.dirname(__file__), "../../../out/bin"))
-  env = {
-    "PATH": os.environ.get("PATH"),
+  test_name = os.path.basename(dstdir)
+  env = dict(os.environ)
+  env.update({
+    "BUILD_MODE": mode,
     "ANDROID_BUILD_TOP": build_top,
+    "SBOX_PATH":   sbox,
     "ART_TEST_RUN_TEST_BOOTCLASSPATH": join(build_top, args.bootclasspath),
-    "TEST_NAME":   os.path.basename(dstdir),
+    "TEST_NAME":   test_name,
     "SOONG_ZIP":   join(build_top, "prebuilts/build-tools/linux-x86/bin/soong_zip"),
     "ZIPALIGN":    join(build_top, "prebuilts/build-tools/linux-x86/bin/zipalign"),
     "JAVA":        join(java_home, "bin/java"),
@@ -73,15 +77,23 @@ def build_test(args, mode, dstdir):
     "JASMIN":      join(tools_dir, "jasmin"),
     "SMALI":       join(tools_dir, "smali"),
     "NEED_DEX":    {"host": "true", "target": "true", "jvm": "false"}[mode],
-    "USE_DESUGAR": "true",
-  }
-  proc = subprocess.run([join(dstdir, "build"), "--" + mode],
-                        cwd=dstdir,
-                        env=env,
-                        encoding=os.sys.stdout.encoding,
-                        stderr=subprocess.STDOUT,
-                        stdout=subprocess.PIPE)
-  return proc.stdout, proc.returncode
+  })
+
+  generate_sources = join(dstdir, "generate-sources")
+  if os.path.exists(generate_sources):
+    proc = subprocess.run([generate_sources, "--" + mode],
+                          cwd=dstdir,
+                          env=env,
+                          encoding=os.sys.stdout.encoding,
+                          stderr=subprocess.STDOUT,
+                          stdout=subprocess.PIPE)
+    if proc.returncode:
+      raise Exception("Failed to generate sources for " + test_name + ":\n" + proc.stdout)
+
+  os.chdir(dstdir)
+  for name, value in env.items():
+    os.environ[name] = str(value)
+  SourceFileLoader("build_" + test_name, join(dstdir, "build.py")).load_module()
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
@@ -91,19 +103,26 @@ def main():
   parser.add_argument("--bootclasspath", help="JAR files used for javac compilation")
   args = parser.parse_args()
 
-  with tempfile.TemporaryDirectory(prefix=os.path.basename(__file__)) as tmp:
-    srcdirs = sorted(glob.glob(os.path.join("art", "test", "*")))
-    srcdirs = filter(lambda srcdir: re.match(".*/\d*{}-.*".format(args.shard), srcdir), srcdirs)
-    dstdirs = [copy_sources(args, tmp, args.mode, srcdir) for srcdir in srcdirs]
-    dstdirs = filter(lambda dstdir: dstdir, dstdirs)  # Remove None (skipped tests).
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-      for stdout, exitcode in pool.map(lambda dstdir: build_test(args, args.mode, dstdir), dstdirs):
-        if stdout:
-          print(stdout.strip())
-        assert(exitcode == 0) # Build failed. Add test to buildfailures.json if this is expected.
+  build_top = os.getcwd()
+  sbox = pathlib.Path(__file__).absolute().parent.parent.parent.parent.parent
+  assert sbox.parent.name == "sbox" and len(sbox.name) == 40
 
-    # Create the final zip file which contains the content of the temporary directory.
-    proc = subprocess.run([ZIP, "-o", args.out, "-C", tmp, "-D", tmp], check=True)
+  ziproot = os.path.join(sbox, "zip")
+  srcdirs = sorted(glob.glob(os.path.join("art", "test", "*")))
+  srcdirs = filter(lambda srcdir: re.match(".*/\d*{}-.*".format(args.shard), srcdir), srcdirs)
+  dstdirs = [copy_sources(args, ziproot, args.mode, srcdir) for srcdir in srcdirs]
+  dstdirs = filter(lambda dstdir: dstdir, dstdirs)  # Remove None (skipped tests).
+  # Use multiprocess (i.e. forking) since tests modify their current working directory.
+  with multiprocessing.Pool() as pool:
+    jobs = [(d, pool.apply_async(build_test, (args, args.mode, build_top, sbox, d))) for d in dstdirs]
+    for dstdir, job in jobs:
+      try:
+        job.get()
+      except Exception as e:
+        raise Exception("Failed to build " + os.path.basename(dstdir)) from e.__cause__
+
+  # Create the final zip file which contains the content of the temporary directory.
+  proc = subprocess.run([ZIP, "-o", args.out, "-C", ziproot, "-D", ziproot], check=True)
 
 if __name__ == "__main__":
   main()
