@@ -16,6 +16,8 @@
 
 set -e # Stop on error - the caller script may not have this set.
 
+export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-9.2.jar"
+
 # Update arguments to add transformer and ASM to the compiler classpath.
 classpath="./transformer.jar:$ASM_JAR"
 args=(-cp $classpath)

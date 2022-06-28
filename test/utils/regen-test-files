@@ -333,13 +333,12 @@ class Generator:
     def is_blank(line):
       return re.match("^\\s*$", line)
 
-    # Is `line` a `set -e` statement?
-    def is_set_e(line):
-      return re.match("^\\s*set -e\\s*", line)
+    def is_import(line):
+      return re.match("^\\s*from .* import .*", line)
 
     # Should `line` be kept in the canonized build script?
     def keep_line(line):
-      return not (is_comment(line) or is_blank(line) or is_set_e(line))
+      return not (is_comment(line) or is_blank(line) or is_import(line))
 
     with open(build_file, "r") as f:
       lines = f.readlines()
@@ -349,7 +348,7 @@ class Generator:
   def can_ignore_build_script(self, build_file):
     build_script = self.canonize_build_script(build_file)
     if len(build_script) == 1:
-      if build_script[0] == "./default-build \"$@\" --experimental var-handles\n":
+      if build_script[0] == 'build_run_test(experimental="var-handles")\n':
         # Soong builds JARs with VarHandle support by default (i.e. by
         # using an API level greater or equal to 28), so we can ignore
         # build scripts that just request support for this feature.
@@ -363,8 +362,11 @@ class Generator:
 
     # Skip tests with non-default build rules, unless these build
     # rules can be safely ignored.
-    if os.path.isfile(os.path.join(run_test_path, "build")):
-      if not self.can_ignore_build_script(os.path.join(run_test_path, "build")):
+    if (os.path.isfile(os.path.join(run_test_path, "generate-sources")) or
+        os.path.isfile(os.path.join(run_test_path, "javac_wrapper.sh"))):
+      return False
+    if os.path.isfile(os.path.join(run_test_path, "build.py")):
+      if not self.can_ignore_build_script(os.path.join(run_test_path, "build.py")):
         return False
     # Skip tests with sources outside the `src` directory.
     for subdir in ["jasmin",
