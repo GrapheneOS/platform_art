@@ -47,11 +47,8 @@ class ReferenceTypePropagationTestBase : public SuperTest, public OptimizingUnit
 
   void SetupPropagation(VariableSizedHandleScope* handles) {
     graph_ = CreateGraph(handles);
-    propagation_ = new (GetAllocator()) ReferenceTypePropagation(graph_,
-                                                                 Handle<mirror::ClassLoader>(),
-                                                                 Handle<mirror::DexCache>(),
-                                                                 true,
-                                                                 "test_prop");
+    propagation_ = new (GetAllocator())
+        ReferenceTypePropagation(graph_, Handle<mirror::DexCache>(), true, "test_prop");
   }
 
   // Relay method to merge type in reference type propagation.

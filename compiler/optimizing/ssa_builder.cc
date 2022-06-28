@@ -538,7 +538,6 @@ GraphAnalysisResult SsaBuilder::BuildSsa() {
   // Compute type of reference type instructions. The pass assumes that
   // NullConstant has been fixed up.
   ReferenceTypePropagation(graph_,
-                           class_loader_,
                            dex_cache_,
                            /* is_first_run= */ true).Run();
 

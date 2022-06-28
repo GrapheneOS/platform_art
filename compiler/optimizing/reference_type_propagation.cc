@@ -43,16 +43,12 @@ static inline ObjPtr<mirror::DexCache> FindDexCacheWithHint(
 
 class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
  public:
-  RTPVisitor(HGraph* graph,
-             Handle<mirror::ClassLoader> class_loader,
-             Handle<mirror::DexCache> hint_dex_cache,
-             bool is_first_run)
-    : HGraphDelegateVisitor(graph),
-      class_loader_(class_loader),
-      hint_dex_cache_(hint_dex_cache),
-      allocator_(graph->GetArenaStack()),
-      worklist_(allocator_.Adapter(kArenaAllocReferenceTypePropagation)),
-      is_first_run_(is_first_run) {
+  RTPVisitor(HGraph* graph, Handle<mirror::DexCache> hint_dex_cache, bool is_first_run)
+      : HGraphDelegateVisitor(graph),
+        hint_dex_cache_(hint_dex_cache),
+        allocator_(graph->GetArenaStack()),
+        worklist_(allocator_.Adapter(kArenaAllocReferenceTypePropagation)),
+        is_first_run_(is_first_run) {
     worklist_.reserve(kDefaultWorklistSize);
   }
 
@@ -110,7 +106,6 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
 
   static constexpr size_t kDefaultWorklistSize = 8;
 
-  Handle<mirror::ClassLoader> class_loader_;
   Handle<mirror::DexCache> hint_dex_cache_;
 
   // Use local allocator for allocating memory.
@@ -122,15 +117,10 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
 };
 
 ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
-                                                   Handle<mirror::ClassLoader> class_loader,
                                                    Handle<mirror::DexCache> hint_dex_cache,
                                                    bool is_first_run,
                                                    const char* name)
-    : HOptimization(graph, name),
-      class_loader_(class_loader),
-      hint_dex_cache_(hint_dex_cache),
-      is_first_run_(is_first_run) {
-}
+    : HOptimization(graph, name), hint_dex_cache_(hint_dex_cache), is_first_run_(is_first_run) {}
 
 void ReferenceTypePropagation::ValidateTypes() {
   // TODO: move this to the graph checker. Note: There may be no Thread for gtests.
@@ -167,18 +157,12 @@ void ReferenceTypePropagation::ValidateTypes() {
 }
 
 void ReferenceTypePropagation::Visit(HInstruction* instruction) {
-  RTPVisitor visitor(graph_,
-                     class_loader_,
-                     hint_dex_cache_,
-                     is_first_run_);
+  RTPVisitor visitor(graph_, hint_dex_cache_, is_first_run_);
   instruction->Accept(&visitor);
 }
 
 void ReferenceTypePropagation::Visit(ArrayRef<HInstruction* const> instructions) {
-  RTPVisitor visitor(graph_,
-                     class_loader_,
-                     hint_dex_cache_,
-                     is_first_run_);
+  RTPVisitor visitor(graph_, hint_dex_cache_, is_first_run_);
   for (HInstruction* instruction : instructions) {
     if (instruction->IsPhi()) {
       // Need to force phis to recalculate null-ness.
@@ -349,7 +333,7 @@ static void BoundTypeForClassCheck(HInstruction* check) {
 }
 
 bool ReferenceTypePropagation::Run() {
-  RTPVisitor visitor(graph_, class_loader_, hint_dex_cache_, is_first_run_);
+  RTPVisitor visitor(graph_, hint_dex_cache_, is_first_run_);
 
   // To properly propagate type info we need to visit in the dominator-based order.
   // Reverse post order guarantees a node's dominators are visited first.
@@ -583,7 +567,7 @@ void ReferenceTypePropagation::RTPVisitor::UpdateReferenceTypeInfo(HInstruction*
   ScopedObjectAccess soa(Thread::Current());
   ObjPtr<mirror::DexCache> dex_cache = FindDexCacheWithHint(soa.Self(), dex_file, hint_dex_cache_);
   ObjPtr<mirror::Class> klass = Runtime::Current()->GetClassLinker()->LookupResolvedType(
-      type_idx, dex_cache, class_loader_.Get());
+      type_idx, dex_cache, dex_cache->GetClassLoader());
   SetClassAsTypeInfo(instr, klass, is_exact);
 }
 
