@@ -181,7 +181,7 @@ class OatTest : public CommonCompilerDriverTest {
     if (!oat_writer.WriteAndOpenDexFiles(
         vdex_file,
         verify,
-        /*update_input_vdex=*/ false,
+        /*use_existing_vdex=*/ false,
         copy,
         &opened_dex_files_maps,
         &opened_dex_files)) {

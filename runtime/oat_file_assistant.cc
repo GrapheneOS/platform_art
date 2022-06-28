@@ -750,7 +750,7 @@ bool OatFileAssistant::IsPrimaryBootImageUsable() {
   // Only verify the primary boot image.
   cached_is_boot_image_usable_ = gc::space::ImageSpace::VerifyBootImages(
       ArrayRef<const std::string>(runtime_options_->image_locations)
-          .SubArray(/*pos=*/0u, /*size=*/1u),
+          .SubArray(/*pos=*/0u, /*length=*/1u),
       ArrayRef<const std::string>(runtime_options_->boot_class_path_locations),
       ArrayRef<const std::string>(runtime_options_->boot_class_path),
       runtime_options_->boot_class_path_fds != nullptr ?

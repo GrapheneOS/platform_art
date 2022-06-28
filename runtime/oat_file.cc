@@ -2252,7 +2252,7 @@ OatFile::OatClass OatDexFile::GetOatClass(uint16_t class_def_index) const {
     return OatFile::OatClass(oat_file_,
                              ClassStatus::kNotReady,
                              /* type= */ OatClassType::kNoneCompiled,
-                             /* bitmap_size= */ 0u,
+                             /* num_methods= */ 0u,
                              /* bitmap_pointer= */ nullptr,
                              /* methods_pointer= */ nullptr);
   }
