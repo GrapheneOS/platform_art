@@ -50,13 +50,13 @@ class ProfileAssistantTest : public CommonRuntimeTest, public ProfileTestHelper 
   void PostRuntimeCreate() override {
     allocator_.reset(new ArenaAllocator(Runtime::Current()->GetArenaPool()));
 
-    dex1 = BuildDex("location1", /*checksum=*/ 1, "LUnique1;", /*num_method_ids=*/ 10001);
-    dex2 = BuildDex("location2", /*checksum=*/ 2, "LUnique2;", /*num_method_ids=*/ 10002);
-    dex3 = BuildDex("location3", /*checksum=*/ 3, "LUnique3;", /*num_method_ids=*/ 10003);
-    dex4 = BuildDex("location4", /*checksum=*/ 4, "LUnique4;", /*num_method_ids=*/ 10004);
+    dex1 = BuildDex("location1", /*location_checksum=*/ 1, "LUnique1;", /*num_method_ids=*/ 10001);
+    dex2 = BuildDex("location2", /*location_checksum=*/ 2, "LUnique2;", /*num_method_ids=*/ 10002);
+    dex3 = BuildDex("location3", /*location_checksum=*/ 3, "LUnique3;", /*num_method_ids=*/ 10003);
+    dex4 = BuildDex("location4", /*location_checksum=*/ 4, "LUnique4;", /*num_method_ids=*/ 10004);
 
     dex1_checksum_missmatch =
-        BuildDex("location1", /*checksum=*/ 12, "LUnique1;", /*num_method_ids=*/ 10001);
+        BuildDex("location1", /*location_checksum=*/ 12, "LUnique1;", /*num_method_ids=*/ 10001);
   }
 
  protected:
@@ -442,10 +442,16 @@ class ProfileAssistantTest : public CommonRuntimeTest, public ProfileTestHelper 
                                          const std::vector<const std::string>& extra_args =
                                              std::vector<const std::string>()) {
     uint16_t max_classes = std::max(classes_in_cur_profile, classes_in_ref_profile);
-    const DexFile* dex1_x = BuildDex(
-        "location1_x", /*checksum=*/ 0x101, "LUnique1_x;", /*num_method_ids=*/ 0, max_classes);
-    const DexFile* dex2_x = BuildDex(
-        "location2_x", /*checksum=*/ 0x102, "LUnique2_x;", /*num_method_ids=*/ 0, max_classes);
+    const DexFile* dex1_x = BuildDex("location1_x",
+                                     /*location_checksum=*/ 0x101,
+                                     "LUnique1_x;",
+                                     /*num_method_ids=*/ 0,
+                                     max_classes);
+    const DexFile* dex2_x = BuildDex("location2_x",
+                                     /*location_checksum=*/ 0x102,
+                                     "LUnique2_x;",
+                                     /*num_method_ids=*/ 0,
+                                     max_classes);
 
     ScratchFile profile;
     ScratchFile reference_profile;
@@ -506,15 +512,15 @@ TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferences) {
 TEST_F(ProfileAssistantTest, AdviseCompilationEmptyReferencesBecauseOfClasses) {
   const uint16_t kNumberOfClassesToEnableCompilation = 100;
   const DexFile* dex1_100 = BuildDex("location1_100",
-                                     /*checksum=*/ 101,
+                                     /*location_checksum=*/ 101,
                                      "LUnique1_100;",
                                      /*num_method_ids=*/ 0,
-                                     /*num_type_ids=*/ 100);
+                                     /*num_class_ids=*/ 100);
   const DexFile* dex2_100 = BuildDex("location2_100",
-                                     /*checksum=*/ 102,
+                                     /*location_checksum=*/ 102,
                                      "LUnique2_100;",
                                      /*num_method_ids=*/ 0,
-                                     /*num_type_ids=*/ 100);
+                                     /*num_class_ids=*/ 100);
 
   ScratchFile profile1;
   ScratchFile reference_profile;
@@ -1918,15 +1924,15 @@ TEST_F(ProfileAssistantTest, ForceMerge) {
   const uint16_t kNumberOfClassesInCurProfile = 6110;  // Threshold is 2%.
 
   const DexFile* dex1_7000 = BuildDex("location1_7000",
-                                      /*checksum=*/ 7001,
+                                      /*location_checksum=*/ 7001,
                                       "LUnique1_7000;",
                                       /*num_method_ids=*/ 0,
-                                      /*num_type_ids=*/ 7000);
+                                      /*num_class_ids=*/ 7000);
   const DexFile* dex2_7000 = BuildDex("location2_7000",
-                                      /*checksum=*/ 7002,
+                                      /*location_checksum=*/ 7002,
                                       "LUnique2_7000;",
                                       /*num_method_ids=*/ 0,
-                                      /*num_type_ids=*/ 7000);
+                                      /*num_class_ids=*/ 7000);
 
   ScratchFile profile;
   ScratchFile reference_profile;
