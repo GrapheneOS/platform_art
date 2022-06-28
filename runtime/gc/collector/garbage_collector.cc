@@ -76,6 +76,9 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
       gc_tracing_throughput_hist_(nullptr),
       gc_throughput_avg_(nullptr),
       gc_tracing_throughput_avg_(nullptr),
+      gc_scanned_bytes_(nullptr),
+      gc_freed_bytes_(nullptr),
+      gc_duration_(nullptr),
       cumulative_timings_(name),
       pause_histogram_lock_("pause histogram lock", kDefaultMutexLevel, true),
       is_transaction_active_(false),
@@ -189,15 +192,18 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     RegisterPause(duration_ns);
   }
   total_time_ns_ += duration_ns;
-  uint64_t total_pause_time = 0;
+  uint64_t total_pause_time_ns = 0;
   for (uint64_t pause_time : current_iteration->GetPauseTimes()) {
     MutexLock mu(self, pause_histogram_lock_);
     pause_histogram_.AdjustAndAddValue(pause_time);
-    total_pause_time += pause_time;
+    total_pause_time_ns += pause_time;
   }
   metrics::ArtMetrics* metrics = runtime->GetMetrics();
   // Report STW pause time in microseconds.
-  metrics->WorldStopTimeDuringGCAvg()->Add(total_pause_time / 1'000);
+  const uint64_t total_pause_time_us = total_pause_time_ns / 1'000;
+  metrics->WorldStopTimeDuringGCAvg()->Add(total_pause_time_us);
+  metrics->GcWorldStopTime()->Add(total_pause_time_us);
+  metrics->GcWorldStopCount()->AddOne();
   // Report total collection time of all GCs put together.
   metrics->TotalGcCollectionTime()->Add(NsToMs(duration_ns));
   if (are_metrics_initialized_) {
@@ -216,6 +222,10 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     throughput = current_iteration->GetEstimatedThroughput() / MB;
     gc_throughput_histogram_->Add(throughput);
     gc_throughput_avg_->Add(throughput);
+
+    gc_scanned_bytes_->Add(current_iteration->GetScannedBytes());
+    gc_freed_bytes_->Add(current_iteration->GetFreedBytes());
+    gc_duration_->Add(NsToMs(current_iteration->GetDurationNs()));
   }
   is_transaction_active_ = false;
 }
