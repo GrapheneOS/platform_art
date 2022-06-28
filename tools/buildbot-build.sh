@@ -191,8 +191,15 @@ if [[ $build_target == "yes" ]]; then
   # has it).
   implementation_libs=(
     "heapprofd_client_api.so"
+    "libandroid_runtime_lazy.so"
     "libartpalette-system.so"
+    "libbase.so"
+    "libbinder.so"
+    "libbinder_ndk.so"
+    "libcutils.so"
     "liblog.so"
+    "libutils.so"
+    "libvndksupport.so"
   )
   if [ -d prebuilts/runtime/mainline/platform/impl ]; then
     if [[ $TARGET_ARCH = arm* ]]; then
