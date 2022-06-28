@@ -971,7 +971,7 @@ TEST_F(ProfileAssistantTest, TestBootImageProfile) {
                             /*for_boot_image=*/ true));
 
   ProfileCompilationInfo bootProfile(/*for_boot_image=*/ true);
-  bootProfile.Load(profile.GetFilename(), /*clear_if_invalid=*/ true);
+  EXPECT_TRUE(bootProfile.Load(profile.GetFilename(), /*clear_if_invalid=*/ false));
 
   // Generate the boot profile.
   ScratchFile out_profile;
@@ -1065,10 +1065,10 @@ TEST_F(ProfileAssistantTest, TestBootImageProfileWith2RawProfiles) {
                             core_dex,
                             /*for_boot_image=*/ true));
 
-  ProfileCompilationInfo boot_profile1;
-  ProfileCompilationInfo boot_profile2;
-  boot_profile1.Load(profile1.GetFilename(), /*for_boot_image=*/ true);
-  boot_profile2.Load(profile2.GetFilename(), /*for_boot_image=*/ true);
+  ProfileCompilationInfo boot_profile1(/*for_boot_image=*/ true);
+  ProfileCompilationInfo boot_profile2(/*for_boot_image=*/ true);
+  EXPECT_TRUE(boot_profile1.Load(profile1.GetFilename(), /*clear_if_invalid=*/ false));
+  EXPECT_TRUE(boot_profile2.Load(profile2.GetFilename(), /*clear_if_invalid=*/ false));
 
   // Generate the boot profile.
   ScratchFile out_profile;
