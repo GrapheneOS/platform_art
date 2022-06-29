@@ -29,13 +29,13 @@ namespace art {
 // of the runtime (Runtime::Current()) was started.  If no instance of the runtime was started, it
 // will use the current environment settings.
 
-bool Exec(std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg);
-int ExecAndReturnCode(std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg);
+bool Exec(const std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg);
+int ExecAndReturnCode(const std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg);
 
 // Execute the command specified in `argv_vector` in a subprocess with a timeout.
 // Returns the process exit code on success, -1 otherwise.
-int ExecAndReturnCode(std::vector<std::string>& arg_vector,
-                      time_t timeout_secs,
+int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                      int timeout_sec,
                       /*out*/ bool* timed_out,
                       /*out*/ std::string* error_msg);
 
@@ -44,20 +44,21 @@ class ExecUtils {
  public:
   virtual ~ExecUtils() = default;
 
-  virtual bool Exec(std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg) const {
+  virtual bool Exec(const std::vector<std::string>& arg_vector,
+                    /*out*/ std::string* error_msg) const {
     return art::Exec(arg_vector, error_msg);
   }
 
-  virtual int ExecAndReturnCode(std::vector<std::string>& arg_vector,
+  virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                 /*out*/ std::string* error_msg) const {
     return art::ExecAndReturnCode(arg_vector, error_msg);
   }
 
-  virtual int ExecAndReturnCode(std::vector<std::string>& arg_vector,
-                                time_t timeout_secs,
+  virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                                int timeout_sec,
                                 /*out*/ bool* timed_out,
                                 /*out*/ std::string* error_msg) const {
-    return art::ExecAndReturnCode(arg_vector, timeout_secs, timed_out, error_msg);
+    return art::ExecAndReturnCode(arg_vector, timeout_sec, timed_out, error_msg);
   }
 };
 
