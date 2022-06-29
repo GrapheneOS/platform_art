@@ -278,7 +278,7 @@ class OptimizingUnitTestHelper {
               /* class_linker= */ nullptr,
               graph->GetDexFile(),
               code_item,
-              /* class_def_index= */ DexFile::kDexNoIndex16,
+              /* class_def_idx= */ DexFile::kDexNoIndex16,
               /* method_idx= */ dex::kDexNoIndex,
               /* access_flags= */ 0u,
               /* verified_method= */ nullptr,
