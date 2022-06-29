@@ -34,3 +34,6 @@ for class in intermediate-classes/*.class ; do
   transformed_class=classes/$(basename ${class})
   ${JAVA:-java} ${transformer_args} ${class} ${transformed_class}
 done
+
+# Remove class which we want missing at runtime.
+rm classes/MissingType.class
