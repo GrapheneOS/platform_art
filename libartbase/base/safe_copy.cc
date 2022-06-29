@@ -56,10 +56,10 @@ ssize_t SafeCopy(void *dst, const void *src, size_t len) {
     }
 
     src_iovs[iovecs_used].iov_base = const_cast<char*>(cur);
-    if (!IsAlignedParam(cur, PAGE_SIZE)) {
-      src_iovs[iovecs_used].iov_len = AlignUp(cur, PAGE_SIZE) - cur;
+    if (!IsAlignedParam(cur, kPageSize)) {
+      src_iovs[iovecs_used].iov_len = AlignUp(cur, kPageSize) - cur;
     } else {
-      src_iovs[iovecs_used].iov_len = PAGE_SIZE;
+      src_iovs[iovecs_used].iov_len = kPageSize;
     }
 
     src_iovs[iovecs_used].iov_len = std::min(src_iovs[iovecs_used].iov_len, len);
