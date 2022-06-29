@@ -22,6 +22,31 @@
 namespace art {
 namespace odrefresh {
 
+namespace {
+
+using ::android::base::Result;
+
+}
+
+TEST(OdrCommonTest, ParseSecurityPatchStr) {
+  Result<int> result = ParseSecurityPatchStr("2022-03-08");
+  EXPECT_TRUE(result.ok());
+  EXPECT_EQ(result.value(), 20220308);
+  EXPECT_FALSE(ParseSecurityPatchStr("").ok());
+  EXPECT_FALSE(ParseSecurityPatchStr("20-2203-08").ok());
+  EXPECT_FALSE(ParseSecurityPatchStr("20220308").ok());
+}
+
+TEST(OdrCommonTest, ShouldDisablePartialCompilation) {
+  EXPECT_TRUE(ShouldDisablePartialCompilation("2021-03-05"));
+  EXPECT_TRUE(ShouldDisablePartialCompilation("2022-02-05"));
+  EXPECT_TRUE(ShouldDisablePartialCompilation("2022-03-04"));
+  EXPECT_FALSE(ShouldDisablePartialCompilation("2022-03-05"));
+  EXPECT_FALSE(ShouldDisablePartialCompilation("2022-03-06"));
+  EXPECT_FALSE(ShouldDisablePartialCompilation("2022-04-04"));
+  EXPECT_FALSE(ShouldDisablePartialCompilation("2023-03-04"));
+}
+
 TEST(OdrCommonTest, ShouldDisableRefresh) {
   EXPECT_TRUE(ShouldDisableRefresh("32"));
   EXPECT_TRUE(ShouldDisableRefresh("33"));

@@ -20,15 +20,23 @@
 
 #include <functional>
 #include <initializer_list>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <string_view>
 
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
+#include "android-base/result.h"
 
 namespace art {
 namespace odrefresh {
+
+namespace {
+
+using ::android::base::Result;
+
+}
 
 std::string Concatenate(std::initializer_list<std::string_view> args) {
   std::stringstream ss;
@@ -42,10 +50,34 @@ std::string QuotePath(std::string_view path) {
   return Concatenate({"'", path, "'"});
 }
 
+Result<int> ParseSecurityPatchStr(const std::string& security_patch_str) {
+  std::regex security_patch_regex(R"re((\d{4})-(\d{2})-(\d{2}))re");
+  std::smatch m;
+  if (!std::regex_match(security_patch_str, m, security_patch_regex)) {
+    return Errorf("Invalid security patch string \"{}\"", security_patch_str);
+  }
+  int year = 0, month = 0, day = 0;
+  if (!android::base::ParseInt(m[1], &year) ||
+      !android::base::ParseInt(m[2], &month) ||
+      !android::base::ParseInt(m[3], &day)) {
+    // This should never happen because the string already matches the regex.
+    return Errorf("Unknown error when parsing security patch string \"{}\"", security_patch_str);
+  }
+  return year * 10000 + month * 100 + day;
+}
+
+bool ShouldDisablePartialCompilation(const std::string& security_patch_str) {
+  Result<int> security_patch_value = ParseSecurityPatchStr(security_patch_str);
+  if (!security_patch_value.ok()) {
+    LOG(ERROR) << security_patch_value.error();
+    return false;
+  }
+  return security_patch_value.value() < ParseSecurityPatchStr("2022-03-05").value();
+}
+
 bool ShouldDisableRefresh(const std::string& sdk_version_str) {
   int sdk_version = 0;
   if (!android::base::ParseInt(sdk_version_str, &sdk_version)) {
-    LOG(ERROR) << "Invalid SDK version string \"" << sdk_version_str << "\"";
     return false;
   }
   return sdk_version >= 32;
