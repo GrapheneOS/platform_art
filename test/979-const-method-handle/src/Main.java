@@ -72,6 +72,14 @@ class Main {
         return null;
     }
 
+    @ConstantMethodType(
+            returnType = void.class,
+            parameterTypes = {MissingType.class})
+    private static MethodType missingType() {
+        unreachable();
+        return null;
+    }
+
     private static void repeatConstMethodType0(MethodType expected) {
         System.out.print("repeatConstMethodType0(");
         System.out.print(expected);
@@ -189,6 +197,16 @@ class Main {
         return null;
     }
 
+    @ConstantMethodHandle(
+            kind = ConstantMethodHandle.STATIC_GET,
+            owner = "PrivateMember",
+            fieldOrMethodName = "privateField",
+            descriptor = "I")
+    private static MethodHandle getPrivateField() {
+        unreachable();
+        return null;
+    }
+
     private static void repeatConstMethodHandle() throws Throwable {
         System.out.println("repeatConstMethodHandle()");
         String[] values = {"A", "B", "C"};
@@ -243,5 +261,37 @@ class Main {
         System.out.println("Stack: capacity was " + stack.capacity());
         stackTrim().invokeExact(stack);
         System.out.println("Stack: capacity is " + stack.capacity());
+
+        // We used to not report in the compiler that loading a ConstMethodHandle/ConstMethodType
+        // can throw, which meant we were not catching the exception in the situation where we
+        // inline the loading.
+        try {
+          $inline$getPrivateField();
+          throw new Error("Expected IllegalAccessError");
+        } catch (IllegalAccessError e) {
+          // expected
+        }
+
+        try {
+          $inline$missingType();
+          throw new Error("Expected NoClassDefFoundError");
+        } catch (NoClassDefFoundError e) {
+          // expected
+        }
     }
+
+    public static void $inline$getPrivateField() {
+      getPrivateField();
+    }
+
+    public static void $inline$missingType() {
+      missingType();
+    }
+}
+
+class PrivateMember {
+  private static int privateField;
+}
+
+class MissingType {
 }
