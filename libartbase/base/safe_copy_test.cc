@@ -31,7 +31,7 @@ namespace art {
 #if defined(__linux__)
 
 TEST(SafeCopyTest, smoke) {
-  DCHECK_EQ(kPageSize, static_cast<decltype(kPageSize)>(PAGE_SIZE));
+  DCHECK_EQ(kPageSize, static_cast<size_t>(sysconf(_SC_PAGE_SIZE)));
 
   // Map four pages, mark the second one as PROT_NONE, unmap the last one.
   void* map = mmap(nullptr, kPageSize * 4, PROT_READ | PROT_WRITE,
@@ -79,7 +79,7 @@ TEST(SafeCopyTest, smoke) {
 }
 
 TEST(SafeCopyTest, alignment) {
-  DCHECK_EQ(kPageSize, static_cast<decltype(kPageSize)>(PAGE_SIZE));
+  DCHECK_EQ(kPageSize, static_cast<size_t>(sysconf(_SC_PAGE_SIZE)));
 
   // Copy the middle of a mapping to the end of another one.
   void* src_map = mmap(nullptr, kPageSize * 3, PROT_READ | PROT_WRITE,
