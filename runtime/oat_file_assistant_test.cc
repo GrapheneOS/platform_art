@@ -20,7 +20,6 @@
 #include <gtest/gtest.h>
 #include <sys/param.h>
 
-#include <cmath>
 #include <functional>
 #include <memory>
 #include <string>
@@ -933,9 +932,7 @@ TEST_P(OatFileAssistantTest, ProfileOatUpToDate) {
                         /*expected_dexopt_needed=*/false,
                         /*expected_is_vdex_usable=*/true,
                         /*expected_location=*/OatFileAssistant::kLocationOat);
-  // The legacy implementation is wrong.
-  // TODO(jiakaiz): Fix it.
-  EXPECT_EQ(OatFileAssistant::kDex2OatForFilter,
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
             oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify, /*profile_changed=*/true));
 
   EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
@@ -1919,8 +1916,6 @@ TEST_P(OatFileAssistantTest, Downgrade) {
 // Case: We have a DEX file but we don't have an ODEX file for it. The caller's intention is to
 // downgrade the compiler filter.
 // Expect: Dexopt should never be performed regardless of the target compiler filter.
-// The legacy implementation is wrong.
-// TODO(jiakaiz): Fix it.
 TEST_P(OatFileAssistantTest, DowngradeNoOdex) {
   std::string dex_location = GetScratchDir() + "/TestDex.jar";
   Copy(GetDexSrc1(), dex_location);
@@ -1936,7 +1931,7 @@ TEST_P(OatFileAssistantTest, DowngradeNoOdex) {
                         /*expected_dexopt_needed=*/false,
                         /*expected_is_vdex_usable=*/false,
                         /*expected_location=*/OatFileAssistant::kLocationNoneOrError);
-  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
             oat_file_assistant.GetDexOptNeeded(
                 CompilerFilter::kSpeed, /*profile_changed=*/false, /*downgrade=*/true));
 
@@ -1946,7 +1941,7 @@ TEST_P(OatFileAssistantTest, DowngradeNoOdex) {
                         /*expected_dexopt_needed=*/false,
                         /*expected_is_vdex_usable=*/false,
                         /*expected_location=*/OatFileAssistant::kLocationNoneOrError);
-  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
             oat_file_assistant.GetDexOptNeeded(
                 CompilerFilter::kSpeedProfile, /*profile_changed=*/false, /*downgrade=*/true));
 
@@ -1956,7 +1951,7 @@ TEST_P(OatFileAssistantTest, DowngradeNoOdex) {
                         /*expected_dexopt_needed=*/false,
                         /*expected_is_vdex_usable=*/false,
                         /*expected_location=*/OatFileAssistant::kLocationNoneOrError);
-  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
             oat_file_assistant.GetDexOptNeeded(
                 CompilerFilter::kVerify, /*profile_changed=*/false, /*downgrade=*/true));
 }
@@ -1965,8 +1960,6 @@ TEST_P(OatFileAssistantTest, DowngradeNoOdex) {
 // both `profile_changed` and `downgrade` being true. This won't happen in the real case. Just to be
 // complete.
 // Expect: The behavior should be as `profile_changed` is false and `downgrade` is true.
-// The legacy implementation is wrong.
-// TODO(jiakaiz): Fix it.
 TEST_P(OatFileAssistantTest, ProfileChangedDowngrade) {
   std::string dex_location = GetScratchDir() + "/TestDex.jar";
   std::string odex_location = GetOdexDir() + "/TestDex.odex";
@@ -1977,11 +1970,11 @@ TEST_P(OatFileAssistantTest, ProfileChangedDowngrade) {
 
   OatFileAssistant oat_file_assistant = CreateOatFileAssistant(dex_location.c_str());
 
-  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+  EXPECT_EQ(-OatFileAssistant::kNoDexOptNeeded,
             oat_file_assistant.GetDexOptNeeded(
                 CompilerFilter::kSpeed, /*profile_changed=*/true, /*downgrade=*/true));
 
-  EXPECT_EQ(-OatFileAssistant::kDex2OatForFilter,
+  EXPECT_EQ(-OatFileAssistant::kNoDexOptNeeded,
             oat_file_assistant.GetDexOptNeeded(
                 CompilerFilter::kSpeedProfile, /*profile_changed=*/true, /*downgrade=*/true));
 
@@ -2080,9 +2073,8 @@ TEST_P(OatFileAssistantTest, ForceNoOdex) {
 // Expect: Dexopt should be performed if the compiler filter is better than "verify". The location
 // should be kLocationDm.
 //
-// The legacy version is wrong this case. It returns kDex2OatForFilter with an arbitrary sign if the
-// target compiler filter is better than "verify".
-// TODO(jiakaiz): Fix it.
+// The legacy version should return kDex2OatFromScratch if the target compiler filter is better than
+// "verify".
 TEST_P(OatFileAssistantTest, DmUpToDate) {
   std::string dex_location = GetScratchDir() + "/TestDex.jar";
   std::string dm_location = GetScratchDir() + "/TestDex.dm";
@@ -2110,8 +2102,8 @@ TEST_P(OatFileAssistantTest, DmUpToDate) {
                         /*expected_dexopt_needed=*/true,
                         /*expected_is_vdex_usable=*/true,
                         /*expected_location=*/OatFileAssistant::kLocationDm);
-  EXPECT_EQ(OatFileAssistant::kDex2OatForFilter,
-            abs(oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed)));
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
   VerifyGetDexOptNeeded(&oat_file_assistant,
                         CompilerFilter::kSpeedProfile,
@@ -2119,8 +2111,8 @@ TEST_P(OatFileAssistantTest, DmUpToDate) {
                         /*expected_dexopt_needed=*/true,
                         /*expected_is_vdex_usable=*/true,
                         /*expected_location=*/OatFileAssistant::kLocationDm);
-  EXPECT_EQ(OatFileAssistant::kDex2OatForFilter,
-            abs(oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile)));
+  EXPECT_EQ(OatFileAssistant::kDex2OatFromScratch,
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeedProfile));
 
   VerifyGetDexOptNeeded(&oat_file_assistant,
                         CompilerFilter::kVerify,
@@ -2129,7 +2121,7 @@ TEST_P(OatFileAssistantTest, DmUpToDate) {
                         /*expected_is_vdex_usable=*/true,
                         /*expected_location=*/OatFileAssistant::kLocationDm);
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
-            abs(oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify)));
+            oat_file_assistant.GetDexOptNeeded(CompilerFilter::kVerify));
 }
 
 // Test that GetLocation of a dex file is the same whether the dex
