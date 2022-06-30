@@ -414,12 +414,6 @@
         "variant": "jvmti-stress | redefine-stress"
     },
     {
-        "tests": [ "426-monitor"],
-        "description": ["Hitting an issue with slicer."],
-        "bug": "http://b/235319568",
-        "variant": "jvmti-stress | redefine-stress"
-    },
-    {
         "test_patterns": ["[0-9]*-checker-.*"],
         "description": ["Checker tests are not compatible with jvmti."],
         "variant": "jvmti-stress | redefine-stress | trace-stress | field-stress | step-stress"
