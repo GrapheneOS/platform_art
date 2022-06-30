@@ -30,7 +30,6 @@
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "android-base/errors.h"
 #include "android-base/logging.h"
-#include "android-base/properties.h"
 #include "android-base/result.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -52,16 +51,12 @@ namespace {
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::GetOptimizationStatusResult;
 using ::android::base::Error;
-using ::android::base::GetBoolProperty;
 using ::android::base::Result;
 using ::android::base::Split;
 using ::android::base::StringPrintf;
 using ::ndk::ScopedAStatus;
 
 constexpr const char* kServiceName = "artd";
-
-constexpr const char* kPhenotypeFlagPrefix = "persist.device_config.runtime_native_boot.";
-constexpr const char* kDalvikVmFlagPrefix = "dalvik.vm.";
 
 Result<std::vector<std::string>> GetBootClassPath() {
   const char* env_value = getenv("BOOTCLASSPATH");
@@ -80,22 +75,6 @@ Result<std::vector<std::string>> GetBootImageLocations(bool deny_art_apex_data_f
 
   std::string location_str = GetDefaultBootImageLocation(android_root, deny_art_apex_data_files);
   return Split(location_str, ":");
-}
-
-bool UseJitZygote() {
-  bool profile_boot_class_path_phenotype =
-      GetBoolProperty(std::string(kPhenotypeFlagPrefix) + "profilebootclasspath",
-                      /*default_value=*/false);
-
-  bool profile_boot_class_path =
-      GetBoolProperty(std::string(kDalvikVmFlagPrefix) + "profilebootclasspath",
-                      /*default_value=*/profile_boot_class_path_phenotype);
-
-  return profile_boot_class_path;
-}
-
-bool DenyArtApexDataFiles() {
-  return !GetBoolProperty("odsign.verification.success", /*default_value=*/false);
 }
 
 // Deletes a file. Returns the size of the deleted file, or 0 if the deleted file is empty or an
@@ -232,6 +211,16 @@ Result<void> Artd::BuildRuntimeOptionsCache() {
 }
 
 bool Artd::HasRuntimeOptionsCache() const { return !cached_boot_image_locations_.empty(); }
+
+bool Artd::UseJitZygote() const {
+  return props_->GetBool("dalvik.vm.profilebootclasspath",
+                         "persist.device_config.runtime_native_boot.profilebootclasspath",
+                         /*default_value=*/false);
+}
+
+bool Artd::DenyArtApexDataFiles() const {
+  return !props_->GetBool("odsign.verification.success", /*default_value=*/false);
+}
 
 }  // namespace artd
 }  // namespace art

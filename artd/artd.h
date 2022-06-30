@@ -24,12 +24,17 @@
 #include "android-base/result.h"
 #include "android/binder_auto_utils.h"
 #include "oat_file_assistant.h"
+#include "tools/system_properties.h"
 
 namespace art {
 namespace artd {
 
 class Artd : public aidl::com::android::server::art::BnArtd {
  public:
+  explicit Artd(std::unique_ptr<art::tools::SystemProperties> props =
+                    std::make_unique<art::tools::SystemProperties>())
+      : props_(std::move(props)) {}
+
   ndk::ScopedAStatus isAlive(bool* _aidl_return) override;
 
   ndk::ScopedAStatus deleteArtifacts(
@@ -51,10 +56,15 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   bool HasRuntimeOptionsCache() const;
 
+  bool UseJitZygote() const;
+
+  bool DenyArtApexDataFiles() const;
+
   std::vector<std::string> cached_boot_image_locations_;
   std::vector<std::string> cached_boot_class_path_;
   std::string cached_apex_versions_;
   bool cached_deny_art_apex_data_files_;
+  std::unique_ptr<art::tools::SystemProperties> props_;
 };
 
 }  // namespace artd
