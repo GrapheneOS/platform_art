@@ -35,6 +35,7 @@ art_clang_tidy_errors = [
     "bugprone-unused-raii", // Protect scoped things like MutexLock.
     "bugprone-virtual-near-miss",
     "modernize-use-bool-literals",
+    "performance-for-range-copy",
     "performance-implicit-conversion-in-loop",
     "performance-unnecessary-copy-initialization",
     "performance-unnecessary-value-param",
@@ -49,7 +50,6 @@ art_clang_tidy_allowed = [
     "modernize-use-nullptr",
     "modernize-use-using", // TODO: move to art_clang_tidy_errors after b/236243696 is done
     "performance-faster-string-find",
-    "performance-for-range-copy",
     "performance-noexcept-move-constructor",
 ]
 

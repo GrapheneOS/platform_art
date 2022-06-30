@@ -182,7 +182,7 @@ static void DataDumpRequestCb(jvmtiEnv* jvmti) {
               << "\t" << "<ALL_TYPES>"
               << "\t" << obj_len
               << "\t" << total_size;
-    for (auto sz : class_sizes) {
+    for (const std::pair<std::string, size_t> sz : class_sizes) {
       size_t count = class_counts[sz.first];
       LOG(INFO) << "\t" << field_class_name << "." << field_name << ":" << field_sig
                 << "\t" << sz.first
