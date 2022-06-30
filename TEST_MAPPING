@@ -1297,16 +1297,16 @@
   ],
   "presubmit": [
     {
-      "name": "CtsJdwpTestCases"
+      "name": "ArtServiceTests"
     },
     {
       "name": "BootImageProfileTest"
     },
     {
-      "name": "ArtServiceTests"
+      "name": "ComposHostTestCases"
     },
     {
-      "name": "ComposHostTestCases"
+      "name": "CtsJdwpTestCases"
     },
     {
       "name": "art_standalone_dexpreopt_tests"
