@@ -59,7 +59,7 @@ class AssemblerTestBase : public testing::Test {
 
   // This is intended to be run as a test.
   bool CheckTools() {
-    for (auto cmd : { GetAssemblerCommand()[0], GetDisassemblerCommand()[0] }) {
+    for (const std::string& cmd : { GetAssemblerCommand()[0], GetDisassemblerCommand()[0] }) {
       if (!OS::FileExists(cmd.c_str())) {
         LOG(ERROR) << "Could not find " << cmd;
         return false;
