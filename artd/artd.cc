@@ -154,18 +154,31 @@ ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
   }
 
   std::string error_msg;
-  if (!OatFileAssistant::GetOptimizationStatus(
-          in_dexFile.c_str(),
-          in_instructionSet.c_str(),
-          in_classLoaderContext.c_str(),
-          std::make_unique<OatFileAssistant::RuntimeOptions>(std::move(*runtime_options)),
-          &_aidl_return->compilerFilter,
-          &_aidl_return->compilationReason,
-          &_aidl_return->locationDebugString,
-          &error_msg)) {
+  auto oat_file_assistant = OatFileAssistant::Create(
+      in_dexFile.c_str(),
+      in_instructionSet.c_str(),
+      in_classLoaderContext.c_str(),
+      /*load_executable=*/false,
+      /*only_load_trusted_executable=*/true,
+      std::make_unique<OatFileAssistant::RuntimeOptions>(std::move(*runtime_options)),
+      &error_msg);
+  if (oat_file_assistant == nullptr) {
     return ScopedAStatus::fromExceptionCodeWithMessage(
-        EX_ILLEGAL_STATE, ("Failed to get optimization status: " + error_msg).c_str());
+        EX_ILLEGAL_STATE, ("Failed to create OatFileAssistant: " + error_msg).c_str());
   }
+
+  std::string ignored_odex_status;
+  oat_file_assistant->GetOptimizationStatus(&_aidl_return->compilerFilter,
+                                            &_aidl_return->compilationReason,
+                                            &_aidl_return->locationDebugString,
+                                            &ignored_odex_status);
+
+  // We ignore odex_status because it is not meaningful. It can only be either "up-to-date",
+  // "apk-more-recent", or "io-error-no-oat", which means it doesn't give us information in addition
+  // to what we can learn from compiler_filter because compiler_filter will be the actual compiler
+  // filter, "run-from-apk-fallback", and "run-from-apk" in those three cases respectively.
+  DCHECK(ignored_odex_status == "up-to-date" || ignored_odex_status == "apk-more-recent" ||
+         ignored_odex_status == "io-error-no-oat");
 
   return ScopedAStatus::ok();
 }
