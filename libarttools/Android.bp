@@ -57,6 +57,7 @@ art_cc_defaults {
     name: "art_libarttools_tests_defaults",
     defaults: ["libarttools_defaults"],
     srcs: [
+        "tools/cmdline_builder_test.cc",
         "tools/system_properties_test.cc",
         "tools/tools_test.cc",
     ],
