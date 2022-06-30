@@ -69,17 +69,17 @@ art_cc_defaults {
 }
 
 // Version of ART gtest `art_artd_tests` bundled with the ART APEX on target.
-// TODO(b/192274705): Remove this module when the migration to standalone ART
-// gtests is complete.
+//
+// This test requires the full libbinder_ndk implementation on host, which is
+// not available as a prebuilt on the thin master-art branch. Hence it won't
+// work there, and there's a conditional in Android.gtest.mk to exclude it from
+// test-art-host-gtest.
 art_cc_test {
     name: "art_artd_tests",
     defaults: [
         "art_gtest_defaults",
         "art_artd_tests_defaults",
     ],
-    // TODO(b/235464166): The host test does not build on master-art because of
-    // the dependency on libbinder_ndk.
-    host_supported: false,
 }
 
 // Standalone version of ART gtest `art_artd_tests`, not bundled with the ART
@@ -90,7 +90,4 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_artd_tests_defaults",
     ],
-    // TODO(b/235464166): The host test does not build on master-art because of
-    // the dependency on libbinder_ndk.
-    host_supported: false,
 }
