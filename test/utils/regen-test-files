@@ -551,6 +551,7 @@ class Generator:
         "BootImageProfileTest",
         "ComposHostTestCases",
         "CtsJdwpTestCases",
+        "art-apex-update-rollback",
         "art_standalone_dexpreopt_tests",
     ]
     presubmit_tests = other_presubmit_tests + run_test_module_names + art_gtest_module_names
