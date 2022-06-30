@@ -670,9 +670,7 @@ class TestingTargetChecker:
 
   def run(self):
     # Check ART test binaries.
-    # TODO(b/235464166): art_artd_tests doesn't work on master-art because of
-    # the dependency on libbinder_ndk.
-    # self._checker.check_art_test_executable('art_artd_tests')
+    self._checker.check_art_test_executable('art_artd_tests')
     self._checker.check_art_test_executable('art_cmdline_tests')
     self._checker.check_art_test_executable('art_compiler_tests')
     self._checker.check_art_test_executable('art_dex2oat_tests')
