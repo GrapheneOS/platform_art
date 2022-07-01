@@ -253,12 +253,12 @@ SLOW_OJLUNI_TESTS = {
 # These tests fail with "java.io.IOException: Stream closed", tracked in
 # http://b/235566533 and http://b/208639267
 DISABLED_GCSTRESS_DEBUG_TESTS = {
-  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard1",
-  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard2",
-  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard3",
-  "test.java.lang.StrictMath.HypotTests_testAgainstTranslit_shard4",
+  "test.java.lang.StrictMath.HypotTests#testAgainstTranslit_shard1",
+  "test.java.lang.StrictMath.HypotTests#testAgainstTranslit_shard2",
+  "test.java.lang.StrictMath.HypotTests#testAgainstTranslit_shard3",
+  "test.java.lang.StrictMath.HypotTests#testAgainstTranslit_shard4",
   "test.java.math.BigDecimal",
-  "test.java.math.BigInteger_testConstructor",
+  "test.java.math.BigInteger#testConstructor",
 }
 
 DISABLED_FUGU_TESTS = {
@@ -388,6 +388,7 @@ def get_test_names():
   if args.gcstress or args.debug or args.mode == "jvm":
     test_names = list(t for t in test_names if not t.startswith("libcore.highmemorytest"))
     test_names = list(filter(lambda x: x not in SLOW_OJLUNI_TESTS, test_names))
+  if args.gcstress and args.debug:
     test_names = list(filter(lambda x: x not in DISABLED_GCSTRESS_DEBUG_TESTS, test_names))
   if not args.getrandom:
     test_names = list(filter(lambda x: x not in DISABLED_FUGU_TESTS, test_names))
