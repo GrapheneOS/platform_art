@@ -2347,6 +2347,7 @@ TEST_P(OatFileAssistantTest, Create) {
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
+  std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
   std::unique_ptr<OatFileAssistant> oat_file_assistant =
       OatFileAssistant::Create(dex_location,
@@ -2355,6 +2356,7 @@ TEST_P(OatFileAssistantTest, Create) {
                                /*load_executable=*/false,
                                /*only_load_trusted_executable=*/true,
                                MaybeCreateRuntimeOptions(),
+                               &context,
                                &error_msg);
   ASSERT_NE(oat_file_assistant, nullptr);
 
@@ -2370,6 +2372,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidIsaString) {
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
+  std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
   EXPECT_EQ(OatFileAssistant::Create(dex_location,
                                      /*isa_str=*/"foo",
@@ -2377,6 +2380,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidIsaString) {
                                      /*load_executable=*/false,
                                      /*only_load_trusted_executable=*/true,
                                      MaybeCreateRuntimeOptions(),
+                                     &context,
                                      &error_msg),
             nullptr);
   EXPECT_EQ(error_msg, "Instruction set 'foo' is invalid");
@@ -2390,6 +2394,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextString) {
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
+  std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
   EXPECT_EQ(OatFileAssistant::Create(dex_location,
                                      GetInstructionSetString(kRuntimeISA),
@@ -2397,6 +2402,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextString) {
                                      /*load_executable=*/false,
                                      /*only_load_trusted_executable=*/true,
                                      MaybeCreateRuntimeOptions(),
+                                     &context,
                                      &error_msg),
             nullptr);
   EXPECT_EQ(error_msg, "Class loader context 'foo' is invalid");
@@ -2415,6 +2421,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextFile) {
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
+  std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
   EXPECT_EQ(OatFileAssistant::Create(dex_location,
                                      GetInstructionSetString(kRuntimeISA),
@@ -2422,6 +2429,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextFile) {
                                      /*load_executable=*/false,
                                      /*only_load_trusted_executable=*/true,
                                      MaybeCreateRuntimeOptions(),
+                                     &context,
                                      &error_msg),
             nullptr);
   EXPECT_EQ(error_msg,
