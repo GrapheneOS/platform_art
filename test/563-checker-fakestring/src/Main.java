@@ -34,6 +34,11 @@ public class Main {
     }
   }
 
+  // Create an empty int[] to force loading the int[] class before compiling
+  // TestCase.deoptimizeNewInstance.
+  // This makes sure the compiler can properly type int[] and not bail.
+  static int[] emptyArray = new int[0];
+
   public static void main(String[] args) throws Throwable {
     System.loadLibrary(args[0]);
     Class<?> c = Class.forName("TestCase");

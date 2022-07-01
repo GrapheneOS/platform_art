@@ -138,6 +138,13 @@ ART_TEST_MODULES_TARGET := $(ART_TEST_MODULES_COMMON) \
 
 ART_TEST_MODULES_HOST := $(ART_TEST_MODULES_COMMON)
 
+ifneq (,$(wildcard frameworks/native/libs/binder))
+  # Only include the artd host tests if we have the binder sources available and
+  # can build the libbinder_ndk dependency. It is not available as a prebuilt on
+  # master-art.
+  ART_TEST_MODULES_HOST += art_artd_tests
+endif
+
 ART_TARGET_GTEST_NAMES := $(foreach tm,$(ART_TEST_MODULES_TARGET),\
   $(foreach path,$(ART_TEST_LIST_device_$(TARGET_ARCH)_$(tm)),\
     $(notdir $(path))\
