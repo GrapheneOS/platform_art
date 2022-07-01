@@ -143,7 +143,7 @@ class HiddenApiTest : public CommonRuntimeTest {
     std::map<std::string, std::string> flags;
 
     for (std::string line; std::getline(ifs, line);) {
-      std::size_t comma = line.find(",");
+      std::size_t comma = line.find(',');
       if (comma == std::string::npos) {
         flags.emplace(line, "");
       } else {
