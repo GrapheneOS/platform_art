@@ -65,9 +65,9 @@ class ArraySlice {
             lpa != nullptr ? lpa->size() : 0,
             element_size) {}
   ArraySlice(const ArraySlice<T>&) = default;
-  ArraySlice(ArraySlice<T>&&) = default;
+  ArraySlice(ArraySlice<T>&&) noexcept = default;
   ArraySlice<T>& operator=(const ArraySlice<T>&) = default;
-  ArraySlice<T>& operator=(ArraySlice<T>&&) = default;
+  ArraySlice<T>& operator=(ArraySlice<T>&&) noexcept = default;
 
   // Iterators.
   iterator begin() { return iterator(&AtUnchecked(0), element_size_); }
