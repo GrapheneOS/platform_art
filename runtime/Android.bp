@@ -130,7 +130,7 @@ libart_cc_defaults {
         "exec_utils.cc",
         "fault_handler.cc",
         "gc/allocation_record.cc",
-        "gc/allocator/dlmalloc.cc",
+        "gc/allocator/art-dlmalloc.cc",
         "gc/allocator/rosalloc.cc",
         "gc/accounting/bitmap.cc",
         "gc/accounting/card_table.cc",
@@ -455,11 +455,15 @@ libart_cc_defaults {
     header_libs: [
         "art_cmdlineparser_headers",
         "cpp-define-generator-definitions",
+        "dlmalloc",
         "jni_platform_headers",
         "libart_headers",
         "libnativehelper_header_only",
     ],
-    export_header_lib_headers: ["libart_headers"],
+    export_header_lib_headers: [
+        "dlmalloc",
+        "libart_headers",
+    ],
     whole_static_libs: [
         "libcpu_features",
     ],
