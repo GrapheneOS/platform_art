@@ -30,9 +30,9 @@ class StrideIterator : public std::iterator<std::random_access_iterator_tag, T> 
       typename std::iterator<std::random_access_iterator_tag, T>::difference_type;
 
   StrideIterator(const StrideIterator&) = default;
-  StrideIterator(StrideIterator&&) = default;
+  StrideIterator(StrideIterator&&) noexcept = default;
   StrideIterator& operator=(const StrideIterator&) = default;
-  StrideIterator& operator=(StrideIterator&&) = default;
+  StrideIterator& operator=(StrideIterator&&) noexcept = default;
 
   StrideIterator(T* ptr, size_t stride)
       : ptr_(reinterpret_cast<uintptr_t>(ptr)),

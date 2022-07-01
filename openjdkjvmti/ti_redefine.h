@@ -126,7 +126,7 @@ class Redefiner {
     ~ClassRedefinition() NO_THREAD_SAFETY_ANALYSIS;
 
     // Move assignment so we can sort these in a vector.
-    ClassRedefinition& operator=(ClassRedefinition&& other) {
+    ClassRedefinition& operator=(ClassRedefinition&& other) noexcept {
       driver_ = other.driver_;
       klass_ = other.klass_;
       dex_file_ = std::move(other.dex_file_);
@@ -138,7 +138,7 @@ class Redefiner {
     }
 
     // Move constructor so we can put these into a vector.
-    ClassRedefinition(ClassRedefinition&& other)
+    ClassRedefinition(ClassRedefinition&& other) noexcept
         : driver_(other.driver_),
           klass_(other.klass_),
           dex_file_(std::move(other.dex_file_)),
