@@ -1309,9 +1309,6 @@
       "name": "CtsJdwpTestCases"
     },
     {
-      "name": "art-apex-update-rollback"
-    },
-    {
       "name": "art_standalone_dexpreopt_tests"
     },
     {
@@ -2614,9 +2611,6 @@
     },
     {
       "name": "ComposHostTestCases"
-    },
-    {
-      "name": "art-apex-update-rollback"
     },
     {
       "name": "art_standalone_dexpreopt_tests"
