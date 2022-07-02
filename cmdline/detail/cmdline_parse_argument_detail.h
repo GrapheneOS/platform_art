@@ -150,7 +150,7 @@ struct CmdlineParserArgumentInfo {
     for (auto cname : names_) {
       std::string_view name = cname;
       if (using_blanks_) {
-        name = name.substr(0, name.find("_"));
+        name = name.substr(0, name.find('_'));
       }
       auto& os = vios.Stream();
       auto print_once = [&]() {
