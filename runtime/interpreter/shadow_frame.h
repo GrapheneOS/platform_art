@@ -54,7 +54,7 @@ class ShadowFrame {
     // We have been requested to notify when this frame gets popped.
     kNotifyFramePop = 1 << 0,
     // We have been asked to pop this frame off the stack as soon as possible.
-    kForcePopFrame  = 1 << 1,
+    kForcePopFrame = 1 << 1,
     // We have been asked to re-execute the last instruction.
     kForceRetryInst = 1 << 2,
     // Mark that we expect the next frame to retry the last instruction (used by instrumentation and
@@ -62,6 +62,9 @@ class ShadowFrame {
     kSkipMethodExitEvents = 1 << 3,
     // Used to suppress exception events caused by other instrumentation events.
     kSkipNextExceptionEvent = 1 << 4,
+    // Used to specify if DexPCMoveEvents have to be reported. These events will
+    // only be reported if the method has a breakpoint set.
+    kNotifyDexPcMoveEvents = 1 << 5,
   };
 
  public:
@@ -371,6 +374,14 @@ class ShadowFrame {
 
   void SetSkipNextExceptionEvent(bool enable) {
     UpdateFrameFlag(enable, FrameFlags::kSkipNextExceptionEvent);
+  }
+
+  bool GetNotifyDexPcMoveEvents() const {
+    return GetFrameFlag(FrameFlags::kNotifyDexPcMoveEvents);
+  }
+
+  void SetNotifyDexPcMoveEvents(bool enable) {
+    UpdateFrameFlag(enable, FrameFlags::kNotifyDexPcMoveEvents);
   }
 
   void CheckConsistentVRegs() const {
