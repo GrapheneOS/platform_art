@@ -1526,15 +1526,25 @@ ENTRY art_quick_generic_jni_trampoline
     .cfi_remember_state
     .cfi_def_cfa_register sp
 
+    // store into fpr, for when it's a fpr return...
+    vmov d0, r0, r1
+
+    LOAD_RUNTIME_INSTANCE r2
+    ldr r2, [r2,  #INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE]
+    cbnz r2, .Lcall_method_exit_hook
+.Lcall_method_exit_hook_done:
+
     // Tear down the callee-save frame. Skip arg registers.
     add     sp, #FRAME_SIZE_SAVE_REFS_AND_ARGS-FRAME_SIZE_SAVE_REFS_ONLY
     .cfi_adjust_cfa_offset -(FRAME_SIZE_SAVE_REFS_AND_ARGS-FRAME_SIZE_SAVE_REFS_ONLY)
     RESTORE_SAVE_REFS_ONLY_FRAME
     REFRESH_MARKING_REGISTER
 
-    // store into fpr, for when it's a fpr return...
-    vmov d0, r0, r1
     bx lr      // ret
+
+.Lcall_method_exit_hook:
+    bl art_quick_method_exit_hook
+    b .Lcall_method_exit_hook_done
 
     // Undo the unwinding information from above since it doesn't apply below.
     CFI_RESTORE_STATE_AND_DEF_CFA r10, FRAME_SIZE_SAVE_REFS_AND_ARGS
