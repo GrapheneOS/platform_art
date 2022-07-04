@@ -505,6 +505,10 @@ class Runtime {
     return OFFSETOF_MEMBER(Runtime, callee_save_methods_[static_cast<size_t>(type)]);
   }
 
+  static constexpr MemberOffset GetInstrumentationOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(Runtime, instrumentation_));
+  }
+
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
   }
