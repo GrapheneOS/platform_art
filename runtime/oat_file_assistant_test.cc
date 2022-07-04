@@ -88,26 +88,7 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
       ASSERT_EQ(expected_reason, compilation_reason1);
     }
 
-    // Verify the static method (called from artd).
-    std::string compilation_filter2;
-    std::string compilation_reason2;
-    std::string odex_location2;  // ignored
-    std::string error_msg;       // ignored
-
-    ASSERT_TRUE(
-        OatFileAssistant::GetOptimizationStatus(file,
-                                                GetInstructionSetString(kRuntimeISA),
-                                                context->EncodeContextForDex2oat(/*base_dir=*/""),
-                                                MaybeCreateRuntimeOptions(),
-                                                &compilation_filter2,
-                                                &compilation_reason2,
-                                                &odex_location2,
-                                                &error_msg));
-
-    ASSERT_EQ(expected_filter_name, compilation_filter2);
-    ASSERT_EQ(expected_reason, compilation_reason2);
-
-    // Verify the instance methods (called at runtime).
+    // Verify the instance methods (called at runtime and from artd).
     OatFileAssistant assistant = CreateOatFileAssistant(file.c_str(), context);
 
     std::string odex_location3;  // ignored
@@ -1796,6 +1777,29 @@ TEST_P(OatFileAssistantTest, GetDexOptNeededWithApexVersions) {
   }
 }
 
+TEST_P(OatFileAssistantTest, Create) {
+  std::string dex_location = GetScratchDir() + "/OdexUpToDate.jar";
+  std::string odex_location = GetOdexDir() + "/OdexUpToDate.odex";
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed, "install");
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  std::string error_msg;
+  std::unique_ptr<OatFileAssistant> oat_file_assistant =
+      OatFileAssistant::Create(dex_location,
+                               GetInstructionSetString(kRuntimeISA),
+                               default_context_->EncodeContextForDex2oat(/*base_dir=*/""),
+                               /*load_executable=*/false,
+                               /*only_load_trusted_executable=*/true,
+                               MaybeCreateRuntimeOptions(),
+                               &error_msg);
+  ASSERT_NE(oat_file_assistant, nullptr);
+
+  // Verify that the created instance is usable.
+  VerifyOptimizationStatus(dex_location, default_context_.get(), "speed", "install", "up-to-date");
+}
+
 TEST_P(OatFileAssistantTest, ErrorOnInvalidIsaString) {
   std::string dex_location = GetScratchDir() + "/OdexUpToDate.jar";
   std::string odex_location = GetOdexDir() + "/OdexUpToDate.odex";
@@ -1804,19 +1808,15 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidIsaString) {
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
-  std::string ignored_compilation_filter;
-  std::string ignored_compilation_reason;
-  std::string ignored_odex_location;
   std::string error_msg;
-  EXPECT_FALSE(OatFileAssistant::GetOptimizationStatus(
-      dex_location,
-      /*isa_str=*/"foo",
-      default_context_->EncodeContextForDex2oat(/*base_dir=*/""),
-      MaybeCreateRuntimeOptions(),
-      &ignored_compilation_filter,
-      &ignored_compilation_reason,
-      &ignored_odex_location,
-      &error_msg));
+  EXPECT_EQ(OatFileAssistant::Create(dex_location,
+                                     /*isa_str=*/"foo",
+                                     default_context_->EncodeContextForDex2oat(/*base_dir=*/""),
+                                     /*load_executable=*/false,
+                                     /*only_load_trusted_executable=*/true,
+                                     MaybeCreateRuntimeOptions(),
+                                     &error_msg),
+            nullptr);
   EXPECT_EQ(error_msg, "Instruction set 'foo' is invalid");
 }
 
@@ -1828,18 +1828,15 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextString) {
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
-  std::string ignored_compilation_filter;
-  std::string ignored_compilation_reason;
-  std::string ignored_odex_location;
   std::string error_msg;
-  EXPECT_FALSE(OatFileAssistant::GetOptimizationStatus(dex_location,
-                                                       GetInstructionSetString(kRuntimeISA),
-                                                       /*context_str=*/"foo",
-                                                       MaybeCreateRuntimeOptions(),
-                                                       &ignored_compilation_filter,
-                                                       &ignored_compilation_reason,
-                                                       &ignored_odex_location,
-                                                       &error_msg));
+  EXPECT_EQ(OatFileAssistant::Create(dex_location,
+                                     GetInstructionSetString(kRuntimeISA),
+                                     /*context_str=*/"foo",
+                                     /*load_executable=*/false,
+                                     /*only_load_trusted_executable=*/true,
+                                     MaybeCreateRuntimeOptions(),
+                                     &error_msg),
+            nullptr);
   EXPECT_EQ(error_msg, "Class loader context 'foo' is invalid");
 }
 
@@ -1856,19 +1853,15 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextFile) {
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
-  std::string ignored_compilation_filter;
-  std::string ignored_compilation_reason;
-  std::string ignored_odex_location;
   std::string error_msg;
-  EXPECT_FALSE(
-      OatFileAssistant::GetOptimizationStatus(dex_location,
-                                              GetInstructionSetString(kRuntimeISA),
-                                              /*context_str=*/"PCL[" + context_location + "]",
-                                              MaybeCreateRuntimeOptions(),
-                                              &ignored_compilation_filter,
-                                              &ignored_compilation_reason,
-                                              &ignored_odex_location,
-                                              &error_msg));
+  EXPECT_EQ(OatFileAssistant::Create(dex_location,
+                                     GetInstructionSetString(kRuntimeISA),
+                                     /*context_str=*/"PCL[" + context_location + "]",
+                                     /*load_executable=*/false,
+                                     /*only_load_trusted_executable=*/true,
+                                     MaybeCreateRuntimeOptions(),
+                                     &error_msg),
+            nullptr);
   EXPECT_EQ(error_msg,
             "Failed to load class loader context files for '" + dex_location +
                 "' with context 'PCL[" + context_location + "]'");

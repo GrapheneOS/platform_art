@@ -22,6 +22,7 @@
 #include <sstream>
 
 #include "android-base/file.h"
+#include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "arch/instruction_set.h"
@@ -232,6 +233,47 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
       VLOG(oat) << "Dex parent of " << dex_location_ << " is not writable: " << strerror(errno);
     }
   }
+}
+
+std::unique_ptr<OatFileAssistant> OatFileAssistant::Create(
+    const std::string& filename,
+    const std::string& isa_str,
+    const std::string& context_str,
+    bool load_executable,
+    bool only_load_trusted_executable,
+    std::unique_ptr<RuntimeOptions> runtime_options,
+    std::string* error_msg) {
+  InstructionSet isa = GetInstructionSetFromString(isa_str.c_str());
+  if (isa == InstructionSet::kNone) {
+    *error_msg = StringPrintf("Instruction set '%s' is invalid", isa_str.c_str());
+    return nullptr;
+  }
+
+  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create(context_str.c_str());
+  if (context == nullptr) {
+    *error_msg = StringPrintf("Class loader context '%s' is invalid", context_str.c_str());
+    return nullptr;
+  }
+
+  if (!context->OpenDexFiles(android::base::Dirname(filename.c_str()),
+                             /*context_fds=*/{},
+                             /*only_read_checksums=*/true)) {
+    *error_msg =
+        StringPrintf("Failed to load class loader context files for '%s' with context '%s'",
+                     filename.c_str(),
+                     context_str.c_str());
+    return nullptr;
+  }
+
+  auto assistant = std::make_unique<OatFileAssistant>(filename.c_str(),
+                                                      isa,
+                                                      context.get(),
+                                                      load_executable,
+                                                      only_load_trusted_executable,
+                                                      std::move(runtime_options));
+
+  assistant->owned_context_ = std::move(context);
+  return assistant;
 }
 
 bool OatFileAssistant::UseFdToReadFiles() {
@@ -1141,57 +1183,6 @@ void OatFileAssistant::GetOptimizationStatus(const std::string& filename,
       &out_odex_status);
 }
 
-bool OatFileAssistant::GetOptimizationStatus(const std::string& filename,
-                                             const std::string& isa_str,
-                                             const std::string& context_str,
-                                             std::unique_ptr<RuntimeOptions> runtime_options,
-                                             /*out*/ std::string* compiler_filter,
-                                             /*out*/ std::string* compilation_reason,
-                                             /*out*/ std::string* odex_location,
-                                             /*out*/ std::string* error_msg) {
-  InstructionSet isa = GetInstructionSetFromString(isa_str.c_str());
-  if (isa == InstructionSet::kNone) {
-    *error_msg = StringPrintf("Instruction set '%s' is invalid", isa_str.c_str());
-    return false;
-  }
-
-  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create(context_str.c_str());
-  if (context == nullptr) {
-    *error_msg = StringPrintf("Class loader context '%s' is invalid", context_str.c_str());
-    return false;
-  }
-
-  std::vector<int> context_fds;
-  if (!context->OpenDexFiles(android::base::Dirname(filename.c_str()),
-                             context_fds,
-                             /*only_read_checksums=*/true)) {
-    *error_msg =
-        StringPrintf("Failed to load class loader context files for '%s' with context '%s'",
-                     filename.c_str(),
-                     context_str.c_str());
-    return false;
-  }
-
-  OatFileAssistant oat_file_assistant(filename.c_str(),
-                                      isa,
-                                      context.get(),
-                                      /*load_executable=*/false,
-                                      /*only_load_trusted_executable=*/true,
-                                      std::move(runtime_options));
-
-  // We ignore the odex_status because it is not meaningful. It can never be
-  // "boot-image-more-recent" or "context-mismatch". In the case where the boot image has changed or
-  // there is a context mismatch, the value is "up-to-date" because the vdex file is still usable.
-  // I.e., it can only be either "up-to-date" or "apk-more-recent", which means it doesn't give us
-  // information in addition to what we can learn from compiler_filter.
-  std::string ignored_odex_status;
-
-  oat_file_assistant.GetOptimizationStatus(
-      odex_location, compiler_filter, compilation_reason, &ignored_odex_status);
-
-  return true;
-}
-
 void OatFileAssistant::GetOptimizationStatus(
     std::string* out_odex_location,
     std::string* out_compilation_filter,
@@ -1218,28 +1209,25 @@ void OatFileAssistant::GetOptimizationStatus(
   OatStatus status = oat_file_info.Status();
   const char* reason = oat_file->GetCompilationReason();
   *out_compilation_reason = reason == nullptr ? "unknown" : reason;
+
+  // If the oat file is invalid, the vdex file will be picked, so the status is `kOatUpToDate`. If
+  // the vdex file is also invalid, then either `oat_file` is nullptr, or `status` is
+  // `kOatDexOutOfDate`.
+  DCHECK(status == kOatUpToDate || status == kOatDexOutOfDate);
+
   switch (status) {
     case kOatUpToDate:
       *out_compilation_filter = CompilerFilter::NameOfFilter(oat_file->GetCompilerFilter());
       *out_odex_status = "up-to-date";
       return;
 
-    case kOatCannotOpen:  // This should never happen, but be robust.
-      *out_compilation_filter = "error";
-      *out_compilation_reason = "error";
-      // This mostly happens when we cannot open the vdex file,
-      // or the file is corrupt.
-      *out_odex_status = "io-error-or-corruption";
-      return;
-
+    case kOatCannotOpen:
     case kOatBootImageOutOfDate:
-      *out_compilation_filter = "run-from-apk-fallback";
-      *out_odex_status = "boot-image-more-recent";
-      return;
-
     case kOatContextOutOfDate:
-      *out_compilation_filter = "run-from-apk-fallback";
-      *out_odex_status = "context-mismatch";
+      // These should never happen, but be robust.
+      *out_compilation_filter = "unexpected";
+      *out_compilation_reason = "unexpected";
+      *out_odex_status = "unexpected";
       return;
 
     case kOatDexOutOfDate:
