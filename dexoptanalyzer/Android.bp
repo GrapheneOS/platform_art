@@ -85,6 +85,7 @@ art_cc_defaults {
     name: "art_dexoptanalyzer_tests_defaults",
     shared_libs: [
         "libunwindstack",
+        "libziparchive",
     ],
     data: [
         ":art-gtest-jars-LinkageTest",

@@ -599,6 +599,9 @@ art_cc_test {
         ":art-gtest-jars-Nested",
         ":generate-boot-image",
     ],
+    shared_libs: [
+        "libziparchive",
+    ],
     test_config: "art_standalone_dex2oat_cts_tests.xml",
     test_suites: ["cts"],
 }
