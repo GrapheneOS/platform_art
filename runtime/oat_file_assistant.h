@@ -112,6 +112,45 @@ class OatFileAssistant {
     const std::string& apex_versions;
   };
 
+  // A bit field to represent the conditions where dexopt should be performed.
+  struct DexOptTrigger {
+    // Dexopt should be performed if the target compiler filter is better than the current compiler
+    // filter. See `CompilerFilter::IsBetter`.
+    bool targetFilterIsBetter : 1;
+    // Dexopt should be performed if the target compiler filter is the same as the current compiler
+    // filter.
+    bool targetFilterIsSame : 1;
+    // Dexopt should be performed if the target compiler filter is worse than the current compiler
+    // filter. See `CompilerFilter::IsBetter`.
+    bool targetFilterIsWorse : 1;
+    // Dexopt should be performed if the current oat file was compiled without a primary image,
+    // and the runtime is now running with a primary image loaded from disk.
+    bool primaryBootImageBecomesUsable : 1;
+  };
+
+  // Represents the location of the current oat file and/or vdex file.
+  enum Location {
+    // Does not exist, or an error occurs.
+    kLocationNoneOrError = 0,
+    // In the global "dalvik-cache" folder.
+    kLocationOat = 1,
+    // In the "oat" folder next to the dex file.
+    kLocationOdex = 2,
+    // In the DM file. This means the only usable file is the vdex file.
+    kLocationDm = 3,
+  };
+
+  // Represents the status of the current oat file and/or vdex file.
+  class DexOptStatus {
+   public:
+    Location GetLocation() { return location_; }
+    bool IsVdexUsable() { return location_ != kLocationNoneOrError; }
+
+   private:
+    Location location_ = kLocationNoneOrError;
+    friend class OatFileAssistant;
+  };
+
   // Constructs an OatFileAssistant object to assist the oat file
   // corresponding to the given dex location with the target instruction set.
   //
@@ -190,9 +229,17 @@ class OatFileAssistant {
   // Returns a positive status code if the status refers to the oat file in
   // the oat location. Returns a negative status code if the status refers to
   // the oat file in the odex location.
+  //
+  // Deprecated. Use the other overload.
   int GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
                       bool profile_changed = false,
                       bool downgrade = false);
+
+  // Returns true if dexopt needs to be performed with respect to the given target compilation
+  // filter and dexopt trigger. Also returns the status of the current oat file and/or vdex file.
+  bool GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
+                       const DexOptTrigger dexopt_trigger,
+                       /*out*/ DexOptStatus* dexopt_status);
 
   // Returns true if there is up-to-date code for this dex location,
   // irrespective of the compiler filter of the up-to-date code.
@@ -354,15 +401,10 @@ class OatFileAssistant {
     // Returns the status of this oat file.
     OatStatus Status();
 
-    // Return the DexOptNeeded value for this oat file with respect to the
-    // given target_compilation_filter.
-    // profile_changed should be true to indicate the profile has recently
-    // changed for this dex location.
-    // downgrade should be true if the purpose of dexopt is to downgrade the
-    // compiler filter.
+    // Return the DexOptNeeded value for this oat file with respect to the given target compilation
+    // filter and dexopt trigger.
     DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
-                                 bool profile_changed,
-                                 bool downgrade);
+                                 const DexOptTrigger dexopt_trigger);
 
     // Returns the loaded file.
     // Loads the file if needed. Returns null if the file failed to load.
@@ -395,13 +437,10 @@ class OatFileAssistant {
     std::unique_ptr<OatFile> ReleaseFileForUse();
 
    private:
-    // Returns true if the compiler filter used to generate the file is at
-    // least as good as the given target filter. profile_changed should be
-    // true to indicate the profile has recently changed for this dex
-    // location.
-    // downgrade should be true if the purpose of dexopt is to downgrade the
-    // compiler filter.
-    bool CompilerFilterIsOkay(CompilerFilter::Filter target, bool profile_changed, bool downgrade);
+    // Returns true if the oat file is usable but at least one dexopt trigger is matched. This
+    // function should only be called if the oat file is usable.
+    bool ShouldRecompileForFilter(CompilerFilter::Filter target,
+                                  const DexOptTrigger dexopt_trigger);
 
     // Release the loaded oat file.
     // Returns null if the oat file hasn't been loaded.
@@ -470,6 +509,13 @@ class OatFileAssistant {
 
   // Returns whether there is at least one boot image usable.
   bool IsPrimaryBootImageUsable();
+
+  // Returns the trigger for the deprecated overload of `GetDexOptNeeded`.
+  //
+  // Deprecated. Do not use in new code.
+  DexOptTrigger GetDexOptTrigger(CompilerFilter::Filter target_compiler_filter,
+                                 bool profile_changed,
+                                 bool downgrade);
 
   std::string dex_location_;
 
