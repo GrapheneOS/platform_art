@@ -64,7 +64,7 @@
 
 namespace art {
 
-using android::base::ReadFileToString;
+using android::base::ReadFileToString;  // NOLINT - ReadFileToString is actually used
 using android::base::StringPrintf;
 
 #if defined(__arm__)
