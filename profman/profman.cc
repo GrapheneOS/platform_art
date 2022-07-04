@@ -36,7 +36,6 @@
 #include "android-base/parsebool.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
-
 #include "base/array_ref.h"
 #include "base/dumpable.h"
 #include "base/logging.h"  // For InitLogging.
@@ -64,6 +63,7 @@
 #include "profile/profile_boot_info.h"
 #include "profile/profile_compilation_info.h"
 #include "profile_assistant.h"
+#include "profman/profman_result.h"
 
 namespace art {
 
@@ -118,7 +118,10 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("");
   UsageError("  --profile-file=<filename>: specify profiler output file to use for compilation.");
   UsageError("      Can be specified multiple time, in which case the data from the different");
-  UsageError("      profiles will be aggregated.");
+  UsageError("      profiles will be aggregated. Can also be specified zero times, in which case");
+  UsageError("      profman will still analyze the reference profile against the given --apk and");
+  UsageError("      return exit code based on whether the reference profile is empty and whether");
+  UsageError("      an error occurs, but no merge will happen.");
   UsageError("");
   UsageError("  --profile-file-fd=<number>: same as --profile-file but accepts a file descriptor.");
   UsageError("      Cannot be used together with --profile-file.");
@@ -126,8 +129,8 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --reference-profile-file=<filename>: specify a reference profile.");
   UsageError("      The data in this file will be compared with the data obtained by merging");
   UsageError("      all the files specified with --profile-file or --profile-file-fd.");
-  UsageError("      If the exit code is EXIT_COMPILE then all --profile-file will be merged into");
-  UsageError("      --reference-profile-file. ");
+  UsageError("      If the exit code is ProfmanResult::kCompile then all --profile-file will be");
+  UsageError("      merged into --reference-profile-file. ");
   UsageError("");
   UsageError("  --reference-profile-file-fd=<number>: same as --reference-profile-file but");
   UsageError("      accepts a file descriptor. Cannot be used together with");
@@ -194,7 +197,7 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("      the min percent of new classes to trigger a compilation.");
   UsageError("");
 
-  exit(EXIT_FAILURE);
+  exit(ProfmanResult::kErrorUsage);
 }
 
 // Note: make sure you update the Usage if you change these values.
@@ -501,11 +504,10 @@ class ProfMan final {
     }
   };
 
-  ProfileAssistant::ProcessingResult ProcessProfiles() {
-    // Validate that at least one profile file was passed, as well as a reference profile.
-    if (profile_files_.empty() && profile_files_fd_.empty()) {
-      Usage("No profile files specified.");
-    }
+  ProfmanResult::ProcessingResult ProcessProfiles() {
+    // Validate that a reference profile was passed, at the very least. It's okay that profiles are
+    // missing, in which case profman will still analyze the reference profile (to check whether
+    // it's empty), but no merge will happen.
     if (reference_profile_file_.empty() && !FdIsValid(reference_profile_file_fd_)) {
       Usage("No reference profile file specified.");
     }
@@ -518,7 +520,7 @@ class ProfMan final {
     // Check if we have any apks which we should use to filter the profile data.
     std::set<ProfileFilterKey> profile_filter_keys;
     if (!GetProfileFilterKeyFromApks(&profile_filter_keys)) {
-      return ProfileAssistant::kErrorIO;
+      return ProfmanResult::kErrorIO;
     }
 
     // Build the profile filter function. If the set of keys is empty it means we
@@ -536,9 +538,9 @@ class ProfMan final {
             }
         };
 
-    ProfileAssistant::ProcessingResult result;
+    ProfmanResult::ProcessingResult result;
 
-    if (profile_files_.empty()) {
+    if (reference_profile_file_.empty()) {
       // The file doesn't need to be flushed here (ProcessProfiles will do it)
       // so don't check the usage.
       File file(reference_profile_file_fd_, false);
@@ -1854,7 +1856,7 @@ class ProfMan final {
     return copy_and_update_profile_key_;
   }
 
-  int32_t CopyAndUpdateProfileKey() {
+  ProfmanResult::CopyAndUpdateResult CopyAndUpdateProfileKey() {
     // Validate that at least one profile file was passed, as well as a reference profile.
     if (!(profile_files_.size() == 1 ^ profile_files_fd_.size() == 1)) {
       Usage("Only one profile file should be specified.");
@@ -1867,10 +1869,6 @@ class ProfMan final {
       Usage("No apk files specified");
     }
 
-    static constexpr int32_t kErrorFailedToUpdateProfile = -1;
-    static constexpr int32_t kErrorFailedToSaveProfile = -2;
-    static constexpr int32_t kErrorFailedToLoadProfile = -3;
-
     bool use_fds = profile_files_fd_.size() == 1;
 
     ProfileCompilationInfo profile;
@@ -1882,15 +1880,19 @@ class ProfMan final {
       // Open the dex files to look up classes and methods.
       std::vector<std::unique_ptr<const DexFile>> dex_files;
       OpenApkFilesFromLocations(&dex_files);
-      if (!profile.UpdateProfileKeys(dex_files)) {
-        return kErrorFailedToUpdateProfile;
+      bool updated = false;
+      if (!profile.UpdateProfileKeys(dex_files, &updated)) {
+        return ProfmanResult::kCopyAndUpdateErrorFailedToUpdateProfile;
       }
       bool result = use_fds
           ? profile.Save(reference_profile_file_fd_)
           : profile.Save(reference_profile_file_, /*bytes_written=*/ nullptr);
-      return result ? 0 : kErrorFailedToSaveProfile;
+      if (!result) {
+        return ProfmanResult::kCopyAndUpdateErrorFailedToSaveProfile;
+      }
+      return updated ? ProfmanResult::kCopyAndUpdateSuccess : ProfmanResult::kCopyAndUpdateNoUpdate;
     } else {
-      return kErrorFailedToLoadProfile;
+      return ProfmanResult::kCopyAndUpdateErrorFailedToLoadProfile;
     }
   }
 
@@ -1950,7 +1952,7 @@ std::ostream& operator<<(std::ostream& os, const ProfMan::InlineCacheSegment& ic
   return ics.Dump(os);
 }
 
-// See ProfileAssistant::ProcessingResult for return codes.
+// See ProfmanResult for return codes.
 static int profman(int argc, char** argv) {
   ProfMan profman;
 
