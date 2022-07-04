@@ -956,7 +956,9 @@ TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyOk) {
   AddMethod(&info, dex2, /*method_idx=*/ 0);
 
   // Update the profile keys based on the original dex files
-  ASSERT_TRUE(info.UpdateProfileKeys(dex_files));
+  bool updated = false;
+  ASSERT_TRUE(info.UpdateProfileKeys(dex_files, &updated));
+  ASSERT_TRUE(updated);
 
   // Verify that we find the methods when searched with the original dex files.
   for (const std::unique_ptr<const DexFile>& dex : dex_files) {
@@ -982,7 +984,9 @@ TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyOkWithAnnotation) {
   AddMethod(&info, dex2, /*method_idx=*/ 0, Hotness::kFlagHot, annotation);
 
   // Update the profile keys based on the original dex files
-  ASSERT_TRUE(info.UpdateProfileKeys(dex_files));
+  bool updated = false;
+  ASSERT_TRUE(info.UpdateProfileKeys(dex_files, &updated));
+  ASSERT_TRUE(updated);
 
   // Verify that we find the methods when searched with the original dex files.
   for (const std::unique_ptr<const DexFile>& dex : dex_files) {
@@ -1005,7 +1009,9 @@ TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyOkButNoUpdate) {
   AddMethod(&info, dex2, /*method_idx=*/ 0);
 
   // Update the profile keys based on the original dex files.
-  ASSERT_TRUE(info.UpdateProfileKeys(dex_files));
+  bool updated = false;
+  ASSERT_TRUE(info.UpdateProfileKeys(dex_files, &updated));
+  ASSERT_FALSE(updated);
 
   // Verify that we did not perform any update and that we cannot find anything with the new
   // location.
@@ -1037,7 +1043,9 @@ TEST_F(ProfileCompilationInfoTest, UpdateProfileKeyFail) {
   // This will cause the rename to fail because an existing entry would already have that name.
   AddMethod(&info, dex1_renamed, /*method_idx=*/ 0);
 
-  ASSERT_FALSE(info.UpdateProfileKeys(dex_files));
+  bool updated = false;
+  ASSERT_FALSE(info.UpdateProfileKeys(dex_files, &updated));
+  ASSERT_FALSE(updated);
 
   // Release the ownership as this is held by the test class;
   for (std::unique_ptr<const DexFile>& dex : dex_files) {

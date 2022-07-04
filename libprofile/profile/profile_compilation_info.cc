@@ -2387,7 +2387,8 @@ bool ProfileCompilationInfo::IsProfileFile(int fd) {
 }
 
 bool ProfileCompilationInfo::UpdateProfileKeys(
-      const std::vector<std::unique_ptr<const DexFile>>& dex_files) {
+    const std::vector<std::unique_ptr<const DexFile>>& dex_files, /*out*/ bool* updated) {
+  *updated = false;
   for (const std::unique_ptr<const DexFile>& dex_file : dex_files) {
     for (const std::unique_ptr<DexFileData>& dex_data : info_) {
       if (dex_data->checksum == dex_file->GetLocationChecksum() &&
@@ -2407,6 +2408,7 @@ bool ProfileCompilationInfo::UpdateProfileKeys(
           // form the old key.
           dex_data->profile_key = MigrateAnnotationInfo(new_profile_key, dex_data->profile_key);
           profile_key_map_.Put(dex_data->profile_key, dex_data->profile_index);
+          *updated = true;
         }
       }
     }
