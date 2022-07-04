@@ -19,10 +19,8 @@
 
 #include "common_runtime_test.h"
 #include "dex2oat_environment_test.h"
-
 #include "vdex_file.h"
 #include "verifier/verifier_deps.h"
-#include "ziparchive/zip_writer.h"
 
 namespace art {
 
@@ -111,23 +109,6 @@ class Dex2oatVdexTest : public Dex2oatEnvironmentTest {
                         const DexFile& dex_file) {
     uint16_t class_def_idx = GetClassDefIndex(cls, dex_file);
     return deps->GetVerifiedClasses(dex_file)[class_def_idx];
-  }
-
-  void CreateDexMetadata(const std::string& vdex, const std::string& out_dm) {
-    // Read the vdex bytes.
-    std::unique_ptr<File> vdex_file(OS::OpenFileForReading(vdex.c_str()));
-    std::vector<uint8_t> data(vdex_file->GetLength());
-    ASSERT_TRUE(vdex_file->ReadFully(data.data(), data.size()));
-
-    // Zip the content.
-    FILE* file = fopen(out_dm.c_str(), "wb");
-    ZipWriter writer(file);
-    writer.StartEntry("primary.vdex", ZipWriter::kAlign32);
-    writer.WriteBytes(data.data(), data.size());
-    writer.FinishEntry();
-    writer.Finish();
-    fflush(file);
-    fclose(file);
   }
 
   std::string GetFilename(const std::unique_ptr<const DexFile>& dex_file) {
