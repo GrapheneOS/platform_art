@@ -1713,16 +1713,6 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     CFI_REMEMBER_STATE
     CFI_DEF_CFA_REGISTER(esp)
 
-    // Quick expects the return value to be in xmm0.
-    movd %eax, %xmm0
-    movd %edx, %xmm1
-    punpckldq %xmm1, %xmm0
-
-    LOAD_RUNTIME_INSTANCE ebx
-    cmpb MACRO_LITERAL(0), INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE(%ebx)
-    jne .Lcall_method_exit_hook
-.Lcall_method_exit_hook_done:
-
     // Tear down the callee-save frame.
     // Remove space for FPR args and EAX
     addl LITERAL(4 + 4 * 8), %esp
@@ -1735,11 +1725,11 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     POP ebp  // Restore callee saves
     POP esi
     POP edi
+    // Quick expects the return value to be in xmm0.
+    movd %eax, %xmm0
+    movd %edx, %xmm1
+    punpckldq %xmm1, %xmm0
     ret
-
-.Lcall_method_exit_hook:
-    call art_quick_method_exit_hook
-    jmp .Lcall_method_exit_hook_done
 
     // Undo the unwinding information from above since it doesn't apply below.
     CFI_RESTORE_STATE_AND_DEF_CFA ebp, 64
