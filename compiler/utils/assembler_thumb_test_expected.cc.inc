@@ -155,7 +155,7 @@ const char* const VixlJniHelpersResults = {
   "     224: d9 f8 24 80   ldr.w r8, [r9, #36]\n"
   "     228: 70 47         bx lr\n"
   "     22a: d9 f8 9c 00   ldr.w r0, [r9, #156]\n"
-  "     22e: d9 f8 d4 e2   ldr.w lr, [r9, #724]\n"
+  "     22e: d9 f8 d0 e2   ldr.w lr, [r9, #720]\n"
   "     232: f0 47         blx lr\n"
 };
 
