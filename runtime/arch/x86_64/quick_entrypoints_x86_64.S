@@ -1574,14 +1574,6 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     CFI_REMEMBER_STATE
     CFI_DEF_CFA_REGISTER(rsp)
 
-    // store into fpr, for when it's a fpr return...
-    movq %rax, %xmm0
-
-    LOAD_RUNTIME_INSTANCE rcx
-    cmpb MACRO_LITERAL(0), INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE(%rcx)
-    jne .Lcall_method_exit_hook
-.Lcall_method_exit_hook_done:
-
     // Tear down the callee-save frame.
     // Load FPRs.
     // movq %xmm0, 16(%rsp)         // doesn't make sense!!!
@@ -1611,11 +1603,9 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     POP r13  // Callee save.
     POP r14  // Callee save.
     POP r15  // Callee save.
+    // store into fpr, for when it's a fpr return...
+    movq %rax, %xmm0
     ret
-
-.Lcall_method_exit_hook:
-   call art_quick_method_exit_hook
-   jmp .Lcall_method_exit_hook_done
 
     // Undo the unwinding information from above since it doesn't apply below.
     CFI_RESTORE_STATE_AND_DEF_CFA rbp, 208

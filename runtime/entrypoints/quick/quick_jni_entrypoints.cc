@@ -38,11 +38,6 @@
 
 namespace art {
 
-extern "C" int artMethodExitHook(Thread* self,
-                                 ArtMethod* method,
-                                 uint64_t* gpr_result,
-                                 uint64_t* fpr_result);
-
 static_assert(sizeof(IRTSegmentState) == sizeof(uint32_t), "IRTSegmentState size unexpected");
 static_assert(std::is_trivial<IRTSegmentState>::value, "IRTSegmentState not trivial");
 
@@ -179,11 +174,11 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
     artJniUnlockObject(lock.Ptr(), self);
   }
   char return_shorty_char = called->GetShorty()[0];
-  uint64_t ret;
   if (return_shorty_char == 'L') {
-    ret = reinterpret_cast<uint64_t>(
+    uint64_t ret = reinterpret_cast<uint64_t>(
         UNLIKELY(self->IsExceptionPending()) ? nullptr : JniDecodeReferenceResult(result.l, self));
     PopLocalReferences(saved_local_ref_cookie, self);
+    return ret;
   } else {
     if (LIKELY(!critical_native)) {
       PopLocalReferences(saved_local_ref_cookie, self);
@@ -193,43 +188,32 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
         if (kRuntimeISA == InstructionSet::kX86) {
           // Convert back the result to float.
           double d = bit_cast<double, uint64_t>(result_f);
-          ret = bit_cast<uint32_t, float>(static_cast<float>(d));
+          return bit_cast<uint32_t, float>(static_cast<float>(d));
         } else {
-          ret = result_f;
+          return result_f;
         }
       }
-      break;
       case 'D':
-        ret = result_f;
-        break;
+        return result_f;
       case 'Z':
-        ret = result.z;
-        break;
+        return result.z;
       case 'B':
-        ret = result.b;
-        break;
+        return result.b;
       case 'C':
-        ret = result.c;
-        break;
+        return result.c;
       case 'S':
-        ret = result.s;
-        break;
+        return result.s;
       case 'I':
-        ret = result.i;
-        break;
+        return result.i;
       case 'J':
-        ret = result.j;
-        break;
+        return result.j;
       case 'V':
-        ret = 0;
-        break;
+        return 0;
       default:
         LOG(FATAL) << "Unexpected return shorty character " << return_shorty_char;
         UNREACHABLE();
     }
   }
-
-  return ret;
 }
 
 extern "C" void artJniMonitoredMethodStart(Thread* self) {
