@@ -157,15 +157,18 @@ class OatFileAssistant {
                    int zip_fd);
 
   // A convenient factory function that accepts ISA, class loader context, and compiler filter in
-  // strings. Returns the created instance on success, or returns nullptr and outputs an error
-  // message if it fails to parse the input strings.
-  static std::unique_ptr<OatFileAssistant> Create(const std::string& filename,
-                                                  const std::string& isa_str,
-                                                  const std::string& context_str,
-                                                  bool load_executable,
-                                                  bool only_load_trusted_executable,
-                                                  std::unique_ptr<RuntimeOptions> runtime_options,
-                                                  std::string* error_msg);
+  // strings. Returns the created instance and ClassLoaderContext on success, or returns nullptr and
+  // outputs an error message if it fails to parse the input strings.
+  // The returned ClassLoaderContext must live at least as long as the OatFileAssistant.
+  static std::unique_ptr<OatFileAssistant> Create(
+      const std::string& filename,
+      const std::string& isa_str,
+      const std::string& context_str,
+      bool load_executable,
+      bool only_load_trusted_executable,
+      std::unique_ptr<RuntimeOptions> runtime_options,
+      /*out*/ std::unique_ptr<ClassLoaderContext>* context,
+      /*out*/ std::string* error_msg);
 
   // Returns true if the dex location refers to an element of the boot class
   // path.
@@ -471,7 +474,6 @@ class OatFileAssistant {
   std::string dex_location_;
 
   ClassLoaderContext* context_;
-  std::unique_ptr<ClassLoaderContext> owned_context_;
 
   // Whether or not the parent directory of the dex file is writable.
   bool dex_parent_writable_ = false;
