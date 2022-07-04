@@ -295,17 +295,68 @@ bool OatFileAssistant::IsInBootClassPath() {
   return false;
 }
 
-int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target,
+OatFileAssistant::DexOptTrigger OatFileAssistant::GetDexOptTrigger(
+    CompilerFilter::Filter target_compiler_filter [[gnu::unused]],
+    bool profile_changed,
+    bool downgrade) {
+  OatFileInfo& info = GetBestInfo();
+
+  if (!info.IsUseable()) {
+    // Essentially always recompile.
+    return OatFileAssistant::DexOptTrigger{.targetFilterIsBetter = true};
+  }
+
+  const OatFile* file = info.GetFile();
+  DCHECK(file != nullptr);
+
+  CompilerFilter::Filter current = file->GetCompilerFilter();
+  if (profile_changed && CompilerFilter::DependsOnProfile(current)) {
+    // Since the profile has been changed, we should re-compile even if the compilation does not
+    // make the compiler filter better.
+    return OatFileAssistant::DexOptTrigger{
+        .targetFilterIsBetter = true, .targetFilterIsSame = true, .targetFilterIsWorse = true};
+  }
+
+  if (downgrade) {
+    // The caller's intention is to downgrade the compiler filter. We should only re-compile if the
+    // target compiler filter is worse than the current one.
+    return OatFileAssistant::DexOptTrigger{.targetFilterIsWorse = true};
+  }
+
+  // This is the usual case. The caller's intention is to see if a better oat file can be generated.
+  return OatFileAssistant::DexOptTrigger{.targetFilterIsBetter = true,
+                                         .primaryBootImageBecomesUsable = true};
+}
+
+int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
                                       bool profile_changed,
                                       bool downgrade) {
   OatFileInfo& info = GetBestInfo();
-  DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target,
-                                                    profile_changed,
-                                                    downgrade);
+  DexOptNeeded dexopt_needed = info.GetDexOptNeeded(
+      target_compiler_filter, GetDexOptTrigger(target_compiler_filter, profile_changed, downgrade));
   if (info.IsOatLocation() || dexopt_needed == kDex2OatFromScratch) {
     return dexopt_needed;
   }
   return -dexopt_needed;
+}
+
+bool OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
+                                       DexOptTrigger dexopt_trigger,
+                                       /*out*/ DexOptStatus* dexopt_status) {
+  OatFileInfo& info = GetBestInfo();
+  DexOptNeeded dexopt_needed = info.GetDexOptNeeded(target_compiler_filter, dexopt_trigger);
+  if (info.IsUseable()) {
+    if (&info == &dm_for_oat_ || &info == &dm_for_odex_) {
+      dexopt_status->location_ = kLocationDm;
+    } else if (info.IsOatLocation()) {
+      dexopt_status->location_ = kLocationOat;
+    } else {
+      dexopt_status->location_ = kLocationOdex;
+    }
+  } else {
+    dexopt_status->location_ = kLocationNoneOrError;
+  }
+  return dexopt_needed != kNoDexOptNeeded;
 }
 
 bool OatFileAssistant::IsUpToDate() {
@@ -925,14 +976,16 @@ OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
 }
 
 OatFileAssistant::DexOptNeeded OatFileAssistant::OatFileInfo::GetDexOptNeeded(
-    CompilerFilter::Filter target,
-    bool profile_changed,
-    bool downgrade) {
-
+    CompilerFilter::Filter target_compiler_filter, const DexOptTrigger dexopt_trigger) {
   if (IsUseable()) {
-    return CompilerFilterIsOkay(target, profile_changed, downgrade)
-        ? kNoDexOptNeeded
-        : kDex2OatForFilter;
+    return ShouldRecompileForFilter(target_compiler_filter, dexopt_trigger) ? kDex2OatForFilter :
+                                                                              kNoDexOptNeeded;
+  }
+
+  // In this case, the oat file is not usable. If the caller doesn't seek for a better compiler
+  // filter (e.g., the caller wants to downgrade), then we should not recompile.
+  if (!dexopt_trigger.targetFilterIsBetter) {
+    return kNoDexOptNeeded;
   }
 
   if (Status() == kOatBootImageOutOfDate) {
@@ -1052,25 +1105,24 @@ const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
   return file_.get();
 }
 
-bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
-    CompilerFilter::Filter target, bool profile_changed, bool downgrade) {
+bool OatFileAssistant::OatFileInfo::ShouldRecompileForFilter(CompilerFilter::Filter target,
+                                                             const DexOptTrigger dexopt_trigger) {
   const OatFile* file = GetFile();
-  if (file == nullptr) {
-    return false;
-  }
+  DCHECK(file != nullptr);
 
   CompilerFilter::Filter current = file->GetCompilerFilter();
-  if (profile_changed && CompilerFilter::DependsOnProfile(current)) {
-    VLOG(oat) << "Compiler filter not okay because Profile changed";
-    return false;
+  if (dexopt_trigger.targetFilterIsBetter && CompilerFilter::IsBetter(target, current)) {
+    return true;
+  }
+  if (dexopt_trigger.targetFilterIsSame && current == target) {
+    return true;
+  }
+  if (dexopt_trigger.targetFilterIsWorse && CompilerFilter::IsBetter(current, target)) {
+    return true;
   }
 
-  if (downgrade) {
-    return !CompilerFilter::IsBetter(current, target);
-  }
-
-  if (CompilerFilter::DependsOnImageChecksum(current) &&
-      CompilerFilter::IsAsGoodAs(current, target)) {
+  if (dexopt_trigger.primaryBootImageBecomesUsable &&
+      CompilerFilter::DependsOnImageChecksum(current)) {
     // If the oat file has been compiled without an image, and the runtime is
     // now running with an image loaded from disk, return that we need to
     // re-compile. The recompilation will generate a better oat file, and with an app
@@ -1081,11 +1133,11 @@ bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
         !StartsWith(oat_boot_class_path_checksums, "i") &&
         oat_file_assistant_->IsPrimaryBootImageUsable()) {
       DCHECK(!file->GetOatHeader().RequiresImage());
-      return false;
+      return true;
     }
   }
 
-  return CompilerFilter::IsAsGoodAs(current, target);
+  return false;
 }
 
 bool OatFileAssistant::ClassLoaderContextIsOkay(const OatFile& oat_file) const {
