@@ -296,36 +296,21 @@ bool OatFileAssistant::IsInBootClassPath() {
 }
 
 OatFileAssistant::DexOptTrigger OatFileAssistant::GetDexOptTrigger(
-    CompilerFilter::Filter target_compiler_filter [[gnu::unused]],
-    bool profile_changed,
-    bool downgrade) {
-  OatFileInfo& info = GetBestInfo();
-
-  if (!info.IsUseable()) {
-    // Essentially always recompile.
-    return OatFileAssistant::DexOptTrigger{.targetFilterIsBetter = true};
-  }
-
-  const OatFile* file = info.GetFile();
-  DCHECK(file != nullptr);
-
-  CompilerFilter::Filter current = file->GetCompilerFilter();
-  if (profile_changed && CompilerFilter::DependsOnProfile(current)) {
-    // Since the profile has been changed, we should re-compile even if the compilation does not
-    // make the compiler filter better.
-    return OatFileAssistant::DexOptTrigger{
-        .targetFilterIsBetter = true, .targetFilterIsSame = true, .targetFilterIsWorse = true};
-  }
-
+    CompilerFilter::Filter target_compiler_filter, bool profile_changed, bool downgrade) {
   if (downgrade) {
     // The caller's intention is to downgrade the compiler filter. We should only re-compile if the
     // target compiler filter is worse than the current one.
-    return OatFileAssistant::DexOptTrigger{.targetFilterIsWorse = true};
+    return DexOptTrigger{.targetFilterIsWorse = true};
   }
 
   // This is the usual case. The caller's intention is to see if a better oat file can be generated.
-  return OatFileAssistant::DexOptTrigger{.targetFilterIsBetter = true,
-                                         .primaryBootImageBecomesUsable = true};
+  DexOptTrigger dexopt_trigger{.targetFilterIsBetter = true, .primaryBootImageBecomesUsable = true};
+  if (profile_changed && CompilerFilter::DependsOnProfile(target_compiler_filter)) {
+    // Since the profile has been changed, we should re-compile even if the compilation does not
+    // make the compiler filter better.
+    dexopt_trigger.targetFilterIsSame = true;
+  }
+  return dexopt_trigger;
 }
 
 int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
@@ -334,6 +319,12 @@ int OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target_compiler_fil
   OatFileInfo& info = GetBestInfo();
   DexOptNeeded dexopt_needed = info.GetDexOptNeeded(
       target_compiler_filter, GetDexOptTrigger(target_compiler_filter, profile_changed, downgrade));
+  if (dexopt_needed != kNoDexOptNeeded && (&info == &dm_for_oat_ || &info == &dm_for_odex_)) {
+    // The usable vdex file is in the DM file. This information cannot be encoded in the integer.
+    // Return kDex2OatFromScratch so that neither the vdex in the "oat" location nor the vdex in the
+    // "odex" location will be picked by installd.
+    return kDex2OatFromScratch;
+  }
   if (info.IsOatLocation() || dexopt_needed == kDex2OatFromScratch) {
     return dexopt_needed;
   }
