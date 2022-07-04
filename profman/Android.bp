@@ -32,6 +32,7 @@ cc_defaults {
         "profman.cc",
         "profile_assistant.cc",
     ],
+    header_libs: ["profman_headers"],
 
     target: {
         android: {
@@ -160,11 +161,31 @@ art_cc_binary {
     },
 }
 
+cc_library_headers {
+    name: "profman_headers",
+    defaults: ["art_defaults"],
+    export_include_dirs: ["include"],
+    host_supported: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+        windows: {
+            enabled: true,
+        },
+    },
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
 art_cc_defaults {
     name: "art_profman_tests_defaults",
     data: [
         ":art-gtest-jars-ProfileTestMultiDex",
     ],
+    header_libs: ["profman_headers"],
     tidy_timeout_srcs: ["profile_assistant_test.cc"],
     srcs: ["profile_assistant_test.cc"],
 }
