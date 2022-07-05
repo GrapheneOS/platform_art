@@ -46,7 +46,6 @@ using android::base::Result;
 using internal::ConfigEntry;
 using internal::ParseConfig;
 using internal::ParseApexLibrariesConfig;
-using std::literals::string_literals::operator""s;
 
 namespace {
 
@@ -117,7 +116,7 @@ void ReadExtensionLibraries(const char* dirname, std::vector<std::string>* sonam
       if (android::base::ConsumePrefix(&fn, kExtendedPublicLibrariesFilePrefix) &&
           android::base::ConsumeSuffix(&fn, kExtendedPublicLibrariesFileSuffix)) {
         const std::string company_name(fn);
-        const std::string config_file_path = dirname + "/"s + filename;
+        const std::string config_file_path = std::string(dirname) + std::string("/") + filename;
         LOG_ALWAYS_FATAL_IF(
             company_name.empty(),
             "Error extracting company name from public native library list file path \"%s\"",
