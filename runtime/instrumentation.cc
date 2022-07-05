@@ -230,20 +230,19 @@ static bool CodeNeedsEntryExitStub(const void* code, ArtMethod* method)
     return false;
   }
 
-  // When jiting code for debuggable apps we generate the code to call method
-  // entry / exit hooks when required. Hence it is not required to update
-  // to instrumentation entry point for JITed code in debuggable mode.
   if (!Runtime::Current()->IsJavaDebuggable()) {
     return true;
   }
 
-  // Native functions can have JITed entry points but we don't include support
-  // for calling entry / exit hooks directly from the JITed code for native
-  // functions. So we still have to install entry exit stubs for such cases.
+  // Native methods don't need method entry / exit hooks in debuggable runtimes.
+  // GenericJni trampoline and JITed JNI stubs handle entry / exit hooks
   if (method->IsNative()) {
-    return true;
+    return false;
   }
 
+  // When jiting code for debuggable apps we generate the code to call method
+  // entry / exit hooks when required. Hence it is not required to update
+  // to instrumentation entry point for JITed code in debuggable mode.
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr && jit->GetCodeCache()->ContainsPc(code)) {
     return false;
@@ -520,6 +519,11 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
           LOG(INFO) << "Ignoring already instrumented " << frame.Dump();
         }
       } else {
+        if (m->IsNative() && Runtime::Current()->IsJavaDebuggable()) {
+          // Native methods in debuggable runtimes don't use instrumentation stubs.
+          return true;
+        }
+
         // If it is a JITed frame then just set the deopt bit if required
         // otherwise continue
         const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
@@ -1688,6 +1692,11 @@ bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, ArtMethod** sp) {
 
 bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, const NthCallerVisitor& visitor) {
   bool should_deoptimize_frame = false;
+  if (visitor.caller != nullptr && visitor.caller->IsNative()) {
+    // Native methods don't need deoptimization. We don't set breakpoints / redefine native methods.
+    return false;
+  }
+
   if (visitor.caller != nullptr) {
     const OatQuickMethodHeader* header = visitor.GetCurrentOatQuickMethodHeader();
     if (header != nullptr && header->HasShouldDeoptimizeFlag()) {
