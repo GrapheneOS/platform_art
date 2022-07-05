@@ -239,11 +239,13 @@ art_cc_defaults {
     static: {
         whole_static_libs: [
             "libc++fs",
+            "libcap",
         ],
     },
     shared: {
         static_libs: [
             "libc++fs",
+            "libcap",
         ],
     },
 }
