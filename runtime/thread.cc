@@ -4000,7 +4000,7 @@ class ReferenceMapVisitor : public StackVisitor {
         // (PC shall be known thanks to the runtime frame for throwing SIOOBE).
         // Note that JIT does not emit that intrinic implementation.
         const void* pc = reinterpret_cast<const void*>(GetCurrentQuickFramePc());
-        if (pc != 0u && Runtime::Current()->GetHeap()->IsInBootImageOatFile(pc)) {
+        if (pc != nullptr && Runtime::Current()->GetHeap()->IsInBootImageOatFile(pc)) {
           return;
         }
       }
