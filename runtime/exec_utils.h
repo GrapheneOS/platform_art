@@ -22,45 +22,45 @@
 #include <string>
 #include <vector>
 
+#include "android-base/unique_fd.h"
+
 namespace art {
 
 // Wrapper on fork/execv to run a command in a subprocess.
 // These spawn child processes using the environment as it was set when the single instance
 // of the runtime (Runtime::Current()) was started.  If no instance of the runtime was started, it
 // will use the current environment settings.
-
-bool Exec(const std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg);
-int ExecAndReturnCode(const std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg);
-
-// Execute the command specified in `argv_vector` in a subprocess with a timeout.
-// Returns the process exit code on success, -1 otherwise.
-int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
-                      int timeout_sec,
-                      /*out*/ bool* timed_out,
-                      /*out*/ std::string* error_msg);
-
-// A wrapper class to make the functions above mockable.
 class ExecUtils {
  public:
   virtual ~ExecUtils() = default;
 
   virtual bool Exec(const std::vector<std::string>& arg_vector,
-                    /*out*/ std::string* error_msg) const {
-    return art::Exec(arg_vector, error_msg);
-  }
+                    /*out*/ std::string* error_msg) const;
 
   virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
-                                /*out*/ std::string* error_msg) const {
-    return art::ExecAndReturnCode(arg_vector, error_msg);
-  }
+                                /*out*/ std::string* error_msg) const;
 
+  // Executes the command specified in `arg_vector` in a subprocess with a timeout.
+  // If `timeout_sec` is negative, blocks until the subprocess exits.
+  // Returns the process exit code on success, -1 otherwise.
+  // Sets `timed_out` to true if the process times out, or false otherwise.
   virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                 int timeout_sec,
                                 /*out*/ bool* timed_out,
-                                /*out*/ std::string* error_msg) const {
-    return art::ExecAndReturnCode(arg_vector, timeout_sec, timed_out, error_msg);
-  }
+                                /*out*/ std::string* error_msg) const;
+
+ protected:
+  virtual android::base::unique_fd PidfdOpen(pid_t pid) const;
 };
+
+inline bool Exec(const std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg) {
+  return ExecUtils().Exec(arg_vector, error_msg);
+}
+
+inline int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                             /*out*/ std::string* error_msg) {
+  return ExecUtils().ExecAndReturnCode(arg_vector, error_msg);
+}
 
 }  // namespace art
 
