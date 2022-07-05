@@ -16,13 +16,18 @@
 
 #include "exec_utils.h"
 
-#include <unistd.h>
+#include <sys/utsname.h>
 
+#include <cstring>
+#include <filesystem>
+#include <memory>
+#include <tuple>
+
+#include "android-base/logging.h"
 #include "android-base/stringprintf.h"
 #include "base/file_utils.h"
 #include "base/memory_tool.h"
 #include "common_runtime_test.h"
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace art {
@@ -30,69 +35,95 @@ namespace art {
 std::string PrettyArguments(const char* signature);
 std::string PrettyReturnType(const char* signature);
 
-bool IsPidfdSupported() {
-#ifdef __BIONIC__
-  return true;
-#else
-  constexpr int SYS_pidfd_open = 434;
-  int pidfd = syscall(SYS_pidfd_open, getpid(), /*flags=*/0);
-  if (pidfd < 0) {
-    return false;
-  }
-  close(pidfd);
-  return true;
-#endif
-}
-
-class ExecUtilsTest : public CommonRuntimeTest {};
-
-TEST_F(ExecUtilsTest, ExecSuccess) {
-  std::vector<std::string> command;
+std::string GetBin(const std::string& name) {
   if (kIsTargetBuild) {
     std::string android_root(GetAndroidRoot());
-    command.push_back(android_root + "/bin/id");
+    return android_root + "/bin/" + name;
+  } else if (std::filesystem::exists("/usr/bin/" + name)) {
+    return "/usr/bin/" + name;
   } else {
-    command.push_back("/usr/bin/id");
+    return "/bin/" + name;
   }
+}
+
+std::tuple<int, int> GetKernelVersion() {
+  std::tuple<int, int> version;
+  utsname uts;
+  CHECK_EQ(uname(&uts), 0);
+  CHECK_EQ(sscanf(uts.release, "%d.%d", &std::get<0>(version), &std::get<1>(version)), 2);
+  return version;
+}
+
+class AlwaysFallbackExecUtils : public ExecUtils {
+ protected:
+  android::base::unique_fd PidfdOpen(pid_t) const override { return android::base::unique_fd(-1); }
+};
+
+class NeverFallbackExecUtils : public ExecUtils {
+ protected:
+  android::base::unique_fd PidfdOpen(pid_t pid) const override {
+    android::base::unique_fd pidfd = ExecUtils::PidfdOpen(pid);
+    CHECK_GE(pidfd.get(), 0) << strerror(errno);
+    return pidfd;
+  }
+};
+
+class ExecUtilsTest : public CommonRuntimeTest, public testing::WithParamInterface<bool> {
+ protected:
+  void SetUp() override {
+    CommonRuntimeTest::SetUp();
+    bool always_fallback = GetParam();
+    if (always_fallback) {
+      exec_utils_ = std::make_unique<AlwaysFallbackExecUtils>();
+    } else {
+      if (GetKernelVersion() >= std::make_tuple(5, 4)) {
+        exec_utils_ = std::make_unique<NeverFallbackExecUtils>();
+      } else {
+        GTEST_SKIP() << "Kernel version older than 5.4";
+      }
+    }
+  }
+
+  std::unique_ptr<ExecUtils> exec_utils_;
+};
+
+TEST_P(ExecUtilsTest, ExecSuccess) {
+  std::vector<std::string> command;
+  command.push_back(GetBin("id"));
   std::string error_msg;
   // Historical note: Running on Valgrind failed due to some memory
   // that leaks in thread alternate signal stacks.
-  EXPECT_TRUE(Exec(command, &error_msg));
+  EXPECT_TRUE(exec_utils_->Exec(command, &error_msg));
   EXPECT_EQ(0U, error_msg.size()) << error_msg;
 }
 
-TEST_F(ExecUtilsTest, ExecError) {
+TEST_P(ExecUtilsTest, ExecError) {
   std::vector<std::string> command;
   command.push_back("bogus");
   std::string error_msg;
   // Historical note: Running on Valgrind failed due to some memory
   // that leaks in thread alternate signal stacks.
-  EXPECT_FALSE(Exec(command, &error_msg));
+  EXPECT_FALSE(exec_utils_->Exec(command, &error_msg));
   EXPECT_FALSE(error_msg.empty());
 }
 
-TEST_F(ExecUtilsTest, EnvSnapshotAdditionsAreNotVisible) {
+TEST_P(ExecUtilsTest, EnvSnapshotAdditionsAreNotVisible) {
   static constexpr const char* kModifiedVariable = "EXEC_SHOULD_NOT_EXPORT_THIS";
   static constexpr int kOverwrite = 1;
   // Set an variable in the current environment.
   EXPECT_EQ(setenv(kModifiedVariable, "NEVER", kOverwrite), 0);
   // Test that it is not exported.
   std::vector<std::string> command;
-  if (kIsTargetBuild) {
-    std::string android_root(GetAndroidRoot());
-    command.push_back(android_root + "/bin/printenv");
-  } else {
-    command.push_back("/usr/bin/printenv");
-  }
+  command.push_back(GetBin("printenv"));
   command.push_back(kModifiedVariable);
   std::string error_msg;
   // Historical note: Running on Valgrind failed due to some memory
   // that leaks in thread alternate signal stacks.
-  EXPECT_FALSE(Exec(command, &error_msg));
+  EXPECT_FALSE(exec_utils_->Exec(command, &error_msg));
   EXPECT_NE(0U, error_msg.size()) << error_msg;
 }
 
-TEST_F(ExecUtilsTest, EnvSnapshotDeletionsAreNotVisible) {
+TEST_P(ExecUtilsTest, EnvSnapshotDeletionsAreNotVisible) {
   static constexpr const char* kDeletedVariable = "PATH";
   static constexpr int kOverwrite = 1;
   // Save the variable's value.
@@ -102,17 +133,12 @@ TEST_F(ExecUtilsTest, EnvSnapshotDeletionsAreNotVisible) {
   EXPECT_EQ(unsetenv(kDeletedVariable), 0);
   // Test that it is not exported.
   std::vector<std::string> command;
-  if (kIsTargetBuild) {
-    std::string android_root(GetAndroidRoot());
-    command.push_back(android_root + "/bin/printenv");
-  } else {
-    command.push_back("/usr/bin/printenv");
-  }
+  command.push_back(GetBin("printenv"));
   command.push_back(kDeletedVariable);
   std::string error_msg;
   // Historical note: Running on Valgrind failed due to some memory
   // that leaks in thread alternate signal stacks.
-  EXPECT_TRUE(Exec(command, &error_msg));
+  EXPECT_TRUE(exec_utils_->Exec(command, &error_msg));
   EXPECT_EQ(0U, error_msg.size()) << error_msg;
   // Restore the variable's value.
   EXPECT_EQ(setenv(kDeletedVariable, save_value, kOverwrite), 0);
@@ -120,52 +146,32 @@ TEST_F(ExecUtilsTest, EnvSnapshotDeletionsAreNotVisible) {
 
 static std::vector<std::string> SleepCommand(int sleep_seconds) {
   std::vector<std::string> command;
-  if (kIsTargetBuild) {
-    command.push_back(GetAndroidRoot() + "/bin/sleep");
-  } else {
-    command.push_back("/bin/sleep");
-  }
+  command.push_back(GetBin("sleep"));
   command.push_back(android::base::StringPrintf("%d", sleep_seconds));
   return command;
 }
 
-TEST_F(ExecUtilsTest, ExecTimeout) {
-  if (!IsPidfdSupported()) {
-    GTEST_SKIP() << "pidfd not supported";
-  }
-
+TEST_P(ExecUtilsTest, ExecTimeout) {
   static constexpr int kSleepSeconds = 5;
   static constexpr int kWaitSeconds = 1;
   std::vector<std::string> command = SleepCommand(kSleepSeconds);
   std::string error_msg;
   bool timed_out;
-  ASSERT_EQ(ExecAndReturnCode(command, kWaitSeconds, &timed_out, &error_msg), -1);
-  EXPECT_TRUE(timed_out);
+  ASSERT_EQ(exec_utils_->ExecAndReturnCode(command, kWaitSeconds, &timed_out, &error_msg), -1);
+  EXPECT_TRUE(timed_out) << error_msg;
 }
 
-TEST_F(ExecUtilsTest, ExecNoTimeout) {
-  if (!IsPidfdSupported()) {
-    GTEST_SKIP() << "pidfd not supported";
-  }
-
+TEST_P(ExecUtilsTest, ExecNoTimeout) {
   static constexpr int kSleepSeconds = 1;
   static constexpr int kWaitSeconds = 5;
   std::vector<std::string> command = SleepCommand(kSleepSeconds);
   std::string error_msg;
   bool timed_out;
-  ASSERT_EQ(ExecAndReturnCode(command, kWaitSeconds, &timed_out, &error_msg), 0);
+  ASSERT_EQ(exec_utils_->ExecAndReturnCode(command, kWaitSeconds, &timed_out, &error_msg), 0)
+      << error_msg;
   EXPECT_FALSE(timed_out);
 }
 
-TEST_F(ExecUtilsTest, ExecTimeoutNotSupported) {
-  if (IsPidfdSupported()) {
-    GTEST_SKIP() << "pidfd supported";
-  }
-
-  std::string error_msg;
-  bool timed_out;
-  ASSERT_EQ(ExecAndReturnCode({"command"}, /*timeout_sec=*/0, &timed_out, &error_msg), -1);
-  EXPECT_THAT(error_msg, testing::HasSubstr("pidfd_open failed for pid"));
-}
+INSTANTIATE_TEST_SUITE_P(AlwaysOrNeverFallback, ExecUtilsTest, testing::Values(true, false));
 
 }  // namespace art
