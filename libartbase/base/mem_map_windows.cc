@@ -31,7 +31,6 @@
 
 namespace art {
 
-using android::base::MappedFile;
 using android::base::StringPrintf;
 
 static off_t allocation_granularity;
