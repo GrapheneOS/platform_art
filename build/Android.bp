@@ -38,6 +38,7 @@ art_clang_tidy_errors = [
     "performance-faster-string-find",
     "performance-for-range-copy",
     "performance-implicit-conversion-in-loop",
+    "performance-noexcept-move-constructor",
     "performance-unnecessary-copy-initialization",
     "performance-unnecessary-value-param",
 ]
@@ -50,7 +51,6 @@ art_clang_tidy_allowed = [
     "misc-unused-using-decls",
     "modernize-use-nullptr",
     "modernize-use-using", // TODO: move to art_clang_tidy_errors after b/236243696 is done
-    "performance-noexcept-move-constructor",
 ]
 
 art_clang_tidy_disabled = [
