@@ -132,6 +132,7 @@ ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
         ("Failed to get runtime options: " + runtime_options.error().message()).c_str());
   }
 
+  std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
   auto oat_file_assistant = OatFileAssistant::Create(
       in_dexFile.c_str(),
@@ -140,6 +141,7 @@ ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
       /*load_executable=*/false,
       /*only_load_trusted_executable=*/true,
       std::make_unique<OatFileAssistant::RuntimeOptions>(std::move(*runtime_options)),
+      &context,
       &error_msg);
   if (oat_file_assistant == nullptr) {
     return ScopedAStatus::fromExceptionCodeWithMessage(

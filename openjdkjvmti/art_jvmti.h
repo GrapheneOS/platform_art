@@ -141,7 +141,7 @@ class JvmtiDeleter {
   explicit JvmtiDeleter(jvmtiEnv* env) : env_(env) {}
 
   JvmtiDeleter(JvmtiDeleter&) = default;
-  JvmtiDeleter(JvmtiDeleter&&) = default;
+  JvmtiDeleter(JvmtiDeleter&&) noexcept = default;
   JvmtiDeleter& operator=(const JvmtiDeleter&) = default;
 
   void operator()(T* ptr) const {
@@ -161,7 +161,7 @@ class JvmtiDeleter<T[]> {
   explicit JvmtiDeleter(jvmtiEnv* env) : env_(env) {}
 
   JvmtiDeleter(JvmtiDeleter&) = default;
-  JvmtiDeleter(JvmtiDeleter&&) = default;
+  JvmtiDeleter(JvmtiDeleter&&) noexcept = default;
   JvmtiDeleter& operator=(const JvmtiDeleter&) = default;
 
   template <typename U>

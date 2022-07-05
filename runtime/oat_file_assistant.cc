@@ -242,22 +242,23 @@ std::unique_ptr<OatFileAssistant> OatFileAssistant::Create(
     bool load_executable,
     bool only_load_trusted_executable,
     std::unique_ptr<RuntimeOptions> runtime_options,
-    std::string* error_msg) {
+    /*out*/ std::unique_ptr<ClassLoaderContext>* context,
+    /*out*/ std::string* error_msg) {
   InstructionSet isa = GetInstructionSetFromString(isa_str.c_str());
   if (isa == InstructionSet::kNone) {
     *error_msg = StringPrintf("Instruction set '%s' is invalid", isa_str.c_str());
     return nullptr;
   }
 
-  std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create(context_str.c_str());
-  if (context == nullptr) {
+  std::unique_ptr<ClassLoaderContext> tmp_context = ClassLoaderContext::Create(context_str.c_str());
+  if (tmp_context == nullptr) {
     *error_msg = StringPrintf("Class loader context '%s' is invalid", context_str.c_str());
     return nullptr;
   }
 
-  if (!context->OpenDexFiles(android::base::Dirname(filename.c_str()),
-                             /*context_fds=*/{},
-                             /*only_read_checksums=*/true)) {
+  if (!tmp_context->OpenDexFiles(android::base::Dirname(filename.c_str()),
+                                 /*context_fds=*/{},
+                                 /*only_read_checksums=*/true)) {
     *error_msg =
         StringPrintf("Failed to load class loader context files for '%s' with context '%s'",
                      filename.c_str(),
@@ -267,12 +268,12 @@ std::unique_ptr<OatFileAssistant> OatFileAssistant::Create(
 
   auto assistant = std::make_unique<OatFileAssistant>(filename.c_str(),
                                                       isa,
-                                                      context.get(),
+                                                      tmp_context.get(),
                                                       load_executable,
                                                       only_load_trusted_executable,
                                                       std::move(runtime_options));
 
-  assistant->owned_context_ = std::move(context);
+  *context = std::move(tmp_context);
   return assistant;
 }
 

@@ -144,7 +144,7 @@ class InstructionHandler {
     if (!CheckForceReturn()) {
       return false;
     }
-    if (UNLIKELY(Instrumentation()->HasDexPcListeners())) {
+    if (UNLIKELY(shadow_frame_.GetNotifyDexPcMoveEvents())) {
       uint8_t opcode = inst_->Opcode(inst_data_);
       bool is_move_result_object = (opcode == Instruction::MOVE_RESULT_OBJECT);
       JValue* save_ref = is_move_result_object ? &ctx_->result_register : nullptr;

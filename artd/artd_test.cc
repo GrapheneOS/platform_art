@@ -47,7 +47,7 @@ class ScopedCap {
  public:
   explicit ScopedCap(cap_t cap) : cap_(cap) { CHECK_NE(cap, nullptr); }
 
-  ScopedCap(ScopedCap&& other) : cap_(std::exchange(other.cap_, nullptr)) {}
+  ScopedCap(ScopedCap&& other) noexcept : cap_(std::exchange(other.cap_, nullptr)) {}
 
   ~ScopedCap() {
     if (cap_ != nullptr) {
