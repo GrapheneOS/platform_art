@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "android-base/logging.h"
+#include "android-base/scopeguard.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/memory_tool.h"
@@ -121,6 +122,12 @@ class ScopedUnsetEnvironmentVariable {
   std::optional<std::string> old_value_;
   DISALLOW_COPY_AND_ASSIGN(ScopedUnsetEnvironmentVariable);
 };
+
+// Temporarily drops all root capabilities when the test is run as root. This is a noop otherwise.
+android::base::ScopeGuard<std::function<void()>> ScopedUnroot();
+
+// Temporarily drops all permissions on a file/directory.
+android::base::ScopeGuard<std::function<void()>> ScopedInaccessible(const std::string& path);
 
 class CommonArtTestImpl {
  public:
