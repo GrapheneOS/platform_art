@@ -27,13 +27,10 @@ namespace art {
 namespace arm64 {
 
 using helpers::DRegisterFrom;
-using helpers::HeapOperand;
 using helpers::InputRegisterAt;
 using helpers::Int64FromLocation;
 using helpers::LocationFrom;
 using helpers::OutputRegister;
-using helpers::QRegisterFrom;
-using helpers::StackOperandFrom;
 using helpers::SveStackOperandFrom;
 using helpers::VRegisterFrom;
 using helpers::ZRegisterFrom;
