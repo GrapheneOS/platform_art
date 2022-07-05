@@ -950,12 +950,13 @@ std::vector<const DexFile*> ClassLoaderContext::FlattenOpenedDexFiles() const {
   return result;
 }
 
-std::string ClassLoaderContext::FlattenDexPaths() const {
+std::vector<std::string> ClassLoaderContext::FlattenDexPaths() const {
+  std::vector<std::string> result;
+
   if (class_loader_chain_ == nullptr) {
-    return "";
+    return result;
   }
 
-  std::vector<std::string> result;
   std::vector<ClassLoaderInfo*> work_list;
   work_list.push_back(class_loader_chain_.get());
   while (!work_list.empty()) {
@@ -966,7 +967,7 @@ std::string ClassLoaderContext::FlattenDexPaths() const {
     }
     AddToWorkList(info, work_list);
   }
-  return FlattenClasspath(result);
+  return result;
 }
 
 const char* ClassLoaderContext::GetClassLoaderTypeName(ClassLoaderType type) {
