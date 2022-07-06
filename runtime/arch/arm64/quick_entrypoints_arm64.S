@@ -1900,6 +1900,11 @@ ENTRY art_quick_generic_jni_trampoline
     .cfi_remember_state
     .cfi_def_cfa_register sp
 
+    LOAD_RUNTIME_INSTANCE x1
+    ldrb w1, [x1, #INSTRUMENTATION_STUBS_INSTALLED_OFFSET_FROM_RUNTIME_INSTANCE]
+    cbnz w1, .Lcall_method_exit_hook
+.Lcall_method_exit_hook_done:
+
     // Tear down the callee-save frame.
     RESTORE_SAVE_REFS_AND_ARGS_FRAME
     REFRESH_MARKING_REGISTER
@@ -1907,6 +1912,11 @@ ENTRY art_quick_generic_jni_trampoline
     // store into fpr, for when it's a fpr return...
     fmov d0, x0
     ret
+
+.Lcall_method_exit_hook:
+    fmov d0, x0
+    bl art_quick_method_exit_hook
+    b .Lcall_method_exit_hook_done
 
     // Undo the unwinding information from above since it doesn't apply below.
     CFI_RESTORE_STATE_AND_DEF_CFA x28, FRAME_SIZE_SAVE_REFS_AND_ARGS
