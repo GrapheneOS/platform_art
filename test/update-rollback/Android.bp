@@ -23,5 +23,9 @@ java_test_host {
     libs: ["tradefed"],
     static_libs: ["cts-install-lib-host"],
     data: [":test_broken_com.android.art"],
-    test_suites: ["general-tests"],
+    // Add this test to `device-tests` rather than `general-tests` to ensure
+    // that the type of ART APEX -- public (`com.android.art`) or internal
+    // (`com.google.android.art`) -- used in the test matches the one bundled
+    // with the Android platform used in the device-under-test.
+    test_suites: ["device-tests"],
 }
