@@ -111,6 +111,11 @@ void ThrowIllegalAccessError(ObjPtr<mirror::Class> referrer, const char* fmt, ..
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
+void ThrowIllegalAccessErrorForImplementingMethod(ObjPtr<mirror::Class> klass,
+                                                  ArtMethod* implementation_method,
+                                                  ArtMethod* interface_method)
+    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
 // IllegalAccessException
 
 void ThrowIllegalAccessException(const char* msg)
