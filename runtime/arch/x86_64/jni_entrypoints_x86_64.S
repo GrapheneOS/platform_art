@@ -400,6 +400,12 @@ JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_read_barrier, artJniReadBarrier, none
 JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_start, artJniMethodStart, gs:THREAD_SELF_OFFSET
 
     /*
+     * Trampoline to `artJniMethodEntryHook` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE \
+    art_jni_method_entry_hook, artJniMethodEntryHook, gs:THREAD_SELF_OFFSET
+
+    /*
      * Trampoline to `artJniMonitoredMethodStart()` that preserves all managed arguments.
      */
 JNI_SAVE_MANAGED_ARGS_TRAMPOLINE \
