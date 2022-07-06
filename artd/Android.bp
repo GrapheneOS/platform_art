@@ -67,7 +67,6 @@ art_cc_defaults {
     name: "art_artd_tests_defaults",
     defaults: ["artd_defaults"],
     static_libs: [
-        "libcap",
         "libgmock",
     ],
     srcs: [

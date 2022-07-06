@@ -451,7 +451,7 @@ class DexoptAnalyzer final {
       Usage("Invalid --class-loader-context '%s'", context_str_.c_str());
     }
 
-    std::cout << context->FlattenDexPaths() << std::flush;
+    std::cout << android::base::Join(context->FlattenDexPaths(), ':') << std::flush;
     return ReturnCode::kFlattenClassLoaderContextSuccess;
   }
 

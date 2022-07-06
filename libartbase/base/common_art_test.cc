@@ -22,14 +22,17 @@
 #include <ftw.h>
 #include <libgen.h>
 #include <stdlib.h>
+#include <sys/capability.h>
 #include <unistd.h>
 
 #include <cstdio>
 #include <filesystem>
+#include <functional>
 
 #include "android-base/file.h"
 #include "android-base/logging.h"
 #include "android-base/process.h"
+#include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android-base/unique_fd.h"
@@ -143,6 +146,46 @@ void ScratchFile::Unlink() {
   Close();
   int unlink_result = unlink(filename_.c_str());
   CHECK_EQ(0, unlink_result);
+}
+
+// A wrapper of `cap_t` that automatically calls `cap_free`.
+class ScopedCap {
+ public:
+  explicit ScopedCap(cap_t cap) : cap_(cap) { CHECK_NE(cap, nullptr); }
+
+  ScopedCap(ScopedCap&& other) noexcept : cap_(std::exchange(other.cap_, nullptr)) {}
+
+  ~ScopedCap() {
+    if (cap_ != nullptr) {
+      CHECK_EQ(cap_free(cap_), 0);
+    }
+  }
+
+  cap_t Get() const { return cap_; }
+
+ private:
+  cap_t cap_;
+};
+
+// Temporarily drops all root capabilities when the test is run as root. This is a noop otherwise.
+android::base::ScopeGuard<std::function<void()>> ScopedUnroot() {
+  ScopedCap old_cap(cap_get_proc());
+  ScopedCap new_cap(cap_dup(old_cap.Get()));
+  CHECK_EQ(cap_clear_flag(new_cap.Get(), CAP_EFFECTIVE), 0);
+  CHECK_EQ(cap_set_proc(new_cap.Get()), 0);
+  // `old_cap` is actually not shared with anyone else, but we have to wrap it with a `shared_ptr`
+  // because `std::function` requires captures to be copyable.
+  return android::base::make_scope_guard(
+      [old_cap = std::make_shared<ScopedCap>(std::move(old_cap))]() {
+        CHECK_EQ(cap_set_proc(old_cap->Get()), 0);
+      });
+}
+
+// Temporarily drops write permission on a file/directory.
+android::base::ScopeGuard<std::function<void()>> ScopedInaccessible(const std::string& path) {
+  std::filesystem::perms old_perms = std::filesystem::status(path).permissions();
+  std::filesystem::permissions(path, std::filesystem::perms::none);
+  return android::base::make_scope_guard([=]() { std::filesystem::permissions(path, old_perms); });
 }
 
 std::string CommonArtTestImpl::GetAndroidBuildTop() {

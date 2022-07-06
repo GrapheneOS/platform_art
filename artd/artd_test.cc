@@ -16,8 +16,6 @@
 
 #include "artd.h"
 
-#include <sys/capability.h>
-
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -41,45 +39,6 @@ using ::testing::_;
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 using ::testing::MockFunction;
-
-// A wrapper of `cap_t` that automatically calls `cap_free`.
-class ScopedCap {
- public:
-  explicit ScopedCap(cap_t cap) : cap_(cap) { CHECK_NE(cap, nullptr); }
-
-  ScopedCap(ScopedCap&& other) noexcept : cap_(std::exchange(other.cap_, nullptr)) {}
-
-  ~ScopedCap() {
-    if (cap_ != nullptr) {
-      CHECK_EQ(cap_free(cap_), 0);
-    }
-  }
-
-  cap_t Get() const { return cap_; }
-
- private:
-  cap_t cap_;
-};
-
-// Temporarily drops all root capabilities when the test is run as root. This is a noop otherwise.
-ScopeGuard<std::function<void()>> ScopedUnroot() {
-  ScopedCap old_cap(cap_get_proc());
-  ScopedCap new_cap(cap_dup(old_cap.Get()));
-  CHECK_EQ(cap_clear_flag(new_cap.Get(), CAP_EFFECTIVE), 0);
-  CHECK_EQ(cap_set_proc(new_cap.Get()), 0);
-  // `old_cap` is actually not shared with anyone else, but we have to wrap it with a `shared_ptr`
-  // because `std::function` requires captures to be copyable.
-  return make_scope_guard([old_cap = std::make_shared<ScopedCap>(std::move(old_cap))]() {
-    CHECK_EQ(cap_set_proc(old_cap->Get()), 0);
-  });
-}
-
-// Temporarily drops all permission on a file/directory.
-ScopeGuard<std::function<void()>> ScopedInaccessible(const std::string& path) {
-  std::filesystem::perms old_perms = std::filesystem::status(path).permissions();
-  std::filesystem::permissions(path, std::filesystem::perms::none);
-  return make_scope_guard([=]() { std::filesystem::permissions(path, old_perms); });
-}
 
 ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& logger) {
   android::base::LogFunction old_logger = android::base::SetLogger(std::move(logger));
