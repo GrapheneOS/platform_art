@@ -32,6 +32,7 @@ void CheckNterpAsmConstants();
 bool IsNterpSupported();
 bool CanRuntimeUseNterp();
 const void* GetNterpEntryPoint();
+const void* GetNterpWithClinitEntryPoint();
 
 constexpr uint16_t kNterpHotnessValue = 0;
 
