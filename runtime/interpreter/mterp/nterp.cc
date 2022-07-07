@@ -58,8 +58,15 @@ bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
 // The entrypoint for nterp, which ArtMethods can directly point to.
 extern "C" void ExecuteNterpImpl() REQUIRES_SHARED(Locks::mutator_lock_);
 
+// Another entrypoint, which does a clinit check at entry.
+extern "C" void ExecuteNterpWithClinitImpl() REQUIRES_SHARED(Locks::mutator_lock_);
+
 const void* GetNterpEntryPoint() {
   return reinterpret_cast<const void*>(interpreter::ExecuteNterpImpl);
+}
+
+const void* GetNterpWithClinitEntryPoint() {
+  return reinterpret_cast<const void*>(interpreter::ExecuteNterpWithClinitImpl);
 }
 
 /*
