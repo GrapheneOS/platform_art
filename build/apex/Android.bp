@@ -300,9 +300,6 @@ apex_defaults {
             enabled: false,
         },
     },
-    // Indicates that pre-installed version of this apex can be compressed.
-    // Whether it actually will be compressed is controlled on per-device basis.
-    compressible: true,
 }
 
 apex_defaults {
@@ -363,6 +360,7 @@ apex_test {
     file_contexts: ":com.android.art-file_contexts",
     certificate: ":com.android.art.certificate",
     installable: false,
+    compressible: false,
 }
 
 apex_test {
