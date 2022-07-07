@@ -422,8 +422,10 @@ class ArtMethod final {
   bool CheckIncompatibleClassChange(InvokeType type) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Throws the error that would result from trying to invoke this method (i.e.
-  // IncompatibleClassChangeError or AbstractMethodError). Only call if !IsInvokable();
-  void ThrowInvocationTimeError() REQUIRES_SHARED(Locks::mutator_lock_);
+  // IncompatibleClassChangeError, AbstractMethodError, or IllegalAccessError).
+  // Only call if !IsInvokable();
+  void ThrowInvocationTimeError(ObjPtr<mirror::Object> receiver)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   uint16_t GetMethodIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
