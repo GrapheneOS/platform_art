@@ -33,12 +33,6 @@ import pkg2.I2;
 
 public class Main {
     public static void main(String args[]) {
-        try {
-            Class.forName("dalvik.system.PathClassLoader");
-        } catch (ClassNotFoundException e) {
-            usingRI = true;
-        }
-
         // A single method signature can result in multiple vtable entries
         // when package-private methods from different packages are involved.
         // All classes here define the method `void foo()` but classes
@@ -120,7 +114,6 @@ public class Main {
             CXI1 cxi1 = new CXI1();
             I1.callI1Foo(cxi1);
         } catch (IllegalAccessError expected) {
-            printOnDalvik("Calling pkg1.I1.foo on pkg1.CXI1");
             System.out.println("Caught IllegalAccessError");
         }
 
@@ -128,7 +121,6 @@ public class Main {
             CXI2 cxi2 = new CXI2();
             I2.callI2Foo(cxi2);
         } catch (IllegalAccessError expected) {
-            printOnDalvik("Calling pkg2.I2.foo on pkg1.CXI2");
             System.out.println("Caught IllegalAccessError");
         }
 
@@ -136,7 +128,6 @@ public class Main {
             DXI1 dxi1 = new DXI1();
             I1.callI1Foo(dxi1);
         } catch (IllegalAccessError expected) {
-            printOnDalvik("Calling pkg1.I1.foo on pkg2.DXI1");
             System.out.println("Caught IllegalAccessError");
         }
 
@@ -144,17 +135,7 @@ public class Main {
             DXI2 dxi2 = new DXI2();
             I2.callI2Foo(dxi2);
         } catch (IllegalAccessError expected) {
-            printOnDalvik("Calling pkg2.I2.foo on pkg2.DXI2");
             System.out.println("Caught IllegalAccessError");
         }
     }
-
-    private static void printOnDalvik(String line) {
-        if (!usingRI) {
-            // FIXME: Delay IAE until calling the method. Bug: 211854716
-            System.out.println(line);
-        }
-    }
-
-    private static boolean usingRI = false;
 }
