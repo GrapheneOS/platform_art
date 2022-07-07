@@ -1608,6 +1608,14 @@ END \name
  *  rest  method parameters
  */
 
+OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
+    ldr ip, [r0, ART_METHOD_DECLARING_CLASS_OFFSET]
+    ldrb ip, [ip, MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET]
+    cmp ip, #MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE
+    bcs ExecuteNterpImpl
+    b art_quick_resolution_trampoline
+EndExecuteNterpWithClinitImpl:
+
 OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
     .cfi_startproc
     sub ip, sp, #STACK_OVERFLOW_RESERVED_BYTES
