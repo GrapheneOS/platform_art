@@ -224,13 +224,8 @@ class QuickArgumentVisitor {
 #endif
 
  public:
-  // Special handling for proxy methods. Proxy methods are instance methods so the
-  // 'this' object is the 1st argument. They also have the same frame layout as the
-  // kRefAndArgs runtime method. Since 'this' is a reference, it is located in the
-  // 1st GPR.
-  static StackReference<mirror::Object>* GetProxyThisObjectReference(ArtMethod** sp)
+  static StackReference<mirror::Object>* GetThisObjectReference(ArtMethod** sp)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    CHECK((*sp)->IsProxyMethod());
     CHECK_GT(kNumQuickGprArgs, 0u);
     constexpr uint32_t kThisGprIndex = 0u;  // 'this' is in the 1st GPR.
     size_t this_arg_offset = kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset +
@@ -529,7 +524,8 @@ class QuickArgumentVisitor {
 // allows to use the QuickArgumentVisitor constants without moving all the code in its own module.
 extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return QuickArgumentVisitor::GetProxyThisObjectReference(sp)->AsMirrorPtr();
+  DCHECK((*sp)->IsProxyMethod());
+  return QuickArgumentVisitor::GetThisObjectReference(sp)->AsMirrorPtr();
 }
 
 // Visits arguments on the stack placing them into the shadow frame.
@@ -655,7 +651,10 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   ScopedQuickEntrypointChecks sqec(self);
 
   if (UNLIKELY(!method->IsInvokable())) {
-    method->ThrowInvocationTimeError();
+    method->ThrowInvocationTimeError(
+        method->IsStatic()
+            ? nullptr
+            : QuickArgumentVisitor::GetThisObjectReference(sp)->AsMirrorPtr());
     return 0;
   }
 
