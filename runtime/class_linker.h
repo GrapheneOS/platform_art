@@ -36,6 +36,7 @@
 #include "dex/dex_file_types.h"
 #include "gc_root.h"
 #include "handle.h"
+#include "interpreter/mterp/nterp.h"
 #include "jni.h"
 #include "mirror/class.h"
 #include "mirror/object.h"
@@ -606,6 +607,11 @@ class ClassLinker {
   // Is the given entry point the nterp trampoline?
   bool IsNterpTrampoline(const void* entry_point) const {
     return nterp_trampoline_ == entry_point;
+  }
+
+  bool IsNterpEntryPoint(const void* entry_point) const {
+    return entry_point == interpreter::GetNterpEntryPoint() ||
+        entry_point == interpreter::GetNterpWithClinitEntryPoint();
   }
 
   const void* GetQuickToInterpreterBridgeTrampoline() const {
