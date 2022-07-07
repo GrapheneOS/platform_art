@@ -202,7 +202,7 @@ class OdRefreshTest : public CommonArtTest {
     config_.SetStandaloneSystemServerJars(Concatenate({services_foo_jar_, ":", services_bar_jar_}));
     config_.SetIsa(InstructionSet::kX86_64);
     config_.SetZygoteKind(ZygoteKind::kZygote64_32);
-    config_.SetSystemServerCompilerFilter("speed");  // specify a default
+    config_.SetSystemServerCompilerFilter("");
     config_.SetArtifactDirectory(dalvik_cache_dir_);
 
     std::string staging_dir = dalvik_cache_dir_ + "/staging";
@@ -362,9 +362,11 @@ TEST_F(OdRefreshTest, MissingStandaloneSystemServerJars) {
       ExitCode::kCompilationSuccess);
 }
 
-TEST_F(OdRefreshTest, CompileSetsCompilerFilterToSpeed) {
-  // Test setup: use "speed" compiler filter.
-  config_.SetSystemServerCompilerFilter("speed");
+// Test setup: The compiler filter is explicitly set to "speed-profile". Use it regardless of
+// whether the profile exists or not. Dex2oat will fall back to "verify" if the profile doesn't
+// exist.
+TEST_F(OdRefreshTest, CompileSetsCompilerFilterWithExplicitValue) {
+  config_.SetSystemServerCompilerFilter("speed-profile");
 
   // Uninteresting calls.
   EXPECT_CALL(
@@ -376,13 +378,12 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilterToSpeed) {
       *mock_exec_utils_,
       DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", location_provider_jar_})),
                                 Not(Contains(HasSubstr("--profile-file-fd="))),
-                                Contains("--compiler-filter=speed"))))
+                                Contains("--compiler-filter=speed-profile"))))
       .WillOnce(Return(0));
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
-                                Not(Contains(HasSubstr("--profile-file-fd="))),
-                                Contains("--compiler-filter=speed"))))
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
+                                        Contains(HasSubstr("--profile-file-fd=")),
+                                        Contains("--compiler-filter=speed-profile"))))
       .WillOnce(Return(0));
   EXPECT_EQ(
       odrefresh_->Compile(*metrics_,
@@ -392,11 +393,9 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilterToSpeed) {
       ExitCode::kCompilationSuccess);
 }
 
-TEST_F(OdRefreshTest, CompileSetsCompilerFilterToSpeedProfile) {
-  // Test setup: with "speed-profile" compiler filter in the request, only apply if there is a
-  // profile, otherwise fallback to speed.
-  config_.SetSystemServerCompilerFilter("speed-profile");
-
+// Test setup: The compiler filter is not explicitly set. Use "speed-profile" if there is a profile,
+// otherwise fall back to "speed".
+TEST_F(OdRefreshTest, CompileSetsCompilerFilterWithDefaultValue) {
   // Uninteresting calls.
   EXPECT_CALL(
       *mock_exec_utils_, DoExecAndReturnCode(_))
@@ -420,36 +419,6 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilterToSpeedProfile) {
       odrefresh_->Compile(*metrics_,
                           CompilationOptions{
                             .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
-                          }),
-      ExitCode::kCompilationSuccess);
-}
-
-TEST_F(OdRefreshTest, CompileSetsCompilerFilterToVerify) {
-  // Test setup: use "speed" compiler filter.
-  config_.SetSystemServerCompilerFilter("verify");
-
-  // Uninteresting calls.
-  EXPECT_CALL(
-      *mock_exec_utils_, DoExecAndReturnCode(_))
-      .Times(odrefresh_->AllSystemServerJars().size() - 2)
-      .WillRepeatedly(Return(0));
-
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", location_provider_jar_})),
-                                Not(Contains(HasSubstr("--profile-file-fd="))),
-                                Contains("--compiler-filter=verify"))))
-      .WillOnce(Return(0));
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
-                                Not(Contains(HasSubstr("--profile-file-fd="))),
-                                Contains("--compiler-filter=verify"))))
-      .WillOnce(Return(0));
-  EXPECT_EQ(
-      odrefresh_->Compile(*metrics_,
-                          CompilationOptions{
-                              .system_server_jars_to_compile = odrefresh_->AllSystemServerJars(),
                           }),
       ExitCode::kCompilationSuccess);
 }
