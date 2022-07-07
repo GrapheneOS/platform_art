@@ -688,25 +688,18 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
     BuildQuickShadowFrameVisitor shadow_frame_builder(sp, method->IsStatic(), shorty, shorty_len,
                                                       shadow_frame, first_arg_reg);
     shadow_frame_builder.VisitArguments();
+    self->EndAssertNoThreadSuspension(old_cause);
+
+    // Potentially run <clinit> before pushing the shadow frame. We do not want
+    // to have the called method on the stack if there is an exception.
+    if (!EnsureInitialized(self, shadow_frame)) {
+      DCHECK(self->IsExceptionPending());
+      return 0;
+    }
+
     // Push a transition back into managed code onto the linked list in thread.
     self->PushManagedStackFragment(&fragment);
     self->PushShadowFrame(shadow_frame);
-    self->EndAssertNoThreadSuspension(old_cause);
-
-    if (NeedsClinitCheckBeforeCall(method)) {
-      ObjPtr<mirror::Class> declaring_class = method->GetDeclaringClass();
-      if (UNLIKELY(!declaring_class->IsVisiblyInitialized())) {
-        // Ensure static method's class is initialized.
-        StackHandleScope<1> hs(self);
-        Handle<mirror::Class> h_class(hs.NewHandle(declaring_class));
-        if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-          DCHECK(Thread::Current()->IsExceptionPending()) << method->PrettyMethod();
-          self->PopManagedStackFragment(fragment);
-          return 0;
-        }
-      }
-    }
-
     result = interpreter::EnterInterpreterFromEntryPoint(self, accessor, shadow_frame);
     force_frame_pop = shadow_frame->GetForcePopFrame();
   }
@@ -2110,6 +2103,14 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
     }
   }
 
+  instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instr->AreExitStubsInstalled() && Runtime::Current()->IsJavaDebuggable())) {
+    instr->MethodEnterEvent(self, called);
+    if (self->IsExceptionPending()) {
+      return nullptr;
+    }
+  }
+
   // Skip calling `artJniMethodStart()` for @CriticalNative and @FastNative.
   if (LIKELY(normal_native)) {
     // Start JNI.
@@ -2651,6 +2652,13 @@ extern "C" uint64_t artInvokeCustom(uint32_t call_site_idx, Thread* self, ArtMet
   return result.GetJ();
 }
 
+extern "C" void artJniMethodEntryHook(Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
+  ArtMethod* method = *self->GetManagedStack()->GetTopQuickFrame();
+  instr->MethodEnterEvent(self, method);
+}
+
 extern "C" void artMethodEntryHook(ArtMethod* method, Thread* self, ArtMethod** sp ATTRIBUTE_UNUSED)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
@@ -2668,6 +2676,14 @@ extern "C" void artMethodExitHook(Thread* self,
                                  uint64_t* gpr_result,
                                  uint64_t* fpr_result)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  // For GenericJniTrampolines we call artMethodExitHook even for non debuggable runtimes though we
+  // still install instrumentation stubs. So just return early here so we don't call method exit
+  // twice. In all other cases (JITed JNI stubs / JITed code) we only call this for debuggable
+  // runtimes.
+  if (!Runtime::Current()->IsJavaDebuggable()) {
+    return;
+  }
+
   DCHECK_EQ(reinterpret_cast<uintptr_t>(self), reinterpret_cast<uintptr_t>(Thread::Current()));
   CHECK(gpr_result != nullptr);
   CHECK(fpr_result != nullptr);
@@ -2696,8 +2712,9 @@ extern "C" void artMethodExitHook(Thread* self,
     deoptimize = instr->ShouldDeoptimizeCaller(self, visitor);
 
     // If we need a deoptimization MethodExitEvent will be called by the interpreter when it
-    // re-executes the return instruction.
-    if (!deoptimize) {
+    // re-executes the return instruction. For native methods we have to process method exit
+    // events here since deoptimization just removes the native frame.
+    if (!deoptimize || method->IsNative()) {
       instr->MethodExitEvent(self,
                              method,
                              /* frame= */ {},
@@ -2720,7 +2737,11 @@ extern "C" void artMethodExitHook(Thread* self,
 
   if (deoptimize) {
     DeoptimizationMethodType deopt_method_type = instr->GetDeoptimizationMethodType(method);
-    self->PushDeoptimizationContext(return_value, is_ref, nullptr, false, deopt_method_type);
+    self->PushDeoptimizationContext(return_value,
+                                    is_ref,
+                                    self->GetException(),
+                                    false,
+                                    deopt_method_type);
     artDeoptimize(self);
     UNREACHABLE();
   }

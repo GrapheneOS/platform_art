@@ -67,6 +67,7 @@ extern "C" void artJniUnlockObject(mirror::Object* locked, Thread* self)
 // JNI entrypoints when monitoring entry/exit.
 extern "C" void artJniMonitoredMethodStart(Thread* self) UNLOCK_FUNCTION(Locks::mutator_lock_);
 extern "C" void artJniMonitoredMethodEnd(Thread* self) SHARED_LOCK_FUNCTION(Locks::mutator_lock_);
+extern "C" void artJniMethodEntryHook(Thread* self);
 
 // StringAppend pattern entrypoint.
 extern "C" mirror::String* artStringBuilderAppend(uint32_t format,

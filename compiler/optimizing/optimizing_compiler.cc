@@ -1233,6 +1233,14 @@ bool OptimizingCompiler::JitCompile(Thread* self,
   ArenaAllocator allocator(runtime->GetJitArenaPool());
 
   if (UNLIKELY(method->IsNative())) {
+    // Use GenericJniTrampoline for critical native methods in debuggable runtimes. We don't
+    // support calling method entry / exit hooks for critical native methods yet.
+    // TODO(mythria): Add support for calling method entry / exit hooks in JITed stubs for critical
+    // native methods too.
+    if (runtime->IsJavaDebuggable() && method->IsCriticalNative()) {
+      DCHECK(compiler_options.IsJitCompiler());
+      return false;
+    }
     JniCompiledMethod jni_compiled_method = ArtQuickJniCompileMethod(
         compiler_options, access_flags, method_idx, *dex_file, &allocator);
     std::vector<Handle<mirror::Object>> roots;

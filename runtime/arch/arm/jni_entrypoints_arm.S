@@ -327,6 +327,11 @@ JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_read_barrier, artJniReadBarrier
 JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_start, artJniMethodStart, rSELF
 
     /*
+     * Trampoline to `artJniMethodEntryHook()` that preserves all managed arguments.
+     */
+JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_method_entry_hook, artJniMethodEntryHook, rSELF
+
+    /*
      * Trampoline to `artJniMonitoredMethodStart()` that preserves all managed arguments.
      */
 JNI_SAVE_MANAGED_ARGS_TRAMPOLINE art_jni_monitored_method_start, artJniMonitoredMethodStart, rSELF
