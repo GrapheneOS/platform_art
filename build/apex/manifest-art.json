@@ -1,6 +1,10 @@
 {
   "name": "com.android.art",
-  "version": 339990000,
+
+  // Placeholder module version to be replaced during build.
+  // Do not change!
+  "version": 0,
+
   "provideNativeLibs": [
     "libjdwp.so"
   ],
