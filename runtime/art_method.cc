@@ -150,10 +150,34 @@ uint16_t ArtMethod::FindObsoleteDexClassDefIndex() {
   return dex_file->GetIndexForClassDef(*class_def);
 }
 
-void ArtMethod::ThrowInvocationTimeError() {
+void ArtMethod::ThrowInvocationTimeError(ObjPtr<mirror::Object> receiver) {
   DCHECK(!IsInvokable());
   if (IsDefaultConflicting()) {
     ThrowIncompatibleClassChangeErrorForMethodConflict(this);
+  } else if (GetDeclaringClass()->IsInterface() && receiver != nullptr) {
+    // If this was an interface call, check whether there is a method in the
+    // superclass chain that isn't public. In this situation, we should throw an
+    // IllegalAccessError.
+    DCHECK(IsAbstract());
+    ObjPtr<mirror::Class> current = receiver->GetClass();
+    while (current != nullptr) {
+      for (ArtMethod& method : current->GetDeclaredMethodsSlice(kRuntimePointerSize)) {
+        ArtMethod* np_method = method.GetInterfaceMethodIfProxy(kRuntimePointerSize);
+        if (!np_method->IsStatic() &&
+            np_method->GetNameView() == GetNameView() &&
+            np_method->GetSignature() == GetSignature()) {
+          if (!np_method->IsPublic()) {
+            ThrowIllegalAccessErrorForImplementingMethod(receiver->GetClass(), np_method, this);
+            return;
+          } else if (np_method->IsAbstract()) {
+            ThrowAbstractMethodError(this);
+            return;
+          }
+        }
+      }
+      current = current->GetSuperClass();
+    }
+    ThrowAbstractMethodError(this);
   } else {
     DCHECK(IsAbstract());
     ThrowAbstractMethodError(this);
