@@ -374,7 +374,7 @@ void EnterInterpreterFromInvoke(Thread* self,
     num_ins = accessor.InsSize();
   } else if (!method->IsInvokable()) {
     self->EndAssertNoThreadSuspension(old_cause);
-    method->ThrowInvocationTimeError();
+    method->ThrowInvocationTimeError(receiver);
     return;
   } else {
     DCHECK(method->IsNative()) << method->PrettyMethod();
