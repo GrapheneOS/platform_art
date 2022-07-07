@@ -407,7 +407,8 @@ void AddDex2OatInstructionSet(/*inout*/ std::vector<std::string>& args, Instruct
   args.emplace_back(Concatenate({"--instruction-set=", isa_str}));
 }
 
-void AddDex2OatProfileAndCompilerFilter(
+// Returns true if any profile has been added.
+bool AddDex2OatProfile(
     /*inout*/ std::vector<std::string>& args,
     /*inout*/ std::vector<std::unique_ptr<File>>& output_files,
     const std::vector<std::string>& profile_paths) {
@@ -420,12 +421,7 @@ void AddDex2OatProfileAndCompilerFilter(
       has_any_profile = true;
     }
   }
-
-  if (has_any_profile) {
-    args.emplace_back("--compiler-filter=speed-profile");
-  } else {
-    args.emplace_back("--compiler-filter=speed");
-  }
+  return has_any_profile;
 }
 
 bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
@@ -1444,8 +1440,13 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   std::vector<std::unique_ptr<File>> readonly_files_raii;
   const std::string art_boot_profile_file = GetArtRoot() + "/etc/boot-image.prof";
   const std::string framework_boot_profile_file = GetAndroidRoot() + "/etc/boot-image.prof";
-  AddDex2OatProfileAndCompilerFilter(args, readonly_files_raii,
-                                     {art_boot_profile_file, framework_boot_profile_file});
+  bool has_any_profile = AddDex2OatProfile(
+      args, readonly_files_raii, {art_boot_profile_file, framework_boot_profile_file});
+  if (!has_any_profile) {
+    *error_msg = "Missing boot image profile";
+    return false;
+  }
+  args.emplace_back("--compiler-filter=speed-profile");
 
   // Compile as a single image for fewer files and slightly less memory overhead.
   args.emplace_back("--single-image");
@@ -1606,11 +1607,14 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
 
     const std::string jar_name(android::base::Basename(jar));
     const std::string profile = Concatenate({GetAndroidRoot(), "/framework/", jar_name, ".prof"});
-    std::string compiler_filter = config_.GetSystemServerCompilerFilter();
-    if (compiler_filter == "speed-profile") {
-      AddDex2OatProfileAndCompilerFilter(args, readonly_files_raii, {profile});
-    } else {
+    bool has_any_profile = AddDex2OatProfile(args, readonly_files_raii, {profile});
+    const std::string& compiler_filter = config_.GetSystemServerCompilerFilter();
+    if (!compiler_filter.empty()) {
       args.emplace_back("--compiler-filter=" + compiler_filter);
+    } else if (has_any_profile) {
+      args.emplace_back("--compiler-filter=speed-profile");
+    } else {
+      args.emplace_back("--compiler-filter=speed");
     }
 
     const std::string image_location = GetSystemServerImagePath(/*on_system=*/false, jar);
