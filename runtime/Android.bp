@@ -849,6 +849,9 @@ art_cc_defaults {
     shared_libs: [
         "libbacktrace",
     ],
+    static_libs: [
+        "libgmock",
+    ],
     header_libs: [
         "art_cmdlineparser_headers", // For parsed_options_test.
     ],

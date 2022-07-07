@@ -16,15 +16,33 @@
 
 #include "exec_utils.h"
 
+#include <unistd.h>
+
 #include "android-base/stringprintf.h"
 #include "base/file_utils.h"
 #include "base/memory_tool.h"
 #include "common_runtime_test.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 
 namespace art {
 
 std::string PrettyArguments(const char* signature);
 std::string PrettyReturnType(const char* signature);
+
+bool IsPidfdSupported() {
+#ifdef __BIONIC__
+  return true;
+#else
+  constexpr int SYS_pidfd_open = 434;
+  int pidfd = syscall(SYS_pidfd_open, getpid(), /*flags=*/0);
+  if (pidfd < 0) {
+    return false;
+  }
+  close(pidfd);
+  return true;
+#endif
+}
 
 class ExecUtilsTest : public CommonRuntimeTest {};
 
@@ -44,9 +62,6 @@ TEST_F(ExecUtilsTest, ExecSuccess) {
 }
 
 TEST_F(ExecUtilsTest, ExecError) {
-  // This will lead to error messages in the log.
-  ScopedLogSeverity sls(LogSeverity::FATAL);
-
   std::vector<std::string> command;
   command.push_back("bogus");
   std::string error_msg;
@@ -115,6 +130,10 @@ static std::vector<std::string> SleepCommand(int sleep_seconds) {
 }
 
 TEST_F(ExecUtilsTest, ExecTimeout) {
+  if (!IsPidfdSupported()) {
+    GTEST_SKIP() << "pidfd not supported";
+  }
+
   static constexpr int kSleepSeconds = 5;
   static constexpr int kWaitSeconds = 1;
   std::vector<std::string> command = SleepCommand(kSleepSeconds);
@@ -125,6 +144,10 @@ TEST_F(ExecUtilsTest, ExecTimeout) {
 }
 
 TEST_F(ExecUtilsTest, ExecNoTimeout) {
+  if (!IsPidfdSupported()) {
+    GTEST_SKIP() << "pidfd not supported";
+  }
+
   static constexpr int kSleepSeconds = 1;
   static constexpr int kWaitSeconds = 5;
   std::vector<std::string> command = SleepCommand(kSleepSeconds);
@@ -132,6 +155,17 @@ TEST_F(ExecUtilsTest, ExecNoTimeout) {
   bool timed_out;
   ASSERT_EQ(ExecAndReturnCode(command, kWaitSeconds, &timed_out, &error_msg), 0);
   EXPECT_FALSE(timed_out);
+}
+
+TEST_F(ExecUtilsTest, ExecTimeoutNotSupported) {
+  if (IsPidfdSupported()) {
+    GTEST_SKIP() << "pidfd supported";
+  }
+
+  std::string error_msg;
+  bool timed_out;
+  ASSERT_EQ(ExecAndReturnCode({"command"}, /*timeout_sec=*/0, &timed_out, &error_msg), -1);
+  EXPECT_THAT(error_msg, testing::HasSubstr("pidfd_open failed for pid"));
 }
 
 }  // namespace art
