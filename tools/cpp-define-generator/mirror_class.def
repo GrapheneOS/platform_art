@@ -16,6 +16,7 @@
 
 #if ASM_DEFINE_INCLUDE_DEPENDENCIES
 #include "mirror/class.h"
+#include "subtype_check.h"
 #endif
 
 ASM_DEFINE(MIRROR_CLASS_ACCESS_FLAGS_OFFSET,
@@ -49,3 +50,9 @@ ASM_DEFINE(MIRROR_CLASS_SUPER_CLASS_OFFSET,
 ASM_DEFINE(MIRROR_CLASS_IS_INTERFACE_FLAG, art::kAccInterface)
 ASM_DEFINE(MIRROR_CLASS_IS_INTERFACE_FLAG_BIT,
            art::WhichPowerOf2(art::kAccInterface))
+ASM_DEFINE(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET,
+           art::mirror::Class::StatusOffset().SizeValue() +
+               (art::SubtypeCheckBits::BitStructSizeOf() / art::kBitsPerByte))
+ASM_DEFINE(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE,
+           art::enum_cast<uint32_t>(art::ClassStatus::kVisiblyInitialized) <<
+               (art::SubtypeCheckBits::BitStructSizeOf() % art::kBitsPerByte))

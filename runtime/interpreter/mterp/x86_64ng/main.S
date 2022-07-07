@@ -1694,6 +1694,13 @@ END_FUNCTION \name
  *  rest  method parameters
  */
 
+OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
+    movl ART_METHOD_DECLARING_CLASS_OFFSET(%rdi), %r10d
+    cmpb  $$(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE), MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET(%r10d)
+    jae ExecuteNterpImpl
+    jmp art_quick_resolution_trampoline
+EndExecuteNterpWithClinitImpl:
+
 OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
     .cfi_startproc
     .cfi_def_cfa rsp, 8
