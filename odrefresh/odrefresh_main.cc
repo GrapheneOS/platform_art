@@ -144,6 +144,8 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
       config->SetArtifactDirectory(GetApexDataDalvikCacheDirectory(art::InstructionSet::kNone));
     } else if (ArgumentMatches(arg, "--zygote-arch=", &value)) {
       zygote = value;
+    } else if (ArgumentMatches(arg, "--boot-image-compiler-filter=", &value)) {
+      config->SetBootImageCompilerFilter(value);
     } else if (ArgumentMatches(arg, "--system-server-compiler-filter=", &value)) {
       config->SetSystemServerCompilerFilter(value);
     } else if (ArgumentMatches(arg, "--staging-dir=", &value)) {
@@ -232,6 +234,9 @@ NO_RETURN void UsageHelp(const char* argv0) {
   UsageMsg("--staging-dir=<DIR>              Write temporary artifacts to <DIR> rather than");
   UsageMsg("                                 .../staging");
   UsageMsg("--zygote-arch=<STRING>           Zygote kind that overrides ro.zygote");
+  UsageMsg("--boot-image-compiler-filter=<STRING>");
+  UsageMsg("                                 Compiler filter for the boot image. Default: ");
+  UsageMsg("                                 speed-profile");
   UsageMsg("--system-server-compiler-filter=<STRING>");
   UsageMsg("                                 Compiler filter that overrides");
   UsageMsg("                                 dalvik.vm.systemservercompilerfilter");
