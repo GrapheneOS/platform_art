@@ -172,7 +172,7 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
   config->SetZygoteKind(zygote_kind);
 
   if (config->GetSystemServerCompilerFilter().empty()) {
-    std::string filter = GetProperty("dalvik.vm.systemservercompilerfilter", "speed");
+    std::string filter = GetProperty("dalvik.vm.systemservercompilerfilter", "");
     config->SetSystemServerCompilerFilter(filter);
   }
 
