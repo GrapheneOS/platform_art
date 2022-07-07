@@ -1446,7 +1446,12 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
     *error_msg = "Missing boot image profile";
     return false;
   }
-  args.emplace_back("--compiler-filter=speed-profile");
+  const std::string& compiler_filter = config_.GetBootImageCompilerFilter();
+  if (!compiler_filter.empty()) {
+    args.emplace_back("--compiler-filter=" + compiler_filter);
+  } else {
+    args.emplace_back("--compiler-filter=speed-profile");
+  }
 
   // Compile as a single image for fewer files and slightly less memory overhead.
   args.emplace_back("--single-image");

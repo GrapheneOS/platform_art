@@ -83,6 +83,7 @@ class OdrConfig final {
   InstructionSet isa_;
   std::string program_name_;
   std::string system_server_classpath_;
+  std::string boot_image_compiler_filter_;
   std::string system_server_compiler_filter_;
   ZygoteKind zygote_kind_;
   std::string boot_classpath_;
@@ -168,6 +169,9 @@ class OdrConfig final {
   const std::string& GetSystemServerClasspath() const {
     return system_server_classpath_;
   }
+  const std::string& GetBootImageCompilerFilter() const {
+    return boot_image_compiler_filter_;
+  }
   const std::string& GetSystemServerCompilerFilter() const {
     return system_server_compiler_filter_;
   }
@@ -204,6 +208,9 @@ class OdrConfig final {
     system_server_classpath_ = classpath;
   }
 
+  void SetBootImageCompilerFilter(const std::string& filter) {
+    boot_image_compiler_filter_ = filter;
+  }
   void SetSystemServerCompilerFilter(const std::string& filter) {
     system_server_compiler_filter_ = filter;
   }

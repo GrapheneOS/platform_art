@@ -255,11 +255,41 @@ TEST_F(OdRefreshTest, BootClasspathJars) {
                   Contains(Concatenate({"--dex-file=", framework_jar_})),
                   Contains(FlagContains("--dex-fd=", FdOf(core_oj_jar_))),
                   Contains(FlagContains("--dex-fd=", FdOf(framework_jar_))),
-                  Contains(FlagContains("--profile-file-fd=", FdOf(art_profile_))),
-                  Contains(FlagContains("--profile-file-fd=", FdOf(framework_profile_))),
                   Contains(Concatenate({"--oat-location=", dalvik_cache_dir_, "/x86_64/boot.oat"})),
-                  Contains(HasSubstr("--base=")),
-                  Contains("--compiler-filter=speed-profile"))))
+                  Contains(HasSubstr("--base=")))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(*metrics_,
+                                CompilationOptions{
+                                    .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
+                                }),
+            ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, BootClasspathJarsWithExplicitCompilerFilter) {
+  config_.SetBootImageCompilerFilter("speed");
+
+  // Profiles should still be passed.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  AllOf(Contains(FlagContains("--profile-file-fd=", FdOf(art_profile_))),
+                        Contains(FlagContains("--profile-file-fd=", FdOf(framework_profile_))),
+                        Contains("--compiler-filter=speed"))))
+      .WillOnce(Return(0));
+
+  EXPECT_EQ(odrefresh_->Compile(*metrics_,
+                                CompilationOptions{
+                                    .compile_boot_classpath_for_isas = {InstructionSet::kX86_64},
+                                }),
+            ExitCode::kCompilationSuccess);
+}
+
+TEST_F(OdRefreshTest, BootClasspathJarsWithDefaultCompilerFilter) {
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  AllOf(Contains(FlagContains("--profile-file-fd=", FdOf(art_profile_))),
+                        Contains(FlagContains("--profile-file-fd=", FdOf(framework_profile_))),
+                        Contains("--compiler-filter=speed-profile"))))
       .WillOnce(Return(0));
 
   EXPECT_EQ(odrefresh_->Compile(*metrics_,
