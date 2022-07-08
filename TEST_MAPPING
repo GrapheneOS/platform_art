@@ -407,6 +407,9 @@
       "name": "art-run-test-2043-reference-pauses[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-2044-get-stack-traces[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning[com.google.android.art.apex]"
     },
     {
@@ -1235,7 +1238,13 @@
       "name": "art-run-test-838-override[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-841-defaults[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-963-default-range-smali[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-993-breakpoints-non-debuggable[com.google.android.art.apex]"
     },
     {
       "name": "art_libnativebridge_cts_tests[com.google.android.art.apex]"
@@ -1726,6 +1735,9 @@
       "name": "art-run-test-2043-reference-pauses"
     },
     {
+      "name": "art-run-test-2044-get-stack-traces"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning"
     },
     {
@@ -2554,7 +2566,13 @@
       "name": "art-run-test-838-override"
     },
     {
+      "name": "art-run-test-841-defaults"
+    },
+    {
       "name": "art-run-test-963-default-range-smali"
+    },
+    {
+      "name": "art-run-test-993-breakpoints-non-debuggable"
     },
     {
       "name": "art_libnativebridge_cts_tests"
@@ -3042,6 +3060,9 @@
       "name": "art-run-test-2043-reference-pauses"
     },
     {
+      "name": "art-run-test-2044-get-stack-traces"
+    },
+    {
       "name": "art-run-test-2231-checker-heap-poisoning"
     },
     {
@@ -3870,7 +3891,13 @@
       "name": "art-run-test-838-override"
     },
     {
+      "name": "art-run-test-841-defaults"
+    },
+    {
       "name": "art-run-test-963-default-range-smali"
+    },
+    {
+      "name": "art-run-test-993-breakpoints-non-debuggable"
     },
     {
       "name": "art_libnativebridge_cts_tests"
