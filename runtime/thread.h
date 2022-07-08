@@ -749,6 +749,13 @@ class Thread {
   }
 
   template<PointerSize pointer_size>
+  static constexpr ThreadOffset<pointer_size> TidOffset() {
+    return ThreadOffset<pointer_size>(
+        OFFSETOF_MEMBER(Thread, tls32_) +
+        OFFSETOF_MEMBER(tls_32bit_sized_values, tid));
+  }
+
+  template<PointerSize pointer_size>
   static constexpr ThreadOffset<pointer_size> InterruptedOffset() {
     return ThreadOffset<pointer_size>(
         OFFSETOF_MEMBER(Thread, tls32_) +
