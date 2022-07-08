@@ -2538,16 +2538,16 @@ class Dex2Oat final {
   }
 
   bool PreparePreloadedClasses() {
-    preloaded_classes_ = std::make_unique<HashSet<std::string>>();
     if (!preloaded_classes_fds_.empty()) {
       for (int fd : preloaded_classes_fds_) {
-        if (!ReadCommentedInputFromFd(fd, nullptr, preloaded_classes_.get())) {
+        if (!ReadCommentedInputFromFd(fd, nullptr, &compiler_options_->preloaded_classes_)) {
           return false;
         }
       }
     } else {
       for (const std::string& file : preloaded_classes_files_) {
-        if (!ReadCommentedInputFromFile(file.c_str(), nullptr, preloaded_classes_.get())) {
+        if (!ReadCommentedInputFromFile(
+                file.c_str(), nullptr, &compiler_options_->preloaded_classes_)) {
           return false;
         }
       }
@@ -2942,7 +2942,6 @@ class Dex2Oat final {
   const char* dirty_image_objects_filename_;
   int dirty_image_objects_fd_;
   std::unique_ptr<HashSet<std::string>> dirty_image_objects_;
-  std::unique_ptr<HashSet<std::string>> preloaded_classes_;
   std::unique_ptr<std::vector<std::string>> passes_to_run_;
   bool is_host_;
   std::string android_root_;
