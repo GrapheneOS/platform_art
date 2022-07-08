@@ -3389,11 +3389,9 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
   }
 
   instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
-  // Link the code of methods skipped by LinkCode.
   for (size_t method_index = 0; method_index < num_direct_methods; ++method_index) {
     ArtMethod* method = klass->GetDirectMethod(method_index, pointer_size);
-    if (!method->IsStatic()) {
-      // Only update static methods.
+    if (!NeedsClinitCheckBeforeCall(method)) {
       continue;
     }
     instrumentation->UpdateMethodsCode(method, instrumentation->GetCodeForInvoke(method));
