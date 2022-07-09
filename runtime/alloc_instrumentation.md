@@ -17,7 +17,7 @@ corresponding `UninstrumentQuickAlloc`... function.
 - These in turn are called by `SetStatsEnabled()`, `SetAllocationListener()`, et al, which
 require the mutator lock is not held.
 
-- With a started runtime, `SetEntrypointsInstrumented()` calls `ScopedSupendAll(`) before updating
+- With a started runtime, `SetEntrypointsInstrumented()` calls `ScopedSuspendAll(`) before updating
   the function table.
 
 Mutual exclusion in the dispatch table is thus ensured by the fact that it is only updated while
