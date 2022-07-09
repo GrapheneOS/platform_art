@@ -259,18 +259,23 @@ static ALWAYS_INLINE bool DoInvoke(Thread* self,
   }
 
   // Null pointer check and virtual method resolution.
-  ObjPtr<mirror::Object> receiver =
-      (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
-  ArtMethod* called_method;
-  called_method = FindMethodToCall<type, do_access_check>(
-      method_idx, resolved_method, &receiver, sf_method, self);
-  if (UNLIKELY(called_method == nullptr)) {
-    CHECK(self->IsExceptionPending());
-    result->SetJ(0);
-    return false;
+  ArtMethod* called_method = nullptr;
+  {
+    // `FindMethodToCall` might suspend, so don't keep `receiver` as a local
+    // variable after the call.
+    ObjPtr<mirror::Object> receiver =
+        (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
+    called_method = FindMethodToCall<type, do_access_check>(
+        method_idx, resolved_method, &receiver, sf_method, self);
+    if (UNLIKELY(called_method == nullptr)) {
+      CHECK(self->IsExceptionPending());
+      result->SetJ(0);
+      return false;
+    }
   }
   if (UNLIKELY(!called_method->IsInvokable())) {
-    called_method->ThrowInvocationTimeError();
+    called_method->ThrowInvocationTimeError(
+        (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC));
     result->SetJ(0);
     return false;
   }

@@ -3394,6 +3394,11 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
     if (!NeedsClinitCheckBeforeCall(method)) {
       continue;
     }
+    if (klass->IsInBootImageAndNotInPreloadedClasses() && !method->IsNative()) {
+      // Don't update the entrypoint, this is an ArtMethod which we want to
+      // share memory between zygote and apps.
+      continue;
+    }
     instrumentation->UpdateMethodsCode(method, instrumentation->GetCodeForInvoke(method));
   }
   // Ignore virtual methods on the iterator.
@@ -7857,20 +7862,6 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::FinalizeIfTable(
   return true;
 }
 
-NO_INLINE
-static void ThrowIllegalAccessErrorForImplementingMethod(ObjPtr<mirror::Class> klass,
-                                                         ArtMethod* vtable_method,
-                                                         ArtMethod* interface_method)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(!vtable_method->IsAbstract());
-  DCHECK(!vtable_method->IsPublic());
-  ThrowIllegalAccessError(
-      klass,
-      "Method '%s' implementing interface method '%s' is not public",
-      vtable_method->PrettyMethod().c_str(),
-      interface_method->PrettyMethod().c_str());
-}
-
 template <PointerSize kPointerSize>
 ObjPtr<mirror::PointerArray> ClassLinker::LinkMethodsHelper<kPointerSize>::AllocPointerArray(
     Thread* self, size_t length) {
@@ -8124,15 +8115,11 @@ size_t ClassLinker::LinkMethodsHelper<kPointerSize>::AssignVTableIndexes(
           found = true;
         }
       }
+      found = found && vtable_method->IsPublic();
+
       uint32_t vtable_index = vtable_length;
       if (found) {
         DCHECK(vtable_method != nullptr);
-        if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
-          // FIXME: Delay the exception until we actually try to call the method. b/211854716
-          sants.reset();
-          ThrowIllegalAccessErrorForImplementingMethod(klass, vtable_method, interface_method);
-          return 0u;
-        }
         vtable_index = vtable_method->GetMethodIndexDuringLinking();
         if (!vtable_method->IsOverridableByDefaultMethod()) {
           method_array->SetElementPtrSize(j, vtable_index, kPointerSize);
