@@ -24,57 +24,56 @@ package {
 }
 
 cc_library {
-    name: "libfoo.oem1",
-    srcs: ["test.cpp"],
-    cflags: ["-DLIBNAME=\"libfoo.oem1.so\""],
-    shared_libs: [
-        "libbase",
+    name: "libnativeloader_testlib",
+    srcs: [],
+    stl: "none",
+}
+
+// This app is just an intermediate container to be able to include the .so
+// library as a java resource in the host test. It's not actually installed or
+// started.
+android_test_helper_app {
+    name: "library_container_app",
+    defaults: ["art_module_source_build_java_defaults"],
+    manifest: "library_container_app_manifest.xml",
+    compile_multilib: "both",
+    jni_libs: ["libnativeloader_testlib"],
+}
+
+android_test_helper_app {
+    name: "loadlibrarytest_system_app",
+    defaults: ["art_module_source_build_java_defaults"],
+    manifest: "loadlibrarytest_system_app_manifest.xml",
+    srcs: ["src/android/test/app/SystemAppTest.java"],
+    static_libs: [
+        "androidx.test.ext.junit",
+        "androidx.test.ext.truth",
+        "androidx.test.rules",
     ],
 }
 
-cc_library {
-    name: "libbar.oem1",
-    srcs: ["test.cpp"],
-    cflags: ["-DLIBNAME=\"libbar.oem1.so\""],
-    shared_libs: [
-        "libbase",
+android_test_helper_app {
+    name: "loadlibrarytest_vendor_app",
+    defaults: ["art_module_source_build_java_defaults"],
+    manifest: "loadlibrarytest_vendor_app_manifest.xml",
+    srcs: ["src/android/test/app/VendorAppTest.java"],
+    static_libs: [
+        "androidx.test.ext.junit",
+        "androidx.test.ext.truth",
+        "androidx.test.rules",
     ],
 }
 
-cc_library {
-    name: "libfoo.oem2",
-    srcs: ["test.cpp"],
-    cflags: ["-DLIBNAME=\"libfoo.oem2.so\""],
-    shared_libs: [
-        "libbase",
+java_test_host {
+    name: "libnativeloader_e2e_tests",
+    defaults: ["art_module_source_build_java_defaults"],
+    srcs: ["src/android/test/hostside/*.java"],
+    libs: ["tradefed"],
+    java_resources: [
+        ":library_container_app",
+        ":loadlibrarytest_system_app",
+        ":loadlibrarytest_vendor_app",
     ],
-}
-
-cc_library {
-    name: "libbar.oem2",
-    srcs: ["test.cpp"],
-    cflags: ["-DLIBNAME=\"libbar.oem2.so\""],
-    shared_libs: [
-        "libbase",
-    ],
-}
-
-cc_library {
-    name: "libfoo.product1",
-    srcs: ["test.cpp"],
-    cflags: ["-DLIBNAME=\"libfoo.product1.so\""],
-    product_specific: true,
-    shared_libs: [
-        "libbase",
-    ],
-}
-
-cc_library {
-    name: "libbar.product1",
-    srcs: ["test.cpp"],
-    cflags: ["-DLIBNAME=\"libbar.product1.so\""],
-    product_specific: true,
-    shared_libs: [
-        "libbase",
-    ],
+    test_config: "libnativeloader_e2e_tests.xml",
+    test_suites: ["generic-tests"],
 }
