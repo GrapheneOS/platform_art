@@ -16,21 +16,31 @@
 
 #include "exec_utils.h"
 
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
+
+#include "base/macros.h"
+
+#ifdef __BIONIC__
+#include <sys/pidfd.h>
+#endif
+
+#include <cstdint>
 #include <string>
 #include <vector>
 
+#include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
-
 #include "runtime.h"
 
 namespace art {
 
-using android::base::StringPrintf;
-
 namespace {
+
+using ::android::base::StringPrintf;
 
 std::string ToCommandLine(const std::vector<std::string>& args) {
   return android::base::Join(args, ' ');
@@ -40,7 +50,7 @@ std::string ToCommandLine(const std::vector<std::string>& args) {
 // If there is a runtime (Runtime::Current != nullptr) then the subprocess is created with the
 // same environment that existed when the runtime was started.
 // Returns the process id of the child process on success, -1 otherwise.
-pid_t ExecWithoutWait(std::vector<std::string>& arg_vector) {
+pid_t ExecWithoutWait(const std::vector<std::string>& arg_vector, std::string* error_msg) {
   // Convert the args to char pointers.
   const char* program = arg_vector[0].c_str();
   std::vector<char*> args;
@@ -65,110 +75,124 @@ pid_t ExecWithoutWait(std::vector<std::string>& arg_vector) {
     } else {
       execve(program, &args[0], envp);
     }
-    PLOG(ERROR) << "Failed to execve(" << ToCommandLine(arg_vector) << ")";
-    // _exit to avoid atexit handlers in child.
-    _exit(1);
+    // This should be regarded as a crash rather than a normal return.
+    PLOG(FATAL) << "Failed to execute (" << ToCommandLine(arg_vector) << ")";
+    UNREACHABLE();
+  } else if (pid == -1) {
+    *error_msg = StringPrintf("Failed to execute (%s) because fork failed: %s",
+                              ToCommandLine(arg_vector).c_str(),
+                              strerror(errno));
+    return -1;
   } else {
     return pid;
   }
 }
 
-}  // namespace
-
-int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg) {
-  pid_t pid = ExecWithoutWait(arg_vector);
-  if (pid == -1) {
-    *error_msg = StringPrintf("Failed to execv(%s) because fork failed: %s",
-                              ToCommandLine(arg_vector).c_str(), strerror(errno));
-    return -1;
-  }
-
-  // wait for subprocess to finish
+int WaitChild(pid_t pid, const std::vector<std::string>& arg_vector, std::string* error_msg) {
   int status = -1;
   pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
   if (got_pid != pid) {
-    *error_msg = StringPrintf("Failed after fork for execv(%s) because waitpid failed: "
-                              "wanted %d, got %d: %s",
-                              ToCommandLine(arg_vector).c_str(), pid, got_pid, strerror(errno));
+    *error_msg =
+        StringPrintf("Failed to execute (%s) because waitpid failed: wanted %d, got %d: %s",
+                     ToCommandLine(arg_vector).c_str(),
+                     pid,
+                     got_pid,
+                     strerror(errno));
     return -1;
   }
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
+  if (!WIFEXITED(status)) {
+    *error_msg =
+        StringPrintf("Failed to execute (%s) because the child process is terminated by signal %d",
+                     ToCommandLine(arg_vector).c_str(),
+                     WTERMSIG(status));
+    return -1;
   }
-  return -1;
+  return WEXITSTATUS(status);
 }
 
-int ExecAndReturnCode(std::vector<std::string>& arg_vector,
-                      time_t timeout_secs,
+int WaitChildWithTimeout(pid_t pid,
+                         const std::vector<std::string>& arg_vector,
+                         int timeout_sec,
+                         bool* timed_out,
+                         std::string* error_msg) {
+  auto cleanup = android::base::make_scope_guard([&]() {
+    kill(pid, SIGKILL);
+    std::string ignored_error_msg;
+    WaitChild(pid, arg_vector, &ignored_error_msg);
+  });
+
+#ifdef __BIONIC__
+  int pidfd = pidfd_open(pid, /*flags=*/0);
+#else
+  // There is no glibc wrapper for pidfd_open.
+  constexpr int SYS_pidfd_open = 434;
+  int pidfd = syscall(SYS_pidfd_open, pid, /*flags=*/0);
+#endif
+  if (pidfd < 0) {
+    *error_msg = StringPrintf("pidfd_open failed for pid %d: %s", pid, strerror(errno));
+    return -1;
+  }
+
+  struct pollfd pfd;
+  pfd.fd = pidfd;
+  pfd.events = POLLIN;
+  int poll_ret = TEMP_FAILURE_RETRY(poll(&pfd, /*nfds=*/1, timeout_sec * 1000));
+
+  close(pidfd);
+
+  if (poll_ret < 0) {
+    *error_msg = StringPrintf("poll failed for pid %d: %s", pid, strerror(errno));
+    return -1;
+  }
+  if (poll_ret == 0) {
+    *timed_out = true;
+    *error_msg = StringPrintf("Child process %d timed out after %ds. Killing it", pid, timeout_sec);
+    return -1;
+  }
+
+  cleanup.Disable();
+  return WaitChild(pid, arg_vector, error_msg);
+}
+
+}  // namespace
+
+int ExecAndReturnCode(const std::vector<std::string>& arg_vector, std::string* error_msg) {
+  // Start subprocess.
+  pid_t pid = ExecWithoutWait(arg_vector, error_msg);
+  if (pid == -1) {
+    return -1;
+  }
+
+  // Wait for subprocess to finish.
+  return WaitChild(pid, arg_vector, error_msg);
+}
+
+int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                      int timeout_sec,
                       bool* timed_out,
                       std::string* error_msg) {
   *timed_out = false;
 
   // Start subprocess.
-  pid_t pid = ExecWithoutWait(arg_vector);
+  pid_t pid = ExecWithoutWait(arg_vector, error_msg);
   if (pid == -1) {
-    *error_msg = StringPrintf("Failed to execv(%s) because fork failed: %s",
-                              ToCommandLine(arg_vector).c_str(), strerror(errno));
     return -1;
-  }
-
-  // Add SIGCHLD to the signal set.
-  sigset_t child_mask, original_mask;
-  sigemptyset(&child_mask);
-  sigaddset(&child_mask, SIGCHLD);
-  if (sigprocmask(SIG_BLOCK, &child_mask, &original_mask) == -1) {
-    *error_msg = StringPrintf("Failed to set sigprocmask(): %s", strerror(errno));
-    return -1;
-  }
-
-  // Wait for a SIGCHLD notification.
-  errno = 0;
-  timespec ts = {timeout_secs, 0};
-  int wait_result = TEMP_FAILURE_RETRY(sigtimedwait(&child_mask, nullptr, &ts));
-  int wait_errno = errno;
-
-  // Restore the original signal set.
-  if (sigprocmask(SIG_SETMASK, &original_mask, nullptr) == -1) {
-    *error_msg = StringPrintf("Fail to restore sigprocmask(): %s", strerror(errno));
-    if (wait_result == 0) {
-      return -1;
-    }
-  }
-
-  // Having restored the signal set, see if we need to terminate the subprocess.
-  if (wait_result == -1) {
-    if (wait_errno == EAGAIN) {
-      *error_msg = "Timed out.";
-      *timed_out = true;
-    } else {
-      *error_msg = StringPrintf("Failed to sigtimedwait(): %s", strerror(errno));
-    }
-    if (kill(pid, SIGKILL) != 0) {
-      PLOG(ERROR) << "Failed to kill() subprocess: ";
-    }
   }
 
   // Wait for subprocess to finish.
-  int status = -1;
-  pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-  if (got_pid != pid) {
-    *error_msg = StringPrintf("Failed after fork for execv(%s) because waitpid failed: "
-                              "wanted %d, got %d: %s",
-                              ToCommandLine(arg_vector).c_str(), pid, got_pid, strerror(errno));
-    return -1;
-  }
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
-  }
-  return -1;
+  return WaitChildWithTimeout(pid, arg_vector, timeout_sec, timed_out, error_msg);
 }
 
-
-bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
+bool Exec(const std::vector<std::string>& arg_vector, std::string* error_msg) {
   int status = ExecAndReturnCode(arg_vector, error_msg);
-  if (status != 0) {
-    *error_msg = StringPrintf("Failed execv(%s) because non-0 exit status",
-                              ToCommandLine(arg_vector).c_str());
+  if (status < 0) {
+    // Internal error. The error message is already set.
+    return false;
+  }
+  if (status > 0) {
+    *error_msg =
+        StringPrintf("Failed to execute (%s) because the child process returns non-zero exit code",
+                     ToCommandLine(arg_vector).c_str());
     return false;
   }
   return true;
