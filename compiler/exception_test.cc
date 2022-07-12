@@ -78,7 +78,12 @@ class ExceptionTest : public CommonRuntimeTest {
     ArenaStack arena_stack(&pool);
     ScopedArenaAllocator allocator(&arena_stack);
     StackMapStream stack_maps(&allocator, kRuntimeISA);
-    stack_maps.BeginMethod(4 * sizeof(void*), 0u, 0u, 0u);
+    stack_maps.BeginMethod(/* frame_size_in_bytes= */ 4 * sizeof(void*),
+                           /* core_spill_mask= */ 0u,
+                           /* fp_spill_mask= */ 0u,
+                           /* num_dex_registers= */ 0u,
+                           /* baseline= */ false,
+                           /* debuggable= */ false);
     stack_maps.BeginStackMapEntry(kDexPc, native_pc_offset);
     stack_maps.EndStackMapEntry();
     stack_maps.EndMethod(code_size);

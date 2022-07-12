@@ -1258,7 +1258,7 @@ void EventHandler::HandleLocalAccessCapabilityAdded() {
         if (m.IsNative() || m.IsProxyMethod()) {
           continue;
         } else if (!runtime_->GetClassLinker()->IsQuickToInterpreterBridge(code) &&
-                   !runtime_->IsAsyncDeoptimizeable(reinterpret_cast<uintptr_t>(code))) {
+                   !runtime_->IsAsyncDeoptimizeable(&m, reinterpret_cast<uintptr_t>(code))) {
           runtime_->GetInstrumentation()->InitializeMethodsCode(&m, /*aot_code=*/ nullptr);
         }
       }

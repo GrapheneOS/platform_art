@@ -103,19 +103,19 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   // i.e. if the method was annotated with @CriticalNative
   const bool is_critical_native = (access_flags & kAccCriticalNative) != 0u;
 
+  bool needs_entry_exit_hooks =
+      compiler_options.GetDebuggable() && compiler_options.IsJitCompiler();
+  // We don't support JITing stubs for critical native methods in debuggable runtimes yet.
+  // TODO(mythria): Add support required for calling method entry / exit hooks from critical native
+  // methods.
+  DCHECK_IMPLIES(needs_entry_exit_hooks, !is_critical_native);
+
   // When  walking the stack the top frame doesn't have a pc associated with it. We then depend on
   // the invariant that we don't have JITed code when AOT code is available. In debuggable runtimes
   // this invariant doesn't hold. So we tag the SP for JITed code to indentify if we are executing
   // JITed code or AOT code. Since tagging involves additional instructions we tag only in
   // debuggable runtimes.
-  bool should_tag_sp = compiler_options.GetDebuggable() && compiler_options.IsJitCompiler();
-
-  // We don't JIT stubs for critical native methods in debuggable runtimes.
-  // TODO(mythria): Add support required for calling method entry / exit hooks from critical native
-  // methods.
-  bool needs_entry_exit_hooks = compiler_options.GetDebuggable() &&
-                                compiler_options.IsJitCompiler() &&
-                                !is_critical_native;
+  bool should_tag_sp = needs_entry_exit_hooks;
 
   VLOG(jni) << "JniCompile: Method :: "
               << dex_file.PrettyMethod(method_idx, /* with signature */ true)
