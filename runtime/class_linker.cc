@@ -3394,11 +3394,6 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
     if (!NeedsClinitCheckBeforeCall(method)) {
       continue;
     }
-    if (klass->IsInBootImageAndNotInPreloadedClasses() && !method->IsNative()) {
-      // Don't update the entrypoint, this is an ArtMethod which we want to
-      // share memory between zygote and apps.
-      continue;
-    }
     instrumentation->UpdateMethodsCode(method, instrumentation->GetCodeForInvoke(method));
   }
   // Ignore virtual methods on the iterator.
