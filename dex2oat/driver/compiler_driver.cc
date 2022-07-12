@@ -2232,22 +2232,6 @@ class InitializeClassVisitor : public CompilationVisitor {
       // Make sure the class initialization did not leave any local references.
       self->GetJniEnv()->AssertLocalsEmpty();
     }
-
-    if (!klass->IsVisiblyInitialized() &&
-        (is_boot_image || is_boot_image_extension) &&
-        !compiler_options.IsPreloadedClass(PrettyDescriptor(descriptor).c_str())) {
-      klass->SetInBootImageAndNotInPreloadedClasses();
-    }
-
-    // For unit-testing the clinit check in compiled code feature.
-    if (compiler_options.CompileArtTest() &&
-        EndsWith(std::string_view(descriptor), "$NoPreloadHolder;")) {
-      klass->SetInBootImageAndNotInPreloadedClasses();
-    }
-    // For stress testing the feature.
-    if (kIsDebugBuild) {
-      klass->SetInBootImageAndNotInPreloadedClasses();
-    }
   }
 
  private:
