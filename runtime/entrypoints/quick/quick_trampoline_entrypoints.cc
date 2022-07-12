@@ -1364,11 +1364,6 @@ extern "C" const void* artQuickResolutionTrampoline(
       success = linker->EnsureInitialized(soa.Self(), h_called_class, true, true);
     }
     if (success) {
-      // When the clinit check is at entry of the AOT code, we do the check
-      // before doing the suspend check. To ensure the code sees the latest
-      // version of the class (the code doesn't do a ready barrier to reduce
-      // size), do a suspend check now.
-      self->CheckSuspend();
       instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
       // Check if we need instrumented code here. Since resolution stubs could suspend, it is
       // possible that we instrumented the entry points after we started executing the resolution
