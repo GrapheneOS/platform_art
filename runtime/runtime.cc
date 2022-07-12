@@ -3068,12 +3068,13 @@ bool Runtime::IsVerificationSoftFail() const {
   return verify_ == verifier::VerifyMode::kSoftFail;
 }
 
-bool Runtime::IsAsyncDeoptimizeable(uintptr_t code) const {
+bool Runtime::IsAsyncDeoptimizeable(ArtMethod* method, uintptr_t code) const {
   if (OatQuickMethodHeader::NterpMethodHeader != nullptr) {
     if (OatQuickMethodHeader::NterpMethodHeader->Contains(code)) {
       return true;
     }
   }
+
   // We only support async deopt (ie the compiled code is not explicitly asking for
   // deopt, but something else like the debugger) in debuggable JIT code.
   // We could look at the oat file where `code` is being defined,
@@ -3081,8 +3082,14 @@ bool Runtime::IsAsyncDeoptimizeable(uintptr_t code) const {
   // only rely on the JIT for debuggable apps.
   // The JIT-zygote is not debuggable so we need to be sure to exclude code from the non-private
   // region as well.
-  return IsJavaDebuggable() && GetJit() != nullptr &&
-         GetJit()->GetCodeCache()->PrivateRegionContainsPc(reinterpret_cast<const void*>(code));
+  if (GetJit() != nullptr &&
+      GetJit()->GetCodeCache()->PrivateRegionContainsPc(reinterpret_cast<const void*>(code))) {
+    // If the code is JITed code then check if it was compiled as debuggable.
+    const OatQuickMethodHeader* header = method->GetOatQuickMethodHeader(code);
+    return CodeInfo::IsDebuggable(header->GetOptimizedCodeInfoPtr());
+  }
+
+  return false;
 }
 
 LinearAlloc* Runtime::CreateLinearAlloc() {
