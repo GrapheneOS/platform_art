@@ -389,7 +389,8 @@ void CodeGenerator::Compile(CodeAllocator* allocator) {
                                    core_spill_mask_,
                                    fpu_spill_mask_,
                                    GetGraph()->GetNumberOfVRegs(),
-                                   GetGraph()->IsCompilingBaseline());
+                                   GetGraph()->IsCompilingBaseline(),
+                                   GetGraph()->IsDebuggable());
 
   size_t frame_start = GetAssembler()->CodeSize();
   GenerateFrameEntry();
