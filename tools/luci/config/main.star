@@ -141,6 +141,13 @@ luci.gitiles_poller(
 )
 
 luci.gitiles_poller(
+    name = "vogar",
+    bucket = "ci",
+    repo = "https://android.googlesource.com/platform/external/vogar",
+    refs = ["refs/heads/master"],
+)
+
+luci.gitiles_poller(
     name = "manifest",
     bucket = "ci",
     repo = "https://android.googlesource.com/platform/manifest",
@@ -185,6 +192,7 @@ def ci_builder(name, category, short_name):
             "art",
             "libcore",
             "manifest",
+            "vogar",
         ],
     )
     luci.console_view_entry(
