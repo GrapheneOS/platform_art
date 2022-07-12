@@ -414,8 +414,7 @@
         "variant": "jvmti-stress | redefine-stress"
     },
     {
-        "tests": [ "567-checker-builder-intrinsics",
-                   "913-heaps" ],
+        "tests": [ "567-checker-builder-intrinsics" ],
         "description": ["Problems with constant range."],
         "bug": "http://b/238404145",
         "variant": "optimizing | host"
