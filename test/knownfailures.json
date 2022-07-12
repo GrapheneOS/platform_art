@@ -414,6 +414,13 @@
         "variant": "jvmti-stress | redefine-stress"
     },
     {
+        "tests": [ "567-checker-builder-intrinsics",
+                   "913-heaps" ],
+        "description": ["Problems with constant range."],
+        "bug": "http://b/238404145",
+        "variant": "optimizing | host"
+    },
+    {
         "test_patterns": ["[0-9]*-checker-.*"],
         "description": ["Checker tests are not compatible with jvmti."],
         "variant": "jvmti-stress | redefine-stress | trace-stress | field-stress | step-stress"
