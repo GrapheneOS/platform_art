@@ -236,8 +236,8 @@ class Flag : public FlagBase {
 //
 //     Flag<int> WriteMetricsToLog{"my-feature-test.flag", 42, FlagType::kDeviceConfig};
 //
-// This creates a boolean flag that can be read through gFlags.WriteMetricsToLog(). The default
-// value is false. Note that the default value can be left unspecified, in which the value of the
+// This creates an integer flag that can be read through gFlags.WriteMetricsToLog(). The default
+// value is 42. Note that the default value can be left unspecified, in which case the value of the
 // type's default constructor will be used.
 //
 // The flag can be set through the following generated means:
