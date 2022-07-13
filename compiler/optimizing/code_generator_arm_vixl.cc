@@ -2234,53 +2234,6 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kArm);
   DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
-
-  // Check if we need to generate the clinit check. We will jump to the
-  // resolution stub if the class is not initialized and the executing thread is
-  // not the thread initializing it.
-  // We do this before constructing the frame to get the correct stack trace if
-  // an exception is thrown.
-  if (GetGraph()->GetArtMethod() != nullptr &&
-      GetCompilerOptions().ShouldCompileWithClinitCheck(GetGraph()->GetArtMethod())) {
-    UseScratchRegisterScope temps(GetVIXLAssembler());
-    vixl32::Label resolution;
-
-    // Check if we're visibly initialized.
-
-    vixl32::Register temp1 = temps.Acquire();
-    // Use r4 as other temporary register.
-    DCHECK(!blocked_core_registers_[R4]);
-    DCHECK(!kCoreCalleeSaves.Includes(r4));
-    vixl32::Register temp2 = r4;
-    for (vixl32::Register reg : kParameterCoreRegistersVIXL) {
-      DCHECK(!reg.Is(r4));
-    }
-
-    // We don't emit a read barrier here to save on code size. We rely on the
-    // resolution trampoline to do a suspend check before re-entering this code.
-    __ Ldr(temp1, MemOperand(kMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value()));
-    __ Ldrb(temp2, MemOperand(temp1, status_byte_offset));
-    __ Cmp(temp2, shifted_visibly_initialized_value);
-    __ B(cs, &frame_entry_label_);
-
-    // Check if we're initializing and the thread initializing is the one
-    // executing the code.
-    __ Cmp(temp2, shifted_initializing_value);
-    __ B(lo, &resolution);
-
-    __ Ldr(temp1, MemOperand(temp1, mirror::Class::ClinitThreadIdOffset().Int32Value()));
-    __ Ldr(temp2, MemOperand(tr, Thread::TidOffset<kArmPointerSize>().Int32Value()));
-    __ Cmp(temp1, temp2);
-    __ B(eq, &frame_entry_label_);
-    __ Bind(&resolution);
-
-    // Jump to the resolution stub.
-    ThreadOffset32 entrypoint_offset =
-        GetThreadOffset<kArmPointerSize>(kQuickQuickResolutionTrampoline);
-    __ Ldr(temp1, MemOperand(tr, entrypoint_offset.Int32Value()));
-    __ Bx(temp1);
-  }
-
   __ Bind(&frame_entry_label_);
 
   if (HasEmptyFrame()) {
@@ -7669,7 +7622,12 @@ void InstructionCodeGeneratorARMVIXL::GenerateClassInitializationCheck(
     LoadClassSlowPathARMVIXL* slow_path, vixl32::Register class_reg) {
   UseScratchRegisterScope temps(GetVIXLAssembler());
   vixl32::Register temp = temps.Acquire();
-  __ Ldrb(temp, MemOperand(class_reg, status_byte_offset));
+  constexpr size_t status_lsb_position = SubtypeCheckBits::BitStructSizeOf();
+  constexpr uint32_t shifted_visibly_initialized_value =
+      enum_cast<uint32_t>(ClassStatus::kVisiblyInitialized) << status_lsb_position;
+
+  const size_t status_offset = mirror::Class::StatusOffset().SizeValue();
+  GetAssembler()->LoadFromOffset(kLoadWord, temp, class_reg, status_offset);
   __ Cmp(temp, shifted_visibly_initialized_value);
   __ B(lo, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
