@@ -98,7 +98,7 @@ inline void PrimitiveArray<T>::SetWithoutChecks(int32_t i, T value) {
   if (kTransactionActive) {
     Runtime::Current()->RecordWriteArray(this, i, GetWithoutChecks(i));
   }
-  DCHECK(CheckIsValidIndex<kVerifyFlags>(i));
+  DCHECK(CheckIsValidIndex<kVerifyFlags>(i)) << i << " " << GetLength<kVerifyFlags>();
   GetData()[i] = value;
 }
 // Backward copy where elements are of aligned appropriately for T. Count is in T sized units.
