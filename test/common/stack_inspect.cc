@@ -195,7 +195,8 @@ extern "C" JNIEXPORT jobject JNICALL Java_Main_getThisOfCaller(
         if (stack_visitor->GetMethod() == nullptr ||
             stack_visitor->GetMethod()->IsNative() ||
             (stack_visitor->GetCurrentShadowFrame() == nullptr &&
-             !Runtime::Current()->IsAsyncDeoptimizeable(stack_visitor->GetCurrentQuickFramePc()))) {
+             !Runtime::Current()->IsAsyncDeoptimizeable(stack_visitor->GetOuterMethod(),
+                                                        stack_visitor->GetCurrentQuickFramePc()))) {
           return true;
         }
         result = soa.AddLocalReference<jobject>(stack_visitor->GetThisObject());

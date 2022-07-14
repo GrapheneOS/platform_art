@@ -36,7 +36,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_lookForMyRegisters(JNIEnv*, jclass, 
           found = true;
           // For optimized non-debuggable code do not expect dex register info to be present.
           if (stack_visitor->GetCurrentShadowFrame() == nullptr &&
-              !Runtime::Current()->IsAsyncDeoptimizeable(stack_visitor->GetCurrentQuickFramePc())) {
+              !Runtime::Current()->IsAsyncDeoptimizeable(stack_visitor->GetOuterMethod(),
+                                                         stack_visitor->GetCurrentQuickFramePc())) {
             return true;
           }
           uint32_t stack_value = 0;
