@@ -714,7 +714,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   if (UNLIKELY(instr->ShouldDeoptimizeCaller(self, sp))) {
     ArtMethod* caller = QuickArgumentVisitor::GetOuterMethod(sp);
     uintptr_t caller_pc = QuickArgumentVisitor::GetCallingPc(sp);
-    DCHECK(Runtime::Current()->IsAsyncDeoptimizeable(caller_pc));
+    DCHECK(Runtime::Current()->IsAsyncDeoptimizeable(caller, caller_pc));
     DCHECK(caller != nullptr);
     VLOG(deopt) << "Forcing deoptimization on return from method " << method->PrettyMethod()
                 << " to " << caller->PrettyMethod() << (force_frame_pop ? " for frame-pop" : "");
