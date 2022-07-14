@@ -324,8 +324,37 @@ class BitMemoryRegion final : public ValueObject {
   size_t bit_size_ = 0;
 };
 
-constexpr uint32_t kVarintBits = 4;  // Minimum number of bits used for varint.
-constexpr uint32_t kVarintMax = 11;  // Maximum value which is stored "inline".
+// Minimum number of bits used for varint. A varint represents either a value stored "inline" or
+// the number of bytes that are required to encode the value.
+constexpr uint32_t kVarintBits = 4;
+// Maximum value which is stored "inline". We use the rest of the values to encode the number of
+// bytes required to encode the value when the value is greater than kVarintMax.
+// We encode any value less than or equal to 11 inline. We use 12, 13, 14 and 15
+// to represent that the value is encoded in 1, 2, 3 and 4 bytes respectively.
+//
+// For example if we want to encode 1, 15, 16, 7, 11, 256:
+//
+// Low numbers (1, 7, 11) are encoded inline. 15 and 12 are set with 12 to show
+// we need to load one byte for each to have their real values (15 and 12), and
+// 256 is set with 13 to show we need to load two bytes. This is done to
+// compress the values in the bit array and keep the size down. Where the actual value
+// is read from depends on the use case.
+//
+// Values greater than kVarintMax could be encoded as a separate list referred
+// to as InterleavedVarints (see ReadInterleavedVarints / WriteInterleavedVarints).
+// This is used when there are fixed number of fields like CodeInfo headers.
+// In our example the interleaved encoding looks like below:
+//
+// Meaning: 1--- 15-- 12-- 7--- 11-- 256- 15------- 12------- 256----------------
+// Bits:    0001 1100 1100 0111 1011 1101 0000 1111 0000 1100 0000 0001 0000 0000
+//
+// In other cases the value is recorded just following the size encoding. This is
+// referred as consecutive encoding (See ReadVarint / WriteVarint). In our
+// example the consecutively encoded varints looks like below:
+//
+// Meaning: 1--- 15-- 15------- 12-- 12------- 7--- 11-- 256- 256----------------
+// Bits:    0001 1100 0000 1100 1100 0000 1100 0111 1011 1101 0000 0001 0000 0000
+constexpr uint32_t kVarintMax = 11;
 
 class BitMemoryReader {
  public:
