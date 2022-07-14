@@ -29,11 +29,17 @@ See target_config.py for the configuration syntax.
 import argparse
 import os
 import pathlib
+import re
 import subprocess
 import sys
 
 from target_config import target_config
 import env
+
+# Check that we are using reasonably recent version of python
+print("Using", sys.executable, sys.version, flush=True)
+version = tuple(map(int, re.match(r"(\d*)\.(\d*)", sys.version).groups()))
+assert (version >= (3, 9)), "Python version is too old"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-j', default='1', dest='n_threads')
