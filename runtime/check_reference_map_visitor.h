@@ -91,7 +91,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
     CodeItemDataAccessor accessor(m->DexInstructionData());
     uint16_t number_of_dex_registers = accessor.RegistersSize();
 
-    if (!Runtime::Current()->IsAsyncDeoptimizeable(GetCurrentQuickFramePc())) {
+    if (!Runtime::Current()->IsAsyncDeoptimizeable(GetOuterMethod(), GetCurrentQuickFramePc())) {
       // We can only guarantee dex register info presence for debuggable methods.
       return;
     }

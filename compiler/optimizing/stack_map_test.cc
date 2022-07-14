@@ -52,7 +52,12 @@ TEST(StackMapTest, Test1) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 2);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 2,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
 
   ArenaBitVector sp_mask(&allocator, 0, false);
   size_t number_of_dex_registers = 2;
@@ -106,7 +111,12 @@ TEST(StackMapTest, Test2) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 2);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 2,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
   ArtMethod art_method;
 
   ArenaBitVector sp_mask1(&allocator, 0, true);
@@ -300,7 +310,12 @@ TEST(StackMapTest, TestDeduplicateInlineInfoDexRegisterMap) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 2);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 2,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
   ArtMethod art_method;
 
   ArenaBitVector sp_mask1(&allocator, 0, true);
@@ -363,7 +378,12 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 2);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 2,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
 
   ArenaBitVector sp_mask(&allocator, 0, false);
   uint32_t number_of_dex_registers = 2;
@@ -411,7 +431,12 @@ TEST(StackMapTest, TestShareDexRegisterMap) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 2);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 2,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
 
   ArenaBitVector sp_mask(&allocator, 0, false);
   uint32_t number_of_dex_registers = 2;
@@ -467,7 +492,12 @@ TEST(StackMapTest, TestNoDexRegisterMap) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 1);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 1,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
 
   ArenaBitVector sp_mask(&allocator, 0, false);
   stream.BeginStackMapEntry(0, 64 * kPcAlign, 0x3, &sp_mask);
@@ -512,7 +542,12 @@ TEST(StackMapTest, InlineTest) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 2);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 2,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
   ArtMethod art_method;
 
   ArenaBitVector sp_mask1(&allocator, 0, true);
@@ -702,7 +737,12 @@ TEST(StackMapTest, TestDeduplicateStackMask) {
   ArenaStack arena_stack(&pool);
   ScopedArenaAllocator allocator(&arena_stack);
   StackMapStream stream(&allocator, kRuntimeISA);
-  stream.BeginMethod(32, 0, 0, 0);
+  stream.BeginMethod(/* frame_size_in_bytes= */ 32,
+                     /* core_spill_mask= */ 0,
+                     /* fp_spill_mask= */ 0,
+                     /* num_dex_registers= */ 0,
+                     /* baseline= */ false,
+                     /* debuggable= */ false);
 
   ArenaBitVector sp_mask(&allocator, 0, true);
   sp_mask.SetBit(1);
