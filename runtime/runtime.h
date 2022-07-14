@@ -901,7 +901,8 @@ class Runtime {
 
   // Returns if the code can be deoptimized asynchronously. Code may be compiled with some
   // optimization that makes it impossible to deoptimize.
-  bool IsAsyncDeoptimizeable(uintptr_t code) const REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsAsyncDeoptimizeable(ArtMethod* method, uintptr_t code) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a saved copy of the environment (getenv/setenv values).
   // Used by Fork to protect against overwriting LD_LIBRARY_PATH, etc.

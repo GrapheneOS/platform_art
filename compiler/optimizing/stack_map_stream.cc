@@ -49,7 +49,8 @@ void StackMapStream::BeginMethod(size_t frame_size_in_bytes,
                                  size_t core_spill_mask,
                                  size_t fp_spill_mask,
                                  uint32_t num_dex_registers,
-                                 bool baseline) {
+                                 bool baseline,
+                                 bool debuggable) {
   DCHECK(!in_method_) << "Mismatched Begin/End calls";
   in_method_ = true;
   DCHECK_EQ(packed_frame_size_, 0u) << "BeginMethod was already called";
@@ -60,6 +61,7 @@ void StackMapStream::BeginMethod(size_t frame_size_in_bytes,
   fp_spill_mask_ = fp_spill_mask;
   num_dex_registers_ = num_dex_registers;
   baseline_ = baseline;
+  debuggable_ = debuggable;
 
   if (kVerifyStackMaps) {
     dchecks_.emplace_back([=](const CodeInfo& code_info) {
@@ -367,6 +369,7 @@ ScopedArenaVector<uint8_t> StackMapStream::Encode() {
 
   uint32_t flags = (inline_infos_.size() > 0) ? CodeInfo::kHasInlineInfo : 0;
   flags |= baseline_ ? CodeInfo::kIsBaseline : 0;
+  flags |= debuggable_ ? CodeInfo::kIsDebuggable : 0;
   DCHECK_LE(flags, kVarintMax);  // Ensure flags can be read directly as byte.
   uint32_t bit_table_flags = 0;
   ForEachBitTable([&bit_table_flags](size_t i, auto bit_table) {
