@@ -449,6 +449,10 @@ class CodeInfo {
     return (*code_info_data & kIsBaseline) != 0;
   }
 
+  ALWAYS_INLINE static bool IsDebuggable(const uint8_t* code_info_data) {
+    return (*code_info_data & kIsDebuggable) != 0;
+  }
+
  private:
   // Scan backward to determine dex register locations at given stack map.
   void DecodeDexRegisterMap(uint32_t stack_map_index,
@@ -495,11 +499,16 @@ class CodeInfo {
   enum Flags {
     kHasInlineInfo = 1 << 0,
     kIsBaseline = 1 << 1,
+    kIsDebuggable = 1 << 2,
   };
 
   // The CodeInfo starts with sequence of variable-length bit-encoded integers.
+  // (Please see kVarintMax for more details about encoding).
   static constexpr size_t kNumHeaders = 7;
-  uint32_t flags_ = 0;      // Note that the space is limited to three bits.
+  // Note that the space for flags is limited to three bits. We use a custom encoding where we
+  // encode the value inline if it is less than kVarintMax. We want to access flags without
+  // decoding the entire CodeInfo so the value of flags cannot be more than kVarintMax.
+  uint32_t flags_ = 0;
   uint32_t code_size_ = 0;  // The size of native PC range in bytes.
   uint32_t packed_frame_size_ = 0;  // Frame size in kStackAlignment units.
   uint32_t core_spill_mask_ = 0;
