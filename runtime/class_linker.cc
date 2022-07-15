@@ -8585,7 +8585,8 @@ class ClassLinker::LinkFieldsHelper {
 };
 
 // We use the following order of field types for assigning offsets.
-// Some fields can be shuffled forward to fill gaps, see `ClassLinker::LinkFields()`.
+// Some fields can be shuffled forward to fill gaps, see
+// `ClassLinker::LinkFieldsHelper::LinkFields()`.
 enum class ClassLinker::LinkFieldsHelper::FieldTypeOrder : uint16_t {
   kReference = 0u,
   kLong,
