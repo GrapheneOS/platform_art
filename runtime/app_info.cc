@@ -93,6 +93,12 @@ void AppInfo::RegisterOdexStatus(const std::string& code_path,
         << "\nodex_status=" << odex_status;
 }
 
+bool AppInfo::HasRegisteredAppInfo() {
+  MutexLock mu(Thread::Current(), update_mutex_);
+
+  return package_name_.has_value();
+}
+
 void AppInfo::GetPrimaryApkOptimizationStatus(
     std::string* out_compiler_filter,
     std::string* out_compilation_reason) {
@@ -108,6 +114,13 @@ void AppInfo::GetPrimaryApkOptimizationStatus(
   }
   *out_compiler_filter = kUnknownValue;
   *out_compilation_reason = kUnknownValue;
+}
+
+AppInfo::CodeType AppInfo::GetRegisteredCodeType(const std::string& code_path) {
+  MutexLock mu(Thread::Current(), update_mutex_);
+
+  const auto it = registered_code_locations_.find(code_path);
+  return it != registered_code_locations_.end() ? it->second.code_type : CodeType::kUnknown;
 }
 
 std::ostream& operator<<(std::ostream& os, AppInfo& rhs) {
