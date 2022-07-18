@@ -159,7 +159,6 @@ known_failing_tests = frozenset([
   "497-inlining-and-class-loader",
   "530-regression-lse",
   "555-UnsafeGetLong-regression",
-  "567-checker-builder-intrinsics", # b/238404145
   # 596-monitor-inflation: Dependency on `libarttest`.
   "596-monitor-inflation",
   "602-deoptimizeable",
@@ -206,7 +205,6 @@ known_failing_tests = frozenset([
   "832-cha-recursive",
   # 837-deopt: Dependency on `libarttest`.
   "837-deopt",
-  "913-heaps", # b/238404145
 ])
 
 known_failing_on_hwasan_tests = frozenset([
