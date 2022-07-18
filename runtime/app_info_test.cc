@@ -24,12 +24,17 @@ namespace art {
 
 TEST(AppInfoTest, RegisterAppInfo) {
   AppInfo app_info;
+  EXPECT_FALSE(app_info.HasRegisteredAppInfo());
+  EXPECT_EQ(app_info.GetRegisteredCodeType("code_location"), AppInfo::CodeType::kUnknown);
+
   app_info.RegisterAppInfo(
       "package_name",
       std::vector<std::string>({"code_location"}),
       "",
       "",
       AppInfo::CodeType::kPrimaryApk);
+  EXPECT_TRUE(app_info.HasRegisteredAppInfo());
+  EXPECT_EQ(app_info.GetRegisteredCodeType("code_location"), AppInfo::CodeType::kPrimaryApk);
 
   std::string filter;
   std::string reason;
@@ -48,11 +53,13 @@ TEST(AppInfoTest, RegisterAppInfoWithOdexStatus) {
       "",
       "",
       AppInfo::CodeType::kPrimaryApk);
+  EXPECT_EQ(app_info.GetRegisteredCodeType("code_location"), AppInfo::CodeType::kPrimaryApk);
   app_info.RegisterOdexStatus(
       "code_location",
       "filter",
       "reason",
       "odex_status");
+  EXPECT_EQ(app_info.GetRegisteredCodeType("code_location"), AppInfo::CodeType::kPrimaryApk);
 
   std::string filter;
   std::string reason;
@@ -69,17 +76,22 @@ TEST(AppInfoTest, RegisterAppInfoWithOdexStatusMultiplePrimary) {
       "filter",
       "reason",
       "odex_status");
+  EXPECT_FALSE(app_info.HasRegisteredAppInfo());
   app_info.RegisterOdexStatus(
       "code_location2",
       "filter2",
       "reason2",
       "odex_status");
+  EXPECT_FALSE(app_info.HasRegisteredAppInfo());
   app_info.RegisterAppInfo(
       "package_name",
       std::vector<std::string>({"code_location"}),
       "",
       "",
       AppInfo::CodeType::kPrimaryApk);
+  EXPECT_TRUE(app_info.HasRegisteredAppInfo());
+  EXPECT_EQ(app_info.GetRegisteredCodeType("code_location"), AppInfo::CodeType::kPrimaryApk);
+  EXPECT_EQ(app_info.GetRegisteredCodeType("code_location2"), AppInfo::CodeType::kUnknown);
 
   std::string filter;
   std::string reason;
@@ -110,7 +122,7 @@ TEST(AppInfoTest, RegisterAppInfoWithOdexStatusNoPrimary) {
       "filter",
       "reason",
       "odex_status");
-
+  EXPECT_EQ(app_info.GetRegisteredCodeType("code_location"), AppInfo::CodeType::kSplitApk);
 
   // The optimization status is unknown since we don't have primary apks.
   app_info.GetPrimaryApkOptimizationStatus(&filter, &reason);
