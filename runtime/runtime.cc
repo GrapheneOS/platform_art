@@ -125,6 +125,7 @@
 #include "native/dalvik_system_ZygoteHooks.h"
 #include "native/java_lang_Class.h"
 #include "native/java_lang_Object.h"
+#include "native/java_lang_StackStreamFactory.h"
 #include "native/java_lang_String.h"
 #include "native/java_lang_StringFactory.h"
 #include "native/java_lang_System.h"
@@ -2259,6 +2260,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_java_lang_reflect_Parameter(env);
   register_java_lang_reflect_Proxy(env);
   register_java_lang_ref_Reference(env);
+  register_java_lang_StackStreamFactory(env);
   register_java_lang_String(env);
   register_java_lang_StringFactory(env);
   register_java_lang_System(env);
