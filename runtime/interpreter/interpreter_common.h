@@ -20,6 +20,7 @@
 #include "android-base/macros.h"
 #include "instrumentation.h"
 #include "interpreter.h"
+#include "interpreter_intrinsics.h"
 #include "transaction.h"
 
 #include <math.h>
@@ -125,13 +126,8 @@ void RecordArrayElementsInTransaction(ObjPtr<mirror::Array> array, int32_t count
 // DoFastInvoke and DoInvokeVirtualQuick functions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<bool is_range, bool do_assignability_check>
-bool DoCall(ArtMethod* called_method,
-            Thread* self,
-            ShadowFrame& shadow_frame,
-            const Instruction* inst,
-            uint16_t inst_data,
-            bool string_init,
-            JValue* result);
+bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
+            const Instruction* inst, uint16_t inst_data, JValue* result);
 
 // Called by the switch interpreter to know if we can stay in it.
 bool ShouldStayInSwitchInterpreter(ArtMethod* method)
@@ -224,7 +220,7 @@ static inline ALWAYS_INLINE void PerformNonStandardReturn(
 
 // Handles all invoke-XXX/range instructions except for invoke-polymorphic[/range].
 // Returns true on success, otherwise throws an exception and returns false.
-template<InvokeType type, bool is_range, bool do_access_check>
+template<InvokeType type, bool is_range, bool do_access_check, bool is_mterp>
 static ALWAYS_INLINE bool DoInvoke(Thread* self,
                                    ShadowFrame& shadow_frame,
                                    const Instruction* inst,
@@ -235,19 +231,68 @@ static ALWAYS_INLINE bool DoInvoke(Thread* self,
   if (UNLIKELY(self->ObserveAsyncException())) {
     return false;
   }
-  const uint32_t vregC = is_range ? inst->VRegC_3rc() : inst->VRegC_35c();
-  ObjPtr<mirror::Object> obj = type == kStatic ? nullptr : shadow_frame.GetVRegReference(vregC);
+  const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+  const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   ArtMethod* sf_method = shadow_frame.GetMethod();
-  bool string_init = false;
-  ArtMethod* called_method = FindMethodToCall<type>(self, sf_method, &obj, *inst, &string_init);
-  if (called_method == nullptr) {
-    DCHECK(self->IsExceptionPending());
+
+  // Try to find the method in small thread-local cache first (only used when
+  // nterp is not used as mterp and nterp use the cache in an incompatible way).
+  InterpreterCache* tls_cache = self->GetInterpreterCache();
+  size_t tls_value;
+  ArtMethod* resolved_method;
+  if (!IsNterpSupported() && LIKELY(tls_cache->Get(self, inst, &tls_value))) {
+    resolved_method = reinterpret_cast<ArtMethod*>(tls_value);
+  } else {
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+    constexpr ClassLinker::ResolveMode resolve_mode =
+        do_access_check ? ClassLinker::ResolveMode::kCheckICCEAndIAE
+                        : ClassLinker::ResolveMode::kNoChecks;
+    resolved_method = class_linker->ResolveMethod<resolve_mode>(self, method_idx, sf_method, type);
+    if (UNLIKELY(resolved_method == nullptr)) {
+      CHECK(self->IsExceptionPending());
+      result->SetJ(0);
+      return false;
+    }
+    if (!IsNterpSupported()) {
+      tls_cache->Set(self, inst, reinterpret_cast<size_t>(resolved_method));
+    }
+  }
+
+  // Null pointer check and virtual method resolution.
+  ArtMethod* called_method = nullptr;
+  {
+    // `FindMethodToCall` might suspend, so don't keep `receiver` as a local
+    // variable after the call.
+    ObjPtr<mirror::Object> receiver =
+        (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
+    called_method = FindMethodToCall<type, do_access_check>(
+        method_idx, resolved_method, &receiver, sf_method, self);
+    if (UNLIKELY(called_method == nullptr)) {
+      CHECK(self->IsExceptionPending());
+      result->SetJ(0);
+      return false;
+    }
+  }
+  if (UNLIKELY(!called_method->IsInvokable())) {
+    called_method->ThrowInvocationTimeError(
+        (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC));
     result->SetJ(0);
     return false;
   }
 
-  return DoCall<is_range, do_access_check>(
-      called_method, self, shadow_frame, inst, inst_data, string_init, result);
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (is_mterp && !is_range && called_method->IsIntrinsic()) {
+    if (MterpHandleIntrinsic(&shadow_frame, called_method, inst, inst_data,
+                             shadow_frame.GetResultRegister())) {
+      if (jit != nullptr && sf_method != nullptr) {
+        jit->NotifyInterpreterToCompiledCodeTransition(self, sf_method);
+      }
+      return !self->IsExceptionPending();
+    }
+  }
+
+  return DoCall<is_range, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
+                                           result);
 }
 
 static inline ObjPtr<mirror::MethodHandle> ResolveMethodHandle(Thread* self,
@@ -714,6 +759,34 @@ void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                         ShadowFrame* shadow_frame,
                                         uint16_t arg_offset,
                                         JValue* result);
+
+static inline bool IsStringInit(const DexFile* dex_file, uint32_t method_idx)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  const dex::MethodId& method_id = dex_file->GetMethodId(method_idx);
+  const char* class_name = dex_file->StringByTypeIdx(method_id.class_idx_);
+  const char* method_name = dex_file->GetMethodName(method_id);
+  // Instead of calling ResolveMethod() which has suspend point and can trigger
+  // GC, look up the method symbolically.
+  // Compare method's class name and method name against string init.
+  // It's ok since it's not allowed to create your own java/lang/String.
+  // TODO: verify that assumption.
+  if ((strcmp(class_name, "Ljava/lang/String;") == 0) &&
+      (strcmp(method_name, "<init>") == 0)) {
+    return true;
+  }
+  return false;
+}
+
+static inline bool IsStringInit(const Instruction* instr, ArtMethod* caller)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (instr->Opcode() == Instruction::INVOKE_DIRECT ||
+      instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) {
+    uint16_t callee_method_idx = (instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) ?
+        instr->VRegB_3rc() : instr->VRegB_35c();
+    return IsStringInit(caller->GetDexFile(), callee_method_idx);
+  }
+  return false;
+}
 
 // Set string value created from StringFactory.newStringFromXXX() into all aliases of
 // StringFactory.newEmptyString().
