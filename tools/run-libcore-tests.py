@@ -430,6 +430,12 @@ def get_vogar_command(test_name):
   if args.mode != "jvm":
     cmd.append("--timeout {}".format(get_timeout_secs()))
     cmd.append("--toolchain d8 --language CUR")
+    # --serial-dexing instructs Vogar to spawn at most one dexer at any given
+    # moment of time which reduces overall memory usage.
+    # --verbose-dex-stats wraps dexer calls in '/usr/bin/time -v' and adds
+    # its output to the stdout log.
+    # See http://b/233990659.
+    cmd.append("--serial-dexing --verbose-dex-stats")
     if args.jit:
       cmd.append("--vm-arg -Xcompiler-option --vm-arg --compiler-filter=quicken")
     cmd.append("--vm-arg -Xusejit:{}".format(str(args.jit).lower()))
