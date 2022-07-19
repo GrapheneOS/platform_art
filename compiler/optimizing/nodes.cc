@@ -2108,8 +2108,9 @@ void HInstruction::MoveBeforeFirstUserAndOutOfLoops() {
   MoveBefore(insert_pos);
 }
 
-HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor) {
-  DCHECK(!graph_->IsInSsaForm()) << "Support for SSA form not implemented.";
+HBasicBlock* HBasicBlock::SplitBefore(HInstruction* cursor, bool require_graph_not_in_ssa_form) {
+  DCHECK_IMPLIES(require_graph_not_in_ssa_form, !graph_->IsInSsaForm())
+      << "Support for SSA form not implemented.";
   DCHECK_EQ(cursor->GetBlock(), this);
 
   HBasicBlock* new_block =
@@ -2732,6 +2733,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   }
   if (HasSIMD()) {
     outer_graph->SetHasSIMD(true);
+  }
+  if (HasAlwaysThrowingInvokes()) {
+    outer_graph->SetHasAlwaysThrowingInvokes(true);
   }
 
   HInstruction* return_value = nullptr;
