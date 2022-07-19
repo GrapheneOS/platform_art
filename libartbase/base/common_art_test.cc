@@ -44,6 +44,7 @@
 #include "base/mutex.h"
 #include "base/os.h"
 #include "base/runtime_debug.h"
+#include "base/scoped_cap.h"
 #include "base/stl_util.h"
 #include "base/string_view_cpp20.h"
 #include "base/testing.h"
@@ -148,29 +149,12 @@ void ScratchFile::Unlink() {
   CHECK_EQ(0, unlink_result);
 }
 
-// A wrapper of `cap_t` that automatically calls `cap_free`.
-class ScopedCap {
- public:
-  explicit ScopedCap(cap_t cap) : cap_(cap) { CHECK_NE(cap, nullptr); }
-
-  ScopedCap(ScopedCap&& other) noexcept : cap_(std::exchange(other.cap_, nullptr)) {}
-
-  ~ScopedCap() {
-    if (cap_ != nullptr) {
-      CHECK_EQ(cap_free(cap_), 0);
-    }
-  }
-
-  cap_t Get() const { return cap_; }
-
- private:
-  cap_t cap_;
-};
-
 // Temporarily drops all root capabilities when the test is run as root. This is a noop otherwise.
 android::base::ScopeGuard<std::function<void()>> ScopedUnroot() {
   ScopedCap old_cap(cap_get_proc());
+  CHECK_NE(old_cap.Get(), nullptr);
   ScopedCap new_cap(cap_dup(old_cap.Get()));
+  CHECK_NE(new_cap.Get(), nullptr);
   CHECK_EQ(cap_clear_flag(new_cap.Get(), CAP_EFFECTIVE), 0);
   CHECK_EQ(cap_set_proc(new_cap.Get()), 0);
   // `old_cap` is actually not shared with anyone else, but we have to wrap it with a `shared_ptr`
