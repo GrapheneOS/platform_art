@@ -41,7 +41,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "dex/dex_file-inl.h"
 #include "dex/dex_file_types.h"
 #include "gc/accounting/card_table-inl.h"
-#include "gc/allocator/dlmalloc.h"
+#include "gc/allocator/art-dlmalloc.h"
 #include "gc/heap.h"
 #include "gc/space/dlmalloc_space.h"
 #include "gc/space/image_space.h"
