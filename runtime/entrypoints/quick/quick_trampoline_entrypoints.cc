@@ -2267,18 +2267,12 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx,
     uint32_t shorty_len;
     const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx), &shorty_len);
     {
-      // Remember the args in case a GC happens in FindMethodToCall.
+      // Remember the args in case a GC happens in FindMethodFromCode.
       ScopedObjectAccessUnchecked soa(self->GetJniEnv());
       RememberForGcArgumentVisitor visitor(sp, type == kStatic, shorty, shorty_len, &soa);
       visitor.VisitArguments();
-
-      uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
-      CodeItemInstructionAccessor accessor(caller_method->DexInstructions());
-      CHECK_LT(dex_pc, accessor.InsnsSizeInCodeUnits());
-      const Instruction& instr = accessor.InstructionAt(dex_pc);
-      bool string_init = false;
-      method = FindMethodToCall<type>(self, caller_method, &this_object, instr, &string_init);
-
+      method = FindMethodFromCode<type, /*access_check=*/true>(
+          method_idx, &this_object, caller_method, self);
       visitor.FixupReferences();
     }
 
