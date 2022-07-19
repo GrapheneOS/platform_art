@@ -20,6 +20,7 @@ public class Main {
     assertEquals(0, $noinline$testSimplifyThrow(1));
 
     // Basic test for non-trivial blocks (i.e. not just an invoke and a Goto)
+    assertEquals(0, $noinline$testSimplifyThrowAndPrint(1));
     assertEquals(0, $noinline$testSimplifyTwoThrows(1));
 
     // Try catch tests
@@ -51,6 +52,28 @@ public class Main {
     return 0;
   }
 
+  /// CHECK-START: int Main.$noinline$testSimplifyThrowAndPrint(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
+  /// CHECK-EVAL:  "<<ExitBlock>>" != "<<TargetBlock>>"
+
+  /// CHECK-START: int Main.$noinline$testSimplifyThrowAndPrint(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testSimplifyThrowAndPrint(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testSimplifyThrowAndPrint(int num) {
+    if (num == 0) {
+      alwaysThrows();
+      System.out.println("I am unrechable!");
+    }
+    return 0;
+  }
+
   /// CHECK-START: int Main.$noinline$testSimplifyTwoThrows(int) dead_code_elimination$after_inlining (before)
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock>> method_name:Main.alwaysThrows always_throws:true
@@ -60,9 +83,13 @@ public class Main {
 
   /// CHECK-START: int Main.$noinline$testSimplifyTwoThrows(int) dead_code_elimination$after_inlining (after)
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
-  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock>> method_name:Main.alwaysThrows always_throws:true
   /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  // Check that the second `alwaysThrows` gets removed.
+  /// CHECK-START: int Main.$noinline$testSimplifyTwoThrows(int) dead_code_elimination$after_inlining (after)
+  /// CHECK:       InvokeStaticOrDirect method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-NOT:   InvokeStaticOrDirect method_name:Main.alwaysThrows always_throws:true
 
   // Tests that we simplify the always throwing branch directly to the exit, even with blocks that
   // are not just the throwing instruction and a Goto.
