@@ -242,8 +242,7 @@ static ALWAYS_INLINE bool DoCallCommon(ArtMethod* called_method,
                                        JValue* result,
                                        uint16_t number_of_inputs,
                                        uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                       uint32_t vregC,
-                                       bool string_init) REQUIRES_SHARED(Locks::mutator_lock_);
+                                       uint32_t vregC) REQUIRES_SHARED(Locks::mutator_lock_);
 
 template <bool is_range>
 ALWAYS_INLINE void CopyRegisters(ShadowFrame& caller_frame,
@@ -1195,8 +1194,15 @@ static inline bool DoCallCommon(ArtMethod* called_method,
                                 JValue* result,
                                 uint16_t number_of_inputs,
                                 uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                uint32_t vregC,
-                                bool string_init) {
+                                uint32_t vregC) {
+  bool string_init = false;
+  // Replace calls to String.<init> with equivalent StringFactory call.
+  if (UNLIKELY(called_method->GetDeclaringClass()->IsStringClass()
+               && called_method->IsConstructor())) {
+    called_method = WellKnownClasses::StringInitToStringFactory(called_method);
+    string_init = true;
+  }
+
   // Compute method information.
   CodeItemDataAccessor accessor(called_method->DexInstructionData());
   // Number of registers for the callee's call frame.
@@ -1387,13 +1393,8 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 
 template<bool is_range, bool do_assignability_check>
 NO_STACK_PROTECTOR
-bool DoCall(ArtMethod* called_method,
-            Thread* self,
-            ShadowFrame& shadow_frame,
-            const Instruction* inst,
-            uint16_t inst_data,
-            bool is_string_init,
-            JValue* result) {
+bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
+            const Instruction* inst, uint16_t inst_data, JValue* result) {
   // Argument word count.
   const uint16_t number_of_inputs =
       (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
@@ -1410,14 +1411,8 @@ bool DoCall(ArtMethod* called_method,
   }
 
   return DoCallCommon<is_range, do_assignability_check>(
-      called_method,
-      self,
-      shadow_frame,
-      result,
-      number_of_inputs,
-      arg,
-      vregC,
-      is_string_init);
+      called_method, self, shadow_frame,
+      result, number_of_inputs, arg, vregC);
 }
 
 template <bool is_range, bool do_access_check, bool transaction_active>
@@ -1544,12 +1539,9 @@ void RecordArrayElementsInTransaction(ObjPtr<mirror::Array> array, int32_t count
 // Explicit DoCall template function declarations.
 #define EXPLICIT_DO_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)                      \
   template REQUIRES_SHARED(Locks::mutator_lock_)                                                \
-  bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method,                            \
-                                                  Thread* self,                                 \
+  bool DoCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,              \
                                                   ShadowFrame& shadow_frame,                    \
-                                                  const Instruction* inst,                      \
-                                                  uint16_t inst_data,                           \
-                                                  bool string_init,                             \
+                                                  const Instruction* inst, uint16_t inst_data,  \
                                                   JValue* result)
 EXPLICIT_DO_CALL_TEMPLATE_DECL(false, false);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(false, true);
