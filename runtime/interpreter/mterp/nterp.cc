@@ -26,6 +26,7 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "interpreter/interpreter_cache-inl.h"
 #include "interpreter/interpreter_common.h"
+#include "interpreter/interpreter_intrinsics.h"
 #include "interpreter/shadow_frame-inl.h"
 #include "mirror/string-alloc-inl.h"
 #include "nterp_helpers.h"
@@ -95,13 +96,13 @@ inline void UpdateHotness(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock
 }
 
 template<typename T>
-inline void UpdateCache(Thread* self, const uint16_t* dex_pc_ptr, T value) {
+inline void UpdateCache(Thread* self, uint16_t* dex_pc_ptr, T value) {
   DCHECK(kUseReadBarrier) << "Nterp only works with read barriers";
   self->GetInterpreterCache()->Set(self, dex_pc_ptr, value);
 }
 
 template<typename T>
-inline void UpdateCache(Thread* self, const uint16_t* dex_pc_ptr, T* value) {
+inline void UpdateCache(Thread* self, uint16_t* dex_pc_ptr, T* value) {
   UpdateCache(self, dex_pc_ptr, reinterpret_cast<size_t>(value));
 }
 
@@ -251,7 +252,7 @@ extern "C" const char* NterpGetShortyFromInvokeCustom(ArtMethod* caller, uint16_
 }
 
 FLATTEN
-extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t* dex_pc_ptr)
+extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, uint16_t* dex_pc_ptr)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
