@@ -201,6 +201,10 @@ bool HInliner::Run() {
     }
   }
 
+  if (did_set_always_throws) {
+    graph_->SetHasAlwaysThrowingInvokes(/* value= */ true);
+  }
+
   return did_inline || did_set_always_throws;
 }
 

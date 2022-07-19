@@ -16,11 +16,13 @@
 
 #include "dead_code_elimination.h"
 
+#include "android-base/logging.h"
 #include "base/array_ref.h"
 #include "base/bit_vector-inl.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "base/stl_util.h"
+#include "optimizing/nodes.h"
 #include "ssa_phi_elimination.h"
 
 namespace art {
@@ -213,6 +215,9 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
 //          |   ...
 //          |   instr_n
 //          |   foo()  // always throws
+//          |   instr_n+2
+//          |   ...
+//          |   instr_n+m
 //          \   goto B2
 //           \ /
 //            B2
@@ -234,7 +239,7 @@ static bool RemoveNonNullControlDependences(HBasicBlock* block, HBasicBlock* thr
 // other optimization opportunities, such as code sinking.
 bool HDeadCodeElimination::SimplifyAlwaysThrows() {
   HBasicBlock* exit = graph_->GetExitBlock();
-  if (exit == nullptr) {
+  if (!graph_->HasAlwaysThrowingInvokes() || exit == nullptr) {
     return false;
   }
 
@@ -260,28 +265,43 @@ bool HDeadCodeElimination::SimplifyAlwaysThrows() {
       continue;
     }
 
-    HInstruction* last = block->GetLastInstruction();
-    HInstruction* prev = last->GetPrevious();
-    if (prev == nullptr) {
-      DCHECK_EQ(block->GetFirstInstruction(), block->GetLastInstruction());
-      continue;
-    }
-
-    if (prev->AlwaysThrows() &&
-        last->IsGoto() &&
+    if (block->GetLastInstruction()->IsGoto() &&
         block->GetPhis().IsEmpty() &&
         block->GetPredecessors().size() == 1u) {
       HBasicBlock* pred = block->GetSinglePredecessor();
       HBasicBlock* succ = block->GetSingleSuccessor();
-      // Ensure no computations are merged through throwing block.
-      // This does not prevent the optimization per se, but would
-      // require an elaborate clean up of the SSA graph.
+      // Ensure no computations are merged through throwing block. This does not prevent the
+      // optimization per se, but would require an elaborate clean up of the SSA graph.
       if (succ != exit &&
           !block->Dominates(pred) &&
           pred->Dominates(succ) &&
           succ->GetPredecessors().size() > 1u &&
           succ->GetPhis().IsEmpty()) {
-        block->ReplaceSuccessor(succ, exit);
+        // We iterate to find the first instruction that always throws. If two instructions always
+        // throw, the first one will throw and the second one will never be reached.
+        HInstruction* throwing_instruction = nullptr;
+        for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+          if (it.Current()->AlwaysThrows()) {
+            throwing_instruction = it.Current();
+            break;
+          }
+        }
+
+        if (throwing_instruction == nullptr) {
+          // No always-throwing instruction found. Continue with the rest of the blocks.
+          continue;
+        }
+
+        // We split the block at the throwing instruction, and the instructions after the throwing
+        // instructions will be disconnected from the graph after `block` points to the exit.
+        // `RemoveDeadBlocks` will take care of removing this new block and its instructions.
+        // Even though `SplitBefore` doesn't guarantee the graph to remain in SSA form, it is fine
+        // since we do not break it.
+        HBasicBlock* new_block = block->SplitBefore(throwing_instruction->GetNext(),
+                                                    /* require_graph_not_in_ssa_form= */ false);
+        DCHECK_EQ(block->GetSingleSuccessor(), new_block);
+        block->ReplaceSuccessor(new_block, exit);
+
         rerun_dominance_and_loop_analysis = true;
         MaybeRecordStat(stats_, MethodCompilationStat::kSimplifyThrowingInvoke);
         // Perform a quick follow up optimization on object != null control dependences
