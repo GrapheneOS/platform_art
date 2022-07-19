@@ -32,6 +32,9 @@ import zipfile
 from shutil import rmtree
 from os import remove
 
+USE_RBE_FOR_JAVAC = 0    # Percentage of tests that can use RBE (between 0 and 100)
+USE_RBE_FOR_D8 = 0       # Percentage of tests that can use RBE (between 0 and 100)
+
 def rm(*patterns):
   for pattern in patterns:
     for path in glob.glob(pattern):
@@ -58,9 +61,15 @@ def build_run_test(
   def parse_bool(text):
     return {"true": True, "false": False}[text.lower()]
 
+  ANDROID_BUILD_TOP = os.environ["ANDROID_BUILD_TOP"]
+  SBOX_PATH = os.environ["SBOX_PATH"]
+  CWD = os.getcwd()
   TEST_NAME = os.environ["TEST_NAME"]
-  ART_TEST_RUN_TEST_BOOTCLASSPATH = os.environ["ART_TEST_RUN_TEST_BOOTCLASSPATH"]
+  ART_TEST_RUN_TEST_BOOTCLASSPATH = path.relpath(os.environ["ART_TEST_RUN_TEST_BOOTCLASSPATH"], CWD)
   NEED_DEX = parse_bool(os.environ["NEED_DEX"]) if need_dex is None else need_dex
+
+  RBE_exec_root = os.environ.get("RBE_exec_root")
+  RBE_rewrapper = path.join(ANDROID_BUILD_TOP, "prebuilts/remoteexecution-client/live/rewrapper")
 
   # Set default values for directories.
   HAS_SMALI = path.exists("smali") if has_smali is None else has_smali
@@ -130,6 +139,37 @@ def build_run_test(
   smali = functools.partial(run, os.environ["SMALI"])
   d8 = functools.partial(run, os.environ["D8"])
   hiddenapi = functools.partial(run, os.environ["HIDDENAPI"])
+
+  if "RBE_server_address" in os.environ:
+    def rbe_wrap(args, inputs=set()):
+      with tempfile.NamedTemporaryFile(mode="w+t", dir=RBE_exec_root) as input_list:
+        for arg in args:
+          inputs.update(filter(path.exists, arg.split(":")))
+        input_list.writelines([path.relpath(i, RBE_exec_root)+"\n" for i in inputs])
+        input_list.flush()
+        return run(RBE_rewrapper, [
+          "--platform=" + os.environ["RBE_platform"],
+          "--input_list_paths=" + input_list.name,
+        ] + args)
+
+    if USE_RBE_FOR_JAVAC > (hash(TEST_NAME) % 100):  # Use for given percentage of tests.
+      def javac(args):
+        output = path.relpath(path.join(CWD, args[args.index("-d") + 1]), RBE_exec_root)
+        return rbe_wrap([
+          "--output_directories", output,
+          os.path.relpath(os.environ["JAVAC"], CWD),
+        ] + args)
+
+    if USE_RBE_FOR_D8 > (hash(TEST_NAME) % 100):  # Use for given percentage of tests.
+      def d8(args):
+        inputs = set([path.join(SBOX_PATH, "tools/out/framework/d8.jar")])
+        output = path.relpath(path.join(CWD, args[args.index("--output") + 1]), RBE_exec_root)
+        return rbe_wrap([
+          "--output_files" if output.endswith(".jar") else "--output_directories", output,
+          "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java"
+          # TODO(dsrbecky): Work around bug b/227376947 ; Remove this when it is fixed.
+          + ",../../../../../../../../prebuilts/jdk/jdk11/linux-x86/bin/java",
+          os.path.relpath(os.environ["D8"], CWD)] + args, inputs)
 
   # If wrapper script exists, use it instead of the default javac.
   if os.path.exists("javac_wrapper.sh"):
@@ -202,12 +242,14 @@ def build_run_test(
     # NB: We merge even if there is just single input.
     # It is useful to normalize non-deterministic smali output.
 
-    with tempfile.TemporaryDirectory(dir=".") as tmp_dir:
-      d8(["--min-api", str(api_level), "--output", tmp_dir] + dex_files_to_merge)
-      assert not path.exists(path.join(tmp_dir, "classes2.dex"))
-      for input_dex in dex_files_to_merge:
-        os.remove(input_dex)
-      os.rename(path.join(tmp_dir, "classes.dex"), dst_file)
+    tmp_dir = "dexmerge"
+    os.makedirs(tmp_dir)
+    d8(["--min-api", api_level, "--output", tmp_dir] + dex_files_to_merge)
+    assert not path.exists(path.join(tmp_dir, "classes2.dex"))
+    for input_dex in dex_files_to_merge:
+      os.remove(input_dex)
+    os.rename(path.join(tmp_dir, "classes.dex"), dst_file)
+    os.rmdir(tmp_dir)
 
 
   def make_hiddenapi(*dex_files):
