@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
-#define ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
+#ifndef ART_RUNTIME_GC_ALLOCATOR_ART_DLMALLOC_H_
+#define ART_RUNTIME_GC_ALLOCATOR_ART_DLMALLOC_H_
 
 #include <cstdint>
 
@@ -33,7 +33,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wredundant-decls"
 #pragma GCC diagnostic ignored "-Wnull-pointer-arithmetic"
-#include "../../external/dlmalloc/malloc.h"
+#include "dlmalloc.h"  // from external/dlmalloc
 #pragma GCC diagnostic pop
 
 // Callback for dlmalloc_inspect_all or mspace_inspect_all that will madvise(2) unused
@@ -58,4 +58,4 @@ void* ArtDlMallocMoreCore(void* mspace, intptr_t increment);
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
+#endif  // ART_RUNTIME_GC_ALLOCATOR_ART_DLMALLOC_H_
