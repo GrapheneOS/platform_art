@@ -406,6 +406,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
         has_loops_(false),
         has_irreducible_loops_(false),
         has_direct_critical_native_call_(false),
+        has_always_throwing_invokes_(false),
         dead_reference_safe_(dead_reference_safe),
         debuggable_(debuggable),
         current_instruction_id_(start_instruction_id),
@@ -711,6 +712,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   bool HasDirectCriticalNativeCall() const { return has_direct_critical_native_call_; }
   void SetHasDirectCriticalNativeCall(bool value) { has_direct_critical_native_call_ = value; }
 
+  bool HasAlwaysThrowingInvokes() const { return has_always_throwing_invokes_; }
+  void SetHasAlwaysThrowingInvokes(bool value) { has_always_throwing_invokes_ = value; }
+
   ArtMethod* GetArtMethod() const { return art_method_; }
   void SetArtMethod(ArtMethod* method) { art_method_ = method; }
 
@@ -832,6 +836,9 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // Flag whether there are any direct calls to native code registered
   // for @CriticalNative methods.
   bool has_direct_critical_native_call_;
+
+  // Flag whether the graph contains invokes that always throw.
+  bool has_always_throwing_invokes_;
 
   // Is the code known to be robust against eliminating dead references
   // and the effects of early finalization? If false, dead reference variables
@@ -1298,7 +1305,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // graph, create a Goto at the end of the former block and will create an edge
   // between the blocks. It will not, however, update the reverse post order or
   // loop and try/catch information.
-  HBasicBlock* SplitBefore(HInstruction* cursor);
+  HBasicBlock* SplitBefore(HInstruction* cursor, bool require_graph_not_in_ssa_form = true);
 
   // Split the block into two blocks just before `cursor`. Returns the newly
   // created block. Note that this method just updates raw block information,
