@@ -59,18 +59,19 @@ struct DumpStackLastTimeTLSData : public art::TLSData {
 };
 
 #if ART_USE_FUTEXES
+// Compute a relative timespec as *result_ts = lhs - rhs.
+// Return false (and produce an invalid *result_ts) if lhs < rhs.
 static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, const timespec& rhs) {
   const int32_t one_sec = 1000 * 1000 * 1000;  // one second in nanoseconds.
+  static_assert(std::is_signed<decltype(result_ts->tv_sec)>::value);  // Signed on Linux.
   result_ts->tv_sec = lhs.tv_sec - rhs.tv_sec;
   result_ts->tv_nsec = lhs.tv_nsec - rhs.tv_nsec;
   if (result_ts->tv_nsec < 0) {
     result_ts->tv_sec--;
     result_ts->tv_nsec += one_sec;
-  } else if (result_ts->tv_nsec > one_sec) {
-    result_ts->tv_sec++;
-    result_ts->tv_nsec -= one_sec;
   }
-  return result_ts->tv_sec < 0;
+  DCHECK(result_ts->tv_nsec >= 0 && result_ts->tv_nsec < one_sec);
+  return result_ts->tv_sec >= 0;
 }
 #endif
 
@@ -852,7 +853,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
       timespec now_abs_ts;
       InitTimeSpec(true, CLOCK_MONOTONIC, 0, 0, &now_abs_ts);
       timespec rel_ts;
-      if (ComputeRelativeTimeSpec(&rel_ts, end_abs_ts, now_abs_ts)) {
+      if (!ComputeRelativeTimeSpec(&rel_ts, end_abs_ts, now_abs_ts)) {
         return false;  // Timed out.
       }
       ScopedContentionRecorder scr(this, SafeGetTid(self), GetExclusiveOwnerTid());
@@ -869,6 +870,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
             // EAGAIN and EINTR both indicate a spurious failure,
             // recompute the relative time out from now and try again.
             // We don't use TEMP_FAILURE_RETRY so we can recompute rel_ts;
+            num_contenders_.fetch_sub(1);  // Unlikely to matter.
             PLOG(FATAL) << "timed futex wait failed for " << name_;
           }
         }
