@@ -141,7 +141,11 @@ bool HInliner::Run() {
   }
 
   bool did_inline = false;
-  bool did_set_always_throws = false;
+  // The inliner is the only phase that sets invokes as `always throwing`, and since we only run the
+  // inliner once per graph this value should always be false at the beginning of the inlining
+  // phase. This is important since we use `HasAlwaysThrowingInvokes` to know whether the inliner
+  // phase performed a relevant change in the graph.
+  DCHECK(!graph_->HasAlwaysThrowingInvokes());
 
   // Initialize the number of instructions for the method being compiled. Recursive calls
   // to HInliner::Run have already updated the instruction count.
@@ -182,7 +186,7 @@ bool HInliner::Run() {
               call->GetMethodReference().PrettyMethod(/* with_signature= */ false);
           // Tests prevent inlining by having $noinline$ in their method names.
           if (callee_name.find("$noinline$") == std::string::npos) {
-            if (TryInline(call, &did_set_always_throws)) {
+            if (TryInline(call)) {
               did_inline = true;
             } else if (honor_inline_directives) {
               bool should_have_inlined = (callee_name.find("$inline$") != std::string::npos);
@@ -192,7 +196,7 @@ bool HInliner::Run() {
         } else {
           DCHECK(!honor_inline_directives);
           // Normal case: try to inline.
-          if (TryInline(call, &did_set_always_throws)) {
+          if (TryInline(call)) {
             did_inline = true;
           }
         }
@@ -201,11 +205,9 @@ bool HInliner::Run() {
     }
   }
 
-  if (did_set_always_throws) {
-    graph_->SetHasAlwaysThrowingInvokes(/* value= */ true);
-  }
-
-  return did_inline || did_set_always_throws;
+  // We return true if we either inlined at least one method, or we marked one of our methods as
+  // always throwing.
+  return did_inline || graph_->HasAlwaysThrowingInvokes();
 }
 
 static bool IsMethodOrDeclaringClassFinal(ArtMethod* method)
@@ -440,7 +442,7 @@ static bool AlwaysThrows(ArtMethod* method)
   return throw_seen;
 }
 
-bool HInliner::TryInline(HInvoke* invoke_instruction, /*inout*/ bool* did_set_always_throws) {
+bool HInliner::TryInline(HInvoke* invoke_instruction) {
   MaybeRecordStat(stats_, MethodCompilationStat::kTryInline);
 
   // Don't bother to move further if we know the method is unresolved or the invocation is
@@ -491,11 +493,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction, /*inout*/ bool* did_set_al
       } else {
         invoke_to_analyze = invoke_instruction;
       }
-      // Set always throws property for non-inlined method call with single
-      // target.
+      // Set always throws property for non-inlined method call with single target.
       if (AlwaysThrows(actual_method)) {
-        invoke_to_analyze->SetAlwaysThrows(true);
-        *did_set_always_throws = true;
+        invoke_to_analyze->SetAlwaysThrows(/* always_throws= */ true);
+        graph_->SetHasAlwaysThrowingInvokes(/* value= */ true);
       }
     }
     return result;
@@ -1819,8 +1820,9 @@ void HInliner::SubstituteArguments(HGraph* callee_graph,
 // If this function returns true, it will also set out_number_of_instructions to
 // the number of instructions in the inlined body.
 bool HInliner::CanInlineBody(const HGraph* callee_graph,
-                             const HBasicBlock* target_block,
+                             HInvoke* invoke,
                              size_t* out_number_of_instructions) const {
+  const HBasicBlock* target_block = invoke->GetBlock();
   ArtMethod* const resolved_method = callee_graph->GetArtMethod();
 
   HBasicBlock* exit_block = callee_graph->GetExitBlock();
@@ -1862,6 +1864,11 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
   }
 
   if (!has_one_return) {
+    // If we know that the method always throws with the particular parameters, set it as such. This
+    // is better than using the dex instructions as we have more information about this particular
+    // call.
+    invoke->SetAlwaysThrows(/* always_throws= */ true);
+    graph_->SetHasAlwaysThrowingInvokes(/* value= */ true);
     LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedAlwaysThrows)
         << "Method " << resolved_method->PrettyMethod()
         << " could not be inlined because it always throws";
@@ -2058,7 +2065,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   RunOptimizations(callee_graph, code_item, dex_compilation_unit);
 
   size_t number_of_instructions = 0;
-  if (!CanInlineBody(callee_graph, invoke_instruction->GetBlock(), &number_of_instructions)) {
+  if (!CanInlineBody(callee_graph, invoke_instruction, &number_of_instructions)) {
     return false;
   }
 
