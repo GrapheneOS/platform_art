@@ -1490,10 +1490,8 @@ void printInclusiveProfile(MethodEntry** pMethods, int32_t numMethods, uint64_t 
   char classBuf[HTML_BUFSIZE], methodBuf[HTML_BUFSIZE];
   char signatureBuf[HTML_BUFSIZE];
   char anchor_buf[80];
-  const char* anchor_close = "";
   anchor_buf[0] = 0;
   if (gOptions.outputHtml) {
-    anchor_close = "</a>";
     printf("<a name=\"inclusive\"></a>\n");
     printf("<hr>\n");
     outputNavigationBar();
