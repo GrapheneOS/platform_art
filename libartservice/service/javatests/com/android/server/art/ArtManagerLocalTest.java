@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.pm.ApplicationInfo;
+import android.os.ServiceSpecificException;
 
 import androidx.test.filters.SmallTest;
 
@@ -186,6 +187,24 @@ public class ArtManagerLocalTest {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
         mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+    }
+
+    @Test
+    public void testGetOptimizationStatusNonFatalError() throws Exception {
+        when(mArtd.getOptimizationStatus(any(), any(), any()))
+                .thenThrow(new ServiceSpecificException(1 /* errorCode */, "some error message"));
+
+        OptimizationStatus result =
+                mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+
+        List<DexFileOptimizationStatus> statuses = result.getDexFileOptimizationStatuses();
+        assertThat(statuses.size()).isEqualTo(4);
+
+        for (DexFileOptimizationStatus status : statuses) {
+            assertThat(status.getCompilerFilter()).isEqualTo("error");
+            assertThat(status.getCompilationReason()).isEqualTo("error");
+            assertThat(status.getLocationDebugString()).isEqualTo("some error message");
+        }
     }
 
     private AndroidPackageApi createPackage() {

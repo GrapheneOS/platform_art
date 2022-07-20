@@ -28,6 +28,7 @@ import android.os.Binder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.ServiceSpecificException;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -187,12 +188,17 @@ public final class ArtManagerLocal {
                         continue;
                     }
                     for (String isa : Utils.getAllIsas(pkgState)) {
-                        GetOptimizationStatusResult result =
-                                mInjector.getArtd().getOptimizationStatus(
-                                        dexInfo.dexPath(), isa, dexInfo.classLoaderContext());
-                        statuses.add(new DexFileOptimizationStatus(dexInfo.dexPath(), isa,
-                                result.compilerFilter, result.compilationReason,
-                                result.locationDebugString));
+                        try {
+                            GetOptimizationStatusResult result =
+                                    mInjector.getArtd().getOptimizationStatus(
+                                            dexInfo.dexPath(), isa, dexInfo.classLoaderContext());
+                            statuses.add(new DexFileOptimizationStatus(dexInfo.dexPath(), isa,
+                                    result.compilerFilter, result.compilationReason,
+                                    result.locationDebugString));
+                        } catch (ServiceSpecificException e) {
+                            statuses.add(new DexFileOptimizationStatus(
+                                    dexInfo.dexPath(), isa, "error", "error", e.getMessage()));
+                        }
                     }
                 }
             }
