@@ -270,6 +270,7 @@ apex_defaults {
         "libartservice",
     ],
     binaries: [
+        "art_exec",
         "artd",
     ],
     multilib: {
