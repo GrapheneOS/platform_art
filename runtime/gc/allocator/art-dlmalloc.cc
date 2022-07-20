@@ -39,7 +39,7 @@ static void art_heap_usage_error(const char* function, void* p);
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #pragma GCC diagnostic ignored "-Wnull-pointer-arithmetic"
 #pragma GCC diagnostic ignored "-Wexpansion-to-defined"
-#include "dlmalloc.c"  // NOLINT - from external/dlmalloc
+#include "dlmalloc.c"
 // Note: dlmalloc.c uses a DEBUG define to drive debug code. This interferes with the DEBUG severity
 //       of libbase, so undefine it now.
 #undef DEBUG
