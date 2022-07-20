@@ -32,8 +32,8 @@ import zipfile
 from shutil import rmtree
 from os import remove
 
-USE_RBE_FOR_JAVAC = 0    # Percentage of tests that can use RBE (between 0 and 100)
-USE_RBE_FOR_D8 = 0       # Percentage of tests that can use RBE (between 0 and 100)
+USE_RBE_FOR_JAVAC = 10    # Percentage of tests that can use RBE (between 0 and 100)
+USE_RBE_FOR_D8 = 10       # Percentage of tests that can use RBE (between 0 and 100)
 
 def rm(*patterns):
   for pattern in patterns:
