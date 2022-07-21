@@ -551,16 +551,15 @@ public class Main {
   }
 
   /// CHECK-START: void Main.test21(TestClass) load_store_elimination (before)
-  /// CHECK: NewInstance
-  /// CHECK: InstanceFieldSet
-  /// CHECK: InstanceFieldSet
-  /// CHECK: InstanceFieldSet
-  /// CHECK: InstanceFieldGet
-  /// CHECK: InstanceFieldGet
+  /// CHECK-DAG: NewInstance
+  /// CHECK-DAG: InstanceFieldSet
+  /// CHECK-DAG: InstanceFieldSet
+  /// CHECK-DAG: InstanceFieldSet
+  /// CHECK-DAG: InstanceFieldGet
+  /// CHECK-DAG: InstanceFieldGet
 
   /// CHECK-START: void Main.test21(TestClass) load_store_elimination (after)
   /// CHECK-DAG: InstanceFieldSet
-  /// CHECK-DAG: Phi
 
   /// CHECK-START: void Main.test21(TestClass) load_store_elimination (after)
   /// CHECK-NOT: NewInstance
@@ -1850,14 +1849,22 @@ public class Main {
   /// CHECK: ArraySet
   /// CHECK: ArrayGet
 
-  /// CHECK-START: int Main.testAllocationEliminationOfArray2() load_store_elimination (after)
+  /// CHECK-START-{ARM64,X86,X86_64}: int Main.testAllocationEliminationOfArray2() load_store_elimination (after)
+  /// CHECK-NOT: NewArray
+  /// CHECK-NOT: ArraySet
+  /// CHECK-NOT: ArraySet
+  /// CHECK-NOT: ArrayGet
+
+  // The loop optimization doesn't happen in ARM which leads to LSE not being able to optimize this
+  // case.
+  /// CHECK-START-ARM: int Main.testAllocationEliminationOfArray2() load_store_elimination (after)
   /// CHECK: NewArray
   /// CHECK: ArraySet
   /// CHECK: ArraySet
   /// CHECK: ArrayGet
   private static int testAllocationEliminationOfArray2() {
-    // Cannot eliminate array allocation since array is accessed with non-constant
-    // index (only 3 elements to prevent vectorization of the reduction).
+    // Array can be eliminated because LSE can reduce the array accesses into
+    // integer constants.
     int[] array = new int[3];
     array[1] = 4;
     array[2] = 7;
@@ -1919,6 +1926,36 @@ public class Main {
     int[] array = new int[i];
     array[1] = 12;
     return array[1];
+  }
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray6(boolean) load_store_elimination (before)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+
+  /// CHECK-START: int Main.testAllocationEliminationOfArray6(boolean) load_store_elimination (after)
+  /// CHECK: NewArray
+  /// CHECK: ArraySet
+  /// CHECK: ArraySet
+  /// CHECK: ArrayGet
+  private static int testAllocationEliminationOfArray6(boolean prevent_loop_opt) {
+    // Cannot eliminate array allocation since array is accessed with non-constant
+    // index (only 3 elements to prevent vectorization of the reduction).
+    int[] array = new int[3];
+    array[1] = 4;
+    array[2] = 7;
+    int sum = 0;
+    for (int e : array) {
+      sum += e;
+
+      // Prevent the loop from being optimized away before LSE. This should
+      // never be false.
+      if (!prevent_loop_opt) {
+        return -1;
+      }
+    }
+    return sum;
   }
 
   /// CHECK-START: int Main.testExitMerge(boolean) load_store_elimination (before)
@@ -4210,6 +4247,7 @@ public class Main {
     } catch (NegativeArraySizeException e) {
       System.out.println("Got NegativeArraySizeException.");
     }
+    assertIntEquals(testAllocationEliminationOfArray6(true), 11);
 
     assertIntEquals(testStoreStore().i, 41);
     assertIntEquals(testStoreStore().j, 43);

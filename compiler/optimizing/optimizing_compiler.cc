@@ -670,17 +670,25 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
            "constant_folding$after_bce"),
     OptDef(OptimizationPass::kAggressiveInstructionSimplifier,
            "instruction_simplifier$after_bce"),
-    // Other high-level optimizations.
-    OptDef(OptimizationPass::kLoadStoreElimination),
-    OptDef(OptimizationPass::kCHAGuardOptimization),
     OptDef(OptimizationPass::kDeadCodeElimination,
            "dead_code_elimination$after_bce"),
+    // Other high-level optimizations.
+    OptDef(OptimizationPass::kLoadStoreElimination),
+    OptDef(OptimizationPass::kDeadCodeElimination,
+           "dead_code_elimination$after_lse",
+           OptimizationPass::kLoadStoreElimination),
+    OptDef(OptimizationPass::kCHAGuardOptimization),
     OptDef(OptimizationPass::kCodeSinking),
     // The codegen has a few assumptions that only the instruction simplifier
     // can satisfy. For example, the code generator does not expect to see a
     // HTypeConversion from a type to the same type.
     OptDef(OptimizationPass::kAggressiveInstructionSimplifier,
            "instruction_simplifier$before_codegen"),
+    // Simplification may result in dead code that should be removed prior to
+    // code generation.
+    OptDef(OptimizationPass::kDeadCodeElimination,
+           "dead_code_elimination$before_codegen",
+           OptimizationPass::kAggressiveInstructionSimplifier),
     // Eliminate constructor fences after code sinking to avoid
     // complicated sinking logic to split a fence with many inputs.
     OptDef(OptimizationPass::kConstructorFenceRedundancyElimination)
