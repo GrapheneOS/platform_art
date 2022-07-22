@@ -86,6 +86,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object_array-alloc-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/stack_frame_info.h"
 #include "mirror/stack_trace_element.h"
 #include "monitor.h"
 #include "monitor_objects_stack_visitor.h"
@@ -3154,6 +3155,135 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
         static_cast<int32_t>(i), obj);
   }
   return result;
+}
+
+static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
+    const ScopedObjectAccessAlreadyRunnable& soa,
+    ClassLinker* class_linker,
+    ObjPtr<mirror::StackFrameInfo> stackFrameInfo,
+    ArtMethod* method,
+    uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_) {
+  StackHandleScope<4> hs(soa.Self());
+  int32_t line_number;
+  auto source_name_object(hs.NewHandle<mirror::String>(nullptr));
+  if (method->IsProxyMethod()) {
+    line_number = -1;
+    // source_name_object intentionally left null for proxy methods
+  } else {
+    line_number = method->GetLineNumFromDexPC(dex_pc);
+    if (line_number == -1) {
+      // Make the line_number field of StackFrameInfo hold the dex pc.
+      // source_name_object is intentionally left null if we failed to map the dex pc to
+      // a line number (most probably because there is no debug info). See b/30183883.
+      line_number = static_cast<int32_t>(dex_pc);
+    } else {
+      const char* source_file = method->GetDeclaringClassSourceFile();
+      if (source_file != nullptr) {
+        source_name_object.Assign(mirror::String::AllocFromModifiedUtf8(soa.Self(), source_file));
+        if (source_name_object == nullptr) {
+          soa.Self()->AssertPendingOOMException();
+          return nullptr;
+        }
+      }
+    }
+  }
+
+  auto declaring_class_object(hs.NewHandle<mirror::Class>(method->GetDeclaringClass()));
+
+  ArtMethod* interface_method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+  const char* method_name = interface_method->GetName();
+  CHECK(method_name != nullptr);
+  auto method_name_object(
+      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), method_name)));
+  if (method_name_object == nullptr) {
+    soa.Self()->AssertPendingOOMException();
+    return nullptr;
+  }
+
+  dex::ProtoIndex proto_idx =
+      method->GetDexFile()->GetIndexForProtoId(interface_method->GetPrototype());
+  auto method_type_object(hs.NewHandle<mirror::MethodType>(
+      class_linker->ResolveMethodType(soa.Self(), proto_idx, interface_method)));
+  if (method_type_object == nullptr) {
+    soa.Self()->AssertPendingOOMException();
+    return nullptr;
+  }
+
+  stackFrameInfo->AssignFields(declaring_class_object,
+                               method_type_object,
+                               method_name_object,
+                               source_name_object,
+                               line_number,
+                               static_cast<int32_t>(dex_pc));
+  return stackFrameInfo;
+}
+
+jint Thread::InternalStackTraceToStackFrameInfoArray(
+    const ScopedObjectAccessAlreadyRunnable& soa,
+    [[maybe_unused]] jlong mode,  // See java.lang.StackStreamFactory for the mode flags
+    jobject internal,
+    jint startLevel,
+    jint batchSize,
+    jint startBufferIndex,
+    jobjectArray output_array) {
+  // Decode the internal stack trace into the depth, method trace and PC trace.
+  // Subtract one for the methods and PC trace.
+  int32_t depth = soa.Decode<mirror::Array>(internal)->GetLength() - 1;
+  DCHECK_GE(depth, 0);
+
+  ObjPtr<mirror::ObjectArray<mirror::Object>> frames =
+      soa.Decode<mirror::ObjectArray<mirror::Object>>(output_array);
+
+  jint endBufferIndex = startBufferIndex;
+
+  if (startLevel < 0 || startLevel >= depth) {
+    return endBufferIndex;
+  }
+
+  int32_t bufferSize = frames->GetLength();
+  if (startBufferIndex < 0 || startBufferIndex >= bufferSize) {
+    return endBufferIndex;
+  }
+
+  ObjPtr<mirror::ObjectArray<mirror::Object>> decoded_traces =
+      soa.Decode<mirror::Object>(internal)->AsObjectArray<mirror::Object>();
+  // Methods and dex PC trace is element 0.
+  DCHECK(decoded_traces->Get(0)->IsIntArray() || decoded_traces->Get(0)->IsLongArray());
+  const ObjPtr<mirror::PointerArray> method_trace =
+      ObjPtr<mirror::PointerArray>::DownCast(decoded_traces->Get(0));
+
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::Class> sfi_class =
+      hs.NewHandle(class_linker->FindSystemClass(soa.Self(), "Ljava/lang/StackFrameInfo;"));
+  DCHECK(sfi_class != nullptr);
+
+  for (uint32_t i = static_cast<uint32_t>(startLevel); i < static_cast<uint32_t>(depth); ++i) {
+    if (endBufferIndex >= startBufferIndex + batchSize || endBufferIndex >= bufferSize) {
+      break;
+    }
+
+    // Prepare parameters for fields in StackFrameInfo
+    ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, kRuntimePointerSize);
+    uint32_t dex_pc = method_trace->GetElementPtrSize<uint32_t>(
+        i + static_cast<uint32_t>(method_trace->GetLength()) / 2, kRuntimePointerSize);
+
+    ObjPtr<mirror::Object> frameObject = frames->Get(endBufferIndex);
+    // If libcore didn't allocate the object, we just stop here, but it's unlikely.
+    if (frameObject == nullptr || !frameObject->InstanceOf(sfi_class.Get())) {
+      break;
+    }
+    auto frame = ObjPtr<mirror::StackFrameInfo>::DownCast(frameObject);
+    frame = InitStackFrameInfo(soa, class_linker, frame, method, dex_pc);
+    // Break if InitStackFrameInfo fails to allocate objects or assign the fields.
+    if (frame == nullptr) {
+      break;
+    }
+
+    ++endBufferIndex;
+  }
+
+  return endBufferIndex;
 }
 
 jobjectArray Thread::CreateAnnotatedStackTrace(const ScopedObjectAccessAlreadyRunnable& soa) const {

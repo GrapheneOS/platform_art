@@ -50,6 +50,7 @@ constexpr bool IsMirroredDescriptor(std::string_view desc) {
     vis("Ljava/lang/ClassNotFoundException;")         \
     vis("Ljava/lang/DexCache;")                       \
     vis("Ljava/lang/Object;")                         \
+    vis("Ljava/lang/StackFrameInfo;")                 \
     vis("Ljava/lang/StackTraceElement;")              \
     vis("Ljava/lang/String;")                         \
     vis("Ljava/lang/Throwable;")                      \
