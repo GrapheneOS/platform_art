@@ -52,6 +52,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
 #include "mirror/reference.h"
+#include "mirror/stack_frame_info.h"
 #include "mirror/stack_trace_element.h"
 #include "mirror/string-inl.h"
 #include "mirror/var_handle.h"
@@ -641,6 +642,20 @@ struct StackTraceElementOffsets : public CheckOffsets<mirror::StackTraceElement>
   }
 };
 
+struct StackFrameInfoOffsets : public CheckOffsets<mirror::StackFrameInfo> {
+  StackFrameInfoOffsets() : CheckOffsets<mirror::StackFrameInfo>(
+      false, "Ljava/lang/StackFrameInfo;") {
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, bci_), "bci");
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, declaring_class_), "declaringClass");
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, file_name_), "fileName");
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, line_number_), "lineNumber");
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, method_name_), "methodName");
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, method_type_), "methodType");
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, retain_class_ref_), "retainClassRef");
+    addOffset(OFFSETOF_MEMBER(mirror::StackFrameInfo, ste_), "ste");
+  }
+};
+
 struct ClassLoaderOffsets : public CheckOffsets<mirror::ClassLoader> {
   ClassLoaderOffsets() : CheckOffsets<mirror::ClassLoader>(false, "Ljava/lang/ClassLoader;") {
     addOffset(OFFSETOF_MEMBER(mirror::ClassLoader, allocator_), "allocator");
@@ -859,6 +874,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ArrayElementVarHandleOffsets().Check());
   EXPECT_TRUE(ByteArrayViewVarHandleOffsets().Check());
   EXPECT_TRUE(ByteBufferViewVarHandleOffsets().Check());
+  EXPECT_TRUE(StackFrameInfoOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
