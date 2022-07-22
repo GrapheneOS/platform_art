@@ -718,6 +718,16 @@ class Thread {
       jobjectArray output_array = nullptr, int* stack_depth = nullptr)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  static jint InternalStackTraceToStackFrameInfoArray(
+      const ScopedObjectAccessAlreadyRunnable& soa,
+      jlong mode,  // See java.lang.StackStreamFactory for the mode flags
+      jobject internal,
+      jint startLevel,
+      jint batchSize,
+      jint startIndex,
+      jobjectArray output_array)  // java.lang.StackFrameInfo[]
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   jobjectArray CreateAnnotatedStackTrace(const ScopedObjectAccessAlreadyRunnable& soa) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
