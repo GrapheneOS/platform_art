@@ -99,10 +99,6 @@ art_module_sdk {
                 "com.android.art",
             ],
 
-            compat_configs: [
-                "libcore-platform-compat-config",
-            ],
-
             java_header_libs: [
                 // Needed by any module that builds against any non-numeric
                 // sdk_version other than "none".
