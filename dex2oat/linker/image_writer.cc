@@ -3356,7 +3356,7 @@ const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method, const ImageInfo& ima
       // The interpreter brige performs class initialization check if needed.
       quick_code = GetOatAddress(StubType::kQuickToInterpreterBridge);
     }
-  } else if (needs_clinit_check) {
+  } else if (needs_clinit_check && !compiler_options_.ShouldCompileWithClinitCheck(method)) {
     // If we do have code but the method needs a class initialization check before calling
     // that code, install the resolution stub that will perform the check.
     quick_code = GetOatAddress(StubType::kQuickResolutionTrampoline);
