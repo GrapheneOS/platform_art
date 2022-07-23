@@ -103,10 +103,12 @@ cc_defaults {
                 // For common macros.
                 "libbase",
             ],
+            export_shared_lib_headers: ["libbase"], // ART's macros.h depends on libbase's macros.h.
+        },
+        linux_glibc: {
             static_libs: [
                 "libcap",
             ],
-            export_shared_lib_headers: ["libbase"], // ART's macros.h depends on libbase's macros.h.
             export_static_lib_headers: [
                 "libcap",
             ],
@@ -153,7 +155,7 @@ cc_defaults {
                 "libcap",
             ],
         },
-        not_windows: {
+        linux_glibc: {
             whole_static_libs: [
                 "libcap",
             ],
