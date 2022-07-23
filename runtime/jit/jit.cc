@@ -1809,7 +1809,7 @@ void Jit::MaybeEnqueueCompilation(ArtMethod* method, Thread* self) {
     return;
   }
 
-  static constexpr size_t kIndividualSharedMethodHotnessThreshold = 0xff;
+  static constexpr size_t kIndividualSharedMethodHotnessThreshold = 0x3f;
   if (method->IsMemorySharedMethod()) {
     MutexLock mu(self, lock_);
     auto it = shared_method_counters_.find(method);
