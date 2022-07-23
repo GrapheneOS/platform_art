@@ -16,8 +16,8 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="android.test.app.system">
+          package="android.test.app.system_ext">
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
-                     android:targetPackage="android.test.app.system" />
+                     android:targetPackage="android.test.app.system_ext" />
 </manifest>
 
