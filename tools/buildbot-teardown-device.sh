@@ -79,7 +79,7 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
       local remove_dir=$3
       local dir="$ART_TEST_CHROOT/$dir_in_chroot"
       adb shell test -d "$dir" \
-        && adb shell mount | grep -q "^$fstype on $dir type $fstype " \
+        && adb shell mount | grep -q " on $dir type $fstype " \
         && if adb shell umount "$dir"; then
              $remove_dir && adb shell rmdir "$dir"
            else
@@ -95,6 +95,7 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
     adb shell rm -rf "$ART_TEST_CHROOT/apex"
 
     # Remove /dev from chroot.
+    remove_filesystem_from_chroot dev/cpuctl cgroup false
     remove_filesystem_from_chroot dev/pts devpts false
     remove_filesystem_from_chroot dev tmpfs true
 
