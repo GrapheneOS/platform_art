@@ -22,6 +22,7 @@ public class Main {
     // Basic test for non-trivial blocks (i.e. not just an invoke and a Goto)
     assertEquals(0, $noinline$testSimplifyThrowAndPrint(1));
     assertEquals(0, $noinline$testSimplifyTwoThrows(1));
+    assertEquals(0, $noinline$testSimplifyWithArgument(1));
 
     // Try catch tests
     assertEquals(0, $noinline$testDoNotSimplifyInTry(1));
@@ -97,6 +98,35 @@ public class Main {
     if (num == 0) {
       alwaysThrows();
       alwaysThrows();
+    }
+    return 0;
+  }
+
+  private static int throwIfZero(int num) {
+    if (num == 0) {
+      throw new Error("num is 0!");
+    }
+    return num / num;
+  }
+
+  /// CHECK-START: int Main.$noinline$testSimplifyWithArgument(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.throwIfZero always_throws:true
+  /// CHECK-DAG:   InvokeVirtual method_name:java.io.PrintStream.println
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
+  /// CHECK-EVAL:  "<<ExitBlock>>" != "<<TargetBlock>>"
+
+  /// CHECK-START: int Main.$noinline$testSimplifyWithArgument(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.throwIfZero always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testSimplifyWithArgument(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   InvokeVirtual method_name:java.io.PrintStream.println
+  private static int $noinline$testSimplifyWithArgument(int num) {
+    if (num == 0) {
+      throwIfZero(0);
+      System.out.println("I am unrechable!");
     }
     return 0;
   }
