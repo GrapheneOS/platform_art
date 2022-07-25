@@ -202,7 +202,7 @@ public class Main {
   /// CHECK:       TryBoundary kind:entry
 
   // Consistency check to that we do not simplify it by the last DCE pass either
-  /// CHECK-START: int Main.$noinline$testDoNotSimplifyInTry(int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.$noinline$testDoNotSimplifyInTry(int) dead_code_elimination$after_bce (after)
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
   /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
@@ -270,7 +270,7 @@ public class Main {
   /// CHECK-DAG:   TryBoundary kind:entry
 
   // Consistency check to that we do not simplify it by the last DCE pass either
-  /// CHECK-START: int Main.$noinline$testDoNotSimplifyInCatchInOuterTry(int, int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.$noinline$testDoNotSimplifyInCatchInOuterTry(int, int) dead_code_elimination$after_bce (after)
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
   /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
