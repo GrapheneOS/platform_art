@@ -45,3 +45,9 @@ LIBARTPALETTE_2 { # introduced=33
     # --- VERSION 02 API ---
     PaletteReportLockContention; # apex
 } LIBARTPALETTE_1;
+
+LIBARTPALETTE_3 { # introduced=UpsideDownCake
+  global:
+    # --- VERSION 03 API ---
+    PaletteSetTaskProfiles; # apex
+} LIBARTPALETTE_2;

@@ -246,4 +246,13 @@ palette_status_t PaletteReportLockContention(JNIEnv* env,
            thread_name);
 }
 
+// Methods in version 3 API, corresponding to SDK level 34.
+
+palette_status_t PaletteSetTaskProfiles(int32_t tid,
+                                        const char* const profiles[],
+                                        size_t profiles_len) {
+  PaletteSetTaskProfilesMethod m = PaletteLoader::Instance().GetPaletteSetTaskProfilesMethod();
+  return m(tid, profiles, profiles_len);
+}
+
 }  // extern "C"
