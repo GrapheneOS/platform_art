@@ -17,6 +17,7 @@
 #include "induction_var_range.h"
 
 #include <limits>
+#include "optimizing/nodes.h"
 
 namespace art {
 
@@ -1064,10 +1065,13 @@ bool InductionVarRange::GenerateRangeOrLastValue(const HBasicBlock* context,
       case HInductionVarAnalysis::kLinear:
         if (*stride_value > 0) {
           lower = nullptr;
+          return GenerateLastValueLinear(
+              context, loop, info, trip, graph, block, /*is_min=*/false, upper);
         } else {
           upper = nullptr;
+          return GenerateLastValueLinear(
+              context, loop, info, trip, graph, block, /*is_min=*/true, lower);
         }
-        break;
       case HInductionVarAnalysis::kPolynomial:
         return GenerateLastValuePolynomial(context, loop, info, trip, graph, block, lower);
       case HInductionVarAnalysis::kGeometric:
@@ -1111,6 +1115,54 @@ bool InductionVarRange::GenerateRangeOrLastValue(const HBasicBlock* context,
           GenerateCode(context, loop, info, trip, graph, block, /*is_min=*/ true, lower)) &&
       // And success on upper.
       GenerateCode(context, loop, info, trip, graph, block, /*is_min=*/ false, upper);
+}
+
+bool InductionVarRange::GenerateLastValueLinear(const HBasicBlock* context,
+                                                const HLoopInformation* loop,
+                                                HInductionVarAnalysis::InductionInfo* info,
+                                                HInductionVarAnalysis::InductionInfo* trip,
+                                                HGraph* graph,
+                                                HBasicBlock* block,
+                                                bool is_min,
+                                                /*out*/ HInstruction** result) const {
+  DataType::Type type = info->type;
+  // Avoid any narrowing linear induction or any type mismatch between the linear induction and the
+  // trip count expression.
+  if (HInductionVarAnalysis::IsNarrowingLinear(info) && trip->type == info->type) {
+    return false;
+  }
+
+  // Stride value must be a known constant that fits into int32.
+  int64_t stride_value = 0;
+  if (!IsConstant(context, loop, info->op_a, kExact, &stride_value) ||
+      !CanLongValueFitIntoInt(stride_value)) {
+    return false;
+  }
+
+  // We require `a` to be a constant value that didn't overflow.
+  const bool is_min_a = stride_value >= 0 ? is_min : !is_min;
+  Value val_a = GetVal(context, loop, trip, trip, is_min_a);
+  HInstruction* opb;
+  if (!IsConstantValue(val_a) ||
+      !GenerateCode(context, loop, info->op_b, trip, graph, block, is_min, &opb)) {
+    return false;
+  }
+
+  if (graph != nullptr) {
+    ArenaAllocator* allocator = graph->GetAllocator();
+    HInstruction* oper;
+    HInstruction* opa = graph->GetConstant(type, val_a.b_constant);
+    if (stride_value == 1) {
+      oper = new (allocator) HAdd(type, opa, opb);
+    } else if (stride_value == -1) {
+      oper = new (graph->GetAllocator()) HSub(type, opb, opa);
+    } else {
+      HInstruction* mul = new (allocator) HMul(type, graph->GetConstant(type, stride_value), opa);
+      oper = new (allocator) HAdd(type, Insert(block, mul), opb);
+    }
+    *result = Insert(block, oper);
+  }
+  return true;
 }
 
 bool InductionVarRange::GenerateLastValuePolynomial(const HBasicBlock* context,
