@@ -41,6 +41,18 @@
     return-void
 .end method
 
+.method public static storeStatic(Ljava/lang/Object;)V
+    .registers 1
+    sput-object p0, LBadField;->widget:LWidget;
+    return-void
+.end method
+
+.method public static storeInstance(LBadField;Ljava/lang/Object;)V
+    .registers 2
+    iput-object p1, p0, LBadField;->iwidget:LWidget;
+    return-void
+.end method
+
 .method public static storeInstanceObject()V
     .registers 2
     new-instance v1, LBadField;
