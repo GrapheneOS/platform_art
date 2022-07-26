@@ -33,8 +33,8 @@ public class VendorAppTest {
         assertLinkerNamespaceError("bar.oem1");
         assertLinkerNamespaceError("foo.oem2");
         assertLinkerNamespaceError("bar.oem2");
-        assertLibraryNotFoundError("foo.product1");
-        assertLibraryNotFoundError("bar.product1");
+        System.loadLibrary("foo.product1");
+        System.loadLibrary("bar.product1");
     }
 
     private void assertLinkerNamespaceError(String libraryName) {
@@ -42,11 +42,5 @@ public class VendorAppTest {
                 assertThrows(UnsatisfiedLinkError.class, () -> System.loadLibrary(libraryName));
         assertThat(t.getMessage())
                 .containsMatch("dlopen failed: .* is not accessible for the namespace");
-    }
-
-    private void assertLibraryNotFoundError(String libraryName) {
-        Throwable t =
-                assertThrows(UnsatisfiedLinkError.class, () -> System.loadLibrary(libraryName));
-        assertThat(t.getMessage()).containsMatch("dlopen failed: library .* not found");
     }
 }
