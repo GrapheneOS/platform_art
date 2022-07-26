@@ -486,131 +486,6 @@ EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticPrimitiveWrite);
 #undef EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL
 #undef EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL
 
-static inline bool IsStringInit(const DexFile* dex_file, uint32_t method_idx)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  const dex::MethodId& method_id = dex_file->GetMethodId(method_idx);
-  const char* class_name = dex_file->StringByTypeIdx(method_id.class_idx_);
-  const char* method_name = dex_file->GetMethodName(method_id);
-  // Instead of calling ResolveMethod() which has suspend point and can trigger
-  // GC, look up the method symbolically.
-  // Compare method's class name and method name against string init.
-  // It's ok since it's not allowed to create your own java/lang/String.
-  // TODO: verify that assumption.
-  if ((strcmp(class_name, "Ljava/lang/String;") == 0) &&
-      (strcmp(method_name, "<init>") == 0)) {
-    return true;
-  }
-  return false;
-}
-
-static inline bool IsStringInit(const Instruction& instr, ArtMethod* caller)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (instr.Opcode() == Instruction::INVOKE_DIRECT ||
-      instr.Opcode() == Instruction::INVOKE_DIRECT_RANGE) {
-    uint16_t callee_method_idx = (instr.Opcode() == Instruction::INVOKE_DIRECT_RANGE) ?
-        instr.VRegB_3rc() : instr.VRegB_35c();
-    return IsStringInit(caller->GetDexFile(), callee_method_idx);
-  }
-  return false;
-}
-
-extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t* dex_pc_ptr);
-
-template <InvokeType type>
-ArtMethod* FindMethodToCall(Thread* self,
-                            ArtMethod* caller,
-                            ObjPtr<mirror::Object>* this_object,
-                            const Instruction& inst,
-                            /*out*/ bool* string_init)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-
-  // Try to find the method in thread-local cache.
-  size_t tls_value = 0u;
-  if (!self->GetInterpreterCache()->Get(self, &inst, &tls_value)) {
-    DCHECK(!self->IsExceptionPending());
-    // NterpGetMethod can suspend, so save this_object.
-    StackHandleScope<1> hs(self);
-    HandleWrapperObjPtr<mirror::Object> h_this(hs.NewHandleWrapper(this_object));
-    tls_value = NterpGetMethod(self, caller, reinterpret_cast<const uint16_t*>(&inst));
-    if (self->IsExceptionPending()) {
-      return nullptr;
-    }
-  }
-
-  if (type != kStatic && UNLIKELY((*this_object) == nullptr)) {
-    if (UNLIKELY(IsStringInit(inst, caller))) {
-      // Hack for String init:
-      //
-      // We assume that the input of String.<init> in verified code is always
-      // an uninitialized reference. If it is a null constant, it must have been
-      // optimized out by the compiler and we arrive here after deoptimization.
-      // Do not throw NullPointerException.
-    } else {
-      // Maintain interpreter-like semantics where NullPointerException is thrown
-      // after potential NoSuchMethodError from class linker.
-      const uint32_t method_idx = inst.VRegB();
-      ThrowNullPointerExceptionForMethodAccess(method_idx, type);
-      return nullptr;
-    }
-  }
-
-  static constexpr size_t kStringInitMethodFlag = 0b1;
-  static constexpr size_t kInvokeInterfaceOnObjectMethodFlag = 0b1;
-  static constexpr size_t kDefaultMethodFlag = 0b10;
-  static constexpr size_t kMethodMask = ~0b11;
-
-  ArtMethod* called_method = nullptr;
-  switch (type) {
-    case kDirect:
-    case kSuper:
-    case kStatic:
-      // Note: for the interpreter, the String.<init> special casing for invocation is handled
-      // in DoCallCommon.
-      *string_init = ((tls_value & kStringInitMethodFlag) != 0);
-      DCHECK_EQ(*string_init, IsStringInit(inst, caller));
-      called_method = reinterpret_cast<ArtMethod*>(tls_value & kMethodMask);
-      break;
-    case kInterface:
-      if ((tls_value & kInvokeInterfaceOnObjectMethodFlag) != 0) {
-        // invokeinterface on a j.l.Object method.
-        uint16_t method_index = tls_value >> 16;
-        called_method = (*this_object)->GetClass()->GetVTableEntry(method_index, pointer_size);
-      } else {
-        ArtMethod* interface_method = reinterpret_cast<ArtMethod*>(tls_value & kMethodMask);
-        if ((tls_value & kDefaultMethodFlag) != 0) {
-          // Default non-abstract method.
-          called_method = (*this_object)->GetClass()->GetImt(pointer_size)->Get(
-              interface_method->GetMethodIndex(), pointer_size);
-        } else {
-          // Regular abstract interface method.
-          called_method = (*this_object)->GetClass()->GetImt(pointer_size)->Get(
-              interface_method->GetImtIndex(), pointer_size);
-        }
-        if (called_method->IsRuntimeMethod()) {
-          called_method = (*this_object)->GetClass()->FindVirtualMethodForInterface(
-              interface_method, pointer_size);
-          if (UNLIKELY(called_method == nullptr)) {
-            ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(
-                interface_method, *this_object, caller);
-            return nullptr;
-          }
-        }
-      }
-      break;
-    case kVirtual:
-      called_method = (*this_object)->GetClass()->GetVTableEntry(tls_value, pointer_size);
-      break;
-  }
-
-  if (UNLIKELY(!called_method->IsInvokable())) {
-    called_method->ThrowInvocationTimeError((type == kStatic) ? nullptr : *this_object);
-    return nullptr;
-  }
-  DCHECK(!called_method->IsRuntimeMethod()) << called_method->PrettyMethod();
-  return called_method;
-}
-
 template<bool access_check>
 ALWAYS_INLINE ArtMethod* FindSuperMethodToCall(uint32_t method_idx,
                                               ArtMethod* resolved_method,
@@ -670,6 +545,130 @@ ALWAYS_INLINE ArtMethod* FindSuperMethodToCall(uint32_t method_idx,
   DCHECK(super_class->HasVTable());
   return super_class->GetVTableEntry(vtable_index, linker->GetImagePointerSize());
 }
+
+// Follow virtual/interface indirections if applicable.
+// Will throw null-pointer exception the if the object is null.
+template<InvokeType type, bool access_check>
+ALWAYS_INLINE ArtMethod* FindMethodToCall(uint32_t method_idx,
+                                          ArtMethod* resolved_method,
+                                          ObjPtr<mirror::Object>* this_object,
+                                          ArtMethod* referrer,
+                                          Thread* self)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  // Null pointer check.
+  if (UNLIKELY(*this_object == nullptr && type != kStatic)) {
+    if (UNLIKELY(resolved_method->GetDeclaringClass()->IsStringClass() &&
+                 resolved_method->IsConstructor())) {
+      // Hack for String init:
+      //
+      // We assume that the input of String.<init> in verified code is always
+      // an unitialized reference. If it is a null constant, it must have been
+      // optimized out by the compiler. Do not throw NullPointerException.
+    } else {
+      // Maintain interpreter-like semantics where NullPointerException is thrown
+      // after potential NoSuchMethodError from class linker.
+      ThrowNullPointerExceptionForMethodAccess(method_idx, type);
+      return nullptr;  // Failure.
+    }
+  }
+  switch (type) {
+    case kStatic:
+    case kDirect:
+      return resolved_method;
+    case kVirtual: {
+      ObjPtr<mirror::Class> klass = (*this_object)->GetClass();
+      uint16_t vtable_index = resolved_method->GetMethodIndex();
+      if (access_check &&
+          (!klass->HasVTable() ||
+           vtable_index >= static_cast<uint32_t>(klass->GetVTableLength()))) {
+        // Behavior to agree with that of the verifier.
+        ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(),
+                               resolved_method->GetName(), resolved_method->GetSignature());
+        return nullptr;  // Failure.
+      }
+      DCHECK(klass->HasVTable()) << klass->PrettyClass();
+      return klass->GetVTableEntry(vtable_index, class_linker->GetImagePointerSize());
+    }
+    case kSuper: {
+      return FindSuperMethodToCall<access_check>(method_idx, resolved_method, referrer, self);
+    }
+    case kInterface: {
+      size_t imt_index = resolved_method->GetImtIndex();
+      PointerSize pointer_size = class_linker->GetImagePointerSize();
+      ObjPtr<mirror::Class> klass = (*this_object)->GetClass();
+      ArtMethod* imt_method = klass->GetImt(pointer_size)->Get(imt_index, pointer_size);
+      if (!imt_method->IsRuntimeMethod()) {
+        if (kIsDebugBuild) {
+          ArtMethod* method = klass->FindVirtualMethodForInterface(
+              resolved_method, class_linker->GetImagePointerSize());
+          CHECK_EQ(imt_method, method) << ArtMethod::PrettyMethod(resolved_method) << " / "
+                                       << imt_method->PrettyMethod() << " / "
+                                       << ArtMethod::PrettyMethod(method) << " / "
+                                       << klass->PrettyClass();
+        }
+        return imt_method;
+      } else {
+        ArtMethod* interface_method = klass->FindVirtualMethodForInterface(
+            resolved_method, class_linker->GetImagePointerSize());
+        if (UNLIKELY(interface_method == nullptr)) {
+          ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method,
+                                                                     *this_object, referrer);
+          return nullptr;  // Failure.
+        }
+        return interface_method;
+      }
+    }
+    default:
+      LOG(FATAL) << "Unknown invoke type " << type;
+      return nullptr;  // Failure.
+  }
+}
+
+template<InvokeType type, bool access_check>
+inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
+                                     ObjPtr<mirror::Object>* this_object,
+                                     ArtMethod* referrer,
+                                     Thread* self) {
+  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+  constexpr ClassLinker::ResolveMode resolve_mode =
+      access_check ? ClassLinker::ResolveMode::kCheckICCEAndIAE
+                   : ClassLinker::ResolveMode::kNoChecks;
+  ArtMethod* resolved_method;
+  if (type == kStatic) {
+    resolved_method = class_linker->ResolveMethod<resolve_mode>(self, method_idx, referrer, type);
+  } else {
+    StackHandleScope<1> hs(self);
+    HandleWrapperObjPtr<mirror::Object> h_this(hs.NewHandleWrapper(this_object));
+    resolved_method = class_linker->ResolveMethod<resolve_mode>(self, method_idx, referrer, type);
+  }
+  if (UNLIKELY(resolved_method == nullptr)) {
+    DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
+    return nullptr;  // Failure.
+  }
+  return FindMethodToCall<type, access_check>(
+      method_idx, resolved_method, this_object, referrer, self);
+}
+
+// Explicit template declarations of FindMethodFromCode for all invoke types.
+#define EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, _access_check)                 \
+  template REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE                       \
+  ArtMethod* FindMethodFromCode<_type, _access_check>(uint32_t method_idx,         \
+                                                      ObjPtr<mirror::Object>* this_object, \
+                                                      ArtMethod* referrer, \
+                                                      Thread* self)
+#define EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(_type) \
+    EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, false);   \
+    EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, true)
+
+EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kStatic);
+EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kDirect);
+EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kVirtual);
+EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kSuper);
+EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kInterface);
+
+#undef EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL
+#undef EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL
 
 inline ObjPtr<mirror::Class> ResolveVerifyAndClinit(dex::TypeIndex type_idx,
                                                     ArtMethod* referrer,
