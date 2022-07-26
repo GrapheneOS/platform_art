@@ -15,6 +15,7 @@
  */
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 public class Main {
     public static void main(String[] args) throws Throwable {
@@ -24,10 +25,16 @@ public class Main {
         // Storing null is OK.
         c.getMethod("storeStaticNull").invoke(null);
         c.getMethod("storeInstanceNull").invoke(null);
+        c.getMethod("storeStatic", Object.class).invoke(null, new Object[]{ null });
+        c.getMethod("storeInstance", c, Object.class).invoke(
+            null, new Object[]{ c.newInstance(), null });
 
         // Storing anything else should throw an exception.
-        testStoreObject(c, "storeStaticObject");
-        testStoreObject(c, "storeInstanceObject");
+        testStoreObject(c.getMethod("storeStaticObject"));
+        testStoreObject(c.getMethod("storeInstanceObject"));
+        testStoreObject(c.getMethod("storeStatic", Object.class), new Object());
+        testStoreObject(
+            c.getMethod("storeInstance", c, Object.class), c.newInstance(), new Object());
 
         // Loading is OK.
         c = Class.forName("BadFieldGet");
@@ -38,9 +45,9 @@ public class Main {
       c.getMethod(methodName).invoke(null);
     }
 
-    public static void testStoreObject(Class<?> c, String methodName) throws Throwable {
+    public static void testStoreObject(Method method, Object... arguments) throws Throwable {
         try {
-          c.getMethod(methodName).invoke(null);
+          method.invoke(null, arguments);
           throw new Error("Expected NoClassDefFoundError");
         } catch (InvocationTargetException expected) {
           Throwable e = expected.getCause();
