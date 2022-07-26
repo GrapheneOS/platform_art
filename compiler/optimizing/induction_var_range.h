@@ -317,6 +317,15 @@ class InductionVarRange {
                                 /*out*/ bool* needs_finite_test,
                                 /*out*/ bool* needs_taken_test) const;
 
+  bool GenerateLastValueLinear(const HBasicBlock* context,
+                               const HLoopInformation* loop,
+                               HInductionVarAnalysis::InductionInfo* info,
+                               HInductionVarAnalysis::InductionInfo* trip,
+                               HGraph* graph,
+                               HBasicBlock* block,
+                               bool is_min,
+                               /*out*/ HInstruction** result) const;
+
   bool GenerateLastValuePolynomial(const HBasicBlock* context,
                                    const HLoopInformation* loop,
                                    HInductionVarAnalysis::InductionInfo* info,
