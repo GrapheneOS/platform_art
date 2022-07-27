@@ -353,7 +353,7 @@ class InstructionHandler {
 
   template<InvokeType type, bool is_range>
   HANDLER_ATTRIBUTES bool HandleInvoke() {
-    bool success = DoInvoke<type, is_range, do_access_check>(
+    bool success = DoInvoke<type, is_range, do_access_check, /*is_mterp=*/ false>(
         Self(), shadow_frame_, inst_, inst_data_, ResultRegister());
     return PossiblyHandlePendingExceptionOnInvoke(!success);
   }
