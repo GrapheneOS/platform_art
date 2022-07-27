@@ -420,13 +420,11 @@ TEST_F(UnstartedRuntimeTest, StringInit) {
   shadow_frame->SetVRegReference(0, reference_empty_string.Get());
   shadow_frame->SetVRegReference(1, string_arg.Get());
 
-  ArtMethod* factory = WellKnownClasses::StringInitToStringFactory(method);
-  interpreter::DoCall<false, false>(factory,
+  interpreter::DoCall<false, false>(method,
                                     self,
                                     *shadow_frame,
                                     Instruction::At(inst_data),
                                     inst_data[0],
-                                    /* string_init= */ true,
                                     &result);
   ObjPtr<mirror::String> string_result = down_cast<mirror::String*>(result.GetL());
   EXPECT_EQ(string_arg->GetLength(), string_result->GetLength());
@@ -1026,7 +1024,6 @@ TEST_F(UnstartedRuntimeTest, FloatConversion) {
                                     *shadow_frame,
                                     Instruction::At(inst_data),
                                     inst_data[0],
-                                    /* string_init= */ false,
                                     &result);
   ObjPtr<mirror::String> string_result = down_cast<mirror::String*>(result.GetL());
   ASSERT_TRUE(string_result != nullptr);
@@ -1182,7 +1179,6 @@ class UnstartedClassForNameTest : public UnstartedRuntimeTest {
                                         *shadow_frame,
                                         Instruction::At(inst_data),
                                         inst_data[0],
-                                        /* string_init= */ false,
                                         &result);
       CHECK(!self->IsExceptionPending());
     }
