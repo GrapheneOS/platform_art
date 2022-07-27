@@ -1743,14 +1743,15 @@ void MarkCompact::ConcurrentCompaction(uint8_t* page) {
   uint8_t* unused_space_begin = bump_pointer_space_->Begin()
                                 + (moving_first_objs_count_ + black_page_count_) * kPageSize;
   DCHECK(IsAligned<kPageSize>(unused_space_begin));
-  auto zeropage_ioctl = [this] (void* addr) {
+  auto zeropage_ioctl = [this] (void* addr, bool tolerate_eexist) {
                           struct uffdio_zeropage uffd_zeropage;
                           DCHECK(IsAligned<kPageSize>(addr));
                           uffd_zeropage.range.start = reinterpret_cast<uintptr_t>(addr);
                           uffd_zeropage.range.len = kPageSize;
                           uffd_zeropage.mode = 0;
-                          CHECK_EQ(ioctl(uffd_, UFFDIO_ZEROPAGE, &uffd_zeropage), 0)
-                                << "ioctl: zeropage: " << strerror(errno);
+                          int ret = ioctl(uffd_, UFFDIO_ZEROPAGE, &uffd_zeropage);
+                          CHECK(ret == 0 || (tolerate_eexist && ret == -1 && errno == EEXIST))
+                              << "ioctl: zeropage: " << strerror(errno);
                           DCHECK_EQ(uffd_zeropage.zeropage, static_cast<ssize_t>(kPageSize));
                         };
 
@@ -1782,7 +1783,7 @@ void MarkCompact::ConcurrentCompaction(uint8_t* page) {
       // Only the last thread should map the zeropage so that the gc-thread can
       // proceed.
       if (ret == 1) {
-        zeropage_ioctl(fault_addr);
+        zeropage_ioctl(fault_addr, /*tolerate_eexist*/ false);
       } else {
         struct uffdio_range uffd_range;
         uffd_range.start = msg.arg.pagefault.address;
@@ -1795,7 +1796,10 @@ void MarkCompact::ConcurrentCompaction(uint8_t* page) {
     DCHECK(bump_pointer_space_->HasAddress(reinterpret_cast<mirror::Object*>(fault_addr)));
     uint8_t* fault_page = AlignDown(fault_addr, kPageSize);
     if (fault_addr >= unused_space_begin) {
-      zeropage_ioctl(fault_page);
+      // There is a race which allows more than one thread to install a
+      // zero-page. But we can tolerate that. So absorb the EEXIST returned by
+      // the ioctl and move on.
+      zeropage_ioctl(fault_page, /*tolerate_eexist*/ true);
       continue;
     }
     size_t page_idx = (fault_page - bump_pointer_space_->Begin()) / kPageSize;
@@ -1832,7 +1836,10 @@ void MarkCompact::ConcurrentCompaction(uint8_t* page) {
                        page);
         copy_ioctl(fault_page, page);
       } else {
-        zeropage_ioctl(fault_page);
+        // We should never have a case where two workers are trying to install a
+        // zeropage in this range as we synchronize using
+        // moving_pages_status_[page_idx].
+        zeropage_ioctl(fault_page, /*tolerate_eexist*/ false);
       }
     }
   }
@@ -2438,7 +2445,6 @@ void MarkCompact::VisitRoots(mirror::CompressedReference<mirror::Object>** roots
 }
 
 mirror::Object* MarkCompact::IsMarked(mirror::Object* obj) {
-  CHECK(obj != nullptr);
   if (moving_space_bitmap_->HasAddress(obj)) {
     const bool is_black = reinterpret_cast<uint8_t*>(obj) >= black_allocations_begin_;
     if (compacting_) {
@@ -2456,20 +2462,21 @@ mirror::Object* MarkCompact::IsMarked(mirror::Object* obj) {
   } else if (immune_spaces_.ContainsObject(obj)) {
     return obj;
   } else {
-    // Either large-object, or heap corruption.
-    if (!IsAligned<kPageSize>(obj)) {
-      // Objects in large-object space are page aligned. So if we have an object
-      // which doesn't belong to any space and is not page-aligned as well, then
-      // it's memory corruption.
-      // TODO: implement protect/unprotect in bump-pointer space.
-      heap_->GetVerification()->LogHeapCorruption(nullptr, MemberOffset(0), obj, /*fatal*/ true);
-    }
     DCHECK(heap_->GetLargeObjectsSpace())
         << "ref=" << obj
         << " doesn't belong to any of the spaces and large object space doesn't exist";
     accounting::LargeObjectBitmap* los_bitmap = heap_->GetLargeObjectsSpace()->GetMarkBitmap();
-    DCHECK(los_bitmap->HasAddress(obj));
-    return los_bitmap->Test(obj) ? obj : nullptr;
+    if (los_bitmap->HasAddress(obj)) {
+      DCHECK(IsAligned<kPageSize>(obj));
+      return los_bitmap->Test(obj) ? obj : nullptr;
+    } else {
+      // The given obj is not in any of the known spaces, so return null. This could
+      // happen for instance in interpreter caches wherein a concurrent updation
+      // to the cache could result in obj being a non-reference. This is
+      // tolerable because SweepInterpreterCaches only updates if the given
+      // object has moved, which can't be the case for the non-reference.
+      return nullptr;
+    }
   }
 }
 
