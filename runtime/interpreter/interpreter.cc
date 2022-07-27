@@ -511,7 +511,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
         new_dex_pc = dex_pc + instr->SizeInCodeUnits();
       } else if (instr->IsInvoke()) {
         DCHECK(deopt_method_type == DeoptimizationMethodType::kDefault);
-        if (IsStringInit(*instr, shadow_frame->GetMethod())) {
+        if (IsStringInit(instr, shadow_frame->GetMethod())) {
           uint16_t this_obj_vreg = GetReceiverRegisterForStringInit(instr);
           // Move the StringFactory.newStringFromChars() result into the register representing
           // "this object" when invoking the string constructor in the original dex instruction.
