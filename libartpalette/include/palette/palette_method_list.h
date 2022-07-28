@@ -23,8 +23,8 @@
 
 #include "jni.h"
 
-// Methods in version 1 API
 #define PALETTE_METHOD_LIST(M)                                              \
+  /* Methods in version 1 API, corresponding to SDK level 31. */            \
   M(PaletteSchedSetPriority, int32_t tid, int32_t java_priority)            \
   M(PaletteSchedGetPriority, int32_t tid, /*out*/int32_t* java_priority)    \
   M(PaletteWriteCrashThreadStacks, const char* stacks, size_t stacks_len)   \
@@ -53,6 +53,7 @@
   M(PaletteShouldReportJniInvocations, bool*)                               \
   M(PaletteNotifyBeginJniInvocation, JNIEnv* env)                           \
   M(PaletteNotifyEndJniInvocation, JNIEnv* env)                             \
+  /* Methods in version 2 API, corresponding to SDK level 33. */            \
   M(PaletteReportLockContention, JNIEnv* env,                               \
                                  int32_t wait_ms,                           \
                                  const char* filename,                      \

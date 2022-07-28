@@ -14,12 +14,12 @@
 # limitations under the License.
 #
 
-LIBARTPALETTE_1 {
+LIBARTPALETTE_1 { # introduced=31
   global:
     # --- VERSION 01 API ---
     PaletteSchedSetPriority; # apex
     PaletteSchedGetPriority; # apex
-    PaletteWriteCrashThreadStacks; #apex
+    PaletteWriteCrashThreadStacks; # apex
     PaletteTraceEnabled; # apex
     PaletteTraceBegin; # apex
     PaletteTraceEnd; # apex
@@ -27,16 +27,21 @@ LIBARTPALETTE_1 {
     PaletteAshmemCreateRegion; # apex
     PaletteAshmemSetProtRegion; # apex
     PaletteCreateOdrefreshStagingDirectory; # apex
-    PaletteShouldReportDex2oatCompilation; #apex
-    PaletteNotifyStartDex2oatCompilation; #apex
-    PaletteNotifyEndDex2oatCompilation; #apex
-    PaletteNotifyDexFileLoaded; #apex
-    PaletteNotifyOatFileLoaded; #apex
-    PaletteShouldReportJniInvocations; #apex
-    PaletteNotifyBeginJniInvocation; #apex
-    PaletteNotifyEndJniInvocation; #apex
-    PaletteReportLockContention; #apex
+    PaletteShouldReportDex2oatCompilation; # apex
+    PaletteNotifyStartDex2oatCompilation; # apex
+    PaletteNotifyEndDex2oatCompilation; # apex
+    PaletteNotifyDexFileLoaded; # apex
+    PaletteNotifyOatFileLoaded; # apex
+    PaletteShouldReportJniInvocations; # apex
+    PaletteNotifyBeginJniInvocation; # apex
+    PaletteNotifyEndJniInvocation; # apex
 
   local:
     *;
 };
+
+LIBARTPALETTE_2 { # introduced=33
+  global:
+    # --- VERSION 02 API ---
+    PaletteReportLockContention; # apex
+} LIBARTPALETTE_1;
