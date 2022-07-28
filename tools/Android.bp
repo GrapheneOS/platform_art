@@ -97,23 +97,3 @@ sh_binary {
         },
     },
 }
-
-python_binary_host {
-    name: "art-run-test-checker",
-    srcs: [
-        "checker/**/*.py",
-    ],
-    main: "checker/checker.py",
-    version: {
-        py2: {
-            enabled: false,
-        },
-        py3: {
-            enabled: true,
-        },
-    },
-    test_suites: [
-        "general-tests",
-        "mts-art",
-    ],
-}
