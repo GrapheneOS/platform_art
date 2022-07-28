@@ -33,13 +33,7 @@ public class SystemAppTest {
         System.loadLibrary("bar.oem1");
         System.loadLibrary("foo.oem2");
         System.loadLibrary("bar.oem2");
-        assertLibraryNotFoundError("foo.product1");
-        assertLibraryNotFoundError("bar.product1");
-    }
-
-    private void assertLibraryNotFoundError(String libraryName) {
-        Throwable t =
-                assertThrows(UnsatisfiedLinkError.class, () -> System.loadLibrary(libraryName));
-        assertThat(t.getMessage()).containsMatch("dlopen failed: library .* not found");
+        System.loadLibrary("foo.product1");
+        System.loadLibrary("bar.product1");
     }
 }

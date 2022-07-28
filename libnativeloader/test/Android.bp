@@ -45,6 +45,12 @@ android_test_helper_app {
     defaults: ["art_module_source_build_java_defaults"],
     manifest: "loadlibrarytest_system_app_manifest.xml",
     srcs: ["src/android/test/app/SystemAppTest.java"],
+
+    // TODO(mast): Use old target SDK to avoid filtering on uses_library lists.
+    // Figure out what we need to do to make <uses-native-library> work in the
+    // test apps so we can use that instead.
+    sdk_version: "30",
+
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.ext.truth",
@@ -57,6 +63,12 @@ android_test_helper_app {
     defaults: ["art_module_source_build_java_defaults"],
     manifest: "loadlibrarytest_vendor_app_manifest.xml",
     srcs: ["src/android/test/app/VendorAppTest.java"],
+
+    // TODO(mast): Use old target SDK to avoid filtering on uses_library lists.
+    // Figure out what we need to do to make <uses-native-library> work in the
+    // test apps so we can use that instead.
+    sdk_version: "30",
+
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.ext.truth",
