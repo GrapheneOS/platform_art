@@ -173,6 +173,7 @@ libart_cc_defaults {
         "interpreter/interpreter.cc",
         "interpreter/interpreter_cache.cc",
         "interpreter/interpreter_common.cc",
+        "interpreter/interpreter_intrinsics.cc",
         "interpreter/interpreter_switch_impl0.cc",
         "interpreter/interpreter_switch_impl1.cc",
         "interpreter/interpreter_switch_impl2.cc",
