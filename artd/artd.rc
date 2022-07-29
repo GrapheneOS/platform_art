@@ -20,4 +20,4 @@ service artd /apex/com.android.art/bin/artd
     class core
     user artd
     group artd
-    capabilities DAC_OVERRIDE DAC_READ_SEARCH FOWNER
+    capabilities DAC_OVERRIDE DAC_READ_SEARCH FOWNER CHOWN
