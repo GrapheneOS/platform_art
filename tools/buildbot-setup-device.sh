@@ -173,6 +173,8 @@ if [[ -n "$ART_TEST_CHROOT" ]]; then
     || adb shell mount -o bind /dev "$ART_TEST_CHROOT/dev"
   adb shell mount | grep -q "^devpts on $ART_TEST_CHROOT/dev/pts type devpts " \
     || adb shell mount -o bind /dev/pts "$ART_TEST_CHROOT/dev/pts"
+  adb shell mount | grep -q " on $ART_TEST_CHROOT/dev/cpuctl type cgroup " \
+    || adb shell mount -o bind /dev/cpuctl "$ART_TEST_CHROOT/dev/cpuctl"
 
   # Create /apex directory in chroot.
   adb shell mkdir -p "$ART_TEST_CHROOT/apex"
