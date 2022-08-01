@@ -47,9 +47,11 @@
 #include "base/strlcpy.h"
 #include "base/mutex.h"
 #include "events.h"
+#include "instrumentation.h"
 #include "jni/java_vm_ext.h"
 #include "jni/jni_env_ext.h"
 #include "jvmti.h"
+#include "runtime.h"
 #include "ti_breakpoint.h"
 
 namespace art {
@@ -68,6 +70,13 @@ class ObjectTagTable;
 //
 // This is the value 0x70010200.
 static constexpr jint kArtTiVersion = JVMTI_VERSION_1_2 | 0x40000000;
+
+// Returns whether we are able to use all jvmti features.
+static inline bool IsFullJvmtiAvailable() {
+  art::Runtime* runtime = art::Runtime::Current();
+  return runtime->GetInstrumentation()->IsForcedInterpretOnly() ||
+         runtime->IsJavaDebuggableAtInit();
+}
 
 // A structure that is a jvmtiEnv with additional information for the runtime.
 struct ArtJvmTiEnv : public jvmtiEnv {
