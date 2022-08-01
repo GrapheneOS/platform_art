@@ -665,9 +665,12 @@ def run_test(command, test, test_variant, test_name):
       test_start_time = time.monotonic()
       if verbose:
         print_text("Starting %s at %s\n" % (test_name, test_start_time))
+      env = dict(os.environ)
+      env["FULL_TEST_NAME"] = test_name
       if gdb or gdb_dex2oat:
         proc = _popen(
           args=command.split(),
+          env=env,
           stderr=subprocess.STDOUT,
           universal_newlines=True,
           start_new_session=True
@@ -675,6 +678,7 @@ def run_test(command, test, test_variant, test_name):
       else:
         proc = _popen(
           args=command.split(),
+          env=env,
           stderr=subprocess.STDOUT,
           stdout = subprocess.PIPE,
           universal_newlines=True,

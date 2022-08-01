@@ -40,15 +40,17 @@ else
   tmp_dir="${TMPDIR}/${test_dir}"
 fi
 checker="${progdir}/../tools/checker/checker.py"
-export JAVA="java"
-export JAVAC="javac -g -Xlint:-options -source 1.8 -target 1.8"
-export RUN="${progdir}/etc/run-test-jar"
-export DEX_LOCATION=/data/run-test/${test_dir}
 
 # ANDROID_BUILD_TOP is not set in a build environment.
 if [ -z "$ANDROID_BUILD_TOP" ]; then
     export ANDROID_BUILD_TOP=$oldwd
 fi
+
+export JAVA="java"
+export JAVAC="javac -g -Xlint:-options -source 1.8 -target 1.8"
+export PYTHON3="${ANDROID_BUILD_TOP}/prebuilts/build-tools/path/linux-x86/python3"
+export RUN="${PYTHON3} ${progdir}/etc/run-test-jar"
+export DEX_LOCATION=/data/run-test/${test_dir}
 
 # OUT_DIR defaults to out, and may be relative to $ANDROID_BUILD_TOP.
 # Convert it to an absolute path, since we cd into the tmp_dir to run the tests.
