@@ -136,7 +136,7 @@ TEST_F(ArtExecTest, SetTaskProfiles) {
   ASSERT_GE(scratch_file.GetFd(), 0);
 
   std::vector<std::string> args{art_exec_bin_,
-                                "--set-task-profile=Dex2oatPerformance",
+                                "--set-task-profile=ProcessCapacityHigh",
                                 "--",
                                 GetBin("sh"),
                                 "-c",
@@ -144,7 +144,7 @@ TEST_F(ArtExecTest, SetTaskProfiles) {
   auto [pid, scope_guard] = ScopedExecAndWait(args);
   std::string cgroup;
   ASSERT_TRUE(android::base::ReadFileToString(filename, &cgroup));
-  EXPECT_THAT(cgroup, HasSubstr(":cpu:/dex2oat\n"));
+  EXPECT_THAT(cgroup, HasSubstr(":cpuset:/foreground\n"));
 }
 
 TEST_F(ArtExecTest, SetPriority) {
