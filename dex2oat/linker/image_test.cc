@@ -176,5 +176,27 @@ TEST_F(ImageTest, TestSoftVerificationFailureDuringClassInitialization) {
           /*image_classes_failing_aot_clinit=*/ {"LClassToInitialize;"});
 }
 
+TEST_F(ImageTest, TestImageClassWithArrayClassWithUnresolvedComponent) {
+  CompilationHelper helper;
+  Compile(ImageHeader::kStorageModeUncompressed,
+          /*max_image_block_size=*/std::numeric_limits<uint32_t>::max(),
+          helper,
+          "ArrayClassWithUnresolvedComponent",
+          /*image_classes=*/ {"LClassWithStatic;",
+                              "LClassWithStaticConst;",
+                              "[LClassWithMissingInterface;",
+                              "[[LClassWithMissingInterface;",
+                              "[LClassWithMissingSuper",
+                              "[[LClassWithMissingSuper"},
+          /*image_classes_failing_aot_clinit=*/ {
+                              "LClassWithStatic;",
+                              "LClassWithStaticConst;"},
+          /*image_classes_failing_resolution=*/ {
+                              "[LClassWithMissingInterface;",
+                              "[[LClassWithMissingInterface;",
+                              "[LClassWithMissingSuper",
+                              "[[LClassWithMissingSuper"});
+}
+
 }  // namespace linker
 }  // namespace art
