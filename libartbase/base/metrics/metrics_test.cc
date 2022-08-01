@@ -661,6 +661,8 @@ TEST(CompilerReason, FromName) {
             CompilationReason::kCmdLine);
   ASSERT_EQ(CompilationReasonFromName("error"),
             CompilationReason::kError);
+  ASSERT_EQ(CompilationReasonFromName("vdex"),
+            CompilationReason::kVdex);
 }
 
 TEST(CompilerReason, Name) {
@@ -700,6 +702,8 @@ TEST(CompilerReason, Name) {
             "cmdline");
   ASSERT_EQ(CompilationReasonName(CompilationReason::kError),
             "error");
+  ASSERT_EQ(CompilationReasonName(CompilationReason::kVdex),
+            "vdex");
 }
 }  // namespace metrics
 }  // namespace art
