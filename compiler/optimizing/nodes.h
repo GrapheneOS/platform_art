@@ -1346,6 +1346,17 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // are safely updated.
   void DisconnectAndDelete();
 
+  // Disconnects `this` from all its successors and updates their phis, if the successors have them.
+  // If `visited` is provided, it will use the information to know if a successor is reachable and
+  // skip updating those phis.
+  void DisconnectFromSuccessors(const ArenaBitVector* visited = nullptr);
+
+  // Removes the catch phi uses of the instructions in `this`. If `remove_instruction` is set to
+  // true, it will also remove the instructions themselves. This method assumes the instructions
+  // have been removed from all users with the exception of catch phis because of missing
+  // exceptional edges in the graph.
+  void RemoveCatchPhiUses(bool remove_instruction);
+
   void AddInstruction(HInstruction* instruction);
   // Insert `instruction` before/after an existing instruction `cursor`.
   void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
