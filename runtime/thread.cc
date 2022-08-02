@@ -3160,7 +3160,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
 static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
     const ScopedObjectAccessAlreadyRunnable& soa,
     ClassLinker* class_linker,
-    ObjPtr<mirror::StackFrameInfo> stackFrameInfo,
+    Handle<mirror::StackFrameInfo> stackFrameInfo,
     ArtMethod* method,
     uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_) {
   StackHandleScope<4> hs(soa.Self());
@@ -3188,12 +3188,13 @@ static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
     }
   }
 
-  auto declaring_class_object(hs.NewHandle<mirror::Class>(method->GetDeclaringClass()));
+  Handle<mirror::Class> declaring_class_object(
+      hs.NewHandle<mirror::Class>(method->GetDeclaringClass()));
 
   ArtMethod* interface_method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   const char* method_name = interface_method->GetName();
   CHECK(method_name != nullptr);
-  auto method_name_object(
+  Handle<mirror::String> method_name_object(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), method_name)));
   if (method_name_object == nullptr) {
     soa.Self()->AssertPendingOOMException();
@@ -3202,7 +3203,7 @@ static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
 
   dex::ProtoIndex proto_idx =
       method->GetDexFile()->GetIndexForProtoId(interface_method->GetPrototype());
-  auto method_type_object(hs.NewHandle<mirror::MethodType>(
+  Handle<mirror::MethodType> method_type_object(hs.NewHandle<mirror::MethodType>(
       class_linker->ResolveMethodType(soa.Self(), proto_idx, interface_method)));
   if (method_type_object == nullptr) {
     soa.Self()->AssertPendingOOMException();
@@ -3215,7 +3216,7 @@ static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
                                source_name_object,
                                line_number,
                                static_cast<int32_t>(dex_pc));
-  return stackFrameInfo;
+  return stackFrameInfo.Get();
 }
 
 jint Thread::InternalStackTraceToStackFrameInfoArray(
@@ -3231,8 +3232,9 @@ jint Thread::InternalStackTraceToStackFrameInfoArray(
   int32_t depth = soa.Decode<mirror::Array>(internal)->GetLength() - 1;
   DCHECK_GE(depth, 0);
 
-  ObjPtr<mirror::ObjectArray<mirror::Object>> frames =
-      soa.Decode<mirror::ObjectArray<mirror::Object>>(output_array);
+  StackHandleScope<5> hs(soa.Self());
+  Handle<mirror::ObjectArray<mirror::Object>> frames =
+      hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Object>>(output_array));
 
   jint endBufferIndex = startBufferIndex;
 
@@ -3245,19 +3247,19 @@ jint Thread::InternalStackTraceToStackFrameInfoArray(
     return endBufferIndex;
   }
 
-  ObjPtr<mirror::ObjectArray<mirror::Object>> decoded_traces =
-      soa.Decode<mirror::Object>(internal)->AsObjectArray<mirror::Object>();
+  Handle<mirror::ObjectArray<mirror::Object>> decoded_traces =
+      hs.NewHandle(soa.Decode<mirror::Object>(internal)->AsObjectArray<mirror::Object>());
   // Methods and dex PC trace is element 0.
   DCHECK(decoded_traces->Get(0)->IsIntArray() || decoded_traces->Get(0)->IsLongArray());
-  const ObjPtr<mirror::PointerArray> method_trace =
-      ObjPtr<mirror::PointerArray>::DownCast(decoded_traces->Get(0));
+  Handle<mirror::PointerArray> method_trace =
+      hs.NewHandle(ObjPtr<mirror::PointerArray>::DownCast(decoded_traces->Get(0)));
 
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> sfi_class =
       hs.NewHandle(class_linker->FindSystemClass(soa.Self(), "Ljava/lang/StackFrameInfo;"));
   DCHECK(sfi_class != nullptr);
 
+  MutableHandle<mirror::StackFrameInfo> frame = hs.NewHandle<mirror::StackFrameInfo>(nullptr);
   for (uint32_t i = static_cast<uint32_t>(startLevel); i < static_cast<uint32_t>(depth); ++i) {
     if (endBufferIndex >= startBufferIndex + batchSize || endBufferIndex >= bufferSize) {
       break;
@@ -3273,8 +3275,8 @@ jint Thread::InternalStackTraceToStackFrameInfoArray(
     if (frameObject == nullptr || !frameObject->InstanceOf(sfi_class.Get())) {
       break;
     }
-    auto frame = ObjPtr<mirror::StackFrameInfo>::DownCast(frameObject);
-    frame = InitStackFrameInfo(soa, class_linker, frame, method, dex_pc);
+    frame.Assign(ObjPtr<mirror::StackFrameInfo>::DownCast(frameObject));
+    frame.Assign(InitStackFrameInfo(soa, class_linker, frame, method, dex_pc));
     // Break if InitStackFrameInfo fails to allocate objects or assign the fields.
     if (frame == nullptr) {
       break;
