@@ -36,5 +36,5 @@ art_cc_test {
         "libgmock",
         "libprocinfo",
     ],
-    test_config_template: "//art/test:art-gtests-target-standalone-root-template",
+    test_config_template: "art_standalone_dexpreopt_tests.xml",
 }
