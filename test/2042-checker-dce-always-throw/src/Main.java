@@ -28,6 +28,10 @@ public class Main {
     assertEquals(0, $noinline$testDoNotSimplifyInTry(1));
     assertEquals(0, $noinline$testSimplifyInCatch(1));
     assertEquals(0, $noinline$testDoNotSimplifyInCatchInOuterTry(1));
+
+    // Test that we update the phis correctly after simplifying an always throwing method, and
+    // recomputing dominance.
+    assertEquals(0, $noinline$UpdatePhisCorrectly(1));
   }
 
   private static void alwaysThrows() throws Error {
@@ -287,6 +291,45 @@ public class Main {
     } catch (Error e) {
       return 123;
     }
+  }
+
+  // Check that when we perform SimplifyAlwaysThrows, that the phi for `phi_value` exists, and that
+  // we correctly update it after running DCE.
+
+  /// CHECK-START: int Main.$noinline$UpdatePhisCorrectly(int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
+  /// CHECK-DAG:   <<Const5:i\d+>> IntConstant 5
+  /// CHECK-DAG:   <<ReturnValue:i\d+>> Phi [<<Const0>>,<<Const5>>]
+  /// CHECK-DAG:   Return [<<ReturnValue>>]
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
+  /// CHECK-EVAL:  "<<ExitBlock>>" != "<<TargetBlock>>"
+
+  /// CHECK-START: int Main.$noinline$UpdatePhisCorrectly(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
+  /// CHECK-DAG:   Return [<<Const0>>]
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$UpdatePhisCorrectly(int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   Phi
+  private static int $noinline$UpdatePhisCorrectly(int num) {
+    int phi_value = 0;
+    if (num == 0) {
+      alwaysThrows();
+
+      // This while loop is here so that the `if (num == 0)` will be several blocks instead of
+      // just one.
+      while (num == 0) {
+        // Assign to phi_value so that the loop is not empty.
+        phi_value = 2;
+      }
+
+      phi_value = 5;
+    }
+    return phi_value;
   }
 
   static void assertEquals(int expected, int actual) {
