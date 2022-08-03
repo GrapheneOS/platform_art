@@ -1816,7 +1816,7 @@ class InstructionHandler {
 
 #define OPCODE_CASE(OPCODE, OPCODE_NAME, NAME, FORMAT, i, a, e, v)                                \
 template<bool do_access_check, bool transaction_active>                                           \
-ASAN_NO_INLINE static bool OP_##OPCODE_NAME(                                                      \
+ASAN_NO_INLINE NO_STACK_PROTECTOR static bool OP_##OPCODE_NAME(                                   \
     SwitchImplContext* ctx,                                                                       \
     const instrumentation::Instrumentation* instrumentation,                                      \
     Thread* self,                                                                                 \
