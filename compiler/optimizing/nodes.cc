@@ -165,15 +165,33 @@ void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visit
   }
 }
 
+// This method assumes `insn` has been removed from all users with the exception of catch
+// phis because of missing exceptional edges in the graph. It removes the
+// instruction from catch phi uses, together with inputs of other catch phis in
+// the catch block at the same index, as these must be dead too.
+static void RemoveCatchPhiUsesOfDeadInstruction(HInstruction* insn) {
+  DCHECK(!insn->HasEnvironmentUses());
+  while (insn->HasNonEnvironmentUses()) {
+    const HUseListNode<HInstruction*>& use = insn->GetUses().front();
+    size_t use_index = use.GetIndex();
+    HBasicBlock* user_block = use.GetUser()->GetBlock();
+    DCHECK(use.GetUser()->IsPhi() && user_block->IsCatchBlock());
+    for (HInstructionIterator phi_it(user_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+      phi_it.Current()->AsPhi()->RemoveInputAt(use_index);
+    }
+  }
+}
+
 void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) {
   for (size_t i = 0; i < blocks_.size(); ++i) {
     if (!visited.IsBitSet(i)) {
       HBasicBlock* block = blocks_[i];
       if (block == nullptr) continue;
-      // We only need to update the successor, which might be live.
-      for (HBasicBlock* successor : block->GetSuccessors()) {
-        successor->RemovePredecessor(block);
-      }
+
+      // Disconnect from its sucessors, and remove all remaining uses.
+      block->DisconnectFromSuccessors(&visited);
+      block->RemoveCatchPhiUses(/* remove_instruction = */ false);
+
       // Remove the block from the list of blocks, so that further analyses
       // never see it.
       blocks_[i] = nullptr;
@@ -2377,24 +2395,6 @@ void HInstructionList::Add(const HInstructionList& instruction_list) {
   }
 }
 
-// Should be called on instructions in a dead block in post order. This method
-// assumes `insn` has been removed from all users with the exception of catch
-// phis because of missing exceptional edges in the graph. It removes the
-// instruction from catch phi uses, together with inputs of other catch phis in
-// the catch block at the same index, as these must be dead too.
-static void RemoveUsesOfDeadInstruction(HInstruction* insn) {
-  DCHECK(!insn->HasEnvironmentUses());
-  while (insn->HasNonEnvironmentUses()) {
-    const HUseListNode<HInstruction*>& use = insn->GetUses().front();
-    size_t use_index = use.GetIndex();
-    HBasicBlock* user_block =  use.GetUser()->GetBlock();
-    DCHECK(use.GetUser()->IsPhi() && user_block->IsCatchBlock());
-    for (HInstructionIterator phi_it(user_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-      phi_it.Current()->AsPhi()->RemoveInputAt(use_index);
-    }
-  }
-}
-
 void HBasicBlock::DisconnectAndDelete() {
   // Dominators must be removed after all the blocks they dominate. This way
   // a loop header is removed last, a requirement for correct loop information
@@ -2419,52 +2419,14 @@ void HBasicBlock::DisconnectAndDelete() {
   }
 
   // (2) Disconnect the block from its successors and update their phis.
-  for (HBasicBlock* successor : successors_) {
-    // Delete this block from the list of predecessors.
-    size_t this_index = successor->GetPredecessorIndexOf(this);
-    successor->predecessors_.erase(successor->predecessors_.begin() + this_index);
-
-    // Check that `successor` has other predecessors, otherwise `this` is the
-    // dominator of `successor` which violates the order DCHECKed at the top.
-    DCHECK(!successor->predecessors_.empty());
-
-    // Remove this block's entries in the successor's phis. Skip exceptional
-    // successors because catch phi inputs do not correspond to predecessor
-    // blocks but throwing instructions. The inputs of the catch phis will be
-    // updated in step (3).
-    if (!successor->IsCatchBlock()) {
-      if (successor->predecessors_.size() == 1u) {
-        // The successor has just one predecessor left. Replace phis with the only
-        // remaining input.
-        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-          HPhi* phi = phi_it.Current()->AsPhi();
-          phi->ReplaceWith(phi->InputAt(1 - this_index));
-          successor->RemovePhi(phi);
-        }
-      } else {
-        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
-          phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
-        }
-      }
-    }
-  }
-  successors_.clear();
+  DisconnectFromSuccessors();
 
   // (3) Remove instructions and phis. Instructions should have no remaining uses
   //     except in catch phis. If an instruction is used by a catch phi at `index`,
   //     remove `index`-th input of all phis in the catch block since they are
   //     guaranteed dead. Note that we may miss dead inputs this way but the
   //     graph will always remain consistent.
-  for (HBackwardInstructionIterator it(GetInstructions()); !it.Done(); it.Advance()) {
-    HInstruction* insn = it.Current();
-    RemoveUsesOfDeadInstruction(insn);
-    RemoveInstruction(insn);
-  }
-  for (HInstructionIterator it(GetPhis()); !it.Done(); it.Advance()) {
-    HPhi* insn = it.Current()->AsPhi();
-    RemoveUsesOfDeadInstruction(insn);
-    RemovePhi(insn);
-  }
+  RemoveCatchPhiUses(/* remove_instruction = */ true);
 
   // (4) Disconnect the block from its predecessors and update their
   //     control-flow instructions.
@@ -2536,6 +2498,58 @@ void HBasicBlock::DisconnectAndDelete() {
   // (7) Delete from the graph, update reverse post order.
   graph_->DeleteDeadEmptyBlock(this);
   SetGraph(nullptr);
+}
+
+void HBasicBlock::DisconnectFromSuccessors(const ArenaBitVector* visited) {
+  for (HBasicBlock* successor : successors_) {
+    // Delete this block from the list of predecessors.
+    size_t this_index = successor->GetPredecessorIndexOf(this);
+    successor->predecessors_.erase(successor->predecessors_.begin() + this_index);
+
+    if (visited != nullptr && !visited->IsBitSet(successor->GetBlockId())) {
+      // `successor` itself is dead. Therefore, there is no need to update its phis.
+      continue;
+    }
+
+    DCHECK(!successor->predecessors_.empty());
+
+    // Remove this block's entries in the successor's phis. Skips exceptional
+    // successors because catch phi inputs do not correspond to predecessor
+    // blocks but throwing instructions. They are removed in `RemoveCatchPhiUses`.
+    if (!successor->IsCatchBlock()) {
+      if (successor->predecessors_.size() == 1u) {
+        // The successor has just one predecessor left. Replace phis with the only
+        // remaining input.
+        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+          HPhi* phi = phi_it.Current()->AsPhi();
+          phi->ReplaceWith(phi->InputAt(1 - this_index));
+          successor->RemovePhi(phi);
+        }
+      } else {
+        for (HInstructionIterator phi_it(successor->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
+          phi_it.Current()->AsPhi()->RemoveInputAt(this_index);
+        }
+      }
+    }
+  }
+  successors_.clear();
+}
+
+void HBasicBlock::RemoveCatchPhiUses(bool remove_instruction) {
+  for (HBackwardInstructionIterator it(GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* insn = it.Current();
+    RemoveCatchPhiUsesOfDeadInstruction(insn);
+    if (remove_instruction) {
+      RemoveInstruction(insn);
+    }
+  }
+  for (HInstructionIterator it(GetPhis()); !it.Done(); it.Advance()) {
+    HPhi* insn = it.Current()->AsPhi();
+    RemoveCatchPhiUsesOfDeadInstruction(insn);
+    if (remove_instruction) {
+      RemovePhi(insn);
+    }
+  }
 }
 
 void HBasicBlock::MergeInstructionsWith(HBasicBlock* other) {
