@@ -85,7 +85,7 @@ void JitCompiler::ParseCompilerOptions() {
     if (StartsWith(option, "--instruction-set-variant=")) {
       const char* str = option.c_str() + strlen("--instruction-set-variant=");
       VLOG(compiler) << "JIT instruction set variant " << str;
-      instruction_set_features = InstructionSetFeatures::FromVariant(
+      instruction_set_features = InstructionSetFeatures::FromVariantAndHwcap(
           instruction_set, str, &error_msg);
       if (instruction_set_features == nullptr) {
         LOG(WARNING) << "Error parsing " << option << " message=" << error_msg;
