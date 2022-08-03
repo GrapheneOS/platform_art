@@ -706,6 +706,7 @@ class TestingTargetChecker:
 
     # Check ART jar files which are needed for gtests.
     self._checker.check_art_test_data('art-gtest-jars-AbstractMethod.jar')
+    self._checker.check_art_test_data('art-gtest-jars-ArrayClassWithUnresolvedComponent.dex')
     self._checker.check_art_test_data('art-gtest-jars-MyClassNatives.jar')
     self._checker.check_art_test_data('art-gtest-jars-Main.jar')
     self._checker.check_art_test_data('art-gtest-jars-ProtoCompare.jar')
