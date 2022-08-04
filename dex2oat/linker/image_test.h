@@ -86,7 +86,8 @@ class ImageTest : public CommonCompilerDriverTest {
                /*out*/ CompilationHelper& out_helper,
                const std::string& extra_dex = "",
                const std::initializer_list<std::string>& image_classes = {},
-               const std::initializer_list<std::string>& image_classes_failing_aot_clinit = {});
+               const std::initializer_list<std::string>& image_classes_failing_aot_clinit = {},
+               const std::initializer_list<std::string>& image_classes_failing_resolution = {});
 
   void SetUpRuntimeOptions(RuntimeOptions* options) override {
     CommonCompilerTest::SetUpRuntimeOptions(options);
@@ -352,7 +353,8 @@ inline void ImageTest::Compile(
     CompilationHelper& helper,
     const std::string& extra_dex,
     const std::initializer_list<std::string>& image_classes,
-    const std::initializer_list<std::string>& image_classes_failing_aot_clinit) {
+    const std::initializer_list<std::string>& image_classes_failing_aot_clinit,
+    const std::initializer_list<std::string>& image_classes_failing_resolution) {
   for (const std::string& image_class : image_classes_failing_aot_clinit) {
     ASSERT_TRUE(ContainsElement(image_classes, image_class));
   }
@@ -375,12 +377,14 @@ inline void ImageTest::Compile(
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
     for (const std::string& image_class : image_classes) {
       ObjPtr<mirror::Class> klass =
-          class_linker->FindSystemClass(Thread::Current(), image_class.c_str());
-      EXPECT_TRUE(klass != nullptr);
-      EXPECT_TRUE(klass->IsResolved());
-      if (ContainsElement(image_classes_failing_aot_clinit, image_class)) {
+          class_linker->LookupClass(Thread::Current(), image_class.c_str(), nullptr);
+      if (ContainsElement(image_classes_failing_resolution, image_class)) {
+        EXPECT_TRUE(klass == nullptr || klass->IsErroneousUnresolved());
+      } else  if (ContainsElement(image_classes_failing_aot_clinit, image_class)) {
+        ASSERT_TRUE(klass != nullptr) << image_class;
         EXPECT_FALSE(klass->IsInitialized());
       } else {
+        ASSERT_TRUE(klass != nullptr) << image_class;
         EXPECT_TRUE(klass->IsInitialized());
       }
     }

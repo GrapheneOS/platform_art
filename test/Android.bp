@@ -1396,6 +1396,7 @@ filegroup {
     srcs: [
         ":art-gtest-jars-AbstractMethod",
         ":art-gtest-jars-AllFields",
+        ":art-gtest-jars-ArrayClassWithUnresolvedComponent",
         ":art-gtest-jars-DefaultMethods",
         ":art-gtest-jars-ErroneousA",
         ":art-gtest-jars-ErroneousB",
@@ -1844,6 +1845,13 @@ genrule {
     defaults: ["art-gtest-jars-smali-defaults"],
     srcs: ["VerifySoftFailDuringClinit/**/*.smali"],
     out: ["art-gtest-jars-VerifySoftFailDuringClinit.dex"],
+}
+
+genrule {
+    name: "art-gtest-jars-ArrayClassWithUnresolvedComponent",
+    defaults: ["art-gtest-jars-smali-defaults"],
+    srcs: ["ArrayClassWithUnresolvedComponent/*.smali"],
+    out: ["art-gtest-jars-ArrayClassWithUnresolvedComponent.dex"],
 }
 
 genrule {

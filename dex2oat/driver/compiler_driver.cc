@@ -1109,6 +1109,7 @@ static void MaybeAddToImageClasses(Thread* self,
                                    HashSet<std::string>* image_classes)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK_EQ(self, Thread::Current());
+  DCHECK(klass->IsResolved());
   Runtime* runtime = Runtime::Current();
   gc::Heap* heap = runtime->GetHeap();
   if (heap->ObjectIsInBootImageSpace(klass)) {

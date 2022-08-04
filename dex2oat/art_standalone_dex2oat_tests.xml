@@ -23,6 +23,7 @@
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="art-gtest-jars-AbstractMethod.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-AbstractMethod.jar" />
+        <option name="push" value="art-gtest-jars-ArrayClassWithUnresolvedComponent.dex->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-ArrayClassWithUnresolvedComponent.dex" />
         <option name="push" value="art-gtest-jars-DefaultMethods.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-DefaultMethods.jar" />
         <option name="push" value="art-gtest-jars-Dex2oatVdexPublicSdkDex.dex->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-Dex2oatVdexPublicSdkDex.dex" />
         <option name="push" value="art-gtest-jars-Dex2oatVdexTestDex.jar->/data/local/tmp/art_standalone_dex2oat_tests/art-gtest-jars-Dex2oatVdexTestDex.jar" />
