@@ -3157,7 +3157,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
   return result;
 }
 
-static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
+[[nodiscard]] static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
     const ScopedObjectAccessAlreadyRunnable& soa,
     ClassLinker* class_linker,
     Handle<mirror::StackFrameInfo> stackFrameInfo,
@@ -3219,9 +3219,11 @@ static ObjPtr<mirror::StackFrameInfo> InitStackFrameInfo(
   return stackFrameInfo.Get();
 }
 
+constexpr jlong FILL_CLASS_REFS_ONLY = 0x2;  // StackStreamFactory.FILL_CLASS_REFS_ONLY
+
 jint Thread::InternalStackTraceToStackFrameInfoArray(
     const ScopedObjectAccessAlreadyRunnable& soa,
-    [[maybe_unused]] jlong mode,  // See java.lang.StackStreamFactory for the mode flags
+    jlong mode,  // See java.lang.StackStreamFactory for the mode flags
     jobject internal,
     jint startLevel,
     jint batchSize,
@@ -3232,8 +3234,8 @@ jint Thread::InternalStackTraceToStackFrameInfoArray(
   int32_t depth = soa.Decode<mirror::Array>(internal)->GetLength() - 1;
   DCHECK_GE(depth, 0);
 
-  StackHandleScope<5> hs(soa.Self());
-  Handle<mirror::ObjectArray<mirror::Object>> frames =
+  StackHandleScope<6> hs(soa.Self());
+  Handle<mirror::ObjectArray<mirror::Object>> framesOrClasses =
       hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Object>>(output_array));
 
   jint endBufferIndex = startBufferIndex;
@@ -3242,10 +3244,13 @@ jint Thread::InternalStackTraceToStackFrameInfoArray(
     return endBufferIndex;
   }
 
-  int32_t bufferSize = frames->GetLength();
+  int32_t bufferSize = framesOrClasses->GetLength();
   if (startBufferIndex < 0 || startBufferIndex >= bufferSize) {
     return endBufferIndex;
   }
+
+  // The FILL_CLASS_REFS_ONLY flag is defined in AbstractStackWalker.fetchStackFrames() javadoc.
+  bool isClassArray = (mode & FILL_CLASS_REFS_ONLY) != 0;
 
   Handle<mirror::ObjectArray<mirror::Object>> decoded_traces =
       hs.NewHandle(soa.Decode<mirror::Object>(internal)->AsObjectArray<mirror::Object>());
@@ -3260,26 +3265,32 @@ jint Thread::InternalStackTraceToStackFrameInfoArray(
   DCHECK(sfi_class != nullptr);
 
   MutableHandle<mirror::StackFrameInfo> frame = hs.NewHandle<mirror::StackFrameInfo>(nullptr);
+  MutableHandle<mirror::Class> clazz = hs.NewHandle<mirror::Class>(nullptr);
   for (uint32_t i = static_cast<uint32_t>(startLevel); i < static_cast<uint32_t>(depth); ++i) {
     if (endBufferIndex >= startBufferIndex + batchSize || endBufferIndex >= bufferSize) {
       break;
     }
 
-    // Prepare parameters for fields in StackFrameInfo
     ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, kRuntimePointerSize);
-    uint32_t dex_pc = method_trace->GetElementPtrSize<uint32_t>(
-        i + static_cast<uint32_t>(method_trace->GetLength()) / 2, kRuntimePointerSize);
+    if (isClassArray) {
+      clazz.Assign(method->GetDeclaringClass());
+      framesOrClasses->Set(endBufferIndex, clazz.Get());
+    } else {
+      // Prepare parameters for fields in StackFrameInfo
+      uint32_t dex_pc = method_trace->GetElementPtrSize<uint32_t>(
+          i + static_cast<uint32_t>(method_trace->GetLength()) / 2, kRuntimePointerSize);
 
-    ObjPtr<mirror::Object> frameObject = frames->Get(endBufferIndex);
-    // If libcore didn't allocate the object, we just stop here, but it's unlikely.
-    if (frameObject == nullptr || !frameObject->InstanceOf(sfi_class.Get())) {
-      break;
-    }
-    frame.Assign(ObjPtr<mirror::StackFrameInfo>::DownCast(frameObject));
-    frame.Assign(InitStackFrameInfo(soa, class_linker, frame, method, dex_pc));
-    // Break if InitStackFrameInfo fails to allocate objects or assign the fields.
-    if (frame == nullptr) {
-      break;
+      ObjPtr<mirror::Object> frameObject = framesOrClasses->Get(endBufferIndex);
+      // If libcore didn't allocate the object, we just stop here, but it's unlikely.
+      if (frameObject == nullptr || !frameObject->InstanceOf(sfi_class.Get())) {
+        break;
+      }
+      frame.Assign(ObjPtr<mirror::StackFrameInfo>::DownCast(frameObject));
+      frame.Assign(InitStackFrameInfo(soa, class_linker, frame, method, dex_pc));
+      // Break if InitStackFrameInfo fails to allocate objects or assign the fields.
+      if (frame == nullptr) {
+        break;
+      }
     }
 
     ++endBufferIndex;
