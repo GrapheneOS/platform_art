@@ -1409,17 +1409,17 @@ else:
     export("ASAN_OPTIONS", RUN_TEST_ASAN_OPTIONS)
 
     run(f"mkdir -p {mkdir_locations}", save_cmd=False)
-    run(setupapex_cmdline)
-    if run(installapex_test_cmdline, check=False).returncode != 0:
-      run(installapex_cmdline)
-    run(linkroot_cmdline)
-    run(linkroot_overlay_cmdline)
-    run(profman_cmdline)
-    run(dex2oat_cmdline)
-    run(dm_cmdline)
-    run(vdex_cmdline)
-    run(strip_cmdline)
-    run(sync_cmdline)
+    run(setupapex_cmdline, capture_output=False)
+    if run(installapex_test_cmdline, check=False, capture_output=False).returncode != 0:
+      run(installapex_cmdline, capture_output=False)
+    run(linkroot_cmdline, capture_output=False)
+    run(linkroot_overlay_cmdline, capture_output=False)
+    run(profman_cmdline, capture_output=False)
+    run(dex2oat_cmdline, capture_output=False)
+    run(dm_cmdline, capture_output=False)
+    run(vdex_cmdline, capture_output=False)
+    run(strip_cmdline, capture_output=False)
+    run(sync_cmdline, capture_output=False)
 
     if CREATE_RUNNER == "y":
       with open(f"{DEX_LOCATION}/runit.sh", "w") as f:
