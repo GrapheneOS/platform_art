@@ -314,18 +314,14 @@ public class OdsignTestUtils {
         // We can't use the "-c '%.3Y'" flag when to get the timestamp because the Toybox's `stat`
         // implementation truncates the timestamp to seconds, which is not accurate enough, so we
         // use "-c '%%y'" and parse the time ourselves.
-        String dateTimeStr = mTestInfo.getDevice()
-                .executeShellCommand(String.format("stat -c '%%y' '%s'", filename))
-                .trim();
+        String dateTimeStr = assertCommandSucceeds(String.format("stat -c '%%y' '%s'", filename));
         return parseFormattedDateTime(dateTimeStr);
     }
 
     public long getCurrentTimeMs() throws Exception {
         // We can't use getDevice().getDeviceDate() because it truncates the timestamp to seconds,
         // which is not accurate enough.
-        String dateTimeStr = mTestInfo.getDevice()
-                .executeShellCommand("date +'%Y-%m-%d %H:%M:%S.%N %z'")
-                .trim();
+        String dateTimeStr = assertCommandSucceeds("date +'%Y-%m-%d %H:%M:%S.%N %z'");
         return parseFormattedDateTime(dateTimeStr);
     }
 
