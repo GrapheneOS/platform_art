@@ -57,17 +57,7 @@ inline To implicit_cast(From const &f) {
 // type Foo to type SubclassOfFoo), static_cast<> isn't safe, because
 // how do you know the pointer is really of type SubclassOfFoo?  It
 // could be a bare Foo, or of type DifferentSubclassOfFoo.  Thus,
-// when you downcast, you should use this macro.  In debug mode, we
-// use dynamic_cast<> to double-check the downcast is legal (we die
-// if it's not).  In normal mode, we do the efficient static_cast<>
-// instead.  Thus, it's important to test in debug mode to make sure
-// the cast is legal!
-//    This is the only place in the code we should use dynamic_cast<>.
-// In particular, you SHOULDN'T be using dynamic_cast<> in order to
-// do RTTI (eg code like this:
-//    if (dynamic_cast<Subclass1>(foo)) HandleASubclass1Object(foo);
-//    if (dynamic_cast<Subclass2>(foo)) HandleASubclass2Object(foo);
-// You should design the code some other way not to need this.
+// when you downcast, you should use this macro.
 
 template<typename To, typename From>     // use like this: down_cast<T*>(foo);
 inline To down_cast(From* f) {                   // so we only accept pointers
