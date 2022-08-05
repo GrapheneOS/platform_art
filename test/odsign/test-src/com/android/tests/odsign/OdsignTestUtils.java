@@ -86,7 +86,8 @@ public class OdsignTestUtils {
         String packagesOutput =
                 mTestInfo.getDevice().executeShellCommand("pm list packages -f --apex-only");
         Pattern p = Pattern.compile(
-                "^package:(.*)=(com(?:\\.google)?\\.android\\.art)$", Pattern.MULTILINE);
+                "^package:(.*)=(com(?:\\.google)?\\.android(?:\\.go)?\\.art)$",
+                Pattern.MULTILINE);
         Matcher m = p.matcher(packagesOutput);
         assertTrue("ART module not found. Packages are:\n" + packagesOutput, m.find());
         String artApexPath = m.group(1);
