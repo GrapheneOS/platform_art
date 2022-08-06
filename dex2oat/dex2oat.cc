@@ -607,8 +607,13 @@ class Dex2Oat final {
   }
 
   void ParseInstructionSetVariant(const std::string& option, ParserOptions* parser_options) {
-    compiler_options_->instruction_set_features_ = InstructionSetFeatures::FromVariant(
-        compiler_options_->instruction_set_, option, &parser_options->error_msg);
+    if (kIsTargetBuild) {
+      compiler_options_->instruction_set_features_ = InstructionSetFeatures::FromVariantAndHwcap(
+          compiler_options_->instruction_set_, option, &parser_options->error_msg);
+    } else {
+      compiler_options_->instruction_set_features_ = InstructionSetFeatures::FromVariant(
+          compiler_options_->instruction_set_, option, &parser_options->error_msg);
+    }
     if (compiler_options_->instruction_set_features_ == nullptr) {
       Usage("%s", parser_options->error_msg.c_str());
     }
