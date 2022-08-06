@@ -171,6 +171,18 @@ Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromVariant(
                                                                 has_sve));
 }
 
+Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::IntersectWithHwcap() const {
+  Arm64FeaturesUniquePtr hwcaps = Arm64InstructionSetFeatures::FromHwcap();
+  return Arm64FeaturesUniquePtr(new Arm64InstructionSetFeatures(
+      fix_cortex_a53_835769_,
+      fix_cortex_a53_843419_,
+      has_crc_ && hwcaps->has_crc_,
+      has_lse_ && hwcaps->has_lse_,
+      has_fp16_ && hwcaps->has_fp16_,
+      has_dotprod_ && hwcaps->has_dotprod_,
+      has_sve_ && hwcaps->has_sve_));
+}
+
 Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromBitmap(uint32_t bitmap) {
   bool is_a53 = (bitmap & kA53Bitfield) != 0;
   bool has_crc = (bitmap & kCRCBitField) != 0;

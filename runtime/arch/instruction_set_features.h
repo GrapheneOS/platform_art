@@ -39,6 +39,12 @@ class InstructionSetFeatures {
                                                                    const std::string& variant,
                                                                    std::string* error_msg);
 
+  // Process a CPU variant string for the given ISA and make sure the features advertised
+  // are supported by the hardware. This is needed for Pixel3a which wrongly
+  // reports itself as cortex-a75.
+  static std::unique_ptr<const InstructionSetFeatures> FromVariantAndHwcap(
+      InstructionSet isa, const std::string& variant, std::string* error_msg);
+
   // Parse a bitmap for the given isa and create an InstructionSetFeatures.
   static std::unique_ptr<const InstructionSetFeatures> FromBitmap(InstructionSet isa,
                                                                   uint32_t bitmap);
