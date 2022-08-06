@@ -53,6 +53,33 @@ std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::FromVarian
   UNREACHABLE();
 }
 
+std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::FromVariantAndHwcap(
+    InstructionSet isa, const std::string& variant, std::string* error_msg) {
+  auto variant_features = FromVariant(isa, variant, error_msg);
+  if (variant_features == nullptr) {
+    return nullptr;
+  }
+  // Pixel3a is wrongly reporting itself as cortex-a75, so validate the features
+  // with hwcaps.
+  // Note that when cross-compiling on device (using dex2oat32 for compiling
+  // arm64), the hwcaps will report that no feature is supported. This is
+  // currently our best approach to be safe/correct. Maybe using the
+  // cpu_features library could fix this issue.
+  if (isa == InstructionSet::kArm64) {
+    auto new_features = down_cast<const Arm64InstructionSetFeatures*>(variant_features.get())
+        ->IntersectWithHwcap();
+    if (!variant_features->Equals(new_features.get())) {
+      LOG(WARNING) << "Mismatch between instruction set variant of device ("
+            << *variant_features
+            << ") and features returned by the hardware (" << *new_features << ")";
+    }
+    return new_features;
+  } else {
+    // TODO: Implement this validation on all architectures.
+    return variant_features;
+  }
+}
+
 std::unique_ptr<const InstructionSetFeatures> InstructionSetFeatures::FromBitmap(InstructionSet isa,
                                                                                  uint32_t bitmap) {
   std::unique_ptr<const InstructionSetFeatures> result;

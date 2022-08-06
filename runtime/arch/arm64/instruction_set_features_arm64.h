@@ -53,6 +53,10 @@ class Arm64InstructionSetFeatures final : public InstructionSetFeatures {
   // Use external cpu_features library.
   static Arm64FeaturesUniquePtr FromCpuFeatures();
 
+  // Return a new set of instruction set features, intersecting `this` features
+  // with hardware capabilities.
+  Arm64FeaturesUniquePtr IntersectWithHwcap() const;
+
   bool Equals(const InstructionSetFeatures* other) const override;
 
   // Note that newer CPUs do not have a53 erratum 835769 and 843419,
