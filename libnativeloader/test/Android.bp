@@ -40,11 +40,9 @@ android_test_helper_app {
     jni_libs: ["libnativeloader_testlib"],
 }
 
-android_test_helper_app {
-    name: "loadlibrarytest_system_app",
+java_defaults {
+    name: "loadlibrarytest_app_defaults",
     defaults: ["art_module_source_build_java_defaults"],
-    manifest: "loadlibrarytest_system_app_manifest.xml",
-    srcs: ["src/android/test/app/SystemAppTest.java"],
 
     // TODO(mast): Use old target SDK to avoid filtering on uses_library lists.
     // Figure out what we need to do to make <uses-native-library> work in the
@@ -59,21 +57,40 @@ android_test_helper_app {
 }
 
 android_test_helper_app {
+    name: "loadlibrarytest_system_priv_app",
+    defaults: ["loadlibrarytest_app_defaults"],
+    manifest: "loadlibrarytest_system_priv_app_manifest.xml",
+    // /system/priv-app currently reuses the same test as /system/app.
+    srcs: ["src/android/test/app/SystemAppTest.java"],
+}
+
+android_test_helper_app {
+    name: "loadlibrarytest_system_app",
+    defaults: ["loadlibrarytest_app_defaults"],
+    manifest: "loadlibrarytest_system_app_manifest.xml",
+    srcs: ["src/android/test/app/SystemAppTest.java"],
+}
+
+android_test_helper_app {
+    name: "loadlibrarytest_system_ext_app",
+    defaults: ["loadlibrarytest_app_defaults"],
+    manifest: "loadlibrarytest_system_ext_app_manifest.xml",
+    // /system_ext should behave the same as /system, so use the same test class there.
+    srcs: ["src/android/test/app/SystemAppTest.java"],
+}
+
+android_test_helper_app {
+    name: "loadlibrarytest_product_app",
+    defaults: ["loadlibrarytest_app_defaults"],
+    manifest: "loadlibrarytest_product_app_manifest.xml",
+    srcs: ["src/android/test/app/ProductAppTest.java"],
+}
+
+android_test_helper_app {
     name: "loadlibrarytest_vendor_app",
-    defaults: ["art_module_source_build_java_defaults"],
+    defaults: ["loadlibrarytest_app_defaults"],
     manifest: "loadlibrarytest_vendor_app_manifest.xml",
     srcs: ["src/android/test/app/VendorAppTest.java"],
-
-    // TODO(mast): Use old target SDK to avoid filtering on uses_library lists.
-    // Figure out what we need to do to make <uses-native-library> work in the
-    // test apps so we can use that instead.
-    sdk_version: "30",
-
-    static_libs: [
-        "androidx.test.ext.junit",
-        "androidx.test.ext.truth",
-        "androidx.test.rules",
-    ],
 }
 
 java_test_host {
@@ -83,9 +100,12 @@ java_test_host {
     libs: ["tradefed"],
     java_resources: [
         ":library_container_app",
+        ":loadlibrarytest_system_priv_app",
         ":loadlibrarytest_system_app",
+        ":loadlibrarytest_system_ext_app",
+        ":loadlibrarytest_product_app",
         ":loadlibrarytest_vendor_app",
     ],
     test_config: "libnativeloader_e2e_tests.xml",
-    test_suites: ["generic-tests"],
+    test_suites: ["general-tests"],
 }
