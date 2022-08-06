@@ -21,8 +21,10 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.invoker.IInvocationContext;
 import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.IAbi;
 import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
@@ -52,7 +54,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        DeviceContext ctx = new DeviceContext(testInfo.getDevice());
+        DeviceContext ctx = new DeviceContext(testInfo.getContext(), testInfo.getDevice());
 
         // A soft reboot is slow, so do setup for all tests and reboot once.
 
@@ -66,13 +68,20 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
         // locations to test library loading restrictions, so we cannot use
         // ITestDevice.installPackage for it since it only installs in /data.
 
+        // For testSystemPrivApp
+        ctx.pushApk("loadlibrarytest_system_priv_app", "/system/priv-app");
+
         // For testSystemApp
-        ctx.pushResource("/loadlibrarytest_system_app.apk",
-                "/system/app/loadlibrarytest_system_app/loadlibrarytest_system_app.apk");
+        ctx.pushApk("loadlibrarytest_system_app", "/system/app");
+
+        // For testSystemExtApp
+        ctx.pushApk("loadlibrarytest_system_ext_app", "/system_ext/app");
+
+        // For testProductApp
+        ctx.pushApk("loadlibrarytest_product_app", "/product/app");
 
         // For testVendorApp
-        ctx.pushResource("/loadlibrarytest_vendor_app.apk",
-                "/vendor/app/loadlibrarytest_vendor_app/loadlibrarytest_vendor_app.apk");
+        ctx.pushApk("loadlibrarytest_vendor_app", "/vendor/app");
 
         ctx.softReboot();
 
@@ -87,8 +96,26 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
     }
 
     @Test
+    public void testSystemPrivApp() throws Exception {
+        // There's currently no difference in the tests between /system/priv-app and /system/app, so
+        // let's reuse the same one.
+        runDeviceTests("android.test.app.system_priv", "android.test.app.SystemAppTest");
+    }
+
+    @Test
     public void testSystemApp() throws Exception {
         runDeviceTests("android.test.app.system", "android.test.app.SystemAppTest");
+    }
+
+    @Test
+    public void testSystemExtApp() throws Exception {
+        // /system_ext should behave the same as /system, so run the same test class there.
+        runDeviceTests("android.test.app.system_ext", "android.test.app.SystemAppTest");
+    }
+
+    @Test
+    public void testProductApp() throws Exception {
+        runDeviceTests("android.test.app.product", "android.test.app.ProductAppTest");
     }
 
     @Test
@@ -142,11 +169,13 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
     // Class for code that needs an ITestDevice. It is instantiated both in tests and in
     // (Before|After)ClassWithInfo.
     private static class DeviceContext implements AutoCloseable {
+        IInvocationContext mContext;
         ITestDevice mDevice;
         CleanupPaths mCleanup;
-        private String mPrimaryArch;
+        private String mTestArch;
 
-        DeviceContext(ITestDevice device) {
+        DeviceContext(IInvocationContext context, ITestDevice device) {
+            mContext = context;
             mDevice = device;
             mCleanup = new CleanupPaths(mDevice);
         }
@@ -182,11 +211,13 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             mDevice.waitForDeviceAvailable();
         }
 
-        String getPrimaryArch() throws DeviceNotAvailableException {
-            if (mPrimaryArch == null) {
-                mPrimaryArch = assertCommandSucceeds("getprop ro.bionic.arch");
+        String getTestArch() throws DeviceNotAvailableException {
+            if (mTestArch == null) {
+                IAbi abi = mContext.getConfigurationDescriptor().getAbi();
+                mTestArch = abi != null ? abi.getName()
+                                        : assertCommandSucceeds("getprop ro.bionic.arch");
             }
-            return mPrimaryArch;
+            return mTestArch;
         }
 
         // Pushes the given file contents to the device at the given destination path. destPath is
@@ -204,10 +235,15 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             assertThat(mDevice.pushFile(hostTempFile, destPath)).isTrue();
         }
 
+        void pushApk(String apkBaseName, String destPath) throws Exception {
+            pushResource("/" + apkBaseName + ".apk",
+                    destPath + "/" + apkBaseName + "/" + apkBaseName + ".apk");
+        }
+
         // Like pushString, but extracts libnativeloader_testlib.so from the library_container_app
         // APK and pushes it to destPath. "${LIB}" is replaced with "lib" or "lib64" as appropriate.
         void pushNativeTestLib(ZipFile libApk, String destPath) throws Exception {
-            String libApkPath = "lib/" + getPrimaryArch() + "/libnativeloader_testlib.so";
+            String libApkPath = "lib/" + getTestArch() + "/libnativeloader_testlib.so";
             ZipEntry entry = libApk.getEntry(libApkPath);
             assertWithMessage("Failed to find " + libApkPath + " in library_container_app.apk")
                     .that(entry)
@@ -218,7 +254,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
                 libraryTempFile = writeStreamToTempFile("libnativeloader_testlib.so", inStream);
             }
 
-            String libDir = getPrimaryArch().contains("64") ? "lib64" : "lib";
+            String libDir = getTestArch().contains("64") ? "lib64" : "lib";
             destPath = destPath.replace("${LIB}", libDir);
 
             mCleanup.addPath(destPath);
