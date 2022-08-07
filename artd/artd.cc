@@ -36,11 +36,10 @@
 #include "android/binder_auto_utils.h"
 #include "android/binder_manager.h"
 #include "android/binder_process.h"
-#include "base/array_ref.h"
 #include "base/file_utils.h"
 #include "oat_file_assistant.h"
+#include "oat_file_assistant_context.h"
 #include "path_utils.h"
-#include "runtime.h"
 #include "tools/tools.h"
 
 namespace art {
@@ -106,33 +105,32 @@ ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
                                           const std::string& in_instructionSet,
                                           const std::string& in_classLoaderContext,
                                           GetOptimizationStatusResult* _aidl_return) {
-  Result<OatFileAssistant::RuntimeOptions> runtime_options = GetRuntimeOptions();
-  if (!runtime_options.ok()) {
+  Result<OatFileAssistantContext*> ofa_context = GetOatFileAssistantContext();
+  if (!ofa_context.ok()) {
     return ScopedAStatus::fromExceptionCodeWithMessage(
         EX_ILLEGAL_STATE,
-        ("Failed to get runtime options: " + runtime_options.error().message()).c_str());
+        ("Failed to get OatFileAssistantContext: " + ofa_context.error().message()).c_str());
   }
 
   std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
-  auto oat_file_assistant = OatFileAssistant::Create(
-      in_dexFile.c_str(),
-      in_instructionSet.c_str(),
-      in_classLoaderContext.c_str(),
-      /*load_executable=*/false,
-      /*only_load_trusted_executable=*/true,
-      std::make_unique<OatFileAssistant::RuntimeOptions>(std::move(*runtime_options)),
-      &context,
-      &error_msg);
+  auto oat_file_assistant = OatFileAssistant::Create(in_dexFile.c_str(),
+                                                     in_instructionSet.c_str(),
+                                                     in_classLoaderContext.c_str(),
+                                                     /*load_executable=*/false,
+                                                     /*only_load_trusted_executable=*/true,
+                                                     ofa_context.value(),
+                                                     &context,
+                                                     &error_msg);
   if (oat_file_assistant == nullptr) {
     return ScopedAStatus::fromExceptionCodeWithMessage(
         EX_ILLEGAL_STATE, ("Failed to create OatFileAssistant: " + error_msg).c_str());
   }
 
   std::string ignored_odex_status;
-  oat_file_assistant->GetOptimizationStatus(&_aidl_return->compilerFilter,
+  oat_file_assistant->GetOptimizationStatus(&_aidl_return->locationDebugString,
+                                            &_aidl_return->compilerFilter,
                                             &_aidl_return->compilationReason,
-                                            &_aidl_return->locationDebugString,
                                             &ignored_odex_status);
 
   // We ignore odex_status because it is not meaningful. It can only be either "up-to-date",
@@ -157,14 +155,19 @@ Result<void> Artd::Start() {
   return {};
 }
 
-Result<OatFileAssistant::RuntimeOptions> Artd::GetRuntimeOptions() {
-  return OatFileAssistant::RuntimeOptions{
-      .image_locations = *OR_RETURN(GetBootImageLocations()),
-      .boot_class_path = *OR_RETURN(GetBootClassPath()),
-      .boot_class_path_locations = *OR_RETURN(GetBootClassPath()),
-      .deny_art_apex_data_files = DenyArtApexDataFiles(),
-      .apex_versions = *OR_RETURN(GetApexVersions()),
-  };
+Result<OatFileAssistantContext*> Artd::GetOatFileAssistantContext() {
+  if (ofa_context_ == nullptr) {
+    ofa_context_ = std::make_unique<OatFileAssistantContext>(
+        std::make_unique<OatFileAssistantContext::RuntimeOptions>(
+            OatFileAssistantContext::RuntimeOptions{
+                .image_locations = *OR_RETURN(GetBootImageLocations()),
+                .boot_class_path = *OR_RETURN(GetBootClassPath()),
+                .boot_class_path_locations = *OR_RETURN(GetBootClassPath()),
+                .deny_art_apex_data_files = DenyArtApexDataFiles(),
+            }));
+  }
+
+  return ofa_context_.get();
 }
 
 Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
@@ -200,15 +203,6 @@ Result<const std::vector<std::string>*> Artd::GetBootClassPath() {
   }
 
   return &cached_boot_class_path_.value();
-}
-
-android::base::Result<const std::string*> Artd::GetApexVersions() {
-  if (!cached_apex_versions_.has_value()) {
-    cached_apex_versions_ =
-        Runtime::GetApexVersions(ArrayRef<const std::string>(*OR_RETURN(GetBootClassPath())));
-  }
-
-  return &cached_apex_versions_.value();
 }
 
 bool Artd::UseJitZygote() {
