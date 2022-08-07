@@ -302,6 +302,11 @@ class Runtime {
     return boot_class_path_locations_.empty() ? boot_class_path_ : boot_class_path_locations_;
   }
 
+  // Dynamically add an element to boot class path.
+  void AppendToBootClassPath(const std::string& filename,
+                             const std::string& location,
+                             const std::vector<std::unique_ptr<const art::DexFile>>& dex_files);
+
   const std::vector<int>& GetBootClassPathFds() const {
     return boot_class_path_fds_;
   }
