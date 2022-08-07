@@ -24,10 +24,9 @@ import androidx.test.runner.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-// These tests are run in both /system and /system_ext.
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class SystemAppTest {
+public class ProductAppTest {
     @Test
     public void testLoadLibraries() {
         System.loadLibrary("foo.oem1");
