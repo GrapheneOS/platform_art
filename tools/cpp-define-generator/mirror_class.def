@@ -56,3 +56,8 @@ ASM_DEFINE(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET,
 ASM_DEFINE(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE,
            art::enum_cast<uint32_t>(art::ClassStatus::kVisiblyInitialized) <<
                (art::SubtypeCheckBits::BitStructSizeOf() % art::kBitsPerByte))
+ASM_DEFINE(MIRROR_CLASS_IS_INITIALIZING_VALUE,
+           art::enum_cast<uint32_t>(art::ClassStatus::kInitializing) <<
+               (art::SubtypeCheckBits::BitStructSizeOf() % art::kBitsPerByte))
+ASM_DEFINE(MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET,
+           art::mirror::Class::ClinitThreadIdOffset().Int32Value())
