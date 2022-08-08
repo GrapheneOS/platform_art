@@ -1922,12 +1922,29 @@ bool ImageSpace::BootImageLayout::ReadHeader(const std::string& base_location,
     return false;
   }
 
-  // Validate oat files. We do it here so that the boot image will be re-compiled in memory if it's
-  // outdated.
-  size_t component_count = (header.GetImageSpaceCount() == 1u) ? header.GetComponentCount() : 1u;
-  for (size_t i = 0; i < header.GetImageSpaceCount(); i++) {
-    if (!ValidateOatFile(base_location, base_filename, bcp_index + i, component_count, error_msg)) {
-      return false;
+  bool validate_oat_files = true;
+  Runtime* runtime = Runtime::Current();
+  if (runtime != nullptr && runtime->GetHeap() != nullptr) {
+    for (const ImageSpace* image_space : runtime->GetHeap()->GetBootImageSpaces()) {
+      if (image_space->GetComponentCount() == header.GetImageSpaceCount() &&
+          image_space->GetImageHeader().GetImageChecksum() == header.GetImageChecksum()) {
+        // This image has been loaded by the runtime, meaning that the oat files were validated when
+        // the runtime loaded them, so we don't have to validate them again.
+        validate_oat_files = false;
+        break;
+      }
+    }
+  }
+
+  if (validate_oat_files) {
+    // Validate oat files. We do it here so that the boot image will be re-compiled in memory if
+    // it's outdated.
+    size_t component_count = (header.GetImageSpaceCount() == 1u) ? header.GetComponentCount() : 1u;
+    for (size_t i = 0; i < header.GetImageSpaceCount(); i++) {
+      if (!ValidateOatFile(
+              base_location, base_filename, bcp_index + i, component_count, error_msg)) {
+        return false;
+      }
     }
   }
 
