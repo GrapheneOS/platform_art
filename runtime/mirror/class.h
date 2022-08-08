@@ -571,6 +571,10 @@ class MANAGED Class final : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Class, object_size_alloc_fast_path_);
   }
 
+  static constexpr MemberOffset ClinitThreadIdOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_);
+  }
+
   ALWAYS_INLINE void SetObjectSize(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetObjectSizeAllocFastPath(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_);
