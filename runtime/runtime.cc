@@ -1004,6 +1004,22 @@ bool Runtime::Start() {
     }
     CreateJitCodeCache(/*rwx_memory_allowed=*/true);
     CreateJit();
+#ifdef ADDRESS_SANITIZER
+    // (b/238730394): In older implementations of sanitizer + glibc there is a race between
+    // pthread_create and dlopen that could cause a deadlock. pthread_create interceptor in ASAN
+    // uses dl_pthread_iterator with a callback that could request a dl_load_lock via call to
+    // __tls_get_addr [1]. dl_pthread_iterate would already hold dl_load_lock so this could cause a
+    // deadlock. __tls_get_addr needs a dl_load_lock only when there is a dlopen happening in
+    // parallel. As a workaround we wait for the pthread_create (i.e JIT thread pool creation) to
+    // finish before going to the next phase. Creating a system class loader could need a dlopen so
+    // we wait here till threads are initialized.
+    // [1] https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/sanitizer_common/sanitizer_linux_libcdep.cpp#L408
+    // See this for more context: https://reviews.llvm.org/D98926
+    // TODO(b/238730394): Revisit this workaround once we migrate to musl libc.
+    if (jit_ != nullptr) {
+      jit_->GetThreadPool()->WaitForWorkersToBeCreated();
+    }
+#endif
   }
 
   // Send the start phase event. We have to wait till here as this is when the main thread peer
