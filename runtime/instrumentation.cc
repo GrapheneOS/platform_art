@@ -1308,14 +1308,10 @@ const void* Instrumentation::GetCodeForInvoke(ArtMethod* method) {
   DCHECK(!method->IsProxyMethod()) << method->PrettyMethod();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const void* code = method->GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
-  // If we don't have the instrumentation, the resolution stub, the
-  // interpreter, or the nterp with clinit as entrypoint, just return the current entrypoint,
+  // If we don't have the instrumentation, the resolution stub, or the
+  // interpreter, just return the current entrypoint,
   // assuming it's the most optimized.
-  // We don't want to return the nterp with clinit entrypoint as it calls the
-  // resolution stub, and the resolution stub will call `GetCodeForInvoke` to know the actual
-  // code to invoke.
   if (code != GetQuickInstrumentationEntryPoint() &&
-      code != interpreter::GetNterpWithClinitEntryPoint() &&
       !class_linker->IsQuickResolutionStub(code) &&
       !class_linker->IsQuickToInterpreterBridge(code)) {
     return code;
