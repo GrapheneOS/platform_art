@@ -143,11 +143,12 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
-template<InvokeType type, bool access_check>
-inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
-                                     ObjPtr<mirror::Object>* this_object,
-                                     ArtMethod* referrer,
-                                     Thread* self)
+template<InvokeType type>
+inline ArtMethod* FindMethodToCall(Thread* self,
+                                   ArtMethod* referrer,
+                                   ObjPtr<mirror::Object>* this_object,
+                                   const Instruction& inst,
+                                   /*out*/ bool* string_init)
     REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(!Roles::uninterruptible_);
 
