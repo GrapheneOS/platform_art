@@ -3069,12 +3069,12 @@ void InstructionCodeGeneratorARMVIXL::VisitSelect(HSelect* select) {
   }
 }
 
-void LocationsBuilderARMVIXL::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  new (GetGraph()->GetAllocator()) LocationSummary(info);
+void LocationsBuilderARMVIXL::VisitNop(HNop* nop) {
+  new (GetGraph()->GetAllocator()) LocationSummary(nop);
 }
 
-void InstructionCodeGeneratorARMVIXL::VisitNativeDebugInfo(HNativeDebugInfo*) {
-  // MaybeRecordNativeDebugInfo is already called implicitly in CodeGenerator::Compile.
+void InstructionCodeGeneratorARMVIXL::VisitNop(HNop*) {
+  // The environment recording already happened in CodeGenerator::Compile.
 }
 
 void CodeGeneratorARMVIXL::IncreaseFrame(size_t adjustment) {
