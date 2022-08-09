@@ -2230,12 +2230,12 @@ void InstructionCodeGeneratorX86::VisitSelect(HSelect* select) {
   }
 }
 
-void LocationsBuilderX86::VisitNativeDebugInfo(HNativeDebugInfo* info) {
-  new (GetGraph()->GetAllocator()) LocationSummary(info);
+void LocationsBuilderX86::VisitNop(HNop* nop) {
+  new (GetGraph()->GetAllocator()) LocationSummary(nop);
 }
 
-void InstructionCodeGeneratorX86::VisitNativeDebugInfo(HNativeDebugInfo*) {
-  // MaybeRecordNativeDebugInfo is already called implicitly in CodeGenerator::Compile.
+void InstructionCodeGeneratorX86::VisitNop(HNop*) {
+  // The environment recording already happened in CodeGenerator::Compile.
 }
 
 void CodeGeneratorX86::IncreaseFrame(size_t adjustment) {
