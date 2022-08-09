@@ -89,9 +89,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitAndInstrumentStack(JNIEnv*,
   ScopedSuspendAll ssa(__FUNCTION__);
   Runtime::Current()->GetInstrumentation()->InstrumentThreadStack(other,
                                                                   /* deopt_all_frames= */ false);
-  MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);
-  bool updated = other->ModifySuspendCount(Thread::Current(), -1, nullptr, SuspendReason::kInternal);
-  CHECK(updated);
+  bool resumed = art::Runtime::Current()->GetThreadList()->Resume(other, SuspendReason::kInternal);
+  CHECK(resumed);
   instrumented = true;
   return;
 }
