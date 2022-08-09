@@ -1192,7 +1192,7 @@ class Dex2Oat final {
       if (!parser_options->boot_image_filename.empty()) {
         Usage("Option --boot-image and --force-jit-zygote cannot be specified together");
       }
-      parser_options->boot_image_filename = "boot.art:/nonx/boot-framework.art";
+      parser_options->boot_image_filename = GetJitZygoteBootImageLocation();
     }
 
     // If we have a profile, change the default compiler filter to speed-profile

@@ -52,18 +52,22 @@ class Artd : public aidl::com::android::server::art::BnArtd {
  private:
   android::base::Result<OatFileAssistant::RuntimeOptions> GetRuntimeOptions();
 
-  android::base::Result<void> BuildRuntimeOptionsCache();
+  android::base::Result<const std::vector<std::string>*> GetBootImageLocations();
 
-  bool HasRuntimeOptionsCache() const;
+  android::base::Result<const std::vector<std::string>*> GetBootClassPath();
 
-  bool UseJitZygote() const;
+  android::base::Result<const std::string*> GetApexVersions();
 
-  bool DenyArtApexDataFiles() const;
+  bool UseJitZygote();
 
-  std::vector<std::string> cached_boot_image_locations_;
-  std::vector<std::string> cached_boot_class_path_;
-  std::string cached_apex_versions_;
-  bool cached_deny_art_apex_data_files_;
+  bool DenyArtApexDataFiles();
+
+  std::optional<std::vector<std::string>> cached_boot_image_locations_;
+  std::optional<std::vector<std::string>> cached_boot_class_path_;
+  std::optional<std::string> cached_apex_versions_;
+  std::optional<bool> cached_use_jit_zygote_;
+  std::optional<bool> cached_deny_art_apex_data_files_;
+
   std::unique_ptr<art::tools::SystemProperties> props_;
 };
 

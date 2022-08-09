@@ -58,25 +58,6 @@ using ::ndk::ScopedAStatus;
 
 constexpr const char* kServiceName = "artd";
 
-Result<std::vector<std::string>> GetBootClassPath() {
-  const char* env_value = getenv("BOOTCLASSPATH");
-  if (env_value == nullptr || strlen(env_value) == 0) {
-    return Errorf("Failed to get environment variable 'BOOTCLASSPATH'");
-  }
-  return Split(env_value, ":");
-}
-
-Result<std::vector<std::string>> GetBootImageLocations(bool deny_art_apex_data_files) {
-  std::string error_msg;
-  std::string android_root = GetAndroidRootSafe(&error_msg);
-  if (!error_msg.empty()) {
-    return Errorf("Failed to get ANDROID_ROOT: {}", error_msg);
-  }
-
-  std::string location_str = GetDefaultBootImageLocation(android_root, deny_art_apex_data_files);
-  return Split(location_str, ":");
-}
-
 // Deletes a file. Returns the size of the deleted file, or 0 if the deleted file is empty or an
 // error occurs.
 int64_t GetSizeAndDeleteFile(const std::string& path) {
@@ -177,51 +158,77 @@ Result<void> Artd::Start() {
 }
 
 Result<OatFileAssistant::RuntimeOptions> Artd::GetRuntimeOptions() {
-  // We don't cache this system property because it can change.
-  bool use_jit_zygote = UseJitZygote();
-
-  if (!HasRuntimeOptionsCache()) {
-    OR_RETURN(BuildRuntimeOptionsCache());
-  }
-
   return OatFileAssistant::RuntimeOptions{
-      .image_locations = cached_boot_image_locations_,
-      .boot_class_path = cached_boot_class_path_,
-      .boot_class_path_locations = cached_boot_class_path_,
-      .use_jit_zygote = use_jit_zygote,
-      .deny_art_apex_data_files = cached_deny_art_apex_data_files_,
-      .apex_versions = cached_apex_versions_,
+      .image_locations = *OR_RETURN(GetBootImageLocations()),
+      .boot_class_path = *OR_RETURN(GetBootClassPath()),
+      .boot_class_path_locations = *OR_RETURN(GetBootClassPath()),
+      .deny_art_apex_data_files = DenyArtApexDataFiles(),
+      .apex_versions = *OR_RETURN(GetApexVersions()),
   };
 }
 
-Result<void> Artd::BuildRuntimeOptionsCache() {
-  // This system property can only be set by odsign on boot, so it won't change.
-  bool deny_art_apex_data_files = DenyArtApexDataFiles();
+Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
+  if (!cached_boot_image_locations_.has_value()) {
+    std::string location_str;
 
-  std::vector<std::string> image_locations =
-      OR_RETURN(GetBootImageLocations(deny_art_apex_data_files));
-  std::vector<std::string> boot_class_path = OR_RETURN(GetBootClassPath());
-  std::string apex_versions =
-      Runtime::GetApexVersions(ArrayRef<const std::string>(boot_class_path));
+    if (UseJitZygote()) {
+      location_str = GetJitZygoteBootImageLocation();
+    } else if (std::string value = props_->GetOrEmpty("dalvik.vm.boot-image"); !value.empty()) {
+      location_str = std::move(value);
+    } else {
+      std::string error_msg;
+      std::string android_root = GetAndroidRootSafe(&error_msg);
+      if (!error_msg.empty()) {
+        return Errorf("Failed to get ANDROID_ROOT: {}", error_msg);
+      }
+      location_str = GetDefaultBootImageLocation(android_root, DenyArtApexDataFiles());
+    }
 
-  cached_boot_image_locations_ = std::move(image_locations);
-  cached_boot_class_path_ = std::move(boot_class_path);
-  cached_apex_versions_ = std::move(apex_versions);
-  cached_deny_art_apex_data_files_ = deny_art_apex_data_files;
+    cached_boot_image_locations_ = Split(location_str, ":");
+  }
 
-  return {};
+  return &cached_boot_image_locations_.value();
 }
 
-bool Artd::HasRuntimeOptionsCache() const { return !cached_boot_image_locations_.empty(); }
+Result<const std::vector<std::string>*> Artd::GetBootClassPath() {
+  if (!cached_boot_class_path_.has_value()) {
+    const char* env_value = getenv("BOOTCLASSPATH");
+    if (env_value == nullptr || strlen(env_value) == 0) {
+      return Errorf("Failed to get environment variable 'BOOTCLASSPATH'");
+    }
+    cached_boot_class_path_ = Split(env_value, ":");
+  }
 
-bool Artd::UseJitZygote() const {
-  return props_->GetBool("dalvik.vm.profilebootclasspath",
-                         "persist.device_config.runtime_native_boot.profilebootclasspath",
-                         /*default_value=*/false);
+  return &cached_boot_class_path_.value();
 }
 
-bool Artd::DenyArtApexDataFiles() const {
-  return !props_->GetBool("odsign.verification.success", /*default_value=*/false);
+android::base::Result<const std::string*> Artd::GetApexVersions() {
+  if (!cached_apex_versions_.has_value()) {
+    cached_apex_versions_ =
+        Runtime::GetApexVersions(ArrayRef<const std::string>(*OR_RETURN(GetBootClassPath())));
+  }
+
+  return &cached_apex_versions_.value();
+}
+
+bool Artd::UseJitZygote() {
+  if (!cached_use_jit_zygote_.has_value()) {
+    cached_use_jit_zygote_ =
+        props_->GetBool("dalvik.vm.profilebootclasspath",
+                        "persist.device_config.runtime_native_boot.profilebootclasspath",
+                        /*default_value=*/false);
+  }
+
+  return cached_use_jit_zygote_.value();
+}
+
+bool Artd::DenyArtApexDataFiles() {
+  if (!cached_deny_art_apex_data_files_.has_value()) {
+    cached_deny_art_apex_data_files_ =
+        !props_->GetBool("odsign.verification.success", /*default_value=*/false);
+  }
+
+  return cached_deny_art_apex_data_files_.value();
 }
 
 }  // namespace artd

@@ -81,6 +81,9 @@ std::string GetDefaultBootImageLocation(std::string* error_msg);
 std::string GetDefaultBootImageLocation(const std::string& android_root,
                                         bool deny_art_apex_data_files);
 
+// Returns the boot image location that forces the runtime to run in JIT Zygote mode.
+std::string GetJitZygoteBootImageLocation();
+
 // Allows the name to be used for the dalvik cache directory (normally "dalvik-cache") to be
 // overridden with a new value.
 void OverrideDalvikCacheSubDirectory(std::string sub_dir);
