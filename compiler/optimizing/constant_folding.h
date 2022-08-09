@@ -19,6 +19,7 @@
 
 #include "nodes.h"
 #include "optimization.h"
+#include "optimizing/optimizing_compiler_stats.h"
 
 namespace art {
 
@@ -39,7 +40,8 @@ namespace art {
  */
 class HConstantFolding : public HOptimization {
  public:
-  HConstantFolding(HGraph* graph, const char* name) : HOptimization(graph, name) {}
+  HConstantFolding(HGraph* graph, OptimizingCompilerStats* stats, const char* name)
+      : HOptimization(graph, name, stats) {}
 
   bool Run() override;
 
