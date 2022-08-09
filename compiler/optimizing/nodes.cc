@@ -1477,10 +1477,6 @@ bool HInstructionList::FoundBefore(const HInstruction* instruction1,
   UNREACHABLE();
 }
 
-bool HInstruction::Dominates(HInstruction* other_instruction) const {
-  return other_instruction == this || StrictlyDominates(other_instruction);
-}
-
 bool HInstruction::StrictlyDominates(HInstruction* other_instruction) const {
   if (other_instruction == this) {
     // An instruction does not strictly dominate itself.
@@ -1540,19 +1536,14 @@ void HInstruction::ReplaceWith(HInstruction* other) {
   DCHECK(env_uses_.empty());
 }
 
-void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator,
-                                          HInstruction* replacement,
-                                          bool strictly_dominated) {
+void HInstruction::ReplaceUsesDominatedBy(HInstruction* dominator, HInstruction* replacement) {
   const HUseList<HInstruction*>& uses = GetUses();
   for (auto it = uses.begin(), end = uses.end(); it != end; /* ++it below */) {
     HInstruction* user = it->GetUser();
     size_t index = it->GetIndex();
     // Increment `it` now because `*it` may disappear thanks to user->ReplaceInput().
     ++it;
-    const bool dominated =
-        strictly_dominated ? dominator->StrictlyDominates(user) : dominator->Dominates(user);
-
-    if (dominated) {
+    if (dominator->StrictlyDominates(user)) {
       user->ReplaceInput(replacement, index);
     } else if (user->IsPhi() && !user->AsPhi()->IsCatchPhi()) {
       // If the input flows from a block dominated by `dominator`, we can replace it.
