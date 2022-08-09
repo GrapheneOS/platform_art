@@ -221,7 +221,7 @@ ArenaVector<HOptimization*> ConstructOptimizations(
       // Regular passes.
       //
       case OptimizationPass::kConstantFolding:
-        opt = new (allocator) HConstantFolding(graph, pass_name);
+        opt = new (allocator) HConstantFolding(graph, stats, pass_name);
         break;
       case OptimizationPass::kDeadCodeElimination:
         opt = new (allocator) HDeadCodeElimination(graph, stats, pass_name);
