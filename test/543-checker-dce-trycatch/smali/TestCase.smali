@@ -206,6 +206,7 @@
 ## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination$after_inlining (before)
 ## CHECK-DAG:     <<Arg0:i\d+>>      ParameterValue
 ## CHECK-DAG:     <<Arg1:i\d+>>      ParameterValue
+## CHECK-DAG:     <<Const0x0:i\d+>>  IntConstant 0
 ## CHECK-DAG:     <<Const0xa:i\d+>>  IntConstant 10
 ## CHECK-DAG:     <<Const0xb:i\d+>>  IntConstant 11
 ## CHECK-DAG:     <<Const0xc:i\d+>>  IntConstant 12
@@ -215,7 +216,7 @@
 ## CHECK-DAG:     <<Const0x10:i\d+>> IntConstant 16
 ## CHECK-DAG:     <<Const0x11:i\d+>> IntConstant 17
 ## CHECK-DAG:     <<Add:i\d+>>       Add [<<Arg0>>,<<Arg1>>]
-## CHECK-DAG:     <<Phi:i\d+>>       Phi [<<Add>>,<<Const0xf>>] reg:3 is_catch_phi:false
+## CHECK-DAG:     <<Phi:i\d+>>       Phi [<<Const0x0>>,<<Const0xf>>] reg:3 is_catch_phi:false
 ## CHECK-DAG:                        Phi [<<Const0xa>>,<<Const0xb>>,<<Const0xd>>] reg:1 is_catch_phi:true
 ## CHECK-DAG:                        Phi [<<Add>>,<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
 ## CHECK-DAG:                        Phi [<<Phi>>,<<Const0x10>>,<<Const0x11>>] reg:3 is_catch_phi:true
@@ -248,7 +249,8 @@
     if-eqz v3, :define_phi
     const v3, 0xf
     :define_phi
-    # v3 = Phi [Add, 0xf]          # dead catch phi input, defined in the dead block (HPhi)
+    # v3 = Phi [Add, 0xf]          # dead catch phi input, defined in the dead block (HPhi).
+                                   # Note that the Add has to be equal to 0 since we do `if-eqz v3`
     div-int/2addr p0, v2
 
     :else
