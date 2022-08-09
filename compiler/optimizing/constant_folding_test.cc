@@ -58,7 +58,7 @@ class ConstantFoldingTest : public OptimizingUnitTest {
     std::string actual_before = printer_before.str();
     EXPECT_EQ(expected_before, actual_before);
 
-    HConstantFolding(graph_, "constant_folding").Run();
+    HConstantFolding(graph_, /* stats= */ nullptr, "constant_folding").Run();
     GraphChecker graph_checker_cf(graph_);
     graph_checker_cf.Run();
     ASSERT_TRUE(graph_checker_cf.IsValid());
