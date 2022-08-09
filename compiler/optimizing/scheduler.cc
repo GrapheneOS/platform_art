@@ -718,7 +718,7 @@ bool HScheduler::IsSchedulable(const HInstruction* instruction) const {
   //    HLoadException
   //    HMemoryBarrier
   //    HMonitorOperation
-  //    HNativeDebugInfo
+  //    HNop
   //    HThrow
   //    HTryBoundary
   // TODO: Some of the instructions above may be safe to schedule (maybe as
