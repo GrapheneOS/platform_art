@@ -175,7 +175,6 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
           .boot_class_path = runtime_->GetBootClassPath(),
           .boot_class_path_locations = runtime_->GetBootClassPathLocations(),
           .boot_class_path_fds = &runtime_->GetBootClassPathFds(),
-          .use_jit_zygote = runtime_->HasImageWithProfile(),
           .deny_art_apex_data_files = runtime_->DenyArtApexDataFiles(),
           .apex_versions = runtime_->GetApexVersions(),
       });

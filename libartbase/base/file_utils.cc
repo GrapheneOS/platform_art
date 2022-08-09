@@ -365,6 +365,12 @@ std::string GetDefaultBootImageLocation(std::string* error_msg) {
   return GetDefaultBootImageLocation(android_root, /*deny_art_apex_data_files=*/false);
 }
 
+std::string GetJitZygoteBootImageLocation() {
+  // Intentionally use a non-existing location so that the runtime will fail to find the boot image
+  // and JIT bootclasspath with the given profiles.
+  return "/nonx/boot.art!/apex/com.android.art/etc/boot-image.prof!/system/etc/boot-image.prof";
+}
+
 static /*constinit*/ std::string_view dalvik_cache_sub_dir = "dalvik-cache";
 
 void OverrideDalvikCacheSubDirectory(std::string sub_dir) {
