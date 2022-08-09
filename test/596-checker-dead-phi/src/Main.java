@@ -22,8 +22,8 @@ public class Main {
     // Note that we don't actually enter the loops in the 'liveness'
     // method, so this is just a verification that that part of the code we
     // generated for that method is correct.
-    Method m = c.getMethod("liveness", int.class);
-    Object[] arguments = { 42 };
+    Method m = c.getMethod("liveness", int.class, int.class);
+    Object[] arguments = {42, 12};
     System.out.println(m.invoke(null, arguments));
   }
 }

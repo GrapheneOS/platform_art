@@ -1577,6 +1577,338 @@ public class Main {
     return (double) imm;
   }
 
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Mul
+
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (before)
+  /// CHECK-NOT:     IntConstant 6
+
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: int Main.$inline$SpecialCaseForZeroInt(int) constant_folding (after)
+  /// CHECK-DAG:     <<Const:i\d+>>    IntConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static int $inline$SpecialCaseForZeroInt(int value) {
+    if (value == 0) {
+      return (value + 2) * 3;
+    }
+    return value;
+  }
+
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Mul
+
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (before)
+  /// CHECK-NOT:     LongConstant 6
+
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: long Main.$inline$SpecialCaseForZeroLong(long) constant_folding (after)
+  /// CHECK-DAG:     <<Const:j\d+>>    LongConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static long $inline$SpecialCaseForZeroLong(long value) {
+    if (value == 0L) {
+      return (value + 2) * 3;
+    }
+    return value;
+  }
+
+  /// CHECK-START: float Main.$inline$SpecialCaseForZeroFloat(float) constant_folding (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Mul
+
+  /// CHECK-START: float Main.$inline$SpecialCaseForZeroFloat(float) constant_folding (before)
+  /// CHECK-NOT:     FloatConstant 6
+
+  /// CHECK-START: float Main.$inline$SpecialCaseForZeroFloat(float) constant_folding (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: float Main.$inline$SpecialCaseForZeroFloat(float) constant_folding (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: float Main.$inline$SpecialCaseForZeroFloat(float) constant_folding (after)
+  /// CHECK-DAG:     <<Const:f\d+>>    FloatConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static float $inline$SpecialCaseForZeroFloat(float value) {
+    if (value == 0F) {
+      return (value + 2F) * 3F;
+    }
+    return value;
+  }
+
+  /// CHECK-START: double Main.$inline$SpecialCaseForZeroDouble(double) constant_folding (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Mul
+
+  /// CHECK-START: double Main.$inline$SpecialCaseForZeroDouble(double) constant_folding (before)
+  /// CHECK-NOT:     DoubleConstant 6
+
+  /// CHECK-START: double Main.$inline$SpecialCaseForZeroDouble(double) constant_folding (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: double Main.$inline$SpecialCaseForZeroDouble(double) constant_folding (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: double Main.$inline$SpecialCaseForZeroDouble(double) constant_folding (after)
+  /// CHECK-DAG:     <<Const:d\d+>>    DoubleConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static double $inline$SpecialCaseForZeroDouble(double value) {
+    if (value == 0D) {
+      return (value + 2D) * 3D;
+    }
+    return value;
+  }
+
+  // Note that we have Add instead of sub since internally we do `Add(value, -1)`.
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (after)
+  /// CHECK-NOT:     Div
+
+  /// CHECK-START: int Main.$noinline$NotEqualsPropagationInt(int) constant_folding (after)
+  /// CHECK-DAG:     <<Const:i\d+>>    IntConstant 1
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static int $noinline$NotEqualsPropagationInt(int value) {
+    if (value != 3) {
+      return value;
+    } else {
+      return (value - 1) / 2;
+    }
+  }
+
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (before)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (after)
+  /// CHECK-NOT:     Sub
+
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (after)
+  /// CHECK-NOT:     Div
+
+  /// CHECK-START: long Main.$noinline$NotEqualsPropagationLong(long) constant_folding (after)
+  /// CHECK-DAG:     <<Const:j\d+>>    LongConstant 1
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static long $noinline$NotEqualsPropagationLong(long value) {
+    if (value != 3L) {
+      return value;
+    } else {
+      return (value - 1L) / 2L;
+    }
+  }
+
+  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding (before)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding (after)
+  /// CHECK-NOT:     Sub
+
+  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding (after)
+  /// CHECK-NOT:     Div
+
+  /// CHECK-START: float Main.$noinline$NotEqualsPropagationFloat(float) constant_folding (after)
+  /// CHECK-DAG:     <<Const:f\d+>>    FloatConstant 1
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static float $noinline$NotEqualsPropagationFloat(float value) {
+    if (value != 3F) {
+      return value;
+    } else {
+      return (value - 1F) / 2F;
+    }
+  }
+
+  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding (before)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding (after)
+  /// CHECK-NOT:     Sub
+
+  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding (after)
+  /// CHECK-NOT:     Div
+
+  /// CHECK-START: double Main.$noinline$NotEqualsPropagationDouble(double) constant_folding (after)
+  /// CHECK-DAG:     <<Const:d\d+>>    DoubleConstant 1
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static double $noinline$NotEqualsPropagationDouble(double value) {
+    if (value != 3D) {
+      return value;
+    } else {
+      return (value - 1D) / 2D;
+    }
+  }
+
+  /// CHECK-START: int Main.$noinline$InlineCaleeWithSpecialCaseForZeroInt(int) inliner (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: int Main.$noinline$InlineCaleeWithSpecialCaseForZeroInt(int) inliner (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: int Main.$noinline$InlineCaleeWithSpecialCaseForZeroInt(int) inliner (after)
+  /// CHECK-DAG:     <<Const:i\d+>>    IntConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static int $noinline$InlineCaleeWithSpecialCaseForZeroInt(int value) {
+    if (value == 0) {
+      return $inline$SpecialCaseForZeroInt(value);
+    }
+    return value;
+  }
+
+  /// CHECK-START: long Main.$noinline$InlineCaleeWithSpecialCaseForZeroLong(long) inliner (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: long Main.$noinline$InlineCaleeWithSpecialCaseForZeroLong(long) inliner (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: long Main.$noinline$InlineCaleeWithSpecialCaseForZeroLong(long) inliner (after)
+  /// CHECK-DAG:     <<Const:j\d+>>    LongConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static long $noinline$InlineCaleeWithSpecialCaseForZeroLong(long value) {
+    if (value == 0L) {
+      return $inline$SpecialCaseForZeroLong(value);
+    }
+    return value;
+  }
+
+  /// CHECK-START: float Main.$noinline$InlineCaleeWithSpecialCaseForZeroFloat(float) inliner (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: float Main.$noinline$InlineCaleeWithSpecialCaseForZeroFloat(float) inliner (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: float Main.$noinline$InlineCaleeWithSpecialCaseForZeroFloat(float) inliner (after)
+  /// CHECK-DAG:     <<Const:f\d+>>    FloatConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static float $noinline$InlineCaleeWithSpecialCaseForZeroFloat(float value) {
+    if (value == 0F) {
+      return $inline$SpecialCaseForZeroFloat(value);
+    }
+    return value;
+  }
+
+  /// CHECK-START: double Main.$noinline$InlineCaleeWithSpecialCaseForZeroDouble(double) inliner (after)
+  /// CHECK-NOT:     Add
+
+  /// CHECK-START: double Main.$noinline$InlineCaleeWithSpecialCaseForZeroDouble(double) inliner (after)
+  /// CHECK-NOT:     Mul
+
+  /// CHECK-START: double Main.$noinline$InlineCaleeWithSpecialCaseForZeroDouble(double) inliner (after)
+  /// CHECK-DAG:     <<Const:d\d+>>    DoubleConstant 6
+  /// CHECK-DAG:                       Return [<<Const>>]
+  private static double $noinline$InlineCaleeWithSpecialCaseForZeroDouble(double value) {
+    if (value == 0D) {
+      return $inline$SpecialCaseForZeroDouble(value);
+    }
+    return value;
+  }
+
+  // Check that don't propagate the value == 3 on `if not true` branch, as the `if true` branch also
+  // flows into the same block.
+  /// CHECK-START: int Main.$noinline$NotEqualsImplicitElseInt(int) constant_folding (before)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: int Main.$noinline$NotEqualsImplicitElseInt(int) constant_folding (after)
+  /// CHECK-DAG:     Add
+  /// CHECK-DAG:     Div
+  private static int $noinline$NotEqualsImplicitElseInt(int value) {
+    if (value != 3) {
+      value++;
+    }
+    return (value - 1) / 2;
+  }
+
+  /// CHECK-START: long Main.$noinline$NotEqualsImplicitElseLong(long) constant_folding (before)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: long Main.$noinline$NotEqualsImplicitElseLong(long) constant_folding (after)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+  private static long $noinline$NotEqualsImplicitElseLong(long value) {
+    if (value != 3L) {
+      value += 1L;
+    }
+    return (value - 1L) / 2L;
+  }
+
+  /// CHECK-START: float Main.$noinline$NotEqualsImplicitElseFloat(float) constant_folding (before)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: float Main.$noinline$NotEqualsImplicitElseFloat(float) constant_folding (after)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+  private static float $noinline$NotEqualsImplicitElseFloat(float value) {
+    if (value != 3F) {
+      value += 1F;
+    }
+    return (value - 1F) / 2F;
+  }
+
+  /// CHECK-START: double Main.$noinline$NotEqualsImplicitElseDouble(double) constant_folding (before)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+
+  /// CHECK-START: double Main.$noinline$NotEqualsImplicitElseDouble(double) constant_folding (after)
+  /// CHECK-DAG:     Sub
+  /// CHECK-DAG:     Div
+  private static double $noinline$NotEqualsImplicitElseDouble(double value) {
+    if (value != 3D) {
+      value += 1D;
+    }
+    return (value - 1D) / 2D;
+  }
+
+  // By propagating the boolean we can elimniate some equality comparisons as we already know their
+  // result. In turn, we also enable DeadCodeElimination to eliminate more code.
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) constant_folding (before)
+  /// CHECK-DAG:     Equal
+  /// CHECK-DAG:     Equal
+  /// CHECK-DAG:     Equal
+
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) constant_folding (after)
+  /// CHECK:         Equal
+  /// CHECK-NOT:     Equal
+
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (before)
+  /// CHECK-DAG:     IntConstant 1
+  /// CHECK-DAG:     IntConstant 2
+  /// CHECK-DAG:     IntConstant 3
+  /// CHECK-DAG:     IntConstant 4
+
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (after)
+  /// CHECK-DAG:     IntConstant 1
+  /// CHECK-DAG:     IntConstant 4
+
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (after)
+  /// CHECK-NOT:     IntConstant 2
+
+  /// CHECK-START: int Main.$noinline$PropagatingParameterValue(boolean) dead_code_elimination$initial (after)
+  /// CHECK-NOT:     IntConstant 3
+  private static int $noinline$PropagatingParameterValue(boolean value) {
+    if (value) {
+      return value ? 1 : 2;
+    } else {
+      return value ? 3 : 4;
+    }
+  }
 
   public static void main(String[] args) throws Exception {
     assertIntEquals(-42, IntNegation());
@@ -1708,6 +2040,52 @@ public class Main {
     assertDoubleEquals(33, ReturnDouble33());
     assertDoubleEquals(34, ReturnDouble34());
     assertDoubleEquals(99.25, ReturnDouble99P25());
+
+    // Tests for propagating known values due to if clauses.
+
+    // Propagating within the same method.
+    assertIntEquals(6, $inline$SpecialCaseForZeroInt(0));
+    assertIntEquals(3, $inline$SpecialCaseForZeroInt(3));
+    assertLongEquals(6L, $inline$SpecialCaseForZeroLong(0L));
+    assertLongEquals(3L, $inline$SpecialCaseForZeroLong(3L));
+    assertFloatEquals(6F, $inline$SpecialCaseForZeroFloat(0F));
+    assertFloatEquals(3F, $inline$SpecialCaseForZeroFloat(3F));
+    assertDoubleEquals(6D, $inline$SpecialCaseForZeroDouble(0D));
+    assertDoubleEquals(3D, $inline$SpecialCaseForZeroDouble(3D));
+
+    // Propagating within the same method, with not equals
+    assertIntEquals(0, $noinline$NotEqualsPropagationInt(0));
+    assertIntEquals(1, $noinline$NotEqualsPropagationInt(3));
+    assertLongEquals(0L, $noinline$NotEqualsPropagationLong(0L));
+    assertLongEquals(1L, $noinline$NotEqualsPropagationLong(3L));
+    assertFloatEquals(0F, $noinline$NotEqualsPropagationFloat(0F));
+    assertFloatEquals(1F, $noinline$NotEqualsPropagationFloat(3F));
+    assertDoubleEquals(0D, $noinline$NotEqualsPropagationDouble(0D));
+    assertDoubleEquals(1D, $noinline$NotEqualsPropagationDouble(3D));
+
+    // Propagating so that the inliner can use it.
+    assertIntEquals(6, $noinline$InlineCaleeWithSpecialCaseForZeroInt(0));
+    assertIntEquals(3, $noinline$InlineCaleeWithSpecialCaseForZeroInt(3));
+    assertLongEquals(6L, $noinline$InlineCaleeWithSpecialCaseForZeroLong(0L));
+    assertLongEquals(3L, $noinline$InlineCaleeWithSpecialCaseForZeroLong(3L));
+    assertFloatEquals(6F, $noinline$InlineCaleeWithSpecialCaseForZeroFloat(0F));
+    assertFloatEquals(3F, $noinline$InlineCaleeWithSpecialCaseForZeroFloat(3F));
+    assertDoubleEquals(6D, $noinline$InlineCaleeWithSpecialCaseForZeroDouble(0D));
+    assertDoubleEquals(3D, $noinline$InlineCaleeWithSpecialCaseForZeroDouble(3D));
+
+    // Propagating within the same method, with not equals
+    assertIntEquals(0, $noinline$NotEqualsImplicitElseInt(0));
+    assertIntEquals(1, $noinline$NotEqualsImplicitElseInt(3));
+    assertLongEquals(0L, $noinline$NotEqualsImplicitElseLong(0L));
+    assertLongEquals(1L, $noinline$NotEqualsImplicitElseLong(3L));
+    assertFloatEquals(0F, $noinline$NotEqualsImplicitElseFloat(0F));
+    assertFloatEquals(1F, $noinline$NotEqualsImplicitElseFloat(3F));
+    assertDoubleEquals(0D, $noinline$NotEqualsImplicitElseDouble(0D));
+    assertDoubleEquals(1D, $noinline$NotEqualsImplicitElseDouble(3D));
+
+    // Propagating parameters.
+    assertIntEquals(1, $noinline$PropagatingParameterValue(true));
+    assertIntEquals(4, $noinline$PropagatingParameterValue(false));
   }
 
   Main() throws ClassNotFoundException {
