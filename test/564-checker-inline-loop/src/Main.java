@@ -21,6 +21,9 @@ public class Main {
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
   /// CHECK-START: int Main.inlineLoop() inliner (after)
+  /// CHECK-NOT:                      InvokeStaticOrDirect
+
+  /// CHECK-START: int Main.inlineLoop() inliner (after)
   /// CHECK-DAG:     <<Constant:i\d+>>   IntConstant 42
   /// CHECK-DAG:                         Return [<<Constant>>]
 
@@ -28,11 +31,14 @@ public class Main {
   /// CHECK:                         Goto loop:{{B\d+}}
 
   public static int inlineLoop() {
-    return $inline$loopMethod();
+    return loopMethod();
   }
 
   /// CHECK-START: void Main.inlineWithinLoop() inliner (before)
   /// CHECK:      InvokeStaticOrDirect
+
+  /// CHECK-START: void Main.inlineWithinLoop() inliner (after)
+  /// CHECK-NOT:  InvokeStaticOrDirect
 
   /// CHECK-START: void Main.inlineWithinLoop() licm (after)
   /// CHECK-DAG:  Goto loop:<<OuterLoop:B\d+>> outer_loop:none
@@ -40,19 +46,16 @@ public class Main {
 
   public static void inlineWithinLoop() {
     while (doLoop) {
-      $inline$loopMethod();
+      loopMethod();
     }
   }
 
-  public static int $inline$loopMethod() {
-    // We use `otherDoLoop` here so we don't propagate the knowledge that `doLoop` is true when
-    // inlining from `inlineWithinLoop`.
-    while (otherDoLoop) {}
+  public static int loopMethod() {
+    while (doLoop) {}
     return 42;
   }
 
   public static boolean doLoop = false;
-  public static boolean otherDoLoop = false;
 
   public static void main(String[] args) {
     inlineLoop();
