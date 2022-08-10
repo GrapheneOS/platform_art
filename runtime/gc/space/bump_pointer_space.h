@@ -100,10 +100,6 @@ class BumpPointerSpace final : public ContinuousMemMapAllocSpace {
     return nullptr;
   }
 
-  accounting::ContinuousSpaceBitmap* GetMarkBitmap() override {
-    return nullptr;
-  }
-
   // Reset the space to empty.
   void Clear() override REQUIRES(!block_lock_);
 
