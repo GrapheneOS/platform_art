@@ -36,12 +36,11 @@ inline uint32_t Array::ClassSize(PointerSize pointer_size) {
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline size_t Array::SizeOf() {
-  // No read barrier is needed for reading a constant primitive field through
-  // constant reference field chain. See ReadBarrierOption.
   size_t component_size_shift =
-      GetClass<kVerifyFlags, kWithoutReadBarrier>()->GetComponentSizeShift();
+      GetClass<kVerifyFlags, kReadBarrierOption>()
+      ->template GetComponentSizeShift<kReadBarrierOption>();
   // Don't need to check this since we already check this in GetClass.
   int32_t component_count =
       GetLength<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>();
