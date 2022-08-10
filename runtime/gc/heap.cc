@@ -61,6 +61,7 @@
 #include "gc/accounting/remembered_set.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/collector/concurrent_copying.h"
+#include "gc/collector/mark_compact.h"
 #include "gc/collector/mark_sweep.h"
 #include "gc/collector/partial_mark_sweep.h"
 #include "gc/collector/semi_space.h"
@@ -448,7 +449,8 @@ Heap::Heap(size_t initial_size,
   mark_bitmap_.reset(new accounting::HeapBitmap(this));
 
   // We don't have hspace compaction enabled with CC.
-  if (foreground_collector_type_ == kCollectorTypeCC) {
+  if (foreground_collector_type_ == kCollectorTypeCC
+      || foreground_collector_type_ == kCollectorTypeCMC) {
     use_homogeneous_space_compaction_for_oom_ = false;
   }
   bool support_homogeneous_space_compaction =
@@ -629,10 +631,14 @@ Heap::Heap(size_t initial_size,
                                                                     std::move(main_mem_map_1));
     CHECK(bump_pointer_space_ != nullptr) << "Failed to create bump pointer space";
     AddSpace(bump_pointer_space_);
-    temp_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space 2",
-                                                            std::move(main_mem_map_2));
-    CHECK(temp_space_ != nullptr) << "Failed to create bump pointer space";
-    AddSpace(temp_space_);
+    // For Concurrent Mark-compact GC we don't need the temp space to be in
+    // lower 4GB. So its temp space will be created by the GC itself.
+    if (foreground_collector_type_ != kCollectorTypeCMC) {
+      temp_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space 2",
+                                                              std::move(main_mem_map_2));
+      CHECK(temp_space_ != nullptr) << "Failed to create bump pointer space";
+      AddSpace(temp_space_);
+    }
     CHECK(separate_non_moving_space);
   } else {
     CreateMainMallocSpace(std::move(main_mem_map_1), initial_size, growth_limit_, capacity_);
@@ -757,6 +763,10 @@ Heap::Heap(size_t initial_size,
         use_homogeneous_space_compaction_for_oom_) {
       semi_space_collector_ = new collector::SemiSpace(this);
       garbage_collectors_.push_back(semi_space_collector_);
+    }
+    if (MayUseCollector(kCollectorTypeCMC)) {
+      mark_compact_ = new collector::MarkCompact(this);
+      garbage_collectors_.push_back(mark_compact_);
     }
     if (MayUseCollector(kCollectorTypeCC)) {
       concurrent_copying_collector_ = new collector::ConcurrentCopying(this,
@@ -963,7 +973,6 @@ void Heap::DecrementDisableMovingGC(Thread* self) {
 
 void Heap::IncrementDisableThreadFlip(Thread* self) {
   // Supposed to be called by mutators. If thread_flip_running_ is true, block. Otherwise, go ahead.
-  CHECK(kUseReadBarrier);
   bool is_nested = self->GetDisableThreadFlipCount() > 0;
   self->IncrementDisableThreadFlipCount();
   if (is_nested) {
@@ -997,7 +1006,6 @@ void Heap::IncrementDisableThreadFlip(Thread* self) {
 void Heap::DecrementDisableThreadFlip(Thread* self) {
   // Supposed to be called by mutators. Decrement disable_thread_flip_count_ and potentially wake up
   // the GC waiting before doing a thread flip.
-  CHECK(kUseReadBarrier);
   self->DecrementDisableThreadFlipCount();
   bool is_outermost = self->GetDisableThreadFlipCount() == 0;
   if (!is_outermost) {
@@ -1017,7 +1025,6 @@ void Heap::DecrementDisableThreadFlip(Thread* self) {
 void Heap::ThreadFlipBegin(Thread* self) {
   // Supposed to be called by GC. Set thread_flip_running_ to be true. If disable_thread_flip_count_
   // > 0, block. Otherwise, go ahead.
-  CHECK(kUseReadBarrier);
   ScopedThreadStateChange tsc(self, ThreadState::kWaitingForGcThreadFlip);
   MutexLock mu(self, *thread_flip_lock_);
   thread_flip_cond_->CheckSafeToWait(self);
@@ -1043,7 +1050,6 @@ void Heap::ThreadFlipBegin(Thread* self) {
 void Heap::ThreadFlipEnd(Thread* self) {
   // Supposed to be called by GC. Set thread_flip_running_ to false and potentially wake up mutators
   // waiting before doing a JNI critical.
-  CHECK(kUseReadBarrier);
   MutexLock mu(self, *thread_flip_lock_);
   CHECK(thread_flip_running_);
   thread_flip_running_ = false;
@@ -2199,6 +2205,15 @@ void Heap::ChangeCollector(CollectorType collector_type) {
         }
         break;
       }
+      case kCollectorTypeCMC: {
+        gc_plan_.push_back(collector::kGcTypeFull);
+        if (use_tlab_) {
+          ChangeAllocator(kAllocatorTypeTLAB);
+        } else {
+          ChangeAllocator(kAllocatorTypeBumpPointer);
+        }
+        break;
+      }
       case kCollectorTypeSS: {
         gc_plan_.push_back(collector::kGcTypeFull);
         if (use_tlab_) {
@@ -2710,6 +2725,9 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
         semi_space_collector_->SetSwapSemiSpaces(true);
         collector = semi_space_collector_;
         break;
+      case kCollectorTypeCMC:
+        collector = mark_compact_;
+        break;
       case kCollectorTypeCC:
         collector::ConcurrentCopying* active_cc_collector;
         if (use_generational_cc_) {
@@ -2728,7 +2746,9 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type,
       default:
         LOG(FATAL) << "Invalid collector type " << static_cast<size_t>(collector_type_);
     }
-    if (collector != active_concurrent_copying_collector_.load(std::memory_order_relaxed)) {
+    // temp_space_ will be null for kCollectorTypeCMC.
+    if (temp_space_ != nullptr
+        && collector != active_concurrent_copying_collector_.load(std::memory_order_relaxed)) {
       temp_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
       if (kIsDebugBuild) {
         // Try to read each page of the memory map in case mprotect didn't work properly b/19894268.
@@ -4494,8 +4514,13 @@ mirror::Object* Heap::AllocWithNewTLAB(Thread* self,
     DCHECK_LE(alloc_size, self->TlabSize());
   } else if (allocator_type == kAllocatorTypeTLAB) {
     DCHECK(bump_pointer_space_ != nullptr);
+    // Try to allocate a page-aligned TLAB (not necessary though).
+    // TODO: for large allocations, which are rare, maybe we should allocate
+    // that object and return. There is no need to revoke the current TLAB,
+    // particularly if it's mostly unutilized.
+    size_t def_pr_tlab_size = RoundDown(alloc_size + kDefaultTLABSize, kPageSize) - alloc_size;
     size_t next_tlab_size = JHPCalculateNextTlabSize(self,
-                                                     kDefaultTLABSize,
+                                                     def_pr_tlab_size,
                                                      alloc_size,
                                                      &take_sample,
                                                      &bytes_until_sample);
