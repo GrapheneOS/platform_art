@@ -87,6 +87,7 @@ class RememberedSet;
 namespace collector {
 class ConcurrentCopying;
 class GarbageCollector;
+class MarkCompact;
 class MarkSweep;
 class SemiSpace;
 }  // namespace collector
@@ -578,6 +579,9 @@ class Heap {
     return region_space_;
   }
 
+  space::BumpPointerSpace* GetBumpPointerSpace() const {
+    return bump_pointer_space_;
+  }
   // Implements java.lang.Runtime.maxMemory, returning the maximum amount of memory a program can
   // consume. For a regular VM this would relate to the -Xmx option and would return -1 if no Xmx
   // were specified. Android apps start with a growth limit (small heap size) which is
@@ -1712,6 +1716,7 @@ class Heap {
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
   friend class collector::ConcurrentCopying;
+  friend class collector::MarkCompact;
   friend class collector::MarkSweep;
   friend class collector::SemiSpace;
   friend class GCCriticalSection;

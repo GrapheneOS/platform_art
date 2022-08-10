@@ -130,6 +130,35 @@ class AtomicStack {
     }
   }
 
+  // Bump the back index by the given number of slots. Returns false if this
+  // operation will overflow the stack. New elements should be written
+  // to [*start_address, *end_address).
+  bool BumpBack(size_t num_slots,
+                StackReference<T>** start_address,
+                StackReference<T>** end_address)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kIsDebugBuild) {
+      debug_is_sorted_ = false;
+    }
+    const int32_t index = back_index_.load(std::memory_order_relaxed);
+    const int32_t new_index = index + num_slots;
+    if (UNLIKELY(static_cast<size_t>(new_index) >= growth_limit_)) {
+      // Stack overflow.
+      return false;
+    }
+    back_index_.store(new_index, std::memory_order_relaxed);
+    *start_address = begin_ + index;
+    *end_address = begin_ + new_index;
+    if (kIsDebugBuild) {
+      // Check the memory is zero.
+      for (int32_t i = index; i < new_index; i++) {
+        DCHECK_EQ(begin_[i].AsMirrorPtr(), static_cast<T*>(nullptr))
+            << "i=" << i << " index=" << index << " new_index=" << new_index;
+      }
+    }
+    return true;
+  }
+
   void PushBack(T* value) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild) {
       debug_is_sorted_ = false;
@@ -144,8 +173,16 @@ class AtomicStack {
     DCHECK_GT(back_index_.load(std::memory_order_relaxed),
               front_index_.load(std::memory_order_relaxed));
     // Decrement the back index non atomically.
-    back_index_.store(back_index_.load(std::memory_order_relaxed) - 1, std::memory_order_relaxed);
-    return begin_[back_index_.load(std::memory_order_relaxed)].AsMirrorPtr();
+    const int32_t index = back_index_.load(std::memory_order_relaxed) - 1;
+    back_index_.store(index, std::memory_order_relaxed);
+    T* ret = begin_[index].AsMirrorPtr();
+    // In debug builds we expect the stack elements to be null, which may not
+    // always be the case if the stack is being reused without resetting it
+    // in-between.
+    if (kIsDebugBuild) {
+      begin_[index].Clear();
+    }
+    return ret;
   }
 
   // Take an item from the front of the stack.
