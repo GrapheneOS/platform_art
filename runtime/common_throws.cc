@@ -448,7 +448,7 @@ void ThrowNullPointerExceptionForMethodAccess(ArtMethod* method, InvokeType type
 }
 
 static bool IsValidReadBarrierImplicitCheck(uintptr_t addr) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   uint32_t monitor_offset = mirror::Object::MonitorOffset().Uint32Value();
   if (kUseBakerReadBarrier &&
       (kRuntimeISA == InstructionSet::kX86 || kRuntimeISA == InstructionSet::kX86_64)) {
@@ -483,7 +483,7 @@ static bool IsValidImplicitCheck(uintptr_t addr, const Instruction& instr)
     }
 
     case Instruction::IGET_OBJECT:
-      if (kEmitCompilerReadBarrier && IsValidReadBarrierImplicitCheck(addr)) {
+      if (gUseReadBarrier && IsValidReadBarrierImplicitCheck(addr)) {
         return true;
       }
       FALLTHROUGH_INTENDED;
@@ -507,7 +507,7 @@ static bool IsValidImplicitCheck(uintptr_t addr, const Instruction& instr)
     }
 
     case Instruction::AGET_OBJECT:
-      if (kEmitCompilerReadBarrier && IsValidReadBarrierImplicitCheck(addr)) {
+      if (gUseReadBarrier && IsValidReadBarrierImplicitCheck(addr)) {
         return true;
       }
       FALLTHROUGH_INTENDED;

@@ -114,7 +114,7 @@ bool JvmtiWeakTable<T>::RemoveLocked(art::Thread* self, art::ObjPtr<art::mirror:
     return true;
   }
 
-  if (art::kUseReadBarrier && self->GetIsGcMarking() && !update_since_last_sweep_) {
+  if (art::gUseReadBarrier && self->GetIsGcMarking() && !update_since_last_sweep_) {
     // Under concurrent GC, there is a window between moving objects and sweeping of system
     // weaks in which mutators are active. We may receive a to-space object pointer in obj,
     // but still have from-space pointers in the table. Explicitly update the table once.
@@ -156,7 +156,7 @@ bool JvmtiWeakTable<T>::SetLocked(art::Thread* self, art::ObjPtr<art::mirror::Ob
     return true;
   }
 
-  if (art::kUseReadBarrier && self->GetIsGcMarking() && !update_since_last_sweep_) {
+  if (art::gUseReadBarrier && self->GetIsGcMarking() && !update_since_last_sweep_) {
     // Under concurrent GC, there is a window between moving objects and sweeping of system
     // weaks in which mutators are active. We may receive a to-space object pointer in obj,
     // but still have from-space pointers in the table. Explicitly update the table once.

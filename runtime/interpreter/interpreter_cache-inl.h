@@ -39,7 +39,7 @@ inline void InterpreterCache::Set(Thread* self, const void* key, size_t value) {
   // For simplicity, only update the cache if weak ref accesses are enabled. If
   // they are disabled, this means the GC is processing the cache, and is
   // reading it concurrently.
-  if (kUseReadBarrier && self->GetWeakRefAccessEnabled()) {
+  if (gUseReadBarrier && self->GetWeakRefAccessEnabled()) {
     data_[IndexOf(key)] = Entry{key, value};
   }
 }
