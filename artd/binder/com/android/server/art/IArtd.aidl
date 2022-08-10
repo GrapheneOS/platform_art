@@ -36,4 +36,29 @@ interface IArtd {
     com.android.server.art.GetOptimizationStatusResult getOptimizationStatus(
             @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
             @utf8InCpp String classLoaderContext);
+
+    /**
+     * Returns true if dexopt is needed. `dexoptTrigger` is a bit field that consists of values
+     * defined in `com.android.server.art.DexoptTrigger`.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    com.android.server.art.GetDexoptNeededResult getDexoptNeeded(
+            @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
+            @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
+            byte dexoptTrigger);
+
+    /**
+     * Dexopts a dex file for the given instruction set. Returns true on success, or false if
+     * cancelled.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    boolean dexopt(in com.android.server.art.OutputArtifacts outputArtifacts,
+            @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
+            @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
+            in @nullable com.android.server.art.ProfilePath profile,
+            in @nullable com.android.server.art.VdexPath inputVdex,
+            com.android.server.art.PriorityClass priorityClass,
+            in com.android.server.art.DexoptOptions dexoptOptions);
 }

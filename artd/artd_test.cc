@@ -16,29 +16,67 @@
 
 #include "artd.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
+#include <type_traits>
+#include <vector>
 
+#include "aidl/com/android/server/art/BnArtd.h"
+#include "android-base/errors.h"
 #include "android-base/file.h"
 #include "android-base/logging.h"
+#include "android-base/parseint.h"
+#include "android-base/result.h"
 #include "android-base/scopeguard.h"
-#include "android/binder_interface_utils.h"
+#include "android-base/strings.h"
+#include "android/binder_auto_utils.h"
+#include "android/binder_status.h"
 #include "base/common_art_test.h"
+#include "exec_utils.h"
+#include "fmt/format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "path_utils.h"
+#include "tools/system_properties.h"
 
 namespace art {
 namespace artd {
 namespace {
 
 using ::aidl::com::android::server::art::ArtifactsPath;
+using ::aidl::com::android::server::art::DexMetadataPath;
+using ::aidl::com::android::server::art::DexoptOptions;
+using ::aidl::com::android::server::art::FsPermission;
+using ::aidl::com::android::server::art::OutputArtifacts;
+using ::aidl::com::android::server::art::PriorityClass;
+using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::make_scope_guard;
+using ::android::base::ParseInt;
+using ::android::base::ReadFileToString;
+using ::android::base::Result;
 using ::android::base::ScopeGuard;
+using ::android::base::Split;
+using ::android::base::WriteStringToFd;
+using ::android::base::WriteStringToFile;
 using ::testing::_;
+using ::testing::AllOf;
+using ::testing::AnyNumber;
+using ::testing::Contains;
 using ::testing::ContainsRegex;
+using ::testing::DoAll;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::MockFunction;
+using ::testing::Not;
+using ::testing::ResultOf;
+using ::testing::Return;
+using ::testing::WithArg;
+
+using ::fmt::literals::operator""_format;  // NOLINT
 
 ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& logger) {
   android::base::LogFunction old_logger = android::base::SetLogger(std::move(logger));
@@ -47,12 +85,143 @@ ScopeGuard<std::function<void()>> ScopedSetLogger(android::base::LogFunction&& l
   });
 }
 
+void CheckContent(const std::string& path, const std::string& expected_content) {
+  std::string actual_content;
+  ASSERT_TRUE(ReadFileToString(path, &actual_content));
+  EXPECT_EQ(actual_content, expected_content);
+}
+
+// Writes `content` to the FD specified by the `flag`.
+ACTION_P(WriteToFdFlag, flag, content) {
+  for (const std::string& arg : arg0) {
+    std::string_view value(arg);
+    if (android::base::ConsumePrefix(&value, flag)) {
+      int fd;
+      ASSERT_TRUE(ParseInt(std::string(value), &fd));
+      ASSERT_TRUE(WriteStringToFd(content, fd));
+      return;
+    }
+  }
+  FAIL() << "Flag '{}' not found"_format(flag);
+}
+
+// Matches a flag that starts with `flag` and whose value matches `matcher`.
+MATCHER_P2(Flag, flag, matcher, "") {
+  std::string_view value(arg);
+  if (!android::base::ConsumePrefix(&value, flag)) {
+    return false;
+  }
+  return ExplainMatchResult(matcher, std::string(value), result_listener);
+}
+
+// Matches a flag that starts with `flag` and whose value is a colon-separated list that matches
+// `matcher`. The matcher acts on an `std::vector<std::string>` of the split list argument.
+MATCHER_P2(ListFlag, flag, matcher, "") {
+  return ExplainMatchResult(
+      Flag(flag, ResultOf(std::bind(Split, std::placeholders::_1, ":"), matcher)),
+      arg,
+      result_listener);
+}
+
+// Matches an FD of a file whose path matches `matcher`.
+MATCHER_P(FdOf, matcher, "") {
+  int fd;
+  if (!ParseInt(arg, &fd)) {
+    return false;
+  }
+  std::string proc_path = "/proc/self/fd/{}"_format(fd);
+  char path[PATH_MAX];
+  ssize_t len = readlink(proc_path.c_str(), path, sizeof(path));
+  if (len < 0) {
+    return false;
+  }
+  return ExplainMatchResult(matcher, std::string(path, static_cast<size_t>(len)), result_listener);
+}
+
+// Matches a container that, when split by `separator`, the first part matches `head_matcher`, and
+// the second part matches `tail_matcher`.
+MATCHER_P3(WhenSplitBy, separator, head_matcher, tail_matcher, "") {
+  using Value = const typename std::remove_reference<decltype(arg)>::type::value_type;
+  auto it = std::find(arg.begin(), arg.end(), separator);
+  if (it == arg.end()) {
+    return false;
+  }
+  size_t pos = it - arg.begin();
+  return ExplainMatchResult(head_matcher, ArrayRef<Value>(arg).SubArray(0, pos), result_listener) &&
+         ExplainMatchResult(tail_matcher, ArrayRef<Value>(arg).SubArray(pos + 1), result_listener);
+}
+
+class MockSystemProperties : public tools::SystemProperties {
+ public:
+  MOCK_METHOD(std::string, GetProperty, (const std::string& key), (const, override));
+};
+
+class MockExecUtils : public ExecUtils {
+ public:
+  // A workaround to avoid MOCK_METHOD on a method with an `std::string*` parameter, which will lead
+  // to a conflict between gmock and android-base/logging.h (b/132668253).
+  int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                        int,
+                        bool*,
+                        std::string*) const override {
+    return DoExecAndReturnCode(arg_vector);
+  }
+
+  MOCK_METHOD(int, DoExecAndReturnCode, (const std::vector<std::string>& arg_vector), (const));
+};
+
 class ArtdTest : public CommonArtTest {
  protected:
   void SetUp() override {
     CommonArtTest::SetUp();
-    artd_ = ndk::SharedRefBase::make<Artd>();
+    auto mock_props = std::make_unique<MockSystemProperties>();
+    mock_props_ = mock_props.get();
+    EXPECT_CALL(*mock_props_, GetProperty).Times(AnyNumber()).WillRepeatedly(Return(""));
+    auto mock_exec_utils = std::make_unique<MockExecUtils>();
+    mock_exec_utils_ = mock_exec_utils.get();
+    artd_ = ndk::SharedRefBase::make<Artd>(std::move(mock_props), std::move(mock_exec_utils));
     scratch_dir_ = std::make_unique<ScratchDir>();
+    scratch_path_ = scratch_dir_->GetPath();
+    // Remove the trailing '/';
+    scratch_path_.resize(scratch_path_.length() - 1);
+
+    // Use an arbitrary existing directory as ART root.
+    art_root_ = scratch_path_ + "/com.android.art";
+    std::filesystem::create_directories(art_root_);
+    setenv("ANDROID_ART_ROOT", art_root_.c_str(), /*overwrite=*/1);
+
+    dex_file_ = scratch_path_ + "/a/b.apk";
+    isa_ = "arm64";
+    artifacts_path_ = ArtifactsPath{
+        .dexPath = dex_file_,
+        .isa = isa_,
+        .isInDalvikCache = false,
+    };
+    struct stat st;
+    ASSERT_EQ(stat(scratch_path_.c_str(), &st), 0);
+    output_artifacts_ = OutputArtifacts{
+        .artifactsPath = artifacts_path_,
+        .permissionSettings =
+            OutputArtifacts::PermissionSettings{
+                .dirFsPermission =
+                    FsPermission{
+                        .uid = static_cast<int32_t>(st.st_uid),
+                        .gid = static_cast<int32_t>(st.st_gid),
+                        .isOtherReadable = true,
+                        .isOtherExecutable = true,
+                    },
+                .fileFsPermission =
+                    FsPermission{
+                        .uid = static_cast<int32_t>(st.st_uid),
+                        .gid = static_cast<int32_t>(st.st_gid),
+                        .isOtherReadable = true,
+                    },
+            },
+    };
+    clc_1_ = GetTestDexFileName("Main");
+    clc_2_ = GetTestDexFileName("Nested");
+    class_loader_context_ = "PCL[{}:{}]"_format(clc_1_, clc_2_);
+    compiler_filter_ = "speed";
   }
 
   void TearDown() override {
@@ -60,9 +229,63 @@ class ArtdTest : public CommonArtTest {
     CommonArtTest::TearDown();
   }
 
+  void RunDexopt(binder_exception_t expected_status = EX_NONE, bool expected_aidl_return = true) {
+    InitDexoptInputFiles();
+    bool aidl_return;
+    ndk::ScopedAStatus status = artd_->dexopt(output_artifacts_,
+                                              dex_file_,
+                                              isa_,
+                                              class_loader_context_,
+                                              compiler_filter_,
+                                              /*in_profile=*/std::nullopt,
+                                              vdex_path_,
+                                              priority_class_,
+                                              dexopt_options_,
+                                              &aidl_return);
+    ASSERT_EQ(status.getExceptionCode(), expected_status) << status.getMessage();
+    if (status.isOk()) {
+      ASSERT_EQ(aidl_return, expected_aidl_return);
+    }
+  }
+
   std::shared_ptr<Artd> artd_;
   std::unique_ptr<ScratchDir> scratch_dir_;
+  std::string scratch_path_;
+  std::string art_root_;
   MockFunction<android::base::LogFunction> mock_logger_;
+  ScopedUnsetEnvironmentVariable art_root_env_ = ScopedUnsetEnvironmentVariable("ANDROID_ART_ROOT");
+  MockSystemProperties* mock_props_;
+  MockExecUtils* mock_exec_utils_;
+
+  std::string dex_file_;
+  std::string isa_;
+  ArtifactsPath artifacts_path_;
+  OutputArtifacts output_artifacts_;
+  std::string clc_1_;
+  std::string clc_2_;
+  std::string class_loader_context_;
+  std::string compiler_filter_;
+  std::optional<VdexPath> vdex_path_;
+  PriorityClass priority_class_ = PriorityClass::BACKGROUND;
+  DexoptOptions dexopt_options_;
+
+ private:
+  void CreateFile(const std::string& filename) {
+    std::filesystem::path path(filename);
+    std::filesystem::create_directories(path.parent_path());
+    WriteStringToFile("", filename);
+  }
+
+  void InitDexoptInputFiles() {
+    CreateFile(dex_file_);
+    if (vdex_path_.has_value()) {
+      if (vdex_path_->getTag() == VdexPath::dexMetadataPath) {
+        CreateFile(OR_FATAL(BuildDexMetadataPath(vdex_path_.value())));
+      } else {
+        CreateFile(OR_FATAL(BuildVdexPath(vdex_path_.value())));
+      }
+    }
+  }
 };
 
 TEST_F(ArtdTest, isAlive) {
@@ -72,22 +295,14 @@ TEST_F(ArtdTest, isAlive) {
 }
 
 TEST_F(ArtdTest, deleteArtifacts) {
-  std::string oat_dir = scratch_dir_->GetPath() + "/a/oat/arm64";
+  std::string oat_dir = scratch_path_ + "/a/oat/arm64";
   std::filesystem::create_directories(oat_dir);
-  android::base::WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
-  android::base::WriteStringToFile("ab", oat_dir + "/b.vdex");    // 2 bytes.
-  android::base::WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
+  WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
+  WriteStringToFile("ab", oat_dir + "/b.vdex");    // 2 bytes.
+  WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
 
   int64_t result = -1;
-  EXPECT_TRUE(artd_
-                  ->deleteArtifacts(
-                      ArtifactsPath{
-                          .dexPath = scratch_dir_->GetPath() + "/a/b.apk",
-                          .isa = "arm64",
-                          .isInDalvikCache = false,
-                      },
-                      &result)
-                  .isOk());
+  EXPECT_TRUE(artd_->deleteArtifacts(artifacts_path_, &result).isOk());
   EXPECT_EQ(result, 4 + 2 + 1);
 
   EXPECT_FALSE(std::filesystem::exists(oat_dir + "/b.odex"));
@@ -99,8 +314,8 @@ TEST_F(ArtdTest, deleteArtifactsMissingFile) {
   // Missing VDEX file.
   std::string oat_dir = dalvik_cache_ + "/arm64";
   std::filesystem::create_directories(oat_dir);
-  android::base::WriteStringToFile("abcd", oat_dir + "/a@b.apk@classes.dex");  // 4 bytes.
-  android::base::WriteStringToFile("a", oat_dir + "/a@b.apk@classes.art");     // 1 byte.
+  WriteStringToFile("abcd", oat_dir + "/a@b.apk@classes.dex");  // 4 bytes.
+  WriteStringToFile("a", oat_dir + "/a@b.apk@classes.art");     // 1 byte.
 
   auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
   EXPECT_CALL(mock_logger_, Call(_, _, _, _, _, HasSubstr("Failed to get the file size"))).Times(0);
@@ -126,24 +341,16 @@ TEST_F(ArtdTest, deleteArtifactsNoFile) {
   EXPECT_CALL(mock_logger_, Call(_, _, _, _, _, HasSubstr("Failed to get the file size"))).Times(0);
 
   int64_t result = -1;
-  EXPECT_TRUE(artd_
-                  ->deleteArtifacts(
-                      ArtifactsPath{
-                          .dexPath = android_data_ + "/a/b.apk",
-                          .isa = "arm64",
-                          .isInDalvikCache = false,
-                      },
-                      &result)
-                  .isOk());
+  EXPECT_TRUE(artd_->deleteArtifacts(artifacts_path_, &result).isOk());
   EXPECT_EQ(result, 0);
 }
 
 TEST_F(ArtdTest, deleteArtifactsPermissionDenied) {
-  std::string oat_dir = scratch_dir_->GetPath() + "/a/oat/arm64";
+  std::string oat_dir = scratch_path_ + "/a/oat/arm64";
   std::filesystem::create_directories(oat_dir);
-  android::base::WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
-  android::base::WriteStringToFile("ab", oat_dir + "/b.vdex");    // 2 bytes.
-  android::base::WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
+  WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
+  WriteStringToFile("ab", oat_dir + "/b.vdex");    // 2 bytes.
+  WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
 
   auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
   EXPECT_CALL(mock_logger_, Call(_, _, _, _, _, HasSubstr("Failed to get the file size"))).Times(3);
@@ -152,25 +359,17 @@ TEST_F(ArtdTest, deleteArtifactsPermissionDenied) {
   auto scoped_unroot = ScopedUnroot();
 
   int64_t result = -1;
-  EXPECT_TRUE(artd_
-                  ->deleteArtifacts(
-                      ArtifactsPath{
-                          .dexPath = scratch_dir_->GetPath() + "/a/b.apk",
-                          .isa = "arm64",
-                          .isInDalvikCache = false,
-                      },
-                      &result)
-                  .isOk());
+  EXPECT_TRUE(artd_->deleteArtifacts(artifacts_path_, &result).isOk());
   EXPECT_EQ(result, 0);
 }
 
 TEST_F(ArtdTest, deleteArtifactsFileIsDir) {
   // VDEX file is a directory.
-  std::string oat_dir = scratch_dir_->GetPath() + "/a/oat/arm64";
+  std::string oat_dir = scratch_path_ + "/a/oat/arm64";
   std::filesystem::create_directories(oat_dir);
   std::filesystem::create_directories(oat_dir + "/b.vdex");
-  android::base::WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
-  android::base::WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
+  WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
+  WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
 
   auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
   EXPECT_CALL(mock_logger_,
@@ -178,21 +377,346 @@ TEST_F(ArtdTest, deleteArtifactsFileIsDir) {
       .Times(1);
 
   int64_t result = -1;
-  EXPECT_TRUE(artd_
-                  ->deleteArtifacts(
-                      ArtifactsPath{
-                          .dexPath = scratch_dir_->GetPath() + "/a/b.apk",
-                          .isa = "arm64",
-                          .isInDalvikCache = false,
-                      },
-                      &result)
-                  .isOk());
+  EXPECT_TRUE(artd_->deleteArtifacts(artifacts_path_, &result).isOk());
   EXPECT_EQ(result, 4 + 1);
 
   // The directory is kept because getting the file size failed.
   EXPECT_FALSE(std::filesystem::exists(oat_dir + "/b.odex"));
   EXPECT_TRUE(std::filesystem::exists(oat_dir + "/b.vdex"));
   EXPECT_FALSE(std::filesystem::exists(oat_dir + "/b.art"));
+}
+
+TEST_F(ArtdTest, dexopt) {
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy(
+                  "--",
+                  AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                  AllOf(Contains(art_root_ + "/bin/dex2oat32"),
+                        Contains(Flag("--zip-fd=", FdOf(dex_file_))),
+                        Contains(Flag("--zip-location=", dex_file_)),
+                        Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
+                        Contains(Flag("--instruction-set=", "arm64")),
+                        Contains(Flag("--compiler-filter=", "speed"))))))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
+                      WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
+                      Return(0)));
+  RunDexopt();
+
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "oat");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "vdex");
+}
+
+TEST_F(ArtdTest, dexoptClassLoaderContext) {
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy(
+                  "--",
+                  _,
+                  AllOf(Contains(ListFlag("--class-loader-context-fds=",
+                                          ElementsAre(FdOf(clc_1_), FdOf(clc_2_)))),
+                        Contains(Flag("--class-loader-context=", class_loader_context_)),
+                        Contains(Flag("--classpath-dir=", scratch_path_ + "/a"))))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptNoInputVdex) {
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy("--",
+                                              _,
+                                              AllOf(Not(Contains(Flag("--dm-fd=", _))),
+                                                    Not(Contains(Flag("--input-vdex-fd=", _)))))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptInputVdex) {
+  vdex_path_ = artifacts_path_;
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(WhenSplitBy(
+          "--",
+          _,
+          AllOf(Not(Contains(Flag("--dm-fd=", _))),
+                Contains(Flag("--input-vdex-fd=", FdOf(scratch_path_ + "/a/oat/arm64/b.vdex")))))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptInputVdexDm) {
+  vdex_path_ = DexMetadataPath{.dexPath = dex_file_};
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              _,
+                              AllOf(Contains(Flag("--dm-fd=", FdOf(scratch_path_ + "/a/b.dm"))),
+                                    Not(Contains(Flag("--input-vdex-fd=", _)))))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptPriorityClassBoot) {
+  priority_class_ = PriorityClass::BOOT;
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy("--",
+                                              AllOf(Not(Contains(Flag("--set-task-profile=", _))),
+                                                    Not(Contains(Flag("--set-priority=", _)))),
+                                              Contains(Flag("--compact-dex-level=", "none")))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptPriorityClassInteractive) {
+  priority_class_ = PriorityClass::INTERACTIVE;
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
+                                    Contains(Flag("--set-priority=", "background"))),
+                              Contains(Flag("--compact-dex-level=", "none")))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptPriorityClassInteractiveFast) {
+  priority_class_ = PriorityClass::INTERACTIVE_FAST;
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
+                                    Contains(Flag("--set-priority=", "background"))),
+                              Contains(Flag("--compact-dex-level=", "none")))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptPriorityClassBackground) {
+  priority_class_ = PriorityClass::BACKGROUND;
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
+                                    Contains(Flag("--set-priority=", "background"))),
+                              Not(Contains(Flag("--compact-dex-level=", _))))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptDexoptOptions) {
+  dexopt_options_ = DexoptOptions{
+      .compilationReason = "install",
+      .targetSdkVersion = 123,
+      .debuggable = false,
+      .generateAppImage = false,
+      .hiddenApiPolicyEnabled = false,
+  };
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(WhenSplitBy("--",
+                                      _,
+                                      AllOf(Contains(Flag("--compilation-reason=", "install")),
+                                            Contains(Flag("-Xtarget-sdk-version:", "123")),
+                                            Not(Contains("--debuggable")),
+                                            Not(Contains(Flag("--app-image-fd=", _))),
+                                            Not(Contains(Flag("-Xhidden-api-policy:", _)))))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptDexoptOptions2) {
+  dexopt_options_ = DexoptOptions{
+      .compilationReason = "bg-dexopt",
+      .targetSdkVersion = 456,
+      .debuggable = true,
+      .generateAppImage = true,
+      .hiddenApiPolicyEnabled = true,
+  };
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(WhenSplitBy("--",
+                                      _,
+                                      AllOf(Contains(Flag("--compilation-reason=", "bg-dexopt")),
+                                            Contains(Flag("-Xtarget-sdk-version:", "456")),
+                                            Contains("--debuggable"),
+                                            Contains(Flag("-Xhidden-api-policy:", "enabled"))))))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")), Return(0)));
+  RunDexopt();
+
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.art", "art");
+}
+
+TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              _,
+                              AllOf(Contains(Flag("--swap-fd=", FdOf(_))),
+                                    Not(Contains(Flag("--instruction-set-features=", _))),
+                                    Not(Contains(Flag("--instruction-set-variant=", _))),
+                                    Not(Contains(Flag("--max-image-block-size=", _))),
+                                    Not(Contains(Flag("--very-large-app-threshold=", _))),
+                                    Not(Contains(Flag("--resolve-startup-const-strings=", _))),
+                                    Not(Contains("--generate-debug-info")),
+                                    Not(Contains("--generate-mini-debug-info")),
+                                    Contains("-Xdeny-art-apex-data-files"),
+                                    Not(Contains(Flag("--cpu-set=", _))),
+                                    Not(Contains(Flag("-j", _))),
+                                    Not(Contains(Flag("-Xms", _))),
+                                    Not(Contains(Flag("-Xmx", _))),
+                                    Not(Contains("--compile-individually"))))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-swap")).WillOnce(Return("0"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.isa.arm64.features"))
+      .WillOnce(Return("features"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.isa.arm64.variant")).WillOnce(Return("variant"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-max-image-block-size"))
+      .WillOnce(Return("size"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-very-large"))
+      .WillOnce(Return("threshold"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-resolve-startup-strings"))
+      .WillOnce(Return("strings"));
+  EXPECT_CALL(*mock_props_, GetProperty("debug.generate-debug-info")).WillOnce(Return("1"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-minidebuginfo")).WillOnce(Return("1"));
+  EXPECT_CALL(*mock_props_, GetProperty("odsign.verification.success")).WillOnce(Return("1"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-Xms")).WillOnce(Return("xms"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-Xmx")).WillOnce(Return("xmx"));
+  EXPECT_CALL(*mock_props_, GetProperty("ro.config.low_ram")).WillOnce(Return("1"));
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              _,
+                              AllOf(Not(Contains(Flag("--swap-fd=", _))),
+                                    Contains(Flag("--instruction-set-features=", "features")),
+                                    Contains(Flag("--instruction-set-variant=", "variant")),
+                                    Contains(Flag("--max-image-block-size=", "size")),
+                                    Contains(Flag("--very-large-app-threshold=", "threshold")),
+                                    Contains(Flag("--resolve-startup-const-strings=", "strings")),
+                                    Contains("--generate-debug-info"),
+                                    Contains("--generate-mini-debug-info"),
+                                    Not(Contains("-Xdeny-art-apex-data-files")),
+                                    Contains(Flag("-Xms", "xms")),
+                                    Contains(Flag("-Xmx", "xmx")),
+                                    Contains("--compile-individually")))))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+static void SetDefaultResourceControlProps(MockSystemProperties* mock_props) {
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-cpu-set")).WillRepeatedly(Return("0,2"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-threads")).WillRepeatedly(Return("4"));
+}
+
+TEST_F(ArtdTest, dexoptDefaultResourceControlBoot) {
+  SetDefaultResourceControlProps(mock_props_);
+
+  // The default resource control properties don't apply to BOOT.
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(WhenSplitBy(
+          "--", _, AllOf(Not(Contains(Flag("--cpu-set=", _))), Contains(Not(Flag("-j", _)))))))
+      .WillOnce(Return(0));
+  priority_class_ = PriorityClass::BOOT;
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptDefaultResourceControlOther) {
+  SetDefaultResourceControlProps(mock_props_);
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy(
+                  "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4"))))))
+      .Times(3)
+      .WillRepeatedly(Return(0));
+  priority_class_ = PriorityClass::INTERACTIVE_FAST;
+  RunDexopt();
+  priority_class_ = PriorityClass::INTERACTIVE;
+  RunDexopt();
+  priority_class_ = PriorityClass::BACKGROUND;
+  RunDexopt();
+}
+
+static void SetAllResourceControlProps(MockSystemProperties* mock_props) {
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-cpu-set")).WillRepeatedly(Return("0,2"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.dex2oat-threads")).WillRepeatedly(Return("4"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.boot-dex2oat-cpu-set"))
+      .WillRepeatedly(Return("0,1,2,3"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.boot-dex2oat-threads"))
+      .WillRepeatedly(Return("8"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.restore-dex2oat-cpu-set"))
+      .WillRepeatedly(Return("0,2,3"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.restore-dex2oat-threads"))
+      .WillRepeatedly(Return("6"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.background-dex2oat-cpu-set"))
+      .WillRepeatedly(Return("0"));
+  EXPECT_CALL(*mock_props, GetProperty("dalvik.vm.background-dex2oat-threads"))
+      .WillRepeatedly(Return("2"));
+}
+
+TEST_F(ArtdTest, dexoptAllResourceControlBoot) {
+  SetAllResourceControlProps(mock_props_);
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(WhenSplitBy(
+          "--", _, AllOf(Contains(Flag("--cpu-set=", "0,1,2,3")), Contains(Flag("-j", "8"))))))
+      .WillOnce(Return(0));
+  priority_class_ = PriorityClass::BOOT;
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptAllResourceControlInteractiveFast) {
+  SetAllResourceControlProps(mock_props_);
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(WhenSplitBy(
+          "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2,3")), Contains(Flag("-j", "6"))))))
+      .WillOnce(Return(0));
+  priority_class_ = PriorityClass::INTERACTIVE_FAST;
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptAllResourceControlInteractive) {
+  SetAllResourceControlProps(mock_props_);
+
+  // INTERACTIVE always uses the default resource control properties.
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy(
+                  "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4"))))))
+      .WillOnce(Return(0));
+  priority_class_ = PriorityClass::INTERACTIVE;
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptAllResourceControlBackground) {
+  SetAllResourceControlProps(mock_props_);
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy(
+                  "--", _, AllOf(Contains(Flag("--cpu-set=", "0")), Contains(Flag("-j", "2"))))))
+      .WillOnce(Return(0));
+  priority_class_ = PriorityClass::BACKGROUND;
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptFailed) {
+  dexopt_options_.generateAppImage = true;
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
+                      WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
+                      WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")),
+                      Return(1)));
+  RunDexopt(EX_SERVICE_SPECIFIC);
+
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.art"));
 }
 
 }  // namespace

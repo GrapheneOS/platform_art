@@ -17,24 +17,13 @@
 package com.android.server.art;
 
 /**
- * Represents the Linux filesystem permission of a file or a directory.
- *
- * If both `uid` and `gid` are negative, no `chown` will be performed.
- *
- * If none of the booleans are set, the default permission bits are `rw-r-----` for a file, and
- * `rwxr-x---` for a directory.
+ * Represents the path to a VDEX file.
  *
  * @hide
  */
-parcelable FsPermission {
-    int uid;
-    int gid;
-    /**
-     * Whether the file/directory should have the "read" bit for "others" (S_IROTH).
-     */
-    boolean isOtherReadable;
-    /**
-     * Whether the file/directory should have the "execute" bit for "others" (S_IXOTH).
-     */
-    boolean isOtherExecutable;
+union VdexPath {
+    /** Represents a VDEX file as part of the artifacts. */
+    com.android.server.art.ArtifactsPath artifactsPath;
+    /** Represents a VDEX file in a dex metadata file. */
+    com.android.server.art.DexMetadataPath dexMetadataPath;
 }

@@ -17,24 +17,17 @@
 package com.android.server.art;
 
 /**
- * Represents the Linux filesystem permission of a file or a directory.
+ * Represents the conditions where dexopt should be performed.
+ * See `OatFileAssistant::DexOptTrigger`.
  *
- * If both `uid` and `gid` are negative, no `chown` will be performed.
- *
- * If none of the booleans are set, the default permission bits are `rw-r-----` for a file, and
- * `rwxr-x---` for a directory.
+ * This is actually used as a bit field, but is declared as an enum because AIDL doesn't support bit
+ * fields.
  *
  * @hide
  */
-parcelable FsPermission {
-    int uid;
-    int gid;
-    /**
-     * Whether the file/directory should have the "read" bit for "others" (S_IROTH).
-     */
-    boolean isOtherReadable;
-    /**
-     * Whether the file/directory should have the "execute" bit for "others" (S_IXOTH).
-     */
-    boolean isOtherExecutable;
+enum DexoptTrigger {
+    COMPILER_FILTER_IS_BETTER = 1 << 0,
+    COMPILER_FILTER_IS_SAME = 1 << 1,
+    COMPILER_FILTER_IS_WORSE = 1 << 2,
+    PRIMARY_BOOT_IMAGE_BECOMES_USABLE = 1 << 3,
 }

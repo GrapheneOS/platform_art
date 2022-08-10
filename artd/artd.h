@@ -17,14 +17,18 @@
 #ifndef ART_ARTD_ARTD_H_
 #define ART_ARTD_ARTD_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "android-base/result.h"
 #include "android/binder_auto_utils.h"
+#include "exec_utils.h"
 #include "oat_file_assistant_context.h"
+#include "tools/cmdline_builder.h"
 #include "tools/system_properties.h"
 
 namespace art {
@@ -33,8 +37,9 @@ namespace artd {
 class Artd : public aidl::com::android::server::art::BnArtd {
  public:
   explicit Artd(std::unique_ptr<art::tools::SystemProperties> props =
-                    std::make_unique<art::tools::SystemProperties>())
-      : props_(std::move(props)) {}
+                    std::make_unique<art::tools::SystemProperties>(),
+                std::unique_ptr<ExecUtils> exec_utils = std::make_unique<ExecUtils>())
+      : props_(std::move(props)), exec_utils_(std::move(exec_utils)) {}
 
   ndk::ScopedAStatus isAlive(bool* _aidl_return) override;
 
@@ -47,6 +52,26 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::string& in_instructionSet,
       const std::string& in_classLoaderContext,
       aidl::com::android::server::art::GetOptimizationStatusResult* _aidl_return) override;
+
+  ndk::ScopedAStatus getDexoptNeeded(
+      const std::string& in_dexFile,
+      const std::string& in_instructionSet,
+      const std::string& in_classLoaderContext,
+      const std::string& in_compilerFilter,
+      int8_t in_dexoptTrigger,
+      aidl::com::android::server::art::GetDexoptNeededResult* _aidl_return) override;
+
+  ndk::ScopedAStatus dexopt(
+      const aidl::com::android::server::art::OutputArtifacts& in_outputArtifacts,
+      const std::string& in_dexFile,
+      const std::string& in_instructionSet,
+      const std::string& in_classLoaderContext,
+      const std::string& in_compilerFilter,
+      const std::optional<aidl::com::android::server::art::ProfilePath>& in_profile,
+      const std::optional<aidl::com::android::server::art::VdexPath>& in_inputVdex,
+      aidl::com::android::server::art::PriorityClass in_priorityClass,
+      const aidl::com::android::server::art::DexoptOptions& in_dexoptOptions,
+      bool* _aidl_return) override;
 
   android::base::Result<void> Start();
 
@@ -61,6 +86,26 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   bool DenyArtApexDataFiles();
 
+  android::base::Result<int> ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                                               int timeout_sec) const;
+
+  android::base::Result<std::string> GetArtExec();
+
+  bool ShouldUseDex2Oat64();
+
+  android::base::Result<std::string> GetDex2Oat();
+
+  bool ShouldCreateSwapFileForDexopt();
+
+  void AddCompilerConfigFlags(const std::string& instruction_set,
+                              const std::string& compiler_filter,
+                              aidl::com::android::server::art::PriorityClass priority_class,
+                              const aidl::com::android::server::art::DexoptOptions& dexopt_options,
+                              /*out*/ art::tools::CmdlineBuilder& args);
+
+  void AddPerfConfigFlags(aidl::com::android::server::art::PriorityClass priority_class,
+                          /*out*/ art::tools::CmdlineBuilder& args);
+
   std::optional<std::vector<std::string>> cached_boot_image_locations_;
   std::optional<std::vector<std::string>> cached_boot_class_path_;
   std::optional<std::string> cached_apex_versions_;
@@ -70,6 +115,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   std::unique_ptr<OatFileAssistantContext> ofa_context_;
 
   std::unique_ptr<art::tools::SystemProperties> props_;
+  std::unique_ptr<ExecUtils> exec_utils_;
 };
 
 }  // namespace artd

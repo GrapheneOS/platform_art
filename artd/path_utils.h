@@ -19,19 +19,37 @@
 
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "android-base/result.h"
+#include "base/file_utils.h"
 
 namespace art {
 namespace artd {
+
+android::base::Result<void> ValidateDexPath(const std::string& dex_path);
+
+android::base::Result<std::string> BuildArtBinPath(const std::string& binary_name);
 
 // Returns the absolute path to the OAT file built from the `ArtifactsPath`.
 android::base::Result<std::string> BuildOatPath(
     const aidl::com::android::server::art::ArtifactsPath& artifacts_path);
 
 // Returns the path to the VDEX file that corresponds to the OAT file.
-std::string OatPathToVdexPath(const std::string& oat_path);
+inline std::string OatPathToVdexPath(const std::string& oat_path) {
+  return ReplaceFileExtension(oat_path, "vdex");
+}
 
 // Returns the path to the ART file that corresponds to the OAT file.
-std::string OatPathToArtPath(const std::string& oat_path);
+inline std::string OatPathToArtPath(const std::string& oat_path) {
+  return ReplaceFileExtension(oat_path, "art");
+}
+
+android::base::Result<std::string> BuildDexMetadataPath(
+    const aidl::com::android::server::art::DexMetadataPath& dex_metadata_path);
+
+android::base::Result<std::string> BuildDexMetadataPath(
+    const aidl::com::android::server::art::VdexPath& vdex_path);
+
+android::base::Result<std::string> BuildVdexPath(
+    const aidl::com::android::server::art::VdexPath& vdex_path);
 
 }  // namespace artd
 }  // namespace art
