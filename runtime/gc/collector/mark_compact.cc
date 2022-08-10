@@ -21,6 +21,8 @@
 #include "gc/accounting/mod_union_table-inl.h"
 #include "gc/reference_processor.h"
 #include "gc/space/bump_pointer_space.h"
+#include "gc/task_processor.h"
+#include "gc/verification-inl.h"
 #include "jit/jit_code_cache.h"
 #include "mirror/object-refvisitor-inl.h"
 #include "scoped_thread_state_change-inl.h"
@@ -653,38 +655,126 @@ class MarkCompact::RefsUpdateVisitor {
   uint8_t* const end_;
 };
 
+bool MarkCompact::IsValidObject(mirror::Object* obj) const {
+  if (!heap_->GetVerification()->IsValidHeapObjectAddress(obj)) {
+    return false;
+  }
+  mirror::Class* klass = obj->GetClass<kVerifyNone, kWithoutReadBarrier>();
+  if (!heap_->GetVerification()->IsValidHeapObjectAddress(klass)) {
+    return false;
+  }
+  return heap_->GetVerification()->IsValidClassUnchecked<kWithFromSpaceBarrier>(
+          obj->GetClass<kVerifyNone, kWithFromSpaceBarrier>());
+}
+
+template <typename Callback>
+void MarkCompact::VerifyObject(mirror::Object* ref, Callback& callback) const {
+  if (kIsDebugBuild) {
+    mirror::Class* klass = ref->GetClass<kVerifyNone, kWithFromSpaceBarrier>();
+    mirror::Class* pre_compact_klass = ref->GetClass<kVerifyNone, kWithoutReadBarrier>();
+    mirror::Class* klass_klass = klass->GetClass<kVerifyNone, kWithFromSpaceBarrier>();
+    mirror::Class* klass_klass_klass = klass_klass->GetClass<kVerifyNone, kWithFromSpaceBarrier>();
+    if (bump_pointer_space_->HasAddress(pre_compact_klass) &&
+        reinterpret_cast<uint8_t*>(pre_compact_klass) < black_allocations_begin_) {
+      CHECK(current_space_bitmap_->Test(pre_compact_klass))
+          << "ref=" << ref
+          << " post_compact_end=" << static_cast<void*>(post_compact_end_)
+          << " pre_compact_klass=" << pre_compact_klass
+          << " black_allocations_begin=" << static_cast<void*>(black_allocations_begin_);
+      CHECK(live_words_bitmap_->Test(pre_compact_klass));
+    }
+    if (!IsValidObject(ref)) {
+      std::ostringstream oss;
+      oss << "Invalid object: "
+          << "ref=" << ref
+          << " klass=" << klass
+          << " klass_klass=" << klass_klass
+          << " klass_klass_klass=" << klass_klass_klass
+          << " pre_compact_klass=" << pre_compact_klass
+          << " from_space_begin=" << static_cast<void*>(from_space_begin_)
+          << " pre_compact_begin=" << static_cast<void*>(bump_pointer_space_->Begin())
+          << " post_compact_end=" << static_cast<void*>(post_compact_end_)
+          << " black_allocations_begin=" << static_cast<void*>(black_allocations_begin_);
+
+      // Call callback before dumping larger data like RAM and space dumps.
+      callback(oss);
+
+      oss << " \nobject="
+          << heap_->GetVerification()->DumpRAMAroundAddress(reinterpret_cast<uintptr_t>(ref), 128)
+          << " \nklass(from)="
+          << heap_->GetVerification()->DumpRAMAroundAddress(reinterpret_cast<uintptr_t>(klass), 128)
+          << "spaces:\n";
+      heap_->DumpSpaces(oss);
+      LOG(FATAL) << oss.str();
+    }
+  }
+}
+
 void MarkCompact::CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* addr) {
   DCHECK(IsAligned<kPageSize>(addr));
-  obj = GetFromSpaceAddr(obj);
   DCHECK(current_space_bitmap_->Test(obj)
          && live_words_bitmap_->Test(obj));
   DCHECK(live_words_bitmap_->Test(offset)) << "obj=" << obj
-                                              << " offset=" << offset
-                                              << " addr=" << static_cast<void*>(addr)
-                                              << " black_allocs_begin="
-                                              << static_cast<void*>(black_allocations_begin_)
-                                              << " post_compact_addr="
-                                              << static_cast<void*>(post_compact_end_);
+                                           << " offset=" << offset
+                                           << " addr=" << static_cast<void*>(addr)
+                                           << " black_allocs_begin="
+                                           << static_cast<void*>(black_allocations_begin_)
+                                           << " post_compact_addr="
+                                           << static_cast<void*>(post_compact_end_);
   uint8_t* const start_addr = addr;
   // How many distinct live-strides do we have.
   size_t stride_count = 0;
   uint8_t* last_stride;
   uint32_t last_stride_begin = 0;
+  auto verify_obj_callback = [&] (std::ostream& os) {
+                               os << " stride_count=" << stride_count
+                                  << " last_stride=" << static_cast<void*>(last_stride)
+                                  << " offset=" << offset
+                                  << " start_addr=" << static_cast<void*>(start_addr);
+                             };
+  obj = GetFromSpaceAddr(obj);
   live_words_bitmap_->VisitLiveStrides(offset,
                                        black_allocations_begin_,
                                        kPageSize,
-                                       [&] (uint32_t stride_begin,
-                                            size_t stride_size,
-                                            bool is_last) {
+                                       [&addr,
+                                        &last_stride,
+                                        &stride_count,
+                                        &last_stride_begin,
+                                        verify_obj_callback,
+                                        this] (uint32_t stride_begin,
+                                               size_t stride_size,
+                                               bool /*is_last*/)
+                                        REQUIRES_SHARED(Locks::mutator_lock_) {
                                          const size_t stride_in_bytes = stride_size * kAlignment;
                                          DCHECK_LE(stride_in_bytes, kPageSize);
                                          last_stride_begin = stride_begin;
+                                         DCHECK(IsAligned<kAlignment>(addr));
                                          memcpy(addr,
                                                 from_space_begin_ + stride_begin * kAlignment,
                                                 stride_in_bytes);
-                                         if (is_last) {
-                                            last_stride = addr;
+                                         if (kIsDebugBuild) {
+                                           uint8_t* space_begin = bump_pointer_space_->Begin();
+                                           // We can interpret the first word of the stride as an
+                                           // obj only from second stride onwards, as the first
+                                           // stride's first-object may have started on previous
+                                           // page. The only exception is the first page of the
+                                           // moving space.
+                                           if (stride_count > 0
+                                               || stride_begin * kAlignment < kPageSize) {
+                                             mirror::Object* o =
+                                                reinterpret_cast<mirror::Object*>(space_begin
+                                                                                  + stride_begin
+                                                                                  * kAlignment);
+                                             CHECK(live_words_bitmap_->Test(o)) << "ref=" << o;
+                                             CHECK(current_space_bitmap_->Test(o))
+                                                 << "ref=" << o
+                                                 << " bitmap: "
+                                                 << current_space_bitmap_->DumpMemAround(o);
+                                             VerifyObject(reinterpret_cast<mirror::Object*>(addr),
+                                                          verify_obj_callback);
+                                           }
                                          }
+                                         last_stride = addr;
                                          addr += stride_in_bytes;
                                          stride_count++;
                                        });
@@ -730,6 +820,7 @@ void MarkCompact::CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* add
   // checks.
   while (addr < last_stride) {
     mirror::Object* ref = reinterpret_cast<mirror::Object*>(addr);
+    VerifyObject(ref, verify_obj_callback);
     RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/false>
             visitor(this, ref, nullptr, nullptr);
     obj_size = ref->VisitRefsForCompaction(visitor, MemberOffset(0), MemberOffset(-1));
@@ -744,6 +835,7 @@ void MarkCompact::CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* add
   while (addr < end_addr) {
     mirror::Object* ref = reinterpret_cast<mirror::Object*>(addr);
     obj = reinterpret_cast<mirror::Object*>(from_addr);
+    VerifyObject(ref, verify_obj_callback);
     RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/true>
             visitor(this, ref, nullptr, start_addr + kPageSize);
     obj_size = obj->VisitRefsForCompaction(visitor,
@@ -779,6 +871,14 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
   uint8_t* const dest_page_end = dest + kPageSize;
   DCHECK(IsAligned<kPageSize>(dest_page_end));
 
+  auto verify_obj_callback = [&] (std::ostream& os) {
+                               os << " first_obj=" << first_obj
+                                  << " next_page_first_obj=" << next_page_first_obj
+                                  << " first_chunk_sie=" << first_chunk_size
+                                  << " dest=" << static_cast<void*>(dest)
+                                  << " pre_compact_page="
+                                  << static_cast<void* const>(pre_compact_page);
+                             };
   // We have empty portion at the beginning of the page. Zero it.
   if (pre_compact_addr > pre_compact_page) {
     bytes_copied = pre_compact_addr - pre_compact_page;
@@ -846,6 +946,7 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     }
     while (bytes_to_visit > 0) {
       mirror::Object* dest_obj = reinterpret_cast<mirror::Object*>(dest);
+      VerifyObject(dest_obj, verify_obj_callback);
       RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/false> visitor(this,
                                                                           dest_obj,
                                                                           nullptr,
@@ -858,6 +959,7 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     DCHECK_EQ(bytes_to_visit, 0u);
     if (check_last_obj) {
       mirror::Object* dest_obj = reinterpret_cast<mirror::Object*>(dest);
+      VerifyObject(dest_obj, verify_obj_callback);
       RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/true> visitor(this,
                                                                          dest_obj,
                                                                          nullptr,
@@ -900,10 +1002,11 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     current_space_bitmap_->VisitMarkedRange(
             reinterpret_cast<uintptr_t>(found_obj) + mirror::kObjectHeaderSize,
             page_end,
-            [&found_obj, pre_compact_addr, dest, this] (mirror::Object* obj)
+            [&found_obj, pre_compact_addr, dest, this, verify_obj_callback] (mirror::Object* obj)
             REQUIRES_SHARED(Locks::mutator_lock_) {
               ptrdiff_t diff = reinterpret_cast<uint8_t*>(found_obj) - pre_compact_addr;
               mirror::Object* ref = reinterpret_cast<mirror::Object*>(dest + diff);
+              VerifyObject(ref, verify_obj_callback);
               RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/false>
                       visitor(this, ref, nullptr, nullptr);
               ref->VisitRefsForCompaction</*kFetchObjSize*/false>(visitor,
@@ -918,6 +1021,7 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     DCHECK_LT(reinterpret_cast<uintptr_t>(found_obj), page_end);
     ptrdiff_t diff = reinterpret_cast<uint8_t*>(found_obj) - pre_compact_addr;
     mirror::Object* ref = reinterpret_cast<mirror::Object*>(dest + diff);
+    VerifyObject(ref, verify_obj_callback);
     RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/true> visitor(this,
                                                                        ref,
                                                                        nullptr,
@@ -1367,6 +1471,10 @@ void MarkCompact::PreCompactionPhase() {
   gc_barrier_.Init(thread_running_gc_, 0);
   StackRefsUpdateVisitor thread_visitor(this, black_objs_slide_diff_);
   CompactionPauseCallback callback(this);
+  // To increase likelihood of black allocations. For testing purposes only.
+  if (kIsDebugBuild && heap_->GetTaskProcessor()->GetRunningThread() == thread_running_gc_) {
+    sleep(10);
+  }
 
   size_t barrier_count = Runtime::Current()->GetThreadList()->FlipThreadRoots(
       &thread_visitor, &callback, this, GetHeap()->GetGcPauseListener());
