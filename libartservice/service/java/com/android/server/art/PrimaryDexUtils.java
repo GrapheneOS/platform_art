@@ -107,8 +107,7 @@ public class PrimaryDexUtils {
 
         String[] splitClassLoaderNames = pkg.getSplitClassLoaderNames();
         SparseArray<int[]> splitDependencies = pkg.getSplitDependencies();
-        boolean isIsolatedSplitLoading =
-                pkg.isIsolatedSplitLoading() && !Utils.isEmpty(splitDependencies);
+        boolean isIsolatedSplitLoading = isIsolatedSplitLoading(pkg);
 
         for (int i = 1; i < dexInfos.size(); i++) {
             assert dexInfos.get(i).mSplitIndex == i - 1;
@@ -275,6 +274,10 @@ public class PrimaryDexUtils {
                                 null /* parentContext */,
                                 encodeSharedLibraries(library.getDependencies())))
                 .collect(Collectors.joining("#", "{", "}"));
+    }
+
+    public static boolean isIsolatedSplitLoading(@NonNull AndroidPackageApi pkg) {
+        return pkg.isIsolatedSplitLoading() && !Utils.isEmpty(pkg.getSplitDependencies());
     }
 
     /** Basic information about a primary dex file (either the base APK or a split APK). */

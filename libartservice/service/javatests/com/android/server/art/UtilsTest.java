@@ -64,4 +64,12 @@ public class UtilsTest {
     public void testArrayIsEmptyFalse() {
         assertThat(Utils.isEmpty(new int[] {1})).isFalse();
     }
+
+    @Test
+    public void testImplies() {
+        assertThat(Utils.implies(false, false)).isTrue();
+        assertThat(Utils.implies(false, true)).isTrue();
+        assertThat(Utils.implies(true, false)).isFalse();
+        assertThat(Utils.implies(true, true)).isTrue();
+    }
 }
