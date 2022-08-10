@@ -1759,6 +1759,18 @@ void JitCodeCache::InvalidateAllCompiledCode() {
       Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(meth, /*aot_code=*/ nullptr);
     }
   }
+
+  for (auto it : zygote_map_) {
+    if (it.method == nullptr) {
+      continue;
+    }
+    if (it.method->IsPreCompiled()) {
+      it.method->ClearPreCompiled();
+    }
+    Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(it.method,
+                                                                    /*aot_code=*/nullptr);
+  }
+
   saved_compiled_methods_map_.clear();
   osr_code_map_.clear();
 }
