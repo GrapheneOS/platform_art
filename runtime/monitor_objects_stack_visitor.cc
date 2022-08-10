@@ -90,7 +90,7 @@ bool MonitorObjectsStackVisitor::VisitFrame() {
 void MonitorObjectsStackVisitor::VisitLockedObject(ObjPtr<mirror::Object> o, void* context) {
   MonitorObjectsStackVisitor* self = reinterpret_cast<MonitorObjectsStackVisitor*>(context);
   if (o != nullptr) {
-    if (kUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+    if (gUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
       // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
       // may have not been flipped yet and "o" may be a from-space (stale) ref, in which case the
       // IdentityHashCode call below will crash. So explicitly mark/forward it here.

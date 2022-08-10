@@ -55,7 +55,7 @@ template<ReadBarrierOption kReadBarrierOption, bool kVisitProxyMethod, class Vis
 void Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
   VisitFields<kReadBarrierOption>([&](ArtField* field) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     field->VisitRoots(visitor);
-    if (kIsDebugBuild && !kUseUserfaultfd && IsResolved()) {
+    if (kIsDebugBuild && !gUseUserfaultfd && IsResolved()) {
       CHECK_EQ(field->GetDeclaringClass<kReadBarrierOption>(), this)
           << GetStatus() << field->GetDeclaringClass()->PrettyClass() << " != " << PrettyClass();
     }
