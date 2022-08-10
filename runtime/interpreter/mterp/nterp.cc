@@ -34,7 +34,7 @@ namespace art {
 namespace interpreter {
 
 bool IsNterpSupported() {
-  return !kPoisonHeapReferences && gUseReadBarrier;
+  return !kPoisonHeapReferences;
 }
 
 bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
