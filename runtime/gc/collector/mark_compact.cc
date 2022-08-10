@@ -149,8 +149,8 @@ void MarkCompact::BindAndResetBitmaps() {
       if (space == bump_pointer_space_) {
         // It is OK to clear the bitmap with mutators running since the only
         // place it is read is VisitObjects which has exclusion with this GC.
-        current_space_bitmap_ = bump_pointer_space_->GetMarkBitmap();
-        current_space_bitmap_->Clear();
+        moving_space_bitmap_ = bump_pointer_space_->GetMarkBitmap();
+        moving_space_bitmap_->Clear();
       } else {
         CHECK(space == heap_->GetNonMovingSpace());
         non_moving_space_ = space;
@@ -169,6 +169,7 @@ void MarkCompact::InitializePhase() {
   non_moving_first_objs_count_ = 0;
   black_page_count_ = 0;
   from_space_slide_diff_ = from_space_begin_ - bump_pointer_space_->Begin();
+  black_allocations_begin_ = bump_pointer_space_->Limit();
 }
 
 void MarkCompact::RunPhases() {
@@ -187,6 +188,10 @@ void MarkCompact::RunPhases() {
       bump_pointer_space_->AssertAllThreadLocalBuffersAreRevoked();
     }
   }
+  // To increase likelihood of black allocations. For testing purposes only.
+  if (kIsDebugBuild && heap_->GetTaskProcessor()->GetRunningThread() == thread_running_gc_) {
+    sleep(3);
+  }
   {
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
     ReclaimPhase();
@@ -194,7 +199,15 @@ void MarkCompact::RunPhases() {
   }
 
   compacting_ = true;
-  PreCompactionPhase();
+  {
+    heap_->ThreadFlipBegin(self);
+    {
+      ScopedPause pause(this);
+      PreCompactionPhase();
+    }
+    heap_->ThreadFlipEnd(self);
+  }
+
   if (kConcurrentCompaction) {
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
     CompactionPhase();
@@ -212,7 +225,7 @@ void MarkCompact::InitMovingSpaceFirstObjects(const size_t vec_len) {
   uint32_t offset_in_chunk_word;
   uint32_t offset;
   mirror::Object* obj;
-  const uintptr_t heap_begin = current_space_bitmap_->HeapBegin();
+  const uintptr_t heap_begin = moving_space_bitmap_->HeapBegin();
 
   size_t chunk_idx;
   // Find the first live word in the space
@@ -272,7 +285,7 @@ void MarkCompact::InitMovingSpaceFirstObjects(const size_t vec_len) {
     //
     // Find the object which encapsulates offset in it, which could be
     // starting at offset itself.
-    obj = current_space_bitmap_->FindPrecedingObject(heap_begin + offset * kAlignment);
+    obj = moving_space_bitmap_->FindPrecedingObject(heap_begin + offset * kAlignment);
     // TODO: add a check to validate the object.
     pre_compact_offset_moving_space_[to_space_page_idx] = offset;
     first_objs_moving_space_[to_space_page_idx].Assign(obj);
@@ -423,7 +436,6 @@ void MarkCompact::PrepareForCompaction() {
   // appropriately updated in the pre-compaction pause.
   // The chunk-info vector entries for the post marking-pause allocations will be
   // also updated in the pre-compaction pause.
-  updated_roots_.reserve(1000000);
 }
 
 class MarkCompact::VerifyRootMarkedVisitor : public SingleRootVisitor {
@@ -508,7 +520,7 @@ void MarkCompact::MarkingPause() {
   heap_->GetReferenceProcessor()->EnableSlowPath();
 
   // Capture 'end' of moving-space at this point. Every allocation beyond this
-  // point will be considered as in to-space.
+  // point will be considered as black.
   // Align-up to page boundary so that black allocations happen from next page
   // onwards.
   black_allocations_begin_ = bump_pointer_space_->AlignEnd(thread_running_gc_, kPageSize);
@@ -520,8 +532,7 @@ void MarkCompact::SweepSystemWeaks(Thread* self, Runtime* runtime, const bool pa
   TimingLogger::ScopedTiming t(paused ? "(Paused)SweepSystemWeaks" : "SweepSystemWeaks",
                                GetTimings());
   ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  // Don't sweep JIT weaks with other. They are separately done.
-  runtime->SweepSystemWeaks(this, !paused);
+  runtime->SweepSystemWeaks(this);
 }
 
 void MarkCompact::ProcessReferences(Thread* self) {
@@ -676,7 +687,7 @@ void MarkCompact::VerifyObject(mirror::Object* ref, Callback& callback) const {
     mirror::Class* klass_klass_klass = klass_klass->GetClass<kVerifyNone, kWithFromSpaceBarrier>();
     if (bump_pointer_space_->HasAddress(pre_compact_klass) &&
         reinterpret_cast<uint8_t*>(pre_compact_klass) < black_allocations_begin_) {
-      CHECK(current_space_bitmap_->Test(pre_compact_klass))
+      CHECK(moving_space_bitmap_->Test(pre_compact_klass))
           << "ref=" << ref
           << " post_compact_end=" << static_cast<void*>(post_compact_end_)
           << " pre_compact_klass=" << pre_compact_klass
@@ -712,7 +723,7 @@ void MarkCompact::VerifyObject(mirror::Object* ref, Callback& callback) const {
 
 void MarkCompact::CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* addr) {
   DCHECK(IsAligned<kPageSize>(addr));
-  DCHECK(current_space_bitmap_->Test(obj)
+  DCHECK(moving_space_bitmap_->Test(obj)
          && live_words_bitmap_->Test(obj));
   DCHECK(live_words_bitmap_->Test(offset)) << "obj=" << obj
                                            << " offset=" << offset
@@ -766,10 +777,10 @@ void MarkCompact::CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* add
                                                                                   + stride_begin
                                                                                   * kAlignment);
                                              CHECK(live_words_bitmap_->Test(o)) << "ref=" << o;
-                                             CHECK(current_space_bitmap_->Test(o))
+                                             CHECK(moving_space_bitmap_->Test(o))
                                                  << "ref=" << o
                                                  << " bitmap: "
-                                                 << current_space_bitmap_->DumpMemAround(o);
+                                                 << moving_space_bitmap_->DumpMemAround(o);
                                              VerifyObject(reinterpret_cast<mirror::Object*>(addr),
                                                           verify_obj_callback);
                                            }
@@ -984,7 +995,7 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     uintptr_t start_visit = reinterpret_cast<uintptr_t>(pre_compact_addr);
     uintptr_t page_end = reinterpret_cast<uintptr_t>(pre_compact_page_end);
     mirror::Object* found_obj = nullptr;
-    current_space_bitmap_->VisitMarkedRange</*kVisitOnce*/true>(start_visit,
+    moving_space_bitmap_->VisitMarkedRange</*kVisitOnce*/true>(start_visit,
                                                                 page_end,
                                                                 [&found_obj](mirror::Object* obj) {
                                                                   found_obj = obj;
@@ -999,7 +1010,7 @@ void MarkCompact::SlideBlackPage(mirror::Object* first_obj,
     // in-between.
     std::memcpy(dest, src_addr, remaining_bytes);
     DCHECK_LT(reinterpret_cast<uintptr_t>(found_obj), page_end);
-    current_space_bitmap_->VisitMarkedRange(
+    moving_space_bitmap_->VisitMarkedRange(
             reinterpret_cast<uintptr_t>(found_obj) + mirror::kObjectHeaderSize,
             page_end,
             [&found_obj, pre_compact_addr, dest, this, verify_obj_callback] (mirror::Object* obj)
@@ -1175,13 +1186,14 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
       // BumpPointerSpace::Walk() also works similarly.
       while (black_allocs < block_end
              && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
+        RememberDexCaches(obj);
         if (first_obj == nullptr) {
           first_obj = obj;
         }
         // We only need the mark-bitmap in the pages wherein a new TLAB starts in
         // the middle of the page.
         if (set_mark_bit) {
-          current_space_bitmap_->Set(obj);
+          moving_space_bitmap_->Set(obj);
         }
         size_t obj_size = RoundUp(obj->SizeOf(), kAlignment);
         // Handle objects which cross page boundary, including objects larger
@@ -1306,60 +1318,112 @@ class MarkCompact::ImmuneSpaceUpdateObjVisitor {
   MarkCompact* const collector_;
 };
 
-class MarkCompact::StackRefsUpdateVisitor : public Closure {
+// TODO: JVMTI redefinition leads to situations wherein new class object(s) and the
+// corresponding native roots are setup but are not linked to class tables and
+// therefore are not accessible, leading to memory corruption.
+class MarkCompact::NativeRootsUpdateVisitor : public ClassLoaderVisitor, public DexCacheVisitor {
  public:
-  explicit StackRefsUpdateVisitor(MarkCompact* collector, size_t bytes)
-    : collector_(collector), adjust_bytes_(bytes) {}
+  explicit NativeRootsUpdateVisitor(MarkCompact* collector, PointerSize pointer_size)
+    : collector_(collector), pointer_size_(pointer_size) {}
 
-  void Run(Thread* thread) override REQUIRES_SHARED(Locks::mutator_lock_) {
-    // Note: self is not necessarily equal to thread since thread may be suspended.
-    Thread* self = Thread::Current();
-    CHECK(thread == self
-          || thread->IsSuspended()
-          || thread->GetState() == ThreadState::kWaitingPerformingGc)
-        << thread->GetState() << " thread " << thread << " self " << self;
-    thread->VisitRoots(collector_, kVisitRootFlagAllRoots);
-    // Subtract adjust_bytes_ from TLAB pointers (top, end etc.) to align it
-    // with the black-page slide that is performed during compaction.
-    thread->AdjustTlab(adjust_bytes_);
-    // TODO: update the TLAB pointers.
-    collector_->GetBarrier().Pass(self);
+  ~NativeRootsUpdateVisitor() {
+    LOG(INFO) << "num_classes: " << classes_visited_.size()
+              << " num_dex_caches: " << dex_caches_visited_.size();
   }
 
- private:
-  MarkCompact* const collector_;
-  const size_t adjust_bytes_;
-};
-
-class MarkCompact::CompactionPauseCallback : public Closure {
- public:
-  explicit CompactionPauseCallback(MarkCompact* collector) : collector_(collector) {}
-
-  void Run(Thread* thread) override REQUIRES(Locks::mutator_lock_) {
-    DCHECK_EQ(thread, collector_->thread_running_gc_);
-    {
-      pthread_attr_t attr;
-      size_t stack_size;
-      void* stack_addr;
-      pthread_getattr_np(pthread_self(), &attr);
-      pthread_attr_getstack(&attr, &stack_addr, &stack_size);
-      pthread_attr_destroy(&attr);
-      collector_->stack_addr_ = stack_addr;
-      collector_->stack_end_ = reinterpret_cast<char*>(stack_addr) + stack_size;
+  void Visit(ObjPtr<mirror::ClassLoader> class_loader) override
+      REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) {
+    ClassTable* const class_table = class_loader->GetClassTable();
+    if (class_table != nullptr) {
+      class_table->VisitClassesAndRoots(*this);
     }
-    collector_->CompactionPause();
+  }
 
-    collector_->stack_end_ = nullptr;
+  void Visit(ObjPtr<mirror::DexCache> dex_cache) override
+      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) {
+    if (!dex_cache.IsNull()) {
+      uint32_t cache = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(dex_cache.Ptr()));
+      if (dex_caches_visited_.insert(cache).second) {
+        dex_cache->VisitNativeRoots<kDefaultVerifyFlags, kWithoutReadBarrier>(*this);
+        collector_->dex_caches_.erase(cache);
+      }
+    }
+  }
+
+  void VisitDexCache(mirror::DexCache* dex_cache)
+      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_)
+      REQUIRES(Locks::heap_bitmap_lock_) {
+    dex_cache->VisitNativeRoots<kDefaultVerifyFlags, kWithoutReadBarrier>(*this);
+  }
+
+  void operator()(mirror::Object* obj)
+      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(obj->IsClass<kDefaultVerifyFlags>());
+    ObjPtr<mirror::Class> klass = obj->AsClass<kDefaultVerifyFlags>();
+    VisitClassRoots(klass);
+  }
+
+  // For ClassTable::Visit()
+  bool operator()(ObjPtr<mirror::Class> klass)
+      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!klass.IsNull()) {
+      VisitClassRoots(klass);
+    }
+    return true;
+  }
+
+  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+      ALWAYS_INLINE
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!root->IsNull()) {
+      VisitRoot(root);
+    }
+  }
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+      ALWAYS_INLINE
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    collector_->UpdateRoot(root);
   }
 
  private:
+  void VisitClassRoots(ObjPtr<mirror::Class> klass)
+      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
+    mirror::Class* klass_ptr = klass.Ptr();
+    uint32_t k = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(klass_ptr));
+    // No reason to visit native roots of class in immune spaces.
+    if ((collector_->bump_pointer_space_->HasAddress(klass_ptr)
+         || collector_->non_moving_space_->HasAddress(klass_ptr))
+        && classes_visited_.insert(k).second) {
+      klass->VisitNativeRoots<kWithoutReadBarrier, /*kVisitProxyMethod*/false>(*this,
+                                                                               pointer_size_);
+      klass->VisitObsoleteDexCaches<kWithoutReadBarrier>(*this);
+      klass->VisitObsoleteClass<kWithoutReadBarrier>(*this);
+    }
+  }
+
+  std::unordered_set<uint32_t> dex_caches_visited_;
+  std::unordered_set<uint32_t> classes_visited_;
   MarkCompact* const collector_;
+  PointerSize pointer_size_;
 };
 
-void MarkCompact::CompactionPause() {
+void MarkCompact::PreCompactionPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Runtime* runtime = Runtime::Current();
   non_moving_space_bitmap_ = non_moving_space_->GetLiveBitmap();
+  if (kIsDebugBuild) {
+    pthread_attr_t attr;
+    size_t stack_size;
+    void* stack_addr;
+    pthread_getattr_np(pthread_self(), &attr);
+    pthread_attr_getstack(&attr, &stack_addr, &stack_size);
+    pthread_attr_destroy(&attr);
+    stack_addr_ = stack_addr;
+    stack_end_ = reinterpret_cast<char*>(stack_addr) + stack_size;
+  }
+
   {
     TimingLogger::ScopedTiming t2("(Paused)UpdateCompactionDataStructures", GetTimings());
     ReaderMutexLock rmu(thread_running_gc_, *Locks::heap_bitmap_lock_);
@@ -1387,16 +1451,45 @@ void MarkCompact::CompactionPause() {
 
     heap_->GetReferenceProcessor()->UpdateRoots(this);
   }
-  if (runtime->GetJit() != nullptr) {
-    runtime->GetJit()->GetCodeCache()->SweepRootTables(this);
+
+  {
+    // Thread roots must be updated first (before space mremap and native root
+    // updation) to ensure that pre-update content is accessible.
+    TimingLogger::ScopedTiming t2("(Paused)UpdateThreadRoots", GetTimings());
+    MutexLock mu1(thread_running_gc_, *Locks::runtime_shutdown_lock_);
+    MutexLock mu2(thread_running_gc_, *Locks::thread_list_lock_);
+    std::list<Thread*> thread_list = runtime->GetThreadList()->GetList();
+    for (Thread* thread : thread_list) {
+      thread->VisitRoots(this, kVisitRootFlagAllRoots);
+      thread->AdjustTlab(black_objs_slide_diff_);
+    }
   }
 
   {
-    // TODO: Calculate freed objects and update that as well.
-    int32_t freed_bytes = black_objs_slide_diff_;
-    bump_pointer_space_->RecordFree(0, freed_bytes);
-    RecordFree(ObjectBytePair(0, freed_bytes));
+    // Native roots must be updated before updating system weaks as class linker
+    // holds roots to class loaders and dex-caches as weak roots. Also, space
+    // mremap must be done after this step as we require reading
+    // class/dex-cache/class-loader content for updating native roots.
+    TimingLogger::ScopedTiming t2("(Paused)UpdateNativeRoots", GetTimings());
+    ClassLinker* class_linker = runtime->GetClassLinker();
+    NativeRootsUpdateVisitor visitor(this, class_linker->GetImagePointerSize());
+    {
+      ReaderMutexLock rmu(thread_running_gc_, *Locks::classlinker_classes_lock_);
+      class_linker->VisitBootClasses(&visitor);
+      class_linker->VisitClassLoaders(&visitor);
+    }
+    {
+      WriterMutexLock wmu(thread_running_gc_, *Locks::heap_bitmap_lock_);
+      ReaderMutexLock rmu(thread_running_gc_, *Locks::dex_lock_);
+      class_linker->VisitDexCaches(&visitor);
+      for (uint32_t cache : dex_caches_) {
+        visitor.VisitDexCache(reinterpret_cast<mirror::DexCache*>(cache));
+      }
+    }
+    dex_caches_.clear();
   }
+
+  SweepSystemWeaks(thread_running_gc_, runtime, /*paused*/true);
 
   {
     TimingLogger::ScopedTiming t2("(Paused)Mremap", GetTimings());
@@ -1415,12 +1508,14 @@ void MarkCompact::CompactionPause() {
            << errno;
   }
 
-  if (!kConcurrentCompaction) {
-    // We need to perform the heap compaction *before* root updation (below) so
-    // that assumptions that objects have already been compacted and laid down
-    // are not broken.
-    UpdateNonMovingSpace();
-    CompactMovingSpace();
+  {
+    TimingLogger::ScopedTiming t2("(Paused)UpdateConcurrentRoots", GetTimings());
+    runtime->VisitConcurrentRoots(this, kVisitRootFlagAllRoots);
+  }
+  {
+    // TODO: don't visit the transaction roots if it's not active.
+    TimingLogger::ScopedTiming t2("(Paused)UpdateNonThreadRoots", GetTimings());
+    runtime->VisitNonThreadRoots(this);
   }
 
   {
@@ -1449,39 +1544,18 @@ void MarkCompact::CompactionPause() {
       }
     }
   }
-  {
-    TimingLogger::ScopedTiming t2("(Paused)UpdateConcurrentRoots", GetTimings());
-    runtime->VisitConcurrentRoots(this, kVisitRootFlagAllRoots);
-  }
-  {
-    // TODO: don't visit the transaction roots if it's not active.
-    TimingLogger::ScopedTiming t2("(Paused)UpdateNonThreadRoots", GetTimings());
-    runtime->VisitNonThreadRoots(this);
-  }
-  {
-    TimingLogger::ScopedTiming t2("(Paused)UpdateSystemWeaks", GetTimings());
-    SweepSystemWeaks(thread_running_gc_, runtime, /*paused*/true);
-  }
-}
 
-void MarkCompact::PreCompactionPhase() {
-  TimingLogger::ScopedTiming split(__FUNCTION__, GetTimings());
-  DCHECK_EQ(Thread::Current(), thread_running_gc_);
-  Locks::mutator_lock_->AssertNotHeld(thread_running_gc_);
-  gc_barrier_.Init(thread_running_gc_, 0);
-  StackRefsUpdateVisitor thread_visitor(this, black_objs_slide_diff_);
-  CompactionPauseCallback callback(this);
-  // To increase likelihood of black allocations. For testing purposes only.
-  if (kIsDebugBuild && heap_->GetTaskProcessor()->GetRunningThread() == thread_running_gc_) {
-    sleep(10);
+  if (!kConcurrentCompaction) {
+    UpdateNonMovingSpace();
+    CompactMovingSpace();
   }
 
-  size_t barrier_count = Runtime::Current()->GetThreadList()->FlipThreadRoots(
-      &thread_visitor, &callback, this, GetHeap()->GetGcPauseListener());
-
+  stack_end_ = nullptr;
   {
-    ScopedThreadStateChange tsc(thread_running_gc_, ThreadState::kWaitingForCheckPointsToRun);
-    gc_barrier_.Increment(thread_running_gc_, barrier_count);
+    // TODO: Calculate freed objects and update that as well.
+    int32_t freed_bytes = black_objs_slide_diff_;
+    bump_pointer_space_->RecordFree(0, freed_bytes);
+    RecordFree(ObjectBytePair(0, freed_bytes));
   }
 }
 
@@ -1895,10 +1969,18 @@ template <bool kUpdateLiveWords>
 void MarkCompact::ScanObject(mirror::Object* obj) {
   RefFieldsVisitor visitor(this);
   DCHECK(IsMarked(obj)) << "Scanning marked object " << obj << "\n" << heap_->DumpSpaces();
-  if (kUpdateLiveWords && current_space_bitmap_->HasAddress(obj)) {
+  if (kUpdateLiveWords && moving_space_bitmap_->HasAddress(obj)) {
     UpdateLivenessInfo(obj);
   }
   obj->VisitReferences(visitor, visitor);
+  RememberDexCaches(obj);
+}
+
+void MarkCompact::RememberDexCaches(mirror::Object* obj) {
+  if (obj->IsDexCache()) {
+    dex_caches_.insert(
+            mirror::CompressedReference<mirror::Object>::FromMirrorPtr(obj).AsVRegValue());
+  }
 }
 
 // Scan anything that's on the mark stack.
@@ -1945,9 +2027,9 @@ inline bool MarkCompact::MarkObjectNonNullNoPush(mirror::Object* obj,
                                                  MemberOffset offset) {
   // We expect most of the referenes to be in bump-pointer space, so try that
   // first to keep the cost of this function minimal.
-  if (LIKELY(current_space_bitmap_->HasAddress(obj))) {
-    return kParallel ? !current_space_bitmap_->AtomicTestAndSet(obj)
-                     : !current_space_bitmap_->Set(obj);
+  if (LIKELY(moving_space_bitmap_->HasAddress(obj))) {
+    return kParallel ? !moving_space_bitmap_->AtomicTestAndSet(obj)
+                     : !moving_space_bitmap_->Set(obj);
   } else if (non_moving_space_bitmap_->HasAddress(obj)) {
     return kParallel ? !non_moving_space_bitmap_->AtomicTestAndSet(obj)
                      : !non_moving_space_bitmap_->Set(obj);
@@ -2022,9 +2104,10 @@ void MarkCompact::VisitRoots(mirror::CompressedReference<mirror::Object>** roots
 
 mirror::Object* MarkCompact::IsMarked(mirror::Object* obj) {
   CHECK(obj != nullptr);
-  if (current_space_bitmap_->HasAddress(obj)) {
+  if (moving_space_bitmap_->HasAddress(obj)) {
+    const bool is_black = reinterpret_cast<uint8_t*>(obj) >= black_allocations_begin_;
     if (compacting_) {
-      if (reinterpret_cast<uint8_t*>(obj) > black_allocations_begin_) {
+      if (is_black) {
         return PostCompactBlackObjAddr(obj);
       } else if (live_words_bitmap_->Test(obj)) {
         return PostCompactOldObjAddr(obj);
@@ -2032,7 +2115,7 @@ mirror::Object* MarkCompact::IsMarked(mirror::Object* obj) {
         return nullptr;
       }
     }
-    return current_space_bitmap_->Test(obj) ? obj : nullptr;
+    return (is_black || moving_space_bitmap_->Test(obj)) ? obj : nullptr;
   } else if (non_moving_space_bitmap_->HasAddress(obj)) {
     return non_moving_space_bitmap_->Test(obj) ? obj : nullptr;
   } else if (immune_spaces_.ContainsObject(obj)) {

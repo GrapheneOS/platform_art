@@ -388,17 +388,19 @@ inline bool ArtMethod::HasSingleImplementation() {
   return (GetAccessFlags() & kAccSingleImplementation) != 0;
 }
 
-template<ReadBarrierOption kReadBarrierOption, typename RootVisitorType>
+template<ReadBarrierOption kReadBarrierOption, bool kVisitProxyMethod, typename RootVisitorType>
 void ArtMethod::VisitRoots(RootVisitorType& visitor, PointerSize pointer_size) {
   if (LIKELY(!declaring_class_.IsNull())) {
     visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
-    ObjPtr<mirror::Class> klass = declaring_class_.Read<kReadBarrierOption>();
-    if (UNLIKELY(klass->IsProxyClass())) {
-      // For normal methods, dex cache shortcuts will be visited through the declaring class.
-      // However, for proxies we need to keep the interface method alive, so we visit its roots.
-      ArtMethod* interface_method = GetInterfaceMethodForProxyUnchecked(pointer_size);
-      DCHECK(interface_method != nullptr);
-      interface_method->VisitRoots<kReadBarrierOption>(visitor, pointer_size);
+    if (kVisitProxyMethod) {
+      ObjPtr<mirror::Class> klass = declaring_class_.Read<kReadBarrierOption>();
+      if (UNLIKELY(klass->IsProxyClass())) {
+        // For normal methods, dex cache shortcuts will be visited through the declaring class.
+        // However, for proxies we need to keep the interface method alive, so we visit its roots.
+        ArtMethod* interface_method = GetInterfaceMethodForProxyUnchecked(pointer_size);
+        DCHECK(interface_method != nullptr);
+        interface_method->VisitRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
+      }
     }
   }
 }

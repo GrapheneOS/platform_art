@@ -59,6 +59,13 @@ AllocRecordObjectMap::~AllocRecordObjectMap() {
 }
 
 void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
+  // When we are compacting in userfaultfd GC, the class GC-roots are already
+  // updated in SweepAllocationRecords()->SweepClassObject().
+  if (heap->CurrentCollectorType() == gc::CollectorType::kCollectorTypeCMC
+      && heap->MarkCompactCollector()->IsCompacting(Thread::Current())) {
+    return;
+  }
   CHECK_LE(recent_record_max_, alloc_record_max_);
   BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(visitor, RootInfo(kRootDebugger));
   size_t count = recent_record_max_;
@@ -92,7 +99,10 @@ static inline void SweepClassObject(AllocRecord* record, IsMarkedVisitor* visito
     mirror::Object* new_object = visitor->IsMarked(old_object);
     DCHECK(new_object != nullptr);
     if (UNLIKELY(old_object != new_object)) {
-      klass = GcRoot<mirror::Class>(new_object->AsClass());
+      // We can't use AsClass() as it uses IsClass in a DCHECK, which expects
+      // the class' contents to be there. This is not the case in userfaultfd
+      // GC.
+      klass = GcRoot<mirror::Class>(ObjPtr<mirror::Class>::DownCast(new_object));
     }
   }
 }

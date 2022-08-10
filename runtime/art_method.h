@@ -635,7 +635,9 @@ class ArtMethod final {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename RootVisitorType>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+           bool kVisitProxyMethod = true,
+           typename RootVisitorType>
   void VisitRoots(RootVisitorType& visitor, PointerSize pointer_size) NO_THREAD_SAFETY_ANALYSIS;
 
   const DexFile* GetDexFile() REQUIRES_SHARED(Locks::mutator_lock_);

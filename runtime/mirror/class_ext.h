@@ -27,6 +27,7 @@
 namespace art {
 
 struct ClassExtOffsets;
+class DexCacheVisitor;
 
 namespace mirror {
 
@@ -46,6 +47,8 @@ class MANAGED ClassExt : public Object {
 
   ObjPtr<Throwable> GetErroneousStateError() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ObjPtr<ObjectArray<DexCache>> GetObsoleteDexCaches() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -126,8 +129,19 @@ class MANAGED ClassExt : public Object {
   static bool ExtendObsoleteArrays(Handle<ClassExt> h_this, Thread* self, uint32_t increase)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+           bool kVisitProxyMethod = true,
+           class Visitor>
   inline void VisitNativeRoots(Visitor& visitor, PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // NO_THREAD_SAFETY_ANALYSIS for dex_lock and heap_bitmap_lock_ as both are at
+  // higher lock-level than class-table's lock, which is already acquired and
+  // is at lower (kClassLoaderClassesLock) level.
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  inline void VisitDexCaches(DexCacheVisitor& visitor)
+      NO_THREAD_SAFETY_ANALYSIS
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
