@@ -413,7 +413,7 @@ void CodeGenerator::Compile(CodeAllocator* allocator) {
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (current->HasEnvironment()) {
-        // Create stackmap for HNativeDebugInfo or any instruction which calls native code.
+        // Create stackmap for HNop or any instruction which calls native code.
         // Note that we need correct mapping for the native PC of the call instruction,
         // so the runtime's stackmap is not sufficient since it is at PC after the call.
         MaybeRecordNativeDebugInfo(current, block->GetDexPc());

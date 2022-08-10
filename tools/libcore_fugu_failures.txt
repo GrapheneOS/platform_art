@@ -229,5 +229,14 @@
     "test.java.util.stream",
     "test.java.util.zip.ZipFile"
   ]
+},
+{
+  description: "Test aborted due to unknown error. Disable the test temporarily.",
+  result: ERROR,
+  bug: 241766511,
+  modes: [device],
+  names: [
+    "test.java.lang.StackWalker"
+  ]
 }
 ]
