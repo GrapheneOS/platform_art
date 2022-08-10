@@ -115,7 +115,7 @@ ObjPtr<Object> Object::CopyObject(ObjPtr<mirror::Object> dest,
     }
   }
 
-  if (kUseReadBarrier) {
+  if (gUseReadBarrier) {
     // We need a RB here. After copying the whole object above, copy references fields one by one
     // again with a RB to make sure there are no from space refs. TODO: Optimize this later?
     CopyReferenceFieldsWithReadBarrierVisitor visitor(dest);

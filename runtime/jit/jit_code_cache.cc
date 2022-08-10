@@ -559,7 +559,7 @@ void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
 }
 
 bool JitCodeCache::IsWeakAccessEnabled(Thread* self) const {
-  return kUseReadBarrier
+  return gUseReadBarrier
       ? self->GetWeakRefAccessEnabled()
       : is_weak_access_enabled_.load(std::memory_order_seq_cst);
 }
@@ -582,13 +582,13 @@ void JitCodeCache::BroadcastForInlineCacheAccess() {
 }
 
 void JitCodeCache::AllowInlineCacheAccess() {
-  DCHECK(!kUseReadBarrier);
+  DCHECK(!gUseReadBarrier);
   is_weak_access_enabled_.store(true, std::memory_order_seq_cst);
   BroadcastForInlineCacheAccess();
 }
 
 void JitCodeCache::DisallowInlineCacheAccess() {
-  DCHECK(!kUseReadBarrier);
+  DCHECK(!gUseReadBarrier);
   is_weak_access_enabled_.store(false, std::memory_order_seq_cst);
 }
 

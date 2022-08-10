@@ -2116,7 +2116,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
   const bool tracing_enabled = Trace::IsTracingEnabled();
   Thread* const self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  if (kUseReadBarrier) {
+  if (gUseReadBarrier) {
     // We do not track new roots for CC.
     DCHECK_EQ(0, flags & (kVisitRootFlagNewRoots |
                           kVisitRootFlagClearRootLog |
@@ -2152,7 +2152,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
         root.VisitRoot(visitor, RootInfo(kRootVMInternal));
       }
     }
-  } else if (!kUseReadBarrier && (flags & kVisitRootFlagNewRoots) != 0) {
+  } else if (!gUseReadBarrier && (flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       ObjPtr<mirror::Class> old_ref = root.Read<kWithoutReadBarrier>();
       root.VisitRoot(visitor, RootInfo(kRootStickyClass));
@@ -2173,13 +2173,13 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
       }
     }
   }
-  if (!kUseReadBarrier && (flags & kVisitRootFlagClearRootLog) != 0) {
+  if (!gUseReadBarrier && (flags & kVisitRootFlagClearRootLog) != 0) {
     new_class_roots_.clear();
     new_bss_roots_boot_oat_files_.clear();
   }
-  if (!kUseReadBarrier && (flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
+  if (!gUseReadBarrier && (flags & kVisitRootFlagStartLoggingNewRoots) != 0) {
     log_new_roots_ = true;
-  } else if (!kUseReadBarrier && (flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
+  } else if (!gUseReadBarrier && (flags & kVisitRootFlagStopLoggingNewRoots) != 0) {
     log_new_roots_ = false;
   }
   // We deliberately ignore the class roots in the image since we

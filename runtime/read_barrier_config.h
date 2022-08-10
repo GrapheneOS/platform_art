@@ -62,18 +62,8 @@ static constexpr bool kUseTableLookupReadBarrier = true;
 static constexpr bool kUseTableLookupReadBarrier = false;
 #endif
 
-static constexpr bool kUseReadBarrier = kUseBakerReadBarrier || kUseTableLookupReadBarrier;
-static constexpr bool kUseUserfaultfd = !kUseReadBarrier;
-
-// Debugging flag that forces the generation of read barriers, but
-// does not trigger the use of the concurrent copying GC.
-//
-// TODO: Remove this flag when the read barriers compiler
-// instrumentation is completed.
-static constexpr bool kForceReadBarrier = false;
-// TODO: Likewise, remove this flag when kForceReadBarrier is removed
-// and replace it with kUseReadBarrier.
-static constexpr bool kEmitCompilerReadBarrier = kForceReadBarrier || kUseReadBarrier;
+extern const bool gUseReadBarrier;
+extern const bool gUseUserfaultfd;
 
 // Disabled for performance reasons.
 static constexpr bool kCheckDebugDisallowReadBarrierCount = kIsDebugBuild;
