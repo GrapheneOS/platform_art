@@ -170,7 +170,6 @@ bool Instrumentation::ProcessMethodUnwindCallbacks(Thread* self,
   return !new_exception_thrown;
 }
 
-
 void Instrumentation::InstallStubsForClass(ObjPtr<mirror::Class> klass) {
   if (!klass->IsResolved()) {
     // We need the class to be resolved to install/uninstall stubs. Otherwise its methods
@@ -448,6 +447,14 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
     return;
   }
   UpdateEntryPoints(method, GetOptimizedCodeFor(method));
+}
+
+void Instrumentation::UpdateEntrypointsForDebuggable() {
+  Runtime* runtime = Runtime::Current();
+  // If we are transitioning from non-debuggable to debuggable, we patch
+  // entry points of methods to remove any aot / JITed entry points.
+  InstallStubsClassVisitor visitor(this);
+  runtime->GetClassLinker()->VisitClasses(&visitor);
 }
 
 // Places the instrumentation exit pc as the return PC for every quick frame. This also allows
@@ -998,17 +1005,15 @@ void Instrumentation::UpdateStubs() {
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   UpdateInstrumentationLevel(requested_level);
+  InstallStubsClassVisitor visitor(this);
+  runtime->GetClassLinker()->VisitClasses(&visitor);
   if (requested_level > InstrumentationLevel::kInstrumentNothing) {
-    InstallStubsClassVisitor visitor(this);
-    runtime->GetClassLinker()->VisitClasses(&visitor);
     instrumentation_stubs_installed_ = true;
     MutexLock mu(self, *Locks::thread_list_lock_);
     for (Thread* thread : Runtime::Current()->GetThreadList()->GetList()) {
       InstrumentThreadStack(thread, /* deopt_all_frames= */ false);
     }
   } else {
-    InstallStubsClassVisitor visitor(this);
-    runtime->GetClassLinker()->VisitClasses(&visitor);
     MaybeRestoreInstrumentationStack();
   }
 }
@@ -1220,6 +1225,14 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
 
   // If interpreter stubs are still needed nothing to do.
   if (InterpreterStubsInstalled()) {
+    return;
+  }
+
+  if (method->IsObsolete()) {
+    // Don't update entry points for obsolete methods. The entrypoint should
+    // have been set to InvokeObsoleteMethoStub.
+    DCHECK_EQ(method->GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize),
+              GetInvokeObsoleteMethodStub());
     return;
   }
 
