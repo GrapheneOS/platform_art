@@ -46,7 +46,7 @@ interface IArtd {
     com.android.server.art.GetDexoptNeededResult getDexoptNeeded(
             @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
             @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
-            byte dexoptTrigger);
+            int dexoptTrigger);
 
     /**
      * Dexopts a dex file for the given instruction set. Returns true on success, or false if

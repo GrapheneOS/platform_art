@@ -25,6 +25,7 @@ package com.android.server.art;
  *
  * @hide
  */
+@Backing(type="int")
 enum DexoptTrigger {
     COMPILER_FILTER_IS_BETTER = 1 << 0,
     COMPILER_FILTER_IS_SAME = 1 << 1,

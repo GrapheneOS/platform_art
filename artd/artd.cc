@@ -149,18 +149,18 @@ Result<CompilerFilter::Filter> ParseCompilerFilter(const std::string& compiler_f
   return compiler_filter;
 }
 
-OatFileAssistant::DexOptTrigger DexOptTriggerFromAidl(int8_t aidl_value) {
+OatFileAssistant::DexOptTrigger DexOptTriggerFromAidl(int32_t aidl_value) {
   OatFileAssistant::DexOptTrigger trigger{};
-  if ((aidl_value & static_cast<int8_t>(DexoptTrigger::COMPILER_FILTER_IS_BETTER)) != 0) {
+  if ((aidl_value & static_cast<int32_t>(DexoptTrigger::COMPILER_FILTER_IS_BETTER)) != 0) {
     trigger.targetFilterIsBetter = true;
   }
-  if ((aidl_value & static_cast<int8_t>(DexoptTrigger::COMPILER_FILTER_IS_SAME)) != 0) {
+  if ((aidl_value & static_cast<int32_t>(DexoptTrigger::COMPILER_FILTER_IS_SAME)) != 0) {
     trigger.targetFilterIsSame = true;
   }
-  if ((aidl_value & static_cast<int8_t>(DexoptTrigger::COMPILER_FILTER_IS_WORSE)) != 0) {
+  if ((aidl_value & static_cast<int32_t>(DexoptTrigger::COMPILER_FILTER_IS_WORSE)) != 0) {
     trigger.targetFilterIsWorse = true;
   }
-  if ((aidl_value & static_cast<int8_t>(DexoptTrigger::PRIMARY_BOOT_IMAGE_BECOMES_USABLE)) != 0) {
+  if ((aidl_value & static_cast<int32_t>(DexoptTrigger::PRIMARY_BOOT_IMAGE_BECOMES_USABLE)) != 0) {
     trigger.primaryBootImageBecomesUsable = true;
   }
   return trigger;
@@ -331,7 +331,7 @@ ndk::ScopedAStatus Artd::getDexoptNeeded(const std::string& in_dexFile,
                                          const std::string& in_instructionSet,
                                          const std::string& in_classLoaderContext,
                                          const std::string& in_compilerFilter,
-                                         int8_t in_dexoptTrigger,
+                                         int32_t in_dexoptTrigger,
                                          GetDexoptNeededResult* _aidl_return) {
   Result<OatFileAssistantContext*> ofa_context = GetOatFileAssistantContext();
   if (!ofa_context.ok()) {

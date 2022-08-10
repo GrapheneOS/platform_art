@@ -58,7 +58,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::string& in_instructionSet,
       const std::string& in_classLoaderContext,
       const std::string& in_compilerFilter,
-      int8_t in_dexoptTrigger,
+      int32_t in_dexoptTrigger,
       aidl::com::android::server::art::GetDexoptNeededResult* _aidl_return) override;
 
   ndk::ScopedAStatus dexopt(

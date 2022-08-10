@@ -1,0 +1,120 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.server.art.testing;
+
+import static org.mockito.Mockito.argThat;
+
+import android.annotation.NonNull;
+import android.annotation.Nullable;
+import android.util.Log;
+
+import com.google.common.truth.Correspondence;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+
+public final class TestingUtils {
+    private static final String TAG = "TestingUtils";
+
+    private TestingUtils() {}
+
+    /**
+     * Recursively compares two objects using reflection. Returns true if the two objects are equal.
+     * For simplicity, this method only supports types that every field is a primitive type, a
+     * string, or a supported type.
+     */
+    public static boolean deepEquals(
+            @Nullable Object a, @Nullable Object b, @NonNull StringBuilder errorMsg) {
+        try {
+            if (a == null && b == null) {
+                return true;
+            }
+            if (a == null || b == null) {
+                errorMsg.append(String.format("Nullability mismatch: %s != %s",
+                        a == null ? "null" : "nonnull", b == null ? "null" : "nonnull"));
+                return false;
+            }
+            if (a.getClass() != b.getClass()) {
+                errorMsg.append(
+                        String.format("Type mismatch: %s != %s", a.getClass(), b.getClass()));
+                return false;
+            }
+            if (a.getClass() == String.class) {
+                if (!a.equals(b)) {
+                    errorMsg.append(String.format("%s != %s", a, b));
+                }
+                return a.equals(b);
+            }
+            if (a.getClass().isArray()) {
+                throw new UnsupportedOperationException("Array type is not supported");
+            }
+            for (Field field : a.getClass().getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                field.setAccessible(true);
+                if (field.getType().isPrimitive()) {
+                    if (!field.get(a).equals(field.get(b))) {
+                        errorMsg.append(String.format("Field %s mismatch: %s != %s",
+                                field.getName(), field.get(a), field.get(b)));
+                        return false;
+                    }
+                } else if (!deepEquals(field.get(a), field.get(b), errorMsg)) {
+                    errorMsg.insert(0, String.format("Field %s mismatch: ", field.getName()));
+                    return false;
+                }
+            }
+            return true;
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Same as above, but ignores any error message. */
+    public static boolean deepEquals(@Nullable Object a, @Nullable Object b) {
+        var errorMsgIgnored = new StringBuilder();
+        return deepEquals(a, b, errorMsgIgnored);
+    }
+
+    /**
+     * A Mockito argument matcher that uses {@link #deepEquals} to compare objects and logs any
+     * mismatch.
+     */
+    public static <T> T deepEq(@Nullable T expected) {
+        return argThat(arg -> {
+            var errorMsg = new StringBuilder();
+            boolean result = deepEquals(arg, expected, errorMsg);
+            if (!result) {
+                Log.e(TAG, errorMsg.toString());
+            }
+            return result;
+        });
+    }
+
+    /**
+     * A Truth correspondence that uses {@link #deepEquals} to compare objects and reports any
+     * mismatch.
+     */
+    public static <T> Correspondence<T, T> deepEquality() {
+        return Correspondence.<T, T>from(TestingUtils::deepEquals, "deeply equals")
+                .formattingDiffsUsing((actual, expected) -> {
+                    var errorMsg = new StringBuilder();
+                    deepEquals(actual, expected, errorMsg);
+                    return errorMsg.toString();
+                });
+    }
+}

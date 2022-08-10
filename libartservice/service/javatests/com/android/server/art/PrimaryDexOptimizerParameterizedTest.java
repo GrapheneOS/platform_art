@@ -1,0 +1,299 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.server.art;
+
+import static com.android.server.art.AidlUtils.buildFsPermission;
+import static com.android.server.art.AidlUtils.buildOutputArtifacts;
+import static com.android.server.art.AidlUtils.buildPermissionSettings;
+import static com.android.server.art.OutputArtifacts.PermissionSettings;
+import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.testing.TestingUtils.deepEq;
+
+import static com.google.common.truth.Truth.assertThat;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+
+import android.os.Process;
+import android.os.ServiceSpecificException;
+import android.os.SystemProperties;
+
+import androidx.test.filters.SmallTest;
+
+import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeResult;
+import com.android.server.art.testing.OnSuccessRule;
+import com.android.server.art.testing.TestingUtils;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.runners.Parameterized.Parameters;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@SmallTest
+@RunWith(Parameterized.class)
+public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTestBase {
+    @Rule
+    public OnSuccessRule onSuccessRule = new OnSuccessRule(() -> {
+        // Don't do this on failure because it will make the failure hard to understand.
+        verifyNoMoreInteractions(mArtd);
+    });
+
+    private OptimizeOptions mOptions;
+
+    @Parameter(0) public Params mParams;
+
+    @Parameters(name = "{0}")
+    public static Iterable<Params> data() {
+        List<Params> list = new ArrayList<>();
+        Params params;
+
+        // Baseline.
+        params = new Params();
+        list.add(params);
+
+        params = new Params();
+        params.mRequestedCompilerFilter = "speed";
+        params.mExpectedCompilerFilter = "speed";
+        list.add(params);
+
+        params = new Params();
+        params.mIsSystem = true;
+        params.mExpectedIsInDalvikCache = true;
+        list.add(params);
+
+        params = new Params();
+        params.mIsSystem = true;
+        params.mIsUpdatedSystemApp = true;
+        list.add(params);
+
+        params = new Params();
+        params.mIsSystem = true;
+        params.mIsUsesNonSdkApi = true;
+        params.mExpectedIsInDalvikCache = true;
+        params.mExpectedIsHiddenApiPolicyEnabled = false;
+        list.add(params);
+
+        params = new Params();
+        params.mIsUpdatedSystemApp = true;
+        params.mIsUsesNonSdkApi = true;
+        params.mExpectedIsHiddenApiPolicyEnabled = false;
+        list.add(params);
+
+        params = new Params();
+        params.mIsSignedWithPlatformKey = true;
+        params.mExpectedIsHiddenApiPolicyEnabled = false;
+        list.add(params);
+
+        params = new Params();
+        params.mIsDebuggable = true;
+        params.mRequestedCompilerFilter = "speed";
+        params.mExpectedCompilerFilter = "verify";
+        params.mExpectedIsDebuggable = true;
+        list.add(params);
+
+        params = new Params();
+        params.mIsVmSafeMode = true;
+        params.mRequestedCompilerFilter = "speed";
+        params.mExpectedCompilerFilter = "verify";
+        list.add(params);
+
+        params = new Params();
+        params.mAlwaysDebuggable = true;
+        params.mExpectedIsDebuggable = true;
+        list.add(params);
+
+        params = new Params();
+        params.mIsSystemUi = true;
+        params.mExpectedCompilerFilter = "speed";
+        list.add(params);
+
+        params = new Params();
+        params.mForce = true;
+        params.mShouldDowngrade = false;
+        params.mExpectedDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
+                | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE
+                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+        list.add(params);
+
+        params = new Params();
+        params.mForce = true;
+        params.mShouldDowngrade = true;
+        params.mExpectedDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
+                | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE
+                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+        list.add(params);
+
+        params = new Params();
+        params.mShouldDowngrade = true;
+        params.mExpectedDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_WORSE;
+        list.add(params);
+
+        return list;
+    }
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+
+        lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(mParams.mIsSystemUi);
+
+        lenient()
+                .when(SystemProperties.getBoolean(eq("dalvik.vm.always_debuggable"), anyBoolean()))
+                .thenReturn(mParams.mAlwaysDebuggable);
+
+        lenient().when(mPkg.isVmSafeMode()).thenReturn(mParams.mIsVmSafeMode);
+        lenient().when(mPkg.isDebuggable()).thenReturn(mParams.mIsDebuggable);
+        lenient().when(mPkg.getTargetSdkVersion()).thenReturn(123);
+        lenient().when(mPkg.isSignedWithPlatformKey()).thenReturn(mParams.mIsSignedWithPlatformKey);
+        lenient().when(mPkg.isUsesNonSdkApi()).thenReturn(mParams.mIsUsesNonSdkApi);
+        lenient().when(mPkgState.isSystem()).thenReturn(mParams.mIsSystem);
+        lenient().when(mPkgState.isUpdatedSystemApp()).thenReturn(mParams.mIsUpdatedSystemApp);
+
+        mOptions = new OptimizeOptions.Builder("install")
+                           .setCompilerFilter(mParams.mRequestedCompilerFilter)
+                           .setPriorityClass(PriorityClass.INTERACTIVE)
+                           .setForce(mParams.mForce)
+                           .setShouldDowngrade(mParams.mShouldDowngrade)
+                           .build();
+    }
+
+    @Test
+    public void testDexopt() throws Exception {
+        PermissionSettings permissionSettings = buildPermissionSettings(
+                buildFsPermission(Process.SYSTEM_UID, Process.SYSTEM_UID,
+                        false /* isOtherReadable */, true /* isOtherExecutable */),
+                buildFsPermission(Process.SYSTEM_UID, 52345, true /* isOtherReadable */),
+                null /* seContext */);
+        DexoptOptions dexoptOptions = new DexoptOptions();
+        dexoptOptions.compilationReason = "install";
+        dexoptOptions.targetSdkVersion = 123;
+        dexoptOptions.debuggable = mParams.mExpectedIsDebuggable;
+        dexoptOptions.generateAppImage = false;
+        dexoptOptions.hiddenApiPolicyEnabled = mParams.mExpectedIsHiddenApiPolicyEnabled;
+
+        // The first one is normal.
+        doReturn(dexoptIsNeeded())
+                .when(mArtd)
+                .getDexoptNeeded("/data/app/foo/base.apk", "arm64", "PCL[]",
+                        mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
+        doReturn(true).when(mArtd).dexopt(
+                deepEq(buildOutputArtifacts("/data/app/foo/base.apk", "arm64",
+                        mParams.mExpectedIsInDalvikCache, permissionSettings)),
+                eq("/data/app/foo/base.apk"), eq("arm64"), eq("PCL[]"),
+                eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
+                isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions));
+
+        // The second one fails on `dexopt`.
+        doReturn(dexoptIsNeeded())
+                .when(mArtd)
+                .getDexoptNeeded("/data/app/foo/base.apk", "arm", "PCL[]",
+                        mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
+        doThrow(ServiceSpecificException.class)
+                .when(mArtd)
+                .dexopt(deepEq(buildOutputArtifacts("/data/app/foo/base.apk", "arm",
+                                mParams.mExpectedIsInDalvikCache, permissionSettings)),
+                        eq("/data/app/foo/base.apk"), eq("arm"), eq("PCL[]"),
+                        eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
+                        isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
+                        deepEq(dexoptOptions));
+
+        // The third one doesn't need dexopt.
+        doReturn(dexoptIsNotNeeded())
+                .when(mArtd)
+                .getDexoptNeeded("/data/app/foo/split_0.apk", "arm64", "PCL[base.apk]",
+                        mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
+
+        // The fourth one is normal.
+        doReturn(dexoptIsNeeded())
+                .when(mArtd)
+                .getDexoptNeeded("/data/app/foo/split_0.apk", "arm", "PCL[base.apk]",
+                        mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
+        doReturn(true).when(mArtd).dexopt(
+                deepEq(buildOutputArtifacts("/data/app/foo/split_0.apk", "arm",
+                        mParams.mExpectedIsInDalvikCache, permissionSettings)),
+                eq("/data/app/foo/split_0.apk"), eq("arm"), eq("PCL[base.apk]"),
+                eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
+                isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions));
+
+        assertThat(mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptions))
+                .comparingElementsUsing(TestingUtils.<DexFileOptimizeResult>deepEquality())
+                .containsExactly(
+                        new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64",
+                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED),
+                        new DexFileOptimizeResult("/data/app/foo/base.apk", "arm",
+                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_FAILED),
+                        new DexFileOptimizeResult("/data/app/foo/split_0.apk", "arm64",
+                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_SKIPPED),
+                        new DexFileOptimizeResult("/data/app/foo/split_0.apk", "arm",
+                                mParams.mExpectedCompilerFilter,
+                                OptimizeResult.OPTIMIZE_PERFORMED));
+    }
+
+    private static class Params {
+        // Package information.
+        public boolean mIsSystem = false;
+        public boolean mIsUpdatedSystemApp = false;
+        public boolean mIsSignedWithPlatformKey = false;
+        public boolean mIsUsesNonSdkApi = false;
+        public boolean mIsVmSafeMode = false;
+        public boolean mIsDebuggable = false;
+        public boolean mIsSystemUi = false;
+
+        // Options.
+        public String mRequestedCompilerFilter = "verify";
+        public boolean mForce = false;
+        public boolean mShouldDowngrade = false;
+
+        // System properties.
+        public boolean mAlwaysDebuggable = false;
+
+        // Expectations.
+        public String mExpectedCompilerFilter = "verify";
+        public int mExpectedDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
+                | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+        public boolean mExpectedIsInDalvikCache = false;
+        public boolean mExpectedIsDebuggable = false;
+        public boolean mExpectedIsHiddenApiPolicyEnabled = true;
+
+        public String toString() {
+            return String.format("isSystem=%b,isUpdatedSystemApp=%b,isSignedWithPlatformKey=%b,"
+                            + "isUsesNonSdkApi=%b,isVmSafeMode=%b,isDebuggable=%b,isSystemUi=%b,"
+                            + "requestedCompilerFilter=%s,force=%b,shouldDowngrade=%b,"
+                            + "alwaysDebuggable=%b => targetCompilerFilter=%s,"
+                            + "expectedDexoptTrigger=%d,expectedIsInDalvikCache=%b,"
+                            + "expectedIsDebuggable=%b,expectedIsHiddenApiPolicyEnabled=%b",
+                    mIsSystem, mIsUpdatedSystemApp, mIsSignedWithPlatformKey, mIsUsesNonSdkApi,
+                    mIsVmSafeMode, mIsDebuggable, mIsSystemUi, mRequestedCompilerFilter, mForce,
+                    mShouldDowngrade, mAlwaysDebuggable, mExpectedCompilerFilter,
+                    mExpectedDexoptTrigger, mExpectedIsInDalvikCache, mExpectedIsDebuggable,
+                    mExpectedIsHiddenApiPolicyEnabled);
+        }
+    }
+}
