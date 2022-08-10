@@ -131,10 +131,15 @@ class SpaceBitmap {
     }
   }
 
-  // Visit the live objects in the range [visit_begin, visit_end).
+  // Find first object while scanning bitmap backwards from visit_begin -> visit_end.
+  // Covers [visit_end, visit_begin] range.
+  mirror::Object* FindPrecedingObject(uintptr_t visit_begin, uintptr_t visit_end = 0) const;
+
+  // Visit the live objects in the range [visit_begin, visit_end). If kVisitOnce
+  // is true, then only the first live object will be visited.
   // TODO: Use lock annotations when clang is fixed.
   // REQUIRES(Locks::heap_bitmap_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
-  template <typename Visitor>
+  template <bool kVisitOnce = false, typename Visitor>
   void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, Visitor&& visitor) const
       NO_THREAD_SAFETY_ANALYSIS;
 
