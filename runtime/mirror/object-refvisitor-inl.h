@@ -149,7 +149,7 @@ inline size_t Object::VisitRefsForCompaction(const Visitor& visitor,
       }
     } else {
       DCHECK((!klass->IsClassClass<kVerifyFlags>()));
-      DCHECK((!klass->IsObjectArrayClass<kVerifyFlags>()));
+      DCHECK((!klass->IsObjectArrayClass<kVerifyFlags, kReadBarrierOption>()));
       if ((class_flags & kClassFlagString) != 0) {
         size = kFetchObjSize ? static_cast<String*>(this)->SizeOf<kSizeOfFlags>() : 0;
       } else if (klass->IsArrayClass<kVerifyFlags>()) {

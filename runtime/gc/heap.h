@@ -151,7 +151,7 @@ class Heap {
   static constexpr size_t kMinLargeObjectThreshold = 3 * kPageSize;
   static constexpr size_t kDefaultLargeObjectThreshold = kMinLargeObjectThreshold;
   // Whether or not parallel GC is enabled. If not, then we never create the thread pool.
-  static constexpr bool kDefaultEnableParallelGC = false;
+  static constexpr bool kDefaultEnableParallelGC = true;
   static uint8_t* const kPreferredAllocSpaceBegin;
 
   // Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
@@ -385,6 +385,9 @@ class Heap {
   void DecrementDisableThreadFlip(Thread* self) REQUIRES(!*thread_flip_lock_);
   void ThreadFlipBegin(Thread* self) REQUIRES(!*thread_flip_lock_);
   void ThreadFlipEnd(Thread* self) REQUIRES(!*thread_flip_lock_);
+
+  // Ensures that the obj doesn't cause userfaultfd in JNI critical calls.
+  void EnsureObjectUserfaulted(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Clear all of the mark bits, doesn't clear bitmaps which have the same live bits as mark bits.
   // Mutator lock is required for GetContinuousSpaces.
@@ -768,8 +771,10 @@ class Heap {
       REQUIRES(!*gc_complete_lock_);
   void ResetGcPerformanceInfo() REQUIRES(!*gc_complete_lock_);
 
-  // Thread pool.
-  void CreateThreadPool();
+  // Thread pool. Create either the given number of threads, or as per the
+  // values of conc_gc_threads_ and parallel_gc_threads_.
+  void CreateThreadPool(size_t num_threads = 0);
+  void WaitForWorkersToBeCreated();
   void DeleteThreadPool();
   ThreadPool* GetThreadPool() {
     return thread_pool_.get();
@@ -951,6 +956,7 @@ class Heap {
       REQUIRES(!Locks::alloc_tracker_lock_);
 
   void DisableGCForShutdown() REQUIRES(!*gc_complete_lock_);
+  bool IsGCDisabledForShutdown() const REQUIRES(!*gc_complete_lock_);
 
   // Create a new alloc space and compact default alloc space to it.
   HomogeneousSpaceCompactResult PerformHomogeneousSpaceCompact()
@@ -1013,9 +1019,6 @@ class Heap {
     return main_space_backup_ != nullptr;
   }
 
-  // Attempt to use all the userfaultfd related ioctls.
-  void MaybePerformUffdIoctls(GcCause cause, uint32_t requested_gc_num) const;
-
   // Size_t saturating arithmetic
   static ALWAYS_INLINE size_t UnsignedDifference(size_t x, size_t y) {
     return x > y ? x - y : 0;
@@ -1032,8 +1035,8 @@ class Heap {
         allocator_type != kAllocatorTypeRegion;
   }
   static ALWAYS_INLINE bool AllocatorMayHaveConcurrentGC(AllocatorType allocator_type) {
-    if (kUseReadBarrier) {
-      // Read barrier may have the TLAB allocator but is always concurrent. TODO: clean this up.
+    if (kUseUserfaultfd || kUseReadBarrier) {
+      // May have the TLAB allocator but is always concurrent. TODO: clean this up.
       return true;
     }
     return
@@ -1695,9 +1698,6 @@ class Heap {
   // Stack trace hashes that we already saw,
   std::unordered_set<uint64_t> seen_backtraces_ GUARDED_BY(backtrace_lock_);
 
-  // Userfaultfd file descriptor.
-  // TODO (lokeshgidra): remove this when the userfaultfd-based GC is in use.
-  int uffd_;
   // We disable GC when we are shutting down the runtime in case there are daemon threads still
   // allocating.
   bool gc_disabled_for_shutdown_ GUARDED_BY(gc_complete_lock_);
