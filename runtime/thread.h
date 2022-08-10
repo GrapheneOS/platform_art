@@ -1058,7 +1058,7 @@ class Thread {
   bool GetWeakRefAccessEnabled() const;  // Only safe for current thread.
 
   void SetWeakRefAccessEnabled(bool enabled) {
-    CHECK(gUseReadBarrier);
+    DCHECK(gUseReadBarrier);
     WeakRefAccessState new_state = enabled ?
         WeakRefAccessState::kEnabled : WeakRefAccessState::kDisabled;
     tls32_.weak_ref_access_enabled.store(new_state, std::memory_order_release);
