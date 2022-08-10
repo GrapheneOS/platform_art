@@ -98,7 +98,7 @@ class Bitmap {
   std::string Dump() const;
 
  protected:
-  static constexpr size_t kBitsPerBitmapWord = sizeof(uintptr_t) * kBitsPerByte;
+  static constexpr size_t kBitsPerBitmapWord = kBitsPerIntPtrT;
 
   Bitmap(MemMap&& mem_map, size_t bitmap_size);
   ~Bitmap();
