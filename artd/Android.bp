@@ -30,6 +30,9 @@ cc_defaults {
         "file_utils.cc",
         "path_utils.cc",
     ],
+    header_libs: [
+        "profman_headers",
+    ],
     shared_libs: [
         "libarttools",
         "libbase",

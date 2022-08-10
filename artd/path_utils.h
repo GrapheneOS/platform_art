@@ -42,11 +42,23 @@ inline std::string OatPathToArtPath(const std::string& oat_path) {
   return ReplaceFileExtension(oat_path, "art");
 }
 
+android::base::Result<std::string> BuildRefProfilePath(
+    const aidl::com::android::server::art::ProfilePath::RefProfilePath& ref_profile_path);
+
+android::base::Result<std::string> BuildTmpRefProfilePath(
+    const aidl::com::android::server::art::ProfilePath::TmpRefProfilePath& tmp_ref_profile_path);
+
+android::base::Result<std::string> BuildPrebuiltProfilePath(
+    const aidl::com::android::server::art::ProfilePath::PrebuiltProfilePath& prebuilt_profile_path);
+
 android::base::Result<std::string> BuildDexMetadataPath(
     const aidl::com::android::server::art::DexMetadataPath& dex_metadata_path);
 
 android::base::Result<std::string> BuildDexMetadataPath(
     const aidl::com::android::server::art::VdexPath& vdex_path);
+
+android::base::Result<std::string> BuildProfileOrDmPath(
+    const aidl::com::android::server::art::ProfilePath& profile_path);
 
 android::base::Result<std::string> BuildVdexPath(
     const aidl::com::android::server::art::VdexPath& vdex_path);
