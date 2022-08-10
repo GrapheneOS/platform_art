@@ -30,6 +30,8 @@ enum CollectorType {
   kCollectorTypeMS,
   // Concurrent mark-sweep.
   kCollectorTypeCMS,
+  // Concurrent mark-compact.
+  kCollectorTypeCMC,
   // Semi-space / mark-sweep hybrid, enables compaction.
   kCollectorTypeSS,
   // Heap trimming collector, doesn't do any actual collecting.
