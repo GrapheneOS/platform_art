@@ -166,9 +166,6 @@ void CommonRuntimeTestImpl::FinalizeSetup() {
   WellKnownClasses::Init(Thread::Current()->GetJniEnv());
   InitializeIntrinsics();
 
-  // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
-  // pool is created by the runtime.
-  runtime_->GetHeap()->CreateThreadPool();
   runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
   // Reduce timinig-dependent flakiness in OOME behavior (eg StubTest.AllocObject).
   runtime_->GetHeap()->SetMinIntervalHomogeneousSpaceCompactionByOom(0U);
