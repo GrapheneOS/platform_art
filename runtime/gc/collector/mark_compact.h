@@ -50,6 +50,8 @@ namespace collector {
 class MarkCompact : public GarbageCollector {
  public:
   static constexpr size_t kAlignment = kObjectAlignment;
+  // Fake file descriptor for fall back mode
+  static constexpr int kFallbackMode = -2;
 
   explicit MarkCompact(Heap* heap);
 
@@ -123,6 +125,10 @@ class MarkCompact : public GarbageCollector {
     }
     return old_ref;
   }
+  // Called from Heap::PostForkChildAction() for non-zygote processes and from
+  // PrepareForCompaction() for zygote processes. Returns true if uffd was
+  // created or was already done.
+  bool CreateUserfaultfd(bool post_fork);
 
  private:
   using ObjReference = mirror::ObjectReference</*kPoisonReferences*/ false, mirror::Object>;
@@ -272,8 +278,10 @@ class MarkCompact : public GarbageCollector {
   // This is necessary to avoid cascading userfaults.
   void CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* addr)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  // Compact the bump-pointer space.
-  void CompactMovingSpace() REQUIRES_SHARED(Locks::mutator_lock_);
+  // Compact the bump-pointer space. Pass page that should be used as buffer for
+  // userfaultfd.
+  template <bool kFallback>
+  void CompactMovingSpace(uint8_t* page = nullptr) REQUIRES_SHARED(Locks::mutator_lock_);
   // Update all the objects in the given non-moving space page. 'first' object
   // could have started in some preceding page.
   void UpdateNonMovingPage(mirror::Object* first, uint8_t* page)
@@ -402,6 +410,25 @@ class MarkCompact : public GarbageCollector {
   // TODO: once we implement concurrent compaction of classes and dex-caches,
   // which will visit all of them, we should remove this.
   void RememberDexCaches(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Perform all kernel operations required for concurrent compaction. Includes
+  // mremap to move pre-compact pages to from-space, followed by userfaultfd
+  // registration on the moving space.
+  void KernelPreparation();
+  // Called by thread-pool workers to read uffd_ and process fault events.
+  void ConcurrentCompaction(uint8_t* page) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  enum PageState : uint8_t {
+    kUncompacted = 0,  // The page has not been compacted yet
+    kCompacting       // Some thread (GC or mutator) is compacting the page
+  };
+
+  // Buffers, one per worker thread + gc-thread, to be used when
+  // kObjPtrPoisoning == true as in that case we can't have the buffer on the
+  // stack. The first page of the buffer is assigned to
+  // conc_compaction_termination_page_. A read access to this page signals
+  // termination of concurrent compaction by making worker threads terminate the
+  // userfaultfd read loop.
+  MemMap compaction_buffers_map_;
   // For checkpoints
   Barrier gc_barrier_;
   // Every object inside the immune spaces is assumed to be marked.
@@ -435,6 +462,8 @@ class MarkCompact : public GarbageCollector {
   space::ContinuousSpace* non_moving_space_;
   space::BumpPointerSpace* const bump_pointer_space_;
   Thread* thread_running_gc_;
+  // Array of pages' compaction status.
+  Atomic<PageState>* moving_pages_status_;
   size_t vector_length_;
   size_t live_stack_freeze_size_;
 
@@ -446,20 +475,27 @@ class MarkCompact : public GarbageCollector {
   // chunk_info_vec_ holds live bytes for chunks during marking phase. After
   // marking we perform an exclusive scan to compute offset for every chunk.
   uint32_t* chunk_info_vec_;
-  // Array holding offset within first-object from where contents should be
-  // copied for a given post-compact page.
-  // For black-alloc pages, the array stores first-chunk-size.
+  // For pages before black allocations, pre_compact_offset_moving_space_[i]
+  // holds offset within the space from where the objects need to be copied in
+  // the ith post-compact page.
+  // Otherwise, black_alloc_pages_first_chunk_size_[i] holds the size of first
+  // non-empty chunk in the ith black-allocations page.
   union {
     uint32_t* pre_compact_offset_moving_space_;
     uint32_t* black_alloc_pages_first_chunk_size_;
   };
-  // first_objs_moving_space_[i] is the address of the first object for the ith page
+  // first_objs_moving_space_[i] is the pre-compact address of the object which
+  // would overlap with the starting boundary of the ith post-compact page.
   ObjReference* first_objs_moving_space_;
+  // First object for every page. It could be greater than the page's start
+  // address, or null if the page is empty.
   ObjReference* first_objs_non_moving_space_;
   size_t non_moving_first_objs_count_;
-  // Number of first-objects in the moving space.
+  // Length of first_objs_moving_space_ and pre_compact_offset_moving_space_
+  // arrays. Also the number of pages which are to be compacted.
   size_t moving_first_objs_count_;
-  // Number of pages consumed by black objects.
+  // Number of pages containing black-allocated objects, indicating number of
+  // pages to be slid.
   size_t black_page_count_;
 
   uint8_t* from_space_begin_;
@@ -481,8 +517,21 @@ class MarkCompact : public GarbageCollector {
   // is incorporated.
   void* stack_addr_;
   void* stack_end_;
-  // Set to true when compacting starts.
+
+  uint8_t* conc_compaction_termination_page_;
+  // Userfault file descriptor, accessed only by the GC itself.
+  // kFallbackMode value indicates that we are in the fallback mode.
+  int uffd_;
+  // Used to exit from compaction loop at the end of concurrent compaction
+  uint8_t thread_pool_counter_;
+  // True while compacting.
   bool compacting_;
+  // Flag indicating whether one-time uffd initialization has been done. It will
+  // be false on the first GC for non-zygote processes, and always for zygote.
+  // Its purpose is to minimize the userfaultfd overhead to the minimal in
+  // Heap::PostForkChildAction() as it's invoked in app startup path. With
+  // this, we register the compaction-termination page on the first GC.
+  bool uffd_initialized_;
 
   class VerifyRootMarkedVisitor;
   class ScanObjectVisitor;
@@ -493,6 +542,7 @@ class MarkCompact : public GarbageCollector {
   template <bool kCheckBegin, bool kCheckEnd> class RefsUpdateVisitor;
   class NativeRootsUpdateVisitor;
   class ImmuneSpaceUpdateObjVisitor;
+  class ConcurrentCompactionGcTask;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MarkCompact);
 };
