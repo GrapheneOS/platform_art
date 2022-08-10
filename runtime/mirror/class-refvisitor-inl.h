@@ -30,11 +30,6 @@ template <bool kVisitNativeRoots,
           ReadBarrierOption kReadBarrierOption,
           typename Visitor>
 inline void Class::VisitReferences(ObjPtr<Class> klass, const Visitor& visitor) {
-  if (kVisitNativeRoots) {
-    // Since this class is reachable, we must also visit the associated roots when we scan it.
-    VisitNativeRoots<kReadBarrierOption>(
-        visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
-  }
   VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass.Ptr(), visitor);
   // Right after a class is allocated, but not yet loaded
   // (ClassStatus::kNotReady, see ClassLinker::LoadClass()), GC may find it
@@ -49,14 +44,17 @@ inline void Class::VisitReferences(ObjPtr<Class> klass, const Visitor& visitor) 
     // linked yet.
     VisitStaticFieldsReferences<kVerifyFlags, kReadBarrierOption>(this, visitor);
   }
+  if (kVisitNativeRoots) {
+    // Since this class is reachable, we must also visit the associated roots when we scan it.
+    VisitNativeRoots<kReadBarrierOption>(
+        visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
+  }
 }
 
-template<ReadBarrierOption kReadBarrierOption, class Visitor>
+template<ReadBarrierOption kReadBarrierOption, bool kVisitProxyMethod, class Visitor>
 void Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
   VisitFields<kReadBarrierOption>([&](ArtField* field) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     field->VisitRoots(visitor);
-    // TODO: Once concurrent mark-compact GC is made concurrent and stops using
-    // kVisitNativeRoots, remove the following condition
     if (kIsDebugBuild && !kUseUserfaultfd && IsResolved()) {
       CHECK_EQ(field->GetDeclaringClass<kReadBarrierOption>(), this)
           << GetStatus() << field->GetDeclaringClass()->PrettyClass() << " != " << PrettyClass();
@@ -64,11 +62,28 @@ void Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
   });
   // Don't use VisitMethods because we don't want to hit the class-ext methods twice.
   for (ArtMethod& method : GetMethods(pointer_size)) {
-    method.VisitRoots<kReadBarrierOption>(visitor, pointer_size);
+    method.VisitRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
   }
   ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
   if (!ext.IsNull()) {
-    ext->VisitNativeRoots<kReadBarrierOption, Visitor>(visitor, pointer_size);
+    ext->VisitNativeRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
+  }
+}
+
+template<ReadBarrierOption kReadBarrierOption>
+void Class::VisitObsoleteDexCaches(DexCacheVisitor& visitor) {
+  ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
+  if (!ext.IsNull()) {
+    ext->VisitDexCaches<kDefaultVerifyFlags, kReadBarrierOption>(visitor);
+  }
+}
+
+template<ReadBarrierOption kReadBarrierOption, class Visitor>
+void Class::VisitObsoleteClass(Visitor& visitor) {
+  ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
+  if (!ext.IsNull()) {
+    ObjPtr<Class> klass = ext->GetObsoleteClass<kDefaultVerifyFlags, kReadBarrierOption>();
+    visitor(klass);
   }
 }
 

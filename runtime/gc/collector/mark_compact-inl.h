@@ -183,7 +183,7 @@ inline void MarkCompact::UpdateRef(mirror::Object* obj, MemberOffset offset) {
   if (kIsDebugBuild) {
     if (live_words_bitmap_->HasAddress(old_ref)
         && reinterpret_cast<uint8_t*>(old_ref) < black_allocations_begin_
-        && !current_space_bitmap_->Test(old_ref)) {
+        && !moving_space_bitmap_->Test(old_ref)) {
       mirror::Object* from_ref = GetFromSpaceAddr(old_ref);
       std::ostringstream oss;
       heap_->DumpSpaces(oss);
@@ -194,7 +194,7 @@ inline void MarkCompact::UpdateRef(mirror::Object* obj, MemberOffset offset) {
                  << " obj=" << obj
                  << " obj-validity=" << IsValidObject(obj)
                  << " from-space=" << static_cast<void*>(from_space_begin_)
-                 << " bitmap= " << current_space_bitmap_->DumpMemAround(old_ref)
+                 << " bitmap= " << moving_space_bitmap_->DumpMemAround(old_ref)
                  << " from_ref "
                  << heap_->GetVerification()->DumpRAMAroundAddress(
                      reinterpret_cast<uintptr_t>(from_ref), 128)
@@ -223,7 +223,7 @@ inline bool MarkCompact::VerifyRootSingleUpdate(void* root,
   if (!live_words_bitmap_->HasAddress(old_ref)) {
     return false;
   }
-  if (stack_end == nullptr) {
+  if (UNLIKELY(stack_end == nullptr)) {
     pthread_attr_t attr;
     size_t stack_size;
     pthread_getattr_np(pthread_self(), &attr);
@@ -241,7 +241,8 @@ inline bool MarkCompact::VerifyRootSingleUpdate(void* root,
   DCHECK(reinterpret_cast<uint8_t*>(old_ref) >= black_allocations_begin_
          || live_words_bitmap_->Test(old_ref))
         << "ref=" << old_ref
-        << " RootInfo=" << info;
+        << " <" << mirror::Object::PrettyTypeOf(old_ref)
+        << "> RootInfo [" << info << "]";
   return true;
 }
 
@@ -249,7 +250,7 @@ inline void MarkCompact::UpdateRoot(mirror::CompressedReference<mirror::Object>*
                                     const RootInfo& info) {
   DCHECK(!root->IsNull());
   mirror::Object* old_ref = root->AsMirrorPtr();
-  if (VerifyRootSingleUpdate(root, old_ref, info)) {
+  if (!kIsDebugBuild || VerifyRootSingleUpdate(root, old_ref, info)) {
     mirror::Object* new_ref = PostCompactAddress(old_ref);
     if (old_ref != new_ref) {
       root->Assign(new_ref);
@@ -259,7 +260,7 @@ inline void MarkCompact::UpdateRoot(mirror::CompressedReference<mirror::Object>*
 
 inline void MarkCompact::UpdateRoot(mirror::Object** root, const RootInfo& info) {
   mirror::Object* old_ref = *root;
-  if (VerifyRootSingleUpdate(root, old_ref, info)) {
+  if (!kIsDebugBuild || VerifyRootSingleUpdate(root, old_ref, info)) {
     mirror::Object* new_ref = PostCompactAddress(old_ref);
     if (old_ref != new_ref) {
       *root = new_ref;
@@ -317,14 +318,14 @@ inline mirror::Object* MarkCompact::PostCompactAddressUnchecked(mirror::Object* 
     mirror::Object* from_ref = GetFromSpaceAddr(old_ref);
     DCHECK(live_words_bitmap_->Test(old_ref))
          << "ref=" << old_ref;
-    if (!current_space_bitmap_->Test(old_ref)) {
+    if (!moving_space_bitmap_->Test(old_ref)) {
       std::ostringstream oss;
       Runtime::Current()->GetHeap()->DumpSpaces(oss);
       MemMap::DumpMaps(oss, /* terse= */ true);
       LOG(FATAL) << "ref=" << old_ref
                  << " from_ref=" << from_ref
                  << " from-space=" << static_cast<void*>(from_space_begin_)
-                 << " bitmap= " << current_space_bitmap_->DumpMemAround(old_ref)
+                 << " bitmap= " << moving_space_bitmap_->DumpMemAround(old_ref)
                  << heap_->GetVerification()->DumpRAMAroundAddress(
                          reinterpret_cast<uintptr_t>(from_ref), 128)
                  << " maps\n" << oss.str();

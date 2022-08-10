@@ -85,6 +85,9 @@ class ClassTable {
     template<typename Visitor>
     void VisitRoot(const Visitor& visitor) const NO_THREAD_SAFETY_ANALYSIS;
 
+    template<typename Visitor>
+    class ClassAndRootVisitor;
+
    private:
     // Extract a raw pointer from an address.
     static ObjPtr<mirror::Class> ExtractPtr(uint32_t data)
@@ -181,6 +184,12 @@ class ClassTable {
 
   template<class Visitor>
   void VisitRoots(const Visitor& visitor)
+      NO_THREAD_SAFETY_ANALYSIS
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<class Visitor>
+  void VisitClassesAndRoots(Visitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
