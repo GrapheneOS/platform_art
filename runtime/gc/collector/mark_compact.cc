@@ -239,6 +239,7 @@ void MarkCompact::InitializePhase() {
   moving_first_objs_count_ = 0;
   non_moving_first_objs_count_ = 0;
   black_page_count_ = 0;
+  freed_objects_ = 0;
   from_space_slide_diff_ = from_space_begin_ - bump_pointer_space_->Begin();
   black_allocations_begin_ = bump_pointer_space_->Limit();
   compacting_ = false;
@@ -623,6 +624,9 @@ void MarkCompact::MarkingPause() {
       live_stack_freeze_size_ = heap_->GetLiveStack()->Size();
     }
   }
+  // Fetch only the accumulated objects-allocated count as it is guaranteed to
+  // be up-to-date after the TLAB revocation above.
+  freed_objects_ += bump_pointer_space_->GetAccumulatedObjectsAllocated();
   // TODO: For PreSweepingGcVerification(), find correct strategy to visit/walk
   // objects in bump-pointer space when we have a mark-bitmap to indicate live
   // objects. At the same time we also need to be able to visit black allocations,
@@ -1839,10 +1843,9 @@ void MarkCompact::ConcurrentCompaction(uint8_t* page) {
 void MarkCompact::CompactionPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   {
-    // TODO: Calculate freed objects and update that as well.
     int32_t freed_bytes = black_objs_slide_diff_;
-    bump_pointer_space_->RecordFree(0, freed_bytes);
-    RecordFree(ObjectBytePair(0, freed_bytes));
+    bump_pointer_space_->RecordFree(freed_objects_, freed_bytes);
+    RecordFree(ObjectBytePair(freed_objects_, freed_bytes));
   }
 
   if (kObjPtrPoisoning) {
@@ -2294,6 +2297,7 @@ void MarkCompact::UpdateLivenessInfo(mirror::Object* obj) {
     chunk_info_vec_[chunk_idx++] = kOffsetChunkSize;
   }
   chunk_info_vec_[chunk_idx] += size;
+  freed_objects_--;
 }
 
 template <bool kUpdateLiveWords>
