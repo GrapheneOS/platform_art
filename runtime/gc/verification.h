@@ -19,6 +19,7 @@
 
 #include "obj_ptr.h"
 #include "offsets.h"
+#include "read_barrier_option.h"
 
 namespace art {
 
@@ -50,7 +51,16 @@ class Verification {
                          bool fatal) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return true if the klass is likely to be a valid mirror::Class.
-  bool IsValidClass(const void* klass) const REQUIRES_SHARED(Locks::mutator_lock_);
+  // Returns true if the class is a valid mirror::Class or possibly spuriously.
+  template <ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
+  bool IsValidClassUnchecked(mirror::Class* klass) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Return true if the klass is likely to be a valid mirror::Class.
+  template <ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
+  bool IsValidClass(mirror::Class* klass) const REQUIRES_SHARED(Locks::mutator_lock_);
+  // Return true if the obj is likely to be a valid obj with valid mirror::Class.
+  template <ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
+  bool IsValidObject(mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Does not allow null, checks alignment.
   bool IsValidHeapObjectAddress(const void* addr, space::Space** out_space = nullptr) const
