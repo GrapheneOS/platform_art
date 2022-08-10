@@ -141,13 +141,13 @@ void AllocRecordObjectMap::SweepAllocationRecords(IsMarkedVisitor* visitor) {
 }
 
 void AllocRecordObjectMap::AllowNewAllocationRecords() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   allow_new_record_ = true;
   new_record_condition_.Broadcast(Thread::Current());
 }
 
 void AllocRecordObjectMap::DisallowNewAllocationRecords() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   allow_new_record_ = false;
 }
 
@@ -240,8 +240,8 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self,
   // Since nobody seemed to really notice or care it might not be worth the trouble.
 
   // Wait for GC's sweeping to complete and allow new records.
-  while (UNLIKELY((!kUseReadBarrier && !allow_new_record_) ||
-                  (kUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
+  while (UNLIKELY((!gUseReadBarrier && !allow_new_record_) ||
+                  (gUseReadBarrier && !self->GetWeakRefAccessEnabled()))) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
     self->CheckEmptyCheckpointFromWeakRefAccess(Locks::alloc_tracker_lock_);

@@ -94,7 +94,7 @@ class ReadBarrier {
   // Without the holder object, and only with the read barrier configuration (no-op otherwise).
   static void MaybeAssertToSpaceInvariant(mirror::Object* ref)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (kUseReadBarrier) {
+    if (gUseReadBarrier) {
       AssertToSpaceInvariant(ref);
     }
   }

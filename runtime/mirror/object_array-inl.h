@@ -121,7 +121,7 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos,
   if (copy_forward) {
     // Forward copy.
     bool baker_non_gray_case = false;
-    if (kUseReadBarrier && kUseBakerReadBarrier) {
+    if (gUseReadBarrier && kUseBakerReadBarrier) {
       uintptr_t fake_address_dependency;
       if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
         baker_non_gray_case = true;
@@ -146,7 +146,7 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos,
   } else {
     // Backward copy.
     bool baker_non_gray_case = false;
-    if (kUseReadBarrier && kUseBakerReadBarrier) {
+    if (gUseReadBarrier && kUseBakerReadBarrier) {
       uintptr_t fake_address_dependency;
       if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
         baker_non_gray_case = true;
@@ -196,7 +196,7 @@ inline void ObjectArray<T>::AssignableMemcpy(int32_t dst_pos,
   // We can't use memmove since it does not handle read barriers and may do by per byte copying.
   // See b/32012820.
   bool baker_non_gray_case = false;
-  if (kUseReadBarrier && kUseBakerReadBarrier) {
+  if (gUseReadBarrier && kUseBakerReadBarrier) {
     uintptr_t fake_address_dependency;
     if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
       baker_non_gray_case = true;
@@ -244,7 +244,7 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos,
   ObjPtr<T> o = nullptr;
   int i = 0;
   bool baker_non_gray_case = false;
-  if (kUseReadBarrier && kUseBakerReadBarrier) {
+  if (gUseReadBarrier && kUseBakerReadBarrier) {
     uintptr_t fake_address_dependency;
     if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
       baker_non_gray_case = true;

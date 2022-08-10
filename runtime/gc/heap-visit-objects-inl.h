@@ -118,7 +118,7 @@ inline void Heap::VisitObjectsInternal(Visitor&& visitor) {
       // For speed reasons, only perform it when Rosalloc could possibly be used.
       // (Disabled for read barriers because it never uses Rosalloc).
       // (See the DCHECK in RosAllocSpace constructor).
-      if (!kUseReadBarrier) {
+      if (!gUseReadBarrier) {
         // Rosalloc has a race in allocation. Objects can be written into the allocation
         // stack before their header writes are visible to this thread.
         // See b/28790624 for more details.
