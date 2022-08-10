@@ -57,7 +57,9 @@
 #ifndef ART_COMPILER_OPTIMIZING_SELECT_GENERATOR_H_
 #define ART_COMPILER_OPTIMIZING_SELECT_GENERATOR_H_
 
+#include "base/scoped_arena_containers.h"
 #include "optimization.h"
+#include "optimizing/nodes.h"
 
 namespace art {
 
@@ -72,6 +74,43 @@ class HSelectGenerator : public HOptimization {
   static constexpr const char* kSelectGeneratorPassName = "select_generator";
 
  private:
+  bool TryGenerateSelectSimpleDiamondPattern(HBasicBlock* block,
+                                             ScopedArenaSafeMap<HInstruction*, HSelect*>* cache);
+
+  // When generating code for nested ternary operators (e.g. `return (x > 100) ? 100 : ((x < -100) ?
+  // -100 : x);`), a dexer can generate a double diamond pattern but it is not a clear cut one due
+  // to the merging of the blocks. `TryFixupDoubleDiamondPattern` recognizes that pattern and fixes
+  // up the graph to have a clean double diamond that `TryGenerateSelectSimpleDiamondPattern` can
+  // use to generate selects.
+  //
+  // In ASCII, it turns:
+  //
+  //      1 (outer if)
+  //     / \
+  //    2   3 (inner if)
+  //    |  / \
+  //    | 4  5
+  //     \/  |
+  //      6  |
+  //       \ |
+  //         7
+  //         |
+  //         8
+  // into:
+  //      1 (outer if)
+  //     / \
+  //    2   3 (inner if)
+  //    |  / \
+  //    | 4  5
+  //     \/ /
+  //      6
+  //      |
+  //      8
+  //
+  // In short, block 7 disappears and we merge 6 and 7. Now we have a diamond with {3,4,5,6}, and
+  // when that gets resolved we get another one with the outer if.
+  HBasicBlock* TryFixupDoubleDiamondPattern(HBasicBlock* block);
+
   DISALLOW_COPY_AND_ASSIGN(HSelectGenerator);
 };
 

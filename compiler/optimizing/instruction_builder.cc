@@ -414,7 +414,7 @@ bool HInstructionBuilder::Build() {
       }
 
       if (native_debuggable && native_debug_info_locations->IsBitSet(dex_pc)) {
-        AppendInstruction(new (allocator_) HNativeDebugInfo(dex_pc));
+        AppendInstruction(new (allocator_) HNop(dex_pc, /* needs_environment= */ true));
       }
 
       // Note: There may be no Thread for gtests.
