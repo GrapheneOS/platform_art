@@ -539,7 +539,7 @@ struct XGcOption {
   bool verify_pre_gc_heap_ = false;
   bool verify_pre_sweeping_heap_ = kIsDebugBuild;
   bool generational_cc = kEnableGenerationalCCByDefault;
-  bool verify_post_gc_heap_ = false;
+  bool verify_post_gc_heap_ = kIsDebugBuild;
   bool verify_pre_gc_rosalloc_ = kIsDebugBuild;
   bool verify_pre_sweeping_rosalloc_ = false;
   bool verify_post_gc_rosalloc_ = false;
