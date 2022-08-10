@@ -20,7 +20,11 @@ import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.apphibernation.AppHibernationManager;
 import android.content.Context;
+import android.os.Binder;
+import android.os.PowerManager;
+import android.os.WorkSource;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.OptimizeOptions;
@@ -43,6 +47,12 @@ import java.util.function.Supplier;
 public class DexOptHelper {
     private static final String TAG = "DexoptHelper";
 
+    /**
+     * Timeout of the wake lock. This is required by AndroidLint, but we set it to a value larger
+     * than artd's {@code kLongTimeoutSec} so that it should normally never triggered.
+     */
+    private static final int WAKE_LOCK_TIMEOUT_MS = 11 * 60 * 1000; // 11 minutes.
+
     @NonNull private final Injector mInjector;
 
     public DexOptHelper(@Nullable Context context) {
@@ -62,7 +72,71 @@ public class DexOptHelper {
     public OptimizeResult dexopt(@NonNull PackageDataSnapshot snapshot,
             @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg,
             @NonNull OptimizeOptions options) {
-        throw new UnsupportedOperationException();
+        List<DexFileOptimizeResult> results = new ArrayList<>();
+        Supplier<OptimizeResult> createResult = ()
+                -> new OptimizeResult(pkgState.getPackageName(), options.getCompilerFilter(),
+                        options.getReason(), results);
+
+        if (!canOptimizePackage(pkgState, pkg)) {
+            return createResult.get();
+        }
+
+        long identityToken = Binder.clearCallingIdentity();
+        PowerManager.WakeLock wakeLock = null;
+
+        try {
+            // Acquire a wake lock.
+            // The power manager service may not be ready if this method is called on boot. In this
+            // case, we don't have to acquire a wake lock because there is nothing else we can do.
+            PowerManager powerManager = mInjector.getPowerManager();
+            if (powerManager != null) {
+                wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+                wakeLock.setWorkSource(new WorkSource(pkg.getUid()));
+                wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
+            }
+
+            if (options.isForPrimaryDex()) {
+                results.addAll(mInjector.getPrimaryDexOptimizer().dexopt(pkgState, pkg, options));
+            }
+
+            if (options.isForSecondaryDex()) {
+                // TODO(jiakaiz): Implement this.
+                throw new UnsupportedOperationException(
+                        "Optimizing secondary dex'es is not implemented yet");
+            }
+
+            if (options.getIncludesDependencies()) {
+                // TODO(jiakaiz): Implement this.
+                throw new UnsupportedOperationException(
+                        "Optimizing dependencies is not implemented yet");
+            }
+        } finally {
+            if (wakeLock != null) {
+                wakeLock.release();
+            }
+            Binder.restoreCallingIdentity(identityToken);
+        }
+
+        return createResult.get();
+    }
+
+    private boolean canOptimizePackage(
+            @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg) {
+        if (!pkg.isHasCode()) {
+            return false;
+        }
+
+        // We do not dexopt unused packages.
+        // It's possible for this to be called before app hibernation service is ready, especially
+        // on boot. In this case, we ignore the hibernation check here because there is nothing else
+        // we can do.
+        AppHibernationManager ahm = mInjector.getAppHibernationManager();
+        if (ahm != null && ahm.isHibernatingGlobally(pkgState.getPackageName())
+                && ahm.isOatArtifactDeletionEnabled()) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -77,6 +151,21 @@ public class DexOptHelper {
 
         Injector(@Nullable Context context) {
             mContext = context;
+        }
+
+        @NonNull
+        PrimaryDexOptimizer getPrimaryDexOptimizer() {
+            return new PrimaryDexOptimizer(mContext);
+        }
+
+        @Nullable
+        public AppHibernationManager getAppHibernationManager() {
+            return mContext != null ? mContext.getSystemService(AppHibernationManager.class) : null;
+        }
+
+        @Nullable
+        public PowerManager getPowerManager() {
+            return mContext != null ? mContext.getSystemService(PowerManager.class) : null;
         }
     }
 }
