@@ -24,7 +24,6 @@ namespace Test993BreakpointsNonDebuggable {
 
 extern "C" JNIEXPORT void JNICALL Java_art_Test993AttachAgent_setupJvmti(JNIEnv* env, jclass) {
   Runtime* runtime = Runtime::Current();
-  CHECK(!Runtime::Current()->IsJavaDebuggable());
   std::ostringstream oss;
   oss << (kIsDebugBuild ? "libtiagentd.so" : "libtiagent.so") << "=993-non-debuggable,art";
   LOG(INFO) << "agent " << oss.str();
