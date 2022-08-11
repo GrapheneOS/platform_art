@@ -60,18 +60,20 @@
 
 namespace art {
 
+// We require MREMAP_DONTUNMAP functionality in mremap syscall, which was
+// introduced in 5.13 kernel version. Check for that on host. Checking
+// on target is not required as MREMAP_DONTUNMAP and userfaultfd were enabled
+// together.
+#ifdef ART_TARGET
+static const bool gHaveMremapDontunmap = true;
+#else
+static const bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13);
+#endif
+
 #ifndef ART_FORCE_USE_READ_BARRIER
 static bool ShouldUseUserfaultfd() {
 #if !defined(__linux__)
   return false;
-#elif !defined(ART_TARGET)
-  // We require MREMAP_DONTUNMAP functionality in mremap syscall, which was
-  // introduced in 5.13 kernel version. Check for that on host. Not required
-  // checking on target as MREMAP_DONTUNMAP and userfaultfd were enabled
-  // together.
-  if (!IsKernelVersionAtLeast(5, 13)) {
-    return false;
-  }
 #endif
   int fd = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
 #ifndef ART_TARGET
@@ -1757,15 +1759,23 @@ void MarkCompact::KernelPreparation() {
   // mremap.
   size_t size = bump_pointer_space_->Capacity();
   uint8_t* begin = bump_pointer_space_->Begin();
-  void* ret = mremap(begin,
-                     size,
-                     size,
-                     MREMAP_MAYMOVE | MREMAP_FIXED | MREMAP_DONTUNMAP,
-                     from_space_begin_);
+  int flags = MREMAP_MAYMOVE | MREMAP_FIXED;
+  if (gHaveMremapDontunmap) {
+    flags |= MREMAP_DONTUNMAP;
+  }
+
+  void* ret = mremap(begin, size, size, flags, from_space_begin_);
   CHECK_EQ(ret, static_cast<void*>(from_space_begin_))
-         << "mremap to move pages from moving space to from-space failed: " << strerror(errno)
-         << ". moving-space-addr=" << reinterpret_cast<void*>(begin)
-         << " size=" << size;
+        << "mremap to move pages from moving space to from-space failed: " << strerror(errno)
+        << ". moving-space-addr=" << reinterpret_cast<void*>(begin)
+        << " size=" << size;
+
+  // Without MREMAP_DONTUNMAP the source mapping is unmapped by mremap. So mmap
+  // the moving space again.
+  if (!gHaveMremapDontunmap) {
+    ret = mmap(begin, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0);
+    CHECK_EQ(ret, static_cast<void*>(begin)) << "mmap for moving space failed: " << strerror(errno);
+  }
 
   DCHECK_EQ(mprotect(from_space_begin_, size, PROT_READ), 0)
          << "mprotect failed: " << strerror(errno);
