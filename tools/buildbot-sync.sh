@@ -111,13 +111,6 @@ activate_apex com.android.tzdata
 activate_apex com.android.conscrypt
 activate_apex com.android.os.statsd
 
-# Replace the crash dump binary with the one on the device. This is because
-# the tombstoned server running is the one on the device.
-msginfo "Copying crash_dump from device to chroot"
-for b in {32,64}; do
-  adb shell "cp /apex/com.android.runtime/bin/crash_dump$b $ART_TEST_CHROOT/apex/com.android.runtime/bin"
-done
-
 # Generate primary boot images on device for testing.
 for b in {32,64}; do
   basename="generate-boot-image$b"

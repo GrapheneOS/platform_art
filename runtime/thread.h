@@ -379,11 +379,11 @@ class Thread {
   void WaitForFlipFunction(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
   gc::accounting::AtomicStack<mirror::Object>* GetThreadLocalMarkStack() {
-    CHECK(kUseReadBarrier);
+    CHECK(gUseReadBarrier);
     return tlsPtr_.thread_local_mark_stack;
   }
   void SetThreadLocalMarkStack(gc::accounting::AtomicStack<mirror::Object>* stack) {
-    CHECK(kUseReadBarrier);
+    CHECK(gUseReadBarrier);
     tlsPtr_.thread_local_mark_stack = stack;
   }
 
@@ -1045,7 +1045,7 @@ class Thread {
   }
 
   bool GetIsGcMarking() const {
-    CHECK(kUseReadBarrier);
+    CHECK(gUseReadBarrier);
     return tls32_.is_gc_marking;
   }
 
@@ -1058,24 +1058,21 @@ class Thread {
   bool GetWeakRefAccessEnabled() const;  // Only safe for current thread.
 
   void SetWeakRefAccessEnabled(bool enabled) {
-    CHECK(kUseReadBarrier);
+    DCHECK(gUseReadBarrier);
     WeakRefAccessState new_state = enabled ?
         WeakRefAccessState::kEnabled : WeakRefAccessState::kDisabled;
     tls32_.weak_ref_access_enabled.store(new_state, std::memory_order_release);
   }
 
   uint32_t GetDisableThreadFlipCount() const {
-    CHECK(kUseReadBarrier);
     return tls32_.disable_thread_flip_count;
   }
 
   void IncrementDisableThreadFlipCount() {
-    CHECK(kUseReadBarrier);
     ++tls32_.disable_thread_flip_count;
   }
 
   void DecrementDisableThreadFlipCount() {
-    CHECK(kUseReadBarrier);
     DCHECK_GT(tls32_.disable_thread_flip_count, 0U);
     --tls32_.disable_thread_flip_count;
   }
@@ -1243,6 +1240,10 @@ class Thread {
     tlsPtr_.thread_local_end += bytes;
     DCHECK_LE(tlsPtr_.thread_local_end, tlsPtr_.thread_local_limit);
   }
+
+  // Called from Concurrent mark-compact GC to slide the TLAB pointers backwards
+  // to adjust to post-compact addresses.
+  void AdjustTlab(size_t slide_bytes);
 
   // Doesn't check that there is room.
   mirror::Object* AllocTlab(size_t bytes);
@@ -2235,13 +2236,13 @@ class ScopedTransitioningToRunnable : public ValueObject {
   explicit ScopedTransitioningToRunnable(Thread* self)
       : self_(self) {
     DCHECK_EQ(self, Thread::Current());
-    if (kUseReadBarrier) {
+    if (gUseReadBarrier) {
       self_->SetIsTransitioningToRunnable(true);
     }
   }
 
   ~ScopedTransitioningToRunnable() {
-    if (kUseReadBarrier) {
+    if (gUseReadBarrier) {
       self_->SetIsTransitioningToRunnable(false);
     }
   }

@@ -167,9 +167,20 @@ TEST_ISA(kThumb2)
 // barrier configuration, and as such is removed from the set of
 // callee-save registers in the ARM64 code generator of the Optimizing
 // compiler.
-#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
-TEST_ISA(kArm64)
-#endif
+//
+// We can't use compile-time macros for read-barrier as the introduction
+// of userfaultfd-GC has made it a runtime choice.
+TEST_F(OptimizingCFITest, kArm64) {
+  if (kUseBakerReadBarrier && gUseReadBarrier) {
+    std::vector<uint8_t> expected_asm(
+        expected_asm_kArm64,
+        expected_asm_kArm64 + arraysize(expected_asm_kArm64));
+    std::vector<uint8_t> expected_cfi(
+        expected_cfi_kArm64,
+        expected_cfi_kArm64 + arraysize(expected_cfi_kArm64));
+    TestImpl(InstructionSet::kArm64, "kArm64", expected_asm, expected_cfi);
+  }
+}
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_x86

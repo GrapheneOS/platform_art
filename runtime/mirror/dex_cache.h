@@ -444,6 +444,12 @@ class MANAGED DexCache final : public Object {
 
   ObjPtr<ClassLoader> GetClassLoader() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            typename Visitor>
+  void VisitNativeRoots(const Visitor& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
+
  private:
   // Allocate new array in linear alloc and save it in the given fields.
   template<typename T, size_t kMaxCacheSize>

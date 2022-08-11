@@ -104,7 +104,7 @@ inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
 }
 
 inline uint32_t Object::GetMarkBit() {
-  CHECK(kUseReadBarrier);
+  CHECK(gUseReadBarrier);
   return GetLockWord(false).MarkBitState();
 }
 
@@ -880,7 +880,7 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
     // inheritance hierarchy and find reference offsets the hard way. In the static case, just
     // consider this class.
     for (ObjPtr<Class> klass = kIsStatic
-            ? AsClass<kVerifyFlags>()
+            ? ObjPtr<Class>::DownCast(this)
             : GetClass<kVerifyFlags, kReadBarrierOption>();
         klass != nullptr;
         klass = kIsStatic ? nullptr : klass->GetSuperClass<kVerifyFlags, kReadBarrierOption>()) {

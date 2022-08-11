@@ -81,7 +81,7 @@ class Bitmap {
   void CopyFrom(Bitmap* source_bitmap);
 
   // Starting address of our internal storage.
-  uintptr_t* Begin() {
+  uintptr_t* Begin() const {
     return bitmap_begin_;
   }
 
@@ -98,7 +98,7 @@ class Bitmap {
   std::string Dump() const;
 
  protected:
-  static constexpr size_t kBitsPerBitmapWord = sizeof(uintptr_t) * kBitsPerByte;
+  static constexpr size_t kBitsPerBitmapWord = kBitsPerIntPtrT;
 
   Bitmap(MemMap&& mem_map, size_t bitmap_size);
   ~Bitmap();
@@ -109,7 +109,9 @@ class Bitmap {
   template<bool kSetBit>
   ALWAYS_INLINE bool ModifyBit(uintptr_t bit_index);
 
-  // Backing storage for bitmap.
+  // Backing storage for bitmap. This is interpreted as an array of
+  // kBitsPerBitmapWord-sized integers, with bits assigned in each word little
+  // endian first.
   MemMap mem_map_;
 
   // This bitmap itself, word sized for efficiency in scanning.
@@ -122,7 +124,7 @@ class Bitmap {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Bitmap);
 };
 
-// One bit per kAlignment in range (start, end]
+// One bit per kAlignment in range [start, end)
 template<size_t kAlignment>
 class MemoryRangeBitmap : public Bitmap {
  public:
@@ -138,7 +140,7 @@ class MemoryRangeBitmap : public Bitmap {
 
   // End of the memory range that the bitmap covers.
   ALWAYS_INLINE uintptr_t CoverEnd() const {
-    return cover_end_;
+    return cover_begin_ + kAlignment * BitmapSize();
   }
 
   // Return the address associated with a bit index.
@@ -148,41 +150,53 @@ class MemoryRangeBitmap : public Bitmap {
     return addr;
   }
 
-  // Return the bit index associated with an address .
-  ALWAYS_INLINE uintptr_t BitIndexFromAddr(uintptr_t addr) const {
-    DCHECK(HasAddress(addr)) << CoverBegin() << " <= " <<  addr << " < " << CoverEnd();
+  ALWAYS_INLINE uintptr_t BitIndexFromAddrUnchecked(uintptr_t addr) const {
     return (addr - CoverBegin()) / kAlignment;
   }
 
+  // Return the bit index associated with an address .
+  ALWAYS_INLINE uintptr_t BitIndexFromAddr(uintptr_t addr) const {
+    uintptr_t result = BitIndexFromAddrUnchecked(addr);
+    DCHECK(result < BitmapSize()) << CoverBegin() << " <= " <<  addr << " < " << CoverEnd();
+    return result;
+  }
+
   ALWAYS_INLINE bool HasAddress(const uintptr_t addr) const {
-    return cover_begin_ <= addr && addr < cover_end_;
+    // Don't use BitIndexFromAddr() here as the addr passed to this function
+    // could be outside the range. If addr < cover_begin_, then the result
+    // underflows to some very large value past the end of the bitmap.
+    // Therefore, all operations are unsigned here.
+    bool ret = (addr - CoverBegin()) / kAlignment < BitmapSize();
+    if (ret) {
+      DCHECK(CoverBegin() <= addr && addr < CoverEnd())
+          << CoverBegin() << " <= " <<  addr << " < " << CoverEnd();
+    }
+    return ret;
   }
 
   ALWAYS_INLINE bool Set(uintptr_t addr) {
     return SetBit(BitIndexFromAddr(addr));
   }
 
-  ALWAYS_INLINE bool Clear(size_t addr) {
+  ALWAYS_INLINE bool Clear(uintptr_t addr) {
     return ClearBit(BitIndexFromAddr(addr));
   }
 
-  ALWAYS_INLINE bool Test(size_t addr) const {
+  ALWAYS_INLINE bool Test(uintptr_t addr) const {
     return TestBit(BitIndexFromAddr(addr));
   }
 
   // Returns true if the object was previously set.
-  ALWAYS_INLINE bool AtomicTestAndSet(size_t addr) {
+  ALWAYS_INLINE bool AtomicTestAndSet(uintptr_t addr) {
     return AtomicTestAndSetBit(BitIndexFromAddr(addr));
   }
 
  private:
   MemoryRangeBitmap(MemMap&& mem_map, uintptr_t begin, size_t num_bits)
       : Bitmap(std::move(mem_map), num_bits),
-        cover_begin_(begin),
-        cover_end_(begin + kAlignment * num_bits) {}
+        cover_begin_(begin) {}
 
   uintptr_t const cover_begin_;
-  uintptr_t const cover_end_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MemoryRangeBitmap);
 };

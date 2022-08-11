@@ -104,6 +104,43 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
   }
 }
 
+template <typename Visitor>
+class ClassTable::TableSlot::ClassAndRootVisitor {
+ public:
+  explicit ClassAndRootVisitor(Visitor& visitor) : visitor_(visitor) {}
+
+  void VisitRoot(mirror::CompressedReference<mirror::Object>* klass) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK(!klass->IsNull());
+    // Visit roots in the klass object
+    visitor_(klass->AsMirrorPtr());
+    // Visit the GC-root holding klass' reference
+    visitor_.VisitRoot(klass);
+  }
+
+ private:
+  Visitor& visitor_;
+};
+
+template <typename Visitor>
+void ClassTable::VisitClassesAndRoots(Visitor& visitor) {
+  TableSlot::ClassAndRootVisitor class_visitor(visitor);
+  ReaderMutexLock mu(Thread::Current(), lock_);
+  for (ClassSet& class_set : classes_) {
+    for (TableSlot& table_slot : class_set) {
+      table_slot.VisitRoot(class_visitor);
+    }
+  }
+  for (GcRoot<mirror::Object>& root : strong_roots_) {
+    visitor.VisitRoot(root.AddressWithoutBarrier());
+  }
+  for (const OatFile* oat_file : oat_files_) {
+    for (GcRoot<mirror::Object>& root : oat_file->GetBssGcRoots()) {
+      visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
+    }
+  }
+}
+
 template <ReadBarrierOption kReadBarrierOption, typename Visitor>
 bool ClassTable::Visit(Visitor& visitor) {
   ReaderMutexLock mu(Thread::Current(), lock_);

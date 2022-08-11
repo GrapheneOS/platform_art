@@ -729,8 +729,8 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   // CMS needs this to block for concurrent reference processing because an object allocated during
   // the GC won't be marked and concurrent reference processing would incorrectly clear the JNI weak
-  // ref. But CC (kUseReadBarrier == true) doesn't because of the to-space invariant.
-  if (!kUseReadBarrier) {
+  // ref. But CC (gUseReadBarrier == true) doesn't because of the to-space invariant.
+  if (!gUseReadBarrier) {
     WaitForWeakGlobalsAccess(self);
   }
   std::string error_msg;
@@ -809,7 +809,7 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
 }
 
 void JavaVMExt::DisallowNewWeakGlobals() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   Thread* const self = Thread::Current();
   MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   // DisallowNewWeakGlobals is only called by CMS during the pause. It is required to have the
@@ -820,7 +820,7 @@ void JavaVMExt::DisallowNewWeakGlobals() {
 }
 
 void JavaVMExt::AllowNewWeakGlobals() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   allow_accessing_weak_globals_.store(true, std::memory_order_seq_cst);
@@ -876,7 +876,7 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobalDuringShutdown(Thread* self, I
     return DecodeWeakGlobal(self, ref);
   }
   // self can be null during a runtime shutdown. ~Runtime()->~ClassLinker()->DecodeWeakGlobal().
-  if (!kUseReadBarrier) {
+  if (!gUseReadBarrier) {
     DCHECK(allow_accessing_weak_globals_.load(std::memory_order_seq_cst));
   }
   return weak_globals_.SynchronizedGet(ref);

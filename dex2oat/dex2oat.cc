@@ -962,7 +962,7 @@ class Dex2Oat final {
                           compiler_options_->GetNativeDebuggable());
     key_value_store_->Put(OatHeader::kCompilerFilter,
                           CompilerFilter::NameOfFilter(compiler_options_->GetCompilerFilter()));
-    key_value_store_->Put(OatHeader::kConcurrentCopying, kUseReadBarrier);
+    key_value_store_->Put(OatHeader::kConcurrentCopying, gUseReadBarrier);
     if (invocation_file_.get() != -1) {
       std::ostringstream oss;
       for (int i = 0; i < argc; ++i) {

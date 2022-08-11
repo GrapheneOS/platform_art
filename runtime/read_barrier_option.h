@@ -84,6 +84,7 @@ namespace art {
 enum ReadBarrierOption {
   kWithReadBarrier,     // Perform a read barrier.
   kWithoutReadBarrier,  // Don't perform a read barrier.
+  kWithFromSpaceBarrier,  // Get the from-space address for the given to-space address. Used by CMC
 };
 
 }  // namespace art

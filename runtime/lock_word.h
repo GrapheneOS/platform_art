@@ -183,8 +183,7 @@ class LockWord {
 
   LockState GetState() const {
     CheckReadBarrierState();
-    if ((!kUseReadBarrier && UNLIKELY(value_ == 0)) ||
-        (kUseReadBarrier && UNLIKELY((value_ & kGCStateMaskShiftedToggled) == 0))) {
+    if (UNLIKELY((value_ & kGCStateMaskShiftedToggled) == 0)) {
       return kUnlocked;
     } else {
       uint32_t internal_state = (value_ >> kStateShift) & kStateMask;
@@ -288,7 +287,7 @@ class LockWord {
   void CheckReadBarrierState() const {
     if (kIsDebugBuild && ((value_ >> kStateShift) & kStateMask) != kStateForwardingAddress) {
       uint32_t rb_state = ReadBarrierState();
-      if (!kUseReadBarrier) {
+      if (!gUseReadBarrier) {
         DCHECK_EQ(rb_state, 0U);
       } else {
         DCHECK(rb_state == ReadBarrier::NonGrayState() ||

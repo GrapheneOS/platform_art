@@ -110,9 +110,7 @@ class DeoptManager {
       REQUIRES_SHARED(art::Locks::mutator_lock_);
   void DeoptimizeAllThreads() REQUIRES_SHARED(art::Locks::mutator_lock_);
 
-  void FinishSetup()
-      REQUIRES(!deoptimization_status_lock_, !art::Roles::uninterruptible_)
-      REQUIRES(art::Locks::mutator_lock_);
+  void FinishSetup() REQUIRES(!deoptimization_status_lock_, !art::Roles::uninterruptible_);
 
   static DeoptManager* Get();
 

@@ -90,7 +90,7 @@ void ReferenceProcessor::BroadcastForSlowPath(Thread* self) {
 ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
                                                        ObjPtr<mirror::Reference> reference) {
   auto slow_path_required = [this, self]() REQUIRES_SHARED(Locks::mutator_lock_) {
-    return kUseReadBarrier ? !self->GetWeakRefAccessEnabled() : SlowPathEnabled();
+    return gUseReadBarrier ? !self->GetWeakRefAccessEnabled() : SlowPathEnabled();
   };
   if (!slow_path_required()) {
     return reference->GetReferent();
@@ -118,10 +118,10 @@ ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
   // Keeping reference_processor_lock_ blocks the broadcast when we try to reenable the fast path.
   while (slow_path_required()) {
     DCHECK(collector_ != nullptr);
-    constexpr bool kOtherReadBarrier = kUseReadBarrier && !kUseBakerReadBarrier;
+    const bool other_read_barrier = !kUseBakerReadBarrier && gUseReadBarrier;
     if (UNLIKELY(reference->IsFinalizerReferenceInstance()
                  || rp_state_ == RpState::kStarting /* too early to determine mark state */
-                 || (kOtherReadBarrier && reference->IsPhantomReferenceInstance()))) {
+                 || (other_read_barrier && reference->IsPhantomReferenceInstance()))) {
       // Odd cases in which it doesn't hurt to just wait, or the wait is likely to be very brief.
 
       // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
@@ -210,7 +210,7 @@ void ReferenceProcessor::ProcessReferences(Thread* self, TimingLogger* timings) 
   }
   {
     MutexLock mu(self, *Locks::reference_processor_lock_);
-    if (!kUseReadBarrier) {
+    if (!gUseReadBarrier) {
       CHECK_EQ(SlowPathEnabled(), concurrent_) << "Slow path must be enabled iff concurrent";
     } else {
       // Weak ref access is enabled at Zygote compaction by SemiSpace (concurrent_ == false).
@@ -305,7 +305,7 @@ void ReferenceProcessor::ProcessReferences(Thread* self, TimingLogger* timings) 
     // could result in a stale is_marked_callback_ being called before the reference processing
     // starts since there is a small window of time where slow_path_enabled_ is enabled but the
     // callback isn't yet set.
-    if (!kUseReadBarrier && concurrent_) {
+    if (!gUseReadBarrier && concurrent_) {
       // Done processing, disable the slow path and broadcast to the waiters.
       DisableSlowPath(self);
     }
@@ -418,8 +418,8 @@ void ReferenceProcessor::ClearReferent(ObjPtr<mirror::Reference> ref) {
 
 void ReferenceProcessor::WaitUntilDoneProcessingReferences(Thread* self) {
   // Wait until we are done processing reference.
-  while ((!kUseReadBarrier && SlowPathEnabled()) ||
-         (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
+  while ((!gUseReadBarrier && SlowPathEnabled()) ||
+         (gUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
     // Check and run the empty checkpoint before blocking so the empty checkpoint will work in the
     // presence of threads blocking for weak ref access.
     self->CheckEmptyCheckpointFromWeakRefAccess(Locks::reference_processor_lock_);

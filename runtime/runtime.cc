@@ -16,15 +16,13 @@
 
 #include "runtime.h"
 
-// sys/mount.h has to come before linux/fs.h due to redefinition of MS_RDONLY, MS_BIND, etc
-#include <sys/mount.h>
 #ifdef __linux__
-#include <linux/fs.h>
 #include <sys/prctl.h>
 #endif
 
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/mount.h>
 #include <sys/syscall.h>
 
 #if defined(__APPLE__)
@@ -203,10 +201,6 @@ static constexpr double kLowMemoryMaxLoadFactor = 0.8;
 static constexpr double kNormalMinLoadFactor = 0.4;
 static constexpr double kNormalMaxLoadFactor = 0.7;
 
-// Extra added to the default heap growth multiplier. Used to adjust the GC ergonomics for the read
-// barrier config.
-static constexpr double kExtraDefaultHeapGrowthMultiplier = kUseReadBarrier ? 1.0 : 0.0;
-
 Runtime* Runtime::instance_ = nullptr;
 
 struct TraceConfig {
@@ -292,7 +286,7 @@ Runtime::Runtime()
       is_native_debuggable_(false),
       async_exceptions_thrown_(false),
       non_standard_exits_enabled_(false),
-      is_java_debuggable_(false),
+      runtime_debug_state_(RuntimeDebugState::kNonJavaDebuggable),
       monitor_timeout_enable_(false),
       monitor_timeout_ns_(0),
       zygote_max_failed_boots_(0),
@@ -409,6 +403,12 @@ Runtime::~Runtime() {
   if (oat_file_manager_ != nullptr) {
     oat_file_manager_->WaitForWorkersToBeCreated();
   }
+  // Disable GC before deleting the thread-pool and shutting down runtime as it
+  // restricts attaching new threads.
+  heap_->DisableGCForShutdown();
+  heap_->WaitForWorkersToBeCreated();
+  // Make sure to let the GC complete if it is running.
+  heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
 
   {
     ScopedTrace trace2("Wait for shutdown cond");
@@ -443,8 +443,6 @@ Runtime::~Runtime() {
     self = nullptr;
   }
 
-  // Make sure to let the GC complete if it is running.
-  heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
   heap_->DeleteThreadPool();
   if (oat_file_manager_ != nullptr) {
     oat_file_manager_->DeleteThreadPool();
@@ -1160,7 +1158,6 @@ void Runtime::InitNonZygoteOrPostFork(
   }
 
   // Create the thread pools.
-  heap_->CreateThreadPool();
   // Avoid creating the runtime thread pool for system server since it will not be used and would
   // waste memory.
   if (!is_system_server) {
@@ -1528,7 +1525,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   compiler_options_ = runtime_options.ReleaseOrDefault(Opt::CompilerOptions);
   for (const std::string& option : Runtime::Current()->GetCompilerOptions()) {
     if (option == "--debuggable") {
-      SetJavaDebuggable(true);
+      SetRuntimeDebugState(RuntimeDebugState::kJavaDebuggableAtInit);
       break;
     }
   }
@@ -1610,9 +1607,11 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     // If low memory mode, use 1.0 as the multiplier by default.
     foreground_heap_growth_multiplier = 1.0f;
   } else {
+    // Extra added to the default heap growth multiplier for concurrent GC
+    // compaction algorithms. This is done for historical reasons.
+    // TODO: remove when we revisit heap configurations.
     foreground_heap_growth_multiplier =
-        runtime_options.GetOrDefault(Opt::ForegroundHeapGrowthMultiplier) +
-            kExtraDefaultHeapGrowthMultiplier;
+        runtime_options.GetOrDefault(Opt::ForegroundHeapGrowthMultiplier) + 1.0f;
   }
   XGcOption xgc_option = runtime_options.GetOrDefault(Opt::GcOption);
 
@@ -1640,9 +1639,9 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                        image_locations_,
                        instruction_set_,
                        // Override the collector type to CC if the read barrier config.
-                       kUseReadBarrier ? gc::kCollectorTypeCC : xgc_option.collector_type_,
-                       kUseReadBarrier ? BackgroundGcOption(gc::kCollectorTypeCCBackground)
-                                       : runtime_options.GetOrDefault(Opt::BackgroundGc),
+                       gUseReadBarrier ? gc::kCollectorTypeCC : xgc_option.collector_type_,
+                       gUseReadBarrier ? BackgroundGcOption(gc::kCollectorTypeCCBackground)
+                                       : BackgroundGcOption(xgc_option.collector_type_),
                        runtime_options.GetOrDefault(Opt::LargeObjectSpace),
                        runtime_options.GetOrDefault(Opt::LargeObjectThreshold),
                        runtime_options.GetOrDefault(Opt::ParallelGCThreads),
@@ -2612,7 +2611,7 @@ ArtMethod* Runtime::CreateCalleeSaveMethod() {
 }
 
 void Runtime::DisallowNewSystemWeaks() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   monitor_list_->DisallowNewMonitors();
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNoReadsOrWrites);
   java_vm_->DisallowNewWeakGlobals();
@@ -2628,7 +2627,7 @@ void Runtime::DisallowNewSystemWeaks() {
 }
 
 void Runtime::AllowNewSystemWeaks() {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   monitor_list_->AllowNewMonitors();
   intern_table_->ChangeWeakRootState(gc::kWeakRootStateNormal);  // TODO: Do this in the sweeping.
   java_vm_->AllowNewWeakGlobals();
@@ -3209,9 +3208,14 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
   instrumentation::Instrumentation* const instrumentation_;
 };
 
-void Runtime::SetJavaDebuggable(bool value) {
-  is_java_debuggable_ = value;
-  // Do not call DeoptimizeBootImage just yet, the runtime may still be starting up.
+void Runtime::SetRuntimeDebugState(RuntimeDebugState state) {
+  if (state == RuntimeDebugState::kJavaDebuggableAtInit) {
+    DCHECK(!IsStarted());
+  } else {
+    // We never change the state if we started as a debuggable runtime.
+    DCHECK(runtime_debug_state_ != RuntimeDebugState::kJavaDebuggableAtInit);
+  }
+  runtime_debug_state_ = state;
 }
 
 void Runtime::DeoptimizeBootImage() {

@@ -1672,7 +1672,7 @@ void CodeGenerator::ValidateInvokeRuntime(QuickEntrypointEnum entrypoint,
              // When (non-Baker) read barriers are enabled, some instructions
              // use a slow path to emit a read barrier, which does not trigger
              // GC.
-             (kEmitCompilerReadBarrier &&
+             (gUseReadBarrier &&
               !kUseBakerReadBarrier &&
               (instruction->IsInstanceFieldGet() ||
                instruction->IsPredicatedInstanceFieldGet() ||
