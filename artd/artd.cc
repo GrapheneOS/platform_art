@@ -27,6 +27,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -507,6 +508,8 @@ Result<void> Artd::Start() {
 }
 
 Result<OatFileAssistantContext*> Artd::GetOatFileAssistantContext() {
+  std::lock_guard<std::mutex> lock(ofa_context_mu_);
+
   if (ofa_context_ == nullptr) {
     ofa_context_ = std::make_unique<OatFileAssistantContext>(
         std::make_unique<OatFileAssistantContext::RuntimeOptions>(
@@ -516,6 +519,10 @@ Result<OatFileAssistantContext*> Artd::GetOatFileAssistantContext() {
                 .boot_class_path_locations = *OR_RETURN(GetBootClassPath()),
                 .deny_art_apex_data_files = DenyArtApexDataFiles(),
             }));
+    std::string error_msg;
+    if (!ofa_context_->FetchAll(&error_msg)) {
+      return Error() << error_msg;
+    }
   }
 
   return ofa_context_.get();
