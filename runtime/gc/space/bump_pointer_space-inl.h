@@ -45,14 +45,6 @@ inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t 
                                                            size_t* bytes_allocated,
                                                            size_t* usable_size,
                                                            size_t* bytes_tl_bulk_allocated) {
-  {
-    // We don't create blocks for these allocations. So confirm that we are still
-    // operating on the main-block.
-    // TODO: If the assertion fails, then start associating
-    // each allocation here to a new block.
-    MutexLock mu(self, block_lock_);
-    CHECK(block_sizes_.empty());
-  }
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   num_bytes = RoundUp(num_bytes, kAlignment);
   uint8_t* end = end_.load(std::memory_order_relaxed);
