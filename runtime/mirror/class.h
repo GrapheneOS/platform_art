@@ -237,6 +237,15 @@ class MANAGED Class final : public Object {
   // Set access flags, recording the change if running inside a Transaction.
   void SetAccessFlags(uint32_t new_access_flags) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  void SetInBootImageAndNotInPreloadedClasses() REQUIRES_SHARED(Locks::mutator_lock_) {
+    uint32_t flags = GetAccessFlags();
+    SetAccessFlags(flags | kAccInBootImageAndNotInPreloadedClasses);
+  }
+
+  ALWAYS_INLINE bool IsInBootImageAndNotInPreloadedClasses() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccInBootImageAndNotInPreloadedClasses) != 0;
+  }
+
   // Returns true if the class is an enum.
   ALWAYS_INLINE bool IsEnum() REQUIRES_SHARED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccEnum) != 0;
@@ -573,7 +582,6 @@ class MANAGED Class final : public Object {
   static constexpr MemberOffset ObjectSizeAllocFastPathOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, object_size_alloc_fast_path_);
   }
-
   static constexpr MemberOffset ClinitThreadIdOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_);
   }
