@@ -904,7 +904,7 @@ static void DexFile_setTrusted(JNIEnv* env, jclass, jobject j_cookie) {
   ScopedObjectAccess soa(env);
 
   // Currently only allow this for debuggable apps.
-  if (!runtime->IsJavaDebuggableAtInit()) {
+  if (!runtime->IsJavaDebuggable()) {
     ThrowSecurityException("Can't exempt class, process is not debuggable.");
     return;
   }
