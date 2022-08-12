@@ -60,14 +60,20 @@
 
 namespace art {
 
-// We require MREMAP_DONTUNMAP functionality in mremap syscall, which was
+// We require MREMAP_DONTUNMAP functionality of the mremap syscall, which was
 // introduced in 5.13 kernel version. Check for that on host. Checking
 // on target is not required as MREMAP_DONTUNMAP and userfaultfd were enabled
 // together.
+// Concurrent compaction termination logic depends on the kernel having
+// the fault-retry feature (allowing repeated faults on the same page), which was
+// introduced in 5.7. On target this feature is backported on all the kernels where
+// userfaultfd is enabled.
 #ifdef ART_TARGET
-static const bool gHaveMremapDontunmap = true;
+static constexpr bool gHaveMremapDontunmap = true;
+static constexpr bool gKernelHasFaultRetry = true;
 #else
 static const bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13);
+static const bool gKernelHasFaultRetry = IsKernelVersionAtLeast(5, 7);
 #endif
 
 #ifndef ART_FORCE_USE_READ_BARRIER
@@ -113,24 +119,31 @@ bool MarkCompact::CreateUserfaultfd(bool post_fork) {
   if (post_fork || uffd_ == -1) {
     // Don't use O_NONBLOCK as we rely on read waiting on uffd_ if there isn't
     // any read event available. We don't use poll.
-    uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
+    if (gKernelHasFaultRetry) {
+      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
 #ifndef ART_TARGET
-    // On host we may not have the kernel patches that restrict userfaultfd to
-    // user mode. But that is not a security concern as we are on host.
-    // Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
-    if (UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
-      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
-    }
+      // On host we may not have the kernel patches that restrict userfaultfd to
+      // user mode. But that is not a security concern as we are on host.
+      // Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
+      if (UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
+        uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
+      }
 #endif
-    if (UNLIKELY(uffd_ == -1)) {
-      uffd_ = kFallbackMode;
-      LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
-                   << ") and therefore falling back to stop-the-world compaction.";
+      if (UNLIKELY(uffd_ == -1)) {
+        uffd_ = kFallbackMode;
+        LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
+                     << ") and therefore falling back to stop-the-world compaction.";
+      } else {
+        DCHECK_GE(uffd_, 0);
+        // Get/update the features that we want in userfaultfd
+        struct uffdio_api api = {.api = UFFD_API, .features = 0};
+        CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0)
+              << "ioctl_userfaultfd: API: " << strerror(errno);
+      }
     } else {
-      DCHECK_GE(uffd_, 0);
-      // Get/update the features that we want in userfaultfd
-      struct uffdio_api api = {.api = UFFD_API, .features = 0};
-      CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0) << "ioctl_userfaultfd: API: " << strerror(errno);
+      // Without fault-retry feature in the kernel we can't terminate concurrent
+      // compaction. So fallback to stop-the-world compaction.
+      uffd_ = kFallbackMode;
     }
   }
   uffd_initialized_ = !post_fork || uffd_ == kFallbackMode;
