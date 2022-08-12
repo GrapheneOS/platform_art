@@ -185,6 +185,12 @@ bool OdrCompilationLog::ShouldAttemptCompile(OdrMetrics::Trigger trigger, time_t
     return true;
   }
 
+  // The backoff time is for avoiding too many failed attempts. It should not be applied if the last
+  // compilation was successful.
+  if (entries_.back().exit_code == ExitCode::kCompilationSuccess) {
+    return true;
+  }
+
   if (trigger == OdrMetrics::Trigger::kApexVersionMismatch ||
       trigger == OdrMetrics::Trigger::kDexFilesChanged) {
     // Things have changed since the last run.
