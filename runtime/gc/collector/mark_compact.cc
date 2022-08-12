@@ -65,7 +65,7 @@ namespace art {
 // on target is not required as MREMAP_DONTUNMAP and userfaultfd were enabled
 // together.
 #ifdef ART_TARGET
-static constexpr bool gHaveMremapDontunmap = true;
+static const bool gHaveMremapDontunmap = true;
 #else
 static const bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13);
 #endif
@@ -74,12 +74,6 @@ static const bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13);
 static bool ShouldUseUserfaultfd() {
 #if !defined(__linux__)
   return false;
-#elif !defined(ART_TARGET)
-  // TODO: Try removing the following constraint once the host kernel version is
-  // upgraded (b/242181443)
-  if (!gHaveMremapDontunmap) {
-    return false;
-  }
 #endif
   int fd = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
 #ifndef ART_TARGET
