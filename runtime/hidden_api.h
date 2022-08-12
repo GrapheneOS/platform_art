@@ -123,7 +123,7 @@ class AccessContext {
 
     if (domain == Domain::kApplication &&
         klass->ShouldSkipHiddenApiChecks() &&
-        Runtime::Current()->IsJavaDebuggableAtInit()) {
+        Runtime::Current()->IsJavaDebuggable()) {
       // Class is known, it is marked trusted and we are in debuggable mode.
       domain = ComputeDomain(/* is_trusted= */ true);
     }

@@ -205,7 +205,7 @@ static uint32_t EnableDebugFeatures(uint32_t runtime_flags) {
   if ((runtime_flags & DEBUG_JAVA_DEBUGGABLE) != 0) {
     runtime->AddCompilerOption("--debuggable");
     runtime_flags |= DEBUG_GENERATE_MINI_DEBUG_INFO;
-    runtime->SetRuntimeDebugState(Runtime::RuntimeDebugState::kJavaDebuggableAtInit);
+    runtime->SetJavaDebuggable(true);
     {
       // Deoptimize the boot image as it may be non-debuggable.
       ScopedSuspendAll ssa(__FUNCTION__);
