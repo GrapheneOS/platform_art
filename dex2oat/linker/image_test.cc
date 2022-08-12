@@ -198,5 +198,15 @@ TEST_F(ImageTest, TestImageClassWithArrayClassWithUnresolvedComponent) {
                               "[[LClassWithMissingSuper"});
 }
 
+TEST_F(ImageTest, TestSuperWithAccessChecks) {
+  CompilationHelper helper;
+  Compile(ImageHeader::kStorageModeUncompressed,
+          /*max_image_block_size=*/std::numeric_limits<uint32_t>::max(),
+          helper,
+          "SuperWithAccessChecks",
+          /*image_classes=*/ {"LSubClass;", "LImplementsClass;"},
+          /*image_classes_failing_aot_clinit=*/ {"LSubClass;", "LImplementsClass;"});
+}
+
 }  // namespace linker
 }  // namespace art

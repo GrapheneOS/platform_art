@@ -480,6 +480,7 @@ art_cc_defaults {
         ":art-gtest-jars-StaticLeafMethods",
         ":art-gtest-jars-Statics",
         ":art-gtest-jars-StringLiterals",
+        ":art-gtest-jars-SuperWithAccessChecks",
         ":art-gtest-jars-VerifierDeps",
         ":art-gtest-jars-VerifierDepsMulti",
         ":art-gtest-jars-VerifySoftFailDuringClinit",
