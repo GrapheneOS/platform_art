@@ -121,7 +121,7 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos,
   if (copy_forward) {
     // Forward copy.
     bool baker_non_gray_case = false;
-    if (kUseReadBarrier && kUseBakerReadBarrier) {
+    if (gUseReadBarrier && kUseBakerReadBarrier) {
       uintptr_t fake_address_dependency;
       if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
         baker_non_gray_case = true;
@@ -146,7 +146,7 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos,
   } else {
     // Backward copy.
     bool baker_non_gray_case = false;
-    if (kUseReadBarrier && kUseBakerReadBarrier) {
+    if (gUseReadBarrier && kUseBakerReadBarrier) {
       uintptr_t fake_address_dependency;
       if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
         baker_non_gray_case = true;
@@ -196,7 +196,7 @@ inline void ObjectArray<T>::AssignableMemcpy(int32_t dst_pos,
   // We can't use memmove since it does not handle read barriers and may do by per byte copying.
   // See b/32012820.
   bool baker_non_gray_case = false;
-  if (kUseReadBarrier && kUseBakerReadBarrier) {
+  if (gUseReadBarrier && kUseBakerReadBarrier) {
     uintptr_t fake_address_dependency;
     if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
       baker_non_gray_case = true;
@@ -244,7 +244,7 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos,
   ObjPtr<T> o = nullptr;
   int i = 0;
   bool baker_non_gray_case = false;
-  if (kUseReadBarrier && kUseBakerReadBarrier) {
+  if (gUseReadBarrier && kUseBakerReadBarrier) {
     uintptr_t fake_address_dependency;
     if (!ReadBarrier::IsGray(src.Ptr(), &fake_address_dependency)) {
       baker_non_gray_case = true;
@@ -327,7 +327,20 @@ template<class T> template<typename Visitor>
 inline void ObjectArray<T>::VisitReferences(const Visitor& visitor) {
   const size_t length = static_cast<size_t>(GetLength());
   for (size_t i = 0; i < length; ++i) {
-    visitor(this, OffsetOfElement(i), false);
+    visitor(this, OffsetOfElement(i), /* is_static= */ false);
+  }
+}
+
+template<class T> template<typename Visitor>
+inline void ObjectArray<T>::VisitReferences(const Visitor& visitor,
+                                            MemberOffset begin,
+                                            MemberOffset end) {
+  const size_t length = static_cast<size_t>(GetLength());
+  begin = std::max(begin, OffsetOfElement(0));
+  end = std::min(end, OffsetOfElement(length));
+  while (begin < end) {
+    visitor(this, begin, /* is_static= */ false, /*is_obj_array*/ true);
+    begin += kHeapReferenceSize;
   }
 }
 

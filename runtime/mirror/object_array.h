@@ -150,6 +150,10 @@ class MANAGED ObjectArray: public Array {
   // REQUIRES_SHARED(Locks::mutator_lock_).
   template<typename Visitor>
   void VisitReferences(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS;
+  template<typename Visitor>
+  void VisitReferences(const Visitor& visitor,
+                       MemberOffset begin,
+                       MemberOffset end) NO_THREAD_SAFETY_ANALYSIS;
 
   friend class Object;  // For VisitReferences
   DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);

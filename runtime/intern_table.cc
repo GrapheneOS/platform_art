@@ -190,8 +190,8 @@ void InternTable::WaitUntilAccessible(Thread* self) {
   {
     ScopedThreadSuspension sts(self, ThreadState::kWaitingWeakGcRootRead);
     MutexLock mu(self, *Locks::intern_table_lock_);
-    while ((!kUseReadBarrier && weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) ||
-           (kUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
+    while ((!gUseReadBarrier && weak_root_state_ == gc::kWeakRootStateNoReadsOrWrites) ||
+           (gUseReadBarrier && !self->GetWeakRefAccessEnabled())) {
       weak_intern_condition_.Wait(self);
     }
   }
@@ -218,7 +218,7 @@ ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s,
     if (strong != nullptr) {
       return strong;
     }
-    if (kUseReadBarrier ? self->GetWeakRefAccessEnabled()
+    if (gUseReadBarrier ? self->GetWeakRefAccessEnabled()
                         : weak_root_state_ != gc::kWeakRootStateNoReadsOrWrites) {
       break;
     }
@@ -230,7 +230,7 @@ ObjPtr<mirror::String> InternTable::Insert(ObjPtr<mirror::String> s,
     auto h = hs.NewHandleWrapper(&s);
     WaitUntilAccessible(self);
   }
-  if (!kUseReadBarrier) {
+  if (!gUseReadBarrier) {
     CHECK_EQ(weak_root_state_, gc::kWeakRootStateNormal);
   } else {
     CHECK(self->GetWeakRefAccessEnabled());
@@ -405,7 +405,10 @@ void InternTable::Table::SweepWeaks(UnorderedSet* set, IsMarkedVisitor* visitor)
     if (new_object == nullptr) {
       it = set->erase(it);
     } else {
-      *it = GcRoot<mirror::String>(new_object->AsString());
+      // Don't use AsString as it does IsString check in debug builds which, in
+      // case of userfaultfd GC, is called when the object's content isn't
+      // thereyet.
+      *it = GcRoot<mirror::String>(ObjPtr<mirror::String>::DownCast(new_object));
       ++it;
     }
   }
@@ -426,7 +429,7 @@ void InternTable::ChangeWeakRootState(gc::WeakRootState new_state) {
 }
 
 void InternTable::ChangeWeakRootStateLocked(gc::WeakRootState new_state) {
-  CHECK(!kUseReadBarrier);
+  CHECK(!gUseReadBarrier);
   weak_root_state_ = new_state;
   if (new_state != gc::kWeakRootStateNoReadsOrWrites) {
     weak_intern_condition_.Broadcast(Thread::Current());

@@ -54,8 +54,9 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, uint8_t* begin, uint
       growth_end_(limit),
       objects_allocated_(0), bytes_allocated_(0),
       block_lock_("Block lock"),
-      main_block_size_(0),
-      num_blocks_(0) {
+      main_block_size_(0) {
+  // This constructor gets called only from Heap::PreZygoteFork(), which
+  // doesn't require a mark_bitmap.
 }
 
 BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap&& mem_map)
@@ -68,8 +69,11 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap&& mem_map)
       growth_end_(mem_map_.End()),
       objects_allocated_(0), bytes_allocated_(0),
       block_lock_("Block lock", kBumpPointerSpaceBlockLock),
-      main_block_size_(0),
-      num_blocks_(0) {
+      main_block_size_(0) {
+  mark_bitmap_ =
+      accounting::ContinuousSpaceBitmap::Create("bump-pointer space live bitmap",
+                                                Begin(),
+                                                Capacity());
 }
 
 void BumpPointerSpace::Clear() {
@@ -86,7 +90,7 @@ void BumpPointerSpace::Clear() {
   growth_end_ = Limit();
   {
     MutexLock mu(Thread::Current(), block_lock_);
-    num_blocks_ = 0;
+    block_sizes_.clear();
     main_block_size_ = 0;
   }
 }
@@ -95,11 +99,6 @@ void BumpPointerSpace::Dump(std::ostream& os) const {
   os << GetName() << " "
       << reinterpret_cast<void*>(Begin()) << "-" << reinterpret_cast<void*>(End()) << " - "
       << reinterpret_cast<void*>(Limit());
-}
-
-mirror::Object* BumpPointerSpace::GetNextObject(mirror::Object* obj) {
-  const uintptr_t position = reinterpret_cast<uintptr_t>(obj) + obj->SizeOf();
-  return reinterpret_cast<mirror::Object*>(RoundUp(position, kAlignment));
 }
 
 size_t BumpPointerSpace::RevokeThreadLocalBuffers(Thread* thread) {
@@ -141,23 +140,19 @@ void BumpPointerSpace::AssertAllThreadLocalBuffersAreRevoked() {
 }
 
 void BumpPointerSpace::UpdateMainBlock() {
-  DCHECK_EQ(num_blocks_, 0U);
+  DCHECK(block_sizes_.empty());
   main_block_size_ = Size();
 }
 
 // Returns the start of the storage.
 uint8_t* BumpPointerSpace::AllocBlock(size_t bytes) {
   bytes = RoundUp(bytes, kAlignment);
-  if (!num_blocks_) {
+  if (block_sizes_.empty()) {
     UpdateMainBlock();
   }
-  uint8_t* storage = reinterpret_cast<uint8_t*>(
-      AllocNonvirtualWithoutAccounting(bytes + sizeof(BlockHeader)));
+  uint8_t* storage = reinterpret_cast<uint8_t*>(AllocNonvirtualWithoutAccounting(bytes));
   if (LIKELY(storage != nullptr)) {
-    BlockHeader* header = reinterpret_cast<BlockHeader*>(storage);
-    header->size_ = bytes;  // Write out the block header.
-    storage += sizeof(BlockHeader);
-    ++num_blocks_;
+    block_sizes_.push_back(bytes);
   }
   return storage;
 }
@@ -177,7 +172,7 @@ uint64_t BumpPointerSpace::GetBytesAllocated() {
   MutexLock mu3(Thread::Current(), block_lock_);
   // If we don't have any blocks, we don't have any thread local buffers. This check is required
   // since there can exist multiple bump pointer spaces which exist at the same time.
-  if (num_blocks_ > 0) {
+  if (!block_sizes_.empty()) {
     for (Thread* thread : thread_list) {
       total += thread->GetThreadLocalBytesAllocated();
     }
@@ -195,7 +190,7 @@ uint64_t BumpPointerSpace::GetObjectsAllocated() {
   MutexLock mu3(Thread::Current(), block_lock_);
   // If we don't have any blocks, we don't have any thread local buffers. This check is required
   // since there can exist multiple bump pointer spaces which exist at the same time.
-  if (num_blocks_ > 0) {
+  if (!block_sizes_.empty()) {
     for (Thread* thread : thread_list) {
       total += thread->GetThreadLocalObjectsAllocated();
     }
@@ -238,6 +233,52 @@ size_t BumpPointerSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* u
     *usable_size = RoundUp(num_bytes, kAlignment);
   }
   return num_bytes;
+}
+
+uint8_t* BumpPointerSpace::AlignEnd(Thread* self, size_t alignment) {
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
+  DCHECK(IsAligned<kAlignment>(alignment));
+  uint8_t* end = end_.load(std::memory_order_relaxed);
+  uint8_t* aligned_end = AlignUp(end, alignment);
+  ptrdiff_t diff = aligned_end - end;
+  if (diff > 0) {
+    end_.store(aligned_end, std::memory_order_relaxed);
+    // If we have blocks after the main one. Then just add the diff to the last
+    // block.
+    MutexLock mu(self, block_lock_);
+    if (!block_sizes_.empty()) {
+      block_sizes_.back() += diff;
+    }
+  }
+  return end;
+}
+
+std::vector<size_t>* BumpPointerSpace::GetBlockSizes(Thread* self, size_t* main_block_size) {
+  std::vector<size_t>* block_sizes = nullptr;
+  MutexLock mu(self, block_lock_);
+  if (!block_sizes_.empty()) {
+    block_sizes = new std::vector<size_t>(block_sizes_.begin(), block_sizes_.end());
+  } else {
+    UpdateMainBlock();
+  }
+  *main_block_size = main_block_size_;
+  return block_sizes;
+}
+
+void BumpPointerSpace::SetBlockSizes(Thread* self,
+                                     const size_t main_block_size,
+                                     const size_t first_valid_idx) {
+  MutexLock mu(self, block_lock_);
+  main_block_size_ = main_block_size;
+  if (!block_sizes_.empty()) {
+    block_sizes_.erase(block_sizes_.begin(), block_sizes_.begin() + first_valid_idx);
+  }
+  size_t size = main_block_size;
+  for (size_t block_size : block_sizes_) {
+    size += block_size;
+  }
+  DCHECK(IsAligned<kAlignment>(size));
+  end_.store(Begin() + size, std::memory_order_relaxed);
 }
 
 }  // namespace space

@@ -64,6 +64,7 @@ class Signature;
 template<typename T> class StrideIterator;
 template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 class Thread;
+class DexCacheVisitor;
 
 namespace mirror {
 
@@ -235,6 +236,15 @@ class MANAGED Class final : public Object {
 
   // Set access flags, recording the change if running inside a Transaction.
   void SetAccessFlags(uint32_t new_access_flags) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void SetInBootImageAndNotInPreloadedClasses() REQUIRES_SHARED(Locks::mutator_lock_) {
+    uint32_t flags = GetAccessFlags();
+    SetAccessFlags(flags | kAccInBootImageAndNotInPreloadedClasses);
+  }
+
+  ALWAYS_INLINE bool IsInBootImageAndNotInPreloadedClasses() REQUIRES_SHARED(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccInBootImageAndNotInPreloadedClasses) != 0;
+  }
 
   // Returns true if the class is an enum.
   ALWAYS_INLINE bool IsEnum() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -486,6 +496,7 @@ class MANAGED Class final : public Object {
 
   size_t GetComponentSize() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template<ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
   size_t GetComponentSizeShift() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsObjectClass() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -495,7 +506,8 @@ class MANAGED Class final : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsInstantiable() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithoutReadBarrier>
   ALWAYS_INLINE bool IsObjectArrayClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -570,7 +582,6 @@ class MANAGED Class final : public Object {
   static constexpr MemberOffset ObjectSizeAllocFastPathOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, object_size_alloc_fast_path_);
   }
-
   static constexpr MemberOffset ClinitThreadIdOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_);
   }
@@ -1174,9 +1185,18 @@ class MANAGED Class final : public Object {
 
   // Visit native roots visits roots which are keyed off the native pointers such as ArtFields and
   // ArtMethods.
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+           bool kVisitProxyMethod = true,
+           class Visitor>
   void VisitNativeRoots(Visitor& visitor, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Visit obsolete dex caches possibly stored in ext_data_
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  void VisitObsoleteDexCaches(DexCacheVisitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
+  void VisitObsoleteClass(Visitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit ArtMethods directly owned by this class.
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>

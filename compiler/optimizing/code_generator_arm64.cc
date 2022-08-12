@@ -583,7 +583,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
         obj_(obj),
         offset_(offset),
         index_(index) {
-    DCHECK(kEmitCompilerReadBarrier);
+    DCHECK(gUseReadBarrier);
     // If `obj` is equal to `out` or `ref`, it means the initial object
     // has been overwritten by (or after) the heap object reference load
     // to be instrumented, e.g.:
@@ -762,7 +762,7 @@ class ReadBarrierForRootSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   ReadBarrierForRootSlowPathARM64(HInstruction* instruction, Location out, Location root)
       : SlowPathCodeARM64(instruction), out_(out), root_(root) {
-    DCHECK(kEmitCompilerReadBarrier);
+    DCHECK(gUseReadBarrier);
   }
 
   void EmitNativeCode(CodeGenerator* codegen) override {
@@ -1233,6 +1233,45 @@ void CodeGeneratorARM64::MaybeIncrementHotness(bool is_frame_entry) {
 
 void CodeGeneratorARM64::GenerateFrameEntry() {
   MacroAssembler* masm = GetVIXLAssembler();
+
+  // Check if we need to generate the clinit check. We will jump to the
+  // resolution stub if the class is not initialized and the executing thread is
+  // not the thread initializing it.
+  // We do this before constructing the frame to get the correct stack trace if
+  // an exception is thrown.
+  if (GetCompilerOptions().ShouldCompileWithClinitCheck(GetGraph()->GetArtMethod())) {
+    UseScratchRegisterScope temps(masm);
+    vixl::aarch64::Label resolution;
+
+    Register temp1 = temps.AcquireW();
+    Register temp2 = temps.AcquireW();
+
+    // Check if we're visibly initialized.
+
+    // We don't emit a read barrier here to save on code size. We rely on the
+    // resolution trampoline to do a suspend check before re-entering this code.
+    __ Ldr(temp1, MemOperand(kArtMethodRegister, ArtMethod::DeclaringClassOffset().Int32Value()));
+    __ Ldrb(temp2, HeapOperand(temp1, status_byte_offset));
+    __ Cmp(temp2, shifted_visibly_initialized_value);
+    __ B(hs, &frame_entry_label_);
+
+    // Check if we're initializing and the thread initializing is the one
+    // executing the code.
+    __ Cmp(temp2, shifted_initializing_value);
+    __ B(lo, &resolution);
+
+    __ Ldr(temp1, HeapOperand(temp1, mirror::Class::ClinitThreadIdOffset().Int32Value()));
+    __ Ldr(temp2, MemOperand(tr, Thread::TidOffset<kArm64PointerSize>().Int32Value()));
+    __ Cmp(temp1, temp2);
+    __ B(eq, &frame_entry_label_);
+    __ Bind(&resolution);
+
+    // Jump to the resolution stub.
+    ThreadOffset64 entrypoint_offset =
+        GetThreadOffset<kArm64PointerSize>(kQuickQuickResolutionTrampoline);
+    __ Ldr(temp1.X(), MemOperand(tr, entrypoint_offset.Int32Value()));
+    __ Br(temp1.X());
+  }
   __ Bind(&frame_entry_label_);
 
   bool do_overflow_check =
@@ -1904,11 +1943,6 @@ void InstructionCodeGeneratorARM64::GenerateClassInitializationCheck(SlowPathCod
                                                                      Register class_reg) {
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register temp = temps.AcquireW();
-  constexpr size_t status_lsb_position = SubtypeCheckBits::BitStructSizeOf();
-  const size_t status_byte_offset =
-      mirror::Class::StatusOffset().SizeValue() + (status_lsb_position / kBitsPerByte);
-  constexpr uint32_t shifted_visibly_initialized_value =
-      enum_cast<uint32_t>(ClassStatus::kVisiblyInitialized) << (status_lsb_position % kBitsPerByte);
 
   // CMP (immediate) is limited to imm12 or imm12<<12, so we would need to materialize
   // the constant 0xf0000000 for comparison with the full 32-bit field. To reduce the code
@@ -2058,7 +2092,7 @@ void LocationsBuilderARM64::HandleFieldGet(HInstruction* instruction,
   bool is_predicated = instruction->IsPredicatedInstanceFieldGet();
 
   bool object_field_get_with_read_barrier =
-      kEmitCompilerReadBarrier && (instruction->GetType() == DataType::Type::kReference);
+      gUseReadBarrier && (instruction->GetType() == DataType::Type::kReference);
   LocationSummary* locations =
       new (GetGraph()->GetAllocator()) LocationSummary(instruction,
                                                        object_field_get_with_read_barrier
@@ -2114,7 +2148,7 @@ void InstructionCodeGeneratorARM64::HandleFieldGet(HInstruction* instruction,
   MemOperand field =
       HeapOperand(InputRegisterAt(instruction, receiver_input), field_info.GetFieldOffset());
 
-  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier &&
+  if (gUseReadBarrier && kUseBakerReadBarrier &&
       load_type == DataType::Type::kReference) {
     // Object FieldGet with Baker's read barrier case.
     // /* HeapReference<Object> */ out = *(base + offset)
@@ -2556,7 +2590,7 @@ void InstructionCodeGeneratorARM64::VisitMultiplyAccumulate(HMultiplyAccumulate*
 
 void LocationsBuilderARM64::VisitArrayGet(HArrayGet* instruction) {
   bool object_array_get_with_read_barrier =
-      kEmitCompilerReadBarrier && (instruction->GetType() == DataType::Type::kReference);
+      gUseReadBarrier && (instruction->GetType() == DataType::Type::kReference);
   LocationSummary* locations =
       new (GetGraph()->GetAllocator()) LocationSummary(instruction,
                                                        object_array_get_with_read_barrier
@@ -2612,10 +2646,10 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
   // does not support the HIntermediateAddress instruction.
   DCHECK(!((type == DataType::Type::kReference) &&
            instruction->GetArray()->IsIntermediateAddress() &&
-           kEmitCompilerReadBarrier &&
+           gUseReadBarrier &&
            !kUseBakerReadBarrier));
 
-  if (type == DataType::Type::kReference && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+  if (type == DataType::Type::kReference && gUseReadBarrier && kUseBakerReadBarrier) {
     // Object ArrayGet with Baker's read barrier case.
     // Note that a potential implicit null check is handled in the
     // CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier call.
@@ -3905,7 +3939,7 @@ void InstructionCodeGeneratorARM64::VisitInstanceFieldSet(HInstanceFieldSet* ins
 
 // Temp is used for read barrier.
 static size_t NumberOfInstanceOfTemps(TypeCheckKind type_check_kind) {
-  if (kEmitCompilerReadBarrier &&
+  if (gUseReadBarrier &&
       (kUseBakerReadBarrier ||
           type_check_kind == TypeCheckKind::kAbstractClassCheck ||
           type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
@@ -5320,7 +5354,7 @@ void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
             load_kind == HLoadClass::LoadKind::kBssEntryPublic ||
                 load_kind == HLoadClass::LoadKind::kBssEntryPackage);
 
-  const bool requires_read_barrier = kEmitCompilerReadBarrier && !cls->IsInBootImage();
+  const bool requires_read_barrier = gUseReadBarrier && !cls->IsInBootImage();
   LocationSummary::CallKind call_kind = (cls->NeedsEnvironment() || requires_read_barrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
@@ -5334,7 +5368,7 @@ void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
   }
   locations->SetOut(Location::RequiresRegister());
   if (cls->GetLoadKind() == HLoadClass::LoadKind::kBssEntry) {
-    if (!kUseReadBarrier || kUseBakerReadBarrier) {
+    if (!gUseReadBarrier || kUseBakerReadBarrier) {
       // Rely on the type resolution or initialization and marking to save everything we need.
       locations->SetCustomSlowPathCallerSaves(OneRegInReferenceOutSaveEverythingCallerSaves());
     } else {
@@ -5361,7 +5395,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) NO_THREAD_SA
 
   const ReadBarrierOption read_barrier_option = cls->IsInBootImage()
       ? kWithoutReadBarrier
-      : kCompilerReadBarrierOption;
+      : gCompilerReadBarrierOption;
   bool generate_null_check = false;
   switch (load_kind) {
     case HLoadClass::LoadKind::kReferrersClass: {
@@ -5530,7 +5564,7 @@ void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
   } else {
     locations->SetOut(Location::RequiresRegister());
     if (load->GetLoadKind() == HLoadString::LoadKind::kBssEntry) {
-      if (!kUseReadBarrier || kUseBakerReadBarrier) {
+      if (!gUseReadBarrier || kUseBakerReadBarrier) {
         // Rely on the pResolveString and marking to save everything we need.
         locations->SetCustomSlowPathCallerSaves(OneRegInReferenceOutSaveEverythingCallerSaves());
       } else {
@@ -5584,7 +5618,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) NO_THREAD
                                         temp,
                                         /* offset placeholder */ 0u,
                                         ldr_label,
-                                        kCompilerReadBarrierOption);
+                                        gCompilerReadBarrierOption);
       SlowPathCodeARM64* slow_path =
           new (codegen_->GetScopedAllocator()) LoadStringSlowPathARM64(load);
       codegen_->AddSlowPath(slow_path);
@@ -5608,7 +5642,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) NO_THREAD
                                         out.X(),
                                         /* offset= */ 0,
                                         /* fixup_label= */ nullptr,
-                                        kCompilerReadBarrierOption);
+                                        gCompilerReadBarrierOption);
       return;
     }
     default:
@@ -6469,7 +6503,7 @@ void InstructionCodeGeneratorARM64::GenerateReferenceLoadOneRegister(
   DataType::Type type = DataType::Type::kReference;
   Register out_reg = RegisterFrom(out, type);
   if (read_barrier_option == kWithReadBarrier) {
-    CHECK(kEmitCompilerReadBarrier);
+    CHECK(gUseReadBarrier);
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(out + offset)
@@ -6510,7 +6544,7 @@ void InstructionCodeGeneratorARM64::GenerateReferenceLoadTwoRegisters(
   Register out_reg = RegisterFrom(out, type);
   Register obj_reg = RegisterFrom(obj, type);
   if (read_barrier_option == kWithReadBarrier) {
-    CHECK(kEmitCompilerReadBarrier);
+    CHECK(gUseReadBarrier);
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(obj + offset)
@@ -6545,7 +6579,7 @@ void CodeGeneratorARM64::GenerateGcRootFieldLoad(
   DCHECK(fixup_label == nullptr || offset == 0u);
   Register root_reg = RegisterFrom(root, DataType::Type::kReference);
   if (read_barrier_option == kWithReadBarrier) {
-    DCHECK(kEmitCompilerReadBarrier);
+    DCHECK(gUseReadBarrier);
     if (kUseBakerReadBarrier) {
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
       // Baker's read barrier are used.
@@ -6611,7 +6645,7 @@ void CodeGeneratorARM64::GenerateGcRootFieldLoad(
 void CodeGeneratorARM64::GenerateIntrinsicCasMoveWithBakerReadBarrier(
     vixl::aarch64::Register marked_old_value,
     vixl::aarch64::Register old_value) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
   // Similar to the Baker RB path in GenerateGcRootFieldLoad(), with a MOV instead of LDR.
@@ -6633,7 +6667,7 @@ void CodeGeneratorARM64::GenerateFieldLoadWithBakerReadBarrier(HInstruction* ins
                                                                const vixl::aarch64::MemOperand& src,
                                                                bool needs_null_check,
                                                                bool use_load_acquire) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
   // Query `art::Thread::Current()->GetIsGcMarking()` (stored in the
@@ -6729,7 +6763,7 @@ void CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier(HArrayGet* instru
                                                                uint32_t data_offset,
                                                                Location index,
                                                                bool needs_null_check) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
   static_assert(
@@ -6807,7 +6841,7 @@ void CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier(HArrayGet* instru
 
 void CodeGeneratorARM64::MaybeGenerateMarkingRegisterCheck(int code, Location temp_loc) {
   // The following condition is a compile-time one, so it does not have a run-time cost.
-  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier && kIsDebugBuild) {
+  if (kIsDebugBuild && gUseReadBarrier && kUseBakerReadBarrier) {
     // The following condition is a run-time one; it is executed after the
     // previous compile-time test, to avoid penalizing non-debug builds.
     if (GetCompilerOptions().EmitRunTimeChecksInDebugMode()) {
@@ -6836,7 +6870,7 @@ void CodeGeneratorARM64::GenerateReadBarrierSlow(HInstruction* instruction,
                                                  Location obj,
                                                  uint32_t offset,
                                                  Location index) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
 
   // Insert a slow path based read barrier *after* the reference load.
   //
@@ -6861,7 +6895,7 @@ void CodeGeneratorARM64::MaybeGenerateReadBarrierSlow(HInstruction* instruction,
                                                       Location obj,
                                                       uint32_t offset,
                                                       Location index) {
-  if (kEmitCompilerReadBarrier) {
+  if (gUseReadBarrier) {
     // Baker's read barriers shall be handled by the fast path
     // (CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier).
     DCHECK(!kUseBakerReadBarrier);
@@ -6876,7 +6910,7 @@ void CodeGeneratorARM64::MaybeGenerateReadBarrierSlow(HInstruction* instruction,
 void CodeGeneratorARM64::GenerateReadBarrierForRootSlow(HInstruction* instruction,
                                                         Location out,
                                                         Location root) {
-  DCHECK(kEmitCompilerReadBarrier);
+  DCHECK(gUseReadBarrier);
 
   // Insert a slow path based read barrier *after* the GC root load.
   //

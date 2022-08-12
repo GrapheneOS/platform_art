@@ -647,6 +647,17 @@ class MANAGED LOCKABLE Object {
             typename JavaLangRefVisitor = VoidFunctor>
   void VisitReferences(const Visitor& visitor, const JavaLangRefVisitor& ref_visitor)
       NO_THREAD_SAFETY_ANALYSIS;
+  // VisitReferences version for compaction. It is invoked with from-space
+  // object so that portions of the object, like klass and length (for arrays),
+  // can be accessed without causing cascading faults.
+  template <bool kFetchObjSize = true,
+            bool kVisitNativeRoots = false,
+            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+            ReadBarrierOption kReadBarrierOption = kWithFromSpaceBarrier,
+            typename Visitor>
+  size_t VisitRefsForCompaction(const Visitor& visitor,
+                                MemberOffset begin,
+                                MemberOffset end) NO_THREAD_SAFETY_ANALYSIS;
 
   ArtField* FindFieldByOffset(MemberOffset offset) REQUIRES_SHARED(Locks::mutator_lock_);
 

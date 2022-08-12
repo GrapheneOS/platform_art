@@ -21,6 +21,7 @@
 
 #include "gc/accounting/read_barrier_table.h"
 #include "gc/collector/concurrent_copying-inl.h"
+#include "gc/collector/mark_compact.h"
 #include "gc/heap.h"
 #include "mirror/object-readbarrier-inl.h"
 #include "mirror/object_reference.h"
@@ -34,7 +35,7 @@ template <typename MirrorType, bool kIsVolatile, ReadBarrierOption kReadBarrierO
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   constexpr bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
-  if (kUseReadBarrier && with_read_barrier) {
+  if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
       if (self != nullptr) {
@@ -91,6 +92,12 @@ inline MirrorType* ReadBarrier::Barrier(
       LOG(FATAL) << "Unexpected read barrier type";
       UNREACHABLE();
     }
+  } else if (kReadBarrierOption == kWithFromSpaceBarrier) {
+    CHECK(gUseUserfaultfd);
+    MirrorType* old = ref_addr->template AsMirrorPtr<kIsVolatile>();
+    mirror::Object* ref =
+        Runtime::Current()->GetHeap()->MarkCompactCollector()->GetFromSpaceAddrFromBarrier(old);
+    return reinterpret_cast<MirrorType*>(ref);
   } else {
     // No read barrier.
     return ref_addr->template AsMirrorPtr<kIsVolatile>();
@@ -102,7 +109,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
                                                GcRootSource* gc_root_source) {
   MirrorType* ref = *root;
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
-  if (kUseReadBarrier && with_read_barrier) {
+  if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
       if (self != nullptr) {
@@ -147,7 +154,7 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
                                                GcRootSource* gc_root_source) {
   MirrorType* ref = root->AsMirrorPtr();
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
-  if (kUseReadBarrier && with_read_barrier) {
+  if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
       if (self != nullptr) {
@@ -192,7 +199,7 @@ template <typename MirrorType>
 inline MirrorType* ReadBarrier::IsMarked(MirrorType* ref) {
   // Only read-barrier configurations can have mutators run while
   // the GC is marking.
-  if (!kUseReadBarrier) {
+  if (!gUseReadBarrier) {
     return ref;
   }
   // IsMarked does not handle null, so handle it here.

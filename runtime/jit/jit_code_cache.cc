@@ -422,7 +422,6 @@ void JitCodeCache::SweepRootTables(IsMarkedVisitor* visitor) {
         // TODO: Do not use IsMarked for j.l.Class, and adjust once we move this method
         // out of the weak access/creation pause. b/32167580
         if (new_object != nullptr && new_object != object) {
-          DCHECK(new_object->IsString());
           roots[i] = GcRoot<mirror::Object>(new_object);
         }
       } else {
@@ -560,7 +559,7 @@ void JitCodeCache::RemoveMethodsIn(Thread* self, const LinearAlloc& alloc) {
 }
 
 bool JitCodeCache::IsWeakAccessEnabled(Thread* self) const {
-  return kUseReadBarrier
+  return gUseReadBarrier
       ? self->GetWeakRefAccessEnabled()
       : is_weak_access_enabled_.load(std::memory_order_seq_cst);
 }
@@ -583,13 +582,13 @@ void JitCodeCache::BroadcastForInlineCacheAccess() {
 }
 
 void JitCodeCache::AllowInlineCacheAccess() {
-  DCHECK(!kUseReadBarrier);
+  DCHECK(!gUseReadBarrier);
   is_weak_access_enabled_.store(true, std::memory_order_seq_cst);
   BroadcastForInlineCacheAccess();
 }
 
 void JitCodeCache::DisallowInlineCacheAccess() {
-  DCHECK(!kUseReadBarrier);
+  DCHECK(!gUseReadBarrier);
   is_weak_access_enabled_.store(false, std::memory_order_seq_cst);
 }
 
@@ -1595,16 +1594,21 @@ bool JitCodeCache::IsOsrCompiled(ArtMethod* method) {
 }
 
 void JitCodeCache::VisitRoots(RootVisitor* visitor) {
-  MutexLock mu(Thread::Current(), *Locks::jit_lock_);
-  UnbufferedRootVisitor root_visitor(visitor, RootInfo(kRootStickyClass));
-  for (ArtMethod* method : current_optimized_compilations_) {
-    method->VisitRoots(root_visitor, kRuntimePointerSize);
-  }
-  for (ArtMethod* method : current_baseline_compilations_) {
-    method->VisitRoots(root_visitor, kRuntimePointerSize);
-  }
-  for (ArtMethod* method : current_osr_compilations_) {
-    method->VisitRoots(root_visitor, kRuntimePointerSize);
+  Thread* self = Thread::Current();
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
+  if (heap->CurrentCollectorType() != gc::CollectorType::kCollectorTypeCMC
+      || !heap->MarkCompactCollector()->IsCompacting(self)) {
+    MutexLock mu(self, *Locks::jit_lock_);
+    UnbufferedRootVisitor root_visitor(visitor, RootInfo(kRootStickyClass));
+    for (ArtMethod* method : current_optimized_compilations_) {
+      method->VisitRoots(root_visitor, kRuntimePointerSize);
+    }
+    for (ArtMethod* method : current_baseline_compilations_) {
+      method->VisitRoots(root_visitor, kRuntimePointerSize);
+    }
+    for (ArtMethod* method : current_osr_compilations_) {
+      method->VisitRoots(root_visitor, kRuntimePointerSize);
+    }
   }
 }
 

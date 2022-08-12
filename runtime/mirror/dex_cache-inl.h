@@ -60,7 +60,7 @@ T* DexCache::AllocArray(MemberOffset obj_offset, MemberOffset num_offset, size_t
     return nullptr;
   }
   mirror::DexCache* dex_cache = this;
-  if (kUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+  if (gUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
     // Several code paths use DexCache without read-barrier for performance.
     // We have to check the "to-space" object here to avoid allocating twice.
     dex_cache = reinterpret_cast<DexCache*>(ReadBarrier::Mark(dex_cache));
@@ -405,20 +405,27 @@ inline void DexCache::VisitReferences(ObjPtr<Class> klass, const Visitor& visito
   VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
   // Visit arrays after.
   if (kVisitNativeRoots) {
-    VisitDexCachePairs<String, kReadBarrierOption, Visitor>(
-        GetStrings<kVerifyFlags>(), NumStrings<kVerifyFlags>(), visitor);
+    VisitNativeRoots<kVerifyFlags, kReadBarrierOption>(visitor);
+  }
+}
 
-    VisitDexCachePairs<Class, kReadBarrierOption, Visitor>(
-        GetResolvedTypes<kVerifyFlags>(), NumResolvedTypes<kVerifyFlags>(), visitor);
+template <VerifyObjectFlags kVerifyFlags,
+          ReadBarrierOption kReadBarrierOption,
+          typename Visitor>
+inline void DexCache::VisitNativeRoots(const Visitor& visitor) {
+  VisitDexCachePairs<String, kReadBarrierOption, Visitor>(
+      GetStrings<kVerifyFlags>(), NumStrings<kVerifyFlags>(), visitor);
 
-    VisitDexCachePairs<MethodType, kReadBarrierOption, Visitor>(
-        GetResolvedMethodTypes<kVerifyFlags>(), NumResolvedMethodTypes<kVerifyFlags>(), visitor);
+  VisitDexCachePairs<Class, kReadBarrierOption, Visitor>(
+      GetResolvedTypes<kVerifyFlags>(), NumResolvedTypes<kVerifyFlags>(), visitor);
 
-    GcRoot<mirror::CallSite>* resolved_call_sites = GetResolvedCallSites<kVerifyFlags>();
-    size_t num_call_sites = NumResolvedCallSites<kVerifyFlags>();
-    for (size_t i = 0; resolved_call_sites != nullptr && i != num_call_sites; ++i) {
-      visitor.VisitRootIfNonNull(resolved_call_sites[i].AddressWithoutBarrier());
-    }
+  VisitDexCachePairs<MethodType, kReadBarrierOption, Visitor>(
+      GetResolvedMethodTypes<kVerifyFlags>(), NumResolvedMethodTypes<kVerifyFlags>(), visitor);
+
+  GcRoot<mirror::CallSite>* resolved_call_sites = GetResolvedCallSites<kVerifyFlags>();
+  size_t num_call_sites = NumResolvedCallSites<kVerifyFlags>();
+  for (size_t i = 0; resolved_call_sites != nullptr && i != num_call_sites; ++i) {
+    visitor.VisitRootIfNonNull(resolved_call_sites[i].AddressWithoutBarrier());
   }
 }
 

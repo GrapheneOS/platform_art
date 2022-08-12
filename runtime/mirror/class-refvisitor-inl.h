@@ -51,22 +51,39 @@ inline void Class::VisitReferences(ObjPtr<Class> klass, const Visitor& visitor) 
   }
 }
 
-template<ReadBarrierOption kReadBarrierOption, class Visitor>
+template<ReadBarrierOption kReadBarrierOption, bool kVisitProxyMethod, class Visitor>
 void Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
   VisitFields<kReadBarrierOption>([&](ArtField* field) REQUIRES_SHARED(art::Locks::mutator_lock_) {
     field->VisitRoots(visitor);
-    if (kIsDebugBuild && IsResolved()) {
+    if (kIsDebugBuild && !gUseUserfaultfd && IsResolved()) {
       CHECK_EQ(field->GetDeclaringClass<kReadBarrierOption>(), this)
           << GetStatus() << field->GetDeclaringClass()->PrettyClass() << " != " << PrettyClass();
     }
   });
   // Don't use VisitMethods because we don't want to hit the class-ext methods twice.
   for (ArtMethod& method : GetMethods(pointer_size)) {
-    method.VisitRoots<kReadBarrierOption>(visitor, pointer_size);
+    method.VisitRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
   }
   ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
   if (!ext.IsNull()) {
-    ext->VisitNativeRoots<kReadBarrierOption, Visitor>(visitor, pointer_size);
+    ext->VisitNativeRoots<kReadBarrierOption, kVisitProxyMethod>(visitor, pointer_size);
+  }
+}
+
+template<ReadBarrierOption kReadBarrierOption>
+void Class::VisitObsoleteDexCaches(DexCacheVisitor& visitor) {
+  ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
+  if (!ext.IsNull()) {
+    ext->VisitDexCaches<kDefaultVerifyFlags, kReadBarrierOption>(visitor);
+  }
+}
+
+template<ReadBarrierOption kReadBarrierOption, class Visitor>
+void Class::VisitObsoleteClass(Visitor& visitor) {
+  ObjPtr<ClassExt> ext(GetExtData<kDefaultVerifyFlags, kReadBarrierOption>());
+  if (!ext.IsNull()) {
+    ObjPtr<Class> klass = ext->GetObsoleteClass<kDefaultVerifyFlags, kReadBarrierOption>();
+    visitor(klass);
   }
 }
 

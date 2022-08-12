@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "verification.h"
+#include "verification-inl.h"
 
 #include <iomanip>
 #include <sstream>
@@ -29,23 +29,16 @@ namespace art {
 namespace gc {
 
 std::string Verification::DumpRAMAroundAddress(uintptr_t addr, uintptr_t bytes) const {
-  const uintptr_t dump_start = addr - bytes;
-  const uintptr_t dump_end = addr + bytes;
+  uintptr_t* dump_start = reinterpret_cast<uintptr_t*>(addr - bytes);
+  uintptr_t* dump_end = reinterpret_cast<uintptr_t*>(addr + bytes);
   std::ostringstream oss;
-  if (dump_start < dump_end &&
-      IsAddressInHeapSpace(reinterpret_cast<const void*>(dump_start)) &&
-      IsAddressInHeapSpace(reinterpret_cast<const void*>(dump_end - 1))) {
-    oss << " adjacent_ram=";
-    for (uintptr_t p = dump_start; p < dump_end; ++p) {
-      if (p == addr) {
-        // Marker of where the address is.
-        oss << "|";
-      }
-      uint8_t* ptr = reinterpret_cast<uint8_t*>(p);
-      oss << std::hex << std::setfill('0') << std::setw(2) << static_cast<uintptr_t>(*ptr);
+  oss << " adjacent_ram=";
+  for (const uintptr_t* p = dump_start; p < dump_end; ++p) {
+    if (p == reinterpret_cast<uintptr_t*>(addr)) {
+      // Marker of where the address is.
+      oss << "|";
     }
-  } else {
-    oss << " <invalid address>";
+    oss << std::hex << std::setfill('0') << std::setw(sizeof(uintptr_t) * 2) << *p << " ";
   }
   return oss.str();
 }
@@ -130,25 +123,6 @@ bool Verification::IsAddressInHeapSpace(const void* addr, space::Space** out_spa
 
 bool Verification::IsValidHeapObjectAddress(const void* addr, space::Space** out_space) const {
   return IsAligned<kObjectAlignment>(addr) && IsAddressInHeapSpace(addr, out_space);
-}
-
-bool Verification::IsValidClass(const void* addr) const {
-  if (!IsValidHeapObjectAddress(addr)) {
-    return false;
-  }
-  mirror::Class* klass = reinterpret_cast<mirror::Class*>(const_cast<void*>(addr));
-  mirror::Class* k1 = klass->GetClass<kVerifyNone, kWithoutReadBarrier>();
-  if (!IsValidHeapObjectAddress(k1)) {
-    return false;
-  }
-  // `k1` should be class class, take the class again to verify.
-  // Note that this check may not be valid for the no image space since the class class might move
-  // around from moving GC.
-  mirror::Class* k2 = k1->GetClass<kVerifyNone, kWithoutReadBarrier>();
-  if (!IsValidHeapObjectAddress(k2)) {
-    return false;
-  }
-  return k1 == k2;
 }
 
 using ObjectSet = std::set<mirror::Object*>;

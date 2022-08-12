@@ -23,6 +23,7 @@
 
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "art_method-inl.h"
 #include "base/runtime_debug.h"
 #include "base/string_view_cpp20.h"
 #include "base/variant_map.h"
@@ -146,14 +147,39 @@ bool CompilerOptions::ParseCompilerOptions(const std::vector<std::string>& optio
 
 bool CompilerOptions::IsImageClass(const char* descriptor) const {
   // Historical note: We used to hold the set indirectly and there was a distinction between an
-  // empty set and a null, null meaning to include all classes. However, the distiction has been
+  // empty set and a null, null meaning to include all classes. However, the distinction has been
   // removed; if we don't have a profile, we treat it as an empty set of classes. b/77340429
   return image_classes_.find(std::string_view(descriptor)) != image_classes_.end();
+}
+
+bool CompilerOptions::IsPreloadedClass(const char* pretty_descriptor) const {
+  return preloaded_classes_.find(std::string_view(pretty_descriptor)) != preloaded_classes_.end();
 }
 
 const VerificationResults* CompilerOptions::GetVerificationResults() const {
   DCHECK(Runtime::Current()->IsAotCompiler());
   return verification_results_;
+}
+
+bool CompilerOptions::ShouldCompileWithClinitCheck(ArtMethod* method) const {
+  if (method != nullptr &&
+      Runtime::Current()->IsAotCompiler() &&
+      method->IsStatic() &&
+      !method->IsConstructor() &&
+      // Compiled code for native methods never do a clinit check, so we may put the resolution
+      // trampoline for native methods. This means that it's possible post zygote fork for the
+      // entry to be dirtied. We could resolve this by either:
+      // - Make these methods use the generic JNI entrypoint, but that's not
+      //   desirable for a method that is in the profile.
+      // - Ensure the declaring class of such native methods are always in the
+      //   preloaded-classes list.
+      // - Emit the clinit check in the compiled code of native methods.
+      !method->IsNative()) {
+    ScopedObjectAccess soa(Thread::Current());
+    ObjPtr<mirror::Class> cls = method->GetDeclaringClass<kWithoutReadBarrier>();
+    return cls->IsInBootImageAndNotInPreloadedClasses();
+  }
+  return false;
 }
 
 }  // namespace art
