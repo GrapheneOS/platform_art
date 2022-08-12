@@ -750,6 +750,7 @@ class TestingTargetChecker:
     self._checker.check_art_test_data('art-gtest-jars-MainEmptyUncompressed.jar')
     self._checker.check_art_test_data('art-gtest-jars-Dex2oatVdexTestDex.jar')
     self._checker.check_art_test_data('art-gtest-jars-Dex2oatVdexPublicSdkDex.dex')
+    self._checker.check_art_test_data('art-gtest-jars-SuperWithAccessChecks.dex')
 
 
 class NoSuperfluousBinariesChecker:
