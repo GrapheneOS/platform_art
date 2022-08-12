@@ -110,6 +110,14 @@ cc_test {
     // unloading, so each test needs to be its own process.
     test_per_src: true,
 
+    // Disable pre-submit host unit-testing for this test module, as
+    // it is not compatible with TradeFed (because of the use of the
+    // `test_per_src` feature above) and meant to be executed with the
+    // `runtests.sh` script instead.
+    test_options: {
+        unit_test: false,
+    },
+
     srcs: [
         "NativeBridgeApi.c",
         "CodeCacheCreate_test.cpp",
