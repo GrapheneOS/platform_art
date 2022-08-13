@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-#include <string>
-#include <vector>
+#include "dexopt_test.h"
 
 #include <gtest/gtest.h>
 #include <procinfo/process_map.h>
 
+#include <string>
+#include <vector>
+
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
+#include "arch/instruction_set.h"
 #include "base/file_utils.h"
 #include "base/mem_map.h"
 #include "common_runtime_test.h"
@@ -29,10 +32,10 @@
 #include "dex/art_dex_file_loader.h"
 #include "dex/dex_file_loader.h"
 #include "dex2oat_environment_test.h"
-#include "dexopt_test.h"
 #include "gc/space/image_space.h"
 #include "hidden_api.h"
 #include "oat.h"
+#include "oat_file_assistant.h"
 #include "profile/profile_compilation_info.h"
 
 namespace art {
@@ -163,23 +166,13 @@ void DexoptTest::GenerateOatForTest(const std::string& dex_location,
   EXPECT_EQ(filter, odex_file->GetCompilerFilter());
 
   if (CompilerFilter::DependsOnImageChecksum(filter)) {
-    const OatHeader& oat_header = odex_file->GetOatHeader();
-    const char* oat_bcp = oat_header.GetStoreValueByKey(OatHeader::kBootClassPathKey);
-    ASSERT_TRUE(oat_bcp != nullptr);
-    ASSERT_EQ(oat_bcp, android::base::Join(Runtime::Current()->GetBootClassPathLocations(), ':'));
-    const char* checksums = oat_header.GetStoreValueByKey(OatHeader::kBootClassPathChecksumsKey);
-    ASSERT_TRUE(checksums != nullptr);
+    std::unique_ptr<ClassLoaderContext> context = ClassLoaderContext::Create(/*spec=*/"");
+    OatFileAssistant oat_file_assistant(dex_location.c_str(),
+                                        kRuntimeISA,
+                                        context.get(),
+                                        /*load_executable=*/false);
 
-    bool match = gc::space::ImageSpace::VerifyBootClassPathChecksums(
-        checksums,
-        oat_bcp,
-        ArrayRef<const std::string>(&image_location, 1),
-        ArrayRef<const std::string>(Runtime::Current()->GetBootClassPathLocations()),
-        ArrayRef<const std::string>(Runtime::Current()->GetBootClassPath()),
-        ArrayRef<const int>(Runtime::Current()->GetBootClassPathFds()),
-        kRuntimeISA,
-        Runtime::Current()->GetApexVersions(),
-        &error_msg);
+    bool match = oat_file_assistant.ValidateBootClassPathChecksums(*odex_file);
     ASSERT_EQ(!with_alternate_image, match) << error_msg;
   }
 }

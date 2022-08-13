@@ -89,6 +89,12 @@ AllocationManager* gAllocManager;
     }                           \
   } while (false)
 
+// Returns whether we are able to use all jvmti features.
+static bool IsFullJvmtiAvailable() {
+  art::Runtime* runtime = art::Runtime::Current();
+  return runtime->GetInstrumentation()->IsForcedInterpretOnly() || runtime->IsJavaDebuggable();
+}
+
 class JvmtiFunctions {
  private:
   static jvmtiError getEnvironmentError(jvmtiEnv* env) {
@@ -1468,7 +1474,13 @@ extern "C" bool ArtPlugin_Initialize() {
   FieldUtil::Register(gEventHandler);
   BreakpointUtil::Register(gEventHandler);
   Transformer::Register(gEventHandler);
-  gDeoptManager->FinishSetup();
+
+  {
+    // Make sure we can deopt anything we need to.
+    art::ScopedSuspendAll ssa(__FUNCTION__);
+    gDeoptManager->FinishSetup();
+  }
+
   runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
 
   return true;

@@ -256,6 +256,7 @@ libart_cc_defaults {
         "oat.cc",
         "oat_file.cc",
         "oat_file_assistant.cc",
+        "oat_file_assistant_context.cc",
         "oat_file_manager.cc",
         "oat_quick_method_header.cc",
         "object_lock.cc",
