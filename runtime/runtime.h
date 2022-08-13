@@ -133,19 +133,6 @@ class Runtime {
   static bool Create(const RuntimeOptions& raw_options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
-  enum class RuntimeDebugState {
-    // This doesn't support any debug features / method tracing. This is the expected state usually.
-    kNonJavaDebuggable,
-    // This supports method tracing and a restricted set of debug features (for ex: redefinition
-    // isn't supported). We transition to this state when method tracing has started or when the
-    // debugger was attached and transition back to NonDebuggable once the tracing has stopped /
-    // the debugger agent has detached..
-    kJavaDebuggable,
-    // The runtime was started as a debuggable runtime. This allows us to support the extended set
-    // of debug features (for ex: redefinition). We never transition out of this state.
-    kJavaDebuggableAtInit
-  };
-
   bool EnsurePluginLoaded(const char* plugin_name, std::string* error_msg);
   bool EnsurePerfettoPlugin(std::string* error_msg);
 
@@ -314,6 +301,11 @@ class Runtime {
            boot_class_path_locations_.size() == boot_class_path_.size());
     return boot_class_path_locations_.empty() ? boot_class_path_ : boot_class_path_locations_;
   }
+
+  // Dynamically add an element to boot class path.
+  void AppendToBootClassPath(const std::string& filename,
+                             const std::string& location,
+                             const std::vector<std::unique_ptr<const art::DexFile>>& dex_files);
 
   const std::vector<int>& GetBootClassPathFds() const {
     return boot_class_path_fds_;
@@ -797,12 +789,7 @@ class Runtime {
   }
 
   bool IsJavaDebuggable() const {
-    return runtime_debug_state_ == RuntimeDebugState::kJavaDebuggable ||
-           runtime_debug_state_ == RuntimeDebugState::kJavaDebuggableAtInit;
-  }
-
-  bool IsJavaDebuggableAtInit() const {
-    return runtime_debug_state_ == RuntimeDebugState::kJavaDebuggableAtInit;
+    return is_java_debuggable_;
   }
 
   void SetProfileableFromShell(bool value) {
@@ -821,7 +808,7 @@ class Runtime {
     return is_profileable_;
   }
 
-  void SetRuntimeDebugState(RuntimeDebugState state);
+  void SetJavaDebuggable(bool value);
 
   // Deoptimize the boot image, called for Java debuggable apps.
   void DeoptimizeBootImage() REQUIRES(Locks::mutator_lock_);
@@ -1369,7 +1356,7 @@ class Runtime {
   bool non_standard_exits_enabled_;
 
   // Whether Java code needs to be debuggable.
-  RuntimeDebugState runtime_debug_state_;
+  bool is_java_debuggable_;
 
   bool monitor_timeout_enable_;
   uint64_t monitor_timeout_ns_;

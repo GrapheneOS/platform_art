@@ -286,7 +286,7 @@ Runtime::Runtime()
       is_native_debuggable_(false),
       async_exceptions_thrown_(false),
       non_standard_exits_enabled_(false),
-      runtime_debug_state_(RuntimeDebugState::kNonJavaDebuggable),
+      is_java_debuggable_(false),
       monitor_timeout_enable_(false),
       monitor_timeout_ns_(0),
       zygote_max_failed_boots_(0),
@@ -1004,6 +1004,22 @@ bool Runtime::Start() {
     }
     CreateJitCodeCache(/*rwx_memory_allowed=*/true);
     CreateJit();
+#ifdef ADDRESS_SANITIZER
+    // (b/238730394): In older implementations of sanitizer + glibc there is a race between
+    // pthread_create and dlopen that could cause a deadlock. pthread_create interceptor in ASAN
+    // uses dl_pthread_iterator with a callback that could request a dl_load_lock via call to
+    // __tls_get_addr [1]. dl_pthread_iterate would already hold dl_load_lock so this could cause a
+    // deadlock. __tls_get_addr needs a dl_load_lock only when there is a dlopen happening in
+    // parallel. As a workaround we wait for the pthread_create (i.e JIT thread pool creation) to
+    // finish before going to the next phase. Creating a system class loader could need a dlopen so
+    // we wait here till threads are initialized.
+    // [1] https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/sanitizer_common/sanitizer_linux_libcdep.cpp#L408
+    // See this for more context: https://reviews.llvm.org/D98926
+    // TODO(b/238730394): Revisit this workaround once we migrate to musl libc.
+    if (jit_ != nullptr) {
+      jit_->GetThreadPool()->WaitForWorkersToBeCreated();
+    }
+#endif
   }
 
   // Send the start phase event. We have to wait till here as this is when the main thread peer
@@ -1525,7 +1541,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   compiler_options_ = runtime_options.ReleaseOrDefault(Opt::CompilerOptions);
   for (const std::string& option : Runtime::Current()->GetCompilerOptions()) {
     if (option == "--debuggable") {
-      SetRuntimeDebugState(RuntimeDebugState::kJavaDebuggableAtInit);
+      SetJavaDebuggable(true);
       break;
     }
   }
@@ -3208,14 +3224,9 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
   instrumentation::Instrumentation* const instrumentation_;
 };
 
-void Runtime::SetRuntimeDebugState(RuntimeDebugState state) {
-  if (state == RuntimeDebugState::kJavaDebuggableAtInit) {
-    DCHECK(!IsStarted());
-  } else {
-    // We never change the state if we started as a debuggable runtime.
-    DCHECK(runtime_debug_state_ != RuntimeDebugState::kJavaDebuggableAtInit);
-  }
-  runtime_debug_state_ = state;
+void Runtime::SetJavaDebuggable(bool value) {
+  is_java_debuggable_ = value;
+  // Do not call DeoptimizeBootImage just yet, the runtime may still be starting up.
 }
 
 void Runtime::DeoptimizeBootImage() {
@@ -3464,6 +3475,20 @@ bool Runtime::HasImageWithProfile() const {
     }
   }
   return false;
+}
+
+void Runtime::AppendToBootClassPath(
+    const std::string& filename,
+    const std::string& location,
+    const std::vector<std::unique_ptr<const art::DexFile>>& dex_files) {
+  boot_class_path_.push_back(filename);
+  if (!boot_class_path_locations_.empty()) {
+    boot_class_path_locations_.push_back(location);
+  }
+  ScopedObjectAccess soa(Thread::Current());
+  for (const std::unique_ptr<const art::DexFile>& dex_file : dex_files) {
+    GetClassLinker()->AppendToBootClassPath(Thread::Current(), dex_file.get());
+  }
 }
 
 }  // namespace art
