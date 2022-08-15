@@ -1125,7 +1125,7 @@ public class Main {
   /// CHECK-DAG: <<Len:i\d+>> ArrayLength [<<Nul>>]         loop:none
   /// CHECK-DAG:              Equal [<<Len>>,<<Val>>]       loop:none
   /// CHECK-DAG: <<Idx:i\d+>> Phi                           loop:<<Loop:B\d+>>
-  /// CHECK-DAG:              BoundsCheck [<<Idx>>,<<Len>>] loop:<<Loop>>
+  /// CHECK-DAG:              BoundsCheck [<<Idx>>,<<Val>>] loop:<<Loop>>
   //
   /// CHECK-START: void Main.lengthAlias4(int[]) BCE (after)
   /// CHECK-NOT:              BoundsCheck

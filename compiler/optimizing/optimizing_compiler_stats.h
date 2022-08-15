@@ -73,6 +73,7 @@ enum class MethodCompilationStat {
   kLoopVectorizedIdiom,
   kSelectGenerated,
   kRemovedInstanceOf,
+  kPropagatedIfValue,
   kInlinedInvokeVirtualOrInterface,
   kInlinedLastInvokeVirtualOrInterface,
   kImplicitNullCheckGenerated,

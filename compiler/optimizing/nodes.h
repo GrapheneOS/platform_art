@@ -2444,9 +2444,12 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     return IsRemovable() && !HasUses();
   }
 
-  // Does this instruction strictly dominate `other_instruction`?
-  // Returns false if this instruction and `other_instruction` are the same.
-  // Aborts if this instruction and `other_instruction` are both phis.
+  // Does this instruction dominate `other_instruction`?
+  // Aborts if this instruction and `other_instruction` are different phis.
+  bool Dominates(HInstruction* other_instruction) const;
+
+  // Same but with `strictly dominates` i.e. returns false if this instruction and
+  // `other_instruction` are the same.
   bool StrictlyDominates(HInstruction* other_instruction) const;
 
   int GetId() const { return id_; }
@@ -2511,7 +2514,9 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   void SetLocations(LocationSummary* locations) { locations_ = locations; }
 
   void ReplaceWith(HInstruction* instruction);
-  void ReplaceUsesDominatedBy(HInstruction* dominator, HInstruction* replacement);
+  void ReplaceUsesDominatedBy(HInstruction* dominator,
+                              HInstruction* replacement,
+                              bool strictly_dominated = true);
   void ReplaceEnvUsesDominatedBy(HInstruction* dominator, HInstruction* replacement);
   void ReplaceInput(HInstruction* replacement, size_t index);
 
