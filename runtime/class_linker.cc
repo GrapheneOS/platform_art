@@ -5088,10 +5088,18 @@ void ClassLinker::CheckProxyMethod(ArtMethod* method, ArtMethod* prototype) cons
   CHECK_EQ(prototype, method->GetInterfaceMethodIfProxy(image_pointer_size_));
 }
 
-bool ClassLinker::CanWeInitializeClass(ObjPtr<mirror::Class> klass, bool can_init_statics,
+bool ClassLinker::CanWeInitializeClass(ObjPtr<mirror::Class> klass,
+                                       bool can_init_statics,
                                        bool can_init_parents) {
   if (can_init_statics && can_init_parents) {
     return true;
+  }
+  DCHECK(Runtime::Current()->IsAotCompiler());
+
+  // We currently don't support initializing at AOT time classes that need access
+  // checks.
+  if (klass->IsVerifiedNeedsAccessChecks()) {
+    return false;
   }
   if (!can_init_statics) {
     // Check if there's a class initializer.
