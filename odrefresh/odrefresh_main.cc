@@ -46,6 +46,7 @@ using ::art::odrefresh::OdrConfig;
 using ::art::odrefresh::OdrMetrics;
 using ::art::odrefresh::OnDeviceRefresh;
 using ::art::odrefresh::QuotePath;
+using ::art::odrefresh::ShouldDisablePartialCompilation;
 using ::art::odrefresh::ShouldDisableRefresh;
 using ::art::odrefresh::SystemPropertyConfig;
 using ::art::odrefresh::SystemPropertyForeach;
@@ -175,6 +176,12 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
   if (config->GetSystemServerCompilerFilter().empty()) {
     std::string filter = GetProperty("dalvik.vm.systemservercompilerfilter", "");
     config->SetSystemServerCompilerFilter(filter);
+  }
+
+  if (!config->HasPartialCompilation() &&
+      ShouldDisablePartialCompilation(
+          GetProperty("ro.build.version.security_patch", /*default_value=*/""))) {
+    config->SetPartialCompilation(false);
   }
 
   if (ShouldDisableRefresh(GetProperty("ro.build.version.sdk", /*default_value=*/""))) {
