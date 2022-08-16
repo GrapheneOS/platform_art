@@ -1651,10 +1651,12 @@ bool Redefiner::ClassRedefinition::AllocateAndRememberNewDexFileCookie(
   art::MutableHandle<art::mirror::LongArray> old_cookie(
       hs.NewHandle<art::mirror::LongArray>(nullptr));
   bool has_older_cookie = false;
-  // See if we already have a cookie that a previous redefinition got from the same classloader.
+  // See if we already have a cookie that a previous redefinition got from the same classloader
+  // and the same JavaDex file.
   for (auto old_data = cur_data->GetHolder().begin(); old_data != *cur_data; ++old_data) {
-    if (old_data.GetSourceClassLoader() == source_class_loader.Get()) {
-      // Since every instance of this classloader should have the same cookie associated with it we
+    if (old_data.GetSourceClassLoader() == source_class_loader.Get() &&
+        old_data.GetJavaDexFile() == dex_file_obj.Get()) {
+      // Since every instance of this JavaDex file should have the same cookie associated with it we
       // can stop looking here.
       has_older_cookie = true;
       old_cookie.Assign(old_data.GetNewDexFileCookie());
@@ -1679,12 +1681,13 @@ bool Redefiner::ClassRedefinition::AllocateAndRememberNewDexFileCookie(
 
   // Save the cookie.
   cur_data->SetNewDexFileCookie(new_cookie.Get());
-  // If there are other copies of this same classloader we need to make sure that we all have the
-  // same cookie.
+  // If there are other copies of the same classloader and the same JavaDex file we need to
+  // make sure that we all have the same cookie.
   if (has_older_cookie) {
     for (auto old_data = cur_data->GetHolder().begin(); old_data != *cur_data; ++old_data) {
       // We will let the GC take care of the cookie we allocated for this one.
-      if (old_data.GetSourceClassLoader() == source_class_loader.Get()) {
+      if (old_data.GetSourceClassLoader() == source_class_loader.Get() &&
+          old_data.GetJavaDexFile() == dex_file_obj.Get()) {
         old_data.SetNewDexFileCookie(new_cookie.Get());
       }
     }
