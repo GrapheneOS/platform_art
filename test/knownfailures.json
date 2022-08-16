@@ -1073,6 +1073,7 @@
           "988-method-trace",
           "989-method-trace-throw",
           "993-breakpoints",
+          "993-breakpoints-non-debuggable",
           "1002-notify-startup",
           "1003-metadata-section-strings",
           "1336-short-finalizer-timeout",
