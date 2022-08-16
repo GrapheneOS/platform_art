@@ -700,11 +700,11 @@ if USE_JVMTI == "y":
     # needed anymore since the plugin can do it for us now.
     FLAGS+=f" -Xplugin:{plugin}"
 
-    # For jvmti tests, set the threshold of compilation to 0, so we jit early to
+    # For jvmti tests, set the threshold of compilation to 1, so we jit early to
     # provide better test coverage for jvmti + jit. This means we won't run
     # the default --jit configuration but it is not too important test scenario for
     # jvmti tests. This is art specific flag, so don't use it with jvm.
-    FLAGS+=" -Xjitthreshold:0"
+    FLAGS+=" -Xjitthreshold:1"
 
 # Add the libdir to the argv passed to the main function.
 if ADD_LIBDIR_ARGUMENTS == "y":
