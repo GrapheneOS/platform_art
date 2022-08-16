@@ -157,6 +157,9 @@ class OdrConfig final {
   }
 
   bool GetDryRun() const { return dry_run_; }
+  bool HasPartialCompilation() const {
+    return partial_compilation_.has_value();
+  }
   bool GetPartialCompilation() const {
     return partial_compilation_.value_or(true);
   }
