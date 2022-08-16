@@ -509,7 +509,7 @@ static jboolean VMRuntime_isValidClassLoaderContext(JNIEnv* env,
   return ClassLoaderContext::IsValidEncoding(encoded_class_loader_context.c_str());
 }
 
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, clampGrowthLimit, "()V"),
