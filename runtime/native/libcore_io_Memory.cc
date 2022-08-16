@@ -181,7 +181,7 @@ static void Memory_peekShortArray(JNIEnv* env,
 }
 
 // The remaining Memory methods are contained in libcore/luni/src/main/native/libcore_io_Memory.cpp
-static JNINativeMethod gMethods[] = {
+static const JNINativeMethod gMethods[] = {
     FAST_NATIVE_METHOD(Memory, peekByteArray, "(J[BII)V"),
     FAST_NATIVE_METHOD(Memory, peekCharArray, "(J[CIIZ)V"),
     FAST_NATIVE_METHOD(Memory, peekDoubleArray, "(J[DIIZ)V"),
