@@ -150,6 +150,7 @@
     "test.java.lang.Float",
     "test.java.lang.Integer",
     "test.java.lang.Long",
+    "test.java.lang.StackWalker#main",
     "test.java.lang.StrictMath.CubeRootTests",
     "test.java.lang.StrictMath.ExactArithTests",
     "test.java.lang.StrictMath.Expm1Tests",
@@ -228,15 +229,6 @@
     "test.java.util.function",
     "test.java.util.stream",
     "test.java.util.zip.ZipFile"
-  ]
-},
-{
-  description: "Test aborted due to unknown error. Disable the test temporarily.",
-  result: ERROR,
-  bug: 241766511,
-  modes: [device],
-  names: [
-    "test.java.lang.StackWalker"
   ]
 }
 ]
