@@ -3127,8 +3127,24 @@ class ImageSpace::BootImageLoader {
         return false;
       }
     }
+
+    // As an optimization, madvise the oat file into memory if it's being used
+    // for execution with an active runtime. This can significantly improve
+    // ZygoteInit class preload performance.
+    if (executable_) {
+      Runtime* runtime = Runtime::Current();
+      if (runtime != nullptr) {
+        Runtime::MadviseFileForRange(runtime->GetMadviseWillNeedSizeOdex(),
+                                     oat_file->Size(),
+                                     oat_file->Begin(),
+                                     oat_file->End(),
+                                     oat_file->GetLocation());
+      }
+    }
+
     space->oat_file_ = std::move(oat_file);
     space->oat_file_non_owned_ = space->oat_file_.get();
+
     return true;
   }
 
