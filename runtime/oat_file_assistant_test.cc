@@ -21,6 +21,7 @@
 #include <sys/param.h>
 
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -28,19 +29,20 @@
 
 #include "android-base/scopeguard.h"
 #include "android-base/strings.h"
+#include "arch/instruction_set.h"
 #include "art_field-inl.h"
 #include "base/os.h"
 #include "base/utils.h"
-#include "class_linker-inl.h"
+#include "class_linker.h"
 #include "class_loader_context.h"
 #include "common_runtime_test.h"
 #include "dexopt_test.h"
-#include "hidden_api.h"
 #include "oat.h"
 #include "oat_file.h"
+#include "oat_file_assistant_context.h"
 #include "oat_file_manager.h"
-#include "scoped_thread_state_change-inl.h"
-#include "thread-current-inl.h"
+#include "scoped_thread_state_change.h"
+#include "thread.h"
 
 namespace art {
 
@@ -52,6 +54,7 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
   void SetUp() override {
     DexoptTest::SetUp();
     with_runtime_ = GetParam();
+    ofa_context_ = CreateOatFileAssistantContext();
   }
 
   // Verifies all variants of `GetOptimizationStatus`.
@@ -82,7 +85,7 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
                                               kRuntimeISA,
                                               &compilation_filter1,
                                               &compilation_reason1,
-                                              MaybeCreateRuntimeOptions());
+                                              MaybeGetOatFileAssistantContext());
 
       ASSERT_EQ(expected_filter_name, compilation_filter1);
       ASSERT_EQ(expected_reason, compilation_reason1);
@@ -104,13 +107,22 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
     ASSERT_EQ(expected_odex_status, odex_status3);
   }
 
-  void InsertNewBootClasspathEntry() {
-    std::string extra_dex_filename = GetMultiDexSrc1();
-    Runtime* runtime = Runtime::Current();
-    runtime->boot_class_path_.push_back(extra_dex_filename);
-    if (!runtime->boot_class_path_locations_.empty()) {
-      runtime->boot_class_path_locations_.push_back(extra_dex_filename);
+  bool InsertNewBootClasspathEntry(const std::string& src, std::string* error_msg) {
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    ArtDexFileLoader dex_file_loader;
+    if (!dex_file_loader.Open(src.c_str(),
+                              src,
+                              /*verify=*/true,
+                              /*verify_checksum=*/false,
+                              error_msg,
+                              &dex_files)) {
+      return false;
     }
+
+    runtime_->AppendToBootClassPath(src, src, dex_files);
+    std::move(dex_files.begin(), dex_files.end(), std::back_inserter(opened_dex_files_));
+
+    return true;
   }
 
   // Verifies the current version of `GetDexOptNeeded` (called from artd).
@@ -165,20 +177,22 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
         [this]() { Runtime::TestOnlySetCurrent(runtime_.get()); });
   }
 
-  // Returns runtime options if `with_runtime_` is false.
-  std::unique_ptr<OatFileAssistant::RuntimeOptions> MaybeCreateRuntimeOptions() {
-    if (with_runtime_) {
-      return nullptr;
-    } else {
-      return std::make_unique<OatFileAssistant::RuntimeOptions>(OatFileAssistant::RuntimeOptions{
-          .image_locations = runtime_->GetImageLocations(),
-          .boot_class_path = runtime_->GetBootClassPath(),
-          .boot_class_path_locations = runtime_->GetBootClassPathLocations(),
-          .boot_class_path_fds = &runtime_->GetBootClassPathFds(),
-          .deny_art_apex_data_files = runtime_->DenyArtApexDataFiles(),
-          .apex_versions = runtime_->GetApexVersions(),
-      });
-    }
+  std::unique_ptr<OatFileAssistantContext> CreateOatFileAssistantContext() {
+    return std::make_unique<OatFileAssistantContext>(
+        std::make_unique<OatFileAssistantContext::RuntimeOptions>(
+            OatFileAssistantContext::RuntimeOptions{
+                .image_locations = runtime_->GetImageLocations(),
+                .boot_class_path = runtime_->GetBootClassPath(),
+                .boot_class_path_locations = runtime_->GetBootClassPathLocations(),
+                .boot_class_path_fds = !runtime_->GetBootClassPathFds().empty() ?
+                                           &runtime_->GetBootClassPathFds() :
+                                           nullptr,
+                .deny_art_apex_data_files = runtime_->DenyArtApexDataFiles(),
+            }));
+  }
+
+  OatFileAssistantContext* MaybeGetOatFileAssistantContext() {
+    return with_runtime_ ? nullptr : ofa_context_.get();
   }
 
   // A helper function to create OatFileAssistant with some default arguments.
@@ -193,7 +207,7 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
                             context != nullptr ? context : default_context_.get(),
                             load_executable,
                             /*only_load_trusted_executable=*/false,
-                            MaybeCreateRuntimeOptions(),
+                            MaybeGetOatFileAssistantContext(),
                             vdex_fd,
                             oat_fd,
                             zip_fd);
@@ -203,6 +217,8 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
   bool with_runtime_;
   const OatFileAssistant::DexOptTrigger default_trigger_{.targetFilterIsBetter = true,
                                                          .primaryBootImageBecomesUsable = true};
+  std::unique_ptr<OatFileAssistantContext> ofa_context_;
+  std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 };
 
 class ScopedNonWritable {
@@ -462,7 +478,8 @@ TEST_P(OatFileAssistantTest, OdexUpToDatePartialBootImage) {
   GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed, "install");
 
   // Insert an extra dex file to the boot class path.
-  InsertNewBootClasspathEntry();
+  std::string error_msg;
+  ASSERT_TRUE(InsertNewBootClasspathEntry(GetMultiDexSrc1(), &error_msg)) << error_msg;
 
   auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
 
@@ -2354,7 +2371,7 @@ TEST_P(OatFileAssistantTest, Create) {
                                default_context_->EncodeContextForDex2oat(/*base_dir=*/""),
                                /*load_executable=*/false,
                                /*only_load_trusted_executable=*/true,
-                               MaybeCreateRuntimeOptions(),
+                               MaybeGetOatFileAssistantContext(),
                                &context,
                                &error_msg);
   ASSERT_NE(oat_file_assistant, nullptr);
@@ -2378,7 +2395,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidIsaString) {
                                      default_context_->EncodeContextForDex2oat(/*base_dir=*/""),
                                      /*load_executable=*/false,
                                      /*only_load_trusted_executable=*/true,
-                                     MaybeCreateRuntimeOptions(),
+                                     MaybeGetOatFileAssistantContext(),
                                      &context,
                                      &error_msg),
             nullptr);
@@ -2400,7 +2417,7 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextString) {
                                      /*context_str=*/"foo",
                                      /*load_executable=*/false,
                                      /*only_load_trusted_executable=*/true,
-                                     MaybeCreateRuntimeOptions(),
+                                     MaybeGetOatFileAssistantContext(),
                                      &context,
                                      &error_msg),
             nullptr);
@@ -2427,13 +2444,37 @@ TEST_P(OatFileAssistantTest, ErrorOnInvalidContextFile) {
                                      /*context_str=*/"PCL[" + context_location + "]",
                                      /*load_executable=*/false,
                                      /*only_load_trusted_executable=*/true,
-                                     MaybeCreateRuntimeOptions(),
+                                     MaybeGetOatFileAssistantContext(),
                                      &context,
                                      &error_msg),
             nullptr);
   EXPECT_EQ(error_msg,
             "Failed to load class loader context files for '" + dex_location +
                 "' with context 'PCL[" + context_location + "]'");
+}
+
+// Verifies that `OatFileAssistant::ValidateBootClassPathChecksums` accepts the checksum string
+// produced by `gc::space::ImageSpace::GetBootClassPathChecksums`.
+TEST_P(OatFileAssistantTest, ValidateBootClassPathChecksums) {
+  std::string error_msg;
+  auto create_and_verify = [&]() {
+    std::string checksums = gc::space::ImageSpace::GetBootClassPathChecksums(
+        ArrayRef<gc::space::ImageSpace* const>(runtime_->GetHeap()->GetBootImageSpaces()),
+        ArrayRef<const DexFile* const>(runtime_->GetClassLinker()->GetBootClassPath()));
+    std::string bcp_locations = android::base::Join(runtime_->GetBootClassPathLocations(), ':');
+
+    ofa_context_ = CreateOatFileAssistantContext();
+    auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+    return OatFileAssistant::ValidateBootClassPathChecksums(
+        ofa_context_.get(), kRuntimeISA, checksums, bcp_locations, &error_msg);
+  };
+
+  ASSERT_TRUE(create_and_verify()) << error_msg;
+
+  for (const std::string& src : {GetDexSrc1(), GetDexSrc2()}) {
+    ASSERT_TRUE(InsertNewBootClasspathEntry(src, &error_msg)) << error_msg;
+    ASSERT_TRUE(create_and_verify()) << error_msg;
+  }
 }
 
 // TODO: More Tests:
