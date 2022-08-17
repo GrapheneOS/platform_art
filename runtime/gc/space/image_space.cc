@@ -1368,9 +1368,9 @@ class ImageSpace::Loader {
   }
 };
 
-static void AppendImageChecksum(uint32_t component_count,
-                                uint32_t checksum,
-                                /*inout*/std::string* checksums) {
+void ImageSpace::AppendImageChecksum(uint32_t component_count,
+                                     uint32_t checksum,
+                                     /*inout*/ std::string* checksums) {
   static_assert(ImageSpace::kImageChecksumPrefix == 'i', "Format prefix check.");
   StringAppendF(checksums, "i;%u/%08x", component_count, checksum);
 }
@@ -1380,7 +1380,7 @@ static bool CheckAndRemoveImageChecksum(uint32_t component_count,
                                         /*inout*/std::string_view* oat_checksums,
                                         /*out*/std::string* error_msg) {
   std::string image_checksum;
-  AppendImageChecksum(component_count, checksum, &image_checksum);
+  ImageSpace::AppendImageChecksum(component_count, checksum, &image_checksum);
   if (!StartsWith(*oat_checksums, image_checksum)) {
     *error_msg = StringPrintf("Image checksum mismatch, expected %s to start with %s",
                               std::string(*oat_checksums).c_str(),
@@ -1390,196 +1390,6 @@ static bool CheckAndRemoveImageChecksum(uint32_t component_count,
   oat_checksums->remove_prefix(image_checksum.size());
   return true;
 }
-
-// Helper class to find the primary boot image and boot image extensions
-// and determine the boot image layout.
-class ImageSpace::BootImageLayout {
- public:
-  // Description of a "chunk" of the boot image, i.e. either primary boot image
-  // or a boot image extension, used in conjunction with the boot class path to
-  // load boot image components.
-  struct ImageChunk {
-    std::string base_location;
-    std::string base_filename;
-    std::vector<std::string> profile_files;
-    size_t start_index;
-    uint32_t component_count;
-    uint32_t image_space_count;
-    uint32_t reservation_size;
-    uint32_t checksum;
-    uint32_t boot_image_component_count;
-    uint32_t boot_image_checksum;
-    uint32_t boot_image_size;
-
-    // The following file descriptors hold the memfd files for extensions compiled
-    // in memory and described by the above fields. We want to use them to mmap()
-    // the contents and then close them while treating the ImageChunk description
-    // as immutable (const), so make these fields explicitly mutable.
-    mutable android::base::unique_fd art_fd;
-    mutable android::base::unique_fd vdex_fd;
-    mutable android::base::unique_fd oat_fd;
-  };
-
-  BootImageLayout(ArrayRef<const std::string> image_locations,
-                  ArrayRef<const std::string> boot_class_path,
-                  ArrayRef<const std::string> boot_class_path_locations,
-                  ArrayRef<const int> boot_class_path_fds,
-                  ArrayRef<const int> boot_class_path_image_fds,
-                  ArrayRef<const int> boot_class_path_vdex_fds,
-                  ArrayRef<const int> boot_class_path_oat_fds,
-                  const std::string* apex_versions = nullptr)
-      : image_locations_(image_locations),
-        boot_class_path_(boot_class_path),
-        boot_class_path_locations_(boot_class_path_locations),
-        boot_class_path_fds_(boot_class_path_fds),
-        boot_class_path_image_fds_(boot_class_path_image_fds),
-        boot_class_path_vdex_fds_(boot_class_path_vdex_fds),
-        boot_class_path_oat_fds_(boot_class_path_oat_fds),
-        apex_versions_(GetApexVersions(apex_versions)) {}
-
-  std::string GetPrimaryImageLocation();
-
-  bool LoadFromSystem(InstructionSet image_isa, /*out*/std::string* error_msg) {
-    return LoadOrValidateFromSystem(image_isa, /*oat_checksums=*/ nullptr, error_msg);
-  }
-
-  bool ValidateFromSystem(InstructionSet image_isa,
-                          /*inout*/std::string_view* oat_checksums,
-                          /*out*/std::string* error_msg) {
-    DCHECK(oat_checksums != nullptr);
-    return LoadOrValidateFromSystem(image_isa, oat_checksums, error_msg);
-  }
-
-  ArrayRef<const ImageChunk> GetChunks() const {
-    return ArrayRef<const ImageChunk>(chunks_);
-  }
-
-  uint32_t GetBaseAddress() const {
-    return base_address_;
-  }
-
-  size_t GetNextBcpIndex() const {
-    return next_bcp_index_;
-  }
-
-  size_t GetTotalComponentCount() const {
-    return total_component_count_;
-  }
-
-  size_t GetTotalReservationSize() const {
-    return total_reservation_size_;
-  }
-
- private:
-  struct NamedComponentLocation {
-    std::string base_location;
-    size_t bcp_index;
-    std::vector<std::string> profile_filenames;
-  };
-
-  std::string ExpandLocationImpl(const std::string& location,
-                                 size_t bcp_index,
-                                 bool boot_image_extension) {
-    std::vector<std::string> expanded = ExpandMultiImageLocations(
-        ArrayRef<const std::string>(boot_class_path_).SubArray(bcp_index, 1u),
-        location,
-        boot_image_extension);
-    DCHECK_EQ(expanded.size(), 1u);
-    return expanded[0];
-  }
-
-  std::string ExpandLocation(const std::string& location, size_t bcp_index) {
-    if (bcp_index == 0u) {
-      DCHECK_EQ(location, ExpandLocationImpl(location, bcp_index, /*boot_image_extension=*/ false));
-      return location;
-    } else {
-      return ExpandLocationImpl(location, bcp_index, /*boot_image_extension=*/ true);
-    }
-  }
-
-  std::string GetBcpComponentPath(size_t bcp_index) {
-    DCHECK_LE(bcp_index, boot_class_path_.size());
-    size_t bcp_slash_pos = boot_class_path_[bcp_index].rfind('/');
-    DCHECK_NE(bcp_slash_pos, std::string::npos);
-    return boot_class_path_[bcp_index].substr(0u, bcp_slash_pos + 1u);
-  }
-
-  bool VerifyImageLocation(ArrayRef<const std::string> components,
-                           /*out*/size_t* named_components_count,
-                           /*out*/std::string* error_msg);
-
-  bool MatchNamedComponents(
-      ArrayRef<const std::string> named_components,
-      /*out*/std::vector<NamedComponentLocation>* named_component_locations,
-      /*out*/std::string* error_msg);
-
-  bool ValidateBootImageChecksum(const char* file_description,
-                                 const ImageHeader& header,
-                                 /*out*/std::string* error_msg);
-
-  bool ValidateHeader(const ImageHeader& header,
-                      size_t bcp_index,
-                      const char* file_description,
-                      /*out*/std::string* error_msg);
-
-  bool ValidateOatFile(const std::string& base_location,
-                       const std::string& base_filename,
-                       size_t bcp_index,
-                       size_t component_count,
-                       /*out*/std::string* error_msg);
-
-  bool ReadHeader(const std::string& base_location,
-                  const std::string& base_filename,
-                  size_t bcp_index,
-                  /*out*/std::string* error_msg);
-
-  // Compiles a consecutive subsequence of bootclasspath dex files, whose contents are included in
-  // the profiles specified by `profile_filenames`, starting from `bcp_index`.
-  bool CompileBootclasspathElements(const std::string& base_location,
-                                    const std::string& base_filename,
-                                    size_t bcp_index,
-                                    const std::vector<std::string>& profile_filenames,
-                                    ArrayRef<const std::string> dependencies,
-                                    /*out*/std::string* error_msg);
-
-  bool CheckAndRemoveLastChunkChecksum(/*inout*/std::string_view* oat_checksums,
-                                       /*out*/std::string* error_msg);
-
-  template <typename FilenameFn>
-  bool LoadOrValidate(FilenameFn&& filename_fn,
-                      /*inout*/std::string_view* oat_checksums,
-                      /*out*/std::string* error_msg);
-
-  bool LoadOrValidateFromSystem(InstructionSet image_isa,
-                                /*inout*/std::string_view* oat_checksums,
-                                /*out*/std::string* error_msg);
-
-  // This function prefers taking APEX versions from the input instead of from the runtime if
-  // possible. If the input is present, `ValidateFromSystem` can work without an active runtime.
-  static const std::string& GetApexVersions(const std::string* apex_versions) {
-    if (apex_versions == nullptr) {
-      DCHECK(Runtime::Current() != nullptr);
-      return Runtime::Current()->GetApexVersions();
-    } else {
-      return *apex_versions;
-    }
-  }
-
-  ArrayRef<const std::string> image_locations_;
-  ArrayRef<const std::string> boot_class_path_;
-  ArrayRef<const std::string> boot_class_path_locations_;
-  ArrayRef<const int> boot_class_path_fds_;
-  ArrayRef<const int> boot_class_path_image_fds_;
-  ArrayRef<const int> boot_class_path_vdex_fds_;
-  ArrayRef<const int> boot_class_path_oat_fds_;
-
-  std::vector<ImageChunk> chunks_;
-  uint32_t base_address_ = 0u;
-  size_t next_bcp_index_ = 0u;
-  size_t total_component_count_ = 0u;
-  size_t total_reservation_size_ = 0u;
-  const std::string& apex_versions_;
-};
 
 std::string ImageSpace::BootImageLayout::GetPrimaryImageLocation() {
   DCHECK(!image_locations_.empty());
@@ -2167,48 +1977,12 @@ bool ImageSpace::BootImageLayout::CompileBootclasspathElements(
   return true;
 }
 
-bool ImageSpace::BootImageLayout::CheckAndRemoveLastChunkChecksum(
-    /*inout*/std::string_view* oat_checksums,
-    /*out*/std::string* error_msg) {
-  DCHECK(oat_checksums != nullptr);
-  DCHECK(!chunks_.empty());
-  const ImageChunk& chunk = chunks_.back();
-  size_t component_count = chunk.component_count;
-  size_t checksum = chunk.checksum;
-  if (!CheckAndRemoveImageChecksum(component_count, checksum, oat_checksums, error_msg)) {
-    DCHECK(!error_msg->empty());
-    return false;
-  }
-  if (oat_checksums->empty()) {
-    if (next_bcp_index_ != boot_class_path_.size()) {
-      *error_msg = StringPrintf("Checksum too short, missing %zu components.",
-                                boot_class_path_.size() - next_bcp_index_);
-      return false;
-    }
-    return true;
-  }
-  if (!StartsWith(*oat_checksums, ":")) {
-    *error_msg = StringPrintf("Missing ':' separator at start of %s",
-                              std::string(*oat_checksums).c_str());
-    return false;
-  }
-  oat_checksums->remove_prefix(1u);
-  if (oat_checksums->empty()) {
-    *error_msg = "Missing checksums after the ':' separator.";
-    return false;
-  }
-  return true;
-}
-
 template <typename FilenameFn>
-bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
-                                                 /*inout*/std::string_view* oat_checksums,
-                                                 /*out*/std::string* error_msg) {
+bool ImageSpace::BootImageLayout::Load(FilenameFn&& filename_fn,
+                                       bool allow_in_memory_compilation,
+                                       /*out*/ std::string* error_msg) {
   DCHECK(GetChunks().empty());
   DCHECK_EQ(GetBaseAddress(), 0u);
-  bool validate = (oat_checksums != nullptr);
-  static_assert(ImageSpace::kImageChecksumPrefix == 'i', "Format prefix check.");
-  DCHECK_IMPLIES(validate, StartsWith(*oat_checksums, "i"));
 
   ArrayRef<const std::string> components = image_locations_;
   size_t named_components_count = 0u;
@@ -2239,17 +2013,14 @@ bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
       LOG(ERROR) << "Named image component already covered by previous image: " << base_location;
       continue;
     }
-    if (validate && bcp_index > bcp_pos) {
-      *error_msg = StringPrintf("End of contiguous boot class path images, remaining checksum: %s",
-                                std::string(*oat_checksums).c_str());
-      return false;
-    }
     std::string local_error_msg;
-    std::string* err_msg = validate ? error_msg : &local_error_msg;
     std::string base_filename;
-    if (!filename_fn(base_location, &base_filename, err_msg) ||
-        !ReadHeader(base_location, base_filename, bcp_index, err_msg)) {
-      if (validate) {
+    if (!filename_fn(base_location, &base_filename, &local_error_msg) ||
+        !ReadHeader(base_location, base_filename, bcp_index, &local_error_msg)) {
+      if (!allow_in_memory_compilation) {
+        // The boot image is unusable and we can't continue by generating a boot image in memory.
+        // All we can do is to return.
+        *error_msg = std::move(local_error_msg);
         return false;
       }
       LOG(ERROR) << "Error reading named image component header for " << base_location
@@ -2296,14 +2067,6 @@ bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
         continue;
       }
     }
-    if (validate) {
-      if (!CheckAndRemoveLastChunkChecksum(oat_checksums, error_msg)) {
-        return false;
-      }
-      if (oat_checksums->empty() || !StartsWith(*oat_checksums, "i")) {
-        return true;  // Let the caller deal with the dex file checksums if any.
-      }
-    }
     bcp_pos = GetNextBcpIndex();
   }
 
@@ -2336,24 +2099,10 @@ bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
           VLOG(image) << "Found image extension for " << ExpandLocation(base_location, bcp_pos);
           bcp_pos = GetNextBcpIndex();
           found = true;
-          if (validate) {
-            if (!CheckAndRemoveLastChunkChecksum(oat_checksums, error_msg)) {
-              return false;
-            }
-            if (oat_checksums->empty() || !StartsWith(*oat_checksums, "i")) {
-              return true;  // Let the caller deal with the dex file checksums if any.
-            }
-          }
           break;
         }
       }
       if (!found) {
-        if (validate) {
-          *error_msg = StringPrintf("Missing extension for %s, remaining checksum: %s",
-                                    bcp_component.c_str(),
-                                    std::string(*oat_checksums).c_str());
-          return false;
-        }
         ++bcp_pos;
       }
     }
@@ -2362,16 +2111,16 @@ bool ImageSpace::BootImageLayout::LoadOrValidate(FilenameFn&& filename_fn,
   return true;
 }
 
-bool ImageSpace::BootImageLayout::LoadOrValidateFromSystem(InstructionSet image_isa,
-                                                           /*inout*/std::string_view* oat_checksums,
-                                                           /*out*/std::string* error_msg) {
+bool ImageSpace::BootImageLayout::LoadFromSystem(InstructionSet image_isa,
+                                                 bool allow_in_memory_compilation,
+                                                 /*out*/ std::string* error_msg) {
   auto filename_fn = [image_isa](const std::string& location,
                                  /*out*/std::string* filename,
                                  /*out*/std::string* err_msg ATTRIBUTE_UNUSED) {
     *filename = GetSystemImageFilename(location.c_str(), image_isa);
     return true;
   };
-  return LoadOrValidate(filename_fn, oat_checksums, error_msg);
+  return Load(filename_fn, allow_in_memory_compilation, error_msg);
 }
 
 class ImageSpace::BootImageLoader {
@@ -3389,7 +3138,7 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
                          boot_class_path_image_fds_,
                          boot_class_path_vdex_fds_,
                          boot_class_path_oat_fds_);
-  if (!layout.LoadFromSystem(image_isa_, error_msg)) {
+  if (!layout.LoadFromSystem(image_isa_, /*allow_in_memory_compilation=*/true, error_msg)) {
     return false;
   }
 
@@ -3735,7 +3484,7 @@ size_t ImageSpace::GetNumberOfComponents(ArrayRef<ImageSpace* const> image_space
   return n;
 }
 
-static size_t CheckAndCountBCPComponents(std::string_view oat_boot_class_path,
+size_t ImageSpace::CheckAndCountBCPComponents(std::string_view oat_boot_class_path,
                                          ArrayRef<const std::string> boot_class_path,
                                          /*out*/std::string* error_msg) {
   // Check that the oat BCP is a prefix of current BCP locations and count components.
@@ -3765,140 +3514,6 @@ static size_t CheckAndCountBCPComponents(std::string_view oat_boot_class_path,
     return static_cast<size_t>(-1);
   }
   return component_count;
-}
-
-bool ImageSpace::VerifyBootClassPathChecksums(std::string_view oat_checksums,
-                                              std::string_view oat_boot_class_path,
-                                              ArrayRef<const std::string> image_locations,
-                                              ArrayRef<const std::string> boot_class_path_locations,
-                                              ArrayRef<const std::string> boot_class_path,
-                                              ArrayRef<const int> boot_class_path_fds,
-                                              InstructionSet image_isa,
-                                              const std::string& apex_versions,
-                                              /*out*/std::string* error_msg) {
-  if (oat_checksums.empty() || oat_boot_class_path.empty()) {
-    *error_msg = oat_checksums.empty() ? "Empty checksums." : "Empty boot class path.";
-    return false;
-  }
-
-  DCHECK_EQ(boot_class_path_locations.size(), boot_class_path.size());
-  size_t bcp_size =
-      CheckAndCountBCPComponents(oat_boot_class_path, boot_class_path_locations, error_msg);
-  if (bcp_size == static_cast<size_t>(-1)) {
-    DCHECK(!error_msg->empty());
-    return false;
-  }
-
-  size_t bcp_pos = 0u;
-  if (StartsWith(oat_checksums, "i")) {
-    // Use only the matching part of the BCP for validation.  FDs are optional, so only pass the
-    // sub-array if provided.
-    ArrayRef<const int> bcp_fds = boot_class_path_fds.empty()
-        ? ArrayRef<const int>()
-        : boot_class_path_fds.SubArray(/*pos=*/ 0u, bcp_size);
-    BootImageLayout layout(image_locations,
-                           boot_class_path.SubArray(/*pos=*/ 0u, bcp_size),
-                           boot_class_path_locations.SubArray(/*pos=*/ 0u, bcp_size),
-                           bcp_fds,
-                           /*boot_class_path_image_fds=*/ ArrayRef<const int>(),
-                           /*boot_class_path_vdex_fds=*/ ArrayRef<const int>(),
-                           /*boot_class_path_oat_fds=*/ ArrayRef<const int>(),
-                           &apex_versions);
-    std::string primary_image_location = layout.GetPrimaryImageLocation();
-    std::string system_filename;
-    bool has_system = false;
-    if (!FindImageFilename(primary_image_location.c_str(),
-                           image_isa,
-                           &system_filename,
-                           &has_system)) {
-      *error_msg = StringPrintf("Unable to find image file for %s and %s",
-                                android::base::Join(image_locations, kComponentSeparator).c_str(),
-                                GetInstructionSetString(image_isa));
-      return false;
-    }
-
-    DCHECK(has_system);
-    if (!layout.ValidateFromSystem(image_isa, &oat_checksums, error_msg)) {
-      return false;
-    }
-    bcp_pos = layout.GetNextBcpIndex();
-  }
-
-  for ( ; bcp_pos != bcp_size; ++bcp_pos) {
-    static_assert(ImageSpace::kDexFileChecksumPrefix == 'd', "Format prefix check.");
-    if (!StartsWith(oat_checksums, "d")) {
-      *error_msg = StringPrintf("Missing dex checksums, expected %s to start with 'd'",
-                                std::string(oat_checksums).c_str());
-      return false;
-    }
-    oat_checksums.remove_prefix(1u);
-
-    const std::string& bcp_filename = boot_class_path[bcp_pos];
-    std::vector<uint32_t> checksums;
-    std::vector<std::string> dex_locations;
-    const ArtDexFileLoader dex_file_loader;
-    if (!dex_file_loader.GetMultiDexChecksums(bcp_filename.c_str(),
-                                              &checksums,
-                                              &dex_locations,
-                                              error_msg)) {
-      return false;
-    }
-    DCHECK(!checksums.empty());
-    for (uint32_t checksum : checksums) {
-      std::string dex_file_checksum = StringPrintf("/%08x", checksum);
-      if (!StartsWith(oat_checksums, dex_file_checksum)) {
-        *error_msg = StringPrintf(
-            "Dex checksum mismatch for bootclasspath file %s, expected %s to start with %s",
-            bcp_filename.c_str(),
-            std::string(oat_checksums).c_str(),
-            dex_file_checksum.c_str());
-        return false;
-      }
-      oat_checksums.remove_prefix(dex_file_checksum.size());
-    }
-    if (bcp_pos + 1u != bcp_size) {
-      if (!StartsWith(oat_checksums, ":")) {
-        *error_msg = StringPrintf("Missing ':' separator at start of %s",
-                                  std::string(oat_checksums).c_str());
-        return false;
-      }
-      oat_checksums.remove_prefix(1u);
-    }
-  }
-  if (!oat_checksums.empty()) {
-    *error_msg = StringPrintf("Checksum too long, unexpected tail %s",
-                              std::string(oat_checksums).c_str());
-    return false;
-  }
-  return true;
-}
-
-bool ImageSpace::VerifyBootImages(ArrayRef<const std::string> image_locations,
-                                  ArrayRef<const std::string> boot_class_path_locations,
-                                  ArrayRef<const std::string> boot_class_path,
-                                  ArrayRef<const int> boot_class_path_fds,
-                                  InstructionSet image_isa,
-                                  const std::string& apex_versions,
-                                  /*out*/std::string* error_msg) {
-  // Remove profiles to prevent compilation. We only need to verify boot images.
-  std::vector<std::string> image_location_without_profiles;
-  for (std::string location : image_locations) {
-    size_t profile_separator_pos = location.find(kProfileSeparator);
-    if (profile_separator_pos != std::string::npos) {
-      location.resize(profile_separator_pos);
-    }
-    image_location_without_profiles.push_back(std::move(location));
-  }
-
-  BootImageLayout layout(ArrayRef<const std::string>(image_location_without_profiles),
-                         boot_class_path,
-                         boot_class_path_locations,
-                         boot_class_path_fds,
-                         /*boot_class_path_image_fds=*/ ArrayRef<const int>(),
-                         /*boot_class_path_vdex_fds=*/ ArrayRef<const int>(),
-                         /*boot_class_path_oat_fds=*/ ArrayRef<const int>(),
-                         &apex_versions);
-  return layout.LoadFromSystem(image_isa, error_msg);
 }
 
 bool ImageSpace::VerifyBootClassPathChecksums(

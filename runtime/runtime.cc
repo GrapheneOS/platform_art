@@ -3477,4 +3477,18 @@ bool Runtime::HasImageWithProfile() const {
   return false;
 }
 
+void Runtime::AppendToBootClassPath(
+    const std::string& filename,
+    const std::string& location,
+    const std::vector<std::unique_ptr<const art::DexFile>>& dex_files) {
+  boot_class_path_.push_back(filename);
+  if (!boot_class_path_locations_.empty()) {
+    boot_class_path_locations_.push_back(location);
+  }
+  ScopedObjectAccess soa(Thread::Current());
+  for (const std::unique_ptr<const art::DexFile>& dex_file : dex_files) {
+    GetClassLinker()->AppendToBootClassPath(Thread::Current(), dex_file.get());
+  }
+}
+
 }  // namespace art
