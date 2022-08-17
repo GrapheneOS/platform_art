@@ -359,7 +359,6 @@ class OptimizingCompiler final : public Compiler {
                         const DexCompilationUnit& dex_compilation_unit,
                         PassObserver* pass_observer) const;
 
- private:
   // Create a 'CompiledMethod' for an optimized graph.
   CompiledMethod* Emit(ArenaAllocator* allocator,
                        CodeVectorAllocator* code_allocator,
