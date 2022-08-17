@@ -102,8 +102,6 @@ class OatFileAssistant {
     const std::vector<std::string>& boot_class_path_locations;
     // Optional. See `-Xbootclasspathfds`.
     const std::vector<int>* const boot_class_path_fds = nullptr;
-    // Optional. See `-Xforcejitzygote`.
-    const bool use_jit_zygote = false;
     // Optional. See `-Xdeny-art-apex-data-files`.
     const bool deny_art_apex_data_files = false;
     // Required. A string that represents the apex versions of boot classpath jars. See

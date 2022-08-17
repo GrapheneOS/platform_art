@@ -732,9 +732,7 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
       Exit(0);
     }
     // If `boot.art` exists in the ART APEX, it will be used. Otherwise, Everything will be JITed.
-    args.Set(M::Image,
-             ParseStringList<':'>{{"boot.art!/apex/com.android.art/etc/boot-image.prof",
-                                   "/nonx/boot-framework.art!/system/etc/boot-image.prof"}});
+    args.Set(M::Image, ParseStringList<':'>::Split(GetJitZygoteBootImageLocation()));
   }
 
   if (!args.Exists(M::CompilerCallbacksPtr) && !args.Exists(M::Image)) {
