@@ -64,7 +64,7 @@ art_cc_library {
                 "libdl_android",
             ],
             static_libs: [
-                "PlatformProperties",
+                "libPlatformProperties",
             ],
         },
     },
