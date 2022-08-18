@@ -51,6 +51,7 @@ art_cc_library {
     // TODO(ngeoffray): find a way to link against the libraries in the apex.
     shared_libs: [
         "libart",
+        "libartbase",
         "libbase",
     ],
 }
