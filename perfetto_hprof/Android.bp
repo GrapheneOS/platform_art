@@ -68,6 +68,12 @@ cc_defaults {
     header_libs: [
         "libnativehelper_header_only",
     ],
+    // FIXME: Workaround LTO build breakage
+    // http://b/241700157
+    lto: {
+        never: true,
+    },
+
 }
 
 art_cc_library {
