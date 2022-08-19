@@ -16,7 +16,6 @@
 
 package com.android.tests.odsign;
 
-import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
@@ -36,7 +35,8 @@ public class CompOsTestUtils {
             "/data/misc/apexdata/com.android.art/compos-pending";
 
     /** Maximum time for a slow VM like cuttlefish to boot and finish odrefresh. */
-    private static final int VM_ODREFRESH_MAX_SECONDS = 360;
+    // odrefresh overall timeout is currently 480s; add some generous padding for VM startup.
+    private static final int VM_ODREFRESH_MAX_SECONDS = 480 + 60;
 
     /** Waiting time for the job to be scheduled after staging an APEX */
     private static final int JOB_CREATION_MAX_SECONDS = 5;
