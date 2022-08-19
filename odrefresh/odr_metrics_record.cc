@@ -84,14 +84,14 @@ android::base::Result<void> OdrMetricsRecord::ReadFromFile(const std::string& fi
   trigger = OR_RETURN(ReadInt32(metrics, "trigger"));
   stage_reached = OR_RETURN(ReadInt32(metrics, "stage_reached"));
   status = OR_RETURN(ReadInt32(metrics, "status"));
-  primary_bcp_compilation_seconds = OR_RETURN(
-      ReadInt32(metrics, "primary_bcp_compilation_seconds"));
-  secondary_bcp_compilation_seconds = OR_RETURN(
-      ReadInt32(metrics, "secondary_bcp_compilation_seconds"));
-  system_server_compilation_seconds = OR_RETURN(
-      ReadInt32(metrics, "system_server_compilation_seconds"));
   cache_space_free_start_mib = OR_RETURN(ReadInt32(metrics, "cache_space_free_start_mib"));
   cache_space_free_end_mib = OR_RETURN(ReadInt32(metrics, "cache_space_free_end_mib"));
+  primary_bcp_compilation_millis = OR_RETURN(
+      ReadInt32(metrics, "primary_bcp_compilation_millis"));
+  secondary_bcp_compilation_millis = OR_RETURN(
+      ReadInt32(metrics, "secondary_bcp_compilation_millis"));
+  system_server_compilation_millis = OR_RETURN(
+      ReadInt32(metrics, "system_server_compilation_millis"));
   return {};
 }
 
@@ -106,11 +106,11 @@ android::base::Result<void> OdrMetricsRecord::WriteToFile(const std::string& fil
   AddMetric(metrics, "trigger", trigger);
   AddMetric(metrics, "stage_reached", stage_reached);
   AddMetric(metrics, "status", status);
-  AddMetric(metrics, "primary_bcp_compilation_seconds", primary_bcp_compilation_seconds);
-  AddMetric(metrics, "secondary_bcp_compilation_seconds", secondary_bcp_compilation_seconds);
-  AddMetric(metrics, "system_server_compilation_seconds", system_server_compilation_seconds);
   AddMetric(metrics, "cache_space_free_start_mib", cache_space_free_start_mib);
   AddMetric(metrics, "cache_space_free_end_mib", cache_space_free_end_mib);
+  AddMetric(metrics, "primary_bcp_compilation_millis", primary_bcp_compilation_millis);
+  AddMetric(metrics, "secondary_bcp_compilation_millis", secondary_bcp_compilation_millis);
+  AddMetric(metrics, "system_server_compilation_millis", system_server_compilation_millis);
 
   tinyxml2::XMLError result = xml_document.SaveFile(filename.data(), /*compact=*/true);
   if (result == tinyxml2::XML_SUCCESS) {
