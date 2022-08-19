@@ -310,7 +310,7 @@
 ## CHECK-NOT:                    NewInstance
 ## CHECK-DAG:   <<Invoke1:l\d+>> InvokeStaticOrDirect method_name:java.lang.String.<init>
 ## CHECK-DAG:   <<Invoke2:l\d+>> InvokeStaticOrDirect method_name:java.lang.String.<init>
-## CHECK-DAG:   <<Phi:l\d+>>     Phi [<<Invoke2>>,<<Invoke1>>]
+## CHECK-DAG:   <<Phi:l\d+>>     Phi [<<Invoke1>>,<<Invoke2>>]
 ## CHECK-DAG:                    Return [<<Phi>>]
 .method public static loopAndStringInitAndPhi([BZ)Ljava/lang/String;
    .registers 4

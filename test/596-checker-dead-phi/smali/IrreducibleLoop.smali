@@ -20,18 +20,19 @@
 # not adjacent. This revealed a bug in our SSA builder, where a dead loop phi would
 # be replaced by its incoming input during SsaRedundantPhiElimination.
 
-# Check that the outer loop suspend check environment only has the parameter vreg.
-## CHECK-START: int IrreducibleLoop.liveness(int) builder (after)
-## CHECK-DAG:     <<Phi:i\d+>> Phi reg:4 loop:{{B\d+}} irreducible:false
-## CHECK-DAG:     SuspendCheck env:[[_,_,_,_,<<Phi>>]] loop:{{B\d+}} irreducible:false
+# Check that the outer loop suspend check environment only has the two parameter vregs.
+## CHECK-START: int IrreducibleLoop.liveness(int, int) builder (after)
+## CHECK-DAG:     <<Phi1:i\d+>> Phi reg:3 loop:{{B\d+}} irreducible:false
+## CHECK-DAG:     <<Phi2:i\d+>> Phi reg:4 loop:{{B\d+}} irreducible:false
+## CHECK-DAG:     SuspendCheck env:[[_,_,_,<<Phi1>>,<<Phi2>>]] loop:{{B\d+}} irreducible:false
 
 # Check that the linear order has non-adjacent loop blocks.
-## CHECK-START: int IrreducibleLoop.liveness(int) liveness (after)
+## CHECK-START: int IrreducibleLoop.liveness(int, int) liveness (after)
 ## CHECK-DAG:     Mul liveness:<<LPreEntry2:\d+>>
 ## CHECK-DAG:     Add liveness:<<LBackEdge1:\d+>>
 ## CHECK-EVAL:    <<LBackEdge1>> < <<LPreEntry2>>
 
-.method public static liveness(I)I
+.method public static liveness(II)I
     .registers 5
 
     const-string v1, "MyString"
@@ -50,8 +51,9 @@
     if-ne v2, v3, :pre_header2
 
     :pre_entry2
-    # Add a marker on the irreducible loop entry.
-    mul-int/2addr p0, p0
+    # Add a marker on the irreducible loop entry. Here we use p1 because p0 is a
+    # known constant and we eliminate the Mul otherwise.
+    mul-int/2addr p1, p1
     goto :back_edge2
 
     :back_edge2
@@ -61,8 +63,9 @@
     if-eqz p0, :back_edge2
 
     :back_edge1
-    # Add a marker on the outer loop back edge.
-    add-int/2addr p0, p0
+    # Add a marker on the outer loop back edge. Here we use p1 because p0 is a
+    # known constant and we eliminate the Add otherwise.
+    add-int/2addr p1, p1
     # Set a wide register, to have v1 undefined at the back edge.
     const-wide/16 v0, 0x1
     goto :header1

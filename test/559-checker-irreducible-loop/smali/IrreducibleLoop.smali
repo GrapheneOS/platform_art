@@ -140,24 +140,23 @@
 #        other_loop_entry
 #        i1 = phi(p0, i0)
 #
-## CHECK-START: int IrreducibleLoop.liveness(int) liveness (after)
+## CHECK-START: int IrreducibleLoop.liveness(int, int) liveness (after)
 ## CHECK-DAG: <<Arg:i\d+>>      ParameterValue liveness:<<ArgLiv:\d+>> ranges:{[<<ArgLiv>>,<<ArgLoopPhiUse:\d+>>)}
 ## CHECK-DAG: <<LoopPhi:i\d+>>  Phi [<<Arg>>,<<PhiInLoop:i\d+>>] liveness:<<ArgLoopPhiUse>> ranges:{[<<ArgLoopPhiUse>>,<<PhiInLoopUse:\d+>>)}
 ## CHECK-DAG: <<PhiInLoop>>     Phi [<<Arg>>,<<LoopPhi>>] liveness:<<PhiInLoopUse>> ranges:{[<<PhiInLoopUse>>,<<BackEdgeLifetimeEnd:\d+>>)}
 ## CHECK:                       Return liveness:<<ReturnLiveness:\d+>>
 ## CHECK-EVAL:    <<ReturnLiveness>> == <<BackEdgeLifetimeEnd>> + 2
-.method public static liveness(I)I
+.method public static liveness(II)I
    .registers 2
-   const/16 v0, 42
-   if-eq p0, v0, :other_loop_entry
+   if-eq p0, p1, :other_loop_entry
    :loop_entry
-   add-int v0, v0, p0
-   if-ne v1, v0, :exit
+   add-int p1, p1, p0
+   if-ne v0, p1, :exit
    :other_loop_entry
-   add-int v0, v0, v0
+   add-int p1, p1, p1
    goto :loop_entry
    :exit
-   return v0
+   return p1
 .end method
 
 # Check that we don't GVN across irreducible loops:
