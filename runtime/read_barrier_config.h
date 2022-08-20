@@ -62,8 +62,17 @@ static constexpr bool kUseTableLookupReadBarrier = true;
 static constexpr bool kUseTableLookupReadBarrier = false;
 #endif
 
+#ifdef ART_FORCE_USE_READ_BARRIER
+constexpr bool gUseReadBarrier = kUseBakerReadBarrier || kUseTableLookupReadBarrier;
+constexpr bool gUseUserfaultfd = !gUseReadBarrier;
+#else
 extern const bool gUseReadBarrier;
+#ifdef ART_DEFAULT_GC_TYPE_IS_CMC
 extern const bool gUseUserfaultfd;
+#else
+constexpr bool gUseUserfaultfd = false;
+#endif
+#endif
 
 // Disabled for performance reasons.
 static constexpr bool kCheckDebugDisallowReadBarrierCount = kIsDebugBuild;
