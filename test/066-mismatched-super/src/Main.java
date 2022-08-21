@@ -28,7 +28,8 @@ public class Main {
         try {
             ExtendsFinal ef = new ExtendsFinal();
             System.out.println("Succeeded unexpectedly");
-        } catch (VerifyError ve) {
+        } catch (VerifyError | IncompatibleClassChangeError ve) {
+            // b/242985231 - from JDK 17 the JVM throws IncompatibleClassChangeError
             System.out.println("Got expected VerifyError");
         }
     }
