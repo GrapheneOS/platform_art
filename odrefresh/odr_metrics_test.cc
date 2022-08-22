@@ -159,10 +159,10 @@ TEST_F(OdrMetricsTest, TimeValuesAreRecorded) {
   EXPECT_TRUE(metrics.ToRecord(&record));
   EXPECT_EQ(OdrMetrics::Stage::kPrimaryBootClasspath,
             enum_cast<OdrMetrics::Stage>(record.stage_reached));
-  EXPECT_NE(0, record.primary_bcp_compilation_seconds);
-  EXPECT_GT(10, record.primary_bcp_compilation_seconds);
-  EXPECT_EQ(0, record.secondary_bcp_compilation_seconds);
-  EXPECT_EQ(0, record.system_server_compilation_seconds);
+  EXPECT_NE(0, record.primary_bcp_compilation_millis);
+  EXPECT_GT(10'000, record.primary_bcp_compilation_millis);
+  EXPECT_EQ(0, record.secondary_bcp_compilation_millis);
+  EXPECT_EQ(0, record.system_server_compilation_millis);
 
   // Secondary boot classpath compilation time.
   {
@@ -173,10 +173,10 @@ TEST_F(OdrMetricsTest, TimeValuesAreRecorded) {
   EXPECT_TRUE(metrics.ToRecord(&record));
   EXPECT_EQ(OdrMetrics::Stage::kSecondaryBootClasspath,
             enum_cast<OdrMetrics::Stage>(record.stage_reached));
-  EXPECT_NE(0, record.primary_bcp_compilation_seconds);
-  EXPECT_NE(0, record.secondary_bcp_compilation_seconds);
-  EXPECT_GT(10, record.secondary_bcp_compilation_seconds);
-  EXPECT_EQ(0, record.system_server_compilation_seconds);
+  EXPECT_NE(0, record.primary_bcp_compilation_millis);
+  EXPECT_NE(0, record.secondary_bcp_compilation_millis);
+  EXPECT_GT(10'000, record.secondary_bcp_compilation_millis);
+  EXPECT_EQ(0, record.system_server_compilation_millis);
 
   // system_server classpath compilation time.
   {
@@ -187,10 +187,10 @@ TEST_F(OdrMetricsTest, TimeValuesAreRecorded) {
   EXPECT_TRUE(metrics.ToRecord(&record));
   EXPECT_EQ(OdrMetrics::Stage::kSystemServerClasspath,
             enum_cast<OdrMetrics::Stage>(record.stage_reached));
-  EXPECT_NE(0, record.primary_bcp_compilation_seconds);
-  EXPECT_NE(0, record.secondary_bcp_compilation_seconds);
-  EXPECT_NE(0, record.system_server_compilation_seconds);
-  EXPECT_GT(10, record.system_server_compilation_seconds);
+  EXPECT_NE(0, record.primary_bcp_compilation_millis);
+  EXPECT_NE(0, record.secondary_bcp_compilation_millis);
+  EXPECT_NE(0, record.system_server_compilation_millis);
+  EXPECT_GT(10'000, record.system_server_compilation_millis);
 }
 
 TEST_F(OdrMetricsTest, CacheSpaceValuesAreUpdated) {

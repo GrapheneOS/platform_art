@@ -126,7 +126,7 @@ class OdrMetrics final {
   static int32_t GetFreeSpaceMiB(const std::string& path);
   static void WriteToFile(const std::string& path, const OdrMetrics* metrics);
 
-  void SetCompilationTime(int32_t seconds);
+  void SetCompilationTime(int32_t millis);
 
   const std::string cache_directory_;
   const std::string metrics_file_;
@@ -137,11 +137,11 @@ class OdrMetrics final {
   Stage stage_ = Stage::kUnknown;
   Status status_ = Status::kUnknown;
 
-  int32_t primary_bcp_compilation_seconds_ = 0;
-  int32_t secondary_bcp_compilation_seconds_ = 0;
-  int32_t system_server_compilation_seconds_ = 0;
   int32_t cache_space_free_start_mib_ = 0;
   int32_t cache_space_free_end_mib_ = 0;
+  int32_t primary_bcp_compilation_millis_ = 0;
+  int32_t secondary_bcp_compilation_millis_ = 0;
+  int32_t system_server_compilation_millis_ = 0;
 
   friend class ScopedOdrCompilationTimer;
 };
@@ -155,8 +155,8 @@ class ScopedOdrCompilationTimer final {
 
   ~ScopedOdrCompilationTimer() {
     auto elapsed_time = std::chrono::steady_clock::now() - start_;
-    auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed_time);
-    metrics_.SetCompilationTime(static_cast<int32_t>(elapsed_seconds.count()));
+    auto elapsed_millis = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
+    metrics_.SetCompilationTime(static_cast<int32_t>(elapsed_millis.count()));
   }
 
  private:
