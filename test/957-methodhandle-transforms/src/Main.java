@@ -1557,7 +1557,7 @@ public class Main {
     try {
       adapter = MethodHandles.collectArguments(target, 3, filter);
       fail();
-    } catch (IndexOutOfBoundsException expected) {
+    } catch (IndexOutOfBoundsException | IllegalArgumentException expected) {
     }
 
     // Mismatch in filter return type.
