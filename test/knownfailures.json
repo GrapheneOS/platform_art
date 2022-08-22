@@ -1327,6 +1327,16 @@
         "description": ["Test containing Checker assertions expecting Baker read barriers."]
     },
     {
+        "tests": ["2009-structural-local-ref",
+                  "2035-structural-native-method",
+	          "2036-structural-subclass-shadow",
+	          "2040-huge-native-alloc",
+	          "905-object-free"],
+        "env_vars": {"ART_USE_READ_BARRIER": "false"},
+        "bug": "b/242181443",
+        "description": ["Tests temporarily disabled for userfaultfd GC. Remove once native GC-root updation is implemented."]
+    },
+    {
         "tests": ["1004-checker-volatile-ref-load"],
         "env_vars": {"ART_READ_BARRIER_TYPE": "TABLELOOKUP"},
         "bug": "b/140507091",
