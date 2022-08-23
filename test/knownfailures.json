@@ -1542,5 +1542,11 @@
         "description": ["JVMTI error code used changed in JDK 17."],
         "bug": "b/243356199",
         "variant": "jvm"
+    },
+    {
+        "tests": ["715-clinit-implicit-parameter-annotations"],
+        "description": ["Change for Annotation.toString() in JDK 17."],
+        "bug": "b/243500721",
+        "variant": "jvm"
     }
 ]
