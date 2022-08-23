@@ -71,6 +71,7 @@ static constexpr CollectorType kCollectorTypeDefault =
     kCollectorTypeSS
 #elif ART_DEFAULT_GC_TYPE_IS_CMS
     kCollectorTypeCMS
+#else
 #error "ART default GC type must be set"
 #endif
     ;  // NOLINT [whitespace/semicolon] [5]
