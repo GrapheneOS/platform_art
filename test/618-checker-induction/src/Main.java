@@ -884,6 +884,32 @@ public class Main {
     return k;
   }
 
+  /// CHECK-START: long Main.closedLinearInductionUnmatchedTypesNotOptimized() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:j\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  //
+  /// CHECK-START: long Main.closedLinearInductionUnmatchedTypesNotOptimized() loop_optimization (after)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:j\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  private static long closedLinearInductionUnmatchedTypesNotOptimized() {
+      long sum = 0;
+      for (int i = 0; i < 10; ++i) {
+          ++sum;
+      }
+      return sum;
+  }
+
+  /// CHECK-START: short Main.closedLinearInductionNarrowingNotOptimized() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  //
+  /// CHECK-START: short Main.closedLinearInductionNarrowingNotOptimized() loop_optimization (after)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  private static short closedLinearInductionNarrowingNotOptimized() {
+      short i = 0;
+      for (; i < 10; ++i);
+      return i;
+  }
+
   public static void main(String[] args) {
     deadSingleLoop();
     deadSingleLoopN(4);
@@ -982,6 +1008,9 @@ public class Main {
     a = new int[4];
     expectEquals(-41, exceptionExitBeforeAdd());
     expectEquals(-51, exceptionExitAfterAdd());
+
+    expectEquals(10, closedLinearInductionUnmatchedTypesNotOptimized());
+    expectEquals(10, closedLinearInductionNarrowingNotOptimized());
 
     System.out.println("passed");
   }
