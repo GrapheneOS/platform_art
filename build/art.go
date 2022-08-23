@@ -38,10 +38,12 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	opt := ctx.Config().GetenvWithDefault("ART_NDEBUG_OPT_FLAG", "-O3")
 	cflags = append(cflags, opt)
 
+	tlab := false
 	gcType := ctx.Config().GetenvWithDefault("ART_DEFAULT_GC_TYPE", "CMC")
 
 	if ctx.Config().IsEnvTrue("ART_TEST_DEBUG_GC") {
 		gcType = "SS"
+		tlab = true
 	}
 
 	cflags = append(cflags, "-DART_DEFAULT_GC_TYPE_IS_"+gcType)
@@ -72,10 +74,14 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 		// Eventually, make it such that we force CC only if ART_USE_READ_BARRIER
 		// was set to true explicitly during build time.
 		cflags = append(cflags, "-DART_FORCE_USE_READ_BARRIER=1")
+		tlab = true
+	} else if gcType == "CMC" {
+		tlab = true
 	}
-	// The only GC which does not want ART_USE_TLAB set is CMS, which isn't actually used.
-	// When read-barrier is not set, we use userfaultfd GC.
-	cflags = append(cflags, "-DART_USE_TLAB=1")
+
+	if tlab {
+		cflags = append(cflags, "-DART_USE_TLAB=1")
+	}
 
 	cdexLevel := ctx.Config().GetenvWithDefault("ART_DEFAULT_COMPACT_DEX_LEVEL", "fast")
 	cflags = append(cflags, "-DART_DEFAULT_COMPACT_DEX_LEVEL="+cdexLevel)
