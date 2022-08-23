@@ -21,6 +21,7 @@
 #include <fstream>
 
 #include "android-base/result-gmock.h"
+#include "android-base/stringprintf.h"
 #include "base/common_art_test.h"
 
 namespace art {
@@ -33,16 +34,18 @@ using android::base::testing::HasError;
 using android::base::testing::WithMessage;
 
 TEST_F(OdrMetricsRecordTest, HappyPath) {
-  const OdrMetricsRecord expected{.odrefresh_metrics_version = 0x1,
-                                  .art_apex_version = 0x01233456'789abcde,
-                                  .trigger = 0x01020304,
-                                  .stage_reached = 0x11121314,
-                                  .status = 0x21222324,
-                                  .primary_bcp_compilation_seconds = 0x31323334,
-                                  .secondary_bcp_compilation_seconds = 0x41424344,
-                                  .system_server_compilation_seconds = 0x51525354,
-                                  .cache_space_free_start_mib = 0x61626364,
-                                  .cache_space_free_end_mib = 0x71727374};
+  const OdrMetricsRecord expected{
+    .odrefresh_metrics_version = art::odrefresh::kOdrefreshMetricsVersion,
+    .art_apex_version = 0x01233456'789abcde,
+    .trigger = 0x01020304,
+    .stage_reached = 0x11121314,
+    .status = 0x21222324,
+    .cache_space_free_start_mib = 0x61626364,
+    .cache_space_free_end_mib = 0x71727374,
+    .primary_bcp_compilation_millis = 0x31323334,
+    .secondary_bcp_compilation_millis = 0x41424344,
+    .system_server_compilation_millis = 0x51525354
+  };
 
   ScratchDir dir(/*keep_files=*/false);
   std::string file_path = dir.GetPath() + "/metrics-record.xml";
@@ -56,11 +59,11 @@ TEST_F(OdrMetricsRecordTest, HappyPath) {
   ASSERT_EQ(expected.trigger, actual.trigger);
   ASSERT_EQ(expected.stage_reached, actual.stage_reached);
   ASSERT_EQ(expected.status, actual.status);
-  ASSERT_EQ(expected.primary_bcp_compilation_seconds, actual.primary_bcp_compilation_seconds);
-  ASSERT_EQ(expected.secondary_bcp_compilation_seconds, actual.secondary_bcp_compilation_seconds);
-  ASSERT_EQ(expected.system_server_compilation_seconds, actual.system_server_compilation_seconds);
   ASSERT_EQ(expected.cache_space_free_start_mib, actual.cache_space_free_start_mib);
   ASSERT_EQ(expected.cache_space_free_end_mib, actual.cache_space_free_end_mib);
+  ASSERT_EQ(expected.primary_bcp_compilation_millis, actual.primary_bcp_compilation_millis);
+  ASSERT_EQ(expected.secondary_bcp_compilation_millis, actual.secondary_bcp_compilation_millis);
+  ASSERT_EQ(expected.system_server_compilation_millis, actual.system_server_compilation_millis);
   ASSERT_EQ(0, memcmp(&expected, &actual, sizeof(expected)));
 }
 
@@ -113,8 +116,11 @@ TEST_F(OdrMetricsRecordTest, UnexpectedOdrefreshMetricsVersion) {
   ofs.close();
 
   OdrMetricsRecord record{};
+  std::string expected_error = android::base::StringPrintf(
+      "odrefresh_metrics_version 0 is different than expected (%d)",
+      kOdrefreshMetricsVersion);
   ASSERT_THAT(record.ReadFromFile(file_path),
-              HasError(WithMessage("odrefresh_metrics_version 0 is different than expected (1)")));
+              HasError(WithMessage(expected_error)));
 }
 
 TEST_F(OdrMetricsRecordTest, UnexpectedType) {
@@ -129,11 +135,11 @@ TEST_F(OdrMetricsRecordTest, UnexpectedType) {
   ofs << "<trigger>16909060</trigger>";
   ofs << "<stage_reached>286397204</stage_reached>";
   ofs << "<status>abcd</status>";  // It should be an int32.
-  ofs << "<primary_bcp_compilation_seconds>825373492</primary_bcp_compilation_seconds>";
-  ofs << "<secondary_bcp_compilation_seconds>1094861636</secondary_bcp_compilation_seconds>";
-  ofs << "<system_server_compilation_seconds>1364349780</system_server_compilation_seconds>";
   ofs << "<cache_space_free_start_mib>1633837924</cache_space_free_start_mib>";
   ofs << "<cache_space_free_end_mib>1903326068</cache_space_free_end_mib>";
+  ofs << "<primary_bcp_compilation_millis>825373492</primary_bcp_compilation_millis>";
+  ofs << "<secondary_bcp_compilation_millis>1094861636</secondary_bcp_compilation_millis>";
+  ofs << "<system_server_compilation_millis>1364349780</system_server_compilation_millis>";
   ofs << "</odrefresh_metrics>";
   ofs.close();
 
