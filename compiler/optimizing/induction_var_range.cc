@@ -1128,7 +1128,7 @@ bool InductionVarRange::GenerateLastValueLinear(const HBasicBlock* context,
   DataType::Type type = info->type;
   // Avoid any narrowing linear induction or any type mismatch between the linear induction and the
   // trip count expression.
-  if (HInductionVarAnalysis::IsNarrowingLinear(info) && trip->type == info->type) {
+  if (HInductionVarAnalysis::IsNarrowingLinear(info) || trip->type != type) {
     return false;
   }
 
