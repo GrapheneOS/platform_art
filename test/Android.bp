@@ -1121,6 +1121,8 @@ java_library {
         "2007-virtual-structural-finalizable/src-art/art/Test2007.java",
     ],
     sdk_version: "core_platform",
+    // Make sure that this will be added to the sdk snapshot for S.
+    min_sdk_version: "S",
     // Some ART run-tests contain constructs which break ErrorProne checks;
     // disable `errorprone` builds.
     errorprone: {
@@ -1284,6 +1286,8 @@ java_library {
         "expected_cts_outputs_gen",
     ],
     sdk_version: "core_current",
+    // Make sure that this will be added to the sdk snapshot for S.
+    min_sdk_version: "S",
 }
 
 art_cc_test {
