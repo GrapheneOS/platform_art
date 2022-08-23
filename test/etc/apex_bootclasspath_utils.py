@@ -52,10 +52,10 @@ def get_apex_bootclasspath_impl(bpath_prefix: str):
 #
 #  Arguments.
 #   ${1}: host (y|n).
-def get_apex_bootclasspath(host: str):
+def get_apex_bootclasspath(host: bool):
   bpath_prefix=""
 
-  if host == "y":
+  if host:
     bpath_prefix=ANDROID_HOST_OUT
 
   return get_apex_bootclasspath_impl(bpath_prefix)
@@ -64,10 +64,10 @@ def get_apex_bootclasspath(host: str):
 #
 #  Arguments.
 #   ${1}: host (y|n).
-def get_apex_bootclasspath_locations(host: str):
+def get_apex_bootclasspath_locations(host: bool):
   bpath_location_prefix=""
 
-  if host == "y":
+  if host:
     if ANDROID_HOST_OUT[0:len(ANDROID_BUILD_TOP)+1] == f"{ANDROID_BUILD_TOP}/":
       bpath_location_prefix=ANDROID_HOST_OUT[len(ANDROID_BUILD_TOP)+1:]
     else:
