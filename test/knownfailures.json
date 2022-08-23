@@ -1526,5 +1526,11 @@
         "tests": ["837-deopt"],
         "description": ["Tests deoptimization and OSR, which never happens when tracing."],
         "variant": "trace | stream | jit-on-first-use"
+    },
+    {
+        "tests": ["1912-get-set-local-primitive"],
+        "description": ["JVMTI error code used changed in JDK 17."],
+        "bug": "b/243356199",
+        "variant": "jvm"
     }
 ]
