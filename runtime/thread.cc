@@ -4282,6 +4282,9 @@ void Thread::VisitRoots(RootVisitor* visitor) {
 
 static void SweepCacheEntry(IsMarkedVisitor* visitor, const Instruction* inst, size_t* value)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  // WARNING: The interpreter will not modify the cache while this method is running in GC.
+  //          However, ClearAllInterpreterCaches can still run if any dex file is closed.
+  //          Therefore the cache entry can be nulled at any point through this method.
   if (inst == nullptr) {
     return;
   }
@@ -4307,6 +4310,9 @@ static void SweepCacheEntry(IsMarkedVisitor* visitor, const Instruction* inst, s
     case Opcode::CONST_STRING:
     case Opcode::CONST_STRING_JUMBO: {
       mirror::Object* object = reinterpret_cast<mirror::Object*>(*value);
+      if (object == nullptr) {
+        return;
+      }
       mirror::Object* new_object = visitor->IsMarked(object);
       // We know the string is marked because it's a strongly-interned string that
       // is always alive (see b/117621117 for trying to make those strings weak).
