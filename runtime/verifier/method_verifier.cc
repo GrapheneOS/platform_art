@@ -4899,7 +4899,7 @@ const RegType& MethodVerifier<kVerifierDebug>::DetermineCat1Constant(int32_t val
 
 template <bool kVerifierDebug>
 bool MethodVerifier<kVerifierDebug>::PotentiallyMarkRuntimeThrow() {
-  if (IsAotMode() || IsSdkVersionSetAndAtLeast(api_level_, SdkVersion::kT)) {
+  if (IsAotMode() || IsSdkVersionSetAndAtLeast(api_level_, SdkVersion::kS_V2)) {
     return false;
   }
   // Compatibility mode: we treat the following code unreachable and the verifier
