@@ -99,13 +99,14 @@ static bool ShouldUseUserfaultfd() {
 }
 #endif
 
-#ifdef ART_FORCE_USE_READ_BARRIER
-const bool gUseReadBarrier = kUseBakerReadBarrier || kUseTableLookupReadBarrier;
-#else
+// The other cases are defined as a constexpr in runtime/read_barrier_config.h
+#ifndef ART_FORCE_USE_READ_BARRIER
 const bool gUseReadBarrier = (kUseBakerReadBarrier || kUseTableLookupReadBarrier)
                              && !ShouldUseUserfaultfd();
-#endif
+#ifdef ART_DEFAULT_GC_TYPE_IS_CMC
 const bool gUseUserfaultfd = !gUseReadBarrier;
+#endif
+#endif
 
 namespace gc {
 namespace collector {
