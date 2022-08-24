@@ -120,7 +120,6 @@ LIBCORE_TEST_NAMES = [
   "test.java.lang.Float",
   "test.java.lang.Integer",
   "test.java.lang.Long",
-  "test.java.lang.StackWalker",
   # Sharded test.java.lang.StrictMath
   "test.java.lang.StrictMath.CubeRootTests",
   "test.java.lang.StrictMath.ExactArithTests",
