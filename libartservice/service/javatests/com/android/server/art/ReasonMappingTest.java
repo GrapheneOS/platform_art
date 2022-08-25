@@ -1,0 +1,83 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License
+ */
+
+package com.android.server.art;
+
+import static com.google.common.truth.Truth.assertThat;
+
+import static org.mockito.Mockito.when;
+
+import android.os.SystemProperties;
+
+import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
+
+import com.android.server.art.testing.StaticMockitoRule;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mockito;
+
+import java.util.List;
+
+@SmallTest
+@RunWith(AndroidJUnit4.class)
+public class ReasonMappingTest {
+    @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(SystemProperties.class);
+
+    @Test
+    public void testGetCompilerFilterForReason() {
+        when(SystemProperties.get("pm.dexopt.foo")).thenReturn("speed");
+        assertThat(ReasonMapping.getCompilerFilterForReason("foo")).isEqualTo("speed");
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testGetCompilerFilterForReasonInvalidFilter() throws Exception {
+        when(SystemProperties.get("pm.dexopt.foo")).thenReturn("invalid-filter");
+        ReasonMapping.getCompilerFilterForReason("foo");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetCompilerFilterForReasonInvalidReason() throws Exception {
+        ReasonMapping.getCompilerFilterForReason("foo");
+    }
+
+    @Test
+    public void testGetCompilerFilterForShared() {
+        when(SystemProperties.get("pm.dexopt.shared")).thenReturn("speed");
+        assertThat(ReasonMapping.getCompilerFilterForShared()).isEqualTo("speed");
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testGetCompilerFilterForSharedProfileGuidedFilter() throws Exception {
+        when(SystemProperties.get("pm.dexopt.shared")).thenReturn("speed-profile");
+        ReasonMapping.getCompilerFilterForShared();
+    }
+
+    @Test
+    public void testGetPriorityClassForReason() throws Exception {
+        assertThat(ReasonMapping.getPriorityClassForReason("install"))
+                .isEqualTo(PriorityClass.INTERACTIVE);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetPriorityClassForReasonInvalidReason() throws Exception {
+        ReasonMapping.getPriorityClassForReason("foo");
+    }
+}

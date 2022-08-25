@@ -25,6 +25,8 @@ import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
+import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.pm.snapshot.PackageDataSnapshot;
 
@@ -53,12 +55,13 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         PrintWriter pw = getOutPrintWriter();
         PackageDataSnapshot snapshot = mPackageManagerLocal.snapshot();
         switch (cmd) {
-            case "delete-optimized-artifacts":
+            case "delete-optimized-artifacts": {
                 DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
                         snapshot, getNextArgRequired(), ArtFlags.defaultDeleteFlags());
                 pw.printf("Freed %d bytes\n", result.getFreedBytes());
                 return 0;
-            case "get-optimization-status":
+            }
+            case "get-optimization-status": {
                 OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
                         snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
                 for (DexFileOptimizationStatus status :
@@ -70,6 +73,41 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                             status.getLocationDebugString());
                 }
                 return 0;
+            }
+            case "optimize-package": {
+                var optionsBuilder = new OptimizeOptions.Builder("cmdline");
+                String opt;
+                while ((opt = getNextOption()) != null) {
+                    switch (opt) {
+                        case "-m":
+                            optionsBuilder.setCompilerFilter(getNextArgRequired());
+                            break;
+                        case "-f":
+                            optionsBuilder.setForce(true);
+                            break;
+                        default:
+                            pw.println("Error: Unknown option: " + opt);
+                            return 1;
+                    }
+                }
+                OptimizeResult result = mArtManagerLocal.optimizePackage(
+                        snapshot, getNextArgRequired(), optionsBuilder.build());
+                switch (result.getFinalStatus()) {
+                    case OptimizeResult.OPTIMIZE_SKIPPED:
+                        pw.println("SKIPPED");
+                        break;
+                    case OptimizeResult.OPTIMIZE_PERFORMED:
+                        pw.println("PERFORMED");
+                        break;
+                    case OptimizeResult.OPTIMIZE_FAILED:
+                        pw.println("FAILED");
+                        break;
+                    case OptimizeResult.OPTIMIZE_CANCELLED:
+                        pw.println("CANCELLED");
+                        break;
+                }
+                return 0;
+            }
             default:
                 // Handles empty, help, and invalid commands.
                 return handleDefaultCommands(cmd);
@@ -89,14 +127,20 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("  help or -h");
         pw.println("    Print this help text.");
         // TODO(jiakaiz): Also do operations for secondary dex'es by default.
-        pw.println("  delete-optimized-artifacts <package-name>");
+        pw.println("  delete-optimized-artifacts PACKAGE_NAME");
         pw.println("    Delete the optimized artifacts of a package.");
         pw.println("    By default, the command only deletes the optimized artifacts of primary "
                 + "dex'es.");
-        pw.println("  get-optimization-status <package-name>");
+        pw.println("  get-optimization-status PACKAGE_NAME");
         pw.println("    Print the optimization status of a package.");
         pw.println("    By default, the command only prints the optimization status of primary "
                 + "dex'es.");
+        pw.println("  optimize-package [-m COMPILER_FILTER] [-f] PACKAGE_NAME");
+        pw.println("    Optimize a package.");
+        pw.println("    By default, the command only optimizes primary dex'es.");
+        pw.println("    Options:");
+        pw.println("      -m Set the compiler filter.");
+        pw.println("      -f Force compilation.");
     }
 
     private void enforceRoot() {
