@@ -30,7 +30,11 @@ inline uintptr_t MarkCompact::LiveWordsBitmap<kAlignment>::SetLiveWords(uintptr_
                                                                         size_t size) {
   const uintptr_t begin_bit_idx = MemRangeBitmap::BitIndexFromAddr(begin);
   DCHECK(!Bitmap::TestBit(begin_bit_idx));
-  const uintptr_t end_bit_idx = MemRangeBitmap::BitIndexFromAddr(begin + size);
+  uintptr_t end = begin + size;
+  // We have to use the unchecked version of BitIndexFromAddr() as 'end' could
+  // be outside the range. Do explicit check here.
+  DCHECK_LE(end, MemRangeBitmap::CoverEnd());
+  const uintptr_t end_bit_idx = MemRangeBitmap::BitIndexFromAddrUnchecked(end);
   uintptr_t* bm_address = Bitmap::Begin() + Bitmap::BitIndexToWordIndex(begin_bit_idx);
   uintptr_t* const end_bm_address = Bitmap::Begin() + Bitmap::BitIndexToWordIndex(end_bit_idx);
   uintptr_t mask = Bitmap::BitIndexToMask(begin_bit_idx);
