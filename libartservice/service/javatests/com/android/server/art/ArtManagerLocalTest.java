@@ -26,16 +26,20 @@ import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.pm.ApplicationInfo;
+import android.os.ServiceSpecificException;
 
 import androidx.test.filters.SmallTest;
 
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
+import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
@@ -65,7 +69,9 @@ public class ArtManagerLocalTest {
     @Mock private ArtManagerLocal.Injector mInjector;
     @Mock private PackageManagerLocal mPackageManagerLocal;
     @Mock private IArtd mArtd;
+    @Mock private DexOptHelper mDexOptHelper;
     private PackageState mPkgState;
+    private AndroidPackageApi mPkg;
 
     // True if the primary dex'es are in a readonly partition.
     @Parameter(0) public boolean mIsInReadonlyPartition;
@@ -79,10 +85,15 @@ public class ArtManagerLocalTest {
 
     @Before
     public void setUp() throws Exception {
+        // Use `lenient()` to suppress `UnnecessaryStubbingException` thrown by the strict stubs.
+        // These are the default test setups. They may or may not be used depending on the code path
+        // that each test case examines.
         lenient().when(mInjector.getPackageManagerLocal()).thenReturn(mPackageManagerLocal);
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
+        lenient().when(mInjector.getDexOptHelper()).thenReturn(mDexOptHelper);
 
         mPkgState = createPackageState();
+        mPkg = mPkgState.getAndroidPackage();
         lenient()
                 .when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME)))
                 .thenReturn(mPkgState);
@@ -186,6 +197,53 @@ public class ArtManagerLocalTest {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
         mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+    }
+
+    @Test
+    public void testGetOptimizationStatusNonFatalError() throws Exception {
+        when(mArtd.getOptimizationStatus(any(), any(), any()))
+                .thenThrow(new ServiceSpecificException(1 /* errorCode */, "some error message"));
+
+        OptimizationStatus result =
+                mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+
+        List<DexFileOptimizationStatus> statuses = result.getDexFileOptimizationStatuses();
+        assertThat(statuses.size()).isEqualTo(4);
+
+        for (DexFileOptimizationStatus status : statuses) {
+            assertThat(status.getCompilerFilter()).isEqualTo("error");
+            assertThat(status.getCompilationReason()).isEqualTo("error");
+            assertThat(status.getLocationDebugString()).isEqualTo("some error message");
+        }
+    }
+
+    @Test
+    public void testOptimizePackage() throws Exception {
+        var options = new OptimizeOptions.Builder("install").build();
+        var result = mock(OptimizeResult.class);
+
+        when(mDexOptHelper.dexopt(any(), same(mPkgState), same(mPkg), same(options)))
+                .thenReturn(result);
+
+        assertThat(mArtManagerLocal.optimizePackage(
+                           mock(PackageDataSnapshot.class), PKG_NAME, options))
+                .isSameInstanceAs(result);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testOptimizePackagePackageNotFound() throws Exception {
+        when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME))).thenReturn(null);
+
+        mArtManagerLocal.optimizePackage(mock(PackageDataSnapshot.class), PKG_NAME,
+                new OptimizeOptions.Builder("install").build());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testOptimizePackageNoPackage() throws Exception {
+        when(mPkgState.getAndroidPackage()).thenReturn(null);
+
+        mArtManagerLocal.optimizePackage(mock(PackageDataSnapshot.class), PKG_NAME,
+                new OptimizeOptions.Builder("install").build());
     }
 
     private AndroidPackageApi createPackage() {

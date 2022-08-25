@@ -1,0 +1,126 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.server.art;
+
+import android.annotation.NonNull;
+import android.os.SystemProperties;
+import android.text.TextUtils;
+
+import dalvik.system.DexFile;
+
+/**
+ * Maps a compilation reason to a compiler filter and a priority class.
+ *
+ * @hide
+ */
+public class ReasonMapping {
+    private ReasonMapping() {}
+
+    /** Optimizing apps on the first boot. */
+    public static final String REASON_FIRST_BOOT = "first-boot";
+    /** Optimizing apps on the next boot after an OTA. */
+    public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";
+    /** Installing an app after user presses the "install"/"update" button. */
+    public static final String REASON_INSTALL = "install";
+    /** Optimizing apps in the background. */
+    public static final String REASON_BG_DEXOPT = "bg-dexopt";
+    /** Invoked by cmdline. */
+    public static final String REASON_CMDLINE = "cmdline";
+    /** Downgrading the compiler filter when an app is not used for a long time. */
+    public static final String REASON_INACTIVE = "inactive";
+
+    // Reasons for Play Install Hints (go/install-hints).
+    public static final String REASON_INSTALL_FAST = "install-fast";
+    public static final String REASON_INSTALL_BULK = "install-bulk";
+    public static final String REASON_INSTALL_BULK_SECONDARY = "install-bulk-secondary";
+    public static final String REASON_INSTALL_BULK_DOWNGRADED = "install-bulk-downgraded";
+    public static final String REASON_INSTALL_BULK_SECONDARY_DOWNGRADED =
+            "install-bulk-secondary-downgraded";
+
+    /**
+     * Loads the compiler filter from the system property for the given reason and checks for
+     * validity.
+     *
+     * @throws IllegalArgumentException if the reason is invalid
+     * @throws IllegalStateException if the system property value is invalid
+     *
+     * @hide
+     */
+    @NonNull
+    public static String getCompilerFilterForReason(@NonNull String reason) {
+        String value = SystemProperties.get("pm.dexopt." + reason);
+        if (TextUtils.isEmpty(value)) {
+            throw new IllegalArgumentException("No compiler filter for reason '" + reason + "'");
+        }
+        if (!Utils.isValidArtServiceCompilerFilter(value)) {
+            throw new IllegalStateException(
+                    "Got invalid compiler filter '" + value + "' for reason '" + reason + "'");
+        }
+        return value;
+    }
+
+    /**
+     * Loads the compiler filter from the system property for:
+     * - shared libraries
+     * - apps used by other apps without a dex metadata file
+     *
+     * @throws IllegalStateException if the system property value is invalid
+     *
+     * @hide
+     */
+    @NonNull
+    public static String getCompilerFilterForShared() {
+        // "shared" is technically not a compilation reason, but the compiler filter is defined as a
+        // system property as if "shared" is a reason.
+        String value = getCompilerFilterForReason("shared");
+        if (DexFile.isProfileGuidedCompilerFilter(value)) {
+            throw new IllegalStateException(
+                    "Compiler filter for 'shared' must not be profile guided, got '" + value + "'");
+        }
+        return value;
+    }
+
+    /**
+     * Returns the priority for the given reason.
+     *
+     * @throws IllegalArgumentException if the reason is invalid
+     * @see PriorityClass
+     *
+     * @hide
+     */
+    public static @PriorityClass byte getPriorityClassForReason(@NonNull String reason) {
+        switch (reason) {
+            case REASON_FIRST_BOOT:
+            case REASON_BOOT_AFTER_OTA:
+                return PriorityClass.BOOT;
+            case REASON_INSTALL_FAST:
+                return PriorityClass.INTERACTIVE_FAST;
+            case REASON_INSTALL:
+            case REASON_CMDLINE:
+                return PriorityClass.INTERACTIVE;
+            case REASON_BG_DEXOPT:
+            case REASON_INACTIVE:
+            case REASON_INSTALL_BULK:
+            case REASON_INSTALL_BULK_SECONDARY:
+            case REASON_INSTALL_BULK_DOWNGRADED:
+            case REASON_INSTALL_BULK_SECONDARY_DOWNGRADED:
+                return PriorityClass.BACKGROUND;
+            default:
+                throw new IllegalArgumentException("No priority class for reason '" + reason + "'");
+        }
+    }
+}

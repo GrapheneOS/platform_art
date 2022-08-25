@@ -23,11 +23,13 @@ import static com.android.server.art.model.ArtFlags.GetStatusFlags;
 import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.content.Context;
 import android.os.Binder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
-import android.os.ServiceManager;
+import android.os.ServiceSpecificException;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -35,6 +37,8 @@ import com.android.server.art.IArtd;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
+import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
@@ -60,13 +64,20 @@ public final class ArtManagerLocal {
 
     @NonNull private final Injector mInjector;
 
+    // TODO(b/236954191): Deprecate this.
     public ArtManagerLocal() {
         this(new Injector());
     }
 
+    // TODO(b/236954191): Expose this.
+    /** @hide */
+    public ArtManagerLocal(@NonNull Context context) {
+        this(new Injector(context));
+    }
+
     /** @hide */
     @VisibleForTesting
-    public ArtManagerLocal(Injector injector) {
+    public ArtManagerLocal(@NonNull Injector injector) {
         mInjector = injector;
     }
 
@@ -187,12 +198,17 @@ public final class ArtManagerLocal {
                         continue;
                     }
                     for (String isa : Utils.getAllIsas(pkgState)) {
-                        GetOptimizationStatusResult result =
-                                mInjector.getArtd().getOptimizationStatus(
-                                        dexInfo.dexPath(), isa, dexInfo.classLoaderContext());
-                        statuses.add(new DexFileOptimizationStatus(dexInfo.dexPath(), isa,
-                                result.compilerFilter, result.compilationReason,
-                                result.locationDebugString));
+                        try {
+                            GetOptimizationStatusResult result =
+                                    mInjector.getArtd().getOptimizationStatus(
+                                            dexInfo.dexPath(), isa, dexInfo.classLoaderContext());
+                            statuses.add(new DexFileOptimizationStatus(dexInfo.dexPath(), isa,
+                                    result.compilerFilter, result.compilationReason,
+                                    result.locationDebugString));
+                        } catch (ServiceSpecificException e) {
+                            statuses.add(new DexFileOptimizationStatus(
+                                    dexInfo.dexPath(), isa, "error", "error", e.getMessage()));
+                        }
                     }
                 }
             }
@@ -207,6 +223,20 @@ public final class ArtManagerLocal {
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }
+    }
+
+    /** @hide */
+    @NonNull
+    public OptimizeResult optimizePackage(@NonNull PackageDataSnapshot snapshot,
+            @NonNull String packageName, @NonNull OptimizeOptions options) {
+        if (!options.isForPrimaryDex() && !options.isForSecondaryDex()) {
+            throw new IllegalArgumentException("Nothing to optimize");
+        }
+
+        PackageState pkgState = getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackageApi pkg = getPackageOrThrow(pkgState);
+
+        return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, options);
     }
 
     private PackageState getPackageStateOrThrow(
@@ -234,9 +264,16 @@ public final class ArtManagerLocal {
      */
     @VisibleForTesting
     public static class Injector {
-        private final PackageManagerLocal mPackageManagerLocal;
+        @Nullable private final Context mContext;
+        @Nullable private final PackageManagerLocal mPackageManagerLocal;
 
         Injector() {
+            this(null /* context */);
+        }
+
+        Injector(@Nullable Context context) {
+            mContext = context;
+
             PackageManagerLocal packageManagerLocal = null;
             try {
                 packageManagerLocal = PackageManagerLocal.getInstance();
@@ -251,16 +288,28 @@ public final class ArtManagerLocal {
             mPackageManagerLocal = packageManagerLocal;
         }
 
+        // TODO(b/236954191): Make this @NonNull.
+        @Nullable
+        public Context getContext() {
+            return mContext;
+        }
+
+        @NonNull
         public PackageManagerLocal getPackageManagerLocal() {
+            if (mPackageManagerLocal == null) {
+                throw new IllegalStateException("PackageManagerLocal is null");
+            }
             return mPackageManagerLocal;
         }
 
+        @NonNull
         public IArtd getArtd() {
-            IArtd artd = IArtd.Stub.asInterface(ServiceManager.waitForService("artd"));
-            if (artd == null) {
-                throw new IllegalStateException("Unable to connect to artd");
-            }
-            return artd;
+            return Utils.getArtd();
+        }
+
+        @NonNull
+        public DexOptHelper getDexOptHelper() {
+            return new DexOptHelper(getContext());
         }
     }
 }

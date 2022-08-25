@@ -18,12 +18,15 @@ package com.android.server.art;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.os.ServiceManager;
 import android.util.SparseArray;
 
 import com.android.server.art.ArtifactsPath;
+import com.android.server.art.model.OptimizeOptions;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
 
+import dalvik.system.DexFile;
 import dalvik.system.VMRuntime;
 
 import java.util.Collection;
@@ -80,5 +83,22 @@ public final class Utils {
 
     public static boolean isInDalvikCache(@NonNull PackageState pkg) {
         return pkg.isSystem() && !pkg.isUpdatedSystemApp();
+    }
+
+    /** Returns true if the given string is a valid compiler filter. */
+    public static boolean isValidArtServiceCompilerFilter(@NonNull String compilerFilter) {
+        if (compilerFilter.equals(OptimizeOptions.COMPILER_FILTER_NOOP)) {
+            return true;
+        }
+        return DexFile.isValidCompilerFilter(compilerFilter);
+    }
+
+    @NonNull
+    public static IArtd getArtd() {
+        IArtd artd = IArtd.Stub.asInterface(ServiceManager.waitForService("artd"));
+        if (artd == null) {
+            throw new IllegalStateException("Unable to connect to artd");
+        }
+        return artd;
     }
 }

@@ -130,12 +130,19 @@ android_test {
         "androidx.test.ext.truth",
         "androidx.test.runner",
         "artd-aidl-java",
-        "mockito-target-minus-junit4",
+        // We need ExtendedMockito to mock static methods.
+        "mockito-target-extended-minus-junit4",
         "service-art.impl",
         // Statically link against system server to allow us to mock system
         // server APIs. This won't work on master-art, but it's fine because we
         // don't run this test on master-art.
         "services.core",
+    ],
+
+    jni_libs: [
+        // The two libraries below are required by ExtendedMockito.
+        "libdexmakerjvmtiagent",
+        "libstaticjvmtiagent",
     ],
 
     min_sdk_version: "31",

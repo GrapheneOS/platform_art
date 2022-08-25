@@ -53,6 +53,7 @@ using ::android::base::Error;
 using ::android::base::Result;
 using ::android::base::Split;
 using ::android::base::StringPrintf;
+using ::android::base::StringReplace;
 using ::ndk::ScopedAStatus;
 
 constexpr const char* kServiceName = "artd";
@@ -79,7 +80,42 @@ int64_t GetSizeAndDeleteFile(const std::string& path) {
   return size;
 }
 
+std::string EscapeErrorMessage(const std::string& message) {
+  return StringReplace(message, std::string("\0", /*n=*/1), "\\0", /*all=*/true);
+}
+
+// Indicates an error that should never happen (e.g., illegal arguments passed by service-art
+// internally). System server should crash if this kind of error happens.
+ScopedAStatus Fatal(const std::string& message) {
+  return ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
+                                                     EscapeErrorMessage(message).c_str());
+}
+
+// Indicates an error that service-art should handle (e.g., I/O errors, sub-process crashes).
+// The scope of the error depends on the function that throws it, so service-art should catch the
+// error at every call site and take different actions.
+// Ideally, this should be a checked exception or an additional return value that forces service-art
+// to handle it, but `ServiceSpecificException` (a separate runtime exception type) is the best
+// approximate we have given the limitation of Java and Binder.
+ScopedAStatus NonFatal(const std::string& message) {
+  constexpr int32_t kArtdNonFatalErrorCode = 1;
+  return ScopedAStatus::fromServiceSpecificErrorWithMessage(kArtdNonFatalErrorCode,
+                                                            EscapeErrorMessage(message).c_str());
+}
+
 }  // namespace
+
+#define OR_RETURN_ERROR(func, expr)         \
+  ({                                        \
+    decltype(expr)&& tmp = (expr);          \
+    if (!tmp.ok()) {                        \
+      return (func)(tmp.error().message()); \
+    }                                       \
+    std::move(tmp).value();                 \
+  })
+
+#define OR_RETURN_FATAL(expr)     OR_RETURN_ERROR(Fatal, expr)
+#define OR_RETURN_NON_FATAL(expr) OR_RETURN_ERROR(NonFatal, expr)
 
 ScopedAStatus Artd::isAlive(bool* _aidl_return) {
   *_aidl_return = true;
@@ -87,16 +123,12 @@ ScopedAStatus Artd::isAlive(bool* _aidl_return) {
 }
 
 ScopedAStatus Artd::deleteArtifacts(const ArtifactsPath& in_artifactsPath, int64_t* _aidl_return) {
-  Result<std::string> oat_path = BuildOatPath(in_artifactsPath);
-  if (!oat_path.ok()) {
-    return ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_STATE,
-                                                       oat_path.error().message().c_str());
-  }
+  std::string oat_path = OR_RETURN_FATAL(BuildOatPath(in_artifactsPath));
 
   *_aidl_return = 0;
-  *_aidl_return += GetSizeAndDeleteFile(*oat_path);
-  *_aidl_return += GetSizeAndDeleteFile(OatPathToVdexPath(*oat_path));
-  *_aidl_return += GetSizeAndDeleteFile(OatPathToArtPath(*oat_path));
+  *_aidl_return += GetSizeAndDeleteFile(oat_path);
+  *_aidl_return += GetSizeAndDeleteFile(OatPathToVdexPath(oat_path));
+  *_aidl_return += GetSizeAndDeleteFile(OatPathToArtPath(oat_path));
 
   return ScopedAStatus::ok();
 }
@@ -107,9 +139,7 @@ ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
                                           GetOptimizationStatusResult* _aidl_return) {
   Result<OatFileAssistantContext*> ofa_context = GetOatFileAssistantContext();
   if (!ofa_context.ok()) {
-    return ScopedAStatus::fromExceptionCodeWithMessage(
-        EX_ILLEGAL_STATE,
-        ("Failed to get OatFileAssistantContext: " + ofa_context.error().message()).c_str());
+    return NonFatal("Failed to get runtime options: " + ofa_context.error().message());
   }
 
   std::unique_ptr<ClassLoaderContext> context;
@@ -123,8 +153,7 @@ ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
                                                      &context,
                                                      &error_msg);
   if (oat_file_assistant == nullptr) {
-    return ScopedAStatus::fromExceptionCodeWithMessage(
-        EX_ILLEGAL_STATE, ("Failed to create OatFileAssistant: " + error_msg).c_str());
+    return NonFatal("Failed to create OatFileAssistant: " + error_msg);
   }
 
   std::string ignored_odex_status;
