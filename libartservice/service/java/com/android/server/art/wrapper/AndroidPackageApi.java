@@ -114,4 +114,12 @@ public class AndroidPackageApi {
             throw new RuntimeException(e);
         }
     }
+
+    public int getUid() {
+        try {
+            return (int) mPkg.getClass().getMethod("getUid").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }
