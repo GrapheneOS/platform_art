@@ -68,9 +68,12 @@ WARN_UNUSED bool RemoveDirectory(const std::string& dir_path) {
   }
 
   if (rmdir(dir_path.c_str()) != 0) {
-    LOG(ERROR) << "Failed to delete '" << dir_path << "'";
-    return false;
+    // It's possible that we are not able to remove the directory itself. For example, when
+    // odrefresh is running in CompOS, the staging dir is prepared beforehand passed to the VM as an
+    // FD. In this case, just log and ignore the error. It's okay to keep the directory.
+    LOG(WARNING) << "Failed to delete '" << dir_path << "'";
   }
+
   return true;
 }
 
