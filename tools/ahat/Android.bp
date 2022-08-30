@@ -27,7 +27,7 @@ java_binary_host {
     visibility: [
         "//libcore/metrictests/memory/host",
     ],
-    wrapper: "ahat",
+    wrapper: "ahat.sh",
     srcs: ["src/main/**/*.java"],
     manifest: "etc/ahat.mf",
     java_resources: ["etc/style.css"],
