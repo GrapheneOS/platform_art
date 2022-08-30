@@ -32,6 +32,8 @@
 /*
  * Services that OpenJDK expects the VM to provide.
  */
+
+#include <assert.h>
 #include <dlfcn.h>
 #include <limits.h>
 #include <stdio.h>
