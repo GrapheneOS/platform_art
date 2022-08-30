@@ -138,6 +138,10 @@ if [[ "$debug" = "yes" && "$has_gcstress" = "yes" ]]; then
   expectations="$expectations --expectations $PWD/art/tools/external_oj_libjdwp_art_gcstress_debug_failures.txt"
 fi
 
+if [[ "${ART_USE_READ_BARRIER}" = "false" ]]; then
+  expectations="$expectations --expectations $PWD/art/tools/external_oj_libjdwp_art_no_read_barrier_failures.txt"
+fi
+
 function verbose_run() {
   echo "$@"
   env "$@"
