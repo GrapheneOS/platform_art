@@ -220,7 +220,7 @@ TEST_F(MetricsReporterTest, StartupOnly) {
   WaitForReport(/*report_count=*/ 1, /*sleep_period_ms=*/ 50);
   VerifyReports(/*size=*/ 1, /*with_metrics*/ true);
 
-  // We still should not report at period.
+  // We should still not report continuously.
   ASSERT_FALSE(ShouldContinueReporting());
 }
 
@@ -241,11 +241,11 @@ TEST_F(MetricsReporterTest, StartupAndPeriod) {
   WaitForReport(/*report_count=*/ 2, /*sleep_period_ms=*/ 500);
   VerifyReports(/*size=*/ 2, /*with_metrics*/ true);
 
-  // We should not longer report at period.
+  // We should no longer report continuously.
   ASSERT_FALSE(ShouldContinueReporting());
 }
 
-// LARGE TEST: This takes take 2s to run.
+// LARGE TEST: This test take 2s to run.
 // Verifies startup reporting, followed by continuous reporting.
 TEST_F(MetricsReporterTest, StartupAndPeriodContinuous) {
   SetupReporter("S,1,*");
@@ -262,7 +262,7 @@ TEST_F(MetricsReporterTest, StartupAndPeriodContinuous) {
   WaitForReport(/*report_count=*/ 3, /*sleep_period_ms=*/ 500);
   VerifyReports(/*size=*/ 3, /*with_metrics*/ true);
 
-  // We should keep reporting at period.
+  // We should keep reporting continuously.
   ASSERT_TRUE(ShouldContinueReporting());
 }
 
@@ -282,11 +282,11 @@ TEST_F(MetricsReporterTest, OneTime) {
   WaitForReport(/*report_count=*/ 1, /*sleep_period_ms=*/ 500);
   VerifyReports(/*size=*/ 1, /*with_metrics*/ true);
 
-  // We should not longer report at period.
+  // We should no longer report continuously.
   ASSERT_FALSE(ShouldContinueReporting());
 }
 
-// LARGE TEST: This takes take 5s to run.
+// LARGE TEST: This test takes 5s to run.
 // Verifies a sequence of reporting, at different interval of times.
 TEST_F(MetricsReporterTest, PeriodContinuous) {
   SetupReporter("1,2,*");
@@ -303,7 +303,7 @@ TEST_F(MetricsReporterTest, PeriodContinuous) {
   WaitForReport(/*report_count=*/ 3, /*sleep_period_ms=*/ 500);
   VerifyReports(/*size=*/ 3, /*with_metrics*/ true);
 
-  // We should keep reporting at period.
+  // We should keep reporting continuously.
   ASSERT_TRUE(ShouldContinueReporting());
 }
 
@@ -323,13 +323,13 @@ TEST_F(MetricsReporterTest, NoMetrics) {
   WaitForReport(/*report_count=*/ 1, /*sleep_period_ms=*/ 500);
   VerifyReports(/*size=*/ 1, /*with_metrics*/ false);
 
-  // We should not longer report at period.
+  // We should no longer report continuously.
   ASSERT_FALSE(ShouldContinueReporting());
 }
 
 // Verify we don't start reporting if the sample rate is set to 0.
 TEST_F(MetricsReporterTest, SampleRateDisable) {
-  SetupReporter("1", /*session_id=*/ 1, /*reporting_mods=*/ 0);
+  SetupReporter("1,*", /*session_id=*/ 1, /*reporting_mods=*/ 0);
 
   // The background thread should not start.
   ASSERT_FALSE(MaybeStartBackgroundThread(/*add_metrics=*/ false));
@@ -341,7 +341,7 @@ TEST_F(MetricsReporterTest, SampleRateDisable) {
 // Verify we don't start reporting if the sample rate is low and the session does
 // not meet conditions.
 TEST_F(MetricsReporterTest, SampleRateDisable24) {
-  SetupReporter("1", /*session_id=*/ 125, /*reporting_mods=*/ 24);
+  SetupReporter("1,*", /*session_id=*/ 125, /*reporting_mods=*/ 24);
 
   // The background thread should not start.
   ASSERT_FALSE(MaybeStartBackgroundThread(/*add_metrics=*/ false));
@@ -353,9 +353,9 @@ TEST_F(MetricsReporterTest, SampleRateDisable24) {
 // Verify we start reporting if the sample rate and the session meet
 // reporting conditions
 TEST_F(MetricsReporterTest, SampleRateEnable50) {
-  SetupReporter("1", /*session_id=*/ 125, /*reporting_mods=*/ 50);
+  SetupReporter("1,*", /*session_id=*/ 125, /*reporting_mods=*/ 50);
 
-  // The background thread should not start.
+  // The background thread should start.
   ASSERT_TRUE(MaybeStartBackgroundThread(/*add_metrics=*/ false));
 
   ASSERT_FALSE(ShouldReportAtStartup());
@@ -365,7 +365,7 @@ TEST_F(MetricsReporterTest, SampleRateEnable50) {
 // Verify we start reporting if the sample rate and the session meet
 // reporting conditions
 TEST_F(MetricsReporterTest, SampleRateEnableAll) {
-  SetupReporter("1", /*session_id=*/ 1099, /*reporting_mods=*/ 100);
+  SetupReporter("1,*", /*session_id=*/ 1099, /*reporting_mods=*/ 100);
 
   // The background thread should start.
   ASSERT_TRUE(MaybeStartBackgroundThread(/*add_metrics=*/ false));
