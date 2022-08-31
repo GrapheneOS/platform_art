@@ -56,7 +56,7 @@ public class DexOptHelper {
 
     @NonNull private final Injector mInjector;
 
-    public DexOptHelper(@Nullable Context context) {
+    public DexOptHelper(@NonNull Context context) {
         this(new Injector(context));
     }
 
@@ -147,10 +147,9 @@ public class DexOptHelper {
      */
     @VisibleForTesting
     public static class Injector {
-        // TODO(b/236954191): Make this @NonNull.
-        @Nullable private final Context mContext;
+        @NonNull private final Context mContext;
 
-        Injector(@Nullable Context context) {
+        Injector(@NonNull Context context) {
             mContext = context;
         }
 
@@ -159,14 +158,16 @@ public class DexOptHelper {
             return new PrimaryDexOptimizer(mContext);
         }
 
+        // TODO(b/244289352): Investigate whether this can be @NonNull.
         @Nullable
         public AppHibernationManager getAppHibernationManager() {
-            return mContext != null ? mContext.getSystemService(AppHibernationManager.class) : null;
+            return mContext.getSystemService(AppHibernationManager.class);
         }
 
+        // TODO(b/244289352): Investigate whether this can be @NonNull.
         @Nullable
         public PowerManager getPowerManager() {
-            return mContext != null ? mContext.getSystemService(PowerManager.class) : null;
+            return mContext.getSystemService(PowerManager.class);
         }
     }
 }
