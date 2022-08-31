@@ -790,7 +790,7 @@ void Thread::InstallImplicitProtection() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
     NO_INLINE
-    static void Touch(uintptr_t target) {
+    __attribute__((no_sanitize("memtag"))) static void Touch(uintptr_t target) {
       volatile size_t zero = 0;
       // Use a large local volatile array to ensure a large frame size. Do not use anything close
       // to a full page for ASAN. It would be nice to ensure the frame size is at most a page, but
