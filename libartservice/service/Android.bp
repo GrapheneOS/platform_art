@@ -148,4 +148,5 @@ android_test {
     min_sdk_version: "31",
 
     test_suites: ["general-tests"],
+    test_config: "ArtServiceTests.xml",
 }
