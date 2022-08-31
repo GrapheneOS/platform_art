@@ -88,14 +88,10 @@ public class DexOptHelper {
 
         try {
             // Acquire a wake lock.
-            // The power manager service may not be ready if this method is called on boot. In this
-            // case, we don't have to acquire a wake lock because there is nothing else we can do.
             PowerManager powerManager = mInjector.getPowerManager();
-            if (powerManager != null) {
-                wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
-                wakeLock.setWorkSource(new WorkSource(pkg.getUid()));
-                wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
-            }
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+            wakeLock.setWorkSource(new WorkSource(pkg.getUid()));
+            wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
 
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
                 results.addAll(mInjector.getPrimaryDexOptimizer().dexopt(pkgState, pkg, params));
@@ -129,11 +125,8 @@ public class DexOptHelper {
         }
 
         // We do not dexopt unused packages.
-        // It's possible for this to be called before app hibernation service is ready, especially
-        // on boot. In this case, we ignore the hibernation check here because there is nothing else
-        // we can do.
         AppHibernationManager ahm = mInjector.getAppHibernationManager();
-        if (ahm != null && ahm.isHibernatingGlobally(pkgState.getPackageName())
+        if (ahm.isHibernatingGlobally(pkgState.getPackageName())
                 && ahm.isOatArtifactDeletionEnabled()) {
             return false;
         }
@@ -159,14 +152,12 @@ public class DexOptHelper {
             return new PrimaryDexOptimizer(mContext);
         }
 
-        // TODO(b/244289352): Investigate whether this can be @NonNull.
-        @Nullable
+        @NonNull
         public AppHibernationManager getAppHibernationManager() {
             return mContext.getSystemService(AppHibernationManager.class);
         }
 
-        // TODO(b/244289352): Investigate whether this can be @NonNull.
-        @Nullable
+        @NonNull
         public PowerManager getPowerManager() {
             return mContext.getSystemService(PowerManager.class);
         }
