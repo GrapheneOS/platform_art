@@ -40,7 +40,8 @@ import android.os.SystemProperties;
 
 import androidx.test.filters.SmallTest;
 
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.ArtFlags;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.testing.OnSuccessRule;
 import com.android.server.art.testing.TestingUtils;
@@ -65,7 +66,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         verifyNoMoreInteractions(mArtd);
     });
 
-    private OptimizeOptions mOptions;
+    private OptimizeParams mOptimizeParams;
 
     @Parameter(0) public Params mParams;
 
@@ -176,12 +177,14 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         lenient().when(mPkgState.isSystem()).thenReturn(mParams.mIsSystem);
         lenient().when(mPkgState.isUpdatedSystemApp()).thenReturn(mParams.mIsUpdatedSystemApp);
 
-        mOptions = new OptimizeOptions.Builder("install")
-                           .setCompilerFilter(mParams.mRequestedCompilerFilter)
-                           .setPriorityClass(PriorityClass.INTERACTIVE)
-                           .setForce(mParams.mForce)
-                           .setShouldDowngrade(mParams.mShouldDowngrade)
-                           .build();
+        mOptimizeParams =
+                new OptimizeParams.Builder("install")
+                        .setCompilerFilter(mParams.mRequestedCompilerFilter)
+                        .setPriorityClass(ArtFlags.PRIORITY_INTERACTIVE)
+                        .setFlags(mParams.mForce ? ArtFlags.FLAG_FORCE : 0, ArtFlags.FLAG_FORCE)
+                        .setFlags(mParams.mShouldDowngrade ? ArtFlags.FLAG_SHOULD_DOWNGRADE : 0,
+                                ArtFlags.FLAG_SHOULD_DOWNGRADE)
+                        .build();
     }
 
     @Test
@@ -242,7 +245,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                 eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
                 isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions));
 
-        assertThat(mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptions))
+        assertThat(mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams))
                 .comparingElementsUsing(TestingUtils.<DexFileOptimizeResult>deepEquality())
                 .containsExactly(
                         new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64",

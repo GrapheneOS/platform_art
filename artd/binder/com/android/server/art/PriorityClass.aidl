@@ -17,22 +17,14 @@
 package com.android.server.art;
 
 /**
- * Indicates the priority of an operation. The value affects the resource usage and the process
- * priority. A higher value may result in faster execution but may consume more resources and
- * compete for resources with other processes.
+ * Keep in sync with {@link ArtFlags.PriorityClassApi}.
  *
  * @hide
  */
+@Backing(type="int")
 enum PriorityClass {
-    /** Indicates that the operation blocks boot. */
     BOOT = 100,
-    /**
-     * Indicates that a human is waiting on the result and the operation is more latency sensitive
-     * than usual.
-     */
     INTERACTIVE_FAST = 80,
-    /** Indicates that a human is waiting on the result. */
     INTERACTIVE = 60,
-    /** Indicates that the operation runs in background. */
     BACKGROUND = 40,
 }

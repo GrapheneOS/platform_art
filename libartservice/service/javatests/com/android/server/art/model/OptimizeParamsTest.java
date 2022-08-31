@@ -21,49 +21,49 @@ import static com.google.common.truth.Truth.assertThat;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
-import com.android.server.art.PriorityClass;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class OptimizeOptionsTest {
+public class OptimizeParamsTest {
     @Test
     public void testBuild() {
-        new OptimizeOptions.Builder("install").build();
+        new OptimizeParams.Builder("install").build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildEmptyReason() {
-        new OptimizeOptions.Builder("").build();
+        new OptimizeParams.Builder("").build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildInvalidCompilerFilter() {
-        new OptimizeOptions.Builder("install").setCompilerFilter("invalid").build();
+        new OptimizeParams.Builder("install").setCompilerFilter("invalid").build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildInvalidPriorityClass() {
-        new OptimizeOptions.Builder("install").setPriorityClass((byte) 101).build();
+        new OptimizeParams.Builder("install").setPriorityClass(101).build();
     }
 
     @Test
     public void testBuildCustomReason() {
-        new OptimizeOptions.Builder("custom")
+        new OptimizeParams.Builder("custom")
                 .setCompilerFilter("speed")
-                .setPriorityClass((byte) 90)
+                .setPriorityClass(90)
                 .build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildCustomReasonEmptyCompilerFilter() {
-        new OptimizeOptions.Builder("custom").setPriorityClass(PriorityClass.INTERACTIVE).build();
+        new OptimizeParams.Builder("custom")
+                .setPriorityClass(ArtFlags.PRIORITY_INTERACTIVE)
+                .build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildCustomReasonEmptyPriorityClass() {
-        new OptimizeOptions.Builder("custom").setCompilerFilter("speed").build();
+        new OptimizeParams.Builder("custom").setCompilerFilter("speed").build();
     }
 }

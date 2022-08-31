@@ -22,7 +22,7 @@ import android.os.ServiceManager;
 import android.util.SparseArray;
 
 import com.android.server.art.ArtifactsPath;
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
 
@@ -77,7 +77,7 @@ public final class Utils {
 
     /** Returns true if the given string is a valid compiler filter. */
     public static boolean isValidArtServiceCompilerFilter(@NonNull String compilerFilter) {
-        if (compilerFilter.equals(OptimizeOptions.COMPILER_FILTER_NOOP)) {
+        if (compilerFilter.equals(OptimizeParams.COMPILER_FILTER_NOOP)) {
             return true;
         }
         return DexFile.isValidCompilerFilter(compilerFilter);

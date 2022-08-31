@@ -25,6 +25,7 @@ import android.os.SystemProperties;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.server.art.model.ArtFlags;
 import com.android.server.art.testing.StaticMockitoRule;
 
 import org.junit.After;
@@ -73,7 +74,7 @@ public class ReasonMappingTest {
     @Test
     public void testGetPriorityClassForReason() throws Exception {
         assertThat(ReasonMapping.getPriorityClassForReason("install"))
-                .isEqualTo(PriorityClass.INTERACTIVE);
+                .isEqualTo(ArtFlags.PRIORITY_INTERACTIVE);
     }
 
     @Test(expected = IllegalArgumentException.class)

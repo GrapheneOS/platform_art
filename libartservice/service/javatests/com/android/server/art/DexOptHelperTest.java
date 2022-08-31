@@ -36,7 +36,7 @@ import android.os.PowerManager;
 
 import androidx.test.filters.SmallTest;
 
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.testing.OnSuccessRule;
 import com.android.server.art.wrapper.AndroidPackageApi;
@@ -71,8 +71,8 @@ public class DexOptHelperTest {
         verifyNoMoreInteractions(mPrimaryDexOptimizer);
     });
 
-    private final OptimizeOptions mOptions =
-            new OptimizeOptions.Builder("install").setCompilerFilter("speed-profile").build();
+    private final OptimizeParams mParams =
+            new OptimizeParams.Builder("install").setCompilerFilter("speed-profile").build();
     private final List<DexFileOptimizeResult> mPrimaryResults =
             List.of(new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64", "verify",
                             OptimizeResult.OPTIMIZE_PERFORMED),
@@ -95,11 +95,11 @@ public class DexOptHelperTest {
 
     @Test
     public void testDexopt() throws Exception {
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getPackageName()).isEqualTo(PKG_NAME);
         assertThat(result.getRequestedCompilerFilter()).isEqualTo("speed-profile");
@@ -113,7 +113,7 @@ public class DexOptHelperTest {
         when(mPkg.isHasCode()).thenReturn(false);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
         assertThat(result.getDexFileOptimizeResults()).isEmpty();
@@ -125,11 +125,11 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(false);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
 
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getDexFileOptimizeResults()).containsExactlyElementsIn(mPrimaryResults);
     }
@@ -141,7 +141,7 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
         assertThat(result.getDexFileOptimizeResults()).isEmpty();
@@ -153,11 +153,11 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(true);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(false);
 
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getDexFileOptimizeResults()).containsExactlyElementsIn(mPrimaryResults);
     }
@@ -169,11 +169,11 @@ public class DexOptHelperTest {
         when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))
                 .thenReturn(wakeLock);
 
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         InOrder inOrder = inOrder(mPrimaryDexOptimizer, wakeLock);
         inOrder.verify(wakeLock).acquire(anyLong());
@@ -188,12 +188,12 @@ public class DexOptHelperTest {
         when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))
                 .thenReturn(wakeLock);
 
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenThrow(IllegalStateException.class);
 
         try {
-            OptimizeResult result = mDexOptHelper.dexopt(
-                    mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+            OptimizeResult result =
+                    mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
         } catch (Exception e) {
         }
 

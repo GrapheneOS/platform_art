@@ -28,7 +28,8 @@ import android.os.RemoteException;
 import android.os.WorkSource;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.ArtFlags;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageState;
@@ -67,16 +68,16 @@ public class DexOptHelper {
 
     /**
      * DO NOT use this method directly. Use {@link
-     * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeOptions)}.
+     * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeParams)}.
      */
     @NonNull
     public OptimizeResult dexopt(@NonNull PackageDataSnapshot snapshot,
             @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg,
-            @NonNull OptimizeOptions options) throws RemoteException {
+            @NonNull OptimizeParams params) throws RemoteException {
         List<DexFileOptimizeResult> results = new ArrayList<>();
         Supplier<OptimizeResult> createResult = ()
-                -> new OptimizeResult(pkgState.getPackageName(), options.getCompilerFilter(),
-                        options.getReason(), results);
+                -> new OptimizeResult(pkgState.getPackageName(), params.getCompilerFilter(),
+                        params.getReason(), results);
 
         if (!canOptimizePackage(pkgState, pkg)) {
             return createResult.get();
@@ -96,17 +97,17 @@ public class DexOptHelper {
                 wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
             }
 
-            if (options.isForPrimaryDex()) {
-                results.addAll(mInjector.getPrimaryDexOptimizer().dexopt(pkgState, pkg, options));
+            if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
+                results.addAll(mInjector.getPrimaryDexOptimizer().dexopt(pkgState, pkg, params));
             }
 
-            if (options.isForSecondaryDex()) {
+            if ((params.getFlags() & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
                 // TODO(jiakaiz): Implement this.
                 throw new UnsupportedOperationException(
                         "Optimizing secondary dex'es is not implemented yet");
             }
 
-            if (options.getIncludesDependencies()) {
+            if ((params.getFlags() & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0) {
                 // TODO(jiakaiz): Implement this.
                 throw new UnsupportedOperationException(
                         "Optimizing dependencies is not implemented yet");
