@@ -322,7 +322,7 @@ void MarkCompact::RunPhases() {
   }
   // To increase likelihood of black allocations. For testing purposes only.
   if (kIsDebugBuild && heap_->GetTaskProcessor()->GetRunningThread() == thread_running_gc_) {
-    sleep(3);
+    usleep(500'000);
   }
   {
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
