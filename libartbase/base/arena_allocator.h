@@ -289,7 +289,7 @@ class ArenaAllocator
       return AllocWithMemoryToolAlign16(bytes, kind);
     }
     uintptr_t padding =
-        ((reinterpret_cast<uintptr_t>(ptr_) + 15u) & 15u) - reinterpret_cast<uintptr_t>(ptr_);
+        RoundUp(reinterpret_cast<uintptr_t>(ptr_), 16) - reinterpret_cast<uintptr_t>(ptr_);
     ArenaAllocatorStats::RecordAlloc(bytes, kind);
     if (UNLIKELY(padding + bytes > static_cast<size_t>(end_ - ptr_))) {
       static_assert(kArenaAlignment >= 16, "Expecting sufficient alignment for new Arena.");
