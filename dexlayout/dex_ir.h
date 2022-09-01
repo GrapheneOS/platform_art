@@ -20,7 +20,7 @@
 #define ART_DEXLAYOUT_DEX_IR_H_
 
 #include <stdint.h>
-
+#include <unordered_map>
 #include <vector>
 
 #include "base/iteration_range.h"
@@ -262,13 +262,21 @@ template<class T> class CollectionVector : public CollectionBase {
   // Sort the vector by copying pointers over.
   template <typename MapType>
   void SortByMapOrder(const MapType& map) {
-    auto it = map.begin();
     CHECK_EQ(map.size(), Size());
+
+    // Move all pointers to a temporary map owning the pointers.
+    std::unordered_map<T*, ElementType> pointers_map;
+    pointers_map.reserve(Size());
+    for (std::unique_ptr<T>& element : collection_) {
+      pointers_map[element.get()] = std::move(element);
+    }
+
+    // Move back the pointers to the original vector according to the map order.
+    auto it = map.begin();
     for (size_t i = 0; i < Size(); ++i) {
-      // There are times when the array will temporarily contain the same pointer twice, doing the
-      // release here sure there is no double free errors.
-      collection_[i].release();
-      collection_[i].reset(it->second);
+      auto element_it = pointers_map.find(it->second);
+      DCHECK(element_it != pointers_map.end());
+      collection_[i] = std::move(element_it->second);
       ++it;
     }
   }
