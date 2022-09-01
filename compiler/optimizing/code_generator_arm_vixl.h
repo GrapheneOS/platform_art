@@ -602,7 +602,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   struct PcRelativePatchInfo {
     PcRelativePatchInfo(const DexFile* dex_file, uint32_t off_or_idx)
         : target_dex_file(dex_file), offset_or_index(off_or_idx) { }
-    PcRelativePatchInfo(PcRelativePatchInfo&& other) = default;
 
     // Target dex file or null for .data.bmig.rel.ro patches.
     const DexFile* target_dex_file;
