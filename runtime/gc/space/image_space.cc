@@ -200,7 +200,6 @@ void ImageSpace::VerifyImageAllocations() {
 // Helper class for relocating from one range of memory to another.
 class RelocationRange {
  public:
-  RelocationRange() = default;
   RelocationRange(const RelocationRange&) = default;
   RelocationRange(uintptr_t source, uintptr_t dest, uintptr_t length)
       : source_(source),
