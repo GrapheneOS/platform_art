@@ -1423,8 +1423,9 @@ class RedefinitionDataIter {
 
   RedefinitionDataIter(const RedefinitionDataIter&) = default;
   RedefinitionDataIter(RedefinitionDataIter&&) = default;
-  RedefinitionDataIter& operator=(const RedefinitionDataIter&) = default;
-  RedefinitionDataIter& operator=(RedefinitionDataIter&&) = default;
+  // Assignments are deleted because holder_ is a reference.
+  RedefinitionDataIter& operator=(const RedefinitionDataIter&) = delete;
+  RedefinitionDataIter& operator=(RedefinitionDataIter&&) = delete;
 
   bool operator==(const RedefinitionDataIter& other) const
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
