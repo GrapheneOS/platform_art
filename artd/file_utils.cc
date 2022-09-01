@@ -33,9 +33,9 @@
 #include "android-base/logging.h"
 #include "android-base/result.h"
 #include "android-base/scopeguard.h"
-#include "android-base/stringprintf.h"
 #include "base/os.h"
 #include "base/unix_file/fd_file.h"
+#include "fmt/format.h"
 
 namespace art {
 namespace artd {
@@ -45,14 +45,14 @@ namespace {
 using ::aidl::com::android::server::art::FsPermission;
 using ::android::base::make_scope_guard;
 using ::android::base::Result;
-using ::android::base::StringPrintf;
+
+using ::fmt::literals::operator""_format;  // NOLINT
 
 void UnlinkIfExists(const std::string& path) {
   std::error_code ec;
   if (!std::filesystem::remove(path, ec)) {
     if (ec.value() != ENOENT) {
-      LOG(WARNING) << StringPrintf(
-          "Failed to remove file '%s': %s", path.c_str(), ec.message().c_str());
+      LOG(WARNING) << "Failed to remove file '{}': {}"_format(path, ec.message());
     }
   }
 }
@@ -100,7 +100,7 @@ void NewFile::Cleanup() {
 }
 
 Result<void> NewFile::Init() {
-  mode_t mode = FsPermissionToMode(fs_permission_);
+  mode_t mode = FileFsPermissionToMode(fs_permission_);
   // "<path_>.XXXXXX.tmp".
   temp_path_ = BuildTempPath(final_path_, "XXXXXX");
   fd_ = mkstemps(temp_path_.data(), /*suffixlen=*/4);
@@ -111,9 +111,7 @@ Result<void> NewFile::Init() {
   if (fchmod(fd_, mode) != 0) {
     return ErrnoErrorf("Failed to chmod file '{}'", temp_path_);
   }
-  if (fchown(fd_, fs_permission_.uid, fs_permission_.gid) != 0) {
-    return ErrnoErrorf("Failed to chown file '{}'", temp_path_);
-  }
+  OR_RETURN(Chown(temp_path_, fs_permission_));
   return {};
 }
 
@@ -143,11 +141,8 @@ Result<void> NewFile::CommitAllOrAbandon(const std::vector<NewFile*>& files_to_c
       if (ec) {
         // This should never happen. We were able to move the file from `original_path` to
         // `temp_path`. We should be able to move it back.
-        LOG(WARNING) << StringPrintf(
-            "Failed to move old file '%s' back from temporary path '%s': %s",
-            std::string(original_path).c_str(),
-            std::string(temp_path).c_str(),
-            ec.message().c_str());
+        LOG(WARNING) << "Failed to move old file '{}' back from temporary path '{}': {}"_format(
+            original_path, temp_path, ec.message());
       }
     }
   });
@@ -208,7 +203,7 @@ Result<void> NewFile::CommitAllOrAbandon(const std::vector<NewFile*>& files_to_c
 }
 
 std::string NewFile::BuildTempPath(std::string_view final_path, const std::string& id) {
-  return StringPrintf("%s.%s.tmp", std::string(final_path).c_str(), id.c_str());
+  return "{}.{}.tmp"_format(final_path, id);
 }
 
 Result<std::unique_ptr<File>> OpenFileForReading(const std::string& path) {
@@ -219,9 +214,27 @@ Result<std::unique_ptr<File>> OpenFileForReading(const std::string& path) {
   return file;
 }
 
-mode_t FsPermissionToMode(const FsPermission& fs_permission) {
+mode_t FileFsPermissionToMode(const FsPermission& fs_permission) {
   return S_IRUSR | S_IWUSR | S_IRGRP | (fs_permission.isOtherReadable ? S_IROTH : 0) |
          (fs_permission.isOtherExecutable ? S_IXOTH : 0);
+}
+
+mode_t DirFsPermissionToMode(const FsPermission& fs_permission) {
+  return FileFsPermissionToMode(fs_permission) | S_IXUSR | S_IXGRP;
+}
+
+Result<void> Chown(const std::string& path, const FsPermission& fs_permission) {
+  if (fs_permission.uid < 0 && fs_permission.gid < 0) {
+    // Keep the default owner.
+  } else if (fs_permission.uid < 0 || fs_permission.gid < 0) {
+    return Errorf("uid and gid must be both non-negative or both negative, got {} and {}.",
+                  fs_permission.uid,
+                  fs_permission.gid);
+  }
+  if (chown(path.c_str(), fs_permission.uid, fs_permission.gid) != 0) {
+    return ErrnoErrorf("Failed to chown '{}'", path);
+  }
+  return {};
 }
 
 }  // namespace artd

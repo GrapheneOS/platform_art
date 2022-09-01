@@ -34,6 +34,7 @@ cc_defaults {
         "libarttools",
         "libbase",
         "libbinder_ndk",
+        "libselinux",
     ],
     static_libs: [
         "artd-aidl-ndk",
@@ -75,6 +76,10 @@ art_cc_defaults {
         "file_utils_test.cc",
         "path_utils_test.cc",
     ],
+    data: [
+        ":art-gtest-jars-Main",
+        ":art-gtest-jars-Nested",
+    ],
 }
 
 // Version of ART gtest `art_artd_tests` bundled with the ART APEX on target.
@@ -99,4 +104,5 @@ art_cc_test {
         "art_standalone_gtest_defaults",
         "art_artd_tests_defaults",
     ],
+    test_config_template: "art_standalone_artd_tests.xml",
 }

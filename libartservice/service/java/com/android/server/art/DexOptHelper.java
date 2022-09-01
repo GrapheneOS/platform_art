@@ -24,6 +24,7 @@ import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.Binder;
 import android.os.PowerManager;
+import android.os.RemoteException;
 import android.os.WorkSource;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -71,7 +72,7 @@ public class DexOptHelper {
     @NonNull
     public OptimizeResult dexopt(@NonNull PackageDataSnapshot snapshot,
             @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg,
-            @NonNull OptimizeOptions options) {
+            @NonNull OptimizeOptions options) throws RemoteException {
         List<DexFileOptimizeResult> results = new ArrayList<>();
         Supplier<OptimizeResult> createResult = ()
                 -> new OptimizeResult(pkgState.getPackageName(), options.getCompilerFilter(),

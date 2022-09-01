@@ -24,6 +24,7 @@
 #include "android-base/strings.h"
 #include "arch/instruction_set.h"
 #include "base/file_utils.h"
+#include "fmt/format.h"
 #include "oat_file_assistant.h"
 
 namespace art {
@@ -32,13 +33,20 @@ namespace artd {
 namespace {
 
 using ::aidl::com::android::server::art::ArtifactsPath;
+using ::aidl::com::android::server::art::DexMetadataPath;
+using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::EndsWith;
 using ::android::base::Error;
 using ::android::base::Result;
 
+using ::fmt::literals::operator""_format;  // NOLINT
+
 Result<void> ValidateAbsoluteNormalPath(const std::string& path_str) {
   if (path_str.empty()) {
     return Errorf("Path is empty");
+  }
+  if (path_str.find('\0') != std::string::npos) {
+    return Errorf("Path '{}' has invalid character '\\0'", path_str);
   }
   std::filesystem::path path(path_str);
   if (!path.is_absolute()) {
@@ -50,6 +58,17 @@ Result<void> ValidateAbsoluteNormalPath(const std::string& path_str) {
   return {};
 }
 
+Result<std::string> GetArtRootOrError() {
+  std::string error_msg;
+  std::string result = GetArtRootSafe(&error_msg);
+  if (!error_msg.empty()) {
+    return Error() << error_msg;
+  }
+  return result;
+}
+
+}  // namespace
+
 Result<void> ValidateDexPath(const std::string& dex_path) {
   OR_RETURN(ValidateAbsoluteNormalPath(dex_path));
   if (!EndsWith(dex_path, ".apk") && !EndsWith(dex_path, ".jar")) {
@@ -58,14 +77,16 @@ Result<void> ValidateDexPath(const std::string& dex_path) {
   return {};
 }
 
-}  // namespace
+Result<std::string> BuildArtBinPath(const std::string& binary_name) {
+  return "{}/bin/{}"_format(OR_RETURN(GetArtRootOrError()), binary_name);
+}
 
 Result<std::string> BuildOatPath(const ArtifactsPath& artifacts_path) {
   OR_RETURN(ValidateDexPath(artifacts_path.dexPath));
 
   InstructionSet isa = GetInstructionSetFromString(artifacts_path.isa.c_str());
   if (isa == InstructionSet::kNone) {
-    return Errorf("Instruction set '{}' is invalid", artifacts_path.isa.c_str());
+    return Errorf("Instruction set '{}' is invalid", artifacts_path.isa);
   }
 
   std::string error_msg;
@@ -86,12 +107,19 @@ Result<std::string> BuildOatPath(const ArtifactsPath& artifacts_path) {
   }
 }
 
-std::string OatPathToVdexPath(const std::string& oat_path) {
-  return ReplaceFileExtension(oat_path, "vdex");
+Result<std::string> BuildDexMetadataPath(const DexMetadataPath& dex_metadata_path) {
+  OR_RETURN(ValidateDexPath(dex_metadata_path.dexPath));
+  return ReplaceFileExtension(dex_metadata_path.dexPath, "dm");
 }
 
-std::string OatPathToArtPath(const std::string& oat_path) {
-  return ReplaceFileExtension(oat_path, "art");
+Result<std::string> BuildDexMetadataPath(const VdexPath& vdex_path) {
+  DCHECK(vdex_path.getTag() == VdexPath::dexMetadataPath);
+  return BuildDexMetadataPath(vdex_path.get<VdexPath::dexMetadataPath>());
+}
+
+Result<std::string> BuildVdexPath(const VdexPath& vdex_path) {
+  DCHECK(vdex_path.getTag() == VdexPath::artifactsPath);
+  return OatPathToVdexPath(OR_RETURN(BuildOatPath(vdex_path.get<VdexPath::artifactsPath>())));
 }
 
 }  // namespace artd

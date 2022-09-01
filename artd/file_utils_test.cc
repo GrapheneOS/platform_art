@@ -325,14 +325,25 @@ TEST_F(FileUtilsTest, OpenFileForReadingFailed) {
               HasError(WithMessage(ContainsRegex("Failed to open file .*/foo"))));
 }
 
-TEST_F(FileUtilsTest, FsPermissionToMode) {
-  EXPECT_EQ(FsPermissionToMode(FsPermission{}), S_IRUSR | S_IWUSR | S_IRGRP);
-  EXPECT_EQ(FsPermissionToMode(FsPermission{.isOtherReadable = true}),
+TEST_F(FileUtilsTest, FileFsPermissionToMode) {
+  EXPECT_EQ(FileFsPermissionToMode(FsPermission{}), S_IRUSR | S_IWUSR | S_IRGRP);
+  EXPECT_EQ(FileFsPermissionToMode(FsPermission{.isOtherReadable = true}),
             S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-  EXPECT_EQ(FsPermissionToMode(FsPermission{.isOtherExecutable = true}),
+  EXPECT_EQ(FileFsPermissionToMode(FsPermission{.isOtherExecutable = true}),
             S_IRUSR | S_IWUSR | S_IRGRP | S_IXOTH);
-  EXPECT_EQ(FsPermissionToMode(FsPermission{.isOtherReadable = true, .isOtherExecutable = true}),
-            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH | S_IXOTH);
+  EXPECT_EQ(
+      FileFsPermissionToMode(FsPermission{.isOtherReadable = true, .isOtherExecutable = true}),
+      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH | S_IXOTH);
+}
+
+TEST_F(FileUtilsTest, DirFsPermissionToMode) {
+  EXPECT_EQ(DirFsPermissionToMode(FsPermission{}), S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP);
+  EXPECT_EQ(DirFsPermissionToMode(FsPermission{.isOtherReadable = true}),
+            S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH);
+  EXPECT_EQ(DirFsPermissionToMode(FsPermission{.isOtherExecutable = true}),
+            S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IXOTH);
+  EXPECT_EQ(DirFsPermissionToMode(FsPermission{.isOtherReadable = true, .isOtherExecutable = true}),
+            S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 }
 
 }  // namespace

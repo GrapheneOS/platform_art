@@ -17,24 +17,13 @@
 package com.android.server.art;
 
 /**
- * Represents the Linux filesystem permission of a file or a directory.
- *
- * If both `uid` and `gid` are negative, no `chown` will be performed.
- *
- * If none of the booleans are set, the default permission bits are `rw-r-----` for a file, and
- * `rwxr-x---` for a directory.
+ * Represents the path to a dex metadata file.
  *
  * @hide
  */
-parcelable FsPermission {
-    int uid;
-    int gid;
+parcelable DexMetadataPath {
     /**
-     * Whether the file/directory should have the "read" bit for "others" (S_IROTH).
+     * The absolute path starting with '/' to the dex file that the dex metadata file is next to.
      */
-    boolean isOtherReadable;
-    /**
-     * Whether the file/directory should have the "execute" bit for "others" (S_IXOTH).
-     */
-    boolean isOtherExecutable;
+    @utf8InCpp String dexPath;
 }

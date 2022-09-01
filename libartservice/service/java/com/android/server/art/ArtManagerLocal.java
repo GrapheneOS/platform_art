@@ -142,8 +142,9 @@ public final class ArtManagerLocal {
                         continue;
                     }
                     for (String isa : Utils.getAllIsas(pkgState)) {
-                        freedBytes += mInjector.getArtd().deleteArtifacts(
-                                Utils.buildArtifactsPath(dexInfo.dexPath(), isa, isInDalvikCache));
+                        freedBytes +=
+                                mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
+                                        dexInfo.dexPath(), isa, isInDalvikCache));
                     }
                 }
             }
@@ -236,7 +237,11 @@ public final class ArtManagerLocal {
         PackageState pkgState = getPackageStateOrThrow(snapshot, packageName);
         AndroidPackageApi pkg = getPackageOrThrow(pkgState);
 
-        return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, options);
+        try {
+            return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, options);
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
     }
 
     private PackageState getPackageStateOrThrow(
@@ -252,7 +257,8 @@ public final class ArtManagerLocal {
     private AndroidPackageApi getPackageOrThrow(@NonNull PackageState pkgState) {
         AndroidPackageApi pkg = pkgState.getAndroidPackage();
         if (pkg == null) {
-            throw new IllegalStateException("Unable to get package " + pkgState.getPackageName());
+            throw new IllegalArgumentException(
+                    "Unable to get package " + pkgState.getPackageName());
         }
         return pkg;
     }
