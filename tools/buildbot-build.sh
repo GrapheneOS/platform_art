@@ -193,11 +193,9 @@ if [[ $build_target == "yes" ]]; then
     "heapprofd_client_api.so"
     "libandroid_runtime_lazy.so"
     "libartpalette-system.so"
-    "libbase.so"
     "libbinder.so"
     "libbinder_ndk.so"
     "libcutils.so"
-    "liblog.so"
     "libutils.so"
     "libvndksupport.so"
   )
