@@ -94,7 +94,7 @@ public class DexOptHelperTest {
     }
 
     @Test
-    public void testDexopt() {
+    public void testDexopt() throws Exception {
         when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
                 .thenReturn(mPrimaryResults);
 
@@ -109,7 +109,7 @@ public class DexOptHelperTest {
     }
 
     @Test
-    public void testDexoptNoCode() {
+    public void testDexoptNoCode() throws Exception {
         when(mPkg.isHasCode()).thenReturn(false);
 
         OptimizeResult result =
@@ -120,7 +120,7 @@ public class DexOptHelperTest {
     }
 
     @Test
-    public void testDexoptWithAppHibernationManager() {
+    public void testDexoptWithAppHibernationManager() throws Exception {
         when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(false);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
@@ -135,7 +135,7 @@ public class DexOptHelperTest {
     }
 
     @Test
-    public void testDexoptIsHibernating() {
+    public void testDexoptIsHibernating() throws Exception {
         when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(true);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
@@ -148,7 +148,7 @@ public class DexOptHelperTest {
     }
 
     @Test
-    public void testDexoptIsHibernatingButOatArtifactDeletionDisabled() {
+    public void testDexoptIsHibernatingButOatArtifactDeletionDisabled() throws Exception {
         when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(true);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(false);
@@ -163,7 +163,7 @@ public class DexOptHelperTest {
     }
 
     @Test
-    public void testDexoptWithPowerManager() {
+    public void testDexoptWithPowerManager() throws Exception {
         var wakeLock = mock(PowerManager.WakeLock.class);
         when(mInjector.getPowerManager()).thenReturn(mPowerManager);
         when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))
@@ -182,7 +182,7 @@ public class DexOptHelperTest {
     }
 
     @Test
-    public void testDexoptAlwaysReleasesWakeLock() {
+    public void testDexoptAlwaysReleasesWakeLock() throws Exception {
         var wakeLock = mock(PowerManager.WakeLock.class);
         when(mInjector.getPowerManager()).thenReturn(mPowerManager);
         when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))

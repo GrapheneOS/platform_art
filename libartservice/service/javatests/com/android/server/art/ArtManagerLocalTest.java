@@ -135,7 +135,7 @@ public class ArtManagerLocalTest {
         mArtManagerLocal.deleteOptimizedArtifacts(mock(PackageDataSnapshot.class), PKG_NAME);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testDeleteOptimizedArtifactsNoPackage() throws Exception {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
@@ -192,7 +192,7 @@ public class ArtManagerLocalTest {
         mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testGetOptimizationStatusNoPackage() throws Exception {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
@@ -238,7 +238,7 @@ public class ArtManagerLocalTest {
                 new OptimizeOptions.Builder("install").build());
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testOptimizePackageNoPackage() throws Exception {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 

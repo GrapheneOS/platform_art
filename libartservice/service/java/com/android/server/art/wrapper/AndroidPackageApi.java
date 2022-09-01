@@ -122,4 +122,44 @@ public class AndroidPackageApi {
             throw new RuntimeException(e);
         }
     }
+
+    public boolean isVmSafeMode() {
+        try {
+            return (boolean) mPkg.getClass().getMethod("isVmSafeMode").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean isDebuggable() {
+        try {
+            return (boolean) mPkg.getClass().getMethod("isDebuggable").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean isSignedWithPlatformKey() {
+        try {
+            return (boolean) mPkg.getClass().getMethod("isSignedWithPlatformKey").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean isUsesNonSdkApi() {
+        try {
+            return (boolean) mPkg.getClass().getMethod("isUsesNonSdkApi").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public int getTargetSdkVersion() {
+        try {
+            return (int) mPkg.getClass().getMethod("getTargetSdkVersion").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

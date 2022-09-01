@@ -71,16 +71,6 @@ public final class Utils {
         return List.of();
     }
 
-    @NonNull
-    public static ArtifactsPath buildArtifactsPath(
-            @NonNull String dexPath, @NonNull String isa, boolean isInDalvikCache) {
-        ArtifactsPath artifactsPath = new ArtifactsPath();
-        artifactsPath.dexPath = dexPath;
-        artifactsPath.isa = isa;
-        artifactsPath.isInDalvikCache = isInDalvikCache;
-        return artifactsPath;
-    }
-
     public static boolean isInDalvikCache(@NonNull PackageState pkg) {
         return pkg.isSystem() && !pkg.isUpdatedSystemApp();
     }

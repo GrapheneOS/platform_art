@@ -1,0 +1,127 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.server.art;
+
+import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+
+import android.content.pm.ApplicationInfo;
+import android.os.SystemProperties;
+
+import com.android.server.art.testing.StaticMockitoRule;
+import com.android.server.art.wrapper.AndroidPackageApi;
+import com.android.server.art.wrapper.PackageState;
+
+import dalvik.system.PathClassLoader;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.mockito.Mock;
+
+import java.util.ArrayList;
+
+public class PrimaryDexOptimizerTestBase {
+    protected static final String PKG_NAME = "com.example.foo";
+
+    @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(SystemProperties.class);
+
+    @Mock protected PrimaryDexOptimizer.Injector mInjector;
+    @Mock protected IArtd mArtd;
+    protected PackageState mPkgState;
+    protected AndroidPackageApi mPkg;
+
+    protected PrimaryDexOptimizer mPrimaryDexOptimizer;
+
+    @Before
+    public void setUp() throws Exception {
+        lenient().when(mInjector.getArtd()).thenReturn(mArtd);
+        lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(false);
+
+        lenient()
+                .when(SystemProperties.get("dalvik.vm.systemuicompilerfilter"))
+                .thenReturn("speed");
+        lenient()
+                .when(SystemProperties.getBoolean(eq("dalvik.vm.always_debuggable"), anyBoolean()))
+                .thenReturn(false);
+
+        mPkgState = createPackageState();
+        mPkg = mPkgState.getAndroidPackage();
+
+        mPrimaryDexOptimizer = new PrimaryDexOptimizer(mInjector);
+    }
+
+    private AndroidPackageApi createPackage() {
+        // This package has the base APK and one split APK that has code.
+        AndroidPackageApi pkg = mock(AndroidPackageApi.class);
+        lenient().when(pkg.getBaseApkPath()).thenReturn("/data/app/foo/base.apk");
+        lenient().when(pkg.isHasCode()).thenReturn(true);
+        lenient().when(pkg.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
+        lenient().when(pkg.getSplitNames()).thenReturn(new String[] {"split_0", "split_1"});
+        lenient()
+                .when(pkg.getSplitCodePaths())
+                .thenReturn(
+                        new String[] {"/data/app/foo/split_0.apk", "/data/app/foo/split_1.apk"});
+        lenient()
+                .when(pkg.getSplitFlags())
+                .thenReturn(new int[] {ApplicationInfo.FLAG_HAS_CODE, 0});
+        lenient().when(pkg.getUid()).thenReturn(12345);
+        lenient().when(pkg.isVmSafeMode()).thenReturn(false);
+        lenient().when(pkg.isDebuggable()).thenReturn(false);
+        lenient().when(pkg.getTargetSdkVersion()).thenReturn(123);
+        lenient().when(pkg.isSignedWithPlatformKey()).thenReturn(false);
+        lenient().when(pkg.isUsesNonSdkApi()).thenReturn(false);
+        return pkg;
+    }
+
+    private PackageState createPackageState() {
+        PackageState pkgState = mock(PackageState.class);
+        lenient().when(pkgState.getPackageName()).thenReturn(PKG_NAME);
+        lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn("arm64-v8a");
+        lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
+        lenient().when(pkgState.isSystem()).thenReturn(false);
+        lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
+        lenient().when(pkgState.getUsesLibraryInfos()).thenReturn(new ArrayList<>());
+        AndroidPackageApi pkg = createPackage();
+        lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
+        return pkgState;
+    }
+
+    protected GetDexoptNeededResult dexoptIsNotNeeded() {
+        var result = new GetDexoptNeededResult();
+        result.isDexoptNeeded = false;
+        return result;
+    }
+
+    protected GetDexoptNeededResult dexoptIsNeeded() {
+        return dexoptIsNeeded(ArtifactsLocation.NONE_OR_ERROR);
+    }
+
+    protected GetDexoptNeededResult dexoptIsNeeded(@ArtifactsLocation byte location) {
+        var result = new GetDexoptNeededResult();
+        result.isDexoptNeeded = true;
+        result.artifactsLocation = location;
+        if (location != ArtifactsLocation.NONE_OR_ERROR) {
+            result.isVdexUsable = true;
+        }
+        return result;
+    }
+}

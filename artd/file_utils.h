@@ -119,8 +119,15 @@ class NewFile {
 // Opens a file for reading.
 android::base::Result<std::unique_ptr<File>> OpenFileForReading(const std::string& path);
 
-// Converts FsPermission to Linux access mode.
-mode_t FsPermissionToMode(const aidl::com::android::server::art::FsPermission& fs_permission);
+// Converts FsPermission to Linux access mode for a file.
+mode_t FileFsPermissionToMode(const aidl::com::android::server::art::FsPermission& fs_permission);
+
+// Converts FsPermission to Linux access mode for a directory.
+mode_t DirFsPermissionToMode(const aidl::com::android::server::art::FsPermission& fs_permission);
+
+// Changes the owner based on FsPermission.
+android::base::Result<void> Chown(
+    const std::string& path, const aidl::com::android::server::art::FsPermission& fs_permission);
 
 }  // namespace artd
 }  // namespace art

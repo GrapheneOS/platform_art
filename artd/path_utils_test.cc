@@ -26,11 +26,22 @@ namespace artd {
 namespace {
 
 using ::aidl::com::android::server::art::ArtifactsPath;
+using ::aidl::com::android::server::art::DexMetadataPath;
+using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::testing::HasError;
 using ::android::base::testing::HasValue;
 using ::android::base::testing::WithMessage;
 
+using std::literals::operator""s;  // NOLINT
+
 class PathUtilsTest : public CommonArtTest {};
+
+TEST_F(PathUtilsTest, BuildArtBinPath) {
+  auto scratch_dir = std::make_unique<ScratchDir>();
+  auto art_root_env = ScopedUnsetEnvironmentVariable("ANDROID_ART_ROOT");
+  setenv("ANDROID_ART_ROOT", scratch_dir->GetPath().c_str(), /*overwrite=*/1);
+  EXPECT_THAT(BuildArtBinPath("foo"), HasValue(scratch_dir->GetPath() + "/bin/foo"));
+}
 
 TEST_F(PathUtilsTest, BuildOatPath) {
   EXPECT_THAT(
@@ -61,6 +72,12 @@ TEST_F(PathUtilsTest, BuildOatPathNonNormalDexPath) {
               HasError(WithMessage("Path '/a/c/../b.apk' is not in normal form")));
 }
 
+TEST_F(PathUtilsTest, BuildOatPathNul) {
+  EXPECT_THAT(BuildOatPath(ArtifactsPath{
+                  .dexPath = "/a/\0/b.apk"s, .isa = "arm64", .isInDalvikCache = false}),
+              HasError(WithMessage("Path '/a/\0/b.apk' has invalid character '\\0'"s)));
+}
+
 TEST_F(PathUtilsTest, BuildOatPathInvalidDexExtension) {
   EXPECT_THAT(BuildOatPath(ArtifactsPath{
                   .dexPath = "/a/b.invalid", .isa = "arm64", .isInDalvikCache = false}),
@@ -79,6 +96,21 @@ TEST_F(PathUtilsTest, OatPathToVdexPath) {
 
 TEST_F(PathUtilsTest, OatPathToArtPath) {
   EXPECT_EQ(OatPathToArtPath("/a/oat/arm64/b.odex"), "/a/oat/arm64/b.art");
+}
+
+TEST_F(PathUtilsTest, BuildDexMetadataPath) {
+  EXPECT_THAT(BuildDexMetadataPath(DexMetadataPath{.dexPath = "/a/b.apk"}), HasValue("/a/b.dm"));
+}
+
+TEST_F(PathUtilsTest, BuildDexMetadataPathForVdex) {
+  EXPECT_THAT(BuildDexMetadataPath(VdexPath(DexMetadataPath{.dexPath = "/a/b.apk"})),
+              HasValue("/a/b.dm"));
+}
+
+TEST_F(PathUtilsTest, BuildVdexPath) {
+  EXPECT_THAT(
+      BuildVdexPath(ArtifactsPath{.dexPath = "/a/b.apk", .isa = "arm64", .isInDalvikCache = false}),
+      HasValue("/a/oat/arm64/b.vdex"));
 }
 
 }  // namespace
