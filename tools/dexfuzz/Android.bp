@@ -33,6 +33,6 @@ java_library_host {
 // --- dexfuzz script ----------------
 sh_binary_host {
     name: "dexfuzz-script",
-    src: "dexfuzz",
-    filename_from_src: true,
+    src: "dexfuzz.sh",
+    filename: "dexfuzz",
 }
