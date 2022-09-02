@@ -647,6 +647,13 @@ endef
 #
 # TODO(b/129332183): Remove this when Golem has full support for the
 # ART APEX.
+#
+# TODO(b/129332183): This approach is flawed: We mix DSOs from prebuilt APEXes
+# and prebuilts/runtime/mainline/platform/impl with source built ones, and both
+# may depend on the same DSOs, and some of them don't have stable ABIs.
+# libbase.so in particular is such a problematic dependency. When those
+# dependencies eventually don't work anymore we don't have much choice but to
+# update all prebuilts.
 .PHONY: standalone-apex-files
 standalone-apex-files: deapexer \
                        $(RELEASE_ART_APEX) \
