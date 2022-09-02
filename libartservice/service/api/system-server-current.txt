@@ -2,7 +2,8 @@
 package com.android.server.art {
 
   public final class ArtManagerLocal {
-    ctor public ArtManagerLocal();
+    ctor @Deprecated public ArtManagerLocal();
+    ctor public ArtManagerLocal(@NonNull android.content.Context);
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String, int);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String);

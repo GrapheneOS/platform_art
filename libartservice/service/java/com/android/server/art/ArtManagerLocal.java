@@ -64,13 +64,11 @@ public final class ArtManagerLocal {
 
     @NonNull private final Injector mInjector;
 
-    // TODO(b/236954191): Deprecate this.
+    @Deprecated
     public ArtManagerLocal() {
-        this(new Injector());
+        this(new Injector(null /* context */));
     }
 
-    // TODO(b/236954191): Expose this.
-    /** @hide */
     public ArtManagerLocal(@NonNull Context context) {
         this(new Injector(context));
     }
@@ -273,10 +271,6 @@ public final class ArtManagerLocal {
         @Nullable private final Context mContext;
         @Nullable private final PackageManagerLocal mPackageManagerLocal;
 
-        Injector() {
-            this(null /* context */);
-        }
-
         Injector(@Nullable Context context) {
             mContext = context;
 
@@ -294,9 +288,11 @@ public final class ArtManagerLocal {
             mPackageManagerLocal = packageManagerLocal;
         }
 
-        // TODO(b/236954191): Make this @NonNull.
-        @Nullable
+        @NonNull
         public Context getContext() {
+            if (mContext == null) {
+                throw new IllegalStateException("Context is null");
+            }
             return mContext;
         }
 

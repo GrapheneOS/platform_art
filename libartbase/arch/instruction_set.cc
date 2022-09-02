@@ -17,6 +17,8 @@
 #include "instruction_set.h"
 
 #include "android-base/logging.h"
+#include "android-base/properties.h"
+#include "android-base/stringprintf.h"
 #include "base/bit_utils.h"
 #include "base/globals.h"
 
@@ -89,6 +91,45 @@ size_t GetInstructionSetAlignment(InstructionSet isa) {
   }
   LOG(FATAL) << "Unknown ISA " << isa;
   UNREACHABLE();
+}
+
+std::vector<InstructionSet> GetSupportedInstructionSets(std::string* error_msg) {
+  std::string zygote_kinds = android::base::GetProperty("ro.zygote", {});
+  if (zygote_kinds.empty()) {
+    *error_msg = "Unable to get Zygote kinds";
+    return {};
+  }
+
+  switch (kRuntimeISA) {
+    case InstructionSet::kArm:
+    case InstructionSet::kArm64:
+      if (zygote_kinds == "zygote64_32" || zygote_kinds == "zygote32_64") {
+        return {InstructionSet::kArm64, InstructionSet::kArm};
+      } else if (zygote_kinds == "zygote64") {
+        return {InstructionSet::kArm64};
+      } else if (zygote_kinds == "zygote32") {
+        return {InstructionSet::kArm};
+      } else {
+        *error_msg = android::base::StringPrintf("Unknown Zygote kinds '%s'", zygote_kinds.c_str());
+        return {};
+      }
+    case InstructionSet::kX86:
+    case InstructionSet::kX86_64:
+      if (zygote_kinds == "zygote64_32" || zygote_kinds == "zygote32_64") {
+        return {InstructionSet::kX86_64, InstructionSet::kX86};
+      } else if (zygote_kinds == "zygote64") {
+        return {InstructionSet::kX86_64};
+      } else if (zygote_kinds == "zygote32") {
+        return {InstructionSet::kX86};
+      } else {
+        *error_msg = android::base::StringPrintf("Unknown Zygote kinds '%s'", zygote_kinds.c_str());
+        return {};
+      }
+    default:
+      *error_msg = android::base::StringPrintf("Unknown runtime ISA '%s'",
+                                               GetInstructionSetString(kRuntimeISA));
+      return {};
+  }
 }
 
 namespace instruction_set_details {

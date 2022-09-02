@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "oat_file_assistant_context.h"
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -23,11 +25,11 @@
 #include "arch/instruction_set.h"
 #include "base/array_ref.h"
 #include "base/logging.h"
+#include "base/mem_map.h"
 #include "class_linker.h"
 #include "dex/art_dex_file_loader.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
-#include "oat_file_assistant_context.h"
 
 namespace art {
 
@@ -42,6 +44,8 @@ OatFileAssistantContext::OatFileAssistantContext(
   DCHECK_IMPLIES(
       runtime_options_->boot_class_path_fds != nullptr,
       runtime_options_->boot_class_path.size() == runtime_options_->boot_class_path_fds->size());
+  // Opening dex files and boot images require MemMap.
+  MemMap::Init();
 }
 
 OatFileAssistantContext::OatFileAssistantContext(Runtime* runtime)
@@ -92,6 +96,23 @@ OatFileAssistantContext::OatFileAssistantContext(Runtime* runtime)
 
 const OatFileAssistantContext::RuntimeOptions& OatFileAssistantContext::GetRuntimeOptions() const {
   return *runtime_options_;
+}
+
+bool OatFileAssistantContext::FetchAll(std::string* error_msg) {
+  std::vector<InstructionSet> isas = GetSupportedInstructionSets(error_msg);
+  if (isas.empty()) {
+    return false;
+  }
+  for (InstructionSet isa : isas) {
+    GetBootImageInfoList(isa);
+  }
+  for (size_t i = 0; i < runtime_options_->boot_class_path.size(); i++) {
+    if (GetBcpChecksums(i, error_msg) == nullptr) {
+      return false;
+    }
+  }
+  GetApexVersions();
+  return true;
 }
 
 const std::vector<OatFileAssistantContext::BootImageInfo>&
