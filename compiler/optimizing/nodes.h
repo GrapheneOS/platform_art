@@ -1351,11 +1351,14 @@ class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
   // skip updating those phis.
   void DisconnectFromSuccessors(const ArenaBitVector* visited = nullptr);
 
-  // Removes the catch phi uses of the instructions in `this`. If `remove_instruction` is set to
-  // true, it will also remove the instructions themselves. This method assumes the instructions
-  // have been removed from all users with the exception of catch phis because of missing
-  // exceptional edges in the graph.
-  void RemoveCatchPhiUses(bool remove_instruction);
+  // Removes the catch phi uses of the instructions in `this`, and then remove the instruction
+  // itself. If `building_dominator_tree` is true, it will not remove the instruction as user, since
+  // we do it in a previous step. This is a special case for building up the dominator tree: we want
+  // to eliminate uses before inputs but we don't have domination information, so we remove all
+  // connections from input/uses first before removing any instruction.
+  // This method assumes the instructions have been removed from all users with the exception of
+  // catch phis because of missing exceptional edges in the graph.
+  void RemoveCatchPhiUsesAndInstruction(bool building_dominator_tree);
 
   void AddInstruction(HInstruction* instruction);
   // Insert `instruction` before/after an existing instruction `cursor`.
