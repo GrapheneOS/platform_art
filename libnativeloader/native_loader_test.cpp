@@ -379,9 +379,24 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
     expected_library_path = expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
     expected_permitted_path =
         expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
-    expected_shared_libs_to_platform_ns =
-        default_public_libraries() + ":" + llndk_libraries_product();
     expected_link_with_vndk_product_ns = true;
+
+    // The handling of extended libraries for product apps changed in the
+    // M-2022-10 release of the ART module (https://r.android.com/2194871).
+    // Since this test is in CTS for T, we need to accept both new and old
+    // behaviour, i.e. with and without the extended public libraries appended
+    // at the end. Skip the EXPECT_CALL in
+    // NativeLoaderTest_Create::SetExpectations and create a more lenient
+    // variant of it here.
+    expected_link_with_platform_ns = false;
+    expected_shared_libs_to_platform_ns =
+        expected_shared_libs_to_platform_ns + ":" + llndk_libraries_product();
+    EXPECT_CALL(*mock,
+                mock_link_namespaces(Eq(IsBridged()),
+                                     _,
+                                     NsEq("system"),
+                                     ::testing::StartsWith(expected_shared_libs_to_platform_ns)))
+        .WillOnce(Return(true));
   }
   SetExpectations();
   RunTest();
