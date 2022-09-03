@@ -50,7 +50,7 @@ public class PrimaryDexOptimizer {
 
     @NonNull private final Injector mInjector;
 
-    public PrimaryDexOptimizer(@Nullable Context context) {
+    public PrimaryDexOptimizer(@NonNull Context context) {
         this(new Injector(context));
     }
 
@@ -305,17 +305,13 @@ public class PrimaryDexOptimizer {
      */
     @VisibleForTesting
     public static class Injector {
-        // TODO(b/236954191): Make this @NonNull.
-        @Nullable private final Context mContext;
+        @NonNull private final Context mContext;
 
-        Injector(@Nullable Context context) {
+        Injector(@NonNull Context context) {
             mContext = context;
         }
 
         boolean isSystemUiPackage(@NonNull String packageName) {
-            if (mContext == null) {
-                return false;
-            }
             return packageName.equals(mContext.getString(R.string.config_systemUi));
         }
 

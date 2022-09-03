@@ -463,7 +463,8 @@ func artBinary() android.Module {
 }
 
 func artTest() android.Module {
-	module := cc.TestFactory()
+	// Disable bp2build.
+	module := cc.NewTest(android.HostAndDeviceSupported, false /* bazelable */).Init()
 
 	installCodegenCustomizer(module, binary)
 
