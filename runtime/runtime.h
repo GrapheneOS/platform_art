@@ -307,6 +307,10 @@ class Runtime {
                              const std::string& location,
                              const std::vector<std::unique_ptr<const art::DexFile>>& dex_files);
 
+  void AddExtraBootDexFiles(const std::string& filename,
+                            const std::string& location,
+                            std::vector<std::unique_ptr<const art::DexFile>>&& dex_files);
+
   const std::vector<int>& GetBootClassPathFds() const {
     return boot_class_path_fds_;
   }
