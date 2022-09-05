@@ -176,6 +176,7 @@ class ClassLinker {
 
   // Add boot class path dex files that were not included in the boot image.
   // ClassLinker takes ownership of these dex files.
+  // DO NOT use directly. Use `Runtime::AddExtraBootDexFiles`.
   void AddExtraBootDexFiles(Thread* self,
                             std::vector<std::unique_ptr<const DexFile>>&& additional_dex_files)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -780,10 +781,12 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       NO_THREAD_SAFETY_ANALYSIS;
 
+  // DO NOT use directly. Use `Runtime::AppendToBootClassPath`.
   void AppendToBootClassPath(Thread* self, const DexFile* dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
+  // DO NOT use directly. Use `Runtime::AppendToBootClassPath`.
   void AppendToBootClassPath(const DexFile* dex_file, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
