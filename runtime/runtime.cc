@@ -3491,4 +3491,15 @@ void Runtime::AppendToBootClassPath(
   }
 }
 
+void Runtime::AddExtraBootDexFiles(const std::string& filename,
+                                   const std::string& location,
+                                   std::vector<std::unique_ptr<const art::DexFile>>&& dex_files) {
+  boot_class_path_.push_back(filename);
+  if (!boot_class_path_locations_.empty()) {
+    boot_class_path_locations_.push_back(location);
+  }
+  ScopedObjectAccess soa(Thread::Current());
+  GetClassLinker()->AddExtraBootDexFiles(Thread::Current(), std::move(dex_files));
+}
+
 }  // namespace art
