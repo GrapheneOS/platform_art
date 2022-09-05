@@ -65,7 +65,7 @@ class OatFileAssistantContext {
   explicit OatFileAssistantContext(Runtime* runtime);
   // Returns runtime options.
   const RuntimeOptions& GetRuntimeOptions() const;
-  // Fetches all information that hasn't been fetched from disk amd caches it. All operations will
+  // Fetches all information that hasn't been fetched from disk and caches it. All operations will
   // be read-only after a successful call to this function.
   bool FetchAll(std::string* error_msg);
   // Returns information about the boot image of the given instruction set.
