@@ -1591,10 +1591,25 @@ END \name
  */
 
 OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
-    ldr wip, [x0, ART_METHOD_DECLARING_CLASS_OFFSET]
-    ldrb wip, [ip, MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET]
-    cmp ip, #MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE
-    bcs ExecuteNterpImpl
+    // For simplicity, we don't do a read barrier here, but instead rely
+    // on art_quick_resolution_trampoline to always have a suspend point before
+    // calling back here.
+    ldr wip, [x0, #ART_METHOD_DECLARING_CLASS_OFFSET]
+    ldrb wip2, [ip, #MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET]
+    cmp ip2, #MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE
+    b.hs ExecuteNterpImpl
+    cmp ip2, #MIRROR_CLASS_IS_INITIALIZED_VALUE
+    b.lo .Linitializing_check
+    dmb ish
+    b ExecuteNterpImpl
+.Linitializing_check:
+    cmp ip2, #MIRROR_CLASS_IS_INITIALIZING_VALUE
+    b.lo .Lresolution_trampoline
+    ldr wip2, [ip, #MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET]
+    ldr wip, [xSELF, #THREAD_TID_OFFSET]
+    cmp wip, wip2
+    b.eq ExecuteNterpImpl
+.Lresolution_trampoline:
     b art_quick_resolution_trampoline
 EndExecuteNterpWithClinitImpl:
 
