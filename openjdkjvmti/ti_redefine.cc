@@ -512,8 +512,15 @@ template jvmtiError Redefiner::GetClassRedefinitionError<RedefinitionType::kStru
 art::MemMap Redefiner::MoveDataToMemMap(const std::string& original_location,
                                         art::ArrayRef<const unsigned char> data,
                                         std::string* error_msg) {
+  std::string modified_location = StringPrintf("%s-transformed", original_location.c_str());
+  // A dangling multi-dex location appended to bootclasspath can cause inaccuracy in oat file
+  // validation. For simplicity, just convert it to a normal location.
+  size_t pos = modified_location.find(art::DexFileLoader::kMultiDexSeparator);
+  if (pos != std::string::npos) {
+    modified_location[pos] = '-';
+  }
   art::MemMap map = art::MemMap::MapAnonymous(
-      StringPrintf("%s-transformed", original_location.c_str()).c_str(),
+      modified_location.c_str(),
       data.size(),
       PROT_READ|PROT_WRITE,
       /*low_4gb=*/ false,
@@ -2481,7 +2488,9 @@ jvmtiError Redefiner::Run() {
     art::ClassLinker* cl = runtime_->GetClassLinker();
     if (data.GetSourceClassLoader() == nullptr) {
       // AppendToBootClassPath includes dex file registration.
-      cl->AppendToBootClassPath(&data.GetRedefinition().GetDexFile(), data.GetNewDexCache());
+      const art::DexFile& dex_file = data.GetRedefinition().GetDexFile();
+      runtime_->AppendToBootClassPath(
+          dex_file.GetLocation(), dex_file.GetLocation(), {{&dex_file, data.GetNewDexCache()}});
     } else {
       cl->RegisterExistingDexCache(data.GetNewDexCache(), data.GetSourceClassLoader());
     }
