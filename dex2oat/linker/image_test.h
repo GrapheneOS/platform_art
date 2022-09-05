@@ -63,6 +63,7 @@ static const uintptr_t kRequestedImageBase = ART_BASE_ADDRESS;
 struct CompilationHelper {
   std::vector<std::string> dex_file_locations;
   std::vector<ScratchFile> image_locations;
+  std::string extra_dex;
   std::vector<std::unique_ptr<const DexFile>> extra_dex_files;
   std::vector<ScratchFile> image_files;
   std::vector<ScratchFile> oat_files;
@@ -150,17 +151,10 @@ inline std::vector<size_t> CompilationHelper::GetImageObjectSectionSizes() {
 inline void ImageTest::DoCompile(ImageHeader::StorageMode storage_mode,
                                  /*out*/ CompilationHelper& out_helper) {
   CompilerDriver* driver = compiler_driver_.get();
+  Runtime::Current()->AppendToBootClassPath(
+      out_helper.extra_dex, out_helper.extra_dex, out_helper.extra_dex_files);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   std::vector<const DexFile*> class_path = class_linker->GetBootClassPath();
-
-  for (const std::unique_ptr<const DexFile>& dex_file : out_helper.extra_dex_files) {
-    {
-      ScopedObjectAccess soa(Thread::Current());
-      // Inject in boot class path so that the compiler driver can see it.
-      class_linker->AppendToBootClassPath(soa.Self(), dex_file.get());
-    }
-    class_path.push_back(dex_file.get());
-  }
 
   // Enable write for dex2dex.
   for (const DexFile* dex_file : class_path) {
@@ -368,6 +362,7 @@ inline void ImageTest::Compile(
   compiler_options_->SetMaxImageBlockSize(max_image_block_size);
   image_classes_.clear();
   if (!extra_dex.empty()) {
+    helper.extra_dex = extra_dex;
     helper.extra_dex_files = OpenTestDexFiles(extra_dex.c_str());
   }
   DoCompile(storage_mode, helper);
