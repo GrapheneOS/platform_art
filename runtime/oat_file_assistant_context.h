@@ -30,6 +30,7 @@ namespace art {
 // A helper class for OatFileAssistant that fetches and caches information including boot image
 // checksums, bootclasspath checksums, and APEX versions. The same instance can be reused across
 // OatFileAssistant calls on different dex files for different instruction sets.
+// This class is not thread-safe until `FetchAll` is called.
 class OatFileAssistantContext {
  public:
   // Options that a runtime would take.
@@ -64,6 +65,9 @@ class OatFileAssistantContext {
   explicit OatFileAssistantContext(Runtime* runtime);
   // Returns runtime options.
   const RuntimeOptions& GetRuntimeOptions() const;
+  // Fetches all information that hasn't been fetched from disk amd caches it. All operations will
+  // be read-only after a successful call to this function.
+  bool FetchAll(std::string* error_msg);
   // Returns information about the boot image of the given instruction set.
   const std::vector<BootImageInfo>& GetBootImageInfoList(InstructionSet isa);
   // Returns the checksums of the dex files in the BCP jar at the given index, or nullptr on error.
