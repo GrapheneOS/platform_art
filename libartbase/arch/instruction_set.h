@@ -19,6 +19,7 @@
 
 #include <iosfwd>
 #include <string>
+#include <vector>
 
 #include "base/enums.h"
 #include "base/macros.h"
@@ -194,6 +195,9 @@ constexpr size_t GetBytesPerFprSpillLocation(InstructionSet isa) {
   }
   InstructionSetAbort(isa);
 }
+
+// Returns the instruction sets supported by the device, or an empty list on failure.
+std::vector<InstructionSet> GetSupportedInstructionSets(std::string* error_msg);
 
 namespace instruction_set_details {
 
