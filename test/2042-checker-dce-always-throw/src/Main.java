@@ -31,7 +31,8 @@ public class Main {
 
     // Test that we update the phis correctly after simplifying an always throwing method, and
     // recomputing dominance.
-    assertEquals(0, $noinline$UpdatePhisCorrectly(1, 1));
+    assertEquals(0, $noinline$testUpdatePhisCorrectly(1, 1));
+    assertEquals(0, $noinline$testDeleteAllUsesBeforeDeletingInstruction(1, 1));
   }
 
   private static void alwaysThrows() throws Error {
@@ -298,7 +299,7 @@ public class Main {
   // Check that when we perform SimplifyAlwaysThrows, that the phi for `phi_value` exists, and that
   // we correctly update it after running DCE.
 
-  /// CHECK-START: int Main.$noinline$UpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (before)
+  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (before)
   /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
   /// CHECK-DAG:   <<Const5:i\d+>> IntConstant 5
   /// CHECK-DAG:   <<ReturnValue:i\d+>> Phi [<<Const0>>,<<Const5>>]
@@ -308,16 +309,16 @@ public class Main {
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
   /// CHECK-EVAL:  "<<ExitBlock>>" != "<<TargetBlock>>"
 
-  /// CHECK-START: int Main.$noinline$UpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (after)
   /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
   /// CHECK-DAG:   Return [<<Const0>>]
   /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
   /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
   /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
 
-  /// CHECK-START: int Main.$noinline$UpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-START: int Main.$noinline$testUpdatePhisCorrectly(int, int) dead_code_elimination$after_inlining (after)
   /// CHECK-NOT:   Phi
-  private static int $noinline$UpdatePhisCorrectly(int num, int other_num) {
+  private static int $noinline$testUpdatePhisCorrectly(int num, int other_num) {
     int phi_value = 0;
     if (num == 0) {
       alwaysThrows();
@@ -331,6 +332,53 @@ public class Main {
       }
 
       phi_value = 5;
+    }
+    return phi_value;
+  }
+
+
+  // Test to check that we delete all uses before the instruction.
+  private static int $noinline$foo(int num) {
+    return num;
+  }
+
+  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int, int) dead_code_elimination$after_inlining (before)
+  /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
+  /// CHECK-DAG:   <<Invoke:i\d+>> InvokeStaticOrDirect method_name:Main.$noinline$foo
+  /// CHECK-DAG:   <<ReturnValue:i\d+>> Phi [<<Const0>>,<<Invoke>>]
+  /// CHECK-DAG:   Return [<<ReturnValue>>]
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<TargetBlock:B\d+>>
+  /// CHECK-EVAL:  "<<ExitBlock>>" != "<<TargetBlock>>"
+
+  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-DAG:   <<Const0:i\d+>> IntConstant 0
+  /// CHECK-DAG:   Return [<<Const0>>]
+  /// CHECK-DAG:   InvokeStaticOrDirect block:<<InvokeBlock:B\d+>> method_name:Main.alwaysThrows always_throws:true
+  /// CHECK-DAG:   Exit block:<<ExitBlock:B\d+>>
+  /// CHECK-DAG:   Goto block:<<InvokeBlock>> target:<<ExitBlock>>
+
+  /// CHECK-START: int Main.$noinline$testDeleteAllUsesBeforeDeletingInstruction(int, int) dead_code_elimination$after_inlining (after)
+  /// CHECK-NOT:   Phi
+  private static int $noinline$testDeleteAllUsesBeforeDeletingInstruction(int num, int other_num) {
+    int phi_value = 0;
+    if (num == 0) {
+      alwaysThrows();
+
+      // This while loop is here so that we have a Goto after `alwaysThrows` and therefore perform
+      // the `SimplifyAlwaysThrows` optimization. We use `other_num` here because otherwise we
+      // propagate the knowledge that `num` equals zero.
+      while (other_num == 0) {
+        // Assign to phi_value so that the loop is not empty.
+        phi_value = 2;
+      }
+
+      try {
+        phi_value = $noinline$foo(2);
+      } catch (Error e) {
+        throw new Error("We shouldn't hit this");
+      }
     }
     return phi_value;
   }

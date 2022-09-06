@@ -735,7 +735,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   void IncrementNumberOfCHAGuards() { number_of_cha_guards_++; }
 
  private:
-  void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
+  void RemoveDeadBlocksInstructionsAsUsersAndDisconnect(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited);
 
   template <class InstructionType, typename ValueType>
