@@ -1548,5 +1548,11 @@
         "description": ["Change for Annotation.toString() in JDK 17."],
         "bug": "b/243500721",
         "variant": "jvm"
+    },
+    {
+        "tests": ["1907-suspend-list-self-twice"],
+        "description": ["Change of behavior when used with JDK 17."],
+        "bug": "b/243139124",
+        "variant": "jvm"
     }
 ]
