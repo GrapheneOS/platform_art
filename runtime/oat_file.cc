@@ -465,15 +465,23 @@ static bool ComputeAndCheckTypeLookupTableData(const DexFile::Header& header,
                                                const VdexFile* vdex_file,
                                                const uint8_t** type_lookup_table_data,
                                                std::string* error_msg) {
-  if (type_lookup_table_start == nullptr ||
-      reinterpret_cast<const uint32_t*>(type_lookup_table_start)[0] == 0) {
+  if (type_lookup_table_start == nullptr) {
     *type_lookup_table_data = nullptr;
     return true;
   }
 
-  *type_lookup_table_data = type_lookup_table_start + sizeof(uint32_t);
-  size_t expected_table_size = TypeLookupTable::RawDataLength(header.class_defs_size_);
+  if (UNLIKELY(!vdex_file->Contains(type_lookup_table_start))) {
+    *error_msg =
+        StringPrintf("In vdex file '%s' found invalid type lookup table pointer %p not in [%p, %p]",
+                     vdex_file->GetName().c_str(),
+                     type_lookup_table_start,
+                     vdex_file->Begin(),
+                     vdex_file->End());
+    return false;
+  }
+
   size_t found_size = reinterpret_cast<const uint32_t*>(type_lookup_table_start)[0];
+  size_t expected_table_size = TypeLookupTable::RawDataLength(header.class_defs_size_);
   if (UNLIKELY(found_size != expected_table_size)) {
     *error_msg =
         StringPrintf("In vdex file '%s' unexpected type lookup table size: found %zu, expected %zu",
@@ -482,6 +490,13 @@ static bool ComputeAndCheckTypeLookupTableData(const DexFile::Header& header,
                      expected_table_size);
     return false;
   }
+
+  if (found_size == 0) {
+    *type_lookup_table_data = nullptr;
+    return true;
+  }
+
+  *type_lookup_table_data = type_lookup_table_start + sizeof(uint32_t);
   if (UNLIKELY(!vdex_file->Contains(*type_lookup_table_data))) {
     *error_msg =
         StringPrintf("In vdex file '%s' found invalid type lookup table pointer %p not in [%p, %p]",
