@@ -1554,5 +1554,11 @@
         "description": ["Change of behavior when used with JDK 17."],
         "bug": "b/243139124",
         "variant": "jvm"
+    },
+    {
+        "tests": ["1921-suspend-native-recursive-monitor"],
+        "description": ["Change of behavior when used with JDK 17."],
+        "bug": "b/242985234",
+        "variant": "jvm"
     }
 ]
