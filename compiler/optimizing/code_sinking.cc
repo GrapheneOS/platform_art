@@ -271,10 +271,21 @@ static HInstruction* FindIdealPosition(HInstruction* instruction,
     }
   }
   for (const HUseListNode<HEnvironment*>& use : instruction->GetEnvUses()) {
-    HInstruction* user = use.GetUser()->GetHolder();
+    HEnvironment* env = use.GetUser();
+    HInstruction* user = env->GetHolder();
     if (user->GetBlock() == target_block &&
         (insert_pos == nullptr || user->StrictlyDominates(insert_pos))) {
-      insert_pos = user;
+      if (target_block->IsCatchBlock() && target_block->GetFirstInstruction() == user) {
+        // We can sink the instructions past the environment setting Nop. If we do that, we have to
+        // remove said instruction from the environment. Since we know that we will be sinking the
+        // instruction to this block and there are no more instructions to consider, we can safely
+        // remove it from the environment now.
+        DCHECK(target_block->GetFirstInstruction()->IsNop());
+        env->RemoveAsUserOfInput(use.GetIndex());
+        env->SetRawEnvAt(use.GetIndex(), /*instruction=*/ nullptr);
+      } else {
+        insert_pos = user;
+      }
     }
   }
   if (insert_pos == nullptr) {
