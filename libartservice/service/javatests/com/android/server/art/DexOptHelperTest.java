@@ -17,6 +17,7 @@
 package com.android.server.art;
 
 import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -109,11 +110,15 @@ public class DexOptHelperTest {
         OptimizeResult result =
                 mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
-        assertThat(result.getPackageName()).isEqualTo(PKG_NAME);
         assertThat(result.getRequestedCompilerFilter()).isEqualTo("speed-profile");
         assertThat(result.getReason()).isEqualTo("install");
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_FAILED);
-        assertThat(result.getDexFileOptimizeResults()).containsExactlyElementsIn(mPrimaryResults);
+        assertThat(result.getPackageOptimizeResults()).hasSize(1);
+
+        PackageOptimizeResult packageResult = result.getPackageOptimizeResults().get(0);
+        assertThat(packageResult.getPackageName()).isEqualTo(PKG_NAME);
+        assertThat(packageResult.getDexFileOptimizeResults())
+                .containsExactlyElementsIn(mPrimaryResults);
 
         InOrder inOrder = inOrder(mPrimaryDexOptimizer, mWakeLock);
         inOrder.verify(mWakeLock).acquire(anyLong());
@@ -129,7 +134,7 @@ public class DexOptHelperTest {
                 mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
-        assertThat(result.getDexFileOptimizeResults()).isEmpty();
+        assertThat(result.getPackageOptimizeResults().get(0).getDexFileOptimizeResults()).isEmpty();
     }
 
     @Test
@@ -140,7 +145,7 @@ public class DexOptHelperTest {
                 mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
-        assertThat(result.getDexFileOptimizeResults()).isEmpty();
+        assertThat(result.getPackageOptimizeResults().get(0).getDexFileOptimizeResults()).isEmpty();
     }
 
     @Test
@@ -154,7 +159,8 @@ public class DexOptHelperTest {
         OptimizeResult result =
                 mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
-        assertThat(result.getDexFileOptimizeResults()).containsExactlyElementsIn(mPrimaryResults);
+        assertThat(result.getPackageOptimizeResults().get(0).getDexFileOptimizeResults())
+                .containsExactlyElementsIn(mPrimaryResults);
     }
 
     @Test
