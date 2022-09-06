@@ -240,9 +240,9 @@ art_gtest_user_module_names = [
 
 # ART gtests that need root access to the device.
 art_gtest_eng_only_module_names = [
-    "libnativeloader_e2e_tests",
     "art_standalone_dexoptanalyzer_tests",
     "art_standalone_profman_tests",
+    "libnativeloader_e2e_tests",
 ]
 
 # All supported ART gtests.
