@@ -76,6 +76,9 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
             | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE
             | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE;
 
+    private final DexoptResult mDexoptResult =
+            createDexoptResult(false /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */);
+
     private List<ProfilePath> mUsedProfiles;
 
     @Before
@@ -93,7 +96,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         lenient()
                 .when(mArtd.dexopt(
                         any(), any(), any(), any(), any(), any(), any(), anyInt(), any()))
-                .thenReturn(true);
+                .thenReturn(mDexoptResult);
 
         mUsedProfiles = new ArrayList<>();
     }
@@ -104,35 +107,43 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doReturn(dexoptIsNeeded(ArtifactsLocation.NONE_OR_ERROR))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mDexPath), eq("arm64"), any(), any(), anyInt());
-        doReturn(true).when(mArtd).dexopt(
-                any(), eq(mDexPath), eq("arm64"), any(), any(), any(), isNull(), anyInt(), any());
+        doReturn(mDexoptResult)
+                .when(mArtd)
+                .dexopt(any(), eq(mDexPath), eq("arm64"), any(), any(), any(), isNull(), anyInt(),
+                        any());
 
         // ArtifactsPath, isInDalvikCache=true.
         doReturn(dexoptIsNeeded(ArtifactsLocation.DALVIK_CACHE))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mDexPath), eq("arm"), any(), any(), anyInt());
-        doReturn(true).when(mArtd).dexopt(any(), eq(mDexPath), eq("arm"), any(), any(), any(),
-                deepEq(VdexPath.artifactsPath(
-                        AidlUtils.buildArtifactsPath(mDexPath, "arm", true /* isInDalvikCache */))),
-                anyInt(), any());
+        doReturn(mDexoptResult)
+                .when(mArtd)
+                .dexopt(any(), eq(mDexPath), eq("arm"), any(), any(), any(),
+                        deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
+                                mDexPath, "arm", true /* isInDalvikCache */))),
+                        anyInt(), any());
 
         // ArtifactsPath, isInDalvikCache=false.
         doReturn(dexoptIsNeeded(ArtifactsLocation.NEXT_TO_DEX))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mSplit0DexPath), eq("arm64"), any(), any(), anyInt());
-        doReturn(true).when(mArtd).dexopt(any(), eq(mSplit0DexPath), eq("arm64"), any(), any(),
-                any(),
-                deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
-                        mSplit0DexPath, "arm64", false /* isInDalvikCache */))),
-                anyInt(), any());
+        doReturn(mDexoptResult)
+                .when(mArtd)
+                .dexopt(any(), eq(mSplit0DexPath), eq("arm64"), any(), any(), any(),
+                        deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
+                                mSplit0DexPath, "arm64", false /* isInDalvikCache */))),
+                        anyInt(), any());
 
         // DexMetadataPath.
         doReturn(dexoptIsNeeded(ArtifactsLocation.DM))
                 .when(mArtd)
                 .getDexoptNeeded(eq(mSplit0DexPath), eq("arm"), any(), any(), anyInt());
-        doReturn(true).when(mArtd).dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(),
-                deepEq(VdexPath.dexMetadataPath(AidlUtils.buildDexMetadataPath(mSplit0DexPath))),
-                anyInt(), any());
+        doReturn(mDexoptResult)
+                .when(mArtd)
+                .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(),
+                        deepEq(VdexPath.dexMetadataPath(
+                                AidlUtils.buildDexMetadataPath(mSplit0DexPath))),
+                        anyInt(), any());
 
         mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams);
     }

@@ -144,14 +144,19 @@ public class OptimizeResult {
         private final @NonNull String mInstructionSet;
         private final @NonNull String mActualCompilerFilter;
         private final @OptimizeStatus int mStatus;
+        private final long mDex2oatWallTimeMillis;
+        private final long mDex2oatCpuTimeMillis;
 
         /** @hide */
         public DexFileOptimizeResult(@NonNull String dexFile, @NonNull String instructionSet,
-                @NonNull String compilerFilter, @OptimizeStatus int status) {
+                @NonNull String compilerFilter, @OptimizeStatus int status,
+                long dex2oatWallTimeMillis, long dex2oatCpuTimeMillis) {
             mDexFile = dexFile;
             mInstructionSet = instructionSet;
             mActualCompilerFilter = compilerFilter;
             mStatus = status;
+            mDex2oatWallTimeMillis = dex2oatWallTimeMillis;
+            mDex2oatCpuTimeMillis = dex2oatCpuTimeMillis;
         }
 
         /** The absolute path to the dex file. */
@@ -172,6 +177,22 @@ public class OptimizeResult {
         /** The status of optimizing this dex file. */
         public @OptimizeStatus int getStatus() {
             return mStatus;
+        }
+
+        /**
+         * The wall time of the dex2oat invocation, in milliseconds, if dex2oat succeeded or was
+         * cancelled. Returns 0 if dex2oat failed or was not run, or if failed to get the value.
+         */
+        public long getDex2oatWallTimeMillis() {
+            return mDex2oatWallTimeMillis;
+        }
+
+        /**
+         * The CPU time of the dex2oat invocation, in milliseconds, if dex2oat succeeded or was
+         * cancelled. Returns 0 if dex2oat failed or was not run, or if failed to get the value.
+         */
+        public long getDex2oatCpuTimeMillis() {
+            return mDex2oatCpuTimeMillis;
         }
     }
 }

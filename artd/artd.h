@@ -100,7 +100,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::optional<aidl::com::android::server::art::VdexPath>& in_inputVdex,
       aidl::com::android::server::art::PriorityClass in_priorityClass,
       const aidl::com::android::server::art::DexoptOptions& in_dexoptOptions,
-      bool* _aidl_return) override;
+      aidl::com::android::server::art::DexoptResult* _aidl_return) override;
 
   android::base::Result<void> Start();
 
@@ -117,7 +117,8 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   bool DenyArtApexDataFiles();
 
   android::base::Result<int> ExecAndReturnCode(const std::vector<std::string>& arg_vector,
-                                               int timeout_sec) const;
+                                               int timeout_sec,
+                                               ProcessStat* stat = nullptr) const;
 
   android::base::Result<std::string> GetProfman();
 

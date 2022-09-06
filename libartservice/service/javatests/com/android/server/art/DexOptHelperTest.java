@@ -77,9 +77,11 @@ public class DexOptHelperTest {
             new OptimizeParams.Builder("install").setCompilerFilter("speed-profile").build();
     private final List<DexFileOptimizeResult> mPrimaryResults =
             List.of(new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64", "verify",
-                            OptimizeResult.OPTIMIZE_PERFORMED),
+                            OptimizeResult.OPTIMIZE_PERFORMED, 100 /* dex2oatWallTimeMillis */,
+                            400 /* dex2oatCpuTimeMillis */),
                     new DexFileOptimizeResult("/data/app/foo/base.apk", "arm", "verify",
-                            OptimizeResult.OPTIMIZE_FAILED));
+                            OptimizeResult.OPTIMIZE_FAILED, 100 /* dex2oatWallTimeMillis */,
+                            400 /* dex2oatCpuTimeMillis */));
 
     private DexOptHelper mDexOptHelper;
 

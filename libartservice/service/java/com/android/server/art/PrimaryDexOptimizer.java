@@ -143,6 +143,8 @@ public class PrimaryDexOptimizer {
 
                 for (String isa : Utils.getAllIsas(pkgState)) {
                     @OptimizeResult.OptimizeStatus int status = OptimizeResult.OPTIMIZE_SKIPPED;
+                    long wallTimeMs = 0;
+                    long cpuTimeMs = 0;
                     try {
                         DexoptTarget target = DexoptTarget.builder()
                                                       .setDexInfo(dexInfo)
@@ -168,8 +170,13 @@ public class PrimaryDexOptimizer {
                                 ? ProfilePath.tmpRefProfilePath(profile.profilePath)
                                 : null;
 
-                        status = dexoptFile(target, inputProfile, getDexoptNeededResult,
-                                permissionSettings, params.getPriorityClass(), dexoptOptions);
+                        DexoptResult dexoptResult = dexoptFile(target, inputProfile,
+                                getDexoptNeededResult, permissionSettings,
+                                params.getPriorityClass(), dexoptOptions);
+                        status = dexoptResult.cancelled ? OptimizeResult.OPTIMIZE_CANCELLED
+                                                        : OptimizeResult.OPTIMIZE_PERFORMED;
+                        wallTimeMs = dexoptResult.wallTimeMs;
+                        cpuTimeMs = dexoptResult.cpuTimeMs;
                     } catch (ServiceSpecificException e) {
                         // Log the error and continue.
                         Log.e(TAG,
@@ -180,8 +187,8 @@ public class PrimaryDexOptimizer {
                                 e);
                         status = OptimizeResult.OPTIMIZE_FAILED;
                     } finally {
-                        results.add(new DexFileOptimizeResult(
-                                dexInfo.dexPath(), isa, compilerFilter, status));
+                        results.add(new DexFileOptimizeResult(dexInfo.dexPath(), isa,
+                                compilerFilter, status, wallTimeMs, cpuTimeMs));
                         if (status != OptimizeResult.OPTIMIZE_SKIPPED
                                 && status != OptimizeResult.OPTIMIZE_PERFORMED) {
                             succeeded = false;
@@ -431,8 +438,8 @@ public class PrimaryDexOptimizer {
         return dexoptTrigger;
     }
 
-    private @OptimizeResult.OptimizeStatus int dexoptFile(@NonNull DexoptTarget target,
-            @Nullable ProfilePath profile, @NonNull GetDexoptNeededResult getDexoptNeededResult,
+    private DexoptResult dexoptFile(@NonNull DexoptTarget target, @Nullable ProfilePath profile,
+            @NonNull GetDexoptNeededResult getDexoptNeededResult,
             @NonNull PermissionSettings permissionSettings, @PriorityClass int priorityClass,
             @NonNull DexoptOptions dexoptOptions) throws RemoteException {
         OutputArtifacts outputArtifacts = AidlUtils.buildOutputArtifacts(target.dexInfo().dexPath(),
@@ -441,13 +448,9 @@ public class PrimaryDexOptimizer {
         VdexPath inputVdex =
                 getInputVdex(getDexoptNeededResult, target.dexInfo().dexPath(), target.isa());
 
-        if (!mInjector.getArtd().dexopt(outputArtifacts, target.dexInfo().dexPath(), target.isa(),
-                    target.dexInfo().classLoaderContext(), target.compilerFilter(), profile,
-                    inputVdex, priorityClass, dexoptOptions)) {
-            return OptimizeResult.OPTIMIZE_CANCELLED;
-        }
-
-        return OptimizeResult.OPTIMIZE_PERFORMED;
+        return mInjector.getArtd().dexopt(outputArtifacts, target.dexInfo().dexPath(), target.isa(),
+                target.dexInfo().classLoaderContext(), target.compilerFilter(), profile, inputVdex,
+                priorityClass, dexoptOptions);
     }
 
     @Nullable

@@ -79,6 +79,8 @@ package com.android.server.art.model {
 
   public static class OptimizeResult.DexFileOptimizeResult {
     method @NonNull public String getActualCompilerFilter();
+    method public long getDex2oatCpuTimeMillis();
+    method public long getDex2oatWallTimeMillis();
     method @NonNull public String getDexFile();
     method @NonNull public String getInstructionSet();
     method public int getStatus();
