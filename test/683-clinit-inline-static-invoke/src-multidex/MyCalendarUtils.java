@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import java.lang.reflect.Modifier;
+import sun.util.calendar.CalendarUtils;
 
-public abstract class MyModifier extends Modifier {
-  // Reference to MyModifier.classModifiers() shall resolve to
-  // Modifier.classModifiers() which should be easily inlined.
+public abstract class MyCalendarUtils extends CalendarUtils {
+  // Reference to MyCalendarUtils.isJulianLeapYear() shall resolve to
+  // CalendarUtils.isJulianLeapYear() which should be easily inlined.
 }
