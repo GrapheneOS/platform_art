@@ -251,6 +251,9 @@ template void Split(const char *const& s, char separator, std::vector<std::strin
 template void Split(const std::string_view& s,
                     char separator,
                     std::vector<std::string_view>* out_result);
+template void Split(const std::string_view& s,
+                    char separator,
+                    std::vector<std::string>* out_result);
 
 template <typename Str>
 void Split(const Str& s, char separator, size_t len, Str* out_result) {
