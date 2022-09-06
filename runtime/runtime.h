@@ -302,10 +302,27 @@ class Runtime {
     return boot_class_path_locations_.empty() ? boot_class_path_ : boot_class_path_locations_;
   }
 
-  // Dynamically add an element to boot class path.
+  // Dynamically adds an element to boot class path.
   void AppendToBootClassPath(const std::string& filename,
                              const std::string& location,
                              const std::vector<std::unique_ptr<const art::DexFile>>& dex_files);
+
+  // Same as above, but takes raw pointers.
+  void AppendToBootClassPath(const std::string& filename,
+                             const std::string& location,
+                             const std::vector<const art::DexFile*>& dex_files);
+
+  // Same as above, but also takes a dex cache for each dex file.
+  void AppendToBootClassPath(
+      const std::string& filename,
+      const std::string& location,
+      const std::vector<std::pair<const art::DexFile*, ObjPtr<mirror::DexCache>>>&
+          dex_files_and_cache);
+
+  // Dynamically adds an element to boot class path and takes ownership of the dex files.
+  void AddExtraBootDexFiles(const std::string& filename,
+                            const std::string& location,
+                            std::vector<std::unique_ptr<const art::DexFile>>&& dex_files);
 
   const std::vector<int>& GetBootClassPathFds() const {
     return boot_class_path_fds_;
@@ -1151,6 +1168,8 @@ class Runtime {
 
   // Caches the apex versions produced by `GetApexVersions`.
   void InitializeApexVersions();
+
+  void AppendToBootClassPath(const std::string& filename, const std::string& location);
 
   // A pointer to the active runtime or null.
   static Runtime* instance_;
