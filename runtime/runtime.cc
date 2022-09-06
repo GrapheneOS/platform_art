@@ -1601,6 +1601,11 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // Cache the apex versions.
   InitializeApexVersions();
 
+  BackgroundGcOption background_gc =
+      gUseReadBarrier ? BackgroundGcOption(gc::kCollectorTypeCCBackground)
+                      : (gUseUserfaultfd ? BackgroundGcOption(xgc_option.collector_type_)
+                                         : runtime_options.GetOrDefault(Opt::BackgroundGc));
+
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
                        runtime_options.GetOrDefault(Opt::HeapGrowthLimit),
                        runtime_options.GetOrDefault(Opt::HeapMinFree),
@@ -1620,8 +1625,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                        instruction_set_,
                        // Override the collector type to CC if the read barrier config.
                        gUseReadBarrier ? gc::kCollectorTypeCC : xgc_option.collector_type_,
-                       gUseReadBarrier ? BackgroundGcOption(gc::kCollectorTypeCCBackground)
-                                       : BackgroundGcOption(xgc_option.collector_type_),
+                       background_gc,
                        runtime_options.GetOrDefault(Opt::LargeObjectSpace),
                        runtime_options.GetOrDefault(Opt::LargeObjectThreshold),
                        runtime_options.GetOrDefault(Opt::ParallelGCThreads),

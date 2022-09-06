@@ -34,10 +34,8 @@
 #define xIP1 x17
 #define wIP1 w17
 
-#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+#ifdef RESERVE_MARKING_REGISTER
 // Marking Register, holding Thread::Current()->GetIsGcMarking().
-// Only used with the Concurrent Copying (CC) garbage
-// collector, with the Baker read barrier configuration.
 #define wMR w20
 #endif
 
@@ -180,7 +178,7 @@
 // entrypoints that possibly (directly or indirectly) perform a
 // suspend check (before they return).
 .macro REFRESH_MARKING_REGISTER
-#if defined(USE_READ_BARRIER) && defined(USE_BAKER_READ_BARRIER)
+#ifdef RESERVE_MARKING_REGISTER
     ldr wMR, [xSELF, #THREAD_IS_GC_MARKING_OFFSET]
 #endif
 .endm
