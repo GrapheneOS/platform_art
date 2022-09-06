@@ -40,6 +40,15 @@ android_test_helper_app {
     jni_libs: ["libnativeloader_testlib"],
 }
 
+java_library {
+    name: "loadlibrarytest_test_utils",
+    static_libs: [
+        "androidx.test.ext.junit",
+        "androidx.test.ext.truth",
+    ],
+    srcs: ["src/android/test/lib/TestUtils.java"],
+}
+
 java_defaults {
     name: "loadlibrarytest_app_defaults",
     defaults: ["art_module_source_build_java_defaults"],
@@ -51,8 +60,8 @@ java_defaults {
 
     static_libs: [
         "androidx.test.ext.junit",
-        "androidx.test.ext.truth",
         "androidx.test.rules",
+        "loadlibrarytest_test_utils",
     ],
 }
 

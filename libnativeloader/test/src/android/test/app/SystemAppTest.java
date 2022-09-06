@@ -16,9 +16,6 @@
 
 package android.test.app;
 
-import static com.google.common.truth.Truth.assertThat;
-import static org.junit.Assert.assertThrows;
-
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 import org.junit.Test;
