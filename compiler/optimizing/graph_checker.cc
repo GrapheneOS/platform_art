@@ -159,6 +159,24 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
     }
   }
 
+  // Make sure the first instruction of a catch block is always a Nop that emits an environment.
+  if (block->IsCatchBlock()) {
+    if (!block->GetFirstInstruction()->IsNop()) {
+      AddError(StringPrintf("Block %d doesn't have a Nop as its first instruction.",
+                            current_block_->GetBlockId()));
+    } else {
+      HNop* nop = block->GetFirstInstruction()->AsNop();
+      if (!nop->NeedsEnvironment()) {
+        AddError(
+            StringPrintf("%s:%d is a Nop and the first instruction of block %d, but it doesn't "
+                         "need an environment.",
+                         nop->DebugName(),
+                         nop->GetId(),
+                         current_block_->GetBlockId()));
+      }
+    }
+  }
+
   // Visit this block's list of phis.
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
@@ -342,14 +360,15 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
 }
 
 void GraphChecker::VisitLoadException(HLoadException* load) {
-  // Ensure that LoadException is the first instruction in a catch block.
+  // Ensure that LoadException is the second instruction in a catch block. The first one should be a
+  // Nop (checked separately).
   if (!load->GetBlock()->IsCatchBlock()) {
     AddError(StringPrintf("%s:%d is in a non-catch block %d.",
                           load->DebugName(),
                           load->GetId(),
                           load->GetBlock()->GetBlockId()));
-  } else if (load->GetBlock()->GetFirstInstruction() != load) {
-    AddError(StringPrintf("%s:%d is not the first instruction in catch block %d.",
+  } else if (load->GetBlock()->GetFirstInstruction()->GetNext() != load) {
+    AddError(StringPrintf("%s:%d is not the second instruction in catch block %d.",
                           load->DebugName(),
                           load->GetId(),
                           load->GetBlock()->GetBlockId()));
@@ -513,17 +532,10 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
                           instruction->GetId(),
                           current_block_->GetBlockId()));
   } else if (instruction->CanThrowIntoCatchBlock()) {
-    // Find the top-level environment. This corresponds to the environment of
-    // the catch block since we do not inline methods with try/catch.
-    HEnvironment* environment = instruction->GetEnvironment();
-    while (environment->GetParent() != nullptr) {
-      environment = environment->GetParent();
-    }
-
-    // Find all catch blocks and test that `instruction` has an environment
-    // value for each one.
+    // Find all catch blocks and test that `instruction` has an environment value for each one.
     const HTryBoundary& entry = instruction->GetBlock()->GetTryCatchInformation()->GetTryEntry();
     for (HBasicBlock* catch_block : entry.GetExceptionHandlers()) {
+      const HEnvironment* environment = catch_block->GetFirstInstruction()->GetEnvironment();
       for (HInstructionIterator phi_it(catch_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
         HPhi* catch_phi = phi_it.Current()->AsPhi();
         if (environment->GetInstructionAt(catch_phi->GetRegNumber()) == nullptr) {
