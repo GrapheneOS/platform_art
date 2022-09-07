@@ -86,7 +86,7 @@ void Verification::LogHeapCorruption(ObjPtr<mirror::Object> holder,
   std::ostringstream oss;
   oss << "GC tried to mark invalid reference " << ref << std::endl;
   oss << DumpObjectInfo(ref, "ref") << "\n";
-  oss << DumpObjectInfo(holder.Ptr(), "holder");
+  oss << DumpObjectInfo(holder.Ptr(), "holder") << "\n";
   if (holder != nullptr) {
     mirror::Class* holder_klass = holder->GetClass<kVerifyNone, kWithoutReadBarrier>();
     if (IsValidClass(holder_klass)) {
