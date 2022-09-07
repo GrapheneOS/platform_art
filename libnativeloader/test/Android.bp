@@ -52,12 +52,6 @@ java_library {
 java_defaults {
     name: "loadlibrarytest_app_defaults",
     defaults: ["art_module_source_build_java_defaults"],
-
-    // TODO(mast): Use old target SDK to avoid filtering on uses_library lists.
-    // Figure out what we need to do to make <uses-native-library> work in the
-    // test apps so we can use that instead.
-    sdk_version: "30",
-
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.rules",
