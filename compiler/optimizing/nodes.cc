@@ -150,17 +150,22 @@ static void RemoveAsUser(HInstruction* instruction) {
   RemoveEnvironmentUses(instruction);
 }
 
-void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const {
+void HGraph::RemoveDeadBlocksInstructionsAsUsersAndDisconnect(const ArenaBitVector& visited) const {
   for (size_t i = 0; i < blocks_.size(); ++i) {
     if (!visited.IsBitSet(i)) {
       HBasicBlock* block = blocks_[i];
       if (block == nullptr) continue;
+
+      // Remove as user.
       for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
         RemoveAsUser(it.Current());
       }
       for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
         RemoveAsUser(it.Current());
       }
+
+      // Remove non-catch phi uses, and disconnect the block.
+      block->DisconnectFromSuccessors(&visited);
     }
   }
 }
@@ -175,7 +180,8 @@ static void RemoveCatchPhiUsesOfDeadInstruction(HInstruction* insn) {
     const HUseListNode<HInstruction*>& use = insn->GetUses().front();
     size_t use_index = use.GetIndex();
     HBasicBlock* user_block = use.GetUser()->GetBlock();
-    DCHECK(use.GetUser()->IsPhi() && user_block->IsCatchBlock());
+    DCHECK(use.GetUser()->IsPhi());
+    DCHECK(user_block->IsCatchBlock());
     for (HInstructionIterator phi_it(user_block->GetPhis()); !phi_it.Done(); phi_it.Advance()) {
       phi_it.Current()->AsPhi()->RemoveInputAt(use_index);
     }
@@ -189,8 +195,7 @@ void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) {
       HBasicBlock* block = blocks_[i];
       if (block == nullptr) continue;
 
-      // Disconnect from its sucessors, and remove all remaining uses.
-      block->DisconnectFromSuccessors(&visited);
+      // Remove all remaining uses (which should be only catch phi uses), and the instructions.
       block->RemoveCatchPhiUsesAndInstruction(/* building_dominator_tree = */ true);
 
       // Remove the block from the list of blocks, so that further analyses
@@ -219,7 +224,8 @@ GraphAnalysisResult HGraph::BuildDominatorTree() {
   // (2) Remove instructions and phis from blocks not visited during
   //     the initial DFS as users from other instructions, so that
   //     users can be safely removed before uses later.
-  RemoveInstructionsAsUsersFromDeadBlocks(visited);
+  //     Also disconnect the block from its successors, updating the successor's phis if needed.
+  RemoveDeadBlocksInstructionsAsUsersAndDisconnect(visited);
 
   // (3) Remove blocks not visited during the initial DFS.
   //     Step (5) requires dead blocks to be removed from the

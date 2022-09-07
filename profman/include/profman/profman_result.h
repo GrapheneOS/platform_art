@@ -25,17 +25,33 @@ class ProfmanResult {
 
   // The return codes of processing profiles (running profman in normal mode).
   //
+  // On a successful run:
+  // - If `--force-merge` is specified, the return code can only be `kSuccess`.
+  // - If no `--profile-file(-fd)` is specified, the return code can only be
+  // `kSkipCompilationSmallDelta` or `kSkipCompilationEmptyProfiles`.
+  // - Otherwise, the return code can only be `kCompile`, `kSkipCompilationSmallDelta`, or
+  //   `kSkipCompilationEmptyProfiles`.
+  //
   // Note that installd consumes the returns codes with its own copy of these values
   // (frameworks/native/cmds/installd/dexopt.cpp).
   enum ProcessingResult {
-    kSuccess = 0,  // Generic success code for non-analysis runs.
+    // The success code for `--force-merge`.
+    // This is also the generic success code for non-analysis runs.
+    kSuccess = 0,
+    // A merge has been performed, meaning the reference profile has been changed.
     kCompile = 1,
+    // `--profile-file(-fd)` is not specified, or the specified profiles are outdated (i.e., APK
+    // filename or checksum mismatch), empty, or don't contain enough number of new classes and
+    // methods that meets the threshold to trigger a merge.
     kSkipCompilationSmallDelta = 2,
+    // All the input profiles (including the reference profile) are either outdated (i.e., APK
+    // filename or checksum mismatch) or empty.
+    kSkipCompilationEmptyProfiles = 7,
+    // Errors.
     kErrorBadProfiles = 3,
     kErrorIO = 4,
     kErrorCannotLock = 5,
     kErrorDifferentVersions = 6,
-    kSkipCompilationEmptyProfiles = 7,
   };
 
   // The return codes of running profman with `--copy-and-update-profile-key`.

@@ -31,6 +31,7 @@ import tempfile
 import zipfile
 from shutil import rmtree
 from os import remove
+from re import match
 
 USE_RBE_FOR_JAVAC = 100    # Percentage of tests that can use RBE (between 0 and 100)
 USE_RBE_FOR_D8 = 100       # Percentage of tests that can use RBE (between 0 and 100)
@@ -129,6 +130,7 @@ def build_run_test(
     if p.returncode != 0:
       raise Exception("Command failed with exit code {}\n$ {}\n{}".format(
                       p.returncode, " ".join(cmd), p.stdout))
+    return p
 
 
   # Helper functions to execute tools.
@@ -141,6 +143,10 @@ def build_run_test(
   hiddenapi = functools.partial(run, os.environ["HIDDENAPI"])
 
   if "RBE_server_address" in os.environ:
+    version = match(r"Version: (\d*)\.(\d*)\.(\d*)", run(RBE_rewrapper, ["--version"]).stdout)
+    assert version, "Could not parse RBE version"
+    assert tuple(map(int, version.groups())) >= (0, 76, 0), "Please update " + RBE_rewrapper
+
     def rbe_wrap(args, inputs=set()):
       with tempfile.NamedTemporaryFile(mode="w+t", dir=RBE_exec_root) as input_list:
         for arg in args:
@@ -166,9 +172,7 @@ def build_run_test(
         output = path.relpath(path.join(CWD, args[args.index("--output") + 1]), RBE_exec_root)
         return rbe_wrap([
           "--output_files" if output.endswith(".jar") else "--output_directories", output,
-          "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java"
-          # TODO(dsrbecky): Work around bug b/227376947 ; Remove this when it is fixed.
-          + ",../../../../../../../../prebuilts/jdk/jdk11/linux-x86/bin/java",
+          "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
           os.path.relpath(os.environ["D8"], CWD)] + args, inputs)
 
   # If wrapper script exists, use it instead of the default javac.
