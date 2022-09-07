@@ -836,6 +836,15 @@ void OatFileManager::DeleteThreadPool() {
   verification_thread_pool_.reset(nullptr);
 }
 
+void OatFileManager::WaitForBackgroundVerificationTasksToFinish() {
+  if (verification_thread_pool_ == nullptr) {
+    return;
+  }
+
+  Thread* const self = Thread::Current();
+  verification_thread_pool_->Wait(self, /* do_work= */ true, /* may_hold_locks= */ false);
+}
+
 void OatFileManager::WaitForBackgroundVerificationTasks() {
   if (verification_thread_pool_ != nullptr) {
     Thread* const self = Thread::Current();
