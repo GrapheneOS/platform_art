@@ -855,25 +855,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     }
   }
 
-  // `instruction` is being removed. Try to see if the null check on it
-  // can be removed. This can happen if the same value is set in two branches
-  // but not in dominators. Such as:
-  //   int[] a = foo();
-  //   if () {
-  //     a[0] = 2;
-  //   } else {
-  //     a[0] = 2;
-  //   }
-  //   // a[0] can now be replaced with constant 2, and the null check on it can be removed.
-  void TryRemovingNullCheck(HInstruction* instruction) {
-    HInstruction* prev = instruction->GetPrevious();
-    if ((prev != nullptr) && prev->IsNullCheck() && (prev == instruction->InputAt(0))) {
-      // Previous instruction is a null check for this instruction. Remove the null check.
-      prev->ReplaceWith(prev->InputAt(0));
-      prev->GetBlock()->RemoveInstruction(prev);
-    }
-  }
-
   HInstruction* GetDefaultValue(DataType::Type type) {
     switch (type) {
       case DataType::Type::kReference:
@@ -1884,7 +1865,6 @@ void LSEVisitor::VisitGetLocation(HInstruction* instruction, size_t idx) {
     }
     HInstruction* heap_value = FindSubstitute(record.value.GetInstruction());
     AddRemovedLoad(instruction, heap_value);
-    TryRemovingNullCheck(instruction);
   }
 }
 
@@ -2645,7 +2625,6 @@ void LSEVisitor::ProcessLoopPhiWithUnknownInput(PhiPlaceholder loop_phi_with_unk
             record.value = local_heap_values[idx];
             HInstruction* heap_value = local_heap_values[idx].GetInstruction();
             AddRemovedLoad(load_or_store, heap_value);
-            TryRemovingNullCheck(load_or_store);
           }
         }
       }
@@ -2704,7 +2683,6 @@ void LSEVisitor::ProcessLoadsRequiringLoopPhis() {
       record.value = Replacement(record.value);
       HInstruction* heap_value = record.value.GetInstruction();
       AddRemovedLoad(load, heap_value);
-      TryRemovingNullCheck(load);
     }
   }
 }
