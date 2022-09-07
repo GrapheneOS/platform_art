@@ -29,6 +29,7 @@
 #include "909-attach-agent/attach.h"
 #include "936-search-onload/search_onload.h"
 #include "1919-vminit-thread-start-timing/vminit.h"
+#include "993-breakpoints-non-debuggable/onload.h"
 
 namespace art {
 
@@ -82,6 +83,7 @@ static AgentLib agents[] = {
   { "939-hello-transformation-bcp", common_redefine::OnLoad, nullptr },
   { "941-recursive-obsolete-jit", common_redefine::OnLoad, nullptr },
   { "943-private-recursive-jit", common_redefine::OnLoad, nullptr },
+  { "993-non-debuggable", nullptr, Test993BreakpointsNonDebuggable::OnLoad },
   { "1919-vminit-thread-start-timing", Test1919VMInitThreadStart::OnLoad, nullptr },
   { "2031-zygote-compiled-frame-deopt", nullptr, MinimalOnLoad },
   { "2039-load-transform-larger", common_retransform::OnLoad, nullptr },
