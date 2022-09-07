@@ -398,8 +398,7 @@ jvmtiError ExtensionUtil::GetExtensionFunctions(jvmtiEnv* env,
 
   // These require index-ids and debuggable to function
   art::Runtime* runtime = art::Runtime::Current();
-  if (runtime->GetJniIdType() == art::JniIdType::kIndices &&
-      (runtime->GetInstrumentation()->IsForcedInterpretOnly() || runtime->IsJavaDebuggable())) {
+  if (runtime->GetJniIdType() == art::JniIdType::kIndices && IsFullJvmtiAvailable()) {
     // IsStructurallyModifiableClass
     error = add_extension(
         reinterpret_cast<jvmtiExtensionFunction>(Redefiner::IsStructurallyModifiableClass),
@@ -703,8 +702,7 @@ jvmtiError ExtensionUtil::GetExtensionEvents(jvmtiEnv* env,
     return error;
   }
   art::Runtime* runtime = art::Runtime::Current();
-  if (runtime->GetJniIdType() == art::JniIdType::kIndices &&
-      (runtime->GetInstrumentation()->IsForcedInterpretOnly() || runtime->IsJavaDebuggable())) {
+  if (runtime->GetJniIdType() == art::JniIdType::kIndices && IsFullJvmtiAvailable()) {
     error = add_extension(
         ArtJvmtiEvent::kStructuralDexFileLoadHook,
         "com.android.art.class.structural_dex_file_load_hook",
