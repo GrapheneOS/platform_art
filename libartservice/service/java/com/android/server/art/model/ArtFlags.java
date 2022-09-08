@@ -19,7 +19,9 @@ package com.android.server.art.model;
 import android.annotation.IntDef;
 import android.annotation.SystemApi;
 
+import com.android.server.art.ArtManagerLocal;
 import com.android.server.art.PriorityClass;
+import com.android.server.pm.PackageManagerLocal;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -51,7 +53,9 @@ public class ArtFlags {
     public static final int FLAG_FORCE = 1 << 4;
 
     /**
-     * Flags for {@link ArtManagerLocal#deleteOptimizedArtifacts(PackageDataSnapshot, String, int)}.
+     * Flags for
+     * {@link ArtManagerLocal#deleteOptimizedArtifacts(PackageManagerLocal.FilteredSnapshot, String,
+     * int)}.
      *
      * @hide
      */
@@ -66,7 +70,9 @@ public class ArtFlags {
 
     /**
      * Default flags that are used when
-     * {@link ArtManagerLocal#deleteOptimizedArtifacts(PackageDataSnapshot, String)} is called.
+     * {@link ArtManagerLocal#deleteOptimizedArtifacts(PackageManagerLocal.FilteredSnapshot,
+     * String)}
+     * is called.
      * Value: {@link #FLAG_FOR_PRIMARY_DEX}.
      */
     public static @DeleteFlags int defaultDeleteFlags() {
@@ -74,7 +80,9 @@ public class ArtFlags {
     }
 
     /**
-     * Flags for {@link ArtManagerLocal#getOptimizationStatus(PackageDataSnapshot, String, int)}.
+     * Flags for
+     * {@link ArtManagerLocal#getOptimizationStatus(PackageManagerLocal.FilteredSnapshot, String,
+     * int)}.
      *
      * @hide
      */
@@ -89,7 +97,8 @@ public class ArtFlags {
 
     /**
      * Default flags that are used when
-     * {@link ArtManagerLocal#getOptimizationStatus(PackageDataSnapshot, String)} is called.
+     * {@link ArtManagerLocal#getOptimizationStatus(PackageManagerLocal.FilteredSnapshot, String)}
+     * is called.
      * Value: {@link #FLAG_FOR_PRIMARY_DEX}.
      */
     public static @GetStatusFlags int defaultGetStatusFlags() {

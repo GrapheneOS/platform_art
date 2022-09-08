@@ -28,14 +28,9 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.testing.StaticMockitoRule;
 
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
-
-import java.util.List;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)

@@ -39,6 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.os.ServiceSpecificException;
+import android.os.UserHandle;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
@@ -243,8 +244,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
     @Test
     public void testDexoptMergesProfiles() throws Exception {
-        when(mPkgState.getUserStateOrDefault(0 /* userId */)).thenReturn(mPkgUserStateInstalled);
-        when(mPkgState.getUserStateOrDefault(2 /* userId */)).thenReturn(mPkgUserStateInstalled);
+        when(mPkgState.getStateForUser(eq(UserHandle.of(0)))).thenReturn(mPkgUserStateInstalled);
+        when(mPkgState.getStateForUser(eq(UserHandle.of(2)))).thenReturn(mPkgUserStateInstalled);
 
         when(mArtd.mergeProfiles(any(), any(), any(), any())).thenReturn(true);
 
@@ -283,8 +284,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
     @Test
     public void testDexoptMergesProfilesMergeFailed() throws Exception {
-        when(mPkgState.getUserStateOrDefault(0 /* userId */)).thenReturn(mPkgUserStateInstalled);
-        when(mPkgState.getUserStateOrDefault(2 /* userId */)).thenReturn(mPkgUserStateInstalled);
+        when(mPkgState.getStateForUser(eq(UserHandle.of(0)))).thenReturn(mPkgUserStateInstalled);
+        when(mPkgState.getStateForUser(eq(UserHandle.of(2)))).thenReturn(mPkgUserStateInstalled);
 
         when(mArtd.mergeProfiles(any(), any(), any(), any())).thenReturn(false);
 

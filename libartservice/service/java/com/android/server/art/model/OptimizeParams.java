@@ -19,10 +19,8 @@ package com.android.server.art.model;
 import static com.android.server.art.model.ArtFlags.OptimizeFlags;
 import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 
-import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
-import android.text.TextUtils;
 
 import com.android.server.art.ReasonMapping;
 import com.android.server.art.Utils;
