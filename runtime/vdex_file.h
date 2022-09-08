@@ -246,8 +246,8 @@ class VdexFile {
   const uint8_t* Begin() const { return mmap_.Begin(); }
   const uint8_t* End() const { return mmap_.End(); }
   size_t Size() const { return mmap_.Size(); }
-  bool Contains(const uint8_t* pointer) const {
-    return pointer >= Begin() && pointer < End();
+  bool Contains(const uint8_t* pointer, size_t size) const {
+    return Begin() <= pointer && size <= Size() && pointer <= End() - size;
   }
 
   const VdexFileHeader& GetVdexFileHeader() const {
