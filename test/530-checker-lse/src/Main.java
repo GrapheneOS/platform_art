@@ -217,12 +217,9 @@ public class Main {
   /// CHECK-DAG: Return
 
   /// CHECK-START: int Main.test4(TestClass, boolean) load_store_elimination (after)
-  /// CHECK:     NullCheck
-  /// CHECK:     NullCheck
-  /// CHECK-NOT: NullCheck
+  /// CHECK-NOT: InstanceFieldGet
 
   /// CHECK-START: int Main.test4(TestClass, boolean) load_store_elimination (after)
-  /// CHECK-NOT: InstanceFieldGet
   /// CHECK-NOT: Phi
 
   // Set and merge the same value in two branches.

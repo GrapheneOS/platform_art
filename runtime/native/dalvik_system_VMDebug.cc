@@ -466,7 +466,7 @@ static void VMDebug_allowHiddenApiReflectionFrom(JNIEnv* env, jclass, jclass j_c
   Runtime* runtime = Runtime::Current();
   ScopedObjectAccess soa(env);
 
-  if (!runtime->IsJavaDebuggable()) {
+  if (!runtime->IsJavaDebuggableAtInit()) {
     ThrowSecurityException("Can't exempt class, process is not debuggable.");
     return;
   }
