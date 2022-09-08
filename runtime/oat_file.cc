@@ -445,7 +445,7 @@ static bool ReadIndexBssMapping(OatFile* oat_file,
           UNLIKELY(oat_file->Size() - index_bss_mapping_offset <
                    IndexBssMapping::ComputeSize(index_bss_mapping->size())))) {
     *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with unaligned or "
-                                  " truncated %s bss mapping, offset %u of %zu, length %zu",
+                                  "truncated %s bss mapping, offset %u of %zu, length %zu",
                               oat_file->GetLocation().c_str(),
                               dex_file_index,
                               dex_file_location.c_str(),
@@ -470,11 +470,13 @@ static bool ComputeAndCheckTypeLookupTableData(const DexFile::Header& header,
     return true;
   }
 
-  if (UNLIKELY(!vdex_file->Contains(type_lookup_table_start))) {
+  if (UNLIKELY(!vdex_file->Contains(type_lookup_table_start, sizeof(uint32_t)))) {
     *error_msg =
-        StringPrintf("In vdex file '%s' found invalid type lookup table pointer %p not in [%p, %p]",
+        StringPrintf("In vdex file '%s' found invalid type lookup table start %p of size %zu "
+                         "not in [%p, %p]",
                      vdex_file->GetName().c_str(),
                      type_lookup_table_start,
+                     sizeof(uint32_t),
                      vdex_file->Begin(),
                      vdex_file->End());
     return false;
@@ -497,20 +499,13 @@ static bool ComputeAndCheckTypeLookupTableData(const DexFile::Header& header,
   }
 
   *type_lookup_table_data = type_lookup_table_start + sizeof(uint32_t);
-  if (UNLIKELY(!vdex_file->Contains(*type_lookup_table_data))) {
+  if (UNLIKELY(!vdex_file->Contains(*type_lookup_table_data, found_size))) {
     *error_msg =
-        StringPrintf("In vdex file '%s' found invalid type lookup table pointer %p not in [%p, %p]",
+        StringPrintf("In vdex file '%s' found invalid type lookup table data %p of size %zu "
+                         "not in [%p, %p]",
                      vdex_file->GetName().c_str(),
                      type_lookup_table_data,
-                     vdex_file->Begin(),
-                     vdex_file->End());
-    return false;
-  }
-  if (UNLIKELY(!vdex_file->Contains(*type_lookup_table_data + expected_table_size - 1))) {
-    *error_msg =
-        StringPrintf("In vdex file '%s' found overflowing type lookup table %p not in [%p, %p]",
-                     vdex_file->GetName().c_str(),
-                     type_lookup_table_data + expected_table_size,
+                     found_size,
                      vdex_file->Begin(),
                      vdex_file->End());
     return false;
@@ -1734,21 +1729,25 @@ class OatFileBackedByVdex final : public OatFileBase {
       for (const uint8_t* dex_file_start = vdex_file->GetNextDexFileData(nullptr, i);
            dex_file_start != nullptr;
            dex_file_start = vdex_file->GetNextDexFileData(dex_file_start, ++i)) {
-        const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_start);
-        if (UNLIKELY(!vdex_file->Contains(dex_file_start))) {
+        if (UNLIKELY(!vdex_file->Contains(dex_file_start, sizeof(DexFile::Header)))) {
           *error_msg =
-              StringPrintf("In vdex file '%s' found invalid dex file pointer %p not in [%p, %p]",
+              StringPrintf("In vdex file '%s' found invalid dex header %p of size %zu "
+                               "not in [%p, %p]",
                            dex_location.c_str(),
                            dex_file_start,
+                           sizeof(DexFile::Header),
                            vdex_file->Begin(),
                            vdex_file->End());
           return nullptr;
         }
-        if (UNLIKELY(!vdex_file->Contains(dex_file_start + header->file_size_ - 1))) {
+        const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_start);
+        if (UNLIKELY(!vdex_file->Contains(dex_file_start, header->file_size_))) {
           *error_msg =
-              StringPrintf("In vdex file '%s' found overflowing dex file %p not in [%p, %p]",
+              StringPrintf("In vdex file '%s' found invalid dex file pointer %p of size %d "
+                               "not in [%p, %p]",
                            dex_location.c_str(),
-                           dex_file_start + header->file_size_,
+                           dex_file_start,
+                           header->file_size_,
                            vdex_file->Begin(),
                            vdex_file->End());
           return nullptr;
