@@ -25,7 +25,7 @@ if [ ! -d art ]; then
   exit 1
 fi
 
-TARGET_ARCH=$(source build/envsetup.sh > /dev/null; get_build_var TARGET_ARCH)
+TARGET_ARCH=$(build/soong/soong_ui.bash --dumpvar-mode TARGET_ARCH)
 
 # Logic for setting out_dir from build/make/core/envsetup.mk:
 if [[ -z $OUT_DIR ]]; then
