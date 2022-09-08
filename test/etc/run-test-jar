@@ -217,6 +217,9 @@ COMPILER_FLAGS="  --runtime-arg -XX:SlowDebug=true"
 COMPILE_FLAGS+=" --compile-art-test"
 ANDROID_FLAGS+=" -Xcompiler-option --compile-art-test"
 
+RUNTIME_OPTIONS=""
+COMPACT_DEX_LEVEL=""
+
 args = list(sys.argv)
 arg = ""
 def shift():
@@ -301,7 +304,7 @@ while arg:
     elif arg == "--runtime-option":
         shift()
         option=arg
-        FLAGS+=f" {option}"
+        RUNTIME_OPTIONS+=f" {option}"
         if option == "-Xmethod-trace":
             # Method tracing can slow some tests down a lot.
             TIME_OUT_EXTRA+=1200
@@ -321,7 +324,7 @@ while arg:
         shift()
     elif arg == "--compact-dex-level":
         shift()
-        COMPILE_FLAGS+=f" --compact-dex-level={arg}"
+        COMPACT_DEX_LEVEL+=f" --compact-dex-level={arg}"
         shift()
     elif arg == "--jvmti-redefine-stress":
         # APP_IMAGE doesn't really work with jvmti redefine stress
@@ -591,6 +594,9 @@ while arg:
         sys.exit(1)
     else:
         break
+
+FLAGS+=RUNTIME_OPTIONS
+COMPILE_FLAGS+=COMPACT_DEX_LEVEL
 
 # HACK: Force the use of `signal_dumper` on host.
 if HOST:
