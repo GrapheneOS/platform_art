@@ -753,13 +753,16 @@ void Runtime::PreZygoteFork() {
     GetJit()->PreZygoteFork();
   }
   if (!heap_->HasZygoteSpace()) {
+    Thread* self = Thread::Current();
     // This is the first fork. Update ArtMethods in the boot classpath now to
     // avoid having forked apps dirty the memory.
-    ScopedObjectAccess soa(Thread::Current());
+
     // Ensure we call FixupStaticTrampolines on all methods that are
     // initialized.
-    class_linker_->MakeInitializedClassesVisiblyInitialized(soa.Self(), /*wait=*/ true);
-    UpdateMethodsPreFirstForkVisitor visitor(soa.Self(), class_linker_);
+    class_linker_->MakeInitializedClassesVisiblyInitialized(self, /*wait=*/ true);
+
+    ScopedObjectAccess soa(self);
+    UpdateMethodsPreFirstForkVisitor visitor(self, class_linker_);
     class_linker_->VisitClasses(&visitor);
   }
   heap_->PreZygoteFork();
