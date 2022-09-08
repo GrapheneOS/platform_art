@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-package com.android.server.art;
+package art;
 
-/**
- * Keep in sync with {@link ArtFlags.PriorityClassApi}.
- *
- * @hide
- */
-@Backing(type="int")
-enum PriorityClass {
-    BOOT = 100,
-    INTERACTIVE_FAST = 80,
-    INTERACTIVE = 60,
-    BACKGROUND = 40,
+public class Test993AttachAgent {
+    public static native void setupJvmti();
+
+    public static void loadAgent() throws Exception {
+      setupJvmti();
+    }
 }

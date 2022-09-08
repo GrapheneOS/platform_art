@@ -17,14 +17,18 @@
 package com.android.server.art;
 
 /**
- * Keep in sync with {@link ArtFlags.PriorityClassApi}.
+ * Represents output profile file.
  *
  * @hide
  */
-@Backing(type="int")
-enum PriorityClass {
-    BOOT = 100,
-    INTERACTIVE_FAST = 80,
-    INTERACTIVE = 60,
-    BACKGROUND = 40,
+parcelable OutputProfile {
+    /**
+     * The path to the output.
+     *
+     * Only outputing to a temporary file is supported to avoid race condition.
+     */
+    com.android.server.art.ProfilePath.TmpRefProfilePath profilePath;
+
+    /** The permission of the file. */
+    com.android.server.art.FsPermission fsPermission;
 }

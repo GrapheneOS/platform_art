@@ -70,9 +70,7 @@ public class AndroidPackageApi {
     @NonNull
     public int[] getSplitFlags() {
         try {
-            Class<?> parsingPackageImplClass =
-                    Class.forName("com.android.server.pm.pkg.parsing.ParsingPackageImpl");
-            return (int[]) parsingPackageImplClass.getMethod("getSplitFlags").invoke(mPkg);
+            return (int[]) mPkg.getClass().getMethod("getSplitFlags").invoke(mPkg);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }

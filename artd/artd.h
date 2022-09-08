@@ -55,6 +55,33 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::string& in_classLoaderContext,
       aidl::com::android::server::art::GetOptimizationStatusResult* _aidl_return) override;
 
+  ndk::ScopedAStatus isProfileUsable(const aidl::com::android::server::art::ProfilePath& in_profile,
+                                     const std::string& in_dexFile,
+                                     bool* _aidl_return) override;
+
+  ndk::ScopedAStatus copyProfile(const aidl::com::android::server::art::ProfilePath& in_src,
+                                 ::aidl::com::android::server::art::OutputProfile* in_dst) override;
+
+  ndk::ScopedAStatus copyAndRewriteProfile(
+      const aidl::com::android::server::art::ProfilePath& in_src,
+      aidl::com::android::server::art::OutputProfile* in_dst,
+      const std::string& in_dexFile,
+      bool* _aidl_return) override;
+
+  ndk::ScopedAStatus commitTmpProfile(
+      const aidl::com::android::server::art::ProfilePath::TmpRefProfilePath& in_profile) override;
+
+  ndk::ScopedAStatus deleteProfile(
+      const aidl::com::android::server::art::ProfilePath& in_profile) override;
+
+  ndk::ScopedAStatus getProfileVisibility(
+      const aidl::com::android::server::art::ProfilePath& in_profile,
+      aidl::com::android::server::art::FileVisibility* _aidl_return) override;
+
+  ndk::ScopedAStatus getArtifactsVisibility(
+      const aidl::com::android::server::art::ArtifactsPath& in_artifactsPath,
+      aidl::com::android::server::art::FileVisibility* _aidl_return) override;
+
   ndk::ScopedAStatus getDexoptNeeded(
       const std::string& in_dexFile,
       const std::string& in_instructionSet,
@@ -91,6 +118,8 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   android::base::Result<int> ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                                int timeout_sec) const;
+
+  android::base::Result<std::string> GetProfman();
 
   android::base::Result<std::string> GetArtExec();
 

@@ -36,7 +36,7 @@ import android.os.PowerManager;
 
 import androidx.test.filters.SmallTest;
 
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.testing.OnSuccessRule;
 import com.android.server.art.wrapper.AndroidPackageApi;
@@ -62,6 +62,7 @@ public class DexOptHelperTest {
     @Mock private PrimaryDexOptimizer mPrimaryDexOptimizer;
     @Mock private AppHibernationManager mAhm;
     @Mock private PowerManager mPowerManager;
+    @Mock private PowerManager.WakeLock mWakeLock;
     private PackageState mPkgState;
     private AndroidPackageApi mPkg;
 
@@ -71,8 +72,8 @@ public class DexOptHelperTest {
         verifyNoMoreInteractions(mPrimaryDexOptimizer);
     });
 
-    private final OptimizeOptions mOptions =
-            new OptimizeOptions.Builder("install").setCompilerFilter("speed-profile").build();
+    private final OptimizeParams mParams =
+            new OptimizeParams.Builder("install").setCompilerFilter("speed-profile").build();
     private final List<DexFileOptimizeResult> mPrimaryResults =
             List.of(new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64", "verify",
                             OptimizeResult.OPTIMIZE_PERFORMED),
@@ -84,8 +85,15 @@ public class DexOptHelperTest {
     @Before
     public void setUp() throws Exception {
         lenient().when(mInjector.getPrimaryDexOptimizer()).thenReturn(mPrimaryDexOptimizer);
-        lenient().when(mInjector.getAppHibernationManager()).thenReturn(null);
-        lenient().when(mInjector.getPowerManager()).thenReturn(null);
+        lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
+        lenient().when(mInjector.getPowerManager()).thenReturn(mPowerManager);
+
+        lenient()
+                .when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))
+                .thenReturn(mWakeLock);
+
+        lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(false);
+        lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
 
         mPkgState = createPackageState();
         mPkg = mPkgState.getAndroidPackage();
@@ -95,17 +103,22 @@ public class DexOptHelperTest {
 
     @Test
     public void testDexopt() throws Exception {
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getPackageName()).isEqualTo(PKG_NAME);
         assertThat(result.getRequestedCompilerFilter()).isEqualTo("speed-profile");
         assertThat(result.getReason()).isEqualTo("install");
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_FAILED);
         assertThat(result.getDexFileOptimizeResults()).containsExactlyElementsIn(mPrimaryResults);
+
+        InOrder inOrder = inOrder(mPrimaryDexOptimizer, mWakeLock);
+        inOrder.verify(mWakeLock).acquire(anyLong());
+        inOrder.verify(mPrimaryDexOptimizer).dexopt(any(), any(), any());
+        inOrder.verify(mWakeLock).release();
     }
 
     @Test
@@ -113,35 +126,18 @@ public class DexOptHelperTest {
         when(mPkg.isHasCode()).thenReturn(false);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
         assertThat(result.getDexFileOptimizeResults()).isEmpty();
     }
 
     @Test
-    public void testDexoptWithAppHibernationManager() throws Exception {
-        when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
-        lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(false);
-        lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
-
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
-                .thenReturn(mPrimaryResults);
-
-        OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
-
-        assertThat(result.getDexFileOptimizeResults()).containsExactlyElementsIn(mPrimaryResults);
-    }
-
-    @Test
     public void testDexoptIsHibernating() throws Exception {
-        when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(true);
-        lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
         assertThat(result.getDexFileOptimizeResults()).isEmpty();
@@ -149,55 +145,30 @@ public class DexOptHelperTest {
 
     @Test
     public void testDexoptIsHibernatingButOatArtifactDeletionDisabled() throws Exception {
-        when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(true);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(false);
 
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
 
         assertThat(result.getDexFileOptimizeResults()).containsExactlyElementsIn(mPrimaryResults);
     }
 
     @Test
-    public void testDexoptWithPowerManager() throws Exception {
-        var wakeLock = mock(PowerManager.WakeLock.class);
-        when(mInjector.getPowerManager()).thenReturn(mPowerManager);
-        when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))
-                .thenReturn(wakeLock);
-
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
-                .thenReturn(mPrimaryResults);
-
-        OptimizeResult result =
-                mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
-
-        InOrder inOrder = inOrder(mPrimaryDexOptimizer, wakeLock);
-        inOrder.verify(wakeLock).acquire(anyLong());
-        inOrder.verify(mPrimaryDexOptimizer).dexopt(any(), any(), any());
-        inOrder.verify(wakeLock).release();
-    }
-
-    @Test
     public void testDexoptAlwaysReleasesWakeLock() throws Exception {
-        var wakeLock = mock(PowerManager.WakeLock.class);
-        when(mInjector.getPowerManager()).thenReturn(mPowerManager);
-        when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))
-                .thenReturn(wakeLock);
-
-        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mOptions)))
+        when(mPrimaryDexOptimizer.dexopt(same(mPkgState), same(mPkg), same(mParams)))
                 .thenThrow(IllegalStateException.class);
 
         try {
-            OptimizeResult result = mDexOptHelper.dexopt(
-                    mock(PackageDataSnapshot.class), mPkgState, mPkg, mOptions);
+            OptimizeResult result =
+                    mDexOptHelper.dexopt(mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams);
         } catch (Exception e) {
         }
 
-        verify(wakeLock).release();
+        verify(mWakeLock).release();
     }
 
     private AndroidPackageApi createPackage() {

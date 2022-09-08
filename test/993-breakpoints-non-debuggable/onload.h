@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-package com.android.server.art;
+#ifndef ART_TEST_993_BREAKPOINTS_NON_DEBUGGABLE_ONLOAD_H_
+#define ART_TEST_993_BREAKPOINTS_NON_DEBUGGABLE_ONLOAD_H_
 
-/**
- * Keep in sync with {@link ArtFlags.PriorityClassApi}.
- *
- * @hide
- */
-@Backing(type="int")
-enum PriorityClass {
-    BOOT = 100,
-    INTERACTIVE_FAST = 80,
-    INTERACTIVE = 60,
-    BACKGROUND = 40,
-}
+#include "jni.h"
+
+namespace art {
+namespace Test993BreakpointsNonDebuggable {
+
+jint OnLoad(JavaVM* vm, char* options, void* reserved);
+
+}  // namespace Test993BreakpointsNonDebuggable
+}  // namespace art
+
+#endif  // ART_TEST_993_BREAKPOINTS_NON_DEBUGGABLE_ONLOAD_H_

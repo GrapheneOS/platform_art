@@ -16,9 +16,13 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.model.ArtFlags.PriorityClassApi;
+
 import android.annotation.NonNull;
 import android.os.SystemProperties;
 import android.text.TextUtils;
+
+import com.android.server.art.model.ArtFlags;
 
 import dalvik.system.DexFile;
 
@@ -98,27 +102,27 @@ public class ReasonMapping {
      * Returns the priority for the given reason.
      *
      * @throws IllegalArgumentException if the reason is invalid
-     * @see PriorityClass
+     * @see PriorityClassApi
      *
      * @hide
      */
-    public static @PriorityClass byte getPriorityClassForReason(@NonNull String reason) {
+    public static @PriorityClassApi byte getPriorityClassForReason(@NonNull String reason) {
         switch (reason) {
             case REASON_FIRST_BOOT:
             case REASON_BOOT_AFTER_OTA:
-                return PriorityClass.BOOT;
+                return ArtFlags.PRIORITY_BOOT;
             case REASON_INSTALL_FAST:
-                return PriorityClass.INTERACTIVE_FAST;
+                return ArtFlags.PRIORITY_INTERACTIVE_FAST;
             case REASON_INSTALL:
             case REASON_CMDLINE:
-                return PriorityClass.INTERACTIVE;
+                return ArtFlags.PRIORITY_INTERACTIVE;
             case REASON_BG_DEXOPT:
             case REASON_INACTIVE:
             case REASON_INSTALL_BULK:
             case REASON_INSTALL_BULK_SECONDARY:
             case REASON_INSTALL_BULK_DOWNGRADED:
             case REASON_INSTALL_BULK_SECONDARY_DOWNGRADED:
-                return PriorityClass.BACKGROUND;
+                return ArtFlags.PRIORITY_BACKGROUND;
             default:
                 throw new IllegalArgumentException("No priority class for reason '" + reason + "'");
         }

@@ -18,12 +18,16 @@ package com.android.server.art.model;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.SystemApi;
 
 import com.android.internal.annotations.Immutable;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 
 /** @hide */
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
 public class OptimizeResult {
     // Possible values of {@link #OptimizeStatus}.
@@ -35,8 +39,15 @@ public class OptimizeResult {
     public static final int OPTIMIZE_CANCELLED = 40;
 
     /** @hide */
-    @IntDef(prefix = {"OPTIMIZE_"},
-            value = {OPTIMIZE_SKIPPED, OPTIMIZE_FAILED, OPTIMIZE_PERFORMED, OPTIMIZE_CANCELLED})
+    // clang-format off
+    @IntDef(prefix = {"OPTIMIZE_"}, value = {
+        OPTIMIZE_SKIPPED,
+        OPTIMIZE_FAILED,
+        OPTIMIZE_PERFORMED,
+        OPTIMIZE_CANCELLED,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
     public @interface OptimizeStatus {}
 
     private final @NonNull String mPackageName;

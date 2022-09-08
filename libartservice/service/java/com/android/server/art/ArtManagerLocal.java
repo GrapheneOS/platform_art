@@ -37,7 +37,7 @@ import com.android.server.art.IArtd;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageManagerLocal;
@@ -105,6 +105,8 @@ public final class ArtManagerLocal {
     /**
      * Deletes optimized artifacts of a package.
      *
+     * Uses the default flags ({@link ArtFlags#defaultDeleteFlags()}).
+     *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if an internal error occurs
      */
@@ -161,6 +163,8 @@ public final class ArtManagerLocal {
 
     /**
      * Returns the optimization status of a package.
+     *
+     * Uses the default flags ({@link ArtFlags#defaultGetStatusFlags()}).
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
      * @throws IllegalStateException if an internal error occurs
@@ -224,11 +228,11 @@ public final class ArtManagerLocal {
         }
     }
 
-    /** @hide */
     @NonNull
     public OptimizeResult optimizePackage(@NonNull PackageDataSnapshot snapshot,
-            @NonNull String packageName, @NonNull OptimizeOptions options) {
-        if (!options.isForPrimaryDex() && !options.isForSecondaryDex()) {
+            @NonNull String packageName, @NonNull OptimizeParams params) {
+        if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
+                && (params.getFlags() & ArtFlags.FLAG_FOR_SECONDARY_DEX) == 0) {
             throw new IllegalArgumentException("Nothing to optimize");
         }
 
@@ -236,7 +240,7 @@ public final class ArtManagerLocal {
         AndroidPackageApi pkg = getPackageOrThrow(pkgState);
 
         try {
-            return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, options);
+            return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, params);
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }

@@ -85,9 +85,9 @@ public class PackageState {
                         + ". This should never happen.");
             }
 
-            Class<?> androidPackageHiddenClass =
-                    Class.forName("com.android.server.pm.parsing.pkg.AndroidPackageHidden");
-            return (String) androidPackageHiddenClass.getMethod("getPrimaryCpuAbi")
+            return (String) pkg.getRealInstance()
+                    .getClass()
+                    .getMethod("getPrimaryCpuAbi")
                     .invoke(pkg.getRealInstance());
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
@@ -113,9 +113,9 @@ public class PackageState {
                         + ". This should never happen.");
             }
 
-            Class<?> androidPackageHiddenClass =
-                    Class.forName("com.android.server.pm.parsing.pkg.AndroidPackageHidden");
-            return (String) androidPackageHiddenClass.getMethod("getSecondaryCpuAbi")
+            return (String) pkg.getRealInstance()
+                    .getClass()
+                    .getMethod("getSecondaryCpuAbi")
                     .invoke(pkg.getRealInstance());
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
