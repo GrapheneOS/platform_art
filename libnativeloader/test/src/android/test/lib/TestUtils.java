@@ -14,23 +14,16 @@
  * limitations under the License.
  */
 
-package android.test.app;
+package android.test.lib;
 
-import androidx.test.filters.SmallTest;
-import androidx.test.runner.AndroidJUnit4;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
-@SmallTest
-@RunWith(AndroidJUnit4.class)
-public class ProductAppTest {
-    @Test
-    public void testLoadLibraries() {
-        System.loadLibrary("foo.oem1");
-        System.loadLibrary("bar.oem1");
-        System.loadLibrary("foo.oem2");
-        System.loadLibrary("bar.oem2");
-        System.loadLibrary("foo.product1");
-        System.loadLibrary("bar.product1");
+public final class TestUtils {
+    public static void assertLinkerNamespaceError(String libraryName) {
+        Throwable t =
+                assertThrows(UnsatisfiedLinkError.class, () -> System.loadLibrary(libraryName));
+        assertThat(t.getMessage())
+                .containsMatch("dlopen failed: .* is not accessible for the namespace");
     }
 }
