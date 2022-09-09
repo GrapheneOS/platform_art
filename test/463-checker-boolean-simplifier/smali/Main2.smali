@@ -211,6 +211,9 @@
     goto :goto_4
 .end method
 
+# This test currently checks that we don't perform select generation due to
+# having multiple phis.
+
 ## CHECK-START: int Main2.MultiplePhis() select_generator (before)
 ## CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
 ## CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
@@ -228,11 +231,11 @@
 ## CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
 ## CHECK-DAG:     <<Const13:i\d+>>  IntConstant 13
 ## CHECK-DAG:     <<Const42:i\d+>>  IntConstant 42
-## CHECK-DAG:     <<PhiX:i\d+>>     Phi [<<Const0>>,<<Select:i\d+>>]
-## CHECK-DAG:     <<PhiY:i\d+>>     Phi [<<Const1>>,<<Add:i\d+>>]
+## CHECK-DAG:     <<PhiX:i\d+>>     Phi [<<Const0>>,<<Const13>>,<<Const42>>]
+## CHECK-DAG:     <<PhiY:i\d+>>     Phi [<<Const1>>,<<Add:i\d+>>,<<Add>>]
 ## CHECK-DAG:     <<Add>>           Add [<<PhiY>>,<<Const1>>]
 ## CHECK-DAG:     <<Cond:z\d+>>     LessThanOrEqual [<<Add>>,<<Const1>>]
-## CHECK-DAG:     <<Select>>        Select [<<Const13>>,<<Const42>>,<<Cond>>]
+## CHECK-DAG:                       If [<<Cond>>]
 ## CHECK-DAG:                       Return [<<PhiX>>]
 
 # The original java source of this method:
