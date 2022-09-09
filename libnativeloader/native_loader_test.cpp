@@ -378,7 +378,7 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
   is_shared = false;
 
   if (is_product_vndk_version_defined()) {
-    expected_namespace_name = "vendor-classloader-namespace";
+    expected_namespace_name = "product-classloader-namespace";
     expected_library_path = expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
     expected_permitted_path =
         expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
