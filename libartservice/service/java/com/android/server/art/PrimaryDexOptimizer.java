@@ -29,6 +29,7 @@ import android.R;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
+import android.os.CancellationSignal;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -72,7 +73,8 @@ public class PrimaryDexOptimizer {
      */
     @NonNull
     public List<DexFileOptimizeResult> dexopt(@NonNull PackageState pkgState,
-            @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params) throws RemoteException {
+            @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params,
+            @NonNull CancellationSignal cancellationSignal) throws RemoteException {
         List<DexFileOptimizeResult> results = new ArrayList<>();
 
         int uid = pkg.getUid();
@@ -172,6 +174,14 @@ public class PrimaryDexOptimizer {
 
                         IArtdCancellationSignal artdCancellationSignal =
                                 mInjector.getArtd().createCancellationSignal();
+                        cancellationSignal.setOnCancelListener(() -> {
+                            try {
+                                artdCancellationSignal.cancel();
+                            } catch (RemoteException e) {
+                                Log.e(TAG, "An error occurred when sending a cancellation signal",
+                                        e);
+                            }
+                        });
 
                         DexoptResult dexoptResult = dexoptFile(target, inputProfile,
                                 getDexoptNeededResult, permissionSettings,
@@ -180,6 +190,10 @@ public class PrimaryDexOptimizer {
                                                         : OptimizeResult.OPTIMIZE_PERFORMED;
                         wallTimeMs = dexoptResult.wallTimeMs;
                         cpuTimeMs = dexoptResult.cpuTimeMs;
+
+                        if (status == OptimizeResult.OPTIMIZE_CANCELLED) {
+                            return results;
+                        }
                     } catch (ServiceSpecificException e) {
                         // Log the error and continue.
                         Log.e(TAG,
@@ -196,6 +210,9 @@ public class PrimaryDexOptimizer {
                                 && status != OptimizeResult.OPTIMIZE_PERFORMED) {
                             succeeded = false;
                         }
+                        // Make sure artd does not leak even if the caller holds
+                        // `cancellationSignal` forever.
+                        cancellationSignal.setOnCancelListener(null);
                     }
                 }
 

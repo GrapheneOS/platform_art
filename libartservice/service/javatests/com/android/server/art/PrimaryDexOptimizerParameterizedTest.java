@@ -255,7 +255,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
                         deepEq(dexoptOptions), any());
 
-        assertThat(mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams))
+        assertThat(
+                mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal))
                 .comparingElementsUsing(TestingUtils.<DexFileOptimizeResult>deepEquality())
                 .containsExactly(
                         new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64",

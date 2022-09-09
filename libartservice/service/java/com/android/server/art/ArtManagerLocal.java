@@ -27,6 +27,7 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.content.Context;
 import android.os.Binder;
+import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -228,9 +229,28 @@ public final class ArtManagerLocal {
         }
     }
 
+    /**
+     * Optimizes a package.
+     *
+     * @throws IllegalArgumentException if the package is not found or the params are illegal
+     * @throws IllegalStateException if an internal error occurs
+     */
     @NonNull
     public OptimizeResult optimizePackage(@NonNull PackageDataSnapshot snapshot,
             @NonNull String packageName, @NonNull OptimizeParams params) {
+        var cancellationSignal = new CancellationSignal();
+        return optimizePackage(snapshot, packageName, params, cancellationSignal);
+    }
+
+    /**
+     * Same as above, but supports cancellation.
+     *
+     * @see #optimizePackage(PackageDataSnapshot, String, OptimizeParams)
+     */
+    @NonNull
+    public OptimizeResult optimizePackage(@NonNull PackageDataSnapshot snapshot,
+            @NonNull String packageName, @NonNull OptimizeParams params,
+            @NonNull CancellationSignal cancellationSignal) {
         if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
                 && (params.getFlags() & ArtFlags.FLAG_FOR_SECONDARY_DEX) == 0) {
             throw new IllegalArgumentException("Nothing to optimize");
@@ -240,7 +260,8 @@ public final class ArtManagerLocal {
         AndroidPackageApi pkg = getPackageOrThrow(pkgState);
 
         try {
-            return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, params);
+            return mInjector.getDexOptHelper().dexopt(
+                    snapshot, pkgState, pkg, params, cancellationSignal);
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }
