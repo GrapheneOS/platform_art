@@ -41,6 +41,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "path_utils.h"
+#include "profman/profman_result.h"
 #include "tools/system_properties.h"
 
 namespace art {
@@ -50,9 +51,12 @@ namespace {
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
+using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
 using ::aidl::com::android::server::art::OutputArtifacts;
+using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
+using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::make_scope_guard;
 using ::android::base::ParseInt;
@@ -70,11 +74,15 @@ using ::testing::ContainsRegex;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 using ::testing::MockFunction;
 using ::testing::Not;
 using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::WithArg;
+
+using RefProfilePath = ProfilePath::RefProfilePath;
+using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
 
 using ::fmt::literals::operator""_format;  // NOLINT
 
@@ -190,6 +198,11 @@ class ArtdTest : public CommonArtTest {
     std::filesystem::create_directories(art_root_);
     setenv("ANDROID_ART_ROOT", art_root_.c_str(), /*overwrite=*/1);
 
+    // Use an arbitrary existing directory as Android data.
+    android_data_ = scratch_path_ + "/data";
+    std::filesystem::create_directories(android_data_);
+    setenv("ANDROID_DATA", android_data_.c_str(), /*overwrite=*/1);
+
     dex_file_ = scratch_path_ + "/a/b.apk";
     isa_ = "arm64";
     artifacts_path_ = ArtifactsPath{
@@ -222,6 +235,10 @@ class ArtdTest : public CommonArtTest {
     clc_2_ = GetTestDexFileName("Nested");
     class_loader_context_ = "PCL[{}:{}]"_format(clc_1_, clc_2_);
     compiler_filter_ = "speed";
+    profile_path_ =
+        TmpRefProfilePath{.refProfilePath = RefProfilePath{.packageName = "com.android.foo",
+                                                           .profileName = "primary"},
+                          .id = "12345"};
   }
 
   void TearDown() override {
@@ -237,7 +254,7 @@ class ArtdTest : public CommonArtTest {
                                               isa_,
                                               class_loader_context_,
                                               compiler_filter_,
-                                              /*in_profile=*/std::nullopt,
+                                              profile_path_,
                                               vdex_path_,
                                               priority_class_,
                                               dexopt_options_,
@@ -248,12 +265,20 @@ class ArtdTest : public CommonArtTest {
     }
   }
 
+  void CreateFile(const std::string& filename, const std::string& content = "") {
+    std::filesystem::path path(filename);
+    std::filesystem::create_directories(path.parent_path());
+    WriteStringToFile(content, filename);
+  }
+
   std::shared_ptr<Artd> artd_;
   std::unique_ptr<ScratchDir> scratch_dir_;
   std::string scratch_path_;
   std::string art_root_;
+  std::string android_data_;
   MockFunction<android::base::LogFunction> mock_logger_;
   ScopedUnsetEnvironmentVariable art_root_env_ = ScopedUnsetEnvironmentVariable("ANDROID_ART_ROOT");
+  ScopedUnsetEnvironmentVariable android_data_env_ = ScopedUnsetEnvironmentVariable("ANDROID_DATA");
   MockSystemProperties* mock_props_;
   MockExecUtils* mock_exec_utils_;
 
@@ -268,14 +293,9 @@ class ArtdTest : public CommonArtTest {
   std::optional<VdexPath> vdex_path_;
   PriorityClass priority_class_ = PriorityClass::BACKGROUND;
   DexoptOptions dexopt_options_;
+  std::optional<ProfilePath> profile_path_;
 
  private:
-  void CreateFile(const std::string& filename) {
-    std::filesystem::path path(filename);
-    std::filesystem::create_directories(path.parent_path());
-    WriteStringToFile("", filename);
-  }
-
   void InitDexoptInputFiles() {
     CreateFile(dex_file_);
     if (vdex_path_.has_value()) {
@@ -284,6 +304,9 @@ class ArtdTest : public CommonArtTest {
       } else {
         CreateFile(OR_FATAL(BuildVdexPath(vdex_path_.value())));
       }
+    }
+    if (profile_path_.has_value()) {
+      CreateFile(OR_FATAL(BuildProfileOrDmPath(profile_path_.value())));
     }
   }
 };
@@ -312,7 +335,7 @@ TEST_F(ArtdTest, deleteArtifacts) {
 
 TEST_F(ArtdTest, deleteArtifactsMissingFile) {
   // Missing VDEX file.
-  std::string oat_dir = dalvik_cache_ + "/arm64";
+  std::string oat_dir = android_data_ + "/dalvik-cache/arm64";
   std::filesystem::create_directories(oat_dir);
   WriteStringToFile("abcd", oat_dir + "/a@b.apk@classes.dex");  // 4 bytes.
   WriteStringToFile("a", oat_dir + "/a@b.apk@classes.art");     // 1 byte.
@@ -396,7 +419,11 @@ TEST_F(ArtdTest, dexopt) {
                         Contains(Flag("--zip-location=", dex_file_)),
                         Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
                         Contains(Flag("--instruction-set=", "arm64")),
-                        Contains(Flag("--compiler-filter=", "speed"))))))
+                        Contains(Flag("--compiler-filter=", "speed")),
+                        Contains(Flag(
+                            "--profile-file-fd=",
+                            FdOf(android_data_ +
+                                 "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp")))))))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
                       WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
                       Return(0)));
@@ -717,6 +744,291 @@ TEST_F(ArtdTest, dexoptFailed) {
   EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
   EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
   EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.art"));
+}
+
+TEST_F(ArtdTest, isProfileUsable) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  CreateFile(profile_file);
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy(
+                  "--",
+                  AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                  AllOf(Contains(art_root_ + "/bin/profman"),
+                        Contains(Flag("--reference-profile-file-fd=", FdOf(profile_file))),
+                        Contains(Flag("--apk-fd=", FdOf(dex_file_)))))))
+      .WillOnce(Return(ProfmanResult::kSkipCompilationSmallDelta));
+
+  bool result;
+  EXPECT_TRUE(artd_->isProfileUsable(profile_path_.value(), dex_file_, &result).isOk());
+  EXPECT_TRUE(result);
+}
+
+TEST_F(ArtdTest, isProfileUsableFalse) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  CreateFile(profile_file);
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_))
+      .WillOnce(Return(ProfmanResult::kSkipCompilationEmptyProfiles));
+
+  bool result;
+  EXPECT_TRUE(artd_->isProfileUsable(profile_path_.value(), dex_file_, &result).isOk());
+  EXPECT_FALSE(result);
+}
+
+TEST_F(ArtdTest, isProfileUsableNotFound) {
+  CreateFile(dex_file_);
+
+  bool result;
+  EXPECT_TRUE(artd_->isProfileUsable(profile_path_.value(), dex_file_, &result).isOk());
+  EXPECT_FALSE(result);
+}
+
+TEST_F(ArtdTest, isProfileUsableFailed) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  CreateFile(profile_file);
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_)).WillOnce(Return(100));
+
+  bool result;
+  ndk::ScopedAStatus status = artd_->isProfileUsable(profile_path_.value(), dex_file_, &result);
+
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(status.getMessage(), HasSubstr("profman returned an unexpected code: 100"));
+}
+
+TEST_F(ArtdTest, copyProfile) {
+  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
+  CreateFile(src_file, "abc");
+  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  dst.profilePath.id = "";
+
+  EXPECT_TRUE(artd_->copyProfile(src, &dst).isOk());
+
+  EXPECT_THAT(dst.profilePath.id, Not(IsEmpty()));
+  CheckContent(OR_FATAL(BuildTmpRefProfilePath(dst.profilePath)), "abc");
+}
+
+TEST_F(ArtdTest, copyProfileFailed) {
+  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  dst.profilePath.id = "";
+
+  ndk::ScopedAStatus status = artd_->copyProfile(src, &dst);
+
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(status.getMessage(),
+              ContainsRegex(R"re(Failed to read file .*primary\.prof\.12345\.tmp)re"));
+}
+
+TEST_F(ArtdTest, copyAndRewriteProfile) {
+  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
+  CreateFile(src_file, "abc");
+  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  dst.profilePath.id = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy(
+                  "--",
+                  AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                  AllOf(Contains(art_root_ + "/bin/profman"),
+                        Contains("--copy-and-update-profile-key"),
+                        Contains(Flag("--profile-file-fd=", FdOf(src_file))),
+                        Contains(Flag("--apk-fd=", FdOf(dex_file_)))))))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--reference-profile-file-fd=", "def")),
+                      Return(ProfmanResult::kCopyAndUpdateSuccess)));
+
+  bool result;
+  EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
+  EXPECT_TRUE(result);
+  EXPECT_THAT(dst.profilePath.id, Not(IsEmpty()));
+  CheckContent(OR_FATAL(BuildTmpRefProfilePath(dst.profilePath)), "def");
+}
+
+TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
+  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
+  CreateFile(src_file, "abc");
+  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  dst.profilePath.id = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_))
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoUpdate));
+
+  bool result;
+  EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
+  EXPECT_FALSE(result);
+}
+
+TEST_F(ArtdTest, copyAndRewriteProfileNotFound) {
+  CreateFile(dex_file_);
+
+  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  dst.profilePath.id = "";
+
+  bool result;
+  EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
+  EXPECT_FALSE(result);
+}
+
+TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
+  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
+  CreateFile(src_file, "abc");
+  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  dst.profilePath.id = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_)).WillOnce(Return(100));
+
+  bool result;
+  ndk::ScopedAStatus status = artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result);
+
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(status.getMessage(), HasSubstr("profman returned an unexpected code: 100"));
+}
+
+TEST_F(ArtdTest, commitTmpProfile) {
+  const TmpRefProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  std::string tmp_profile_file = OR_FATAL(BuildTmpRefProfilePath(tmp_profile_path));
+  CreateFile(tmp_profile_file);
+
+  EXPECT_TRUE(artd_->commitTmpProfile(tmp_profile_path).isOk());
+
+  EXPECT_FALSE(std::filesystem::exists(tmp_profile_file));
+  EXPECT_TRUE(
+      std::filesystem::exists(OR_FATAL(BuildProfileOrDmPath(tmp_profile_path.refProfilePath))));
+}
+
+TEST_F(ArtdTest, commitTmpProfileFailed) {
+  const TmpRefProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  ndk::ScopedAStatus status = artd_->commitTmpProfile(tmp_profile_path);
+
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(
+      status.getMessage(),
+      ContainsRegex(R"re(Failed to move .*primary\.prof\.12345\.tmp.* to .*primary\.prof)re"));
+
+  EXPECT_FALSE(
+      std::filesystem::exists(OR_FATAL(BuildProfileOrDmPath(tmp_profile_path.refProfilePath))));
+}
+
+TEST_F(ArtdTest, deleteProfile) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  CreateFile(profile_file);
+
+  EXPECT_TRUE(artd_->deleteProfile(profile_path_.value()).isOk());
+
+  EXPECT_FALSE(std::filesystem::exists(profile_file));
+}
+
+TEST_F(ArtdTest, deleteProfileFailed) {
+  auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
+  EXPECT_CALL(
+      mock_logger_,
+      Call(_, _, _, _, _, ContainsRegex(R"re(Failed to remove .*primary\.prof\.12345\.tmp)re")));
+
+  EXPECT_TRUE(artd_->deleteProfile(profile_path_.value()).isOk());
+}
+
+TEST_F(ArtdTest, getProfileVisibilityOtherReadable) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  CreateFile(profile_file);
+  std::filesystem::permissions(
+      profile_file, std::filesystem::perms::others_read, std::filesystem::perm_options::add);
+
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getProfileVisibility(profile_path_.value(), &result).isOk());
+  EXPECT_EQ(result, FileVisibility::OTHER_READABLE);
+}
+
+TEST_F(ArtdTest, getProfileVisibilityNotOtherReadable) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  CreateFile(profile_file);
+  std::filesystem::permissions(
+      profile_file, std::filesystem::perms::others_read, std::filesystem::perm_options::remove);
+
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getProfileVisibility(profile_path_.value(), &result).isOk());
+  EXPECT_EQ(result, FileVisibility::NOT_OTHER_READABLE);
+}
+
+TEST_F(ArtdTest, getProfileVisibilityNotFound) {
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getProfileVisibility(profile_path_.value(), &result).isOk());
+  EXPECT_EQ(result, FileVisibility::NOT_FOUND);
+}
+
+TEST_F(ArtdTest, getProfileVisibilityPermissionDenied) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  CreateFile(profile_file);
+
+  auto scoped_inaccessible = ScopedInaccessible(std::filesystem::path(profile_file).parent_path());
+  auto scoped_unroot = ScopedUnroot();
+
+  FileVisibility result;
+  ndk::ScopedAStatus status = artd_->getProfileVisibility(profile_path_.value(), &result);
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(status.getMessage(),
+              ContainsRegex(R"re(Failed to get status of .*primary\.prof\.12345\.tmp)re"));
+}
+
+TEST_F(ArtdTest, getArtifactsVisibilityOtherReadable) {
+  std::string oat_file = OR_FATAL(BuildOatPath(artifacts_path_));
+  CreateFile(oat_file);
+  std::filesystem::permissions(
+      oat_file, std::filesystem::perms::others_read, std::filesystem::perm_options::add);
+
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getArtifactsVisibility(artifacts_path_, &result).isOk());
+  EXPECT_EQ(result, FileVisibility::OTHER_READABLE);
+}
+
+TEST_F(ArtdTest, getArtifactsVisibilityNotOtherReadable) {
+  std::string oat_file = OR_FATAL(BuildOatPath(artifacts_path_));
+  CreateFile(oat_file);
+  std::filesystem::permissions(
+      oat_file, std::filesystem::perms::others_read, std::filesystem::perm_options::remove);
+
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getArtifactsVisibility(artifacts_path_, &result).isOk());
+  EXPECT_EQ(result, FileVisibility::NOT_OTHER_READABLE);
+}
+
+TEST_F(ArtdTest, getArtifactsVisibilityNotFound) {
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getArtifactsVisibility(artifacts_path_, &result).isOk());
+  EXPECT_EQ(result, FileVisibility::NOT_FOUND);
+}
+
+TEST_F(ArtdTest, getArtifactsVisibilityPermissionDenied) {
+  std::string oat_file = OR_FATAL(BuildOatPath(artifacts_path_));
+  CreateFile(oat_file);
+
+  auto scoped_inaccessible = ScopedInaccessible(std::filesystem::path(oat_file).parent_path());
+  auto scoped_unroot = ScopedUnroot();
+
+  FileVisibility result;
+  ndk::ScopedAStatus status = artd_->getArtifactsVisibility(artifacts_path_, &result);
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(status.getMessage(), ContainsRegex(R"re(Failed to get status of .*b\.odex)re"));
 }
 
 }  // namespace

@@ -17,14 +17,17 @@
 package com.android.server.art;
 
 /**
- * Keep in sync with {@link ArtFlags.PriorityClassApi}.
+ * Indicates the visibility of a file. I.e., whether the file has the "read" bit for "others"
+ * (S_IROTH).
+ *
+ * Theoretically, even if the value is {@code OTHER_READABLE}, others' access can still be denied
+ * due to the lack of the "exec" bit on parent directories. However, for compilation artifacts, all
+ * parent directories do have the "exec" bit for "others" in practice.
  *
  * @hide
  */
-@Backing(type="int")
-enum PriorityClass {
-    BOOT = 100,
-    INTERACTIVE_FAST = 80,
-    INTERACTIVE = 60,
-    BACKGROUND = 40,
+enum FileVisibility {
+    NOT_FOUND = 0,
+    OTHER_READABLE = 1,
+    NOT_OTHER_READABLE = 2,
 }

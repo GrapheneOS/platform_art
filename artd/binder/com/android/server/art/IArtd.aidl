@@ -38,6 +38,68 @@ interface IArtd {
             @utf8InCpp String classLoaderContext);
 
     /**
+     * Returns true if the profile exists and contains entries for the given dex file.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    boolean isProfileUsable(in com.android.server.art.ProfilePath profile,
+            @utf8InCpp String dexFile);
+
+    /**
+     * Copies the profile. Throws if `src` does not exist. Fills `dst.profilePath.id` on success.
+     *
+     * Does not operate on a DM file.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    void copyProfile(in com.android.server.art.ProfilePath src,
+            inout com.android.server.art.OutputProfile dst);
+
+    /**
+     * Copies the profile and rewrites it for the given dex file. Returns true and fills
+     * `dst.profilePath.id` if the operation succeeds and `src` exists and contains entries that
+     * match the given dex file.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    boolean copyAndRewriteProfile(in com.android.server.art.ProfilePath src,
+            inout com.android.server.art.OutputProfile dst, @utf8InCpp String dexFile);
+
+    /**
+     * Moves the temporary profile to the permanent location.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    void commitTmpProfile(in com.android.server.art.ProfilePath.TmpRefProfilePath profile);
+
+    /**
+     * Deletes the profile.
+     *
+     * Operates on the whole DM file if given one.
+     *
+     * Throws fatal errors. Logs and ignores non-fatal errors.
+     */
+    void deleteProfile(in com.android.server.art.ProfilePath profile);
+
+    /**
+     * Returns the visibility of the profile.
+     *
+     * Operates on the whole DM file if given one.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    com.android.server.art.FileVisibility getProfileVisibility(
+            in com.android.server.art.ProfilePath profile);
+
+    /**
+     * Returns the visibility of the artifacts.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    com.android.server.art.FileVisibility getArtifactsVisibility(
+            in com.android.server.art.ArtifactsPath artifactsPath);
+
+    /**
      * Returns true if dexopt is needed. `dexoptTrigger` is a bit field that consists of values
      * defined in `com.android.server.art.DexoptTrigger`.
      *

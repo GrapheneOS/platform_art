@@ -343,6 +343,10 @@ static bool IsBlockPopulated(HBasicBlock* block) {
     // Suspend checks were inserted into loop headers during building of dominator tree.
     DCHECK(block->GetFirstInstruction()->IsSuspendCheck());
     return block->GetFirstInstruction() != block->GetLastInstruction();
+  } else if (block->IsCatchBlock()) {
+    // Nops were inserted into the beginning of catch blocks.
+    DCHECK(block->GetFirstInstruction()->IsNop());
+    return block->GetFirstInstruction() != block->GetLastInstruction();
   } else {
     return !block->GetInstructions().IsEmpty();
   }
@@ -387,6 +391,11 @@ bool HInstructionBuilder::Build() {
       // This is slightly odd because the loop header might not be empty (TryBoundary).
       // But we're still creating the environment with locals from the top of the block.
       InsertInstructionAtTop(suspend_check);
+    } else if (current_block_->IsCatchBlock()) {
+      // We add an environment emitting instruction at the beginning of each catch block, in order
+      // to support try catch inlining.
+      // This is slightly odd because the catch block might not be empty (TryBoundary).
+      InsertInstructionAtTop(new (allocator_) HNop(block_dex_pc, /* needs_environment= */ true));
     }
 
     if (block_dex_pc == kNoDexPc || current_block_ != block_builder_->GetBlockAt(block_dex_pc)) {

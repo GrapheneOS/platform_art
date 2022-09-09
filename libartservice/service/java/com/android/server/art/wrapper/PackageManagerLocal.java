@@ -66,8 +66,7 @@ public class PackageManagerLocal {
         try {
             int userId = (int) UserHandle.class.getMethod("getUserId", int.class)
                                  .invoke(null, callingUid);
-            Class<?> computerClass = Class.forName("com.android.server.pm.Computer");
-            Object packageState = computerClass
+            Object packageState = snapshot.getClass()
                                           .getMethod("getPackageStateForInstalledAndFiltered",
                                                   String.class, int.class, int.class)
                                           .invoke(snapshot, packageName, callingUid, userId);

@@ -23,6 +23,7 @@
 
 #include <climits>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <map>
@@ -57,6 +58,7 @@
 #include "oat_file_assistant.h"
 #include "oat_file_assistant_context.h"
 #include "path_utils.h"
+#include "profman/profman_result.h"
 #include "selinux/android.h"
 #include "tools/cmdline_builder.h"
 #include "tools/tools.h"
@@ -69,10 +71,12 @@ namespace {
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexoptOptions;
 using ::aidl::com::android::server::art::DexoptTrigger;
+using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
 using ::aidl::com::android::server::art::GetDexoptNeededResult;
 using ::aidl::com::android::server::art::GetOptimizationStatusResult;
 using ::aidl::com::android::server::art::OutputArtifacts;
+using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
 using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::VdexPath;
@@ -80,17 +84,23 @@ using ::android::base::Dirname;
 using ::android::base::Error;
 using ::android::base::Join;
 using ::android::base::make_scope_guard;
+using ::android::base::ReadFileToString;
 using ::android::base::Result;
 using ::android::base::Split;
 using ::android::base::StringReplace;
+using ::android::base::WriteStringToFd;
 using ::art::tools::CmdlineBuilder;
 using ::ndk::ScopedAStatus;
 
 using ::fmt::literals::operator""_format;  // NOLINT
 
 using ArtifactsLocation = GetDexoptNeededResult::ArtifactsLocation;
+using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
 
 constexpr const char* kServiceName = "artd";
+
+// Timeout for short operations, such as merging profiles.
+constexpr int kShortTimeoutSec = 60;  // 1 minute.
 
 // Timeout for long operations, such as compilation. We set it to be smaller than the Package
 // Manager watchdog (PackageManagerService.WATCHDOG_TIMEOUT, 10 minutes), so that if the operation
@@ -241,6 +251,22 @@ Result<void> PrepareArtifactsDirs(const OutputArtifacts& output_artifacts) {
   return {};
 }
 
+Result<FileVisibility> GetFileVisibility(const std::string& file) {
+  std::error_code ec;
+  std::filesystem::file_status status = std::filesystem::status(file, ec);
+  if (!std::filesystem::status_known(status)) {
+    return Errorf("Failed to get status of '{}': {}", file, ec.message());
+  }
+  if (!std::filesystem::exists(status)) {
+    return FileVisibility::NOT_FOUND;
+  }
+
+  return (status.permissions() & std::filesystem::perms::others_read) !=
+                 std::filesystem::perms::none ?
+             FileVisibility::OTHER_READABLE :
+             FileVisibility::NOT_OTHER_READABLE;
+}
+
 class FdLogger {
  public:
   void Add(const NewFile& file) { fd_mapping_.emplace_back(file.Fd(), file.TempPath()); }
@@ -328,6 +354,173 @@ ScopedAStatus Artd::getOptimizationStatus(const std::string& in_dexFile,
   return ScopedAStatus::ok();
 }
 
+ndk::ScopedAStatus Artd::isProfileUsable(const ProfilePath& in_profile,
+                                         const std::string& in_dexFile,
+                                         bool* _aidl_return) {
+  std::string profile_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_profile));
+  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+
+  CmdlineBuilder args;
+  FdLogger fd_logger;
+  args.Add(OR_RETURN_FATAL(GetArtExec()))
+      .Add("--drop-capabilities")
+      .Add("--")
+      .Add(OR_RETURN_FATAL(GetProfman()));
+
+  Result<std::unique_ptr<File>> profile = OpenFileForReading(profile_path);
+  if (!profile.ok()) {
+    if (profile.error().code() == ENOENT) {
+      *_aidl_return = false;
+      return ScopedAStatus::ok();
+    }
+    return NonFatal(
+        "Failed to open profile '{}': {}"_format(profile_path, profile.error().message()));
+  }
+  args.Add("--reference-profile-file-fd=%d", profile.value()->Fd());
+  fd_logger.Add(*profile.value());
+
+  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(in_dexFile));
+  args.Add("--apk-fd=%d", dex_file->Fd());
+  fd_logger.Add(*dex_file);
+
+  LOG(DEBUG) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
+             << "\nOpened FDs: " << fd_logger;
+
+  Result<int> result = ExecAndReturnCode(args.Get(), kShortTimeoutSec);
+  if (!result.ok()) {
+    return NonFatal("Failed to run profman: " + result.error().message());
+  }
+
+  if (result.value() != ProfmanResult::kSkipCompilationSmallDelta &&
+      result.value() != ProfmanResult::kSkipCompilationEmptyProfiles) {
+    return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
+  }
+
+  *_aidl_return = result.value() == ProfmanResult::kSkipCompilationSmallDelta;
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::copyProfile(const ProfilePath& in_src, OutputProfile* in_dst) {
+  std::string src_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_src));
+  if (in_src.getTag() == ProfilePath::dexMetadataPath) {
+    return Fatal("Does not support DM file, got '{}'"_format(src_path));
+  }
+  std::string dst_path = OR_RETURN_FATAL(BuildRefProfilePath(in_dst->profilePath.refProfilePath));
+
+  std::string content;
+  if (!ReadFileToString(src_path, &content)) {
+    return NonFatal("Failed to read file '{}': {}"_format(src_path, strerror(errno)));
+  }
+
+  std::unique_ptr<NewFile> dst =
+      OR_RETURN_NON_FATAL(NewFile::Create(dst_path, in_dst->fsPermission));
+  if (!WriteStringToFd(content, dst->Fd())) {
+    return NonFatal("Failed to write file '{}': {}"_format(dst_path, strerror(errno)));
+  }
+
+  OR_RETURN_NON_FATAL(dst->Keep());
+  in_dst->profilePath.id = dst->TempId();
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
+                                               OutputProfile* in_dst,
+                                               const std::string& in_dexFile,
+                                               bool* _aidl_return) {
+  std::string src_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_src));
+  std::string dst_path = OR_RETURN_FATAL(BuildRefProfilePath(in_dst->profilePath.refProfilePath));
+  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+
+  CmdlineBuilder args;
+  FdLogger fd_logger;
+  args.Add(OR_RETURN_FATAL(GetArtExec()))
+      .Add("--drop-capabilities")
+      .Add("--")
+      .Add(OR_RETURN_FATAL(GetProfman()))
+      .Add("--copy-and-update-profile-key");
+
+  Result<std::unique_ptr<File>> src = OpenFileForReading(src_path);
+  if (!src.ok()) {
+    if (src.error().code() == ENOENT) {
+      *_aidl_return = false;
+      return ScopedAStatus::ok();
+    }
+    return NonFatal("Failed to open src profile '{}': {}"_format(src_path, src.error().message()));
+  }
+  args.Add("--profile-file-fd=%d", src.value()->Fd());
+  fd_logger.Add(*src.value());
+
+  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(in_dexFile));
+  args.Add("--apk-fd=%d", dex_file->Fd());
+  fd_logger.Add(*dex_file);
+
+  std::unique_ptr<NewFile> dst =
+      OR_RETURN_NON_FATAL(NewFile::Create(dst_path, in_dst->fsPermission));
+  args.Add("--reference-profile-file-fd=%d", dst->Fd());
+  fd_logger.Add(*dst);
+
+  LOG(DEBUG) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
+             << "\nOpened FDs: " << fd_logger;
+
+  Result<int> result = ExecAndReturnCode(args.Get(), kShortTimeoutSec);
+  if (!result.ok()) {
+    return NonFatal("Failed to run profman: " + result.error().message());
+  }
+
+  if (result.value() == ProfmanResult::kCopyAndUpdateNoUpdate) {
+    *_aidl_return = false;
+    return ScopedAStatus::ok();
+  }
+
+  if (result.value() != ProfmanResult::kCopyAndUpdateSuccess) {
+    return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
+  }
+
+  OR_RETURN_NON_FATAL(dst->Keep());
+  *_aidl_return = true;
+  in_dst->profilePath.id = dst->TempId();
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::commitTmpProfile(const TmpRefProfilePath& in_profile) {
+  std::string tmp_profile_path = OR_RETURN_FATAL(BuildTmpRefProfilePath(in_profile));
+  std::string ref_profile_path = OR_RETURN_FATAL(BuildRefProfilePath(in_profile.refProfilePath));
+
+  std::error_code ec;
+  std::filesystem::rename(tmp_profile_path, ref_profile_path, ec);
+  if (ec) {
+    return NonFatal(
+        "Failed to move '{}' to '{}': {}"_format(tmp_profile_path, ref_profile_path, ec.message()));
+  }
+
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::deleteProfile(const ProfilePath& in_profile) {
+  std::string profile_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_profile));
+
+  std::error_code ec;
+  if (!std::filesystem::remove(profile_path, ec)) {
+    LOG(ERROR) << "Failed to remove '{}': {}"_format(profile_path, ec.message());
+  }
+
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::getProfileVisibility(const ProfilePath& in_profile,
+                                              FileVisibility* _aidl_return) {
+  std::string profile_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_profile));
+  *_aidl_return = OR_RETURN_NON_FATAL(GetFileVisibility(profile_path));
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::getArtifactsVisibility(const ArtifactsPath& in_artifactsPath,
+                                                FileVisibility* _aidl_return) {
+  std::string oat_path = OR_RETURN_FATAL(BuildOatPath(in_artifactsPath));
+  *_aidl_return = OR_RETURN_NON_FATAL(GetFileVisibility(oat_path));
+  return ScopedAStatus::ok();
+}
+
 ndk::ScopedAStatus Artd::getDexoptNeeded(const std::string& in_dexFile,
                                          const std::string& in_instructionSet,
                                          const std::string& in_classLoaderContext,
@@ -378,10 +571,10 @@ ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
   std::string vdex_path = OatPathToVdexPath(oat_path);
   std::string art_path = OatPathToArtPath(oat_path);
   OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
-  if (in_profile.has_value()) {
-    return Fatal("Profile-guided compilation not implemented");
-  }
-  std::optional<std::string> profile_path = std::nullopt;
+  std::optional<std::string> profile_path =
+      in_profile.has_value() ?
+          std::make_optional(OR_RETURN_FATAL(BuildProfileOrDmPath(in_profile.value()))) :
+          std::nullopt;
 
   std::unique_ptr<ClassLoaderContext> context =
       ClassLoaderContext::Create(in_classLoaderContext.c_str());
@@ -582,6 +775,8 @@ bool Artd::DenyArtApexDataFiles() {
 
   return cached_deny_art_apex_data_files_.value();
 }
+
+Result<std::string> Artd::GetProfman() { return BuildArtBinPath("profman"); }
 
 Result<std::string> Artd::GetArtExec() { return BuildArtBinPath("art_exec"); }
 

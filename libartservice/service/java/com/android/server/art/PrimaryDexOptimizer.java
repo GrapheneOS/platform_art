@@ -34,7 +34,8 @@ import android.os.UserHandle;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.ArtFlags;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageState;
@@ -61,17 +62,16 @@ public class PrimaryDexOptimizer {
 
     /**
      * DO NOT use this method directly. Use {@link
-     * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeOptions)}.
+     * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeParams)}.
      */
     @NonNull
     public List<DexFileOptimizeResult> dexopt(@NonNull PackageState pkgState,
-            @NonNull AndroidPackageApi pkg, @NonNull OptimizeOptions options)
-            throws RemoteException {
+            @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params) throws RemoteException {
         List<DexFileOptimizeResult> results = new ArrayList<>();
 
-        String targetCompilerFilter = adjustCompilerFilter(
-                pkgState, pkg, options.getCompilerFilter(), options.getReason());
-        if (targetCompilerFilter.equals(OptimizeOptions.COMPILER_FILTER_NOOP)) {
+        String targetCompilerFilter =
+                adjustCompilerFilter(pkgState, pkg, params.getCompilerFilter(), params.getReason());
+        if (targetCompilerFilter.equals(OptimizeParams.COMPILER_FILTER_NOOP)) {
             return results;
         }
 
@@ -94,13 +94,15 @@ public class PrimaryDexOptimizer {
                 PermissionSettings permissionSettings =
                         getPermissionSettings(pkgState, pkg, true /* canBePublic */);
 
-                DexoptOptions dexoptOptions = getDexoptOptions(pkgState, pkg, options);
+                DexoptOptions dexoptOptions = getDexoptOptions(pkgState, pkg, params);
 
                 for (String isa : Utils.getAllIsas(pkgState)) {
                     @OptimizeResult.OptimizeStatus int status = OptimizeResult.OPTIMIZE_SKIPPED;
                     try {
-                        GetDexoptNeededResult getDexoptNeededResult = getDexoptNeeded(dexInfo, isa,
-                                compilerFilter, options.getShouldDowngrade(), options.getForce());
+                        GetDexoptNeededResult getDexoptNeededResult =
+                                getDexoptNeeded(dexInfo, isa, compilerFilter,
+                                        (params.getFlags() & ArtFlags.FLAG_SHOULD_DOWNGRADE) != 0,
+                                        (params.getFlags() & ArtFlags.FLAG_FORCE) != 0);
 
                         if (!getDexoptNeededResult.isDexoptNeeded) {
                             continue;
@@ -110,7 +112,7 @@ public class PrimaryDexOptimizer {
 
                         status = dexoptFile(dexInfo, isa, isInDalvikCache, compilerFilter,
                                 inputProfile, getDexoptNeededResult, permissionSettings,
-                                options.getPriorityClass(), dexoptOptions);
+                                params.getPriorityClass(), dexoptOptions);
                     } catch (ServiceSpecificException e) {
                         // Log the error and continue.
                         Log.e(TAG,
@@ -198,9 +200,9 @@ public class PrimaryDexOptimizer {
 
     @NonNull
     private DexoptOptions getDexoptOptions(@NonNull PackageState pkgState,
-            @NonNull AndroidPackageApi pkg, @NonNull OptimizeOptions options) {
+            @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params) {
         DexoptOptions dexoptOptions = new DexoptOptions();
-        dexoptOptions.compilationReason = options.getReason();
+        dexoptOptions.compilationReason = params.getReason();
         dexoptOptions.targetSdkVersion = pkg.getTargetSdkVersion();
         dexoptOptions.debuggable = pkg.isDebuggable() || isAlwaysDebuggable();
         dexoptOptions.generateAppImage = false;
@@ -260,7 +262,7 @@ public class PrimaryDexOptimizer {
     private @OptimizeResult.OptimizeStatus int dexoptFile(@NonNull DetailedPrimaryDexInfo dexInfo,
             @NonNull String isa, boolean isInDalvikCache, @NonNull String compilerFilter,
             @Nullable ProfilePath profile, @NonNull GetDexoptNeededResult getDexoptNeededResult,
-            @NonNull PermissionSettings permissionSettings, @PriorityClass byte priorityClass,
+            @NonNull PermissionSettings permissionSettings, @PriorityClass int priorityClass,
             @NonNull DexoptOptions dexoptOptions) throws RemoteException {
         OutputArtifacts outputArtifacts = AidlUtils.buildOutputArtifacts(
                 dexInfo.dexPath(), isa, isInDalvikCache, permissionSettings);

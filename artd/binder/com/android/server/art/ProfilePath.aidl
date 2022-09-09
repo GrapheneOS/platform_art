@@ -21,5 +21,32 @@ package com.android.server.art;
  *
  * @hide
  */
-parcelable ProfilePath {
+union ProfilePath {
+    RefProfilePath refProfilePath;
+    TmpRefProfilePath tmpRefProfilePath;
+    PrebuiltProfilePath prebuiltProfilePath;
+    /** Represents a profile in the dex metadata file. */
+    com.android.server.art.DexMetadataPath dexMetadataPath;
+
+    /** Represents a reference profile. */
+    parcelable RefProfilePath {
+        /** The name of the package. */
+        @utf8InCpp String packageName;
+        /** The stem of the profile file */
+        @utf8InCpp String profileName;
+    }
+
+    /** Represents a temporary reference profile. */
+    parcelable TmpRefProfilePath {
+        /** The reference profile that this temporary file is for. */
+        RefProfilePath refProfilePath;
+        /** A unique identifier to distinguish this temporary file from others. Filled by artd. */
+        @utf8InCpp String id;
+    }
+
+    /** Represents a profile built in the system image. */
+    parcelable PrebuiltProfilePath {
+        /** The path to the dex file that the prebuilt profile is next to. */
+        @utf8InCpp String dexPath;
+    }
 }

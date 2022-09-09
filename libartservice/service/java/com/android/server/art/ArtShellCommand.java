@@ -16,6 +16,7 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.model.ArtFlags.OptimizeFlags;
 import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
 
 import android.os.Binder;
@@ -25,7 +26,7 @@ import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
-import com.android.server.art.model.OptimizeOptions;
+import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.pm.snapshot.PackageDataSnapshot;
@@ -75,15 +76,15 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return 0;
             }
             case "optimize-package": {
-                var optionsBuilder = new OptimizeOptions.Builder("cmdline");
+                var paramsBuilder = new OptimizeParams.Builder("cmdline");
                 String opt;
                 while ((opt = getNextOption()) != null) {
                     switch (opt) {
                         case "-m":
-                            optionsBuilder.setCompilerFilter(getNextArgRequired());
+                            paramsBuilder.setCompilerFilter(getNextArgRequired());
                             break;
                         case "-f":
-                            optionsBuilder.setForce(true);
+                            paramsBuilder.setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE);
                             break;
                         default:
                             pw.println("Error: Unknown option: " + opt);
@@ -91,7 +92,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     }
                 }
                 OptimizeResult result = mArtManagerLocal.optimizePackage(
-                        snapshot, getNextArgRequired(), optionsBuilder.build());
+                        snapshot, getNextArgRequired(), paramsBuilder.build());
                 switch (result.getFinalStatus()) {
                     case OptimizeResult.OPTIMIZE_SKIPPED:
                         pw.println("SKIPPED");
