@@ -250,11 +250,13 @@ int ExecUtils::ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                  int timeout_sec,
                                  bool* timed_out,
                                  std::string* error_msg) const {
-  return ExecAndReturnCode(arg_vector, timeout_sec, timed_out, /*stat=*/nullptr, error_msg);
+  return ExecAndReturnCode(
+      arg_vector, timeout_sec, ExecCallbacks(), timed_out, /*stat=*/nullptr, error_msg);
 }
 
 int ExecUtils::ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                  int timeout_sec,
+                                 const ExecCallbacks& callbacks,
                                  /*out*/ bool* timed_out,
                                  /*out*/ ProcessStat* stat,
                                  /*out*/ std::string* error_msg) const {
@@ -270,6 +272,8 @@ int ExecUtils::ExecAndReturnCode(const std::vector<std::string>& arg_vector,
   if (pid == -1) {
     return -1;
   }
+
+  callbacks.on_start(pid);
 
   // Wait for subprocess to finish.
   int status;
@@ -294,6 +298,8 @@ int ExecUtils::ExecAndReturnCode(const std::vector<std::string>& arg_vector,
       LOG(ERROR) << "Failed to get process stat: " << local_error_msg;
     }
   }
+
+  callbacks.on_end(pid);
 
   std::string local_error_msg;
   // TODO(jiakaiz): Use better logic to detect waitid failure.
