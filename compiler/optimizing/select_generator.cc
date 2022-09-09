@@ -69,22 +69,20 @@ static bool BlocksMergeTogether(HBasicBlock* block1, HBasicBlock* block2) {
   return block1->GetSingleSuccessor() == block2->GetSingleSuccessor();
 }
 
-// Returns nullptr if `block` has either no phis or there is more than one phi
-// with different inputs at `index1` and `index2`. Otherwise returns that phi.
-static HPhi* GetSingleChangedPhi(HBasicBlock* block, size_t index1, size_t index2) {
+// Returns nullptr if `block` has either no phis or there is more than one phi. Otherwise returns
+// that phi.
+static HPhi* GetSinglePhi(HBasicBlock* block, size_t index1, size_t index2) {
   DCHECK_NE(index1, index2);
 
   HPhi* select_phi = nullptr;
   for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
-    if (phi->InputAt(index1) != phi->InputAt(index2)) {
-      if (select_phi == nullptr) {
-        // First phi with different inputs for the two indices found.
-        select_phi = phi;
-      } else {
-        // More than one phis has different inputs for the two indices.
-        return nullptr;
-      }
+    if (select_phi == nullptr) {
+      // First phi found.
+      select_phi = phi;
+    } else {
+      // More than one phi found, return null.
+      return nullptr;
     }
   }
   return select_phi;
@@ -127,7 +125,15 @@ bool HSelectGenerator::TryGenerateSelectSimpleDiamondPattern(
   DCHECK_NE(predecessor_index_true, predecessor_index_false);
 
   bool both_successors_return = true_block->IsSingleReturn() && false_block->IsSingleReturn();
-  HPhi* phi = GetSingleChangedPhi(merge_block, predecessor_index_true, predecessor_index_false);
+  // TODO(solanes): Extend to support multiple phis? e.g.
+  //   int a, b;
+  //   if (bool) {
+  //     a = 0; b = 1;
+  //   } else {
+  //     a = 1; b = 2;
+  //   }
+  //   // use a and b
+  HPhi* phi = GetSinglePhi(merge_block, predecessor_index_true, predecessor_index_false);
 
   HInstruction* true_value = nullptr;
   HInstruction* false_value = nullptr;
@@ -293,6 +299,11 @@ HBasicBlock* HSelectGenerator::TryFixupDoubleDiamondPattern(HBasicBlock* block) 
   second_merge->SetDominator(first_merge);
   first_merge->AddDominatedBlock(second_merge);
   first_merge->MergeWith(second_merge);
+
+  // No need to update dominance information. There's a chance that `merges_into_second_merge`
+  // doesn't come before `first_merge` but we don't need to fix it since `merges_into_second_merge`
+  // will disappear from the graph altogether when doing the follow-up
+  // TryGenerateSelectSimpleDiamondPattern.
 
   return inner_if_block;
 }
