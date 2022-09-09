@@ -29,6 +29,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -95,8 +96,12 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .thenReturn(dexoptIsNeeded());
         lenient()
                 .when(mArtd.dexopt(
-                        any(), any(), any(), any(), any(), any(), any(), anyInt(), any()))
+                        any(), any(), any(), any(), any(), any(), any(), anyInt(), any(), any()))
                 .thenReturn(mDexoptResult);
+
+        lenient()
+                .when(mArtd.createCancellationSignal())
+                .thenReturn(mock(IArtdCancellationSignal.class));
 
         mUsedProfiles = new ArrayList<>();
     }
@@ -110,7 +115,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doReturn(mDexoptResult)
                 .when(mArtd)
                 .dexopt(any(), eq(mDexPath), eq("arm64"), any(), any(), any(), isNull(), anyInt(),
-                        any());
+                        any(), any());
 
         // ArtifactsPath, isInDalvikCache=true.
         doReturn(dexoptIsNeeded(ArtifactsLocation.DALVIK_CACHE))
@@ -121,7 +126,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .dexopt(any(), eq(mDexPath), eq("arm"), any(), any(), any(),
                         deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
                                 mDexPath, "arm", true /* isInDalvikCache */))),
-                        anyInt(), any());
+                        anyInt(), any(), any());
 
         // ArtifactsPath, isInDalvikCache=false.
         doReturn(dexoptIsNeeded(ArtifactsLocation.NEXT_TO_DEX))
@@ -132,7 +137,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .dexopt(any(), eq(mSplit0DexPath), eq("arm64"), any(), any(), any(),
                         deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
                                 mSplit0DexPath, "arm64", false /* isInDalvikCache */))),
-                        anyInt(), any());
+                        anyInt(), any(), any());
 
         // DexMetadataPath.
         doReturn(dexoptIsNeeded(ArtifactsLocation.DM))
@@ -143,7 +148,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(),
                         deepEq(VdexPath.dexMetadataPath(
                                 AidlUtils.buildDexMetadataPath(mSplit0DexPath))),
-                        anyInt(), any());
+                        anyInt(), any(), any());
 
         mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams);
     }
@@ -253,7 +258,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        when(mArtd.dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), anyInt(), any()))
+        when(mArtd.dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), anyInt(), any(),
+                     any()))
                 .thenThrow(ServiceSpecificException.class);
 
         mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams);
@@ -347,7 +353,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                         -> artifacts.permissionSettings.fileFsPermission.isOtherReadable == true),
                 eq(dexPath), eq(isa), any(), eq("speed-profile"),
                 deepEq(ProfilePath.tmpRefProfilePath(profile.profilePath)), any(), anyInt(),
-                argThat(dexoptOptions -> dexoptOptions.generateAppImage == true));
+                argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
     }
 
     private void checkDexoptWithPrivateProfile(
@@ -357,7 +363,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                         -> artifacts.permissionSettings.fileFsPermission.isOtherReadable == false),
                 eq(dexPath), eq(isa), any(), eq("speed-profile"),
                 deepEq(ProfilePath.tmpRefProfilePath(profile.profilePath)), any(), anyInt(),
-                argThat(dexoptOptions -> dexoptOptions.generateAppImage == true));
+                argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
     }
 
     private void checkDexoptWithNoProfile(
@@ -366,7 +372,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 argThat(artifacts
                         -> artifacts.permissionSettings.fileFsPermission.isOtherReadable == true),
                 eq(dexPath), eq(isa), any(), eq(compilerFilter), isNull(), any(), anyInt(),
-                argThat(dexoptOptions -> dexoptOptions.generateAppImage == false));
+                argThat(dexoptOptions -> dexoptOptions.generateAppImage == false), any());
     }
 
     private void verifyProfileNotUsed(ProfilePath profile) throws Exception {

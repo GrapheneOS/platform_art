@@ -17,14 +17,21 @@
 #ifndef ART_ARTD_ARTD_H_
 #define ART_ARTD_ARTD_H_
 
+#include <sys/types.h>
+
+#include <csignal>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "aidl/com/android/server/art/BnArtd.h"
+#include "aidl/com/android/server/art/BnArtdCancellationSignal.h"
 #include "android-base/result.h"
 #include "android-base/thread_annotations.h"
 #include "android/binder_auto_utils.h"
@@ -36,12 +43,34 @@
 namespace art {
 namespace artd {
 
+class ArtdCancellationSignal : public aidl::com::android::server::art::BnArtdCancellationSignal {
+ public:
+  explicit ArtdCancellationSignal(std::function<int(pid_t, int)> kill_func)
+      : kill_(std::move(kill_func)) {}
+
+  ndk::ScopedAStatus cancel() override;
+
+  ndk::ScopedAStatus getType(int64_t* _aidl_return) override;
+
+ private:
+  std::mutex mu_;
+  // True if cancellation has been signaled.
+  bool is_cancelled_ GUARDED_BY(mu_) = false;
+  // The pids of currently running child processes that are bound to this signal.
+  std::unordered_set<pid_t> pids_ GUARDED_BY(mu_);
+
+  std::function<int(pid_t, int)> kill_;
+
+  friend class Artd;
+};
+
 class Artd : public aidl::com::android::server::art::BnArtd {
  public:
   explicit Artd(std::unique_ptr<art::tools::SystemProperties> props =
                     std::make_unique<art::tools::SystemProperties>(),
-                std::unique_ptr<ExecUtils> exec_utils = std::make_unique<ExecUtils>())
-      : props_(std::move(props)), exec_utils_(std::move(exec_utils)) {}
+                std::unique_ptr<ExecUtils> exec_utils = std::make_unique<ExecUtils>(),
+                std::function<int(pid_t, int)> kill_func = kill)
+      : props_(std::move(props)), exec_utils_(std::move(exec_utils)), kill_(std::move(kill_func)) {}
 
   ndk::ScopedAStatus isAlive(bool* _aidl_return) override;
 
@@ -100,7 +129,13 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::optional<aidl::com::android::server::art::VdexPath>& in_inputVdex,
       aidl::com::android::server::art::PriorityClass in_priorityClass,
       const aidl::com::android::server::art::DexoptOptions& in_dexoptOptions,
+      const std::shared_ptr<aidl::com::android::server::art::IArtdCancellationSignal>&
+          in_cancellationSignal,
       aidl::com::android::server::art::DexoptResult* _aidl_return) override;
+
+  ndk::ScopedAStatus createCancellationSignal(
+      std::shared_ptr<aidl::com::android::server::art::IArtdCancellationSignal>* _aidl_return)
+      override;
 
   android::base::Result<void> Start();
 
@@ -118,6 +153,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   android::base::Result<int> ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                                int timeout_sec,
+                                               const ExecCallbacks& callbacks = ExecCallbacks(),
                                                ProcessStat* stat = nullptr) const;
 
   android::base::Result<std::string> GetProfman();
@@ -150,6 +186,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   std::unique_ptr<art::tools::SystemProperties> props_;
   std::unique_ptr<ExecUtils> exec_utils_;
+  std::function<int(pid_t, int)> kill_;
 };
 
 }  // namespace artd

@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <climits>
+#include <csignal>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -40,6 +41,7 @@
 
 #include "aidl/com/android/server/art/BnArtd.h"
 #include "aidl/com/android/server/art/DexoptTrigger.h"
+#include "aidl/com/android/server/art/IArtdCancellationSignal.h"
 #include "android-base/errors.h"
 #include "android-base/file.h"
 #include "android-base/logging.h"
@@ -47,6 +49,7 @@
 #include "android-base/scopeguard.h"
 #include "android-base/strings.h"
 #include "android/binder_auto_utils.h"
+#include "android/binder_interface_utils.h"
 #include "android/binder_manager.h"
 #include "android/binder_process.h"
 #include "base/compiler_filter.h"
@@ -77,6 +80,7 @@ using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
 using ::aidl::com::android::server::art::GetDexoptNeededResult;
 using ::aidl::com::android::server::art::GetOptimizationStatusResult;
+using ::aidl::com::android::server::art::IArtdCancellationSignal;
 using ::aidl::com::android::server::art::OutputArtifacts;
 using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
@@ -100,6 +104,7 @@ using ArtifactsLocation = GetDexoptNeededResult::ArtifactsLocation;
 using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
 
 constexpr const char* kServiceName = "artd";
+constexpr const char* kArtdCancellationSignalType = "ArtdCancellationSignal";
 
 // Timeout for short operations, such as merging profiles.
 constexpr int kShortTimeoutSec = 60;  // 1 minute.
@@ -267,6 +272,21 @@ Result<FileVisibility> GetFileVisibility(const std::string& file) {
                  std::filesystem::perms::none ?
              FileVisibility::OTHER_READABLE :
              FileVisibility::NOT_OTHER_READABLE;
+}
+
+Result<ArtdCancellationSignal*> ToArtdCancellationSignal(IArtdCancellationSignal* input) {
+  if (input == nullptr) {
+    return Error() << "Cancellation signal must not be nullptr";
+  }
+  // We cannot use `dynamic_cast` because ART code is compiled with `-fno-rtti`, so we have to check
+  // the magic number.
+  int64_t type;
+  if (!input->getType(&type).isOk() ||
+      type != reinterpret_cast<intptr_t>(kArtdCancellationSignalType)) {
+    // The cancellation signal must be created by `Artd::createCancellationSignal`.
+    return Error() << "Invalid cancellation signal type";
+  }
+  return static_cast<ArtdCancellationSignal*>(input);
 }
 
 class FdLogger {
@@ -559,16 +579,18 @@ ndk::ScopedAStatus Artd::getDexoptNeeded(const std::string& in_dexFile,
   return ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
-                                const std::string& in_dexFile,
-                                const std::string& in_instructionSet,
-                                const std::string& in_classLoaderContext,
-                                const std::string& in_compilerFilter,
-                                const std::optional<ProfilePath>& in_profile,
-                                const std::optional<VdexPath>& in_inputVdex,
-                                PriorityClass in_priorityClass,
-                                const DexoptOptions& in_dexoptOptions,
-                                DexoptResult* _aidl_return) {
+ndk::ScopedAStatus Artd::dexopt(
+    const OutputArtifacts& in_outputArtifacts,
+    const std::string& in_dexFile,
+    const std::string& in_instructionSet,
+    const std::string& in_classLoaderContext,
+    const std::string& in_compilerFilter,
+    const std::optional<ProfilePath>& in_profile,
+    const std::optional<VdexPath>& in_inputVdex,
+    PriorityClass in_priorityClass,
+    const DexoptOptions& in_dexoptOptions,
+    const std::shared_ptr<IArtdCancellationSignal>& in_cancellationSignal,
+    DexoptResult* _aidl_return) {
   _aidl_return->cancelled = false;
 
   std::string oat_path = OR_RETURN_FATAL(BuildOatPath(in_outputArtifacts.artifactsPath));
@@ -579,6 +601,8 @@ ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
       in_profile.has_value() ?
           std::make_optional(OR_RETURN_FATAL(BuildProfileOrDmPath(in_profile.value()))) :
           std::nullopt;
+  ArtdCancellationSignal* cancellation_signal =
+      OR_RETURN_FATAL(ToArtdCancellationSignal(in_cancellationSignal.get()));
 
   std::unique_ptr<ClassLoaderContext> context =
       ClassLoaderContext::Create(in_classLoaderContext.c_str());
@@ -677,12 +701,37 @@ ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
   LOG(INFO) << "Running dex2oat: " << Join(args.Get(), /*separator=*/" ")
             << "\nOpened FDs: " << fd_logger;
 
+  ExecCallbacks callbacks{
+      .on_start =
+          [&](pid_t pid) {
+            std::lock_guard<std::mutex> lock(cancellation_signal->mu_);
+            cancellation_signal->pids_.insert(pid);
+            // Handle cancellation signals sent before the process starts.
+            if (cancellation_signal->is_cancelled_) {
+              int res = kill_(pid, SIGKILL);
+              DCHECK_EQ(res, 0);
+            }
+          },
+      .on_end =
+          [&](pid_t pid) {
+            std::lock_guard<std::mutex> lock(cancellation_signal->mu_);
+            // The pid should no longer receive kill signals sent by `cancellation_signal`.
+            cancellation_signal->pids_.erase(pid);
+          },
+  };
+
   ProcessStat stat;
-  Result<int> result = ExecAndReturnCode(args.Get(), kLongTimeoutSec, &stat);
+  Result<int> result = ExecAndReturnCode(args.Get(), kLongTimeoutSec, callbacks, &stat);
   _aidl_return->wallTimeMs = stat.wall_time_ms;
   _aidl_return->cpuTimeMs = stat.cpu_time_ms;
   if (!result.ok()) {
-    // TODO(b/244412198): Return cancelled=true if dexopt is cancelled upon request.
+    {
+      std::lock_guard<std::mutex> lock(cancellation_signal->mu_);
+      if (cancellation_signal->is_cancelled_) {
+        _aidl_return->cancelled = true;
+        return ScopedAStatus::ok();
+      }
+    }
     return NonFatal("Failed to run dex2oat: " + result.error().message());
   }
   if (result.value() != 0) {
@@ -691,6 +740,27 @@ ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
 
   NewFile::CommitAllOrAbandon(files_to_commit, files_to_delete);
 
+  return ScopedAStatus::ok();
+}
+
+ScopedAStatus ArtdCancellationSignal::cancel() {
+  std::lock_guard<std::mutex> lock(mu_);
+  is_cancelled_ = true;
+  for (pid_t pid : pids_) {
+    int res = kill_(pid, SIGKILL);
+    DCHECK_EQ(res, 0);
+  }
+  return ScopedAStatus::ok();
+}
+
+ScopedAStatus ArtdCancellationSignal::getType(int64_t* _aidl_return) {
+  *_aidl_return = reinterpret_cast<intptr_t>(kArtdCancellationSignalType);
+  return ScopedAStatus::ok();
+}
+
+ScopedAStatus Artd::createCancellationSignal(
+    std::shared_ptr<IArtdCancellationSignal>* _aidl_return) {
+  *_aidl_return = ndk::SharedRefBase::make<ArtdCancellationSignal>(kill_);
   return ScopedAStatus::ok();
 }
 
@@ -870,10 +940,11 @@ void Artd::AddPerfConfigFlags(PriorityClass priority_class, /*out*/ CmdlineBuild
 
 android::base::Result<int> Artd::ExecAndReturnCode(const std::vector<std::string>& args,
                                                    int timeout_sec,
+                                                   const ExecCallbacks& callbacks,
                                                    ProcessStat* stat) const {
   std::string error_msg;
   ExecResult result =
-      exec_utils_->ExecAndReturnResult(args, timeout_sec, ExecCallbacks(), stat, &error_msg);
+      exec_utils_->ExecAndReturnResult(args, timeout_sec, callbacks, stat, &error_msg);
   if (result.status != ExecResult::kExited) {
     return Error() << error_msg;
   }

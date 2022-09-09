@@ -170,9 +170,12 @@ public class PrimaryDexOptimizer {
                                 ? ProfilePath.tmpRefProfilePath(profile.profilePath)
                                 : null;
 
+                        IArtdCancellationSignal artdCancellationSignal =
+                                mInjector.getArtd().createCancellationSignal();
+
                         DexoptResult dexoptResult = dexoptFile(target, inputProfile,
                                 getDexoptNeededResult, permissionSettings,
-                                params.getPriorityClass(), dexoptOptions);
+                                params.getPriorityClass(), dexoptOptions, artdCancellationSignal);
                         status = dexoptResult.cancelled ? OptimizeResult.OPTIMIZE_CANCELLED
                                                         : OptimizeResult.OPTIMIZE_PERFORMED;
                         wallTimeMs = dexoptResult.wallTimeMs;
@@ -441,7 +444,8 @@ public class PrimaryDexOptimizer {
     private DexoptResult dexoptFile(@NonNull DexoptTarget target, @Nullable ProfilePath profile,
             @NonNull GetDexoptNeededResult getDexoptNeededResult,
             @NonNull PermissionSettings permissionSettings, @PriorityClass int priorityClass,
-            @NonNull DexoptOptions dexoptOptions) throws RemoteException {
+            @NonNull DexoptOptions dexoptOptions, IArtdCancellationSignal artdCancellationSignal)
+            throws RemoteException {
         OutputArtifacts outputArtifacts = AidlUtils.buildOutputArtifacts(target.dexInfo().dexPath(),
                 target.isa(), target.isInDalvikCache(), permissionSettings);
 
@@ -450,7 +454,7 @@ public class PrimaryDexOptimizer {
 
         return mInjector.getArtd().dexopt(outputArtifacts, target.dexInfo().dexPath(), target.isa(),
                 target.dexInfo().classLoaderContext(), target.compilerFilter(), profile, inputVdex,
-                priorityClass, dexoptOptions);
+                priorityClass, dexoptOptions, artdCancellationSignal);
     }
 
     @Nullable

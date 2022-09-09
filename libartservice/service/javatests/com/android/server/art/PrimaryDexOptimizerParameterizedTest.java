@@ -32,7 +32,9 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import android.os.Process;
 import android.os.ServiceSpecificException;
@@ -201,6 +203,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         dexoptOptions.generateAppImage = false;
         dexoptOptions.hiddenApiPolicyEnabled = mParams.mExpectedIsHiddenApiPolicyEnabled;
 
+        when(mArtd.createCancellationSignal()).thenReturn(mock(IArtdCancellationSignal.class));
+
         // The first one is normal.
         doReturn(dexoptIsNeeded())
                 .when(mArtd)
@@ -214,7 +218,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         eq("/data/app/foo/base.apk"), eq("arm64"), eq("PCL[]"),
                         eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
                         isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
-                        deepEq(dexoptOptions));
+                        deepEq(dexoptOptions), any());
 
         // The second one fails on `dexopt`.
         doReturn(dexoptIsNeeded())
@@ -228,7 +232,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         eq("/data/app/foo/base.apk"), eq("arm"), eq("PCL[]"),
                         eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
                         isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
-                        deepEq(dexoptOptions));
+                        deepEq(dexoptOptions), any());
 
         // The third one doesn't need dexopt.
         doReturn(dexoptIsNotNeeded())
@@ -249,7 +253,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         eq("/data/app/foo/split_0.apk"), eq("arm"), eq("PCL[base.apk]"),
                         eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
                         isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
-                        deepEq(dexoptOptions));
+                        deepEq(dexoptOptions), any());
 
         assertThat(mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams))
                 .comparingElementsUsing(TestingUtils.<DexFileOptimizeResult>deepEquality())
