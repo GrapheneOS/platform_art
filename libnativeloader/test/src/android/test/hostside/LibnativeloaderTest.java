@@ -215,7 +215,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             if (mTestArch == null) {
                 IAbi abi = mContext.getConfigurationDescriptor().getAbi();
                 mTestArch = abi != null ? abi.getName()
-                                        : assertCommandSucceeds("getprop ro.bionic.arch");
+                                        : assertCommandSucceeds("getprop ro.product.cpu.abi");
             }
             return mTestArch;
         }
