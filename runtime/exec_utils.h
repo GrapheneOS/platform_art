@@ -19,6 +19,7 @@
 
 #include <time.h>
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,14 @@ struct ProcessStat {
   // The total CPU time, in milliseconds, that the process and any waited-for children spent, or 0
   // if failed to get the value.
   int cpu_time_ms = 0;
+};
+
+struct ExecCallbacks {
+  // Called in the parent process as soon as the child process is forked.
+  std::function<void(pid_t pid)> on_start = [](pid_t) {};
+  // Called in the parent process after the child process exits while still in a waitable state, no
+  // matter the child process succeeds or not.
+  std::function<void(pid_t pid)> on_end = [](pid_t) {};
 };
 
 // Wrapper on fork/execv to run a command in a subprocess.
@@ -57,10 +66,11 @@ class ExecUtils {
                                 /*out*/ bool* timed_out,
                                 /*out*/ std::string* error_msg) const;
 
-  // Same as above, but also collects stat of the process. The stat is collected no matter the child
-  // process succeeds or not.
+  // Same as above, but also collects stat of the process and calls callbacks. The stat is collected
+  // no matter the child process succeeds or not.
   virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                 int timeout_sec,
+                                const ExecCallbacks& callbacks,
                                 /*out*/ bool* timed_out,
                                 /*out*/ ProcessStat* stat,
                                 /*out*/ std::string* error_msg) const;

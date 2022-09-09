@@ -174,6 +174,7 @@ class MockExecUtils : public ExecUtils {
   // to a conflict between gmock and android-base/logging.h (b/132668253).
   int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                         int,
+                        const ExecCallbacks&,
                         bool*,
                         ProcessStat* stat,
                         std::string*) const override {

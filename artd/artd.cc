@@ -873,8 +873,8 @@ android::base::Result<int> Artd::ExecAndReturnCode(const std::vector<std::string
                                                    ProcessStat* stat) const {
   bool ignored_timed_out = false;  // This information is encoded in the error message.
   std::string error_msg;
-  int exit_code =
-      exec_utils_->ExecAndReturnCode(args, timeout_sec, &ignored_timed_out, stat, &error_msg);
+  int exit_code = exec_utils_->ExecAndReturnCode(
+      args, timeout_sec, ExecCallbacks(), &ignored_timed_out, stat, &error_msg);
   if (exit_code < 0) {
     return Error() << error_msg;
   }
