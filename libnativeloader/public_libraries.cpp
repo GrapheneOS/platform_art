@@ -160,28 +160,36 @@ static std::string InitDefaultPublicLibraries(bool for_preload) {
   }
 
   // If this is for preloading libs, don't remove the libs from APEXes.
-  if (for_preload) {
-    return android::base::Join(*sonames, ':');
+  if (!for_preload) {
+    // Remove the public libs provided by apexes because these libs are available
+    // from apex namespaces.
+    for (const auto& p : apex_public_libraries()) {
+      auto public_libs = base::Split(p.second, ":");
+      sonames->erase(std::remove_if(sonames->begin(),
+                                    sonames->end(),
+                                    [&public_libs](const std::string& v) {
+                                      return std::find(public_libs.begin(), public_libs.end(), v) !=
+                                             public_libs.end();
+                                    }),
+                     sonames->end());
+    }
   }
 
-  // Remove the public libs provided by apexes because these libs are available
-  // from apex namespaces.
-  for (const auto& p : apex_public_libraries()) {
-    auto public_libs = base::Split(p.second, ":");
-    sonames->erase(std::remove_if(sonames->begin(), sonames->end(), [&public_libs](const std::string& v) {
-      return std::find(public_libs.begin(), public_libs.end(), v) != public_libs.end();
-    }), sonames->end());
-  }
-  return android::base::Join(*sonames, ':');
+  std::string libs = android::base::Join(*sonames, ':');
+  ALOGD("InitDefaultPublicLibraries for_preload=%d: %s", for_preload, libs.c_str());
+  return libs;
 }
 
 static std::string InitVendorPublicLibraries() {
   // This file is optional, quietly ignore if the file does not exist.
   auto sonames = ReadConfig(kVendorPublicLibrariesFile, always_true);
   if (!sonames.ok()) {
+    ALOGI("InitVendorPublicLibraries skipped: %s", sonames.error().message().c_str());
     return "";
   }
-  return android::base::Join(*sonames, ':');
+  std::string libs = android::base::Join(*sonames, ':');
+  ALOGD("InitVendorPublicLibraries: %s", libs.c_str());
+  return libs;
 }
 
 // If ro.product.vndk.version is defined, /product/etc/public.libraries-<companyname>.txt contains
@@ -192,7 +200,9 @@ static std::string InitProductPublicLibraries() {
   if (is_product_vndk_version_defined()) {
     ReadExtensionLibraries("/product/etc", &sonames);
   }
-  return android::base::Join(sonames, ':');
+  std::string libs = android::base::Join(sonames, ':');
+  ALOGD("InitProductPublicLibraries: %s", libs.c_str());
+  return libs;
 }
 
 // read /system/etc/public.libraries-<companyname>.txt,
@@ -207,7 +217,9 @@ static std::string InitExtendedPublicLibraries() {
   if (!is_product_vndk_version_defined()) {
     ReadExtensionLibraries("/product/etc", &sonames);
   }
-  return android::base::Join(sonames, ':');
+  std::string libs = android::base::Join(sonames, ':');
+  ALOGD("InitExtendedPublicLibraries: %s", libs.c_str());
+  return libs;
 }
 
 static std::string InitLlndkLibrariesVendor() {
@@ -218,11 +230,14 @@ static std::string InitLlndkLibrariesVendor() {
     LOG_ALWAYS_FATAL("%s: %s", config_file.c_str(), sonames.error().message().c_str());
     return "";
   }
-  return android::base::Join(*sonames, ':');
+  std::string libs = android::base::Join(*sonames, ':');
+  ALOGD("InitLlndkLibrariesVendor: %s", libs.c_str());
+  return libs;
 }
 
 static std::string InitLlndkLibrariesProduct() {
   if (!is_product_vndk_version_defined()) {
+    ALOGD("InitLlndkLibrariesProduct: No product VNDK version defined");
     return "";
   }
   std::string config_file = kLlndkLibrariesFile;
@@ -232,7 +247,9 @@ static std::string InitLlndkLibrariesProduct() {
     LOG_ALWAYS_FATAL("%s: %s", config_file.c_str(), sonames.error().message().c_str());
     return "";
   }
-  return android::base::Join(*sonames, ':');
+  std::string libs = android::base::Join(*sonames, ':');
+  ALOGD("InitLlndkLibrariesProduct: %s", libs.c_str());
+  return libs;
 }
 
 static std::string InitVndkspLibrariesVendor() {
@@ -243,11 +260,14 @@ static std::string InitVndkspLibrariesVendor() {
     LOG_ALWAYS_FATAL("%s", sonames.error().message().c_str());
     return "";
   }
-  return android::base::Join(*sonames, ':');
+  std::string libs = android::base::Join(*sonames, ':');
+  ALOGD("InitVndkspLibrariesVendor: %s", libs.c_str());
+  return libs;
 }
 
 static std::string InitVndkspLibrariesProduct() {
   if (!is_product_vndk_version_defined()) {
+    ALOGD("InitVndkspLibrariesProduct: No product VNDK version defined");
     return "";
   }
   std::string config_file = kVndkLibrariesFile;
@@ -257,20 +277,33 @@ static std::string InitVndkspLibrariesProduct() {
     LOG_ALWAYS_FATAL("%s", sonames.error().message().c_str());
     return "";
   }
-  return android::base::Join(*sonames, ':');
+  std::string libs = android::base::Join(*sonames, ':');
+  ALOGD("InitVndkspLibrariesProduct: %s", libs.c_str());
+  return libs;
 }
 
 static std::map<std::string, std::string> InitApexLibraries(const std::string& tag) {
   std::string file_content;
   if (!base::ReadFileToString(kApexLibrariesConfigFile, &file_content)) {
     // config is optional
+    ALOGI("InitApexLibraries skipped: %s", strerror(errno));
     return {};
   }
-  auto config = ParseApexLibrariesConfig(file_content, tag);
+  Result<std::map<std::string, std::string>> config = ParseApexLibrariesConfig(file_content, tag);
   if (!config.ok()) {
     LOG_ALWAYS_FATAL("%s: %s", kApexLibrariesConfigFile, config.error().message().c_str());
     return {};
   }
+  ALOGD("InitApexLibraries:\n  %s",
+        [&config]() {
+          std::vector<std::string> lib_list;
+          lib_list.reserve(config->size());
+          for (std::pair<std::string, std::string> elem : *config) {
+            lib_list.emplace_back(elem.first + ": " + elem.second);
+          }
+          return android::base::Join(lib_list, "\n  ");
+        }()
+            .c_str());
   return *config;
 }
 
