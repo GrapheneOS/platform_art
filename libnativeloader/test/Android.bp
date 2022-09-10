@@ -30,8 +30,7 @@ cc_library {
 }
 
 // This app is just an intermediate container to be able to include the .so
-// library as a java resource in the host test. It's not actually installed or
-// started.
+// library in the host test. It's not actually installed or started.
 android_test_helper_app {
     name: "library_container_app",
     defaults: ["art_module_source_build_java_defaults"],
@@ -96,18 +95,30 @@ android_test_helper_app {
     srcs: ["src/android/test/app/VendorAppTest.java"],
 }
 
+// A normal app installed in /data.
+android_test_helper_app {
+    name: "loadlibrarytest_data_app",
+    defaults: ["loadlibrarytest_app_defaults"],
+    manifest: "loadlibrarytest_data_app_manifest.xml",
+    srcs: ["src/android/test/app/DataAppTest.java"],
+}
+
 java_test_host {
     name: "libnativeloader_e2e_tests",
     defaults: ["art_module_source_build_java_defaults"],
     srcs: ["src/android/test/hostside/*.java"],
-    libs: ["tradefed"],
-    java_resources: [
+    libs: [
+        "compatibility-tradefed",
+        "tradefed",
+    ],
+    data: [
         ":library_container_app",
         ":loadlibrarytest_system_priv_app",
         ":loadlibrarytest_system_app",
         ":loadlibrarytest_system_ext_app",
         ":loadlibrarytest_product_app",
         ":loadlibrarytest_vendor_app",
+        ":loadlibrarytest_data_app",
     ],
     test_config: "libnativeloader_e2e_tests.xml",
     test_suites: ["general-tests"],
