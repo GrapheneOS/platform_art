@@ -16,9 +16,7 @@
 
 package android.test.app;
 
-import static com.google.common.truth.Truth.assertThat;
-import static org.junit.Assert.assertThrows;
-
+import android.test.lib.TestUtils;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 import org.junit.Test;
@@ -29,18 +27,11 @@ import org.junit.runner.RunWith;
 public class VendorAppTest {
     @Test
     public void testLoadLibraries() {
-        assertLinkerNamespaceError("foo.oem1");
-        assertLinkerNamespaceError("bar.oem1");
-        assertLinkerNamespaceError("foo.oem2");
-        assertLinkerNamespaceError("bar.oem2");
+        TestUtils.assertLinkerNamespaceError("foo.oem1");
+        TestUtils.assertLinkerNamespaceError("bar.oem1");
+        TestUtils.assertLinkerNamespaceError("foo.oem2");
+        TestUtils.assertLinkerNamespaceError("bar.oem2");
         System.loadLibrary("foo.product1");
         System.loadLibrary("bar.product1");
-    }
-
-    private void assertLinkerNamespaceError(String libraryName) {
-        Throwable t =
-                assertThrows(UnsatisfiedLinkError.class, () -> System.loadLibrary(libraryName));
-        assertThat(t.getMessage())
-                .containsMatch("dlopen failed: .* is not accessible for the namespace");
     }
 }

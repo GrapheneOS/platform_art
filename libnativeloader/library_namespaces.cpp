@@ -64,15 +64,16 @@ constexpr const char* kVndkProductNamespaceName = "vndk_product";
 // system namespace with the names of libs listed in the public.libraries.txt.
 // This way an app can only load its own JNI libraries along with the public libs.
 constexpr const char* kClassloaderNamespaceName = "classloader-namespace";
-// Same thing for vendor APKs.
+// Same thing for unbundled vendor APKs.
 constexpr const char* kVendorClassloaderNamespaceName = "vendor-classloader-namespace";
-// If the namespace is shared then add this suffix to form
-// "classloader-namespace-shared" or "vendor-classloader-namespace-shared",
-// respectively. A shared namespace (cf. ANDROID_NAMESPACE_TYPE_SHARED) has
+// Same thing for unbundled product APKs.
+constexpr const char* kProductClassloaderNamespaceName = "product-classloader-namespace";
+// If the namespace is shared then add this suffix to help identify it in debug
+// messages. A shared namespace (cf. ANDROID_NAMESPACE_TYPE_SHARED) has
 // inherited all the libraries of the parent classloader namespace, or the
-// system namespace for the main app classloader. It is used to give full
-// access to the platform libraries for apps bundled in the system image,
-// including their later updates installed in /data.
+// system namespace for the main app classloader. It is used to give full access
+// to the platform libraries for apps bundled in the system image, including
+// their later updates installed in /data.
 constexpr const char* kSharedNamespaceSuffix = "-shared";
 
 // (http://b/27588281) This is a workaround for apps using custom classloaders and calling
@@ -262,7 +263,7 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
       system_exposed_libraries = system_exposed_libraries + ':' + llndk_libraries_product();
 
       // Different name is useful for debugging
-      namespace_name = kVendorClassloaderNamespaceName;
+      namespace_name = kProductClassloaderNamespaceName;
     }
   }
 

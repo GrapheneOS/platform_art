@@ -26,6 +26,7 @@ import static org.mockito.Mockito.mock;
 
 import android.content.pm.ApplicationInfo;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.art.wrapper.AndroidPackageApi;
@@ -41,6 +42,8 @@ import java.util.ArrayList;
 
 public class PrimaryDexOptimizerTestBase {
     protected static final String PKG_NAME = "com.example.foo";
+    protected static final int UID = 12345;
+    protected static final int SHARED_GID = UserHandle.getSharedAppGid(UID);
 
     @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(SystemProperties.class);
 
@@ -55,6 +58,7 @@ public class PrimaryDexOptimizerTestBase {
     public void setUp() throws Exception {
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(false);
+        lenient().when(mInjector.isUsedByOtherApps(any())).thenReturn(false);
 
         lenient()
                 .when(SystemProperties.get("dalvik.vm.systemuicompilerfilter"))
@@ -62,6 +66,8 @@ public class PrimaryDexOptimizerTestBase {
         lenient()
                 .when(SystemProperties.getBoolean(eq("dalvik.vm.always_debuggable"), anyBoolean()))
                 .thenReturn(false);
+        lenient().when(SystemProperties.get("dalvik.vm.appimageformat")).thenReturn("lz4");
+        lenient().when(SystemProperties.get("pm.dexopt.shared")).thenReturn("speed");
 
         mPkgState = createPackageState();
         mPkg = mPkgState.getAndroidPackage();
@@ -83,12 +89,15 @@ public class PrimaryDexOptimizerTestBase {
         lenient()
                 .when(pkg.getSplitFlags())
                 .thenReturn(new int[] {ApplicationInfo.FLAG_HAS_CODE, 0});
-        lenient().when(pkg.getUid()).thenReturn(12345);
+        lenient().when(pkg.getUid()).thenReturn(UID);
         lenient().when(pkg.isVmSafeMode()).thenReturn(false);
         lenient().when(pkg.isDebuggable()).thenReturn(false);
         lenient().when(pkg.getTargetSdkVersion()).thenReturn(123);
         lenient().when(pkg.isSignedWithPlatformKey()).thenReturn(false);
         lenient().when(pkg.isUsesNonSdkApi()).thenReturn(false);
+        lenient().when(pkg.getSdkLibName()).thenReturn(null);
+        lenient().when(pkg.getStaticSharedLibName()).thenReturn(null);
+        lenient().when(pkg.getLibraryNames()).thenReturn(new ArrayList<>());
         return pkg;
     }
 

@@ -18,6 +18,9 @@ package com.android.server.art;
 
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContext;
+import static com.android.server.art.ProfilePath.PrebuiltProfilePath;
+import static com.android.server.art.ProfilePath.RefProfilePath;
+import static com.android.server.art.ProfilePath.TmpRefProfilePath;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -76,5 +79,43 @@ public final class AidlUtils {
         outputArtifacts.artifactsPath = buildArtifactsPath(dexPath, isa, isInDalvikCache);
         outputArtifacts.permissionSettings = permissionSettings;
         return outputArtifacts;
+    }
+
+    @NonNull
+    public static RefProfilePath buildRefProfilePath(
+            @NonNull String packageName, @NonNull String profileName) {
+        var refProfilePath = new RefProfilePath();
+        refProfilePath.packageName = packageName;
+        refProfilePath.profileName = profileName;
+        return refProfilePath;
+    }
+
+    @NonNull
+    public static ProfilePath buildProfilePathForRef(
+            @NonNull String packageName, @NonNull String profileName) {
+        return ProfilePath.refProfilePath(buildRefProfilePath(packageName, profileName));
+    }
+
+    @NonNull
+    public static ProfilePath buildProfilePathForPrebuilt(@NonNull String dexPath) {
+        var prebuiltProfilePath = new PrebuiltProfilePath();
+        prebuiltProfilePath.dexPath = dexPath;
+        return ProfilePath.prebuiltProfilePath(prebuiltProfilePath);
+    }
+
+    @NonNull
+    public static ProfilePath buildProfilePathForDm(@NonNull String dexPath) {
+        return ProfilePath.dexMetadataPath(buildDexMetadataPath(dexPath));
+    }
+
+    @NonNull
+    public static OutputProfile buildOutputProfile(@NonNull String packageName,
+            @NonNull String profileName, int uid, int gid, boolean isPublic) {
+        var outputProfile = new OutputProfile();
+        outputProfile.profilePath = new TmpRefProfilePath();
+        outputProfile.profilePath.refProfilePath = buildRefProfilePath(packageName, profileName);
+        outputProfile.profilePath.id = ""; // Will be filled by artd.
+        outputProfile.fsPermission = buildFsPermission(uid, gid, isPublic);
+        return outputProfile;
     }
 }

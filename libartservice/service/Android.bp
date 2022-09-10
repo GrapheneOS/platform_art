@@ -81,11 +81,17 @@ java_sdk_library {
     srcs: [
         "java/**/*.java",
     ],
+    libs: [
+        "auto_value_annotations",
+    ],
     static_libs: [
         "artd-aidl-java",
         "modules-utils-shell-command-handler",
     ],
-    plugins: ["java_api_finder"],
+    plugins: [
+        "auto_value_plugin",
+        "java_api_finder",
+    ],
     jarjar_rules: "jarjar-rules.txt",
 }
 
