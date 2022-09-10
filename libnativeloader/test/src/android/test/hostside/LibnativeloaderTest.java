@@ -19,6 +19,8 @@ package android.test.hostside;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
+import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.invoker.IInvocationContext;
@@ -54,19 +56,23 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        DeviceContext ctx = new DeviceContext(testInfo.getContext(), testInfo.getDevice());
+        DeviceContext ctx = new DeviceContext(
+                testInfo.getContext(), testInfo.getDevice(), testInfo.getBuildInfo());
 
         // A soft reboot is slow, so do setup for all tests and reboot once.
 
         ctx.mDevice.remountSystemWritable();
-        try (ZipFile libApk = openLibContainerApk()) {
+
+        File libContainerApk = ctx.mBuildHelper.getTestFile("library_container_app.apk");
+        try (ZipFile libApk = new ZipFile(libContainerApk)) {
             ctx.pushSystemOemLibs(libApk);
             ctx.pushProductLibs(libApk);
         }
 
-        // "Install" apps in various partitions through plain adb push. We need them in these
-        // locations to test library loading restrictions, so we cannot use
-        // ITestDevice.installPackage for it since it only installs in /data.
+        // "Install" apps in various partitions through plain adb push followed by a soft reboot. We
+        // need them in these locations to test library loading restrictions, so for all except
+        // loadlibrarytest_data_app we cannot use ITestDevice.installPackage for it since it only
+        // installs in /data.
 
         // For testSystemPrivApp
         ctx.pushApk("loadlibrarytest_system_priv_app", "/system/priv-app");
@@ -85,13 +91,21 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
         ctx.softReboot();
 
+        // For testDataApp. Install this the normal way after the system server restart.
+        ctx.installPackage("loadlibrarytest_data_app");
+
         testInfo.properties().put(CLEANUP_PATHS_KEY, ctx.mCleanup.getPathList());
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
+        ITestDevice device = testInfo.getDevice();
+
+        // Uninstall loadlibrarytest_data_app.
+        device.uninstallPackage("android.test.app.data");
+
         String cleanupPathList = testInfo.properties().get(CLEANUP_PATHS_KEY);
-        CleanupPaths cleanup = new CleanupPaths(testInfo.getDevice(), cleanupPathList);
+        CleanupPaths cleanup = new CleanupPaths(device, cleanupPathList);
         cleanup.cleanup();
     }
 
@@ -121,6 +135,11 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
     @Test
     public void testVendorApp() throws Exception {
         runDeviceTests("android.test.app.vendor", "android.test.app.VendorAppTest");
+    }
+
+    @Test
+    public void testDataApp() throws Exception {
+        runDeviceTests("android.test.app.data", "android.test.app.DataAppTest");
     }
 
     // Utility class that keeps track of a set of paths the need to be deleted after testing.
@@ -171,12 +190,14 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
     private static class DeviceContext implements AutoCloseable {
         IInvocationContext mContext;
         ITestDevice mDevice;
+        CompatibilityBuildHelper mBuildHelper;
         CleanupPaths mCleanup;
         private String mTestArch;
 
-        DeviceContext(IInvocationContext context, ITestDevice device) {
+        DeviceContext(IInvocationContext context, ITestDevice device, IBuildInfo buildInfo) {
             mContext = context;
             mDevice = device;
+            mBuildHelper = new CompatibilityBuildHelper(buildInfo);
             mCleanup = new CleanupPaths(mDevice);
         }
 
@@ -228,15 +249,14 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             assertThat(mDevice.pushString(fileContents, destPath)).isTrue();
         }
 
-        // Like pushString, but extracts a Java resource and pushes that.
-        void pushResource(String resourceName, String destPath) throws Exception {
-            File hostTempFile = extractResourceToTempFile(resourceName);
+        // Like pushString, but pushes a data file included in the host test.
+        void pushFile(String fileName, String destPath) throws Exception {
             mCleanup.addPath(destPath);
-            assertThat(mDevice.pushFile(hostTempFile, destPath)).isTrue();
+            assertThat(mDevice.pushFile(mBuildHelper.getTestFile(fileName), destPath)).isTrue();
         }
 
         void pushApk(String apkBaseName, String destPath) throws Exception {
-            pushResource("/" + apkBaseName + ".apk",
+            pushFile(apkBaseName + ".apk",
                     destPath + "/" + apkBaseName + "/" + apkBaseName + ".apk");
         }
 
@@ -261,25 +281,17 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             assertThat(mDevice.pushFile(libraryTempFile, destPath)).isTrue();
         }
 
+        void installPackage(String apkBaseName) throws Exception {
+            assertThat(mDevice.installPackage(mBuildHelper.getTestFile(apkBaseName + ".apk"),
+                               false /* reinstall */))
+                    .isNull();
+        }
+
         String assertCommandSucceeds(String command) throws DeviceNotAvailableException {
             CommandResult result = mDevice.executeShellV2Command(command);
             assertWithMessage(result.toString()).that(result.getExitCode()).isEqualTo(0);
             // Remove trailing \n's.
             return result.getStdout().trim();
-        }
-    }
-
-    static private ZipFile openLibContainerApk() throws Exception {
-        return new ZipFile(extractResourceToTempFile("/library_container_app.apk"));
-    }
-
-    static private File extractResourceToTempFile(String resourceName) throws Exception {
-        assertThat(resourceName).startsWith("/");
-        try (InputStream inStream = LibnativeloaderTest.class.getResourceAsStream(resourceName)) {
-            assertWithMessage("Failed to extract resource " + resourceName)
-                    .that(inStream)
-                    .isNotNull();
-            return writeStreamToTempFile(resourceName.substring(1), inStream);
         }
     }
 
