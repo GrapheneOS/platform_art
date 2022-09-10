@@ -192,7 +192,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         PermissionSettings permissionSettings = buildPermissionSettings(
                 buildFsPermission(Process.SYSTEM_UID, Process.SYSTEM_UID,
                         false /* isOtherReadable */, true /* isOtherExecutable */),
-                buildFsPermission(Process.SYSTEM_UID, 52345, true /* isOtherReadable */),
+                buildFsPermission(Process.SYSTEM_UID, SHARED_GID, true /* isOtherReadable */),
                 null /* seContext */);
         DexoptOptions dexoptOptions = new DexoptOptions();
         dexoptOptions.compilationReason = "install";

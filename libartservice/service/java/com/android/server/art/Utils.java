@@ -91,4 +91,8 @@ public final class Utils {
         }
         return artd;
     }
+
+    public static boolean implies(boolean cond1, boolean cond2) {
+        return cond1 ? cond2 : true;
+    }
 }

@@ -20,6 +20,8 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.util.SparseArray;
 
+import java.util.List;
+
 /** @hide */
 public class AndroidPackageApi {
     private final Object mPkg;
@@ -156,6 +158,33 @@ public class AndroidPackageApi {
     public int getTargetSdkVersion() {
         try {
             return (int) mPkg.getClass().getMethod("getTargetSdkVersion").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nullable
+    public String getSdkLibName() {
+        try {
+            return (String) mPkg.getClass().getMethod("getSdkLibName").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nullable
+    public String getStaticSharedLibName() {
+        try {
+            return (String) mPkg.getClass().getMethod("getStaticSharedLibName").invoke(mPkg);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @NonNull
+    public List<String> getLibraryNames() {
+        try {
+            return (List<String>) mPkg.getClass().getMethod("getLibraryNames").invoke(mPkg);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }

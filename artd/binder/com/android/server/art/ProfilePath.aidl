@@ -44,9 +44,14 @@ union ProfilePath {
         @utf8InCpp String id;
     }
 
-    /** Represents a profile built in the system image. */
+    /**
+     * Represents a profile next to a dex file. This is usually a prebuilt profile in the system
+     * image, but it can also be a profile that package manager can potentially put along with the
+     * APK during installation. The latter one is not officially supported by package manager, but
+     * OEMs can customize package manager to support that.
+     */
     parcelable PrebuiltProfilePath {
-        /** The path to the dex file that the prebuilt profile is next to. */
+        /** The path to the dex file that the profile is next to. */
         @utf8InCpp String dexPath;
     }
 }

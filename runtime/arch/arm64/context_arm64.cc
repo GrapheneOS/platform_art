@@ -29,6 +29,10 @@
 #define __hwasan_handle_longjmp(sp)
 #endif
 
+#if defined(__aarch64__) && defined(__BIONIC__)
+#include <bionic/malloc.h>
+#endif
+
 namespace art {
 namespace arm64 {
 
@@ -130,7 +134,21 @@ void Arm64Context::SmashCallerSaves() {
 
 extern "C" NO_RETURN void art_quick_do_long_jump(uint64_t*, uint64_t*);
 
-void Arm64Context::DoLongJump() {
+#if defined(__aarch64__) && defined(__BIONIC__) && defined(M_MEMTAG_STACK_IS_ON)
+static inline __attribute__((no_sanitize("memtag"))) void untag_memory(void* from, void* to) {
+  __asm__ __volatile__(
+      ".arch_extension mte\n"
+      "1:\n"
+      "stg %[Ptr], [%[Ptr]], #16\n"
+      "cmp %[Ptr], %[End]\n"
+      "b.lt 1b\n"
+      : [Ptr] "+&r"(from)
+      : [End] "r"(to)
+      : "memory");
+}
+#endif
+
+__attribute__((no_sanitize("memtag"))) void Arm64Context::DoLongJump() {
   uint64_t gprs[arraysize(gprs_)];
   uint64_t fprs[kNumberOfDRegisters];
 
@@ -145,6 +163,13 @@ void Arm64Context::DoLongJump() {
   }
   // Ensure the Thread Register contains the address of the current thread.
   DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
+#if defined(__aarch64__) && defined(__BIONIC__) && defined(M_MEMTAG_STACK_IS_ON)
+  bool memtag_stack;
+  // This works fine because versions of Android that did not support M_MEMTAG_STACK_ON did not
+  // support stack tagging either.
+  if (android_mallopt(M_MEMTAG_STACK_IS_ON, &memtag_stack, sizeof(memtag_stack)) && memtag_stack)
+    untag_memory(__builtin_frame_address(0), reinterpret_cast<void*>(gprs[SP]));
+#endif
   // Tell HWASan about the new stack top.
   __hwasan_handle_longjmp(reinterpret_cast<void*>(gprs[SP]));
   // The Marking Register will be updated by art_quick_do_long_jump.
