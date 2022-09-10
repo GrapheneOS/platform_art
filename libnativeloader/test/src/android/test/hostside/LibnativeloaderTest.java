@@ -65,9 +65,11 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
         File libContainerApk = ctx.mBuildHelper.getTestFile("library_container_app.apk");
         try (ZipFile libApk = new ZipFile(libContainerApk)) {
-            ctx.pushSystemOemLibs(libApk);
-            ctx.pushProductLibs(libApk);
+            ctx.pushExtendedPublicSystemOemLibs(libApk);
+            ctx.pushExtendedPublicProductLibs(libApk);
+            ctx.pushPrivateLibs(libApk);
         }
+        ctx.pushSystemSharedLib();
 
         // "Install" apps in various partitions through plain adb push followed by a soft reboot. We
         // need them in these locations to test library loading restrictions, so for all except
@@ -203,7 +205,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
         public void close() throws DeviceNotAvailableException { mCleanup.cleanup(); }
 
-        void pushSystemOemLibs(ZipFile libApk) throws Exception {
+        void pushExtendedPublicSystemOemLibs(ZipFile libApk) throws Exception {
             pushNativeTestLib(libApk, "/system/${LIB}/libfoo.oem1.so");
             pushNativeTestLib(libApk, "/system/${LIB}/libbar.oem1.so");
             pushString("libfoo.oem1.so\n"
@@ -217,12 +219,32 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
                     "/system/etc/public.libraries-oem2.txt");
         }
 
-        void pushProductLibs(ZipFile libApk) throws Exception {
+        void pushExtendedPublicProductLibs(ZipFile libApk) throws Exception {
             pushNativeTestLib(libApk, "/product/${LIB}/libfoo.product1.so");
             pushNativeTestLib(libApk, "/product/${LIB}/libbar.product1.so");
             pushString("libfoo.product1.so\n"
                             + "libbar.product1.so\n",
                     "/product/etc/public.libraries-product1.txt");
+        }
+
+        void pushPrivateLibs(ZipFile libApk) throws Exception {
+            // Push the libraries once for each test. Since we cannot unload them, we need a fresh
+            // never-before-loaded library in each loadLibrary call.
+            for (int i = 1; i <= 2; ++i) {
+                pushNativeTestLib(libApk, "/system/${LIB}/libsystem_private" + i + ".so");
+                pushNativeTestLib(libApk, "/product/${LIB}/libproduct_private" + i + ".so");
+                pushNativeTestLib(libApk, "/vendor/${LIB}/libvendor_private" + i + ".so");
+            }
+        }
+
+        void pushSystemSharedLib() throws Exception {
+            String packageName = "android.test.systemsharedlib";
+            String path = "/system/framework/" + packageName + ".jar";
+            pushFile("libnativeloader_system_shared_lib.jar", path);
+            pushString("<permissions>\n"
+                            + "<library name=\"" + packageName + "\" file=\"" + path + "\" />\n"
+                            + "</permissions>\n",
+                    "system/etc/permissions/" + packageName + ".xml");
         }
 
         void softReboot() throws DeviceNotAvailableException {
