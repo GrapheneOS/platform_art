@@ -82,15 +82,18 @@ constexpr const char* kAlwaysPermittedDirectories = "/data:/mnt/expand";
 
 constexpr const char* kVendorLibPath = "/vendor/" LIB;
 constexpr const char* kProductLibPath = "/product/" LIB ":/system/product/" LIB;
+constexpr const char* kSystemLibPath = "/system/" LIB ":/system_ext/" LIB;
 
 const std::regex kVendorDexPathRegex("(^|:)/vendor/");
 const std::regex kProductDexPathRegex("(^|:)(/system)?/product/");
+const std::regex kSystemDexPathRegex("(^|:)/system(_ext)?/");  // MUST be tested last.
 
-// Define origin of APK if it is from vendor partition or product partition
+// Define origin partition of APK
 using ApkOrigin = enum {
   APK_ORIGIN_DEFAULT = 0,
   APK_ORIGIN_VENDOR = 1,
-  APK_ORIGIN_PRODUCT = 2,
+  APK_ORIGIN_PRODUCT = 2,  // Includes both /product and /system/product
+  APK_ORIGIN_SYSTEM = 3,   // Includes both /system and /system_ext but not /system/product
 };
 
 jobject GetParentClassLoader(JNIEnv* env, jobject class_loader) {
@@ -112,6 +115,9 @@ ApkOrigin GetApkOriginFromDexPath(const std::string& dex_path) {
                         dex_path.c_str());
 
     apk_origin = APK_ORIGIN_PRODUCT;
+  }
+  if (apk_origin == APK_ORIGIN_DEFAULT && std::regex_search(dex_path, kSystemDexPathRegex)) {
+    apk_origin = APK_ORIGIN_SYSTEM;
   }
   return apk_origin;
 }
@@ -234,7 +240,18 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
   const char* apk_origin_msg = "other apk";  // Only for debug logging.
 
   if (!is_shared) {
-    if (apk_origin == APK_ORIGIN_VENDOR) {
+    if (apk_origin == APK_ORIGIN_SYSTEM) {
+      // System apps commonly get shared namespaces and hence don't need this.
+      // In practice it's necessary for shared system libraries (i.e. JARs
+      // rather than actual APKs) that are loaded by ordinary apps which don't
+      // get shared namespaces.
+      apk_origin_msg = "system apk";
+
+      // Give access to all libraries in the system and system_ext partitions
+      // (they can freely access each other's private APIs).
+      library_path = library_path + ":" + kSystemLibPath;
+      permitted_path = permitted_path + ":" + kSystemLibPath;
+    } else if (apk_origin == APK_ORIGIN_VENDOR) {
       unbundled_app_origin = APK_ORIGIN_VENDOR;
       apk_origin_msg = "unbundled vendor apk";
 
@@ -288,8 +305,7 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
     // they are to other apps, including those in system, system_ext, and
     // product partitions. The reason is that when GSI is used, the system
     // partition may get replaced, and then vendor apps may fail. It's fine for
-    // product (and system_ext) apps, because those partitions aren't mounted in
-    // GSI tests.
+    // product apps, because that partition isn't mounted in GSI tests.
     auto libs =
         filter_public_libraries(target_sdk_version, uses_libraries, extended_public_libraries());
     if (!libs.empty()) {
