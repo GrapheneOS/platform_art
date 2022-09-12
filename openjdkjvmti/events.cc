@@ -1255,7 +1255,7 @@ void EventHandler::HandleLocalAccessCapabilityAdded() {
       }
       for (auto& m : klass->GetMethods(art::kRuntimePointerSize)) {
         const void* code = m.GetEntryPointFromQuickCompiledCode();
-        if (m.IsNative() || m.IsProxyMethod()) {
+        if (m.IsNative() || m.IsProxyMethod() || !m.IsInvokable()) {
           continue;
         } else if (!runtime_->GetClassLinker()->IsQuickToInterpreterBridge(code) &&
                    !runtime_->IsAsyncDeoptimizeable(&m, reinterpret_cast<uintptr_t>(code))) {
