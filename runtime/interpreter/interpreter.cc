@@ -385,9 +385,8 @@ void EnterInterpreterFromInvoke(Thread* self,
     }
   }
   // Set up shadow frame with matching number of reference slots to vregs.
-  ShadowFrame* last_shadow_frame = self->GetManagedStack()->GetTopShadowFrame();
   ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
-      CREATE_SHADOW_FRAME(num_regs, last_shadow_frame, method, /* dex pc */ 0);
+      CREATE_SHADOW_FRAME(num_regs, method, /* dex pc */ 0);
   ShadowFrame* shadow_frame = shadow_frame_unique_ptr.get();
   self->PushShadowFrame(shadow_frame);
 

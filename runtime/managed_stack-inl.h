@@ -36,6 +36,7 @@ inline ShadowFrame* ManagedStack::PopShadowFrame() {
   CHECK(top_shadow_frame_ != nullptr);
   ShadowFrame* frame = top_shadow_frame_;
   top_shadow_frame_ = frame->GetLink();
+  frame->ClearLink();
   return frame;
 }
 
