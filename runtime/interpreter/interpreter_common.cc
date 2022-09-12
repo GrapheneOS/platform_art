@@ -1019,11 +1019,9 @@ static ObjPtr<mirror::CallSite> InvokeBootstrapMethod(Thread* self,
   // Set-up a shadow frame for invoking the bootstrap method handle.
   ShadowFrameAllocaUniquePtr bootstrap_frame =
       CREATE_SHADOW_FRAME(call_site_type->NumberOfVRegs(),
-                          nullptr,
                           referrer,
                           shadow_frame.GetDexPC());
-  ScopedStackedShadowFramePusher pusher(
-      self, bootstrap_frame.get(), StackedShadowFrameType::kShadowFrameUnderConstruction);
+  ScopedStackedShadowFramePusher pusher(self, bootstrap_frame.get());
   ShadowFrameSetter setter(bootstrap_frame.get(), 0u);
 
   // The first parameter is a MethodHandles lookup instance.
@@ -1282,7 +1280,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   // Allocate shadow frame on the stack.
   const char* old_cause = self->StartAssertNoThreadSuspension("DoCallCommon");
   ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
-      CREATE_SHADOW_FRAME(num_regs, &shadow_frame, called_method, /* dex pc */ 0);
+      CREATE_SHADOW_FRAME(num_regs, called_method, /* dex pc */ 0);
   ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
 
   // Initialize new shadow frame by copying the registers from the callee shadow frame.
@@ -1290,8 +1288,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
     // Slow path.
     // We might need to do class loading, which incurs a thread state change to kNative. So
     // register the shadow frame as under construction and allow suspension again.
-    ScopedStackedShadowFramePusher pusher(
-        self, new_shadow_frame, StackedShadowFrameType::kShadowFrameUnderConstruction);
+    ScopedStackedShadowFramePusher pusher(self, new_shadow_frame);
     self->EndAssertNoThreadSuspension(old_cause);
 
     // ArtMethod here is needed to check type information of the call site against the callee.

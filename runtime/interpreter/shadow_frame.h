@@ -75,10 +75,11 @@ class ShadowFrame {
   }
 
   // Create ShadowFrame in heap for deoptimization.
-  static ShadowFrame* CreateDeoptimizedFrame(uint32_t num_vregs, ShadowFrame* link,
-                                             ArtMethod* method, uint32_t dex_pc) {
+  static ShadowFrame* CreateDeoptimizedFrame(uint32_t num_vregs,
+                                             ArtMethod* method,
+                                             uint32_t dex_pc) {
     uint8_t* memory = new uint8_t[ComputeSize(num_vregs)];
-    return CreateShadowFrameImpl(num_vregs, link, method, dex_pc, memory);
+    return CreateShadowFrameImpl(num_vregs, method, dex_pc, memory);
   }
 
   // Delete a ShadowFrame allocated on the heap for deoptimization.
@@ -90,12 +91,11 @@ class ShadowFrame {
 
   // Create a shadow frame in a fresh alloca. This needs to be in the context of the caller.
   // Inlining doesn't work, the compiler will still undo the alloca. So this needs to be a macro.
-#define CREATE_SHADOW_FRAME(num_vregs, link, method, dex_pc) ({                              \
+#define CREATE_SHADOW_FRAME(num_vregs, method, dex_pc) ({                                    \
     size_t frame_size = ShadowFrame::ComputeSize(num_vregs);                                 \
     void* alloca_mem = alloca(frame_size);                                                   \
     ShadowFrameAllocaUniquePtr(                                                              \
-        ShadowFrame::CreateShadowFrameImpl((num_vregs), (link), (method), (dex_pc),          \
-                                           (alloca_mem)));                                   \
+        ShadowFrame::CreateShadowFrameImpl((num_vregs), (method), (dex_pc), (alloca_mem)));  \
     })
 
   ~ShadowFrame() {}
@@ -135,7 +135,12 @@ class ShadowFrame {
 
   void SetLink(ShadowFrame* frame) {
     DCHECK_NE(this, frame);
+    DCHECK_EQ(link_, nullptr);
     link_ = frame;
+  }
+
+  void ClearLink() {
+    link_ = nullptr;
   }
 
   int32_t GetVReg(size_t i) const {
@@ -317,11 +322,10 @@ class ShadowFrame {
 
   // Create ShadowFrame for interpreter using provided memory.
   static ShadowFrame* CreateShadowFrameImpl(uint32_t num_vregs,
-                                            ShadowFrame* link,
                                             ArtMethod* method,
                                             uint32_t dex_pc,
                                             void* memory) {
-    return new (memory) ShadowFrame(num_vregs, link, method, dex_pc);
+    return new (memory) ShadowFrame(num_vregs, method, dex_pc);
   }
 
   const uint16_t* GetDexPCPtr() {
@@ -396,8 +400,8 @@ class ShadowFrame {
   }
 
  private:
-  ShadowFrame(uint32_t num_vregs, ShadowFrame* link, ArtMethod* method, uint32_t dex_pc)
-      : link_(link),
+  ShadowFrame(uint32_t num_vregs, ArtMethod* method, uint32_t dex_pc)
+      : link_(nullptr),
         method_(method),
         result_register_(nullptr),
         dex_pc_ptr_(nullptr),

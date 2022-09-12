@@ -437,15 +437,18 @@ void Thread::PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type
   tlsPtr_.stacked_shadow_frame_record = record;
 }
 
-ShadowFrame* Thread::PopStackedShadowFrame(StackedShadowFrameType type, bool must_be_present) {
+ShadowFrame* Thread::MaybePopDeoptimizedStackedShadowFrame() {
   StackedShadowFrameRecord* record = tlsPtr_.stacked_shadow_frame_record;
-  if (must_be_present) {
-    DCHECK(record != nullptr);
-  } else {
-    if (record == nullptr || record->GetType() != type) {
-      return nullptr;
-    }
+  if (record == nullptr ||
+      record->GetType() != StackedShadowFrameType::kDeoptimizationShadowFrame) {
+    return nullptr;
   }
+  return PopStackedShadowFrame();
+}
+
+ShadowFrame* Thread::PopStackedShadowFrame() {
+  StackedShadowFrameRecord* record = tlsPtr_.stacked_shadow_frame_record;
+  DCHECK_NE(record, nullptr);
   tlsPtr_.stacked_shadow_frame_record = record->GetLink();
   ShadowFrame* shadow_frame = record->GetShadowFrame();
   delete record;
@@ -535,7 +538,7 @@ ShadowFrame* Thread::FindOrCreateDebuggerShadowFrame(size_t frame_id,
     return shadow_frame;
   }
   VLOG(deopt) << "Create pre-deopted ShadowFrame for " << ArtMethod::PrettyMethod(method);
-  shadow_frame = ShadowFrame::CreateDeoptimizedFrame(num_vregs, nullptr, method, dex_pc);
+  shadow_frame = ShadowFrame::CreateDeoptimizedFrame(num_vregs, method, dex_pc);
   FrameIdToShadowFrame* record = FrameIdToShadowFrame::Create(frame_id,
                                                               shadow_frame,
                                                               tlsPtr_.frame_id_to_shadow_frame,
@@ -4659,8 +4662,8 @@ size_t Thread::NumberOfHeldMutexes() const {
 void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
   DCHECK_EQ(GetException(), Thread::GetDeoptimizationException());
   ClearException();
-  ShadowFrame* shadow_frame =
-      PopStackedShadowFrame(StackedShadowFrameType::kDeoptimizationShadowFrame);
+  ShadowFrame* shadow_frame = MaybePopDeoptimizedStackedShadowFrame();
+  DCHECK_NE(shadow_frame, nullptr);
   ObjPtr<mirror::Throwable> pending_exception;
   bool from_code = false;
   DeoptimizationMethodType method_type;
