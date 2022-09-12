@@ -271,7 +271,6 @@ class ClassLinker::VisiblyInitializedCallback final
   }
 
   void Run(Thread* self) override {
-    self->ClearMakeVisiblyInitializedCounter();
     AdjustThreadVisibilityCounter(self, -1);
   }
 
