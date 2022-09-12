@@ -1339,11 +1339,12 @@ class Thread {
 
   bool IncrementMakeVisiblyInitializedCounter() {
     tls32_.make_visibly_initialized_counter += 1u;
-    return tls32_.make_visibly_initialized_counter == kMakeVisiblyInitializedCounterTriggerCount;
-  }
-
-  void ClearMakeVisiblyInitializedCounter() {
-    tls32_.make_visibly_initialized_counter = 0u;
+    DCHECK_LE(tls32_.make_visibly_initialized_counter, kMakeVisiblyInitializedCounterTriggerCount);
+    if (tls32_.make_visibly_initialized_counter == kMakeVisiblyInitializedCounterTriggerCount) {
+      tls32_.make_visibly_initialized_counter = 0u;
+      return true;
+    }
+    return false;
   }
 
   void PushVerifier(verifier::MethodVerifier* verifier);
