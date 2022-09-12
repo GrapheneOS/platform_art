@@ -1330,8 +1330,7 @@
         "tests": ["2009-structural-local-ref",
                   "2035-structural-native-method",
 	          "2036-structural-subclass-shadow",
-	          "2040-huge-native-alloc",
-	          "905-object-free"],
+	          "2040-huge-native-alloc"],
         "env_vars": {"ART_USE_READ_BARRIER": "false"},
         "bug": "b/242181443",
         "description": ["Tests temporarily disabled for userfaultfd GC. Remove once native GC-root updation is implemented."]

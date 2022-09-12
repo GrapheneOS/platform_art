@@ -210,13 +210,13 @@ void JvmtiWeakTable<T>::SweepImpl(art::IsMarkedVisitor* visitor) {
 template <typename T>
 template <typename Updater, typename JvmtiWeakTable<T>::TableUpdateNullTarget kTargetNull>
 ALWAYS_INLINE inline void JvmtiWeakTable<T>::UpdateTableWith(Updater& updater) {
-  // We optimistically hope that elements will still be well-distributed when re-inserting them.
-  // So play with the map mechanics, and postpone rehashing. This avoids the need of a side
-  // vector and two passes.
-  float original_max_load_factor = tagged_objects_.max_load_factor();
-  tagged_objects_.max_load_factor(std::numeric_limits<float>::max());
-  // For checking that a max load-factor actually does what we expect.
-  size_t original_bucket_count = tagged_objects_.bucket_count();
+  // We can't emplace within the map as a to-space reference could be the same as some
+  // from-space object reference in the map, causing correctness issues. The problem
+  // doesn't arise if all updated <K,V> pairs are inserted after the loop as by then such
+  // from-space object references would also have been taken care of.
+
+  // Side vector to hold node handles of entries which are updated.
+  std::vector<typename TagMap::node_type> updated_node_handles;
 
   for (auto it = tagged_objects_.begin(); it != tagged_objects_.end();) {
     DCHECK(!it->first.IsNull());
@@ -226,22 +226,24 @@ ALWAYS_INLINE inline void JvmtiWeakTable<T>::UpdateTableWith(Updater& updater) {
       if (kTargetNull == kIgnoreNull && target_obj == nullptr) {
         // Ignore null target, don't do anything.
       } else {
-        T tag = it->second;
-        it = tagged_objects_.erase(it);
+        auto nh = tagged_objects_.extract(it++);
+        DCHECK(!nh.empty());
         if (target_obj != nullptr) {
-          tagged_objects_.emplace(art::GcRoot<art::mirror::Object>(target_obj), tag);
-          DCHECK_EQ(original_bucket_count, tagged_objects_.bucket_count());
+          nh.key() = art::GcRoot<art::mirror::Object>(target_obj);
+          updated_node_handles.push_back(std::move(nh));
         } else if (kTargetNull == kCallHandleNull) {
-          HandleNullSweep(tag);
+          HandleNullSweep(nh.mapped());
         }
-        continue;  // Iterator was implicitly updated by erase.
+        continue;  // Iterator already updated above.
       }
     }
     it++;
   }
-
-  tagged_objects_.max_load_factor(original_max_load_factor);
-  // TODO: consider rehash here.
+  while (!updated_node_handles.empty()) {
+    auto ret = tagged_objects_.insert(std::move(updated_node_handles.back()));
+    DCHECK(ret.inserted);
+    updated_node_handles.pop_back();
+  }
 }
 
 template <typename T>
