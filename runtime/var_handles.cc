@@ -41,7 +41,7 @@ bool VarHandleInvokeAccessorWithConversions(Thread* self,
   const size_t num_vregs = accessor_type->NumberOfVRegs();
   const int num_params = accessor_type->GetPTypes()->GetLength();
   ShadowFrameAllocaUniquePtr accessor_frame =
-      CREATE_SHADOW_FRAME(num_vregs, nullptr, shadow_frame.GetMethod(), shadow_frame.GetDexPC());
+      CREATE_SHADOW_FRAME(num_vregs, shadow_frame.GetMethod(), shadow_frame.GetDexPC());
   ShadowFrameGetter getter(shadow_frame, operands);
   static const uint32_t kFirstDestinationReg = 0;
   ShadowFrameSetter setter(accessor_frame.get(), kFirstDestinationReg);
