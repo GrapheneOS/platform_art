@@ -422,7 +422,7 @@ class DeoptimizeStackVisitor final : public StackVisitor {
       CodeItemDataAccessor accessor(method->DexInstructionData());
       const size_t num_regs = accessor.RegistersSize();
       if (new_frame == nullptr) {
-        new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, nullptr, method, GetDexPc());
+        new_frame = ShadowFrame::CreateDeoptimizedFrame(num_regs, method, GetDexPc());
         updated_vregs = nullptr;
       } else {
         updated_vregs = GetThread()->GetUpdatedVRegFlags(frame_id);
