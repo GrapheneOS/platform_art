@@ -172,16 +172,19 @@ class MockExecUtils : public ExecUtils {
  public:
   // A workaround to avoid MOCK_METHOD on a method with an `std::string*` parameter, which will lead
   // to a conflict between gmock and android-base/logging.h (b/132668253).
-  int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
-                        int,
-                        const ExecCallbacks&,
-                        bool*,
-                        ProcessStat* stat,
-                        std::string*) const override {
-    return DoExecAndReturnCode(arg_vector, stat);
+  ExecResult ExecAndReturnResult(const std::vector<std::string>& arg_vector,
+                                 int,
+                                 const ExecCallbacks&,
+                                 ProcessStat* stat,
+                                 std::string*) const override {
+    Result<int> code = DoExecAndReturnCode(arg_vector, stat);
+    if (code.ok()) {
+      return {.status = ExecResult::kExited, .exit_code = code.value()};
+    }
+    return {.status = ExecResult::kUnknown};
   }
 
-  MOCK_METHOD(int,
+  MOCK_METHOD(Result<int>,
               DoExecAndReturnCode,
               (const std::vector<std::string>& arg_vector, ProcessStat* stat),
               (const));

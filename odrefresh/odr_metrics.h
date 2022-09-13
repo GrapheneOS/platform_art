@@ -24,6 +24,7 @@
 #include <string>
 
 #include "base/macros.h"
+#include "exec_utils.h"
 #include "odr_metrics_record.h"
 
 namespace art {
@@ -115,6 +116,9 @@ class OdrMetrics final {
   // Sets the current odrefresh processing stage.
   void SetStage(Stage stage);
 
+  // Sets the result of the current dex2oat invocation.
+  void SetDex2OatResult(const ExecResult& dex2oat_result);
+
   // Record metrics into an OdrMetricsRecord.
   // returns true on success, false if instance is not valid (because the trigger value is not set).
   bool ToRecord(/*out*/OdrMetricsRecord* record) const;
@@ -139,9 +143,27 @@ class OdrMetrics final {
 
   int32_t cache_space_free_start_mib_ = 0;
   int32_t cache_space_free_end_mib_ = 0;
+
+  // The total time spent on compiling primary BCP.
   int32_t primary_bcp_compilation_millis_ = 0;
+
+  // The result of the dex2oat invocation for compiling primary BCP, or `std::nullopt` if dex2oat is
+  // not invoked.
+  std::optional<ExecResult> primary_bcp_dex2oat_result_;
+
+  // The total time spent on compiling secondary BCP.
   int32_t secondary_bcp_compilation_millis_ = 0;
+
+  // The result of the dex2oat invocation for compiling secondary BCP, or `std::nullopt` if dex2oat
+  // is not invoked.
+  std::optional<ExecResult> secondary_bcp_dex2oat_result_;
+
+  // The total time spent on compiling system server.
   int32_t system_server_compilation_millis_ = 0;
+
+  // The result of the last dex2oat invocation for compiling system server, or `std::nullopt` if
+  // dex2oat is not invoked.
+  std::optional<ExecResult> system_server_dex2oat_result_;
 
   friend class ScopedOdrCompilationTimer;
 };
