@@ -2263,6 +2263,9 @@ void UnstartedRuntime::Invoke(Thread* self, const CodeItemDataAccessor& accessor
 
   const auto& iter = invoke_handlers_.find(shadow_frame->GetMethod());
   if (iter != invoke_handlers_.end()) {
+    // Note: When we special case the method, we do not ensure initialization.
+    // This has been the behavior since implementation of this feature.
+
     // Clear out the result in case it's not zeroed out.
     result->SetL(nullptr);
 
@@ -2273,6 +2276,9 @@ void UnstartedRuntime::Invoke(Thread* self, const CodeItemDataAccessor& accessor
 
     self->PopShadowFrame();
   } else {
+    if (!EnsureInitialized(self, shadow_frame)) {
+      return;
+    }
     // Not special, continue with regular interpreter execution.
     ArtInterpreterToInterpreterBridge(self, accessor, shadow_frame, result);
   }
