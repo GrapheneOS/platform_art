@@ -715,6 +715,9 @@ class Thread {
     return tlsPtr_.frame_id_to_shadow_frame != nullptr;
   }
 
+  // This is done by GC using a checkpoint (or in a stop-the-world pause).
+  void SweepInterpreterCache(IsMarkedVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1563,9 +1566,6 @@ class Thread {
 
   template <bool kPrecise>
   void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  static void SweepInterpreterCaches(IsMarkedVisitor* visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsAotCompiler();
 

@@ -430,8 +430,7 @@ class Runtime {
 
   // Sweep system weaks, the system weak is deleted if the visitor return null. Otherwise, the
   // system weak is updated to be the visitor's returned value.
-  void SweepSystemWeaks(IsMarkedVisitor* visitor)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  void SweepSystemWeaks(IsMarkedVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Walk all reflective objects and visit their targets as well as any method/fields held by the
   // runtime threads that are marked as being reflective.
