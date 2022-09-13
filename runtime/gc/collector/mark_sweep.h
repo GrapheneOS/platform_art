@@ -181,7 +181,7 @@ class MarkSweep : public GarbageCollector {
       REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void VerifySystemWeaks()
-      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+      REQUIRES(Locks::mutator_lock_) REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
   // Verify that an object is live, either in a live bitmap or in the allocation stack.
   void VerifyIsLive(const mirror::Object* obj)
