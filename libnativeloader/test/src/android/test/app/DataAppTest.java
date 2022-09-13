@@ -16,21 +16,21 @@
 
 package android.test.app;
 
+import android.test.lib.TestUtils;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-// These tests are run from /system/app, /system/priv-app, and /system_ext/app.
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class SystemAppTest {
+public class DataAppTest {
     @Test
     public void testLoadLibraries() {
         System.loadLibrary("foo.oem1");
         System.loadLibrary("bar.oem1");
         System.loadLibrary("foo.oem2");
-        System.loadLibrary("bar.oem2");
+        TestUtils.assertLinkerNamespaceError("bar.oem2"); // Missing <uses-native-library>.
         System.loadLibrary("foo.product1");
         System.loadLibrary("bar.product1");
     }
