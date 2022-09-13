@@ -19,10 +19,16 @@ package android.test.lib;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
+import org.junit.function.ThrowingRunnable;
+
 public final class TestUtils {
-    public static void assertLinkerNamespaceError(String libraryName) {
-        Throwable t =
-                assertThrows(UnsatisfiedLinkError.class, () -> System.loadLibrary(libraryName));
+    public static void assertLibraryNotFound(ThrowingRunnable loadLibrary) {
+        Throwable t = assertThrows(UnsatisfiedLinkError.class, loadLibrary);
+        assertThat(t.getMessage()).containsMatch("dlopen failed: library .* not found");
+    }
+
+    public static void assertLinkerNamespaceError(ThrowingRunnable loadLibrary) {
+        Throwable t = assertThrows(UnsatisfiedLinkError.class, loadLibrary);
         assertThat(t.getMessage())
                 .containsMatch("dlopen failed: .* is not accessible for the namespace");
     }
