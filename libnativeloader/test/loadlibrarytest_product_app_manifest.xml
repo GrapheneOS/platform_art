@@ -19,5 +19,13 @@
           package="android.test.app.product">
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
                      android:targetPackage="android.test.app.product" />
+    <application>
+        <uses-native-library android:required="false" android:name="libfoo.oem1.so" />
+        <uses-native-library android:required="false" android:name="libbar.oem1.so" />
+        <uses-native-library android:required="false" android:name="libfoo.oem2.so" />
+        <!--libbar.oem2.so is left out -->
+        <uses-native-library android:required="false" android:name="libfoo.product1.so" />
+        <uses-native-library android:required="false" android:name="libbar.product1.so" />
+    </application>
 </manifest>
 
