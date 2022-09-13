@@ -1543,15 +1543,11 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
     return true;
   }
 
-  bool timed_out = false;
-  int dex2oat_exit_code = exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, error_msg);
+  ExecResult dex2oat_result = exec_utils_->ExecAndReturnResult(args, timeout, error_msg);
+  metrics.SetDex2OatResult(dex2oat_result);
 
-  if (dex2oat_exit_code != 0) {
-    if (timed_out) {
-      metrics.SetStatus(OdrMetrics::Status::kTimeLimitExceeded);
-    } else {
-      metrics.SetStatus(OdrMetrics::Status::kDex2OatError);
-    }
+  if (dex2oat_result.status != ExecResult::kExited || dex2oat_result.exit_code != 0) {
+    metrics.SetStatus(OdrMetrics::Status::kDex2OatError);
     EraseFiles(staging_files);
     return false;
   }
@@ -1699,15 +1695,11 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
       return true;
     }
 
-    bool timed_out = false;
-    int dex2oat_exit_code = exec_utils_->ExecAndReturnCode(args, timeout, &timed_out, error_msg);
+    ExecResult dex2oat_result = exec_utils_->ExecAndReturnResult(args, timeout, error_msg);
+    metrics.SetDex2OatResult(dex2oat_result);
 
-    if (dex2oat_exit_code != 0) {
-      if (timed_out) {
-        metrics.SetStatus(OdrMetrics::Status::kTimeLimitExceeded);
-      } else {
-        metrics.SetStatus(OdrMetrics::Status::kDex2OatError);
-      }
+    if (dex2oat_result.status != ExecResult::kExited || dex2oat_result.exit_code != 0) {
+      metrics.SetStatus(OdrMetrics::Status::kDex2OatError);
       EraseFiles(staging_files);
       return false;
     }
