@@ -1054,6 +1054,10 @@ bool MethodVerifier<kVerifierDebug>::ComputeWidthsAndCountOps() {
   // We can't assume the instruction is well formed, handle the case where calculating the size
   // goes past the end of the code item.
   SafeDexInstructionIterator it(code_item_accessor_.begin(), code_item_accessor_.end());
+  if (it == code_item_accessor_.end()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "code item has no opcode";
+    return false;
+  }
   for ( ; !it.IsErrorState() && it < code_item_accessor_.end(); ++it) {
     // In case the instruction goes past the end of the code item, make sure to not process it.
     SafeDexInstructionIterator next = it;
