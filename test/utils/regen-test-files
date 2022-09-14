@@ -205,8 +205,6 @@ known_failing_tests = frozenset([
   "832-cha-recursive",
   # 837-deopt: Dependency on `libarttest`.
   "837-deopt",
-  # 993-breakpoints-non-debuggable: This test needs native code.
-  "993-breakpoints-non-debuggable",
 ])
 
 known_failing_on_hwasan_tests = frozenset([

@@ -41,10 +41,6 @@ JitCompiler* JitCompiler::Create() {
   return new JitCompiler();
 }
 
-void JitCompiler::SetDebuggableCompilerOption(bool value) {
-  compiler_options_->SetDebuggable(value);
-}
-
 void JitCompiler::ParseCompilerOptions() {
   // Special case max code units for inlining, whose default is "unset" (implictly
   // meaning no limit). Do this before parsing the actual passed options.

@@ -42,7 +42,7 @@ extern "C" JNIEXPORT void JNICALL Java_art_Test2031_simulateZygoteFork(JNIEnv*, 
   }
   runtime->SetAsZygoteChild(/*is_system_server=*/false, /*is_zygote=*/false);
   runtime->AddCompilerOption("--debuggable");
-  runtime->SetRuntimeDebugState(Runtime::RuntimeDebugState::kJavaDebuggableAtInit);
+  runtime->SetJavaDebuggable(true);
   {
     // Deoptimize the boot image as it may be non-debuggable.
     ScopedSuspendAll ssa(__FUNCTION__);
