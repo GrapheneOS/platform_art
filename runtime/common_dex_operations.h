@@ -26,6 +26,7 @@
 #include "dex/code_item_accessors.h"
 #include "dex/dex_file_structs.h"
 #include "dex/primitive.h"
+#include "entrypoints/entrypoint_utils.h"
 #include "handle_scope-inl.h"
 #include "instrumentation.h"
 #include "interpreter/interpreter.h"
@@ -55,7 +56,31 @@ namespace interpreter {
                                           ShadowFrame* shadow_frame,
                                           uint16_t arg_offset,
                                           JValue* result);
+
 }  // namespace interpreter
+
+inline bool EnsureInitialized(Thread* self, ShadowFrame* shadow_frame)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (!NeedsClinitCheckBeforeCall(shadow_frame->GetMethod())) {
+    return true;
+  }
+  ObjPtr<mirror::Class> declaring_class = shadow_frame->GetMethod()->GetDeclaringClass();
+  if (LIKELY(declaring_class->IsVisiblyInitialized())) {
+    return true;
+  }
+
+  // Save the shadow frame.
+  ScopedStackedShadowFramePusher pusher(self, shadow_frame);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> h_class(hs.NewHandle(declaring_class));
+  if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
+                    self, h_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true))) {
+    DCHECK(self->IsExceptionPending());
+    return false;
+  }
+  DCHECK(h_class->IsInitializing());
+  return true;
+}
 
 inline void PerformCall(Thread* self,
                         const CodeItemDataAccessor& accessor,
@@ -65,15 +90,20 @@ inline void PerformCall(Thread* self,
                         JValue* result,
                         bool use_interpreter_entrypoint)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (LIKELY(Runtime::Current()->IsStarted())) {
-    if (use_interpreter_entrypoint) {
-      interpreter::ArtInterpreterToInterpreterBridge(self, accessor, callee_frame, result);
-    } else {
-      interpreter::ArtInterpreterToCompiledCodeBridge(
-          self, caller_method, callee_frame, first_dest_reg, result);
-    }
-  } else {
+  if (UNLIKELY(!Runtime::Current()->IsStarted())) {
     interpreter::UnstartedRuntime::Invoke(self, accessor, callee_frame, result, first_dest_reg);
+    return;
+  }
+
+  if (!EnsureInitialized(self, callee_frame)) {
+    return;
+  }
+
+  if (use_interpreter_entrypoint) {
+    interpreter::ArtInterpreterToInterpreterBridge(self, accessor, callee_frame, result);
+  } else {
+    interpreter::ArtInterpreterToCompiledCodeBridge(
+        self, caller_method, callee_frame, first_dest_reg, result);
   }
 }
 
