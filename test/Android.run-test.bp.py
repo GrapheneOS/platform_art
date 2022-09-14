@@ -35,51 +35,27 @@ def main():
         names.append(name)
         f.write(textwrap.dedent("""
           java_genrule {{
-              name: "{name}-tmp",
+              name: "{name}",
               out: ["{name}.zip"],
               srcs: ["*{shard}-*/**/*"],
               defaults: ["art-run-test-data-defaults"],
               cmd: "$(location run-test-build.py) --out $(out) --mode {mode} --shard {shard} " +
                   "--bootclasspath $(location :art-run-test-bootclasspath)",
           }}
-
-          // Install in the output directory to make it accessible for tests.
-          prebuilt_etc_host {{
-              name: "{name}",
-              defaults: ["art_module_source_build_prebuilt_defaults"],
-              src: ":{name}-tmp",
-              sub_dir: "art",
-              filename: "{name}.zip",
-          }}
           """.format(name=name, mode=mode, shard=shard)))
-
-      name = "art-run-test-{mode}-data".format(mode=mode)
-      srcs = ("\n"+" "*8).join('":{}-tmp",'.format(n) for n in names)
-      deps = ("\n"+" "*8).join('"{}",'.format(n) for n in names)
+      srcs = ("\n"+" "*8).join('":{}",'.format(n) for n in names)
       f.write(textwrap.dedent("""
         java_genrule {{
-            name: "{name}-tmp",
+            name: "art-run-test-{mode}-data-merged",
             defaults: ["art-run-test-data-defaults"],
-            out: ["{name}.zip"],
+            out: ["art-run-test-{mode}-data-merged.zip"],
             srcs: [
                 {srcs}
             ],
             tools: ["merge_zips"],
             cmd: "$(location merge_zips) $(out) $(in)",
         }}
-
-        // Install in the output directory to make it accessible for tests.
-        prebuilt_etc_host {{
-            name: "{name}",
-            defaults: ["art_module_source_build_prebuilt_defaults"],
-            src: ":{name}-tmp",
-            required: [
-                {deps}
-            ],
-            sub_dir: "art",
-            filename: "{name}.zip",
-        }}
-        """).format(name=name, srcs=srcs, deps=deps))
+        """).format(mode=mode, srcs=srcs))
 
 if __name__ == "__main__":
   main()
