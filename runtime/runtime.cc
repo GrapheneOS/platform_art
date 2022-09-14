@@ -288,7 +288,7 @@ Runtime::Runtime()
       is_native_debuggable_(false),
       async_exceptions_thrown_(false),
       non_standard_exits_enabled_(false),
-      runtime_debug_state_(RuntimeDebugState::kNonJavaDebuggable),
+      is_java_debuggable_(false),
       monitor_timeout_enable_(false),
       monitor_timeout_ns_(0),
       zygote_max_failed_boots_(0),
@@ -1543,7 +1543,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   compiler_options_ = runtime_options.ReleaseOrDefault(Opt::CompilerOptions);
   for (const std::string& option : Runtime::Current()->GetCompilerOptions()) {
     if (option == "--debuggable") {
-      SetRuntimeDebugState(RuntimeDebugState::kJavaDebuggableAtInit);
+      SetJavaDebuggable(true);
       break;
     }
   }
@@ -3226,12 +3226,9 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
   instrumentation::Instrumentation* const instrumentation_;
 };
 
-void Runtime::SetRuntimeDebugState(RuntimeDebugState state) {
-  if (state != RuntimeDebugState::kJavaDebuggableAtInit) {
-    // We never change the state if we started as a debuggable runtime.
-    DCHECK(runtime_debug_state_ != RuntimeDebugState::kJavaDebuggableAtInit);
-  }
-  runtime_debug_state_ = state;
+void Runtime::SetJavaDebuggable(bool value) {
+  is_java_debuggable_ = value;
+  // Do not call DeoptimizeBootImage just yet, the runtime may still be starting up.
 }
 
 void Runtime::DeoptimizeBootImage() {
