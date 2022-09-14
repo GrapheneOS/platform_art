@@ -245,10 +245,11 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
 
   if (!is_shared) {
     if (apk_origin == APK_ORIGIN_SYSTEM) {
-      // System apps commonly get shared namespaces and hence don't need this.
-      // In practice it's necessary for shared system libraries (i.e. JARs
-      // rather than actual APKs) that are loaded by ordinary apps which don't
-      // get shared namespaces.
+      // System apps commonly get access to system libs from the system
+      // namespace through shared namespaces (i.e. is_shared is true) and hence
+      // don't need this. In practice it's necessary for shared system libraries
+      // (i.e. JARs rather than actual APKs) that are loaded by ordinary apps
+      // which don't get shared namespaces.
       apk_origin_msg = "system apk";
 
       // Give access to all libraries in the system and system_ext partitions
