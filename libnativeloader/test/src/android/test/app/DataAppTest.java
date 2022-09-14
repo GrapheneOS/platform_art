@@ -24,24 +24,24 @@ import androidx.test.runner.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-// These tests are run from /system/app, /system/priv-app, and /system_ext/app.
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class SystemAppTest {
+public class DataAppTest {
     @Test
     public void testLoadExtendedPublicLibraries() {
         System.loadLibrary("foo.oem1");
         System.loadLibrary("bar.oem1");
         System.loadLibrary("foo.oem2");
-        System.loadLibrary("bar.oem2");
+        TestUtils.assertLinkerNamespaceError(
+                () -> System.loadLibrary("bar.oem2")); // Missing <uses-native-library>.
         System.loadLibrary("foo.product1");
         System.loadLibrary("bar.product1");
     }
 
     @Test
     public void testLoadPrivateLibraries() {
-        System.loadLibrary("system_private1");
-        System.loadLibrary("systemext_private1");
+        TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("system_private1"));
+        TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("systemext_private1"));
         TestUtils.assertLibraryNotFound(() -> System.loadLibrary("product_private1"));
         TestUtils.assertLibraryNotFound(() -> System.loadLibrary("vendor_private1"));
     }

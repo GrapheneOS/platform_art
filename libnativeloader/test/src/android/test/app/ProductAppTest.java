@@ -16,6 +16,9 @@
 
 package android.test.app;
 
+import android.test.lib.TestUtils;
+import android.test.systemextsharedlib.SystemExtSharedLib;
+import android.test.systemsharedlib.SystemSharedLib;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 import org.junit.Test;
@@ -25,12 +28,37 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class ProductAppTest {
     @Test
-    public void testLoadLibraries() {
+    public void testLoadExtendedPublicLibraries() {
         System.loadLibrary("foo.oem1");
         System.loadLibrary("bar.oem1");
         System.loadLibrary("foo.oem2");
-        System.loadLibrary("bar.oem2");
+        TestUtils.assertLinkerNamespaceError(
+                () -> System.loadLibrary("bar.oem2")); // Missing <uses-native-library>.
         System.loadLibrary("foo.product1");
         System.loadLibrary("bar.product1");
+    }
+
+    @Test
+    public void testLoadPrivateLibraries() {
+        TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("system_private1"));
+        TestUtils.assertLinkerNamespaceError(() -> System.loadLibrary("systemext_private1"));
+        System.loadLibrary("product_private1");
+        TestUtils.assertLibraryNotFound(() -> System.loadLibrary("vendor_private1"));
+    }
+
+    @Test
+    public void testLoadPrivateLibrariesViaSystemSharedLib() {
+        SystemSharedLib.loadLibrary("system_private2");
+        SystemSharedLib.loadLibrary("systemext_private2");
+        TestUtils.assertLibraryNotFound(() -> SystemSharedLib.loadLibrary("product_private2"));
+        TestUtils.assertLibraryNotFound(() -> SystemSharedLib.loadLibrary("vendor_private2"));
+    }
+
+    @Test
+    public void testLoadPrivateLibrariesViaSystemExtSharedLib() {
+        SystemExtSharedLib.loadLibrary("system_private3");
+        SystemExtSharedLib.loadLibrary("systemext_private3");
+        TestUtils.assertLibraryNotFound(() -> SystemExtSharedLib.loadLibrary("product_private3"));
+        TestUtils.assertLibraryNotFound(() -> SystemExtSharedLib.loadLibrary("vendor_private3"));
     }
 }
