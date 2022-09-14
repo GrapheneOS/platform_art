@@ -82,19 +82,22 @@ constexpr const char* kSharedNamespaceSuffix = "-shared";
 constexpr const char* kAlwaysPermittedDirectories = "/data:/mnt/expand";
 
 constexpr const char* kVendorLibPath = "/vendor/" LIB;
+// TODO(mast): It's unlikely that both paths are necessary for kProductLibPath
+// below, because they can't be two separate directories - either one has to be
+// a symlink to the other.
 constexpr const char* kProductLibPath = "/product/" LIB ":/system/product/" LIB;
 constexpr const char* kSystemLibPath = "/system/" LIB ":/system_ext/" LIB;
 
-const std::regex kVendorDexPathRegex("(^|:)/vendor/");
+const std::regex kVendorDexPathRegex("(^|:)(/system)?/vendor/");
 const std::regex kProductDexPathRegex("(^|:)(/system)?/product/");
 const std::regex kSystemDexPathRegex("(^|:)/system(_ext)?/");  // MUST be tested last.
 
 // Define origin partition of APK
 using ApkOrigin = enum {
   APK_ORIGIN_DEFAULT = 0,
-  APK_ORIGIN_VENDOR = 1,
+  APK_ORIGIN_VENDOR = 1,   // Includes both /vendor and /system/vendor
   APK_ORIGIN_PRODUCT = 2,  // Includes both /product and /system/product
-  APK_ORIGIN_SYSTEM = 3,   // Includes both /system and /system_ext but not /system/product
+  APK_ORIGIN_SYSTEM = 3,   // Includes both /system and /system_ext but not /system/{vendor,product}
 };
 
 jobject GetParentClassLoader(JNIEnv* env, jobject class_loader) {
