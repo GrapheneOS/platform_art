@@ -103,10 +103,11 @@ class BaseMutex {
   BaseMutex(const char* name, LockLevel level);
   virtual ~BaseMutex();
 
-  // Add this mutex to those owned by self, and perform appropriate checking.
-  // For this call only, self may also be another suspended thread.
-  void RegisterAsLocked(Thread* self);
-  void RegisterAsLockedImpl(Thread* self, LockLevel level);
+  // Add this mutex to those owned by self, and optionally perform lock order checking.  Caller
+  // may wish to disable checking for trylock calls that cannot result in deadlock.  For this call
+  // only, self may also be another suspended thread.
+  void RegisterAsLocked(Thread* self, bool check = kDebugLocking);
+  void RegisterAsLockedImpl(Thread* self, LockLevel level, bool check);
 
   void RegisterAsUnlocked(Thread* self);
   void RegisterAsUnlockedImpl(Thread* self, LockLevel level);
@@ -183,7 +184,10 @@ class LOCKABLE Mutex : public BaseMutex {
   void ExclusiveLock(Thread* self) ACQUIRE();
   void Lock(Thread* self) ACQUIRE() {  ExclusiveLock(self); }
 
-  // Returns true if acquires exclusive access, false otherwise.
+  // Returns true if acquires exclusive access, false otherwise. The `check` argument specifies
+  // whether lock level checking should be performed.  Should be defaulted unless we are using
+  // TryLock instead of Lock for deadlock avoidance.
+  template<bool check = kDebugLocking>
   bool ExclusiveTryLock(Thread* self) TRY_ACQUIRE(true);
   bool TryLock(Thread* self) TRY_ACQUIRE(true) { return ExclusiveTryLock(self); }
   // Equivalent to ExclusiveTryLock, but retry for a short period before giving up.
