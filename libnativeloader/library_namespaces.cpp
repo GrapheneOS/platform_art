@@ -82,19 +82,22 @@ constexpr const char* kSharedNamespaceSuffix = "-shared";
 constexpr const char* kAlwaysPermittedDirectories = "/data:/mnt/expand";
 
 constexpr const char* kVendorLibPath = "/vendor/" LIB;
+// TODO(mast): It's unlikely that both paths are necessary for kProductLibPath
+// below, because they can't be two separate directories - either one has to be
+// a symlink to the other.
 constexpr const char* kProductLibPath = "/product/" LIB ":/system/product/" LIB;
 constexpr const char* kSystemLibPath = "/system/" LIB ":/system_ext/" LIB;
 
-const std::regex kVendorDexPathRegex("(^|:)/vendor/");
+const std::regex kVendorDexPathRegex("(^|:)(/system)?/vendor/");
 const std::regex kProductDexPathRegex("(^|:)(/system)?/product/");
 const std::regex kSystemDexPathRegex("(^|:)/system(_ext)?/");  // MUST be tested last.
 
 // Define origin partition of APK
 using ApkOrigin = enum {
   APK_ORIGIN_DEFAULT = 0,
-  APK_ORIGIN_VENDOR = 1,
+  APK_ORIGIN_VENDOR = 1,   // Includes both /vendor and /system/vendor
   APK_ORIGIN_PRODUCT = 2,  // Includes both /product and /system/product
-  APK_ORIGIN_SYSTEM = 3,   // Includes both /system and /system_ext but not /system/product
+  APK_ORIGIN_SYSTEM = 3,   // Includes both /system and /system_ext but not /system/{vendor,product}
 };
 
 jobject GetParentClassLoader(JNIEnv* env, jobject class_loader) {
@@ -242,10 +245,11 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
 
   if (!is_shared) {
     if (apk_origin == APK_ORIGIN_SYSTEM) {
-      // System apps commonly get shared namespaces and hence don't need this.
-      // In practice it's necessary for shared system libraries (i.e. JARs
-      // rather than actual APKs) that are loaded by ordinary apps which don't
-      // get shared namespaces.
+      // System apps commonly get access to system libs from the system
+      // namespace through shared namespaces (i.e. is_shared is true) and hence
+      // don't need this. In practice it's necessary for shared system libraries
+      // (i.e. JARs rather than actual APKs) that are loaded by ordinary apps
+      // which don't get shared namespaces.
       apk_origin_msg = "system apk";
 
       // Give access to all libraries in the system and system_ext partitions

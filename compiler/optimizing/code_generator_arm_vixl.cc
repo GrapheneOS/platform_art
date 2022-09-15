@@ -2246,6 +2246,7 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
   if (GetCompilerOptions().ShouldCompileWithClinitCheck(GetGraph()->GetArtMethod())) {
     UseScratchRegisterScope temps(GetVIXLAssembler());
     vixl32::Label resolution;
+    vixl32::Label memory_barrier;
 
     // Check if we're visibly initialized.
 
@@ -2265,6 +2266,11 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
     __ Cmp(temp2, shifted_visibly_initialized_value);
     __ B(cs, &frame_entry_label_);
 
+    // Check if we're initialized and jump to code that does a memory barrier if
+    // so.
+    __ Cmp(temp2, shifted_initialized_value);
+    __ B(cs, &memory_barrier);
+
     // Check if we're initializing and the thread initializing is the one
     // executing the code.
     __ Cmp(temp2, shifted_initializing_value);
@@ -2281,6 +2287,9 @@ void CodeGeneratorARMVIXL::GenerateFrameEntry() {
         GetThreadOffset<kArmPointerSize>(kQuickQuickResolutionTrampoline);
     __ Ldr(temp1, MemOperand(tr, entrypoint_offset.Int32Value()));
     __ Bx(temp1);
+
+    __ Bind(&memory_barrier);
+    GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
   }
 
   __ Bind(&frame_entry_label_);

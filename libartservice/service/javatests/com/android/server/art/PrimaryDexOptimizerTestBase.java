@@ -133,4 +133,12 @@ public class PrimaryDexOptimizerTestBase {
         }
         return result;
     }
+
+    protected DexoptResult createDexoptResult(boolean cancelled, long wallTimeMs, long cpuTimeMs) {
+        var result = new DexoptResult();
+        result.cancelled = cancelled;
+        result.wallTimeMs = wallTimeMs;
+        result.cpuTimeMs = cpuTimeMs;
+        return result;
+    }
 }

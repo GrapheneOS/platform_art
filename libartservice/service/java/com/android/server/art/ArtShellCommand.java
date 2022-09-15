@@ -18,7 +18,11 @@ package com.android.server.art;
 
 import static com.android.server.art.model.ArtFlags.OptimizeFlags;
 import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
+import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.OptimizeStatus;
+import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
+import android.annotation.NonNull;
 import android.os.Binder;
 import android.os.Process;
 
@@ -93,19 +97,20 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 }
                 OptimizeResult result = mArtManagerLocal.optimizePackage(
                         snapshot, getNextArgRequired(), paramsBuilder.build());
-                switch (result.getFinalStatus()) {
-                    case OptimizeResult.OPTIMIZE_SKIPPED:
-                        pw.println("SKIPPED");
-                        break;
-                    case OptimizeResult.OPTIMIZE_PERFORMED:
-                        pw.println("PERFORMED");
-                        break;
-                    case OptimizeResult.OPTIMIZE_FAILED:
-                        pw.println("FAILED");
-                        break;
-                    case OptimizeResult.OPTIMIZE_CANCELLED:
-                        pw.println("CANCELLED");
-                        break;
+                pw.println(optimizeStatusToString(result.getFinalStatus()));
+                for (PackageOptimizeResult packageResult : result.getPackageOptimizeResults()) {
+                    pw.printf("[%s]\n", packageResult.getPackageName());
+                    for (DexFileOptimizeResult dexFileResult :
+                            packageResult.getDexFileOptimizeResults()) {
+                        pw.printf("dexFile = %s, instructionSet = %s, compilerFilter = %s, "
+                                        + "status = %s, dex2oatWallTimeMillis = %d, "
+                                        + "dex2oatCpuTimeMillis = %d\n",
+                                dexFileResult.getDexFile(), dexFileResult.getInstructionSet(),
+                                dexFileResult.getActualCompilerFilter(),
+                                optimizeStatusToString(dexFileResult.getStatus()),
+                                dexFileResult.getDex2oatWallTimeMillis(),
+                                dexFileResult.getDex2oatCpuTimeMillis());
+                    }
                 }
                 return 0;
             }
@@ -149,5 +154,20 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         if (uid != Process.ROOT_UID) {
             throw new SecurityException("ART service shell commands need root access");
         }
+    }
+
+    @NonNull
+    private String optimizeStatusToString(@OptimizeStatus int status) {
+        switch (status) {
+            case OptimizeResult.OPTIMIZE_SKIPPED:
+                return "SKIPPED";
+            case OptimizeResult.OPTIMIZE_PERFORMED:
+                return "PERFORMED";
+            case OptimizeResult.OPTIMIZE_FAILED:
+                return "FAILED";
+            case OptimizeResult.OPTIMIZE_CANCELLED:
+                return "CANCELLED";
+        }
+        throw new IllegalArgumentException("Unknown optimize status " + status);
     }
 }

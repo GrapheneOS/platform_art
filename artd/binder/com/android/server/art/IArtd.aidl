@@ -111,12 +111,12 @@ interface IArtd {
             int dexoptTrigger);
 
     /**
-     * Dexopts a dex file for the given instruction set. Returns true on success, or false if
-     * cancelled.
+     * Dexopts a dex file for the given instruction set.
      *
      * Throws fatal and non-fatal errors.
      */
-    boolean dexopt(in com.android.server.art.OutputArtifacts outputArtifacts,
+    com.android.server.art.DexoptResult dexopt(
+            in com.android.server.art.OutputArtifacts outputArtifacts,
             @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
             @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
             in @nullable com.android.server.art.ProfilePath profile,

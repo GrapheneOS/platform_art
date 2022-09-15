@@ -206,12 +206,15 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                 .when(mArtd)
                 .getDexoptNeeded("/data/app/foo/base.apk", "arm64", "PCL[]",
                         mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
-        doReturn(true).when(mArtd).dexopt(
-                deepEq(buildOutputArtifacts("/data/app/foo/base.apk", "arm64",
-                        mParams.mExpectedIsInDalvikCache, permissionSettings)),
-                eq("/data/app/foo/base.apk"), eq("arm64"), eq("PCL[]"),
-                eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
-                isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions));
+        doReturn(createDexoptResult(
+                         false /* cancelled */, 100 /* wallTimeMs */, 400 /* cpuTimeMs */))
+                .when(mArtd)
+                .dexopt(deepEq(buildOutputArtifacts("/data/app/foo/base.apk", "arm64",
+                                mParams.mExpectedIsInDalvikCache, permissionSettings)),
+                        eq("/data/app/foo/base.apk"), eq("arm64"), eq("PCL[]"),
+                        eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
+                        isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
+                        deepEq(dexoptOptions));
 
         // The second one fails on `dexopt`.
         doReturn(dexoptIsNeeded())
@@ -238,25 +241,31 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                 .when(mArtd)
                 .getDexoptNeeded("/data/app/foo/split_0.apk", "arm", "PCL[base.apk]",
                         mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
-        doReturn(true).when(mArtd).dexopt(
-                deepEq(buildOutputArtifacts("/data/app/foo/split_0.apk", "arm",
-                        mParams.mExpectedIsInDalvikCache, permissionSettings)),
-                eq("/data/app/foo/split_0.apk"), eq("arm"), eq("PCL[base.apk]"),
-                eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
-                isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions));
+        doReturn(createDexoptResult(
+                         false /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */))
+                .when(mArtd)
+                .dexopt(deepEq(buildOutputArtifacts("/data/app/foo/split_0.apk", "arm",
+                                mParams.mExpectedIsInDalvikCache, permissionSettings)),
+                        eq("/data/app/foo/split_0.apk"), eq("arm"), eq("PCL[base.apk]"),
+                        eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
+                        isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
+                        deepEq(dexoptOptions));
 
         assertThat(mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams))
                 .comparingElementsUsing(TestingUtils.<DexFileOptimizeResult>deepEquality())
                 .containsExactly(
                         new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64",
-                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED),
+                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
+                                100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */),
                         new DexFileOptimizeResult("/data/app/foo/base.apk", "arm",
-                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_FAILED),
+                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_FAILED,
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
                         new DexFileOptimizeResult("/data/app/foo/split_0.apk", "arm64",
-                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_SKIPPED),
+                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_SKIPPED,
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
                         new DexFileOptimizeResult("/data/app/foo/split_0.apk", "arm",
-                                mParams.mExpectedCompilerFilter,
-                                OptimizeResult.OPTIMIZE_PERFORMED));
+                                mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
+                                200 /* dex2oatWallTimeMillis */, 200 /* dex2oatCpuTimeMillis */));
     }
 
     private static class Params {

@@ -14,17 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef ART_TEST_993_BREAKPOINTS_NON_DEBUGGABLE_ONLOAD_H_
-#define ART_TEST_993_BREAKPOINTS_NON_DEBUGGABLE_ONLOAD_H_
+package com.android.server.art;
 
-#include "jni.h"
-
-namespace art {
-namespace Test993BreakpointsNonDebuggable {
-
-jint OnLoad(JavaVM* vm, char* options, void* reserved);
-
-}  // namespace Test993BreakpointsNonDebuggable
-}  // namespace art
-
-#endif  // ART_TEST_993_BREAKPOINTS_NON_DEBUGGABLE_ONLOAD_H_
+/**
+ * The result of {@code IArtd.dexopt}.
+ *
+ * @hide
+ */
+parcelable DexoptResult {
+    /** True if the operation is cancelled. */
+    boolean cancelled;
+    /**
+     * The wall time of the dex2oat invocation, in milliseconds, or 0 if dex2oat is not run or if
+     * failed to get the value.
+     */
+    long wallTimeMs;
+    /**
+     * The CPU time of the dex2oat invocation, in milliseconds, or 0 if dex2oat is not run or if
+     * failed to get the value.
+     */
+    long cpuTimeMs;
+}

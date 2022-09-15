@@ -24,6 +24,7 @@ import com.android.dx.mockito.inline.extended.StaticMockitoSessionBuilder;
 import org.junit.rules.MethodRule;
 import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.Statement;
+import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 /**
@@ -52,11 +53,19 @@ public class StaticMockitoRule implements MethodRule {
                 }
 
                 StaticMockitoSession session = builder.startMocking();
+                Throwable testFailure = evaluateSafely(base);
+                session.finishMocking(testFailure);
+                if (testFailure != null) {
+                    throw testFailure;
+                }
+            }
 
+            private Throwable evaluateSafely(Statement base) {
                 try {
                     base.evaluate();
-                } finally {
-                    session.finishMocking();
+                    return null;
+                } catch (Throwable throwable) {
+                    return throwable;
                 }
             }
         };
