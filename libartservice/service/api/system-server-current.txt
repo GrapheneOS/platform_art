@@ -13,6 +13,20 @@ package com.android.server.art {
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.snapshot.PackageDataSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
   }
 
+  public class ReasonMapping {
+    field public static final String REASON_BG_DEXOPT = "bg-dexopt";
+    field public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";
+    field public static final String REASON_CMDLINE = "cmdline";
+    field public static final String REASON_FIRST_BOOT = "first-boot";
+    field public static final String REASON_INACTIVE = "inactive";
+    field public static final String REASON_INSTALL = "install";
+    field public static final String REASON_INSTALL_BULK = "install-bulk";
+    field public static final String REASON_INSTALL_BULK_DOWNGRADED = "install-bulk-downgraded";
+    field public static final String REASON_INSTALL_BULK_SECONDARY = "install-bulk-secondary";
+    field public static final String REASON_INSTALL_BULK_SECONDARY_DOWNGRADED = "install-bulk-secondary-downgraded";
+    field public static final String REASON_INSTALL_FAST = "install-fast";
+  }
+
 }
 
 package com.android.server.art.model {

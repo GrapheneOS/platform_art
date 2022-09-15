@@ -230,7 +230,8 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Optimizes a package.
+     * Optimizes a package. The time this operation takes ranges from a few milliseconds to several
+     * minutes, depending on the params and the code size of the package.
      *
      * @throws IllegalArgumentException if the package is not found or the params are illegal
      * @throws IllegalStateException if an internal error occurs
