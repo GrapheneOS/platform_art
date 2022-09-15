@@ -215,9 +215,9 @@ void ArmVIXLJNIMacroAssembler::RemoveFrame(size_t frame_size,
     }
   }
 
-  // Emit marking register refresh even with uffd-GC as we are still using the
+  // Emit marking register refresh even with all GCs as we are still using the
   // register due to nterp's dependency.
-  if ((gUseReadBarrier || gUseUserfaultfd) && kUseBakerReadBarrier) {
+  if (kReserveMarkingRegister) {
     if (may_suspend) {
       // The method may be suspended; refresh the Marking Register.
       ___ Ldr(mr, MemOperand(tr, Thread::IsGcMarkingOffset<kArmPointerSize>().Int32Value()));

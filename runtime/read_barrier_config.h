@@ -41,6 +41,12 @@
 #define USE_READ_BARRIER
 #endif
 
+// Reserve marking register (and its refreshing logic) for all GCs as nterp
+// requires it. In the future if and when nterp is made independent of
+// read-barrier, we can switch back to the current behavior by making this
+// definition conditional on USE_BAKER_READ_BARRIER and setting
+// kReserveMarkingRegister to kUseBakerReadBarrier.
+#define RESERVE_MARKING_REGISTER
 
 // C++-specific configuration part..
 
@@ -55,6 +61,9 @@ static constexpr bool kUseBakerReadBarrier = true;
 #else
 static constexpr bool kUseBakerReadBarrier = false;
 #endif
+
+// Read comment for RESERVE_MARKING_REGISTER above
+static constexpr bool kReserveMarkingRegister = true;
 
 #ifdef USE_TABLE_LOOKUP_READ_BARRIER
 static constexpr bool kUseTableLookupReadBarrier = true;
