@@ -51,6 +51,7 @@ namespace {
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
+using ::aidl::com::android::server::art::DexoptResult;
 using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
 using ::aidl::com::android::server::art::OutputArtifacts;
@@ -73,12 +74,15 @@ using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
+using ::testing::Field;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
+using ::testing::Matcher;
 using ::testing::MockFunction;
 using ::testing::Not;
 using ::testing::ResultOf;
 using ::testing::Return;
+using ::testing::SetArgPointee;
 using ::testing::WithArg;
 
 using RefProfilePath = ProfilePath::RefProfilePath;
@@ -170,12 +174,17 @@ class MockExecUtils : public ExecUtils {
   // to a conflict between gmock and android-base/logging.h (b/132668253).
   int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                         int,
+                        const ExecCallbacks&,
                         bool*,
+                        ProcessStat* stat,
                         std::string*) const override {
-    return DoExecAndReturnCode(arg_vector);
+    return DoExecAndReturnCode(arg_vector, stat);
   }
 
-  MOCK_METHOD(int, DoExecAndReturnCode, (const std::vector<std::string>& arg_vector), (const));
+  MOCK_METHOD(int,
+              DoExecAndReturnCode,
+              (const std::vector<std::string>& arg_vector, ProcessStat* stat),
+              (const));
 };
 
 class ArtdTest : public CommonArtTest {
@@ -246,9 +255,11 @@ class ArtdTest : public CommonArtTest {
     CommonArtTest::TearDown();
   }
 
-  void RunDexopt(binder_exception_t expected_status = EX_NONE, bool expected_aidl_return = true) {
+  void RunDexopt(binder_exception_t expected_status = EX_NONE,
+                 Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled,
+                                                                   false)) {
     InitDexoptInputFiles();
-    bool aidl_return;
+    DexoptResult aidl_return;
     ndk::ScopedAStatus status = artd_->dexopt(output_artifacts_,
                                               dex_file_,
                                               isa_,
@@ -261,7 +272,7 @@ class ArtdTest : public CommonArtTest {
                                               &aidl_return);
     ASSERT_EQ(status.getExceptionCode(), expected_status) << status.getMessage();
     if (status.isOk()) {
-      ASSERT_EQ(aidl_return, expected_aidl_return);
+      ASSERT_THAT(aidl_return, std::move(aidl_return_matcher));
     }
   }
 
@@ -410,38 +421,47 @@ TEST_F(ArtdTest, deleteArtifactsFileIsDir) {
 }
 
 TEST_F(ArtdTest, dexopt) {
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(WhenSplitBy(
-                  "--",
-                  AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-                  AllOf(Contains(art_root_ + "/bin/dex2oat32"),
-                        Contains(Flag("--zip-fd=", FdOf(dex_file_))),
-                        Contains(Flag("--zip-location=", dex_file_)),
-                        Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
-                        Contains(Flag("--instruction-set=", "arm64")),
-                        Contains(Flag("--compiler-filter=", "speed")),
-                        Contains(Flag(
-                            "--profile-file-fd=",
-                            FdOf(android_data_ +
-                                 "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp")))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy(
+              "--",
+              AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+              AllOf(Contains(art_root_ + "/bin/dex2oat32"),
+                    Contains(Flag("--zip-fd=", FdOf(dex_file_))),
+                    Contains(Flag("--zip-location=", dex_file_)),
+                    Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
+                    Contains(Flag("--instruction-set=", "arm64")),
+                    Contains(Flag("--compiler-filter=", "speed")),
+                    Contains(
+                        Flag("--profile-file-fd=",
+                             FdOf(android_data_ +
+                                  "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"))))),
+          _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
                       WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
+                      SetArgPointee<1>(ProcessStat{.wall_time_ms = 100, .cpu_time_ms = 400}),
                       Return(0)));
-  RunDexopt();
+  RunDexopt(EX_NONE,
+            AllOf(Field(&DexoptResult::cancelled, false),
+                  Field(&DexoptResult::wallTimeMs, 100),
+                  Field(&DexoptResult::cpuTimeMs, 400)));
 
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "vdex");
 }
 
 TEST_F(ArtdTest, dexoptClassLoaderContext) {
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(WhenSplitBy(
-                  "--",
-                  _,
-                  AllOf(Contains(ListFlag("--class-loader-context-fds=",
-                                          ElementsAre(FdOf(clc_1_), FdOf(clc_2_)))),
-                        Contains(Flag("--class-loader-context=", class_loader_context_)),
-                        Contains(Flag("--classpath-dir=", scratch_path_ + "/a"))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy("--",
+                      _,
+                      AllOf(Contains(ListFlag("--class-loader-context-fds=",
+                                              ElementsAre(FdOf(clc_1_), FdOf(clc_2_)))),
+                            Contains(Flag("--class-loader-context=", class_loader_context_)),
+                            Contains(Flag("--classpath-dir=", scratch_path_ + "/a")))),
+          _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -451,20 +471,22 @@ TEST_F(ArtdTest, dexoptNoInputVdex) {
               DoExecAndReturnCode(WhenSplitBy("--",
                                               _,
                                               AllOf(Not(Contains(Flag("--dm-fd=", _))),
-                                                    Not(Contains(Flag("--input-vdex-fd=", _)))))))
+                                                    Not(Contains(Flag("--input-vdex-fd=", _))))),
+                                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
 
 TEST_F(ArtdTest, dexoptInputVdex) {
   vdex_path_ = artifacts_path_;
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(WhenSplitBy(
-          "--",
-          _,
-          AllOf(Not(Contains(Flag("--dm-fd=", _))),
-                Contains(Flag("--input-vdex-fd=", FdOf(scratch_path_ + "/a/oat/arm64/b.vdex")))))))
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              _,
+                              AllOf(Not(Contains(Flag("--dm-fd=", _))),
+                                    Contains(Flag("--input-vdex-fd=",
+                                                  FdOf(scratch_path_ + "/a/oat/arm64/b.vdex"))))),
+                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -476,7 +498,8 @@ TEST_F(ArtdTest, dexoptInputVdexDm) {
                   WhenSplitBy("--",
                               _,
                               AllOf(Contains(Flag("--dm-fd=", FdOf(scratch_path_ + "/a/b.dm"))),
-                                    Not(Contains(Flag("--input-vdex-fd=", _)))))))
+                                    Not(Contains(Flag("--input-vdex-fd=", _))))),
+                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -487,7 +510,8 @@ TEST_F(ArtdTest, dexoptPriorityClassBoot) {
               DoExecAndReturnCode(WhenSplitBy("--",
                                               AllOf(Not(Contains(Flag("--set-task-profile=", _))),
                                                     Not(Contains(Flag("--set-priority=", _)))),
-                                              Contains(Flag("--compact-dex-level=", "none")))))
+                                              Contains(Flag("--compact-dex-level=", "none"))),
+                                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -499,7 +523,8 @@ TEST_F(ArtdTest, dexoptPriorityClassInteractive) {
                   WhenSplitBy("--",
                               AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
                                     Contains(Flag("--set-priority=", "background"))),
-                              Contains(Flag("--compact-dex-level=", "none")))))
+                              Contains(Flag("--compact-dex-level=", "none"))),
+                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -511,7 +536,8 @@ TEST_F(ArtdTest, dexoptPriorityClassInteractiveFast) {
                   WhenSplitBy("--",
                               AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
                                     Contains(Flag("--set-priority=", "background"))),
-                              Contains(Flag("--compact-dex-level=", "none")))))
+                              Contains(Flag("--compact-dex-level=", "none"))),
+                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -523,7 +549,8 @@ TEST_F(ArtdTest, dexoptPriorityClassBackground) {
                   WhenSplitBy("--",
                               AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
                                     Contains(Flag("--set-priority=", "background"))),
-                              Not(Contains(Flag("--compact-dex-level=", _))))))
+                              Not(Contains(Flag("--compact-dex-level=", _)))),
+                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -545,7 +572,8 @@ TEST_F(ArtdTest, dexoptDexoptOptions) {
                                             Contains(Flag("-Xtarget-sdk-version:", "123")),
                                             Not(Contains("--debuggable")),
                                             Not(Contains(Flag("--app-image-fd=", _))),
-                                            Not(Contains(Flag("-Xhidden-api-policy:", _)))))))
+                                            Not(Contains(Flag("-Xhidden-api-policy:", _))))),
+                          _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -566,7 +594,8 @@ TEST_F(ArtdTest, dexoptDexoptOptions2) {
                                       AllOf(Contains(Flag("--compilation-reason=", "bg-dexopt")),
                                             Contains(Flag("-Xtarget-sdk-version:", "456")),
                                             Contains("--debuggable"),
-                                            Contains(Flag("-Xhidden-api-policy:", "enabled"))))))
+                                            Contains(Flag("-Xhidden-api-policy:", "enabled")))),
+                          _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")), Return(0)));
   RunDexopt();
 
@@ -591,7 +620,8 @@ TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
                                     Not(Contains(Flag("-j", _))),
                                     Not(Contains(Flag("-Xms", _))),
                                     Not(Contains(Flag("-Xmx", _))),
-                                    Not(Contains("--compile-individually"))))))
+                                    Not(Contains("--compile-individually")))),
+                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -629,7 +659,8 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
                                     Not(Contains("-Xdeny-art-apex-data-files")),
                                     Contains(Flag("-Xms", "xms")),
                                     Contains(Flag("-Xmx", "xmx")),
-                                    Contains("--compile-individually")))))
+                                    Contains("--compile-individually"))),
+                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -645,8 +676,10 @@ TEST_F(ArtdTest, dexoptDefaultResourceControlBoot) {
   // The default resource control properties don't apply to BOOT.
   EXPECT_CALL(
       *mock_exec_utils_,
-      DoExecAndReturnCode(WhenSplitBy(
-          "--", _, AllOf(Not(Contains(Flag("--cpu-set=", _))), Contains(Not(Flag("-j", _)))))))
+      DoExecAndReturnCode(
+          WhenSplitBy(
+              "--", _, AllOf(Not(Contains(Flag("--cpu-set=", _))), Contains(Not(Flag("-j", _))))),
+          _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::BOOT;
   RunDexopt();
@@ -655,9 +688,12 @@ TEST_F(ArtdTest, dexoptDefaultResourceControlBoot) {
 TEST_F(ArtdTest, dexoptDefaultResourceControlOther) {
   SetDefaultResourceControlProps(mock_props_);
 
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(WhenSplitBy(
-                  "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4"))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy(
+              "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4")))),
+          _))
       .Times(3)
       .WillRepeatedly(Return(0));
   priority_class_ = PriorityClass::INTERACTIVE_FAST;
@@ -690,8 +726,10 @@ TEST_F(ArtdTest, dexoptAllResourceControlBoot) {
 
   EXPECT_CALL(
       *mock_exec_utils_,
-      DoExecAndReturnCode(WhenSplitBy(
-          "--", _, AllOf(Contains(Flag("--cpu-set=", "0,1,2,3")), Contains(Flag("-j", "8"))))))
+      DoExecAndReturnCode(
+          WhenSplitBy(
+              "--", _, AllOf(Contains(Flag("--cpu-set=", "0,1,2,3")), Contains(Flag("-j", "8")))),
+          _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::BOOT;
   RunDexopt();
@@ -702,8 +740,10 @@ TEST_F(ArtdTest, dexoptAllResourceControlInteractiveFast) {
 
   EXPECT_CALL(
       *mock_exec_utils_,
-      DoExecAndReturnCode(WhenSplitBy(
-          "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2,3")), Contains(Flag("-j", "6"))))))
+      DoExecAndReturnCode(
+          WhenSplitBy(
+              "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2,3")), Contains(Flag("-j", "6")))),
+          _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::INTERACTIVE_FAST;
   RunDexopt();
@@ -713,9 +753,12 @@ TEST_F(ArtdTest, dexoptAllResourceControlInteractive) {
   SetAllResourceControlProps(mock_props_);
 
   // INTERACTIVE always uses the default resource control properties.
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(WhenSplitBy(
-                  "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4"))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy(
+              "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4")))),
+          _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::INTERACTIVE;
   RunDexopt();
@@ -724,9 +767,11 @@ TEST_F(ArtdTest, dexoptAllResourceControlInteractive) {
 TEST_F(ArtdTest, dexoptAllResourceControlBackground) {
   SetAllResourceControlProps(mock_props_);
 
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(WhenSplitBy(
-                  "--", _, AllOf(Contains(Flag("--cpu-set=", "0")), Contains(Flag("-j", "2"))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy("--", _, AllOf(Contains(Flag("--cpu-set=", "0")), Contains(Flag("-j", "2")))),
+          _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::BACKGROUND;
   RunDexopt();
@@ -734,7 +779,7 @@ TEST_F(ArtdTest, dexoptAllResourceControlBackground) {
 
 TEST_F(ArtdTest, dexoptFailed) {
   dexopt_options_.generateAppImage = true;
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_))
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
                       WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
                       WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")),
@@ -751,13 +796,15 @@ TEST_F(ArtdTest, isProfileUsable) {
   CreateFile(profile_file);
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(WhenSplitBy(
-                  "--",
-                  AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-                  AllOf(Contains(art_root_ + "/bin/profman"),
-                        Contains(Flag("--reference-profile-file-fd=", FdOf(profile_file))),
-                        Contains(Flag("--apk-fd=", FdOf(dex_file_)))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy("--",
+                      AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                      AllOf(Contains(art_root_ + "/bin/profman"),
+                            Contains(Flag("--reference-profile-file-fd=", FdOf(profile_file))),
+                            Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          _))
       .WillOnce(Return(ProfmanResult::kSkipCompilationSmallDelta));
 
   bool result;
@@ -770,7 +817,7 @@ TEST_F(ArtdTest, isProfileUsableFalse) {
   CreateFile(profile_file);
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_))
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _))
       .WillOnce(Return(ProfmanResult::kSkipCompilationEmptyProfiles));
 
   bool result;
@@ -791,7 +838,7 @@ TEST_F(ArtdTest, isProfileUsableFailed) {
   CreateFile(profile_file);
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_)).WillOnce(Return(100));
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _)).WillOnce(Return(100));
 
   bool result;
   ndk::ScopedAStatus status = artd_->isProfileUsable(profile_path_.value(), dex_file_, &result);
@@ -836,14 +883,16 @@ TEST_F(ArtdTest, copyAndRewriteProfile) {
 
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(WhenSplitBy(
-                  "--",
-                  AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-                  AllOf(Contains(art_root_ + "/bin/profman"),
-                        Contains("--copy-and-update-profile-key"),
-                        Contains(Flag("--profile-file-fd=", FdOf(src_file))),
-                        Contains(Flag("--apk-fd=", FdOf(dex_file_)))))))
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy("--",
+                      AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                      AllOf(Contains(art_root_ + "/bin/profman"),
+                            Contains("--copy-and-update-profile-key"),
+                            Contains(Flag("--profile-file-fd=", FdOf(src_file))),
+                            Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--reference-profile-file-fd=", "def")),
                       Return(ProfmanResult::kCopyAndUpdateSuccess)));
 
@@ -863,7 +912,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
 
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_))
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _))
       .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoUpdate));
 
   bool result;
@@ -892,7 +941,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
 
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_)).WillOnce(Return(100));
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _)).WillOnce(Return(100));
 
   bool result;
   ndk::ScopedAStatus status = artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result);

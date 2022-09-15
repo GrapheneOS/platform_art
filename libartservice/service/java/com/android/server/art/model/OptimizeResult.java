@@ -50,22 +50,16 @@ public class OptimizeResult {
     @Retention(RetentionPolicy.SOURCE)
     public @interface OptimizeStatus {}
 
-    private final @NonNull String mPackageName;
     private final @NonNull String mRequestedCompilerFilter;
     private final @NonNull String mReason;
-    private final @NonNull List<DexFileOptimizeResult> mDexFileOptimizeResults;
+    private final @NonNull List<PackageOptimizeResult> mPackageOptimizeResult;
 
-    public OptimizeResult(@NonNull String packageName, @NonNull String requestedCompilerFilter,
-            @NonNull String reason, @NonNull List<DexFileOptimizeResult> dexFileOptimizeResults) {
-        mPackageName = packageName;
+    /** @hide */
+    public OptimizeResult(@NonNull String requestedCompilerFilter, @NonNull String reason,
+            @NonNull List<PackageOptimizeResult> packageOptimizeResult) {
         mRequestedCompilerFilter = requestedCompilerFilter;
         mReason = reason;
-        mDexFileOptimizeResults = dexFileOptimizeResults;
-    }
-
-    /** The package name. */
-    public @NonNull String getPackageName() {
-        return mPackageName;
+        mPackageOptimizeResult = packageOptimizeResult;
     }
 
     /**
@@ -84,18 +78,63 @@ public class OptimizeResult {
         return mReason;
     }
 
+    /**
+     * The result of each individual package.
+     *
+     * If the request is to optimize a single package without optimizing dependencies, the only
+     * element is the result of the requested package.
+     *
+     * If the request is to optimize a single package with {@link
+     * ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES} set, the first element is the result of the
+     * requested package, and the rest are the results of the dependency packages.
+     *
+     * If the request is to optimize multiple packages, the list contains the results of all the
+     * requested packages. The results of their dependency packages are also included if {@link
+     * ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES} is set.
+     */
+    public @NonNull List<PackageOptimizeResult> getPackageOptimizeResults() {
+        return mPackageOptimizeResult;
+    }
+
     /** The final status. */
     public @OptimizeStatus int getFinalStatus() {
-        return mDexFileOptimizeResults.stream()
+        return mPackageOptimizeResult.stream()
                 .mapToInt(result -> result.getStatus())
                 .max()
                 .orElse(OPTIMIZE_SKIPPED);
     }
 
-    /** The result of each individual dex file. */
-    @NonNull
-    public List<DexFileOptimizeResult> getDexFileOptimizeResults() {
-        return mDexFileOptimizeResults;
+    /** Describes the result of a package. */
+    @Immutable
+    public static class PackageOptimizeResult {
+        private final @NonNull String mPackageName;
+        private final @NonNull List<DexFileOptimizeResult> mDexFileOptimizeResults;
+
+        /** @hide */
+        public PackageOptimizeResult(@NonNull String packageName,
+                @NonNull List<DexFileOptimizeResult> dexFileOptimizeResults) {
+            mPackageName = packageName;
+            mDexFileOptimizeResults = dexFileOptimizeResults;
+        }
+
+        /** The package name. */
+        public @NonNull String getPackageName() {
+            return mPackageName;
+        }
+
+        /** The result of each individual dex file. */
+        @NonNull
+        public List<DexFileOptimizeResult> getDexFileOptimizeResults() {
+            return mDexFileOptimizeResults;
+        }
+
+        /** The overall status of the package. */
+        public @OptimizeStatus int getStatus() {
+            return mDexFileOptimizeResults.stream()
+                    .mapToInt(result -> result.getStatus())
+                    .max()
+                    .orElse(OPTIMIZE_SKIPPED);
+        }
     }
 
     /** Describes the result of a dex file. */
@@ -105,14 +144,19 @@ public class OptimizeResult {
         private final @NonNull String mInstructionSet;
         private final @NonNull String mActualCompilerFilter;
         private final @OptimizeStatus int mStatus;
+        private final long mDex2oatWallTimeMillis;
+        private final long mDex2oatCpuTimeMillis;
 
         /** @hide */
         public DexFileOptimizeResult(@NonNull String dexFile, @NonNull String instructionSet,
-                @NonNull String compilerFilter, @OptimizeStatus int status) {
+                @NonNull String compilerFilter, @OptimizeStatus int status,
+                long dex2oatWallTimeMillis, long dex2oatCpuTimeMillis) {
             mDexFile = dexFile;
             mInstructionSet = instructionSet;
             mActualCompilerFilter = compilerFilter;
             mStatus = status;
+            mDex2oatWallTimeMillis = dex2oatWallTimeMillis;
+            mDex2oatCpuTimeMillis = dex2oatCpuTimeMillis;
         }
 
         /** The absolute path to the dex file. */
@@ -133,6 +177,22 @@ public class OptimizeResult {
         /** The status of optimizing this dex file. */
         public @OptimizeStatus int getStatus() {
             return mStatus;
+        }
+
+        /**
+         * The wall time of the dex2oat invocation, in milliseconds, if dex2oat succeeded or was
+         * cancelled. Returns 0 if dex2oat failed or was not run, or if failed to get the value.
+         */
+        public long getDex2oatWallTimeMillis() {
+            return mDex2oatWallTimeMillis;
+        }
+
+        /**
+         * The CPU time of the dex2oat invocation, in milliseconds, if dex2oat succeeded or was
+         * cancelled. Returns 0 if dex2oat failed or was not run, or if failed to get the value.
+         */
+        public long getDex2oatCpuTimeMillis() {
+            return mDex2oatCpuTimeMillis;
         }
     }
 }

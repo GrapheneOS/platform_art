@@ -19,12 +19,29 @@
 
 #include <time.h>
 
+#include <functional>
 #include <string>
 #include <vector>
 
 #include "android-base/unique_fd.h"
 
 namespace art {
+
+struct ProcessStat {
+  // The total wall time, in milliseconds, that the process spent, or 0 if failed to get the value.
+  int wall_time_ms = 0;
+  // The total CPU time, in milliseconds, that the process and any waited-for children spent, or 0
+  // if failed to get the value.
+  int cpu_time_ms = 0;
+};
+
+struct ExecCallbacks {
+  // Called in the parent process as soon as the child process is forked.
+  std::function<void(pid_t pid)> on_start = [](pid_t) {};
+  // Called in the parent process after the child process exits while still in a waitable state, no
+  // matter the child process succeeds or not.
+  std::function<void(pid_t pid)> on_end = [](pid_t) {};
+};
 
 // Wrapper on fork/execv to run a command in a subprocess.
 // These spawn child processes using the environment as it was set when the single instance
@@ -49,8 +66,27 @@ class ExecUtils {
                                 /*out*/ bool* timed_out,
                                 /*out*/ std::string* error_msg) const;
 
+  // Same as above, but also collects stat of the process and calls callbacks. The stat is collected
+  // no matter the child process succeeds or not.
+  virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                                int timeout_sec,
+                                const ExecCallbacks& callbacks,
+                                /*out*/ bool* timed_out,
+                                /*out*/ ProcessStat* stat,
+                                /*out*/ std::string* error_msg) const;
+
  protected:
   virtual android::base::unique_fd PidfdOpen(pid_t pid) const;
+
+  // Returns the content of `/proc/<pid>/stat`, or an empty string if failed.
+  virtual std::string GetProcStat(pid_t pid) const;
+
+  virtual int64_t GetUptimeMs() const;
+
+  virtual int64_t GetTicksPerSec() const;
+
+ private:
+  bool GetStat(pid_t pid, /*out*/ ProcessStat* stat, /*out*/ std::string* error_msg) const;
 };
 
 inline bool Exec(const std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg) {

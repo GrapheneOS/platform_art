@@ -67,10 +67,8 @@ package com.android.server.art.model {
   }
 
   public class OptimizeResult {
-    ctor public OptimizeResult(@NonNull String, @NonNull String, @NonNull String, @NonNull java.util.List<com.android.server.art.model.OptimizeResult.DexFileOptimizeResult>);
-    method @NonNull public java.util.List<com.android.server.art.model.OptimizeResult.DexFileOptimizeResult> getDexFileOptimizeResults();
     method public int getFinalStatus();
-    method @NonNull public String getPackageName();
+    method @NonNull public java.util.List<com.android.server.art.model.OptimizeResult.PackageOptimizeResult> getPackageOptimizeResults();
     method @NonNull public String getReason();
     method @NonNull public String getRequestedCompilerFilter();
     field public static final int OPTIMIZE_CANCELLED = 40; // 0x28
@@ -81,8 +79,16 @@ package com.android.server.art.model {
 
   public static class OptimizeResult.DexFileOptimizeResult {
     method @NonNull public String getActualCompilerFilter();
+    method public long getDex2oatCpuTimeMillis();
+    method public long getDex2oatWallTimeMillis();
     method @NonNull public String getDexFile();
     method @NonNull public String getInstructionSet();
+    method public int getStatus();
+  }
+
+  public static class OptimizeResult.PackageOptimizeResult {
+    method @NonNull public java.util.List<com.android.server.art.model.OptimizeResult.DexFileOptimizeResult> getDexFileOptimizeResults();
+    method @NonNull public String getPackageName();
     method public int getStatus();
   }
 

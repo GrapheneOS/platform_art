@@ -53,6 +53,7 @@
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/os.h"
+#include "exec_utils.h"
 #include "file_utils.h"
 #include "fmt/format.h"
 #include "oat_file_assistant.h"
@@ -70,6 +71,7 @@ namespace {
 
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexoptOptions;
+using ::aidl::com::android::server::art::DexoptResult;
 using ::aidl::com::android::server::art::DexoptTrigger;
 using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
@@ -566,7 +568,9 @@ ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
                                 const std::optional<VdexPath>& in_inputVdex,
                                 PriorityClass in_priorityClass,
                                 const DexoptOptions& in_dexoptOptions,
-                                bool* _aidl_return) {
+                                DexoptResult* _aidl_return) {
+  _aidl_return->cancelled = false;
+
   std::string oat_path = OR_RETURN_FATAL(BuildOatPath(in_outputArtifacts.artifactsPath));
   std::string vdex_path = OatPathToVdexPath(oat_path);
   std::string art_path = OatPathToArtPath(oat_path);
@@ -673,9 +677,12 @@ ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
   LOG(INFO) << "Running dex2oat: " << Join(args.Get(), /*separator=*/" ")
             << "\nOpened FDs: " << fd_logger;
 
-  Result<int> result = ExecAndReturnCode(args.Get(), kLongTimeoutSec);
+  ProcessStat stat;
+  Result<int> result = ExecAndReturnCode(args.Get(), kLongTimeoutSec, &stat);
+  _aidl_return->wallTimeMs = stat.wall_time_ms;
+  _aidl_return->cpuTimeMs = stat.cpu_time_ms;
   if (!result.ok()) {
-    // TODO(b/244412198): Return false if dexopt is cancelled upon request.
+    // TODO(b/244412198): Return cancelled=true if dexopt is cancelled upon request.
     return NonFatal("Failed to run dex2oat: " + result.error().message());
   }
   if (result.value() != 0) {
@@ -684,7 +691,6 @@ ndk::ScopedAStatus Artd::dexopt(const OutputArtifacts& in_outputArtifacts,
 
   NewFile::CommitAllOrAbandon(files_to_commit, files_to_delete);
 
-  *_aidl_return = true;
   return ScopedAStatus::ok();
 }
 
@@ -863,10 +869,12 @@ void Artd::AddPerfConfigFlags(PriorityClass priority_class, /*out*/ CmdlineBuild
 }
 
 android::base::Result<int> Artd::ExecAndReturnCode(const std::vector<std::string>& args,
-                                                   int timeout_sec) const {
+                                                   int timeout_sec,
+                                                   ProcessStat* stat) const {
   bool ignored_timed_out = false;  // This information is encoded in the error message.
   std::string error_msg;
-  int exit_code = exec_utils_->ExecAndReturnCode(args, timeout_sec, &ignored_timed_out, &error_msg);
+  int exit_code = exec_utils_->ExecAndReturnCode(
+      args, timeout_sec, ExecCallbacks(), &ignored_timed_out, stat, &error_msg);
   if (exit_code < 0) {
     return Error() << error_msg;
   }
