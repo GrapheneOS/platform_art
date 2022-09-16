@@ -777,7 +777,7 @@ std::string OnDeviceRefresh::GetSystemServerImagePath(bool on_system,
     const std::string image_name = ReplaceFileExtension(jar_name, "art");
     const char* isa_str = GetInstructionSetString(config_.GetSystemServerIsa());
     // Typically "/system/framework/oat/<isa>/services.art".
-    return Concatenate({GetAndroidRoot(), "/framework/oat/", isa_str, "/", image_name});
+    return Concatenate({android::base::Dirname(jar_path), "/oat/", isa_str, "/", image_name});
   } else {
     // Typically
     // "/data/misc/apexdata/.../dalvik-cache/<isa>/system@framework@services.jar@classes.art".
