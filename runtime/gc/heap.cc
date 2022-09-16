@@ -483,6 +483,7 @@ Heap::Heap(size_t initial_size,
                                        runtime->ShouldRelocate(),
                                        /*executable=*/ !runtime->IsAotCompiler(),
                                        heap_reservation_size,
+                                       runtime->AllowInMemoryCompilation(),
                                        &boot_image_spaces,
                                        &heap_reservation)) {
     DCHECK_EQ(heap_reservation_size, heap_reservation.IsValid() ? heap_reservation.Size() : 0u);

@@ -1527,6 +1527,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   is_explicit_gc_disabled_ = runtime_options.Exists(Opt::DisableExplicitGC);
   image_dex2oat_enabled_ = runtime_options.GetOrDefault(Opt::ImageDex2Oat);
   dump_native_stack_on_sig_quit_ = runtime_options.GetOrDefault(Opt::DumpNativeStackOnSigQuit);
+  allow_in_memory_compilation_ = runtime_options.Exists(Opt::AllowInMemoryCompilation);
 
   if (is_zygote_ || runtime_options.Exists(Opt::OnlyUseTrustedOatFiles)) {
     oat_file_manager_->SetOnlyUseTrustedOatFiles();
