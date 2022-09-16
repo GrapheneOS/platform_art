@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "android-base/file.h"
@@ -39,6 +40,17 @@ namespace odrefresh {
 // The prefixes of system properties that odrefresh keeps track of. Odrefresh will recompile
 // everything if any property matching a prefix changes.
 constexpr const char* kCheckedSystemPropertyPrefixes[]{"dalvik.vm.", "ro.dalvik.vm."};
+
+// The list of system properties that odrefresh ignores. They don't affect compilation results.
+const std::unordered_set<std::string> kIgnoredSystemProperties{
+    "dalvik.vm.dex2oat-cpu-set",
+    "dalvik.vm.dex2oat-threads",
+    "dalvik.vm.boot-dex2oat-cpu-set",
+    "dalvik.vm.boot-dex2oat-threads",
+    "dalvik.vm.restore-dex2oat-cpu-set",
+    "dalvik.vm.restore-dex2oat-threads",
+    "dalvik.vm.background-dex2oat-cpu-set",
+    "dalvik.vm.background-dex2oat-threads"};
 
 struct SystemPropertyConfig {
   const char* name;
