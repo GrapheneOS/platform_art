@@ -79,7 +79,26 @@ void OdrMetrics::SetCompilationTime(int32_t millis) {
     case Stage::kComplete:
     case Stage::kPreparation:
     case Stage::kUnknown:
+      LOG(FATAL) << "Unexpected stage " << stage_ << " when setting compilation time";
+  }
+}
+
+void OdrMetrics::SetDex2OatResult(const ExecResult& dex2oat_result) {
+  switch (stage_) {
+    case Stage::kPrimaryBootClasspath:
+      primary_bcp_dex2oat_result_ = dex2oat_result;
       break;
+    case Stage::kSecondaryBootClasspath:
+      secondary_bcp_dex2oat_result_ = dex2oat_result;
+      break;
+    case Stage::kSystemServerClasspath:
+      system_server_dex2oat_result_ = dex2oat_result;
+      break;
+    case Stage::kCheck:
+    case Stage::kComplete:
+    case Stage::kPreparation:
+    case Stage::kUnknown:
+      LOG(FATAL) << "Unexpected stage " << stage_ << " when setting dex2oat result";
   }
 }
 

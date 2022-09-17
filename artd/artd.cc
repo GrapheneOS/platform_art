@@ -871,14 +871,13 @@ void Artd::AddPerfConfigFlags(PriorityClass priority_class, /*out*/ CmdlineBuild
 android::base::Result<int> Artd::ExecAndReturnCode(const std::vector<std::string>& args,
                                                    int timeout_sec,
                                                    ProcessStat* stat) const {
-  bool ignored_timed_out = false;  // This information is encoded in the error message.
   std::string error_msg;
-  int exit_code = exec_utils_->ExecAndReturnCode(
-      args, timeout_sec, ExecCallbacks(), &ignored_timed_out, stat, &error_msg);
-  if (exit_code < 0) {
+  ExecResult result =
+      exec_utils_->ExecAndReturnResult(args, timeout_sec, ExecCallbacks(), stat, &error_msg);
+  if (result.status != ExecResult::kExited) {
     return Error() << error_msg;
   }
-  return exit_code;
+  return result.exit_code;
 }
 
 }  // namespace artd
