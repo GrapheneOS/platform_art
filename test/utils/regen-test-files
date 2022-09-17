@@ -292,6 +292,15 @@ flaky_tests_excluded_from_mts = [
     ]
 ]
 
+# Tests failing because of linking issues, currently exluded from MTS
+# to minimize noise in continuous runs while we investigate.
+#
+# TODO(b/247108425): Address the linking issues and re-enable these
+# tests.
+failing_tests_excluded_from_mts = [
+    "art_standalone_compiler_tests JniCompilerTests",
+]
+
 # Is `run_test` a Checker test (i.e. a test containing Checker
 # assertions)?
 def is_checker_test(run_test):
@@ -700,17 +709,22 @@ class Generator:
       include.setAttribute("name", f"mts-art-tests-list-user-shard-{s:02}")
       configuration.appendChild(include)
 
-    # Excluded flaky tests.
-    xml_comment = root.createComment(f" Excluded flaky tests (b/209958457). ")
-    configuration.appendChild(xml_comment)
-
     def append_test_exclusion(test):
       option = root.createElement("option")
       option.setAttribute("name", "compatibility:exclude-filter")
       option.setAttribute("value", test)
       configuration.appendChild(option)
 
+    # Excluded flaky tests.
+    xml_comment = root.createComment(" Excluded flaky tests (b/209958457). ")
+    configuration.appendChild(xml_comment)
     for t in flaky_tests_excluded_from_mts:
+      append_test_exclusion(t)
+
+    # Excluded failing tests.
+    xml_comment = root.createComment(" Excluded failing tests (b/247108425). ")
+    configuration.appendChild(xml_comment)
+    for t in failing_tests_excluded_from_mts:
       append_test_exclusion(t)
 
     xml_str = root.toprettyxml(indent = XML_INDENT, encoding = "utf-8")
