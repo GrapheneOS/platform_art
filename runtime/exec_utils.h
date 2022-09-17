@@ -43,6 +43,29 @@ struct ExecCallbacks {
   std::function<void(pid_t pid)> on_end = [](pid_t) {};
 };
 
+struct ExecResult {
+  enum Status {
+    // Unable to get the status.
+    kUnknown = 0,
+    // Process exited normally with an exit code.
+    kExited = 1,
+    // Process terminated by a signal.
+    kSignaled = 2,
+    // Process timed out and killed.
+    kTimedOut = 3,
+    // Failed to start the process.
+    kStartFailed = 4,
+  };
+
+  Status status = kUnknown;
+
+  // The process exit code, if `status` is `kExited`, or -1.
+  int exit_code = -1;
+
+  // The signal that terminated the process, if `status` is `kSignaled`, or 0.
+  int signal = 0;
+};
+
 // Wrapper on fork/execv to run a command in a subprocess.
 // These spawn child processes using the environment as it was set when the single instance
 // of the runtime (Runtime::Current()) was started.  If no instance of the runtime was started, it
@@ -59,21 +82,19 @@ class ExecUtils {
 
   // Executes the command specified in `arg_vector` in a subprocess with a timeout.
   // If `timeout_sec` is negative, blocks until the subprocess exits.
-  // Returns the process exit code on success, -1 otherwise.
-  // Sets `timed_out` to true if the process times out, or false otherwise.
-  virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
-                                int timeout_sec,
-                                /*out*/ bool* timed_out,
-                                /*out*/ std::string* error_msg) const;
+  // Returns a structured result. If the status is not `kExited`, also returns a non-empty
+  // `error_msg`.
+  virtual ExecResult ExecAndReturnResult(const std::vector<std::string>& arg_vector,
+                                         int timeout_sec,
+                                         /*out*/ std::string* error_msg) const;
 
   // Same as above, but also collects stat of the process and calls callbacks. The stat is collected
   // no matter the child process succeeds or not.
-  virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
-                                int timeout_sec,
-                                const ExecCallbacks& callbacks,
-                                /*out*/ bool* timed_out,
-                                /*out*/ ProcessStat* stat,
-                                /*out*/ std::string* error_msg) const;
+  virtual ExecResult ExecAndReturnResult(const std::vector<std::string>& arg_vector,
+                                         int timeout_sec,
+                                         const ExecCallbacks& callbacks,
+                                         /*out*/ ProcessStat* stat,
+                                         /*out*/ std::string* error_msg) const;
 
  protected:
   virtual android::base::unique_fd PidfdOpen(pid_t pid) const;

@@ -18,6 +18,7 @@
 
 #include <sys/utsname.h>
 
+#include <csignal>
 #include <cstring>
 #include <filesystem>
 #include <memory>
@@ -120,7 +121,9 @@ TEST_P(ExecUtilsTest, ExecError) {
   std::string error_msg;
   // Historical note: Running on Valgrind failed due to some memory
   // that leaks in thread alternate signal stacks.
-  EXPECT_FALSE(exec_utils_->Exec(command, &error_msg));
+  ExecResult result = exec_utils_->ExecAndReturnResult(command, /*timeout_sec=*/-1, &error_msg);
+  EXPECT_EQ(result.status, ExecResult::kSignaled);
+  EXPECT_EQ(result.signal, SIGABRT);
   EXPECT_FALSE(error_msg.empty());
 }
 
@@ -173,9 +176,9 @@ TEST_P(ExecUtilsTest, ExecTimeout) {
   static constexpr int kWaitSeconds = 1;
   std::vector<std::string> command = SleepCommand(kSleepSeconds);
   std::string error_msg;
-  bool timed_out;
-  ASSERT_EQ(exec_utils_->ExecAndReturnCode(command, kWaitSeconds, &timed_out, &error_msg), -1);
-  EXPECT_TRUE(timed_out) << error_msg;
+  EXPECT_EQ(exec_utils_->ExecAndReturnResult(command, kWaitSeconds, &error_msg).status,
+            ExecResult::kTimedOut)
+      << error_msg;
   EXPECT_THAT(error_msg, HasSubstr("timed out"));
 }
 
@@ -184,10 +187,9 @@ TEST_P(ExecUtilsTest, ExecNoTimeout) {
   static constexpr int kWaitSeconds = 5;
   std::vector<std::string> command = SleepCommand(kSleepSeconds);
   std::string error_msg;
-  bool timed_out;
-  ASSERT_EQ(exec_utils_->ExecAndReturnCode(command, kWaitSeconds, &timed_out, &error_msg), 0)
+  EXPECT_EQ(exec_utils_->ExecAndReturnResult(command, kWaitSeconds, &error_msg).status,
+            ExecResult::kExited)
       << error_msg;
-  EXPECT_FALSE(timed_out);
 }
 
 TEST_P(ExecUtilsTest, ExecStat) {
@@ -195,7 +197,6 @@ TEST_P(ExecUtilsTest, ExecStat) {
   command.push_back(GetBin("id"));
 
   std::string error_msg;
-  bool timed_out;
   ProcessStat stat;
 
   // The process filename is "a) b".
@@ -206,9 +207,11 @@ TEST_P(ExecUtilsTest, ExecStat) {
   EXPECT_CALL(*exec_utils_, GetUptimeMs()).WillOnce(Return(1620344887ll));
   EXPECT_CALL(*exec_utils_, GetTicksPerSec()).WillOnce(Return(100));
 
-  ASSERT_EQ(exec_utils_->ExecAndReturnCode(
-                command, /*timeout_sec=*/-1, ExecCallbacks(), &timed_out, &stat, &error_msg),
-            0)
+  ASSERT_EQ(
+      exec_utils_
+          ->ExecAndReturnResult(command, /*timeout_sec=*/-1, ExecCallbacks(), &stat, &error_msg)
+          .status,
+      ExecResult::kExited)
       << error_msg;
 
   EXPECT_EQ(stat.cpu_time_ms, 990);
@@ -219,7 +222,6 @@ TEST_P(ExecUtilsTest, ExecStatFailed) {
   std::vector<std::string> command = SleepCommand(5);
 
   std::string error_msg;
-  bool timed_out;
   ProcessStat stat;
 
   EXPECT_CALL(*exec_utils_, GetProcStat(_))
@@ -230,8 +232,11 @@ TEST_P(ExecUtilsTest, ExecStatFailed) {
   EXPECT_CALL(*exec_utils_, GetTicksPerSec()).WillOnce(Return(100));
 
   // This will always time out.
-  exec_utils_->ExecAndReturnCode(
-      command, /*timeout_sec=*/1, ExecCallbacks(), &timed_out, &stat, &error_msg);
+  ASSERT_EQ(
+      exec_utils_
+          ->ExecAndReturnResult(command, /*timeout_sec=*/1, ExecCallbacks(), &stat, &error_msg)
+          .status,
+      ExecResult::kTimedOut);
 
   EXPECT_EQ(stat.cpu_time_ms, 990);
   EXPECT_EQ(stat.wall_time_ms, 1007);
@@ -251,17 +256,14 @@ TEST_P(ExecUtilsTest, ExecCallbacks) {
   command.push_back(GetBin("id"));
 
   std::string error_msg;
-  bool timed_out;
-
-  exec_utils_->ExecAndReturnCode(command,
-                                 /*timeout_sec=*/-1,
-                                 ExecCallbacks{
-                                     .on_start = on_start.AsStdFunction(),
-                                     .on_end = on_end.AsStdFunction(),
-                                 },
-                                 &timed_out,
-                                 /*stat=*/nullptr,
-                                 &error_msg);
+  exec_utils_->ExecAndReturnResult(command,
+                                   /*timeout_sec=*/-1,
+                                   ExecCallbacks{
+                                       .on_start = on_start.AsStdFunction(),
+                                       .on_end = on_end.AsStdFunction(),
+                                   },
+                                   /*stat=*/nullptr,
+                                   &error_msg);
 }
 
 INSTANTIATE_TEST_SUITE_P(AlwaysOrNeverFallback, ExecUtilsTest, testing::Values(true, false));

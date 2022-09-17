@@ -154,6 +154,7 @@ cc_library_static {
     host_supported: true,
     export_include_dirs: ["include"],
     local_include_dirs: ["include"],
+    header_libs: ["libart_headers"],
     shared_libs: ["libartbase"],
     target: {
         android: {
