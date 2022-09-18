@@ -877,14 +877,16 @@ fi
 rm -rf "$tmp_dir"
 mkdir -p "$tmp_dir/.unzipped"
 cd "$tmp_dir"
+[[ $TEST_NAME =~ [0-9]*([0-9][0-9])-.* ]]  # Extract last two digits of test number.
+SHARD=${BASH_REMATCH[1]}
 if [[ "$target_mode" == "yes" ]]; then
-  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-target-data.zip"
+  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-target-data-shard${SHARD}.zip"
   zip_entry="target/${TEST_NAME}"
 elif [[ $runtime == "jvm" ]]; then
-  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-jvm-data.zip"
+  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-jvm-data-shard${SHARD}.zip"
   zip_entry="jvm/${TEST_NAME}"
 else
-  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-host-data.zip"
+  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-host-data-shard${SHARD}.zip"
   zip_entry="host/${TEST_NAME}"
 fi
 unzip -q "${zip_file}" "${zip_entry}/*" -d "$tmp_dir/.unzipped"
