@@ -30,11 +30,7 @@ python_binary_host {
     ],
     main: "checker.py",
     version: {
-        py2: {
-            enabled: false,
-        },
         py3: {
-            enabled: true,
             embedded_launcher: true,
         },
     },
