@@ -3,12 +3,11 @@ ART_COMPILER {
 global:
     global:
         extern "C++" {
+            # TODO(b/247611526): replace more long unmangled names with simple glob patterns
             "art::CompiledCode::CodeDelta() const";
             "art::CompiledCode::CodeDelta(art::InstructionSet)";
             "art::CompiledCode::CodePointer(void const*, art::InstructionSet)";
             "art::CompiledMethodStorage::CompiledMethodStorage(int)";
-            "art::CompiledMethodStorage::DumpMemoryUsage(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, bool) const";
-            "art::CompiledMethodStorage::GetThunkCode(art::linker::LinkerPatch const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)";
             "art::CompiledMethodStorage::UniqueVMapTableEntries() const";
             "art::CompiledMethodStorage::~CompiledMethodStorage()";
             "art::Compiler::Create(art::CompilerOptions const&, art::CompiledMethodStorage*, art::Compiler::Kind)";
@@ -16,8 +15,6 @@ global:
             "art::CompilerOptions::GetVerificationResults() const";
             "art::CompilerOptions::IsImageClass(char const*) const";
             "art::CompilerOptions::IsPreloadedClass(char const*) const";
-            "art::CompilerOptions::ParseDumpInitFailures(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)";
-            "art::CompilerOptions::ParseRegisterAllocationStrategy(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >*)";
             "art::CompilerOptions::ShouldCompileWithClinitCheck(art::ArtMethod*) const";
             "art::CompilerOptions::~CompilerOptions()";
             "art::CreateTrampoline32(art::InstructionSet, art::EntryPointCallingConvention, art::ThreadOffset<(art::PointerSize)4>)";
@@ -28,14 +25,18 @@ global:
             "art::VerificationResults::IsUncompilableMethod(art::MethodReference) const";
             "art::VerificationResults::VerificationResults()";
             "art::VerificationResults::~VerificationResults()";
-            "art::linker::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, art::linker::LinkerPatch::Type)";
-            "art::operator<<(std::__1::basic_ostream<char, std::__1::char_traits<char> >&, art::Whence const&)";
             "void art::debug::WriteDebugInfo<art::ElfTypes32>(art::ElfBuilder<art::ElfTypes32>*, art::debug::DebugInfo const&)";
             "void art::debug::WriteDebugInfo<art::ElfTypes64>(art::ElfBuilder<art::ElfTypes64>*, art::debug::DebugInfo const&)";
             art::CompiledCode::AlignCode*;
             art::CompiledMethod::*;
+            art::CompiledMethodStorage::DumpMemoryUsage*;
+            art::CompiledMethodStorage::GetThunkCode*;
+            art::CompilerOptions::ParseDumpInitFailures*;
+            art::CompilerOptions::ParseRegisterAllocationStrategy*;
             art::IntrinsicObjects*;
             art::debug::MakeMiniDebugInfo*;
+            art::linker::operator*;
+            art::operator*;
         };
 
         jit_load;
