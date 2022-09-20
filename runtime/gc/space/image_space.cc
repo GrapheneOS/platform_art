@@ -2168,6 +2168,7 @@ class ImageSpace::BootImageLoader {
   bool HasSystem() const { return has_system_; }
 
   bool LoadFromSystem(size_t extra_reservation_size,
+                      bool allow_in_memory_compilation,
                       /*out*/std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
                       /*out*/MemMap* extra_reservation,
                       /*out*/std::string* error_msg) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -3126,6 +3127,7 @@ class ImageSpace::BootImageLoader {
 
 bool ImageSpace::BootImageLoader::LoadFromSystem(
     size_t extra_reservation_size,
+    bool allow_in_memory_compilation,
     /*out*/std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
     /*out*/MemMap* extra_reservation,
     /*out*/std::string* error_msg) {
@@ -3138,7 +3140,7 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
                          boot_class_path_image_fds_,
                          boot_class_path_vdex_fds_,
                          boot_class_path_oat_fds_);
-  if (!layout.LoadFromSystem(image_isa_, /*allow_in_memory_compilation=*/true, error_msg)) {
+  if (!layout.LoadFromSystem(image_isa_, allow_in_memory_compilation, error_msg)) {
     return false;
   }
 
@@ -3201,6 +3203,7 @@ bool ImageSpace::LoadBootImage(
     bool relocate,
     bool executable,
     size_t extra_reservation_size,
+    bool allow_in_memory_compilation,
     /*out*/std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
     /*out*/MemMap* extra_reservation) {
   ScopedTrace trace(__FUNCTION__);
@@ -3231,8 +3234,11 @@ bool ImageSpace::LoadBootImage(
   std::vector<std::string> error_msgs;
 
   std::string error_msg;
-  if (loader.LoadFromSystem(
-          extra_reservation_size, boot_image_spaces, extra_reservation, &error_msg)) {
+  if (loader.LoadFromSystem(extra_reservation_size,
+                            allow_in_memory_compilation,
+                            boot_image_spaces,
+                            extra_reservation,
+                            &error_msg)) {
     return true;
   }
   error_msgs.push_back(error_msg);
