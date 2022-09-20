@@ -143,7 +143,7 @@ class SemiSpace : public GarbageCollector {
   void SweepLargeObjects(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);
 
   void SweepSystemWeaks()
-      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_) REQUIRES(Locks::mutator_lock_);
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info) override
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);

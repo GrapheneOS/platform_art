@@ -1688,6 +1688,9 @@ void MarkCompact::PreCompactionPhase() {
     std::list<Thread*> thread_list = runtime->GetThreadList()->GetList();
     for (Thread* thread : thread_list) {
       thread->VisitRoots(this, kVisitRootFlagAllRoots);
+      // Interpreter cache is thread-local so it needs to be swept either in a
+      // checkpoint, or a stop-the-world pause.
+      thread->SweepInterpreterCache(this);
       thread->AdjustTlab(black_objs_slide_diff_);
     }
   }
