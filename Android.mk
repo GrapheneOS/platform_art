@@ -669,16 +669,11 @@ standalone-apex-files: deapexer \
 	# Also, platform libraries are installed in prebuilts, so copy them over.
 	$(call extract-from-apex,$(RUNTIME_APEX),\
 	  $(PRIVATE_RUNTIME_APEX_DEPENDENCY_FILES)) && \
-	  for libdir in $(TARGET_OUT)/lib $(TARGET_OUT)/lib64; do \
-	    if [ -d $$libdir/bionic ]; then \
-	      mv -f $$libdir/bionic/*.so $$libdir; \
-	    fi || exit 1; \
-	  done && \
-	  for libdir in $(TARGET_OUT)/lib $(TARGET_OUT)/lib64; do \
-	    if [ -d $$libdir ]; then \
-          cp prebuilts/runtime/mainline/platform/impl/$(TARGET_ARCH)/*.so $$libdir; \
-	    fi || exit 1; \
-	  done
+	  libdir=$(TARGET_OUT)/lib$$(expr $(TARGET_ARCH) : '.*\(64\)' || :) && \
+	  if [ -d $$libdir/bionic ]; then \
+	    mv -f $$libdir/bionic/*.so $$libdir; \
+	  fi && \
+	  cp prebuilts/runtime/mainline/platform/impl/$(TARGET_ARCH)/*.so $$libdir
 	$(call extract-from-apex,$(CONSCRYPT_APEX),\
 	  $(PRIVATE_CONSCRYPT_APEX_DEPENDENCY_LIBS))
 	$(call extract-from-apex,$(I18N_APEX),\
