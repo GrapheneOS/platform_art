@@ -36,7 +36,7 @@ namespace art {
 namespace odrefresh {
 
 OdrMetrics::OdrMetrics(const std::string& cache_directory, const std::string& metrics_file)
-    : cache_directory_(cache_directory), metrics_file_(metrics_file), status_(Status::kOK) {
+    : cache_directory_(cache_directory), metrics_file_(metrics_file) {
   DCHECK(StartsWith(metrics_file_, "/"));
 
   // Remove existing metrics file if it exists.
@@ -56,12 +56,17 @@ OdrMetrics::OdrMetrics(const std::string& cache_directory, const std::string& me
 }
 
 OdrMetrics::~OdrMetrics() {
-  cache_space_free_end_mib_ = GetFreeSpaceMiB(cache_directory_);
+  CaptureSpaceFreeEnd();
 
-  // Log metrics only if odrefresh detected a reason to compile.
-  if (trigger_.has_value()) {
+  // Log metrics only if this is explicitly enabled (typically when compilation was done or an error
+  // occurred).
+  if (enabled_) {
     WriteToFile(metrics_file_, this);
   }
+}
+
+void OdrMetrics::CaptureSpaceFreeEnd() {
+  cache_space_free_end_mib_ = GetFreeSpaceMiB(cache_directory_);
 }
 
 void OdrMetrics::SetCompilationTime(int32_t millis) {
@@ -102,12 +107,6 @@ void OdrMetrics::SetDex2OatResult(const ExecResult& dex2oat_result) {
   }
 }
 
-void OdrMetrics::SetStage(Stage stage) {
-  if (status_ == Status::kOK) {
-    stage_ = stage;
-  }
-}
-
 int32_t OdrMetrics::GetFreeSpaceMiB(const std::string& path) {
   static constexpr uint32_t kBytesPerMiB = 1024 * 1024;
   static constexpr uint64_t kNominalMaximumCacheBytes = 1024 * kBytesPerMiB;
@@ -134,29 +133,23 @@ int32_t OdrMetrics::GetFreeSpaceMiB(const std::string& path) {
   return static_cast<int32_t>(free_space_mib);
 }
 
-bool OdrMetrics::ToRecord(/*out*/OdrMetricsRecord* record) const {
-  if (!trigger_.has_value()) {
-    return false;
-  }
-  record->odrefresh_metrics_version = kOdrefreshMetricsVersion;
-  record->art_apex_version = art_apex_version_;
-  record->trigger = static_cast<uint32_t>(trigger_.value());
-  record->stage_reached = static_cast<uint32_t>(stage_);
-  record->status = static_cast<uint32_t>(status_);
-  record->cache_space_free_start_mib = cache_space_free_start_mib_;
-  record->cache_space_free_end_mib = cache_space_free_end_mib_;
-  record->primary_bcp_compilation_millis = primary_bcp_compilation_millis_;
-  record->secondary_bcp_compilation_millis = secondary_bcp_compilation_millis_;
-  record->system_server_compilation_millis = system_server_compilation_millis_;
-  return true;
+OdrMetricsRecord OdrMetrics::ToRecord() const {
+  return {
+      .odrefresh_metrics_version = kOdrefreshMetricsVersion,
+      .art_apex_version = art_apex_version_,
+      .trigger = static_cast<int32_t>(trigger_),
+      .stage_reached = static_cast<int32_t>(stage_),
+      .status = static_cast<int32_t>(status_),
+      .cache_space_free_start_mib = cache_space_free_start_mib_,
+      .cache_space_free_end_mib = cache_space_free_end_mib_,
+      .primary_bcp_compilation_millis = primary_bcp_compilation_millis_,
+      .secondary_bcp_compilation_millis = secondary_bcp_compilation_millis_,
+      .system_server_compilation_millis = system_server_compilation_millis_,
+  };
 }
 
 void OdrMetrics::WriteToFile(const std::string& path, const OdrMetrics* metrics) {
-  OdrMetricsRecord record{};
-  if (!metrics->ToRecord(&record)) {
-    LOG(ERROR) << "Attempting to report metrics without a compilation trigger.";
-    return;
-  }
+  OdrMetricsRecord record = metrics->ToRecord();
 
   const android::base::Result<void>& result = record.WriteToFile(path);
   if (!result.ok()) {
