@@ -1229,26 +1229,29 @@ def parse_option():
   if options['run_all']:
     run_all_configs = True
 
-  return tests
+  return tests or RUN_TEST_SET
 
 def main():
   gather_test_info()
-  user_requested_tests = parse_option()
+  tests = parse_option()
   setup_test_env()
   gather_disabled_test_info()
   if build:
-    build_targets = ''
-    if 'host' in _user_input_variants['target']:
-      build_targets += 'test-art-host-run-test-dependencies '
-    if 'target' in _user_input_variants['target']:
-      build_targets += 'test-art-target-run-test-dependencies '
-    if 'jvm' in _user_input_variants['target']:
-      build_targets += 'test-art-host-run-test-dependencies '
+    build_targets = []
+    # Build only the needed shards (depending on the selected tests).
+    shards = set(re.search("(\d\d)-", t).group(1) for t in tests)
+    for mode in ['host', 'target', 'jvm']:
+      if mode in _user_input_variants['target']:
+        build_targets += ['test-art-{}-run-test-dependencies'.format(mode)]
+        if len(shards) == 100:
+          build_targets += ["art-run-test-{}-data".format(mode)]  # Build all.
+        else:
+          build_targets += ["art-run-test-{}-data-shard{}".format(mode, s) for s in shards]
     build_command = env.ANDROID_BUILD_TOP + '/build/soong/soong_ui.bash --make-mode'
     build_command += ' D8='
     if dist:
       build_command += ' dist'
-    build_command += ' ' + build_targets
+    build_command += ' ' + ' '.join(build_targets)
     print_text('Build command: %s\n' % build_command)
     if subprocess.call(build_command.split()):
       # Debugging for b/62653020
@@ -1256,10 +1259,7 @@ def main():
         shutil.copyfile(env.SOONG_OUT_DIR + '/build.ninja', env.DIST_DIR + '/soong.ninja')
       sys.exit(1)
 
-  if user_requested_tests:
-    run_tests(user_requested_tests)
-  else:
-    run_tests(RUN_TEST_SET)
+  run_tests(tests)
 
   print_analysis()
   close_csv_file()
