@@ -62,19 +62,14 @@ namespace art {
 
 // We require MREMAP_DONTUNMAP functionality of the mremap syscall, which was
 // introduced in 5.13 kernel version. Check for that on host. Checking
-// on target is not required as MREMAP_DONTUNMAP and userfaultfd were enabled
+// on Android is not required as MREMAP_DONTUNMAP and userfaultfd were enabled
 // together.
 // Concurrent compaction termination logic depends on the kernel having
 // the fault-retry feature (allowing repeated faults on the same page), which was
-// introduced in 5.7. On target this feature is backported on all the kernels where
+// introduced in 5.7. On Android this feature is backported on all the kernels where
 // userfaultfd is enabled.
-#ifdef ART_TARGET
-static constexpr bool gHaveMremapDontunmap = true;
-static constexpr bool gKernelHasFaultRetry = true;
-#else
-static const bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13);
-static const bool gKernelHasFaultRetry = IsKernelVersionAtLeast(5, 7);
-#endif
+static const bool gHaveMremapDontunmap = kIsTargetAndroid || IsKernelVersionAtLeast(5, 13);
+static const bool gKernelHasFaultRetry = kIsTargetAndroid || IsKernelVersionAtLeast(5, 7);
 
 #ifndef ART_FORCE_USE_READ_BARRIER
 static bool ShouldUseUserfaultfd() {
@@ -82,14 +77,12 @@ static bool ShouldUseUserfaultfd() {
   return false;
 #endif
   int fd = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
-#ifndef ART_TARGET
-  // On host we may not have the kernel patches that restrict userfaultfd to
-  // user mode. But that is not a security concern as we are on host.
-  // Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
-  if (fd == -1 && errno == EINVAL) {
+  // On non-android devices we may not have the kernel patches that restrict
+  // userfaultfd to user mode. But that is not a security concern as we are
+  // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
+  if (!kIsTargetAndroid && fd == -1 && errno == EINVAL) {
     fd = syscall(__NR_userfaultfd, O_CLOEXEC);
   }
-#endif
   if (fd >= 0) {
     close(fd);
     return true;
@@ -122,14 +115,12 @@ bool MarkCompact::CreateUserfaultfd(bool post_fork) {
     // any read event available. We don't use poll.
     if (gKernelHasFaultRetry) {
       uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
-#ifndef ART_TARGET
-      // On host we may not have the kernel patches that restrict userfaultfd to
-      // user mode. But that is not a security concern as we are on host.
-      // Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
-      if (UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
+      // On non-android devices we may not have the kernel patches that restrict
+      // userfaultfd to user mode. But that is not a security concern as we are
+      // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
+      if (!kIsTargetAndroid && UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
         uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
       }
-#endif
       if (UNLIKELY(uffd_ == -1)) {
         uffd_ = kFallbackMode;
         LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
