@@ -1759,11 +1759,23 @@ END_FUNCTION \name
 
 OAT_ENTRY ExecuteNterpWithClinitImpl, EndExecuteNterpWithClinitImpl
     push %esi
+    // For simplicity, we don't do a read barrier here, but instead rely
+    // on art_quick_resolution_trampoline to always have a suspend point before
+    // calling back here.
     movl ART_METHOD_DECLARING_CLASS_OFFSET(%eax), %esi
     cmpb $$(MIRROR_CLASS_IS_VISIBLY_INITIALIZED_VALUE), MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET(%esi)
+    jae .Lcontinue_execute_nterp
+    cmpb  $$(MIRROR_CLASS_IS_INITIALIZING_VALUE), MIRROR_CLASS_IS_VISIBLY_INITIALIZED_OFFSET(%esi)
+    jb .Linvoke_trampoline
+    movl MIRROR_CLASS_CLINIT_THREAD_ID_OFFSET(%esi), %esi
+    cmpl %esi, rSELF:THREAD_TID_OFFSET
+    je .Lcontinue_execute_nterp
+.Linvoke_trampoline:
     pop %esi
-    jae ExecuteNterpImpl
     jmp art_quick_resolution_trampoline
+.Lcontinue_execute_nterp:
+    pop %esi
+    jmp ExecuteNterpImpl
 EndExecuteNterpWithClinitImpl:
 
 OAT_ENTRY ExecuteNterpImpl, EndExecuteNterpImpl
