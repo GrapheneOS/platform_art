@@ -21,6 +21,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <ctime>
+#include <string_view>
+
 #ifdef __BIONIC__
 #include <sys/pidfd.h>
 #endif
@@ -34,17 +37,22 @@
 #include <thread>
 #include <vector>
 
+#include "android-base/file.h"
+#include "android-base/parseint.h"
 #include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "android-base/unique_fd.h"
 #include "base/macros.h"
+#include "base/utils.h"
 #include "runtime.h"
 
 namespace art {
 
 namespace {
 
+using ::android::base::ParseInt;
+using ::android::base::ReadFileToString;
 using ::android::base::StringPrintf;
 using ::android::base::unique_fd;
 
@@ -102,14 +110,14 @@ int WaitChild(pid_t pid,
   // WNOWAIT leaves the child in a waitable state. The call is still blocking.
   int options = WEXITED | (no_wait ? WNOWAIT : 0);
   if (TEMP_FAILURE_RETRY(waitid(P_PID, pid, &info, options)) != 0) {
-    *error_msg = StringPrintf("Failed to execute (%s) because waitid failed for pid %d: %s",
+    *error_msg = StringPrintf("waitid failed for (%s) pid %d: %s",
                               ToCommandLine(arg_vector).c_str(),
                               pid,
                               strerror(errno));
     return -1;
   }
   if (info.si_pid != pid) {
-    *error_msg = StringPrintf("Failed to execute (%s) because waitid failed: wanted %d, got %d: %s",
+    *error_msg = StringPrintf("waitid failed for (%s): wanted pid %d, got %d: %s",
                               ToCommandLine(arg_vector).c_str(),
                               pid,
                               info.si_pid,
@@ -124,10 +132,6 @@ int WaitChild(pid_t pid,
     return -1;
   }
   return info.si_status;
-}
-
-int WaitChild(pid_t pid, const std::vector<std::string>& arg_vector, std::string* error_msg) {
-  return WaitChild(pid, arg_vector, /*no_wait=*/false, error_msg);
 }
 
 // A fallback implementation of `WaitChildWithTimeout` that creates a thread to wait instead of
@@ -145,16 +149,11 @@ int WaitChildWithTimeoutFallback(pid_t pid,
     std::unique_lock<std::mutex> lock(m);
     if (!cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [&] { return child_exited; })) {
       *timed_out = true;
-      *error_msg =
-          StringPrintf("Child process %d timed out after %dms. Killing it", pid, timeout_ms);
       kill(pid, SIGKILL);
     }
   });
 
-  // Leave the child in a waitable state just in case `wait_thread` sends a `SIGKILL` after the
-  // child exits.
-  std::string ignored_error_msg;
-  WaitChild(pid, arg_vector, /*no_wait=*/true, &ignored_error_msg);
+  int status = WaitChild(pid, arg_vector, /*no_wait=*/true, error_msg);
 
   {
     std::unique_lock<std::mutex> lock(m);
@@ -163,13 +162,19 @@ int WaitChildWithTimeoutFallback(pid_t pid,
   cv.notify_all();
   wait_thread.join();
 
+  // The timeout error should have a higher priority than any other error.
   if (*timed_out) {
-    WaitChild(pid, arg_vector, &ignored_error_msg);
+    *error_msg =
+        StringPrintf("Failed to execute (%s) because the child process timed out after %dms",
+                     ToCommandLine(arg_vector).c_str(),
+                     timeout_ms);
     return -1;
   }
-  return WaitChild(pid, arg_vector, error_msg);
+
+  return status;
 }
 
+// Waits for the child process to finish and leaves the child in a waitable state.
 int WaitChildWithTimeout(pid_t pid,
                          unique_fd pidfd,
                          const std::vector<std::string>& arg_vector,
@@ -179,7 +184,7 @@ int WaitChildWithTimeout(pid_t pid,
   auto cleanup = android::base::make_scope_guard([&]() {
     kill(pid, SIGKILL);
     std::string ignored_error_msg;
-    WaitChild(pid, arg_vector, &ignored_error_msg);
+    WaitChild(pid, arg_vector, /*no_wait=*/true, &ignored_error_msg);
   });
 
   struct pollfd pfd;
@@ -195,12 +200,42 @@ int WaitChildWithTimeout(pid_t pid,
   }
   if (poll_ret == 0) {
     *timed_out = true;
-    *error_msg = StringPrintf("Child process %d timed out after %dms. Killing it", pid, timeout_ms);
+    *error_msg =
+        StringPrintf("Failed to execute (%s) because the child process timed out after %dms",
+                     ToCommandLine(arg_vector).c_str(),
+                     timeout_ms);
     return -1;
   }
 
   cleanup.Disable();
-  return WaitChild(pid, arg_vector, error_msg);
+  return WaitChild(pid, arg_vector, /*no_wait=*/true, error_msg);
+}
+
+bool ParseProcStat(const std::string& stat_content,
+                   int64_t uptime_ms,
+                   int64_t ticks_per_sec,
+                   /*out*/ ProcessStat* stat) {
+  size_t pos = stat_content.rfind(") ");
+  if (pos == std::string::npos) {
+    return false;
+  }
+  std::vector<std::string> stat_fields;
+  // Skip the first two fields. The second field is the parenthesized process filename, which can
+  // contain anything, including spaces.
+  Split(std::string_view(stat_content).substr(pos + 2), ' ', &stat_fields);
+  constexpr int kSkippedFields = 2;
+  int64_t utime, stime, cutime, cstime, starttime;
+  if (stat_fields.size() < 22 - kSkippedFields ||
+      !ParseInt(stat_fields[13 - kSkippedFields], &utime) ||
+      !ParseInt(stat_fields[14 - kSkippedFields], &stime) ||
+      !ParseInt(stat_fields[15 - kSkippedFields], &cutime) ||
+      !ParseInt(stat_fields[16 - kSkippedFields], &cstime) ||
+      !ParseInt(stat_fields[21 - kSkippedFields], &starttime)) {
+    return false;
+  }
+  stat->cpu_time_ms = (utime + stime + cutime + cstime) * 1000 / ticks_per_sec;
+  stat->wall_time_ms = uptime_ms - starttime * 1000 / ticks_per_sec;
+  return true;
 }
 
 }  // namespace
@@ -215,6 +250,14 @@ int ExecUtils::ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                  int timeout_sec,
                                  bool* timed_out,
                                  std::string* error_msg) const {
+  return ExecAndReturnCode(arg_vector, timeout_sec, timed_out, /*stat=*/nullptr, error_msg);
+}
+
+int ExecUtils::ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                                 int timeout_sec,
+                                 /*out*/ bool* timed_out,
+                                 /*out*/ ProcessStat* stat,
+                                 /*out*/ std::string* error_msg) const {
   *timed_out = false;
 
   if (timeout_sec > INT_MAX / 1000) {
@@ -229,20 +272,37 @@ int ExecUtils::ExecAndReturnCode(const std::vector<std::string>& arg_vector,
   }
 
   // Wait for subprocess to finish.
+  int status;
   if (timeout_sec >= 0) {
     unique_fd pidfd = PidfdOpen(pid);
     if (pidfd.get() >= 0) {
-      return WaitChildWithTimeout(
+      status = WaitChildWithTimeout(
           pid, std::move(pidfd), arg_vector, timeout_sec * 1000, timed_out, error_msg);
     } else {
       LOG(DEBUG) << StringPrintf(
           "pidfd_open failed for pid %d: %s, falling back", pid, strerror(errno));
-      return WaitChildWithTimeoutFallback(
-          pid, arg_vector, timeout_sec * 1000, timed_out, error_msg);
+      status =
+          WaitChildWithTimeoutFallback(pid, arg_vector, timeout_sec * 1000, timed_out, error_msg);
     }
   } else {
-    return WaitChild(pid, arg_vector, error_msg);
+    status = WaitChild(pid, arg_vector, /*no_wait=*/true, error_msg);
   }
+
+  if (stat != nullptr) {
+    std::string local_error_msg;
+    if (!GetStat(pid, stat, &local_error_msg)) {
+      LOG(ERROR) << "Failed to get process stat: " << local_error_msg;
+    }
+  }
+
+  std::string local_error_msg;
+  // TODO(jiakaiz): Use better logic to detect waitid failure.
+  if (WaitChild(pid, arg_vector, /*no_wait=*/false, &local_error_msg) < 0 &&
+      local_error_msg.find("waitid failed") == 0) {
+    LOG(ERROR) << "Failed to clean up child process '" << arg_vector[0] << "': " << local_error_msg;
+  }
+
+  return status;
 }
 
 bool ExecUtils::Exec(const std::vector<std::string>& arg_vector, std::string* error_msg) const {
@@ -270,6 +330,39 @@ unique_fd ExecUtils::PidfdOpen(pid_t pid) const {
 #endif
   return unique_fd(syscall(SYS_pidfd_open, pid, /*flags=*/0));
 #endif
+}
+
+std::string ExecUtils::GetProcStat(pid_t pid) const {
+  std::string stat_content;
+  if (!ReadFileToString(StringPrintf("/proc/%d/stat", pid), &stat_content)) {
+    stat_content = "";
+  }
+  return stat_content;
+}
+
+int64_t ExecUtils::GetUptimeMs() const {
+  timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return t.tv_sec * 1000 + t.tv_nsec / 1000000;
+}
+
+int64_t ExecUtils::GetTicksPerSec() const { return sysconf(_SC_CLK_TCK); }
+
+bool ExecUtils::GetStat(pid_t pid,
+                        /*out*/ ProcessStat* stat,
+                        /*out*/ std::string* error_msg) const {
+  int64_t uptime_ms = GetUptimeMs();
+  std::string stat_content = GetProcStat(pid);
+  if (stat_content.empty()) {
+    *error_msg = StringPrintf("Failed to read /proc/%d/stat: %s", pid, strerror(errno));
+    return false;
+  }
+  int64_t ticks_per_sec = GetTicksPerSec();
+  if (!ParseProcStat(stat_content, uptime_ms, ticks_per_sec, stat)) {
+    *error_msg = StringPrintf("Failed to parse /proc/%d/stat '%s'", pid, stat_content.c_str());
+    return false;
+  }
+  return true;
 }
 
 }  // namespace art

@@ -26,6 +26,14 @@
 
 namespace art {
 
+struct ProcessStat {
+  // The total wall time, in milliseconds, that the process spent, or 0 if failed to get the value.
+  int wall_time_ms = 0;
+  // The total CPU time, in milliseconds, that the process and any waited-for children spent, or 0
+  // if failed to get the value.
+  int cpu_time_ms = 0;
+};
+
 // Wrapper on fork/execv to run a command in a subprocess.
 // These spawn child processes using the environment as it was set when the single instance
 // of the runtime (Runtime::Current()) was started.  If no instance of the runtime was started, it
@@ -49,8 +57,26 @@ class ExecUtils {
                                 /*out*/ bool* timed_out,
                                 /*out*/ std::string* error_msg) const;
 
+  // Same as above, but also collects stat of the process. The stat is collected no matter the child
+  // process succeeds or not.
+  virtual int ExecAndReturnCode(const std::vector<std::string>& arg_vector,
+                                int timeout_sec,
+                                /*out*/ bool* timed_out,
+                                /*out*/ ProcessStat* stat,
+                                /*out*/ std::string* error_msg) const;
+
  protected:
   virtual android::base::unique_fd PidfdOpen(pid_t pid) const;
+
+  // Returns the content of `/proc/<pid>/stat`, or an empty string if failed.
+  virtual std::string GetProcStat(pid_t pid) const;
+
+  virtual int64_t GetUptimeMs() const;
+
+  virtual int64_t GetTicksPerSec() const;
+
+ private:
+  bool GetStat(pid_t pid, /*out*/ ProcessStat* stat, /*out*/ std::string* error_msg) const;
 };
 
 inline bool Exec(const std::vector<std::string>& arg_vector, /*out*/ std::string* error_msg) {
