@@ -34,7 +34,12 @@
 namespace art {
 
 using ::testing::_;
+using ::testing::AllOf;
+using ::testing::Gt;
 using ::testing::HasSubstr;
+using ::testing::InSequence;
+using ::testing::MockFunction;
+using ::testing::Ne;
 using ::testing::Return;
 
 std::string PrettyArguments(const char* signature);
@@ -201,8 +206,9 @@ TEST_P(ExecUtilsTest, ExecStat) {
   EXPECT_CALL(*exec_utils_, GetUptimeMs()).WillOnce(Return(1620344887ll));
   EXPECT_CALL(*exec_utils_, GetTicksPerSec()).WillOnce(Return(100));
 
-  ASSERT_EQ(
-      exec_utils_->ExecAndReturnCode(command, /*timeout_sec=*/-1, &timed_out, &stat, &error_msg), 0)
+  ASSERT_EQ(exec_utils_->ExecAndReturnCode(
+                command, /*timeout_sec=*/-1, ExecCallbacks(), &timed_out, &stat, &error_msg),
+            0)
       << error_msg;
 
   EXPECT_EQ(stat.cpu_time_ms, 990);
@@ -224,10 +230,38 @@ TEST_P(ExecUtilsTest, ExecStatFailed) {
   EXPECT_CALL(*exec_utils_, GetTicksPerSec()).WillOnce(Return(100));
 
   // This will always time out.
-  exec_utils_->ExecAndReturnCode(command, /*timeout_sec=*/1, &timed_out, &stat, &error_msg);
+  exec_utils_->ExecAndReturnCode(
+      command, /*timeout_sec=*/1, ExecCallbacks(), &timed_out, &stat, &error_msg);
 
   EXPECT_EQ(stat.cpu_time_ms, 990);
   EXPECT_EQ(stat.wall_time_ms, 1007);
+}
+
+TEST_P(ExecUtilsTest, ExecCallbacks) {
+  MockFunction<void(pid_t)> on_start;
+  MockFunction<void(pid_t)> on_end;
+
+  {
+    InSequence s;
+    EXPECT_CALL(on_start, Call(AllOf(Gt(0), Ne(getpid()))));
+    EXPECT_CALL(on_end, Call(AllOf(Gt(0), Ne(getpid()))));
+  }
+
+  std::vector<std::string> command;
+  command.push_back(GetBin("id"));
+
+  std::string error_msg;
+  bool timed_out;
+
+  exec_utils_->ExecAndReturnCode(command,
+                                 /*timeout_sec=*/-1,
+                                 ExecCallbacks{
+                                     .on_start = on_start.AsStdFunction(),
+                                     .on_end = on_end.AsStdFunction(),
+                                 },
+                                 &timed_out,
+                                 /*stat=*/nullptr,
+                                 &error_msg);
 }
 
 INSTANTIATE_TEST_SUITE_P(AlwaysOrNeverFallback, ExecUtilsTest, testing::Values(true, false));
