@@ -1763,6 +1763,10 @@ void MarkCompact::PreCompactionPhase() {
   // fallback mode
   if (uffd_ == kFallbackMode) {
     CompactMovingSpace</*kFallback*/true>();
+
+    int32_t freed_bytes = black_objs_slide_diff_;
+    bump_pointer_space_->RecordFree(freed_objects_, freed_bytes);
+    RecordFree(ObjectBytePair(freed_objects_, freed_bytes));
   } else {
     // We must start worker threads before resuming mutators to avoid deadlocks.
     heap_->GetThreadPool()->StartWorkers(thread_running_gc_);
