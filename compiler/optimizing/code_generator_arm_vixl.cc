@@ -2104,7 +2104,7 @@ void CodeGeneratorARMVIXL::SetupBlockedRegisters() const {
   // TODO: We don't need to reserve marking-register for userfaultfd GC. But
   // that would require some work in the assembler code as the right GC is
   // chosen at load-time and not compile time.
-  if ((gUseReadBarrier || gUseUserfaultfd) && kUseBakerReadBarrier) {
+  if (kReserveMarkingRegister) {
     // Reserve marking register.
     blocked_core_registers_[MR] = true;
   }
