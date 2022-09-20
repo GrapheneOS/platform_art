@@ -183,21 +183,24 @@ class LockWord {
 
   LockState GetState() const {
     CheckReadBarrierState();
-    if (UNLIKELY((value_ & kGCStateMaskShiftedToggled) == 0)) {
-      return kUnlocked;
-    } else {
-      uint32_t internal_state = (value_ >> kStateShift) & kStateMask;
-      switch (internal_state) {
-        case kStateThinOrUnlocked:
-          return kThinLocked;
-        case kStateHash:
-          return kHashCode;
-        case kStateForwardingAddress:
-          return kForwardingAddress;
-        default:
-          DCHECK_EQ(internal_state, static_cast<uint32_t>(kStateFat));
-          return kFatLocked;
+    if (gUseReadBarrier || gUseUserfaultfd) {
+      if ((value_ & kGCStateMaskShiftedToggled) == 0) {
+        return kUnlocked;
       }
+    } else if (value_ == 0) {
+      return kUnlocked;
+    }
+    uint32_t internal_state = (value_ >> kStateShift) & kStateMask;
+    switch (internal_state) {
+      case kStateThinOrUnlocked:
+        return kThinLocked;
+      case kStateHash:
+        return kHashCode;
+      case kStateForwardingAddress:
+        return kForwardingAddress;
+      default:
+        DCHECK_EQ(internal_state, static_cast<uint32_t>(kStateFat));
+        return kFatLocked;
     }
   }
 
