@@ -29,6 +29,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 
+#include "android-base/properties.h"
 #include "arch/instruction_set.h"
 #include "art_method-inl.h"
 #include "base/enums.h"
@@ -251,6 +252,13 @@ static jboolean VMRuntime_is64Bit(JNIEnv*, jobject) {
 
 static jboolean VMRuntime_isCheckJniEnabled(JNIEnv* env, jobject) {
   return down_cast<JNIEnvExt*>(env)->GetVm()->IsCheckJniEnabled() ? JNI_TRUE : JNI_FALSE;
+}
+
+static jint VMRuntime_getSdkVersionNative(JNIEnv* env ATTRIBUTE_UNUSED,
+                                          jclass klass ATTRIBUTE_UNUSED,
+                                          jint default_sdk_version) {
+  return android::base::GetIntProperty("ro.build.version.sdk",
+                                       default_sdk_version);
 }
 
 static void VMRuntime_setTargetSdkVersionNative(JNIEnv*, jobject, jint target_sdk_version) {
@@ -524,6 +532,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(VMRuntime, newNonMovableArray, "(Ljava/lang/Class;I)Ljava/lang/Object;"),
   FAST_NATIVE_METHOD(VMRuntime, newUnpaddedArray, "(Ljava/lang/Class;I)Ljava/lang/Object;"),
   NATIVE_METHOD(VMRuntime, properties, "()[Ljava/lang/String;"),
+  NATIVE_METHOD(VMRuntime, getSdkVersionNative, "(I)I"),
   NATIVE_METHOD(VMRuntime, setTargetSdkVersionNative, "(I)V"),
   NATIVE_METHOD(VMRuntime, setDisabledCompatChangesNative, "([J)V"),
   NATIVE_METHOD(VMRuntime, registerNativeAllocation, "(J)V"),
