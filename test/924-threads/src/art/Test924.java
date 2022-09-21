@@ -337,6 +337,19 @@ public class Test924 {
     }
   }
 
+  private static List<String> filterForThread(Object[] thread_messages, String thread_name) {
+    List<String> messageListForThread = new ArrayList<String>();
+
+    for (int i = 0; i < thread_messages.length; i++) {
+      String message = (String)thread_messages[i];
+      if (message.startsWith("Thread(" + thread_name + ")")) {
+        messageListForThread.add(message);
+      }
+    }
+
+    return messageListForThread;
+  }
+
   private static void doTestEvents() throws Exception {
     enableThreadEvents(true);
 
@@ -354,21 +367,24 @@ public class Test924 {
         }
       }
     };
-    Thread t = new Thread(r, "EventTestThread");
+    String thread_name = "EventTestThread";
+    Thread t = new Thread(r, thread_name);
 
     System.out.println("Constructed thread");
     Thread.yield();
     Thread.sleep(100);
-    System.out.println(Arrays.toString(getThreadEventMessages()));
+
+    // Check that there are no events related to EventTestThread that we just created.
+    System.out.println(filterForThread(getThreadEventMessages(), thread_name).toString());
 
     t.start();
     cdl1.await();
 
-    System.out.println(Arrays.toString(getThreadEventMessages()));
+    System.out.println(filterForThread(getThreadEventMessages(), thread_name).toString());
 
     cdl2.countDown();
     t.join();
-    System.out.println(Arrays.toString(getThreadEventMessages()));
+    System.out.println(filterForThread(getThreadEventMessages(), thread_name).toString());
 
     System.out.println("Thread joined");
 
