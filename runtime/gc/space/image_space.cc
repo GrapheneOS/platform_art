@@ -2016,17 +2016,17 @@ bool ImageSpace::BootImageLayout::Load(FilenameFn&& filename_fn,
     std::string base_filename;
     if (!filename_fn(base_location, &base_filename, &local_error_msg) ||
         !ReadHeader(base_location, base_filename, bcp_index, &local_error_msg)) {
-      if (!allow_in_memory_compilation) {
-        // The boot image is unusable and we can't continue by generating a boot image in memory.
-        // All we can do is to return.
-        *error_msg = std::move(local_error_msg);
-        return false;
-      }
       LOG(ERROR) << "Error reading named image component header for " << base_location
                  << ", error: " << local_error_msg;
       // If the primary boot image is invalid, we generate a single full image. This is faster than
       // generating the primary boot image and the extension separately.
       if (bcp_index == 0) {
+        if (!allow_in_memory_compilation) {
+          // The boot image is unusable and we can't continue by generating a boot image in memory.
+          // All we can do is to return.
+          *error_msg = std::move(local_error_msg);
+          return false;
+        }
         // We must at least have profiles for the core libraries.
         if (profile_filenames.empty()) {
           *error_msg = "Full boot image cannot be compiled because no profile is provided.";
@@ -2050,14 +2050,15 @@ bool ImageSpace::BootImageLayout::Load(FilenameFn&& filename_fn,
         // No extensions are needed.
         return true;
       }
-      if (profile_filenames.empty() ||
+      bool should_compile_extension = allow_in_memory_compilation && !profile_filenames.empty();
+      if (!should_compile_extension ||
           !CompileBootclasspathElements(base_location,
                                         base_filename,
                                         bcp_index,
                                         profile_filenames,
                                         components.SubArray(/*pos=*/ 0, /*length=*/ 1),
                                         &local_error_msg)) {
-        if (!profile_filenames.empty()) {
+        if (should_compile_extension) {
           LOG(ERROR) << "Error compiling boot image extension for " << boot_class_path_[bcp_index]
                      << ", error: " << local_error_msg;
         }
