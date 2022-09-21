@@ -1002,17 +1002,14 @@ void Heap::IncrementDisableThreadFlip(Thread* self) {
 void Heap::EnsureObjectUserfaulted(ObjPtr<mirror::Object> obj) {
   if (gUseUserfaultfd) {
     // Use volatile to ensure that compiler loads from memory to trigger userfaults, if required.
-    volatile uint8_t volatile_sum;
-    volatile uint8_t* start = reinterpret_cast<volatile uint8_t*>(obj.Ptr());
-    volatile uint8_t* end = AlignUp(start + obj->SizeOf(), kPageSize);
-    uint8_t sum = 0;
+    const uint8_t* start = reinterpret_cast<uint8_t*>(obj.Ptr());
+    const uint8_t* end = AlignUp(start + obj->SizeOf(), kPageSize);
     // The first page is already touched by SizeOf().
     start += kPageSize;
     while (start < end) {
-      sum += *start;
+      ForceRead(start);
       start += kPageSize;
     }
-    volatile_sum = sum;
   }
 }
 
