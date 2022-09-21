@@ -276,7 +276,7 @@ while true; do
         shift
     elif [ "x$1" = "x--strace" ]; then
         strace="yes"
-        run_args+=(--invoke-with strace --invoke-with -o --invoke-with "$tmp_dir/$strace_output")
+        run_args+=(--invoke-with=strace --invoke-with=-o --invoke-with="$tmp_dir/$strace_output")
         timeout="${timeout:-1800}"
         shift
     elif [ "x$1" = "x--zygote" ]; then
