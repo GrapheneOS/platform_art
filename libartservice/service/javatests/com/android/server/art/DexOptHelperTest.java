@@ -16,7 +16,7 @@
 
 package com.android.server.art;
 
-import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -77,13 +77,13 @@ public class DexOptHelperTest {
 
     private final OptimizeParams mParams =
             new OptimizeParams.Builder("install").setCompilerFilter("speed-profile").build();
-    private final List<DexFileOptimizeResult> mPrimaryResults =
-            List.of(new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64", "verify",
-                            OptimizeResult.OPTIMIZE_PERFORMED, 100 /* dex2oatWallTimeMillis */,
-                            400 /* dex2oatCpuTimeMillis */),
-                    new DexFileOptimizeResult("/data/app/foo/base.apk", "arm", "verify",
-                            OptimizeResult.OPTIMIZE_FAILED, 100 /* dex2oatWallTimeMillis */,
-                            400 /* dex2oatCpuTimeMillis */));
+    private final List<DexContainerFileOptimizeResult> mPrimaryResults = List.of(
+            new DexContainerFileOptimizeResult("/data/app/foo/base.apk", true /* isPrimaryAbi */,
+                    "arm64-v8a", "verify", OptimizeResult.OPTIMIZE_PERFORMED,
+                    100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */),
+            new DexContainerFileOptimizeResult("/data/app/foo/base.apk", false /* isPrimaryAbi */,
+                    "armeabi-v7a", "verify", OptimizeResult.OPTIMIZE_FAILED,
+                    100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */));
 
     private DexOptHelper mDexOptHelper;
 
@@ -123,7 +123,7 @@ public class DexOptHelperTest {
 
         PackageOptimizeResult packageResult = result.getPackageOptimizeResults().get(0);
         assertThat(packageResult.getPackageName()).isEqualTo(PKG_NAME);
-        assertThat(packageResult.getDexFileOptimizeResults())
+        assertThat(packageResult.getDexContainerFileOptimizeResults())
                 .containsExactlyElementsIn(mPrimaryResults);
 
         InOrder inOrder = inOrder(mPrimaryDexOptimizer, mWakeLock);
@@ -140,7 +140,8 @@ public class DexOptHelperTest {
                 mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
-        assertThat(result.getPackageOptimizeResults().get(0).getDexFileOptimizeResults()).isEmpty();
+        assertThat(result.getPackageOptimizeResults().get(0).getDexContainerFileOptimizeResults())
+                .isEmpty();
     }
 
     @Test
@@ -151,7 +152,8 @@ public class DexOptHelperTest {
                 mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
-        assertThat(result.getPackageOptimizeResults().get(0).getDexFileOptimizeResults()).isEmpty();
+        assertThat(result.getPackageOptimizeResults().get(0).getDexContainerFileOptimizeResults())
+                .isEmpty();
     }
 
     @Test
@@ -166,7 +168,7 @@ public class DexOptHelperTest {
         OptimizeResult result = mDexOptHelper.dexopt(
                 mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
 
-        assertThat(result.getPackageOptimizeResults().get(0).getDexFileOptimizeResults())
+        assertThat(result.getPackageOptimizeResults().get(0).getDexContainerFileOptimizeResults())
                 .containsExactlyElementsIn(mPrimaryResults);
     }
 

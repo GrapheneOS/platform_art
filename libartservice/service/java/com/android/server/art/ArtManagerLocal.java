@@ -18,9 +18,10 @@ package com.android.server.art;
 
 import static com.android.server.art.PrimaryDexUtils.DetailedPrimaryDexInfo;
 import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
+import static com.android.server.art.Utils.Abi;
 import static com.android.server.art.model.ArtFlags.DeleteFlags;
 import static com.android.server.art.model.ArtFlags.GetStatusFlags;
-import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
+import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -142,10 +143,10 @@ public final class ArtManagerLocal {
                     if (!dexInfo.hasCode()) {
                         continue;
                     }
-                    for (String isa : Utils.getAllIsas(pkgState)) {
+                    for (Abi abi : Utils.getAllAbis(pkgState)) {
                         freedBytes +=
                                 mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
-                                        dexInfo.dexPath(), isa, isInDalvikCache));
+                                        dexInfo.dexPath(), abi.isa(), isInDalvikCache));
                     }
                 }
             }
@@ -193,7 +194,7 @@ public final class ArtManagerLocal {
         AndroidPackageApi pkg = getPackageOrThrow(pkgState);
 
         try {
-            List<DexFileOptimizationStatus> statuses = new ArrayList<>();
+            List<DexContainerFileOptimizationStatus> statuses = new ArrayList<>();
 
             if ((flags & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
                 for (DetailedPrimaryDexInfo dexInfo :
@@ -201,17 +202,18 @@ public final class ArtManagerLocal {
                     if (!dexInfo.hasCode()) {
                         continue;
                     }
-                    for (String isa : Utils.getAllIsas(pkgState)) {
+                    for (Abi abi : Utils.getAllAbis(pkgState)) {
                         try {
                             GetOptimizationStatusResult result =
-                                    mInjector.getArtd().getOptimizationStatus(
-                                            dexInfo.dexPath(), isa, dexInfo.classLoaderContext());
-                            statuses.add(new DexFileOptimizationStatus(dexInfo.dexPath(), isa,
-                                    result.compilerFilter, result.compilationReason,
-                                    result.locationDebugString));
+                                    mInjector.getArtd().getOptimizationStatus(dexInfo.dexPath(),
+                                            abi.isa(), dexInfo.classLoaderContext());
+                            statuses.add(new DexContainerFileOptimizationStatus(dexInfo.dexPath(),
+                                    abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
+                                    result.compilationReason, result.locationDebugString));
                         } catch (ServiceSpecificException e) {
-                            statuses.add(new DexFileOptimizationStatus(
-                                    dexInfo.dexPath(), isa, "error", "error", e.getMessage()));
+                            statuses.add(new DexContainerFileOptimizationStatus(dexInfo.dexPath(),
+                                    abi.isPrimaryAbi(), abi.name(), "error", "error",
+                                    e.getMessage()));
                         }
                     }
                 }

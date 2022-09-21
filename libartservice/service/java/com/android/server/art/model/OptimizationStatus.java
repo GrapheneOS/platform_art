@@ -32,60 +32,79 @@ import java.util.List;
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
 public class OptimizationStatus {
-    private final @NonNull List<DexFileOptimizationStatus> mDexFileOptimizationStatuses;
+    private final
+            @NonNull List<DexContainerFileOptimizationStatus> mDexContainerFileOptimizationStatuses;
 
     /** @hide */
-    public OptimizationStatus(
-            @NonNull List<DexFileOptimizationStatus> dexFileOptimizationStatuses) {
-        mDexFileOptimizationStatuses = dexFileOptimizationStatuses;
+    public OptimizationStatus(@NonNull List<DexContainerFileOptimizationStatus>
+                    dexContainerFileOptimizationStatuses) {
+        mDexContainerFileOptimizationStatuses = dexContainerFileOptimizationStatuses;
     }
 
-    /** The optimization status of each individual dex file. */
+    /**
+     * The statuses of the dex container file optimizations. Note that there can be
+     * multiple entries for the same dex container file, but for different ABIs.
+     */
     @NonNull
-    public List<DexFileOptimizationStatus> getDexFileOptimizationStatuses() {
-        return mDexFileOptimizationStatuses;
+    public List<DexContainerFileOptimizationStatus> getDexContainerFileOptimizationStatuses() {
+        return mDexContainerFileOptimizationStatuses;
     }
 
-    /** Describes the optimization status of a dex file. */
+    /** Describes the optimization status of a dex container file. */
     @Immutable
-    public static class DexFileOptimizationStatus {
-        private final @NonNull String mDexFile;
-        private final @NonNull String mInstructionSet;
+    public static class DexContainerFileOptimizationStatus {
+        private final @NonNull String mDexContainerFile;
+        private final @NonNull boolean mIsPrimaryAbi;
+        private final @NonNull String mAbi;
         private final @NonNull String mCompilerFilter;
         private final @NonNull String mCompilationReason;
         private final @NonNull String mLocationDebugString;
 
         /** @hide */
-        public DexFileOptimizationStatus(@NonNull String dexFile, @NonNull String instructionSet,
-                @NonNull String compilerFilter, @NonNull String compilationReason,
-                @NonNull String locationDebugString) {
-            mDexFile = dexFile;
-            mInstructionSet = instructionSet;
+        public DexContainerFileOptimizationStatus(@NonNull String dexContainerFile,
+                boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
+                @NonNull String compilationReason, @NonNull String locationDebugString) {
+            mDexContainerFile = dexContainerFile;
+            mIsPrimaryAbi = isPrimaryAbi;
+            mAbi = abi;
             mCompilerFilter = compilerFilter;
             mCompilationReason = compilationReason;
             mLocationDebugString = locationDebugString;
         }
 
-        /** The absolute path to the dex file. */
-        public @NonNull String getDexFile() {
-            return mDexFile;
-        }
-
-        /** The instruction set. */
-        public @NonNull String getInstructionSet() {
-            return mInstructionSet;
+        /** The absolute path to the dex container file. */
+        public @NonNull String getDexContainerFile() {
+            return mDexContainerFile;
         }
 
         /**
-         * A string that describes the compiler filter.
+         * If true, the optimization is for the primary ABI of the package (the ABI that the
+         * application is launched with). Otherwise, the optimization is for an ABI that other
+         * applications might be launched with when using this application's code.
+         */
+        public boolean isPrimaryAbi() {
+            return mIsPrimaryAbi;
+        }
+
+        /**
+         * Returns the ABI that the optimization is for. Possible values are documented at
+         * https://developer.android.com/ndk/guides/abis#sa.
+         */
+        public @NonNull String getAbi() {
+            return mAbi;
+        }
+
+        /**
+         * A human-readable string that describes the compiler filter.
          *
          * Possible values are:
          * <ul>
          *   <li>A valid value of the {@code --compiler-filer} option passed to {@code dex2oat}, if
-         *     the optimized artifacts are valid.
+         *     the optimized artifacts are valid. See
+         *     https://source.android.com/docs/core/dalvik/configure#compilation_options.
          *   <li>{@code "run-from-apk"}, if the optimized artifacts do not exist.
          *   <li>{@code "run-from-apk-fallback"}, if the optimized artifacts exist but are invalid
-         *     because the dex file has changed.
+         *     because the dex container file has changed.
          *   <li>{@code "error"}, if an unexpected error occurs.
          * </ul>
          */

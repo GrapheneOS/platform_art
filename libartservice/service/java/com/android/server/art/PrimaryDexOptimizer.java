@@ -22,8 +22,9 @@ import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContex
 import static com.android.server.art.PrimaryDexUtils.DetailedPrimaryDexInfo;
 import static com.android.server.art.ProfilePath.RefProfilePath;
 import static com.android.server.art.ProfilePath.TmpRefProfilePath;
+import static com.android.server.art.Utils.Abi;
 import static com.android.server.art.model.ArtFlags.OptimizeFlags;
-import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 
 import android.R;
 import android.annotation.NonNull;
@@ -72,10 +73,10 @@ public class PrimaryDexOptimizer {
      * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeParams)}.
      */
     @NonNull
-    public List<DexFileOptimizeResult> dexopt(@NonNull PackageState pkgState,
+    public List<DexContainerFileOptimizeResult> dexopt(@NonNull PackageState pkgState,
             @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params,
             @NonNull CancellationSignal cancellationSignal) throws RemoteException {
-        List<DexFileOptimizeResult> results = new ArrayList<>();
+        List<DexContainerFileOptimizeResult> results = new ArrayList<>();
 
         int uid = pkg.getUid();
         if (uid < 0) {
@@ -143,14 +144,14 @@ public class PrimaryDexOptimizer {
                 DexoptOptions dexoptOptions =
                         getDexoptOptions(pkgState, pkg, params, isProfileGuidedCompilerFilter);
 
-                for (String isa : Utils.getAllIsas(pkgState)) {
+                for (Abi abi : Utils.getAllAbis(pkgState)) {
                     @OptimizeResult.OptimizeStatus int status = OptimizeResult.OPTIMIZE_SKIPPED;
                     long wallTimeMs = 0;
                     long cpuTimeMs = 0;
                     try {
                         DexoptTarget target = DexoptTarget.builder()
                                                       .setDexInfo(dexInfo)
-                                                      .setIsa(isa)
+                                                      .setIsa(abi.isa())
                                                       .setIsInDalvikCache(isInDalvikCache)
                                                       .setCompilerFilter(compilerFilter)
                                                       .build();
@@ -199,13 +200,14 @@ public class PrimaryDexOptimizer {
                         Log.e(TAG,
                                 String.format("Failed to dexopt [packageName = %s, dexPath = %s, "
                                                 + "isa = %s, classLoaderContext = %s]",
-                                        pkgState.getPackageName(), dexInfo.dexPath(), isa,
+                                        pkgState.getPackageName(), dexInfo.dexPath(), abi.isa(),
                                         dexInfo.classLoaderContext()),
                                 e);
                         status = OptimizeResult.OPTIMIZE_FAILED;
                     } finally {
-                        results.add(new DexFileOptimizeResult(dexInfo.dexPath(), isa,
-                                compilerFilter, status, wallTimeMs, cpuTimeMs));
+                        results.add(new DexContainerFileOptimizeResult(dexInfo.dexPath(),
+                                abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
+                                cpuTimeMs));
                         if (status != OptimizeResult.OPTIMIZE_SKIPPED
                                 && status != OptimizeResult.OPTIMIZE_PERFORMED) {
                             succeeded = false;

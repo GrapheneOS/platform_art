@@ -17,7 +17,7 @@
 package com.android.server.art;
 
 import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
-import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -377,7 +377,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         assertThat(
                 mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal)
                         .stream()
-                        .map(DexFileOptimizeResult::getStatus)
+                        .map(DexContainerFileOptimizeResult::getStatus)
                         .collect(Collectors.toList()))
                 .containsExactly(OptimizeResult.OPTIMIZE_CANCELLED);
 
@@ -412,7 +412,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .when(artdCancellationSignal)
                 .cancel();
 
-        Future<List<DexFileOptimizeResult>> results =
+        Future<List<DexContainerFileOptimizeResult>> results =
                 Executors.newSingleThreadExecutor().submit(() -> {
                     return mPrimaryDexOptimizer.dexopt(
                             mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
@@ -424,7 +424,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
         assertThat(results.get()
                            .stream()
-                           .map(DexFileOptimizeResult::getStatus)
+                           .map(DexContainerFileOptimizeResult::getStatus)
                            .collect(Collectors.toList()))
                 .containsExactly(OptimizeResult.OPTIMIZE_CANCELLED);
 
