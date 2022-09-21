@@ -738,11 +738,7 @@ build-art-unbundled-golem: art-runtime linker oatdump $(art_apex_jars) conscrypt
 
 build-art-host-gtests: build-art-host $(ART_TEST_HOST_GTEST_DEPENDENCIES)
 
-build-art-host-run-tests: build-art-host \
-                          $(TEST_ART_RUN_TEST_DEPENDENCIES) \
-                          $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES) \
-                          art-run-test-host-data \
-                          art-run-test-jvm-data
+build-art-host-run-tests: build-art-host $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_HOST_RUN_TEST_DEPENDENCIES)
 
 build-art-host-tests: build-art-host-gtests build-art-host-run-tests
 
@@ -750,10 +746,7 @@ build-art-host-tests: build-art-host-gtests build-art-host-run-tests
 
 build-art-target-gtests: build-art-target $(ART_TEST_TARGET_GTEST_DEPENDENCIES)
 
-build-art-target-run-tests: build-art-target \
-                            $(TEST_ART_RUN_TEST_DEPENDENCIES) \
-                            $(ART_TEST_TARGET_RUN_TEST_DEPENDENCIES) \
-                            art-run-test-target-data
+build-art-target-run-tests: build-art-target $(TEST_ART_RUN_TEST_DEPENDENCIES) $(ART_TEST_TARGET_RUN_TEST_DEPENDENCIES)
 
 build-art-target-tests: build-art-target-gtests build-art-target-run-tests
 
