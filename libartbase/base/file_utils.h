@@ -163,6 +163,9 @@ bool LocationIsOnI18nModule(std::string_view location);
 // Return whether the location is on system (i.e. android root).
 bool LocationIsOnSystem(const std::string& location);
 
+// Return whether the location is on system_ext
+bool LocationIsOnSystemExt(const std::string& location);
+
 // Return whether the location is on system/framework (i.e. $ANDROID_ROOT/framework).
 bool LocationIsOnSystemFramework(std::string_view location);
 

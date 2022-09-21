@@ -1745,6 +1745,10 @@ class ConcurrentCopying::DisableMarkingCheckpoint : public Closure {
            thread->IsSuspended() ||
            thread->GetState() == ThreadState::kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
+    // We sweep interpreter caches here so that it can be done after all
+    // reachable objects are marked and the mutators can sweep their caches
+    // without synchronization.
+    thread->SweepInterpreterCache(concurrent_copying_);
     // Disable the thread-local is_gc_marking flag.
     // Note a thread that has just started right before this checkpoint may have already this flag
     // set to false, which is ok.
