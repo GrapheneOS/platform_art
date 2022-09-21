@@ -16,7 +16,6 @@
 
 import sys, os, shutil, shlex, re, subprocess, glob
 from apex_bootclasspath_utils import get_apex_bootclasspath, get_apex_bootclasspath_locations
-from argparse import ArgumentParser, BooleanOptionalAction
 from os import path
 from os.path import isfile, isdir
 from typing import List
@@ -108,123 +107,26 @@ def msg(msg: str):
     if not QUIET:
         print(msg)
 
-argp, opt_bool = ArgumentParser(), BooleanOptionalAction
-argp.add_argument("--64", dest="is64", action='store_true')
-argp.add_argument("--O", action='store_true')
-argp.add_argument("--Xcompiler-option", default=[], action='append')
-argp.add_argument("--add-libdir-argument", action='store_true')
-argp.add_argument("--android-art-root", default="/apex/com.android.art")
-argp.add_argument("--android-i18n-root", default="/apex/com.android.i18n")
-argp.add_argument("--android-root", default="/system")
-argp.add_argument("--android-runtime-option", default=[], action='append')
-argp.add_argument("--android-tzdata-root", default="/apex/com.android.tzdata")
-argp.add_argument("--app-image", default=True, action=opt_bool)
-argp.add_argument("--args", default=[], action='append')
-argp.add_argument("--baseline", action='store_true')
-argp.add_argument("--bionic", action='store_true')
-argp.add_argument("--boot", default="")
-argp.add_argument("--chroot", default="")
-argp.add_argument("--compact-dex-level")
-argp.add_argument("--compiler-only-option", default=[], action='append')
-argp.add_argument("--create-runner", action='store_true')
-argp.add_argument("--debug", action='store_true')
-argp.add_argument("--debug-agent")
-argp.add_argument("--debug-wrap-agent", action='store_true')
-argp.add_argument("--dev", action='store_true')
-argp.add_argument("--dex2oat-dm", action='store_true')
-argp.add_argument("--dex2oat-rt-timeout", type=int, default=360)  # The *hard* timeout.  6 min.
-argp.add_argument("--dex2oat-timeout", type=int, default=300)     # The "soft" timeout.  5 min.
-argp.add_argument("--dry-run", action='store_true')
-argp.add_argument("--experimental", default=[], action='append')
-argp.add_argument("--external-log-tags", action='store_true')
-argp.add_argument("--gc-stress", action='store_true')
-argp.add_argument("--gdb")
-argp.add_argument("--gdb-arg", default=[], action='append')
-argp.add_argument("--gdb-dex2oat", action='store_true')
-argp.add_argument("--gdb-dex2oat-args", default=[], action='append')
-argp.add_argument("--gdbserver", action='store_true')
-argp.add_argument("--gdbserver-bin")
-argp.add_argument("--gdbserver-port", default=":5039")
-argp.add_argument("--host", action='store_true')
-argp.add_argument("--image", default=True, action=opt_bool)
-argp.add_argument("--instruction-set-features", default="")
-argp.add_argument("--interpreter", action='store_true')
-argp.add_argument("--invoke-with", default=[], action='append')
-argp.add_argument("--jit", action='store_true')
-argp.add_argument("--jvm", action='store_true')
-argp.add_argument("--jvmti", action='store_true')
-argp.add_argument("--jvmti-field-stress", action='store_true')
-argp.add_argument("--jvmti-redefine-stress", action='store_true')
-argp.add_argument("--jvmti-step-stress", action='store_true')
-argp.add_argument("--jvmti-trace-stress", action='store_true')
-argp.add_argument("--lib", default="")
-argp.add_argument("--optimize", default=True, action=opt_bool)
-argp.add_argument("--prebuild", default=True, action=opt_bool)
-argp.add_argument("--profile", action='store_true')
-argp.add_argument("--quiet", action='store_true')
-argp.add_argument("--random-profile", action='store_true')
-argp.add_argument("--relocate", default=False, action=opt_bool)
-argp.add_argument("--runtime-dm", action='store_true')
-argp.add_argument("--runtime-extracted-zipapex", default="")
-argp.add_argument("--runtime-option", default=[], action='append')
-argp.add_argument("--runtime-zipapex", default="")
-argp.add_argument("--secondary", action='store_true')
-argp.add_argument("--secondary-app-image", default=True, action=opt_bool)
-argp.add_argument("--secondary-class-loader-context", default="")
-argp.add_argument("--secondary-compilation", default=True, action=opt_bool)
-argp.add_argument("--simpleperf", action='store_true')
-argp.add_argument("--sync", action='store_true')
-argp.add_argument("--testlib", default=[], action='append')
-argp.add_argument("--timeout", default=0, type=int)
-argp.add_argument("--vdex", action='store_true')
-argp.add_argument("--vdex-arg", default=[], action='append')
-argp.add_argument("--vdex-filter")
-argp.add_argument("--verify", default=True, action=opt_bool)
-argp.add_argument("--verify-soft-fail", action='store_true')
-argp.add_argument("--with-agent", default=[], action='append')
-argp.add_argument("--zygote", action='store_true')
-argp.add_argument("test_args", nargs="*", default=["Main"])
-
-argv = list(sys.argv[1:])
-# Python parser requires the format --key=--value, since without the equals symbol
-# it looks like the required value has been omitted and there is just another flag.
-# For example, '--args --foo --host --64' will become '--arg=--foo --host --64'
-# because otherwise the --args is missing its value and --foo is unknown argument.
-for i, arg in reversed(list(enumerate(argv))):
-  if arg in ["--args", "--runtime-option", "--android-runtime-option",
-             "-Xcompiler-option", "--compiler-only-option"]:
-    argv[i] += "=" + argv.pop(i+1)
-# Accept single-dash arguments as if they were double-dash arguments.
-# For exmpample, '-Xcompiler-option' becomes '--Xcompiler-option'
-# became single-dash can be used only with single-letter arguments.
-for i, arg in list(enumerate(argv)):
-  if arg.startswith("-") and not arg.startswith("--"):
-    argv[i] = "-" + arg
-  if arg == "--":
-    break
-
-args = argp.parse_args(argv)
-
-ANDROID_ROOT = args.android_root
-ANDROID_ART_ROOT = args.android_art_root
-ANDROID_I18N_ROOT = args.android_i18n_root
-ANDROID_TZDATA_ROOT = args.android_tzdata_root
+ANDROID_ROOT="/system"
+ANDROID_ART_ROOT="/apex/com.android.art"
+ANDROID_I18N_ROOT="/apex/com.android.i18n"
+ANDROID_TZDATA_ROOT="/apex/com.android.tzdata"
 ARCHITECTURES_32="(arm|x86|none)"
 ARCHITECTURES_64="(arm64|x86_64|none)"
 ARCHITECTURES_PATTERN=ARCHITECTURES_32
 GET_DEVICE_ISA_BITNESS_FLAG="--32"
-BOOT_IMAGE = args.boot
-CHROOT = args.chroot
+BOOT_IMAGE=""
+CHROOT=""
 COMPILE_FLAGS=""
 DALVIKVM="dalvikvm32"
 DEBUGGER="n"
-WITH_AGENT = args.with_agent
-DEBUGGER_AGENT = args.debug_agent
-WRAP_DEBUGGER_AGENT = args.debug_wrap_agent
-DEV_MODE = args.dev
+WITH_AGENT=[]
+DEBUGGER_AGENT=""
+WRAP_DEBUGGER_AGENT=False
+DEV_MODE=False
 DEX2OAT_NDEBUG_BINARY="dex2oat32"
 DEX2OAT_DEBUG_BINARY="dex2oatd32"
-EXPERIMENTAL = args.experimental
+EXPERIMENTAL=[]
 FALSE_BIN="false"
 FLAGS=""
 ANDROID_FLAGS=""
@@ -234,75 +136,76 @@ GDB_DEX2OAT=""
 GDB_DEX2OAT_ARGS=""
 GDBSERVER_DEVICE="gdbserver"
 GDBSERVER_HOST="gdbserver"
-HAVE_IMAGE = args.image
-HOST = args.host
-BIONIC = args.bionic
+HAVE_IMAGE=True
+HOST=False
+BIONIC=False
 CREATE_ANDROID_ROOT=False
-USE_ZIPAPEX = (args.runtime_zipapex != "")
-ZIPAPEX_LOC = args.runtime_zipapex
-USE_EXTRACTED_ZIPAPEX = (args.runtime_extracted_zipapex != "")
-EXTRACTED_ZIPAPEX_LOC = args.runtime_extracted_zipapex
-INTERPRETER = args.interpreter
-JIT = args.jit
-INVOKE_WITH = " ".join(args.invoke_with)
-USE_JVMTI = args.jvmti
+USE_ZIPAPEX=False
+ZIPAPEX_LOC=""
+USE_EXTRACTED_ZIPAPEX=False
+EXTRACTED_ZIPAPEX_LOC=""
+INTERPRETER=False
+JIT=False
+INVOKE_WITH=""
 IS_JVMTI_TEST=False
-ADD_LIBDIR_ARGUMENTS = args.add_libdir_argument
+ADD_LIBDIR_ARGUMENTS=False
 SUFFIX64=""
 ISA="x86"
 LIBRARY_DIRECTORY="lib"
 TEST_DIRECTORY="nativetest"
-MAIN = args.test_args.pop(0)
-OPTIMIZE = args.optimize
-PREBUILD = args.prebuild
-QUIET = args.quiet
-RELOCATE = args.relocate
+MAIN=""
+OPTIMIZE=True
+PREBUILD=True
+QUIET=False
+RELOCATE=False
 SECONDARY_DEX=""
 TIME_OUT="n"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
 TIMEOUT_DUMPER="signal_dumper"
 # Values in seconds.
 TIME_OUT_EXTRA=0
-TIME_OUT_VALUE = args.timeout
-USE_GDB = args.gdb
-USE_GDBSERVER = args.gdbserver
-GDBSERVER_PORT = args.gdbserver_port
-USE_GDB_DEX2OAT = args.gdb_dex2oat
-USE_JVM = args.jvm
-VERIFY="y" if args.verify else "n" # y=yes,n=no,s=softfail
+TIME_OUT_VALUE=0
+USE_GDB=False
+USE_GDBSERVER=False
+GDBSERVER_PORT=":5039"
+USE_GDB_DEX2OAT=False
+USE_JVM=False
+USE_JVMTI=False
+VERIFY="y" # y=yes,n=no,s=softfail
 ZYGOTE=""
 DEX_VERIFY=""
-INSTRUCTION_SET_FEATURES = args.instruction_set_features
+INSTRUCTION_SET_FEATURES=""
 ARGS=""
 VDEX_ARGS=""
-EXTERNAL_LOG_TAGS = args.external_log_tags  # respect external ANDROID_LOG_TAGS.
-DRY_RUN = args.dry_run
-TEST_VDEX = args.vdex
-TEST_DEX2OAT_DM = args.dex2oat_dm
-TEST_RUNTIME_DM = args.runtime_dm
-TEST_IS_NDEBUG = args.O
-APP_IMAGE = args.app_image
-SECONDARY_APP_IMAGE = args.secondary_app_image
-SECONDARY_CLASS_LOADER_CONTEXT = args.secondary_class_loader_context
-SECONDARY_COMPILATION = args.secondary_compilation
+EXTERNAL_LOG_TAGS=False # if True respect externally set ANDROID_LOG_TAGS.
+DRY_RUN=False # if True prepare to run the test but don't run it.
+TEST_VDEX=False
+TEST_DEX2OAT_DM=False
+TEST_RUNTIME_DM=False
+TEST_IS_NDEBUG=False
+APP_IMAGE=True
+SECONDARY_APP_IMAGE=True
+SECONDARY_CLASS_LOADER_CONTEXT=""
+SECONDARY_COMPILATION=True
 JVMTI_STRESS=False
-JVMTI_REDEFINE_STRESS = args.jvmti_redefine_stress
-JVMTI_STEP_STRESS = args.jvmti_step_stress
-JVMTI_FIELD_STRESS = args.jvmti_field_stress
-JVMTI_TRACE_STRESS = args.jvmti_trace_stress
-PROFILE = args.profile
-RANDOM_PROFILE = args.random_profile
-DEX2OAT_TIMEOUT = args.dex2oat_timeout
-DEX2OAT_RT_TIMEOUT = args.dex2oat_rt_timeout
-CREATE_RUNNER = args.create_runner
+JVMTI_STEP_STRESS=False
+JVMTI_FIELD_STRESS=False
+JVMTI_TRACE_STRESS=False
+JVMTI_REDEFINE_STRESS=False
+PROFILE=False
+RANDOM_PROFILE=False
+# The normal dex2oat timeout.
+DEX2OAT_TIMEOUT=300 # 5 mins
+# The *hard* timeout where we really start trying to kill the dex2oat.
+DEX2OAT_RT_TIMEOUT=360 # 6 mins
+CREATE_RUNNER=False
 INT_OPTS=""
-SIMPLEPERF = args.simpleperf
+SIMPLEPERF=False
 DEBUGGER_OPTS=""
 JVM_VERIFY_ARG=""
-LIB = args.lib
 
 # if True, run 'sync' before dalvikvm to make sure all files from
 # build step (e.g. dex2oat) were finished writing.
-SYNC_BEFORE_RUN = args.sync
+SYNC_BEFORE_RUN=False
 
 # When running a debug build, we want to run with all checks.
 ANDROID_FLAGS+=" -XX:SlowDebug=true"
@@ -314,114 +217,386 @@ COMPILER_FLAGS="  --runtime-arg -XX:SlowDebug=true"
 COMPILE_FLAGS+=" --compile-art-test"
 ANDROID_FLAGS+=" -Xcompiler-option --compile-art-test"
 
-if USE_JVMTI:
-    IS_JVMTI_TEST=True
-    # Secondary images block some tested behavior.
-    SECONDARY_APP_IMAGE=False
-if args.gc_stress:
-    # Give an extra 20 mins if we are gc-stress.
-    TIME_OUT_EXTRA+=1200
-for arg in args.testlib:
-    ARGS+=f" {arg}"
-for arg in args.args:
-    ARGS+=f" {arg}"
-for arg in args.compiler_only_option:
-    COMPILE_FLAGS+=f" {arg}"
-for arg in args.Xcompiler_option:
-    FLAGS+=f" -Xcompiler-option {arg}"
-    COMPILE_FLAGS+=f" {arg}"
-if args.secondary:
-    SECONDARY_DEX=f":{DEX_LOCATION}/{TEST_NAME}-ex.jar"
-    # Enable cfg-append to make sure we get the dump for both dex files.
-    # (otherwise the runtime compilation of the secondary dex will overwrite
-    # the dump of the first one).
-    FLAGS+=" -Xcompiler-option --dump-cfg-append"
-    COMPILE_FLAGS+=" --dump-cfg-append"
-for arg in args.android_runtime_option:
-    ANDROID_FLAGS+=f" {arg}"
-for arg in args.runtime_option:
-    FLAGS+=f" {arg}"
-    if arg == "-Xmethod-trace":
-        # Method tracing can slow some tests down a lot.
+RUNTIME_OPTIONS=""
+COMPACT_DEX_LEVEL=""
+
+args = list(sys.argv)
+arg = ""
+def shift():
+  global arg
+  args.pop(0)
+  arg = args[0] if args else None
+shift()
+while arg:
+    if arg == "--quiet":
+        QUIET=True
+        shift()
+    elif arg == "--dex2oat-rt-timeout":
+        shift()
+        if arg == "":
+            error_msg("missing argument to --dex2oat-rt-timeout")
+            sys.exit(1)
+        DEX2OAT_RT_TIMEOUT=int(arg)
+        shift()
+    elif arg == "--dex2oat-timeout":
+        shift()
+        if arg == "":
+            error_msg("missing argument to --dex2oat-timeout")
+            sys.exit(1)
+        DEX2OAT_TIMEOUT=int(arg)
+        shift()
+    elif arg == "--jvmti":
+        USE_JVMTI=True
+        IS_JVMTI_TEST=True
+        # Secondary images block some tested behavior.
+        SECONDARY_APP_IMAGE=False
+        shift()
+    elif arg == "--add-libdir-argument":
+        ADD_LIBDIR_ARGUMENTS=True
+        shift()
+    elif arg == "-O":
+        TEST_IS_NDEBUG=True
+        shift()
+    elif arg == "--lib":
+        shift()
+        if arg == "":
+            error_msg("missing argument to --lib")
+            sys.exit(1)
+        LIB=arg
+        shift()
+    elif arg == "--gc-stress":
+        # Give an extra 20 mins if we are gc-stress.
         TIME_OUT_EXTRA+=1200
-if args.compact_dex_level:
-    arg=args.compact_dex_level
-    COMPILE_FLAGS+=f" --compact-dex-level={arg}"
-if JVMTI_REDEFINE_STRESS:
-    # APP_IMAGE doesn't really work with jvmti redefine stress
-    SECONDARY_APP_IMAGE=False
-    JVMTI_STRESS=True
-if JVMTI_REDEFINE_STRESS or JVMTI_STEP_STRESS or JVMTI_FIELD_STRESS or JVMTI_TRACE_STRESS:
-    USE_JVMTI=True
-    JVMTI_STRESS=True
-if HOST:
-    ANDROID_ROOT=ANDROID_HOST_OUT
-    ANDROID_ART_ROOT=f"{ANDROID_HOST_OUT}/com.android.art"
-    ANDROID_I18N_ROOT=f"{ANDROID_HOST_OUT}/com.android.i18n"
-    ANDROID_TZDATA_ROOT=f"{ANDROID_HOST_OUT}/com.android.tzdata"
-    # On host, we default to using the symlink, as the PREFER_32BIT
-    # configuration is the only configuration building a 32bit version of
-    # dex2oat.
-    DEX2OAT_DEBUG_BINARY="dex2oatd"
-    DEX2OAT_NDEBUG_BINARY="dex2oat"
-if BIONIC:
-    # We need to create an ANDROID_ROOT because currently we cannot create
-    # the frameworks/libcore with linux_bionic so we need to use the normal
-    # host ones which are in a different location.
-    CREATE_ANDROID_ROOT=True
-if USE_ZIPAPEX:
-    # TODO (b/119942078): Currently apex does not support
-    # symlink_preferred_arch so we will not have a dex2oatd to execute and
-    # need to manually provide
-    # dex2oatd64.
-    DEX2OAT_DEBUG_BINARY="dex2oatd64"
-if WITH_AGENT:
-    USE_JVMTI=True
-if DEBUGGER_AGENT:
-    DEBUGGER="agent"
-    USE_JVMTI=True
-    TIME_OUT="n"
-if args.debug:
-    USE_JVMTI=True
-    DEBUGGER="y"
-    TIME_OUT="n"
-if args.gdbserver_bin:
-    arg = args.gdbserver_bin
-    GDBSERVER_HOST=arg
-    GDBSERVER_DEVICE=arg
-if args.gdbserver or args.gdb or USE_GDB_DEX2OAT:
-    DEV_MODE=True
-    TIME_OUT="n"
-for arg in args.gdb_arg:
-    GDB_ARGS+=f" {arg}"
-if args.gdb_dex2oat_args:
-    for arg in arg.split(";"):
-      GDB_DEX2OAT_ARGS+=f"{arg} "
-if args.zygote:
-    ZYGOTE="-Xzygote"
-    msg("Spawning from zygote")
-if args.baseline:
-    FLAGS+=" -Xcompiler-option --baseline"
-    COMPILE_FLAGS+=" --baseline"
-if args.verify_soft_fail:
-    VERIFY="s"
-if args.is64:
-    SUFFIX64="64"
-    ISA="x86_64"
-    GDBSERVER_DEVICE="gdbserver64"
-    DALVIKVM="dalvikvm64"
-    LIBRARY_DIRECTORY="lib64"
-    TEST_DIRECTORY="nativetest64"
-    ARCHITECTURES_PATTERN=ARCHITECTURES_64
-    GET_DEVICE_ISA_BITNESS_FLAG="--64"
-    DEX2OAT_NDEBUG_BINARY="dex2oat64"
-    DEX2OAT_DEBUG_BINARY="dex2oatd64"
-if args.vdex_filter:
-    option=args.vdex_filter
-    VDEX_ARGS+=f" --compiler-filter={option}"
-if args.vdex_arg:
-    arg = args.vdex_arg
-    VDEX_ARGS+=f" {arg}"
+        shift()
+    elif arg == "--testlib":
+        shift()
+        if arg == "":
+            error_msg("missing argument to --testlib")
+            sys.exit(1)
+        ARGS+=f" {arg}"
+        shift()
+    elif arg == "--args":
+        shift()
+        if arg == "":
+            error_msg("missing argument to --args")
+            sys.exit(1)
+        ARGS+=f" {arg}"
+        shift()
+    elif arg == "--compiler-only-option":
+        shift()
+        option=arg
+        COMPILE_FLAGS+=f" {option}"
+        shift()
+    elif arg == "-Xcompiler-option":
+        shift()
+        option=arg
+        FLAGS+=f" -Xcompiler-option {option}"
+        COMPILE_FLAGS+=f" {option}"
+        shift()
+    elif arg == "--create-runner":
+        CREATE_RUNNER=True
+        shift()
+    elif arg == "--android-runtime-option":
+        shift()
+        option=arg
+        ANDROID_FLAGS+=f" {option}"
+        shift()
+    elif arg == "--runtime-option":
+        shift()
+        option=arg
+        RUNTIME_OPTIONS+=f" {option}"
+        if option == "-Xmethod-trace":
+            # Method tracing can slow some tests down a lot.
+            TIME_OUT_EXTRA+=1200
+        shift()
+    elif arg == "--boot":
+        shift()
+        BOOT_IMAGE=arg
+        shift()
+    elif arg == "--relocate":
+        RELOCATE=True
+        shift()
+    elif arg == "--no-relocate":
+        RELOCATE=False
+        shift()
+    elif arg == "--prebuild":
+        PREBUILD=True
+        shift()
+    elif arg == "--compact-dex-level":
+        shift()
+        COMPACT_DEX_LEVEL+=f" --compact-dex-level={arg}"
+        shift()
+    elif arg == "--jvmti-redefine-stress":
+        # APP_IMAGE doesn't really work with jvmti redefine stress
+        USE_JVMTI=True
+        APP_IMAGE=False
+        SECONDARY_APP_IMAGE=False
+        JVMTI_STRESS=True
+        JVMTI_REDEFINE_STRESS=True
+        shift()
+    elif arg == "--jvmti-step-stress":
+        USE_JVMTI=True
+        JVMTI_STRESS=True
+        JVMTI_STEP_STRESS=True
+        shift()
+    elif arg == "--jvmti-field-stress":
+        USE_JVMTI=True
+        JVMTI_STRESS=True
+        JVMTI_FIELD_STRESS=True
+        shift()
+    elif arg == "--jvmti-trace-stress":
+        USE_JVMTI=True
+        JVMTI_STRESS=True
+        JVMTI_TRACE_STRESS=True
+        shift()
+    elif arg == "--no-app-image":
+        APP_IMAGE=False
+        shift()
+    elif arg == "--no-secondary-app-image":
+        SECONDARY_APP_IMAGE=False
+        shift()
+    elif arg == "--secondary-class-loader-context":
+        shift()
+        SECONDARY_CLASS_LOADER_CONTEXT=arg
+        shift()
+    elif arg == "--no-secondary-compilation":
+        SECONDARY_COMPILATION=False
+        shift()
+    elif arg == "--host":
+        HOST=True
+        ANDROID_ROOT=ANDROID_HOST_OUT
+        ANDROID_ART_ROOT=f"{ANDROID_HOST_OUT}/com.android.art"
+        ANDROID_I18N_ROOT=f"{ANDROID_HOST_OUT}/com.android.i18n"
+        ANDROID_TZDATA_ROOT=f"{ANDROID_HOST_OUT}/com.android.tzdata"
+        # On host, we default to using the symlink, as the PREFER_32BIT
+        # configuration is the only configuration building a 32bit version of
+        # dex2oat.
+        DEX2OAT_DEBUG_BINARY="dex2oatd"
+        DEX2OAT_NDEBUG_BINARY="dex2oat"
+        shift()
+    elif arg == "--bionic":
+        BIONIC=True
+        # We need to create an ANDROID_ROOT because currently we cannot create
+        # the frameworks/libcore with linux_bionic so we need to use the normal
+        # host ones which are in a different location.
+        CREATE_ANDROID_ROOT=True
+        shift()
+    elif arg == "--runtime-extracted-zipapex":
+        shift()
+        USE_EXTRACTED_ZIPAPEX=True
+        EXTRACTED_ZIPAPEX_LOC=arg
+        shift()
+    elif arg == "--runtime-zipapex":
+        shift()
+        USE_ZIPAPEX=True
+        ZIPAPEX_LOC=arg
+        # TODO (b/119942078): Currently apex does not support
+        # symlink_preferred_arch so we will not have a dex2oatd to execute and
+        # need to manually provide
+        # dex2oatd64.
+        DEX2OAT_DEBUG_BINARY="dex2oatd64"
+        shift()
+    elif arg == "--no-prebuild":
+        PREBUILD=False
+        shift()
+    elif arg == "--no-image":
+        HAVE_IMAGE=False
+        shift()
+    elif arg == "--secondary":
+        SECONDARY_DEX=f":{DEX_LOCATION}/{TEST_NAME}-ex.jar"
+        # Enable cfg-append to make sure we get the dump for both dex files.
+        # (otherwise the runtime compilation of the secondary dex will overwrite
+        # the dump of the first one).
+        FLAGS+=" -Xcompiler-option --dump-cfg-append"
+        COMPILE_FLAGS+=" --dump-cfg-append"
+        shift()
+    elif arg == "--with-agent":
+        shift()
+        USE_JVMTI=True
+        WITH_AGENT.append(arg)
+        shift()
+    elif arg == "--debug-wrap-agent":
+        WRAP_DEBUGGER_AGENT=True
+        shift()
+    elif arg == "--debug-agent":
+        shift()
+        DEBUGGER="agent"
+        USE_JVMTI=True
+        DEBUGGER_AGENT=arg
+        TIME_OUT="n"
+        shift()
+    elif arg == "--debug":
+        USE_JVMTI=True
+        DEBUGGER="y"
+        TIME_OUT="n"
+        shift()
+    elif arg == "--gdbserver-port":
+        shift()
+        GDBSERVER_PORT=arg
+        shift()
+    elif arg == "--gdbserver-bin":
+        shift()
+        GDBSERVER_HOST=arg
+        GDBSERVER_DEVICE=arg
+        shift()
+    elif arg == "--gdbserver":
+        USE_GDBSERVER=True
+        DEV_MODE=True
+        TIME_OUT="n"
+        shift()
+    elif arg == "--gdb":
+        USE_GDB=True
+        DEV_MODE=True
+        TIME_OUT="n"
+        shift()
+    elif arg == "--gdb-arg":
+        shift()
+        gdb_arg=arg
+        GDB_ARGS+=f" {gdb_arg}"
+        shift()
+    elif arg == "--gdb-dex2oat":
+        USE_GDB_DEX2OAT=True
+        DEV_MODE=True
+        TIME_OUT="n"
+        shift()
+    elif arg == "--gdb-dex2oat-args":
+        shift()
+        for arg in arg.split(";"):
+          GDB_DEX2OAT_ARGS+=f"{arg} "
+        shift()
+    elif arg == "--zygote":
+        ZYGOTE="-Xzygote"
+        msg("Spawning from zygote")
+        shift()
+    elif arg == "--dev":
+        DEV_MODE=True
+        shift()
+    elif arg == "--interpreter":
+        INTERPRETER=True
+        shift()
+    elif arg == "--jit":
+        JIT=True
+        shift()
+    elif arg == "--baseline":
+        FLAGS+=" -Xcompiler-option --baseline"
+        COMPILE_FLAGS+=" --baseline"
+        shift()
+    elif arg == "--jvm":
+        USE_JVM=True
+        shift()
+    elif arg == "--invoke-with":
+        shift()
+        if arg == "":
+            error_msg("missing argument to --invoke-with")
+            sys.exit(1)
+        if INVOKE_WITH == "":
+            INVOKE_WITH=arg
+        else:
+            INVOKE_WITH+=f" {arg}"
+        shift()
+    elif arg == "--no-verify":
+        VERIFY="n"
+        shift()
+    elif arg == "--verify-soft-fail":
+        VERIFY="s"
+        shift()
+    elif arg == "--no-optimize":
+        OPTIMIZE=False
+        shift()
+    elif arg == "--chroot":
+        shift()
+        CHROOT=arg
+        shift()
+    elif arg == "--simpleperf":
+        SIMPLEPERF=True
+        shift()
+    elif arg == "--android-root":
+        shift()
+        ANDROID_ROOT=arg
+        shift()
+    elif arg == "--android-i18n-root":
+        shift()
+        ANDROID_I18N_ROOT=arg
+        shift()
+    elif arg == "--android-art-root":
+        shift()
+        ANDROID_ART_ROOT=arg
+        shift()
+    elif arg == "--android-tzdata-root":
+        shift()
+        ANDROID_TZDATA_ROOT=arg
+        shift()
+    elif arg == "--instruction-set-features":
+        shift()
+        INSTRUCTION_SET_FEATURES=arg
+        shift()
+    elif arg == "--timeout":
+        shift()
+        TIME_OUT_VALUE=int(arg)
+        shift()
+    elif arg == "--":
+        shift()
+        break
+    elif arg == "--64":
+        SUFFIX64="64"
+        ISA="x86_64"
+        GDBSERVER_DEVICE="gdbserver64"
+        DALVIKVM="dalvikvm64"
+        LIBRARY_DIRECTORY="lib64"
+        TEST_DIRECTORY="nativetest64"
+        ARCHITECTURES_PATTERN=ARCHITECTURES_64
+        GET_DEVICE_ISA_BITNESS_FLAG="--64"
+        DEX2OAT_NDEBUG_BINARY="dex2oat64"
+        DEX2OAT_DEBUG_BINARY="dex2oatd64"
+        shift()
+    elif arg == "--experimental":
+        if len(args) < 2:
+            error_msg("missing --experimental option")
+            sys.exit(1)
+        shift()
+        EXPERIMENTAL.append(arg)
+        shift()
+    elif arg == "--external-log-tags":
+        EXTERNAL_LOG_TAGS=True
+        shift()
+    elif arg == "--dry-run":
+        DRY_RUN=True
+        shift()
+    elif arg == "--vdex":
+        TEST_VDEX=True
+        shift()
+    elif arg == "--dex2oat-dm":
+        TEST_DEX2OAT_DM=True
+        shift()
+    elif arg == "--runtime-dm":
+        TEST_RUNTIME_DM=True
+        shift()
+    elif arg == "--vdex-filter":
+        shift()
+        option=arg
+        VDEX_ARGS+=f" --compiler-filter={option}"
+        shift()
+    elif arg == "--vdex-arg":
+        shift()
+        VDEX_ARGS+=f" {arg}"
+        shift()
+    elif arg == "--sync":
+        SYNC_BEFORE_RUN=True
+        shift()
+    elif arg == "--profile":
+        PROFILE=True
+        shift()
+    elif arg == "--random-profile":
+        RANDOM_PROFILE=True
+        shift()
+    elif arg.startswith("--"):
+        error_msg(f"unknown option: {arg}")
+        sys.exit(1)
+    else:
+        break
+
+FLAGS+=RUNTIME_OPTIONS
+COMPILE_FLAGS+=COMPACT_DEX_LEVEL
 
 # HACK: Force the use of `signal_dumper` on host.
 if HOST:
@@ -463,7 +638,13 @@ if not USE_JVM:
 if CREATE_ANDROID_ROOT:
     ANDROID_ROOT=f"{DEX_LOCATION}/android-root"
 
-test_args = (" " + " ".join(args.test_args)) if args.test_args else ""
+if not arg:
+  MAIN="Main"
+else:
+  MAIN=arg
+  shift()
+
+test_args = (" " + " ".join(args)) if args else ""
 
 if ZYGOTE == "":
     if OPTIMIZE:
