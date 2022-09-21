@@ -11,6 +11,7 @@
   result: EXEC_FAILED,
   bug: 242181443,
   names: [ "org.apache.harmony.jpda.tests.jdwp.ObjectReference_DisableCollectionTest#testDisableCollection001",
+           "org.apache.harmony.jpda.tests.jdwp.ObjectReference_DisableCollectionTest#testDisableCollection_invalid",
            "org.apache.harmony.jpda.tests.jdwp.ObjectReference_IsCollectedTest#testIsCollected001",
            "org.apache.harmony.jpda.tests.jdwp.ObjectReference_IsCollectedTest#testIsCollected_invalid",
            "org.apache.harmony.jpda.tests.jdwp.ObjectReference_IsCollectedTest#testIsCollected_null" ]
