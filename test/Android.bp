@@ -1368,33 +1368,6 @@ csuite_test {
     test_config_template: "csuite-app-compile-launch.xml",
 }
 
-// Install run-test data in the output directory.
-prebuilt_etc_host {
-    name: "art-run-test-host-data",
-    defaults: ["art_module_source_build_prebuilt_defaults"],
-    src: ":art-run-test-host-data-merged",
-    sub_dir: "art",
-    filename: "art-run-test-host-data.zip",
-}
-
-// Install run-test data in the output directory.
-prebuilt_etc_host {
-    name: "art-run-test-jvm-data",
-    defaults: ["art_module_source_build_prebuilt_defaults"],
-    src: ":art-run-test-jvm-data-merged",
-    sub_dir: "art",
-    filename: "art-run-test-jvm-data.zip",
-}
-
-// Install run-test data in the output directory.
-prebuilt_etc_host {
-    name: "art-run-test-target-data",
-    defaults: ["art_module_source_build_prebuilt_defaults"],
-    src: ":art-run-test-target-data-merged",
-    sub_dir: "art",
-    filename: "art-run-test-target-data.zip",
-}
-
 filegroup {
     name: "art-gtest-jars",
     srcs: [
