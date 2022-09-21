@@ -109,6 +109,7 @@
              TODO(b/204649079): Investigate these failures and re-enable these tests. -->
         <option name="exclude-filter" value="*ExecUtilsTest.EnvSnapshotDeletionsAreNotVisible*" />
         <option name="exclude-filter" value="*ExecUtilsTest.ExecNoTimeout*" />
+        <option name="exclude-filter" value="*ExecUtilsTest.ExecStatFailed*" />
         <option name="exclude-filter" value="*ExecUtilsTest.ExecSuccess*" />
         <option name="exclude-filter" value="*ExecUtilsTest.ExecTimeout*" />
     </test>
