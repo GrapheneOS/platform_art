@@ -3470,7 +3470,7 @@ bool DexFileVerifier::CheckMethodAccessFlags(uint32_t method_index,
     return false;
   }
 
-  // Flags allowed on fields, in general. Other lower-16-bit flags are to be ignored.
+  // Flags allowed on methods, in general. Other lower-16-bit flags are to be ignored.
   constexpr uint32_t kMethodAccessFlags = kAccPublic |
                                           kAccPrivate |
                                           kAccProtected |
