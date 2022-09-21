@@ -145,6 +145,7 @@ TEST_F(ImageSpaceTest, StringDeduplication) {
                                      /*relocate=*/ false,
                                      /*executable=*/ true,
                                      /*extra_reservation_size=*/ 0u,
+                                     /*allow_in_memory_compilation=*/ false,
                                      &boot_image_spaces,
                                      &extra_reservation);
   };
@@ -330,6 +331,7 @@ class ImageSpaceLoadingTest : public CommonRuntimeTest {
     options->emplace_back(android::base::StringPrintf("-Ximage:%s", image_location.c_str()),
                           nullptr);
     options->emplace_back(kRelocate ? "-Xrelocate" : "-Xnorelocate", nullptr);
+    options->emplace_back("-Xallowinmemorycompilation", nullptr);
 
     // We want to test the relocation behavior of ImageSpace. As such, don't pretend we're a
     // compiler.

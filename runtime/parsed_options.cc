@@ -183,6 +183,10 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::Image)
       .Define("-Xforcejitzygote")
           .IntoKey(M::ForceJitZygote)
+      .Define("-Xallowinmemorycompilation")
+          .WithHelp("Allows compiling the boot classpath in memory when the given boot image is"
+              "unusable. This option is set by default for Zygote.")
+          .IntoKey(M::AllowInMemoryCompilation)
       .Define("-Xprimaryzygote")
           .IntoKey(M::PrimaryZygote)
       .Define("-Xbootclasspath-locations:_")
@@ -733,6 +737,10 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     }
     // If `boot.art` exists in the ART APEX, it will be used. Otherwise, Everything will be JITed.
     args.Set(M::Image, ParseStringList<':'>::Split(GetJitZygoteBootImageLocation()));
+  }
+
+  if (args.Exists(M::Zygote)) {
+    args.Set(M::AllowInMemoryCompilation, Unit());
   }
 
   if (!args.Exists(M::CompilerCallbacksPtr) && !args.Exists(M::Image)) {
