@@ -444,6 +444,7 @@ class ImageSpace : public MemMapSpace {
                                       ArrayRef<const std::string> dependencies,
                                       /*out*/ std::string* error_msg);
 
+    // Returns true if a least one chuck has been loaded.
     template <typename FilenameFn>
     bool Load(FilenameFn&& filename_fn,
               bool allow_in_memory_compilation,
