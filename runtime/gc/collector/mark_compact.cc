@@ -1688,6 +1688,9 @@ void MarkCompact::PreCompactionPhase() {
     std::list<Thread*> thread_list = runtime->GetThreadList()->GetList();
     for (Thread* thread : thread_list) {
       thread->VisitRoots(this, kVisitRootFlagAllRoots);
+      // Interpreter cache is thread-local so it needs to be swept either in a
+      // checkpoint, or a stop-the-world pause.
+      thread->SweepInterpreterCache(this);
       thread->AdjustTlab(black_objs_slide_diff_);
     }
   }
@@ -1760,6 +1763,10 @@ void MarkCompact::PreCompactionPhase() {
   // fallback mode
   if (uffd_ == kFallbackMode) {
     CompactMovingSpace</*kFallback*/true>();
+
+    int32_t freed_bytes = black_objs_slide_diff_;
+    bump_pointer_space_->RecordFree(freed_objects_, freed_bytes);
+    RecordFree(ObjectBytePair(freed_objects_, freed_bytes));
   } else {
     // We must start worker threads before resuming mutators to avoid deadlocks.
     heap_->GetThreadPool()->StartWorkers(thread_running_gc_);

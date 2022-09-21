@@ -296,6 +296,7 @@ art_cc_binary {
             ],
             static_libs: [
                 "libart-dex2oat",
+                "libelffile",
             ],
             lto: {
                 thin: true,
@@ -355,6 +356,7 @@ art_cc_binary {
             ],
             static_libs: [
                 "libartd-dex2oat",
+                "libelffiled",
             ],
         },
         host: {
@@ -555,13 +557,14 @@ art_cc_test {
     ],
     shared_libs: [
         "libartbased",
-        "libartd-compiler",
         "libartd-dexlayout",
+        "liblzma",
         "libprofiled",
     ],
     static_libs: [
-        "libartd-dex2oat-gtest",
+        "libartd-compiler",
         "libartd-dex2oat",
+        "libartd-dex2oat-gtest",
         "libvixld",
     ],
 }
@@ -575,14 +578,15 @@ art_cc_test {
     ],
     data: [":generate-boot-image"],
     shared_libs: [
-        "libartbase",
-        "libart-compiler",
         "libart-dexlayout",
+        "libartbase",
+        "liblzma",
         "libprofile",
     ],
     static_libs: [
-        "libart-dex2oat-gtest",
+        "libart-compiler",
         "libart-dex2oat",
+        "libart-dex2oat-gtest",
         "libvixl",
     ],
     test_config: "art_standalone_dex2oat_tests.xml",

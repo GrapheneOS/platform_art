@@ -100,6 +100,9 @@ test-art-host-run-test-dependencies : \
 .PHONY: test-art-host-run-test-dependencies
 test-art-run-test-dependencies : test-art-host-run-test-dependencies
 
+test-art-jvm-run-test-dependencies : test-art-host-run-test-dependencies
+.PHONY: test-art-jvm-run-test-dependencies
+
 test-art-target-run-test-dependencies :
 .PHONY: test-art-target-run-test-dependencies
 test-art-run-test-dependencies : test-art-target-run-test-dependencies

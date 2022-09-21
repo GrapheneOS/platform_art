@@ -1239,7 +1239,7 @@ def main():
   if build:
     build_targets = []
     # Build only the needed shards (depending on the selected tests).
-    shards = set(re.search("(\d\d)-", t)[1] for t in tests)
+    shards = set(re.search("(\d\d)-", t).group(1) for t in tests)
     for mode in ['host', 'target', 'jvm']:
       if mode in _user_input_variants['target']:
         build_targets += ['test-art-{}-run-test-dependencies'.format(mode)]
