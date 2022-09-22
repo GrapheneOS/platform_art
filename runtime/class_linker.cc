@@ -2024,7 +2024,7 @@ bool ClassLinker::AddImageSpace(
 
   if (runtime->IsVerificationSoftFail()) {
     header.VisitPackedArtMethods([&](ArtMethod& method) REQUIRES_SHARED(Locks::mutator_lock_) {
-      if (!method.IsNative() && method.IsInvokable()) {
+      if (method.IsManagedAndInvokable()) {
         method.ClearSkipAccessChecks();
       }
     }, space->Begin(), image_pointer_size_);
@@ -8298,26 +8298,29 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
       ThrowClassFormatError(klass.Get(), "Too many methods on interface: %zu", num_virtual_methods);
       return false;
     }
+    // Assign each method an interface table index and set the default flag.
     bool has_defaults = false;
-    // Assign each method an IMT index and set the default flag.
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       ArtMethod* m = klass->GetVirtualMethodDuringLinking(i, kPointerSize);
       m->SetMethodIndex(i);
-      if (!m->IsAbstract()) {
+      uint32_t access_flags = m->GetAccessFlags();
+      DCHECK(!ArtMethod::IsDefault(access_flags));
+      DCHECK_EQ(!ArtMethod::IsAbstract(access_flags), ArtMethod::IsInvokable(access_flags));
+      if (ArtMethod::IsInvokable(access_flags)) {
         // If the dex file does not support default methods, throw ClassFormatError.
         // This check is necessary to protect from odd cases, such as native default
         // methods, that the dex file verifier permits for old dex file versions. b/157170505
         // FIXME: This should be `if (!m->GetDexFile()->SupportsDefaultMethods())` but we're
         // currently running CTS tests for default methods with dex file version 035 which
         // does not support default methods. So, we limit this to native methods. b/157718952
-        if (m->IsNative()) {
+        if (ArtMethod::IsNative(access_flags)) {
           DCHECK(!m->GetDexFile()->SupportsDefaultMethods());
           ThrowClassFormatError(klass.Get(),
                                 "Dex file does not support default method '%s'",
                                 m->PrettyMethod().c_str());
           return false;
         }
-        if (!m->IsPublic()) {
+        if (!ArtMethod::IsPublic(access_flags)) {
           // The verifier should have caught the non-public method for dex version 37.
           // Just warn and skip it since this is from before default-methods so we don't
           // really need to care that it has code.
@@ -8325,7 +8328,7 @@ bool ClassLinker::LinkMethodsHelper<kPointerSize>::LinkMethods(
                        << "This will be a fatal error in subsequent versions of android. "
                        << "Continuing anyway.";
         }
-        m->SetAccessFlags(m->GetAccessFlags() | kAccDefault);
+        m->SetAccessFlags(access_flags | kAccDefault);
         has_defaults = true;
       }
     }
