@@ -1112,6 +1112,9 @@
       "name": "art-run-test-662-regression-alias[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-663-checker-select-generator[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-665-checker-simd-zero[com.google.android.art.apex]"
     },
     {
@@ -1236,6 +1239,9 @@
     },
     {
       "name": "art-run-test-838-override[com.google.android.art.apex]"
+    },
+    {
+      "name": "art-run-test-839-clinit-throw[com.google.android.art.apex]"
     },
     {
       "name": "art-run-test-841-defaults[com.google.android.art.apex]"
@@ -2431,6 +2437,9 @@
       "name": "art-run-test-662-regression-alias"
     },
     {
+      "name": "art-run-test-663-checker-select-generator"
+    },
+    {
       "name": "art-run-test-665-checker-simd-zero"
     },
     {
@@ -2555,6 +2564,9 @@
     },
     {
       "name": "art-run-test-838-override"
+    },
+    {
+      "name": "art-run-test-839-clinit-throw"
     },
     {
       "name": "art-run-test-841-defaults"
@@ -3747,6 +3759,9 @@
       "name": "art-run-test-662-regression-alias"
     },
     {
+      "name": "art-run-test-663-checker-select-generator"
+    },
+    {
       "name": "art-run-test-665-checker-simd-zero"
     },
     {
@@ -3871,6 +3886,9 @@
     },
     {
       "name": "art-run-test-838-override"
+    },
+    {
+      "name": "art-run-test-839-clinit-throw"
     },
     {
       "name": "art-run-test-841-defaults"
