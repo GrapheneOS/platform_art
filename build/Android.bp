@@ -50,7 +50,6 @@ art_clang_tidy_allowed = [
     // Many files have these warnings. Move them to art_clang_tidy_errors
     // when all files are free of these warnings.
     "android-cloexec-dup",
-    "modernize-use-using", // TODO: move to art_clang_tidy_errors after b/236243696 is done
 ]
 
 art_clang_tidy_disabled = [
@@ -67,6 +66,9 @@ art_clang_tidy_disabled = [
     "-modernize-return-braced-init-list",
     "-modernize-use-default-member-init",
     "-modernize-pass-by-value",
+    // The only two remaining offenders are art/openjdkjvmti/include/jvmti.h and
+    // libcore/ojluni/src/main/native/jvm.h, which are both external files by Oracle
+    "-modernize-use-using",
 ]
 
 soong_config_module_type_import {
