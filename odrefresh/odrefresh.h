@@ -112,7 +112,7 @@ class OnDeviceRefresh final {
 
   // Removes files that are not in the list.
   android::base::Result<void> CleanupArtifactDirectory(
-      const std::vector<std::string>& artifacts_to_keep) const;
+      OdrMetrics& metrics, const std::vector<std::string>& artifacts_to_keep) const;
 
   // Loads artifacts to memory and writes them back. This is a workaround for old versions of
   // odsign, which encounters "file exists" error when it adds existing artifacts to fs-verity. This
