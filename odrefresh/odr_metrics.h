@@ -58,6 +58,8 @@ class OdrMetrics final {
     kTimeLimitExceeded = 5,
     kStagingFailed = 6,
     kInstallFailed = 7,
+    // Failed to access the dalvik-cache directory due to lack of permission.
+    kDalvikCachePermissionDenied = 8,
   };
 
   // Enumeration describing the cause of compilation (if any) in odrefresh.
@@ -75,20 +77,17 @@ class OdrMetrics final {
                       const std::string& metrics_file = kOdrefreshMetricsFile);
   ~OdrMetrics();
 
+  // Enables/disables metrics writing.
+  void SetEnabled(bool value) { enabled_ = value; }
+
   // Gets the ART APEX that metrics are being collected on behalf of.
-  int64_t GetArtApexVersion() const {
-    return art_apex_version_;
-  }
+  int64_t GetArtApexVersion() const { return art_apex_version_; }
 
   // Sets the ART APEX that metrics are being collected on behalf of.
-  void SetArtApexVersion(int64_t version) {
-    art_apex_version_ = version;
-  }
+  void SetArtApexVersion(int64_t version) { art_apex_version_ = version; }
 
   // Gets the ART APEX last update time in milliseconds.
-  int64_t GetArtApexLastUpdateMillis() const {
-    return art_apex_last_update_millis_;
-  }
+  int64_t GetArtApexLastUpdateMillis() const { return art_apex_last_update_millis_; }
 
   // Sets the ART APEX last update time in milliseconds.
   void SetArtApexLastUpdateMillis(int64_t last_update_millis) {
@@ -97,31 +96,27 @@ class OdrMetrics final {
 
   // Gets the trigger for metrics collection. The trigger is the reason why odrefresh considers
   // compilation necessary.
-  Trigger GetTrigger() const {
-    return trigger_.has_value() ? trigger_.value() : Trigger::kUnknown;
-  }
+  Trigger GetTrigger() const { return trigger_; }
 
   // Sets the trigger for metrics collection. The trigger is the reason why odrefresh considers
   // compilation necessary. Only call this method if compilation is necessary as the presence
   // of a trigger means we will try to record and upload metrics.
-  void SetTrigger(const Trigger trigger) {
-    trigger_ = trigger;
-  }
+  void SetTrigger(const Trigger trigger) { trigger_ = trigger; }
 
   // Sets the execution status of the current odrefresh processing stage.
-  void SetStatus(const Status status) {
-    status_ = status;
-  }
+  void SetStatus(const Status status) { status_ = status; }
 
   // Sets the current odrefresh processing stage.
-  void SetStage(Stage stage);
+  void SetStage(Stage stage) { stage_ = stage; }
 
   // Sets the result of the current dex2oat invocation.
   void SetDex2OatResult(const ExecResult& dex2oat_result);
 
-  // Record metrics into an OdrMetricsRecord.
-  // returns true on success, false if instance is not valid (because the trigger value is not set).
-  bool ToRecord(/*out*/OdrMetricsRecord* record) const;
+  // Captures the current free space as the end free space.
+  void CaptureSpaceFreeEnd();
+
+  // Records metrics into an OdrMetricsRecord.
+  OdrMetricsRecord ToRecord() const;
 
  private:
   OdrMetrics(const OdrMetrics&) = delete;
@@ -135,9 +130,11 @@ class OdrMetrics final {
   const std::string cache_directory_;
   const std::string metrics_file_;
 
+  bool enabled_ = false;
+
   int64_t art_apex_version_ = 0;
   int64_t art_apex_last_update_millis_ = 0;
-  std::optional<Trigger> trigger_ = {};  // metrics are only logged if compilation is triggered.
+  Trigger trigger_ = Trigger::kUnknown;
   Stage stage_ = Stage::kUnknown;
   Status status_ = Status::kUnknown;
 
