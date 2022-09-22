@@ -204,10 +204,12 @@ std::vector<art_apex::ModuleInfo> GenerateModuleInfoList(
   return module_info_list;
 }
 
-// Returns a rewritten path based on ANDROID_ROOT if the path starts with "/system/".
-std::string AndroidRootRewrite(const std::string& path) {
+// Returns a rewritten path based on environment variables for interesting paths.
+std::string RewriteParentDirectoryIfNeeded(const std::string& path) {
   if (StartsWith(path, "/system/")) {
     return Concatenate({GetAndroidRoot(), path.substr(7)});
+  } else if (StartsWith(path, "/system_ext/")) {
+    return Concatenate({GetSystemExtRoot(), path.substr(11)});
   } else {
     return path;
   }
@@ -281,7 +283,7 @@ std::vector<T> GenerateComponents(
 
   ArtDexFileLoader loader;
   for (const std::string& path : jars) {
-    std::string actual_path = AndroidRootRewrite(path);
+    std::string actual_path = RewriteParentDirectoryIfNeeded(path);
     struct stat sb;
     if (stat(actual_path.c_str(), &sb) == -1) {
       PLOG(ERROR) << "Failed to stat component: " << QuotePath(actual_path);
@@ -435,7 +437,7 @@ bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
     if (StartsWith(jar, "/apex/")) {
       bcp_fds.emplace_back("-1");
     } else {
-      std::string actual_path = AndroidRootRewrite(jar);
+      std::string actual_path = RewriteParentDirectoryIfNeeded(jar);
       std::unique_ptr<File> jar_file(OS::OpenFileForReading(actual_path.c_str()));
       if (!jar_file || !jar_file->IsValid()) {
         LOG(ERROR) << "Failed to open a BCP jar " << actual_path;
@@ -1495,7 +1497,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   }
 
   for (const std::string& component : jars_to_compile) {
-    std::string actual_path = AndroidRootRewrite(component);
+    std::string actual_path = RewriteParentDirectoryIfNeeded(component);
     args.emplace_back("--dex-file=" + component);
     std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
     args.emplace_back(android::base::StringPrintf("--dex-fd=%d", file->Fd()));
@@ -1603,7 +1605,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     args.emplace_back(dex2oat);
     args.emplace_back("--dex-file=" + jar);
 
-    std::string actual_jar_path = AndroidRootRewrite(jar);
+    std::string actual_jar_path = RewriteParentDirectoryIfNeeded(jar);
     std::unique_ptr<File> dex_file(OS::OpenFileForReading(actual_jar_path.c_str()));
     args.emplace_back(android::base::StringPrintf("--dex-fd=%d", dex_file->Fd()));
     readonly_files_raii.push_back(std::move(dex_file));
@@ -1692,7 +1694,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     if (!classloader_context.empty()) {
       std::vector<int> fds;
       for (const std::string& path : classloader_context) {
-        std::string actual_path = AndroidRootRewrite(path);
+        std::string actual_path = RewriteParentDirectoryIfNeeded(path);
         std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
         if (!file->IsValid()) {
           PLOG(ERROR) << "Failed to open classloader context " << actual_path;
