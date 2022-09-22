@@ -47,6 +47,11 @@ std::string GetAndroidRoot();
 // Find $ANDROID_ROOT, /system, or return an empty string.
 std::string GetAndroidRootSafe(/*out*/ std::string* error_msg);
 
+// Find $SYSTEM_EXT_ROOT, /system_ext, or abort.
+std::string GetSystemExtRoot();
+// Find $SYSTEM_EXT_ROOT, /system_ext, or return an empty string.
+std::string GetSystemExtRootSafe(/*out*/ std::string* error_msg);
+
 // These methods return the ART Root, which is the location of the (activated)
 // ART APEX module. On target, this is normally "/apex/com.android.art". On
 // host, this is usually a subdirectory of the Android Root, e.g.

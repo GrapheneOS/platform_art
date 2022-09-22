@@ -106,56 +106,6 @@ static std::string GetRootContainingLibartbase() {
   return "";
 }
 
-std::string GetAndroidRootSafe(std::string* error_msg) {
-#ifdef _WIN32
-  UNUSED(kAndroidRootEnvVar, kAndroidRootDefaultPath, GetRootContainingLibartbase);
-  *error_msg = "GetAndroidRootSafe unsupported for Windows.";
-  return "";
-#else
-  // Prefer ANDROID_ROOT if it's set.
-  const char* android_root_from_env = getenv(kAndroidRootEnvVar);
-  if (android_root_from_env != nullptr) {
-    if (!OS::DirectoryExists(android_root_from_env)) {
-      *error_msg =
-          StringPrintf("Failed to find %s directory %s", kAndroidRootEnvVar, android_root_from_env);
-      return "";
-    }
-    return android_root_from_env;
-  }
-
-  // On host, libartbase is currently installed in "$ANDROID_ROOT/lib"
-  // (e.g. something like "$ANDROID_BUILD_TOP/out/host/linux-x86/lib". Use this
-  // information to infer the location of the Android Root (on host only).
-  //
-  // Note that this could change in the future, if we decided to install ART
-  // artifacts in a different location, e.g. within an "ART APEX" directory.
-  if (!kIsTargetBuild) {
-    std::string root_containing_libartbase = GetRootContainingLibartbase();
-    if (!root_containing_libartbase.empty()) {
-      return root_containing_libartbase;
-    }
-  }
-
-  // Try the default path.
-  if (!OS::DirectoryExists(kAndroidRootDefaultPath)) {
-    *error_msg =
-        StringPrintf("Failed to find default Android Root directory %s", kAndroidRootDefaultPath);
-    return "";
-  }
-  return kAndroidRootDefaultPath;
-#endif
-}
-
-std::string GetAndroidRoot() {
-  std::string error_msg;
-  std::string ret = GetAndroidRootSafe(&error_msg);
-  if (ret.empty()) {
-    LOG(FATAL) << error_msg;
-    UNREACHABLE();
-  }
-  return ret;
-}
-
 static const char* GetAndroidDirSafe(const char* env_var,
                                      const char* default_dir,
                                      bool must_exist,
@@ -187,6 +137,62 @@ static const char* GetAndroidDir(const char* env_var,
     LOG(FATAL) << error_msg;
     UNREACHABLE();
   }
+}
+
+std::string GetAndroidRootSafe(std::string* error_msg) {
+#ifdef _WIN32
+  UNUSED(kAndroidRootEnvVar, kAndroidRootDefaultPath, GetRootContainingLibartbase);
+  *error_msg = "GetAndroidRootSafe unsupported for Windows.";
+  return "";
+#else
+  std::string local_error_msg;
+  const char* dir = GetAndroidDirSafe(kAndroidRootEnvVar, kAndroidRootDefaultPath,
+      /*must_exist=*/ true, &local_error_msg);
+  if (dir == nullptr) {
+    // On host, libartbase is currently installed in "$ANDROID_ROOT/lib"
+    // (e.g. something like "$ANDROID_BUILD_TOP/out/host/linux-x86/lib". Use this
+    // information to infer the location of the Android Root (on host only).
+    //
+    // Note that this could change in the future, if we decided to install ART
+    // artifacts in a different location, e.g. within an "ART APEX" directory.
+    if (!kIsTargetBuild) {
+      std::string root_containing_libartbase = GetRootContainingLibartbase();
+      if (!root_containing_libartbase.empty()) {
+        return root_containing_libartbase;
+      }
+    }
+    *error_msg = std::move(local_error_msg);
+    return "";
+  }
+
+  return dir;
+#endif
+}
+
+std::string GetAndroidRoot() {
+  std::string error_msg;
+  std::string ret = GetAndroidRootSafe(&error_msg);
+  CHECK(!ret.empty()) << error_msg;
+  return ret;
+}
+
+std::string GetSystemExtRootSafe(std::string* error_msg) {
+#ifdef _WIN32
+  UNUSED(kAndroidSystemExtRootEnvVar, kAndroidSystemExtRootDefaultPath);
+  *error_msg = "GetSystemExtRootSafe unsupported for Windows.";
+  return "";
+#else
+  const char* dir = GetAndroidDirSafe(kAndroidSystemExtRootEnvVar, kAndroidSystemExtRootDefaultPath,
+      /*must_exist=*/ true, error_msg);
+  return dir ? dir : "";
+#endif
+}
+
+std::string GetSystemExtRoot() {
+  std::string error_msg;
+  std::string ret = GetSystemExtRootSafe(&error_msg);
+  CHECK(!ret.empty()) << error_msg;
+  return ret;
 }
 
 static std::string GetArtRootSafe(bool must_exist, /*out*/ std::string* error_msg) {
