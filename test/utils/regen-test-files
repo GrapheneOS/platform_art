@@ -298,7 +298,7 @@ flaky_tests_excluded_from_mts = [
 # TODO(b/247108425): Address the linking issues and re-enable these
 # tests.
 failing_tests_excluded_from_mts = [
-    "art_standalone_compiler_tests JniCompilerTests",
+    "art_standalone_compiler_tests JniCompilerTest*",
 ]
 
 # Is `run_test` a Checker test (i.e. a test containing Checker
