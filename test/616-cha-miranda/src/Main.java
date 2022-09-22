@@ -110,9 +110,7 @@ public class Main {
   public static void main(String[] args) {
     System.loadLibrary(args[0]);
 
-    if (isInterpreted()) {
-      sIsOptimizing = false;
-    }
+    sIsOptimizing = isAotCompiled(Main.class, "testOverride");
     sHasJIT = hasJit();
 
     // sMain1 is an instance of Main1. Main2 hasn't bee loaded yet.
@@ -142,6 +140,7 @@ public class Main {
   }
 
   private static native boolean hasJit();
+  private native static boolean isAotCompiled(Class<?> cls, String methodName);
   private static native void ensureJitCompiled(Class<?> itf, String method_name);
   private static native void assertIsInterpreted();
   private static native void assertIsManaged();
