@@ -139,6 +139,17 @@ class DefaultEmptyFn<T*> {
   }
 };
 
+template <>
+class DefaultEmptyFn<std::string> {
+ public:
+  void MakeEmpty(std::string& item) const {
+    item = std::string();
+  }
+  bool IsEmpty(const std::string& item) const {
+    return item.empty();
+  }
+};
+
 template <class T>
 using DefaultHashFn = std::conditional_t<std::is_same_v<T, std::string>, DataHash, std::hash<T>>;
 
