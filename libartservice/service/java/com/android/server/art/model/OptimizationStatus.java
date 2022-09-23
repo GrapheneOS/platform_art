@@ -21,6 +21,8 @@ import android.annotation.SystemApi;
 
 import com.android.internal.annotations.Immutable;
 
+import com.google.auto.value.AutoValue;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,68 +33,57 @@ import java.util.List;
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
-public class OptimizationStatus {
-    private final
-            @NonNull List<DexContainerFileOptimizationStatus> mDexContainerFileOptimizationStatuses;
+@AutoValue
+public abstract class OptimizationStatus {
+    /** @hide */
+    protected OptimizationStatus() {}
 
     /** @hide */
-    public OptimizationStatus(@NonNull List<DexContainerFileOptimizationStatus>
-                    dexContainerFileOptimizationStatuses) {
-        mDexContainerFileOptimizationStatuses = dexContainerFileOptimizationStatuses;
+    public static @NonNull OptimizationStatus
+    create(@NonNull List<DexContainerFileOptimizationStatus> dexContainerFileOptimizationStatuses) {
+        return new AutoValue_OptimizationStatus(dexContainerFileOptimizationStatuses);
     }
 
     /**
-     * The statuses of the dex container file optimizations. Note that there can be
-     * multiple entries for the same dex container file, but for different ABIs.
+     * The statuses of the dex container file optimizations. Note that there can be multiple entries
+     * for the same dex container file, but for different ABIs.
      */
     @NonNull
-    public List<DexContainerFileOptimizationStatus> getDexContainerFileOptimizationStatuses() {
-        return mDexContainerFileOptimizationStatuses;
-    }
+    public abstract List<DexContainerFileOptimizationStatus>
+    getDexContainerFileOptimizationStatuses();
 
     /** Describes the optimization status of a dex container file. */
     @Immutable
-    public static class DexContainerFileOptimizationStatus {
-        private final @NonNull String mDexContainerFile;
-        private final @NonNull boolean mIsPrimaryAbi;
-        private final @NonNull String mAbi;
-        private final @NonNull String mCompilerFilter;
-        private final @NonNull String mCompilationReason;
-        private final @NonNull String mLocationDebugString;
+    @AutoValue
+    public abstract static class DexContainerFileOptimizationStatus {
+        /** @hide */
+        protected DexContainerFileOptimizationStatus() {}
 
         /** @hide */
-        public DexContainerFileOptimizationStatus(@NonNull String dexContainerFile,
-                boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
-                @NonNull String compilationReason, @NonNull String locationDebugString) {
-            mDexContainerFile = dexContainerFile;
-            mIsPrimaryAbi = isPrimaryAbi;
-            mAbi = abi;
-            mCompilerFilter = compilerFilter;
-            mCompilationReason = compilationReason;
-            mLocationDebugString = locationDebugString;
+        public static @NonNull DexContainerFileOptimizationStatus create(
+                @NonNull String dexContainerFile, boolean isPrimaryAbi, @NonNull String abi,
+                @NonNull String compilerFilter, @NonNull String compilationReason,
+                @NonNull String locationDebugString) {
+            return new AutoValue_OptimizationStatus_DexContainerFileOptimizationStatus(
+                    dexContainerFile, isPrimaryAbi, abi, compilerFilter, compilationReason,
+                    locationDebugString);
         }
 
         /** The absolute path to the dex container file. */
-        public @NonNull String getDexContainerFile() {
-            return mDexContainerFile;
-        }
+        public abstract @NonNull String getDexContainerFile();
 
         /**
          * If true, the optimization is for the primary ABI of the package (the ABI that the
          * application is launched with). Otherwise, the optimization is for an ABI that other
          * applications might be launched with when using this application's code.
          */
-        public boolean isPrimaryAbi() {
-            return mIsPrimaryAbi;
-        }
+        public abstract boolean isPrimaryAbi();
 
         /**
          * Returns the ABI that the optimization is for. Possible values are documented at
          * https://developer.android.com/ndk/guides/abis#sa.
          */
-        public @NonNull String getAbi() {
-            return mAbi;
-        }
+        public abstract @NonNull String getAbi();
 
         /**
          * A human-readable string that describes the compiler filter.
@@ -108,9 +99,7 @@ public class OptimizationStatus {
          *   <li>{@code "error"}, if an unexpected error occurs.
          * </ul>
          */
-        public @NonNull String getCompilerFilter() {
-            return mCompilerFilter;
-        }
+        public abstract @NonNull String getCompilerFilter();
 
         /**
          * A string that describes the compilation reason.
@@ -122,9 +111,7 @@ public class OptimizationStatus {
          *   <li>{@code "error"}: if an unexpected error occurs.
          * </ul>
          */
-        public @NonNull String getCompilationReason() {
-            return mCompilationReason;
-        }
+        public abstract @NonNull String getCompilationReason();
 
         /**
          * A human-readable string that describes the location of the optimized artifacts.
@@ -132,8 +119,6 @@ public class OptimizationStatus {
          * Note that this string is for debugging purposes only. There is no stability guarantees
          * for the format of the string. DO NOT use it programmatically.
          */
-        public @NonNull String getLocationDebugString() {
-            return mLocationDebugString;
-        }
+        public abstract @NonNull String getLocationDebugString();
     }
 }

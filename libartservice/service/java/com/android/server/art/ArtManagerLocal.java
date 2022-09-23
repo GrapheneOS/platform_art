@@ -207,13 +207,14 @@ public final class ArtManagerLocal {
                             GetOptimizationStatusResult result =
                                     mInjector.getArtd().getOptimizationStatus(dexInfo.dexPath(),
                                             abi.isa(), dexInfo.classLoaderContext());
-                            statuses.add(new DexContainerFileOptimizationStatus(dexInfo.dexPath(),
-                                    abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
-                                    result.compilationReason, result.locationDebugString));
+                            statuses.add(
+                                    DexContainerFileOptimizationStatus.create(dexInfo.dexPath(),
+                                            abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
+                                            result.compilationReason, result.locationDebugString));
                         } catch (ServiceSpecificException e) {
-                            statuses.add(new DexContainerFileOptimizationStatus(dexInfo.dexPath(),
-                                    abi.isPrimaryAbi(), abi.name(), "error", "error",
-                                    e.getMessage()));
+                            statuses.add(DexContainerFileOptimizationStatus.create(
+                                    dexInfo.dexPath(), abi.isPrimaryAbi(), abi.name(), "error",
+                                    "error", e.getMessage()));
                         }
                     }
                 }
@@ -225,7 +226,7 @@ public final class ArtManagerLocal {
                         "Getting optimization status of secondary dex'es is not implemented yet");
             }
 
-            return new OptimizationStatus(statuses);
+            return OptimizationStatus.create(statuses);
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }

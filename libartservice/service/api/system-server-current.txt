@@ -50,17 +50,17 @@ package com.android.server.art.model {
     method public long getFreedBytes();
   }
 
-  public class OptimizationStatus {
-    method @NonNull public java.util.List<com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus> getDexContainerFileOptimizationStatuses();
+  public abstract class OptimizationStatus {
+    method @NonNull public abstract java.util.List<com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus> getDexContainerFileOptimizationStatuses();
   }
 
-  public static class OptimizationStatus.DexContainerFileOptimizationStatus {
-    method @NonNull public String getAbi();
-    method @NonNull public String getCompilationReason();
-    method @NonNull public String getCompilerFilter();
-    method @NonNull public String getDexContainerFile();
-    method @NonNull public String getLocationDebugString();
-    method public boolean isPrimaryAbi();
+  public abstract static class OptimizationStatus.DexContainerFileOptimizationStatus {
+    method @NonNull public abstract String getAbi();
+    method @NonNull public abstract String getCompilationReason();
+    method @NonNull public abstract String getCompilerFilter();
+    method @NonNull public abstract String getDexContainerFile();
+    method @NonNull public abstract String getLocationDebugString();
+    method public abstract boolean isPrimaryAbi();
   }
 
   public class OptimizeParams {

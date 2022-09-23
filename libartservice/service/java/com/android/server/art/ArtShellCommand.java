@@ -75,15 +75,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             case "get-optimization-status": {
                 OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
                         snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
-                for (DexContainerFileOptimizationStatus status :
-                        optimizationStatus.getDexContainerFileOptimizationStatuses()) {
-                    pw.printf("dexContainerFile = %s, isPrimaryAbi = %b, abi = %s, "
-                                    + "compilerFilter = %s, compilationReason = %s, "
-                                    + "locationDebugString = %s\n",
-                            status.getDexContainerFile(), status.isPrimaryAbi(), status.getAbi(),
-                            status.getCompilerFilter(), status.getCompilationReason(),
-                            status.getLocationDebugString());
-                }
+                pw.println(optimizationStatus);
                 return 0;
             }
             case "optimize-package": {
