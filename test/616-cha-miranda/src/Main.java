@@ -61,14 +61,7 @@ public class Main {
   // So sMain1.foo() can be devirtualized to Main1.foo() and be inlined.
   // After Helper.createMain2() which links in Main2, live testOverride() on stack
   // should be deoptimized.
-  static void testOverride(boolean createMain2, boolean wait, boolean setHasJIT) {
-    if (setHasJIT) {
-      if (isInterpreted()) {
-        sHasJIT = false;
-      }
-      return;
-    }
-
+  static void testOverride(boolean createMain2, boolean wait) {
     if (createMain2 && (sIsOptimizing || sHasJIT)) {
       assertIsManaged();
     }
@@ -117,15 +110,13 @@ public class Main {
   public static void main(String[] args) {
     System.loadLibrary(args[0]);
 
-    if (isInterpreted()) {
-      sIsOptimizing = false;
-    }
+    sIsOptimizing = isAotCompiled(Main.class, "testOverride");
+    sHasJIT = hasJit();
 
     // sMain1 is an instance of Main1. Main2 hasn't bee loaded yet.
     sMain1 = new Main1();
 
     ensureJitCompiled(Main.class, "testOverride");
-    testOverride(false, false, true);
 
     if (sHasJIT && !sIsOptimizing) {
       assertSingleImplementation(Base.class, "foo", true);
@@ -138,16 +129,18 @@ public class Main {
     // Try to test suspend and deopt another thread.
     new Thread() {
       public void run() {
-        testOverride(false, true, false);
+        testOverride(false, true);
       }
     }.start();
 
     // This will create Main2 instance in the middle of testOverride().
-    testOverride(true, false, false);
+    testOverride(true, false);
     assertSingleImplementation(Base.class, "foo", false);
     assertSingleImplementation(Main1.class, "foo", false);
   }
 
+  private static native boolean hasJit();
+  private native static boolean isAotCompiled(Class<?> cls, String methodName);
   private static native void ensureJitCompiled(Class<?> itf, String method_name);
   private static native void assertIsInterpreted();
   private static native void assertIsManaged();

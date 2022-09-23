@@ -1241,7 +1241,7 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
 }
 
 Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
-    const std::vector<std::string>& artifacts_to_keep) const {
+    OdrMetrics& metrics, const std::vector<std::string>& artifacts_to_keep) const {
   const std::string& artifact_dir = config_.GetArtifactDirectory();
   std::unordered_set<std::string> artifact_set{artifacts_to_keep.begin(), artifacts_to_keep.end()};
 
@@ -1259,7 +1259,9 @@ Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
     // undefined behavior;
     entries.push_back(entry);
   }
-  if (ec) {
+  if (ec && ec.value() != ENOENT) {
+    metrics.SetStatus(ec.value() == EPERM ? OdrMetrics::Status::kDalvikCachePermissionDenied :
+                                            OdrMetrics::Status::kIoError);
     return Errorf("Failed to iterate over entries in the artifact directory: {}", ec.message());
   }
 
@@ -1269,6 +1271,7 @@ Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
       if (!ContainsElement(artifact_set, path)) {
         LOG(INFO) << "Removing " << path;
         if (unlink(path.c_str()) != 0) {
+          metrics.SetStatus(OdrMetrics::Status::kIoError);
           return ErrnoErrorf("Failed to remove file {}", QuotePath(path));
         }
       }
@@ -1276,6 +1279,7 @@ Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
       // Neither a regular file nor a directory. Unexpected file type.
       LOG(INFO) << "Removing " << path;
       if (unlink(path.c_str()) != 0) {
+        metrics.SetStatus(OdrMetrics::Status::kIoError);
         return ErrnoErrorf("Failed to remove file {}", QuotePath(path));
       }
     }
@@ -1336,7 +1340,11 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   auto cleanup_and_compile_all = [&, this]() {
     compilation_options->compile_boot_classpath_for_isas = config_.GetBootClasspathIsas();
     compilation_options->system_server_jars_to_compile = AllSystemServerJars();
-    return RemoveArtifactsDirectory() ? ExitCode::kCompilationRequired : ExitCode::kCleanupFailed;
+    if (!RemoveArtifactsDirectory()) {
+      metrics.SetStatus(OdrMetrics::Status::kIoError);
+      return ExitCode::kCleanupFailed;
+    }
+    return ExitCode::kCompilationRequired;
   };
 
   std::optional<std::vector<apex::ApexInfo>> apex_info_list = GetApexInfoList();
@@ -1410,7 +1418,7 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
     checked_artifacts.push_back(cache_info_filename_);
   }
 
-  Result<void> result = CleanupArtifactDirectory(checked_artifacts);
+  Result<void> result = CleanupArtifactDirectory(metrics, checked_artifacts);
   if (!result.ok()) {
     LOG(ERROR) << result.error();
     return ExitCode::kCleanupFailed;
@@ -1497,6 +1505,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   args.emplace_back("--runtime-arg");
   args.emplace_back(Concatenate({"-Xbootclasspath:", android::base::Join(jars_to_compile, ":")}));
   if (!AddBootClasspathFds(args, readonly_files_raii, jars_to_compile)) {
+    metrics.SetStatus(OdrMetrics::Status::kIoError);
     return false;
   }
 
@@ -1654,6 +1663,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
 
     auto bcp_jars = android::base::Split(config_.GetBootClasspath(), ":");
     if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
+      metrics.SetStatus(OdrMetrics::Status::kIoError);
       return false;
     }
     std::string unused_error_msg;
@@ -1729,10 +1739,18 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   const char* staging_dir = nullptr;
   metrics.SetStage(OdrMetrics::Stage::kPreparation);
 
+  if (!EnsureDirectoryExists(config_.GetArtifactDirectory())) {
+    LOG(ERROR) << "Failed to prepare artifact directory";
+    metrics.SetStatus(errno == EPERM ? OdrMetrics::Status::kDalvikCachePermissionDenied :
+                                       OdrMetrics::Status::kIoError);
+    return ExitCode::kCleanupFailed;
+  }
+
   if (config_.GetRefresh()) {
     Result<void> result = RefreshExistingArtifacts();
     if (!result.ok()) {
       LOG(ERROR) << "Failed to refresh existing artifacts: " << result.error();
+      metrics.SetStatus(OdrMetrics::Status::kIoError);
       return ExitCode::kCleanupFailed;
     }
   }
@@ -1741,6 +1759,7 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   Result<void> result = WriteCacheInfo();
   if (!result.ok()) {
     LOG(ERROR) << result.error();
+    metrics.SetStatus(OdrMetrics::Status::kIoError);
     return ExitCode::kCleanupFailed;
   }
 
@@ -1850,6 +1869,7 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   }
 
   metrics.SetStage(OdrMetrics::Stage::kComplete);
+  metrics.SetStatus(OdrMetrics::Status::kOK);
   return ExitCode::kCompilationSuccess;
 }
 

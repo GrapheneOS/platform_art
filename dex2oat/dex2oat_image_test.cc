@@ -431,6 +431,7 @@ TEST_F(Dex2oatImageTest, TestExtension) {
                                                 relocate,
                                                 /*executable=*/ true,
                                                 /*extra_reservation_size=*/ 0u,
+                                                /*allow_in_memory_compilation=*/ true,
                                                 &boot_image_spaces,
                                                 &extra_reservation);
   };

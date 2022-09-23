@@ -131,9 +131,11 @@ OatFileAssistantContext::GetBootImageInfoList(InstructionSet isa) {
 
   std::string error_msg;
   if (!layout.LoadFromSystem(isa, /*allow_in_memory_compilation=*/false, &error_msg)) {
-    // At this point, `layout` contains a subset of boot images that can be loaded.
+    // At this point, `layout` contains nothing.
     VLOG(oat) << "Some error occurred when loading boot images for oat file validation: "
               << error_msg;
+    // Create an empty entry so that we don't have to retry when the function is called again.
+    return boot_image_info_list_by_isa_[isa];
   }
 
   std::vector<BootImageInfo>& boot_image_info_list = boot_image_info_list_by_isa_[isa];
