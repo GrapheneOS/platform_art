@@ -51,6 +51,9 @@ android::base::Result<std::string> BuildTmpRefProfilePath(
 android::base::Result<std::string> BuildPrebuiltProfilePath(
     const aidl::com::android::server::art::ProfilePath::PrebuiltProfilePath& prebuilt_profile_path);
 
+android::base::Result<std::string> BuildCurProfilePath(
+    const aidl::com::android::server::art::ProfilePath::CurProfilePath& cur_profile_path);
+
 android::base::Result<std::string> BuildDexMetadataPath(
     const aidl::com::android::server::art::DexMetadataPath& dex_metadata_path);
 

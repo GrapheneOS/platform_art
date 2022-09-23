@@ -36,6 +36,7 @@ import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
@@ -46,6 +47,7 @@ import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageState;
+import com.android.server.art.wrapper.PackageUserState;
 
 import com.google.auto.value.AutoValue;
 
@@ -126,7 +128,17 @@ public class PrimaryDexOptimizer {
                             profile = pair.first;
                             isOtherReadable = pair.second;
                         }
-                        // TODO(jiakaiz): Merge profiles.
+                        ProfilePath mergedProfile =
+                                mergeProfiles(pkgState, dexInfo, uid, sharedGid, profile);
+                        if (mergedProfile != null) {
+                            if (profile != null
+                                    && profile.getTag() == ProfilePath.tmpRefProfilePath) {
+                                mInjector.getArtd().deleteProfile(profile);
+                            }
+                            profile = mergedProfile;
+                            isOtherReadable = false;
+                            profileMerged = true;
+                        }
                     }
                     if (profile == null) {
                         // A profile guided optimization with no profile is essentially 'verify',
@@ -140,10 +152,10 @@ public class PrimaryDexOptimizer {
                 }
                 boolean isProfileGuidedCompilerFilter =
                         DexFile.isProfileGuidedCompilerFilter(compilerFilter);
-                assert isProfileGuidedCompilerFilter == (profile != null);
+                Utils.check(isProfileGuidedCompilerFilter == (profile != null));
 
                 boolean canBePublic = !isProfileGuidedCompilerFilter || isOtherReadable;
-                assert Utils.implies(needsToBeShared, canBePublic);
+                Utils.check(Utils.implies(needsToBeShared, canBePublic));
                 PermissionSettings permissionSettings =
                         getPermissionSettings(sharedGid, canBePublic);
 
@@ -227,7 +239,18 @@ public class PrimaryDexOptimizer {
                             profile = null;
                         }
                     }
-                    // TODO(jiakaiz): If profileMerged is true, clear current profiles.
+                    if (profileMerged) {
+                        // Note that this is just an optimization, to reduce the amount of data that
+                        // the runtime writes on every profile save. The profile merge result on the
+                        // next run won't change regardless of whether the cleanup is done or not
+                        // because profman only looks at the diff.
+                        // A caveat is that it may delete more than what has been merged, if the
+                        // runtime writes additional entries between the merge and the cleanup, but
+                        // this is fine because the runtime writes all JITed classes and methods on
+                        // every save and the additional entries will likely be written back on the
+                        // next save.
+                        cleanupCurProfiles(pkgState, dexInfo);
+                    }
                 }
             } finally {
                 if (profile != null && profile.getTag() == ProfilePath.tmpRefProfilePath) {
@@ -503,7 +526,8 @@ public class PrimaryDexOptimizer {
         }
     }
 
-    boolean commitProfileChanges(@NonNull TmpRefProfilePath profile) throws RemoteException {
+    private boolean commitProfileChanges(@NonNull TmpRefProfilePath profile)
+            throws RemoteException {
         try {
             mInjector.getArtd().commitTmpProfile(profile);
             return true;
@@ -516,6 +540,52 @@ public class PrimaryDexOptimizer {
                     e);
             return false;
         }
+    }
+
+    @Nullable
+    private ProfilePath mergeProfiles(@NonNull PackageState pkgState,
+            @NonNull DetailedPrimaryDexInfo dexInfo, int uid, int gid,
+            @Nullable ProfilePath referenceProfile) throws RemoteException {
+        String profileName = getProfileName(dexInfo.splitName());
+        OutputProfile output = AidlUtils.buildOutputProfile(
+                pkgState.getPackageName(), profileName, uid, gid, false /* isPublic */);
+
+        try {
+            if (mInjector.getArtd().mergeProfiles(getCurProfiles(pkgState, dexInfo),
+                        referenceProfile, output, dexInfo.dexPath())) {
+                return ProfilePath.tmpRefProfilePath(output.profilePath);
+            }
+        } catch (ServiceSpecificException e) {
+            Log.e(TAG,
+                    String.format("Failed to merge profiles [packageName = %s, profileName = %s]",
+                            pkgState.getPackageName(), getProfileName(dexInfo.splitName())),
+                    e);
+        }
+
+        return null;
+    }
+
+    private void cleanupCurProfiles(@NonNull PackageState pkgState,
+            @NonNull DetailedPrimaryDexInfo dexInfo) throws RemoteException {
+        for (ProfilePath profile : getCurProfiles(pkgState, dexInfo)) {
+            mInjector.getArtd().deleteProfile(profile);
+        }
+    }
+
+    @NonNull
+    private List<ProfilePath> getCurProfiles(
+            @NonNull PackageState pkgState, @NonNull DetailedPrimaryDexInfo dexInfo) {
+        List<ProfilePath> profiles = new ArrayList<>();
+        for (UserHandle handle :
+                mInjector.getUserManager().getUserHandles(true /* excludeDying */)) {
+            int userId = handle.getIdentifier();
+            PackageUserState userState = pkgState.getUserStateOrDefault(userId);
+            if (userState.isInstalled()) {
+                profiles.add(AidlUtils.buildProfilePathForCur(
+                        userId, pkgState.getPackageName(), getProfileName(dexInfo.splitName())));
+            }
+        }
+        return profiles;
     }
 
     @AutoValue
@@ -578,6 +648,11 @@ public class PrimaryDexOptimizer {
         boolean isUsedByOtherApps(@NonNull String packageName) {
             // TODO(jiakaiz): Get the real value.
             return false;
+        }
+
+        @NonNull
+        UserManager getUserManager() {
+            return mContext.getSystemService(UserManager.class);
         }
 
         @NonNull

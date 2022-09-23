@@ -20,6 +20,7 @@ import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -28,10 +29,12 @@ import android.content.pm.ApplicationInfo;
 import android.os.CancellationSignal;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.os.UserManager;
 
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageState;
+import com.android.server.art.wrapper.PackageUserState;
 
 import dalvik.system.PathClassLoader;
 
@@ -40,6 +43,7 @@ import org.junit.Rule;
 import org.mockito.Mock;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class PrimaryDexOptimizerTestBase {
     protected static final String PKG_NAME = "com.example.foo";
@@ -50,8 +54,11 @@ public class PrimaryDexOptimizerTestBase {
 
     @Mock protected PrimaryDexOptimizer.Injector mInjector;
     @Mock protected IArtd mArtd;
+    @Mock protected UserManager mUserManager;
     protected PackageState mPkgState;
     protected AndroidPackageApi mPkg;
+    protected PackageUserState mPkgUserStateNotInstalled;
+    protected PackageUserState mPkgUserStateInstalled;
     protected CancellationSignal mCancellationSignal;
 
     protected PrimaryDexOptimizer mPrimaryDexOptimizer;
@@ -61,6 +68,7 @@ public class PrimaryDexOptimizerTestBase {
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(false);
         lenient().when(mInjector.isUsedByOtherApps(any())).thenReturn(false);
+        lenient().when(mInjector.getUserManager()).thenReturn(mUserManager);
 
         lenient()
                 .when(SystemProperties.get("dalvik.vm.systemuicompilerfilter"))
@@ -71,6 +79,12 @@ public class PrimaryDexOptimizerTestBase {
         lenient().when(SystemProperties.get("dalvik.vm.appimageformat")).thenReturn("lz4");
         lenient().when(SystemProperties.get("pm.dexopt.shared")).thenReturn("speed");
 
+        lenient()
+                .when(mUserManager.getUserHandles(anyBoolean()))
+                .thenReturn(List.of(UserHandle.of(0), UserHandle.of(1), UserHandle.of(2)));
+
+        mPkgUserStateNotInstalled = createPackageUserState(false /* installed */);
+        mPkgUserStateInstalled = createPackageUserState(true /* installed */);
         mPkgState = createPackageState();
         mPkg = mPkgState.getAndroidPackage();
         mCancellationSignal = new CancellationSignal();
@@ -112,9 +126,18 @@ public class PrimaryDexOptimizerTestBase {
         lenient().when(pkgState.isSystem()).thenReturn(false);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
         lenient().when(pkgState.getUsesLibraryInfos()).thenReturn(new ArrayList<>());
+        lenient()
+                .when(pkgState.getUserStateOrDefault(anyInt()))
+                .thenReturn(mPkgUserStateNotInstalled);
         AndroidPackageApi pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         return pkgState;
+    }
+
+    private PackageUserState createPackageUserState(boolean isInstalled) {
+        PackageUserState pkgUserState = mock(PackageUserState.class);
+        lenient().when(pkgUserState.isInstalled()).thenReturn(isInstalled);
+        return pkgUserState;
     }
 
     protected GetDexoptNeededResult dexoptIsNotNeeded() {

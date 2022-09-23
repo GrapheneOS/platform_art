@@ -33,6 +33,7 @@ using ::android::base::testing::HasError;
 using ::android::base::testing::HasValue;
 using ::android::base::testing::WithMessage;
 
+using CurProfilePath = ProfilePath::CurProfilePath;
 using PrebuiltProfilePath = ProfilePath::PrebuiltProfilePath;
 using RefProfilePath = ProfilePath::RefProfilePath;
 using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
@@ -186,6 +187,12 @@ TEST_F(PathUtilsTest, BuildPrebuiltProfilePath) {
               HasValue("/a/b.apk.prof"));
 }
 
+TEST_F(PathUtilsTest, BuildCurProfilePath) {
+  EXPECT_THAT(BuildCurProfilePath(CurProfilePath{
+                  .userId = 1, .packageName = "com.android.foo", .profileName = "primary"}),
+              HasValue(android_data_ + "/misc/profiles/cur/1/com.android.foo/primary.prof"));
+}
+
 TEST_F(PathUtilsTest, BuildDexMetadataPath) {
   EXPECT_THAT(BuildDexMetadataPath(DexMetadataPath{.dexPath = "/a/b.apk"}), HasValue("/a/b.dm"));
 }
@@ -207,6 +214,9 @@ TEST_F(PathUtilsTest, BuildProfilePath) {
       HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"));
   EXPECT_THAT(BuildProfileOrDmPath(PrebuiltProfilePath{.dexPath = "/a/b.apk"}),
               HasValue("/a/b.apk.prof"));
+  EXPECT_THAT(BuildProfileOrDmPath(CurProfilePath{
+                  .userId = 1, .packageName = "com.android.foo", .profileName = "primary"}),
+              HasValue(android_data_ + "/misc/profiles/cur/1/com.android.foo/primary.prof"));
   EXPECT_THAT(BuildProfileOrDmPath(DexMetadataPath{.dexPath = "/a/b.apk"}), HasValue("/a/b.dm"));
 }
 

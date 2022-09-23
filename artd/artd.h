@@ -104,6 +104,13 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const aidl::com::android::server::art::ProfilePath& in_profile,
       aidl::com::android::server::art::FileVisibility* _aidl_return) override;
 
+  ndk::ScopedAStatus mergeProfiles(
+      const std::vector<aidl::com::android::server::art::ProfilePath>& in_profiles,
+      const std::optional<aidl::com::android::server::art::ProfilePath>& in_referenceProfile,
+      aidl::com::android::server::art::OutputProfile* in_outputProfile,
+      const std::string& in_dexFile,
+      bool* _aidl_return) override;
+
   ndk::ScopedAStatus getArtifactsVisibility(
       const aidl::com::android::server::art::ArtifactsPath& in_artifactsPath,
       aidl::com::android::server::art::FileVisibility* _aidl_return) override;

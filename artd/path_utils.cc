@@ -43,6 +43,7 @@ using ::android::base::Result;
 
 using ::fmt::literals::operator""_format;  // NOLINT
 
+using CurProfilePath = ProfilePath::CurProfilePath;
 using PrebuiltProfilePath = ProfilePath::PrebuiltProfilePath;
 using RefProfilePath = ProfilePath::RefProfilePath;
 using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
@@ -164,6 +165,15 @@ Result<std::string> BuildPrebuiltProfilePath(const PrebuiltProfilePath& prebuilt
   return prebuilt_profile_path.dexPath + ".prof";
 }
 
+Result<std::string> BuildCurProfilePath(const CurProfilePath& cur_profile_path) {
+  OR_RETURN(ValidatePathElement(cur_profile_path.packageName, "packageName"));
+  OR_RETURN(ValidatePathElementSubstring(cur_profile_path.profileName, "profileName"));
+  return "{}/misc/profiles/cur/{}/{}/{}.prof"_format(OR_RETURN(GetAndroidDataOrError()),
+                                                     cur_profile_path.userId,
+                                                     cur_profile_path.packageName,
+                                                     cur_profile_path.profileName);
+}
+
 Result<std::string> BuildDexMetadataPath(const DexMetadataPath& dex_metadata_path) {
   OR_RETURN(ValidateDexPath(dex_metadata_path.dexPath));
   return ReplaceFileExtension(dex_metadata_path.dexPath, "dm");
@@ -182,6 +192,8 @@ Result<std::string> BuildProfileOrDmPath(const ProfilePath& profile_path) {
       return BuildTmpRefProfilePath(profile_path.get<ProfilePath::tmpRefProfilePath>());
     case ProfilePath::prebuiltProfilePath:
       return BuildPrebuiltProfilePath(profile_path.get<ProfilePath::prebuiltProfilePath>());
+    case ProfilePath::curProfilePath:
+      return BuildCurProfilePath(profile_path.get<ProfilePath::curProfilePath>());
     case ProfilePath::dexMetadataPath:
       return BuildDexMetadataPath(profile_path.get<ProfilePath::dexMetadataPath>());
       // No default. All cases should be explicitly handled, or the compilation will fail.

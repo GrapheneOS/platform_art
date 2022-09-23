@@ -25,6 +25,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -85,11 +87,42 @@ public class TestingUtilsTest {
         TestingUtils.deepEquals(a, b);
     }
 
-    @Test(expected = UnsupportedOperationException.class)
-    public void testDeepEqualsContainerNotSupported() throws Exception {
+    @Test
+    public void testListDeepEquals() throws Exception {
+        var a = new ArrayList<Integer>();
+        a.add(1);
+        a.add(2);
+        a.add(3);
+        a.add(4);
+        a.add(5);
+        var b = List.of(1, 2, 3, 4, 5);
+        assertThat(TestingUtils.deepEquals(a, b)).isTrue();
+    }
+
+    @Test
+    public void testListDeepEqualsSizeMismatch() throws Exception {
         var a = new ArrayList<Integer>();
         a.add(1);
         var b = new ArrayList<Integer>();
+        b.add(1);
+        b.add(2);
+        assertThat(TestingUtils.deepEquals(a, b)).isFalse();
+    }
+
+    @Test
+    public void testListDeepEqualsElementMismatch() throws Exception {
+        var a = new ArrayList<Integer>();
+        a.add(1);
+        var b = new ArrayList<Integer>();
+        b.add(2);
+        assertThat(TestingUtils.deepEquals(a, b)).isFalse();
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void testDeepEqualsOtherContainerNotSupported() throws Exception {
+        var a = new HashSet<Integer>();
+        a.add(1);
+        var b = new HashSet<Integer>();
         b.add(2);
         TestingUtils.deepEquals(a, b);
     }

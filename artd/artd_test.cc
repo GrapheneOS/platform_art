@@ -16,7 +16,9 @@
 
 #include "artd.h"
 
+#include <fcntl.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <chrono>
@@ -70,6 +72,7 @@ using ::aidl::com::android::server::art::VdexPath;
 using ::android::base::Error;
 using ::android::base::make_scope_guard;
 using ::android::base::ParseInt;
+using ::android::base::ReadFdToString;
 using ::android::base::ReadFileToString;
 using ::android::base::Result;
 using ::android::base::ScopeGuard;
@@ -94,6 +97,7 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::WithArg;
 
+using CurProfilePath = ProfilePath::CurProfilePath;
 using RefProfilePath = ProfilePath::RefProfilePath;
 using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
 
@@ -112,18 +116,36 @@ void CheckContent(const std::string& path, const std::string& expected_content) 
   EXPECT_EQ(actual_content, expected_content);
 }
 
-// Writes `content` to the FD specified by the `flag`.
-ACTION_P(WriteToFdFlag, flag, content) {
-  for (const std::string& arg : arg0) {
+void WriteToFdFlagImpl(const std::vector<std::string> args,
+                       const std::string& flag,
+                       const std::string& content,
+                       bool assume_empty) {
+  for (const std::string& arg : args) {
     std::string_view value(arg);
     if (android::base::ConsumePrefix(&value, flag)) {
       int fd;
       ASSERT_TRUE(ParseInt(std::string(value), &fd));
+      if (assume_empty) {
+        ASSERT_EQ(lseek(fd, /*offset=*/0, SEEK_CUR), 0);
+      } else {
+        ASSERT_EQ(ftruncate(fd, /*length=*/0), 0);
+        ASSERT_EQ(lseek(fd, /*offset=*/0, SEEK_SET), 0);
+      }
       ASSERT_TRUE(WriteStringToFd(content, fd));
       return;
     }
   }
   FAIL() << "Flag '{}' not found"_format(flag);
+}
+
+// Writes `content` to the FD specified by the `flag`.
+ACTION_P(WriteToFdFlag, flag, content) {
+  WriteToFdFlagImpl(arg0, flag, content, /*assume_empty=*/true);
+}
+
+// Clears any existing content and writes `content` to the FD specified by the `flag`.
+ACTION_P(ClearAndWriteToFdFlag, flag, content) {
+  WriteToFdFlagImpl(arg0, flag, content, /*assume_empty=*/false);
 }
 
 // Matches a flag that starts with `flag` and whose value matches `matcher`.
@@ -157,6 +179,19 @@ MATCHER_P(FdOf, matcher, "") {
     return false;
   }
   return ExplainMatchResult(matcher, std::string(path, static_cast<size_t>(len)), result_listener);
+}
+
+// Matches an FD of a file whose content matches `matcher`.
+MATCHER_P(FdHasContent, matcher, "") {
+  int fd;
+  if (!ParseInt(arg, &fd)) {
+    return false;
+  }
+  std::string actual_content;
+  if (!ReadFdToString(fd, &actual_content)) {
+    return false;
+  }
+  return ExplainMatchResult(matcher, actual_content, result_listener);
 }
 
 // Matches a container that, when split by `separator`, the first part matches `head_matcher`, and
@@ -259,10 +294,14 @@ class ArtdTest : public CommonArtTest {
     clc_2_ = GetTestDexFileName("Nested");
     class_loader_context_ = "PCL[{}:{}]"_format(clc_1_, clc_2_);
     compiler_filter_ = "speed";
-    profile_path_ =
-        TmpRefProfilePath{.refProfilePath = RefProfilePath{.packageName = "com.android.foo",
-                                                           .profileName = "primary"},
-                          .id = "12345"};
+    TmpRefProfilePath tmp_ref_profile_path{
+        .refProfilePath =
+            RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
+        .id = "12345"};
+    profile_path_ = tmp_ref_profile_path;
+    std::filesystem::create_directories(
+        std::filesystem::path(OR_FATAL(BuildTmpRefProfilePath(tmp_ref_profile_path)))
+            .parent_path());
   }
 
   void TearDown() override {
@@ -298,7 +337,7 @@ class ArtdTest : public CommonArtTest {
   void CreateFile(const std::string& filename, const std::string& content = "") {
     std::filesystem::path path(filename);
     std::filesystem::create_directories(path.parent_path());
-    WriteStringToFile(content, filename);
+    ASSERT_TRUE(WriteStringToFile(content, filename));
   }
 
   std::shared_ptr<Artd> artd_;
@@ -351,9 +390,9 @@ TEST_F(ArtdTest, isAlive) {
 TEST_F(ArtdTest, deleteArtifacts) {
   std::string oat_dir = scratch_path_ + "/a/oat/arm64";
   std::filesystem::create_directories(oat_dir);
-  WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
-  WriteStringToFile("ab", oat_dir + "/b.vdex");    // 2 bytes.
-  WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
+  ASSERT_TRUE(WriteStringToFile("abcd", oat_dir + "/b.odex"));  // 4 bytes.
+  ASSERT_TRUE(WriteStringToFile("ab", oat_dir + "/b.vdex"));    // 2 bytes.
+  ASSERT_TRUE(WriteStringToFile("a", oat_dir + "/b.art"));      // 1 byte.
 
   int64_t result = -1;
   EXPECT_TRUE(artd_->deleteArtifacts(artifacts_path_, &result).isOk());
@@ -368,8 +407,8 @@ TEST_F(ArtdTest, deleteArtifactsMissingFile) {
   // Missing VDEX file.
   std::string oat_dir = android_data_ + "/dalvik-cache/arm64";
   std::filesystem::create_directories(oat_dir);
-  WriteStringToFile("abcd", oat_dir + "/a@b.apk@classes.dex");  // 4 bytes.
-  WriteStringToFile("a", oat_dir + "/a@b.apk@classes.art");     // 1 byte.
+  ASSERT_TRUE(WriteStringToFile("abcd", oat_dir + "/a@b.apk@classes.dex"));  // 4 bytes.
+  ASSERT_TRUE(WriteStringToFile("a", oat_dir + "/a@b.apk@classes.art"));     // 1 byte.
 
   auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
   EXPECT_CALL(mock_logger_, Call(_, _, _, _, _, HasSubstr("Failed to get the file size"))).Times(0);
@@ -402,9 +441,9 @@ TEST_F(ArtdTest, deleteArtifactsNoFile) {
 TEST_F(ArtdTest, deleteArtifactsPermissionDenied) {
   std::string oat_dir = scratch_path_ + "/a/oat/arm64";
   std::filesystem::create_directories(oat_dir);
-  WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
-  WriteStringToFile("ab", oat_dir + "/b.vdex");    // 2 bytes.
-  WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
+  ASSERT_TRUE(WriteStringToFile("abcd", oat_dir + "/b.odex"));  // 4 bytes.
+  ASSERT_TRUE(WriteStringToFile("ab", oat_dir + "/b.vdex"));    // 2 bytes.
+  ASSERT_TRUE(WriteStringToFile("a", oat_dir + "/b.art"));      // 1 byte.
 
   auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
   EXPECT_CALL(mock_logger_, Call(_, _, _, _, _, HasSubstr("Failed to get the file size"))).Times(3);
@@ -422,8 +461,8 @@ TEST_F(ArtdTest, deleteArtifactsFileIsDir) {
   std::string oat_dir = scratch_path_ + "/a/oat/arm64";
   std::filesystem::create_directories(oat_dir);
   std::filesystem::create_directories(oat_dir + "/b.vdex");
-  WriteStringToFile("abcd", oat_dir + "/b.odex");  // 4 bytes.
-  WriteStringToFile("a", oat_dir + "/b.art");      // 1 byte.
+  ASSERT_TRUE(WriteStringToFile("abcd", oat_dir + "/b.odex"));  // 4 bytes.
+  ASSERT_TRUE(WriteStringToFile("a", oat_dir + "/b.art"));      // 1 byte.
 
   auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
   EXPECT_CALL(mock_logger_,
@@ -1092,6 +1131,11 @@ TEST_F(ArtdTest, deleteProfile) {
   EXPECT_FALSE(std::filesystem::exists(profile_file));
 }
 
+TEST_F(ArtdTest, deleteProfileDoesNotExist) {
+  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+  EXPECT_TRUE(artd_->deleteProfile(profile_path_.value()).isOk());
+}
+
 TEST_F(ArtdTest, deleteProfileFailed) {
   auto scoped_set_logger = ScopedSetLogger(mock_logger_.AsStdFunction());
   EXPECT_CALL(
@@ -1184,6 +1228,123 @@ TEST_F(ArtdTest, getArtifactsVisibilityPermissionDenied) {
   EXPECT_FALSE(status.isOk());
   EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
   EXPECT_THAT(status.getMessage(), ContainsRegex(R"re(Failed to get status of .*b\.odex)re"));
+}
+
+TEST_F(ArtdTest, mergeProfiles) {
+  const TmpRefProfilePath& reference_profile_path =
+      profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  std::string reference_profile_file = OR_FATAL(BuildTmpRefProfilePath(reference_profile_path));
+  CreateFile(reference_profile_file, "abc");
+
+  // Doesn't exist.
+  CurProfilePath profile_0_path{
+      .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_0_file = OR_FATAL(BuildCurProfilePath(profile_0_path));
+
+  CurProfilePath profile_1_path{
+      .userId = 1, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_1_file = OR_FATAL(BuildCurProfilePath(profile_1_path));
+  CreateFile(profile_1_file, "def");
+
+  OutputProfile output_profile{.profilePath = reference_profile_path,
+                               .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  output_profile.profilePath.id = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy("--",
+                      AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                      AllOf(Contains(art_root_ + "/bin/profman"),
+                            Not(Contains(Flag("--profile-file-fd=", FdOf(profile_0_file)))),
+                            Contains(Flag("--profile-file-fd=", FdOf(profile_1_file))),
+                            Contains(Flag("--reference-profile-file-fd=", FdHasContent("abc"))),
+                            Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          _,
+          _))
+      .WillOnce(DoAll(WithArg<0>(ClearAndWriteToFdFlag("--reference-profile-file-fd=", "merged")),
+                      Return(ProfmanResult::kCompile)));
+
+  bool result;
+  EXPECT_TRUE(artd_
+                  ->mergeProfiles({profile_0_path, profile_1_path},
+                                  reference_profile_path,
+                                  &output_profile,
+                                  dex_file_,
+                                  &result)
+                  .isOk());
+  EXPECT_TRUE(result);
+  EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
+  CheckContent(OR_FATAL(BuildTmpRefProfilePath(output_profile.profilePath)), "merged");
+}
+
+TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
+  CurProfilePath profile_0_path{
+      .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_0_file = OR_FATAL(BuildCurProfilePath(profile_0_path));
+  CreateFile(profile_0_file, "def");
+
+  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpRefProfilePath>(),
+                               .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  output_profile.profilePath.id = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy("--",
+                      AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                      AllOf(Contains(art_root_ + "/bin/profman"),
+                            Contains(Flag("--profile-file-fd=", FdOf(profile_0_file))),
+                            Contains(Flag("--reference-profile-file-fd=", FdHasContent(""))),
+                            Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          _,
+          _))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--reference-profile-file-fd=", "merged")),
+                      Return(ProfmanResult::kCompile)));
+
+  bool result;
+  EXPECT_TRUE(
+      artd_->mergeProfiles({profile_0_path}, std::nullopt, &output_profile, dex_file_, &result)
+          .isOk());
+  EXPECT_TRUE(result);
+  EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
+  CheckContent(OR_FATAL(BuildTmpRefProfilePath(output_profile.profilePath)), "merged");
+}
+
+TEST_F(ArtdTest, mergeProfilesProfilesDontExist) {
+  const TmpRefProfilePath& reference_profile_path =
+      profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  std::string reference_profile_file = OR_FATAL(BuildTmpRefProfilePath(reference_profile_path));
+  CreateFile(reference_profile_file, "abc");
+
+  // Doesn't exist.
+  CurProfilePath profile_0_path{
+      .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_0_file = OR_FATAL(BuildCurProfilePath(profile_0_path));
+
+  // Doesn't exist.
+  CurProfilePath profile_1_path{
+      .userId = 1, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_1_file = OR_FATAL(BuildCurProfilePath(profile_1_path));
+
+  OutputProfile output_profile{.profilePath = reference_profile_path,
+                               .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  output_profile.profilePath.id = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode).Times(0);
+
+  bool result;
+  EXPECT_TRUE(
+      artd_->mergeProfiles({profile_0_path}, std::nullopt, &output_profile, dex_file_, &result)
+          .isOk());
+  EXPECT_FALSE(result);
+  EXPECT_THAT(output_profile.profilePath.id, IsEmpty());
 }
 
 }  // namespace

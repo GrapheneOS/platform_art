@@ -16,6 +16,7 @@
 
 #include "artd.h"
 
+#include <fcntl.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -90,9 +91,11 @@ using ::android::base::Dirname;
 using ::android::base::Error;
 using ::android::base::Join;
 using ::android::base::make_scope_guard;
+using ::android::base::ReadFileToString;
 using ::android::base::Result;
 using ::android::base::Split;
 using ::android::base::StringReplace;
+using ::android::base::WriteStringToFd;
 using ::art::tools::CmdlineBuilder;
 using ::ndk::ScopedAStatus;
 
@@ -287,6 +290,24 @@ Result<ArtdCancellationSignal*> ToArtdCancellationSignal(IArtdCancellationSignal
   return static_cast<ArtdCancellationSignal*>(input);
 }
 
+Result<void> CopyFile(const std::string& src_path, const NewFile& dst_file) {
+  std::string content;
+  if (!ReadFileToString(src_path, &content)) {
+    return Errorf("Failed to read file '{}': {}", src_path, strerror(errno));
+  }
+  if (!WriteStringToFd(content, dst_file.Fd())) {
+    return Errorf("Failed to write file '{}': {}", dst_file.TempPath(), strerror(errno));
+  }
+  if (fsync(dst_file.Fd()) != 0) {
+    return Errorf("Failed to flush file '{}': {}", dst_file.TempPath(), strerror(errno));
+  }
+  if (lseek(dst_file.Fd(), /*offset=*/0, SEEK_SET) != 0) {
+    return Errorf(
+        "Failed to reset the offset for file '{}': {}", dst_file.TempPath(), strerror(errno));
+  }
+  return {};
+}
+
 class FdLogger {
  public:
   void Add(const NewFile& file) { fd_mapping_.emplace_back(file.Fd(), file.TempPath()); }
@@ -403,13 +424,15 @@ ndk::ScopedAStatus Artd::isProfileUsable(const ProfilePath& in_profile,
   args.Add("--apk-fd=%d", dex_file->Fd());
   fd_logger.Add(*dex_file);
 
-  LOG(DEBUG) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
-             << "\nOpened FDs: " << fd_logger;
+  LOG(INFO) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
+            << "\nOpened FDs: " << fd_logger;
 
   Result<int> result = ExecAndReturnCode(args.Get(), kShortTimeoutSec);
   if (!result.ok()) {
     return NonFatal("Failed to run profman: " + result.error().message());
   }
+
+  LOG(INFO) << "profman returned code {}"_format(result.value());
 
   if (result.value() != ProfmanResult::kSkipCompilationSmallDelta &&
       result.value() != ProfmanResult::kSkipCompilationEmptyProfiles) {
@@ -456,13 +479,15 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   args.Add("--reference-profile-file-fd=%d", dst->Fd());
   fd_logger.Add(*dst);
 
-  LOG(DEBUG) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
-             << "\nOpened FDs: " << fd_logger;
+  LOG(INFO) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
+            << "\nOpened FDs: " << fd_logger;
 
   Result<int> result = ExecAndReturnCode(args.Get(), kShortTimeoutSec);
   if (!result.ok()) {
     return NonFatal("Failed to run profman: " + result.error().message());
   }
+
+  LOG(INFO) << "profman returned code {}"_format(result.value());
 
   if (result.value() == ProfmanResult::kCopyAndUpdateNoMatch) {
     *_aidl_return = false;
@@ -497,7 +522,7 @@ ndk::ScopedAStatus Artd::deleteProfile(const ProfilePath& in_profile) {
   std::string profile_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_profile));
 
   std::error_code ec;
-  if (!std::filesystem::remove(profile_path, ec)) {
+  if (!std::filesystem::remove(profile_path, ec) && ec.value() != ENOENT) {
     LOG(ERROR) << "Failed to remove '{}': {}"_format(profile_path, ec.message());
   }
 
@@ -515,6 +540,103 @@ ndk::ScopedAStatus Artd::getArtifactsVisibility(const ArtifactsPath& in_artifact
                                                 FileVisibility* _aidl_return) {
   std::string oat_path = OR_RETURN_FATAL(BuildOatPath(in_artifactsPath));
   *_aidl_return = OR_RETURN_NON_FATAL(GetFileVisibility(oat_path));
+  return ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profiles,
+                                       const std::optional<ProfilePath>& in_referenceProfile,
+                                       OutputProfile* in_outputProfile,
+                                       const std::string& in_dexFile,
+                                       bool* _aidl_return) {
+  std::vector<std::string> profile_paths;
+  for (const ProfilePath& profile : in_profiles) {
+    std::string profile_path = OR_RETURN_FATAL(BuildProfileOrDmPath(profile));
+    if (profile.getTag() == ProfilePath::dexMetadataPath) {
+      return Fatal("Does not support DM file, got '{}'"_format(profile_path));
+    }
+    profile_paths.push_back(std::move(profile_path));
+  }
+  std::string output_profile_path =
+      OR_RETURN_FATAL(BuildRefProfilePath(in_outputProfile->profilePath.refProfilePath));
+  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+
+  CmdlineBuilder args;
+  FdLogger fd_logger;
+  args.Add(OR_RETURN_FATAL(GetArtExec()))
+      .Add("--drop-capabilities")
+      .Add("--")
+      .Add(OR_RETURN_FATAL(GetProfman()));
+
+  std::vector<std::unique_ptr<File>> profile_files;
+  for (const std::string& profile_path : profile_paths) {
+    Result<std::unique_ptr<File>> profile_file = OpenFileForReading(profile_path);
+    if (!profile_file.ok()) {
+      if (profile_file.error().code() == ENOENT) {
+        // Skip non-existing file.
+        continue;
+      }
+      return NonFatal(
+          "Failed to open profile '{}': {}"_format(profile_path, profile_file.error().message()));
+    }
+    args.Add("--profile-file-fd=%d", profile_file.value()->Fd());
+    fd_logger.Add(*profile_file.value());
+    profile_files.push_back(std::move(profile_file.value()));
+  }
+
+  if (profile_files.empty()) {
+    LOG(INFO) << "Merge skipped because there are no existing profiles";
+    *_aidl_return = false;
+    return ScopedAStatus::ok();
+  }
+
+  std::unique_ptr<NewFile> output_profile_file =
+      OR_RETURN_NON_FATAL(NewFile::Create(output_profile_path, in_outputProfile->fsPermission));
+
+  if (in_referenceProfile.has_value()) {
+    std::string reference_profile_path =
+        OR_RETURN_FATAL(BuildProfileOrDmPath(*in_referenceProfile));
+    if (in_referenceProfile->getTag() == ProfilePath::dexMetadataPath) {
+      return Fatal("Does not support DM file, got '{}'"_format(reference_profile_path));
+    }
+    OR_RETURN_NON_FATAL(CopyFile(reference_profile_path, *output_profile_file));
+  }
+
+  // profman is ok with this being an empty file when in_referenceProfile isn't set.
+  args.Add("--reference-profile-file-fd=%d", output_profile_file->Fd());
+  fd_logger.Add(*output_profile_file);
+
+  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(in_dexFile));
+  args.Add("--apk-fd=%d", dex_file->Fd());
+  fd_logger.Add(*dex_file);
+
+  args.AddIfNonEmpty("--min-new-classes-percent-change=%s",
+                     props_->GetOrEmpty("dalvik.vm.bgdexopt.new-classes-percent"))
+      .AddIfNonEmpty("--min-new-methods-percent-change=%s",
+                     props_->GetOrEmpty("dalvik.vm.bgdexopt.new-methods-percent"));
+
+  LOG(INFO) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
+            << "\nOpened FDs: " << fd_logger;
+
+  Result<int> result = ExecAndReturnCode(args.Get(), kShortTimeoutSec);
+  if (!result.ok()) {
+    return NonFatal("Failed to run profman: " + result.error().message());
+  }
+
+  LOG(INFO) << "profman returned code {}"_format(result.value());
+
+  if (result.value() == ProfmanResult::kSkipCompilationSmallDelta ||
+      result.value() == ProfmanResult::kSkipCompilationEmptyProfiles) {
+    *_aidl_return = false;
+    return ScopedAStatus::ok();
+  }
+
+  if (result.value() != ProfmanResult::kCompile) {
+    return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
+  }
+
+  OR_RETURN_NON_FATAL(output_profile_file->Keep());
+  *_aidl_return = true;
+  in_outputProfile->profilePath.id = output_profile_file->TempId();
   return ScopedAStatus::ok();
 }
 
@@ -709,6 +831,9 @@ ndk::ScopedAStatus Artd::dexopt(
     }
     return NonFatal("Failed to run dex2oat: " + result.error().message());
   }
+
+  LOG(INFO) << "dex2oat returned code {}"_format(result.value());
+
   if (result.value() != 0) {
     return NonFatal("dex2oat returned an unexpected code: %d"_format(result.value()));
   }
