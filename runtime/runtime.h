@@ -1125,6 +1125,8 @@ class Runtime {
   // jars, which is encoded into .oat files.
   static std::string GetApexVersions(ArrayRef<const std::string> boot_class_path_locations);
 
+  bool AllowInMemoryCompilation() const { return allow_in_memory_compilation_; }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -1478,6 +1480,9 @@ class Runtime {
 
   // True if files in /data/misc/apexdata/com.android.art are considered untrustworthy.
   bool deny_art_apex_data_files_;
+
+  // Whether to allow compiling the boot classpath in memory when the given boot image is unusable.
+  bool allow_in_memory_compilation_ = false;
 
   // Saved environment.
   class EnvSnapshot {

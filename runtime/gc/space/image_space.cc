@@ -2016,17 +2016,17 @@ bool ImageSpace::BootImageLayout::Load(FilenameFn&& filename_fn,
     std::string base_filename;
     if (!filename_fn(base_location, &base_filename, &local_error_msg) ||
         !ReadHeader(base_location, base_filename, bcp_index, &local_error_msg)) {
-      if (!allow_in_memory_compilation) {
-        // The boot image is unusable and we can't continue by generating a boot image in memory.
-        // All we can do is to return.
-        *error_msg = std::move(local_error_msg);
-        return false;
-      }
       LOG(ERROR) << "Error reading named image component header for " << base_location
                  << ", error: " << local_error_msg;
       // If the primary boot image is invalid, we generate a single full image. This is faster than
       // generating the primary boot image and the extension separately.
       if (bcp_index == 0) {
+        if (!allow_in_memory_compilation) {
+          // The boot image is unusable and we can't continue by generating a boot image in memory.
+          // All we can do is to return.
+          *error_msg = std::move(local_error_msg);
+          return false;
+        }
         // We must at least have profiles for the core libraries.
         if (profile_filenames.empty()) {
           *error_msg = "Full boot image cannot be compiled because no profile is provided.";
@@ -2050,14 +2050,15 @@ bool ImageSpace::BootImageLayout::Load(FilenameFn&& filename_fn,
         // No extensions are needed.
         return true;
       }
-      if (profile_filenames.empty() ||
+      bool should_compile_extension = allow_in_memory_compilation && !profile_filenames.empty();
+      if (!should_compile_extension ||
           !CompileBootclasspathElements(base_location,
                                         base_filename,
                                         bcp_index,
                                         profile_filenames,
                                         components.SubArray(/*pos=*/ 0, /*length=*/ 1),
                                         &local_error_msg)) {
-        if (!profile_filenames.empty()) {
+        if (should_compile_extension) {
           LOG(ERROR) << "Error compiling boot image extension for " << boot_class_path_[bcp_index]
                      << ", error: " << local_error_msg;
         }
@@ -2167,6 +2168,7 @@ class ImageSpace::BootImageLoader {
   bool HasSystem() const { return has_system_; }
 
   bool LoadFromSystem(size_t extra_reservation_size,
+                      bool allow_in_memory_compilation,
                       /*out*/std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
                       /*out*/MemMap* extra_reservation,
                       /*out*/std::string* error_msg) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -3125,6 +3127,7 @@ class ImageSpace::BootImageLoader {
 
 bool ImageSpace::BootImageLoader::LoadFromSystem(
     size_t extra_reservation_size,
+    bool allow_in_memory_compilation,
     /*out*/std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
     /*out*/MemMap* extra_reservation,
     /*out*/std::string* error_msg) {
@@ -3137,7 +3140,7 @@ bool ImageSpace::BootImageLoader::LoadFromSystem(
                          boot_class_path_image_fds_,
                          boot_class_path_vdex_fds_,
                          boot_class_path_oat_fds_);
-  if (!layout.LoadFromSystem(image_isa_, /*allow_in_memory_compilation=*/true, error_msg)) {
+  if (!layout.LoadFromSystem(image_isa_, allow_in_memory_compilation, error_msg)) {
     return false;
   }
 
@@ -3200,6 +3203,7 @@ bool ImageSpace::LoadBootImage(
     bool relocate,
     bool executable,
     size_t extra_reservation_size,
+    bool allow_in_memory_compilation,
     /*out*/std::vector<std::unique_ptr<ImageSpace>>* boot_image_spaces,
     /*out*/MemMap* extra_reservation) {
   ScopedTrace trace(__FUNCTION__);
@@ -3230,8 +3234,11 @@ bool ImageSpace::LoadBootImage(
   std::vector<std::string> error_msgs;
 
   std::string error_msg;
-  if (loader.LoadFromSystem(
-          extra_reservation_size, boot_image_spaces, extra_reservation, &error_msg)) {
+  if (loader.LoadFromSystem(extra_reservation_size,
+                            allow_in_memory_compilation,
+                            boot_image_spaces,
+                            extra_reservation,
+                            &error_msg)) {
     return true;
   }
   error_msgs.push_back(error_msg);
