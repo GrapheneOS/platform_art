@@ -88,9 +88,6 @@ class Artd : public aidl::com::android::server::art::BnArtd {
                                      const std::string& in_dexFile,
                                      bool* _aidl_return) override;
 
-  ndk::ScopedAStatus copyProfile(const aidl::com::android::server::art::ProfilePath& in_src,
-                                 ::aidl::com::android::server::art::OutputProfile* in_dst) override;
-
   ndk::ScopedAStatus copyAndRewriteProfile(
       const aidl::com::android::server::art::ProfilePath& in_src,
       aidl::com::android::server::art::OutputProfile* in_dst,

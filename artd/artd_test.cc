@@ -979,32 +979,6 @@ TEST_F(ArtdTest, isProfileUsableFailed) {
   EXPECT_THAT(status.getMessage(), HasSubstr("profman returned an unexpected code: 100"));
 }
 
-TEST_F(ArtdTest, copyProfile) {
-  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
-  CreateFile(src_file, "abc");
-  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
-  dst.profilePath.id = "";
-
-  EXPECT_TRUE(artd_->copyProfile(src, &dst).isOk());
-
-  EXPECT_THAT(dst.profilePath.id, Not(IsEmpty()));
-  CheckContent(OR_FATAL(BuildTmpRefProfilePath(dst.profilePath)), "abc");
-}
-
-TEST_F(ArtdTest, copyProfileFailed) {
-  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
-  dst.profilePath.id = "";
-
-  ndk::ScopedAStatus status = artd_->copyProfile(src, &dst);
-
-  EXPECT_FALSE(status.isOk());
-  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
-  EXPECT_THAT(status.getMessage(),
-              ContainsRegex(R"re(Failed to read file .*primary\.prof\.12345\.tmp)re"));
-}
-
 TEST_F(ArtdTest, copyAndRewriteProfile) {
   const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
   std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
