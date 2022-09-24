@@ -166,6 +166,13 @@ static inline void CheckedCall(const Func& function, const char* what, Args... a
   }
 }
 
+// Forces the compiler to emit a load instruction, but discards the value.
+// Useful when dealing with memory paging.
+template <typename T>
+inline void ForceRead(const T* pointer) {
+  static_cast<void>(*const_cast<volatile T*>(pointer));
+}
+
 // Lookup value for a given key in /proc/self/status. Keys and values are separated by a ':' in
 // the status file. Returns value found on success and "<unknown>" if the key is not found or
 // there is an I/O error.

@@ -16,6 +16,7 @@
 
 package com.android.server.art.model;
 
+import android.annotation.DurationMillisLong;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
@@ -183,7 +184,7 @@ public class OptimizeResult {
          * The wall time of the dex2oat invocation, in milliseconds, if dex2oat succeeded or was
          * cancelled. Returns 0 if dex2oat failed or was not run, or if failed to get the value.
          */
-        public long getDex2oatWallTimeMillis() {
+        public @DurationMillisLong long getDex2oatWallTimeMillis() {
             return mDex2oatWallTimeMillis;
         }
 
@@ -191,7 +192,7 @@ public class OptimizeResult {
          * The CPU time of the dex2oat invocation, in milliseconds, if dex2oat succeeded or was
          * cancelled. Returns 0 if dex2oat failed or was not run, or if failed to get the value.
          */
-        public long getDex2oatCpuTimeMillis() {
+        public @DurationMillisLong long getDex2oatCpuTimeMillis() {
             return mDex2oatCpuTimeMillis;
         }
     }

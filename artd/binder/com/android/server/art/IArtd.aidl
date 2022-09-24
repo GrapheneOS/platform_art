@@ -122,5 +122,11 @@ interface IArtd {
             in @nullable com.android.server.art.ProfilePath profile,
             in @nullable com.android.server.art.VdexPath inputVdex,
             com.android.server.art.PriorityClass priorityClass,
-            in com.android.server.art.DexoptOptions dexoptOptions);
+            in com.android.server.art.DexoptOptions dexoptOptions,
+            in com.android.server.art.IArtdCancellationSignal cancellationSignal);
+
+    /**
+     * Returns a cancellation signal which can be used to cancel {@code dexopt} calls.
+     */
+    com.android.server.art.IArtdCancellationSignal createCancellationSignal();
 }

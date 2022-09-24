@@ -16,12 +16,19 @@
 
 #include "artd.h"
 
+#include <sys/types.h>
+
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
+#include <csignal>
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -54,11 +61,13 @@ using ::aidl::com::android::server::art::DexoptOptions;
 using ::aidl::com::android::server::art::DexoptResult;
 using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
+using ::aidl::com::android::server::art::IArtdCancellationSignal;
 using ::aidl::com::android::server::art::OutputArtifacts;
 using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
 using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::VdexPath;
+using ::android::base::Error;
 using ::android::base::make_scope_guard;
 using ::android::base::ParseInt;
 using ::android::base::ReadFileToString;
@@ -174,10 +183,10 @@ class MockExecUtils : public ExecUtils {
   // to a conflict between gmock and android-base/logging.h (b/132668253).
   ExecResult ExecAndReturnResult(const std::vector<std::string>& arg_vector,
                                  int,
-                                 const ExecCallbacks&,
+                                 const ExecCallbacks& callbacks,
                                  ProcessStat* stat,
                                  std::string*) const override {
-    Result<int> code = DoExecAndReturnCode(arg_vector, stat);
+    Result<int> code = DoExecAndReturnCode(arg_vector, callbacks, stat);
     if (code.ok()) {
       return {.status = ExecResult::kExited, .exit_code = code.value()};
     }
@@ -186,7 +195,9 @@ class MockExecUtils : public ExecUtils {
 
   MOCK_METHOD(Result<int>,
               DoExecAndReturnCode,
-              (const std::vector<std::string>& arg_vector, ProcessStat* stat),
+              (const std::vector<std::string>& arg_vector,
+               const ExecCallbacks& callbacks,
+               ProcessStat* stat),
               (const));
 };
 
@@ -199,7 +210,8 @@ class ArtdTest : public CommonArtTest {
     EXPECT_CALL(*mock_props_, GetProperty).Times(AnyNumber()).WillRepeatedly(Return(""));
     auto mock_exec_utils = std::make_unique<MockExecUtils>();
     mock_exec_utils_ = mock_exec_utils.get();
-    artd_ = ndk::SharedRefBase::make<Artd>(std::move(mock_props), std::move(mock_exec_utils));
+    artd_ = ndk::SharedRefBase::make<Artd>(
+        std::move(mock_props), std::move(mock_exec_utils), mock_kill_.AsStdFunction());
     scratch_dir_ = std::make_unique<ScratchDir>();
     scratch_path_ = scratch_dir_->GetPath();
     // Remove the trailing '/';
@@ -259,9 +271,12 @@ class ArtdTest : public CommonArtTest {
   }
 
   void RunDexopt(binder_exception_t expected_status = EX_NONE,
-                 Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled,
-                                                                   false)) {
+                 Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled, false),
+                 std::shared_ptr<IArtdCancellationSignal> cancellation_signal = nullptr) {
     InitDexoptInputFiles();
+    if (cancellation_signal == nullptr) {
+      ASSERT_TRUE(artd_->createCancellationSignal(&cancellation_signal).isOk());
+    }
     DexoptResult aidl_return;
     ndk::ScopedAStatus status = artd_->dexopt(output_artifacts_,
                                               dex_file_,
@@ -272,6 +287,7 @@ class ArtdTest : public CommonArtTest {
                                               vdex_path_,
                                               priority_class_,
                                               dexopt_options_,
+                                              cancellation_signal,
                                               &aidl_return);
     ASSERT_EQ(status.getExceptionCode(), expected_status) << status.getMessage();
     if (status.isOk()) {
@@ -295,6 +311,7 @@ class ArtdTest : public CommonArtTest {
   ScopedUnsetEnvironmentVariable android_data_env_ = ScopedUnsetEnvironmentVariable("ANDROID_DATA");
   MockSystemProperties* mock_props_;
   MockExecUtils* mock_exec_utils_;
+  MockFunction<int(pid_t, int)> mock_kill_;
 
   std::string dex_file_;
   std::string isa_;
@@ -440,10 +457,11 @@ TEST_F(ArtdTest, dexopt) {
                         Flag("--profile-file-fd=",
                              FdOf(android_data_ +
                                   "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"))))),
+          _,
           _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
                       WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
-                      SetArgPointee<1>(ProcessStat{.wall_time_ms = 100, .cpu_time_ms = 400}),
+                      SetArgPointee<2>(ProcessStat{.wall_time_ms = 100, .cpu_time_ms = 400}),
                       Return(0)));
   RunDexopt(EX_NONE,
             AllOf(Field(&DexoptResult::cancelled, false),
@@ -464,6 +482,7 @@ TEST_F(ArtdTest, dexoptClassLoaderContext) {
                                               ElementsAre(FdOf(clc_1_), FdOf(clc_2_)))),
                             Contains(Flag("--class-loader-context=", class_loader_context_)),
                             Contains(Flag("--classpath-dir=", scratch_path_ + "/a")))),
+          _,
           _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -475,6 +494,7 @@ TEST_F(ArtdTest, dexoptNoInputVdex) {
                                               _,
                                               AllOf(Not(Contains(Flag("--dm-fd=", _))),
                                                     Not(Contains(Flag("--input-vdex-fd=", _))))),
+                                  _,
                                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -489,6 +509,7 @@ TEST_F(ArtdTest, dexoptInputVdex) {
                               AllOf(Not(Contains(Flag("--dm-fd=", _))),
                                     Contains(Flag("--input-vdex-fd=",
                                                   FdOf(scratch_path_ + "/a/oat/arm64/b.vdex"))))),
+                  _,
                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -502,6 +523,7 @@ TEST_F(ArtdTest, dexoptInputVdexDm) {
                               _,
                               AllOf(Contains(Flag("--dm-fd=", FdOf(scratch_path_ + "/a/b.dm"))),
                                     Not(Contains(Flag("--input-vdex-fd=", _))))),
+                  _,
                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -514,6 +536,7 @@ TEST_F(ArtdTest, dexoptPriorityClassBoot) {
                                               AllOf(Not(Contains(Flag("--set-task-profile=", _))),
                                                     Not(Contains(Flag("--set-priority=", _)))),
                                               Contains(Flag("--compact-dex-level=", "none"))),
+                                  _,
                                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -527,6 +550,7 @@ TEST_F(ArtdTest, dexoptPriorityClassInteractive) {
                               AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
                                     Contains(Flag("--set-priority=", "background"))),
                               Contains(Flag("--compact-dex-level=", "none"))),
+                  _,
                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -540,6 +564,7 @@ TEST_F(ArtdTest, dexoptPriorityClassInteractiveFast) {
                               AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
                                     Contains(Flag("--set-priority=", "background"))),
                               Contains(Flag("--compact-dex-level=", "none"))),
+                  _,
                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -553,6 +578,7 @@ TEST_F(ArtdTest, dexoptPriorityClassBackground) {
                               AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
                                     Contains(Flag("--set-priority=", "background"))),
                               Not(Contains(Flag("--compact-dex-level=", _)))),
+                  _,
                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -576,6 +602,7 @@ TEST_F(ArtdTest, dexoptDexoptOptions) {
                                             Not(Contains("--debuggable")),
                                             Not(Contains(Flag("--app-image-fd=", _))),
                                             Not(Contains(Flag("-Xhidden-api-policy:", _))))),
+                          _,
                           _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -598,6 +625,7 @@ TEST_F(ArtdTest, dexoptDexoptOptions2) {
                                             Contains(Flag("-Xtarget-sdk-version:", "456")),
                                             Contains("--debuggable"),
                                             Contains(Flag("-Xhidden-api-policy:", "enabled")))),
+                          _,
                           _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")), Return(0)));
   RunDexopt();
@@ -624,6 +652,7 @@ TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
                                     Not(Contains(Flag("-Xms", _))),
                                     Not(Contains(Flag("-Xmx", _))),
                                     Not(Contains("--compile-individually")))),
+                  _,
                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -663,6 +692,7 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
                                     Contains(Flag("-Xms", "xms")),
                                     Contains(Flag("-Xmx", "xmx")),
                                     Contains("--compile-individually"))),
+                  _,
                   _))
       .WillOnce(Return(0));
   RunDexopt();
@@ -682,6 +712,7 @@ TEST_F(ArtdTest, dexoptDefaultResourceControlBoot) {
       DoExecAndReturnCode(
           WhenSplitBy(
               "--", _, AllOf(Not(Contains(Flag("--cpu-set=", _))), Contains(Not(Flag("-j", _))))),
+          _,
           _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::BOOT;
@@ -696,6 +727,7 @@ TEST_F(ArtdTest, dexoptDefaultResourceControlOther) {
       DoExecAndReturnCode(
           WhenSplitBy(
               "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4")))),
+          _,
           _))
       .Times(3)
       .WillRepeatedly(Return(0));
@@ -732,6 +764,7 @@ TEST_F(ArtdTest, dexoptAllResourceControlBoot) {
       DoExecAndReturnCode(
           WhenSplitBy(
               "--", _, AllOf(Contains(Flag("--cpu-set=", "0,1,2,3")), Contains(Flag("-j", "8")))),
+          _,
           _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::BOOT;
@@ -746,6 +779,7 @@ TEST_F(ArtdTest, dexoptAllResourceControlInteractiveFast) {
       DoExecAndReturnCode(
           WhenSplitBy(
               "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2,3")), Contains(Flag("-j", "6")))),
+          _,
           _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::INTERACTIVE_FAST;
@@ -761,6 +795,7 @@ TEST_F(ArtdTest, dexoptAllResourceControlInteractive) {
       DoExecAndReturnCode(
           WhenSplitBy(
               "--", _, AllOf(Contains(Flag("--cpu-set=", "0,2")), Contains(Flag("-j", "4")))),
+          _,
           _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::INTERACTIVE;
@@ -774,6 +809,7 @@ TEST_F(ArtdTest, dexoptAllResourceControlBackground) {
       *mock_exec_utils_,
       DoExecAndReturnCode(
           WhenSplitBy("--", _, AllOf(Contains(Flag("--cpu-set=", "0")), Contains(Flag("-j", "2")))),
+          _,
           _))
       .WillOnce(Return(0));
   priority_class_ = PriorityClass::BACKGROUND;
@@ -782,7 +818,7 @@ TEST_F(ArtdTest, dexoptAllResourceControlBackground) {
 
 TEST_F(ArtdTest, dexoptFailed) {
   dexopt_options_.generateAppImage = true;
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _))
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
                       WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
                       WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")),
@@ -792,6 +828,97 @@ TEST_F(ArtdTest, dexoptFailed) {
   EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
   EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
   EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.art"));
+}
+
+TEST_F(ArtdTest, dexoptCancelledBeforeDex2oat) {
+  std::shared_ptr<IArtdCancellationSignal> cancellation_signal;
+  ASSERT_TRUE(artd_->createCancellationSignal(&cancellation_signal).isOk());
+
+  constexpr pid_t kPid = 123;
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce([&](auto, const ExecCallbacks& callbacks, auto) {
+        callbacks.on_start(kPid);
+        callbacks.on_end(kPid);
+        return Error();
+      });
+  EXPECT_CALL(mock_kill_, Call(kPid, SIGKILL));
+
+  cancellation_signal->cancel();
+
+  RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, true), cancellation_signal);
+
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
+}
+
+TEST_F(ArtdTest, dexoptCancelledDuringDex2oat) {
+  std::shared_ptr<IArtdCancellationSignal> cancellation_signal;
+  ASSERT_TRUE(artd_->createCancellationSignal(&cancellation_signal).isOk());
+
+  constexpr pid_t kPid = 123;
+  constexpr std::chrono::duration<int> kTimeout = std::chrono::seconds(1);
+
+  std::condition_variable process_started_cv, process_killed_cv;
+  std::mutex mu;
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce([&](auto, const ExecCallbacks& callbacks, auto) {
+        std::unique_lock<std::mutex> lock(mu);
+        // Step 2.
+        callbacks.on_start(kPid);
+        process_started_cv.notify_one();
+        EXPECT_EQ(process_killed_cv.wait_for(lock, kTimeout), std::cv_status::no_timeout);
+        // Step 5.
+        callbacks.on_end(kPid);
+        return Error();
+      });
+
+  EXPECT_CALL(mock_kill_, Call(kPid, SIGKILL)).WillOnce([&](auto, auto) {
+    // Step 4.
+    process_killed_cv.notify_one();
+    return 0;
+  });
+
+  std::thread t;
+  {
+    std::unique_lock<std::mutex> lock(mu);
+    // Step 1.
+    t = std::thread(
+        [&] { RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, true), cancellation_signal); });
+    EXPECT_EQ(process_started_cv.wait_for(lock, kTimeout), std::cv_status::no_timeout);
+    // Step 3.
+    cancellation_signal->cancel();
+  }
+
+  t.join();
+
+  // Step 6.
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
+}
+
+TEST_F(ArtdTest, dexoptCancelledAfterDex2oat) {
+  std::shared_ptr<IArtdCancellationSignal> cancellation_signal;
+  ASSERT_TRUE(artd_->createCancellationSignal(&cancellation_signal).isOk());
+
+  constexpr pid_t kPid = 123;
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce([&](auto, const ExecCallbacks& callbacks, auto) {
+        callbacks.on_start(kPid);
+        callbacks.on_end(kPid);
+        return 0;
+      });
+  EXPECT_CALL(mock_kill_, Call).Times(0);
+
+  RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, false), cancellation_signal);
+
+  // This signal should be ignored.
+  cancellation_signal->cancel();
+
+  EXPECT_TRUE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
+  EXPECT_TRUE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
 }
 
 TEST_F(ArtdTest, isProfileUsable) {
@@ -807,6 +934,7 @@ TEST_F(ArtdTest, isProfileUsable) {
                       AllOf(Contains(art_root_ + "/bin/profman"),
                             Contains(Flag("--reference-profile-file-fd=", FdOf(profile_file))),
                             Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          _,
           _))
       .WillOnce(Return(ProfmanResult::kSkipCompilationSmallDelta));
 
@@ -820,7 +948,7 @@ TEST_F(ArtdTest, isProfileUsableFalse) {
   CreateFile(profile_file);
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _))
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
       .WillOnce(Return(ProfmanResult::kSkipCompilationEmptyProfiles));
 
   bool result;
@@ -841,7 +969,7 @@ TEST_F(ArtdTest, isProfileUsableFailed) {
   CreateFile(profile_file);
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _)).WillOnce(Return(100));
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillOnce(Return(100));
 
   bool result;
   ndk::ScopedAStatus status = artd_->isProfileUsable(profile_path_.value(), dex_file_, &result);
@@ -895,6 +1023,7 @@ TEST_F(ArtdTest, copyAndRewriteProfile) {
                             Contains("--copy-and-update-profile-key"),
                             Contains(Flag("--profile-file-fd=", FdOf(src_file))),
                             Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          _,
           _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--reference-profile-file-fd=", "def")),
                       Return(ProfmanResult::kCopyAndUpdateSuccess)));
@@ -915,7 +1044,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
 
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _))
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
       .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoUpdate));
 
   bool result;
@@ -944,7 +1073,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
 
   CreateFile(dex_file_);
 
-  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _)).WillOnce(Return(100));
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillOnce(Return(100));
 
   bool result;
   ndk::ScopedAStatus status = artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result);

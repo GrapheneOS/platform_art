@@ -67,10 +67,13 @@ public class OptimizeParams {
         }
 
         /**
-         * The target compiler filter. Note that the compiler filter might be adjusted before the
-         * execution based on factors like whether the profile is available or whether the app is
-         * used by other apps. If not set, the default compiler filter for the given reason will be
-         * used.
+         * The target compiler filter, passed as the {@code --compiler-filer} option to dex2oat.
+         * Supported values are listed in
+         * https://source.android.com/docs/core/dalvik/configure#compilation_options.
+         *
+         * Note that the compiler filter might be adjusted before the execution based on factors
+         * like whether the profile is available or whether the app is used by other apps. If not
+         * set, the default compiler filter for the given reason will be used.
          */
         @NonNull
         public Builder setCompilerFilter(@NonNull String value) {

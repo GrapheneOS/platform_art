@@ -25,6 +25,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import android.content.pm.ApplicationInfo;
+import android.os.CancellationSignal;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 
@@ -51,6 +52,7 @@ public class PrimaryDexOptimizerTestBase {
     @Mock protected IArtd mArtd;
     protected PackageState mPkgState;
     protected AndroidPackageApi mPkg;
+    protected CancellationSignal mCancellationSignal;
 
     protected PrimaryDexOptimizer mPrimaryDexOptimizer;
 
@@ -71,6 +73,7 @@ public class PrimaryDexOptimizerTestBase {
 
         mPkgState = createPackageState();
         mPkg = mPkgState.getAndroidPackage();
+        mCancellationSignal = new CancellationSignal();
 
         mPrimaryDexOptimizer = new PrimaryDexOptimizer(mInjector);
     }

@@ -32,6 +32,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.content.pm.ApplicationInfo;
+import android.os.CancellationSignal;
 import android.os.ServiceSpecificException;
 
 import androidx.test.filters.SmallTest;
@@ -221,12 +222,14 @@ public class ArtManagerLocalTest {
     public void testOptimizePackage() throws Exception {
         var params = new OptimizeParams.Builder("install").build();
         var result = mock(OptimizeResult.class);
+        var cancellationSignal = new CancellationSignal();
 
-        when(mDexOptHelper.dexopt(any(), same(mPkgState), same(mPkg), same(params)))
+        when(mDexOptHelper.dexopt(
+                     any(), same(mPkgState), same(mPkg), same(params), same(cancellationSignal)))
                 .thenReturn(result);
 
-        assertThat(
-                mArtManagerLocal.optimizePackage(mock(PackageDataSnapshot.class), PKG_NAME, params))
+        assertThat(mArtManagerLocal.optimizePackage(
+                           mock(PackageDataSnapshot.class), PKG_NAME, params, cancellationSignal))
                 .isSameInstanceAs(result);
     }
 
