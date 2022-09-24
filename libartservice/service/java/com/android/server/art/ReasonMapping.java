@@ -19,6 +19,7 @@ package com.android.server.art;
 import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 
 import android.annotation.NonNull;
+import android.annotation.SystemApi;
 import android.os.SystemProperties;
 import android.text.TextUtils;
 
@@ -31,6 +32,7 @@ import dalvik.system.DexFile;
  *
  * @hide
  */
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public class ReasonMapping {
     private ReasonMapping() {}
 

@@ -204,10 +204,12 @@ std::vector<art_apex::ModuleInfo> GenerateModuleInfoList(
   return module_info_list;
 }
 
-// Returns a rewritten path based on ANDROID_ROOT if the path starts with "/system/".
-std::string AndroidRootRewrite(const std::string& path) {
+// Returns a rewritten path based on environment variables for interesting paths.
+std::string RewriteParentDirectoryIfNeeded(const std::string& path) {
   if (StartsWith(path, "/system/")) {
     return Concatenate({GetAndroidRoot(), path.substr(7)});
+  } else if (StartsWith(path, "/system_ext/")) {
+    return Concatenate({GetSystemExtRoot(), path.substr(11)});
   } else {
     return path;
   }
@@ -281,7 +283,7 @@ std::vector<T> GenerateComponents(
 
   ArtDexFileLoader loader;
   for (const std::string& path : jars) {
-    std::string actual_path = AndroidRootRewrite(path);
+    std::string actual_path = RewriteParentDirectoryIfNeeded(path);
     struct stat sb;
     if (stat(actual_path.c_str(), &sb) == -1) {
       PLOG(ERROR) << "Failed to stat component: " << QuotePath(actual_path);
@@ -435,7 +437,7 @@ bool AddBootClasspathFds(/*inout*/ std::vector<std::string>& args,
     if (StartsWith(jar, "/apex/")) {
       bcp_fds.emplace_back("-1");
     } else {
-      std::string actual_path = AndroidRootRewrite(jar);
+      std::string actual_path = RewriteParentDirectoryIfNeeded(jar);
       std::unique_ptr<File> jar_file(OS::OpenFileForReading(actual_path.c_str()));
       if (!jar_file || !jar_file->IsValid()) {
         LOG(ERROR) << "Failed to open a BCP jar " << actual_path;
@@ -1241,7 +1243,7 @@ bool OnDeviceRefresh::CheckSystemServerArtifactsAreUpToDate(
 }
 
 Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
-    const std::vector<std::string>& artifacts_to_keep) const {
+    OdrMetrics& metrics, const std::vector<std::string>& artifacts_to_keep) const {
   const std::string& artifact_dir = config_.GetArtifactDirectory();
   std::unordered_set<std::string> artifact_set{artifacts_to_keep.begin(), artifacts_to_keep.end()};
 
@@ -1259,7 +1261,9 @@ Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
     // undefined behavior;
     entries.push_back(entry);
   }
-  if (ec) {
+  if (ec && ec.value() != ENOENT) {
+    metrics.SetStatus(ec.value() == EPERM ? OdrMetrics::Status::kDalvikCachePermissionDenied :
+                                            OdrMetrics::Status::kIoError);
     return Errorf("Failed to iterate over entries in the artifact directory: {}", ec.message());
   }
 
@@ -1269,6 +1273,7 @@ Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
       if (!ContainsElement(artifact_set, path)) {
         LOG(INFO) << "Removing " << path;
         if (unlink(path.c_str()) != 0) {
+          metrics.SetStatus(OdrMetrics::Status::kIoError);
           return ErrnoErrorf("Failed to remove file {}", QuotePath(path));
         }
       }
@@ -1276,6 +1281,7 @@ Result<void> OnDeviceRefresh::CleanupArtifactDirectory(
       // Neither a regular file nor a directory. Unexpected file type.
       LOG(INFO) << "Removing " << path;
       if (unlink(path.c_str()) != 0) {
+        metrics.SetStatus(OdrMetrics::Status::kIoError);
         return ErrnoErrorf("Failed to remove file {}", QuotePath(path));
       }
     }
@@ -1336,7 +1342,11 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
   auto cleanup_and_compile_all = [&, this]() {
     compilation_options->compile_boot_classpath_for_isas = config_.GetBootClasspathIsas();
     compilation_options->system_server_jars_to_compile = AllSystemServerJars();
-    return RemoveArtifactsDirectory() ? ExitCode::kCompilationRequired : ExitCode::kCleanupFailed;
+    if (!RemoveArtifactsDirectory()) {
+      metrics.SetStatus(OdrMetrics::Status::kIoError);
+      return ExitCode::kCleanupFailed;
+    }
+    return ExitCode::kCompilationRequired;
   };
 
   std::optional<std::vector<apex::ApexInfo>> apex_info_list = GetApexInfoList();
@@ -1410,7 +1420,7 @@ OnDeviceRefresh::CheckArtifactsAreUpToDate(OdrMetrics& metrics,
     checked_artifacts.push_back(cache_info_filename_);
   }
 
-  Result<void> result = CleanupArtifactDirectory(checked_artifacts);
+  Result<void> result = CleanupArtifactDirectory(metrics, checked_artifacts);
   if (!result.ok()) {
     LOG(ERROR) << result.error();
     return ExitCode::kCleanupFailed;
@@ -1487,7 +1497,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   }
 
   for (const std::string& component : jars_to_compile) {
-    std::string actual_path = AndroidRootRewrite(component);
+    std::string actual_path = RewriteParentDirectoryIfNeeded(component);
     args.emplace_back("--dex-file=" + component);
     std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
     args.emplace_back(android::base::StringPrintf("--dex-fd=%d", file->Fd()));
@@ -1497,6 +1507,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileBootClasspathArtifacts(
   args.emplace_back("--runtime-arg");
   args.emplace_back(Concatenate({"-Xbootclasspath:", android::base::Join(jars_to_compile, ":")}));
   if (!AddBootClasspathFds(args, readonly_files_raii, jars_to_compile)) {
+    metrics.SetStatus(OdrMetrics::Status::kIoError);
     return false;
   }
 
@@ -1594,7 +1605,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     args.emplace_back(dex2oat);
     args.emplace_back("--dex-file=" + jar);
 
-    std::string actual_jar_path = AndroidRootRewrite(jar);
+    std::string actual_jar_path = RewriteParentDirectoryIfNeeded(jar);
     std::unique_ptr<File> dex_file(OS::OpenFileForReading(actual_jar_path.c_str()));
     args.emplace_back(android::base::StringPrintf("--dex-fd=%d", dex_file->Fd()));
     readonly_files_raii.push_back(std::move(dex_file));
@@ -1654,6 +1665,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
 
     auto bcp_jars = android::base::Split(config_.GetBootClasspath(), ":");
     if (!AddBootClasspathFds(args, readonly_files_raii, bcp_jars)) {
+      metrics.SetStatus(OdrMetrics::Status::kIoError);
       return false;
     }
     std::string unused_error_msg;
@@ -1682,7 +1694,7 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
     if (!classloader_context.empty()) {
       std::vector<int> fds;
       for (const std::string& path : classloader_context) {
-        std::string actual_path = AndroidRootRewrite(path);
+        std::string actual_path = RewriteParentDirectoryIfNeeded(path);
         std::unique_ptr<File> file(OS::OpenFileForReading(actual_path.c_str()));
         if (!file->IsValid()) {
           PLOG(ERROR) << "Failed to open classloader context " << actual_path;
@@ -1729,10 +1741,18 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   const char* staging_dir = nullptr;
   metrics.SetStage(OdrMetrics::Stage::kPreparation);
 
+  if (!EnsureDirectoryExists(config_.GetArtifactDirectory())) {
+    LOG(ERROR) << "Failed to prepare artifact directory";
+    metrics.SetStatus(errno == EPERM ? OdrMetrics::Status::kDalvikCachePermissionDenied :
+                                       OdrMetrics::Status::kIoError);
+    return ExitCode::kCleanupFailed;
+  }
+
   if (config_.GetRefresh()) {
     Result<void> result = RefreshExistingArtifacts();
     if (!result.ok()) {
       LOG(ERROR) << "Failed to refresh existing artifacts: " << result.error();
+      metrics.SetStatus(OdrMetrics::Status::kIoError);
       return ExitCode::kCleanupFailed;
     }
   }
@@ -1741,6 +1761,7 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   Result<void> result = WriteCacheInfo();
   if (!result.ok()) {
     LOG(ERROR) << result.error();
+    metrics.SetStatus(OdrMetrics::Status::kIoError);
     return ExitCode::kCleanupFailed;
   }
 
@@ -1850,6 +1871,7 @@ WARN_UNUSED ExitCode OnDeviceRefresh::Compile(OdrMetrics& metrics,
   }
 
   metrics.SetStage(OdrMetrics::Stage::kComplete);
+  metrics.SetStatus(OdrMetrics::Status::kOK);
   return ExitCode::kCompilationSuccess;
 }
 

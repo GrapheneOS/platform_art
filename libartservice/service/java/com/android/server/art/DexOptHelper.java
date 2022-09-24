@@ -24,6 +24,7 @@ import android.annotation.Nullable;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.Binder;
+import android.os.CancellationSignal;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.WorkSource;
@@ -74,11 +75,15 @@ public class DexOptHelper {
     @NonNull
     public OptimizeResult dexopt(@NonNull PackageDataSnapshot snapshot,
             @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg,
-            @NonNull OptimizeParams params) throws RemoteException {
+            @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal)
+            throws RemoteException {
         List<DexFileOptimizeResult> results = new ArrayList<>();
         Supplier<OptimizeResult> createResult = ()
                 -> new OptimizeResult(params.getCompilerFilter(), params.getReason(),
                         List.of(new PackageOptimizeResult(pkgState.getPackageName(), results)));
+        Supplier<Boolean> hasCancelledResult = ()
+                -> results.stream().anyMatch(
+                        result -> result.getStatus() == OptimizeResult.OPTIMIZE_CANCELLED);
 
         if (!canOptimizePackage(pkgState, pkg)) {
             return createResult.get();
@@ -95,7 +100,11 @@ public class DexOptHelper {
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
 
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
-                results.addAll(mInjector.getPrimaryDexOptimizer().dexopt(pkgState, pkg, params));
+                results.addAll(mInjector.getPrimaryDexOptimizer().dexopt(
+                        pkgState, pkg, params, cancellationSignal));
+                if (hasCancelledResult.get()) {
+                    return createResult.get();
+                }
             }
 
             if ((params.getFlags() & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
