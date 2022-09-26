@@ -328,7 +328,9 @@ class OatDumpTest : public CommonRuntimeTest {
 
     auto post_fork_fn = []() {
       setpgid(0, 0);  // Change process groups, so we don't get reaped by ProcessManager.
-      return true;    // Ignore setpgid failures.
+                      // Ignore setpgid failures.
+      return setenv("ANDROID_LOG_TAGS", "*:e", 1) == 0;  // We're only interested in errors and
+                                                         // fatal logs.
     };
 
     ForkAndExecResult res = ForkAndExec(exec_argv, post_fork_fn, line_buf_fn);
