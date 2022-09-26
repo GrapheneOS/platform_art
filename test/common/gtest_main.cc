@@ -38,12 +38,6 @@ extern "C" bool GetInitialArgs(const char*** args, size_t* num_args) {
 extern "C" __attribute__((visibility("default"))) __attribute__((weak)) void ArtTestGlobalInit();
 
 int main(int argc, char** argv, char** envp) {
-  // Gtests can be very noisy. For example, an executable with multiple tests will trigger native
-  // bridge warnings. The following line reduces the minimum log severity to ERROR and suppresses
-  // everything else. In case you want to see all messages, comment out the line.
-  const char* log_tag_override = getenv("ART_GTEST_OVERRIDE_LOG_TAGS");
-  setenv("ANDROID_LOG_TAGS", log_tag_override == nullptr ? "*:e" : log_tag_override, 1);
-
   art::Locks::Init();
   art::InitLogging(argv, art::Runtime::Abort);
   art::MemMap::Init();
