@@ -71,8 +71,6 @@ int32_t TranslateStatus(int32_t art_metrics_status) {
       return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_IO_ERROR;
     case OdrMetrics::Status::kDex2OatError:
       return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_DEX2OAT_ERROR;
-    case OdrMetrics::Status::kTimeLimitExceeded:
-      return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_TIME_LIMIT_EXCEEDED;
     case OdrMetrics::Status::kStagingFailed:
       return metrics::statsd::ODREFRESH_REPORTED__STATUS__STATUS_STAGING_FAILED;
     case OdrMetrics::Status::kInstallFailed:
