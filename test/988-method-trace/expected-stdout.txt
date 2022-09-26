@@ -15,15 +15,10 @@
 .<= public art.Test988$FibResult(java.lang.String,int,int) -> <null: null>
 .=> static void art.Test988.addToResults(art.Test988$Printable)
 ..=> public void java.util.ArrayList.ensureCapacity(int)
-...=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= public void java.util.ArrayList.ensureCapacity(int) -> <null: null>
 ..=> public boolean java.util.ArrayList.add(java.lang.Object)
-...=> private void java.util.ArrayList.ensureCapacityInternal(int)
-....=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-....<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
-...<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(30)=832040
+...<= private void java.util.ArrayList.add(java.lang.Object,java.lang.Object[],int) -> <null: null>
 ..<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
 .<= static void art.Test988.addToResults(art.Test988$Printable) -> <null: null>
 <= public static void art.Test988.doFibTest(int,java.util.function.IntUnaryOperator) -> <null: null>
@@ -70,15 +65,10 @@ fibonacci(30)=832040
 .<= public art.Test988$FibResult(java.lang.String,int,int) -> <null: null>
 .=> static void art.Test988.addToResults(art.Test988$Printable)
 ..=> public void java.util.ArrayList.ensureCapacity(int)
-...=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= public void java.util.ArrayList.ensureCapacity(int) -> <null: null>
 ..=> public boolean java.util.ArrayList.add(java.lang.Object)
-...=> private void java.util.ArrayList.ensureCapacityInternal(int)
-....=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-....<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
-...<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(5)=5
+...<= private void java.util.ArrayList.add(java.lang.Object,java.lang.Object[],int) -> <null: null>
 ..<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
 .<= static void art.Test988.addToResults(art.Test988$Printable) -> <null: null>
 <= public static void art.Test988.doFibTest(int,java.util.function.IntUnaryOperator) -> <null: null>
@@ -97,15 +87,10 @@ fibonacci(5)=5
 .<= public art.Test988$FibResult(java.lang.String,int,int) -> <null: null>
 .=> static void art.Test988.addToResults(art.Test988$Printable)
 ..=> public void java.util.ArrayList.ensureCapacity(int)
-...=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= public void java.util.ArrayList.ensureCapacity(int) -> <null: null>
 ..=> public boolean java.util.ArrayList.add(java.lang.Object)
-...=> private void java.util.ArrayList.ensureCapacityInternal(int)
-....=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-....<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
-...<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(5)=5
+...<= private void java.util.ArrayList.add(java.lang.Object,java.lang.Object[],int) -> <null: null>
 ..<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
 .<= static void art.Test988.addToResults(art.Test988$Printable) -> <null: null>
 <= public static void art.Test988.doFibTest(int,java.util.function.IntUnaryOperator) -> <null: null>
@@ -204,14 +189,8 @@ fibonacci(5)=5
 .<= public art.Test988$FibThrow(java.lang.String,int,java.lang.Throwable) -> <null: null>
 .=> static void art.Test988.addToResults(art.Test988$Printable)
 ..=> public void java.util.ArrayList.ensureCapacity(int)
-...=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= public void java.util.ArrayList.ensureCapacity(int) -> <null: null>
 ..=> public boolean java.util.ArrayList.add(java.lang.Object)
-...=> private void java.util.ArrayList.ensureCapacityInternal(int)
-....=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-....<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
-...<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 	art.Test988.iter_fibonacci(Test988.java:280)
 	art.Test988$IterOp.applyAsInt(Test988.java:275)
@@ -219,6 +198,7 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 	art.Test988.run(Test988.java:369)
 	<additional hidden frames>
 
+...<= private void java.util.ArrayList.add(java.lang.Object,java.lang.Object[],int) -> <null: null>
 ..<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
 .<= static void art.Test988.addToResults(art.Test988$Printable) -> <null: null>
 <= public static void art.Test988.doFibTest(int,java.util.function.IntUnaryOperator) -> <null: null>
@@ -317,14 +297,8 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 .<= public art.Test988$FibThrow(java.lang.String,int,java.lang.Throwable) -> <null: null>
 .=> static void art.Test988.addToResults(art.Test988$Printable)
 ..=> public void java.util.ArrayList.ensureCapacity(int)
-...=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= public void java.util.ArrayList.ensureCapacity(int) -> <null: null>
 ..=> public boolean java.util.ArrayList.add(java.lang.Object)
-...=> private void java.util.ArrayList.ensureCapacityInternal(int)
-....=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-....<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
-...<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 	art.Test988.fibonacci(Test988.java:302)
 	art.Test988$RecurOp.applyAsInt(Test988.java:297)
@@ -332,6 +306,7 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 	art.Test988.run(Test988.java:370)
 	<additional hidden frames>
 
+...<= private void java.util.ArrayList.add(java.lang.Object,java.lang.Object[],int) -> <null: null>
 ..<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
 .<= static void art.Test988.addToResults(art.Test988$Printable) -> <null: null>
 <= public static void art.Test988.doFibTest(int,java.util.function.IntUnaryOperator) -> <null: null>
@@ -368,14 +343,8 @@ fibonacci(-19) -> java.lang.Error: Bad argument: -19 < 0
 .<= public art.Test988$FibThrow(java.lang.String,int,java.lang.Throwable) -> <null: null>
 .=> static void art.Test988.addToResults(art.Test988$Printable)
 ..=> public void java.util.ArrayList.ensureCapacity(int)
-...=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-...<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
 ..<= public void java.util.ArrayList.ensureCapacity(int) -> <null: null>
 ..=> public boolean java.util.ArrayList.add(java.lang.Object)
-...=> private void java.util.ArrayList.ensureCapacityInternal(int)
-....=> private void java.util.ArrayList.ensureExplicitCapacity(int)
-....<= private void java.util.ArrayList.ensureExplicitCapacity(int) -> <null: null>
-...<= private void java.util.ArrayList.ensureCapacityInternal(int) -> <null: null>
 fibonacci(-19) -> java.lang.Error: bad argument
 	art.Test988.nativeFibonacci(Native Method)
 	art.Test988$NativeOp.applyAsInt(Test988.java:312)
@@ -383,6 +352,7 @@ fibonacci(-19) -> java.lang.Error: bad argument
 	art.Test988.run(Test988.java:371)
 	<additional hidden frames>
 
+...<= private void java.util.ArrayList.add(java.lang.Object,java.lang.Object[],int) -> <null: null>
 ..<= public boolean java.util.ArrayList.add(java.lang.Object) -> <class java.lang.Boolean: true>
 .<= static void art.Test988.addToResults(art.Test988$Printable) -> <null: null>
 <= public static void art.Test988.doFibTest(int,java.util.function.IntUnaryOperator) -> <null: null>
