@@ -415,7 +415,7 @@
 ## CHECK-DAG:     <<NotArg:z\d+>>    BooleanNot [<<Arg>>]
 ## CHECK-DAG:                        Return [<<Arg>>]
 
-## CHECK-START: boolean SmaliTests.$noinline$NotNotBool(boolean) dead_code_elimination$final (after)
+## CHECK-START: boolean SmaliTests.$noinline$NotNotBool(boolean) dead_code_elimination$after_bce (after)
 ## CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
 ## CHECK-DAG:                        Return [<<Arg>>]
 
