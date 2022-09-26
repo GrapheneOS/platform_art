@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <ostream>
+#include <string_view>
 
 #include <stdio.h>
 
@@ -321,6 +322,22 @@ static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFET
   return code <= pc && pc <= (code + code_size);
 }
 
+// Remove method parameters by finding matching parenthesis and removing that substring.
+std::string_view StripParameters(std::string_view name) {
+  if (name.empty() || *name.rbegin() != ')') {
+    return name;
+  }
+  int nesting = 0;
+  for (ssize_t i = name.size() - 1; i > 0; i--) {
+    if (name[i] == ')') {
+      nesting++;
+    } else if (name[i] == '(' && --nesting == 0) {
+      return name.substr(0, i);
+    }
+  }
+  return name;
+}
+
 void DumpNativeStack(std::ostream& os,
                      pid_t tid,
                      const char* prefix,
@@ -391,7 +408,10 @@ void DumpNativeStack(std::ostream& os,
       }
       os << " (";
       if (!frame.function_name.empty()) {
-        os << frame.function_name.c_str();
+        // Remove parameters from the printed function name to improve signal/noise in the logs.
+        // Also, ANRs are often trimmed, so printing less means we get more useful data out.
+        // We can still symbolize the function based on the PC and build-id (including inlining).
+        os << StripParameters(frame.function_name.c_str());
         if (frame.function_offset != 0) {
           os << "+" << frame.function_offset;
         }
