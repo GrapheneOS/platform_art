@@ -1909,8 +1909,8 @@ class ProfMan final {
       // Open the dex files to look up classes and methods.
       std::vector<std::unique_ptr<const DexFile>> dex_files;
       OpenApkFilesFromLocations(&dex_files);
-      bool updated = false;
-      if (!profile.UpdateProfileKeys(dex_files, &updated)) {
+      bool matched = false;
+      if (!profile.UpdateProfileKeys(dex_files, &matched)) {
         return ProfmanResult::kCopyAndUpdateErrorFailedToUpdateProfile;
       }
       bool result = use_fds
@@ -1919,7 +1919,7 @@ class ProfMan final {
       if (!result) {
         return ProfmanResult::kCopyAndUpdateErrorFailedToSaveProfile;
       }
-      return updated ? ProfmanResult::kCopyAndUpdateSuccess : ProfmanResult::kCopyAndUpdateNoUpdate;
+      return matched ? ProfmanResult::kCopyAndUpdateSuccess : ProfmanResult::kCopyAndUpdateNoMatch;
     } else {
       return ProfmanResult::kCopyAndUpdateErrorFailedToLoadProfile;
     }
