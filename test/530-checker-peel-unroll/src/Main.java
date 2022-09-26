@@ -1015,7 +1015,7 @@ public class Main {
   /// CHECK:                      ArraySet
   /// CHECK-NOT:                  ArraySet
 
-  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK-DAG: <<Param:z\d+>>     ParameterValue                            loop:none
   /// CHECK-DAG: <<Const0:i\d+>>    IntConstant 0                             loop:none
   /// CHECK-DAG: <<Const1:i\d+>>    IntConstant 1                             loop:none
@@ -1030,21 +1030,21 @@ public class Main {
   /// CHECK-DAG:                    ArraySet                                  loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: <<IndAdd:i\d+>>    Add [<<Phi>>,<<Const1>>]                  loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK:                      GreaterThanOrEqual
   /// CHECK-NOT:                  GreaterThanOrEqual
 
-  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK:                      If
   /// CHECK:                      If
   /// CHECK-NOT:                  If
 
-  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK:                      ArrayGet
   /// CHECK:                      ArrayGet
   /// CHECK-NOT:                  ArrayGet
 
-  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingSimple(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK:                      ArraySet
   /// CHECK:                      ArraySet
   /// CHECK-NOT:                  ArraySet
@@ -1069,7 +1069,7 @@ public class Main {
   /// CHECK-DAG:                    If [<<Check>>]                        loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:                    ArraySet                              loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START: void Main.peelingAddInts(int[]) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingAddInts(int[]) dead_code_elimination$after_bce (after)
   /// CHECK-DAG: <<Param:l\d+>>     ParameterValue                        loop:none
   /// CHECK-DAG: <<ConstNull:l\d+>> NullConstant                          loop:none
   /// CHECK-DAG: <<Eq:z\d+>>        Equal [<<Param>>,<<ConstNull>>]       loop:none
@@ -1081,7 +1081,7 @@ public class Main {
   /// CHECK-DAG:                    ArraySet                              loop:<<Loop>>      outer_loop:none
 
   // There's a 3rd `if` due to bounds checks.
-  /// CHECK-START: void Main.peelingAddInts(int[]) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingAddInts(int[]) dead_code_elimination$after_bce (after)
   /// CHECK:                        If
   /// CHECK:                        If
   /// CHECK:                        If
@@ -1118,7 +1118,7 @@ public class Main {
   /// CHECK:                        ArraySet
   /// CHECK-NOT:                    ArraySet
 
-  /// CHECK-START: void Main.peelingBreakFromNest(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingBreakFromNest(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK-DAG: <<Param:z\d+>>     ParameterValue                          loop:none
   /// CHECK-DAG: <<Const0:i\d+>>    IntConstant 0                           loop:none
   /// CHECK-DAG: <<Const1:i\d+>>    IntConstant 1                           loop:none
@@ -1135,13 +1135,13 @@ public class Main {
   /// CHECK-DAG: <<IndAdd1:i\d+>>   Add [<<Phi1>>,<<Const1>>]               loop:<<Loop1>>      outer_loop:<<Loop0>>
   /// CHECK-DAG: <<IndAdd0:i\d+>>   Add [<<Phi0>>,<<Const1>>]               loop:<<Loop0>>      outer_loop:none
 
-  /// CHECK-START: void Main.peelingBreakFromNest(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingBreakFromNest(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK:                        If
   /// CHECK:                        If
   /// CHECK:                        If
   /// CHECK-NOT:                    If
 
-  /// CHECK-START: void Main.peelingBreakFromNest(int[], boolean) dead_code_elimination$final (after)
+  /// CHECK-START: void Main.peelingBreakFromNest(int[], boolean) dead_code_elimination$after_bce (after)
   /// CHECK:                        ArraySet
   /// CHECK:                        ArraySet
   /// CHECK-NOT:                    ArraySet
@@ -1170,7 +1170,7 @@ public class Main {
   /// CHECK:                        If
   /// CHECK-NOT:                    If
 
-  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$after_bce (after)
   /// CHECK-DAG: <<Param:i\d+>>     ParameterValue                            loop:none
   /// CHECK-DAG: <<Const0:i\d+>>    IntConstant 0                             loop:none
   /// CHECK-DAG: <<Check:z\d+>>     NotEqual [<<Param>>,<<Const0>>]           loop:none
@@ -1181,14 +1181,14 @@ public class Main {
   //  Check that the loop has no instruction except SuspendCheck and Goto (indefinite loop).
   /// CHECK-NOT:                                                              loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$after_bce (after)
   /// CHECK:                        If
   /// CHECK-NOT:                    If
 
-  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$after_bce (after)
   /// CHECK-NOT:                    Phi
 
-  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistOneControl(int) dead_code_elimination$after_bce (after)
   /// CHECK-NOT:                    Add
   private static final int peelingHoistOneControl(int x) {
     int i = 0;
@@ -1204,12 +1204,12 @@ public class Main {
   /// CHECK-DAG:              If   loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:              If   loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START: int Main.peelingHoistOneControl(int, int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistOneControl(int, int) dead_code_elimination$after_bce (after)
   /// CHECK-DAG: <<Phi:i\d+>> Phi  loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:              If   loop:<<Loop>>      outer_loop:none
 
   // One `if` inside the loop (the one no longer invariant), two outside of it.
-  /// CHECK-START: int Main.peelingHoistOneControl(int, int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistOneControl(int, int) dead_code_elimination$after_bce (after)
   /// CHECK:                  If
   /// CHECK:                  If
   /// CHECK:                  If
@@ -1230,12 +1230,12 @@ public class Main {
   /// CHECK-DAG:              If   loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG:              If   loop:<<Loop>>      outer_loop:none
 
-  /// CHECK-START: int Main.peelingHoistTwoControl(int, int, int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistTwoControl(int, int, int) dead_code_elimination$after_bce (after)
   /// CHECK-DAG: <<Phi:i\d+>> Phi  loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG:              If   loop:<<Loop>>      outer_loop:none
 
   // One `if` inside the loop (the one no longer invariant), three outside of it.
-  /// CHECK-START: int Main.peelingHoistTwoControl(int, int, int) dead_code_elimination$final (after)
+  /// CHECK-START: int Main.peelingHoistTwoControl(int, int, int) dead_code_elimination$after_bce (after)
   /// CHECK:                  If
   /// CHECK:                  If
   /// CHECK:                  If
