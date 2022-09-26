@@ -145,7 +145,7 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
                                  const ArrayRef<const uint8_t>& last_method_code,
                                  const ArrayRef<const LinkerPatch>& last_method_patches,
                                  uint32_t distance_without_thunks) {
-    CHECK_EQ(distance_without_thunks % kArmAlignment, 0u);
+    CHECK_EQ(distance_without_thunks % kArmCodeAlignment, 0u);
     uint32_t method1_offset =
         kTrampolineSize + CodeAlignmentSize(kTrampolineSize) + sizeof(OatQuickMethodHeader);
     AddCompiledMethod(MethodRef(1u), method1_code, method1_patches);
@@ -153,7 +153,7 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
 
     // We want to put the last method at a very precise offset.
     const uint32_t last_method_offset = method1_offset + distance_without_thunks;
-    CHECK_ALIGNED(last_method_offset, kArmAlignment);
+    CHECK_ALIGNED(last_method_offset, kArmCodeAlignment);
     const uint32_t gap_end = last_method_offset - sizeof(OatQuickMethodHeader);
 
     // Fill the gap with intermediate methods in chunks of 2MiB and the first in [2MiB, 4MiB).
@@ -562,24 +562,25 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherJustTooFarAfter) {
       bl_offset_in_method1 + just_over_max_positive_disp);
   ASSERT_EQ(kExpectedLastMethodIdx, last_method_idx);
   uint32_t method_after_thunk_idx = last_method_idx;
-  if (sizeof(OatQuickMethodHeader) < kArmAlignment) {
-    // The thunk needs to start on a kArmAlignment-aligned address before the address where the
+  if (sizeof(OatQuickMethodHeader) < kArmCodeAlignment) {
+    // The thunk needs to start on a kArmCodeAlignment-aligned address before the address where the
     // last method would have been if there was no thunk. If the size of the OatQuickMethodHeader
-    // is at least kArmAlignment, the thunk start shall fit between the previous filler method
+    // is at least kArmCodeAlignment, the thunk start shall fit between the previous filler method
     // and that address. Otherwise, it shall be inserted before that filler method.
     method_after_thunk_idx -= 1u;
   }
 
   uint32_t method1_offset = GetMethodOffset(1u);
   uint32_t method_after_thunk_offset = GetMethodOffset(method_after_thunk_idx);
-  ASSERT_TRUE(IsAligned<kArmAlignment>(method_after_thunk_offset));
+  ASSERT_TRUE(IsAligned<kArmCodeAlignment>(method_after_thunk_offset));
   uint32_t method_after_thunk_header_offset =
       method_after_thunk_offset - sizeof(OatQuickMethodHeader);
   uint32_t thunk_size = MethodCallThunkSize();
-  uint32_t thunk_offset = RoundDown(method_after_thunk_header_offset - thunk_size, kArmAlignment);
+  uint32_t thunk_offset =
+      RoundDown(method_after_thunk_header_offset - thunk_size, kArmCodeAlignment);
   DCHECK_EQ(thunk_offset + thunk_size + CodeAlignmentSize(thunk_offset + thunk_size),
             method_after_thunk_header_offset);
-  ASSERT_TRUE(IsAligned<kArmAlignment>(thunk_offset));
+  ASSERT_TRUE(IsAligned<kArmCodeAlignment>(thunk_offset));
   uint32_t diff = thunk_offset - (method1_offset + bl_offset_in_method1 + 4u /* PC adjustment */);
   ASSERT_TRUE(IsAligned<2u>(diff));
   ASSERT_GE(diff, 16 * MB - (1u << 22));  // Simple encoding, unknown bits fit into imm10:imm11:0.
@@ -725,7 +726,7 @@ void Thumb2RelativePatcherTest::TestBakerFieldWide(uint32_t offset, uint32_t ref
   Link();
 
   // All thunks are at the end.
-  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmAlignment);
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmCodeAlignment);
   method_idx = 0u;
   for (uint32_t base_reg : kBakerValidRegs) {
     for (uint32_t holder_reg : kBakerValidRegs) {
@@ -791,7 +792,7 @@ void Thumb2RelativePatcherTest::TestBakerFieldWide(uint32_t offset, uint32_t ref
       // Do not check the rest of the implementation.
 
       // The next thunk follows on the next aligned offset.
-      thunk_offset += RoundUp(expected_thunk.size(), kArmAlignment);
+      thunk_offset += RoundUp(expected_thunk.size(), kArmCodeAlignment);
     }
   }
 }
@@ -823,7 +824,7 @@ void Thumb2RelativePatcherTest::TestBakerFieldNarrow(uint32_t offset, uint32_t r
   Link();
 
   // All thunks are at the end.
-  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmAlignment);
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmCodeAlignment);
   method_idx = 0u;
   for (uint32_t base_reg : kBakerValidRegs) {
     if (base_reg >= 8u) {
@@ -892,7 +893,7 @@ void Thumb2RelativePatcherTest::TestBakerFieldNarrow(uint32_t offset, uint32_t r
       // Do not check the rest of the implementation.
 
       // The next thunk follows on the next aligned offset.
-      thunk_offset += RoundUp(expected_thunk.size(), kArmAlignment);
+      thunk_offset += RoundUp(expected_thunk.size(), kArmCodeAlignment);
     }
   }
 }
@@ -945,9 +946,10 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddle) {
 
   constexpr uint32_t expected_thunk_offset =
       kLiteralOffset1 + kPcAdjustment + /* kMaxBcondPositiveDisplacement */ ((1 << 20) - 2u);
-  static_assert(IsAligned<kArmAlignment>(expected_thunk_offset), "Target offset must be aligned.");
+  static_assert(IsAligned<kArmCodeAlignment>(expected_thunk_offset),
+                "Target offset must be aligned.");
   size_t filler1_size = expected_thunk_offset -
-                        RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmAlignment);
+                        RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmCodeAlignment);
   std::vector<uint8_t> raw_filler1_code = GenNops(filler1_size / 2u);
   ArrayRef<const uint8_t> filler1_code(raw_filler1_code);
   AddCompiledMethod(MethodRef(2u), filler1_code);
@@ -956,7 +958,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddle) {
   AddCompiledMethod(MethodRef(3u), kNopCode);
 
   constexpr uint32_t kLiteralOffset2 = 4;
-  static_assert(IsAligned<kArmAlignment>(kLiteralOffset2 + kPcAdjustment),
+  static_assert(IsAligned<kArmCodeAlignment>(kLiteralOffset2 + kPcAdjustment),
                 "PC for BNE must be aligned.");
 
   // Allow reaching the thunk from the very beginning of a method almost 1MiB away. Backward branch
@@ -968,8 +970,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddle) {
       CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0, /* narrow */ false).size();
   size_t filler2_size =
       1 * MB - (kLiteralOffset2 + kPcAdjustment)
-             - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArmAlignment)
-             - RoundUp(kNopCode.size() + sizeof(OatQuickMethodHeader), kArmAlignment)
+             - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArmCodeAlignment)
+             - RoundUp(kNopCode.size() + sizeof(OatQuickMethodHeader), kArmCodeAlignment)
              - sizeof(OatQuickMethodHeader);
   std::vector<uint8_t> raw_filler2_code = GenNops(filler2_size / 2u);
   ArrayRef<const uint8_t> filler2_code(raw_filler2_code);
@@ -1013,16 +1015,18 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkBeforeFiller) {
 
   constexpr uint32_t expected_thunk_offset =
       kLiteralOffset1 + kPcAdjustment + /* kMaxBcondPositiveDisplacement + 2 */ (1u << 20);
-  static_assert(IsAligned<kArmAlignment>(expected_thunk_offset), "Target offset must be aligned.");
+  static_assert(IsAligned<kArmCodeAlignment>(expected_thunk_offset),
+                "Target offset must be aligned.");
   size_t filler1_size = expected_thunk_offset -
-                        RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmAlignment);
+                        RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmCodeAlignment);
   std::vector<uint8_t> raw_filler1_code = GenNops(filler1_size / 2u);
   ArrayRef<const uint8_t> filler1_code(raw_filler1_code);
   AddCompiledMethod(MethodRef(2u), filler1_code);
 
   Link();
 
-  const uint32_t bne = BneWWithOffset(kLiteralOffset1, RoundUp(raw_code1.size(), kArmAlignment));
+  const uint32_t bne =
+      BneWWithOffset(kLiteralOffset1, RoundUp(raw_code1.size(), kArmCodeAlignment));
   const std::vector<uint8_t> expected_code1 = RawCode({kNopWInsn, bne, kLdrWInsn, kNopInsn});
   ASSERT_TRUE(CheckLinkedMethod(MethodRef(1), ArrayRef<const uint8_t>(expected_code1)));
 }
@@ -1043,9 +1047,10 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddleUnreachableFromLast
 
   constexpr uint32_t expected_thunk_offset =
       kLiteralOffset1 + kPcAdjustment + /* kMaxBcondPositiveDisplacement */ ((1 << 20) - 2u);
-  static_assert(IsAligned<kArmAlignment>(expected_thunk_offset), "Target offset must be aligned.");
+  static_assert(IsAligned<kArmCodeAlignment>(expected_thunk_offset),
+                "Target offset must be aligned.");
   size_t filler1_size = expected_thunk_offset -
-                        RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmAlignment);
+                        RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmCodeAlignment);
   std::vector<uint8_t> raw_filler1_code = GenNops(filler1_size / 2u);
   ArrayRef<const uint8_t> filler1_code(raw_filler1_code);
   AddCompiledMethod(MethodRef(2u), filler1_code);
@@ -1055,7 +1060,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddleUnreachableFromLast
 
   constexpr uint32_t kReachableFromOffset2 = 4;
   constexpr uint32_t kLiteralOffset2 = kReachableFromOffset2 + 2;
-  static_assert(IsAligned<kArmAlignment>(kReachableFromOffset2 + kPcAdjustment),
+  static_assert(IsAligned<kArmCodeAlignment>(kReachableFromOffset2 + kPcAdjustment),
                 "PC for BNE must be aligned.");
 
   // If not for the extra NOP, this would allow reaching the thunk from the BNE
@@ -1068,8 +1073,8 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddleUnreachableFromLast
       CompileBakerOffsetThunk(/* base_reg */ 0, /* holder_reg */ 0, /* narrow */ false).size();
   size_t filler2_size =
       1 * MB - (kReachableFromOffset2 + kPcAdjustment)
-             - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArmAlignment)
-             - RoundUp(kNopCode.size() + sizeof(OatQuickMethodHeader), kArmAlignment)
+             - RoundUp(thunk_size + sizeof(OatQuickMethodHeader), kArmCodeAlignment)
+             - RoundUp(kNopCode.size() + sizeof(OatQuickMethodHeader), kArmCodeAlignment)
              - sizeof(OatQuickMethodHeader);
   std::vector<uint8_t> raw_filler2_code = GenNops(filler2_size / 2u);
   ArrayRef<const uint8_t> filler2_code(raw_filler2_code);
@@ -1091,7 +1096,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerOffsetThunkInTheMiddleUnreachableFromLast
 
   const uint32_t bne_max_forward = kBneWPlus0 | 0x003f2fff;
   const uint32_t bne_last =
-      BneWWithOffset(kLiteralOffset2, RoundUp(raw_code2.size(), kArmAlignment));
+      BneWWithOffset(kLiteralOffset2, RoundUp(raw_code2.size(), kArmCodeAlignment));
   const std::vector<uint8_t> expected_code1 =
       RawCode({kNopWInsn, kNopInsn, bne_max_forward, kLdrWInsn});
   const std::vector<uint8_t> expected_code2 =
@@ -1123,7 +1128,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerArray) {
   Link();
 
   // All thunks are at the end.
-  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmAlignment);
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmCodeAlignment);
   method_idx = 0u;
   for (uint32_t base_reg : kBakerValidRegs) {
     ++method_idx;
@@ -1177,7 +1182,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerArray) {
     // Do not check the rest of the implementation.
 
     // The next thunk follows on the next aligned offset.
-    thunk_offset += RoundUp(expected_thunk.size(), kArmAlignment);
+    thunk_offset += RoundUp(expected_thunk.size(), kArmCodeAlignment);
   }
 }
 
@@ -1200,7 +1205,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRootWide) {
   Link();
 
   // All thunks are at the end.
-  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmAlignment);
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmCodeAlignment);
   method_idx = 0u;
   for (uint32_t root_reg : kBakerValidRegs) {
     ++method_idx;
@@ -1232,7 +1237,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRootWide) {
     // Do not check the rest of the implementation.
 
     // The next thunk follows on the next aligned offset.
-    thunk_offset += RoundUp(expected_thunk.size(), kArmAlignment);
+    thunk_offset += RoundUp(expected_thunk.size(), kArmCodeAlignment);
   }
 }
 
@@ -1255,7 +1260,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRootNarrow) {
   Link();
 
   // All thunks are at the end.
-  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmAlignment);
+  uint32_t thunk_offset = GetMethodOffset(method_idx) + RoundUp(kMethodCodeSize, kArmCodeAlignment);
   method_idx = 0u;
   for (uint32_t root_reg : kBakerValidRegsNarrow) {
     ++method_idx;
@@ -1281,7 +1286,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRootNarrow) {
     // Do not check the rest of the implementation.
 
     // The next thunk follows on the next aligned offset.
-    thunk_offset += RoundUp(expected_thunk.size(), kArmAlignment);
+    thunk_offset += RoundUp(expected_thunk.size(), kArmCodeAlignment);
   }
 }
 
@@ -1309,7 +1314,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerGcRootOffsetBits) {
   Link();
 
   // The thunk is right after the method code.
-  DCHECK_ALIGNED(1 * MB, kArmAlignment);
+  DCHECK_ALIGNED(1 * MB, kArmCodeAlignment);
   std::vector<uint8_t> expected_code;
   for (size_t i = 0; i != num_patches; ++i) {
     PushBackInsn(&expected_code, ldr);
@@ -1343,7 +1348,7 @@ TEST_F(Thumb2RelativePatcherTest, BakerAndMethodCallInteraction) {
   // Add a method with the right size that the method code for the next one starts 1MiB
   // after code for method 1.
   size_t filler_size =
-      1 * MB - RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmAlignment)
+      1 * MB - RoundUp(raw_code1.size() + sizeof(OatQuickMethodHeader), kArmCodeAlignment)
              - sizeof(OatQuickMethodHeader);
   std::vector<uint8_t> filler_code = GenNops(filler_size / 2u);
   ++method_idx;
@@ -1358,16 +1363,16 @@ TEST_F(Thumb2RelativePatcherTest, BakerAndMethodCallInteraction) {
   }
 
   // Add 2 Baker GC root patches to the last method, one that would allow the thunk at
-  // 1MiB + kArmAlignment, i.e. kArmAlignment after the method call thunk, and the
-  // second that needs it kArmAlignment after that. Given the size of the GC root thunk
-  // is more than the space required by the method call thunk plus kArmAlignment,
+  // 1MiB + kArmCodeAlignment, i.e. kArmCodeAlignment after the method call thunk, and the
+  // second that needs it kArmCodeAlignment after that. Given the size of the GC root thunk
+  // is more than the space required by the method call thunk plus kArmCodeAlignment,
   // this pushes the first GC root thunk's pending MaxNextOffset() before the method call
   // thunk's pending MaxNextOffset() which needs to be adjusted.
-  ASSERT_LT(RoundUp(CompileMethodCallThunk().size(), kArmAlignment) + kArmAlignment,
+  ASSERT_LT(RoundUp(CompileMethodCallThunk().size(), kArmCodeAlignment) + kArmCodeAlignment,
             CompileBakerGcRootThunk(/* root_reg */ 0, /* narrow */ false).size());
-  static_assert(kArmAlignment == 8, "Code below assumes kArmAlignment == 8");
-  constexpr size_t kBakerLiteralOffset1 = kArmAlignment + 2u - kPcAdjustment;
-  constexpr size_t kBakerLiteralOffset2 = kBakerLiteralOffset1 + kArmAlignment;
+  static_assert(kArmCodeAlignment == 8, "Code below assumes kArmCodeAlignment == 8");
+  constexpr size_t kBakerLiteralOffset1 = kArmCodeAlignment + 2u - kPcAdjustment;
+  constexpr size_t kBakerLiteralOffset2 = kBakerLiteralOffset1 + kArmCodeAlignment;
   // Use offset = 0, base_reg = 0, the LDR is simply `kLdrWInsn | (root_reg << 12)`.
   const uint32_t ldr1 = kLdrWInsn | (/* root_reg */ 1 << 12);
   const uint32_t ldr2 = kLdrWInsn | (/* root_reg */ 2 << 12);

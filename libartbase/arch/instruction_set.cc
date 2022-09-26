@@ -78,13 +78,13 @@ size_t GetInstructionSetAlignment(InstructionSet isa) {
     case InstructionSet::kArm:
       // Fall-through.
     case InstructionSet::kThumb2:
-      return kArmAlignment;
+      return kArmCodeAlignment;
     case InstructionSet::kArm64:
-      return kArm64Alignment;
+      return kArm64CodeAlignment;
     case InstructionSet::kX86:
       // Fall-through.
     case InstructionSet::kX86_64:
-      return kX86Alignment;
+      return kX86CodeAlignment;
     case InstructionSet::kNone:
       LOG(FATAL) << "ISA kNone does not have alignment.";
       UNREACHABLE();
