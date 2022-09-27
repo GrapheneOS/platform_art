@@ -377,13 +377,9 @@ void DumpNativeStack(std::ostream& os,
     os << prefix << StringPrintf("#%02zu pc ", frame.num);
     bool try_addr2line = false;
     if (frame.map_info == nullptr) {
-      os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIx64 "  ???"
-                                                            : "%08" PRIx64 "  ???",
-                         frame.pc);
+      os << StringPrintf("%08" PRIx64 "  ???", frame.pc);
     } else {
-      os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIx64 "  "
-                                                            : "%08" PRIx64 "  ",
-                         frame.rel_pc);
+      os << StringPrintf("%08" PRIx64 "  ", frame.rel_pc);
       const std::shared_ptr<unwindstack::MapInfo>& map_info = frame.map_info;
       if (map_info->name().empty()) {
         os << StringPrintf("<anonymous:%" PRIx64 ">", map_info->start());
