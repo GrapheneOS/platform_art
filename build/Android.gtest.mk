@@ -128,7 +128,6 @@ ART_TEST_MODULES_COMMON := \
     art_libprofile_tests \
     art_oatdump_tests \
     art_profman_tests \
-    art_runtime_compiler_tests \
     art_runtime_tests \
     art_sigchain_tests \
 

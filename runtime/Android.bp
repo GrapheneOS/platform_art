@@ -746,6 +746,7 @@ art_cc_defaults {
         ":art-gtest-jars-MyClass",
         ":art-gtest-jars-MyClassNatives",
         ":art-gtest-jars-Nested",
+        ":art-gtest-jars-NonStaticLeafMethods",
         ":art-gtest-jars-Packages",
         ":art-gtest-jars-ProfileTestMultiDex",
         ":art-gtest-jars-ProtoCompare",
@@ -842,6 +843,7 @@ art_cc_defaults {
         "prebuilt_tools_test.cc",
         "proxy_test.cc",
         "reference_table_test.cc",
+        "reflection_test.cc",
         "runtime_callbacks_test.cc",
         "runtime_test.cc",
         "subtype_check_info_test.cc",
@@ -898,59 +900,6 @@ art_cc_test {
     // `art_standalone_runtime_tests` to filter them out for now.
     // TODO(b/204649079): Investigate these failures and re-enable these tests.
     test_config: "art_standalone_runtime_tests.xml",
-}
-
-art_cc_defaults {
-    name: "art_runtime_compiler_tests_defaults",
-    tidy_timeout_srcs: [
-        "reflection_test.cc",
-    ],
-    srcs: [
-        "reflection_test.cc",
-    ],
-    data: [
-        ":art-gtest-jars-Main",
-        ":art-gtest-jars-NonStaticLeafMethods",
-        ":art-gtest-jars-StaticLeafMethods",
-    ],
-}
-
-// Version of ART gtest `art_runtime_compiler_tests` bundled with the ART APEX on target.
-// TODO(b/192274705): Remove this module when the migration to standalone ART gtests is complete.
-art_cc_test {
-    name: "art_runtime_compiler_tests",
-    defaults: [
-        "art_gtest_defaults",
-        "art_runtime_compiler_tests_defaults",
-    ],
-    shared_libs: [
-        "libartd-compiler",
-    ],
-    target: {
-        host: {
-            required: ["dex2oatd"],
-        },
-    },
-}
-
-// Standalone version of ART gtest `art_runtime_compiler_tests`, not bundled with the ART APEX on
-// target.
-art_cc_test {
-    name: "art_standalone_runtime_compiler_tests",
-    defaults: [
-        "art_standalone_gtest_defaults",
-        "art_runtime_compiler_tests_defaults",
-    ],
-    data: [":generate-boot-image"],
-    shared_libs: [
-        "libart-compiler",
-    ],
-    target: {
-        host: {
-            required: ["dex2oat"],
-        },
-    },
-    test_config: "art_standalone_runtime_compiler_tests.xml",
 }
 
 genrule {

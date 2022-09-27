@@ -74,14 +74,6 @@ class CommonCompilerTestImpl {
 
   void CompileMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void CompileDirectMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
-                           const char* method_name, const char* signature)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  void CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
-                            const char* method_name, const char* signature)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   void ApplyInstructionSet();
   void OverrideInstructionSetFeatures(InstructionSet instruction_set, const std::string& variant);
 
