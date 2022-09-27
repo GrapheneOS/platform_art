@@ -899,7 +899,7 @@ def write_dex2oat_cmdlines(name: str):
       # If no arguments need to be passed, just delete the odex file so that the runtime only picks up the vdex file.
       vdex_cmdline=f"rm {DEX_LOCATION}/oat/{ISA}/{name}.odex"
     else:
-      vdex_cmdline=f"{dex2oat_cmdline} {VDEX_ARGS} --input-vdex={DEX_LOCATION}/oat/{ISA}/{name}.vdex"
+      vdex_cmdline=f"{dex2oat_cmdline} {VDEX_ARGS} --compact-dex-level=none --input-vdex={DEX_LOCATION}/oat/{ISA}/{name}.vdex"
   elif TEST_DEX2OAT_DM:
     vdex_cmdline=f"{dex2oat_cmdline} {VDEX_ARGS} --dump-timings --dm-file={DEX_LOCATION}/oat/{ISA}/{name}.dm"
     dex2oat_cmdline=f"{dex2oat_cmdline} --copy-dex-files=false --output-vdex={DEX_LOCATION}/oat/{ISA}/primary.vdex"
