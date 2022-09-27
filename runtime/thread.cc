@@ -1397,15 +1397,19 @@ void Thread::ShortDump(std::ostream& os) const {
   tls32_.num_name_readers.fetch_sub(1 /* at least memory_order_release */);
 }
 
-void Thread::Dump(std::ostream& os, bool dump_native_stack, bool force_dump_stack) const {
+Thread::DumpOrder Thread::Dump(std::ostream& os,
+                               bool dump_native_stack,
+                               bool force_dump_stack) const {
   DumpState(os);
-  DumpStack(os, dump_native_stack, force_dump_stack);
+  return DumpStack(os, dump_native_stack, force_dump_stack);
 }
 
-void Thread::Dump(std::ostream& os, unwindstack::AndroidLocalUnwinder& unwinder,
-                  bool dump_native_stack, bool force_dump_stack) const {
+Thread::DumpOrder Thread::Dump(std::ostream& os,
+                               unwindstack::AndroidLocalUnwinder& unwinder,
+                               bool dump_native_stack,
+                               bool force_dump_stack) const {
   DumpState(os);
-  DumpStack(os, unwinder, dump_native_stack, force_dump_stack);
+  return DumpStack(os, unwinder, dump_native_stack, force_dump_stack);
 }
 
 ObjPtr<mirror::String> Thread::GetThreadName() const {
@@ -2207,11 +2211,13 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
         UNREACHABLE();
     }
     PrintObject(obj, msg, owner_tid);
+    num_blocked++;
   }
   void VisitLockedObject(ObjPtr<mirror::Object> obj)
       override
       REQUIRES_SHARED(Locks::mutator_lock_) {
     PrintObject(obj, "  - locked ", ThreadList::kInvalidThreadId);
+    num_locked++;
   }
 
   void PrintObject(ObjPtr<mirror::Object> obj,
@@ -2245,6 +2251,8 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
   ArtMethod* last_method;
   int last_line_number;
   size_t repetition_count;
+  size_t num_blocked = 0;
+  size_t num_locked = 0;
 };
 
 static bool ShouldShowNativeStack(const Thread* thread)
@@ -2276,7 +2284,9 @@ static bool ShouldShowNativeStack(const Thread* thread)
   return current_method != nullptr && current_method->IsNative();
 }
 
-void Thread::DumpJavaStack(std::ostream& os, bool check_suspended, bool dump_locks) const {
+Thread::DumpOrder Thread::DumpJavaStack(std::ostream& os,
+                                        bool check_suspended,
+                                        bool dump_locks) const {
   // Dumping the Java stack involves the verifier for locks. The verifier operates under the
   // assumption that there is no exception pending on entry. Thus, stash any pending exception.
   // Thread::Current() instead of this in case a thread is dumping the stack of another suspended
@@ -2287,19 +2297,28 @@ void Thread::DumpJavaStack(std::ostream& os, bool check_suspended, bool dump_loc
   StackDumpVisitor dumper(os, const_cast<Thread*>(this), context.get(),
                           !tls32_.throwing_OutOfMemoryError, check_suspended, dump_locks);
   dumper.WalkStack();
+  if (IsJitSensitiveThread()) {
+    return DumpOrder::kMain;
+  } else if (dumper.num_blocked > 0) {
+    return DumpOrder::kBlocked;
+  } else if (dumper.num_locked > 0) {
+    return DumpOrder::kLocked;
+  } else {
+    return DumpOrder::kDefault;
+  }
 }
 
-void Thread::DumpStack(std::ostream& os,
-                       bool dump_native_stack,
-                       bool force_dump_stack) const {
+Thread::DumpOrder Thread::DumpStack(std::ostream& os,
+                                    bool dump_native_stack,
+                                    bool force_dump_stack) const {
   unwindstack::AndroidLocalUnwinder unwinder;
-  DumpStack(os, unwinder, dump_native_stack, force_dump_stack);
+  return DumpStack(os, unwinder, dump_native_stack, force_dump_stack);
 }
 
-void Thread::DumpStack(std::ostream& os,
-                       unwindstack::AndroidLocalUnwinder& unwinder,
-                       bool dump_native_stack,
-                       bool force_dump_stack) const {
+Thread::DumpOrder Thread::DumpStack(std::ostream& os,
+                                    unwindstack::AndroidLocalUnwinder& unwinder,
+                                    bool dump_native_stack,
+                                    bool force_dump_stack) const {
   // TODO: we call this code when dying but may not have suspended the thread ourself. The
   //       IsSuspended check is therefore racy with the use for dumping (normally we inhibit
   //       the race with the thread_suspend_count_lock_).
@@ -2310,6 +2329,7 @@ void Thread::DumpStack(std::ostream& os,
     // thread's stack in debug builds where we'll hit the not suspended check in the stack walk.
     safe_to_dump = (safe_to_dump || dump_for_abort);
   }
+  DumpOrder dump_order = DumpOrder::kDefault;
   if (safe_to_dump || force_dump_stack) {
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_native_stack && (dump_for_abort || force_dump_stack || ShouldShowNativeStack(this))) {
@@ -2319,12 +2339,13 @@ void Thread::DumpStack(std::ostream& os,
                            /*abort_on_error=*/ !(dump_for_abort || force_dump_stack));
       DumpNativeStack(os, unwinder, GetTid(), "  native: ", method);
     }
-    DumpJavaStack(os,
-                  /*check_suspended=*/ !force_dump_stack,
-                  /*dump_locks=*/ !force_dump_stack);
+    dump_order = DumpJavaStack(os,
+                               /*check_suspended=*/ !force_dump_stack,
+                               /*dump_locks=*/ !force_dump_stack);
   } else {
     os << "Not able to dump stack of thread that isn't suspended";
   }
+  return dump_order;
 }
 
 void Thread::ThreadExitCallback(void* arg) {
