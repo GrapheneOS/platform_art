@@ -57,7 +57,7 @@ class ProfmanResult {
   // The return codes of running profman with `--copy-and-update-profile-key`.
   enum CopyAndUpdateResult {
     kCopyAndUpdateSuccess = 0,
-    kCopyAndUpdateNoUpdate = 21,
+    kCopyAndUpdateNoMatch = 21,
     kCopyAndUpdateErrorFailedToUpdateProfile = 22,
     kCopyAndUpdateErrorFailedToSaveProfile = 23,
     kCopyAndUpdateErrorFailedToLoadProfile = 24,

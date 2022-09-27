@@ -1045,7 +1045,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
   CreateFile(dex_file_);
 
   EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
-      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoUpdate));
+      .WillOnce(Return(ProfmanResult::kCopyAndUpdateNoMatch));
 
   bool result;
   EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
