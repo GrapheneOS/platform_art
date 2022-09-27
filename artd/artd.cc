@@ -489,7 +489,7 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
     return NonFatal("Failed to run profman: " + result.error().message());
   }
 
-  if (result.value() == ProfmanResult::kCopyAndUpdateNoUpdate) {
+  if (result.value() == ProfmanResult::kCopyAndUpdateNoMatch) {
     *_aidl_return = false;
     return ScopedAStatus::ok();
   }
