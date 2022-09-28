@@ -106,6 +106,9 @@ art_cc_library_static {
         "libartpalette",
         "libprofile",
     ],
+    static_libs: [
+        "libelffile",
+    ],
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
@@ -156,6 +159,9 @@ art_cc_library_static {
         "libartd",
         "libartpalette",
         "libprofiled",
+    ],
+    static_libs: [
+        "libelffiled",
     ],
     apex_available: [
         "com.android.art.debug",
@@ -565,6 +571,7 @@ art_cc_test {
         "libartd-compiler",
         "libartd-dex2oat",
         "libartd-dex2oat-gtest",
+        "libelffiled",
         "libvixld",
     ],
 }
@@ -587,6 +594,7 @@ art_cc_test {
         "libart-compiler",
         "libart-dex2oat",
         "libart-dex2oat-gtest",
+        "libelffile",
         "libvixl",
     ],
     test_config: "art_standalone_dex2oat_tests.xml",
