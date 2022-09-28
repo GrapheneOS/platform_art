@@ -1211,7 +1211,8 @@
                   "2036-structural-subclass-shadow",
                   "2038-hiddenapi-jvmti-ext",
                   "2040-huge-native-alloc",
-                  "2238-checker-polymorphic-recursive-inlining"],
+                  "2238-checker-polymorphic-recursive-inlining",
+                  "2240-tracing-non-invokable-method"],
         "variant": "jvm",
         "description": ["Doesn't run on RI."]
     },
