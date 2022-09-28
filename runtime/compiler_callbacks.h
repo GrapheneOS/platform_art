@@ -48,6 +48,7 @@ class CompilerCallbacks {
   virtual ~CompilerCallbacks() { }
 
   virtual void AddUncompilableMethod(MethodReference ref) = 0;
+  virtual void AddUncompilableClass(ClassReference ref) = 0;
   virtual void ClassRejected(ClassReference ref) = 0;
 
   virtual verifier::VerifierDeps* GetVerifierDeps() const = 0;

@@ -39,6 +39,7 @@ class VerificationResults {
   void AddRejectedClass(ClassReference ref) REQUIRES(!rejected_classes_lock_);
   bool IsClassRejected(ClassReference ref) const REQUIRES(!rejected_classes_lock_);
 
+  void AddUncompilableClass(ClassReference ref) REQUIRES(!uncompilable_methods_lock_);
   void AddUncompilableMethod(MethodReference ref) REQUIRES(!uncompilable_methods_lock_);
   bool IsUncompilableMethod(MethodReference ref) const REQUIRES(!uncompilable_methods_lock_);
 
