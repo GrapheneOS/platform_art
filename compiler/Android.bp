@@ -370,6 +370,7 @@ art_cc_defaults {
     data: [
         ":art-gtest-jars-ExceptionHandle",
         ":art-gtest-jars-Interfaces",
+        ":art-gtest-jars-Main",
         ":art-gtest-jars-MyClassNatives",
     ],
     tidy_timeout_srcs: [
@@ -382,6 +383,7 @@ art_cc_defaults {
         "optimizing/ssa_test.cc",
     ],
     srcs: [
+        "compiler_reflection_test.cc",
         "debug/dwarf/dwarf_test.cc",
         "debug/src_map_elem_test.cc",
         "driver/compiled_method_storage_test.cc",
