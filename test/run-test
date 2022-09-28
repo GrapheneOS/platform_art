@@ -77,7 +77,7 @@ cfg_output="graph.cfg"
 strace_output="strace-output.txt"
 lib="libartd.so"
 testlib="arttestd"
-run_args=(--quiet)
+run_args=()
 
 quiet="no"
 debuggable="no"
