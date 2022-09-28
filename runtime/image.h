@@ -520,6 +520,14 @@ std::ostream& operator<<(std::ostream& os, ImageHeader::StorageMode mode);
 
 std::ostream& operator<<(std::ostream& os, const ImageSection& section);
 
+// Wrapper over LZ4_decompress_safe() that checks if return value is negative. See b/242914915.
+bool LZ4_decompress_safe_checked(const char* source,
+                                 char* dest,
+                                 int compressed_size,
+                                 int max_decompressed_size,
+                                 /*out*/ size_t* decompressed_size_checked,
+                                 /*out*/ std::string* error_msg);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_IMAGE_H_
