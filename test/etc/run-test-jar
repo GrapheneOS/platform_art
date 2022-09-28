@@ -23,6 +23,8 @@ from typing import List
 from subprocess import DEVNULL, PIPE, STDOUT
 
 def export(env: str, value: str) -> None:
+  if VERBOSE:
+    print(f"EXPORT {env}={value}")
   os.environ[env] = value
   if env in globals():
     globals()[env] = value
@@ -37,7 +39,7 @@ ART_TEST_CMD_DIR = os.environ.get("ART_TEST_CMD_DIR")
 # This will make tests fail since there is no stdout.  Use with large -j value.
 ART_TEST_DRY_RUN = os.environ.get("ART_TEST_DRY_RUN")
 
-def run(cmdline: str, capture_output=True, check=True, save_cmd=True) -> subprocess.CompletedProcess:
+def run(cmdline: str, quiet=True, check=True, save_cmd=True) -> subprocess.CompletedProcess:
   if ART_TEST_CMD_DIR and save_cmd and cmdline != "true":
     tmp = os.environ["DEX_LOCATION"]
     with open(os.path.join(ART_TEST_CMD_DIR, os.environ["FULL_TEST_NAME"]), "a") as f:
@@ -49,14 +51,16 @@ def run(cmdline: str, capture_output=True, check=True, save_cmd=True) -> subproc
       f.write(re.sub(" +", "\n", cmdline).replace(tmp, "<tmp>") + "\n\n")
     if ART_TEST_DRY_RUN and ("dalvikvm" in cmdline or "adb shell chroot" in cmdline):
       cmdline = "true"  # We still need to run some command, so run the no-op "true" binary instead.
+  if VERBOSE:
+    print("$ " + cmdline + "\n")
   proc = subprocess.run([cmdline],
                         shell=True,
                         encoding="utf8",
-                        capture_output=capture_output)
-  if check and proc.returncode != 0:
-    print(proc.stdout or "", file=sys.stdout, flush=True)
-    print("$ " + cmdline + "\n", file=sys.stderr)
-    print(proc.stderr or "", file=sys.stderr, flush=True)
+                        capture_output=True)
+  if (check and proc.returncode != 0) or (not quiet) or VERBOSE:
+    print(proc.stdout or "", file=sys.stdout, end='', flush=True)
+    print(proc.stderr or "", file=sys.stderr, end='', flush=True)
+  if (check and proc.returncode != 0):
     raise Exception("Command returned exit code {}".format(proc.returncode))
   return proc
 
@@ -105,8 +109,8 @@ if not ANDROID_BUILD_TOP:
   sys.exit(1)
 
 def msg(msg: str):
-    if not QUIET:
-        print(msg)
+  if VERBOSE:
+    print(msg)
 
 argp, opt_bool = ArgumentParser(), BooleanOptionalAction
 argp.add_argument("--64", dest="is64", action='store_true')
@@ -130,7 +134,6 @@ argp.add_argument("--create-runner", action='store_true')
 argp.add_argument("--debug", action='store_true')
 argp.add_argument("--debug-agent")
 argp.add_argument("--debug-wrap-agent", action='store_true')
-argp.add_argument("--dev", action='store_true')
 argp.add_argument("--dex2oat-dm", action='store_true')
 argp.add_argument("--dex2oat-rt-timeout", type=int, default=360)  # The *hard* timeout.  6 min.
 argp.add_argument("--dex2oat-timeout", type=int, default=300)     # The "soft" timeout.  5 min.
@@ -161,7 +164,6 @@ argp.add_argument("--lib", default="")
 argp.add_argument("--optimize", default=True, action=opt_bool)
 argp.add_argument("--prebuild", default=True, action=opt_bool)
 argp.add_argument("--profile", action='store_true')
-argp.add_argument("--quiet", action='store_true')
 argp.add_argument("--random-profile", action='store_true')
 argp.add_argument("--relocate", default=False, action=opt_bool)
 argp.add_argument("--runtime-dm", action='store_true')
@@ -179,6 +181,7 @@ argp.add_argument("--timeout", default=0, type=int)
 argp.add_argument("--vdex", action='store_true')
 argp.add_argument("--vdex-arg", default=[], action='append')
 argp.add_argument("--vdex-filter")
+argp.add_argument("--verbose", action='store_true')
 argp.add_argument("--verify", default=True, action=opt_bool)
 argp.add_argument("--verify-soft-fail", action='store_true')
 argp.add_argument("--with-agent", default=[], action='append')
@@ -221,7 +224,7 @@ DEBUGGER="n"
 WITH_AGENT = args.with_agent
 DEBUGGER_AGENT = args.debug_agent
 WRAP_DEBUGGER_AGENT = args.debug_wrap_agent
-DEV_MODE = args.dev
+VERBOSE = args.verbose
 DEX2OAT_NDEBUG_BINARY="dex2oat32"
 DEX2OAT_DEBUG_BINARY="dex2oatd32"
 EXPERIMENTAL = args.experimental
@@ -255,7 +258,6 @@ TEST_DIRECTORY="nativetest"
 MAIN = args.test_args.pop(0)
 OPTIMIZE = args.optimize
 PREBUILD = args.prebuild
-QUIET = args.quiet
 RELOCATE = args.relocate
 SECONDARY_DEX=""
 TIME_OUT="n"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
@@ -390,7 +392,7 @@ if args.gdbserver_bin:
     GDBSERVER_HOST=arg
     GDBSERVER_DEVICE=arg
 if args.gdbserver or args.gdb or USE_GDB_DEX2OAT:
-    DEV_MODE=True
+    VERBOSE=True
     TIME_OUT="n"
 for arg in args.gdb_arg:
     GDB_ARGS+=f" {arg}"
@@ -588,8 +590,6 @@ if USE_JVM:
   # Xmx is necessary since we don't pass down the ART flags to JVM.
   # We pass the classes2 path whether it's used (src-multidex) or not.
   cmdline=f"{JAVA} {DEBUGGER_OPTS} {JVM_VERIFY_ARG} -Xmx256m -classpath classes:classes2 {FLAGS} {MAIN} {test_args} {ARGS}"
-  if DEV_MODE:
-    print(cmdline)
   if CREATE_RUNNER:
     with open("runit.sh", "w") as f:
       f.write("#!/bin/bash")
@@ -600,7 +600,7 @@ if USE_JVM:
     print(f"Runnable test script written to {pwd}/runit.sh")
     sys.exit(0)
   else:
-    exit_value=run(cmdline, check=False, capture_output=False).returncode
+    exit_value=run(cmdline, check=False, quiet=False).returncode
     sys.exit(exit_value)
 
 b_path=get_apex_bootclasspath(HOST)
@@ -760,22 +760,16 @@ if USE_ZIPAPEX:
   # TODO Currently this only works for linux_bionic zipapexes because those are
   # stripped and so small enough that the ulimit doesn't kill us.
   mkdir_locations+=f" {DEX_LOCATION}/zipapex"
-  zip_options="-qq"
-  if DEV_MODE:
-    zip_options=""
-  setupapex_cmdline=f"unzip -o -u {zip_options} {ZIPAPEX_LOC} apex_payload.zip -d {DEX_LOCATION}"
-  installapex_cmdline=f"unzip -o -u {zip_options} {DEX_LOCATION}/apex_payload.zip -d {DEX_LOCATION}/zipapex"
+  setupapex_cmdline=f"unzip -o -u {ZIPAPEX_LOC} apex_payload.zip -d {DEX_LOCATION}"
+  installapex_cmdline=f"unzip -o -u {DEX_LOCATION}/apex_payload.zip -d {DEX_LOCATION}/zipapex"
   ANDROID_ART_BIN_DIR=f"{DEX_LOCATION}/zipapex/bin"
 elif USE_EXTRACTED_ZIPAPEX:
   # Just symlink the zipapex binaries
   ANDROID_ART_BIN_DIR=f"{DEX_LOCATION}/zipapex/bin"
   # Force since some tests manually run this file twice.
-  ln_options=""
-  if DEV_MODE:
-    ln_options="--verbose"
   # If the {RUN} is executed multiple times we don't need to recreate the link
   installapex_test_cmdline=f"test -L {DEX_LOCATION}/zipapex"
-  installapex_cmdline=f"ln -s -f {ln_options} {EXTRACTED_ZIPAPEX_LOC} {DEX_LOCATION}/zipapex"
+  installapex_cmdline=f"ln -s -f --verbose {EXTRACTED_ZIPAPEX_LOC} {DEX_LOCATION}/zipapex"
 
 # PROFILE takes precedence over RANDOM_PROFILE, since PROFILE tests require a
 # specific profile to run properly.
@@ -1011,7 +1005,7 @@ RUN_TEST_ASAN_OPTIONS=f"{RUN_TEST_ASAN_OPTIONS}detect_leaks=0"
 # For running, we must turn off logging when dex2oat is missing. Otherwise we use
 # the same defaults as for prebuilt: everything when --dev, otherwise errors and above only.
 if not EXTERNAL_LOG_TAGS:
-  if DEV_MODE:
+  if VERBOSE:
       export("ANDROID_LOG_TAGS", '*:d')
   elif not HAVE_IMAGE:
       # All tests would log the error of missing image. Be silent here and only log fatal
@@ -1024,30 +1018,17 @@ if not EXTERNAL_LOG_TAGS:
 if not HOST:
     adb.root()
     adb.wait_for_device()
-    if not QUIET:
-      adb.shell(f"rm -rf {CHROOT_DEX_LOCATION}", capture_output=False)
-      adb.shell(f"mkdir -p {CHROOT_DEX_LOCATION}", capture_output=False)
-      adb.push(f"{TEST_NAME}.jar", CHROOT_DEX_LOCATION, capture_output=False)
-      adb.push(f"{TEST_NAME}-ex.jar", CHROOT_DEX_LOCATION, check=False, capture_output=False)
-      adb.push(f"{TEST_NAME}-aotex.jar", CHROOT_DEX_LOCATION, check=False, capture_output=False)
-      adb.push(f"{TEST_NAME}-bcpex.jar", CHROOT_DEX_LOCATION, check=False, capture_output=False)
-      if PROFILE or RANDOM_PROFILE:
-        adb.push("profile", CHROOT_DEX_LOCATION, check=False, capture_output=False)
-      # Copy resource folder
-      if isdir("res"):
-        adb.push("res", CHROOT_DEX_LOCATION, capture_output=False)
-    else:
-      adb.shell(f"rm -rf {CHROOT_DEX_LOCATION}")
-      adb.shell(f"mkdir -p {CHROOT_DEX_LOCATION}")
-      adb.push(f"{TEST_NAME}.jar", CHROOT_DEX_LOCATION)
-      adb.push(f"{TEST_NAME}-ex.jar", CHROOT_DEX_LOCATION, check=False)
-      adb.push(f"{TEST_NAME}-aotex.jar", CHROOT_DEX_LOCATION, check=False)
-      adb.push(f"{TEST_NAME}-bcpex.jar", CHROOT_DEX_LOCATION, check=False)
-      if PROFILE or RANDOM_PROFILE:
-        adb.push("profile", CHROOT_DEX_LOCATION, check=False)
-      # Copy resource folder
-      if isdir("res"):
-        adb.push("res", CHROOT_DEX_LOCATION)
+    adb.shell(f"rm -rf {CHROOT_DEX_LOCATION}")
+    adb.shell(f"mkdir -p {CHROOT_DEX_LOCATION}")
+    adb.push(f"{TEST_NAME}.jar", CHROOT_DEX_LOCATION)
+    adb.push(f"{TEST_NAME}-ex.jar", CHROOT_DEX_LOCATION, check=False)
+    adb.push(f"{TEST_NAME}-aotex.jar", CHROOT_DEX_LOCATION, check=False)
+    adb.push(f"{TEST_NAME}-bcpex.jar", CHROOT_DEX_LOCATION, check=False)
+    if PROFILE or RANDOM_PROFILE:
+      adb.push("profile", CHROOT_DEX_LOCATION, check=False)
+    # Copy resource folder
+    if isdir("res"):
+      adb.push("res", CHROOT_DEX_LOCATION)
 
     # Populate LD_LIBRARY_PATH.
     LD_LIBRARY_PATH=""
@@ -1154,24 +1135,21 @@ if not HOST:
 
     run('echo cmdline.sh "' + cmdline.replace('"', '\\"') + '"')
 
-    if DEV_MODE:
+    if VERBOSE:
       print(cmdline)
       if USE_GDB or USE_GDBSERVER:
         print(f"Forward {GDBSERVER_PORT} to local port and connect GDB")
 
-    if not QUIET:
-      adb.push(cmdfile, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False, capture_output=False)
-    else:
-      adb.push(cmdfile, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False)
+    adb.push(cmdfile, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False)
 
     exit_status=0
     if not DRY_RUN:
       if CHROOT:
         exit_status=adb.shell(f"chroot {CHROOT} sh {DEX_LOCATION}/cmdline.sh",
-                              check=False, capture_output=False).returncode
+                              check=False, quiet=False).returncode
       else:
         exit_status=adb.shell(f"sh {DEX_LOCATION}/cmdline.sh",
-                              check=False ,capture_output=False).returncode
+                              check=False, quiet=False).returncode
 
     run(f'rm -f {cmdfile}', save_cmd=False)
     sys.exit(exit_status)
@@ -1208,7 +1186,7 @@ else:
         TIME_OUT="timeout"
       else:
         # Check if gdb is available.
-        proc = run('gdb --eval-command="quit"', check=False, save_cmd=False, capture_output=True)
+        proc = run('gdb --eval-command="quit"', check=False, save_cmd=False)
         if proc.returncode != 0:
           # gdb isn't available. Fall back to timeout.
           TIME_OUT="timeout"
@@ -1223,13 +1201,6 @@ else:
       # Note: Using "--foreground" to not propagate the signal to children, i.e., the runtime.
       cmdline=f"timeout --foreground -k 120s {TIME_OUT_VALUE}s {TIMEOUT_DUMPER} -s 15 {cmdline}"
 
-    if DEV_MODE:
-      for var in "ANDROID_PRINTF_LOG ANDROID_DATA ANDROID_ROOT ANDROID_I18N_ROOT ANDROID_TZDATA_ROOT ANDROID_ART_ROOT LD_LIBRARY_PATH DYLD_LIBRARY_PATH PATH LD_USE_LOAD_BIAS".split(" "):
-        value = os.environ.get(var, "")
-        print(f"echo EXPORT {var}={value}")
-      print("$(declare -f linkdirs)")
-      print(f"mkdir -p {mkdir_locations} && {setupapex_cmdline} && ( {installapex_test_cmdline} || {installapex_cmdline} ) && {linkroot_cmdline} && {linkroot_overlay_cmdline} && {profman_cmdline} && {dex2oat_cmdline} && {dm_cmdline} && {vdex_cmdline} && {strip_cmdline} && {sync_cmdline} && {cmdline}")
-
     os.chdir(ANDROID_BUILD_TOP)
 
     # Make sure we delete any existing compiler artifacts.
@@ -1241,17 +1212,17 @@ else:
     export("ASAN_OPTIONS", RUN_TEST_ASAN_OPTIONS)
 
     run(f"mkdir -p {mkdir_locations}", save_cmd=False)
-    run(setupapex_cmdline, capture_output=False)
-    if run(installapex_test_cmdline, check=False, capture_output=False).returncode != 0:
-      run(installapex_cmdline, capture_output=False)
-    run(linkroot_cmdline, capture_output=False)
-    run(linkroot_overlay_cmdline, capture_output=False)
-    run(profman_cmdline, capture_output=False)
-    run(dex2oat_cmdline, capture_output=False)
-    run(dm_cmdline, capture_output=False)
-    run(vdex_cmdline, capture_output=False)
-    run(strip_cmdline, capture_output=False)
-    run(sync_cmdline, capture_output=False)
+    run(setupapex_cmdline)
+    if run(installapex_test_cmdline, check=False).returncode != 0:
+      run(installapex_cmdline)
+    run(linkroot_cmdline)
+    run(linkroot_overlay_cmdline)
+    run(profman_cmdline)
+    run(dex2oat_cmdline)
+    run(dm_cmdline)
+    run(vdex_cmdline)
+    run(strip_cmdline)
+    run(sync_cmdline)
 
     if CREATE_RUNNER:
       with open(f"{DEX_LOCATION}/runit.sh", "w") as f:
@@ -1259,7 +1230,7 @@ else:
         for var in "ANDROID_PRINTF_LOG ANDROID_DATA ANDROID_ROOT ANDROID_I18N_ROOT ANDROID_TZDATA_ROOT ANDROID_ART_ROOT LD_LIBRARY_PATH DYLD_LIBRARY_PATH PATH LD_USE_LOAD_BIAS".split(" "):
           value = os.environ.get(var, "")
           f.write(f'export {var}="{value}"')
-        if DEV_MODE:
+        if VERBOSE:
           f.write(cmdline)
         else:
           f.writelines([
@@ -1295,7 +1266,7 @@ else:
       subprocess.run(cmdline + test_args, shell=True)
     else:
       if TIME_OUT != "gdb":
-        proc = run(cmdline + test_args, check=False, capture_output=False)
+        proc = run(cmdline + test_args, check=False, quiet=False)
         exit_value=proc.returncode
         # Add extra detail if time out is enabled.
         if exit_value == 124 and TIME_OUT == "timeout":
