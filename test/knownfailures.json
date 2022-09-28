@@ -81,7 +81,7 @@
     },
     {
         "tests" : "629-vdex-speed",
-        "variant": "interp-ac | interpreter | jit",
+        "variant": "interp-ac | interpreter | no-prebuild",
         "description": "629 requires compilation."
     },
     {
@@ -381,12 +381,6 @@
                   "2041-bad-cleaner"],
         "bug": "http://b/36377828",
         "variant": "interp-ac"
-    },
-    {
-        "tests": ["629-vdex-speed",
-                  "634-vdex-duplicate"],
-        "description": ["Profile driven dexlayout does not work with vdex or dex verifier."],
-        "variant": "speed-profile"
     },
     {
         "test_patterns": ["616-cha.*"],
@@ -712,10 +706,9 @@
         "description": "Test disabled due to redefine-stress disabling intrinsics which changes the trace output slightly."
     },
     {
-        "tests": ["137-cfi", "629-vdex-speed"],
-        "description": [ "Tests require speed compilation which is no longer the default for",
-                          "no-prebuild or no-image configs."],
-        "variant": "no-prebuild | no-image"
+        "tests": ["137-cfi"],
+        "description": [ "Tests require speed compilation which is no longer the default for no-prebuild"],
+        "variant": "no-prebuild"
     },
     {
         "tests": ["059-finalizer-throw", "063-process-manager"],
@@ -758,13 +751,6 @@
         "tests": "664-aget-verifier",
         "description": ["Aget on potentially null array fails verification."],
         "bug": "b/64683522"
-    },
-    {
-        "tests": ["628-vdex",
-                  "629-vdex-speed",
-                  "634-vdex-duplicate"],
-        "variant": "cdex-fast",
-        "description": ["Tests that depend on input-vdex are not supported with compact dex"]
     },
     {
         "tests": ["661-oat-writer-layout"],
