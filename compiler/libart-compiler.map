@@ -1,47 +1,38 @@
+#
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 ART_COMPILER {
-global:
-    global:
-        extern "C++" {
-            # TODO(b/247611526): replace more long unmangled names with simple glob patterns
-            "art::CompiledCode::CodeDelta() const";
-            "art::CompiledCode::CodeDelta(art::InstructionSet)";
-            "art::CompiledCode::CodePointer(void const*, art::InstructionSet)";
-            "art::CompiledMethodStorage::CompiledMethodStorage(int)";
-            "art::CompiledMethodStorage::UniqueVMapTableEntries() const";
-            "art::CompiledMethodStorage::~CompiledMethodStorage()";
-            "art::Compiler::Create(art::CompilerOptions const&, art::CompiledMethodStorage*, art::Compiler::Kind)";
-            "art::CompilerOptions::CompilerOptions()";
-            "art::CompilerOptions::GetVerificationResults() const";
-            "art::CompilerOptions::IsImageClass(char const*) const";
-            "art::CompilerOptions::IsPreloadedClass(char const*) const";
-            "art::CompilerOptions::ShouldCompileWithClinitCheck(art::ArtMethod*) const";
-            "art::CompilerOptions::~CompilerOptions()";
-            "art::CreateTrampoline32(art::InstructionSet, art::EntryPointCallingConvention, art::ThreadOffset<(art::PointerSize)4>)";
-            "art::CreateTrampoline64(art::InstructionSet, art::EntryPointCallingConvention, art::ThreadOffset<(art::PointerSize)8>)";
-            "art::VerificationResults::AddRejectedClass(art::ClassReference)";
-            "art::VerificationResults::AddUncompilableMethod(art::MethodReference)";
-            "art::VerificationResults::IsClassRejected(art::ClassReference) const";
-            "art::VerificationResults::IsUncompilableMethod(art::MethodReference) const";
-            "art::VerificationResults::VerificationResults()";
-            "art::VerificationResults::~VerificationResults()";
-            "void art::debug::WriteDebugInfo<art::ElfTypes32>(art::ElfBuilder<art::ElfTypes32>*, art::debug::DebugInfo const&)";
-            "void art::debug::WriteDebugInfo<art::ElfTypes64>(art::ElfBuilder<art::ElfTypes64>*, art::debug::DebugInfo const&)";
-            art::CompiledCode::AlignCode*;
-            art::CompiledMethod::*;
-            art::CompiledMethodStorage::DumpMemoryUsage*;
-            art::CompiledMethodStorage::GetThunkCode*;
-            art::CompilerOptions::ParseDumpInitFailures*;
-            art::CompilerOptions::ParseRegisterAllocationStrategy*;
-            art::IntrinsicObjects*;
-            art::debug::MakeMiniDebugInfo*;
-            art::linker::operator*;
-            art::operator*;
-        };
+  global:
+    extern "C++" {
+      *art::debug::WriteDebugInfo*;
+      art::CompiledCode::*;
+      art::CompiledMethod::*;
+      art::CompiledMethodStorage::*;
+      art::Compiler::Create*;
+      art::CompilerOptions::*;
+      art::CreateTrampoline*;
+      art::IntrinsicObjects::*;
+      art::VerificationResults::*;
+      art::debug::MakeMiniDebugInfo*;
+      art::linker::operator*art::linker::LinkerPatch::Type*;
+      art::operator*art::Whence*;
+    };
 
-        jit_load;
+    jit_load;
 
-    local:
-        *;
+  local:
+    *;
 };
-
