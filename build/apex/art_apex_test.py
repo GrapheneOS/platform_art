@@ -692,7 +692,6 @@ class TestingTargetChecker:
     self._checker.check_art_test_executable('art_oatdump_tests')
     self._checker.check_art_test_executable('art_odrefresh_tests')
     self._checker.check_art_test_executable('art_profman_tests')
-    self._checker.check_art_test_executable('art_runtime_compiler_tests')
     self._checker.check_art_test_executable('art_runtime_tests')
     self._checker.check_art_test_executable('art_sigchain_tests')
 

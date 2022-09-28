@@ -1295,9 +1295,6 @@
       "name": "art_standalone_profman_tests[com.google.android.art.apex]"
     },
     {
-      "name": "art_standalone_runtime_compiler_tests[com.google.android.art.apex]"
-    },
-    {
       "name": "art_standalone_runtime_tests[com.google.android.art.apex]"
     },
     {
@@ -2623,9 +2620,6 @@
       "name": "art_standalone_profman_tests"
     },
     {
-      "name": "art_standalone_runtime_compiler_tests"
-    },
-    {
       "name": "art_standalone_runtime_tests"
     },
     {
@@ -3943,9 +3937,6 @@
     },
     {
       "name": "art_standalone_profman_tests"
-    },
-    {
-      "name": "art_standalone_runtime_compiler_tests"
     },
     {
       "name": "art_standalone_runtime_tests"
