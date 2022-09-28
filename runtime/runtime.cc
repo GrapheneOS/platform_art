@@ -3201,6 +3201,9 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
     auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : klass->GetMethods(pointer_size)) {
       const void* code = m.GetEntryPointFromQuickCompiledCode();
+      if (!m.IsInvokable()) {
+        continue;
+      }
       // For java debuggable runtimes we also deoptimize native methods. For other cases (boot
       // image profiling) we don't need to deoptimize native methods. If this changes also
       // update Instrumentation::CanUseAotCode.
