@@ -20,13 +20,13 @@
 # that defines the exported interface. Please keep in sync with this list.
 LIBNATIVELOADER_1 {
   global:
-    OpenNativeLibrary;
-    CloseNativeLibrary;
-    OpenNativeLibraryInNamespace;
-    FindNamespaceByClassLoader;
-    FindNativeLoaderNamespaceByClassLoader;
-    CreateClassLoaderNamespace;
-    NativeLoaderFreeErrorMessage;
+    OpenNativeLibrary; # apex
+    CloseNativeLibrary; # apex
+    OpenNativeLibraryInNamespace; # apex
+    FindNamespaceByClassLoader; # apex
+    FindNativeLoaderNamespaceByClassLoader; # apex
+    CreateClassLoaderNamespace; # apex
+    NativeLoaderFreeErrorMessage; # apex
   local:
     *;
 };
