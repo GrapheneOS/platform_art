@@ -122,7 +122,8 @@ LIBCORE_TEST_NAMES = [
   "test.java.lang.Long",
   # Sharded test.java.lang.StrictMath
   "test.java.lang.StrictMath.CubeRootTests",
-  "test.java.lang.StrictMath.ExactArithTests",
+  # TODO: disable the test until b/248208762 is fixed.
+  # "test.java.lang.StrictMath.ExactArithTests",
   "test.java.lang.StrictMath.Expm1Tests",
   "test.java.lang.StrictMath.ExpTests",
   "test.java.lang.StrictMath.HyperbolicTests",
