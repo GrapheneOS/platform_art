@@ -48,6 +48,7 @@
         <option name="push" value="art-gtest-jars-MyClass.jar->/data/local/tmp/art_standalone_runtime_tests/art-gtest-jars-MyClass.jar" />
         <option name="push" value="art-gtest-jars-MyClassNatives.jar->/data/local/tmp/art_standalone_runtime_tests/art-gtest-jars-MyClassNatives.jar" />
         <option name="push" value="art-gtest-jars-Nested.jar->/data/local/tmp/art_standalone_runtime_tests/art-gtest-jars-Nested.jar" />
+        <option name="push" value="art-gtest-jars-NonStaticLeafMethods.jar->/data/local/tmp/art_standalone_runtime_tests/art-gtest-jars-NonStaticLeafMethods.jar" />
         <option name="push" value="art-gtest-jars-Packages.jar->/data/local/tmp/art_standalone_runtime_tests/art-gtest-jars-Packages.jar" />
         <option name="push" value="art-gtest-jars-ProfileTestMultiDex.jar->/data/local/tmp/art_standalone_runtime_tests/art-gtest-jars-ProfileTestMultiDex.jar" />
         <option name="push" value="art-gtest-jars-ProtoCompare.jar->/data/local/tmp/art_standalone_runtime_tests/art-gtest-jars-ProtoCompare.jar" />
