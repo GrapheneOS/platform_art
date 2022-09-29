@@ -3891,7 +3891,7 @@ void Heap::ConcurrentGC(Thread* self, GcCause cause, bool force_full, uint32_t r
       }
       // If we can't run the GC type we wanted to run, find the next appropriate one and try
       // that instead. E.g. can't do partial, so do full instead.
-      // We must ensure that we run something that ends up inrementing gcs_completed_.
+      // We must ensure that we run something that ends up incrementing gcs_completed_.
       // In the kGcTypePartial case, the initial CollectGarbageInternal call may not have that
       // effect, but the subsequent KGcTypeFull call will.
       if (CollectGarbageInternal(next_gc_type, cause, false, requested_gc_num)
