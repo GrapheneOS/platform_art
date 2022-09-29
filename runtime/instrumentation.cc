@@ -361,6 +361,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
            Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(
                method->GetEntryPointFromQuickCompiledCode()));
     UpdateEntryPoints(method, GetQuickToInterpreterBridge());
+    return;
   }
 
   // Use instrumentation entrypoints if instrumentation is installed.
