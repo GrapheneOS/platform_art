@@ -322,17 +322,17 @@ static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFET
   return code <= pc && pc <= (code + code_size);
 }
 
-// Remove method parameters by finding matching parenthesis and removing that substring.
-std::string_view StripParameters(std::string_view name) {
-  if (name.empty() || *name.rbegin() != ')') {
-    return name;
-  }
+// Remove method parameters by finding matching top-level parenthesis and removing them.
+// Since functions can be defined inside functions, this can remove multiple substrings.
+std::string StripParameters(std::string name) {
+  size_t end = name.size();
   int nesting = 0;
   for (ssize_t i = name.size() - 1; i > 0; i--) {
-    if (name[i] == ')') {
-      nesting++;
-    } else if (name[i] == '(' && --nesting == 0) {
-      return name.substr(0, i);
+    if (name[i] == ')' && nesting++ == 0) {
+      end = i + 1;
+    }
+    if (name[i] == '(' && --nesting == 0) {
+      name = name.erase(i, end - i);
     }
   }
   return name;
