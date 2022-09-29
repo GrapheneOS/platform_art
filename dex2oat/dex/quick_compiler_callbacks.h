@@ -34,6 +34,7 @@ class QuickCompilerCallbacks final : public CompilerCallbacks {
   ~QuickCompilerCallbacks() { }
 
   void AddUncompilableMethod(MethodReference ref) override;
+  void AddUncompilableClass(ClassReference ref) override;
 
   void ClassRejected(ClassReference ref) override;
 

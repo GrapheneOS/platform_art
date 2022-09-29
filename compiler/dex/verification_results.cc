@@ -20,6 +20,7 @@
 
 #include "base/mutex-inl.h"
 #include "base/stl_util.h"
+#include "dex/class_accessor-inl.h"
 #include "runtime.h"
 #include "thread-current-inl.h"
 #include "thread.h"
@@ -53,6 +54,17 @@ void VerificationResults::AddUncompilableMethod(MethodReference ref) {
     uncompilable_methods_.insert(ref);
   }
   DCHECK(IsUncompilableMethod(ref));
+}
+
+void VerificationResults::AddUncompilableClass(ClassReference ref) {
+  const DexFile& dex_file = *ref.dex_file;
+  const dex::ClassDef& class_def = dex_file.GetClassDef(ref.ClassDefIdx());
+  WriterMutexLock mu(Thread::Current(), uncompilable_methods_lock_);
+  ClassAccessor accessor(dex_file, class_def);
+  for (const ClassAccessor::Method& method : accessor.GetMethods()) {
+    MethodReference method_ref(&dex_file, method.GetIndex());
+    uncompilable_methods_.insert(method_ref);
+  }
 }
 
 bool VerificationResults::IsUncompilableMethod(MethodReference ref) const {

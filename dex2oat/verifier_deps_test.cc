@@ -47,6 +47,7 @@ class VerifierDepsCompilerCallbacks : public CompilerCallbacks {
         deps_(nullptr) {}
 
   void AddUncompilableMethod(MethodReference ref ATTRIBUTE_UNUSED) override {}
+  void AddUncompilableClass(ClassReference ref ATTRIBUTE_UNUSED) override {}
   void ClassRejected(ClassReference ref ATTRIBUTE_UNUSED) override {}
 
   verifier::VerifierDeps* GetVerifierDeps() const override { return deps_; }
