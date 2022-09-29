@@ -1020,9 +1020,25 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     VisitSetLocation(instruction, idx, instruction->GetValue());
   }
 
+  static bool IsBlockInsideATry(HBasicBlock* block) {
+    TryCatchInformation* try_catch_info = block->GetTryCatchInformation();
+    if (try_catch_info == nullptr) {
+      return false;
+    }
+
+    if (try_catch_info->IsTryBlock()) {
+      return true;
+    }
+
+    DCHECK(try_catch_info->IsCatchBlock());
+
+    // The catch block has an xhandler iff it is inside of an outer try.
+    return block->GetExceptionalSuccessors().size() != 0;
+  }
+
   void VisitDeoptimize(HDeoptimize* instruction) override {
-    // If we are in a try catch, even singletons are observable.
-    const bool in_try_catch = instruction->GetBlock()->GetTryCatchInformation() != nullptr;
+    // If we are in a try, even singletons are observable.
+    const bool inside_a_try = IsBlockInsideATry(instruction->GetBlock());
     HBasicBlock* block = instruction->GetBlock();
     ScopedArenaVector<ValueRecord>& heap_values = heap_values_for_[block->GetBlockId()];
     for (size_t i = 0u, size = heap_values.size(); i != size; ++i) {
@@ -1034,7 +1050,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
       // for singletons that don't escape in the deoptimization environment.
       bool observable = true;
       ReferenceInfo* info = heap_location_collector_.GetHeapLocation(i)->GetReferenceInfo();
-      if (!in_try_catch && info->IsSingleton()) {
+      if (!inside_a_try && info->IsSingleton()) {
         HInstruction* reference = info->GetReference();
         // Finalizable objects always escape.
         const bool finalizable_object =
@@ -1080,10 +1096,8 @@ class LSEVisitor final : private HGraphDelegateVisitor {
 
   void HandleThrowingInstruction(HInstruction* instruction) {
     DCHECK(instruction->CanThrow());
-    // If we are inside of a try catch, singletons can become visible since we may not exit the
-    // method.
-    HandleExit(instruction->GetBlock(),
-               instruction->GetBlock()->GetTryCatchInformation() != nullptr);
+    // If we are inside of a try, singletons can become visible since we may not exit the method.
+    HandleExit(instruction->GetBlock(), IsBlockInsideATry(instruction->GetBlock()));
   }
 
   void VisitMethodEntryHook(HMethodEntryHook* method_entry) override {
@@ -1147,9 +1161,9 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   void HandleInvoke(HInstruction* instruction) {
     // If `instruction` can throw we have to presume all stores are visible.
     const bool can_throw = instruction->CanThrow();
-    // If we are in a try catch, even singletons are observable.
-    const bool can_throw_in_try_catch =
-        can_throw && instruction->GetBlock()->GetTryCatchInformation() != nullptr;
+    // If we are in a try, even singletons are observable.
+    const bool can_throw_inside_a_try =
+        can_throw && IsBlockInsideATry(instruction->GetBlock());
     SideEffects side_effects = instruction->GetSideEffects();
     ScopedArenaVector<ValueRecord>& heap_values =
         heap_values_for_[instruction->GetBlock()->GetBlockId()];
@@ -1175,7 +1189,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
                               return cohort.PrecedesBlock(blk);
                             });
       };
-      if (!can_throw_in_try_catch &&
+      if (!can_throw_inside_a_try &&
           (ref_info->IsSingleton() ||
            // partial and we aren't currently escaping and we haven't escaped yet.
            (ref_info->IsPartialSingleton() && partial_singleton_did_not_escape(ref_info, blk)))) {
@@ -1224,8 +1238,8 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   void VisitNewInstance(HNewInstance* new_instance) override {
-    // If we are in a try catch, even singletons are observable.
-    const bool in_try_catch = new_instance->GetBlock()->GetTryCatchInformation() != nullptr;
+    // If we are in a try, even singletons are observable.
+    const bool inside_a_try = IsBlockInsideATry(new_instance->GetBlock());
     ReferenceInfo* ref_info = heap_location_collector_.FindReferenceInfoOf(new_instance);
     if (ref_info == nullptr) {
       // new_instance isn't used for field accesses. No need to process it.
@@ -1254,7 +1268,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
           heap_values[i].value = Value::ForInstruction(new_instance->GetLoadClass());
           heap_values[i].stored_by = Value::PureUnknown();
         }
-      } else if (in_try_catch || IsEscapingObject(info, block, i)) {
+      } else if (inside_a_try || IsEscapingObject(info, block, i)) {
         // Since NewInstance can throw, we presume all previous stores could be visible.
         KeepStores(heap_values[i].stored_by);
         heap_values[i].stored_by = Value::PureUnknown();
@@ -1263,8 +1277,8 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   void VisitNewArray(HNewArray* new_array) override {
-    // If we are in a try catch, even singletons are observable.
-    const bool in_try_catch = new_array->GetBlock()->GetTryCatchInformation() != nullptr;
+    // If we are in a try, even singletons are observable.
+    const bool inside_a_try = IsBlockInsideATry(new_array->GetBlock());
     ReferenceInfo* ref_info = heap_location_collector_.FindReferenceInfoOf(new_array);
     if (ref_info == nullptr) {
       // new_array isn't used for array accesses. No need to process it.
@@ -1289,7 +1303,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
         // Array elements are set to default heap values.
         heap_values[i].value = Value::Default();
         heap_values[i].stored_by = Value::PureUnknown();
-      } else if (in_try_catch || IsEscapingObject(info, block, i)) {
+      } else if (inside_a_try || IsEscapingObject(info, block, i)) {
         // Since NewArray can throw, we presume all previous stores could be visible.
         KeepStores(heap_values[i].stored_by);
         heap_values[i].stored_by = Value::PureUnknown();
