@@ -30,7 +30,11 @@ public class Main {
     assertEquals(1, $noinline$testTryCatchBlocking(new Point(), boolean_throw));
     assertEquals(1, $noinline$testTryCatchPhi(new Point(), boolean_throw));
     assertEquals(2, $noinline$testTryCatchPhiWithTwoCatches(new Point(), new int[0]));
-    assertEquals(1, $noinline$testKeepStoreInsideTryCatch());
+    assertEquals(1, $noinline$testKeepStoreInsideTry());
+    assertEquals(10, $noinline$testDontKeepStoreInsideCatch(new int[]{10}));
+    assertEquals(30, $noinline$testDontKeepStoreInsideCatch(new int[]{}));
+    assertEquals(10, $noinline$testKeepStoreInsideCatchWithOuterTry(new int[]{10}));
+    assertEquals(30, $noinline$testKeepStoreInsideCatchWithOuterTry(new int[]{}));
     assertEquals(150, $noinline$test40());
   }
 
@@ -205,17 +209,17 @@ public class Main {
   // is observable.
 
   // Consistency check to make sure the try/catch wasn't removed by an earlier pass.
-  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTryCatch() load_store_elimination (after)
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTry() load_store_elimination (after)
   /// CHECK-DAG: TryBoundary kind:entry
 
-  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTryCatch() load_store_elimination (before)
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTry() load_store_elimination (before)
   /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
   /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
 
-  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTryCatch() load_store_elimination (after)
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideTry() load_store_elimination (after)
   /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
   /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
-  private static int $noinline$testKeepStoreInsideTryCatch() {
+  private static int $noinline$testKeepStoreInsideTry() {
     Main main = new Main();
     main.sumForKeepStoreInsideTryCatch = 0;
     try {
@@ -226,6 +230,58 @@ public class Main {
     } catch (ArrayIndexOutOfBoundsException e) {
       return main.sumForKeepStoreInsideTryCatch;
     }
+  }
+
+  private static int $noinline$returnValue(int value) {
+    return value;
+  }
+
+  /// CHECK-START: int Main.$noinline$testDontKeepStoreInsideCatch(int[]) load_store_elimination (before)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+
+  /// CHECK-START: int Main.$noinline$testDontKeepStoreInsideCatch(int[]) load_store_elimination (after)
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  private static int $noinline$testDontKeepStoreInsideCatch(int[] array) {
+    Main main = new Main();
+    int value = 0;
+    try {
+      value = array[0];
+    } catch (Exception e) {
+      // These sets can be eliminated even though we have invokes since this catch is not part of an
+      // outer try.
+      main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(10);
+      main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(20);
+    }
+    return main.sumForKeepStoreInsideTryCatch + value;
+  }
+
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideCatchWithOuterTry(int[]) load_store_elimination (before)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+
+  /// CHECK-START: int Main.$noinline$testKeepStoreInsideCatchWithOuterTry(int[]) load_store_elimination (after)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  private static int $noinline$testKeepStoreInsideCatchWithOuterTry(int[] array) {
+    Main main = new Main();
+    int value = 0;
+    try {
+      try {
+        value = array[0];
+      } catch (Exception e) {
+        // These sets can't be eliminated since this catch is part of a outer try.
+        main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(10);
+        main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(20);
+      }
+    } catch (Exception e) {
+      value = 100000;
+    }
+
+    return main.sumForKeepStoreInsideTryCatch + value;
   }
 
   /// CHECK-START: int Main.$noinline$test40() load_store_elimination (before)
