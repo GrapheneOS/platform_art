@@ -52,8 +52,8 @@ class PACKED(4) OatQuickMethodHeader {
   static OatQuickMethodHeader* FromCodePointer(const void* code_ptr) {
     uintptr_t code = reinterpret_cast<uintptr_t>(code_ptr);
     uintptr_t header = code - OFFSETOF_MEMBER(OatQuickMethodHeader, code_);
-    DCHECK(IsAlignedParam(code, GetInstructionSetAlignment(kRuntimeISA)) ||
-           IsAlignedParam(header, GetInstructionSetAlignment(kRuntimeISA)))
+    DCHECK(IsAlignedParam(code, GetInstructionSetCodeAlignment(kRuntimeISA)) ||
+           IsAlignedParam(header, GetInstructionSetCodeAlignment(kRuntimeISA)))
         << std::hex << code << " " << std::hex << header;
     return reinterpret_cast<OatQuickMethodHeader*>(header);
   }
@@ -63,7 +63,7 @@ class PACKED(4) OatQuickMethodHeader {
   }
 
   static size_t InstructionAlignedSize() {
-    return RoundUp(sizeof(OatQuickMethodHeader), GetInstructionSetAlignment(kRuntimeISA));
+    return RoundUp(sizeof(OatQuickMethodHeader), GetInstructionSetCodeAlignment(kRuntimeISA));
   }
 
   OatQuickMethodHeader(const OatQuickMethodHeader&) = default;
