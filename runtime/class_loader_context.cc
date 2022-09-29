@@ -18,9 +18,9 @@
 
 #include <algorithm>
 
-#include <android-base/parseint.h>
-#include <android-base/strings.h>
-
+#include "android-base/file.h"
+#include "android-base/parseint.h"
+#include "android-base/strings.h"
 #include "art_field-inl.h"
 #include "base/casts.h"
 #include "base/dchecked_vector.h"
@@ -1345,6 +1345,28 @@ static inline bool AbsolutePathHasRelativeSuffix(const std::string& path,
          (std::string_view(path).substr(/*pos*/ path.size() - suffix.size()) == suffix);
 }
 
+// Resolves symlinks and returns the canonicalized absolute path. Returns relative path as is.
+static std::string ResolveIfAbsolutePath(const std::string& path) {
+  if (!IsAbsoluteLocation(path)) {
+    return path;
+  }
+
+  std::string filename = path;
+  std::string multi_dex_suffix;
+  size_t pos = filename.find(DexFileLoader::kMultiDexSeparator);
+  if (pos != std::string::npos) {
+    multi_dex_suffix = filename.substr(pos);
+    filename.resize(pos);
+  }
+
+  std::string resolved_filename;
+  if (!android::base::Realpath(filename, &resolved_filename)) {
+    PLOG(ERROR) << "Unable to resolve path '" << path << "'";
+    return path;
+  }
+  return resolved_filename + multi_dex_suffix;
+}
+
 // Returns true if the given dex names are mathing, false otherwise.
 static bool AreDexNameMatching(const std::string& actual_dex_name,
                                const std::string& expected_dex_name) {
@@ -1355,28 +1377,30 @@ static bool AreDexNameMatching(const std::string& actual_dex_name,
   bool is_dex_name_absolute = IsAbsoluteLocation(actual_dex_name);
   bool is_expected_dex_name_absolute = IsAbsoluteLocation(expected_dex_name);
   bool dex_names_match = false;
+  std::string resolved_actual_dex_name = ResolveIfAbsolutePath(actual_dex_name);
+  std::string resolved_expected_dex_name = ResolveIfAbsolutePath(expected_dex_name);
 
   if (is_dex_name_absolute == is_expected_dex_name_absolute) {
     // If both locations are absolute or relative then compare them as they are.
     // This is usually the case for: shared libraries and secondary dex files.
-    dex_names_match = (actual_dex_name == expected_dex_name);
+    dex_names_match = (resolved_actual_dex_name == resolved_expected_dex_name);
   } else if (is_dex_name_absolute) {
     // The runtime name is absolute but the compiled name (the expected one) is relative.
     // This is the case for split apks which depend on base or on other splits.
     dex_names_match =
-        AbsolutePathHasRelativeSuffix(actual_dex_name, expected_dex_name);
+        AbsolutePathHasRelativeSuffix(resolved_actual_dex_name, resolved_expected_dex_name);
   } else if (is_expected_dex_name_absolute) {
     // The runtime name is relative but the compiled name is absolute.
     // There is no expected use case that would end up here as dex files are always loaded
     // with their absolute location. However, be tolerant and do the best effort (in case
     // there are unexpected new use case...).
     dex_names_match =
-        AbsolutePathHasRelativeSuffix(expected_dex_name, actual_dex_name);
+        AbsolutePathHasRelativeSuffix(resolved_expected_dex_name, resolved_actual_dex_name);
   } else {
     // Both locations are relative. In this case there's not much we can be sure about
     // except that the names are the same. The checksum will ensure that the files are
     // are same. This should not happen outside testing and manual invocations.
-    dex_names_match = (actual_dex_name == expected_dex_name);
+    dex_names_match = (resolved_actual_dex_name == resolved_expected_dex_name);
   }
 
   return dex_names_match;

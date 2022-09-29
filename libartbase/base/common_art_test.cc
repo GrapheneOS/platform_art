@@ -69,15 +69,7 @@ ScratchDir::ScratchDir(bool keep_files) : keep_files_(keep_files) {
 
 ScratchDir::~ScratchDir() {
   if (!keep_files_) {
-    // Recursively delete the directory and all its content.
-    nftw(path_.c_str(), [](const char* name, const struct stat*, int type, struct FTW *) {
-      if (type == FTW_F) {
-        unlink(name);
-      } else if (type == FTW_DP) {
-        rmdir(name);
-      }
-      return 0;
-    }, 256 /* max open file descriptors */, FTW_DEPTH);
+    std::filesystem::remove_all(path_);
   }
 }
 
