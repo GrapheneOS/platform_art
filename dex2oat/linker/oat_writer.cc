@@ -1486,7 +1486,7 @@ class OatWriter::LayoutReserveOffsetCodeMethodVisitor : public OrderedMethodVisi
     offset_ = relative_patcher_->ReserveSpace(offset_, compiled_method, method_ref);
     offset_ += CodeAlignmentSize(offset_, *compiled_method);
     DCHECK_ALIGNED_PARAM(offset_ + sizeof(OatQuickMethodHeader),
-                         GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
+                         GetInstructionSetCodeAlignment(compiled_method->GetInstructionSet()));
     return offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
   }
 
@@ -1797,7 +1797,7 @@ class OatWriter::WriteCodeMethodVisitor : public OrderedMethodVisitor {
         DCHECK_OFFSET_();
       }
       DCHECK_ALIGNED_PARAM(offset_ + sizeof(OatQuickMethodHeader),
-                           GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
+                           GetInstructionSetCodeAlignment(compiled_method->GetInstructionSet()));
       DCHECK_EQ(method_offsets.code_offset_,
                 offset_ + sizeof(OatQuickMethodHeader) + compiled_method->CodeDelta())
           << dex_file_->PrettyMethod(method_ref.index);
