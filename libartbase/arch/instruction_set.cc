@@ -73,26 +73,6 @@ InstructionSet GetInstructionSetFromString(const char* isa_str) {
   return InstructionSet::kNone;
 }
 
-size_t GetInstructionSetAlignment(InstructionSet isa) {
-  switch (isa) {
-    case InstructionSet::kArm:
-      // Fall-through.
-    case InstructionSet::kThumb2:
-      return kArmCodeAlignment;
-    case InstructionSet::kArm64:
-      return kArm64CodeAlignment;
-    case InstructionSet::kX86:
-      // Fall-through.
-    case InstructionSet::kX86_64:
-      return kX86CodeAlignment;
-    case InstructionSet::kNone:
-      LOG(FATAL) << "ISA kNone does not have alignment.";
-      UNREACHABLE();
-  }
-  LOG(FATAL) << "Unknown ISA " << isa;
-  UNREACHABLE();
-}
-
 std::vector<InstructionSet> GetSupportedInstructionSets(std::string* error_msg) {
   std::string zygote_kinds = android::base::GetProperty("ro.zygote", {});
   if (zygote_kinds.empty()) {

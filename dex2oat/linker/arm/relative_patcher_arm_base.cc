@@ -462,7 +462,7 @@ void ArmBaseRelativePatcher::AddUnreservedThunk(ThunkData* data) {
   }
   unreserved_thunks_.insert(unreserved_thunks_.begin() + index, data);
   // We may need to update the max next offset(s) if the thunk code would not fit.
-  size_t alignment = GetInstructionSetAlignment(instruction_set_);
+  size_t alignment = GetInstructionSetCodeAlignment(instruction_set_);
   if (index + 1u != unreserved_thunks_.size()) {
     // Note: Ignore the return value as we need to process previous thunks regardless.
     data->MakeSpaceBefore(*unreserved_thunks_[index + 1u], alignment);
@@ -535,7 +535,7 @@ void ArmBaseRelativePatcher::ResolveMethodCalls(uint32_t quick_code_offset,
 inline uint32_t ArmBaseRelativePatcher::CalculateMaxNextOffset(uint32_t patch_offset,
                                                                const ThunkKey& key) {
   return RoundDown(patch_offset + MaxPositiveDisplacement(key),
-                   GetInstructionSetAlignment(instruction_set_));
+                   GetInstructionSetCodeAlignment(instruction_set_));
 }
 
 inline ArmBaseRelativePatcher::ThunkData ArmBaseRelativePatcher::ThunkDataForPatch(
