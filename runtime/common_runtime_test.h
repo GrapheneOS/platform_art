@@ -298,12 +298,6 @@ class CheckJniAbortCatcher {
     return; \
   }
 
-#define TEST_DISABLED_FOR_STRING_COMPRESSION() \
-  if (mirror::kUseStringCompression) { \
-    printf("WARNING: TEST DISABLED FOR STRING COMPRESSION\n"); \
-    return; \
-  }
-
 #define TEST_DISABLED_WITHOUT_BAKER_READ_BARRIERS() \
   if (!gUseReadBarrier || !kUseBakerReadBarrier) { \
     printf("WARNING: TEST DISABLED FOR GC WITHOUT BAKER READ BARRIER\n"); \
