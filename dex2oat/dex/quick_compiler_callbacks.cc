@@ -28,6 +28,12 @@ void QuickCompilerCallbacks::AddUncompilableMethod(MethodReference ref) {
   }
 }
 
+void QuickCompilerCallbacks::AddUncompilableClass(ClassReference ref) {
+  if (verification_results_ != nullptr) {
+    verification_results_->AddUncompilableClass(ref);
+  }
+}
+
 void QuickCompilerCallbacks::ClassRejected(ClassReference ref) {
   if (verification_results_ != nullptr) {
     verification_results_->AddRejectedClass(ref);
