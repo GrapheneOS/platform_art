@@ -81,7 +81,7 @@
     },
     {
         "tests" : "629-vdex-speed",
-        "variant": "interp-ac | interpreter | no-prebuild | debuggable",
+        "variant": "interp-ac | interpreter | no-prebuild | debuggable | trace",
         "description": "629 requires compilation."
     },
     {
