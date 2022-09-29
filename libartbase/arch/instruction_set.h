@@ -133,7 +133,24 @@ constexpr bool IsValidInstructionSet(InstructionSet isa) {
   return false;
 }
 
-size_t GetInstructionSetAlignment(InstructionSet isa);
+constexpr size_t GetInstructionSetCodeAlignment(InstructionSet isa) {
+  switch (isa) {
+    case InstructionSet::kArm:
+      // Fall-through.
+    case InstructionSet::kThumb2:
+      return kArmCodeAlignment;
+    case InstructionSet::kArm64:
+      return kArm64CodeAlignment;
+    case InstructionSet::kX86:
+      // Fall-through.
+    case InstructionSet::kX86_64:
+      return kX86CodeAlignment;
+
+    case InstructionSet::kNone:
+      break;
+  }
+  InstructionSetAbort(isa);
+}
 
 constexpr bool Is64BitInstructionSet(InstructionSet isa) {
   switch (isa) {
