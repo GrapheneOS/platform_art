@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <ostream>
+#include <string_view>
 
 #include <stdio.h>
 
@@ -321,6 +322,22 @@ static bool PcIsWithinQuickCode(ArtMethod* method, uintptr_t pc) NO_THREAD_SAFET
   return code <= pc && pc <= (code + code_size);
 }
 
+// Remove method parameters by finding matching parenthesis and removing that substring.
+std::string_view StripParameters(std::string_view name) {
+  if (name.empty() || *name.rbegin() != ')') {
+    return name;
+  }
+  int nesting = 0;
+  for (ssize_t i = name.size() - 1; i > 0; i--) {
+    if (name[i] == ')') {
+      nesting++;
+    } else if (name[i] == '(' && --nesting == 0) {
+      return name.substr(0, i);
+    }
+  }
+  return name;
+}
+
 void DumpNativeStack(std::ostream& os,
                      pid_t tid,
                      const char* prefix,
@@ -377,13 +394,9 @@ void DumpNativeStack(std::ostream& os,
     os << prefix << StringPrintf("#%02zu pc ", frame.num);
     bool try_addr2line = false;
     if (frame.map_info == nullptr) {
-      os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIx64 "  ???"
-                                                            : "%08" PRIx64 "  ???",
-                         frame.pc);
+      os << StringPrintf("%08" PRIx64 "  ???", frame.pc);
     } else {
-      os << StringPrintf(Is64BitInstructionSet(kRuntimeISA) ? "%016" PRIx64 "  "
-                                                            : "%08" PRIx64 "  ",
-                         frame.rel_pc);
+      os << StringPrintf("%08" PRIx64 "  ", frame.rel_pc);
       const std::shared_ptr<unwindstack::MapInfo>& map_info = frame.map_info;
       if (map_info->name().empty()) {
         os << StringPrintf("<anonymous:%" PRIx64 ">", map_info->start());
@@ -395,7 +408,10 @@ void DumpNativeStack(std::ostream& os,
       }
       os << " (";
       if (!frame.function_name.empty()) {
-        os << frame.function_name.c_str();
+        // Remove parameters from the printed function name to improve signal/noise in the logs.
+        // Also, ANRs are often trimmed, so printing less means we get more useful data out.
+        // We can still symbolize the function based on the PC and build-id (including inlining).
+        os << StripParameters(frame.function_name.c_str());
         if (frame.function_offset != 0) {
           os << "+" << frame.function_offset;
         }

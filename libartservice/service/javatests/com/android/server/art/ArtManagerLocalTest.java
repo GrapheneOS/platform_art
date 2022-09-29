@@ -16,7 +16,7 @@
 
 package com.android.server.art;
 
-import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
+import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -158,29 +158,34 @@ public class ArtManagerLocalTest {
         OptimizationStatus result =
                 mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
 
-        List<DexFileOptimizationStatus> statuses = result.getDexFileOptimizationStatuses();
+        List<DexContainerFileOptimizationStatus> statuses =
+                result.getDexContainerFileOptimizationStatuses();
         assertThat(statuses.size()).isEqualTo(4);
 
-        assertThat(statuses.get(0).getDexFile()).isEqualTo("/data/app/foo/base.apk");
-        assertThat(statuses.get(0).getInstructionSet()).isEqualTo("arm64");
+        assertThat(statuses.get(0).getDexContainerFile()).isEqualTo("/data/app/foo/base.apk");
+        assertThat(statuses.get(0).isPrimaryAbi()).isEqualTo(true);
+        assertThat(statuses.get(0).getAbi()).isEqualTo("arm64-v8a");
         assertThat(statuses.get(0).getCompilerFilter()).isEqualTo("speed");
         assertThat(statuses.get(0).getCompilationReason()).isEqualTo("compilation-reason-0");
         assertThat(statuses.get(0).getLocationDebugString()).isEqualTo("location-debug-string-0");
 
-        assertThat(statuses.get(1).getDexFile()).isEqualTo("/data/app/foo/base.apk");
-        assertThat(statuses.get(1).getInstructionSet()).isEqualTo("arm");
+        assertThat(statuses.get(1).getDexContainerFile()).isEqualTo("/data/app/foo/base.apk");
+        assertThat(statuses.get(1).isPrimaryAbi()).isEqualTo(false);
+        assertThat(statuses.get(1).getAbi()).isEqualTo("armeabi-v7a");
         assertThat(statuses.get(1).getCompilerFilter()).isEqualTo("speed-profile");
         assertThat(statuses.get(1).getCompilationReason()).isEqualTo("compilation-reason-1");
         assertThat(statuses.get(1).getLocationDebugString()).isEqualTo("location-debug-string-1");
 
-        assertThat(statuses.get(2).getDexFile()).isEqualTo("/data/app/foo/split_0.apk");
-        assertThat(statuses.get(2).getInstructionSet()).isEqualTo("arm64");
+        assertThat(statuses.get(2).getDexContainerFile()).isEqualTo("/data/app/foo/split_0.apk");
+        assertThat(statuses.get(2).isPrimaryAbi()).isEqualTo(true);
+        assertThat(statuses.get(2).getAbi()).isEqualTo("arm64-v8a");
         assertThat(statuses.get(2).getCompilerFilter()).isEqualTo("verify");
         assertThat(statuses.get(2).getCompilationReason()).isEqualTo("compilation-reason-2");
         assertThat(statuses.get(2).getLocationDebugString()).isEqualTo("location-debug-string-2");
 
-        assertThat(statuses.get(3).getDexFile()).isEqualTo("/data/app/foo/split_0.apk");
-        assertThat(statuses.get(3).getInstructionSet()).isEqualTo("arm");
+        assertThat(statuses.get(3).getDexContainerFile()).isEqualTo("/data/app/foo/split_0.apk");
+        assertThat(statuses.get(3).isPrimaryAbi()).isEqualTo(false);
+        assertThat(statuses.get(3).getAbi()).isEqualTo("armeabi-v7a");
         assertThat(statuses.get(3).getCompilerFilter()).isEqualTo("extract");
         assertThat(statuses.get(3).getCompilationReason()).isEqualTo("compilation-reason-3");
         assertThat(statuses.get(3).getLocationDebugString()).isEqualTo("location-debug-string-3");
@@ -208,10 +213,11 @@ public class ArtManagerLocalTest {
         OptimizationStatus result =
                 mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
 
-        List<DexFileOptimizationStatus> statuses = result.getDexFileOptimizationStatuses();
+        List<DexContainerFileOptimizationStatus> statuses =
+                result.getDexContainerFileOptimizationStatuses();
         assertThat(statuses.size()).isEqualTo(4);
 
-        for (DexFileOptimizationStatus status : statuses) {
+        for (DexContainerFileOptimizationStatus status : statuses) {
             assertThat(status.getCompilerFilter()).isEqualTo("error");
             assertThat(status.getCompilationReason()).isEqualTo("error");
             assertThat(status.getLocationDebugString()).isEqualTo("some error message");

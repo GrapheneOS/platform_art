@@ -90,11 +90,9 @@ using ::android::base::Dirname;
 using ::android::base::Error;
 using ::android::base::Join;
 using ::android::base::make_scope_guard;
-using ::android::base::ReadFileToString;
 using ::android::base::Result;
 using ::android::base::Split;
 using ::android::base::StringReplace;
-using ::android::base::WriteStringToFd;
 using ::art::tools::CmdlineBuilder;
 using ::ndk::ScopedAStatus;
 
@@ -419,29 +417,6 @@ ndk::ScopedAStatus Artd::isProfileUsable(const ProfilePath& in_profile,
   }
 
   *_aidl_return = result.value() == ProfmanResult::kSkipCompilationSmallDelta;
-  return ScopedAStatus::ok();
-}
-
-ndk::ScopedAStatus Artd::copyProfile(const ProfilePath& in_src, OutputProfile* in_dst) {
-  std::string src_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_src));
-  if (in_src.getTag() == ProfilePath::dexMetadataPath) {
-    return Fatal("Does not support DM file, got '{}'"_format(src_path));
-  }
-  std::string dst_path = OR_RETURN_FATAL(BuildRefProfilePath(in_dst->profilePath.refProfilePath));
-
-  std::string content;
-  if (!ReadFileToString(src_path, &content)) {
-    return NonFatal("Failed to read file '{}': {}"_format(src_path, strerror(errno)));
-  }
-
-  std::unique_ptr<NewFile> dst =
-      OR_RETURN_NON_FATAL(NewFile::Create(dst_path, in_dst->fsPermission));
-  if (!WriteStringToFd(content, dst->Fd())) {
-    return NonFatal("Failed to write file '{}': {}"_format(dst_path, strerror(errno)));
-  }
-
-  OR_RETURN_NON_FATAL(dst->Keep());
-  in_dst->profilePath.id = dst->TempId();
   return ScopedAStatus::ok();
 }
 

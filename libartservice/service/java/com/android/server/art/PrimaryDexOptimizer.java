@@ -22,8 +22,9 @@ import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContex
 import static com.android.server.art.PrimaryDexUtils.DetailedPrimaryDexInfo;
 import static com.android.server.art.ProfilePath.RefProfilePath;
 import static com.android.server.art.ProfilePath.TmpRefProfilePath;
+import static com.android.server.art.Utils.Abi;
 import static com.android.server.art.model.ArtFlags.OptimizeFlags;
-import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 
 import android.R;
 import android.annotation.NonNull;
@@ -37,6 +38,7 @@ import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
@@ -72,10 +74,10 @@ public class PrimaryDexOptimizer {
      * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeParams)}.
      */
     @NonNull
-    public List<DexFileOptimizeResult> dexopt(@NonNull PackageState pkgState,
+    public List<DexContainerFileOptimizeResult> dexopt(@NonNull PackageState pkgState,
             @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params,
             @NonNull CancellationSignal cancellationSignal) throws RemoteException {
-        List<DexFileOptimizeResult> results = new ArrayList<>();
+        List<DexContainerFileOptimizeResult> results = new ArrayList<>();
 
         int uid = pkg.getUid();
         if (uid < 0) {
@@ -98,7 +100,7 @@ public class PrimaryDexOptimizer {
         boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
 
         for (DetailedPrimaryDexInfo dexInfo : PrimaryDexUtils.getDetailedDexInfo(pkgState, pkg)) {
-            OutputProfile profile = null;
+            ProfilePath profile = null;
             boolean succeeded = true;
             try {
                 if (!dexInfo.hasCode()) {
@@ -111,13 +113,19 @@ public class PrimaryDexOptimizer {
 
                 boolean needsToBeShared = isSharedLibrary(pkg)
                         || mInjector.isUsedByOtherApps(pkgState.getPackageName());
+                boolean isOtherReadable = true;
                 // If true, implies that the profile has changed since the last compilation.
                 boolean profileMerged = false;
                 if (DexFile.isProfileGuidedCompilerFilter(compilerFilter)) {
                     if (needsToBeShared) {
                         profile = initReferenceProfile(pkgState, dexInfo, uid, sharedGid);
                     } else {
-                        profile = copyOrInitReferenceProfile(pkgState, dexInfo, uid, sharedGid);
+                        Pair<ProfilePath, Boolean> pair =
+                                getOrInitReferenceProfile(pkgState, dexInfo, uid, sharedGid);
+                        if (pair != null) {
+                            profile = pair.first;
+                            isOtherReadable = pair.second;
+                        }
                         // TODO(jiakaiz): Merge profiles.
                     }
                     if (profile == null) {
@@ -134,8 +142,7 @@ public class PrimaryDexOptimizer {
                         DexFile.isProfileGuidedCompilerFilter(compilerFilter);
                 assert isProfileGuidedCompilerFilter == (profile != null);
 
-                boolean canBePublic =
-                        !isProfileGuidedCompilerFilter || profile.fsPermission.isOtherReadable;
+                boolean canBePublic = !isProfileGuidedCompilerFilter || isOtherReadable;
                 assert Utils.implies(needsToBeShared, canBePublic);
                 PermissionSettings permissionSettings =
                         getPermissionSettings(sharedGid, canBePublic);
@@ -143,14 +150,14 @@ public class PrimaryDexOptimizer {
                 DexoptOptions dexoptOptions =
                         getDexoptOptions(pkgState, pkg, params, isProfileGuidedCompilerFilter);
 
-                for (String isa : Utils.getAllIsas(pkgState)) {
+                for (Abi abi : Utils.getAllAbis(pkgState)) {
                     @OptimizeResult.OptimizeStatus int status = OptimizeResult.OPTIMIZE_SKIPPED;
                     long wallTimeMs = 0;
                     long cpuTimeMs = 0;
                     try {
                         DexoptTarget target = DexoptTarget.builder()
                                                       .setDexInfo(dexInfo)
-                                                      .setIsa(isa)
+                                                      .setIsa(abi.isa())
                                                       .setIsInDalvikCache(isInDalvikCache)
                                                       .setCompilerFilter(compilerFilter)
                                                       .build();
@@ -168,10 +175,6 @@ public class PrimaryDexOptimizer {
                             continue;
                         }
 
-                        ProfilePath inputProfile = profile != null
-                                ? ProfilePath.tmpRefProfilePath(profile.profilePath)
-                                : null;
-
                         IArtdCancellationSignal artdCancellationSignal =
                                 mInjector.getArtd().createCancellationSignal();
                         cancellationSignal.setOnCancelListener(() -> {
@@ -183,7 +186,7 @@ public class PrimaryDexOptimizer {
                             }
                         });
 
-                        DexoptResult dexoptResult = dexoptFile(target, inputProfile,
+                        DexoptResult dexoptResult = dexoptFile(target, profile,
                                 getDexoptNeededResult, permissionSettings,
                                 params.getPriorityClass(), dexoptOptions, artdCancellationSignal);
                         status = dexoptResult.cancelled ? OptimizeResult.OPTIMIZE_CANCELLED
@@ -199,13 +202,14 @@ public class PrimaryDexOptimizer {
                         Log.e(TAG,
                                 String.format("Failed to dexopt [packageName = %s, dexPath = %s, "
                                                 + "isa = %s, classLoaderContext = %s]",
-                                        pkgState.getPackageName(), dexInfo.dexPath(), isa,
+                                        pkgState.getPackageName(), dexInfo.dexPath(), abi.isa(),
                                         dexInfo.classLoaderContext()),
                                 e);
                         status = OptimizeResult.OPTIMIZE_FAILED;
                     } finally {
-                        results.add(new DexFileOptimizeResult(dexInfo.dexPath(), isa,
-                                compilerFilter, status, wallTimeMs, cpuTimeMs));
+                        results.add(new DexContainerFileOptimizeResult(dexInfo.dexPath(),
+                                abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
+                                cpuTimeMs));
                         if (status != OptimizeResult.OPTIMIZE_SKIPPED
                                 && status != OptimizeResult.OPTIMIZE_PERFORMED) {
                             succeeded = false;
@@ -217,16 +221,17 @@ public class PrimaryDexOptimizer {
                 }
 
                 if (profile != null && succeeded) {
-                    // Commit the profile only if dexopt succeeds.
-                    if (commitProfileChanges(profile)) {
-                        profile = null;
+                    if (profile.getTag() == ProfilePath.tmpRefProfilePath) {
+                        // Commit the profile only if dexopt succeeds.
+                        if (commitProfileChanges(profile.getTmpRefProfilePath())) {
+                            profile = null;
+                        }
                     }
                     // TODO(jiakaiz): If profileMerged is true, clear current profiles.
                 }
             } finally {
-                if (profile != null) {
-                    mInjector.getArtd().deleteProfile(
-                            ProfilePath.tmpRefProfilePath(profile.profilePath));
+                if (profile != null && profile.getTag() == ProfilePath.tmpRefProfilePath) {
+                    mInjector.getArtd().deleteProfile(profile);
                 }
             }
         }
@@ -281,7 +286,7 @@ public class PrimaryDexOptimizer {
      * null otherwise.
      */
     @Nullable
-    private OutputProfile initReferenceProfile(@NonNull PackageState pkgState,
+    private ProfilePath initReferenceProfile(@NonNull PackageState pkgState,
             @NonNull DetailedPrimaryDexInfo dexInfo, int uid, int gid) throws RemoteException {
         String profileName = getProfileName(dexInfo.splitName());
         OutputProfile output = AidlUtils.buildOutputProfile(
@@ -296,7 +301,7 @@ public class PrimaryDexOptimizer {
             // case is necessary.
             if (mInjector.getArtd().copyAndRewriteProfile(
                         prebuiltProfile, output, dexInfo.dexPath())) {
-                return output;
+                return ProfilePath.tmpRefProfilePath(output.profilePath);
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
@@ -309,7 +314,7 @@ public class PrimaryDexOptimizer {
         ProfilePath dmProfile = AidlUtils.buildProfilePathForDm(dexInfo.dexPath());
         try {
             if (mInjector.getArtd().copyAndRewriteProfile(dmProfile, output, dexInfo.dexPath())) {
-                return output;
+                return ProfilePath.tmpRefProfilePath(output.profilePath);
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
@@ -323,11 +328,15 @@ public class PrimaryDexOptimizer {
     }
 
     /**
-     * Copies the existing reference profile if exists, or initializes a reference profile
-     * otherwise.
+     * Gets the existing reference profile if exists, or initializes a reference profile from an
+     * external profile.
+     *
+     * @return A pair where the first element is the found or initialized profile, and the second
+     *         element is true if the profile is readable by others. Or null if there is no
+     *         reference profile or external profile to use.
      */
     @Nullable
-    private OutputProfile copyOrInitReferenceProfile(@NonNull PackageState pkgState,
+    private Pair<ProfilePath, Boolean> getOrInitReferenceProfile(@NonNull PackageState pkgState,
             @NonNull DetailedPrimaryDexInfo dexInfo, int uid, int gid) throws RemoteException {
         String profileName = getProfileName(dexInfo.splitName());
         ProfilePath refProfile =
@@ -336,10 +345,7 @@ public class PrimaryDexOptimizer {
             if (mInjector.getArtd().isProfileUsable(refProfile, dexInfo.dexPath())) {
                 boolean isOtherReadable = mInjector.getArtd().getProfileVisibility(refProfile)
                         == FileVisibility.OTHER_READABLE;
-                OutputProfile output = AidlUtils.buildOutputProfile(pkgState.getPackageName(),
-                        getProfileName(dexInfo.splitName()), uid, gid, isOtherReadable);
-                mInjector.getArtd().copyProfile(refProfile, output);
-                return output;
+                return Pair.create(refProfile, isOtherReadable);
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
@@ -349,7 +355,8 @@ public class PrimaryDexOptimizer {
                     e);
         }
 
-        return initReferenceProfile(pkgState, dexInfo, uid, gid);
+        ProfilePath initializedProfile = initReferenceProfile(pkgState, dexInfo, uid, gid);
+        return initializedProfile != null ? Pair.create(initializedProfile, true) : null;
     }
 
     @NonNull
@@ -496,12 +503,12 @@ public class PrimaryDexOptimizer {
         }
     }
 
-    boolean commitProfileChanges(@NonNull OutputProfile profile) throws RemoteException {
+    boolean commitProfileChanges(@NonNull TmpRefProfilePath profile) throws RemoteException {
         try {
-            mInjector.getArtd().commitTmpProfile(profile.profilePath);
+            mInjector.getArtd().commitTmpProfile(profile);
             return true;
         } catch (ServiceSpecificException e) {
-            RefProfilePath refProfilePath = profile.profilePath.refProfilePath;
+            RefProfilePath refProfilePath = profile.refProfilePath;
             Log.e(TAG,
                     String.format(
                             "Failed to commit profile changes [packageName = %s, profileName = %s]",

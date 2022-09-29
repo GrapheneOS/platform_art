@@ -20,7 +20,7 @@ import static com.android.server.art.AidlUtils.buildFsPermission;
 import static com.android.server.art.AidlUtils.buildOutputArtifacts;
 import static com.android.server.art.AidlUtils.buildPermissionSettings;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
-import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -257,18 +257,22 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
 
         assertThat(
                 mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal))
-                .comparingElementsUsing(TestingUtils.<DexFileOptimizeResult>deepEquality())
+                .comparingElementsUsing(TestingUtils.<DexContainerFileOptimizeResult>deepEquality())
                 .containsExactly(
-                        new DexFileOptimizeResult("/data/app/foo/base.apk", "arm64",
+                        new DexContainerFileOptimizeResult("/data/app/foo/base.apk",
+                                true /* isPrimaryAbi */, "arm64-v8a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
                                 100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */),
-                        new DexFileOptimizeResult("/data/app/foo/base.apk", "arm",
+                        new DexContainerFileOptimizeResult("/data/app/foo/base.apk",
+                                false /* isPrimaryAbi */, "armeabi-v7a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_FAILED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
-                        new DexFileOptimizeResult("/data/app/foo/split_0.apk", "arm64",
+                        new DexContainerFileOptimizeResult("/data/app/foo/split_0.apk",
+                                true /* isPrimaryAbi */, "arm64-v8a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_SKIPPED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
-                        new DexFileOptimizeResult("/data/app/foo/split_0.apk", "arm",
+                        new DexContainerFileOptimizeResult("/data/app/foo/split_0.apk",
+                                false /* isPrimaryAbi */, "armeabi-v7a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
                                 200 /* dex2oatWallTimeMillis */, 200 /* dex2oatCpuTimeMillis */));
     }

@@ -38,7 +38,11 @@ public class OptimizeParams {
          *
          * Uses default flags ({@link ArtFlags#defaultOptimizeFlags()}).
          *
-         * @param reason See {@link #setReason(String)}.
+         * @param reason Compilation reason. Can be a string defined in {@link ReasonMapping} or a
+         *         custom string. If the value is a string defined in {@link ReasonMapping}, it
+         *         determines the compiler filter and/or the priority class, if those values are not
+         *         explicitly set. If the value is a custom string, the priority class and the
+         *         compiler filter must be explicitly set.
          */
         public Builder(@NonNull String reason) {
             this(reason, ArtFlags.defaultOptimizeFlags());
@@ -48,7 +52,7 @@ public class OptimizeParams {
          * Same as above, but allows to specify flags.
          */
         public Builder(@NonNull String reason, @OptimizeFlags int flags) {
-            setReason(reason);
+            mParams.mReason = reason;
             setFlags(flags);
         }
 
@@ -90,21 +94,6 @@ public class OptimizeParams {
         @NonNull
         public Builder setPriorityClass(@PriorityClassApi int value) {
             mParams.mPriorityClass = value;
-            return this;
-        }
-
-        /**
-         * Compilation reason. Can be a string defined in {@link ReasonMapping} or a custom string.
-         *
-         * If the value is a string defined in {@link ReasonMapping}, it determines the compiler
-         * filter and/or the priority class, if those values are not explicitly set.
-         *
-         * If the value is a custom string, the priority class and the compiler filter must be
-         * explicitly set.
-         */
-        @NonNull
-        public Builder setReason(@NonNull String value) {
-            mParams.mReason = value;
             return this;
         }
 

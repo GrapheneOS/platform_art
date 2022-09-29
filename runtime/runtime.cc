@@ -2315,6 +2315,9 @@ void Runtime::DumpDeoptimizations(std::ostream& os) {
 }
 
 void Runtime::DumpForSigQuit(std::ostream& os) {
+  // Print backtraces first since they are important do diagnose ANRs,
+  // and ANRs can often be trimmed to limit upload size.
+  thread_list_->DumpForSigQuit(os);
   GetClassLinker()->DumpForSigQuit(os);
   GetInternTable()->DumpForSigQuit(os);
   GetJavaVM()->DumpForSigQuit(os);
@@ -2330,7 +2333,6 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
   GetMetrics()->DumpForSigQuit(os);
   os << "\n";
 
-  thread_list_->DumpForSigQuit(os);
   BaseMutex::DumpAll(os);
 
   // Inform anyone else who is interested in SigQuit.
@@ -3199,6 +3201,9 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
     auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : klass->GetMethods(pointer_size)) {
       const void* code = m.GetEntryPointFromQuickCompiledCode();
+      if (!m.IsInvokable()) {
+        continue;
+      }
       // For java debuggable runtimes we also deoptimize native methods. For other cases (boot
       // image profiling) we don't need to deoptimize native methods. If this changes also
       // update Instrumentation::CanUseAotCode.
