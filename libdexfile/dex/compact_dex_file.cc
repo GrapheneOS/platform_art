@@ -22,9 +22,6 @@
 
 namespace art {
 
-constexpr uint8_t CompactDexFile::kDexMagic[kDexMagicSize];
-constexpr uint8_t CompactDexFile::kDexMagicVersion[];
-
 void CompactDexFile::WriteMagic(uint8_t* magic) {
   std::copy_n(kDexMagic, kDexMagicSize, magic);
 }
