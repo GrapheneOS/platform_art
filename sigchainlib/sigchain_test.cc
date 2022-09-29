@@ -75,13 +75,17 @@ class SigchainTest : public ::testing::Test {
   void RaiseHandled() {
       sigval value;
       value.sival_ptr = &value;
-      pthread_sigqueue(pthread_self(), SIGSEGV, value);
+      // pthread_sigqueue would guarantee the signal is delivered to this
+      // thread, but it is a nonstandard extension and does not exist in
+      // musl.  Gtest is single threaded, and these tests don't create any
+      // threads, so sigqueue can be used and will deliver to this thread.
+      sigqueue(getpid(), SIGSEGV, value);
   }
 
   void RaiseUnhandled() {
       sigval value;
       value.sival_ptr = nullptr;
-      pthread_sigqueue(pthread_self(), SIGSEGV, value);
+      sigqueue(getpid(), SIGSEGV, value);
   }
 };
 
