@@ -16,7 +16,7 @@
 
 package com.android.server.art;
 
-import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import android.annotation.NonNull;
@@ -77,7 +77,7 @@ public class DexOptHelper {
             @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg,
             @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal)
             throws RemoteException {
-        List<DexFileOptimizeResult> results = new ArrayList<>();
+        List<DexContainerFileOptimizeResult> results = new ArrayList<>();
         Supplier<OptimizeResult> createResult = ()
                 -> new OptimizeResult(params.getCompilerFilter(), params.getReason(),
                         List.of(new PackageOptimizeResult(pkgState.getPackageName(), results)));

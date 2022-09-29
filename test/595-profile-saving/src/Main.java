@@ -39,8 +39,12 @@ public class Main {
           File.class, Method.class);
       testAddMethodToProfile(file, appMethod);
 
+      // Delete the file to check that the runtime can save the profile even if the file doesn't
+      // exist.
+      file.delete();
+
       // Test that the profile saves a boot class path method with a profiling info.
-      Method bootMethod = File.class.getDeclaredMethod("delete");
+      Method bootMethod = File.class.getDeclaredMethod("exists");
       if (bootMethod.getDeclaringClass().getClassLoader() != Object.class.getClassLoader()) {
         System.out.println("Class loader does not match boot class");
       }

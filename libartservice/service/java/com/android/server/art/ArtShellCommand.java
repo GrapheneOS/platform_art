@@ -17,8 +17,8 @@
 package com.android.server.art;
 
 import static com.android.server.art.model.ArtFlags.OptimizeFlags;
-import static com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus;
-import static com.android.server.art.model.OptimizeResult.DexFileOptimizeResult;
+import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
+import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.model.OptimizeResult.OptimizeStatus;
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
@@ -75,14 +75,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
             case "get-optimization-status": {
                 OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
                         snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
-                for (DexFileOptimizationStatus status :
-                        optimizationStatus.getDexFileOptimizationStatuses()) {
-                    pw.printf("dexFile = %s, instructionSet = %s, compilerFilter = %s, "
-                                    + "compilationReason = %s, locationDebugString = %s\n",
-                            status.getDexFile(), status.getInstructionSet(),
-                            status.getCompilerFilter(), status.getCompilationReason(),
-                            status.getLocationDebugString());
-                }
+                pw.println(optimizationStatus);
                 return 0;
             }
             case "optimize-package": {
@@ -124,16 +117,16 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 pw.println(optimizeStatusToString(result.getFinalStatus()));
                 for (PackageOptimizeResult packageResult : result.getPackageOptimizeResults()) {
                     pw.printf("[%s]\n", packageResult.getPackageName());
-                    for (DexFileOptimizeResult dexFileResult :
-                            packageResult.getDexFileOptimizeResults()) {
-                        pw.printf("dexFile = %s, instructionSet = %s, compilerFilter = %s, "
-                                        + "status = %s, dex2oatWallTimeMillis = %d, "
-                                        + "dex2oatCpuTimeMillis = %d\n",
-                                dexFileResult.getDexFile(), dexFileResult.getInstructionSet(),
-                                dexFileResult.getActualCompilerFilter(),
-                                optimizeStatusToString(dexFileResult.getStatus()),
-                                dexFileResult.getDex2oatWallTimeMillis(),
-                                dexFileResult.getDex2oatCpuTimeMillis());
+                    for (DexContainerFileOptimizeResult fileResult :
+                            packageResult.getDexContainerFileOptimizeResults()) {
+                        pw.printf("dexContainerFile = %s, isPrimaryAbi = %b, abi = %s, "
+                                        + "compilerFilter = %s, status = %s, "
+                                        + "dex2oatWallTimeMillis = %d, dex2oatCpuTimeMillis = %d\n",
+                                fileResult.getDexContainerFile(), fileResult.isPrimaryAbi(),
+                                fileResult.getAbi(), fileResult.getActualCompilerFilter(),
+                                optimizeStatusToString(fileResult.getStatus()),
+                                fileResult.getDex2oatWallTimeMillis(),
+                                fileResult.getDex2oatCpuTimeMillis());
                     }
                 }
                 return 0;

@@ -26,9 +26,12 @@ import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
 
+import com.google.auto.value.AutoValue;
+
 import dalvik.system.DexFile;
 import dalvik.system.VMRuntime;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -58,17 +61,25 @@ public final class Utils {
     }
 
     @NonNull
-    public static List<String> getAllIsas(@NonNull PackageState pkgState) {
+    public static List<Abi> getAllAbis(@NonNull PackageState pkgState) {
+        List<Abi> abis = new ArrayList<>();
         String primaryCpuAbi = pkgState.getPrimaryCpuAbi();
-        String secondaryCpuAbi = pkgState.getSecondaryCpuAbi();
         if (primaryCpuAbi != null) {
-            if (secondaryCpuAbi != null) {
-                return List.of(VMRuntime.getInstructionSet(primaryCpuAbi),
-                        VMRuntime.getInstructionSet(secondaryCpuAbi));
-            }
-            return List.of(VMRuntime.getInstructionSet(primaryCpuAbi));
+            abis.add(Abi.create(primaryCpuAbi, VMRuntime.getInstructionSet(primaryCpuAbi),
+                    true /* isPrimaryAbi */));
         }
-        return List.of();
+        String secondaryCpuAbi = pkgState.getSecondaryCpuAbi();
+        if (secondaryCpuAbi != null) {
+            abis.add(Abi.create(secondaryCpuAbi, VMRuntime.getInstructionSet(secondaryCpuAbi),
+                    false /* isPrimaryAbi */));
+        }
+        // Primary and secondary ABIs are guaranteed to have different ISAs.
+        if (abis.size() == 2 && abis.get(0).isa().equals(abis.get(1).isa())) {
+            throw new IllegalStateException(
+                    String.format("Duplicate ISA: primary ABI '%s', secondary ABI '%s'",
+                            primaryCpuAbi, secondaryCpuAbi));
+        }
+        return abis;
     }
 
     public static boolean isInDalvikCache(@NonNull PackageState pkg) {
@@ -94,5 +105,21 @@ public final class Utils {
 
     public static boolean implies(boolean cond1, boolean cond2) {
         return cond1 ? cond2 : true;
+    }
+
+    @AutoValue
+    public abstract static class Abi {
+        static @NonNull Abi create(
+                @NonNull String name, @NonNull String isa, boolean isPrimaryAbi) {
+            return new AutoValue_Utils_Abi(name, isa, isPrimaryAbi);
+        }
+
+        // The ABI name. E.g., "arm64-v8a".
+        abstract @NonNull String name();
+
+        // The instruction set name. E.g., "arm64".
+        abstract @NonNull String isa();
+
+        abstract boolean isPrimaryAbi();
     }
 }

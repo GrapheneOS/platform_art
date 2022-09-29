@@ -19,6 +19,8 @@
 #include <lz4.h>
 #include <sstream>
 
+#include "android-base/stringprintf.h"
+
 #include "base/bit_utils.h"
 #include "base/length_prefixed_array.h"
 #include "base/utils.h"
@@ -170,6 +172,23 @@ PointerSize ImageHeader::GetPointerSize() const {
   return ConvertToPointerSize(pointer_size_);
 }
 
+bool LZ4_decompress_safe_checked(const char* source,
+                                 char* dest,
+                                 int compressed_size,
+                                 int max_decompressed_size,
+                                 /*out*/ size_t* decompressed_size_checked,
+                                 /*out*/ std::string* error_msg) {
+  int decompressed_size = LZ4_decompress_safe(source, dest, compressed_size, max_decompressed_size);
+  if (UNLIKELY(decompressed_size < 0)) {
+    *error_msg = android::base::StringPrintf("LZ4_decompress_safe() returned negative size: %d",
+                                             decompressed_size);
+    return false;
+  } else {
+    *decompressed_size_checked = static_cast<size_t>(decompressed_size);
+    return true;
+  }
+}
+
 bool ImageHeader::Block::Decompress(uint8_t* out_ptr,
                                     const uint8_t* in_ptr,
                                     std::string* error_msg) const {
@@ -182,11 +201,17 @@ bool ImageHeader::Block::Decompress(uint8_t* out_ptr,
     case kStorageModeLZ4:
     case kStorageModeLZ4HC: {
       // LZ4HC and LZ4 have same internal format, both use LZ4_decompress.
-      const size_t decompressed_size = LZ4_decompress_safe(
+      size_t decompressed_size;
+      bool ok = LZ4_decompress_safe_checked(
           reinterpret_cast<const char*>(in_ptr) + data_offset_,
           reinterpret_cast<char*>(out_ptr) + image_offset_,
           data_size_,
-          image_size_);
+          image_size_,
+          &decompressed_size,
+          error_msg);
+      if (!ok) {
+        return false;
+      }
       CHECK_EQ(decompressed_size, image_size_);
       break;
     }

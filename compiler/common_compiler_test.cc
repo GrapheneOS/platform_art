@@ -267,40 +267,6 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
   CompiledMethod::ReleaseSwapAllocatedCompiledMethod(&storage, compiled_method);
 }
 
-void CommonCompilerTestImpl::CompileDirectMethod(Handle<mirror::ClassLoader> class_loader,
-                                                 const char* class_name,
-                                                 const char* method_name,
-                                                 const char* signature) {
-  std::string class_descriptor(DotToDescriptor(class_name));
-  Thread* self = Thread::Current();
-  ClassLinker* class_linker = GetClassLinker();
-  ObjPtr<mirror::Class> klass =
-      class_linker->FindClass(self, class_descriptor.c_str(), class_loader);
-  CHECK(klass != nullptr) << "Class not found " << class_name;
-  auto pointer_size = class_linker->GetImagePointerSize();
-  ArtMethod* method = klass->FindClassMethod(method_name, signature, pointer_size);
-  CHECK(method != nullptr && method->IsDirect()) << "Direct method not found: "
-      << class_name << "." << method_name << signature;
-  CompileMethod(method);
-}
-
-void CommonCompilerTestImpl::CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader,
-                                                  const char* class_name,
-                                                  const char* method_name,
-                                                  const char* signature) {
-  std::string class_descriptor(DotToDescriptor(class_name));
-  Thread* self = Thread::Current();
-  ClassLinker* class_linker = GetClassLinker();
-  ObjPtr<mirror::Class> klass =
-      class_linker->FindClass(self, class_descriptor.c_str(), class_loader);
-  CHECK(klass != nullptr) << "Class not found " << class_name;
-  auto pointer_size = class_linker->GetImagePointerSize();
-  ArtMethod* method = klass->FindClassMethod(method_name, signature, pointer_size);
-  CHECK(method != nullptr && !method->IsDirect()) << "Virtual method not found: "
-      << class_name << "." << method_name << signature;
-  CompileMethod(method);
-}
-
 void CommonCompilerTestImpl::ClearBootImageOption() {
   compiler_options_->image_type_ = CompilerOptions::ImageType::kNone;
 }

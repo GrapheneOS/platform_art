@@ -50,16 +50,17 @@ package com.android.server.art.model {
     method public long getFreedBytes();
   }
 
-  public class OptimizationStatus {
-    method @NonNull public java.util.List<com.android.server.art.model.OptimizationStatus.DexFileOptimizationStatus> getDexFileOptimizationStatuses();
+  public abstract class OptimizationStatus {
+    method @NonNull public abstract java.util.List<com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus> getDexContainerFileOptimizationStatuses();
   }
 
-  public static class OptimizationStatus.DexFileOptimizationStatus {
-    method @NonNull public String getCompilationReason();
-    method @NonNull public String getCompilerFilter();
-    method @NonNull public String getDexFile();
-    method @NonNull public String getInstructionSet();
-    method @NonNull public String getLocationDebugString();
+  public abstract static class OptimizationStatus.DexContainerFileOptimizationStatus {
+    method @NonNull public abstract String getAbi();
+    method @NonNull public abstract String getCompilationReason();
+    method @NonNull public abstract String getCompilerFilter();
+    method @NonNull public abstract String getDexContainerFile();
+    method @NonNull public abstract String getLocationDebugString();
+    method public abstract boolean isPrimaryAbi();
   }
 
   public class OptimizeParams {
@@ -78,7 +79,6 @@ package com.android.server.art.model {
     method @NonNull public com.android.server.art.model.OptimizeParams.Builder setFlags(int);
     method @NonNull public com.android.server.art.model.OptimizeParams.Builder setFlags(int, int);
     method @NonNull public com.android.server.art.model.OptimizeParams.Builder setPriorityClass(int);
-    method @NonNull public com.android.server.art.model.OptimizeParams.Builder setReason(@NonNull String);
   }
 
   public class OptimizeResult {
@@ -92,17 +92,18 @@ package com.android.server.art.model {
     field public static final int OPTIMIZE_SKIPPED = 10; // 0xa
   }
 
-  public static class OptimizeResult.DexFileOptimizeResult {
+  public static class OptimizeResult.DexContainerFileOptimizeResult {
+    method @NonNull public String getAbi();
     method @NonNull public String getActualCompilerFilter();
     method public long getDex2oatCpuTimeMillis();
     method public long getDex2oatWallTimeMillis();
-    method @NonNull public String getDexFile();
-    method @NonNull public String getInstructionSet();
+    method @NonNull public String getDexContainerFile();
     method public int getStatus();
+    method public boolean isPrimaryAbi();
   }
 
   public static class OptimizeResult.PackageOptimizeResult {
-    method @NonNull public java.util.List<com.android.server.art.model.OptimizeResult.DexFileOptimizeResult> getDexFileOptimizeResults();
+    method @NonNull public java.util.List<com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult> getDexContainerFileOptimizeResults();
     method @NonNull public String getPackageName();
     method public int getStatus();
   }
