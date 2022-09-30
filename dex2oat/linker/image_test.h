@@ -79,7 +79,7 @@ class ImageTest : public CommonCompilerDriverTest {
  protected:
   void SetUp() override {
     ReserveImageSpace();
-    CommonCompilerTest::SetUp();
+    CommonCompilerDriverTest::SetUp();
   }
 
   void Compile(ImageHeader::StorageMode storage_mode,
@@ -91,7 +91,7 @@ class ImageTest : public CommonCompilerDriverTest {
                const std::initializer_list<std::string>& image_classes_failing_resolution = {});
 
   void SetUpRuntimeOptions(RuntimeOptions* options) override {
-    CommonCompilerTest::SetUpRuntimeOptions(options);
+    CommonCompilerDriverTest::SetUpRuntimeOptions(options);
     QuickCompilerCallbacks* new_callbacks =
         new QuickCompilerCallbacks(CompilerCallbacks::CallbackMode::kCompileBootImage);
     new_callbacks->SetVerificationResults(verification_results_.get());
@@ -230,6 +230,7 @@ inline void ImageTest::DoCompile(ImageHeader::StorageMode storage_mode,
         elf_writers.emplace_back(CreateElfWriterQuick(*compiler_options_, oat_file.GetFile()));
         elf_writers.back()->Start();
         oat_writers.emplace_back(new OatWriter(*compiler_options_,
+                                               verification_results_.get(),
                                                &timings,
                                                /*profile_compilation_info*/nullptr,
                                                CompactDexLevel::kCompactDexLevelNone));

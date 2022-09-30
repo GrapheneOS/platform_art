@@ -49,7 +49,6 @@ class DexFile;
 enum class InstructionSet;
 class InstructionSetFeatures;
 class ProfileCompilationInfo;
-class VerificationResults;
 
 // Enum for CheckProfileMethodsCompiled. Outside CompilerOptions so it can be forward-declared.
 enum class ProfileMethodsCheck : uint8_t {
@@ -305,8 +304,6 @@ class CompilerOptions final {
   // classes. `pretty_descriptor` should be the result of calling `PrettyDescriptor`.
   bool IsPreloadedClass(const char* pretty_descriptor) const;
 
-  const VerificationResults* GetVerificationResults() const;
-
   bool ParseCompilerOptions(const std::vector<std::string>& options,
                             bool ignore_unrecognized,
                             std::string* error_msg);
@@ -422,9 +419,6 @@ class CompilerOptions final {
   // Classes listed in the preloaded-classes file, used for boot image and
   // boot image extension compilation.
   HashSet<std::string> preloaded_classes_;
-
-  // Results of AOT verification.
-  const VerificationResults* verification_results_;
 
   CompilerType compiler_type_;
   ImageType image_type_;

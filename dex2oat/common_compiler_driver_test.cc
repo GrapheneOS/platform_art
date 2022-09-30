@@ -21,6 +21,7 @@
 #include "base/casts.h"
 #include "base/timing_logger.h"
 #include "dex/quick_compiler_callbacks.h"
+#include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "utils/atomic_dex_ref_map-inl.h"
@@ -46,9 +47,7 @@ void CommonCompilerDriverTest::CompileAll(jobject class_loader,
   // Verification results in the `callback_` should not be used during compilation.
   down_cast<QuickCompilerCallbacks*>(callbacks_.get())->SetVerificationResults(
       reinterpret_cast<VerificationResults*>(inaccessible_page_));
-  compiler_options_->verification_results_ = verification_results_.get();
   compiler_driver_->CompileAll(class_loader, dex_files, timings);
-  compiler_options_->verification_results_ = nullptr;
   down_cast<QuickCompilerCallbacks*>(callbacks_.get())->SetVerificationResults(
       verification_results_.get());
 
@@ -89,6 +88,7 @@ void CommonCompilerDriverTest::CreateCompilerDriver() {
   compiler_options_->image_classes_.swap(*GetImageClasses());
   compiler_options_->profile_compilation_info_ = GetProfileCompilationInfo();
   compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
+                                            verification_results_.get(),
                                             compiler_kind_,
                                             number_of_threads_,
                                             /* swap_fd= */ -1));
@@ -97,6 +97,7 @@ void CommonCompilerDriverTest::CreateCompilerDriver() {
 void CommonCompilerDriverTest::SetUpRuntimeOptions(RuntimeOptions* options) {
   CommonCompilerTest::SetUpRuntimeOptions(options);
 
+  verification_results_.reset(new VerificationResults());
   QuickCompilerCallbacks* callbacks =
       new QuickCompilerCallbacks(CompilerCallbacks::CallbackMode::kCompileApp);
   callbacks->SetVerificationResults(verification_results_.get());
@@ -121,6 +122,7 @@ void CommonCompilerDriverTest::TearDown() {
   }
   image_reservation_.Reset();
   compiler_driver_.reset();
+  verification_results_.reset();
 
   CommonCompilerTest::TearDown();
 }

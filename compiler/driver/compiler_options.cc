@@ -31,7 +31,6 @@
 #include "cmdline_parser.h"
 #include "compiler_options_map-inl.h"
 #include "dex/dex_file-inl.h"
-#include "dex/verification_results.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "simple_compiler_options_map.h"
@@ -49,7 +48,6 @@ CompilerOptions::CompilerOptions()
       no_inline_from_(),
       dex_files_for_oat_file_(),
       image_classes_(),
-      verification_results_(nullptr),
       compiler_type_(CompilerType::kAotCompiler),
       image_type_(ImageType::kNone),
       multi_image_(false),
@@ -154,11 +152,6 @@ bool CompilerOptions::IsImageClass(const char* descriptor) const {
 
 bool CompilerOptions::IsPreloadedClass(const char* pretty_descriptor) const {
   return preloaded_classes_.find(std::string_view(pretty_descriptor)) != preloaded_classes_.end();
-}
-
-const VerificationResults* CompilerOptions::GetVerificationResults() const {
-  DCHECK(Runtime::Current()->IsAotCompiler());
-  return verification_results_;
 }
 
 bool CompilerOptions::ShouldCompileWithClinitCheck(ArtMethod* method) const {
