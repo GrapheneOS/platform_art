@@ -91,7 +91,7 @@ class ExceptionTest : public CommonRuntimeTest {
 
     const size_t stack_maps_size = stack_map.size();
     const size_t header_size = sizeof(OatQuickMethodHeader);
-    const size_t code_alignment = GetInstructionSetAlignment(kRuntimeISA);
+    const size_t code_alignment = GetInstructionSetCodeAlignment(kRuntimeISA);
 
     fake_header_code_and_maps_.resize(stack_maps_size + header_size + code_size + code_alignment);
     // NB: The start of the vector might not have been allocated the desired alignment.

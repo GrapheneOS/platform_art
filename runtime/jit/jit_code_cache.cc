@@ -353,12 +353,12 @@ bool JitCodeCache::WaitForPotentialCollectionToComplete(Thread* self) {
 }
 
 static uintptr_t FromCodeToAllocation(const void* code) {
-  size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
+  size_t alignment = GetInstructionSetCodeAlignment(kRuntimeISA);
   return reinterpret_cast<uintptr_t>(code) - RoundUp(sizeof(OatQuickMethodHeader), alignment);
 }
 
 static const void* FromAllocationToCode(const uint8_t* alloc) {
-  size_t alignment = GetInstructionSetAlignment(kRuntimeISA);
+  size_t alignment = GetInstructionSetCodeAlignment(kRuntimeISA);
   return reinterpret_cast<const void*>(alloc + RoundUp(sizeof(OatQuickMethodHeader), alignment));
 }
 
