@@ -25,7 +25,6 @@ ART_COMPILER {
       art::CompilerOptions::*;
       art::CreateTrampoline*;
       art::IntrinsicObjects::*;
-      art::VerificationResults::*;
       art::debug::MakeMiniDebugInfo*;
       art::linker::operator*art::linker::LinkerPatch::Type*;
       art::operator*art::Whence*;
