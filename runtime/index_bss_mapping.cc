@@ -44,8 +44,6 @@ size_t IndexBssMappingEntry::GetBssOffset(size_t index_bits,
   }
 }
 
-constexpr size_t IndexBssMappingLookup::npos;
-
 size_t IndexBssMappingLookup::GetBssOffset(const IndexBssMapping* mapping,
                                            uint32_t index,
                                            uint32_t number_of_indexes,

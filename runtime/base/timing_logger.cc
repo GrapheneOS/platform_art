@@ -33,8 +33,6 @@
 
 namespace art {
 
-constexpr size_t TimingLogger::kIndexNotFound;
-
 CumulativeLogger::CumulativeLogger(const std::string& name)
     : name_(name),
       lock_name_("CumulativeLoggerLock" + name),
