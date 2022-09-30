@@ -384,6 +384,7 @@ class OatWriter::OatDexFile {
     << "file_offset=" << file_offset << " offset_=" << offset_
 
 OatWriter::OatWriter(const CompilerOptions& compiler_options,
+                     const VerificationResults* verification_results,
                      TimingLogger* timings,
                      ProfileCompilationInfo* info,
                      CompactDexLevel compact_dex_level)
@@ -395,6 +396,7 @@ OatWriter::OatWriter(const CompilerOptions& compiler_options,
     zipped_dex_file_locations_(),
     compiler_driver_(nullptr),
     compiler_options_(compiler_options),
+    verification_results_(verification_results),
     image_writer_(nullptr),
     extract_dex_files_into_vdex_(true),
     vdex_begin_(nullptr),
@@ -1013,7 +1015,7 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
     ClassStatus status;
     bool found = writer_->compiler_driver_->GetCompiledClass(class_ref, &status);
     if (!found) {
-      const VerificationResults* results = writer_->compiler_options_.GetVerificationResults();
+      const VerificationResults* results = writer_->verification_results_;
       if (results != nullptr && results->IsClassRejected(class_ref)) {
         // The oat class status is used only for verification of resolved classes,
         // so use ClassStatus::kErrorResolved whether the class was resolved or unresolved
