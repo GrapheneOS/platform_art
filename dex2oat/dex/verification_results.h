@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
-#define ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
+#ifndef ART_DEX2OAT_DEX_VERIFICATION_RESULTS_H_
+#define ART_DEX2OAT_DEX_VERIFICATION_RESULTS_H_
 
 #include <set>
 
@@ -58,4 +58,4 @@ class VerificationResults {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
+#endif  // ART_DEX2OAT_DEX_VERIFICATION_RESULTS_H_
