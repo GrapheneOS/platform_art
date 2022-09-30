@@ -253,6 +253,21 @@ CompiledMethodStorage::ThunkMapKey CompiledMethodStorage::GetThunkMapKey(
   return ThunkMapKey(linker_patch.GetType(), custom_value1, custom_value2);
 }
 
+CompiledMethod* CompiledMethodStorage::CreateCompiledMethod(
+    InstructionSet instruction_set,
+    ArrayRef<const uint8_t> code,
+    ArrayRef<const uint8_t> stack_map,
+    ArrayRef<const uint8_t> cfi,
+    ArrayRef<const linker::LinkerPatch> patches,
+    bool is_intrinsic) {
+  CompiledMethod* compiled_method = CompiledMethod::SwapAllocCompiledMethod(
+      this, instruction_set, code, stack_map, cfi, patches);
+  if (is_intrinsic) {
+    compiled_method->MarkAsIntrinsic();
+  }
+  return compiled_method;
+}
+
 ArrayRef<const uint8_t> CompiledMethodStorage::GetThunkCode(const linker::LinkerPatch& linker_patch,
                                                             /*out*/ std::string* debug_name) {
   ThunkMapKey key = GetThunkMapKey(linker_patch);
