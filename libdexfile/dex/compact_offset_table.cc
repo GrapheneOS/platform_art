@@ -21,8 +21,6 @@
 
 namespace art {
 
-constexpr size_t CompactOffsetTable::kElementsPerIndex;
-
 CompactOffsetTable::Accessor::Accessor(const uint8_t* data_begin,
                                        uint32_t minimum_offset,
                                        uint32_t table_offset)
