@@ -252,10 +252,12 @@ class CompilerDriver::AOTCompilationStats {
 
 CompilerDriver::CompilerDriver(
     const CompilerOptions* compiler_options,
+    const VerificationResults* verification_results,
     Compiler::Kind compiler_kind,
     size_t thread_count,
     int swap_fd)
     : compiler_options_(compiler_options),
+      verification_results_(verification_results),
       compiler_(),
       compiler_kind_(compiler_kind),
       number_of_soft_verifier_failures_(0),
@@ -493,7 +495,7 @@ static void CompileMethodQuick(
       // Method is annotated with @NeverCompile and should not be compiled.
     } else {
       const CompilerOptions& compiler_options = driver->GetCompilerOptions();
-      const VerificationResults* results = compiler_options.GetVerificationResults();
+      const VerificationResults* results = driver->GetVerificationResults();
       DCHECK(results != nullptr);
       MethodReference method_ref(&dex_file, method_idx);
       // Don't compile class initializers unless kEverything.
@@ -2511,7 +2513,8 @@ static void CompileDexFile(CompilerDriver* driver,
     ClassAccessor accessor(dex_file, class_def_index);
     CompilerDriver* const driver = context.GetCompiler();
     // Skip compiling classes with generic verifier failures since they will still fail at runtime
-    if (driver->GetCompilerOptions().GetVerificationResults()->IsClassRejected(ref)) {
+    DCHECK(driver->GetVerificationResults() != nullptr);
+    if (driver->GetVerificationResults()->IsClassRejected(ref)) {
       return;
     }
     // Use a scoped object access to perform to the quick SkipClass check.
