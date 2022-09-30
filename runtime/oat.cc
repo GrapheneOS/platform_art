@@ -29,9 +29,6 @@ namespace art {
 
 using android::base::StringPrintf;
 
-constexpr const char OatHeader::kTrueValue[];
-constexpr const char OatHeader::kFalseValue[];
-
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
   if (variable_data != nullptr) {
