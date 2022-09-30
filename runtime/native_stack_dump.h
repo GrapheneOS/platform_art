@@ -31,6 +31,10 @@ namespace art {
 
 class ArtMethod;
 
+// Remove method parameters by finding matching top-level parenthesis and removing them.
+// Since functions can be defined inside functions, this can remove multiple substrings.
+std::string StripParameters(std::string name);
+
 // Dumps the native stack for thread 'tid' to 'os'.
 void DumpNativeStack(std::ostream& os,
                      pid_t tid,
