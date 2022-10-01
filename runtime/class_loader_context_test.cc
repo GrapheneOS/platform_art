@@ -18,6 +18,10 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
+
+#include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "art_field-inl.h"
 #include "base/dchecked_vector.h"
@@ -42,6 +46,19 @@ namespace art {
 
 class ClassLoaderContextTest : public CommonRuntimeTest {
  public:
+  void SetUp() override {
+    CommonRuntimeTest::SetUp();
+    scratch_dir_ = std::make_unique<ScratchDir>();
+    scratch_path_ = scratch_dir_->GetPath();
+    // Remove the trailing '/';
+    scratch_path_.resize(scratch_path_.length() - 1);
+  }
+
+  void TearDown() override {
+    scratch_dir_.reset();
+    CommonRuntimeTest::TearDown();
+  }
+
   void VerifyContextSize(ClassLoaderContext* context, size_t expected_size) {
     ASSERT_TRUE(context != nullptr);
     ASSERT_EQ(expected_size, context->GetParentChainSize());
@@ -339,6 +356,9 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
     *out = in.substr(start_position);
     return true;
   }
+
+  std::unique_ptr<ScratchDir> scratch_dir_;
+  std::string scratch_path_;
 
  private:
   void VerifyClassLoaderInfo(ClassLoaderContext* context,
@@ -1597,6 +1617,28 @@ TEST_F(ClassLoaderContextTest, VerifyClassLoaderContextMatchWithIMCSL) {
   VerifyClassLoaderSharedLibraryIMC(context.get(), 0, 1, "<unknown>:<unknown>");
 
   ASSERT_EQ(context->VerifyClassLoaderContextMatch(context_spec),
+            ClassLoaderContext::VerificationResult::kVerifies);
+}
+
+TEST_F(ClassLoaderContextTest, VerifyClassLoaderContextMatchAfterResolvingSymlinks) {
+  {
+    std::ofstream ofs(scratch_path_ + "/foo.jar");
+    ASSERT_TRUE(ofs);
+  }
+  std::filesystem::create_directory_symlink(scratch_path_, scratch_path_ + "/bar");
+
+  std::string context_spec =
+      android::base::StringPrintf("PCL[%s/foo.jar*123:%s/foo.jar!classes2.dex*456]",
+                                  scratch_path_.c_str(),
+                                  scratch_path_.c_str());
+  std::unique_ptr<ClassLoaderContext> context = ParseContextWithChecksums(context_spec);
+  PretendContextOpenedDexFilesForChecksums(context.get());
+
+  std::string context_spec_with_symlinks =
+      android::base::StringPrintf("PCL[%s/bar/foo.jar*123:%s/bar/foo.jar!classes2.dex*456]",
+                                  scratch_path_.c_str(),
+                                  scratch_path_.c_str());
+  ASSERT_EQ(context->VerifyClassLoaderContextMatch(context_spec_with_symlinks),
             ClassLoaderContext::VerificationResult::kVerifies);
 }
 

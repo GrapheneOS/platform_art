@@ -544,6 +544,7 @@
             "674-hiddenapi",
             "690-hiddenapi-same-name-methods",
             "804-class-extends-itself",
+            "842-vdex-hard-failure",
             "921-hello-failure",
             "999-redefine-hiddenapi"
         ],

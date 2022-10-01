@@ -30,7 +30,6 @@
 #include "class_linker.h"
 #include "compiled_method-inl.h"
 #include "dex/descriptors_names.h"
-#include "dex/verification_results.h"
 #include "driver/compiled_method_storage.h"
 #include "driver/compiler_options.h"
 #include "jni/java_vm_ext.h"
@@ -207,7 +206,6 @@ void CommonCompilerTestImpl::OverrideInstructionSetFeatures(InstructionSet instr
 
 void CommonCompilerTestImpl::SetUpRuntimeOptionsImpl() {
   compiler_options_.reset(new CompilerOptions);
-  verification_results_.reset(new VerificationResults());
   ApplyInstructionSet();
 }
 
@@ -221,7 +219,6 @@ void CommonCompilerTestImpl::SetCompilerKind(Compiler::Kind compiler_kind) {
 
 void CommonCompilerTestImpl::TearDown() {
   code_and_metadata_.clear();
-  verification_results_.reset();
   compiler_options_.reset();
 }
 
@@ -241,7 +238,6 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
     Handle<mirror::DexCache> dex_cache =
         hs.NewHandle(GetClassLinker()->FindDexCache(self, dex_file));
     Handle<mirror::ClassLoader> class_loader = hs.NewHandle(method->GetClassLoader());
-    compiler_options_->verification_results_ = verification_results_.get();
     if (method->IsNative()) {
       compiled_method = compiler->JniCompile(method->GetAccessFlags(),
                                              method->GetDexMethodIndex(),
@@ -257,7 +253,6 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
                                           dex_file,
                                           dex_cache);
     }
-    compiler_options_->verification_results_ = nullptr;
   }
   CHECK(method != nullptr);
   {
