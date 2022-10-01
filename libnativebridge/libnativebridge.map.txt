@@ -20,12 +20,12 @@
 # that defines the exported interface. Please keep in sync with this list.
 LIBNATIVEBRIDGE_1 {
   global:
-    NativeBridgeGetError;
-    NativeBridgeInitialized;
-    NativeBridgeGetTrampoline;
-    PreInitializeNativeBridge;
-    NativeBridgeAvailable;
-    NeedsNativeBridge;
+    NativeBridgeGetError; # apex
+    NativeBridgeInitialized; # apex
+    NativeBridgeGetTrampoline; # apex
+    PreInitializeNativeBridge; # apex
+    NativeBridgeAvailable; # apex
+    NeedsNativeBridge; # apex
   local:
     *;
 };
