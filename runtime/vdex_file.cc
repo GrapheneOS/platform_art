@@ -49,10 +49,6 @@ namespace art {
 
 using android::base::StringPrintf;
 
-constexpr uint8_t VdexFile::VdexFileHeader::kVdexInvalidMagic[4];
-constexpr uint8_t VdexFile::VdexFileHeader::kVdexMagic[4];
-constexpr uint8_t VdexFile::VdexFileHeader::kVdexVersion[4];
-
 bool VdexFile::VdexFileHeader::IsMagicValid() const {
   return (memcmp(magic_, kVdexMagic, sizeof(kVdexMagic)) == 0);
 }

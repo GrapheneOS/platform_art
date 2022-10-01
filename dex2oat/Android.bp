@@ -29,6 +29,7 @@ art_cc_defaults {
     host_supported: true,
     srcs: [
         "dex/quick_compiler_callbacks.cc",
+        "dex/verification_results.cc",
         "driver/compiler_driver.cc",
         "linker/code_info_table_deduper.cc",
         "linker/elf_writer.cc",

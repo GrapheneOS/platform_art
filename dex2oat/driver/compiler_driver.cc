@@ -252,10 +252,12 @@ class CompilerDriver::AOTCompilationStats {
 
 CompilerDriver::CompilerDriver(
     const CompilerOptions* compiler_options,
+    const VerificationResults* verification_results,
     Compiler::Kind compiler_kind,
     size_t thread_count,
     int swap_fd)
     : compiler_options_(compiler_options),
+      verification_results_(verification_results),
       compiler_(),
       compiler_kind_(compiler_kind),
       number_of_soft_verifier_failures_(0),
@@ -493,7 +495,7 @@ static void CompileMethodQuick(
       // Method is annotated with @NeverCompile and should not be compiled.
     } else {
       const CompilerOptions& compiler_options = driver->GetCompilerOptions();
-      const VerificationResults* results = compiler_options.GetVerificationResults();
+      const VerificationResults* results = driver->GetVerificationResults();
       DCHECK(results != nullptr);
       MethodReference method_ref(&dex_file, method_idx);
       // Don't compile class initializers unless kEverything.
@@ -1654,8 +1656,8 @@ static void LoadAndUpdateStatus(const ClassAccessor& accessor,
 bool CompilerDriver::FastVerify(jobject jclass_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 TimingLogger* timings) {
-  verifier::VerifierDeps* verifier_deps =
-      Runtime::Current()->GetCompilerCallbacks()->GetVerifierDeps();
+  CompilerCallbacks* callbacks = Runtime::Current()->GetCompilerCallbacks();
+  verifier::VerifierDeps* verifier_deps = callbacks->GetVerifierDeps();
   // If there exist VerifierDeps that aren't the ones we just created to output, use them to verify.
   if (verifier_deps == nullptr || verifier_deps->OutputOnly()) {
     return false;
@@ -1691,28 +1693,32 @@ bool CompilerDriver::FastVerify(jobject jclass_loader,
     const std::vector<bool>& verified_classes = verifier_deps->GetVerifiedClasses(*dex_file);
     DCHECK_EQ(verified_classes.size(), dex_file->NumClassDefs());
     for (ClassAccessor accessor : dex_file->GetClasses()) {
-      if (verified_classes[accessor.GetClassDefIndex()]) {
-        if (compiler_only_verifies) {
-          // Just update the compiled_classes_ map. The compiler doesn't need to resolve
-          // the type.
-          ClassReference ref(dex_file, accessor.GetClassDefIndex());
-          const ClassStatus existing = ClassStatus::kNotReady;
-          ClassStateTable::InsertResult result =
-             compiled_classes_.Insert(ref, existing, ClassStatus::kVerifiedNeedsAccessChecks);
-          CHECK_EQ(result, ClassStateTable::kInsertResultSuccess) << ref.dex_file->GetLocation();
-        } else {
-          // Update the class status, so later compilation stages know they don't need to verify
-          // the class.
-          LoadAndUpdateStatus(
-              accessor, ClassStatus::kVerifiedNeedsAccessChecks, class_loader, soa.Self());
-        }
-      } else if (!compiler_only_verifies) {
-        // Make sure later compilation stages know they should not try to verify
-        // this class again.
-        LoadAndUpdateStatus(accessor,
-                            ClassStatus::kRetryVerificationAtRuntime,
-                            class_loader,
-                            soa.Self());
+      ClassStatus status = verified_classes[accessor.GetClassDefIndex()]
+          ? ClassStatus::kVerifiedNeedsAccessChecks
+          : ClassStatus::kRetryVerificationAtRuntime;
+      if (compiler_only_verifies) {
+        // Just update the compiled_classes_ map. The compiler doesn't need to resolve
+        // the type.
+        ClassReference ref(dex_file, accessor.GetClassDefIndex());
+        const ClassStatus existing = ClassStatus::kNotReady;
+        ClassStateTable::InsertResult result = compiled_classes_.Insert(ref, existing, status);
+        CHECK_EQ(result, ClassStateTable::kInsertResultSuccess) << ref.dex_file->GetLocation();
+      } else {
+        // Update the class status, so later compilation stages know they don't need to verify
+        // the class.
+        LoadAndUpdateStatus(accessor, status, class_loader, soa.Self());
+      }
+
+      // Vdex marks class as unverified for two reasons only:
+      // 1. It has a hard failure, or
+      // 2. Once of its method needs lock counting.
+      //
+      // The optimizing compiler expects a method to not have a hard failure before
+      // compiling it, so for simplicity just disable any compilation of methods
+      // of these classes.
+      if (status == ClassStatus::kRetryVerificationAtRuntime) {
+        ClassReference ref(dex_file, accessor.GetClassDefIndex());
+        callbacks->AddUncompilableClass(ref);
       }
     }
   }
@@ -2507,7 +2513,8 @@ static void CompileDexFile(CompilerDriver* driver,
     ClassAccessor accessor(dex_file, class_def_index);
     CompilerDriver* const driver = context.GetCompiler();
     // Skip compiling classes with generic verifier failures since they will still fail at runtime
-    if (driver->GetCompilerOptions().GetVerificationResults()->IsClassRejected(ref)) {
+    DCHECK(driver->GetVerificationResults() != nullptr);
+    if (driver->GetVerificationResults()->IsClassRejected(ref)) {
       return;
     }
     // Use a scoped object access to perform to the quick SkipClass check.

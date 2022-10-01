@@ -85,6 +85,7 @@ class CompilerDriver {
   // can assume will be in the image, with null implying all available
   // classes.
   CompilerDriver(const CompilerOptions* compiler_options,
+                 const VerificationResults* verification_results,
                  Compiler::Kind compiler_kind,
                  size_t thread_count,
                  int swap_fd);
@@ -113,6 +114,10 @@ class CompilerDriver {
 
   const CompilerOptions& GetCompilerOptions() const {
     return *compiler_options_;
+  }
+
+  const VerificationResults* GetVerificationResults() const {
+    return verification_results_;
   }
 
   Compiler* GetCompiler() const {
@@ -295,6 +300,7 @@ class CompilerDriver {
                            /*inout*/ TimingLogger* timings);
 
   const CompilerOptions* const compiler_options_;
+  const VerificationResults* const verification_results_;
 
   std::unique_ptr<Compiler> compiler_;
   Compiler::Kind compiler_kind_;

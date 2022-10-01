@@ -31,11 +31,6 @@ namespace art {
 namespace gc {
 namespace accounting {
 
-constexpr size_t CardTable::kCardShift;
-constexpr size_t CardTable::kCardSize;
-constexpr uint8_t CardTable::kCardClean;
-constexpr uint8_t CardTable::kCardDirty;
-
 /*
  * Maintain a card table from the write barrier. All writes of
  * non-null values to heap addresses should go through an entry in

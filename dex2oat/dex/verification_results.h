@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
-#define ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
+#ifndef ART_DEX2OAT_DEX_VERIFICATION_RESULTS_H_
+#define ART_DEX2OAT_DEX_VERIFICATION_RESULTS_H_
 
 #include <set>
 
@@ -39,6 +39,7 @@ class VerificationResults {
   void AddRejectedClass(ClassReference ref) REQUIRES(!rejected_classes_lock_);
   bool IsClassRejected(ClassReference ref) const REQUIRES(!rejected_classes_lock_);
 
+  void AddUncompilableClass(ClassReference ref) REQUIRES(!uncompilable_methods_lock_);
   void AddUncompilableMethod(MethodReference ref) REQUIRES(!uncompilable_methods_lock_);
   bool IsUncompilableMethod(MethodReference ref) const REQUIRES(!uncompilable_methods_lock_);
 
@@ -57,4 +58,4 @@ class VerificationResults {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_DEX_VERIFICATION_RESULTS_H_
+#endif  // ART_DEX2OAT_DEX_VERIFICATION_RESULTS_H_

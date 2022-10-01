@@ -59,10 +59,6 @@
 
 namespace art {
 
-// TODO: move to own CC file?
-constexpr size_t BitString::kBitSizeAtPosition[BitString::kCapacity];
-constexpr size_t BitString::kCapacity;
-
 namespace mirror {
 
 using android::base::StringPrintf;
