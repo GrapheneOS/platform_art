@@ -30,28 +30,28 @@ inline uintptr_t MarkCompact::LiveWordsBitmap<kAlignment>::SetLiveWords(uintptr_
                                                                         size_t size) {
   const uintptr_t begin_bit_idx = MemRangeBitmap::BitIndexFromAddr(begin);
   DCHECK(!Bitmap::TestBit(begin_bit_idx));
-  uintptr_t end = begin + size;
-  // We have to use the unchecked version of BitIndexFromAddr() as 'end' could
-  // be outside the range. Do explicit check here.
-  DCHECK_LE(end, MemRangeBitmap::CoverEnd());
-  const uintptr_t end_bit_idx = MemRangeBitmap::BitIndexFromAddrUnchecked(end);
-  uintptr_t* bm_address = Bitmap::Begin() + Bitmap::BitIndexToWordIndex(begin_bit_idx);
-  uintptr_t* const end_bm_address = Bitmap::Begin() + Bitmap::BitIndexToWordIndex(end_bit_idx);
+  // Range to set bit: [begin, end]
+  uintptr_t end = begin + size - kAlignment;
+  const uintptr_t end_bit_idx = MemRangeBitmap::BitIndexFromAddr(end);
+  uintptr_t* begin_bm_address = Bitmap::Begin() + Bitmap::BitIndexToWordIndex(begin_bit_idx);
+  uintptr_t* end_bm_address = Bitmap::Begin() + Bitmap::BitIndexToWordIndex(end_bit_idx);
+  ptrdiff_t diff = end_bm_address - begin_bm_address;
   uintptr_t mask = Bitmap::BitIndexToMask(begin_bit_idx);
   // Bits that needs to be set in the first word, if it's not also the last word
   mask = ~(mask - 1);
-  // loop over all the words, except the last one.
-  // TODO: optimize by using memset. Sometimes this function may get called with
-  // large ranges.
-  for (; bm_address < end_bm_address; bm_address++) {
-    *bm_address |= mask;
-    // This needs to be set only once as we are setting all bits in the
-    // subsequent iterations. Hopefully, the compiler will optimize it.
+  if (diff > 0) {
+    *begin_bm_address |= mask;
     mask = ~0;
+    // Even though memset can handle the (diff == 1) case but we should avoid the
+    // overhead of a function call for this, highly likely (as most of the objects
+    // are small), case.
+    if (diff > 1) {
+      // Set all intermediate bits to 1.
+      std::memset(static_cast<void*>(begin_bm_address + 1), 0xff, (diff - 1) * sizeof(uintptr_t));
+    }
   }
-  // Take care of the last word. If we had only one word, then mask != ~0.
-  const uintptr_t end_mask = Bitmap::BitIndexToMask(end_bit_idx);
-  *bm_address |= mask & (end_mask - 1);
+  uintptr_t end_mask = Bitmap::BitIndexToMask(end_bit_idx);
+  *end_bm_address |= mask & (end_mask | (end_mask - 1));
   return begin_bit_idx;
 }
 
@@ -60,13 +60,11 @@ inline void MarkCompact::LiveWordsBitmap<kAlignment>::VisitLiveStrides(uintptr_t
                                                                        uint8_t* end,
                                                                        const size_t bytes,
                                                                        Visitor&& visitor) const {
+  // Range to visit [begin_bit_idx, end_bit_idx]
   DCHECK(IsAligned<kAlignment>(end));
-  // We have to use the unchecked version of BitIndexFromAddr() as 'end' could
-  // be outside the range. Do explicit check here.
-  DCHECK_LE(reinterpret_cast<uintptr_t>(end), MemRangeBitmap::CoverEnd());
-  const uintptr_t end_bit_idx =
-      MemRangeBitmap::BitIndexFromAddrUnchecked(reinterpret_cast<uintptr_t>(end));
-  DCHECK_LT(begin_bit_idx, end_bit_idx);
+  end -= kAlignment;
+  const uintptr_t end_bit_idx = MemRangeBitmap::BitIndexFromAddr(reinterpret_cast<uintptr_t>(end));
+  DCHECK_LE(begin_bit_idx, end_bit_idx);
   uintptr_t begin_word_idx = Bitmap::BitIndexToWordIndex(begin_bit_idx);
   const uintptr_t end_word_idx = Bitmap::BitIndexToWordIndex(end_bit_idx);
   DCHECK(Bitmap::TestBit(begin_bit_idx));
@@ -82,7 +80,8 @@ inline void MarkCompact::LiveWordsBitmap<kAlignment>::VisitLiveStrides(uintptr_t
 
   do {
     if (UNLIKELY(begin_word_idx == end_word_idx)) {
-      word &= Bitmap::BitIndexToMask(end_bit_idx) - 1;
+      uintptr_t mask = Bitmap::BitIndexToMask(end_bit_idx);
+      word &= mask | (mask - 1);
     }
     if (~word == 0) {
       // All bits in the word are marked.

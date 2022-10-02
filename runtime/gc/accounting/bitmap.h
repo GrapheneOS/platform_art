@@ -150,13 +150,9 @@ class MemoryRangeBitmap : public Bitmap {
     return addr;
   }
 
-  ALWAYS_INLINE uintptr_t BitIndexFromAddrUnchecked(uintptr_t addr) const {
-    return (addr - CoverBegin()) / kAlignment;
-  }
-
   // Return the bit index associated with an address .
   ALWAYS_INLINE uintptr_t BitIndexFromAddr(uintptr_t addr) const {
-    uintptr_t result = BitIndexFromAddrUnchecked(addr);
+    uintptr_t result = (addr - CoverBegin()) / kAlignment;
     DCHECK(result < BitmapSize()) << CoverBegin() << " <= " <<  addr << " < " << CoverEnd();
     return result;
   }
