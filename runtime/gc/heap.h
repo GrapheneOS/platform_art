@@ -1445,8 +1445,9 @@ class Heap {
 
   // Computed with foreground-multiplier in GrowForUtilization() when run in
   // jank non-perceptible state. On update to process state from background to
-  // foreground we set target_footprint_ to this value.
+  // foreground we set target_footprint_ and concurrent_start_bytes_ to the corresponding value.
   size_t min_foreground_target_footprint_ GUARDED_BY(process_state_update_lock_);
+  size_t min_foreground_concurrent_start_bytes_ GUARDED_BY(process_state_update_lock_);
 
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
