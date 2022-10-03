@@ -837,6 +837,7 @@ class ClassLinker {
   virtual bool DenyAccessBasedOnPublicSdk(const char* type_descriptor) const;
   // Enable or disable public sdk checks.
   virtual void SetEnablePublicSdkChecks(bool enabled);
+  void RemoveDexFromCaches(const DexFile& dex_file);
 
  protected:
   virtual bool InitializeClass(Thread* self,

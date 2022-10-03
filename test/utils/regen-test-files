@@ -210,10 +210,12 @@ art_gtest_user_module_names = [
     "art_libnativebridge_cts_tests",
     "art_standalone_cmdline_tests",
     "art_standalone_compiler_tests",
-    "art_standalone_dex2oat_tests",
+    # Temporarily disable this test as it is failing with ART module prebuilts (see b/243510263).
+    ### "art_standalone_dex2oat_tests",
     "art_standalone_dexdump_tests",
     "art_standalone_dexlist_tests",
-    "art_standalone_libartbase_tests",
+    # Temporarily disable this test as it is failing with ART module prebuilts (see b/243507635).
+    ### "art_standalone_libartbase_tests",
     "art_standalone_libartpalette_tests",
     "art_standalone_libartservice_tests",
     "art_standalone_libarttools_tests",
