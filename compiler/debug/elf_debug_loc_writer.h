@@ -21,7 +21,6 @@
 #include <map>
 
 #include "arch/instruction_set.h"
-#include "compiled_method.h"
 #include "debug/method_debug_info.h"
 #include "dwarf/debug_info_entry_writer.h"
 #include "dwarf/register.h"
