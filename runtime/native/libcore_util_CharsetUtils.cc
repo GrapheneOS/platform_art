@@ -50,24 +50,6 @@ static void CharsetUtils_asciiBytesToChars(JNIEnv* env, jclass, jbyteArray javaB
   }
 }
 
-static void CharsetUtils_isoLatin1BytesToChars(JNIEnv* env, jclass, jbyteArray javaBytes,
-                                               jint offset, jint length, jcharArray javaChars) {
-  ScopedByteArrayRO bytes(env, javaBytes);
-  if (bytes.get() == nullptr) {
-    return;
-  }
-  ScopedCharArrayRW chars(env, javaChars);
-  if (chars.get() == nullptr) {
-    return;
-  }
-
-  const jbyte* src = &bytes[offset];
-  jchar* dst = &chars[0];
-  for (int i = length - 1; i >= 0; --i) {
-    *dst++ = static_cast<jchar>(*src++ & 0xff);
-  }
-}
-
 /**
  * Translates the given characters to US-ASCII or ISO-8859-1 bytes, using the fact that
  * Unicode code points between U+0000 and U+007f inclusive are identical to US-ASCII, while
@@ -157,7 +139,6 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
 
 static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(CharsetUtils, asciiBytesToChars, "([BII[C)V"),
-  FAST_NATIVE_METHOD(CharsetUtils, isoLatin1BytesToChars, "([BII[C)V"),
   FAST_NATIVE_METHOD(CharsetUtils, toAsciiBytes, "(Ljava/lang/String;II)[B"),
   FAST_NATIVE_METHOD(CharsetUtils, toIsoLatin1Bytes, "(Ljava/lang/String;II)[B"),
   FAST_NATIVE_METHOD(CharsetUtils, toUtf8Bytes, "(Ljava/lang/String;II)[B"),
