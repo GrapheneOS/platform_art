@@ -45,7 +45,6 @@
 #include "class_linker-inl.h"
 #include "class_linker.h"
 #include "class_root-inl.h"
-#include "compiled_method.h"
 #include "debug/debug_info.h"
 #include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
@@ -183,17 +182,17 @@ class OatSymbolizer final {
     builder_->WriteDynamicSection();
 
     const OatHeader& oat_header = oat_file_->GetOatHeader();
-    #define DO_TRAMPOLINE(fn_name)                                                \
-      if (oat_header.Get ## fn_name ## Offset() != 0) {                           \
-        debug::MethodDebugInfo info = {};                                         \
-        info.custom_name = #fn_name;                                              \
-        info.isa = oat_header.GetInstructionSet();                                \
-        info.is_code_address_text_relative = true;                                \
-        size_t code_offset = oat_header.Get ## fn_name ## Offset();               \
-        code_offset -= CompiledCode::CodeDelta(oat_header.GetInstructionSet());   \
-        info.code_address = code_offset - oat_header.GetExecutableOffset();       \
-        info.code_size = 0;  /* The symbol lasts until the next symbol. */        \
-        method_debug_infos_.push_back(std::move(info));                           \
+    #define DO_TRAMPOLINE(fn_name)                                                            \
+      if (oat_header.Get ## fn_name ## Offset() != 0) {                                       \
+        debug::MethodDebugInfo info = {};                                                     \
+        info.custom_name = #fn_name;                                                          \
+        info.isa = oat_header.GetInstructionSet();                                            \
+        info.is_code_address_text_relative = true;                                            \
+        size_t code_offset = oat_header.Get ## fn_name ## Offset();                           \
+        code_offset -= GetInstructionSetEntryPointAdjustment(oat_header.GetInstructionSet()); \
+        info.code_address = code_offset - oat_header.GetExecutableOffset();                   \
+        info.code_size = 0;  /* The symbol lasts until the next symbol. */                    \
+        method_debug_infos_.push_back(std::move(info));                                       \
       }
     DO_TRAMPOLINE(JniDlsymLookupTrampoline);
     DO_TRAMPOLINE(JniDlsymLookupCriticalTrampoline);

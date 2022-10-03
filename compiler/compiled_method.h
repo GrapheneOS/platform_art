@@ -58,10 +58,9 @@ class CompiledCode {
   size_t AlignCode(size_t offset) const;
   static size_t AlignCode(size_t offset, InstructionSet instruction_set);
 
-  // returns the difference between the code address and a usable PC.
-  // mainly to cope with kThumb2 where the lower bit must be set.
-  size_t CodeDelta() const;
-  static size_t CodeDelta(InstructionSet instruction_set);
+  // Returns the difference between the code address and a usable PC.
+  // Mainly to cope with `kThumb2` where the lower bit must be set.
+  size_t GetEntryPointAdjustment() const;
 
   // Returns a pointer suitable for invoking the code at the argument
   // code_pointer address.  Mainly to cope with kThumb2 where the

@@ -208,7 +208,8 @@ std::vector<uint8_t> MakeElfFileForJIT(
     using Reader = ElfDebugReader<ElfTypes>;
     Reader reader(buffer);
     reader.VisitFunctionSymbols([&](Elf_Sym sym, const char*) {
-      DCHECK_EQ(sym.st_value, method_info.code_address + CompiledMethod::CodeDelta(isa));
+      DCHECK_EQ(sym.st_value,
+                method_info.code_address + GetInstructionSetEntryPointAdjustment(isa));
       DCHECK_EQ(sym.st_size, method_info.code_size);
       num_syms++;
     });
