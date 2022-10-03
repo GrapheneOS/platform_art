@@ -25,7 +25,6 @@
 #include "base/globals.h"
 #include "base/leb128.h"
 #include "base/utils.h"
-#include "compiled_method.h"
 #include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
 #include "driver/compiler_options.h"
