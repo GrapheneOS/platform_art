@@ -39,7 +39,6 @@
 #include "base/leb128.h"
 #include "class_linker.h"
 #include "class_root-inl.h"
-#include "compiled_method.h"
 #include "dex/bytecode_utils.h"
 #include "dex/code_item_accessors-inl.h"
 #include "graph_visualizer.h"

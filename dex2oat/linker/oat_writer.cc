@@ -1353,7 +1353,7 @@ class OatWriter::LayoutReserveOffsetCodeMethodVisitor : public OrderedMethodVisi
 
     ArrayRef<const uint8_t> quick_code = compiled_method->GetQuickCode();
     uint32_t code_size = quick_code.size() * sizeof(uint8_t);
-    uint32_t thumb_offset = compiled_method->CodeDelta();
+    uint32_t thumb_offset = compiled_method->GetEntryPointAdjustment();
 
     // Deduplicate code arrays if we are not producing debuggable code.
     bool deduped = true;
@@ -1800,8 +1800,9 @@ class OatWriter::WriteCodeMethodVisitor : public OrderedMethodVisitor {
       }
       DCHECK_ALIGNED_PARAM(offset_ + sizeof(OatQuickMethodHeader),
                            GetInstructionSetCodeAlignment(compiled_method->GetInstructionSet()));
-      DCHECK_EQ(method_offsets.code_offset_,
-                offset_ + sizeof(OatQuickMethodHeader) + compiled_method->CodeDelta())
+      DCHECK_EQ(
+          method_offsets.code_offset_,
+          offset_ + sizeof(OatQuickMethodHeader) + compiled_method->GetEntryPointAdjustment())
           << dex_file_->PrettyMethod(method_ref.index);
       const OatQuickMethodHeader& method_header =
           oat_class->method_headers_[method_offsets_index];
@@ -2398,22 +2399,22 @@ size_t OatWriter::InitOatCode(size_t offset) {
     const bool generate_debug_info = GetCompilerOptions().GenerateAnyDebugInfo();
     size_t adjusted_offset = offset;
 
-    #define DO_TRAMPOLINE(field, fn_name)                                   \
-      /* Pad with at least four 0xFFs so we can do DCHECKs in OatQuickMethodHeader */ \
-      offset = CompiledCode::AlignCode(offset + 4, instruction_set);        \
-      adjusted_offset = offset + CompiledCode::CodeDelta(instruction_set);  \
-      oat_header_->Set ## fn_name ## Offset(adjusted_offset);               \
-      (field) = compiler_driver_->Create ## fn_name();                      \
-      if (generate_debug_info) {                                            \
-        debug::MethodDebugInfo info = {};                                   \
-        info.custom_name = #fn_name;                                        \
-        info.isa = instruction_set;                                         \
-        info.is_code_address_text_relative = true;                          \
-        /* Use the code offset rather than the `adjusted_offset`. */        \
-        info.code_address = offset - oat_header_->GetExecutableOffset();    \
-        info.code_size = (field)->size();                                   \
-        method_info_.push_back(std::move(info));                            \
-      }                                                                     \
+    #define DO_TRAMPOLINE(field, fn_name)                                                 \
+      /* Pad with at least four 0xFFs so we can do DCHECKs in OatQuickMethodHeader */     \
+      offset = CompiledCode::AlignCode(offset + 4, instruction_set);                      \
+      adjusted_offset = offset + GetInstructionSetEntryPointAdjustment(instruction_set);  \
+      oat_header_->Set ## fn_name ## Offset(adjusted_offset);                             \
+      (field) = compiler_driver_->Create ## fn_name();                                    \
+      if (generate_debug_info) {                                                          \
+        debug::MethodDebugInfo info = {};                                                 \
+        info.custom_name = #fn_name;                                                      \
+        info.isa = instruction_set;                                                       \
+        info.is_code_address_text_relative = true;                                        \
+        /* Use the code offset rather than the `adjusted_offset`. */                      \
+        info.code_address = offset - oat_header_->GetExecutableOffset();                  \
+        info.code_size = (field)->size();                                                 \
+        method_info_.push_back(std::move(info));                                          \
+      }                                                                                   \
       offset += (field)->size();
 
     DO_TRAMPOLINE(jni_dlsym_lookup_trampoline_, JniDlsymLookupTrampoline);

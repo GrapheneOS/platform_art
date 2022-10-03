@@ -16,7 +16,6 @@
 
 #include "linker/x86/relative_patcher_x86.h"
 
-#include "compiled_method.h"
 #include "linker/linker_patch.h"
 
 namespace art {
