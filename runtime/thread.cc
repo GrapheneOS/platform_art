@@ -4640,9 +4640,11 @@ bool Thread::ProtectStack(bool fatal_on_error) {
   VLOG(threads) << "Protecting stack at " << pregion;
   if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
     if (fatal_on_error) {
-      LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. "
+      // b/249586057, LOG(FATAL) times out
+      LOG(ERROR) << "Unable to create protected region in stack for implicit overflow check. "
           "Reason: "
           << strerror(errno) << " size:  " << kStackOverflowProtectedSize;
+      exit(1);
     }
     return false;
   }
