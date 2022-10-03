@@ -532,6 +532,14 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
           LOG(INFO) << "Ignoring already instrumented " << frame.Dump();
         }
       } else {
+        if (!m->IsRuntimeMethod()) {
+          // Record the method so we can call method entry callbacks for all non-runtime methods on
+          // the stack. Runtime methods don't need method entry callbacks.
+          // TODO(232212577): Add tests to check the validity of the tracefiles generated.
+          // Currently the tracing tests only check a trace file is generated.
+          stack_methods_.push_back(m);
+        }
+
         if (m->IsNative() && Runtime::Current()->IsJavaDebuggable()) {
           // Native methods in debuggable runtimes don't use instrumentation stubs.
           return true;
@@ -567,10 +575,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
           LOG(INFO) << "Pushing frame " << instrumentation_frame.Dump();
         }
 
-        if (!m->IsRuntimeMethod()) {
-          // Runtime methods don't need to run method entry callbacks.
-          stack_methods_.push_back(m);
-        }
         instrumentation_stack_->insert({GetReturnPcAddr(), instrumentation_frame});
         SetReturnPc(instrumentation_exit_pc_);
       }
