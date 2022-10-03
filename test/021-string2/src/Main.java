@@ -119,6 +119,7 @@ public class Main {
         testEqualsConstString();
         testConstStringEquals();
         testStringConcat();
+        testEmptyWithHighByte();
 
         // Regression tests for String.setCharAt() breaking string compression invariants.
         Locale en_US = new Locale("en", "US");
@@ -758,6 +759,11 @@ public class Main {
         Assert.assertEquals("abc\u0440", "abc".concat("\u0440"));
         Assert.assertEquals("\u0440xyzw", "\u0440".concat("xyzw"));
         Assert.assertEquals("abc\u0440xyzw\u0440", "abc\u0440".concat("xyzw\u0440"));
+    }
+
+    public static void testEmptyWithHighByte() {
+        String empty = new String(new byte[0], 1);
+        Assert.assertEquals("", empty);
     }
 
     public static boolean $noinline$equalsConstString0(String s) {
