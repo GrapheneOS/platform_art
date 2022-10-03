@@ -216,7 +216,9 @@ inline ObjPtr<String> String::AllocFromByteArray(Thread* self,
   const uint8_t* const src = reinterpret_cast<uint8_t*>(array->GetData()) + offset;
   high_byte &= 0xff;  // Extract the relevant bits before determining `compressible`.
   const bool compressible =
-      kUseStringCompression && String::AllASCII<uint8_t>(src, byte_length) && (high_byte == 0);
+      kUseStringCompression &&
+      String::AllASCII<uint8_t>(src, byte_length) &&
+      (high_byte == 0 || byte_length == 0);
   const int32_t length_with_flag = String::GetFlaggedCount(byte_length, compressible);
   SetStringCountAndBytesVisitor visitor(length_with_flag, array, offset, high_byte << 8);
   return Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
