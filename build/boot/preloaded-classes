@@ -88,6 +88,7 @@ com.android.okhttp.HttpUrl$Builder
 com.android.okhttp.HttpUrl
 com.android.okhttp.HttpsHandler
 com.android.okhttp.Interceptor$Chain
+com.android.okhttp.MediaType
 com.android.okhttp.OkCacheContainer
 com.android.okhttp.OkHttpClient$1
 com.android.okhttp.OkHttpClient
@@ -119,8 +120,15 @@ com.android.okhttp.internal.URLFilter
 com.android.okhttp.internal.Util$1
 com.android.okhttp.internal.Util
 com.android.okhttp.internal.Version
+com.android.okhttp.internal.framed.FrameWriter
 com.android.okhttp.internal.framed.FramedConnection$Builder
+com.android.okhttp.internal.framed.FramedConnection$Listener$1
+com.android.okhttp.internal.framed.FramedConnection$Listener
 com.android.okhttp.internal.framed.FramedConnection
+com.android.okhttp.internal.framed.Header
+com.android.okhttp.internal.framed.PushObserver$1
+com.android.okhttp.internal.framed.PushObserver
+com.android.okhttp.internal.framed.Settings
 com.android.okhttp.internal.http.AuthenticatorAdapter
 com.android.okhttp.internal.http.CacheRequest
 com.android.okhttp.internal.http.CacheStrategy$Factory
@@ -227,13 +235,17 @@ com.android.org.bouncycastle.asn1.ASN1String
 com.android.org.bouncycastle.asn1.ASN1TaggedObject
 com.android.org.bouncycastle.asn1.ASN1TaggedObjectParser
 com.android.org.bouncycastle.asn1.ASN1UTCTime
+com.android.org.bouncycastle.asn1.BERApplicationSpecific
 com.android.org.bouncycastle.asn1.BERApplicationSpecificParser
 com.android.org.bouncycastle.asn1.BEROctetString
 com.android.org.bouncycastle.asn1.BEROctetStringParser
+com.android.org.bouncycastle.asn1.BERSequence
 com.android.org.bouncycastle.asn1.BERSequenceParser
+com.android.org.bouncycastle.asn1.BERSet
 com.android.org.bouncycastle.asn1.BERSetParser
 com.android.org.bouncycastle.asn1.BERTaggedObjectParser
 com.android.org.bouncycastle.asn1.BERTags
+com.android.org.bouncycastle.asn1.ConstructedOctetStream
 com.android.org.bouncycastle.asn1.DERBMPString
 com.android.org.bouncycastle.asn1.DERBitString
 com.android.org.bouncycastle.asn1.DERExternalParser
@@ -260,6 +272,7 @@ com.android.org.bouncycastle.asn1.DLBitString
 com.android.org.bouncycastle.asn1.DLExternal
 com.android.org.bouncycastle.asn1.DLFactory
 com.android.org.bouncycastle.asn1.DLSequence
+com.android.org.bouncycastle.asn1.DLSet
 com.android.org.bouncycastle.asn1.DefiniteLengthInputStream
 com.android.org.bouncycastle.asn1.InMemoryRepresentable
 com.android.org.bouncycastle.asn1.IndefiniteLengthInputStream
@@ -506,7 +519,6 @@ dalvik.system.ZygoteHooks
 java.awt.font.NumericShaper
 java.awt.font.TextAttribute
 java.io.Bits
-java.io.BufferedInputStream$$ExternalSyntheticBackportWithForwarding0
 java.io.BufferedInputStream
 java.io.BufferedOutputStream
 java.io.BufferedReader
@@ -515,6 +527,7 @@ java.io.ByteArrayInputStream
 java.io.ByteArrayOutputStream
 java.io.CharArrayReader
 java.io.CharArrayWriter
+java.io.CharConversionException
 java.io.Closeable
 java.io.Console
 java.io.DataInput
@@ -600,6 +613,8 @@ java.io.ObjectStreamField
 java.io.OptionalDataException
 java.io.OutputStream
 java.io.OutputStreamWriter
+java.io.PipedInputStream
+java.io.PipedOutputStream
 java.io.PrintStream
 java.io.PrintWriter
 java.io.PushbackInputStream
@@ -681,8 +696,6 @@ java.lang.IndexOutOfBoundsException
 java.lang.InheritableThreadLocal
 java.lang.InstantiationError
 java.lang.InstantiationException
-java.lang.Integer$$ExternalSyntheticBackport0
-java.lang.Integer$$ExternalSyntheticBackport1
 java.lang.Integer$IntegerCache
 java.lang.Integer
 java.lang.InternalError
@@ -708,6 +721,8 @@ java.lang.Package
 java.lang.Process
 java.lang.ProcessBuilder$NullInputStream
 java.lang.ProcessBuilder$NullOutputStream
+java.lang.ProcessBuilder$Redirect$1
+java.lang.ProcessBuilder$Redirect$2
 java.lang.ProcessBuilder$Redirect
 java.lang.ProcessBuilder
 java.lang.ProcessEnvironment$ExternalData
@@ -727,6 +742,7 @@ java.lang.SecurityManager
 java.lang.Short$ShortCache
 java.lang.Short
 java.lang.StackOverflowError
+java.lang.StackStreamFactory
 java.lang.StackTraceElement
 java.lang.StrictMath
 java.lang.String$CaseInsensitiveComparator-IA
@@ -845,6 +861,7 @@ java.lang.invoke.Transformers$ReferenceArrayElementGetter
 java.lang.invoke.Transformers$ReferenceArrayElementSetter
 java.lang.invoke.Transformers$ReferenceIdentity
 java.lang.invoke.Transformers$Spreader
+java.lang.invoke.Transformers$TableSwitch
 java.lang.invoke.Transformers$Transformer
 java.lang.invoke.Transformers$TryFinally
 java.lang.invoke.Transformers$VarargsCollector
@@ -1102,6 +1119,7 @@ java.nio.charset.CodingErrorAction
 java.nio.charset.IllegalCharsetNameException
 java.nio.charset.StandardCharsets
 java.nio.charset.UnsupportedCharsetException
+java.nio.charset.spi.CharsetProvider
 java.nio.file.AccessDeniedException
 java.nio.file.AccessMode
 java.nio.file.CopyMoveHelper
@@ -1167,12 +1185,14 @@ java.security.KeyPairGenerator$Delegate
 java.security.KeyPairGenerator
 java.security.KeyPairGeneratorSpi
 java.security.KeyStore$1
+java.security.KeyStore$CallbackHandlerProtection
 java.security.KeyStore$Entry
 java.security.KeyStore$LoadStoreParameter
 java.security.KeyStore$PasswordProtection
 java.security.KeyStore$PrivateKeyEntry
 java.security.KeyStore$ProtectionParameter
 java.security.KeyStore$SecretKeyEntry
+java.security.KeyStore$SimpleLoadStoreParameter
 java.security.KeyStore$TrustedCertificateEntry
 java.security.KeyStore
 java.security.KeyStoreException
@@ -1380,6 +1400,7 @@ java.time.format.DateTimeFormatterBuilder$InstantPrinterParser
 java.time.format.DateTimeFormatterBuilder$NumberPrinterParser
 java.time.format.DateTimeFormatterBuilder$OffsetIdPrinterParser
 java.time.format.DateTimeFormatterBuilder$PadPrinterParserDecorator
+java.time.format.DateTimeFormatterBuilder$PrefixTree$CI
 java.time.format.DateTimeFormatterBuilder$PrefixTree
 java.time.format.DateTimeFormatterBuilder$SettingsParser
 java.time.format.DateTimeFormatterBuilder$StringLiteralPrinterParser
@@ -1462,7 +1483,6 @@ java.util.ArrayDeque$DeqIterator
 java.util.ArrayDeque$DescendingIterator
 java.util.ArrayDeque
 java.util.ArrayList$ArrayListSpliterator
-java.util.ArrayList$Itr-IA
 java.util.ArrayList$Itr
 java.util.ArrayList$ListItr
 java.util.ArrayList$SubList$1
@@ -1480,14 +1500,7 @@ java.util.Arrays$ArrayItr
 java.util.Arrays$ArrayList
 java.util.Arrays$NaturalOrder
 java.util.Arrays
-java.util.ArraysParallelSortHelpers$FJByte$Sorter
-java.util.ArraysParallelSortHelpers$FJChar$Sorter
-java.util.ArraysParallelSortHelpers$FJDouble$Sorter
-java.util.ArraysParallelSortHelpers$FJFloat$Sorter
-java.util.ArraysParallelSortHelpers$FJInt$Sorter
-java.util.ArraysParallelSortHelpers$FJLong$Sorter
 java.util.ArraysParallelSortHelpers$FJObject$Sorter
-java.util.ArraysParallelSortHelpers$FJShort$Sorter
 java.util.Base64$Decoder
 java.util.Base64$Encoder
 java.util.Base64
@@ -1639,12 +1652,8 @@ java.util.ImmutableCollections$AbstractImmutableMap
 java.util.ImmutableCollections$AbstractImmutableSet
 java.util.ImmutableCollections$List12
 java.util.ImmutableCollections$ListN
-java.util.ImmutableCollections$Map0
 java.util.ImmutableCollections$Map1
 java.util.ImmutableCollections$MapN
-java.util.ImmutableCollections$Set0
-java.util.ImmutableCollections$Set1
-java.util.ImmutableCollections$Set2
 java.util.ImmutableCollections$SetN
 java.util.ImmutableCollections
 java.util.InputMismatchException
@@ -1770,6 +1779,7 @@ java.util.TreeMap$ValueIterator
 java.util.TreeMap$Values
 java.util.TreeMap
 java.util.TreeSet
+java.util.Tripwire$$ExternalSyntheticLambda0
 java.util.Tripwire
 java.util.UUID$Holder
 java.util.UUID
@@ -1798,6 +1808,8 @@ java.util.concurrent.BlockingQueue
 java.util.concurrent.Callable
 java.util.concurrent.CancellationException
 java.util.concurrent.CompletableFuture$AltResult
+java.util.concurrent.CompletableFuture$AsyncRun
+java.util.concurrent.CompletableFuture$AsyncSupply
 java.util.concurrent.CompletableFuture$AsynchronousCompletionTask
 java.util.concurrent.CompletableFuture$Completion
 java.util.concurrent.CompletableFuture$Signaller
@@ -1860,6 +1872,7 @@ java.util.concurrent.ConcurrentHashMap$ValuesView
 java.util.concurrent.ConcurrentHashMap
 java.util.concurrent.ConcurrentLinkedDeque$Node
 java.util.concurrent.ConcurrentLinkedDeque
+java.util.concurrent.ConcurrentLinkedQueue$$ExternalSyntheticLambda0
 java.util.concurrent.ConcurrentLinkedQueue$Itr
 java.util.concurrent.ConcurrentLinkedQueue$Node
 java.util.concurrent.ConcurrentLinkedQueue
@@ -1926,6 +1939,7 @@ java.util.concurrent.Semaphore$FairSync
 java.util.concurrent.Semaphore$NonfairSync
 java.util.concurrent.Semaphore$Sync
 java.util.concurrent.Semaphore
+java.util.concurrent.SynchronousQueue$TransferQueue$QNode
 java.util.concurrent.SynchronousQueue$TransferQueue
 java.util.concurrent.SynchronousQueue$TransferStack$SNode
 java.util.concurrent.SynchronousQueue$TransferStack
@@ -2006,6 +2020,7 @@ java.util.function.IntToLongFunction
 java.util.function.IntUnaryOperator
 java.util.function.LongBinaryOperator
 java.util.function.LongConsumer
+java.util.function.LongPredicate
 java.util.function.LongSupplier
 java.util.function.LongUnaryOperator
 java.util.function.Predicate
@@ -2029,6 +2044,7 @@ java.util.jar.JarVerifier$VerifierStream
 java.util.jar.JarVerifier
 java.util.jar.Manifest$FastInputStream
 java.util.jar.Manifest
+java.util.logging.ConsoleHandler
 java.util.logging.ErrorManager
 java.util.logging.FileHandler$1
 java.util.logging.FileHandler$InitializationErrorManager
@@ -2148,6 +2164,8 @@ java.util.stream.IntPipeline$$ExternalSyntheticLambda7
 java.util.stream.IntPipeline$$ExternalSyntheticLambda8
 java.util.stream.IntPipeline$4$1
 java.util.stream.IntPipeline$4
+java.util.stream.IntPipeline$9$1
+java.util.stream.IntPipeline$9
 java.util.stream.IntPipeline$Head
 java.util.stream.IntPipeline$StatelessOp
 java.util.stream.IntPipeline
@@ -2220,6 +2238,7 @@ java.util.stream.ReferencePipeline$5$1
 java.util.stream.ReferencePipeline$5
 java.util.stream.ReferencePipeline$6$1
 java.util.stream.ReferencePipeline$6
+java.util.stream.ReferencePipeline$7$1
 java.util.stream.ReferencePipeline$7
 java.util.stream.ReferencePipeline$Head
 java.util.stream.ReferencePipeline$StatefulOp
@@ -2264,6 +2283,7 @@ java.util.stream.Streams$StreamBuilderImpl
 java.util.stream.Streams
 java.util.stream.TerminalOp
 java.util.stream.TerminalSink
+java.util.stream.Tripwire$$ExternalSyntheticLambda0
 java.util.stream.Tripwire
 java.util.zip.Adler32
 java.util.zip.CRC32
@@ -2300,6 +2320,7 @@ javax.crypto.Cipher$NeedToSet
 javax.crypto.Cipher$SpiAndProviderUpdater
 javax.crypto.Cipher$Transform
 javax.crypto.Cipher
+javax.crypto.CipherInputStream
 javax.crypto.CipherOutputStream
 javax.crypto.CipherSpi
 javax.crypto.CryptoPermissions
@@ -2385,6 +2406,9 @@ javax.net.ssl.X509ExtendedTrustManager
 javax.net.ssl.X509KeyManager
 javax.net.ssl.X509TrustManager
 javax.security.auth.Destroyable
+javax.security.auth.callback.Callback
+javax.security.auth.callback.CallbackHandler
+javax.security.auth.callback.PasswordCallback
 javax.security.auth.callback.UnsupportedCallbackException
 javax.security.auth.x500.X500Principal
 javax.security.cert.Certificate
@@ -2395,6 +2419,7 @@ javax.security.cert.X509Certificate
 javax.xml.datatype.DatatypeConstants$Field
 javax.xml.datatype.DatatypeConstants
 javax.xml.datatype.Duration
+javax.xml.namespace.QName
 javax.xml.parsers.DocumentBuilder
 javax.xml.parsers.DocumentBuilderFactory
 javax.xml.parsers.ParserConfigurationException
@@ -2409,6 +2434,8 @@ jdk.internal.math.FloatingDecimal$BinaryToASCIIConverter
 jdk.internal.math.FloatingDecimal$ExceptionalBinaryToASCIIBuffer
 jdk.internal.math.FloatingDecimal$PreparedASCIIToBinaryBuffer
 jdk.internal.math.FloatingDecimal
+jdk.internal.math.FormattedFloatingDecimal$1
+jdk.internal.math.FormattedFloatingDecimal$2
 jdk.internal.math.FormattedFloatingDecimal$Form
 jdk.internal.math.FormattedFloatingDecimal
 jdk.internal.misc.JavaObjectInputStreamAccess
@@ -2574,7 +2601,6 @@ sun.misc.IOUtils
 sun.misc.JavaIOFileDescriptorAccess
 sun.misc.LRUCache
 sun.misc.SharedSecrets
-sun.misc.Unsafe$$ExternalSyntheticBackportWithForwarding0
 sun.misc.Unsafe
 sun.misc.VM
 sun.misc.Version
@@ -2742,6 +2768,7 @@ sun.security.timestamp.TimestampToken
 sun.security.util.AbstractAlgorithmConstraints$1
 sun.security.util.AbstractAlgorithmConstraints
 sun.security.util.AlgorithmDecomposer
+sun.security.util.AnchorCertificates$1
 sun.security.util.AnchorCertificates
 sun.security.util.BitArray
 sun.security.util.ByteArrayLexOrder
@@ -2774,6 +2801,7 @@ sun.security.util.MemoryCache$HardCacheEntry
 sun.security.util.MemoryCache$SoftCacheEntry
 sun.security.util.MemoryCache
 sun.security.util.ObjectIdentifier
+sun.security.util.ResourcesMgr$1
 sun.security.util.ResourcesMgr
 sun.security.util.SecurityConstants
 sun.security.util.SignatureFileVerifier
@@ -2891,13 +2919,16 @@ sun.util.logging.PlatformLogger
 [I
 [J
 [Landroid.system.StructCapUserData;
+[Landroid.system.StructIfaddrs;
 [Landroid.system.StructPollfd;
 [Lcom.android.okhttp.CipherSuite;
 [Lcom.android.okhttp.ConnectionSpec;
 [Lcom.android.okhttp.HttpUrl$Builder$ParseResult;
 [Lcom.android.okhttp.Protocol;
 [Lcom.android.okhttp.TlsVersion;
+[Lcom.android.okhttp.okio.ByteString;
 [Lcom.android.org.bouncycastle.asn1.ASN1Encodable;
+[Lcom.android.org.bouncycastle.asn1.ASN1Enumerated;
 [Lcom.android.org.bouncycastle.asn1.ASN1ObjectIdentifier;
 [Lcom.android.org.bouncycastle.asn1.ASN1OctetString;
 [Lcom.android.org.bouncycastle.crypto.params.DHParameters;
@@ -2906,6 +2937,7 @@ sun.util.logging.PlatformLogger
 [Lcom.android.org.kxml2.io.KXmlParser$ValueContext;
 [Ldalvik.system.DexPathList$Element;
 [Ldalvik.system.DexPathList$NativeLibraryElement;
+[Ljava.io.Closeable;
 [Ljava.io.File$PathStatus;
 [Ljava.io.File;
 [Ljava.io.FileDescriptor;
@@ -2915,6 +2947,7 @@ sun.util.logging.PlatformLogger
 [Ljava.io.ObjectStreamClass$MemberSignature;
 [Ljava.io.ObjectStreamField;
 [Ljava.io.Serializable;
+[Ljava.lang.Boolean;
 [Ljava.lang.Byte;
 [Ljava.lang.CharSequence;
 [Ljava.lang.Character$UnicodeBlock;
@@ -2923,6 +2956,7 @@ sun.util.logging.PlatformLogger
 [Ljava.lang.ClassLoader;
 [Ljava.lang.Comparable;
 [Ljava.lang.Daemons$Daemon;
+[Ljava.lang.Double;
 [Ljava.lang.Enum;
 [Ljava.lang.Float;
 [Ljava.lang.Integer;
@@ -2979,7 +3013,9 @@ sun.util.logging.PlatformLogger
 [Ljava.security.ProtectionDomain;
 [Ljava.security.Provider;
 [Ljava.security.cert.CRLReason;
+[Ljava.security.cert.CertPathValidatorException$BasicReason;
 [Ljava.security.cert.Certificate;
+[Ljava.security.cert.PKIXReason;
 [Ljava.security.cert.PKIXRevocationChecker$Option;
 [Ljava.security.cert.X509CRL;
 [Ljava.security.cert.X509Certificate;
@@ -3046,9 +3082,11 @@ sun.util.logging.PlatformLogger
 [Ljavax.net.ssl.SSLEngineResult$HandshakeStatus;
 [Ljavax.net.ssl.SSLEngineResult$Status;
 [Ljavax.net.ssl.TrustManager;
+[Ljavax.security.auth.callback.Callback;
 [Ljavax.security.auth.x500.X500Principal;
 [Ljavax.security.cert.X509Certificate;
 [Ljdk.internal.math.FDBigInteger;
+[Ljdk.internal.math.FormattedFloatingDecimal$Form;
 [Llibcore.io.ClassPathURLStreamHandler;
 [Llibcore.io.IoTracker$Mode;
 [Llibcore.reflect.AnnotationMember$DefaultValues;
@@ -3077,6 +3115,7 @@ sun.util.logging.PlatformLogger
 [Z
 [[B
 [[C
+[[D
 [[F
 [[I
 [[J
