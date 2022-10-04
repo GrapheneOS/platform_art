@@ -19,6 +19,15 @@
 
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
 
+    <!-- Vendor native libraries aren't accessible by any apps by sepolicy
+         rules. For that they need to be labelled same_process_hal_file in a
+         vendor specific file_contexts file (see
+         https://source.android.com/docs/core/permissions/namespaces_libraries#adding-additional-native-libraries).
+         To avoid setting that up to test loading libvendor_private*.so, disable
+         sepolicy checks while running the tests. It's libnativeloader logic we
+         want to test here. -->
+    <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer"/>
+
     <test class="com.android.tradefed.testtype.HostTest" >
         <option name="jar" value="libnativeloader_e2e_tests.jar" />
     </test>
