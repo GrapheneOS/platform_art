@@ -21,13 +21,7 @@ from os import path
 from os.path import isfile, isdir
 from typing import List
 from subprocess import DEVNULL, PIPE, STDOUT
-
-def export(env: str, value: str) -> None:
-  if VERBOSE:
-    print(f"EXPORT {env}={value}")
-  os.environ[env] = value
-  if env in globals():
-    globals()[env] = value
+from tempfile import NamedTemporaryFile
 
 # Script debugging: Record executed commands into the given directory.
 # This is useful to ensure that changes to the script don't change behaviour.
@@ -39,7 +33,9 @@ ART_TEST_CMD_DIR = os.environ.get("ART_TEST_CMD_DIR")
 # This will make tests fail since there is no stdout.  Use with large -j value.
 ART_TEST_DRY_RUN = os.environ.get("ART_TEST_DRY_RUN")
 
-def run(cmdline: str, quiet=True, check=True, save_cmd=True) -> subprocess.CompletedProcess:
+def run(cmdline: str, env={}, quiet=True, check=True, save_cmd=True) -> subprocess.CompletedProcess:
+  env.setdefault("PATH", PATH)  # Ensure that PATH is always set.
+  env = {k: v for k, v in env.items() if v != None}  # Filter "None" entries.
   if ART_TEST_CMD_DIR and save_cmd and cmdline != "true":
     tmp = os.environ["DEX_LOCATION"]
     with open(os.path.join(ART_TEST_CMD_DIR, os.environ["FULL_TEST_NAME"]), "a") as f:
@@ -53,10 +49,7 @@ def run(cmdline: str, quiet=True, check=True, save_cmd=True) -> subprocess.Compl
       cmdline = "true"  # We still need to run some command, so run the no-op "true" binary instead.
   if VERBOSE:
     print("$ " + cmdline + "\n")
-  proc = subprocess.run([cmdline],
-                        shell=True,
-                        encoding="utf8",
-                        capture_output=True)
+  proc = subprocess.run([cmdline], shell=True, env=env, encoding="utf8", capture_output=True)
   if (check and proc.returncode != 0) or (not quiet) or VERBOSE:
     print(proc.stdout or "", file=sys.stdout, end='', flush=True)
     print(proc.stderr or "", file=sys.stderr, end='', flush=True)
@@ -65,14 +58,20 @@ def run(cmdline: str, quiet=True, check=True, save_cmd=True) -> subprocess.Compl
   return proc
 
 class Adb():
+  def __init__(self):
+    self.env = {
+      "ADB_VENDOR_KEYS": os.environ.get("ADB_VENDOR_KEYS"),
+      "ANDROID_SERIAL": os.environ.get("ANDROID_SERIAL"),
+      "PATH": os.environ.get("PATH"),
+    }
   def root(self) -> None:
-    run("adb root")
+    run("adb root", self.env)
   def wait_for_device(self) -> None:
-    run("adb wait-for-device")
+    run("adb wait-for-device", self.env)
   def shell(self, cmdline: str, **kwargs) -> subprocess.CompletedProcess:
-    return run("adb shell " + cmdline, **kwargs)
+    return run("adb shell " + cmdline, self.env, **kwargs)
   def push(self, src: str, dst: str, **kwargs) -> None:
-    run(f"adb push {src} {dst}", **kwargs)
+    run(f"adb push {src} {dst}", self.env, **kwargs)
 
 adb = Adb()
 
@@ -450,7 +449,7 @@ CHROOT_DEX_LOCATION=f"{CHROOT}{DEX_LOCATION}"
 
 # If running on device, determine the ISA of the device.
 if not HOST and not USE_JVM:
-  ISA=run(f"{ANDROID_BUILD_TOP}/art/test/utils/get-device-isa {GET_DEVICE_ISA_BITNESS_FLAG}",
+  ISA=run(f"{ANDROID_BUILD_TOP}/art/test/utils/get-device-isa {GET_DEVICE_ISA_BITNESS_FLAG}", adb.env,
           save_cmd=False).stdout.strip()
 
 if not USE_JVM:
@@ -583,7 +582,13 @@ if JVMTI_STRESS:
     FLAGS+=f" -agentpath:{agent}={agent_args}"
 
 if USE_JVM:
-  export(f"LD_LIBRARY_PATH", f"{ANDROID_HOST_OUT}/lib64")
+  env = {
+    "ANDROID_I18N_ROOT": ANDROID_I18N_ROOT,
+    "DEX_LOCATION": DEX_LOCATION,
+    "JAVA_HOME": os.environ["JAVA_HOME"],
+    "LANG": "en_US.UTF-8",  # Needed to enable unicode and make the output is deterministic.
+    "LD_LIBRARY_PATH": f"{ANDROID_HOST_OUT}/lib64",
+  }
   # Some jvmti tests are flaky without -Xint on the RI.
   if IS_JVMTI_TEST:
     FLAGS+=" -Xint"
@@ -600,7 +605,7 @@ if USE_JVM:
     print(f"Runnable test script written to {pwd}/runit.sh")
     sys.exit(0)
   else:
-    exit_value=run(cmdline, check=False, quiet=False).returncode
+    exit_value=run(cmdline, env, check=False, quiet=False).returncode
     sys.exit(exit_value)
 
 b_path=get_apex_bootclasspath(HOST)
@@ -814,13 +819,13 @@ def get_prebuilt_lldb_path():
     sys.exit(1)
 
   # The lldb-server binary is a dependency of lldb.
-  export("LLDB_DEBUGSERVER_PATH", f"{CLANG_PREBUILT_HOST_PATH}/runtimes_ndk_cxx/x86_64/lldb-server")
+  os.environ["LLDB_DEBUGSERVER_PATH"] = f"{CLANG_PREBUILT_HOST_PATH}/runtimes_ndk_cxx/x86_64/lldb-server"
 
   # Set the current terminfo directory to TERMINFO so that LLDB can read the
   # termcap database.
   terminfo = re.search('/.*/terminfo/', run("infocmp", save_cmd=False).stdout)
   if terminfo:
-    export("TERMINFO", terminfo[0])
+    os.environ["TERMINFO"] = terminfo[0]
 
   return f"{CLANG_PREBUILT_HOST_PATH}/bin/lldb.sh"
 
@@ -1006,14 +1011,14 @@ RUN_TEST_ASAN_OPTIONS=f"{RUN_TEST_ASAN_OPTIONS}detect_leaks=0"
 # the same defaults as for prebuilt: everything when --dev, otherwise errors and above only.
 if not EXTERNAL_LOG_TAGS:
   if VERBOSE:
-      export("ANDROID_LOG_TAGS", '*:d')
+      ANDROID_LOG_TAGS = '*:d'
   elif not HAVE_IMAGE:
       # All tests would log the error of missing image. Be silent here and only log fatal
       # events.
-      export("ANDROID_LOG_TAGS", '*:s')
+      ANDROID_LOG_TAGS = '*:s'
   else:
       # We are interested in LOG(ERROR) output.
-      export("ANDROID_LOG_TAGS", '*:e')
+      ANDROID_LOG_TAGS = '*:e'
 
 if not HOST:
     adb.root()
@@ -1103,77 +1108,77 @@ if not HOST:
       # Note: Using "--foreground" to not propagate the signal to children, i.e., the runtime.
       timeout_prefix=f"timeout --foreground -k 120s {TIME_OUT_VALUE}s {timeout_dumper_cmd} {cmdline}"
 
-    # Create a script with the command. The command can get longer than the longest
-    # allowed adb command and there is no way to get the exit status from a adb shell
-    # command. Dalvik cache is cleaned before running to make subsequent executions
-    # of the script follow the same runtime path.
-    cmdline=f"cd {DEX_LOCATION} && \
-             export ASAN_OPTIONS={RUN_TEST_ASAN_OPTIONS} && \
-             export ANDROID_DATA={DEX_LOCATION} && \
-             export DEX_LOCATION={DEX_LOCATION} && \
-             export ANDROID_ROOT={ANDROID_ROOT} && \
-             export ANDROID_I18N_ROOT={ANDROID_I18N_ROOT} && \
-             export ANDROID_ART_ROOT={ANDROID_ART_ROOT} && \
-             export ANDROID_TZDATA_ROOT={ANDROID_TZDATA_ROOT} && \
-             export ANDROID_LOG_TAGS={ANDROID_LOG_TAGS} && \
-             rm -rf {DEX_LOCATION}/dalvik-cache/ && \
-             mkdir -p {mkdir_locations} && \
-             export LD_LIBRARY_PATH={LD_LIBRARY_PATH} && \
-             export NATIVELOADER_DEFAULT_NAMESPACE_LIBS={NATIVELOADER_DEFAULT_NAMESPACE_LIBS} && \
-             export PATH={PREPEND_TARGET_PATH}:$PATH && \
-             {profman_cmdline} && \
-             {dex2oat_cmdline} && \
-             {dm_cmdline} && \
-             {vdex_cmdline} && \
-             {strip_cmdline} && \
-             {sync_cmdline} && \
-             {timeout_prefix} {dalvikvm_cmdline}"
+    env = {
+      "ASAN_OPTIONS": RUN_TEST_ASAN_OPTIONS,
+      "ANDROID_DATA": DEX_LOCATION,
+      "DEX_LOCATION": DEX_LOCATION,
+      "ANDROID_ROOT": ANDROID_ROOT,
+      "ANDROID_I18N_ROOT": ANDROID_I18N_ROOT,
+      "ANDROID_ART_ROOT": ANDROID_ART_ROOT,
+      "ANDROID_TZDATA_ROOT": ANDROID_TZDATA_ROOT,
+      "ANDROID_LOG_TAGS": ANDROID_LOG_TAGS,
+      "LD_LIBRARY_PATH": LD_LIBRARY_PATH,
+      "NATIVELOADER_DEFAULT_NAMESPACE_LIBS": NATIVELOADER_DEFAULT_NAMESPACE_LIBS,
+      "PATH": f"{PREPEND_TARGET_PATH}:$PATH",
+    }
 
-    cmdfile=run(f'mktemp cmd-XXXX --suffix "-{TEST_NAME}"', save_cmd=False).stdout.strip()
-    with open(cmdfile, "w") as f:
-      f.write(cmdline)
+    def run_cmd(cmdline: str, env={}, check: bool=True) -> int:
+      if cmdline == "true":  # Noop command which just executes the linux 'true' binary.
+        return 0
+      cmdline = (f"cd {DEX_LOCATION} && " +
+                 "".join(f"export {k}={v} && " for k, v in env.items()) +
+                 cmdline)
+      # Create a script with the command. The command can get longer than the longest
+      # allowed adb command and there is no way to get the exit status from a adb shell command.
+      with NamedTemporaryFile(mode='w') as cmdfile:
+        cmdfile.write(cmdline)
+        cmdfile.flush()
+        adb.push(cmdfile.name, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False)
+        run('echo cmdline.sh "' + cmdline.replace('"', '\\"') + '"')
+      if not DRY_RUN:
+        chroot_prefix = f"chroot {CHROOT} " if CHROOT else ""
+        return adb.shell(f"{chroot_prefix} sh {DEX_LOCATION}/cmdline.sh",
+                         check=check, quiet=False).returncode
+      return 0
 
-    run('echo cmdline.sh "' + cmdline.replace('"', '\\"') + '"')
+    if VERBOSE and (USE_GDB or USE_GDBSERVER):
+      print(f"Forward {GDBSERVER_PORT} to local port and connect GDB")
 
-    if VERBOSE:
-      print(cmdline)
-      if USE_GDB or USE_GDBSERVER:
-        print(f"Forward {GDBSERVER_PORT} to local port and connect GDB")
+    run_cmd(f"rm -rf {DEX_LOCATION}/dalvik-cache/")
+    run_cmd(f"mkdir -p {mkdir_locations}")
+    run_cmd(f"{profman_cmdline}", env)
+    run_cmd(f"{dex2oat_cmdline}", env)
+    run_cmd(f"{dm_cmdline}", env)
+    run_cmd(f"{vdex_cmdline}", env)
+    run_cmd(f"{strip_cmdline}")
+    run_cmd(f"{sync_cmdline}")
+    exit_status=run_cmd(f"{timeout_prefix} {dalvikvm_cmdline}", env, check=False)
 
-    adb.push(cmdfile, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False)
-
-    exit_status=0
-    if not DRY_RUN:
-      if CHROOT:
-        exit_status=adb.shell(f"chroot {CHROOT} sh {DEX_LOCATION}/cmdline.sh",
-                              check=False, quiet=False).returncode
-      else:
-        exit_status=adb.shell(f"sh {DEX_LOCATION}/cmdline.sh",
-                              check=False, quiet=False).returncode
-
-    run(f'rm -f {cmdfile}', save_cmd=False)
     sys.exit(exit_status)
 else:
     # Host run.
-    export("ANDROID_PRINTF_LOG", "brief")
-
-    export("ANDROID_DATA", DEX_LOCATION)
-    export("ANDROID_ROOT", ANDROID_ROOT)
-    export("ANDROID_I18N_ROOT", ANDROID_I18N_ROOT)
-    export("ANDROID_ART_ROOT", ANDROID_ART_ROOT)
-    export("ANDROID_TZDATA_ROOT", ANDROID_TZDATA_ROOT)
     if USE_ZIPAPEX or USE_EXRACTED_ZIPAPEX:
       # Put the zipapex files in front of the ld-library-path
-      export("LD_LIBRARY_PATH", f"{ANDROID_DATA}/zipapex/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}")
-      export("DYLD_LIBRARY_PATH", f"{ANDROID_DATA}/zipapex/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}")
+      LD_LIBRARY_PATH = f"{ANDROID_DATA}/zipapex/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}"
     else:
-      export("LD_LIBRARY_PATH", f"{ANDROID_ROOT}/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}")
-      export("DYLD_LIBRARY_PATH", f"{ANDROID_ROOT}/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}")
-    export("PATH", f"{PATH}:{ANDROID_ART_BIN_DIR}")
+      LD_LIBRARY_PATH = f"{ANDROID_ROOT}/{LIBRARY_DIRECTORY}:{ANDROID_ROOT}/{TEST_DIRECTORY}"
 
-    # Temporarily disable address space layout randomization (ASLR).
-    # This is needed on the host so that the linker loads core.oat at the necessary address.
-    export("LD_USE_LOAD_BIAS", "1")
+    env = {
+      "ANDROID_PRINTF_LOG": "brief",
+      "ASAN_OPTIONS": RUN_TEST_ASAN_OPTIONS,
+      "ANDROID_DATA": DEX_LOCATION,
+      "DEX_LOCATION": DEX_LOCATION,
+      "ANDROID_ROOT": ANDROID_ROOT,
+      "ANDROID_I18N_ROOT": ANDROID_I18N_ROOT,
+      "ANDROID_ART_ROOT": ANDROID_ART_ROOT,
+      "ANDROID_TZDATA_ROOT": ANDROID_TZDATA_ROOT,
+      "ANDROID_LOG_TAGS": ANDROID_LOG_TAGS,
+      "LD_LIBRARY_PATH": LD_LIBRARY_PATH,
+      "PATH": f"{PATH}:{ANDROID_ART_BIN_DIR}",
+      # Temporarily disable address space layout randomization (ASLR).
+      # This is needed on the host so that the linker loads core.oat at the necessary address.
+      "LD_USE_LOAD_BIAS": "1",
+    }
 
     cmdline=dalvikvm_cmdline
 
@@ -1209,18 +1214,16 @@ else:
     shutil.rmtree(f"{DEX_LOCATION}/oat", ignore_errors=True)
     shutil.rmtree(f"{DEX_LOCATION}/dalvik-cache/", ignore_errors=True)
 
-    export("ASAN_OPTIONS", RUN_TEST_ASAN_OPTIONS)
-
     run(f"mkdir -p {mkdir_locations}", save_cmd=False)
     run(setupapex_cmdline)
     if run(installapex_test_cmdline, check=False).returncode != 0:
       run(installapex_cmdline)
     run(linkroot_cmdline)
     run(linkroot_overlay_cmdline)
-    run(profman_cmdline)
-    run(dex2oat_cmdline)
-    run(dm_cmdline)
-    run(vdex_cmdline)
+    run(profman_cmdline, env)
+    run(dex2oat_cmdline, env)
+    run(dm_cmdline, env)
+    run(vdex_cmdline, env)
     run(strip_cmdline)
     run(sync_cmdline)
 
@@ -1259,14 +1262,14 @@ else:
 
     if USE_GDB:
       # When running under gdb, we cannot do piping and grepping...
-      subprocess.run(cmdline + test_args, shell=True)
+      subprocess.run(cmdline + test_args, env, shell=True)
     elif USE_GDBSERVER:
       print("Connect to {GDBSERVER_PORT}")
       # When running under gdb, we cannot do piping and grepping...
-      subprocess.run(cmdline + test_args, shell=True)
+      subprocess.run(cmdline + test_args, env, shell=True)
     else:
       if TIME_OUT != "gdb":
-        proc = run(cmdline + test_args, check=False, quiet=False)
+        proc = run(cmdline + test_args, env, check=False, quiet=False)
         exit_value=proc.returncode
         # Add extra detail if time out is enabled.
         if exit_value == 124 and TIME_OUT == "timeout":
