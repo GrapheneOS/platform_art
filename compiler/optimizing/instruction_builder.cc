@@ -981,7 +981,8 @@ static ArtMethod* ResolveMethod(uint16_t method_idx,
     *imt_or_vtable_index = resolved_method->GetVtableIndex();
   } else if (*invoke_type == kInterface) {
     // For HInvokeInterface we need the IMT index.
-    *imt_or_vtable_index = ImTable::GetImtIndex(resolved_method);
+    *imt_or_vtable_index = resolved_method->GetImtIndex();
+    DCHECK_EQ(*imt_or_vtable_index, ImTable::GetImtIndex(resolved_method));
   }
 
   *is_string_constructor =
