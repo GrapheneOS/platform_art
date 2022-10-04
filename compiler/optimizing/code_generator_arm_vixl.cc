@@ -26,7 +26,6 @@
 #include "class_table.h"
 #include "code_generator_utils.h"
 #include "common_arm.h"
-#include "compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "gc/space/image_space.h"

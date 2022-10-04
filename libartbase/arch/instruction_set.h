@@ -99,6 +99,21 @@ constexpr PointerSize GetInstructionSetPointerSize(InstructionSet isa) {
   InstructionSetAbort(isa);
 }
 
+constexpr bool IsValidInstructionSet(InstructionSet isa) {
+  switch (isa) {
+    case InstructionSet::kArm:
+    case InstructionSet::kThumb2:
+    case InstructionSet::kArm64:
+    case InstructionSet::kX86:
+    case InstructionSet::kX86_64:
+      return true;
+
+    case InstructionSet::kNone:
+      return false;
+  }
+  return false;
+}
+
 constexpr size_t GetInstructionSetInstructionAlignment(InstructionSet isa) {
   switch (isa) {
     case InstructionSet::kArm:
@@ -118,21 +133,6 @@ constexpr size_t GetInstructionSetInstructionAlignment(InstructionSet isa) {
   InstructionSetAbort(isa);
 }
 
-constexpr bool IsValidInstructionSet(InstructionSet isa) {
-  switch (isa) {
-    case InstructionSet::kArm:
-    case InstructionSet::kThumb2:
-    case InstructionSet::kArm64:
-    case InstructionSet::kX86:
-    case InstructionSet::kX86_64:
-      return true;
-
-    case InstructionSet::kNone:
-      return false;
-  }
-  return false;
-}
-
 constexpr size_t GetInstructionSetCodeAlignment(InstructionSet isa) {
   switch (isa) {
     case InstructionSet::kArm:
@@ -145,6 +145,26 @@ constexpr size_t GetInstructionSetCodeAlignment(InstructionSet isa) {
       // Fall-through.
     case InstructionSet::kX86_64:
       return kX86CodeAlignment;
+
+    case InstructionSet::kNone:
+      break;
+  }
+  InstructionSetAbort(isa);
+}
+
+// Returns the difference between the code address and a usable PC.
+// Mainly to cope with `kThumb2` where the lower bit must be set.
+constexpr size_t GetInstructionSetEntryPointAdjustment(InstructionSet isa) {
+  switch (isa) {
+    case InstructionSet::kArm:
+    case InstructionSet::kArm64:
+    case InstructionSet::kX86:
+    case InstructionSet::kX86_64:
+      return 0;
+    case InstructionSet::kThumb2: {
+      // +1 to set the low-order bit so a BLX will switch to Thumb mode
+      return 1;
+    }
 
     case InstructionSet::kNone:
       break;

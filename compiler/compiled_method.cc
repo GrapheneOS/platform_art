@@ -54,25 +54,8 @@ size_t CompiledCode::AlignCode(size_t offset, InstructionSet instruction_set) {
   return RoundUp(offset, GetInstructionSetCodeAlignment(instruction_set));
 }
 
-size_t CompiledCode::CodeDelta() const {
-  return CodeDelta(GetInstructionSet());
-}
-
-size_t CompiledCode::CodeDelta(InstructionSet instruction_set) {
-  switch (instruction_set) {
-    case InstructionSet::kArm:
-    case InstructionSet::kArm64:
-    case InstructionSet::kX86:
-    case InstructionSet::kX86_64:
-      return 0;
-    case InstructionSet::kThumb2: {
-      // +1 to set the low-order bit so a BLX will switch to Thumb mode
-      return 1;
-    }
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      UNREACHABLE();
-  }
+size_t CompiledCode::GetEntryPointAdjustment() const {
+  return GetInstructionSetEntryPointAdjustment(GetInstructionSet());
 }
 
 const void* CompiledCode::CodePointer(const void* code_pointer, InstructionSet instruction_set) {
