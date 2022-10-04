@@ -19,6 +19,8 @@ package com.android.server.art;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
+import android.text.TextUtils;
 import android.util.SparseArray;
 
 import com.android.server.art.ArtifactsPath;
@@ -65,23 +67,66 @@ public final class Utils {
         List<Abi> abis = new ArrayList<>();
         String primaryCpuAbi = pkgState.getPrimaryCpuAbi();
         if (primaryCpuAbi != null) {
-            abis.add(Abi.create(primaryCpuAbi, VMRuntime.getInstructionSet(primaryCpuAbi),
-                    true /* isPrimaryAbi */));
+            String isa = getTranslatedIsa(VMRuntime.getInstructionSet(primaryCpuAbi));
+            abis.add(Abi.create(nativeIsaToAbi(isa), isa, true /* isPrimaryAbi */));
         }
         String secondaryCpuAbi = pkgState.getSecondaryCpuAbi();
         if (secondaryCpuAbi != null) {
-            abis.add(Abi.create(secondaryCpuAbi, VMRuntime.getInstructionSet(secondaryCpuAbi),
-                    false /* isPrimaryAbi */));
+            Utils.check(primaryCpuAbi != null);
+            String isa = getTranslatedIsa(VMRuntime.getInstructionSet(secondaryCpuAbi));
+            abis.add(Abi.create(nativeIsaToAbi(isa), isa, false /* isPrimaryAbi */));
         }
-        // Primary and secondary ABIs are guaranteed to have different ISAs.
+        if (abis.isEmpty()) {
+            // This is the most common case. The package manager can't infer the ABIs, probably
+            // because the package doesn't contain any native library. The app is launched with
+            // the device's preferred ABI.
+            String preferredAbi = Constants.getPreferredAbi();
+            abis.add(Abi.create(preferredAbi, VMRuntime.getInstructionSet(preferredAbi),
+                    true /* isPrimaryAbi */));
+        }
+        // Primary and secondary ABIs should be guaranteed to have different ISAs.
         if (abis.size() == 2 && abis.get(0).isa().equals(abis.get(1).isa())) {
-            throw new IllegalStateException(
-                    String.format("Duplicate ISA: primary ABI '%s', secondary ABI '%s'",
-                            primaryCpuAbi, secondaryCpuAbi));
+            throw new IllegalStateException(String.format(
+                    "Duplicate ISA: primary ABI '%s' ('%s'), secondary ABI '%s' ('%s')",
+                    primaryCpuAbi, abis.get(0).name(), secondaryCpuAbi, abis.get(1).name()));
         }
         return abis;
     }
 
+    /**
+     * If the given ISA isn't native to the device, returns the ISA that the native bridge
+     * translates it to. Otherwise, returns the ISA as is. This is the ISA that the app is actually
+     * launched with and therefore the ISA that should be used to compile the app.
+     */
+    @NonNull
+    private static String getTranslatedIsa(@NonNull String isa) {
+        String abi64 = Constants.getNative64BitAbi();
+        String abi32 = Constants.getNative32BitAbi();
+        if ((abi64 != null && isa.equals(VMRuntime.getInstructionSet(abi64)))
+                || (abi32 != null && isa.equals(VMRuntime.getInstructionSet(abi32)))) {
+            return isa;
+        }
+        String translatedIsa = SystemProperties.get("ro.dalvik.vm.isa." + isa);
+        if (TextUtils.isEmpty(translatedIsa)) {
+            throw new IllegalStateException(String.format("Unsupported isa '%s'", isa));
+        }
+        return translatedIsa;
+    }
+
+    @NonNull
+    private static String nativeIsaToAbi(@NonNull String isa) {
+        String abi64 = Constants.getNative64BitAbi();
+        if (abi64 != null && isa.equals(VMRuntime.getInstructionSet(abi64))) {
+            return abi64;
+        }
+        String abi32 = Constants.getNative32BitAbi();
+        if (abi32 != null && isa.equals(VMRuntime.getInstructionSet(abi32))) {
+            return abi32;
+        }
+        throw new IllegalStateException(String.format("Non-native isa '%s'", isa));
+    }
+
+    @NonNull
     public static boolean isInDalvikCache(@NonNull PackageState pkg) {
         return pkg.isSystem() && !pkg.isUpdatedSystemApp();
     }

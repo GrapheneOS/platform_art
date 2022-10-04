@@ -21,6 +21,7 @@ import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -50,7 +51,9 @@ public class PrimaryDexOptimizerTestBase {
     protected static final int UID = 12345;
     protected static final int SHARED_GID = UserHandle.getSharedAppGid(UID);
 
-    @Rule public StaticMockitoRule mockitoRule = new StaticMockitoRule(SystemProperties.class);
+    @Rule
+    public StaticMockitoRule mockitoRule =
+            new StaticMockitoRule(SystemProperties.class, Constants.class);
 
     @Mock protected PrimaryDexOptimizer.Injector mInjector;
     @Mock protected IArtd mArtd;
@@ -78,6 +81,15 @@ public class PrimaryDexOptimizerTestBase {
                 .thenReturn(false);
         lenient().when(SystemProperties.get("dalvik.vm.appimageformat")).thenReturn("lz4");
         lenient().when(SystemProperties.get("pm.dexopt.shared")).thenReturn("speed");
+
+        // No ISA translation.
+        lenient()
+                .when(SystemProperties.get(argThat(arg -> arg.startsWith("ro.dalvik.vm.isa."))))
+                .thenReturn("");
+
+        lenient().when(Constants.getPreferredAbi()).thenReturn("arm64-v8a");
+        lenient().when(Constants.getNative64BitAbi()).thenReturn("arm64-v8a");
+        lenient().when(Constants.getNative32BitAbi()).thenReturn("armeabi-v7a");
 
         lenient()
                 .when(mUserManager.getUserHandles(anyBoolean()))

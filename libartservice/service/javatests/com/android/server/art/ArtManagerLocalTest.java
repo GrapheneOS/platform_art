@@ -34,6 +34,7 @@ import static org.mockito.Mockito.when;
 import android.content.pm.ApplicationInfo;
 import android.os.CancellationSignal;
 import android.os.ServiceSpecificException;
+import android.os.SystemProperties;
 
 import androidx.test.filters.SmallTest;
 
@@ -41,6 +42,7 @@ import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
+import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.art.wrapper.AndroidPackageApi;
 import com.android.server.art.wrapper.PackageManagerLocal;
 import com.android.server.art.wrapper.PackageState;
@@ -54,9 +56,6 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
-import org.mockito.quality.Strictness;
 
 import java.util.List;
 
@@ -65,7 +64,9 @@ import java.util.List;
 public class ArtManagerLocalTest {
     private static final String PKG_NAME = "com.example.foo";
 
-    @Rule public MockitoRule mockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
+    @Rule
+    public StaticMockitoRule mockitoRule =
+            new StaticMockitoRule(SystemProperties.class, Constants.class);
 
     @Mock private ArtManagerLocal.Injector mInjector;
     @Mock private PackageManagerLocal mPackageManagerLocal;
@@ -92,6 +93,17 @@ public class ArtManagerLocalTest {
         lenient().when(mInjector.getPackageManagerLocal()).thenReturn(mPackageManagerLocal);
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.getDexOptHelper()).thenReturn(mDexOptHelper);
+
+        lenient().when(SystemProperties.get(eq("pm.dexopt.install"))).thenReturn("speed-profile");
+
+        // No ISA translation.
+        lenient()
+                .when(SystemProperties.get(argThat(arg -> arg.startsWith("ro.dalvik.vm.isa."))))
+                .thenReturn("");
+
+        lenient().when(Constants.getPreferredAbi()).thenReturn("arm64-v8a");
+        lenient().when(Constants.getNative64BitAbi()).thenReturn("arm64-v8a");
+        lenient().when(Constants.getNative32BitAbi()).thenReturn("armeabi-v7a");
 
         mPkgState = createPackageState();
         mPkg = mPkgState.getAndroidPackage();
@@ -125,6 +137,39 @@ public class ArtManagerLocalTest {
         verify(mArtd).deleteArtifacts(argThat(artifactsPath
                 -> artifactsPath.dexPath.equals("/data/app/foo/split_0.apk")
                         && artifactsPath.isa.equals("arm")
+                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
+        verifyNoMoreInteractions(mArtd);
+    }
+
+    @Test
+    public void testDeleteOptimizedArtifactsTranslatedIsas() throws Exception {
+        lenient().when(SystemProperties.get("ro.dalvik.vm.isa.arm64")).thenReturn("x86_64");
+        lenient().when(SystemProperties.get("ro.dalvik.vm.isa.arm")).thenReturn("x86");
+        lenient().when(Constants.getPreferredAbi()).thenReturn("x86_64");
+        lenient().when(Constants.getNative64BitAbi()).thenReturn("x86_64");
+        lenient().when(Constants.getNative32BitAbi()).thenReturn("x86");
+
+        when(mArtd.deleteArtifacts(any())).thenReturn(1l);
+
+        DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
+                mock(PackageDataSnapshot.class), PKG_NAME);
+        assertThat(result.getFreedBytes()).isEqualTo(4);
+
+        verify(mArtd).deleteArtifacts(argThat(artifactsPath
+                -> artifactsPath.dexPath.equals("/data/app/foo/base.apk")
+                        && artifactsPath.isa.equals("x86_64")
+                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
+        verify(mArtd).deleteArtifacts(argThat(artifactsPath
+                -> artifactsPath.dexPath.equals("/data/app/foo/base.apk")
+                        && artifactsPath.isa.equals("x86")
+                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
+        verify(mArtd).deleteArtifacts(argThat(artifactsPath
+                -> artifactsPath.dexPath.equals("/data/app/foo/split_0.apk")
+                        && artifactsPath.isa.equals("x86_64")
+                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
+        verify(mArtd).deleteArtifacts(argThat(artifactsPath
+                -> artifactsPath.dexPath.equals("/data/app/foo/split_0.apk")
+                        && artifactsPath.isa.equals("x86")
                         && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
         verifyNoMoreInteractions(mArtd);
     }
