@@ -706,6 +706,7 @@ build-art-target-golem: $(RELEASE_ART_APEX) com.android.runtime $(CONSCRYPT_APEX
                         $(TARGET_OUT_EXECUTABLES)/dex2oat_wrapper \
                         $(ART_TARGET_PLATFORM_DEPENDENCIES) \
                         $(ART_TARGET_SHARED_LIBRARY_BENCHMARK) \
+			$(TARGET_OUT_SHARED_LIBRARIES)/libgolemtiagent.so \
                         $(PRODUCT_OUT)/apex/art_boot_images/javalib/$(TARGET_ARCH)/boot.art \
                         standalone-apex-files
 	# remove debug libraries from public.libraries.txt because golem builds
@@ -723,6 +724,7 @@ build-art-target-golem: $(RELEASE_ART_APEX) com.android.runtime $(CONSCRYPT_APEX
 ART_HOST_SHARED_LIBRARY_BENCHMARK := $(ART_HOST_OUT_SHARED_LIBRARIES)/libartbenchmark.so
 build-art-host-golem: build-art-host \
                       $(ART_HOST_SHARED_LIBRARY_BENCHMARK) \
+		      $(ART_HOST_OUT_SHARED_LIBRARIES)/libgolemtiagent.so \
                       $(HOST_OUT_EXECUTABLES)/dex2oat_wrapper
 
 ########################################################################
