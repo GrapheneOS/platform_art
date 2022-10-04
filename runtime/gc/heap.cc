@@ -336,6 +336,7 @@ Heap::Heap(size_t initial_size,
       // this one.
       process_state_update_lock_("process state update lock", kPostMonitorLock),
       min_foreground_target_footprint_(0),
+      min_foreground_concurrent_start_bytes_(0),
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
@@ -1075,7 +1076,9 @@ void Heap::GrowHeapOnJankPerceptibleSwitch() {
                                               min_foreground_target_footprint_,
                                               std::memory_order_relaxed);
   }
-  min_foreground_target_footprint_ = 0;
+  if (IsGcConcurrent() && concurrent_start_bytes_ < min_foreground_concurrent_start_bytes_) {
+    concurrent_start_bytes_ = min_foreground_concurrent_start_bytes_;
+  }
 }
 
 void Heap::UpdateProcessState(ProcessState old_process_state, ProcessState new_process_state) {
@@ -3730,7 +3733,9 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
     // process-state switch.
     min_foreground_target_footprint_ =
         (multiplier <= 1.0 && grow_bytes > 0)
-        ? bytes_allocated + static_cast<size_t>(grow_bytes * foreground_heap_growth_multiplier_)
+        ? std::min(
+          bytes_allocated + static_cast<size_t>(grow_bytes * foreground_heap_growth_multiplier_),
+          GetMaxMemory())
         : 0;
 
     if (IsGcConcurrent()) {
@@ -3762,6 +3767,12 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
       // allocation rate is very high, remaining_bytes could tell us that we should start a GC
       // right away.
       concurrent_start_bytes_ = std::max(target_footprint - remaining_bytes, bytes_allocated);
+      // Store concurrent_start_bytes_ (computed with foreground heap growth multiplier) for update
+      // itself when process state switches to foreground.
+      min_foreground_concurrent_start_bytes_ =
+          min_foreground_target_footprint_ != 0
+          ? std::max(min_foreground_target_footprint_ - remaining_bytes, bytes_allocated)
+          : 0;
     }
   }
 }
