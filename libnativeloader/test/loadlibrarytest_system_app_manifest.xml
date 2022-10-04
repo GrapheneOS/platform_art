@@ -20,10 +20,12 @@
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
                      android:targetPackage="android.test.app.system" />
     <application>
-        <uses-library android:name="android.test.systemsharedlib" />
-        <uses-library android:name="android.test.systemextsharedlib" />
+        <uses-library android:required="false" android:name="android.test.systemsharedlib" />
+        <uses-library android:required="false" android:name="android.test.systemextsharedlib" />
+        <uses-library android:required="false" android:name="android.test.productsharedlib" />
+        <uses-library android:required="false" android:name="android.test.vendorsharedlib" />
         <!-- System apps get a shared classloader namespace, so they don't need
-             uses-native-library entries for anything in /system. -->
+             uses-native-library entries for anything in /system or /system_ext. -->
         <uses-native-library android:required="false" android:name="libfoo.product1.so" />
         <uses-native-library android:required="false" android:name="libbar.product1.so" />
     </application>
