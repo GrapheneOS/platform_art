@@ -153,7 +153,7 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
     uint64_t address = info.code_address;
     address += info.is_code_address_text_relative ? text->GetAddress() : 0;
     // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
-    address += CompiledMethod::CodeDelta(info.isa);
+    address += GetInstructionSetEntryPointAdjustment(info.isa);
     symtab->Add(name_offset, text, address, info.code_size, STB_GLOBAL, STT_FUNC);
   }
   // Add symbols for dex files.
