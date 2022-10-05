@@ -83,3 +83,30 @@ art_cc_library {
         },
     },
 }
+
+art_cc_library {
+    name: "libgolemtiagent",
+    host_supported: true,
+    defaults: ["art_defaults"],
+    srcs: [
+        "golem-tiagent/golem-tiagent.cc",
+    ],
+    target: {
+        // This has to be duplicated for android and host to make sure it
+        // comes after the -Wframe-larger-than warnings inserted by art.go
+        // target-specific properties
+        android: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+        host: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+    },
+    header_libs: [
+        "libnativehelper_header_only",
+	"libopenjdkjvmti_headers"
+    ],
+    shared_libs: [
+     "libbase",
+    ],
+}
