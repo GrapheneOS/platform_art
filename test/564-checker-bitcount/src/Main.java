@@ -25,7 +25,6 @@ public class Main {
   /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect intrinsic:IntegerBitCount
   /// CHECK-DAG:                      Return [<<Result>>]
   private static int $noinline$BitCountBoolean(boolean x) {
-    if (doThrow) { throw new Error(); }  // Try defeating inlining.
     return Integer.bitCount(x ? 1 : 0);
   }
 
@@ -33,7 +32,6 @@ public class Main {
   /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect intrinsic:IntegerBitCount
   /// CHECK-DAG:                      Return [<<Result>>]
   private static int $noinline$BitCountByte(byte x) {
-    if (doThrow) { throw new Error(); }  // Try defeating inlining.
     return Integer.bitCount(x);
   }
 
@@ -41,7 +39,6 @@ public class Main {
   /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect intrinsic:IntegerBitCount
   /// CHECK-DAG:                      Return [<<Result>>]
   private static int $noinline$BitCountShort(short x) {
-    if (doThrow) { throw new Error(); }  // Try defeating inlining.
     return Integer.bitCount(x);
   }
 
@@ -49,7 +46,6 @@ public class Main {
   /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect intrinsic:IntegerBitCount
   /// CHECK-DAG:                      Return [<<Result>>]
   private static int $noinline$BitCountChar(char x) {
-    if (doThrow) { throw new Error(); }  // Try defeating inlining.
     return Integer.bitCount(x);
   }
 
@@ -57,7 +53,6 @@ public class Main {
   /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect intrinsic:IntegerBitCount
   /// CHECK-DAG:                      Return [<<Result>>]
   private static int $noinline$BitCountInt(int x) {
-    if (doThrow) { throw new Error(); }  // Try defeating inlining.
     return Integer.bitCount(x);
   }
 
@@ -65,7 +60,6 @@ public class Main {
   /// CHECK-DAG:     <<Result:i\d+>>  InvokeStaticOrDirect intrinsic:LongBitCount
   /// CHECK-DAG:                      Return [<<Result>>]
   private static int $noinline$BitCountLong(long x) {
-    if (doThrow) { throw new Error(); }  // Try defeating inlining.
     return Long.bitCount(x);
   }
 
@@ -201,6 +195,4 @@ public class Main {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
-
-  private static boolean doThrow = false;
 }

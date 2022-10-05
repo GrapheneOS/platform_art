@@ -44,10 +44,7 @@ public class Main {
   }
 
   public static void $noinline$foo() {
-    if (doThrow) throw new Error("");
   }
-
-  public static boolean doThrow;
 }
 
 class SubMain extends Main {

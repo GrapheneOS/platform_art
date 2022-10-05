@@ -118,7 +118,6 @@ public class Main implements Itf {
   }
 
   public static void $noinline$testInlineToSameTarget(Main m) {
-    if (doThrow) throw new Error("");
     m.increment();
   }
 
@@ -137,7 +136,6 @@ public class Main implements Itf {
     counter++;
   }
   public static int counter = 0;
-  public static boolean doThrow = false;
 }
 
 class Subclass extends Main {
