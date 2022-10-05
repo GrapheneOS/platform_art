@@ -125,8 +125,7 @@ if 'golem' in target:
     sys.exit(1)
 
 if 'run-test' in target:
-  run_test_command = [sys.executable, # Use the same python as we are using now.
-                      os.path.join(env.ANDROID_BUILD_TOP,
+  run_test_command = [os.path.join(env.ANDROID_BUILD_TOP,
                                    'art/test/testrunner/testrunner.py')]
   test_flags = target.get('run-test', [])
   out_dir = pathlib.PurePath(env.SOONG_OUT_DIR)
