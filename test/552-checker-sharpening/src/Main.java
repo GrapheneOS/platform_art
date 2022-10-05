@@ -34,10 +34,7 @@ public class Main {
     }
   }
 
-  public static boolean doThrow = false;
-
   private static int $noinline$foo(int x) {
-    if (doThrow) { throw new Error(); }
     return x;
   }
 
@@ -135,8 +132,6 @@ public class Main {
   /// CHECK:                LoadString load_kind:BootImageRelRo
 
   public static String $noinline$getBootImageString() {
-    // Prevent inlining to avoid the string comparison being optimized away.
-    if (doThrow) { throw new Error(); }
     // Empty string is known to be in the boot image.
     return "";
   }
@@ -152,8 +147,6 @@ public class Main {
   /// CHECK-DAG:            LoadString load_kind:BssEntry
 
   public static String $noinline$getNonBootImageString() {
-    // Prevent inlining to avoid the string comparison being optimized away.
-    if (doThrow) { throw new Error(); }
     // This string is not in the boot image.
     return "non-boot-image-string";
   }
@@ -162,8 +155,6 @@ public class Main {
   /// CHECK:                LoadClass load_kind:BootImageRelRo class_name:java.lang.String
 
   public static Class<?> $noinline$getStringClass() {
-    // Prevent inlining to avoid the string comparison being optimized away.
-    if (doThrow) { throw new Error(); }
     // String class is known to be in the boot image.
     return String.class;
   }
@@ -179,8 +170,6 @@ public class Main {
   /// CHECK-DAG:            LoadClass load_kind:BssEntry class_name:Other
 
   public static Class<?> $noinline$getOtherClass() {
-    // Prevent inlining to avoid the string comparison being optimized away.
-    if (doThrow) { throw new Error(); }
     // Other class is not in the boot image.
     return Other.class;
   }
