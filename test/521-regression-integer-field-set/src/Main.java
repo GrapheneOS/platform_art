@@ -31,24 +31,12 @@ class Main {
     assertIntEquals(456789, s);
   }
 
-  private static boolean doThrow = false;
-
   private void $noinline$SetInstanceField() {
-    if (doThrow) {
-      // Try defeating inlining.
-      throw new Error();
-    }
-
     // Set a value than does not fit in a 16-bit (signed) integer.
     i = 123456;
   }
 
   private static void $noinline$SetStaticField() {
-    if (doThrow) {
-      // Try defeating inlining.
-      throw new Error();
-    }
-
     // Set a value than does not fit in a 16-bit (signed) integer.
     s = 456789;
   }

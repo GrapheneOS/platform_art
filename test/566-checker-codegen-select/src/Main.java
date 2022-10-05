@@ -21,7 +21,6 @@ public class Main {
   /// CHECK-NEXT:                  Select [{{j\d+}},{{j\d+}},<<Cond>>]
 
   public long $noinline$longSelect(long param) {
-    if (doThrow) { throw new Error(); }
     long val_true = longB;
     long val_false = longC;
     return (param > longA) ? val_true : val_false;
@@ -46,7 +45,6 @@ public class Main {
   /// CHECK:             cmovle/ngq
 
   public long $noinline$longSelect_Constant(long param) {
-    if (doThrow) { throw new Error(); }
     long val_true = longB;
     long val_false = longC;
     return (param > 3L) ? val_true : val_false;
@@ -60,7 +58,6 @@ public class Main {
   /// CHECK:             cmovl/nge
 
   public int $noinline$intSelect_Constant(int param) {
-    if (doThrow) { throw new Error(); }
     int val_true = intB;
     int val_false = intC;
     return (param >= 3) ? val_true : val_false;
@@ -87,8 +84,6 @@ public class Main {
       throw new Error(expected + " != " + actual);
     }
   }
-
-  public boolean doThrow = false;
 
   public long longA = 3L;
   public long longB = 5L;

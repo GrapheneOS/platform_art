@@ -22,12 +22,8 @@ public class Main {
     }
   }
 
-  static boolean doThrow = false;
-
   // This function always returns 1.
-  // We use 'throw' to prevent the function from being inlined.
   public static int $opt$noinline$function_call(int arg) {
-    if (doThrow) throw new Error();
     return 1 % arg;
   }
 

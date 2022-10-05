@@ -58,9 +58,6 @@ public class Main  {
   }
 
   public static Object[] $noinline$getArray() {
-    if (doThrow) throw new Error();
     return new MyClassB[2];
   }
-
-  static boolean doThrow = false;
 }

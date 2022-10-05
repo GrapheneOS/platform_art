@@ -165,10 +165,7 @@ public class Main {
     }
   }
 
-  public static boolean doThrow = false;
-
   public static Object $noinline$HiddenNull() {
-    if (doThrow) { throw new Error(); }
     return null;
   }
 }
