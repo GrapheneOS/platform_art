@@ -16,7 +16,6 @@
 
 public class Main {
 
-  static boolean doThrow = false;
   static long longValue;
 
   public static void assertEquals(float expected, float result) {
@@ -35,10 +34,9 @@ public class Main {
   /// CHECK-DAG:                       Return [<<Convert>>]
 
   static float $noinline$longToFloat() {
-    if (doThrow) { throw new Error(); }
     longValue = $inline$returnConst();
     // This call prevents D8 from replacing the result of the sget instruction
-    // in line 43 by the result of the call to $inline$returnConst() in line 39.
+    // in line 41 by the result of the call to $inline$returnConst() in line 39.
     $inline$preventRedundantFieldLoadEliminationInD8();
     return (float) longValue;
   }

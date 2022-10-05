@@ -72,32 +72,18 @@ public class Main {
   }
 
   public static int $noinline$divInt(int value) {
-    if (doThrow) {
-      throw new Error("");
-    }
     return value / Integer.MIN_VALUE;
   }
 
   public static int $noinline$remInt(int value) {
-    if (doThrow) {
-      throw new Error("");
-    }
     return value % Integer.MIN_VALUE;
   }
 
   public static long $noinline$divLong(long value) {
-    if (doThrow) {
-      throw new Error("");
-    }
     return value / Long.MIN_VALUE;
   }
 
   public static long $noinline$remLong(long value) {
-    if (doThrow) {
-      throw new Error("");
-    }
     return value % Long.MIN_VALUE;
   }
-
-  static boolean doThrow = false;
 }

@@ -48,12 +48,7 @@ public class Main {
     test_Long_left_constant_v();
   }
 
-  public static boolean doThrow = false;
-
   public static int $noinline$rotate_int_right_reg_v_csubv(int value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> distance) | (value << (32 - distance));
   }
 
@@ -74,9 +69,6 @@ public class Main {
   }
 
   public static long $noinline$rotate_long_right_reg_v_csubv(long value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> distance) | (value << (64 - distance));
   }
 
@@ -97,9 +89,6 @@ public class Main {
   }
 
   public static int $noinline$rotate_int_left_reg_csubv_v(int value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> (32 - distance)) | (value << distance);
   }
 
@@ -120,9 +109,6 @@ public class Main {
   }
 
   public static long $noinline$rotate_long_left_reg_csubv_v(long value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> (64 - distance)) | (value << distance);
   }
 
@@ -143,9 +129,6 @@ public class Main {
   }
 
   public static int $noinline$rotate_int_right_reg_v_negv(int value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> distance) | (value << -distance);
   }
 
@@ -166,9 +149,6 @@ public class Main {
   }
 
   public static long $noinline$rotate_long_right_reg_v_negv(long value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> distance) | (value << -distance);
   }
 
@@ -189,9 +169,6 @@ public class Main {
   }
 
   public static int $noinline$rotate_int_left_reg_negv_v(int value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> -distance) | (value << distance);
   }
 
@@ -212,9 +189,6 @@ public class Main {
   }
 
   public static long $noinline$rotate_long_left_reg_negv_v(long value, int distance) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> -distance) | (value << distance);
   }
 
@@ -235,30 +209,18 @@ public class Main {
   }
 
   public static int $noinline$rotate_int_right_constant_0(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 0) | (value << 0);
   }
 
   public static int $noinline$rotate_int_right_constant_1(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 1) | (value << -1);
   }
 
   public static int $noinline$rotate_int_right_constant_m1(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> -1) | (value << 1);
   }
 
   public static int $noinline$rotate_int_right_constant_16(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 16) | (value << -16);
   }
 
@@ -270,51 +232,30 @@ public class Main {
   }
 
   public static long $noinline$rotate_long_right_constant_0(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 0) | (value << 0);
   }
 
   public static long $noinline$rotate_long_right_constant_1(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 1) | (value << -1);
   }
 
   public static long $noinline$rotate_long_right_constant_m1(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> -1) | (value << 1);
   }
 
   public static long $noinline$rotate_long_right_constant_16(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 16) | (value << -16);
   }
 
   public static long $noinline$rotate_long_right_constant_32(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 32) | (value << -32);
   }
 
   public static long $noinline$rotate_long_right_constant_48(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 48) | (value << -48);
   }
 
   public static long $noinline$rotate_long_right_constant_64(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value >>> 64) | (value << -64);
   }
 
@@ -328,30 +269,18 @@ public class Main {
   }
 
   public static int $noinline$rotate_int_left_constant_0(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 0) | (value >>> 0);
   }
 
   public static int $noinline$rotate_int_left_constant_1(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 1) | (value >>> -1);
   }
 
   public static int $noinline$rotate_int_left_constant_m1(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << -1) | (value >>> 1);
   }
 
   public static int $noinline$rotate_int_left_constant_16(int value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 16) | (value >>> -16);
   }
 
@@ -363,51 +292,30 @@ public class Main {
   }
 
   public static long $noinline$rotate_long_left_constant_0(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 0) | (value >>> 0);
   }
 
   public static long $noinline$rotate_long_left_constant_1(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 1) | (value >>> -1);
   }
 
   public static long $noinline$rotate_long_left_constant_m1(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << -1) | (value >>> 1);
   }
 
   public static long $noinline$rotate_long_left_constant_16(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 16) | (value >>> -16);
   }
 
   public static long $noinline$rotate_long_left_constant_32(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 32) | (value >>> -32);
   }
 
   public static long $noinline$rotate_long_left_constant_48(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 48) | (value >>> -48);
   }
 
   public static long $noinline$rotate_long_left_constant_64(long value) {
-    if (doThrow) {
-      throw new Error();
-    }
     return (value << 64) | (value >>> -64);
   }
 

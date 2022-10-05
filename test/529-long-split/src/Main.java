@@ -167,14 +167,11 @@ public class Main  {
   }
 
   public static void $noinline$doCall() {
-    if (doThrow) throw new Error();
   }
 
   public static void $noinline$doCall(long e) {
-    if (doThrow) throw new Error();
   }
 
-  public static boolean doThrow;
   public static int myField1;
   public static int myField2;
   public static int myField3;
