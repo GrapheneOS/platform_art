@@ -581,7 +581,8 @@ def run_tests(tests):
       temp_path = tempfile.mkdtemp(dir=env.ART_HOST_TEST_DIR)
       options_test = '--temp-path {} '.format(temp_path) + options_test
 
-      run_test_sh = env.ANDROID_BUILD_TOP + '/art/test/run-test'
+      # Run the run-test script using the same python as we are using now.
+      run_test_sh = sys.executable + ' ' + env.ANDROID_BUILD_TOP + '/art/test/run-test'
       command = ' '.join((run_test_sh, options_test, ' '.join(extra_arguments[target]), test))
       return executor.submit(run_test, command, test, variant_set, test_name)
 
