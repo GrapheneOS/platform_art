@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python3
 #
 # Copyright (C) 2007 The Android Open Source Project
 #
@@ -14,60 +14,72 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Set up prog to be the path of this script, including following symlinks,
-# and set up progdir to be the fully-qualified pathname of its directory.
-prog="$0"
-args="$@"
-while [ -h "${prog}" ]; do
-    newProg=`/bin/ls -ld "${prog}"`
-    newProg=`expr "${newProg}" : ".* -> \(.*\)$"`
-    if expr "x${newProg}" : 'x/' >/dev/null; then
-        prog="${newProg}"
-    else
-        progdir=`dirname "${prog}"`
-        prog="${progdir}/${newProg}"
-    fi
-done
-oldwd=`pwd`
-progdir=`dirname "${prog}"`
-cd "${progdir}"
-progdir=`pwd`
-prog="${progdir}"/`basename "${prog}"`
-test_dir="test-$$"
-if [ -z "$TMPDIR" ]; then
-  tmp_dir="/tmp/$USER/${test_dir}"
-else
-  tmp_dir="${TMPDIR}/${test_dir}"
-fi
-checker="${progdir}/../tools/checker/checker.py"
+import os, sys, glob, re, shutil, subprocess
+
+progdir = os.path.dirname(__file__)
+oldwd = os.getcwd()
+os.chdir(progdir)
+test_dir = "test-{}".format(os.getpid())
+TMPDIR = os.environ.get("TMPDIR")
+USER = os.environ.get("USER")
+PYTHON3 = os.environ.get("PYTHON3")
+if not TMPDIR:
+  tmp_dir=f"/tmp/{USER}/{test_dir}"
+else:
+  tmp_dir=f"{TMPDIR}/{test_dir}"
+checker=f"{progdir}/../tools/checker/checker.py"
+
+def run(cmdline: str, check=True) -> subprocess.CompletedProcess:
+  proc = subprocess.run([cmdline],
+                        shell=True,
+                        encoding="utf8",
+                        capture_output=True)
+  if (check and proc.returncode != 0) or (quiet == "no"):
+    print("$ " + cmdline)
+    print(proc.stdout or "", file=sys.stdout, end='', flush=True)
+    print(proc.stderr or "", file=sys.stderr, end='', flush=True)
+  if (check and proc.returncode != 0):
+    raise Exception("Command returned exit code {}".format(proc.returncode))
+  return proc
+
+def export(env: str, value: str) -> None:
+  os.environ[env] = value
+  globals()[env] = value
+
+def verbose(msg) -> None:
+  if quiet == "no":
+    print(msg, file=sys.stdout, flush=True)
+
+def error(msg) -> None:
+  print(msg, file=sys.stderr, flush=True)
 
 # ANDROID_BUILD_TOP is not set in a build environment.
-if [ -z "$ANDROID_BUILD_TOP" ]; then
-    export ANDROID_BUILD_TOP=$oldwd
-fi
+ANDROID_BUILD_TOP = os.environ.get("ANDROID_BUILD_TOP")
+if not ANDROID_BUILD_TOP:
+    export("ANDROID_BUILD_TOP", oldwd)
 
-export JAVA="java"
-export JAVAC="javac -g -Xlint:-options -source 1.8 -target 1.8"
-export PYTHON3="${ANDROID_BUILD_TOP}/prebuilts/build-tools/path/linux-x86/python3"
-export RUN="${PYTHON3} ${progdir}/etc/run-test-jar"
-export DEX_LOCATION=/data/run-test/${test_dir}
+export("JAVA", "java")
+export("JAVAC", "javac -g -Xlint:-options -source 1.8 -target 1.8")
+export("PYTHON3", f"{ANDROID_BUILD_TOP}/prebuilts/build-tools/path/linux-x86/python3")
+export("RUN", f"{PYTHON3} {progdir}/etc/run-test-jar")
+export("DEX_LOCATION", f"/data/run-test/{test_dir}")
 
-# OUT_DIR defaults to out, and may be relative to $ANDROID_BUILD_TOP.
+# OUT_DIR defaults to out, and may be relative to ANDROID_BUILD_TOP.
 # Convert it to an absolute path, since we cd into the tmp_dir to run the tests.
-export OUT_DIR=${OUT_DIR:-out}
-if [[ "$OUT_DIR" != /* ]]; then
-    export OUT_DIR=$ANDROID_BUILD_TOP/$OUT_DIR
-fi
+OUT_DIR = os.environ.get("OUT_DIR", "")
+export("OUT_DIR", OUT_DIR or "out")
+if not OUT_DIR.startswith("/"):
+    export("OUT_DIR", f"{ANDROID_BUILD_TOP}/{OUT_DIR}")
 
 # ANDROID_HOST_OUT is not set in a build environment.
-if [ -z "$ANDROID_HOST_OUT" ]; then
-    export ANDROID_HOST_OUT=${OUT_DIR}/host/linux-x86
-fi
+ANDROID_HOST_OUT = os.environ.get("ANDROID_HOST_OUT")
+if not ANDROID_HOST_OUT:
+    export("ANDROID_HOST_OUT", f"{OUT_DIR}/host/linux-x86")
 
-host_lib_root=${ANDROID_HOST_OUT}
-chroot=
+host_lib_root=ANDROID_HOST_OUT
+chroot=""
 info="info.txt"
-run="run"
+run_cmd="run"
 expected_stdout="expected-stdout.txt"
 expected_stderr="expected-stderr.txt"
 check_cmd="check"
@@ -77,7 +89,8 @@ cfg_output="graph.cfg"
 strace_output="strace-output.txt"
 lib="libartd.so"
 testlib="arttestd"
-run_args=()
+run_args=[]
+run_checker="no"
 
 quiet="no"
 debuggable="no"
@@ -120,957 +133,819 @@ dump_cfg_path=""
 # particular configurations.
 file_ulimit=128000
 
+args = list(sys.argv)
+arg = args[0]
+def shift():
+  global arg
+  args.pop(0)
+  arg = args[0] if args else ""
+shift()
 
-while true; do
-    if [ "x$1" = "x--host" ]; then
+while True:
+    if arg == "--host":
         target_mode="no"
-        DEX_LOCATION=$tmp_dir
-        run_args+=(--host)
-        shift
-    elif [ "x$1" = "x--quiet" ]; then
+        DEX_LOCATION=tmp_dir
+        run_args+=['--host']
+        shift()
+    elif arg == "--quiet":
         quiet="yes"
-        shift
-    elif [ "x$1" = "x--use-java-home" ]; then
-        if [ -n "${JAVA_HOME}" ]; then
-          export JAVA="${JAVA_HOME}/bin/java"
-          export JAVAC="${JAVA_HOME}/bin/javac -g"
-        else
-          echo "Passed --use-java-home without JAVA_HOME variable set!"
+        shift()
+    elif arg == "--use-java-home":
+        JAVA_HOME = os.environ.get("JAVA_HOME")
+        if JAVA_HOME:
+          export("JAVA", f"{JAVA_HOME}/bin/java")
+          export("JAVAC", f"{JAVA_HOME}/bin/javac -g")
+        else:
+          error("Passed --use-java-home without JAVA_HOME variable set!")
           usage="yes"
-        fi
-        shift
-    elif [ "x$1" = "x--jvm" ]; then
+        shift()
+    elif arg == "--jvm":
         target_mode="no"
-        DEX_LOCATION="$tmp_dir"
+        DEX_LOCATION=tmp_dir
         runtime="jvm"
         prebuild_mode="no"
-        run_args+=(--jvm)
-        shift
-    elif [ "x$1" = "x-O" ]; then
+        run_args+=['--jvm']
+        shift()
+    elif arg == "-O":
         lib="libart.so"
         testlib="arttest"
-        run_args+=(-O)
-        shift
-    elif [ "x$1" = "x--dalvik" ]; then
+        run_args+=['-O']
+        shift()
+    elif arg == "--dalvik":
         lib="libdvm.so"
         runtime="dalvik"
-        shift
-    elif [ "x$1" = "x--no-image" ]; then
+        shift()
+    elif arg == "--no-image":
         have_image="no"
-        shift
-    elif [ "x$1" = "x--relocate" ]; then
+        shift()
+    elif arg == "--relocate":
         relocate="yes"
-        shift
-    elif [ "x$1" = "x--no-relocate" ]; then
+        shift()
+    elif arg == "--no-relocate":
         relocate="no"
-        shift
-    elif [ "x$1" = "x--prebuild" ]; then
-        run_args+=(--prebuild)
+        shift()
+    elif arg == "--prebuild":
+        run_args+=['--prebuild']
         prebuild_mode="yes"
-        shift;
-    elif [ "x$1" = "x--compact-dex-level" ]; then
-        option="$1"
-        shift
-        run_args+=("$option" "$1")
-        shift;
-    elif [ "x$1" = "x--strip-dex" ]; then
-        run_args+=(--strip-dex)
-        shift;
-    elif [ "x$1" = "x--debuggable" ]; then
-        run_args+=(-Xcompiler-option --debuggable)
+        shift()
+    elif arg == "--compact-dex-level":
+        option=arg
+        shift()
+        run_args+=[f'"{option}" "{arg}"']
+        shift()
+    elif arg == "--strip-dex":
+        run_args+=['--strip-dex']
+        shift()
+    elif arg == "--debuggable":
+        run_args+=['-Xcompiler-option --debuggable']
         debuggable="yes"
-        shift;
-    elif [ "x$1" = "x--no-prebuild" ]; then
-        run_args+=(--no-prebuild)
+        shift()
+    elif arg == "--no-prebuild":
+        run_args+=['--no-prebuild']
         prebuild_mode="no"
-        shift;
-    elif [ "x$1" = "x--gcverify" ]; then
+        shift()
+    elif arg == "--gcverify":
         basic_verify="true"
         gc_verify="true"
-        shift
-    elif [ "x$1" = "x--gcstress" ]; then
+        shift()
+    elif arg == "--gcstress":
         basic_verify="true"
         gc_stress="true"
-        shift
-    elif [ "x$1" = "x--jvmti-step-stress" ]; then
+        shift()
+    elif arg == "--jvmti-step-stress":
         jvmti_step_stress="true"
-        shift
-    elif [ "x$1" = "x--jvmti-redefine-stress" ]; then
+        shift()
+    elif arg == "--jvmti-redefine-stress":
         jvmti_redefine_stress="true"
-        shift
-    elif [ "x$1" = "x--jvmti-field-stress" ]; then
+        shift()
+    elif arg == "--jvmti-field-stress":
         jvmti_field_stress="true"
-        shift
-    elif [ "x$1" = "x--jvmti-trace-stress" ]; then
+        shift()
+    elif arg == "--jvmti-trace-stress":
         jvmti_trace_stress="true"
-        shift
-    elif [ "x$1" = "x--suspend-timeout" ]; then
-        shift
-        suspend_timeout="$1"
-        shift
-    elif [ "x$1" = "x--image" ]; then
-        shift
-        image="$1"
-        run_args+=(--image "$image")
-        shift
-    elif [ "x$1" = "x-Xcompiler-option" ]; then
-        shift
-        option="$1"
-        run_args+=(-Xcompiler-option "$option")
-        shift
-    elif [ "x$1" = "x--runtime-option" ]; then
-        shift
-        option="$1"
-        run_args+=(--runtime-option "$option")
-        shift
-    elif [ "x$1" = "x--gdb-arg" ]; then
-        shift
-        gdb_arg="$1"
-        run_args+=(--gdb-arg "$gdb_arg")
-        shift
-    elif [ "x$1" = "x--gdb-dex2oat-args" ]; then
-        shift
-        gdb_dex2oat_args="$1"
-        run_args+=(--gdb-dex2oat-args "$gdb_dex2oat_args")
-        shift
-    elif [ "x$1" = "x--debug" ]; then
-        run_args+=(--debug)
-        shift
-    elif [ "x$1" = "x--debug-wrap-agent" ]; then
-        run_args+=(--debug-wrap-agent)
-        shift
-    elif [ "x$1" = "x--with-agent" ]; then
-        shift
-        option="$1"
-        run_args+=(--with-agent "$1")
-        shift
-    elif [ "x$1" = "x--debug-agent" ]; then
-        shift
-        option="$1"
-        run_args+=(--debug-agent "$1")
-        shift
-    elif [ "x$1" = "x--dump-cfg" ]; then
-        shift
+        shift()
+    elif arg == "--suspend-timeout":
+        shift()
+        suspend_timeout=arg
+        shift()
+    elif arg == "--image":
+        shift()
+        image=arg
+        run_args+=[f'--image "{image}"']
+        shift()
+    elif arg == "-Xcompiler-option":
+        shift()
+        option=arg
+        run_args+=[f'-Xcompiler-option "{option}"']
+        shift()
+    elif arg == "--runtime-option":
+        shift()
+        option=arg
+        run_args+=[f'--runtime-option "{option}"']
+        shift()
+    elif arg == "--gdb-arg":
+        shift()
+        gdb_arg=arg
+        run_args+=[f'--gdb-arg "{gdb_arg}"']
+        shift()
+    elif arg == "--gdb-dex2oat-args":
+        shift()
+        gdb_dex2oat_args=arg
+        run_args+=['--gdb-dex2oat-args "{gdb_dex2oat_args}"']
+        shift()
+    elif arg == "--debug":
+        run_args+=['--debug']
+        shift()
+    elif arg == "--debug-wrap-agent":
+        run_args+=['--debug-wrap-agent']
+        shift()
+    elif arg == "--with-agent":
+        shift()
+        option=arg
+        run_args+=[f'--with-agent "{arg}"']
+        shift()
+    elif arg == "--debug-agent":
+        shift()
+        option=arg
+        run_args+=[f'--debug-agent "{arg}"']
+        shift()
+    elif arg == "--dump-cfg":
+        shift()
         dump_cfg="true"
-        dump_cfg_path="$1"
-        shift
-    elif [ "x$1" = "x--gdb" ]; then
-        run_args+=(--gdb)
+        dump_cfg_path="{arg}"
+        shift()
+    elif arg == "--gdb":
+        run_args+=['--gdb']
         dev_mode="yes"
-        shift
-    elif [ "x$1" = "x--gdb-dex2oat" ]; then
-        run_args+=(--gdb-dex2oat)
+        shift()
+    elif arg == "--gdb-dex2oat":
+        run_args+=['--gdb-dex2oat']
         dev_mode="yes"
-        shift
-    elif [ "x$1" = "x--gdbserver-bin" ]; then
-        shift
-        run_args+=(--gdbserver-bin "$1")
-        shift
-    elif [ "x$1" = "x--gdbserver-port" ]; then
-        shift
-        run_args+=(--gdbserver-port "$1")
-        shift
-    elif [ "x$1" = "x--gdbserver" ]; then
-        run_args+=(--gdbserver)
+        shift()
+    elif arg == "--gdbserver-bin":
+        shift()
+        run_args+=[f'--gdbserver-bin "{arg}"']
+        shift()
+    elif arg == "--gdbserver-port":
+        shift()
+        run_args+=[f'--gdbserver-port "{arg}"']
+        shift()
+    elif arg == "--gdbserver":
+        run_args+=['--gdbserver']
         dev_mode="yes"
-        shift
-    elif [ "x$1" = "x--strace" ]; then
+        shift()
+    elif arg == "--strace":
         strace="yes"
-        run_args+=(--invoke-with=strace --invoke-with=-o --invoke-with="$tmp_dir/$strace_output")
-        timeout="${timeout:-1800}"
-        shift
-    elif [ "x$1" = "x--zygote" ]; then
-        run_args+=(--zygote)
-        shift
-    elif [ "x$1" = "x--interpreter" ]; then
-        run_args+=(--interpreter)
-        shift
-    elif [ "x$1" = "x--jit" ]; then
-        run_args+=(--jit)
-        shift
-    elif [ "x$1" = "x--baseline" ]; then
-        run_args+=(--baseline)
-        shift
-    elif [ "x$1" = "x--optimizing" ]; then
+        run_args+=[f'--invoke-with=strace --invoke-with=-o --invoke-with="{tmp_dir}/{strace_output}"']
+        timeout=timeout or "1800"
+        shift()
+    elif arg == "--zygote":
+        run_args+=['--zygote']
+        shift()
+    elif arg == "--interpreter":
+        run_args+=['--interpreter']
+        shift()
+    elif arg == "--jit":
+        run_args+=['--jit']
+        shift()
+    elif arg == "--baseline":
+        run_args+=['--baseline']
+        shift()
+    elif arg == "--optimizing":
         run_optimizing="true"
-        shift
-    elif [ "x$1" = "x--no-verify" ]; then
-        run_args+=(--no-verify)
-        shift
-    elif [ "x$1" = "x--verify-soft-fail" ]; then
-        run_args+=(--verify-soft-fail)
-        shift
-    elif [ "x$1" = "x--no-optimize" ]; then
-        run_args+=(--no-optimize)
-        shift
-    elif [ "x$1" = "x--no-precise" ]; then
-        run_args+=(--no-precise)
-        shift
-    elif [ "x$1" = "x--external-log-tags" ]; then
-        run_args+=(--external-log-tags)
-        shift
-    elif [ "x$1" = "x--invoke-with" ]; then
-        shift
-        what="$1"
-        if [ "x$what" = "x" ]; then
-            echo "$0 missing argument to --invoke-with" 1>&2
+        shift()
+    elif arg == "--no-verify":
+        run_args+=['--no-verify']
+        shift()
+    elif arg == "--verify-soft-fail":
+        run_args+=['--verify-soft-fail']
+        shift()
+    elif arg == "--no-optimize":
+        run_args+=['--no-optimize']
+        shift()
+    elif arg == "--no-precise":
+        run_args+=['--no-precise']
+        shift()
+    elif arg == "--external-log-tags":
+        run_args+=['--external-log-tags']
+        shift()
+    elif arg == "--invoke-with":
+        shift()
+        what=arg
+        if not arg:
+            error("missing argument to --invoke-with")
             usage="yes"
             break
-        fi
-        run_args+=(--invoke-with "${what}")
-        shift
-    elif [ "x$1" = "x--create-runner" ]; then
-        run_args+=(--create-runner --dry-run)
+        run_args+=[f'--invoke-with "{what}"']
+        shift()
+    elif arg == "--create-runner":
+        run_args+=['--create-runner --dry-run']
         dev_mode="yes"
         never_clean="yes"
         create_runner="yes"
-        shift
-    elif [ "x$1" = "x--dev" ]; then
-        run_args+=(--dev)
+        shift()
+    elif arg == "--dev":
+        run_args+=['--dev']
         dev_mode="yes"
-        shift
-    elif [ "x$1" = "x--temp-path" ]; then
-        shift
-        tmp_dir=$1
-        if [ "x$tmp_dir" = "x" ]; then
-            echo "$0 missing argument to --temp-path" 1>&2
+        shift()
+    elif arg == "--temp-path":
+        shift()
+        if not arg:
+            error("missing argument to --temp-path")
             usage="yes"
             break
-        fi
-        shift
-    elif [ "x$1" = "x--chroot" ]; then
-        shift
-        if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --chroot" 1>&2
+        shift()
+    elif arg == "--chroot":
+        shift()
+        if not arg:
+            error("missing argument to --chroot")
             usage="yes"
             break
-        fi
-        chroot="$1"
-        run_args+=(--chroot "$1")
-        shift
-    elif [ "x$1" = "x--simpleperf" ]; then
-        run_args+=(--simpleperf)
-        shift
-    elif [ "x$1" = "x--android-root" ]; then
-        shift
-        if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --android-root" 1>&2
+        chroot=arg
+        run_args+=[f'--chroot "{arg}"']
+        shift()
+    elif arg == "--simpleperf":
+        run_args+=['--simpleperf']
+        shift()
+    elif arg == "--android-root":
+        shift()
+        if not arg:
+            error("missing argument to --android-root")
             usage="yes"
             break
-        fi
-        android_root="$1"
-        run_args+=(--android-root "$1")
-        shift
-    elif [ "x$1" = "x--android-art-root" ]; then
-        shift
-        if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --android-art-root" 1>&2
+        android_root=arg
+        run_args+=[f'--android-root "{arg}"']
+        shift()
+    elif arg == "--android-art-root":
+        shift()
+        if not arg:
+            error("missing argument to --android-art-root")
             usage="yes"
             break
-        fi
-        run_args+=(--android-art-root "$1")
-        shift
-    elif [ "x$1" = "x--android-tzdata-root" ]; then
-        shift
-        if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --android-tzdata-root" 1>&2
+        run_args+=[f'--android-art-root "{arg}"']
+        shift()
+    elif arg == "--android-tzdata-root":
+        shift()
+        if not arg:
+            error("missing argument to --android-tzdata-root")
             usage="yes"
             break
-        fi
-        run_args+=(--android-tzdata-root "$1")
-        shift
-    elif [ "x$1" = "x--update" ]; then
+        run_args+=[f'--android-tzdata-root "{arg}"']
+        shift()
+    elif arg == "--update":
         update_mode="yes"
-        shift
-    elif [ "x$1" = "x--help" ]; then
+        shift()
+    elif arg == "--help":
         usage="yes"
-        shift
-    elif [ "x$1" = "x--64" ]; then
-        run_args+=(--64)
+        shift()
+    elif arg == "--64":
+        run_args+=['--64']
         suffix64="64"
-        shift
-    elif [ "x$1" = "x--bionic" ]; then
+        shift()
+    elif arg == "--bionic":
         # soong linux_bionic builds are 64bit only.
-        run_args+=(--bionic --host --64)
+        run_args+=['--bionic --host --64']
         suffix64="64"
         target_mode="no"
-        DEX_LOCATION=$tmp_dir
-        host_lib_root=$OUT_DIR/soong/host/linux_bionic-x86
-        shift
-    elif [ "x$1" = "x--runtime-extracted-zipapex" ]; then
-        shift
+        DEX_LOCATION=tmp_dir
+        host_lib_root=f"{OUT_DIR}/soong/host/linux_bionic-x86"
+        shift()
+    elif arg == "--runtime-extracted-zipapex":
+        shift()
         # TODO Should we allow the java.library.path to search the zipapex too?
         # Not needed at the moment and adding it will be complicated so for now
         # we'll ignore this.
-        run_args+=(--host --runtime-extracted-zipapex "$1")
+        run_args+=[f'--host --runtime-extracted-zipapex "{arg}"']
         target_mode="no"
-        DEX_LOCATION=$tmp_dir
-        shift
-    elif [ "x$1" = "x--runtime-zipapex" ]; then
-        shift
+        DEX_LOCATION=tmp_dir
+        shift()
+    elif arg == "--runtime-zipapex":
+        shift()
         # TODO Should we allow the java.library.path to search the zipapex too?
         # Not needed at the moment and adding it will be complicated so for now
         # we'll ignore this.
-        run_args+=(--host --runtime-zipapex "$1")
+        run_args+=[f'--host --runtime-zipapex "{arg}"']
         target_mode="no"
-        DEX_LOCATION=$tmp_dir
+        DEX_LOCATION=tmp_dir
         # apex_payload.zip is quite large we need a high enough ulimit to
         # extract it. 512mb should be good enough.
         file_ulimit=512000
-        shift
-    elif [ "x$1" = "x--timeout" ]; then
-        shift
-        if [ "x$1" = "x" ]; then
-            echo "$0 missing argument to --timeout" 1>&2
+        shift()
+    elif arg == "--timeout":
+        shift()
+        if not arg:
+            error("missing argument to --timeout")
             usage="yes"
             break
-        fi
-        timeout="$1"
-        shift
-    elif [ "x$1" = "x--trace" ]; then
+        timeout=arg
+        shift()
+    elif arg == "--trace":
         trace="true"
-        shift
-    elif [ "x$1" = "x--stream" ]; then
+        shift()
+    elif arg == "--stream":
         trace_stream="true"
-        shift
-    elif [ "x$1" = "x--always-clean" ]; then
+        shift()
+    elif arg == "--always-clean":
         always_clean="yes"
-        shift
-    elif [ "x$1" = "x--never-clean" ]; then
+        shift()
+    elif arg == "--never-clean":
         never_clean="yes"
-        shift
-    elif [ "x$1" = "x--dex2oat-swap" ]; then
-        run_args+=(--dex2oat-swap)
-        shift
-    elif [ "x$1" = "x--instruction-set-features" ]; then
-        shift
-        run_args+=(--instruction-set-features "$1")
-        shift
-    elif [ "x$1" = "x--bisection-search" ]; then
+        shift()
+    elif arg == "--dex2oat-swap":
+        run_args+=['--dex2oat-swap']
+        shift()
+    elif arg == "--instruction-set-features":
+        shift()
+        run_args+=[f'--instruction-set-features "{arg}"']
+        shift()
+    elif arg == "--bisection-search":
         bisection_search="yes"
-        shift
-    elif [ "x$1" = "x--vdex" ]; then
-        run_args+=(--vdex)
-        shift
-    elif [ "x$1" = "x--dm" ]; then
-        run_args+=(--dm)
-        shift
-    elif [ "x$1" = "x--vdex-filter" ]; then
-        shift
-        filter=$1
-        run_args+=(--vdex-filter "$filter")
-        shift
-    elif [ "x$1" = "x--random-profile" ]; then
-        run_args+=(--random-profile)
-        shift
-    elif [ "x$1" = "x--dex2oat-jobs" ]; then
-        shift
-        run_args+=(-Xcompiler-option "-j$1")
-        shift
-    elif expr "x$1" : "x--" >/dev/null 2>&1; then
-        echo "unknown $0 option: $1" 1>&2
+        shift()
+    elif arg == "--vdex":
+        run_args+=['--vdex']
+        shift()
+    elif arg == "--dm":
+        run_args+=['--dm']
+        shift()
+    elif arg == "--vdex-filter":
+        shift()
+        filter=arg
+        run_args+=['--vdex-filter "{filter}"']
+        shift()
+    elif arg == "--random-profile":
+        run_args+=['--random-profile']
+        shift()
+    elif arg == "--dex2oat-jobs":
+        shift()
+        run_args+=[f'-Xcompiler-option "-j{arg}"']
+        shift()
+    elif arg.startswith("--"):
+        error(f"unknown option: {arg}")
         usage="yes"
         break
-    else
+    else:
         break
-    fi
-done
 
-if [ "$usage" = "no" -a "x$1" = "x" ]; then
-  echo "missing test to run" 1>&2
+export("DEX_LOCATION", DEX_LOCATION)
+
+if usage == "no" and not arg:
+  error("missing test to run")
   usage="yes"
-fi
 
 # The DEX_LOCATION with the chroot prefix, if any.
-chroot_dex_location="$chroot$DEX_LOCATION"
-
-# Allocate file descriptor real_stderr and redirect it to the shell's error
-# output (fd 2).
-if [ ${BASH_VERSINFO[1]} -ge 4 ] && [ ${BASH_VERSINFO[2]} -ge 1 ]; then
-  exec {real_stderr}>&2
-else
-  # In bash before version 4.1 we need to do a manual search for free file
-  # descriptors.
-  FD=3
-  while [ -e /dev/fd/$FD ]; do FD=$((FD + 1)); done
-  real_stderr=$FD
-  eval "exec ${real_stderr}>&2"
-fi
-if [ "$quiet" = "yes" ]; then
-  # Force the default standard output and error to go to /dev/null so we will
-  # not print them.
-  exec 1>/dev/null
-  exec 2>/dev/null
-fi
-
-function err_echo() {
-  echo "$@" 1>&${real_stderr}
-}
+chroot_dex_location=f"{chroot}{DEX_LOCATION}"
 
 # tmp_dir may be relative, resolve.
-#
-# Cannot use realpath, as it does not exist on Mac.
-# Cannot use a simple "cd", as the path might not be created yet.
-# Cannot use readlink -m, as it does not exist on Mac.
-# Fallback to nuclear option:
-noncanonical_tmp_dir=$tmp_dir
-tmp_dir="`cd $oldwd ; python3 -c "import os; import sys; sys.stdout.write(os.path.realpath('$tmp_dir'))"`"
-if [ -z $tmp_dir ] ; then
-  err_echo "Failed to resolve $tmp_dir"
-  exit 1
-fi
-mkdir -p $tmp_dir
+os.chdir(oldwd)
+tmp_dir=os.path.realpath(tmp_dir)
+os.chdir(progdir)
+if not tmp_dir:
+  error(f"Failed to resolve {tmp_dir}")
+  sys.exit(1)
+os.makedirs(tmp_dir, exist_ok=True)
 
 # Add thread suspend timeout flag
-if [ ! "$runtime" = "jvm" ]; then
-  run_args+=(--runtime-option "-XX:ThreadSuspendTimeout=$suspend_timeout")
-fi
+if runtime != "jvm":
+  run_args+=[f'--runtime-option "-XX:ThreadSuspendTimeout={suspend_timeout}"']
 
-if [ "$basic_verify" = "true" ]; then
+if basic_verify == "true":
   # Set HspaceCompactForOOMMinIntervalMs to zero to run hspace compaction for OOM more frequently in tests.
-  run_args+=(--runtime-option -Xgc:preverify --runtime-option -Xgc:postverify --runtime-option -XX:HspaceCompactForOOMMinIntervalMs=0)
-fi
-if [ "$gc_verify" = "true" ]; then
-  run_args+=(--runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc)
-fi
-if [ "$gc_stress" = "true" ]; then
-  run_args+=(--gc-stress --runtime-option -Xgc:gcstress --runtime-option -Xms2m --runtime-option -Xmx16m)
-fi
-if [ "$jvmti_redefine_stress" = "true" ]; then
-    run_args+=(--no-app-image --jvmti-redefine-stress)
-fi
-if [ "$jvmti_step_stress" = "true" ]; then
-    run_args+=(--no-app-image --jvmti-step-stress)
-fi
-if [ "$jvmti_field_stress" = "true" ]; then
-    run_args+=(--no-app-image --jvmti-field-stress)
-fi
-if [ "$jvmti_trace_stress" = "true" ]; then
-    run_args+=(--no-app-image --jvmti-trace-stress)
-fi
-if [ "$trace" = "true" ]; then
-    run_args+=(--runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file-size:2000000)
-    if [ "$trace_stream" = "true" ]; then
+  run_args+=['--runtime-option -Xgc:preverify --runtime-option -Xgc:postverify --runtime-option -XX:HspaceCompactForOOMMinIntervalMs=0']
+if gc_verify == "true":
+  run_args+=['--runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc']
+if gc_stress == "true":
+  run_args+=['--gc-stress --runtime-option -Xgc:gcstress --runtime-option -Xms2m --runtime-option -Xmx16m']
+if jvmti_redefine_stress == "true":
+    run_args+=['--no-app-image --jvmti-redefine-stress']
+if jvmti_step_stress == "true":
+    run_args+=['--no-app-image --jvmti-step-stress']
+if jvmti_field_stress == "true":
+    run_args+=['--no-app-image --jvmti-field-stress']
+if jvmti_trace_stress == "true":
+    run_args+=['--no-app-image --jvmti-trace-stress']
+if trace == "true":
+    run_args+=['--runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file-size:2000000']
+    if trace_stream == "true":
         # Streaming mode uses the file size as the buffer size. So output gets really large. Drop
         # the ability to analyze the file and just write to /dev/null.
-        run_args+=(--runtime-option -Xmethod-trace-file:/dev/null)
+        run_args+=['--runtime-option -Xmethod-trace-file:/dev/null']
         # Enable streaming mode.
-        run_args+=(--runtime-option -Xmethod-trace-stream)
-    else
-        run_args+=(--runtime-option "-Xmethod-trace-file:${DEX_LOCATION}/trace.bin")
-    fi
-elif [ "$trace_stream" = "true" ]; then
-    err_echo "Cannot use --stream without --trace."
-    exit 1
-fi
-if [ -n "$timeout" ]; then
-    run_args+=(--timeout "$timeout")
-fi
+        run_args+=['--runtime-option -Xmethod-trace-stream']
+    else:
+        run_args+=[f'--runtime-option "-Xmethod-trace-file:{DEX_LOCATION}/trace.bin"']
+elif trace_stream == "true":
+    error("Cannot use --stream without --trace.")
+    sys.exit(1)
+if timeout:
+    run_args+=[f'--timeout "{timeout}"']
 
 # Most interesting target architecture variables are Makefile variables, not environment variables.
-# Try to map the suffix64 flag and what we find in ${ANDROID_PRODUCT_OUT}/data/art-test to an architecture name.
-function guess_target_arch_name() {
+# Try to map the suffix64 flag and what we find in {ANDROID_PRODUCT_OUT}/data/art-test to an architecture name.
+def guess_target_arch_name():
     # Check whether this is a device with native bridge. Currently this is hardcoded
     # to x86 + arm.
-    local guess_path=$chroot/system/framework/art_boot_images
-    local x86_arm=`adb shell ls ${guess_path} | sort | grep -E '^(arm|x86)$'`
+    guess_path=f"{chroot}/system/framework/art_boot_images"
+    # Use check=False because if grep does not match anything, it returns exit code 1.
+    x86_arm=run(f"adb shell ls {guess_path} | sort | grep -E '^(arm|x86)$'", check=False).stdout
     # Collapse line-breaks into spaces
-    x86_arm=$(echo $x86_arm)
-    if [ "x$x86_arm" = "xarm x86" ] ; then
-        err_echo "Native-bridge configuration detected."
+    x86_arm=x86_arm.replace("\n", " ")
+    if x86_arm == "arm x86":
+        error("Native-bridge configuration detected.")
         # We only support the main arch for tests.
-        if [ "x${suffix64}" = "x64" ]; then
+        if suffix64 == "64":
             target_arch_name=""
-        else
-            target_arch_name=x86
-        fi
-    else
-        local grep32bit=`adb shell ls ${guess_path} | grep -E '^(arm|x86)$'`
-        local grep64bit=`adb shell ls ${guess_path} | grep -E '^(arm64|x86_64)$'`
-        if [ "x${suffix64}" = "x64" ]; then
-            target_arch_name=${grep64bit}
-        else
-            target_arch_name=${grep32bit}
-        fi
-    fi
-}
+        else:
+            target_arch_name="x86"
+    else:
+        # Use check=False because if grep does not match anything, it returns exit code 1.
+        grep32bit=run(f"adb shell ls {guess_path} | grep -E '^(arm|x86)$'", check=False).stdout
+        grep64bit=run(f"adb shell ls {guess_path} | grep -E '^(arm64|x86_64)$'", check=False).stdout
+        if suffix64 == "64":
+            target_arch_name=grep64bit
+        else:
+            target_arch_name=grep32bit
+    return target_arch_name.strip()
 
-function guess_host_arch_name() {
-    if [ "x${suffix64}" = "x64" ]; then
-        host_arch_name="x86_64"
-    else
-        host_arch_name="x86"
-    fi
-}
+def guess_host_arch_name():
+    if suffix64 == "64":
+        return "x86_64"
+    else:
+        return "x86"
 
-if [ "$target_mode" = "no" ]; then
-    if [ "$runtime" = "jvm" ]; then
-        if [ "$prebuild_mode" = "yes" ]; then
-            err_echo "--prebuild with --jvm is unsupported"
-            exit 1
-        fi
-    else
+if target_mode == "no":
+    if runtime == "jvm":
+        if prebuild_mode == "yes":
+            error("--prebuild with --jvm is unsupported")
+            sys.exit(1)
+    else:
         # ART/Dalvik host mode.
-        if [ -n "$chroot" ]; then
-            err_echo "--chroot with --host is unsupported"
-            exit 1
-        fi
-    fi
-fi
+        if chroot:
+            error("--chroot with --host is unsupported")
+            sys.exit(1)
 
-if [ ! "$runtime" = "jvm" ]; then
-  run_args+=(--lib "$lib")
-fi
+if runtime != "jvm":
+  run_args+=[f'--lib "{lib}"']
 
-if [ "$runtime" = "dalvik" ]; then
-    if [ "$target_mode" = "no" ]; then
-        framework="${ANDROID_PRODUCT_OUT}/system/framework"
-        bpath="${framework}/core-icu4j.jar:${framework}/core-libart.jar:${framework}/core-oj.jar:${framework}/conscrypt.jar:${framework}/okhttp.jar:${framework}/bouncycastle.jar:${framework}/ext.jar"
-        run_args+=(--boot --runtime-option "-Xbootclasspath:${bpath}")
-    else
-        true # defaults to using target BOOTCLASSPATH
-    fi
-elif [ "$runtime" = "art" ]; then
-    if [ "$target_mode" = "no" ]; then
-        guess_host_arch_name
-        run_args+=(--boot "${ANDROID_HOST_OUT}/apex/art_boot_images/javalib/boot.art")
-        run_args+=(--runtime-option "-Djava.library.path=${host_lib_root}/lib${suffix64}:${host_lib_root}/nativetest${suffix64}")
-    else
-        guess_target_arch_name
+ANDROID_PRODUCT_OUT = os.environ.get("ANDROID_PRODUCT_OUT")
+if runtime == "dalvik":
+    if target_mode == "no":
+        framework=f"{ANDROID_PRODUCT_OUT}/system/framework"
+        bpath=f"{framework}/core-icu4j.jar:{framework}/core-libart.jar:{framework}/core-oj.jar:{framework}/conscrypt.jar:{framework}/okhttp.jar:{framework}/bouncycastle.jar:{framework}/ext.jar"
+        run_args+=[f'--boot --runtime-option "-Xbootclasspath:{bpath}"']
+    else:
+        pass # defaults to using target BOOTCLASSPATH
+elif runtime == "art":
+    if target_mode == "no":
+        host_arch_name=guess_host_arch_name()
+        run_args+=[f'--boot "{ANDROID_HOST_OUT}/apex/art_boot_images/javalib/boot.art"']
+        run_args+=[f'--runtime-option "-Djava.library.path={host_lib_root}/lib{suffix64}:{host_lib_root}/nativetest{suffix64}"']
+    else:
+        target_arch_name=guess_target_arch_name()
         # Note that libarttest(d).so and other test libraries that depend on ART
         # internal libraries must not be in this path for JNI libraries - they
         # need to be loaded through LD_LIBRARY_PATH and
         # NATIVELOADER_DEFAULT_NAMESPACE_LIBS instead.
-        run_args+=(--runtime-option "-Djava.library.path=/data/nativetest${suffix64}/art/${target_arch_name}")
-        run_args+=(--boot "/system/framework/art_boot_images/boot.art")
-    fi
-    if [ "$relocate" = "yes" ]; then
-      run_args+=(--relocate)
-    else
-      run_args+=(--no-relocate)
-    fi
-elif [ "$runtime" = "jvm" ]; then
+        run_args+=[f'--runtime-option "-Djava.library.path=/data/nativetest{suffix64}/art/{target_arch_name}"']
+        run_args+=['--boot "/system/framework/art_boot_images/boot.art"']
+    if relocate == "yes":
+      run_args+=['--relocate']
+    else:
+      run_args+=['--no-relocate']
+elif runtime == "jvm":
     # TODO: Detect whether the host is 32-bit or 64-bit.
-    run_args+=(--runtime-option "-Djava.library.path=${ANDROID_HOST_OUT}/lib64:${ANDROID_HOST_OUT}/nativetest64")
-fi
+    run_args+=[f'--runtime-option "-Djava.library.path={ANDROID_HOST_OUT}/lib64:{ANDROID_HOST_OUT}/nativetest64"']
 
-if [ "$have_image" = "no" ]; then
-    if [ "$runtime" != "art" ]; then
-        err_echo "--no-image is only supported on the art runtime"
-        exit 1
-    fi
-    run_args+=(--no-image)
-fi
+if have_image == "no":
+    if runtime != "art":
+        error("--no-image is only supported on the art runtime")
+        sys.exit(1)
+    run_args+=['--no-image']
 
-if [ "$create_runner" = "yes" -a "$target_mode" = "yes" ]; then
-    err_echo "--create-runner does not function for non --host tests"
+if create_runner == "yes" and target_mode == "yes":
+    error("--create-runner does not function for non --host tests")
     usage="yes"
-fi
 
-if [ "$dev_mode" = "yes" -a "$update_mode" = "yes" ]; then
-    err_echo "--dev and --update are mutually exclusive"
+if dev_mode == "yes" and update_mode == "yes":
+    error("--dev and --update are mutually exclusive")
     usage="yes"
-fi
 
-if [ "$dev_mode" = "yes" -a "$quiet" = "yes" ]; then
-    err_echo "--dev and --quiet are mutually exclusive"
+if dev_mode == "yes" and quiet == "yes":
+    error("--dev and --quiet are mutually exclusive")
     usage="yes"
-fi
 
-if [ "$bisection_search" = "yes" -a "$prebuild_mode" = "yes" ]; then
-    err_echo "--bisection-search and --prebuild are mutually exclusive"
+if bisection_search == "yes" and prebuild_mode == "yes":
+    error("--bisection-search and --prebuild are mutually exclusive")
     usage="yes"
-fi
 
 # TODO: Chroot-based bisection search is not supported yet (see below); implement it.
-if [ "$bisection_search" = "yes" -a -n "$chroot" ]; then
-  err_echo "--chroot with --bisection-search is unsupported"
-  exit 1
-fi
+if bisection_search == "yes" and chroot:
+  error("--chroot with --bisection-search is unsupported")
+  sys.exit(1)
 
-if [ "$usage" = "no" ]; then
-    if [ "x$1" = "x" -o "x$1" = "x-" ]; then
-        test_dir=`basename "$oldwd"`
-    else
-        test_dir="$1"
-    fi
+if usage == "no":
+    if not arg or arg == "-":
+        test_dir=os.path.basename(oldwd)
+    else:
+        test_dir=arg
 
-    if [ '!' -d "$test_dir" ]; then
-        td2=`echo ${test_dir}-*`
-        if [ '!' -d "$td2" ]; then
-            err_echo "${test_dir}: no such test directory"
+    if not os.path.isdir(test_dir):
+        td2=glob.glob(f"{test_dir}-*")
+        if len(td2) == 1 and os.path.isdir(td2[0]):
+            test_dir=td2[0]
+        else:
+            error(f"{test_dir}: no such test directory")
             usage="yes"
-        fi
-        test_dir="$td2"
-    fi
     # Shift to get rid of the test name argument. The rest of the arguments
     # will get passed to the test run.
-    shift
-fi
+    shift()
 
-if [ "$usage" = "yes" ]; then
-    prog=`basename $prog`
-    (
-        echo "usage:"
-        echo "  $prog --help                          Print this message."
-        echo "  $prog [options] [test-name]           Run test normally."
-        echo "  $prog --dev [options] [test-name]     Development mode" \
-             "(dumps to stdout)."
-        echo "  $prog --create-runner [options] [test-name]"
-        echo "              Creates a runner script for use with other " \
-             "tools (e.g. parallel_run.py)."
-        echo "              The script will only run the test portion, and " \
-             "share oat and dex files."
-        echo "  $prog --update [options] [test-name]  Update mode" \
-             "(replaces expected-stdout.txt and expected-stderr.txt)."
-        echo '  Omitting the test name or specifying "-" will use the' \
-             "current directory."
-        echo "  Runtime Options:"
-        echo "    -O                    Run non-debug rather than debug build (off by default)."
-        echo "    -Xcompiler-option     Pass an option to the compiler."
-        echo "    --runtime-option      Pass an option to the runtime."
-        echo "    --compact-dex-level   Specify a compact dex level to the compiler."
-        echo "    --debug               Wait for the default debugger to attach."
-        echo "    --debug-agent <agent-path>"
-        echo "                          Wait for the given debugger agent to attach. Currently"
-        echo "                          only supported on host."
-        echo "    --debug-wrap-agent    use libwrapagentproperties and tools/libjdwp-compat.props"
-        echo "                          to load the debugger agent specified by --debug-agent."
-        echo "    --with-agent <agent>  Run the test with the given agent loaded with -agentpath:"
-        echo "    --debuggable          Whether to compile Java code for a debugger."
-        echo "    --gdb                 Run under gdb; incompatible with some tests."
-        echo "    --gdb-dex2oat         Run dex2oat under the prebuilt lldb."
-        echo "    --gdbserver           Start gdbserver (defaults to port :5039)."
-        echo "    --gdbserver-port <port>"
-        echo "                          Start gdbserver with the given COMM (see man gdbserver)."
-        echo "    --gdbserver-bin <binary>"
-        echo "                          Use the given binary as gdbserver."
-        echo "    --gdb-arg             Pass an option to gdb or gdbserver."
-        echo "    --gdb-dex2oat-args    Pass options separated by ';' to lldb for dex2oat."
-        echo "    --simpleperf          Wraps the dalvikvm invocation in 'simpleperf record ..."
-        echo "                          ... simpleperf report' and dumps stats to stdout."
-        echo "    --temp-path [path]    Location where to execute the tests."
-        echo "    --interpreter         Enable interpreter only mode (off by default)."
-        echo "    --jit                 Enable jit (off by default)."
-        echo "    --optimizing          Enable optimizing compiler (default)."
-        echo "    --no-verify           Turn off verification (on by default)."
-        echo "    --verify-soft-fail    Force soft fail verification (off by default)."
-        echo "                          Verification is enabled if neither --no-verify"
-        echo "                          nor --verify-soft-fail is specified."
-        echo "    --no-optimize         Turn off optimization (on by default)."
-        echo "    --no-precise          Turn off precise GC (on by default)."
-        echo "    --zygote              Spawn the process from the Zygote." \
-             "If used, then the"
-        echo "                          other runtime options are ignored."
-        echo "    --prebuild            Run dex2oat on the files before starting test. (default)"
-        echo "    --no-prebuild         Do not run dex2oat on the files before starting"
-        echo "                          the test."
-        echo "    --strip-dex           Strip the dex files before starting test."
-        echo "    --relocate            Force the use of relocating in the test, making"
-        echo "                          the image and oat files be relocated to a random"
-        echo "                          address before running."
-        echo "    --no-relocate         Force the use of no relocating in the test. (default)"
-        echo "    --image               Run the test using a precompiled boot image. (default)"
-        echo "    --no-image            Run the test without a precompiled boot image."
-        echo "    --host                Use the host-mode virtual machine."
-        echo "    --invoke-with         Pass --invoke-with option to runtime."
-        echo "    --dalvik              Use Dalvik (off by default)."
-        echo "    --jvm                 Use a host-local RI virtual machine."
-        echo "    --use-java-home       Use the JAVA_HOME environment variable"
-        echo "                          to find the java compiler and runtime"
-        echo "                          (if applicable) to run the test with."
-        echo "    --64                  Run the test in 64-bit mode"
-        echo "    --bionic              Use the (host, 64-bit only) linux_bionic libc runtime"
-        echo "    --runtime-zipapex [file]"
-        echo "                          Use the given zipapex file to provide runtime binaries"
-        echo "    --runtime-extracted-zipapex [dir]"
-        echo "                          Use the given extracted zipapex directory to provide"
-        echo "                          runtime binaries"
-        echo "    --timeout n           Test timeout in seconds"
-        echo "    --trace               Run with method tracing"
-        echo "    --strace              Run with syscall tracing from strace."
-        echo "    --stream              Run method tracing in streaming mode (requires --trace)"
-        echo "    --gcstress            Run with gc stress testing"
-        echo "    --gcverify            Run with gc verification"
-        echo "    --jvmti-trace-stress  Run with jvmti method tracing stress testing"
-        echo "    --jvmti-step-stress   Run with jvmti single step stress testing"
-        echo "    --jvmti-redefine-stress"
-        echo "                          Run with jvmti method redefinition stress testing"
-        echo "    --always-clean        Delete the test files even if the test fails."
-        echo "    --never-clean         Keep the test files even if the test succeeds."
-        echo "    --chroot [newroot]    Run with root directory set to newroot."
-        echo "    --android-root [path] The path on target for the android root. (/system by default)."
-        echo "    --android-i18n-root [path]"
-        echo "                          The path on target for the i18n module root."
-        echo "                          (/apex/com.android.i18n by default)."
-        echo "    --android-art-root [path]"
-        echo "                          The path on target for the ART module root."
-        echo "                          (/apex/com.android.art by default)."
-        echo "    --android-tzdata-root [path]"
-        echo "                          The path on target for the Android Time Zone Data root."
-        echo "                          (/apex/com.android.tzdata by default)."
-        echo "    --dex2oat-swap        Use a dex2oat swap file."
-        echo "    --instruction-set-features [string]"
-        echo "                          Set instruction-set-features for compilation."
-        echo "    --quiet               Don't print anything except failure messages"
-        echo "    --external-log-tags   Use ANDROID_LOG_TAGS to set a custom logging level for"
-        echo "                          a test run."
-        echo "    --bisection-search    Perform bisection bug search."
-        echo "    --vdex                Test using vdex as in input to dex2oat. Only works with --prebuild."
-        echo "    --suspend-timeout     Change thread suspend timeout ms (default 500000)."
-        echo "    --dex2oat-jobs        Number of dex2oat jobs."
-    ) 1>&2  # Direct to stderr so usage is not printed if --quiet is set.
-    exit 1
-fi
+if usage == "yes":
+    prog=os.path.basename(__file__)
+    help=(
+        "usage:"
+        f"  $prog --help                          Print this message."
+        f"  $prog [options] [test-name]           Run test normally."
+        f"  $prog --dev [options] [test-name]     Development mode"
+        "(dumps to stdout)."
+        f"  $prog --create-runner [options] [test-name]"
+        "              Creates a runner script for use with other "
+        "tools (e.g. parallel_run.py)."
+        "              The script will only run the test portion, and "
+        "share oat and dex files."
+        f"  $prog --update [options] [test-name]  Update mode"
+        "(replaces expected-stdout.txt and expected-stderr.txt)."
+        '  Omitting the test name or specifying "-" will use the'
+        "current directory."
+        "  Runtime Options:"
+        "    -O                    Run non-debug rather than debug build (off by default)."
+        "    -Xcompiler-option     Pass an option to the compiler."
+        "    --runtime-option      Pass an option to the runtime."
+        "    --compact-dex-level   Specify a compact dex level to the compiler."
+        "    --debug               Wait for the default debugger to attach."
+        "    --debug-agent <agent-path>"
+        "                          Wait for the given debugger agent to attach. Currently"
+        "                          only supported on host."
+        "    --debug-wrap-agent    use libwrapagentproperties and tools/libjdwp-compat.props"
+        "                          to load the debugger agent specified by --debug-agent."
+        "    --with-agent <agent>  Run the test with the given agent loaded with -agentpath:"
+        "    --debuggable          Whether to compile Java code for a debugger."
+        "    --gdb                 Run under gdb; incompatible with some tests."
+        "    --gdb-dex2oat         Run dex2oat under the prebuilt lldb."
+        "    --gdbserver           Start gdbserver (defaults to port :5039)."
+        "    --gdbserver-port <port>"
+        "                          Start gdbserver with the given COMM (see man gdbserver)."
+        "    --gdbserver-bin <binary>"
+        "                          Use the given binary as gdbserver."
+        "    --gdb-arg             Pass an option to gdb or gdbserver."
+        "    --gdb-dex2oat-args    Pass options separated by ';' to lldb for dex2oat."
+        "    --simpleperf          Wraps the dalvikvm invocation in 'simpleperf record ..."
+        "                          ... simpleperf report' and dumps stats to stdout."
+        "    --temp-path [path]    Location where to execute the tests."
+        "    --interpreter         Enable interpreter only mode (off by default)."
+        "    --jit                 Enable jit (off by default)."
+        "    --optimizing          Enable optimizing compiler (default)."
+        "    --no-verify           Turn off verification (on by default)."
+        "    --verify-soft-fail    Force soft fail verification (off by default)."
+        "                          Verification is enabled if neither --no-verify"
+        "                          nor --verify-soft-fail is specified."
+        "    --no-optimize         Turn off optimization (on by default)."
+        "    --no-precise          Turn off precise GC (on by default)."
+        "    --zygote              Spawn the process from the Zygote."
+        "If used, then the"
+        "                          other runtime options are ignored."
+        "    --prebuild            Run dex2oat on the files before starting test. (default)"
+        "    --no-prebuild         Do not run dex2oat on the files before starting"
+        "                          the test."
+        "    --strip-dex           Strip the dex files before starting test."
+        "    --relocate            Force the use of relocating in the test, making"
+        "                          the image and oat files be relocated to a random"
+        "                          address before running."
+        "    --no-relocate         Force the use of no relocating in the test. (default)"
+        "    --image               Run the test using a precompiled boot image. (default)"
+        "    --no-image            Run the test without a precompiled boot image."
+        "    --host                Use the host-mode virtual machine."
+        "    --invoke-with         Pass --invoke-with option to runtime."
+        "    --dalvik              Use Dalvik (off by default)."
+        "    --jvm                 Use a host-local RI virtual machine."
+        "    --use-java-home       Use the JAVA_HOME environment variable"
+        "                          to find the java compiler and runtime"
+        "                          (if applicable) to run the test with."
+        "    --64                  Run the test in 64-bit mode"
+        "    --bionic              Use the (host, 64-bit only) linux_bionic libc runtime"
+        "    --runtime-zipapex [file]"
+        "                          Use the given zipapex file to provide runtime binaries"
+        "    --runtime-extracted-zipapex [dir]"
+        "                          Use the given extracted zipapex directory to provide"
+        "                          runtime binaries"
+        "    --timeout n           Test timeout in seconds"
+        "    --trace               Run with method tracing"
+        "    --strace              Run with syscall tracing from strace."
+        "    --stream              Run method tracing in streaming mode (requires --trace)"
+        "    --gcstress            Run with gc stress testing"
+        "    --gcverify            Run with gc verification"
+        "    --jvmti-trace-stress  Run with jvmti method tracing stress testing"
+        "    --jvmti-step-stress   Run with jvmti single step stress testing"
+        "    --jvmti-redefine-stress"
+        "                          Run with jvmti method redefinition stress testing"
+        "    --always-clean        Delete the test files even if the test fails."
+        "    --never-clean         Keep the test files even if the test succeeds."
+        "    --chroot [newroot]    Run with root directory set to newroot."
+        "    --android-root [path] The path on target for the android root. (/system by default)."
+        "    --android-i18n-root [path]"
+        "                          The path on target for the i18n module root."
+        "                          (/apex/com.android.i18n by default)."
+        "    --android-art-root [path]"
+        "                          The path on target for the ART module root."
+        "                          (/apex/com.android.art by default)."
+        "    --android-tzdata-root [path]"
+        "                          The path on target for the Android Time Zone Data root."
+        "                          (/apex/com.android.tzdata by default)."
+        "    --dex2oat-swap        Use a dex2oat swap file."
+        "    --instruction-set-features [string]"
+        "                          Set instruction-set-features for compilation."
+        "    --quiet               Don't print anything except failure messages"
+        "    --external-log-tags   Use ANDROID_LOG_TAGS to set a custom logging level for"
+        "                          a test run."
+        "    --bisection-search    Perform bisection bug search."
+        "    --vdex                Test using vdex as in input to dex2oat. Only works with --prebuild."
+        "    --suspend-timeout     Change thread suspend timeout ms (default 500000)."
+        "    --dex2oat-jobs        Number of dex2oat jobs."
+    )
+    error(help)
+    sys.exit(1)
 
-cd "$test_dir"
-test_dir=`pwd`
+os.chdir(test_dir)
+test_dir=os.getcwd()
 
-td_info="${test_dir}/${info}"
-td_expected_stdout="${test_dir}/${expected_stdout}"
-td_expected_stderr="${test_dir}/${expected_stderr}"
+td_info=f"{test_dir}/{info}"
+td_expected_stdout=f"{test_dir}/{expected_stdout}"
+td_expected_stderr=f"{test_dir}/{expected_stderr}"
 
-for td_file in "$td_info" "$td_expected_stdout" "$td_expected_stderr"; do
-    if [ ! -r "$td_file" ]; then
-        err_echo "${test_dir}: missing file $td_file"
-        exit 1
-    fi
-done
+for td_file in [td_info, td_expected_stdout, td_expected_stderr]:
+    if not os.access(td_file, os.R_OK):
+        error(f"{test_dir}: missing file {td_file}")
+        sys.exit(1)
 
-export TEST_NAME=`basename ${test_dir}`
+TEST_NAME = os.path.basename(test_dir)
+export("TEST_NAME", TEST_NAME)
 
 # Tests named '<number>-checker-*' will also have their CFGs verified with
 # Checker when compiled with Optimizing on host.
 # Additionally, if the user specifies that the CFG must be dumped, it will
 # run the checker for any type of test to generate the CFG.
-if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]] || [ "$dump_cfg" = "true" ]; then
-  if [ "$runtime" = "art" -a "$run_optimizing" = "true" ]; then
+if re.match("[0-9]+-checker-", TEST_NAME) or dump_cfg == "true":
+  if runtime == "art" and run_optimizing == "true":
     # In no-prebuild or no-image mode, the compiler only quickens so disable the checker.
-    if [ "$prebuild_mode" = "yes" ]; then
+    if prebuild_mode == "yes":
       run_checker="yes"
 
-      if [ "$target_mode" = "no" ]; then
-        cfg_output_dir="$tmp_dir"
-        checker_args="--arch=${host_arch_name^^}"
-      else
-        cfg_output_dir="$DEX_LOCATION"
-        checker_args="--arch=${target_arch_name^^}"
-      fi
+      if target_mode == "no":
+        cfg_output_dir=tmp_dir
+        checker_args=f"--arch={host_arch_name.upper()}"
+      else:
+        cfg_output_dir=DEX_LOCATION
+        checker_args=f"--arch={target_arch_name.upper()}"
 
-      if [ "$debuggable" = "yes" ]; then
-        checker_args="$checker_args --debuggable"
-      fi
+      if debuggable == "yes":
+        checker_args+=" --debuggable"
 
-      run_args+=(-Xcompiler-option "--dump-cfg=$cfg_output_dir/$cfg_output" -Xcompiler-option -j1)
-      checker_args="$checker_args --print-cfg"
-    fi
-  fi
-fi
+      run_args+=[f'-Xcompiler-option "--dump-cfg={cfg_output_dir}/{cfg_output}" -Xcompiler-option -j1']
+      checker_args=f"{checker_args} --print-cfg"
 
-run_args+=(--testlib "${testlib}")
+run_args+=[f'--testlib "{testlib}"']
 
-if ! ulimit -f ${file_ulimit}; then
-  err_echo "ulimit file size setting failed"
-fi
+run(f"ulimit -f {file_ulimit}")
 
 # Extract run-test data from the zip file.
-rm -rf "$tmp_dir"
-mkdir -p "$tmp_dir/.unzipped"
-cd "$tmp_dir"
-[[ $TEST_NAME =~ [0-9]*([0-9][0-9])-.* ]]  # Extract last two digits of test number.
-SHARD=${BASH_REMATCH[1]}
-if [[ "$target_mode" == "yes" ]]; then
-  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-target-data-shard${SHARD}.zip"
-  zip_entry="target/${TEST_NAME}"
-elif [[ $runtime == "jvm" ]]; then
-  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-jvm-data-shard${SHARD}.zip"
-  zip_entry="jvm/${TEST_NAME}"
-else
-  zip_file="${ANDROID_HOST_OUT}/etc/art/art-run-test-host-data-shard${SHARD}.zip"
-  zip_entry="host/${TEST_NAME}"
-fi
-unzip -q "${zip_file}" "${zip_entry}/*" -d "$tmp_dir/.unzipped"
-mv "$tmp_dir"/.unzipped/${zip_entry}/* "$tmp_dir"
+shutil.rmtree(tmp_dir)
+os.makedirs(f"{tmp_dir}/.unzipped")
+os.chdir(tmp_dir)
+m = re.match("[0-9]*([0-9][0-9])-.*", TEST_NAME)
+assert m, "Can not find test number in " + TEST_NAME
+SHARD=m.group(1)
+if target_mode == "yes":
+  zip_file=f"{ANDROID_HOST_OUT}/etc/art/art-run-test-target-data-shard{SHARD}.zip"
+  zip_entry=f"target/{TEST_NAME}"
+elif runtime == "jvm":
+  zip_file=f"{ANDROID_HOST_OUT}/etc/art/art-run-test-jvm-data-shard{SHARD}.zip"
+  zip_entry=f"jvm/{TEST_NAME}"
+else:
+  zip_file=f"{ANDROID_HOST_OUT}/etc/art/art-run-test-host-data-shard{SHARD}.zip"
+  zip_entry=f"host/{TEST_NAME}"
+run(f'unzip -q "{zip_file}" "{zip_entry}/*" -d "{tmp_dir}/.unzipped"')
+run(f'mv "{tmp_dir}"/.unzipped/{zip_entry}/* "{tmp_dir}"')
+
+joined_run_args = " ".join(run_args)
+joined_args = " ".join(args)
 
 good="no"
 good_run="yes"
-export TEST_RUNTIME="${runtime}"
-if [ "$dev_mode" = "yes" ]; then
-    echo "${test_dir}: running..." 1>&2
-    "./${run}" "${run_args[@]}" "$@"
-    run_exit="$?"
+export("TEST_RUNTIME", runtime)
+if dev_mode == "yes":
+    verbose(f"{test_dir}: running...")
+    run_exit=run(f"./{run_cmd} {joined_run_args} {joined_args}", check=False).returncode
 
-    if [ "$run_exit" = "0" ]; then
-        if [ "$run_checker" = "yes" ]; then
-            if [ "$target_mode" = "yes" ]; then
-              adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
-            fi
-            "$checker" $checker_args "$cfg_output" "$tmp_dir" 2>&1
-            checker_exit="$?"
-            if [ "$checker_exit" = "0" ]; then
+    if run_exit == 0:
+        if run_checker == "yes":
+            if target_mode == "yes":
+              run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
+            checker_exit=run('"{checker}" {checker_args} "{cfg_output}" "{tmp_dir}"', check=False).returncode
+            if checker_exit == 0:
                 good="yes"
-            fi
-            err_echo "checker exit status: $checker_exit"
-        else
+            verbose(f"checker exit status: {checker_exit}")
+        else:
             good="yes"
-        fi
-    fi
-    echo "run exit status: $run_exit" 1>&2
-elif [ "$update_mode" = "yes" ]; then
-    echo "${test_dir}: running..." 1>&2
-    "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
-    if [ "$run_checker" = "yes" ]; then
-      if [ "$target_mode" = "yes" ]; then
-        adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
-      fi
-      "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >>"$test_stdout" 2>>"$test_stderr"
-    fi
-    sed -e 's/[[:cntrl:]]$//g' <"$test_stdout" >"${td_expected_stdout}"
-    sed -e 's/[[:cntrl:]]$//g' <"$test_stderr" >"${td_expected_stderr}"
+    verbose(f"run exit status: {run_exit}")
+elif update_mode == "yes":
+    verbose(f"{test_dir}: running...")
+    proc=run(f'./{run_cmd} {joined_run_args} {joined_args} >{test_stdout} 2>{test_stderr}', check=False)
+    if run_checker == "yes":
+      if target_mode == "yes":
+        run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
+      run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"')
+    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stdout}" >"{td_expected_stdout}"''')
+    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"''')
     good="yes"
-else
-    echo "${test_dir}: running..." 1>&2
-    "./${run}" "${run_args[@]}" "$@" >"$test_stdout" 2>"$test_stderr"
-    run_exit="$?"
-    if [ "$run_exit" != "0" ]; then
-        err_echo "run exit status: $run_exit"
+else:
+    verbose(f"{test_dir}: running...")
+    proc=run(f'./{run_cmd} {joined_run_args} {joined_args} >{test_stdout} 2>{test_stderr}', check=False)
+    run_exit=proc.returncode
+    if run_exit != 0:
+        error(f"run exit status: {run_exit}")
         good_run="no"
-    elif [ "$run_checker" = "yes" ]; then
-        if [ "$target_mode" = "yes" ]; then
-          adb pull "$chroot/$cfg_output_dir/$cfg_output" &> /dev/null
-        fi
-        "$checker" -q $checker_args "$cfg_output" "$tmp_dir" >>"$test_stdout" 2>>"$test_stderr"
-        checker_exit="$?"
-        if [ "$checker_exit" != "0" ]; then
-            err_echo "checker exit status: $checker_exit"
+    elif run_checker == "yes":
+        if target_mode == "yes":
+          run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
+        proc=run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"', check=False)
+        checker_exit=proc.returncode
+        if checker_exit != 0:
+            error(f"checker exit status: {checker_exit}")
             good_run="no"
-        else
+        else:
             good_run="yes"
-        fi
-    else
+    else:
         good_run="yes"
-    fi
-    ./$check_cmd "$expected_stdout" "$test_stdout" "$expected_stderr" "$test_stderr"
-    if [ "$?" = "0" ]; then
-        if [ "$good_run" = "yes" ]; then
+    proc=run(f'./{check_cmd} "{expected_stdout}" "{test_stdout}" "{expected_stderr}" "{test_stderr}"', check=False)
+    if proc.returncode == 0:
+        if good_run == "yes":
           # test_stdout == expected_stdout && test_stderr == expected_stderr
           good="yes"
-          echo "${test_dir}: succeeded!" 1>&2
-        fi
-    fi
-fi
+          verbose(f"${test_dir}: succeeded!")
 
-(
-    if [ "$good" != "yes" -a "$update_mode" != "yes" ]; then
-        echo "${test_dir}: FAILED!"
-        echo ' '
-        echo '#################### info'
-        cat "${td_info}" | sed 's/^/# /g'
-        echo '#################### stdout diffs'
-        if [ "$run_checker" == "yes" ]; then
+if good != "yes" and update_mode != "yes":
+        error(f"{test_dir}: FAILED!")
+        error(' ')
+        error('#################### info')
+        run(f'cat "{td_info}" | sed "s/^/# /g"')
+        error('#################### stdout diffs')
+        if run_checker == "yes":
           # Checker failures dump the whole CFG, so we output the whole diff.
-          diff --strip-trailing-cr -u "$expected_stdout" "$test_stdout"
-        else
-          diff --strip-trailing-cr -u "$expected_stdout" "$test_stdout" | tail -n 10000
-        fi
-        echo '####################'
-        echo '#################### stderr diffs'
-        diff --strip-trailing-cr -u "$expected_stderr" "$test_stderr" | tail -n 10000
-        echo '####################'
-        if [ "$strace" = "yes" ]; then
-            echo '#################### strace output'
-            tail -n 3000 "$tmp_dir/$strace_output"
-            echo '####################'
-        fi
-        if [ "x$target_mode" = "xno" -a "x$SANITIZE_HOST" = "xaddress" ]; then
+          run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}"')
+        else:
+          run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" | tail -n 10000')
+        error('####################')
+        error('#################### stderr diffs')
+        run(f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}" | tail -n 10000')
+        error('####################')
+        if strace == "yes":
+            error('#################### strace output')
+            run(f'tail -n 3000 "{tmp_dir}/{strace_output}"')
+            error('####################')
+        SANITIZE_HOST = os.environ.get("SANITIZE_HOST")
+        if target_mode == "no" and SANITIZE_HOST == "address":
             # Run the stack script to symbolize any ASAN aborts on the host for SANITIZE_HOST. The
             # tools used by the given ABI work for both x86 and x86-64.
-            echo "ABI: 'x86_64'" | cat - "$test_stdout" "$test_stderr" \
-              | $ANDROID_BUILD_TOP/development/scripts/stack | tail -n 3000
-        fi
-        echo ' '
-    fi
-
-) 2>&${real_stderr} 1>&2
+            run(f'''echo "ABI: 'x86_64'" | cat - "{test_stdout}" "{test_stderr}"'''
+                f'''| {ANDROID_BUILD_TOP}/development/scripts/stack | tail -n 3000''')
+        error(' ')
 
 # Copy the generated CFG to the specified path.
-if [ $dump_cfg = "true" ]; then
-    if [ $run_optimizing != "true" ]; then
-        err_echo "Can't dump the .cfg if the compiler type isn't set to \"optimizing\"."
-    else
-        if [ "$target_mode" = "yes" ]; then
-            adb pull $chroot/$cfg_output_dir/$cfg_output $dump_cfg_path
-        else
-            cp $cfg_output_dir/$cfg_output $dump_cfg_path
-        fi
-    fi
-fi
-
-# Attempt bisection only if the test failed.
-# TODO: Implement support for chroot-based bisection search.
-if [ "$bisection_search" = "yes" -a "$good" != "yes" ]; then
-    # Bisecting works by skipping different optimization passes which breaks checker assertions.
-    if [ "$run_checker" == "yes" ]; then
-      echo "${test_dir}: not bisecting, checker test." 1>&2
-    else
-      # Increase file size limit, bisection search can generate large logfiles.
-      echo "${test_dir}: bisecting..." 1>&2
-      cwd=`pwd`
-      maybe_device_mode=""
-      raw_cmd=""
-      if [ "$target_mode" = "yes" ]; then
-        # Produce cmdline.sh in $chroot_dex_location. "$@" is passed as a runtime option
-        # so that cmdline.sh forwards its arguments to dalvikvm. invoke-with is set
-        # to exec in order to preserve pid when calling dalvikvm. This is required
-        # for bisection search to correctly retrieve logs from device.
-        "./${run}" "${run_args[@]}" --runtime-option '"$@"' --invoke-with exec --dry-run "$@" &> /dev/null
-        adb shell chmod u+x "$chroot_dex_location/cmdline.sh"
-        maybe_device_mode="--device"
-        raw_cmd="$DEX_LOCATION/cmdline.sh"
-      else
-        raw_cmd="$cwd/${run} --external-log-tags "${run_args[@]}" $@"
-      fi
-      # TODO: Pass a `--chroot` option to the bisection_search.py script and use it there.
-      $ANDROID_BUILD_TOP/art/tools/bisection_search/bisection_search.py \
-        $maybe_device_mode \
-        --raw-cmd="$raw_cmd" \
-        --check-script="$cwd/check" \
-        --expected-output="$cwd/expected-stdout.txt" \
-        --logfile="$cwd/bisection_log.txt" \
-        --timeout=${timeout:-300}
-    fi
-fi
+if dump_cfg == "true":
+    if run_optimizing != "true":
+        error("Can't dump the .cfg if the compiler type isn't set to \"optimizing\".")
+    else:
+        if target_mode == "yes":
+            run(f"adb pull {chroot}/{cfg_output_dir}/{cfg_output} {dump_cfg_path}")
+        else:
+            run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
 
 # Clean up test files.
-if [ "$always_clean" = "yes" -o "$good" = "yes" ] && [ "$never_clean" = "no" ]; then
-    cd "$oldwd"
-    rm -rf "$tmp_dir"
-    if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
-        adb shell rm -rf $chroot_dex_location
-    fi
-    if [ "$good" = "yes" ]; then
-        exit 0
-    fi
-fi
+if (always_clean == "yes" or good == "yes") and never_clean == "no":
+    os.chdir(oldwd)
+    shutil.rmtree(tmp_dir)
+    if target_mode == "yes":
+        run(f"adb shell rm -rf {chroot_dex_location}")
+    if good == "yes":
+        sys.exit(0)
+    verbose(f"{TEST_NAME} files deleted from host ")
+    if target_mode == "yes":
+        verbose("and from target")
+else:
+    verbose(f"{TEST_NAME} files left in ${tmp_dir} on host")
+    if target_mode == "yes":
+        verbose("and in ${chroot_dex_location} on target")
 
-
-(
-    if [ "$always_clean" = "yes" ]; then
-        echo "${TEST_NAME} files deleted from host "
-        if [ "$target_mode" == "yes" ]; then
-            echo "and from target"
-        fi
-    else
-        echo "${TEST_NAME} files left in ${tmp_dir} on host"
-        if [ "$target_mode" == "yes" ]; then
-            echo "and in ${chroot_dex_location} on target"
-        fi
-    fi
-
-) 2>&${real_stderr} 1>&2
-
-if [ "$never_clean" = "yes" ] && [ "$good" = "yes" ]; then
-  exit 0
-else
-  exit 1
-fi
+if never_clean == "yes" and good == "yes":
+  sys.exit(0)
+else:
+  sys.exit(1)
