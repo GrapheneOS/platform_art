@@ -15,8 +15,6 @@
  */
 
 public class Main {
-  static boolean doThrow = false;
-
   // Note: We're not doing checker tests as we cannot do them specifically for a non-PIC
   // configuration. The check here would be "prepare_for_register_allocation (before)"
   //     CHECK:         LoadClass
@@ -28,8 +26,6 @@ public class Main {
   //     CHECK-NEXT:    NewInstance
   // but the order of instructions for non-PIC mode is different.
   public static int $noinline$test() {
-    if (doThrow) { throw new Error(); }
-
     int r = 0x12345678;
     do {
       // LICM pulls the LoadClass and ClinitCheck out of the loop, leaves NewInstance in the loop.
@@ -67,11 +63,7 @@ public class Main {
 }
 
 class Helper {
-  static boolean doThrow = false;
-
   public void $noinline$printString(String s) {
-    if (doThrow) { throw new Error(); }
-
     System.out.println("String: \"" + s + "\"");
   }
 }

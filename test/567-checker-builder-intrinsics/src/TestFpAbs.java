@@ -29,8 +29,6 @@ public class TestFpAbs {
   private static final int SPQUIET = 1 << 22;
   private static final long DPQUIET = 1L << 51;
 
-  public static boolean doThrow = false;
-
   /// CHECK-START: float TestFpAbs.$opt$noinline$absSP(float) builder (after)
   /// CHECK-DAG: <<Result:f\d+>> Abs
   /// CHECK-DAG:                 Return [<<Result>>]
