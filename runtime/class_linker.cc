@@ -2146,9 +2146,18 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
     boot_class_table_->VisitRoots(root_visitor);
     // If tracing is enabled, then mark all the class loaders to prevent unloading.
     if ((flags & kVisitRootFlagClassLoader) != 0 || tracing_enabled) {
-      for (const ClassLoaderData& data : class_loaders_) {
-        GcRoot<mirror::Object> root(GcRoot<mirror::Object>(self->DecodeJObject(data.weak_root)));
-        root.VisitRoot(visitor, RootInfo(kRootVMInternal));
+      gc::Heap* const heap = Runtime::Current()->GetHeap();
+      // Don't visit class-loaders if compacting with userfaultfd GC as these
+      // weaks are updated using Runtime::SweepSystemWeaks() and the GC doesn't
+      // tolerate double updates.
+      if (!gUseUserfaultfd
+          || !heap->MarkCompactCollector()->IsCompacting(self)) {
+        for (const ClassLoaderData& data : class_loaders_) {
+          GcRoot<mirror::Object> root(GcRoot<mirror::Object>(self->DecodeJObject(data.weak_root)));
+          root.VisitRoot(visitor, RootInfo(kRootVMInternal));
+        }
+      } else {
+        DCHECK_EQ(heap->CurrentCollectorType(), gc::CollectorType::kCollectorTypeCMC);
       }
     }
   } else if (!gUseReadBarrier && (flags & kVisitRootFlagNewRoots) != 0) {
