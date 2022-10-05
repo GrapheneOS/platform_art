@@ -19,6 +19,15 @@
 
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
 
+    <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
+        <!-- We push all files in LibnativeloaderTest.java, but use this
+             preparer to make partitions writable. That since remounting may
+             require a device reboot, and then it's important that the
+             `setenforce 0` from DisableSELinuxTargetPreparer occurs after that. -->
+        <option name="remount-system" value="true" />
+        <option name="remount-vendor" value="true" />
+    </target_preparer>
+
     <!-- Vendor native libraries aren't accessible by any apps by sepolicy
          rules. For that they need to be labelled same_process_hal_file in a
          vendor specific file_contexts file (see
