@@ -507,7 +507,9 @@ class CodeInfo {
   static constexpr size_t kNumHeaders = 7;
   // Note that the space for flags is limited to three bits. We use a custom encoding where we
   // encode the value inline if it is less than kVarintMax. We want to access flags without
-  // decoding the entire CodeInfo so the value of flags cannot be more than kVarintMax.
+  // decoding the entire CodeInfo header so the value of flags cannot be more than kVarintMax.
+  // See IsDebuggable / IsBaseline / HasInlineInfo on how we access flags_ without decoding the
+  // header.
   uint32_t flags_ = 0;
   uint32_t code_size_ = 0;  // The size of native PC range in bytes.
   uint32_t packed_frame_size_ = 0;  // Frame size in kStackAlignment units.
