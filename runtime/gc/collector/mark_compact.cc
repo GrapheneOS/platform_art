@@ -1392,7 +1392,6 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
       // BumpPointerSpace::Walk() also works similarly.
       while (black_allocs < block_end
              && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
-        RememberDexCaches(obj);
         if (first_obj == nullptr) {
           first_obj = obj;
         }
@@ -1524,95 +1523,135 @@ class MarkCompact::ImmuneSpaceUpdateObjVisitor {
   MarkCompact* const collector_;
 };
 
-// TODO: JVMTI redefinition leads to situations wherein new class object(s) and the
-// corresponding native roots are setup but are not linked to class tables and
-// therefore are not accessible, leading to memory corruption.
-class MarkCompact::NativeRootsUpdateVisitor : public ClassLoaderVisitor, public DexCacheVisitor {
+class MarkCompact::NativeRootsUpdateVisitor : public ClassLoaderVisitor {
  public:
-  explicit NativeRootsUpdateVisitor(MarkCompact* collector, PointerSize pointer_size)
-    : collector_(collector), pointer_size_(pointer_size) {}
-
-  ~NativeRootsUpdateVisitor() {
-    LOG(INFO) << "num_classes: " << classes_visited_.size()
-              << " num_dex_caches: " << dex_caches_visited_.size();
-  }
+  explicit NativeRootsUpdateVisitor(MarkCompact* collector)
+      : collector_(collector),
+        pointer_size_(Runtime::Current()->GetClassLinker()->GetImagePointerSize()) {}
 
   void Visit(ObjPtr<mirror::ClassLoader> class_loader) override
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) {
     ClassTable* const class_table = class_loader->GetClassTable();
     if (class_table != nullptr) {
-      class_table->VisitClassesAndRoots(*this);
+      class_table->VisitRoots(*this);
     }
   }
 
-  void Visit(ObjPtr<mirror::DexCache> dex_cache) override
-      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_)
-      REQUIRES(Locks::heap_bitmap_lock_) {
-    if (!dex_cache.IsNull()) {
-      uint32_t cache = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(dex_cache.Ptr()));
-      if (dex_caches_visited_.insert(cache).second) {
-        dex_cache->VisitNativeRoots<kDefaultVerifyFlags, kWithoutReadBarrier>(*this);
-        collector_->dex_caches_.erase(cache);
+  void operator()(uint8_t* page_begin, uint8_t* first_obj)
+      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK_ALIGNED(page_begin, kPageSize);
+    uint8_t* page_end = page_begin + kPageSize;
+    uint32_t obj_size;
+    for (uint8_t* byte = first_obj; byte < page_end;) {
+      TrackingHeader* header = reinterpret_cast<TrackingHeader*>(byte);
+      obj_size = header->GetSize();
+      LinearAllocKind kind = header->GetKind();
+      if (obj_size == 0) {
+        // No more objects in this page to visit.
+        DCHECK_EQ(static_cast<uint32_t>(kind), 0u);
+        break;
       }
+      uint8_t* obj = byte + sizeof(TrackingHeader);
+      uint8_t* obj_end = byte + obj_size;
+      if (header->Is16Aligned()) {
+        obj = AlignUp(obj, 16);
+      }
+      if (UNLIKELY(obj >= page_end)) {
+        break;
+      }
+      VisitObject(kind, obj, std::max(obj, page_begin), std::min(obj_end, page_end));
+      if (ArenaAllocator::IsRunningOnMemoryTool()) {
+        obj_size += ArenaAllocator::kMemoryToolRedZoneBytes;
+      }
+      byte += RoundUp(obj_size, LinearAlloc::kAlignment);
     }
-  }
-
-  void VisitDexCache(mirror::DexCache* dex_cache)
-      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_)
-      REQUIRES(Locks::heap_bitmap_lock_) {
-    dex_cache->VisitNativeRoots<kDefaultVerifyFlags, kWithoutReadBarrier>(*this);
-  }
-
-  void operator()(mirror::Object* obj)
-      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(obj->IsClass<kDefaultVerifyFlags>());
-    ObjPtr<mirror::Class> klass = obj->AsClass<kDefaultVerifyFlags>();
-    VisitClassRoots(klass);
-  }
-
-  // For ClassTable::Visit()
-  bool operator()(ObjPtr<mirror::Class> klass)
-      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!klass.IsNull()) {
-      VisitClassRoots(klass);
-    }
-    return true;
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      ALWAYS_INLINE
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      ALWAYS_INLINE
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    collector_->UpdateRoot(root);
-  }
-
- private:
-  void VisitClassRoots(ObjPtr<mirror::Class> klass)
       ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Class* klass_ptr = klass.Ptr();
-    uint32_t k = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(klass_ptr));
-    // No reason to visit native roots of class in immune spaces.
-    if ((collector_->bump_pointer_space_->HasAddress(klass_ptr)
-         || collector_->non_moving_space_->HasAddress(klass_ptr))
-        && classes_visited_.insert(k).second) {
-      klass->VisitNativeRoots<kWithoutReadBarrier, /*kVisitProxyMethod*/false>(*this,
-                                                                               pointer_size_);
-      klass->VisitObsoleteDexCaches<kWithoutReadBarrier>(*this);
-      klass->VisitObsoleteClass<kWithoutReadBarrier>(*this);
+    mirror::Object* old_ref = root->AsMirrorPtr();
+    DCHECK_NE(old_ref, nullptr);
+    if (collector_->live_words_bitmap_->HasAddress(old_ref)) {
+      if (reinterpret_cast<uint8_t*>(old_ref) >= collector_->black_allocations_begin_) {
+        mirror::Object* new_ref = collector_->PostCompactBlackObjAddr(old_ref);
+        root->Assign(new_ref);
+      } else if (collector_->live_words_bitmap_->Test(old_ref)) {
+        DCHECK(collector_->moving_space_bitmap_->Test(old_ref)) << old_ref;
+        mirror::Object* new_ref = collector_->PostCompactOldObjAddr(old_ref);
+        root->Assign(new_ref);
+      }
     }
   }
 
-  std::unordered_set<uint32_t> dex_caches_visited_;
-  std::unordered_set<uint32_t> classes_visited_;
+ private:
+  void VisitObject(LinearAllocKind kind,
+                   void* obj,
+                   uint8_t* start_boundary,
+                   uint8_t* end_boundary)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    switch (kind) {
+      case LinearAllocKind::kGCRootArray:
+        {
+          GcRoot<mirror::Object>* root = reinterpret_cast<GcRoot<mirror::Object>*>(start_boundary);
+          GcRoot<mirror::Object>* last = reinterpret_cast<GcRoot<mirror::Object>*>(end_boundary);
+          for (; root < last; root++) {
+            VisitRootIfNonNull(root->AddressWithoutBarrier());
+          }
+        }
+        break;
+      case LinearAllocKind::kArtMethodArray:
+        {
+          LengthPrefixedArray<ArtMethod>* array = static_cast<LengthPrefixedArray<ArtMethod>*>(obj);
+          // Old methods are clobbered in debug builds. Check size to confirm if the array
+          // has any GC roots to visit. See ClassLinker::LinkMethodsHelper::ClobberOldMethods()
+          if (array->size() > 0) {
+            if (pointer_size_ == PointerSize::k64) {
+              ArtMethod::VisitArrayRoots<PointerSize::k64>(*this,
+                                                           start_boundary,
+                                                           end_boundary,
+                                                           array);
+            } else {
+              DCHECK_EQ(pointer_size_, PointerSize::k32);
+              ArtMethod::VisitArrayRoots<PointerSize::k32>(*this,
+                                                           start_boundary,
+                                                           end_boundary,
+                                                           array);
+            }
+          }
+        }
+        break;
+      case LinearAllocKind::kArtMethod:
+        ArtMethod::VisitRoots(*this, start_boundary, end_boundary, static_cast<ArtMethod*>(obj));
+        break;
+      case LinearAllocKind::kArtFieldArray:
+        ArtField::VisitArrayRoots(*this,
+                                  start_boundary,
+                                  end_boundary,
+                                  static_cast<LengthPrefixedArray<ArtField>*>(obj));
+        break;
+      case LinearAllocKind::kDexCacheArray:
+        {
+          mirror::DexCachePair<mirror::Object>* first =
+              reinterpret_cast<mirror::DexCachePair<mirror::Object>*>(start_boundary);
+          mirror::DexCachePair<mirror::Object>* last =
+              reinterpret_cast<mirror::DexCachePair<mirror::Object>*>(end_boundary);
+          mirror::DexCache::VisitDexCachePairRoots(*this, first, last);
+        }
+        break;
+      case LinearAllocKind::kNoGCRoots:
+        break;
+    }
+  }
+
   MarkCompact* const collector_;
-  PointerSize pointer_size_;
+  const PointerSize pointer_size_;
 };
 
 void MarkCompact::PreCompactionPhase() {
@@ -1685,29 +1724,16 @@ void MarkCompact::PreCompactionPhase() {
       thread->AdjustTlab(black_objs_slide_diff_);
     }
   }
-
   {
-    // Native roots must be updated before updating system weaks as class linker
-    // holds roots to class loaders and dex-caches as weak roots. Also, space
-    // mremap must be done after this step as we require reading
-    // class/dex-cache/class-loader content for updating native roots.
     TimingLogger::ScopedTiming t2("(Paused)UpdateNativeRoots", GetTimings());
-    ClassLinker* class_linker = runtime->GetClassLinker();
-    NativeRootsUpdateVisitor visitor(this, class_linker->GetImagePointerSize());
+    NativeRootsUpdateVisitor visitor(this);
     {
       ReaderMutexLock rmu(thread_running_gc_, *Locks::classlinker_classes_lock_);
-      class_linker->VisitBootClasses(&visitor);
-      class_linker->VisitClassLoaders(&visitor);
+      runtime->GetClassLinker()->VisitClassLoaders(&visitor);
     }
-    {
-      WriterMutexLock wmu(thread_running_gc_, *Locks::heap_bitmap_lock_);
-      ReaderMutexLock rmu(thread_running_gc_, *Locks::dex_lock_);
-      class_linker->VisitDexCaches(&visitor);
-      for (uint32_t cache : dex_caches_) {
-        visitor.VisitDexCache(reinterpret_cast<mirror::DexCache*>(cache));
-      }
-    }
-    dex_caches_.clear();
+    GcVisitedArenaPool *arena_pool =
+        static_cast<GcVisitedArenaPool*>(runtime->GetLinearAllocArenaPool());
+    arena_pool->VisitRoots(visitor);
   }
 
   SweepSystemWeaks(thread_running_gc_, runtime, /*paused*/true);
@@ -2380,14 +2406,6 @@ void MarkCompact::ScanObject(mirror::Object* obj) {
     UpdateLivenessInfo(obj);
   }
   obj->VisitReferences(visitor, visitor);
-  RememberDexCaches(obj);
-}
-
-void MarkCompact::RememberDexCaches(mirror::Object* obj) {
-  if (obj->IsDexCache()) {
-    dex_caches_.insert(
-            mirror::CompressedReference<mirror::Object>::FromMirrorPtr(obj).AsVRegValue());
-  }
 }
 
 // Scan anything that's on the mark stack.
