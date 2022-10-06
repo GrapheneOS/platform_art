@@ -54,11 +54,8 @@ class Main {
   }
 
   public static long $noinline$bar() {
-    if (doThrow) throw new Error();
     return 42;
   }
-
-  public static boolean doThrow = false;
 
   public static int myField1 = 0;
   public static int myField2 = 0;

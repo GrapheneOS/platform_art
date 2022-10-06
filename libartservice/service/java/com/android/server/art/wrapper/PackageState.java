@@ -141,4 +141,16 @@ public class PackageState {
             throw new RuntimeException(e);
         }
     }
+
+    @NonNull
+    public PackageUserState getUserStateOrDefault(int userId) {
+        try {
+            Object userState = mPkgState.getClass()
+                                       .getMethod("getUserStateOrDefault", int.class)
+                                       .invoke(mPkgState, userId);
+            return userState != null ? new PackageUserState(userState) : null;
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

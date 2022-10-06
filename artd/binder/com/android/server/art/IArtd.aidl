@@ -63,7 +63,7 @@ interface IArtd {
     void commitTmpProfile(in com.android.server.art.ProfilePath.TmpRefProfilePath profile);
 
     /**
-     * Deletes the profile.
+     * Deletes the profile. Does nothing of the profile doesn't exist.
      *
      * Operates on the whole DM file if given one.
      *
@@ -80,6 +80,19 @@ interface IArtd {
      */
     com.android.server.art.FileVisibility getProfileVisibility(
             in com.android.server.art.ProfilePath profile);
+
+    /**
+     * Merges profiles. Both `profiles` and `referenceProfile` are inputs, while the difference is
+     * that `referenceProfile` is also used as the reference to calculate the diff. `profiles` that
+     * don't exist are skipped, while `referenceProfile`, if provided, must exist. Returns true,
+     * writes the merge result to `outputProfile` and fills `outputProfile.profilePath.id` if a
+     * merge has been performed.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    boolean mergeProfiles(in List<com.android.server.art.ProfilePath> profiles,
+            in @nullable com.android.server.art.ProfilePath referenceProfile,
+            inout com.android.server.art.OutputProfile outputProfile, @utf8InCpp String dexFile);
 
     /**
      * Returns the visibility of the artifacts.

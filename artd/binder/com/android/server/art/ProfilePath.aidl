@@ -25,6 +25,7 @@ union ProfilePath {
     RefProfilePath refProfilePath;
     TmpRefProfilePath tmpRefProfilePath;
     PrebuiltProfilePath prebuiltProfilePath;
+    CurProfilePath curProfilePath;
     /** Represents a profile in the dex metadata file. */
     com.android.server.art.DexMetadataPath dexMetadataPath;
 
@@ -53,5 +54,15 @@ union ProfilePath {
     parcelable PrebuiltProfilePath {
         /** The path to the dex file that the profile is next to. */
         @utf8InCpp String dexPath;
+    }
+
+    /** Represents a current profile. */
+    parcelable CurProfilePath {
+        /** The user ID of the user that owns the profile. */
+        int userId;
+        /** The name of the package. */
+        @utf8InCpp String packageName;
+        /** The stem of the profile file */
+        @utf8InCpp String profileName;
     }
 }

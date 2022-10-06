@@ -69,10 +69,14 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             ctx.pushExtendedPublicProductLibs(libApk);
             ctx.pushPrivateLibs(libApk);
         }
-        ctx.pushSystemSharedLib("/system/framework", "android.test.systemsharedlib",
-                "libnativeloader_system_shared_lib.jar");
-        ctx.pushSystemSharedLib("/system_ext/framework", "android.test.systemextsharedlib",
+        ctx.pushSharedLib(
+                "/system", "android.test.systemsharedlib", "libnativeloader_system_shared_lib.jar");
+        ctx.pushSharedLib("/system_ext", "android.test.systemextsharedlib",
                 "libnativeloader_system_ext_shared_lib.jar");
+        ctx.pushSharedLib("/product", "android.test.productsharedlib",
+                "libnativeloader_product_shared_lib.jar");
+        ctx.pushSharedLib(
+                "/vendor", "android.test.vendorsharedlib", "libnativeloader_vendor_shared_lib.jar");
 
         // "Install" apps in various partitions through plain adb push followed by a soft reboot. We
         // need them in these locations to test library loading restrictions, so for all except
@@ -98,19 +102,21 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
         // For testDataApp. Install this the normal way after the system server restart.
         ctx.installPackage("loadlibrarytest_data_app");
+        ctx.assertCommandSucceeds("setenforce 0");
 
         testInfo.properties().put(CLEANUP_PATHS_KEY, ctx.mCleanup.getPathList());
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
-        ITestDevice device = testInfo.getDevice();
+        DeviceContext ctx = new DeviceContext(
+                testInfo.getContext(), testInfo.getDevice(), testInfo.getBuildInfo());
 
         // Uninstall loadlibrarytest_data_app.
-        device.uninstallPackage("android.test.app.data");
+        ctx.mDevice.uninstallPackage("android.test.app.data");
 
         String cleanupPathList = testInfo.properties().get(CLEANUP_PATHS_KEY);
-        CleanupPaths cleanup = new CleanupPaths(device, cleanupPathList);
+        CleanupPaths cleanup = new CleanupPaths(ctx.mDevice, cleanupPathList);
         cleanup.cleanup();
     }
 
@@ -190,7 +196,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
         }
     }
 
-    // Class for code that needs an ITestDevice. It is instantiated both in tests and in
+    // Class for code that needs an ITestDevice. It may be instantiated both in tests and in
     // (Before|After)ClassWithInfo.
     private static class DeviceContext implements AutoCloseable {
         IInvocationContext mContext;
@@ -233,7 +239,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
         void pushPrivateLibs(ZipFile libApk) throws Exception {
             // Push the libraries once for each test. Since we cannot unload them, we need a fresh
             // never-before-loaded library in each loadLibrary call.
-            for (int i = 1; i <= 3; ++i) {
+            for (int i = 1; i <= 5; ++i) {
                 pushNativeTestLib(libApk, "/system/${LIB}/libsystem_private" + i + ".so");
                 pushNativeTestLib(libApk, "/system_ext/${LIB}/libsystemext_private" + i + ".so");
                 pushNativeTestLib(libApk, "/product/${LIB}/libproduct_private" + i + ".so");
@@ -241,14 +247,18 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             }
         }
 
-        void pushSystemSharedLib(String packageDir, String packageName, String buildJarName)
+        void pushSharedLib(String partitionDir, String packageName, String buildJarName)
                 throws Exception {
-            String path = packageDir + "/" + packageName + ".jar";
+            String path = partitionDir + "/framework/" + packageName + ".jar";
             pushFile(buildJarName, path);
+            // This permissions xml file is necessary to make it possible to depend on the shared
+            // library from the test app, even if it's in the same partition. It makes the library
+            // public to apps in other partitions as well, which is more than we need, but that
+            // being the case we test all shared libraries from all apps.
             pushString("<permissions>\n"
                             + "<library name=\"" + packageName + "\" file=\"" + path + "\" />\n"
                             + "</permissions>\n",
-                    "system/etc/permissions/" + packageName + ".xml");
+                    partitionDir + "/etc/permissions/" + packageName + ".xml");
         }
 
         void softReboot() throws DeviceNotAvailableException {
