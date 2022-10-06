@@ -254,15 +254,11 @@ static void Run(const InternalCodeAllocator& allocator,
     Runtime* GetRuntime() override { return nullptr; }
   };
   CodeHolder code_holder;
-  const void* code_ptr =
+  const void* method_code =
       code_holder.MakeExecutable(allocator.GetMemory(), ArrayRef<const uint8_t>(), target_isa);
 
   using fptr = Expected (*)();
-  fptr f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(code_ptr));
-  if (target_isa == InstructionSet::kThumb2) {
-    // For thumb we need the bottom bit set.
-    f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(f) + 1);
-  }
+  fptr f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(method_code));
   VerifyGeneratedCode(target_isa, f, has_result, expected);
 }
 

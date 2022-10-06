@@ -59,8 +59,8 @@ class CommonCompilerTestImpl::CodeAndMetadata {
     OatQuickMethodHeader method_header(vmap_table_offset);
     const size_t code_alignment = GetInstructionSetCodeAlignment(instruction_set);
     DCHECK_ALIGNED_PARAM(kPageSize, code_alignment);
-    code_offset_ = RoundUp(vmap_table.size() + sizeof(method_header), code_alignment);
-    const uint32_t capacity = RoundUp(code_offset_ + code_size, kPageSize);
+    const uint32_t code_offset = RoundUp(vmap_table.size() + sizeof(method_header), code_alignment);
+    const uint32_t capacity = RoundUp(code_offset + code_size, kPageSize);
 
     // Create a memfd handle with sufficient capacity.
     android::base::unique_fd mem_fd(art::memfd_create_compat("test code", /*flags=*/ 0));
@@ -81,12 +81,12 @@ class CommonCompilerTestImpl::CodeAndMetadata {
     CHECK(rw_map_.IsValid()) << error_msg;
 
     // Store data.
-    uint8_t* code_addr = rw_map_.Begin() + code_offset_;
+    uint8_t* code_addr = rw_map_.Begin() + code_offset;
     CHECK_ALIGNED_PARAM(code_addr, code_alignment);
-    CHECK_LE(vmap_table_offset, code_offset_);
+    CHECK_LE(vmap_table_offset, code_offset);
     memcpy(code_addr - vmap_table_offset, vmap_table.data(), vmap_table.size());
     static_assert(std::is_trivially_copyable<OatQuickMethodHeader>::value, "Cannot use memcpy");
-    CHECK_LE(sizeof(method_header), code_offset_);
+    CHECK_LE(sizeof(method_header), code_offset);
     memcpy(code_addr - sizeof(method_header), &method_header, sizeof(method_header));
     CHECK_LE(code_size, static_cast<size_t>(rw_map_.End() - code_addr));
     memcpy(code_addr, code.data(), code_size);
@@ -107,18 +107,21 @@ class CommonCompilerTestImpl::CodeAndMetadata {
                               /*filename=*/ "test code",
                               &error_msg);
     CHECK(rx_map_.IsValid()) << error_msg;
+
+    DCHECK_LT(code_offset, rx_map_.Size());
+    size_t adjustment = GetInstructionSetEntryPointAdjustment(instruction_set);
+    entry_point_ = rx_map_.Begin() + code_offset + adjustment;
   }
 
-  const void* GetCodePointer() const {
+  const void* GetEntryPoint() const {
     DCHECK(rx_map_.IsValid());
-    DCHECK_LE(code_offset_, rx_map_.Size());
-    return rx_map_.Begin() + code_offset_;
+    return entry_point_;
   }
 
  private:
   MemMap rw_map_;
   MemMap rx_map_;
-  uint32_t code_offset_;
+  const void* entry_point_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeAndMetadata);
 };
@@ -142,24 +145,7 @@ const void* CommonCompilerTestImpl::MakeExecutable(ArrayRef<const uint8_t> code,
                                                    InstructionSet instruction_set) {
   CHECK_NE(code.size(), 0u);
   code_and_metadata_.emplace_back(code, vmap_table, instruction_set);
-  return code_and_metadata_.back().GetCodePointer();
-}
-
-void CommonCompilerTestImpl::MakeExecutable(ArtMethod* method,
-                                            const CompiledMethod* compiled_method) {
-  CHECK(method != nullptr);
-  const void* method_code = nullptr;
-  // If the code size is 0 it means the method was skipped due to profile guided compilation.
-  if (compiled_method != nullptr && compiled_method->GetQuickCode().size() != 0u) {
-    const void* code_ptr = MakeExecutable(compiled_method->GetQuickCode(),
-                                          compiled_method->GetVmapTable(),
-                                          compiled_method->GetInstructionSet());
-    method_code =
-        CompiledMethod::CodePointer(code_ptr, compiled_method->GetInstructionSet());
-    LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
-  }
-  Runtime::Current()->GetInstrumentation()->InitializeMethodsCode(
-      method, /*aot_code=*/ method_code);
+  return code_and_metadata_.back().GetEntryPoint();
 }
 
 void CommonCompilerTestImpl::SetUp() {
@@ -253,11 +239,16 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
                                           dex_file,
                                           dex_cache);
     }
+    CHECK(compiled_method != nullptr) << "Failed to compile " << method->PrettyMethod();
+    CHECK_NE(compiled_method->GetQuickCode().size(), 0u);
   }
-  CHECK(method != nullptr);
   {
     TimingLogger::ScopedTiming t2("MakeExecutable", &timings);
-    MakeExecutable(method, compiled_method);
+    const void* method_code = MakeExecutable(compiled_method->GetQuickCode(),
+                                             compiled_method->GetVmapTable(),
+                                             compiled_method->GetInstructionSet());
+    LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
+    GetRuntime()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ method_code);
   }
   CompiledMethod::ReleaseSwapAllocatedCompiledMethod(&storage, compiled_method);
 }

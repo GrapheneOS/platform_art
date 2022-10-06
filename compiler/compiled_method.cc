@@ -58,25 +58,6 @@ size_t CompiledCode::GetEntryPointAdjustment() const {
   return GetInstructionSetEntryPointAdjustment(GetInstructionSet());
 }
 
-const void* CompiledCode::CodePointer(const void* code_pointer, InstructionSet instruction_set) {
-  switch (instruction_set) {
-    case InstructionSet::kArm:
-    case InstructionSet::kArm64:
-    case InstructionSet::kX86:
-    case InstructionSet::kX86_64:
-      return code_pointer;
-    case InstructionSet::kThumb2: {
-      uintptr_t address = reinterpret_cast<uintptr_t>(code_pointer);
-      // Set the low-order bit so a BLX will switch to Thumb mode
-      address |= 0x1;
-      return reinterpret_cast<const void*>(address);
-    }
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      UNREACHABLE();
-  }
-}
-
 CompiledMethod::CompiledMethod(CompiledMethodStorage* storage,
                                InstructionSet instruction_set,
                                const ArrayRef<const uint8_t>& quick_code,
