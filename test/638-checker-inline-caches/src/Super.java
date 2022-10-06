@@ -16,4 +16,5 @@
 
 public abstract class Super {
   abstract int getValue();
+  abstract void someSubclassesThrow();
 }
