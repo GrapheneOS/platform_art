@@ -1127,7 +1127,7 @@
                   "2006-virtual-structural-finalizing",
                   "2007-virtual-structural-finalizable"
                 ],
-        "env_vars": {"ART_USE_READ_BARRIER": "false"},
+        "env_vars": {"ART_USE_READ_BARRIER": "false", "ART_DEFAULT_GC_TYPE": "CMS"},
         "description": ["Relies on the accuracy of the Heap::VisitObjects function which is broken",
                         " when READ_BARRIER==false (I.e. On CMS collector)."],
         "bug": "b/147207934"
@@ -1322,13 +1322,11 @@
         "description": ["Test containing Checker assertions expecting Baker read barriers."]
     },
     {
-        "tests": ["2009-structural-local-ref",
-                  "2035-structural-native-method",
-	          "2036-structural-subclass-shadow",
-	          "2040-huge-native-alloc"],
+        "tests": ["2040-huge-native-alloc"],
         "env_vars": {"ART_USE_READ_BARRIER": "false"},
+	"variant": "debug",
         "bug": "b/242181443",
-        "description": ["Tests temporarily disabled for userfaultfd GC. Remove once native GC-root updation is implemented."]
+        "description": ["Test fails due to delay delebrately added in the userfaultfd GC between marking and compaction."]
     },
     {
         "tests": ["1004-checker-volatile-ref-load"],
@@ -1374,7 +1372,7 @@
     },
     {
         "tests": ["2043-reference-pauses"],
-        "env_vars": {"ART_USE_READ_BARRIER": "false"},
+        "env_vars": {"ART_USE_READ_BARRIER": "false", "ART_DEFAULT_GC_TYPE": "CMS"},
         "variant": "host",
         "bug": "b/232459100",
         "description": ["Fails intermittently for CMS."]
@@ -1437,7 +1435,7 @@
     },
     {
         "tests": ["692-vdex-secondary-loader"],
-        "env_vars": {"ART_USE_READ_BARRIER": "false"},
+        "env_vars": {"ART_USE_READ_BARRIER": "false", "ART_DEFAULT_GC_TYPE": "CMS"},
         "description": ["Uses the low-ram flag which does not work with CMS"]
     },
     {

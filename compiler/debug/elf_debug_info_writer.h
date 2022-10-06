@@ -32,7 +32,7 @@
 #include "dwarf/debug_info_entry_writer.h"
 #include "elf/elf_builder.h"
 #include "heap_poisoning.h"
-#include "linear_alloc.h"
+#include "linear_alloc-inl.h"
 #include "mirror/array.h"
 #include "mirror/class-inl.h"
 #include "mirror/class.h"
@@ -478,7 +478,9 @@ class ElfCompilationUnitWriter {
     if (methods_ptr == nullptr) {
       // Some types might have no methods.  Allocate empty array instead.
       LinearAlloc* allocator = Runtime::Current()->GetLinearAlloc();
-      void* storage = allocator->Alloc(Thread::Current(), sizeof(LengthPrefixedArray<ArtMethod>));
+      void* storage = allocator->Alloc(Thread::Current(),
+                                       sizeof(LengthPrefixedArray<ArtMethod>),
+                                       LinearAllocKind::kNoGCRoots);
       methods_ptr = new (storage) LengthPrefixedArray<ArtMethod>(0);
       type->SetMethodsPtr(methods_ptr, 0, 0);
       DCHECK(type->GetMethodsPtr() != nullptr);
