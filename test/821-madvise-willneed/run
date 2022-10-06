@@ -14,8 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.i
 
-# Load and run HelloWorld after madvising odex, vdex, art files to 100MB size
-# limit
-exec ${RUN} "${@}" --runtime-option -XMadviseWillNeedVdexFileSize:104857600 \
-  --runtime-option -XMadviseWillNeedOdexFileSize:104857600 \
-  --runtime-option -XMadviseWillNeedArtFileSize:104857600
+
+def run(ctx, args):
+  # Load and run HelloWorld after madvising odex, vdex, art files to 100MB size
+  # limit
+  ctx.default_run(
+      args,
+      runtime_option=[
+          "-XMadviseWillNeedVdexFileSize:104857600",
+          "-XMadviseWillNeedOdexFileSize:104857600",
+          "-XMadviseWillNeedArtFileSize:104857600"
+      ])

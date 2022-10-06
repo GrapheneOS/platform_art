@@ -14,4 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-exec ${RUN} $@ --profile -Xcompiler-option --initialize-app-image-classes=true
+
+def run(ctx, args):
+  ctx.default_run(
+      args,
+      profile=True,
+      Xcompiler_option=["--initialize-app-image-classes=true"])

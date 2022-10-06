@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Currently app images aren't unloaded when dex files are unloaded.
-exec ${RUN} $@ --no-secondary-app-image
+
+def run(ctx, args):
+  # Currently app images aren't unloaded when dex files are unloaded.
+  ctx.default_run(args, secondary_app_image=False)

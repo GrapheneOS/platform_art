@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Make sure we call 'sync'
-# before executing dalvikvm because otherwise
-# it's highly likely the pushed JAR files haven't
-# been committed to permanent storage yet,
-# and when we mmap them the kernel will think
-# the memory is dirty (despite being file-backed).
-# (Note: this was reproducible 100% of the time on
-# a target angler device).
-./default-run "$@" --sync
+
+def run(ctx, args):
+  # Make sure we call 'sync'
+  # before executing dalvikvm because otherwise
+  # it's highly likely the pushed JAR files haven't
+  # been committed to permanent storage yet,
+  # and when we mmap them the kernel will think
+  # the memory is dirty (despite being file-backed).
+  # (Note: this was reproducible 100% of the time on
+  # a target angler device).
+  ctx.default_run(args, sync=True)

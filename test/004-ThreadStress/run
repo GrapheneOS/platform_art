@@ -14,15 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Enable lock contention logging.
-${RUN} "${@}" --runtime-option -Xlockprofthreshold:10
-return_status1=$?
+import sys
 
-# Run locks-only mode with stack-dump lock profiling. Reduce the number of total operations from
-# the default 1000 to 100.
-${RUN} "${@}" --runtime-option -Xlockprofthreshold:10 \
-  --runtime-option -Xstackdumplockprofthreshold:20 -- Main --locks-only -o 100
-return_status2=$?
 
-# Make sure we don't silently ignore an early failure.
-(exit $return_status1) && (exit $return_status2)
+def run(ctx, args):
+  # Enable lock contention logging.
+  ctx.default_run(args, runtime_option=["-Xlockprofthreshold:10"])
+
+  # Run locks-only mode with stack-dump lock profiling. Reduce the number of total operations from
+  # the default 1000 to 100.
+  ctx.default_run(
+      args,
+      test_args=["--locks-only -o 100"],
+      runtime_option=[
+          "-Xlockprofthreshold:10", "-Xstackdumplockprofthreshold:20"
+      ])

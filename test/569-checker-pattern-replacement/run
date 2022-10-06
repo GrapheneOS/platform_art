@@ -14,5 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-exec ${RUN} "$@" \
-    -Xcompiler-option --no-inline-from="core-oj,569-checker-pattern-replacement.jar!classes2.dex"
+
+def run(ctx, args):
+  ctx.default_run(
+      args,
+      Xcompiler_option=[
+          "--no-inline-from=core-oj,569-checker-pattern-replacement.jar!classes2.dex"
+      ])

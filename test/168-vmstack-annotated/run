@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use a smaller heap so it's easier to potentially fill up.
-exec ${RUN} $@ --runtime-option -Xmx2m
+
+def run(ctx, args):
+  # Use a smaller heap so it's easier to potentially fill up.
+  ctx.default_run(args, runtime_option=["-Xmx2m"])
