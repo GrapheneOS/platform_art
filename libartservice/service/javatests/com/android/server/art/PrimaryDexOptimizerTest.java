@@ -81,6 +81,9 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
     private final int mDefaultDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
             | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
+    private final int mBetterOrSameDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
+            | DexoptTrigger.COMPILER_FILTER_IS_SAME
+            | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE;
     private final int mForceDexoptTrigger = DexoptTrigger.COMPILER_FILTER_IS_BETTER
             | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE
             | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE;
@@ -236,6 +239,72 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
         verifyProfileNotUsed(mRefProfile);
         verifyProfileNotUsed(mDmProfile);
+    }
+
+    @Test
+    public void testDexoptMergesProfiles() throws Exception {
+        when(mPkgState.getUserStateOrDefault(0 /* userId */)).thenReturn(mPkgUserStateInstalled);
+        when(mPkgState.getUserStateOrDefault(2 /* userId */)).thenReturn(mPkgUserStateInstalled);
+
+        when(mArtd.mergeProfiles(any(), any(), any(), any())).thenReturn(true);
+
+        makeProfileUsable(mRefProfile);
+        when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+
+        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+
+        InOrder inOrder = inOrder(mArtd);
+
+        inOrder.verify(mArtd).mergeProfiles(
+                deepEq(List.of(
+                        AidlUtils.buildProfilePathForCur(0 /* userId */, PKG_NAME, "primary"),
+                        AidlUtils.buildProfilePathForCur(2 /* userId */, PKG_NAME, "primary"))),
+                deepEq(mRefProfile), deepEq(mPrivateOutputProfile), eq(mDexPath));
+
+        // It should use `mBetterOrSameDexoptTrigger` and the merged profile for both ISAs.
+        inOrder.verify(mArtd).getDexoptNeeded(eq(mDexPath), eq("arm64"), any(), eq("speed-profile"),
+                eq(mBetterOrSameDexoptTrigger));
+        checkDexoptWithPrivateProfile(inOrder.verify(mArtd), mDexPath, "arm64",
+                ProfilePath.tmpRefProfilePath(mPrivateOutputProfile.profilePath));
+
+        inOrder.verify(mArtd).getDexoptNeeded(eq(mDexPath), eq("arm"), any(), eq("speed-profile"),
+                eq(mBetterOrSameDexoptTrigger));
+        checkDexoptWithPrivateProfile(inOrder.verify(mArtd), mDexPath, "arm",
+                ProfilePath.tmpRefProfilePath(mPrivateOutputProfile.profilePath));
+
+        inOrder.verify(mArtd).commitTmpProfile(deepEq(mPrivateOutputProfile.profilePath));
+
+        inOrder.verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForCur(0 /* userId */, PKG_NAME, "primary")));
+        inOrder.verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForCur(2 /* userId */, PKG_NAME, "primary")));
+    }
+
+    @Test
+    public void testDexoptMergesProfilesMergeFailed() throws Exception {
+        when(mPkgState.getUserStateOrDefault(0 /* userId */)).thenReturn(mPkgUserStateInstalled);
+        when(mPkgState.getUserStateOrDefault(2 /* userId */)).thenReturn(mPkgUserStateInstalled);
+
+        when(mArtd.mergeProfiles(any(), any(), any(), any())).thenReturn(false);
+
+        makeProfileUsable(mRefProfile);
+        when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+
+        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+
+        // It should still use "speed-profile", but with the existing reference profile only.
+        verify(mArtd).getDexoptNeeded(
+                eq(mDexPath), eq("arm64"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
+        checkDexoptWithPublicProfile(verify(mArtd), mDexPath, "arm64", mRefProfile);
+
+        verify(mArtd).getDexoptNeeded(
+                eq(mDexPath), eq("arm"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
+        checkDexoptWithPublicProfile(verify(mArtd), mDexPath, "arm", mRefProfile);
+
+        verify(mArtd, never()).deleteProfile(any());
+        verify(mArtd, never()).commitTmpProfile(any());
     }
 
     @Test

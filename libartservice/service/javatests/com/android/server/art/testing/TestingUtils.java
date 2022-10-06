@@ -26,6 +26,7 @@ import com.google.common.truth.Correspondence;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.List;
 
 public final class TestingUtils {
     private static final String TAG = "TestingUtils";
@@ -35,7 +36,7 @@ public final class TestingUtils {
     /**
      * Recursively compares two objects using reflection. Returns true if the two objects are equal.
      * For simplicity, this method only supports types that every field is a primitive type, a
-     * string, or a supported type.
+     * string, a {@link List}, or a supported type.
      */
     public static boolean deepEquals(
             @Nullable Object a, @Nullable Object b, @NonNull StringBuilder errorMsg) {
@@ -47,6 +48,9 @@ public final class TestingUtils {
                 errorMsg.append(String.format("Nullability mismatch: %s != %s",
                         a == null ? "null" : "nonnull", b == null ? "null" : "nonnull"));
                 return false;
+            }
+            if (a instanceof List && b instanceof List) {
+                return listDeepEquals((List<?>) a, (List<?>) b, errorMsg);
             }
             if (a.getClass() != b.getClass()) {
                 errorMsg.append(
@@ -117,4 +121,19 @@ public final class TestingUtils {
                     return errorMsg.toString();
                 });
     }
+
+    private static boolean listDeepEquals(
+            @NonNull List<?> a, @NonNull List<?> b, @NonNull StringBuilder errorMsg) {
+        if (a.size() != b.size()) {
+            errorMsg.append(String.format("List length mismatch: %d != %d", a.size(), b.size()));
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (!deepEquals(a.get(i), b.get(i), errorMsg)) {
+                errorMsg.insert(0, String.format("Element %d mismatch: ", i));
+                return false;
+            }
+        }
+        return true;
+    };
 }

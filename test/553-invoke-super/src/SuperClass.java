@@ -15,12 +15,7 @@
  */
 
 public class SuperClass {
-  boolean doThrow = false;
-
   public int $noinline$returnInt() {
-    if (doThrow) {
-      throw new Error();
-    }
     return 42;
   }
 }

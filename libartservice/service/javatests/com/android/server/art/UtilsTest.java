@@ -72,4 +72,14 @@ public class UtilsTest {
         assertThat(Utils.implies(true, false)).isFalse();
         assertThat(Utils.implies(true, true)).isTrue();
     }
+
+    @Test
+    public void testCheck() {
+        Utils.check(true);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testCheckFailed() throws Exception {
+        Utils.check(false);
+    }
 }

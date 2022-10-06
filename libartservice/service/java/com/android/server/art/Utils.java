@@ -107,6 +107,13 @@ public final class Utils {
         return cond1 ? cond2 : true;
     }
 
+    public static void check(boolean cond) {
+        // This cannot be replaced with `assert` because `assert` is not enabled in Android.
+        if (!cond) {
+            throw new IllegalStateException("Check failed");
+        }
+    }
+
     @AutoValue
     public abstract static class Abi {
         static @NonNull Abi create(

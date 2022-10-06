@@ -18,6 +18,7 @@ package com.android.server.art;
 
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContext;
+import static com.android.server.art.ProfilePath.CurProfilePath;
 import static com.android.server.art.ProfilePath.PrebuiltProfilePath;
 import static com.android.server.art.ProfilePath.RefProfilePath;
 import static com.android.server.art.ProfilePath.TmpRefProfilePath;
@@ -106,6 +107,16 @@ public final class AidlUtils {
     @NonNull
     public static ProfilePath buildProfilePathForDm(@NonNull String dexPath) {
         return ProfilePath.dexMetadataPath(buildDexMetadataPath(dexPath));
+    }
+
+    @NonNull
+    public static ProfilePath buildProfilePathForCur(
+            int userId, @NonNull String packageName, @NonNull String profileName) {
+        var curProfilePath = new CurProfilePath();
+        curProfilePath.userId = userId;
+        curProfilePath.packageName = packageName;
+        curProfilePath.profileName = profileName;
+        return ProfilePath.curProfilePath(curProfilePath);
     }
 
     @NonNull
