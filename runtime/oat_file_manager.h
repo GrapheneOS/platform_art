@@ -134,6 +134,9 @@ class OatFileManager {
   // If allocated, delete a thread pool of background verification threads.
   void DeleteThreadPool();
 
+  // Wait for any ongoing background verification tasks to finish.
+  void WaitForBackgroundVerificationTasksToFinish();
+
   // Wait for all background verification tasks to finish. This is only used by tests.
   void WaitForBackgroundVerificationTasks();
 
