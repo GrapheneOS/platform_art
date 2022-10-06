@@ -22,7 +22,7 @@
 #include "base/casts.h"
 #include "class_linker.h"
 #include "jit/jit.h"
-#include "linear_alloc.h"
+#include "linear_alloc-inl.h"
 #include "nativehelper/ScopedUtfChars.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
@@ -79,8 +79,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_reuseArenaOfMethod(JNIEnv*,
   // a reused one that covers the art_method pointer.
   std::unique_ptr<LinearAlloc> alloc(Runtime::Current()->CreateLinearAlloc());
   do {
-    // Ask for a byte - it's sufficient to get an arena.
-    alloc->Alloc(Thread::Current(), 1);
+    // Ask for a word - it's sufficient to get an arena.
+    alloc->Alloc(Thread::Current(), sizeof(void*), LinearAllocKind::kNoGCRoots);
   } while (!alloc->Contains(ptr));
 }
 
