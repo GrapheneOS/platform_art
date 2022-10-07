@@ -29,11 +29,11 @@ else:
   tmp_dir=f"{TMPDIR}/{test_dir}"
 checker=f"{progdir}/../tools/checker/checker.py"
 
-def run(cmdline: str, check=True) -> subprocess.CompletedProcess:
+def run(cmdline: str, check=True, capture_output=True) -> subprocess.CompletedProcess:
   proc = subprocess.run([cmdline],
                         shell=True,
                         encoding="utf8",
-                        capture_output=True)
+                        capture_output=capture_output)
   if (check and proc.returncode != 0) or (quiet == "no"):
     print("$ " + cmdline)
     print(proc.stdout or "", file=sys.stdout, end='', flush=True)
@@ -842,8 +842,13 @@ good="no"
 good_run="yes"
 export("TEST_RUNTIME", runtime)
 if dev_mode == "yes":
+    gdb_mode = "--gdb" in run_args
+    gdbserver_mode = "--gdbserver" in run_args
+    capture_output = not (gdb_mode or gdbserver_mode)
+    if gdb_mode:
+        export("TERM", os.environ.get("TERM"))
     verbose(f"{test_dir}: running...")
-    run_exit=run(f"./{run_cmd} {joined_run_args} {joined_args}", check=False).returncode
+    run_exit=run(f"./{run_cmd} {joined_run_args} {joined_args}", check=False, capture_output=capture_output).returncode
 
     if run_exit == 0:
         if run_checker == "yes":
