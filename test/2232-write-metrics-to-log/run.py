@@ -26,5 +26,5 @@ def run(ctx, args):
 
   # Check that one of the metrics appears in stderr.
   ctx.run(
-      fr"sed -i -n 's/.*\(ClassVerificationTotalTime\).*/\1/p' '{args.stderr_file}'"
+      fr"sed -i -n 's/.*\(ClassVerificationTotalTimeDelta\).*/\1/p' '{args.stderr_file}'"
   )
