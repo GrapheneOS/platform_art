@@ -56,12 +56,9 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        DeviceContext ctx = new DeviceContext(
-                testInfo.getContext(), testInfo.getDevice(), testInfo.getBuildInfo());
+        DeviceContext ctx = new DeviceContext(testInfo);
 
         // A soft reboot is slow, so do setup for all tests and reboot once.
-
-        ctx.mDevice.remountSystemWritable();
 
         File libContainerApk = ctx.mBuildHelper.getTestFile("library_container_app.apk");
         try (ZipFile libApk = new ZipFile(libContainerApk)) {
@@ -102,15 +99,13 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
         // For testDataApp. Install this the normal way after the system server restart.
         ctx.installPackage("loadlibrarytest_data_app");
-        ctx.assertCommandSucceeds("setenforce 0");
 
         testInfo.properties().put(CLEANUP_PATHS_KEY, ctx.mCleanup.getPathList());
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo) throws Exception {
-        DeviceContext ctx = new DeviceContext(
-                testInfo.getContext(), testInfo.getDevice(), testInfo.getBuildInfo());
+        DeviceContext ctx = new DeviceContext(testInfo);
 
         // Uninstall loadlibrarytest_data_app.
         ctx.mDevice.uninstallPackage("android.test.app.data");
@@ -205,10 +200,10 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
         CleanupPaths mCleanup;
         private String mTestArch;
 
-        DeviceContext(IInvocationContext context, ITestDevice device, IBuildInfo buildInfo) {
-            mContext = context;
-            mDevice = device;
-            mBuildHelper = new CompatibilityBuildHelper(buildInfo);
+        DeviceContext(TestInformation testInfo) {
+            mContext = testInfo.getContext();
+            mDevice = testInfo.getDevice();
+            mBuildHelper = new CompatibilityBuildHelper(testInfo.getBuildInfo());
             mCleanup = new CleanupPaths(mDevice);
         }
 

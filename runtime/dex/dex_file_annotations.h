@@ -91,6 +91,11 @@ uint32_t GetNativeMethodAnnotationAccessFlags(const DexFile& dex_file,
 bool MethodIsNeverCompile(const DexFile& dex_file,
                           const dex::ClassDef& class_def,
                           uint32_t method_index);
+// Is the method from the `dex_file` with the given `field_index`
+// annotated with @dalvik.annotation.optimization.NeverInline?
+bool MethodIsNeverInline(const DexFile& dex_file,
+                         const dex::ClassDef& class_def,
+                         uint32_t method_index);
 // Is the field from the `dex_file` with the given `field_index`
 // annotated with @dalvik.annotation.optimization.ReachabilitySensitive?
 bool FieldIsReachabilitySensitive(const DexFile& dex_file,
