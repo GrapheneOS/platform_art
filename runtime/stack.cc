@@ -140,6 +140,29 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
   }
 }
 
+std::vector<uint32_t> StackVisitor::ComputeDexPcList(uint32_t handler_dex_pc) const {
+  std::vector<uint32_t> result;
+  if (cur_shadow_frame_ == nullptr && cur_quick_frame_ != nullptr && IsInInlinedFrame()) {
+    const BitTableRange<InlineInfo>& infos = current_inline_frames_;
+    DCHECK_NE(infos.size(), 0u);
+
+    // Outermost dex_pc.
+    result.push_back(GetCurrentStackMap()->GetDexPc());
+
+    // The mid dex_pcs. Note that we skip the last one since we want to change that for
+    // `handler_dex_pc`.
+    for (size_t index = 0; index < infos.size() - 1; ++index) {
+      result.push_back(infos[index].GetDexPc());
+    }
+  }
+
+  // The innermost dex_pc has to be the handler dex_pc. In the case of no inline frames, it will be
+  // just the one dex_pc. In the case of inlining we will be replacing the innermost InlineInfo's
+  // dex_pc with this one.
+  result.push_back(handler_dex_pc);
+  return result;
+}
+
 extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -213,7 +236,8 @@ bool StackVisitor::GetVReg(ArtMethod* m,
                            uint16_t vreg,
                            VRegKind kind,
                            uint32_t* val,
-                           std::optional<DexRegisterLocation> location) const {
+                           std::optional<DexRegisterLocation> location,
+                           bool need_full_register_list) const {
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
@@ -235,10 +259,10 @@ bool StackVisitor::GetVReg(ArtMethod* m,
         // which does not decode the stack maps.
         result = GetVRegFromOptimizedCode(location.value(), val);
         // Compare to the slower overload.
-        DCHECK_EQ(result, GetVRegFromOptimizedCode(m, vreg, kind, &val2));
+        DCHECK_EQ(result, GetVRegFromOptimizedCode(m, vreg, kind, &val2, need_full_register_list));
         DCHECK_EQ(*val, val2);
       } else {
-        result = GetVRegFromOptimizedCode(m, vreg, kind, val);
+        result = GetVRegFromOptimizedCode(m, vreg, kind, val, need_full_register_list);
       }
     }
     if (kind == kReferenceVReg) {
@@ -261,16 +285,20 @@ bool StackVisitor::GetVReg(ArtMethod* m,
   }
 }
 
+size_t StackVisitor::GetNumberOfRegisters(CodeInfo* code_info, int depth) const {
+  return depth == 0
+    ? code_info->GetNumberOfDexRegisters()
+    : current_inline_frames_[depth - 1].GetNumberOfDexRegisters();
+}
+
 bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m,
                                             uint16_t vreg,
                                             VRegKind kind,
-                                            uint32_t* val) const {
+                                            uint32_t* val,
+                                            bool need_full_register_list) const {
   DCHECK_EQ(m, GetMethod());
   // Can't be null or how would we compile its instructions?
   DCHECK(m->GetCodeItem() != nullptr) << m->PrettyMethod();
-  CodeItemDataAccessor accessor(m->DexInstructionData());
-  uint16_t number_of_dex_registers = accessor.RegistersSize();
-  DCHECK_LT(vreg, number_of_dex_registers);
   const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
   CodeInfo code_info(method_header);
 
@@ -278,13 +306,18 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m,
   StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
   DCHECK(stack_map.IsValid());
 
-  DexRegisterMap dex_register_map = IsInInlinedFrame()
-      ? code_info.GetInlineDexRegisterMapOf(stack_map, current_inline_frames_.back())
-      : code_info.GetDexRegisterMapOf(stack_map);
+  DexRegisterMap dex_register_map = (IsInInlinedFrame() && !need_full_register_list)
+    ? code_info.GetInlineDexRegisterMapOf(stack_map, current_inline_frames_.back())
+    : code_info.GetDexRegisterMapOf(stack_map,
+                                    /* first= */ 0,
+                                    GetNumberOfRegisters(&code_info, InlineDepth()));
+
   if (dex_register_map.empty()) {
     return false;
   }
-  DCHECK_EQ(dex_register_map.size(), number_of_dex_registers);
+
+  const size_t number_of_dex_registers = dex_register_map.size();
+  DCHECK_LT(vreg, number_of_dex_registers);
   DexRegisterLocation::Kind location_kind = dex_register_map[vreg].GetKind();
   switch (location_kind) {
     case DexRegisterLocation::Kind::kInStack: {
