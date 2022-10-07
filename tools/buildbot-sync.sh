@@ -111,26 +111,6 @@ activate_apex com.android.tzdata
 activate_apex com.android.conscrypt
 activate_apex com.android.os.statsd
 
-# Replace the crash dump binary with the one on the device. This is because
-# the tombstoned server running is the one on the device.
-crash_dump_locations=(
-  # Location for Q+ devices.
-  "/apex/com.android.runtime/bin"
-  # Location on devices prior to Q.
-  "/system/bin/"
-)
-
-for b in 32 64; do
-  for crash_dump_location in ${crash_dump_locations[@]}; do
-    crash_dump_path="$crash_dump_location/crash_dump$b"
-    if adb shell test -x "$crash_dump_path"; then
-      msginfo "Copying $crash_dump_path from device to chroot"
-      adb shell cp "$crash_dump_path" "$ART_TEST_CHROOT/$crash_dump_path"
-      break
-    fi
-  done
-done
-
 # Generate primary boot images on device for testing.
 for b in {32,64}; do
   basename="generate-boot-image$b"
