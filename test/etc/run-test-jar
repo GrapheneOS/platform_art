@@ -82,9 +82,9 @@ local_path=os.path.dirname(__file__)
 # the stdout will be used for a log, it will not append the color characters.
 bold_red=""
 if sys.stdout.isatty():
-  if int(run("tput colors", save_cmd=False).stdout) >= 1:
-    bold_red=run("tput bold", save_cmd=False).stdout.strip()
-    bold_red+=run("tput setaf 1", save_cmd=False).stdout.strip()
+  if int(subprocess.run(["tput", "colors"], capture_output=True).stdout) >= 1:
+    bold_red = subprocess.run(["tput", "bold"], text=True, capture_output=True).stdout.strip()
+    bold_red += subprocess.run(["tput", "setaf", "1"], text=True, capture_output=True).stdout.strip()
 
 def error_msg(msg: str):
   print(f"{bold_red}ERROR: {msg}")
@@ -140,7 +140,7 @@ argp.add_argument("--dry-run", action='store_true')
 argp.add_argument("--experimental", default=[], action='append')
 argp.add_argument("--external-log-tags", action='store_true')
 argp.add_argument("--gc-stress", action='store_true')
-argp.add_argument("--gdb")
+argp.add_argument("--gdb", action='store_true')
 argp.add_argument("--gdb-arg", default=[], action='append')
 argp.add_argument("--gdb-dex2oat", action='store_true')
 argp.add_argument("--gdb-dex2oat-args", default=[], action='append')
@@ -662,6 +662,10 @@ elif USE_GDBSERVER:
     GDB=f"{GDBSERVER_DEVICE} --no-startup-with-shell 127.0.0.1{GDBSERVER_PORT}"
   else:
     GDB=f"{GDBSERVER_HOST} {GDBSERVER_PORT}"
+
+    if shutil.which(GDBSERVER_HOST) is None:
+      error_msg(f"{GDBSERVER_HOST} is not available")
+      sys.exit(1)
 
 if INTERPRETER:
     INT_OPTS+=" -Xint"
@@ -1262,11 +1266,12 @@ else:
 
     if USE_GDB:
       # When running under gdb, we cannot do piping and grepping...
-      subprocess.run(cmdline + test_args, env, shell=True)
+      env["TERM"] = os.environ.get("TERM", "")
+      subprocess.run(cmdline + test_args, env=env, shell=True)
     elif USE_GDBSERVER:
-      print("Connect to {GDBSERVER_PORT}")
+      print(f"Connect to {GDBSERVER_PORT}")
       # When running under gdb, we cannot do piping and grepping...
-      subprocess.run(cmdline + test_args, env, shell=True)
+      subprocess.run(cmdline + test_args, env=env, shell=True)
     else:
       if TIME_OUT != "gdb":
         proc = run(cmdline + test_args, env, check=False, quiet=False)
