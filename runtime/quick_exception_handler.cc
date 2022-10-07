@@ -15,11 +15,14 @@
  */
 
 #include "quick_exception_handler.h"
+
 #include <ios>
 #include <queue>
+#include <sstream>
 
 #include "arch/context.h"
 #include "art_method-inl.h"
+#include "base/array_ref.h"
 #include "base/enums.h"
 #include "base/globals.h"
 #include "base/logging.h"  // For VLOG_IS_ON.
@@ -56,7 +59,6 @@ QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimizatio
       handler_quick_frame_pc_(0),
       handler_method_header_(nullptr),
       handler_quick_arg0_(0),
-      handler_dex_pc_(0),
       clear_exception_(false),
       handler_frame_depth_(kInvalidFrameDepth),
       full_fragment_done_(false) {}
@@ -133,10 +135,12 @@ class CatchBlockStackVisitor final : public StackVisitor {
       uint32_t found_dex_pc = method->FindCatchBlock(to_find, dex_pc, &clear_exception);
       exception_handler_->SetClearException(clear_exception);
       if (found_dex_pc != dex::kDexNoIndex) {
-        exception_handler_->SetHandlerDexPc(found_dex_pc);
+        exception_handler_->SetHandlerDexPcList(ComputeDexPcList(found_dex_pc));
+        uint32_t stack_map_row = -1;
         exception_handler_->SetHandlerQuickFramePc(
-            GetCurrentOatQuickMethodHeader()->ToNativeQuickPc(
-                method, found_dex_pc, /* is_for_catch_handler= */ true));
+            GetCurrentOatQuickMethodHeader()->ToNativeQuickPcForCatchHandlers(
+                method, exception_handler_->GetHandlerDexPcList(), &stack_map_row));
+        exception_handler_->SetCatchStackMapRow(stack_map_row);
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
         exception_handler_->SetHandlerMethodHeader(GetCurrentOatQuickMethodHeader());
         return false;  // End stack walk.
@@ -215,10 +219,24 @@ void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception,
       }
       if (GetHandlerMethod() != nullptr) {
         const DexFile* dex_file = GetHandlerMethod()->GetDexFile();
-        int line_number =
-            annotations::GetLineNumFromPC(dex_file, GetHandlerMethod(), handler_dex_pc_);
+        DCHECK_GE(handler_dex_pc_list_.size(), 1u);
+        int line_number = annotations::GetLineNumFromPC(
+            dex_file, GetHandlerMethod(), handler_dex_pc_list_.front());
+
+        // We may have an inlined method. If so, we can add some extra logging.
+        std::stringstream ss;
+        ArtMethod* maybe_inlined_method = visitor.GetMethod();
+        if (maybe_inlined_method != GetHandlerMethod()) {
+          const DexFile* inlined_dex_file = maybe_inlined_method->GetDexFile();
+          DCHECK_GE(handler_dex_pc_list_.size(), 2u);
+          int inlined_line_number = annotations::GetLineNumFromPC(
+              inlined_dex_file, maybe_inlined_method, handler_dex_pc_list_.back());
+          ss << " which ends up calling inlined method " << maybe_inlined_method->PrettyMethod()
+             << " (line: " << inlined_line_number << ")";
+        }
+
         LOG(INFO) << "Handler: " << GetHandlerMethod()->PrettyMethod() << " (line: "
-                  << line_number << ")";
+                  << line_number << ")" << ss.str();
       }
     }
     // Exception was cleared as part of delivery.
@@ -283,15 +301,18 @@ void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor*
     self_->DumpStack(LOG_STREAM(INFO) << "Setting catch phis: ");
   }
 
-  CodeItemDataAccessor accessor(GetHandlerMethod()->DexInstructionData());
-  const size_t number_of_vregs = accessor.RegistersSize();
   CodeInfo code_info(handler_method_header_);
 
   // Find stack map of the catch block.
-  StackMap catch_stack_map = code_info.GetCatchStackMapForDexPc(GetHandlerDexPc());
+  ArrayRef<const uint32_t> dex_pc_list = GetHandlerDexPcList();
+  DCHECK_GE(dex_pc_list.size(), 1u);
+  StackMap catch_stack_map = code_info.GetStackMapAt(GetCatchStackMapRow());
   DCHECK(catch_stack_map.IsValid());
-  DexRegisterMap catch_vreg_map = code_info.GetDexRegisterMapOf(catch_stack_map);
-  DCHECK_EQ(catch_vreg_map.size(), number_of_vregs);
+  DCHECK_EQ(catch_stack_map.Row(), code_info.GetCatchStackMapForDexPc(dex_pc_list).Row());
+  const uint32_t catch_depth = dex_pc_list.size() - 1;
+  const size_t number_of_registers = stack_visitor->GetNumberOfRegisters(&code_info, catch_depth);
+  DexRegisterMap catch_vreg_map =
+      code_info.GetDexRegisterMapOf(catch_stack_map, /* first= */ 0, number_of_registers);
 
   if (!catch_vreg_map.HasAnyLiveDexRegisters()) {
     return;
@@ -301,26 +322,47 @@ void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor*
   StackMap throw_stack_map =
       code_info.GetStackMapForNativePcOffset(stack_visitor->GetNativePcOffset());
   DCHECK(throw_stack_map.IsValid());
-  DexRegisterMap throw_vreg_map = code_info.GetDexRegisterMapOf(throw_stack_map);
-  DCHECK_EQ(throw_vreg_map.size(), number_of_vregs);
+  const uint32_t throw_depth = stack_visitor->InlineDepth();
+  DCHECK_EQ(throw_depth, catch_depth);
+  DexRegisterMap throw_vreg_map =
+      code_info.GetDexRegisterMapOf(throw_stack_map, /* first= */ 0, number_of_registers);
+  DCHECK_EQ(throw_vreg_map.size(), catch_vreg_map.size());
 
-  // Copy values between them.
-  for (uint16_t vreg = 0; vreg < number_of_vregs; ++vreg) {
-    DexRegisterLocation::Kind catch_location = catch_vreg_map[vreg].GetKind();
-    if (catch_location == DexRegisterLocation::Kind::kNone) {
+  // First vreg that it is part of the catch's environment.
+  const size_t catch_vreg_start = catch_depth == 0
+    ? 0
+    : stack_visitor->GetNumberOfRegisters(&code_info, catch_depth - 1);
+
+  // We don't need to copy anything in the parent's environment.
+  for (size_t vreg = 0; vreg < catch_vreg_start; ++vreg) {
+    DexRegisterLocation::Kind catch_location_kind = catch_vreg_map[vreg].GetKind();
+    DCHECK(catch_location_kind == DexRegisterLocation::Kind::kNone ||
+           catch_location_kind == DexRegisterLocation::Kind::kConstant ||
+           catch_location_kind == DexRegisterLocation::Kind::kInStack)
+        << "Unexpected catch_location_kind: " << catch_location_kind;
+  }
+
+  // Copy values between the throw and the catch.
+  for (size_t vreg = catch_vreg_start; vreg < catch_vreg_map.size(); ++vreg) {
+    DexRegisterLocation::Kind catch_location_kind = catch_vreg_map[vreg].GetKind();
+    if (catch_location_kind == DexRegisterLocation::Kind::kNone) {
       continue;
     }
-    DCHECK(catch_location == DexRegisterLocation::Kind::kInStack);
 
-    // Get vreg value from its current location.
+    // Consistency checks.
+    DCHECK_EQ(catch_location_kind, DexRegisterLocation::Kind::kInStack);
     uint32_t vreg_value;
     VRegKind vreg_kind = ToVRegKind(throw_vreg_map[vreg].GetKind());
-    bool get_vreg_success =
-        stack_visitor->GetVReg(stack_visitor->GetMethod(),
-                               vreg,
-                               vreg_kind,
-                               &vreg_value,
-                               throw_vreg_map[vreg]);
+    DCHECK_NE(vreg_kind, kReferenceVReg)
+        << "The fast path in GetVReg doesn't expect a kReferenceVReg.";
+
+    // Get vreg value from its current location.
+    bool get_vreg_success = stack_visitor->GetVReg(stack_visitor->GetMethod(),
+                                                   vreg,
+                                                   vreg_kind,
+                                                   &vreg_value,
+                                                   throw_vreg_map[vreg],
+                                                   /* need_full_register_list= */ true);
     CHECK(get_vreg_success) << "VReg " << vreg << " was optimized out ("
                             << "method=" << ArtMethod::PrettyMethod(stack_visitor->GetMethod())
                             << ", dex_pc=" << stack_visitor->GetDexPc() << ", "
@@ -701,8 +743,10 @@ void QuickExceptionHandler::DoLongJump(bool smash_caller_saves) {
   if (!is_deoptimization_ &&
       handler_method_header_ != nullptr &&
       handler_method_header_->IsNterpMethodHeader()) {
+    // Interpreter procceses one method at a time i.e. not inlining
+    DCHECK_EQ(handler_dex_pc_list_.size(), 1u) << "We shouldn't have any inlined frames.";
     context_->SetNterpDexPC(reinterpret_cast<uintptr_t>(
-        GetHandlerMethod()->DexInstructions().Insns() + handler_dex_pc_));
+        GetHandlerMethod()->DexInstructions().Insns() + handler_dex_pc_list_.front()));
   }
   context_->DoLongJump();
   UNREACHABLE();
