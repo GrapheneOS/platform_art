@@ -62,11 +62,6 @@ class CompiledCode {
   // Mainly to cope with `kThumb2` where the lower bit must be set.
   size_t GetEntryPointAdjustment() const;
 
-  // Returns a pointer suitable for invoking the code at the argument
-  // code_pointer address.  Mainly to cope with kThumb2 where the
-  // lower bit must be set to indicate Thumb mode.
-  static const void* CodePointer(const void* code_pointer, InstructionSet instruction_set);
-
  protected:
   static constexpr size_t kInstructionSetFieldSize =
       MinimumBitsToStore(static_cast<size_t>(InstructionSet::kLast));

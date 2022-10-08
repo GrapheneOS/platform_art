@@ -25,6 +25,7 @@
 #include "base/casts.h"
 #include "class_linker-inl.h"
 #include "common_compiler_driver_test.h"
+#include "compiled_method-inl.h"
 #include "compiler_callbacks.h"
 #include "dex/dex_file.h"
 #include "dex/dex_file_types.h"
@@ -80,14 +81,19 @@ class CompilerDriverTest : public CommonCompilerDriverTest {
   void MakeExecutable(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(method != nullptr);
 
-    const CompiledMethod* compiled_method = nullptr;
+    const void* method_code = nullptr;
     if (!method->IsAbstract()) {
-      const DexFile& dex_file = *method->GetDexFile();
-      compiled_method =
-          compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
-                                                              method->GetDexMethodIndex()));
+      MethodReference method_ref(method->GetDexFile(), method->GetDexMethodIndex());
+      const CompiledMethod* compiled_method = compiler_driver_->GetCompiledMethod(method_ref);
+      // If the code size is 0 it means the method was skipped due to profile guided compilation.
+      if (compiled_method != nullptr && compiled_method->GetQuickCode().size() != 0u) {
+        method_code = CommonCompilerTest::MakeExecutable(compiled_method->GetQuickCode(),
+                                                         compiled_method->GetVmapTable(),
+                                                         compiled_method->GetInstructionSet());
+        LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
+      }
     }
-    CommonCompilerTest::MakeExecutable(method, compiled_method);
+    runtime_->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ method_code);
   }
 
   void MakeDexFileExecutable(jobject class_loader, const DexFile& dex_file) {
