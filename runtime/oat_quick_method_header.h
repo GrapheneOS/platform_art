@@ -161,10 +161,16 @@ class PACKED(4) OatQuickMethodHeader {
     return frame_size - core_spill_size - fpu_spill_size - kShouldDeoptimizeFlagSize;
   }
 
+  // For non-catch handlers. Only used in test code.
   uintptr_t ToNativeQuickPc(ArtMethod* method,
                             const uint32_t dex_pc,
-                            bool is_for_catch_handler,
                             bool abort_on_failure = true) const;
+
+  // For catch handlers.
+  uintptr_t ToNativeQuickPcForCatchHandlers(ArtMethod* method,
+                                            ArrayRef<const uint32_t> dex_pc_list,
+                                            /* out */ uint32_t* stack_map_row,
+                                            bool abort_on_failure = true) const;
 
   uint32_t ToDexPc(ArtMethod** frame,
                    const uintptr_t pc,

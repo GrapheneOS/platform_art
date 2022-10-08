@@ -65,7 +65,9 @@ struct ElfTypes64 {
 
 #define EI_ABIVERSION 8
 #define EM_ARM 40
+#if !defined(STV_DEFAULT)
 #define STV_DEFAULT 0
+#endif
 
 #define EM_AARCH64 183
 
