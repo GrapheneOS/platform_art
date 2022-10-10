@@ -189,7 +189,7 @@ public class IndyTransformer {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         try (InputStream is = Files.newInputStream(inputClassPath)) {
             ClassReader cr = new ClassReader(is);
-            cr.accept(new BootstrapBuilder(Opcodes.ASM7, cw, callsiteMap), 0);
+            cr.accept(new BootstrapBuilder(Opcodes.ASM9, cw, callsiteMap), 0);
         }
         try (OutputStream os = Files.newOutputStream(outputClassPath)) {
             os.write(cw.toByteArray());
