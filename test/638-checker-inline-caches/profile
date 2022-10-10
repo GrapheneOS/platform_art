@@ -4,3 +4,4 @@ HSLMain;->inlinePolymophicCrossDexSubASubC(LSuper;)I+LSubA;,LSubC;
 HSLMain;->inlineMegamorphic(LSuper;)I+LSubA;,LSubB;,LSubC;,LSubD;,LSubE;
 HSLMain;->inlineMissingTypes(LSuper;)I+missing_types
 HSLMain;->noInlineCache(LSuper;)I
+HSLMain;->noInlineSomeSubclassesThrow(LSuper;)V+LSubA;
