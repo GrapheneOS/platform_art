@@ -16,18 +16,22 @@
 
 class SubA extends Super {
   int getValue() { return 42; }
+  void someSubclassesThrow() throws Error { throw new Error("I always throw"); }
 }
 
 class SubB extends Super {
   int getValue() { return 38; }
+  void someSubclassesThrow() { System.out.println("I don't throw"); }
 }
 
 class SubD extends Super {
   int getValue() { return 10; }
+  void someSubclassesThrow() { System.out.println("I don't throw"); }
 }
 
 class SubE extends Super {
   int getValue() { return -4; }
+  void someSubclassesThrow() { System.out.println("I don't throw"); }
 }
 
 public class Main {
@@ -134,6 +138,20 @@ public class Main {
     return a.getValue();
   }
 
+  // We shouldn't inline `someSubclassesThrow` since we are trying a monomorphic inline and it
+  // always throws for SubA. However, we shouldn't mark it as `always_throws` since we speculatively
+  // tried to inline and other subclasses (e.g. SubB) can call noInlineSomeSubclassesThrow and they
+  // don't throw.
+
+  /// CHECK-START: void Main.noInlineSomeSubclassesThrow(Super) inliner (before)
+  /// CHECK:       InvokeVirtual method_name:Super.someSubclassesThrow always_throws:false
+
+  /// CHECK-START: void Main.noInlineSomeSubclassesThrow(Super) inliner (after)
+  /// CHECK:       InvokeVirtual method_name:Super.someSubclassesThrow always_throws:false
+  public static void noInlineSomeSubclassesThrow(Super a) throws Error {
+    a.someSubclassesThrow();
+  }
+
   public static void testInlineMonomorphic() {
     if (inlineMonomorphicSubA(new SubA()) != 42) {
       throw new Error("Expected 42");
@@ -186,11 +204,20 @@ public class Main {
     }
   }
 
-  public static void main(String[] args) {
+  private static void $noinline$testsomeSubclassesThrow() throws Exception {
+    try {
+      noInlineSomeSubclassesThrow(new SubA());
+      throw new Exception("Unreachable");
+    } catch (Error expected) {
+    }
+    noInlineSomeSubclassesThrow(new SubB());
+  }
+
+  public static void main(String[] args) throws Exception {
     testInlineMonomorphic();
     testInlinePolymorhic();
     testInlineMegamorphic();
     testNoInlineCache();
+    $noinline$testsomeSubclassesThrow();
   }
-
 }
