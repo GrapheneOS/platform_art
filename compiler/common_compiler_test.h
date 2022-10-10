@@ -90,6 +90,8 @@ class CommonCompilerTestImpl {
 
  private:
   class CodeAndMetadata;
+  class OneCompiledMethodStorage;
+
   std::vector<CodeAndMetadata> code_and_metadata_;
 };
 
