@@ -147,10 +147,10 @@ TEST_F(DexCacheMethodHandlesTest, TestResolvedMethodTypes) {
   // methods. It must therefore contain precisely two method IDs.
   ASSERT_EQ(2u, dex_file.NumProtoIds());
   ASSERT_EQ(dex_file.NumProtoIds(), dex_cache->NumResolvedMethodTypes());
-  MethodTypeDexCacheType* method_types_cache = dex_cache->GetResolvedMethodTypes();
+  auto* method_types_cache = dex_cache->GetResolvedMethodTypes();
 
   for (size_t i = 0; i < dex_file.NumProtoIds(); ++i) {
-    const MethodTypeDexCachePair pair = method_types_cache[i].load(std::memory_order_relaxed);
+    const DexCachePair<MethodType> pair = method_types_cache->GetPair(i);
     if (dex::ProtoIndex(pair.index) == method1_id.proto_idx_) {
       ASSERT_EQ(method1_type.Get(), pair.object.Read());
     } else if (dex::ProtoIndex(pair.index) == method2_id.proto_idx_) {
