@@ -158,7 +158,7 @@ class CommonCompilerTestImpl::OneCompiledMethodStorage final : public CompiledCo
 
   void SetThunkCode(const linker::LinkerPatch& patch ATTRIBUTE_UNUSED,
                     ArrayRef<const uint8_t> code ATTRIBUTE_UNUSED,
-                    const std::string& debug_name ATTRIBUTE_UNUSED) override{
+                    const std::string& debug_name ATTRIBUTE_UNUSED) override {
     LOG(FATAL) << "Unsupported.";
     UNREACHABLE();
   }
