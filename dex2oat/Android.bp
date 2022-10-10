@@ -30,6 +30,8 @@ art_cc_defaults {
     srcs: [
         "dex/quick_compiler_callbacks.cc",
         "dex/verification_results.cc",
+        "driver/compiled_method.cc",
+        "driver/compiled_method_storage.cc",
         "driver/compiler_driver.cc",
         "linker/code_info_table_deduper.cc",
         "linker/elf_writer.cc",
@@ -38,6 +40,7 @@ art_cc_defaults {
         "linker/multi_oat_relative_patcher.cc",
         "linker/oat_writer.cc",
         "linker/relative_patcher.cc",
+        "utils/swap_space.cc",
     ],
 
     codegen: {
@@ -510,6 +513,7 @@ art_cc_defaults {
         "dex2oat_test.cc",
         "dex2oat_vdex_test.cc",
         "dex2oat_image_test.cc",
+        "driver/compiled_method_storage_test.cc",
         "driver/compiler_driver_test.cc",
         "linker/code_info_table_deduper_test.cc",
         "linker/elf_writer_test.cc",
@@ -519,6 +523,7 @@ art_cc_defaults {
         "linker/multi_oat_relative_patcher_test.cc",
         "linker/oat_writer_test.cc",
         "verifier_deps_test.cc",
+        "utils/swap_space_test.cc",
     ],
     target: {
         host: {

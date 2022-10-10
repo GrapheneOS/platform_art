@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_COMPILED_METHOD_INL_H_
-#define ART_COMPILER_COMPILED_METHOD_INL_H_
+#ifndef ART_DEX2OAT_DRIVER_COMPILED_METHOD_INL_H_
+#define ART_DEX2OAT_DRIVER_COMPILED_METHOD_INL_H_
 
 #include "compiled_method.h"
 
@@ -52,4 +52,4 @@ inline ArrayRef<const linker::LinkerPatch> CompiledMethod::GetPatches() const {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_COMPILED_METHOD_INL_H_
+#endif  // ART_DEX2OAT_DRIVER_COMPILED_METHOD_INL_H_
