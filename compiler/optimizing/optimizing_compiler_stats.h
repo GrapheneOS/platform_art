@@ -94,6 +94,7 @@ enum class MethodCompilationStat {
   kNotInlinedInfiniteLoop,
   kNotInlinedTryCatchCaller,
   kNotInlinedTryCatchCallee,
+  kNotInlinedTryCatchDisabled,
   kNotInlinedRegisterAllocator,
   kNotInlinedCannotBuild,
   kNotInlinedNeverInlineAnnotation,

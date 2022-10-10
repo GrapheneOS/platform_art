@@ -96,7 +96,50 @@ bool HGraphBuilder::SkipCompilation(size_t number_of_branches) {
   return false;
 }
 
-GraphAnalysisResult HGraphBuilder::BuildGraph() {
+static bool NeedsExtraGotoBlock(HBasicBlock* block) {
+  if (!block->IsSingleTryBoundary()) {
+    return false;
+  }
+
+  const HTryBoundary* boundary = block->GetLastInstruction()->AsTryBoundary();
+  DCHECK(boundary->GetNormalFlowSuccessor()->IsExitBlock());
+  DCHECK(!boundary->IsEntry());
+
+  const HInstruction* last_instruction = block->GetSinglePredecessor()->GetLastInstruction();
+  DCHECK(last_instruction->IsReturn() ||
+         last_instruction->IsReturnVoid() ||
+         last_instruction->IsThrow());
+
+  return !last_instruction->IsThrow();
+}
+
+void HGraphBuilder::MaybeAddExtraGotoBlocks() {
+  if (graph_->GetExitBlock() == nullptr) return;
+
+  bool added_block = false;
+  for (size_t pred = 0, size = graph_->GetExitBlock()->GetPredecessors().size(); pred < size;
+       ++pred) {
+    HBasicBlock* predecessor = graph_->GetExitBlock()->GetPredecessors()[pred];
+    if (NeedsExtraGotoBlock(predecessor)) {
+      added_block = true;
+      graph_->SplitEdge(predecessor, graph_->GetExitBlock())
+          ->AddInstruction(new (graph_->GetAllocator()) HGoto(predecessor->GetDexPc()));
+    }
+  }
+
+  // TODO(solanes): Avoid recomputing the full dominator tree by manually updating the relevant
+  // information (loop information, dominance, try catch information).
+  if (added_block) {
+    DCHECK(!graph_->HasIrreducibleLoops())
+        << "Recomputing loop information in graphs with irreducible loops "
+        << "is unsupported, as it could lead to loop header changes";
+    graph_->ClearLoopInformation();
+    graph_->ClearDominanceInformation();
+    graph_->BuildDominatorTree();
+  }
+}
+
+GraphAnalysisResult HGraphBuilder::BuildGraph(bool build_for_inline) {
   DCHECK(code_item_accessor_.HasCodeItem());
   DCHECK(graph_->GetBlocks().empty());
 
@@ -147,7 +190,13 @@ GraphAnalysisResult HGraphBuilder::BuildGraph() {
     return kAnalysisInvalidBytecode;
   }
 
-  // 5) Type the graph and eliminate dead/redundant phis.
+  // 5) When inlining, we want to add a Goto block if we have Return/ReturnVoid->TryBoundary->Exit
+  // since we will have Return/ReturnVoid->TryBoundary->`continue to normal execution` once inlined.
+  if (build_for_inline) {
+    MaybeAddExtraGotoBlocks();
+  }
+
+  // 6) Type the graph and eliminate dead/redundant phis.
   return ssa_builder.BuildSsa();
 }
 

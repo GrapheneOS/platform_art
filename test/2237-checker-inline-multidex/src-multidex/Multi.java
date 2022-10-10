@@ -38,4 +38,12 @@ public class Multi {
   }
 
   private class Multi2 {}
+
+  public static int $inline$TryCatch(String str) {
+    try {
+      return Integer.parseInt(str);
+    } catch (NumberFormatException ex) {
+      return -1;
+    }
+  }
 }
