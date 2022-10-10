@@ -1,1 +1,1 @@
-Checks that we inline across dex files, even when we need an environment.
+Checks that we inline across dex files.

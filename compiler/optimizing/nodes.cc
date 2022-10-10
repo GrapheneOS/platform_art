@@ -2703,7 +2703,8 @@ void HGraph::DeleteDeadEmptyBlock(HBasicBlock* block) {
 
 void HGraph::UpdateLoopAndTryInformationOfNewBlock(HBasicBlock* block,
                                                    HBasicBlock* reference,
-                                                   bool replace_if_back_edge) {
+                                                   bool replace_if_back_edge,
+                                                   bool has_more_specific_try_catch_info) {
   if (block->IsLoopHeader()) {
     // Clear the information of which blocks are contained in that loop. Since the
     // information is stored as a bit vector based on block ids, we have to update
@@ -2730,11 +2731,16 @@ void HGraph::UpdateLoopAndTryInformationOfNewBlock(HBasicBlock* block,
     }
   }
 
-  // Copy TryCatchInformation if `reference` is a try block, not if it is a catch block.
-  TryCatchInformation* try_catch_info = reference->IsTryBlock()
-      ? reference->GetTryCatchInformation()
-      : nullptr;
-  block->SetTryCatchInformation(try_catch_info);
+  DCHECK_IMPLIES(has_more_specific_try_catch_info, reference->GetTryCatchInformation() == nullptr)
+      << "We don't allow to inline try catches inside of other try catches.";
+
+  // Update the TryCatchInformation, if we are not inlining a try catch.
+  if (!has_more_specific_try_catch_info) {
+    // Copy TryCatchInformation if `reference` is a try block, not if it is a catch block.
+    TryCatchInformation* try_catch_info =
+        reference->IsTryBlock() ? reference->GetTryCatchInformation() : nullptr;
+    block->SetTryCatchInformation(try_catch_info);
+  }
 }
 
 HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
@@ -2847,12 +2853,14 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     // and (4) to the blocks that apply.
     for (HBasicBlock* current : GetReversePostOrder()) {
       if (current != exit_block_ && current != entry_block_ && current != first) {
-        DCHECK(current->GetTryCatchInformation() == nullptr);
         DCHECK(current->GetGraph() == this);
         current->SetGraph(outer_graph);
         outer_graph->AddBlock(current);
         outer_graph->reverse_post_order_[++index_of_at] = current;
-        UpdateLoopAndTryInformationOfNewBlock(current, at,  /* replace_if_back_edge= */ false);
+        UpdateLoopAndTryInformationOfNewBlock(current,
+                                              at,
+                                              /* replace_if_back_edge= */ false,
+                                              current->GetTryCatchInformation() != nullptr);
       }
     }
 
@@ -2866,16 +2874,47 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
     // Update all predecessors of the exit block (now the `to` block)
     // to not `HReturn` but `HGoto` instead. Special case throwing blocks
-    // to now get the outer graph exit block as successor. Note that the inliner
-    // currently doesn't support inlining methods with try/catch.
+    // to now get the outer graph exit block as successor.
     HPhi* return_value_phi = nullptr;
     bool rerun_dominance = false;
     bool rerun_loop_analysis = false;
     for (size_t pred = 0; pred < to->GetPredecessors().size(); ++pred) {
       HBasicBlock* predecessor = to->GetPredecessors()[pred];
       HInstruction* last = predecessor->GetLastInstruction();
+
+      // At this point we might either have:
+      // A) Return/ReturnVoid/Throw as the last instruction
+      // B) `Return/ReturnVoid->TryBoundary->Goto` as the last instruction chain
+      // C) `Throw->TryBoundary` as the last instruction chain
+
+      const bool saw_goto = last->IsGoto();
+      if (saw_goto) {
+        DCHECK(predecessor->IsSingleGoto());
+        predecessor = predecessor->GetSinglePredecessor();
+        last = predecessor->GetLastInstruction();
+      }
+
+      const bool saw_try_boundary = last->IsTryBoundary();
+      if (saw_try_boundary) {
+        DCHECK(predecessor->IsSingleTryBoundary());
+        DCHECK(!last->AsTryBoundary()->IsEntry());
+        predecessor = predecessor->GetSinglePredecessor();
+        last = predecessor->GetLastInstruction();
+      }
+
+      // Check that if we have an instruction chain, it is one of the allowed ones.
+      DCHECK_IMPLIES(saw_goto, saw_try_boundary);
+      DCHECK_IMPLIES(saw_goto, last->IsReturnVoid() || last->IsReturn());
+
       if (last->IsThrow()) {
         DCHECK(!at->IsTryBlock());
+        // The chain `Throw->TryBoundary` is allowed but not `Throw->TryBoundary->Goto` since that
+        // would mean a Goto will point to exit after ReplaceSuccessor.
+        DCHECK(!saw_goto);
+
+        // We either have `Throw->TryBoundary` or `Throw`. We want to point the whole chain to the
+        // exit, so we recompute `predecessor`
+        predecessor = to->GetPredecessors()[pred];
         predecessor->ReplaceSuccessor(to, outer_graph->GetExitBlock());
         --pred;
         // We need to re-run dominance information, as the exit block now has
