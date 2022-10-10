@@ -71,7 +71,7 @@ public class TestGenerator {
     ClassReader cr = new ClassReader(initClass);
     ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
     cr.accept(
-        new ClassVisitor(Opcodes.ASM7, cw) {
+        new ClassVisitor(Opcodes.ASM9, cw) {
           @Override
           public void visitEnd() {
             generateStringAccessorMethod(
@@ -143,7 +143,7 @@ public class TestGenerator {
     ClassReader cr = new ClassReader(inputClass);
     ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
     cr.accept(
-        new ClassVisitor(Opcodes.ASM7, cw) {
+        new ClassVisitor(Opcodes.ASM9, cw) {
           @Override
           public void visitEnd() {
             generateRunTest(cw, toCall);
