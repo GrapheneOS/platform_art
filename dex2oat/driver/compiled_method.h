@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_COMPILED_METHOD_H_
-#define ART_COMPILER_COMPILED_METHOD_H_
+#ifndef ART_DEX2OAT_DRIVER_COMPILED_METHOD_H_
+#define ART_DEX2OAT_DRIVER_COMPILED_METHOD_H_
 
 #include <memory>
 #include <string>
@@ -158,4 +158,4 @@ class CompiledMethod final : public CompiledCode {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_COMPILED_METHOD_H_
+#endif  // ART_DEX2OAT_DRIVER_COMPILED_METHOD_H_

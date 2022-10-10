@@ -17,15 +17,12 @@
 ART_COMPILER {
   global:
     extern "C++" {
+      art::debug::MakeMiniDebugInfo*;
       *art::debug::WriteDebugInfo*;
-      art::CompiledCode::*;
-      art::CompiledMethod::*;
-      art::CompiledMethodStorage::*;
       art::Compiler::Create*;
       art::CompilerOptions::*;
       art::CreateTrampoline*;
       art::IntrinsicObjects::*;
-      art::debug::MakeMiniDebugInfo*;
       art::linker::operator*art::linker::LinkerPatch::Type*;
       art::operator*art::Whence*;
     };
