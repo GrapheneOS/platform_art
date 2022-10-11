@@ -142,6 +142,14 @@ class MANAGED String final : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   template <bool kIsInstrumented = true>
+  ALWAYS_INLINE static ObjPtr<String> AllocFromUtf16ByteArray(Thread* self,
+                                                         int32_t char_count,
+                                                         Handle<ByteArray> array,
+                                                         int32_t offset,
+                                                         gc::AllocatorType allocator_type)
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+
+  template <bool kIsInstrumented = true>
   ALWAYS_INLINE static ObjPtr<String> AllocFromCharArray(Thread* self,
                                                          int32_t count,
                                                          Handle<CharArray> array,
@@ -207,6 +215,12 @@ class MANAGED String final : public Object {
       REQUIRES(!Roles::uninterruptible_);
 
   void GetChars(int32_t start, int32_t end, Handle<CharArray> array, int32_t index)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void FillBytesLatin1(Handle<ByteArray> array, int32_t index)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void FillBytesUTF16(Handle<ByteArray> array, int32_t index)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>

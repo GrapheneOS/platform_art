@@ -151,6 +151,7 @@
 \
   V(NewEmptyString, void, void) \
   V(NewStringFromBytes_B, void, void) \
+  V(NewStringFromBytes_BB, void, void) \
   V(NewStringFromBytes_BI, void, void) \
   V(NewStringFromBytes_BII, void, void) \
   V(NewStringFromBytes_BIII, void, void) \
@@ -165,6 +166,7 @@
   V(NewStringFromString, void, void) \
   V(NewStringFromStringBuffer, void, void) \
   V(NewStringFromStringBuilder, void, void) \
+  V(NewStringFromUtf16Bytes_BII, void, void) \
 \
   V(StringBuilderAppend, void*, uint32_t) \
 \

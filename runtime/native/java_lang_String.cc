@@ -88,6 +88,22 @@ static void String_getCharsNoCheck(JNIEnv* env, jobject java_this, jint start, j
   soa.Decode<mirror::String>(java_this)->GetChars(start, end, char_array, index);
 }
 
+static void String_fillBytesLatin1(JNIEnv* env, jobject java_this,
+                                   jbyteArray buffer, jint byteIndex) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ByteArray> byte_array(hs.NewHandle(soa.Decode<mirror::ByteArray>(buffer)));
+  soa.Decode<mirror::String>(java_this)->FillBytesLatin1(byte_array, byteIndex);
+}
+
+static void String_fillBytesUTF16(JNIEnv* env, jobject java_this,
+                                   jbyteArray buffer, jint byteIndex) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ByteArray> byte_array(hs.NewHandle(soa.Decode<mirror::ByteArray>(buffer)));
+  soa.Decode<mirror::String>(java_this)->FillBytesUTF16(byte_array, byteIndex);
+}
+
 static jstring String_intern(JNIEnv* env, jobject java_this) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::String> result = soa.Decode<mirror::String>(java_this)->Intern();
@@ -125,6 +141,8 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(String, doReplace, "(CC)Ljava/lang/String;"),
   FAST_NATIVE_METHOD(String, fastSubstring, "(II)Ljava/lang/String;"),
   FAST_NATIVE_METHOD(String, getCharsNoCheck, "(II[CI)V"),
+  FAST_NATIVE_METHOD(String, fillBytesLatin1, "([BI)V"),
+  FAST_NATIVE_METHOD(String, fillBytesUTF16, "([BI)V"),
   FAST_NATIVE_METHOD(String, intern, "()Ljava/lang/String;"),
   FAST_NATIVE_METHOD(String, toCharArray, "()[C"),
 };
