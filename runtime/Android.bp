@@ -37,6 +37,12 @@ JIT_DEBUG_REGISTER_CODE_LDFLAGS = [
 libart_cc_defaults {
     name: "libart_nativeunwind_defaults",
     target: {
+        host: {
+            cflags: [
+                "-fsanitize-address-use-after-return=never",
+                "-Wno-unused-command-line-argument",
+            ],
+        },
         android_arm: {
             // Arm 32 bit does not produce complete exidx unwind information
             // so keep the .debug_frame which is relatively small and does
@@ -441,6 +447,10 @@ libart_cc_defaults {
                 "runtime_linux.cc",
                 "thread_linux.cc",
             ],
+            cflags: [
+                "-fsanitize-address-use-after-return=never",
+                "-Wno-unused-command-line-argument",
+            ],
             shared_libs: [
                 "libz", // For adler32.
             ],
@@ -513,6 +523,12 @@ libart_static_cc_defaults {
         "libz",
     ],
     target: {
+        host: {
+            cflags: [
+                "-fsanitize-address-use-after-return=never",
+                "-Wno-unused-command-line-argument",
+            ],
+        },
         bionic: {
             whole_static_libs: [
                 "libasync_safe", // libunwindstack dependency on Bionic.
@@ -675,6 +691,14 @@ art_cc_library {
 
 art_cc_defaults {
     name: "libart-runtime-gtest-defaults",
+    target: {
+        host: {
+            cflags: [
+                "-fsanitize-address-use-after-return=never",
+                "-Wno-unused-command-line-argument",
+            ],
+        },
+    },
     tidy_timeout_srcs: [
         "common_runtime_test.cc",
     ],
@@ -720,6 +744,14 @@ art_cc_library {
 
 art_cc_defaults {
     name: "art_runtime_tests_defaults",
+    target: {
+        host: {
+            cflags: [
+                "-fsanitize-address-use-after-return=never",
+                "-Wno-unused-command-line-argument",
+            ],
+        },
+    },
     data: [
         ":art-gtest-jars-AllFields",
         ":art-gtest-jars-ErroneousA",
