@@ -319,31 +319,29 @@ static jobject DexFile_openDexFileNative(JNIEnv* env,
     return nullptr;
   }
 
-#ifdef __ANDROID__
-  const int uid = getuid();
-  // The following UIDs are exempted:
-  // * Root (0): root processes always have write access to files.
-  // * System (1000): /data/app/**.apk are owned by AID_SYSTEM;
-  //   loading installed APKs in system_server is allowed.
-  // * Shell (2000): directly calling dalvikvm/app_process in ADB shell
-  //   to run JARs with CLI is allowed.
-  if (uid != 0 && uid != 1000 && uid != 2000) {
-    Runtime* const runtime = Runtime::Current();
-    CompatFramework& compatFramework = runtime->GetCompatFramework();
-    if (compatFramework.IsChangeEnabled(kEnforceReadOnlyJavaDcl)) {
-      if (access(sourceName.c_str(), W_OK) == 0) {
-        LOG(ERROR) << "Attempt to load writable dex file: " << sourceName.c_str();
-        ScopedLocalRef<jclass> se(env, env->FindClass("java/lang/SecurityException"));
-        std::string message(
-            StringPrintf("Writable dex file '%s' is not allowed.", sourceName.c_str()));
-        env->ThrowNew(se.get(), message.c_str());
-        return nullptr;
+  if (kIsTargetAndroid) {
+    const int uid = getuid();
+    // The following UIDs are exempted:
+    // * Root (0): root processes always have write access to files.
+    // * System (1000): /data/app/**.apk are owned by AID_SYSTEM;
+    //   loading installed APKs in system_server is allowed.
+    // * Shell (2000): directly calling dalvikvm/app_process in ADB shell
+    //   to run JARs with CLI is allowed.
+    if (uid != 0 && uid != 1000 && uid != 2000) {
+      Runtime* const runtime = Runtime::Current();
+      CompatFramework& compatFramework = runtime->GetCompatFramework();
+      if (compatFramework.IsChangeEnabled(kEnforceReadOnlyJavaDcl)) {
+        if (access(sourceName.c_str(), W_OK) == 0) {
+          LOG(ERROR) << "Attempt to load writable dex file: " << sourceName.c_str();
+          ScopedLocalRef<jclass> se(env, env->FindClass("java/lang/SecurityException"));
+          std::string message(
+              StringPrintf("Writable dex file '%s' is not allowed.", sourceName.c_str()));
+          env->ThrowNew(se.get(), message.c_str());
+          return nullptr;
+        }
       }
     }
   }
-#else
-  (void) kEnforceReadOnlyJavaDcl;
-#endif
 
   std::vector<std::string> error_msgs;
   const OatFile* oat_file = nullptr;
