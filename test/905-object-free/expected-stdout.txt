@@ -10,4 +10,4 @@
 ---
 []
 ---
-Free counts 200000 200000
+Free counts as expected
