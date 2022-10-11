@@ -67,6 +67,7 @@
   V(StringGetCharsNoCheck, "Ljava/lang/String;", "getCharsNoCheck", "(II[CI)V") \
   V(StringCharAt, "Ljava/lang/String;", "charAt", "(I)C") \
   V(StringDoReplace, "Ljava/lang/String;", "doReplace", "(CC)Ljava/lang/String;") \
+  V(StringFactoryNewStringFromBytes, "Ljava/lang/StringFactory;", "newStringFromBytes", "([BIII)Ljava/lang/String;") \
   V(StringFactoryNewStringFromChars, "Ljava/lang/StringFactory;", "newStringFromChars", "(II[C)Ljava/lang/String;") \
   V(StringFactoryNewStringFromString, "Ljava/lang/StringFactory;", "newStringFromString", "(Ljava/lang/String;)Ljava/lang/String;") \
   V(StringFastSubstring, "Ljava/lang/String;", "fastSubstring", "(II)Ljava/lang/String;") \
@@ -105,6 +106,8 @@
   V(ObjectInternalClone, "Ljava/lang/Object;", "internalClone", "()Ljava/lang/Object;") \
   V(ObjectNotifyAll, "Ljava/lang/Object;", "notifyAll", "()V") \
   V(StringCompareTo, "Ljava/lang/String;", "compareTo", "(Ljava/lang/String;)I") \
+  V(StringFillBytesLatin1, "Ljava/lang/String;", "fillBytesLatin1", "([BI)V") \
+  V(StringFillBytesUTF16, "Ljava/lang/String;", "fillBytesUTF16", "([BI)V") \
   V(StringIntern, "Ljava/lang/String;", "intern", "()Ljava/lang/String;") \
   V(ArrayCreateMultiArray, "Ljava/lang/reflect/Array;", "createMultiArray", "(Ljava/lang/Class;[I)Ljava/lang/Object;") \
   V(ArrayCreateObjectArray, "Ljava/lang/reflect/Array;", "createObjectArray", "(Ljava/lang/Class;I)Ljava/lang/Object;") \

@@ -301,7 +301,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
 
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pA64Store, pNewEmptyString, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewEmptyString, pNewStringFromBytes_B, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_B, pNewStringFromBytes_BI,
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_B, pNewStringFromBytes_BB,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BB, pNewStringFromBytes_BI,
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromBytes_BI, pNewStringFromBytes_BII,
                          sizeof(void*));
@@ -329,7 +331,9 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromStringBuffer, pNewStringFromStringBuilder,
                          sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromStringBuilder, pStringBuilderAppend,
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromStringBuilder, pNewStringFromUtf16Bytes_BII,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pNewStringFromUtf16Bytes_BII, pStringBuilderAppend,
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pStringBuilderAppend, pUpdateInlineCache,
                          sizeof(void*));

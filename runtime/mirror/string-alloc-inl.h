@@ -18,6 +18,7 @@
 
 #include "string-inl.h"
 
+#include "android-base/endian.h"
 #include "android-base/stringprintf.h"
 
 #include "array.h"
@@ -86,6 +87,41 @@ class SetStringCountAndBytesVisitor {
   Handle<ByteArray> src_array_;
   const int32_t offset_;
   const int32_t high_byte_;
+};
+
+// Sets string count and value in the allocation code path to ensure it is guarded by a CAS.
+class SetStringCountAndUtf16BytesVisitor {
+ public:
+  SetStringCountAndUtf16BytesVisitor(int32_t count, Handle<ByteArray> src_array, int32_t offset)
+      : count_(count), src_array_(src_array), offset_(offset) {
+  }
+
+  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    // Avoid AsString as object is not yet in live bitmap or allocation stack.
+    ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
+    string->SetCount(count_);
+    DCHECK_IMPLIES(string->IsCompressed(), kUseStringCompression);
+    uint32_t length = String::GetLengthFromCount(count_);
+    const uint8_t* const src = reinterpret_cast<uint8_t*>(src_array_->GetData()) + offset_;
+    if (UNLIKELY(string->IsCompressed())) {
+      uint8_t* valueCompressed = string->GetValueCompressed();
+      for (uint32_t i = 0; i < length; i++) {
+        valueCompressed[i] = (src[i << 1] & 0xFF);
+      }
+    } else {
+      uint16_t* value = string->GetValue();
+      for (uint32_t i = 0; i < length; i++) {
+        uint32_t index = (i << 1);
+        value[i] = (src[index] & 0xFF) + ((src[index + 1] & 0xFF) << 8);
+      }
+    }
+  }
+
+ private:
+  const int32_t count_;
+  Handle<ByteArray> src_array_;
+  const int32_t offset_;
 };
 
 // Sets string count and value in the allocation code path to ensure it is guarded by a CAS.
@@ -221,6 +257,30 @@ inline ObjPtr<String> String::AllocFromByteArray(Thread* self,
       (high_byte == 0 || byte_length == 0);
   const int32_t length_with_flag = String::GetFlaggedCount(byte_length, compressible);
   SetStringCountAndBytesVisitor visitor(length_with_flag, array, offset, high_byte << 8);
+  return Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
+}
+
+template <bool kIsInstrumented>
+inline ObjPtr<String> String::AllocFromUtf16ByteArray(Thread* self,
+                                                      int32_t char_count,
+                                                      Handle<ByteArray> array,
+                                                      int32_t offset,
+                                                      gc::AllocatorType allocator_type) {
+  static_assert(__BYTE_ORDER == __LITTLE_ENDIAN,
+      "Please update this function and java-side callers to support big endian.");
+  const uint8_t* const src = reinterpret_cast<uint8_t*>(array->GetData()) + offset;
+  bool compressible = kUseStringCompression;
+  if (compressible) {
+    uint32_t byte_count = (static_cast<uint32_t>(char_count) << 1);
+    for (uint32_t i = 0; i < byte_count; i += 2) {
+      if (!IsASCII((src[i] & 0xff) + ((src[i + 1] & 0xff) << 8))) {
+        compressible = false;
+        break;
+      }
+    }
+  }
+  const int32_t length_with_flag = String::GetFlaggedCount(char_count, compressible);
+  SetStringCountAndUtf16BytesVisitor visitor(length_with_flag, array, offset);
   return Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
 }
 
