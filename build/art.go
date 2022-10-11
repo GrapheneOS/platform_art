@@ -93,7 +93,7 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 	//       the debug version. So make the gap consistent (and adjust for the worst).
 	if len(ctx.Config().SanitizeDevice()) > 0 || len(ctx.Config().SanitizeHost()) > 0 {
 		cflags = append(cflags,
-			"-DART_STACK_OVERFLOW_GAP_arm=8192",
+			"-DART_STACK_OVERFLOW_GAP_arm=16384",
 			"-DART_STACK_OVERFLOW_GAP_arm64=16384",
 			"-DART_STACK_OVERFLOW_GAP_x86=16384",
 			"-DART_STACK_OVERFLOW_GAP_x86_64=20480")
@@ -153,7 +153,11 @@ func hostFlags(ctx android.LoadHookContext) []string {
 	if len(ctx.Config().SanitizeHost()) > 0 {
 		// art/test/137-cfi/cfi.cc
 		// error: stack frame size of 1944 bytes in function 'Java_Main_unwindInProcess'
-		hostFrameSizeLimit = 6400
+		// b/249586057, need larger stack frame for newer clang compilers
+		hostFrameSizeLimit = 10000
+		// cannot add "-fsanitize-address-use-after-return=never" everywhere,
+		// or some file like compiler_driver.o can have stack frame of 30072 bytes.
+		// cflags = append(cflags, "-fsanitize-address-use-after-return=never")
 	}
 	cflags = append(cflags,
 		fmt.Sprintf("-Wframe-larger-than=%d", hostFrameSizeLimit),
