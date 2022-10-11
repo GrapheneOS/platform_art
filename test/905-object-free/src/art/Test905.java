@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.function.BiConsumer;
 
 public class Test905 {
+  private static final boolean DALVIK_RUN = "Dalvik".equals(System.getProperty("java.vm.name"));
+
   // Taken from jdwp tests.
   public static class MarkerObj {
     public static int cnt = 0;
@@ -81,7 +83,13 @@ public class Test905 {
     run(l);
 
     enableFreeTracking(true);
-    stress();
+    if (DALVIK_RUN) {
+      stress(400000);
+    } else {
+      // For JVM the JVMTI tag handling is not running as expected for the stress test
+      // (b/252990223).
+      stress(10000);
+    }
   }
 
   private static void run(ArrayList<Object> l) {
@@ -111,6 +119,8 @@ public class Test905 {
     System.out.println("---");
   }
 
+  private static int errors = 0;
+
   private static void stressAllocate(int i, BiConsumer<Integer, Object> saver) {
     Object obj = new Object();
     Main.setTag(obj, i);
@@ -118,10 +128,10 @@ public class Test905 {
     saver.accept(i, obj);
   }
 
-  private static void stress() {
+  private static void stress(int allocations) {
     getCollectedTags(0);
     getCollectedTags(1);
-    final int num_obj = 400000;
+    final int num_obj = allocations;
     final Object[] saved = new Object[num_obj/2];
     // Allocate objects, Save every other one. We want to be sure that it's only the deleted objects
     // that get their tags cleared and non-deleted objects correctly keep track of their tags.
@@ -139,10 +149,15 @@ public class Test905 {
     Arrays.sort(freedTags1);
     Arrays.sort(freedTags2);
     // Make sure we freed all the ones we expect to and both envs agree on this.
-    System.out.println("Free counts " + freedTags1.length + " " + freedTags2.length);
+    if (freedTags1.length == num_obj / 2 && freedTags2.length == num_obj / 2) {
+      System.out.println("Free counts as expected");
+    } else {
+      System.out.println("Free counts " + freedTags1.length + " " + freedTags2.length);
+    }
     for (int i = 0; i < freedTags1.length; ++i) {
       if (freedTags1[i] + 1 != freedTags2[i]) {
         System.out.println("Mismatched tags " + (freedTags1[i] + 1) + " " + freedTags2[i]);
+        break;
       }
     }
     // Make sure the saved-tags aren't present.
