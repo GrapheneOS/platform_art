@@ -167,7 +167,7 @@ std::vector<const OatFile*> OatFileManager::RegisterImageOatFiles(
 
 bool OatFileManager::ShouldLoadAppImage(const OatFile* source_oat_file) const {
   Runtime* const runtime = Runtime::Current();
-  return kEnableAppImage && (!runtime->IsJavaDebuggable() || source_oat_file->IsDebuggable());
+  return kEnableAppImage && (!runtime->IsJavaDebuggableAtInit() || source_oat_file->IsDebuggable());
 }
 
 std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
@@ -834,6 +834,15 @@ void OatFileManager::WaitForWorkersToBeCreated() {
 
 void OatFileManager::DeleteThreadPool() {
   verification_thread_pool_.reset(nullptr);
+}
+
+void OatFileManager::WaitForBackgroundVerificationTasksToFinish() {
+  if (verification_thread_pool_ == nullptr) {
+    return;
+  }
+
+  Thread* const self = Thread::Current();
+  verification_thread_pool_->Wait(self, /* do_work= */ true, /* may_hold_locks= */ false);
 }
 
 void OatFileManager::WaitForBackgroundVerificationTasks() {
