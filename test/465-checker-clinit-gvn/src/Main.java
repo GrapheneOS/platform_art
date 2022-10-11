@@ -54,11 +54,11 @@ public final class Main {
 
   public static int accessTwoStaticsCallInBetween() {
     int b = OtherClass.b;
-    foo();
+    $noinline$foo();
     return b - OtherClass.a;
   }
 
-  public static void foo() {
+  public static void $noinline$foo() {
     try {
       Thread.sleep(0);
     } catch (Exception e) {
