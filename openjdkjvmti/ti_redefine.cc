@@ -554,6 +554,13 @@ Redefiner::ClassRedefinition::~ClassRedefinition() {
   if (driver_ != nullptr && lock_acquired_) {
     GetMirrorClass()->MonitorExit(driver_->self_);
   }
+  if (art::kIsDebugBuild) {
+    if (dex_file_ != nullptr) {
+      art::Thread* self = art::Thread::Current();
+      art::ClassLinker* cl = art::Runtime::Current()->GetClassLinker();
+      CHECK(!cl->IsDexFileRegistered(self, *dex_file_));
+    }
+  }
 }
 
 template<RedefinitionType kType>
@@ -1226,6 +1233,8 @@ class RedefinitionDataHolder {
     actually_structural_(redefinitions_->size(), false),
     initial_structural_(redefinitions_->size(), false) {}
 
+  ~RedefinitionDataHolder() REQUIRES_SHARED(art::Locks::mutator_lock_);
+
   bool IsNull() const REQUIRES_SHARED(art::Locks::mutator_lock_) {
     return arr_.IsNull();
   }
@@ -1621,6 +1630,24 @@ RedefinitionDataIter RedefinitionDataHolder::begin() {
 
 RedefinitionDataIter RedefinitionDataHolder::end() {
   return RedefinitionDataIter(Length(), *this);
+}
+
+RedefinitionDataHolder::~RedefinitionDataHolder() {
+  art::Thread* self = art::Thread::Current();
+  art::ClassLinker* cl = art::Runtime::Current()->GetClassLinker();
+  for (RedefinitionDataIter data = begin(); data != end(); ++data) {
+    art::ObjPtr<art::mirror::DexCache> dex_cache = data.GetNewDexCache();
+    // When redefinition fails, the dex file will be deleted in the
+    // `ClassRedefinition` destructor. To avoid having a heap `DexCache` pointing
+    // to a dangling pointer, we clear the entries of those dex caches that are
+    // not registered in the runtime.
+    if (dex_cache != nullptr &&
+        dex_cache->GetDexFile() != nullptr &&
+        !cl->IsDexFileRegistered(self, *dex_cache->GetDexFile())) {
+      dex_cache->ResetNativeArrays();
+      dex_cache->SetDexFile(nullptr);
+    }
+  }
 }
 
 bool Redefiner::ClassRedefinition::CheckVerification(const RedefinitionDataIter& iter) {
@@ -2231,6 +2258,11 @@ bool Redefiner::FinishAllRemainingCommonAllocations(RedefinitionDataHolder& hold
 }
 
 void Redefiner::ClassRedefinition::ReleaseDexFile() {
+  if (art::kIsDebugBuild) {
+    art::Thread* self = art::Thread::Current();
+    art::ClassLinker* cl = art::Runtime::Current()->GetClassLinker();
+    CHECK(cl->IsDexFileRegistered(self, *dex_file_));
+  }
   dex_file_.release();  // NOLINT b/117926937
 }
 
