@@ -33,10 +33,8 @@ art_cc_defaults {
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: [
-        "compiled_method.cc",
         "debug/elf_debug_writer.cc",
         "dex/inline_method_analyser.cc",
-        "driver/compiled_method_storage.cc",
         "driver/compiler_options.cc",
         "driver/dex_compilation_unit.cc",
         "jit/jit_compiler.cc",
@@ -96,7 +94,6 @@ art_cc_defaults {
         "trampolines/trampoline_compiler.cc",
         "utils/assembler.cc",
         "utils/jni_macro_assembler.cc",
-        "utils/swap_space.cc",
         "compiler.cc",
     ],
 
@@ -386,7 +383,6 @@ art_cc_defaults {
         "compiler_reflection_test.cc",
         "debug/dwarf/dwarf_test.cc",
         "debug/src_map_elem_test.cc",
-        "driver/compiled_method_storage_test.cc",
         "exception_test.cc",
         "jni/jni_compiler_test.cc",
         "linker/linker_patch_test.cc",
@@ -422,7 +418,6 @@ art_cc_defaults {
         "optimizing/suspend_check_test.cc",
         "utils/atomic_dex_ref_map_test.cc",
         "utils/dedupe_set_test.cc",
-        "utils/swap_space_test.cc",
 
         "jni/jni_cfi_test.cc",
         "optimizing/codegen_test.cc",

@@ -16,8 +16,8 @@
 
 #include "multi_oat_relative_patcher.h"
 
-#include "compiled_method.h"
 #include "debug/method_debug_info.h"
+#include "driver/compiled_method.h"
 #include "gtest/gtest.h"
 #include "linker/linker_patch.h"
 #include "stream/vector_output_stream.h"

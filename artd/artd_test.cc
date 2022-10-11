@@ -116,7 +116,7 @@ void CheckContent(const std::string& path, const std::string& expected_content) 
   EXPECT_EQ(actual_content, expected_content);
 }
 
-void WriteToFdFlagImpl(const std::vector<std::string> args,
+void WriteToFdFlagImpl(const std::vector<std::string>& args,
                        const std::string& flag,
                        const std::string& content,
                        bool assume_empty) {

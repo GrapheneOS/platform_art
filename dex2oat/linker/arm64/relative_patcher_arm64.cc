@@ -21,7 +21,7 @@
 #include "art_method.h"
 #include "base/bit_utils.h"
 #include "base/malloc_arena_pool.h"
-#include "compiled_method-inl.h"
+#include "driver/compiled_method-inl.h"
 #include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "heap_poisoning.h"
