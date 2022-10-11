@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_SWAP_SPACE_H_
-#define ART_COMPILER_UTILS_SWAP_SPACE_H_
+#ifndef ART_DEX2OAT_UTILS_SWAP_SPACE_H_
+#define ART_DEX2OAT_UTILS_SWAP_SPACE_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -239,4 +239,4 @@ using SwapSet = std::set<T, Comparator, SwapAllocator<T>>;
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_SWAP_SPACE_H_
+#endif  // ART_DEX2OAT_UTILS_SWAP_SPACE_H_

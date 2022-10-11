@@ -33,17 +33,6 @@ public class Main {
     return is_hex ? Integer.parseInt(str, 16) : Integer.parseInt(str);
   }
 
-  // We expect methods with try/catch to not be inlined. Inlined try/catch
-  // blocks are not supported at the moment.
-
-  private static int $noinline$TryCatch(String str) {
-    try {
-      return Integer.parseInt(str);
-    } catch (NumberFormatException ex) {
-      return -1;
-    }
-  }
-
   public static void testSingleBlockFromTry() {
     int val = 0;
 
@@ -117,49 +106,11 @@ public class Main {
     assertEquals(32, val);
   }
 
-  public static void testTryCatchFromTry() {
-    int val = 0;
-
-    try {
-      val = $noinline$TryCatch("42");
-    } catch (NumberFormatException ex) {
-      unreachable();
-    }
-    assertEquals(42, val);
-
-    try {
-      val = $noinline$TryCatch("xyz");
-    } catch (NumberFormatException ex) {
-      unreachable();
-    }
-    assertEquals(-1, val);
-  }
-
-  public static void testTryCatchFromCatch() {
-    int val = 0;
-
-    try {
-      throwException();
-    } catch (Exception ex) {
-      val = $noinline$TryCatch("42");
-    }
-    assertEquals(42, val);
-
-    try {
-      throwException();
-    } catch (Exception ex) {
-      val = $noinline$TryCatch("xyz");
-    }
-    assertEquals(-1, val);
-  }
-
   public static void main(String[] args) {
     testSingleBlockFromTry();
     testSingleBlockFromCatch();
     testMultipleBlocksFromTry();
     testMultipleBlocksFromCatch();
-    testTryCatchFromTry();
-    testTryCatchFromCatch();
   }
 
   private static void assertEquals(int expected, int actual) {

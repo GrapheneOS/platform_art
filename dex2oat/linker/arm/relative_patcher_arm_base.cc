@@ -17,9 +17,9 @@
 #include "linker/arm/relative_patcher_arm_base.h"
 
 #include "base/stl_util.h"
-#include "compiled_method-inl.h"
 #include "debug/method_debug_info.h"
 #include "dex/dex_file_types.h"
+#include "driver/compiled_method-inl.h"
 #include "linker/linker_patch.h"
 #include "oat.h"
 #include "oat_quick_method_header.h"

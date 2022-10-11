@@ -28,9 +28,8 @@
 #include "base/memfd.h"
 #include "base/utils.h"
 #include "class_linker.h"
-#include "compiled_method-inl.h"
 #include "dex/descriptors_names.h"
-#include "driver/compiled_method_storage.h"
+#include "driver/compiled_code_storage.h"
 #include "driver/compiler_options.h"
 #include "jni/java_vm_ext.h"
 #include "interpreter/interpreter.h"
@@ -126,6 +125,65 @@ class CommonCompilerTestImpl::CodeAndMetadata {
   DISALLOW_COPY_AND_ASSIGN(CodeAndMetadata);
 };
 
+class CommonCompilerTestImpl::OneCompiledMethodStorage final : public CompiledCodeStorage {
+ public:
+  OneCompiledMethodStorage() {}
+  ~OneCompiledMethodStorage() {}
+
+  CompiledMethod* CreateCompiledMethod(InstructionSet instruction_set,
+                                       ArrayRef<const uint8_t> code,
+                                       ArrayRef<const uint8_t> stack_map,
+                                       ArrayRef<const uint8_t> cfi ATTRIBUTE_UNUSED,
+                                       ArrayRef<const linker::LinkerPatch> patches,
+                                       bool is_intrinsic ATTRIBUTE_UNUSED) override {
+    // Supports only one method at a time.
+    CHECK_EQ(instruction_set_, InstructionSet::kNone);
+    CHECK_NE(instruction_set, InstructionSet::kNone);
+    instruction_set_ = instruction_set;
+    CHECK(code_.empty());
+    CHECK(!code.empty());
+    code_.assign(code.begin(), code.end());
+    CHECK(stack_map_.empty());
+    CHECK(!stack_map.empty());
+    stack_map_.assign(stack_map.begin(), stack_map.end());
+    CHECK(patches.empty()) << "Linker patches are unsupported for compiler gtests.";
+    return reinterpret_cast<CompiledMethod*>(this);
+  }
+
+  ArrayRef<const uint8_t> GetThunkCode(const linker::LinkerPatch& patch ATTRIBUTE_UNUSED,
+                                       /*out*/ std::string* debug_name  ATTRIBUTE_UNUSED) override {
+    LOG(FATAL) << "Unsupported.";
+    UNREACHABLE();
+  }
+
+  void SetThunkCode(const linker::LinkerPatch& patch ATTRIBUTE_UNUSED,
+                    ArrayRef<const uint8_t> code ATTRIBUTE_UNUSED,
+                    const std::string& debug_name ATTRIBUTE_UNUSED) override {
+    LOG(FATAL) << "Unsupported.";
+    UNREACHABLE();
+  }
+
+  InstructionSet GetInstructionSet() const {
+    CHECK_NE(instruction_set_, InstructionSet::kNone);
+    return instruction_set_;
+  }
+
+  ArrayRef<const uint8_t> GetCode() const {
+    CHECK(!code_.empty());
+    return ArrayRef<const uint8_t>(code_);
+  }
+
+  ArrayRef<const uint8_t> GetStackMap() const {
+    CHECK(!stack_map_.empty());
+    return ArrayRef<const uint8_t>(stack_map_);
+  }
+
+ private:
+  InstructionSet instruction_set_ = InstructionSet::kNone;
+  std::vector<uint8_t> code_;
+  std::vector<uint8_t> stack_map_;
+};
+
 std::unique_ptr<CompilerOptions> CommonCompilerTestImpl::CreateCompilerOptions(
     InstructionSet instruction_set, const std::string& variant) {
   std::unique_ptr<CompilerOptions> compiler_options = std::make_unique<CompilerOptions>();
@@ -212,7 +270,7 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
   CHECK(method != nullptr);
   TimingLogger timings("CommonCompilerTestImpl::CompileMethod", false, false);
   TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
-  CompiledMethodStorage storage(/*swap_fd=*/ -1);
+  OneCompiledMethodStorage storage;
   CompiledMethod* compiled_method = nullptr;
   {
     DCHECK(!Runtime::Current()->IsStarted());
@@ -240,17 +298,16 @@ void CommonCompilerTestImpl::CompileMethod(ArtMethod* method) {
                                           dex_cache);
     }
     CHECK(compiled_method != nullptr) << "Failed to compile " << method->PrettyMethod();
-    CHECK_NE(compiled_method->GetQuickCode().size(), 0u);
+    CHECK_EQ(reinterpret_cast<OneCompiledMethodStorage*>(compiled_method), &storage);
   }
   {
     TimingLogger::ScopedTiming t2("MakeExecutable", &timings);
-    const void* method_code = MakeExecutable(compiled_method->GetQuickCode(),
-                                             compiled_method->GetVmapTable(),
-                                             compiled_method->GetInstructionSet());
+    const void* method_code = MakeExecutable(storage.GetCode(),
+                                             storage.GetStackMap(),
+                                             storage.GetInstructionSet());
     LOG(INFO) << "MakeExecutable " << method->PrettyMethod() << " code=" << method_code;
     GetRuntime()->GetInstrumentation()->InitializeMethodsCode(method, /*aot_code=*/ method_code);
   }
-  CompiledMethod::ReleaseSwapAllocatedCompiledMethod(&storage, compiled_method);
 }
 
 void CommonCompilerTestImpl::ClearBootImageOption() {
