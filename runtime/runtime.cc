@@ -335,10 +335,16 @@ Runtime::~Runtime() {
     // In this case we will just try again without allocating a peer so that shutdown can continue.
     // Very few things are actually capable of distinguishing between the peer & peerless states so
     // this should be fine.
+    // Running callbacks is prone to deadlocks in libjdwp tests that need an event handler lock to
+    // process any event. We also need to enter a GCCriticalSection when processing certain events
+    // (for ex: removing the last breakpoint). These two restrictions together make the tear down
+    // of the jdwp tests deadlock prone if we fail to finish Thread::Attach callback.
+    // (TODO:b/251163712) Remove this once we update deopt manager to not use GCCriticalSection.
     bool thread_attached = AttachCurrentThread("Shutdown thread",
                                                /* as_daemon= */ false,
                                                GetSystemThreadGroup(),
-                                               /* create_peer= */ IsStarted());
+                                               /* create_peer= */ IsStarted(),
+                                               /* should_run_callbacks= */ false);
     if (UNLIKELY(!thread_attached)) {
       LOG(WARNING) << "Failed to attach shutdown thread. Trying again without a peer.";
       CHECK(AttachCurrentThread("Shutdown thread (no java peer)",
@@ -438,7 +444,7 @@ Runtime::~Runtime() {
   }
 
   if (attach_shutdown_thread) {
-    DetachCurrentThread();
+    DetachCurrentThread(/* should_run_callbacks= */ false);
     self = nullptr;
   }
 
@@ -1787,7 +1793,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // ClassLinker needs an attached thread, but we can't fully attach a thread without creating
   // objects. We can't supply a thread group yet; it will be fixed later. Since we are the main
   // thread, we do not get a java peer.
-  Thread* self = Thread::Attach("main", false, nullptr, false);
+  Thread* self = Thread::Attach("main", false, nullptr, false, /* should_run_callbacks= */ true);
   CHECK_EQ(self->GetThreadId(), ThreadList::kMainThreadId);
   CHECK(self != nullptr);
 
@@ -2385,9 +2391,13 @@ void Runtime::BlockSignals() {
 }
 
 bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
-                                  bool create_peer) {
+                                  bool create_peer, bool should_run_callbacks) {
   ScopedTrace trace(__FUNCTION__);
-  Thread* self = Thread::Attach(thread_name, as_daemon, thread_group, create_peer);
+  Thread* self = Thread::Attach(thread_name,
+                                as_daemon,
+                                thread_group,
+                                create_peer,
+                                should_run_callbacks);
   // Run ThreadGroup.add to notify the group that this thread is now started.
   if (self != nullptr && create_peer && !IsAotCompiler()) {
     ScopedObjectAccess soa(self);
@@ -2396,7 +2406,7 @@ bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobje
   return self != nullptr;
 }
 
-void Runtime::DetachCurrentThread() {
+void Runtime::DetachCurrentThread(bool should_run_callbacks) {
   ScopedTrace trace(__FUNCTION__);
   Thread* self = Thread::Current();
   if (self == nullptr) {
@@ -2405,7 +2415,7 @@ void Runtime::DetachCurrentThread() {
   if (self->HasManagedStack()) {
     LOG(FATAL) << *Thread::Current() << " attempting to detach while still running code";
   }
-  thread_list_->Unregister(self);
+  thread_list_->Unregister(self, should_run_callbacks);
 }
 
 mirror::Throwable* Runtime::GetPreAllocatedOutOfMemoryErrorWhenThrowingException() {

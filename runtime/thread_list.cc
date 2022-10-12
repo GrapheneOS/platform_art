@@ -1286,7 +1286,7 @@ void ThreadList::Register(Thread* self) {
   }
 }
 
-void ThreadList::Unregister(Thread* self) {
+void ThreadList::Unregister(Thread* self, bool should_run_callbacks) {
   DCHECK_EQ(self, Thread::Current());
   CHECK_NE(self->GetState(), ThreadState::kRunnable);
   Locks::mutator_lock_->AssertNotHeld(self);
@@ -1303,7 +1303,7 @@ void ThreadList::Unregister(Thread* self) {
   // causes the threads to join. It is important to do this after incrementing unregistering_count_
   // since we want the runtime to wait for the daemon threads to exit before deleting the thread
   // list.
-  self->Destroy();
+  self->Destroy(should_run_callbacks);
 
   // If tracing, remember thread id and name before thread exits.
   Trace::StoreExitingThreadInfo(self);
