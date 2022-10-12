@@ -17,11 +17,13 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_MARK_COMPACT_H_
 #define ART_RUNTIME_GC_COLLECTOR_MARK_COMPACT_H_
 
+#include <map>
 #include <memory>
 #include <unordered_set>
 
-#include "base/atomic.h"
 #include "barrier.h"
+#include "base/atomic.h"
+#include "base/gc_visited_arena_pool.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
@@ -36,7 +38,7 @@ namespace art {
 
 namespace mirror {
 class DexCache;
-}
+}  // namespace mirror
 
 namespace gc {
 
@@ -47,11 +49,16 @@ class BumpPointerSpace;
 }  // namespace space
 
 namespace collector {
-class MarkCompact : public GarbageCollector {
+class MarkCompact final : public GarbageCollector {
  public:
   static constexpr size_t kAlignment = kObjectAlignment;
-  // Fake file descriptor for fall back mode
-  static constexpr int kFallbackMode = -2;
+  static constexpr int kCopyMode = -1;
+  static constexpr int kMinorFaultMode = -2;
+  // Fake file descriptor for fall back mode (when uffd isn't available)
+  static constexpr int kFallbackMode = -3;
+
+  static constexpr int kFdSharedAnon = -1;
+  static constexpr int kFdUnused = -2;
 
   explicit MarkCompact(Heap* heap);
 
@@ -129,6 +136,23 @@ class MarkCompact : public GarbageCollector {
   // PrepareForCompaction() for zygote processes. Returns true if uffd was
   // created or was already done.
   bool CreateUserfaultfd(bool post_fork);
+
+  bool IsUffdMinorFaultSupported() const { return uffd_minor_fault_supported_; }
+
+  // Add linear-alloc space data when a new space is added to
+  // GcVisitedArenaPool, which mostly happens only once.
+  void AddLinearAllocSpaceData(uint8_t* begin, size_t len, bool already_shared);
+
+  // In copy-mode of userfaultfd, we don't need to reach a 'processed' state as
+  // it's given that processing thread also copies the page, thereby mapping it.
+  // The order is important as we may treat them as integers.
+  enum class PageState : uint8_t {
+    kUnprocessed = 0,           // Not processed yet
+    kProcessing = 1,            // Being processed by GC thread and will not be mapped
+    kProcessed = 2,             // Processed but not mapped
+    kProcessingAndMapping = 3,  // Being processed by GC or mutator and will be mapped
+    kProcessedAndMapping = 4    // Processed and will be mapped mapped
+  };
 
  private:
   using ObjReference = mirror::ObjectReference</*kPoisonReferences*/ false, mirror::Object>;
@@ -276,12 +300,23 @@ class MarkCompact : public GarbageCollector {
   // Then update the references within the copied objects. The boundary objects are
   // partially updated such that only the references that lie in the page are updated.
   // This is necessary to avoid cascading userfaults.
-  void CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* addr)
+  void CompactPage(mirror::Object* obj, uint32_t offset, uint8_t* addr, bool needs_memset_zero)
       REQUIRES_SHARED(Locks::mutator_lock_);
   // Compact the bump-pointer space. Pass page that should be used as buffer for
   // userfaultfd.
-  template <bool kFallback>
-  void CompactMovingSpace(uint8_t* page = nullptr) REQUIRES_SHARED(Locks::mutator_lock_);
+  template <int kMode>
+  void CompactMovingSpace(uint8_t* page) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Compact the given page as per func and change its state. Also map/copy the
+  // page, if required.
+  template <int kMode, typename CompactionFn>
+  ALWAYS_INLINE void DoPageCompactionWithStateChange(size_t page_idx,
+                                                     size_t status_arr_len,
+                                                     uint8_t* to_space_page,
+                                                     uint8_t* page,
+                                                     CompactionFn func)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Update all the objects in the given non-moving space page. 'first' object
   // could have started in some preceding page.
   void UpdateNonMovingPage(mirror::Object* first, uint8_t* page)
@@ -315,8 +350,8 @@ class MarkCompact : public GarbageCollector {
   void SlideBlackPage(mirror::Object* first_obj,
                       const size_t page_idx,
                       uint8_t* const pre_compact_page,
-                      uint8_t* dest)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+                      uint8_t* dest,
+                      bool needs_memset_zero) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Perform reference-processing and the likes before sweeping the non-movable
   // spaces.
@@ -403,25 +438,61 @@ class MarkCompact : public GarbageCollector {
   void SweepLargeObjects(bool swap_bitmaps) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
 
-  // Store all the dex-cache objects visited during marking phase.
-  // This is required during compaction phase to ensure that we don't miss any
-  // of them from visiting (to update references). Somehow, iterating over
-  // class-tables to fetch these misses some of them, leading to memory
-  // corruption.
-  // TODO: once we implement concurrent compaction of classes and dex-caches,
-  // which will visit all of them, we should remove this.
-  void RememberDexCaches(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
   // Perform all kernel operations required for concurrent compaction. Includes
   // mremap to move pre-compact pages to from-space, followed by userfaultfd
-  // registration on the moving space.
+  // registration on the moving space and linear-alloc.
   void KernelPreparation();
-  // Called by thread-pool workers to read uffd_ and process fault events.
-  void ConcurrentCompaction(uint8_t* page) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Called by KernelPreparation() for every memory range being prepared.
+  void KernelPrepareRange(uint8_t* to_addr,
+                          uint8_t* from_addr,
+                          size_t map_size,
+                          size_t uffd_size,
+                          int fd,
+                          int uffd_mode,
+                          uint8_t* shadow_addr = nullptr);
+  // Unregister given range from userfaultfd.
+  void UnregisterUffd(uint8_t* start, size_t len);
 
-  enum PageState : uint8_t {
-    kUncompacted = 0,  // The page has not been compacted yet
-    kCompacting       // Some thread (GC or mutator) is compacting the page
-  };
+  // Called by thread-pool workers to read uffd_ and process fault events.
+  template <int kMode>
+  void ConcurrentCompaction(uint8_t* buf) REQUIRES_SHARED(Locks::mutator_lock_);
+  // Called by thread-pool workers to compact and copy/map the fault page in
+  // moving space.
+  template <int kMode, typename ZeropageType, typename CopyType>
+  void ConcurrentlyProcessMovingPage(ZeropageType& zeropage_ioctl,
+                                     CopyType& copy_ioctl,
+                                     uint8_t* fault_page,
+                                     uint8_t* buf,
+                                     size_t nr_moving_space_used_pages)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Called by thread-pool workers to process and copy/map the fault page in
+  // linear-alloc.
+  template <int kMode, typename ZeropageType, typename CopyType>
+  void ConcurrentlyProcessLinearAllocPage(ZeropageType& zeropage_ioctl,
+                                          CopyType& copy_ioctl,
+                                          uint8_t* fault_page,
+                                          bool is_minor_fault)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Process concurrently all the pages in linear-alloc. Called by gc-thread.
+  void ProcessLinearAlloc() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns true if the moving space can be compacted using uffd's minor-fault
+  // feature.
+  bool CanCompactMovingSpaceWithMinorFault();
+
+  // Maps processed pages (from moving space and linear-alloc) for uffd's
+  // minor-fault feature. We try to 'claim' all processed (and unmapped) pages
+  // contiguous to 'to_space_start'.
+  // kFirstPageMapping indicates if the first page is already claimed or not. It
+  // also indicates that the ioctl must succeed in mapping the first page.
+  template <bool kFirstPageMapping>
+  void MapProcessedPages(uint8_t* to_space_start,
+                         Atomic<PageState>* state_arr,
+                         size_t arr_idx,
+                         size_t arr_len) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  bool IsValidFd(int fd) const { return fd >= 0; }
 
   // Buffers, one per worker thread + gc-thread, to be used when
   // kObjPtrPoisoning == true as in that case we can't have the buffer on the
@@ -450,13 +521,46 @@ class MarkCompact : public GarbageCollector {
   // TODO: Must be replaced with an efficient mechanism eventually. Or ensure
   // that double updation doesn't happen in the first place.
   std::unordered_set<void*> updated_roots_;
-  // Set of dex-caches visited during marking. See comment above
-  // RememberDexCaches() for the explanation.
-  std::unordered_set<uint32_t> dex_caches_;
   MemMap from_space_map_;
+  MemMap shadow_to_space_map_;
   // Any array of live-bytes in logical chunks of kOffsetChunkSize size
   // in the 'to-be-compacted' space.
   MemMap info_map_;
+
+  class LessByArenaAddr {
+   public:
+    bool operator()(const TrackedArena* a, const TrackedArena* b) const {
+      return std::less<uint8_t*>{}(a->Begin(), b->Begin());
+    }
+  };
+
+  // Map of arenas allocated in LinearAlloc arena-pool and last non-zero page,
+  // captured during compaction pause for concurrent updates.
+  std::map<const TrackedArena*, uint8_t*, LessByArenaAddr> linear_alloc_arenas_;
+  // Set of PageStatus arrays, one per arena-pool space. It's extremely rare to
+  // have more than one, but this is to be ready for the worst case.
+  class LinearAllocSpaceData {
+   public:
+    LinearAllocSpaceData(MemMap&& shadow,
+                         MemMap&& page_status_map,
+                         uint8_t* begin,
+                         uint8_t* end,
+                         bool already_shared)
+        : shadow_(std::move(shadow)),
+          page_status_map_(std::move(page_status_map)),
+          begin_(begin),
+          end_(end),
+          already_shared_(already_shared) {}
+
+    MemMap shadow_;
+    MemMap page_status_map_;
+    uint8_t* begin_;
+    uint8_t* end_;
+    // Indicates if the linear-alloc is already MAP_SHARED.
+    bool already_shared_;
+  };
+  std::vector<LinearAllocSpaceData> linear_alloc_spaces_data_;
+
   // The main space bitmap
   accounting::ContinuousSpaceBitmap* moving_space_bitmap_;
   accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
@@ -520,16 +624,23 @@ class MarkCompact : public GarbageCollector {
   void* stack_end_;
 
   uint8_t* conc_compaction_termination_page_;
+  PointerSize pointer_size_;
   // Number of objects freed during this GC in moving space. It is decremented
   // every time an object is discovered. And total-object count is added to it
   // in MarkingPause(). It reaches the correct count only once the marking phase
   // is completed.
   int32_t freed_objects_;
+  // memfds for moving space for using userfaultfd's minor-fault feature.
+  // Initialized to kFdUnused to indicate that mmap should be MAP_PRIVATE in
+  // KernelPrepareRange().
+  int moving_to_space_fd_;
+  int moving_from_space_fd_;
   // Userfault file descriptor, accessed only by the GC itself.
   // kFallbackMode value indicates that we are in the fallback mode.
   int uffd_;
   // Used to exit from compaction loop at the end of concurrent compaction
   uint8_t thread_pool_counter_;
+  std::atomic<uint8_t> compaction_in_progress_count_;
   // True while compacting.
   bool compacting_;
   // Flag indicating whether one-time uffd initialization has been done. It will
@@ -538,6 +649,13 @@ class MarkCompact : public GarbageCollector {
   // Heap::PostForkChildAction() as it's invoked in app startup path. With
   // this, we register the compaction-termination page on the first GC.
   bool uffd_initialized_;
+  // Flag indicating if userfaultfd supports minor-faults. Set appropriately in
+  // CreateUserfaultfd(), where we get this information from the kernel.
+  bool uffd_minor_fault_supported_;
+  // For non-zygote processes this flah indicates if the spaces are ready to
+  // start using userfaultfd's minor-fault feature. This initialization involves
+  // starting to use shmem (memfd_create) for the userfaultfd protected spaces.
+  bool minor_fault_initialized_;
 
   class VerifyRootMarkedVisitor;
   class ScanObjectVisitor;
@@ -546,12 +664,16 @@ class MarkCompact : public GarbageCollector {
   class CardModifiedVisitor;
   class RefFieldsVisitor;
   template <bool kCheckBegin, bool kCheckEnd> class RefsUpdateVisitor;
-  class NativeRootsUpdateVisitor;
+  class ArenaPoolPageUpdater;
+  class ClassLoaderRootsUpdater;
+  class LinearAllocPageUpdater;
   class ImmuneSpaceUpdateObjVisitor;
   class ConcurrentCompactionGcTask;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MarkCompact);
 };
+
+std::ostream& operator<<(std::ostream& os, MarkCompact::PageState value);
 
 }  // namespace collector
 }  // namespace gc

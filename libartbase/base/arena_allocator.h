@@ -178,7 +178,8 @@ class ArenaAllocatorMemoryTool {
 
 class Arena {
  public:
-  Arena();
+  Arena() : bytes_allocated_(0), memory_(nullptr), size_(0), next_(nullptr) {}
+
   virtual ~Arena() { }
   // Reset is for pre-use and uses memset for performance.
   void Reset();
@@ -188,9 +189,7 @@ class Arena {
     return memory_;
   }
 
-  uint8_t* End() {
-    return memory_ + size_;
-  }
+  uint8_t* End() const { return memory_ + size_; }
 
   size_t Size() const {
     return size_;
@@ -205,9 +204,7 @@ class Arena {
   }
 
   // Return true if ptr is contained in the arena.
-  bool Contains(const void* ptr) const {
-    return memory_ <= ptr && ptr < memory_ + bytes_allocated_;
-  }
+  bool Contains(const void* ptr) const { return memory_ <= ptr && ptr < memory_ + size_; }
 
   Arena* Next() const { return next_; }
 

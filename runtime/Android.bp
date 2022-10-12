@@ -561,6 +561,7 @@ gensrcs {
         "gc/allocator/rosalloc.h",
         "gc/collector_type.h",
         "gc/collector/gc_type.h",
+        "gc/collector/mark_compact.h",
         "gc/space/region_space.h",
         "gc/space/space.h",
         "gc/weak_root_state.h",

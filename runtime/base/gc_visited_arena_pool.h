@@ -32,6 +32,8 @@ namespace art {
 // An Arena which tracks its allocations.
 class TrackedArena final : public Arena {
  public:
+  // Used for searching in maps. Only arena's starting address is relevant.
+  explicit TrackedArena(uint8_t* addr) { memory_ = addr; }
   TrackedArena(uint8_t* start, size_t size);
 
   template <typename PageVisitor>
@@ -43,6 +45,28 @@ class TrackedArena final : public Arena {
     for (int i = 0; i < nr_pages && first_obj_array_[i] != nullptr; i++, page_begin += kPageSize) {
       visitor(page_begin, first_obj_array_[i]);
     }
+  }
+
+  // Return the page addr of the first page with first_obj set to nullptr.
+  uint8_t* GetLastUsedByte() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK_ALIGNED(Begin(), kPageSize);
+    DCHECK_ALIGNED(End(), kPageSize);
+    // Jump past bytes-allocated for arenas which are not currently being used
+    // by arena-allocator. This helps in reducing loop iterations below.
+    uint8_t* last_byte = AlignUp(Begin() + GetBytesAllocated(), kPageSize);
+    DCHECK_LE(last_byte, End());
+    for (size_t i = (last_byte - Begin()) / kPageSize;
+         last_byte < End() && first_obj_array_[i] != nullptr;
+         last_byte += kPageSize, i++) {
+      // No body.
+    }
+    return last_byte;
+  }
+
+  uint8_t* GetFirstObject(uint8_t* addr) const REQUIRES_SHARED(Locks::mutator_lock_) {
+    DCHECK_LE(Begin(), addr);
+    DCHECK_GT(End(), addr);
+    return first_obj_array_[(addr - Begin()) / kPageSize];
   }
 
   // Set 'obj_begin' in first_obj_array_ in every element for which it's the
@@ -62,6 +86,15 @@ class TrackedArena final : public Arena {
 // range to avoid multiple calls to mremapped/mprotected syscalls.
 class GcVisitedArenaPool final : public ArenaPool {
  public:
+#if defined(__LP64__)
+  // Use a size in multiples of 1GB as that can utilize the optimized mremap
+  // page-table move.
+  static constexpr size_t kLinearAllocPoolSize = 1 * GB;
+  static constexpr size_t kLow4GBLinearAllocPoolSize = 32 * MB;
+#else
+  static constexpr size_t kLinearAllocPoolSize = 32 * MB;
+#endif
+
   explicit GcVisitedArenaPool(bool low_4gb = false, const char* name = "LinearAlloc");
   virtual ~GcVisitedArenaPool();
   Arena* AllocArena(size_t size) override;
@@ -76,6 +109,14 @@ class GcVisitedArenaPool final : public ArenaPool {
     std::lock_guard<std::mutex> lock(lock_);
     for (auto& arena : allocated_arenas_) {
       arena.VisitRoots(visitor);
+    }
+  }
+
+  template <typename Callback>
+  void ForEachAllocatedArena(Callback cb) REQUIRES_SHARED(Locks::mutator_lock_) {
+    std::lock_guard<std::mutex> lock(lock_);
+    for (auto& arena : allocated_arenas_) {
+      cb(arena);
     }
   }
 
@@ -102,9 +143,8 @@ class GcVisitedArenaPool final : public ArenaPool {
    public:
     // Since two chunks could have the same size, use addr when that happens.
     bool operator()(const Chunk* a, const Chunk* b) const {
-      return std::less<size_t>{}(a->size_, b->size_)
-             || (std::equal_to<size_t>{}(a->size_, b->size_)
-                 && std::less<uint8_t*>{}(a->addr_, b->addr_));
+      return a->size_ < b->size_ ||
+             (a->size_ == b->size_ && std::less<uint8_t*>{}(a->addr_, b->addr_));
     }
   };
 
@@ -123,9 +163,7 @@ class GcVisitedArenaPool final : public ArenaPool {
   std::set<Chunk*, LessByChunkAddr> free_chunks_ GUARDED_BY(lock_);
   // Set of allocated arenas. It's required to be able to find the arena
   // corresponding to a given address.
-  // TODO: We can manage without this set if we decide to have a large
-  // 'first-object' array for the entire space, instead of per arena. Analyse
-  // which approach is better.
+  // TODO: consider using HashSet, which is more memory efficient.
   std::set<TrackedArena, LessByArenaAddr> allocated_arenas_ GUARDED_BY(lock_);
   // Number of bytes allocated so far.
   size_t bytes_allocated_ GUARDED_BY(lock_);
