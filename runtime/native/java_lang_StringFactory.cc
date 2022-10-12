@@ -56,6 +56,36 @@ static jstring StringFactory_newStringFromBytes(JNIEnv* env, jclass, jbyteArray 
   return soa.AddLocalReference<jstring>(result);
 }
 
+static jstring StringFactory_newStringFromUtf16Bytes(
+    JNIEnv* env, jclass, jbyteArray java_data, jint offset, jint char_count) {
+  ScopedFastNativeObjectAccess soa(env);
+  if (UNLIKELY(java_data == nullptr)) {
+    ThrowNullPointerException("data == null");
+    return nullptr;
+  }
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ByteArray> byte_array(hs.NewHandle(soa.Decode<mirror::ByteArray>(java_data)));
+  int32_t data_size = byte_array->GetLength();
+  DCHECK_GE(data_size, 0);
+  if (offset < 0 ||
+      offset > data_size ||
+      static_cast<uint32_t>(char_count) > (static_cast<uint32_t>(data_size - offset) >> 1)) {
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
+                                   "length=%d; regionStart=%d; bytePairLength=%d",
+                                   data_size,
+                                   offset,
+                                   char_count);
+    return nullptr;
+  }
+  gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
+  ObjPtr<mirror::String> result = mirror::String::AllocFromUtf16ByteArray(soa.Self(),
+                                                                          char_count,
+                                                                          byte_array,
+                                                                          offset,
+                                                                          allocator_type);
+  return soa.AddLocalReference<jstring>(result);
+}
+
 // The char array passed as `java_data` must not be a null reference.
 static jstring StringFactory_newStringFromChars(JNIEnv* env, jclass, jint offset,
                                                 jint char_count, jcharArray java_data) {
@@ -269,6 +299,7 @@ static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(StringFactory, newStringFromChars, "(II[C)Ljava/lang/String;"),
   FAST_NATIVE_METHOD(StringFactory, newStringFromString, "(Ljava/lang/String;)Ljava/lang/String;"),
   FAST_NATIVE_METHOD(StringFactory, newStringFromUtf8Bytes, "([BII)Ljava/lang/String;"),
+  FAST_NATIVE_METHOD(StringFactory, newStringFromUtf16Bytes, "([BII)Ljava/lang/String;"),
 };
 
 void register_java_lang_StringFactory(JNIEnv* env) {

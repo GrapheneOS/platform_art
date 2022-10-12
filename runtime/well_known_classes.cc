@@ -254,6 +254,7 @@ static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const c
 #define STRING_INIT_LIST(V) \
   V(java_lang_String_init, "()V", newEmptyString, "newEmptyString", "()Ljava/lang/String;", NewEmptyString) \
   V(java_lang_String_init_B, "([B)V", newStringFromBytes_B, "newStringFromBytes", "([B)Ljava/lang/String;", NewStringFromBytes_B) \
+  V(java_lang_String_init_BB, "([BB)V", newStringFromBytes_BB, "newStringFromBytes", "([BB)Ljava/lang/String;", NewStringFromBytes_BB) \
   V(java_lang_String_init_BI, "([BI)V", newStringFromBytes_BI, "newStringFromBytes", "([BI)Ljava/lang/String;", NewStringFromBytes_BI) \
   V(java_lang_String_init_BII, "([BII)V", newStringFromBytes_BII, "newStringFromBytes", "([BII)Ljava/lang/String;", NewStringFromBytes_BII) \
   V(java_lang_String_init_BIII, "([BIII)V", newStringFromBytes_BIII, "newStringFromBytes", "([BIII)Ljava/lang/String;", NewStringFromBytes_BIII) \

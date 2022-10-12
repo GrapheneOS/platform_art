@@ -1367,6 +1367,22 @@ void UnstartedRuntime::UnstartedStringDoReplace(
 }
 
 // This allows creating the new style of String objects during compilation.
+void UnstartedRuntime::UnstartedStringFactoryNewStringFromBytes(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  jint high = shadow_frame->GetVReg(arg_offset + 1);
+  jint offset = shadow_frame->GetVReg(arg_offset + 2);
+  jint byte_count = shadow_frame->GetVReg(arg_offset + 3);
+  DCHECK_GE(byte_count, 0);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ByteArray> h_byte_array(
+      hs.NewHandle(shadow_frame->GetVRegReference(arg_offset)->AsByteArray()));
+  Runtime* runtime = Runtime::Current();
+  gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
+  result->SetL(
+      mirror::String::AllocFromByteArray(self, byte_count, h_byte_array, offset, high, allocator));
+}
+
+// This allows creating the new style of String objects during compilation.
 void UnstartedRuntime::UnstartedStringFactoryNewStringFromChars(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   jint offset = shadow_frame->GetVReg(arg_offset);
@@ -1919,6 +1935,30 @@ void UnstartedRuntime::UnstartedJNIStringCompareTo(Thread* self,
     return;
   }
   result->SetI(receiver->AsString()->CompareTo(rhs->AsString()));
+}
+
+void UnstartedRuntime::UnstartedJNIStringFillBytesLatin1(
+    Thread* self, ArtMethod* method ATTRIBUTE_UNUSED,
+    mirror::Object* receiver, uint32_t* args, JValue* ATTRIBUTE_UNUSED) {
+  StackHandleScope<2> hs(self);
+  Handle<mirror::String> h_receiver(hs.NewHandle(
+      reinterpret_cast<mirror::String*>(receiver)->AsString()));
+  Handle<mirror::ByteArray> h_buffer(hs.NewHandle(
+      reinterpret_cast<mirror::ByteArray*>(args[0])->AsByteArray()));
+  int32_t index = static_cast<int32_t>(args[1]);
+  h_receiver->FillBytesLatin1(h_buffer, index);
+}
+
+void UnstartedRuntime::UnstartedJNIStringFillBytesUTF16(
+    Thread* self, ArtMethod* method ATTRIBUTE_UNUSED,
+    mirror::Object* receiver, uint32_t* args, JValue* ATTRIBUTE_UNUSED) {
+  StackHandleScope<2> hs(self);
+  Handle<mirror::String> h_receiver(hs.NewHandle(
+      reinterpret_cast<mirror::String*>(receiver)->AsString()));
+  Handle<mirror::ByteArray> h_buffer(hs.NewHandle(
+      reinterpret_cast<mirror::ByteArray*>(args[0])->AsByteArray()));
+  int32_t index = static_cast<int32_t>(args[1]);
+  h_receiver->FillBytesUTF16(h_buffer, index);
 }
 
 void UnstartedRuntime::UnstartedJNIStringIntern(

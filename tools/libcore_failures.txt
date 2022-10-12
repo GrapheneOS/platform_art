@@ -336,11 +336,5 @@
   result: ERROR,
   bug: 231439593,
   names: ["org.apache.harmony.tests.java.math.BigIntegerConstructorsTest#testConstructorPrime"]
-},
-{
-  description: "Segfault with poison build on LUCI in multi-threaded MH test",
-  result: ERROR,
-  bug: 241199625,
-  names: ["libcore.java.lang.invoke.MethodHandleCombinersTest#testThrowCatchExceptionMultiThreaded"]
 }
 ]
