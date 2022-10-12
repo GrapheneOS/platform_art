@@ -104,9 +104,8 @@ art_cc_library_static {
     name: "libart-dex2oat",
     defaults: ["libart-dex2oat-defaults"],
     shared_libs: [
-        "libart-compiler",
-        "libart-dexlayout",
         "libart",
+        "libart-dexlayout",
         "libartpalette",
         "libprofile",
     ],
@@ -127,7 +126,6 @@ cc_defaults {
         "libprofile_static_defaults",
     ],
     whole_static_libs: [
-        "libart-compiler",
         "libart-dexlayout",
         "libart-dex2oat",
     ],
@@ -158,9 +156,8 @@ art_cc_library_static {
         "libart-dex2oat-defaults",
     ],
     shared_libs: [
-        "libartd-compiler",
-        "libartd-dexlayout",
         "libartd",
+        "libartd-dexlayout",
         "libartpalette",
         "libprofiled",
     ],
@@ -180,7 +177,6 @@ cc_defaults {
         "libprofiled_static_defaults",
     ],
     whole_static_libs: [
-        "libartd-compiler",
         "libartd-dexlayout",
         "libartd-dex2oat",
     ],
@@ -304,7 +300,6 @@ art_cc_binary {
         android: {
             shared_libs: [
                 "libart",
-                "libart-compiler",
                 "libart-dexlayout",
                 "libartbase",
                 "libdexfile",
@@ -365,7 +360,6 @@ art_cc_binary {
             shared_libs: [
                 "libartbased",
                 "libartd",
-                "libartd-compiler",
                 "libartd-dexlayout",
                 "libdexfiled",
                 "libprofiled",
@@ -442,7 +436,6 @@ art_cc_library_static {
     shared_libs: [
         "libart-compiler-gtest",
         "libart-runtime-gtest",
-        "libart-compiler",
         "libart-disassembler",
         "libbase",
         "liblz4", // libart-dex2oat dependency; must be repeated here since it's a static lib.
@@ -462,7 +455,6 @@ art_cc_library_static {
     shared_libs: [
         "libartd-compiler-gtest",
         "libartd-runtime-gtest",
-        "libartd-compiler",
         "libartd-disassembler",
         "libbase",
         "liblz4", // libartd-dex2oat dependency; must be repeated here since it's a static lib.
@@ -580,7 +572,6 @@ art_cc_test {
         "libprofiled",
     ],
     static_libs: [
-        "libartd-compiler",
         "libartd-dex2oat",
         "libartd-dex2oat-gtest",
         "libelffiled",
@@ -603,7 +594,6 @@ art_cc_test {
         "libprofile",
     ],
     static_libs: [
-        "libart-compiler",
         "libart-dex2oat",
         "libart-dex2oat-gtest",
         "libelffile",

@@ -993,11 +993,6 @@ bool Runtime::Start() {
   // recoding profiles. Maybe we should consider changing the name to be more clear it's
   // not only about compiling. b/28295073.
   if (jit_options_->UseJitCompilation() || jit_options_->GetSaveProfilingInfo()) {
-    // Try to load compiler pre zygote to reduce PSS. b/27744947
-    std::string error_msg;
-    if (!jit::Jit::LoadCompilerLibrary(&error_msg)) {
-      LOG(WARNING) << "Failed to load JIT compiler with error " << error_msg;
-    }
     CreateJitCodeCache(/*rwx_memory_allowed=*/true);
     CreateJit();
 #ifdef ADDRESS_SANITIZER
@@ -3044,15 +3039,8 @@ void Runtime::CreateJit() {
     return;
   }
 
-  jit::Jit* jit = jit::Jit::Create(jit_code_cache_.get(), jit_options_.get());
-  jit_.reset(jit);
-  if (jit == nullptr) {
-    LOG(WARNING) << "Failed to allocate JIT";
-    // Release JIT code cache resources (several MB of memory).
-    jit_code_cache_.reset();
-  } else {
-    jit->CreateThreadPool();
-  }
+  jit_.reset(jit::Jit::Create(jit_code_cache_.get(), jit_options_.get()));
+  jit_->CreateThreadPool();
 }
 
 bool Runtime::CanRelocate() const {
