@@ -1104,7 +1104,11 @@ class Runtime {
   uint64_t GetMonitorTimeoutNs() const {
     return monitor_timeout_ns_;
   }
-  // Return true if we should load oat files as executable or not.
+
+  // Return whether this is system server and it is being profiled.
+  bool IsSystemServerProfiled() const;
+
+  // Return whether we should load oat files as executable or not.
   bool GetOatFilesExecutable() const;
 
   metrics::ArtMetrics* GetMetrics() { return &metrics_; }
