@@ -19,6 +19,7 @@
 #include "arch/memcmp16.h"
 #include "array-alloc-inl.h"
 #include "base/array_ref.h"
+#include "base/casts.h"
 #include "base/stl_util.h"
 #include "class-inl.h"
 #include "dex/descriptors_names.h"
@@ -392,6 +393,38 @@ void String::GetChars(int32_t start, int32_t end, Handle<CharArray> array, int32
     }
   } else {
     uint16_t* value = GetValue() + start;
+    memcpy(data, value, length * sizeof(uint16_t));
+  }
+}
+
+void String::FillBytesLatin1(Handle<ByteArray> array, int32_t index) {
+  int8_t* data = array->GetData() + index;
+  int32_t length = GetLength();
+  if (IsCompressed()) {
+    const uint8_t* value = GetValueCompressed();
+    memcpy(data, value, length * sizeof(uint8_t));
+  } else {
+    // Drop the high byte of the characters.
+    // The caller should check that all dropped high bytes are zeros.
+    const uint16_t* value = GetValue();
+    for (int32_t i = 0; i < length; ++i) {
+      data[i] = static_cast<int8_t>(dchecked_integral_cast<uint8_t>(value[i]));
+    }
+  }
+}
+
+void String::FillBytesUTF16(Handle<ByteArray> array, int32_t index) {
+  int8_t* data = array->GetData() + index;
+  int32_t length = GetLength();
+  if (IsCompressed()) {
+    const uint8_t* value = GetValueCompressed();
+    uint32_t d_index = 0;
+    for (int i = 0; i < length; ++i) {
+      data[d_index++] = static_cast<int8_t>(value[i]);
+      data[d_index++] = 0;
+    }
+  } else {
+    const uint16_t* value = GetValue();
     memcpy(data, value, length * sizeof(uint16_t));
   }
 }

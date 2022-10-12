@@ -3825,6 +3825,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pA64Store)
   QUICK_ENTRY_POINT_INFO(pNewEmptyString)
   QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_B)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BB)
   QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BI)
   QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BII)
   QUICK_ENTRY_POINT_INFO(pNewStringFromBytes_BIII)
@@ -3839,6 +3840,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pNewStringFromString)
   QUICK_ENTRY_POINT_INFO(pNewStringFromStringBuffer)
   QUICK_ENTRY_POINT_INFO(pNewStringFromStringBuilder)
+  QUICK_ENTRY_POINT_INFO(pNewStringFromUtf16Bytes_BII)
   QUICK_ENTRY_POINT_INFO(pJniReadBarrier)
   QUICK_ENTRY_POINT_INFO(pReadBarrierMarkReg00)
   QUICK_ENTRY_POINT_INFO(pReadBarrierMarkReg01)
@@ -4640,9 +4642,11 @@ bool Thread::ProtectStack(bool fatal_on_error) {
   VLOG(threads) << "Protecting stack at " << pregion;
   if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
     if (fatal_on_error) {
-      LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. "
+      // b/249586057, LOG(FATAL) times out
+      LOG(ERROR) << "Unable to create protected region in stack for implicit overflow check. "
           "Reason: "
           << strerror(errno) << " size:  " << kStackOverflowProtectedSize;
+      exit(1);
     }
     return false;
   }

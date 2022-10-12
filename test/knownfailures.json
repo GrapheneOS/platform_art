@@ -386,7 +386,7 @@
         "test_patterns": ["616-cha.*"],
         "description": ["cha tests rely on knowing the exact set of optimizations available. ",
                         "Debuggable runtimes change the set of optimizations."],
-        "variant": "debuggable"
+        "variant": "debuggable | trace"
     },
     {
         "test_patterns": ["616-cha.*"],
@@ -1061,6 +1061,7 @@
           "988-method-trace",
           "989-method-trace-throw",
           "993-breakpoints",
+          "993-breakpoints-non-debuggable",
           "1002-notify-startup",
           "1003-metadata-section-strings",
           "1336-short-finalizer-timeout",
@@ -1303,7 +1304,7 @@
     },
     {
         "tests": ["1339-dead-reference-safe"],
-        "variant": "debuggable",
+        "variant": "debuggable | trace",
         "description": [ "Fails to eliminate dead reference when debuggable." ]
     },
     {
@@ -1490,6 +1491,14 @@
         "tests": ["667-jit-jni-stub"],
         "variant": "jit-on-first-use | redefine-stress",
         "description": ["jit-on-first-use disables jit GC but this test requires jit GC"]
+    },
+    {
+        "tests": ["667-jit-jni-stub"],
+        "variant": "trace",
+	"bug": "b/110263880",
+        "description": ["tracing disables jit GC. With the new tracing that doesn't use",
+		        "instrumetnation stubs, we no longer need to do this. Enable this",
+			"test after enabling jit GC in tracing configurations."]
     },
     {
         "tests": ["445-checker-licm",
