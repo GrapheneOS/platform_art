@@ -669,7 +669,7 @@ void* Thread::CreateCallback(void* arg) {
     InvokeVirtualOrInterfaceWithJValues(soa, ref.get(), mid, nullptr);
   }
   // Detach and delete self.
-  Runtime::Current()->GetThreadList()->Unregister(self);
+  Runtime::Current()->GetThreadList()->Unregister(self, /* should_run_callbacks= */ true);
 
   return nullptr;
 }
@@ -989,7 +989,10 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
 }
 
 template <typename PeerAction>
-Thread* Thread::Attach(const char* thread_name, bool as_daemon, PeerAction peer_action) {
+Thread* Thread::Attach(const char* thread_name,
+                       bool as_daemon,
+                       PeerAction peer_action,
+                       bool should_run_callbacks) {
   Runtime* runtime = Runtime::Current();
   ScopedTrace trace("Thread::Attach");
   if (runtime == nullptr) {
@@ -1024,7 +1027,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, PeerAction peer_
 
   // Run the action that is acting on the peer.
   if (!peer_action(self)) {
-    runtime->GetThreadList()->Unregister(self);
+    runtime->GetThreadList()->Unregister(self, should_run_callbacks);
     // Unregister deletes self, no need to do this here.
     return nullptr;
   }
@@ -1039,7 +1042,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, PeerAction peer_
     self->Dump(LOG_STREAM(INFO));
   }
 
-  {
+  if (should_run_callbacks) {
     ScopedObjectAccess soa(self);
     runtime->GetRuntimeCallbacks()->ThreadStart(self);
   }
@@ -1050,7 +1053,8 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, PeerAction peer_
 Thread* Thread::Attach(const char* thread_name,
                        bool as_daemon,
                        jobject thread_group,
-                       bool create_peer) {
+                       bool create_peer,
+                       bool should_run_callbacks) {
   auto create_peer_action = [&](Thread* self) {
     // If we're the main thread, ClassLinker won't be created until after we're attached,
     // so that thread needs a two-stage attach. Regular threads don't need this hack.
@@ -1083,7 +1087,7 @@ Thread* Thread::Attach(const char* thread_name,
     }
     return true;
   };
-  return Attach(thread_name, as_daemon, create_peer_action);
+  return Attach(thread_name, as_daemon, create_peer_action, should_run_callbacks);
 }
 
 Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_peer) {
@@ -1099,7 +1103,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_p
                                     reinterpret_cast64<jlong>(self));
     return true;
   };
-  return Attach(thread_name, as_daemon, set_peer_action);
+  return Attach(thread_name, as_daemon, set_peer_action, /* should_run_callbacks= */ true);
 }
 
 void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) {
@@ -2540,7 +2544,7 @@ class MonitorExitVisitor : public SingleRootVisitor {
   Thread* const self_;
 };
 
-void Thread::Destroy() {
+void Thread::Destroy(bool should_run_callbacks) {
   Thread* self = this;
   DCHECK_EQ(self, Thread::Current());
 
@@ -2569,7 +2573,7 @@ void Thread::Destroy() {
     HandleUncaughtExceptions(soa);
     RemoveFromThreadGroup(soa);
     Runtime* runtime = Runtime::Current();
-    if (runtime != nullptr) {
+    if (runtime != nullptr && should_run_callbacks) {
       runtime->GetRuntimeCallbacks()->ThreadDeath(self);
     }
 
