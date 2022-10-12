@@ -4657,27 +4657,25 @@ void Heap::PostForkChildAction(Thread* self) {
 
   // Temporarily increase target_footprint_ and concurrent_start_bytes_ to
   // max values to avoid GC during app launch.
-  if (!IsLowMemoryMode()) {
-    // Set target_footprint_ to the largest allowed value.
-    SetIdealFootprint(growth_limit_);
-    SetDefaultConcurrentStartBytes();
+  // Set target_footprint_ to the largest allowed value.
+  SetIdealFootprint(growth_limit_);
+  SetDefaultConcurrentStartBytes();
 
-    // Shrink heap after kPostForkMaxHeapDurationMS, to force a memory hog process to GC.
-    // This remains high enough that many processes will continue without a GC.
-    if (initial_heap_size_ < growth_limit_) {
-      size_t first_shrink_size = std::max(growth_limit_ / 4, initial_heap_size_);
-      last_adj_time += MsToNs(kPostForkMaxHeapDurationMS);
+  // Shrink heap after kPostForkMaxHeapDurationMS, to force a memory hog process to GC.
+  // This remains high enough that many processes will continue without a GC.
+  if (initial_heap_size_ < growth_limit_) {
+    size_t first_shrink_size = std::max(growth_limit_ / 4, initial_heap_size_);
+    last_adj_time += MsToNs(kPostForkMaxHeapDurationMS);
+    GetTaskProcessor()->AddTask(
+        self, new ReduceTargetFootprintTask(last_adj_time, first_shrink_size, starting_gc_num));
+    // Shrink to a small value after a substantial time period. This will typically force a
+    // GC if none has occurred yet. Has no effect if there was a GC before this anyway, which
+    // is commonly the case, e.g. because of a process transition.
+    if (initial_heap_size_ < first_shrink_size) {
+      last_adj_time += MsToNs(4 * kPostForkMaxHeapDurationMS);
       GetTaskProcessor()->AddTask(
-          self, new ReduceTargetFootprintTask(last_adj_time, first_shrink_size, starting_gc_num));
-      // Shrink to a small value after a substantial time period. This will typically force a
-      // GC if none has occurred yet. Has no effect if there was a GC before this anyway, which
-      // is commonly the case, e.g. because of a process transition.
-      if (initial_heap_size_ < first_shrink_size) {
-        last_adj_time += MsToNs(4 * kPostForkMaxHeapDurationMS);
-        GetTaskProcessor()->AddTask(
-            self,
-            new ReduceTargetFootprintTask(last_adj_time, initial_heap_size_, starting_gc_num));
-      }
+          self,
+          new ReduceTargetFootprintTask(last_adj_time, initial_heap_size_, starting_gc_num));
     }
   }
   // Schedule a GC after a substantial period of time. This will become a no-op if another GC is
