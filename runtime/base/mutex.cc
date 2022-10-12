@@ -245,11 +245,12 @@ void BaseMutex::DumpAll(std::ostream& os) {
 }
 
 void BaseMutex::CheckSafeToWait(Thread* self) {
-  if (self == nullptr) {
-    CheckUnattachedThread(level_);
+  if (!kDebugLocking) {
     return;
   }
-  if (kDebugLocking) {
+  if (self == nullptr) {
+    CheckUnattachedThread(level_);
+  } else {
     CHECK(self->GetHeldMutex(level_) == this || level_ == kMonitorLock)
         << "Waiting on unacquired mutex: " << name_;
     bool bad_mutexes_held = false;
@@ -565,6 +566,7 @@ bool Mutex::IsDumpFrequent(Thread* thread, uint64_t try_times) {
   }
 }
 
+template<bool check>
 bool Mutex::ExclusiveTryLock(Thread* self) {
   DCHECK(self == nullptr || self == Thread::Current());
   if (kDebugLocking && !recursive_) {
@@ -595,7 +597,7 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
 #endif
     DCHECK_EQ(GetExclusiveOwnerTid(), 0);
     exclusive_owner_.store(SafeGetTid(self), std::memory_order_relaxed);
-    RegisterAsLocked(self);
+    RegisterAsLocked(self, check);
   }
   recursion_count_++;
   if (kDebugLocking) {
@@ -605,6 +607,9 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
   }
   return true;
 }
+
+template bool Mutex::ExclusiveTryLock<false>(Thread* self);
+template bool Mutex::ExclusiveTryLock<true>(Thread* self);
 
 bool Mutex::ExclusiveTryLockWithSpinning(Thread* self) {
   // Spin a small number of times, since this affects our ability to respond to suspension
