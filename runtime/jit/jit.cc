@@ -1317,12 +1317,21 @@ void Jit::RegisterDexFiles(const std::vector<std::unique_ptr<const DexFile>>& de
     return;
   }
   Runtime* runtime = Runtime::Current();
-  // If the runtime is debuggable, no need to precompile methods.
+  // If the runtime is debuggable, don't bother precompiling methods.
+  // If system server is being profiled, don't precompile as we are going to use
+  // the JIT to count hotness. Note that --count-hotness-in-compiled-code is
+  // only forced when we also profile the boot classpath, see
+  // AndroidRuntime.cpp.
   if (runtime->IsSystemServer() &&
       UseJitCompilation() &&
       options_->UseProfiledJitCompilation() &&
       runtime->HasImageWithProfile() &&
+      !runtime->IsSystemServerProfiled() &&
       !runtime->IsJavaDebuggable()) {
+    // Note: this precompilation is currently not running in production because:
+    // - UseProfiledJitCompilation() is not set by default.
+    // - System server dex files are registered *before* we set the runtime as
+    //   system server (though we are in the system server process).
     thread_pool_->AddTask(Thread::Current(), new JitProfileTask(dex_files, class_loader));
   }
 }
