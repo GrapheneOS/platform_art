@@ -29,14 +29,22 @@ HiddenApi::HiddenApi(const char* filename, const ApiListFilter& api_list_filter)
   CHECK(filename != nullptr);
 
   std::ifstream in(filename);
+  bool errors = false;
   for (std::string str; std::getline(in, str);) {
     std::vector<std::string> values = android::base::Split(str, ",");
     const std::string& signature = values[0];
 
     hiddenapi::ApiList membership;
     bool success = hiddenapi::ApiList::FromNames(values.begin() + 1, values.end(), &membership);
-    CHECK(success) << "Unknown ApiList flag: " << str;
-    CHECK(membership.IsValid()) << "Invalid ApiList: " << membership;
+    if (!success) {
+      LOG(ERROR) << "Unknown ApiList flag: " << str;
+      errors = true;
+      continue;
+    } else if (!membership.IsValid()) {
+      LOG(ERROR) << "Invalid ApiList: " << membership;
+      errors = true;
+      continue;
+    }
 
     AddSignatureToApiList(signature, membership);
     size_t pos = signature.find("->");
@@ -55,6 +63,7 @@ HiddenApi::HiddenApi(const char* filename, const ApiListFilter& api_list_filter)
       }
     }
   }
+  CHECK(!errors) << "Errors encountered while parsing file " << filename;
 }
 
 void HiddenApi::AddSignatureToApiList(const std::string& signature, hiddenapi::ApiList membership) {
