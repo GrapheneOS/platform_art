@@ -15,6 +15,5 @@
 # limitations under the License.
 
 # -Xjitinitialsize:32M to prevent profiling info creation failure.
-exec ${RUN} \
-  --runtime-option -Xjitinitialsize:32M \
-  "${@}"
+exec ${RUN} "${@}" \
+  --runtime-option -Xjitinitialsize:32M
