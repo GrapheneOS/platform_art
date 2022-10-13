@@ -19,6 +19,7 @@
 
 #include <android-base/logging.h>
 #include <cstdint>
+#include <optional>
 
 #include "base/array_ref.h"
 #include "base/macros.h"
@@ -107,11 +108,12 @@ class QuickExceptionHandler {
   }
 
   ArrayRef<const uint32_t> GetHandlerDexPcList() const {
-    return ArrayRef<const uint32_t>(handler_dex_pc_list_);
+    DCHECK(handler_dex_pc_list_.has_value());
+    return ArrayRef<const uint32_t>(handler_dex_pc_list_.value());
   }
 
   void SetHandlerDexPcList(std::vector<uint32_t>&& handler_dex_pc_list) {
-    handler_dex_pc_list_ = std::move(handler_dex_pc_list);
+    handler_dex_pc_list_ = handler_dex_pc_list;
   }
 
   uint32_t GetCatchStackMapRow() const {
@@ -164,7 +166,8 @@ class QuickExceptionHandler {
   uintptr_t handler_quick_arg0_;
   // The handler's dex PC list including the inline dex_pcs. The dex_pcs are ordered from outermost
   // to innermost. An empty list implies an uncaught exception.
-  std::vector<uint32_t> handler_dex_pc_list_;
+  // Marked as optional so that we can make sure we destroy it before doing a long jump.
+  std::optional<std::vector<uint32_t>> handler_dex_pc_list_;
   // StackMap row corresponding to the found catch.
   uint32_t catch_stack_map_row_;
   // Should the exception be cleared as the catch block has no move-exception?
