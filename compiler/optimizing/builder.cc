@@ -113,8 +113,10 @@ static bool NeedsExtraGotoBlock(HBasicBlock* block) {
   return !last_instruction->IsThrow();
 }
 
-void HGraphBuilder::MaybeAddExtraGotoBlocks() {
-  if (graph_->GetExitBlock() == nullptr) return;
+bool HGraphBuilder::MaybeAddExtraGotoBlocks() {
+  if (graph_->GetExitBlock() == nullptr) {
+    return true;
+  }
 
   bool added_block = false;
   for (size_t pred = 0, size = graph_->GetExitBlock()->GetPredecessors().size(); pred < size;
@@ -130,13 +132,17 @@ void HGraphBuilder::MaybeAddExtraGotoBlocks() {
   // TODO(solanes): Avoid recomputing the full dominator tree by manually updating the relevant
   // information (loop information, dominance, try catch information).
   if (added_block) {
-    DCHECK(!graph_->HasIrreducibleLoops())
-        << "Recomputing loop information in graphs with irreducible loops "
-        << "is unsupported, as it could lead to loop header changes";
+    if (graph_->HasIrreducibleLoops()) {
+      // Recomputing loop information in graphs with irreducible loops is unsupported, as it could
+      // lead to loop header changes. In this case it is safe to abort since we don't inline graphs
+      // with irreducible loops anyway.
+      return false;
+    }
     graph_->ClearLoopInformation();
     graph_->ClearDominanceInformation();
     graph_->BuildDominatorTree();
   }
+  return true;
 }
 
 GraphAnalysisResult HGraphBuilder::BuildGraph(bool build_for_inline) {
@@ -193,7 +199,9 @@ GraphAnalysisResult HGraphBuilder::BuildGraph(bool build_for_inline) {
   // 5) When inlining, we want to add a Goto block if we have Return/ReturnVoid->TryBoundary->Exit
   // since we will have Return/ReturnVoid->TryBoundary->`continue to normal execution` once inlined.
   if (build_for_inline) {
-    MaybeAddExtraGotoBlocks();
+    if (!MaybeAddExtraGotoBlocks()) {
+      return kAnalysisFailInliningIrreducibleLoop;
+    }
   }
 
   // 6) Type the graph and eliminate dead/redundant phis.
