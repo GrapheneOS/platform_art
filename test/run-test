@@ -337,7 +337,7 @@ if True:
     elif arg == "--dump-cfg":
       shift()
       dump_cfg = "true"
-      dump_cfg_path = "{arg}"
+      dump_cfg_path = arg
       shift()
     elif arg == "--gdb":
       run_args += ["--gdb"]
