@@ -219,18 +219,19 @@ void QuickExceptionHandler::FindCatch(ObjPtr<mirror::Throwable> exception,
       }
       if (GetHandlerMethod() != nullptr) {
         const DexFile* dex_file = GetHandlerMethod()->GetDexFile();
-        DCHECK_GE(handler_dex_pc_list_.size(), 1u);
+        DCHECK(handler_dex_pc_list_.has_value());
+        DCHECK_GE(handler_dex_pc_list_->size(), 1u);
         int line_number = annotations::GetLineNumFromPC(
-            dex_file, GetHandlerMethod(), handler_dex_pc_list_.front());
+            dex_file, GetHandlerMethod(), handler_dex_pc_list_->front());
 
         // We may have an inlined method. If so, we can add some extra logging.
         std::stringstream ss;
         ArtMethod* maybe_inlined_method = visitor.GetMethod();
         if (maybe_inlined_method != GetHandlerMethod()) {
           const DexFile* inlined_dex_file = maybe_inlined_method->GetDexFile();
-          DCHECK_GE(handler_dex_pc_list_.size(), 2u);
+          DCHECK_GE(handler_dex_pc_list_->size(), 2u);
           int inlined_line_number = annotations::GetLineNumFromPC(
-              inlined_dex_file, maybe_inlined_method, handler_dex_pc_list_.back());
+              inlined_dex_file, maybe_inlined_method, handler_dex_pc_list_->back());
           ss << " which ends up calling inlined method " << maybe_inlined_method->PrettyMethod()
              << " (line: " << inlined_line_number << ")";
         }
@@ -744,10 +745,13 @@ void QuickExceptionHandler::DoLongJump(bool smash_caller_saves) {
       handler_method_header_ != nullptr &&
       handler_method_header_->IsNterpMethodHeader()) {
     // Interpreter procceses one method at a time i.e. not inlining
-    DCHECK_EQ(handler_dex_pc_list_.size(), 1u) << "We shouldn't have any inlined frames.";
+    DCHECK(handler_dex_pc_list_.has_value());
+    DCHECK_EQ(handler_dex_pc_list_->size(), 1u) << "We shouldn't have any inlined frames.";
     context_->SetNterpDexPC(reinterpret_cast<uintptr_t>(
-        GetHandlerMethod()->DexInstructions().Insns() + handler_dex_pc_list_.front()));
+        GetHandlerMethod()->DexInstructions().Insns() + handler_dex_pc_list_->front()));
   }
+  // Clear the dex_pc list so as not to leak memory.
+  handler_dex_pc_list_.reset();
   context_->DoLongJump();
   UNREACHABLE();
 }
