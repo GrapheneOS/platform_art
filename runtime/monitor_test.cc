@@ -35,12 +35,17 @@ namespace art {
 
 class MonitorTest : public CommonRuntimeTest {
  protected:
+  MonitorTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void SetUpRuntimeOptions(RuntimeOptions *options) override {
     // Use a smaller heap
     SetUpRuntimeOptionsForFillHeap(options);
 
     options->push_back(std::make_pair("-Xint", nullptr));
   }
+
  public:
   std::unique_ptr<Monitor> monitor_;
   Handle<mirror::String> object_;

@@ -66,7 +66,12 @@ class CollectRootVisitor {
 };
 
 
-class ClassTableTest : public CommonRuntimeTest {};
+class ClassTableTest : public CommonRuntimeTest {
+ protected:
+  ClassTableTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 TEST_F(ClassTableTest, ClassTable) {
   ScopedObjectAccess soa(Thread::Current());

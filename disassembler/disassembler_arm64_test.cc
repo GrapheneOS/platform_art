@@ -20,8 +20,9 @@
 
 #include <sstream>
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
 #include "disassembler_arm64.h"
+#include "thread.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
@@ -38,7 +39,7 @@ namespace arm64 {
 /**
  * Fixture class for the ArtDisassemblerTest tests.
  */
-class ArtDisassemblerTest : public CommonRuntimeTest {
+class ArtDisassemblerTest : public CommonArtTest {
  public:
   ArtDisassemblerTest() {
   }

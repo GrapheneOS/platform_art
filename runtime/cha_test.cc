@@ -16,11 +16,12 @@
 
 #include "cha.h"
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
+#include "thread-current-inl.h"
 
 namespace art {
 
-class CHATest : public CommonRuntimeTest {};
+class CHATest : public CommonArtTest {};
 
 // Mocks some methods.
 #define METHOD1 (reinterpret_cast<ArtMethod*>(8u))

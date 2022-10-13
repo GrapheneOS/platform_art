@@ -26,7 +26,12 @@
 namespace art {
 namespace gc {
 
-class ReferenceQueueTest : public CommonRuntimeTest {};
+class ReferenceQueueTest : public CommonRuntimeTest {
+ protected:
+  ReferenceQueueTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 TEST_F(ReferenceQueueTest, EnqueueDequeue) {
   Thread* self = Thread::Current();
