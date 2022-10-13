@@ -36,4 +36,5 @@ ln -sf ${LIBPATH}/libarttestd.so libarttestd2.so
 LEFT=$(echo ${ARGS} | sed -r 's/-Djava.library.path.*//')
 RIGHT=$(echo ${ARGS} | sed -r 's/.*Djava.library.path[^ ]* //')
 MODARGS="${LEFT} -Djava.library.path=`pwd` ${RIGHT}"
-exec ${RUN} --runtime-option -Xforce-nb-testing --runtime-option -XX:NativeBridge=$BRIDGE_SO ${MODARGS} NativeBridgeMain
+exec ${RUN} ${MODARGS} --runtime-option -Xforce-nb-testing \
+  --runtime-option -XX:NativeBridge=$BRIDGE_SO NativeBridgeMain
