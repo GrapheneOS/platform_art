@@ -393,15 +393,6 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
   // Enable count of allocs if specified in the flags.
   bool enable_stats = false;
 
-  if (runtime->GetJit() != nullptr) {
-    // TODO b/110263880 It would be better if we didn't need to do this.
-    // Since we need to hold the method entrypoint across a suspend to ensure instrumentation
-    // hooks are called correctly we have to disable jit-gc to ensure that the entrypoint doesn't
-    // go away. Furthermore we need to leave this off permanently since one could get the same
-    // effect by causing this to be toggled on and off.
-    runtime->GetJit()->GetCodeCache()->SetGarbageCollectCode(false);
-  }
-
   // Create Trace object.
   {
     // Suspend JIT here since we are switching runtime to debuggable. Debuggable runtimes cannot use
