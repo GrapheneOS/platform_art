@@ -1733,112 +1733,113 @@ bool ClassLinker::OpenImageDexFiles(gc::space::ImageSpace* space,
 
 // Helper class for ArtMethod checks when adding an image. Keeps all required functionality
 // together and caches some intermediate results.
+template <PointerSize kPointerSize>
 class ImageChecker final {
  public:
-  static void CheckObjects(gc::Heap* heap, ClassLinker* class_linker)
+  static void CheckObjects(gc::Heap* heap, gc::space::ImageSpace* space)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    ImageChecker ic(heap, class_linker);
+    // There can be no GC during boot image initialization, so we do not need read barriers.
+    ScopedDebugDisallowReadBarriers sddrb(Thread::Current());
+
+    CHECK_EQ(kPointerSize, space->GetImageHeader().GetPointerSize());
+    const ImageSection& objects_section = space->GetImageHeader().GetObjectsSection();
+    uintptr_t space_begin = reinterpret_cast<uintptr_t>(space->Begin());
+    uintptr_t objects_begin = space_begin + objects_section.Offset();
+    uintptr_t objects_end = objects_begin + objects_section.Size();
+    ImageChecker ic(heap);
     auto visitor = [&](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
       DCHECK(obj != nullptr);
-      CHECK(obj->GetClass() != nullptr) << "Null class in object " << obj;
-      CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
-      if (obj->IsClass()) {
+      mirror::Class* obj_klass = obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>();
+      CHECK(obj_klass != nullptr) << "Null class in object " << obj;
+      mirror::Class* class_class = obj_klass->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>();
+      CHECK(class_class != nullptr) << "Null class class " << obj;
+      if (obj_klass == class_class) {
         auto klass = obj->AsClass();
         for (ArtField& field : klass->GetIFields()) {
-          CHECK_EQ(field.GetDeclaringClass(), klass);
+          CHECK_EQ(field.GetDeclaringClass<kWithoutReadBarrier>(), klass);
         }
         for (ArtField& field : klass->GetSFields()) {
-          CHECK_EQ(field.GetDeclaringClass(), klass);
+          CHECK_EQ(field.GetDeclaringClass<kWithoutReadBarrier>(), klass);
         }
-        const PointerSize pointer_size = ic.pointer_size_;
-        for (ArtMethod& m : klass->GetMethods(pointer_size)) {
+        for (ArtMethod& m : klass->GetMethods(kPointerSize)) {
           ic.CheckArtMethod(&m, klass);
         }
-        ObjPtr<mirror::PointerArray> vtable = klass->GetVTable();
+        ObjPtr<mirror::PointerArray> vtable =
+            klass->GetVTable<kDefaultVerifyFlags, kWithoutReadBarrier>();
         if (vtable != nullptr) {
-          ic.CheckArtMethodPointerArray(vtable, nullptr);
+          ic.CheckArtMethodPointerArray(vtable);
         }
         if (klass->ShouldHaveImt()) {
-          ImTable* imt = klass->GetImt(pointer_size);
+          ImTable* imt = klass->GetImt(kPointerSize);
           for (size_t i = 0; i < ImTable::kSize; ++i) {
-            ic.CheckArtMethod(imt->Get(i, pointer_size), nullptr);
+            ic.CheckArtMethod(imt->Get(i, kPointerSize), /*expected_class=*/ nullptr);
           }
         }
         if (klass->ShouldHaveEmbeddedVTable()) {
           for (int32_t i = 0; i < klass->GetEmbeddedVTableLength(); ++i) {
-            ic.CheckArtMethod(klass->GetEmbeddedVTableEntry(i, pointer_size), nullptr);
+            ic.CheckArtMethod(klass->GetEmbeddedVTableEntry(i, kPointerSize),
+                              /*expected_class=*/ nullptr);
           }
         }
-        ObjPtr<mirror::IfTable> iftable = klass->GetIfTable();
-        for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-          if (iftable->GetMethodArrayCount(i) > 0) {
-            ic.CheckArtMethodPointerArray(iftable->GetMethodArray(i), nullptr);
+        ObjPtr<mirror::IfTable> iftable =
+            klass->GetIfTable<kDefaultVerifyFlags, kWithoutReadBarrier>();
+        int32_t iftable_count = (iftable != nullptr) ? iftable->Count() : 0;
+        for (int32_t i = 0; i < iftable_count; ++i) {
+          ObjPtr<mirror::PointerArray> method_array =
+              iftable->GetMethodArrayOrNull<kDefaultVerifyFlags, kWithoutReadBarrier>(i);
+          if (method_array != nullptr) {
+            ic.CheckArtMethodPointerArray(method_array);
           }
         }
       }
     };
-    heap->VisitObjects(visitor);
+    space->GetLiveBitmap()->VisitMarkedRange(objects_begin, objects_end, visitor);
   }
 
  private:
-  ImageChecker(gc::Heap* heap, ClassLinker* class_linker)
-     :  spaces_(heap->GetBootImageSpaces()),
-        pointer_size_(class_linker->GetImagePointerSize()) {
-    space_begin_.reserve(spaces_.size());
-    method_sections_.reserve(spaces_.size());
-    runtime_method_sections_.reserve(spaces_.size());
-    for (gc::space::ImageSpace* space : spaces_) {
+  explicit ImageChecker(gc::Heap* heap) {
+    ArrayRef<gc::space::ImageSpace* const> spaces(heap->GetBootImageSpaces());
+    space_begin_.reserve(spaces.size());
+    for (gc::space::ImageSpace* space : spaces) {
+      CHECK_EQ(static_cast<const void*>(space->Begin()), &space->GetImageHeader());
       space_begin_.push_back(space->Begin());
-      auto& header = space->GetImageHeader();
-      method_sections_.push_back(&header.GetMethodsSection());
-      runtime_method_sections_.push_back(&header.GetRuntimeMethodsSection());
     }
   }
 
   void CheckArtMethod(ArtMethod* m, ObjPtr<mirror::Class> expected_class)
       REQUIRES_SHARED(Locks::mutator_lock_) {
+    ObjPtr<mirror::Class> declaring_class = m->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
     if (m->IsRuntimeMethod()) {
-      ObjPtr<mirror::Class> declaring_class = m->GetDeclaringClassUnchecked();
       CHECK(declaring_class == nullptr) << declaring_class << " " << m->PrettyMethod();
     } else if (m->IsCopied()) {
-      CHECK(m->GetDeclaringClass() != nullptr) << m->PrettyMethod();
+      CHECK(declaring_class != nullptr) << m->PrettyMethod();
     } else if (expected_class != nullptr) {
-      CHECK_EQ(m->GetDeclaringClassUnchecked(), expected_class) << m->PrettyMethod();
+      CHECK_EQ(declaring_class, expected_class) << m->PrettyMethod();
     }
-    if (!spaces_.empty()) {
-      bool contains = false;
-      for (size_t i = 0; !contains && i != space_begin_.size(); ++i) {
-        const size_t offset = reinterpret_cast<uint8_t*>(m) - space_begin_[i];
-        contains = method_sections_[i]->Contains(offset) ||
-            runtime_method_sections_[i]->Contains(offset);
+    bool contains = false;
+    for (const uint8_t* begin : space_begin_) {
+      const size_t offset = reinterpret_cast<uint8_t*>(m) - begin;
+      const ImageHeader* header = reinterpret_cast<const ImageHeader*>(begin);
+      if (header->GetMethodsSection().Contains(offset) ||
+          header->GetRuntimeMethodsSection().Contains(offset)) {
+        contains = true;
+        break;
       }
-      CHECK(contains) << m << " not found";
     }
+    CHECK(contains) << m << " not found";
   }
 
-  void CheckArtMethodPointerArray(ObjPtr<mirror::PointerArray> arr,
-                                  ObjPtr<mirror::Class> expected_class)
+  void CheckArtMethodPointerArray(ObjPtr<mirror::PointerArray> arr)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(arr != nullptr);
     for (int32_t j = 0; j < arr->GetLength(); ++j) {
-      auto* method = arr->GetElementPtrSize<ArtMethod*>(j, pointer_size_);
-      // expected_class == null means we are a dex cache.
-      if (expected_class != nullptr) {
-        CHECK(method != nullptr);
-      }
-      if (method != nullptr) {
-        CheckArtMethod(method, expected_class);
-      }
+      auto* method = arr->GetElementPtrSize<ArtMethod*>(j, kPointerSize);
+      CHECK(method != nullptr);
+      CheckArtMethod(method, /*expected_class=*/ nullptr);
     }
   }
 
-  const std::vector<gc::space::ImageSpace*>& spaces_;
-  const PointerSize pointer_size_;
-
-  // Cached sections from the spaces.
   std::vector<const uint8_t*> space_begin_;
-  std::vector<const ImageSection*> method_sections_;
-  std::vector<const ImageSection*> runtime_method_sections_;
 };
 
 static void VerifyAppImage(const ImageHeader& header,
@@ -1965,7 +1966,11 @@ bool ClassLinker::AddImageSpace(
 
   if (kCheckImageObjects) {
     if (!app_image) {
-      ImageChecker::CheckObjects(heap, this);
+      if (image_pointer_size_ == PointerSize::k64) {
+        ImageChecker<PointerSize::k64>::CheckObjects(heap, space);
+      } else {
+        ImageChecker<PointerSize::k32>::CheckObjects(heap, space);
+      }
     }
   }
 
