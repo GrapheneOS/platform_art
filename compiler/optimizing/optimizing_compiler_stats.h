@@ -59,6 +59,7 @@ enum class MethodCompilationStat {
   kNotCompiledSpaceFilter,
   kNotCompiledUnhandledInstruction,
   kNotCompiledUnsupportedIsa,
+  kNotCompiledInliningIrreducibleLoop,
   kNotCompiledIrreducibleLoopAndStringInit,
   kNotCompiledPhiEquivalentInOsr,
   kInlinedMonomorphicCall,

@@ -60,6 +60,18 @@ public class Main {
       Object[] arguments = { 42 };
       System.out.println(m.invoke(null, arguments));
     }
+
+    {
+      Method m = c.getMethod("testDoNotInlineIrreducible", int.class);
+      Object[] arguments = { 42 };
+      System.out.println(m.invoke(null, arguments));
+    }
+
+    {
+      Method m = c.getMethod("testDoNotInlineIrreducible", int.class);
+      Object[] arguments = { 0 };
+      System.out.println(m.invoke(null, arguments));
+    }
   }
 
   int myField;
