@@ -253,8 +253,6 @@ class HeapLocationCollector : public HGraphVisitor {
         heap_locations_(allocator->Adapter(kArenaAllocLSA)),
         aliasing_matrix_(allocator, kInitialAliasingMatrixBitVectorSize, true, kArenaAllocLSA),
         has_heap_stores_(false),
-        has_volatile_(false),
-        has_monitor_operations_(false),
         lse_type_(lse_type) {
     aliasing_matrix_.ClearAllBits();
   }
@@ -348,14 +346,6 @@ class HeapLocationCollector : public HGraphVisitor {
 
   bool HasHeapStores() const {
     return has_heap_stores_;
-  }
-
-  bool HasVolatile() const {
-    return has_volatile_;
-  }
-
-  bool HasMonitorOps() const {
-    return has_monitor_operations_;
   }
 
   // Find and return the heap location index in heap_locations_.
@@ -540,9 +530,6 @@ class HeapLocationCollector : public HGraphVisitor {
   }
 
   void VisitFieldAccess(HInstruction* ref, const FieldInfo& field_info) {
-    if (field_info.IsVolatile()) {
-      has_volatile_ = true;
-    }
     DataType::Type type = field_info.GetFieldType();
     const uint16_t declaring_class_def_index = field_info.GetDeclaringClassDefIndex();
     const size_t offset = field_info.GetFieldOffset().SizeValue();
@@ -637,18 +624,12 @@ class HeapLocationCollector : public HGraphVisitor {
     CreateReferenceInfoForReferenceType(instruction);
   }
 
-  void VisitMonitorOperation(HMonitorOperation* monitor ATTRIBUTE_UNUSED) override {
-    has_monitor_operations_ = true;
-  }
-
   ScopedArenaAllocator* allocator_;
   ScopedArenaVector<ReferenceInfo*> ref_info_array_;   // All references used for heap accesses.
   ScopedArenaVector<HeapLocation*> heap_locations_;    // All heap locations.
   ArenaBitVector aliasing_matrix_;    // aliasing info between each pair of locations.
   bool has_heap_stores_;    // If there is no heap stores, LSE acts as GVN with better
                             // alias analysis and won't be as effective.
-  bool has_volatile_;       // If there are volatile field accesses.
-  bool has_monitor_operations_;    // If there are monitor operations.
   LoadStoreAnalysisType lse_type_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapLocationCollector);
