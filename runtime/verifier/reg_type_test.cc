@@ -32,7 +32,7 @@ namespace art {
 namespace verifier {
 
 class RegTypeTest : public CommonRuntimeTest {
- public:
+ protected:
   RegTypeTest() {
     use_boot_image_ = true;  // Make the Runtime creation cheaper.
   }
@@ -360,7 +360,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(double_reg_type.HasClass());
 }
 
-class RegTypeReferenceTest : public CommonRuntimeTest {};
+class RegTypeReferenceTest : public RegTypeTest {};
 
 TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
   // Tests matching precisions. A reference type that was created precise doesn't

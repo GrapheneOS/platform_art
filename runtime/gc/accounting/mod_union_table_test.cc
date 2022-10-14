@@ -46,6 +46,7 @@ class ModUnionTableFactory {
 class ModUnionTableTest : public CommonRuntimeTest {
  public:
   ModUnionTableTest() : java_lang_object_array_(nullptr) {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
   }
   mirror::ObjectArray<mirror::Object>* AllocObjectArray(
       Thread* self, space::ContinuousMemMapAllocSpace* space, size_t component_count)

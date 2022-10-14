@@ -16,9 +16,9 @@
 
 #include <android-base/logging.h>
 
+#include "base/common_art_test.h"
 #include "base/macros.h"
 #include "base/unix_file/fd_file.h"
-#include "common_runtime_test.h"
 #include "stream/buffered_output_stream.h"
 #include "stream/file_output_stream.h"
 #include "stream/vector_output_stream.h"
@@ -26,7 +26,7 @@
 namespace art {
 namespace linker {
 
-class OutputStreamTest : public CommonRuntimeTest {
+class OutputStreamTest : public CommonArtTest {
  protected:
   void CheckOffset(off_t expected) {
     off_t actual = output_stream_->Seek(0, kSeekCurrent);

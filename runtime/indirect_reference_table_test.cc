@@ -28,7 +28,12 @@ namespace art {
 
 using android::base::StringPrintf;
 
-class IndirectReferenceTableTest : public CommonRuntimeTest {};
+class IndirectReferenceTableTest : public CommonRuntimeTest {
+ protected:
+  IndirectReferenceTableTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 static void CheckDump(IndirectReferenceTable* irt, size_t num_objects, size_t num_unique)
     REQUIRES_SHARED(Locks::mutator_lock_) {

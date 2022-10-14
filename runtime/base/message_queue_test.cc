@@ -18,12 +18,12 @@
 
 #include <thread>
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
 #include "thread-current-inl.h"
 
 namespace art {
 
-class MessageQueueTest : public CommonRuntimeTest {};
+class MessageQueueTest : public CommonArtTest {};
 
 namespace {
 

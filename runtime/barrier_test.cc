@@ -52,6 +52,10 @@ class CheckWaitTask : public Task {
 
 class BarrierTest : public CommonRuntimeTest {
  public:
+  BarrierTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   static int32_t num_threads;
 };
 
