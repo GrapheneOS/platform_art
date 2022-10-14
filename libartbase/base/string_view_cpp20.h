@@ -21,18 +21,23 @@
 
 namespace art {
 
-// Replacement functions for std::string_view::starts_with(), ends_with()
-// which shall be available in C++20.
-#if __cplusplus >= 202000L
-#error "When upgrading to C++20, remove this error and file a bug to remove this workaround."
-#endif
+// When this code is only compiled on C++20+, these wrappers can be removed and
+// calling code changed to call the string_view methods directly.
 
 inline bool StartsWith(std::string_view sv, std::string_view prefix) {
+#if !defined(__cpp_lib_starts_ends_with) || __cpp_lib_starts_ends_with < 201711L
   return sv.substr(0u, prefix.size()) == prefix;
+#else
+  return sv.starts_with(prefix);
+#endif
 }
 
 inline bool EndsWith(std::string_view sv, std::string_view suffix) {
+#if !defined(__cpp_lib_starts_ends_with) || __cpp_lib_starts_ends_with < 201711L
   return sv.size() >= suffix.size() && sv.substr(sv.size() - suffix.size()) == suffix;
+#else
+  return sv.ends_with(suffix);
+#endif
 }
 
 }  // namespace art
