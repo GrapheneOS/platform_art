@@ -26,16 +26,16 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
-import android.content.pm.ApplicationInfo;
 import android.os.CancellationSignal;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 
 import com.android.server.art.testing.StaticMockitoRule;
-import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageState;
-import com.android.server.art.wrapper.PackageUserState;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.AndroidPackageSplit;
+import com.android.server.pm.pkg.PackageState;
+import com.android.server.pm.pkg.PackageUserState;
 
 import dalvik.system.PathClassLoader;
 
@@ -59,7 +59,7 @@ public class PrimaryDexOptimizerTestBase {
     @Mock protected IArtd mArtd;
     @Mock protected UserManager mUserManager;
     protected PackageState mPkgState;
-    protected AndroidPackageApi mPkg;
+    protected AndroidPackage mPkg;
     protected PackageUserState mPkgUserStateNotInstalled;
     protected PackageUserState mPkgUserStateInstalled;
     protected CancellationSignal mCancellationSignal;
@@ -104,28 +104,34 @@ public class PrimaryDexOptimizerTestBase {
         mPrimaryDexOptimizer = new PrimaryDexOptimizer(mInjector);
     }
 
-    private AndroidPackageApi createPackage() {
+    private AndroidPackage createPackage() {
         // This package has the base APK and one split APK that has code.
-        AndroidPackageApi pkg = mock(AndroidPackageApi.class);
-        lenient().when(pkg.getBaseApkPath()).thenReturn("/data/app/foo/base.apk");
-        lenient().when(pkg.isHasCode()).thenReturn(true);
-        lenient().when(pkg.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
-        lenient().when(pkg.getSplitNames()).thenReturn(new String[] {"split_0", "split_1"});
-        lenient()
-                .when(pkg.getSplitCodePaths())
-                .thenReturn(
-                        new String[] {"/data/app/foo/split_0.apk", "/data/app/foo/split_1.apk"});
-        lenient()
-                .when(pkg.getSplitFlags())
-                .thenReturn(new int[] {ApplicationInfo.FLAG_HAS_CODE, 0});
-        lenient().when(pkg.getUid()).thenReturn(UID);
+        AndroidPackage pkg = mock(AndroidPackage.class);
+        var baseSplit = mock(AndroidPackageSplit.class);
+        lenient().when(baseSplit.getPath()).thenReturn("/data/app/foo/base.apk");
+        lenient().when(baseSplit.isHasCode()).thenReturn(true);
+        lenient().when(baseSplit.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
+
+        var split0 = mock(AndroidPackageSplit.class);
+        lenient().when(split0.getName()).thenReturn("split_0");
+        lenient().when(split0.getPath()).thenReturn("/data/app/foo/split_0.apk");
+        lenient().when(split0.isHasCode()).thenReturn(true);
+
+        var split1 = mock(AndroidPackageSplit.class);
+        lenient().when(split1.getName()).thenReturn("split_1");
+        lenient().when(split1.getPath()).thenReturn("/data/app/foo/split_1.apk");
+        lenient().when(split1.isHasCode()).thenReturn(false);
+
+        var splits = List.of(baseSplit, split0, split1);
+        lenient().when(pkg.getSplits()).thenReturn(splits);
+
         lenient().when(pkg.isVmSafeMode()).thenReturn(false);
         lenient().when(pkg.isDebuggable()).thenReturn(false);
         lenient().when(pkg.getTargetSdkVersion()).thenReturn(123);
         lenient().when(pkg.isSignedWithPlatformKey()).thenReturn(false);
         lenient().when(pkg.isUsesNonSdkApi()).thenReturn(false);
-        lenient().when(pkg.getSdkLibName()).thenReturn(null);
-        lenient().when(pkg.getStaticSharedLibName()).thenReturn(null);
+        lenient().when(pkg.getSdkLibraryName()).thenReturn(null);
+        lenient().when(pkg.getStaticSharedLibraryName()).thenReturn(null);
         lenient().when(pkg.getLibraryNames()).thenReturn(new ArrayList<>());
         return pkg;
     }
@@ -137,11 +143,12 @@ public class PrimaryDexOptimizerTestBase {
         lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
         lenient().when(pkgState.isSystem()).thenReturn(false);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
-        lenient().when(pkgState.getUsesLibraryInfos()).thenReturn(new ArrayList<>());
+        lenient().when(pkgState.getAppId()).thenReturn(UID);
+        lenient().when(pkgState.getUsesLibraries()).thenReturn(new ArrayList<>());
         lenient()
-                .when(pkgState.getUserStateOrDefault(anyInt()))
+                .when(pkgState.getStateForUser(any()))
                 .thenReturn(mPkgUserStateNotInstalled);
-        AndroidPackageApi pkg = createPackage();
+        AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         return pkgState;
     }

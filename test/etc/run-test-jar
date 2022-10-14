@@ -47,13 +47,6 @@ if True:
       with open(
           os.path.join(ART_TEST_CMD_DIR, os.environ["FULL_TEST_NAME"]),
           "a") as f:
-        env_ignore = [
-            "SHLVL", "_", "ART_TOOLS_BUILD_VAR_CACHE", "PWD", "OLDPWD", "TMUX",
-            "TMUX_PANE"
-        ]
-        env = {
-            k: v for k, v in sorted(os.environ.items()) if k not in env_ignore
-        }
         # Replace DEX_LOCATION (which is randomly generated temporary directory),
         # with a deterministic placeholder so that we can do a diff from run to run.
         f.write("\n".join(
@@ -1038,7 +1031,7 @@ if True:
                     {QUOTED_DALVIKVM_BOOT_OPT} \
                     {TMP_DIR_OPTION} \
                     -XX:DumpNativeStackOnSigQuit:false \
-                    -cp {DALVIKVM_CLASSPATH} {MAIN} {ARGS}"
+                    -cp {DALVIKVM_CLASSPATH} {MAIN} {ARGS} {test_args}".strip()
 
   if SIMPLEPERF:
     dalvikvm_cmdline = f"simpleperf record {dalvikvm_cmdline} && simpleperf report"
@@ -1335,14 +1328,14 @@ if True:
     if USE_GDB:
       # When running under gdb, we cannot do piping and grepping...
       env["TERM"] = os.environ.get("TERM", "")
-      subprocess.run(cmdline + test_args, env=env, shell=True)
+      subprocess.run(cmdline, env=env, shell=True)
     elif USE_GDBSERVER:
       print(f"Connect to {GDBSERVER_PORT}")
       # When running under gdb, we cannot do piping and grepping...
-      subprocess.run(cmdline + test_args, env=env, shell=True)
+      subprocess.run(cmdline, env=env, shell=True)
     else:
       if TIME_OUT != "gdb":
-        proc = run(cmdline + test_args, env, check=False, quiet=False)
+        proc = run(cmdline, env, check=False, quiet=False)
         exit_value = proc.returncode
         # Add extra detail if time out is enabled.
         if exit_value == 124 and TIME_OUT == "timeout":
@@ -1350,7 +1343,7 @@ if True:
         sys.exit(exit_value)
       else:
         # With a thread dump that uses gdb if a timeout.
-        proc = run(cmdline + test_args, check=False)
+        proc = run(cmdline, check=False)
         # TODO: Spawn a watcher process.
         raise Exception("Not implemented")
         # ( sleep {TIME_OUT_VALUE} && \

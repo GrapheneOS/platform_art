@@ -23,7 +23,6 @@ import com.android.internal.annotations.Immutable;
 
 import com.google.auto.value.AutoValue;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**

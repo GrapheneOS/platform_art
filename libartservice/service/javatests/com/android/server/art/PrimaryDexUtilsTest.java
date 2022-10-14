@@ -21,18 +21,16 @@ import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import android.content.pm.ApplicationInfo;
-import android.util.SparseArray;
-
 import androidx.test.filters.SmallTest;
 
-import com.android.server.art.PrimaryDexUtils;
-import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageState;
-import com.android.server.art.wrapper.SharedLibraryInfo;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.AndroidPackageSplit;
+import com.android.server.pm.pkg.PackageState;
+import com.android.server.pm.pkg.SharedLibrary;
 
 import dalvik.system.DelegateLastClassLoader;
 import dalvik.system.DexClassLoader;
@@ -107,66 +105,64 @@ public class PrimaryDexUtilsTest {
     private <T extends PrimaryDexInfo> void checkBasicInfo(List<T> infos) {
         assertThat(infos.get(0).dexPath()).isEqualTo("/data/app/foo/base.apk");
         assertThat(infos.get(0).hasCode()).isTrue();
-        assertThat(infos.get(0).isBaseApk()).isTrue();
-        assertThat(infos.get(0).splitIndex()).isEqualTo(-1);
         assertThat(infos.get(0).splitName()).isNull();
 
         assertThat(infos.get(1).dexPath()).isEqualTo("/data/app/foo/split_0.apk");
         assertThat(infos.get(1).hasCode()).isTrue();
-        assertThat(infos.get(1).isBaseApk()).isFalse();
-        assertThat(infos.get(1).splitIndex()).isEqualTo(0);
         assertThat(infos.get(1).splitName()).isEqualTo("split_0");
 
         assertThat(infos.get(2).dexPath()).isEqualTo("/data/app/foo/split_1.apk");
         assertThat(infos.get(2).hasCode()).isFalse();
-        assertThat(infos.get(2).isBaseApk()).isFalse();
-        assertThat(infos.get(2).splitIndex()).isEqualTo(1);
         assertThat(infos.get(2).splitName()).isEqualTo("split_1");
 
         assertThat(infos.get(3).dexPath()).isEqualTo("/data/app/foo/split_2.apk");
         assertThat(infos.get(3).hasCode()).isTrue();
-        assertThat(infos.get(3).isBaseApk()).isFalse();
-        assertThat(infos.get(3).splitIndex()).isEqualTo(2);
         assertThat(infos.get(3).splitName()).isEqualTo("split_2");
 
         assertThat(infos.get(4).dexPath()).isEqualTo("/data/app/foo/split_3.apk");
         assertThat(infos.get(4).hasCode()).isTrue();
-        assertThat(infos.get(4).isBaseApk()).isFalse();
-        assertThat(infos.get(4).splitIndex()).isEqualTo(3);
         assertThat(infos.get(4).splitName()).isEqualTo("split_3");
 
         assertThat(infos.get(5).dexPath()).isEqualTo("/data/app/foo/split_4.apk");
         assertThat(infos.get(5).hasCode()).isTrue();
-        assertThat(infos.get(5).isBaseApk()).isFalse();
-        assertThat(infos.get(5).splitIndex()).isEqualTo(4);
         assertThat(infos.get(5).splitName()).isEqualTo("split_4");
     }
 
-    private AndroidPackageApi createPackage(boolean isIsolatedSplitLoading) {
-        AndroidPackageApi pkg = mock(AndroidPackageApi.class);
+    private AndroidPackage createPackage(boolean isIsolatedSplitLoading) {
+        AndroidPackage pkg = mock(AndroidPackage.class);
 
-        when(pkg.getBaseApkPath()).thenReturn("/data/app/foo/base.apk");
-        when(pkg.isHasCode()).thenReturn(true);
-        when(pkg.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
+        var baseSplit = mock(AndroidPackageSplit.class);
+        lenient().when(baseSplit.getPath()).thenReturn("/data/app/foo/base.apk");
+        lenient().when(baseSplit.isHasCode()).thenReturn(true);
+        lenient().when(baseSplit.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
 
-        when(pkg.getSplitNames())
-                .thenReturn(new String[] {"split_0", "split_1", "split_2", "split_3", "split_4"});
-        when(pkg.getSplitCodePaths())
-                .thenReturn(new String[] {
-                        "/data/app/foo/split_0.apk",
-                        "/data/app/foo/split_1.apk",
-                        "/data/app/foo/split_2.apk",
-                        "/data/app/foo/split_3.apk",
-                        "/data/app/foo/split_4.apk",
-                });
-        when(pkg.getSplitFlags())
-                .thenReturn(new int[] {
-                        ApplicationInfo.FLAG_HAS_CODE,
-                        0,
-                        ApplicationInfo.FLAG_HAS_CODE,
-                        ApplicationInfo.FLAG_HAS_CODE,
-                        ApplicationInfo.FLAG_HAS_CODE,
-                });
+        var split0 = mock(AndroidPackageSplit.class);
+        lenient().when(split0.getName()).thenReturn("split_0");
+        lenient().when(split0.getPath()).thenReturn("/data/app/foo/split_0.apk");
+        lenient().when(split0.isHasCode()).thenReturn(true);
+
+        var split1 = mock(AndroidPackageSplit.class);
+        lenient().when(split1.getName()).thenReturn("split_1");
+        lenient().when(split1.getPath()).thenReturn("/data/app/foo/split_1.apk");
+        lenient().when(split1.isHasCode()).thenReturn(false);
+
+        var split2 = mock(AndroidPackageSplit.class);
+        lenient().when(split2.getName()).thenReturn("split_2");
+        lenient().when(split2.getPath()).thenReturn("/data/app/foo/split_2.apk");
+        lenient().when(split2.isHasCode()).thenReturn(true);
+
+        var split3 = mock(AndroidPackageSplit.class);
+        lenient().when(split3.getName()).thenReturn("split_3");
+        lenient().when(split3.getPath()).thenReturn("/data/app/foo/split_3.apk");
+        lenient().when(split3.isHasCode()).thenReturn(true);
+
+        var split4 = mock(AndroidPackageSplit.class);
+        lenient().when(split4.getName()).thenReturn("split_4");
+        lenient().when(split4.getPath()).thenReturn("/data/app/foo/split_4.apk");
+        lenient().when(split4.isHasCode()).thenReturn(true);
+
+        var splits = List.of(baseSplit, split0, split1, split2, split3, split4);
+        when(pkg.getSplits()).thenReturn(splits);
 
         if (isIsolatedSplitLoading) {
             // split_0: PCL(PathClassLoader), depends on split_2.
@@ -174,20 +170,16 @@ public class PrimaryDexUtilsTest {
             // split_2: DLC(DelegateLastClassLoader), depends on base.
             // split_3: PCL(DexClassLoader), no dependency.
             // split_4: PCL(null), depends on split_3.
+            when(split0.getClassLoaderName()).thenReturn(PathClassLoader.class.getName());
+            when(split1.getClassLoaderName()).thenReturn(null);
+            when(split2.getClassLoaderName()).thenReturn(DelegateLastClassLoader.class.getName());
+            when(split3.getClassLoaderName()).thenReturn(DexClassLoader.class.getName());
+            when(split4.getClassLoaderName()).thenReturn(null);
+
+            when(split0.getDependencies()).thenReturn(List.of(split2));
+            when(split2.getDependencies()).thenReturn(List.of(baseSplit));
+            when(split4.getDependencies()).thenReturn(List.of(split3));
             when(pkg.isIsolatedSplitLoading()).thenReturn(true);
-            when(pkg.getSplitClassLoaderNames())
-                    .thenReturn(new String[] {
-                            PathClassLoader.class.getName(),
-                            null,
-                            DelegateLastClassLoader.class.getName(),
-                            DexClassLoader.class.getName(),
-                            null,
-                    });
-            SparseArray<int[]> splitDependencies = new SparseArray<>();
-            splitDependencies.set(1, new int[] {3});
-            splitDependencies.set(3, new int[] {0});
-            splitDependencies.set(5, new int[] {4});
-            when(pkg.getSplitDependencies()).thenReturn(splitDependencies);
         } else {
             when(pkg.isIsolatedSplitLoading()).thenReturn(false);
         }
@@ -202,29 +194,29 @@ public class PrimaryDexUtilsTest {
 
         // Base depends on library 2, 3, 4.
         // Library 2, 4 depends on library 1.
-        List<SharedLibraryInfo> usesLibraryInfos = new ArrayList<>();
+        List<SharedLibrary> usesLibraryInfos = new ArrayList<>();
 
-        SharedLibraryInfo library1 = mock(SharedLibraryInfo.class);
+        SharedLibrary library1 = mock(SharedLibrary.class);
         when(library1.getAllCodePaths())
                 .thenReturn(List.of("library_1_dex_1.jar", "library_1_dex_2.jar"));
         when(library1.getDependencies()).thenReturn(null);
 
-        SharedLibraryInfo library2 = mock(SharedLibraryInfo.class);
+        SharedLibrary library2 = mock(SharedLibrary.class);
         when(library2.getAllCodePaths()).thenReturn(List.of("library_2.jar"));
         when(library2.getDependencies()).thenReturn(List.of(library1));
         usesLibraryInfos.add(library2);
 
-        SharedLibraryInfo library3 = mock(SharedLibraryInfo.class);
+        SharedLibrary library3 = mock(SharedLibrary.class);
         when(library3.getAllCodePaths()).thenReturn(List.of("library_3.jar"));
         when(library3.getDependencies()).thenReturn(null);
         usesLibraryInfos.add(library3);
 
-        SharedLibraryInfo library4 = mock(SharedLibraryInfo.class);
+        SharedLibrary library4 = mock(SharedLibrary.class);
         when(library4.getAllCodePaths()).thenReturn(List.of("library_4.jar"));
         when(library4.getDependencies()).thenReturn(List.of(library1));
         usesLibraryInfos.add(library4);
 
-        when(pkgState.getUsesLibraryInfos()).thenReturn(usesLibraryInfos);
+        when(pkgState.getUsesLibraries()).thenReturn(usesLibraryInfos);
 
         return pkgState;
     }

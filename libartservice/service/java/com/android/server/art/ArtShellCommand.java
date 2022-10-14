@@ -33,8 +33,7 @@ import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
-import com.android.server.art.wrapper.PackageManagerLocal;
-import com.android.server.pm.snapshot.PackageDataSnapshot;
+import com.android.server.pm.PackageManagerLocal;
 
 import java.io.PrintWriter;
 import java.util.HashMap;
@@ -64,90 +63,91 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     public int onCommand(String cmd) {
         enforceRoot();
         PrintWriter pw = getOutPrintWriter();
-        PackageDataSnapshot snapshot = mPackageManagerLocal.snapshot();
-        switch (cmd) {
-            case "delete-optimized-artifacts": {
-                DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
-                        snapshot, getNextArgRequired(), ArtFlags.defaultDeleteFlags());
-                pw.printf("Freed %d bytes\n", result.getFreedBytes());
-                return 0;
-            }
-            case "get-optimization-status": {
-                OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
-                        snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
-                pw.println(optimizationStatus);
-                return 0;
-            }
-            case "optimize-package": {
-                var paramsBuilder = new OptimizeParams.Builder("cmdline");
-                String opt;
-                while ((opt = getNextOption()) != null) {
-                    switch (opt) {
-                        case "-m":
-                            paramsBuilder.setCompilerFilter(getNextArgRequired());
-                            break;
-                        case "-f":
-                            paramsBuilder.setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE);
-                            break;
-                        default:
-                            pw.println("Error: Unknown option: " + opt);
-                            return 1;
+        try (var snapshot = mPackageManagerLocal.withFilteredSnapshot()) {
+            switch (cmd) {
+                case "delete-optimized-artifacts": {
+                    DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
+                            snapshot, getNextArgRequired(), ArtFlags.defaultDeleteFlags());
+                    pw.printf("Freed %d bytes\n", result.getFreedBytes());
+                    return 0;
+                }
+                case "get-optimization-status": {
+                    OptimizationStatus optimizationStatus = mArtManagerLocal.getOptimizationStatus(
+                            snapshot, getNextArgRequired(), ArtFlags.defaultGetStatusFlags());
+                    pw.println(optimizationStatus);
+                    return 0;
+                }
+                case "optimize-package": {
+                    var paramsBuilder = new OptimizeParams.Builder("cmdline");
+                    String opt;
+                    while ((opt = getNextOption()) != null) {
+                        switch (opt) {
+                            case "-m":
+                                paramsBuilder.setCompilerFilter(getNextArgRequired());
+                                break;
+                            case "-f":
+                                paramsBuilder.setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE);
+                                break;
+                            default:
+                                pw.println("Error: Unknown option: " + opt);
+                                return 1;
+                        }
                     }
-                }
 
-                String jobId = UUID.randomUUID().toString();
-                var signal = new CancellationSignal();
-                pw.printf("Job ID: %s\n", jobId);
-                pw.flush();
+                    String jobId = UUID.randomUUID().toString();
+                    var signal = new CancellationSignal();
+                    pw.printf("Job ID: %s\n", jobId);
+                    pw.flush();
 
-                synchronized (sCancellationSignalMap) {
-                    sCancellationSignalMap.put(jobId, signal);
-                }
-
-                OptimizeResult result;
-                try {
-                    result = mArtManagerLocal.optimizePackage(
-                            snapshot, getNextArgRequired(), paramsBuilder.build(), signal);
-                } finally {
                     synchronized (sCancellationSignalMap) {
-                        sCancellationSignalMap.remove(jobId);
+                        sCancellationSignalMap.put(jobId, signal);
                     }
-                }
 
-                pw.println(optimizeStatusToString(result.getFinalStatus()));
-                for (PackageOptimizeResult packageResult : result.getPackageOptimizeResults()) {
-                    pw.printf("[%s]\n", packageResult.getPackageName());
-                    for (DexContainerFileOptimizeResult fileResult :
-                            packageResult.getDexContainerFileOptimizeResults()) {
-                        pw.printf("dexContainerFile = %s, isPrimaryAbi = %b, abi = %s, "
-                                        + "compilerFilter = %s, status = %s, "
-                                        + "dex2oatWallTimeMillis = %d, dex2oatCpuTimeMillis = %d\n",
-                                fileResult.getDexContainerFile(), fileResult.isPrimaryAbi(),
-                                fileResult.getAbi(), fileResult.getActualCompilerFilter(),
-                                optimizeStatusToString(fileResult.getStatus()),
-                                fileResult.getDex2oatWallTimeMillis(),
-                                fileResult.getDex2oatCpuTimeMillis());
+                    OptimizeResult result;
+                    try {
+                        result = mArtManagerLocal.optimizePackage(
+                                snapshot, getNextArgRequired(), paramsBuilder.build(), signal);
+                    } finally {
+                        synchronized (sCancellationSignalMap) {
+                            sCancellationSignalMap.remove(jobId);
+                        }
                     }
+
+                    pw.println(optimizeStatusToString(result.getFinalStatus()));
+                    for (PackageOptimizeResult packageResult : result.getPackageOptimizeResults()) {
+                        pw.printf("[%s]\n", packageResult.getPackageName());
+                        for (DexContainerFileOptimizeResult fileResult :
+                                packageResult.getDexContainerFileOptimizeResults()) {
+                            pw.printf("dexContainerFile = %s, isPrimaryAbi = %b, abi = %s, "
+                                            + "compilerFilter = %s, status = %s, "
+                                            + "dex2oatWallTimeMillis = %d, dex2oatCpuTimeMillis = %d\n",
+                                    fileResult.getDexContainerFile(), fileResult.isPrimaryAbi(),
+                                    fileResult.getAbi(), fileResult.getActualCompilerFilter(),
+                                    optimizeStatusToString(fileResult.getStatus()),
+                                    fileResult.getDex2oatWallTimeMillis(),
+                                    fileResult.getDex2oatCpuTimeMillis());
+                        }
+                    }
+                    return 0;
                 }
-                return 0;
+                case "cancel": {
+                    String jobId = getNextArgRequired();
+                    CancellationSignal signal;
+                    synchronized (sCancellationSignalMap) {
+                        signal = sCancellationSignalMap.getOrDefault(jobId, null);
+                    }
+                    if (signal == null) {
+                        pw.println("Job not found");
+                        return 1;
+                    }
+                    signal.cancel();
+                    pw.println("Job cancelled");
+                    return 0;
+                }
+                default:
+                    // Handles empty, help, and invalid commands.
+                    return handleDefaultCommands(cmd);
             }
-            case "cancel": {
-                String jobId = getNextArgRequired();
-                CancellationSignal signal;
-                synchronized (sCancellationSignalMap) {
-                    signal = sCancellationSignalMap.getOrDefault(jobId, null);
-                }
-                if (signal == null) {
-                    pw.println("Job not found");
-                    return 1;
-                }
-                signal.cancel();
-                pw.println("Job cancelled");
-                return 0;
-            }
-            default:
-                // Handles empty, help, and invalid commands.
-                return handleDefaultCommands(cmd);
         }
     }
 

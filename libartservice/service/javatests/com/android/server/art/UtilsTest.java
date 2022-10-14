@@ -31,7 +31,7 @@ import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.art.Utils;
 import com.android.server.art.testing.StaticMockitoRule;
-import com.android.server.art.wrapper.PackageState;
+import com.android.server.pm.pkg.PackageState;
 
 import org.junit.Before;
 import org.junit.Rule;

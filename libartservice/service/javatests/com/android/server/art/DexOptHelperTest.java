@@ -41,9 +41,10 @@ import androidx.test.filters.SmallTest;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.testing.OnSuccessRule;
-import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageState;
-import com.android.server.pm.snapshot.PackageDataSnapshot;
+import com.android.server.pm.PackageManagerLocal;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.AndroidPackageSplit;
+import com.android.server.pm.pkg.PackageState;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -66,7 +67,7 @@ public class DexOptHelperTest {
     @Mock private PowerManager mPowerManager;
     @Mock private PowerManager.WakeLock mWakeLock;
     private PackageState mPkgState;
-    private AndroidPackageApi mPkg;
+    private AndroidPackage mPkg;
     private CancellationSignal mCancellationSignal;
 
     @Rule
@@ -114,7 +115,8 @@ public class DexOptHelperTest {
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result = mDexOptHelper.dexopt(
-                mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
+                mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg, mParams,
+                mCancellationSignal);
 
         assertThat(result.getRequestedCompilerFilter()).isEqualTo("speed-profile");
         assertThat(result.getReason()).isEqualTo("install");
@@ -134,10 +136,11 @@ public class DexOptHelperTest {
 
     @Test
     public void testDexoptNoCode() throws Exception {
-        when(mPkg.isHasCode()).thenReturn(false);
+        when(mPkg.getSplits().get(0).isHasCode()).thenReturn(false);
 
         OptimizeResult result = mDexOptHelper.dexopt(
-                mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
+                mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg, mParams,
+                mCancellationSignal);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
         assertThat(result.getPackageOptimizeResults().get(0).getDexContainerFileOptimizeResults())
@@ -149,7 +152,8 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(true);
 
         OptimizeResult result = mDexOptHelper.dexopt(
-                mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
+                mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg, mParams,
+                mCancellationSignal);
 
         assertThat(result.getFinalStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
         assertThat(result.getPackageOptimizeResults().get(0).getDexContainerFileOptimizeResults())
@@ -166,7 +170,8 @@ public class DexOptHelperTest {
                 .thenReturn(mPrimaryResults);
 
         OptimizeResult result = mDexOptHelper.dexopt(
-                mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
+                mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg, mParams,
+                mCancellationSignal);
 
         assertThat(result.getPackageOptimizeResults().get(0).getDexContainerFileOptimizeResults())
                 .containsExactlyElementsIn(mPrimaryResults);
@@ -179,25 +184,27 @@ public class DexOptHelperTest {
                 .thenThrow(IllegalStateException.class);
 
         try {
-            OptimizeResult result = mDexOptHelper.dexopt(
-                    mock(PackageDataSnapshot.class), mPkgState, mPkg, mParams, mCancellationSignal);
-        } catch (Exception e) {
+            mDexOptHelper.dexopt(mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg,
+                    mParams, mCancellationSignal);
+        } catch (Exception ignored) {
         }
 
         verify(mWakeLock).release();
     }
 
-    private AndroidPackageApi createPackage() {
-        AndroidPackageApi pkg = mock(AndroidPackageApi.class);
-        lenient().when(pkg.getUid()).thenReturn(12345);
-        lenient().when(pkg.isHasCode()).thenReturn(true);
+    private AndroidPackage createPackage() {
+        AndroidPackage pkg = mock(AndroidPackage.class);
+        var baseSplit = mock(AndroidPackageSplit.class);
+        lenient().when(baseSplit.isHasCode()).thenReturn(true);
+        lenient().when(pkg.getSplits()).thenReturn(List.of(baseSplit));
         return pkg;
     }
 
     private PackageState createPackageState() {
         PackageState pkgState = mock(PackageState.class);
         lenient().when(pkgState.getPackageName()).thenReturn(PKG_NAME);
-        AndroidPackageApi pkg = createPackage();
+        lenient().when(pkgState.getAppId()).thenReturn(12345);
+        AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         return pkgState;
     }
