@@ -1057,6 +1057,7 @@ class HiddenApi final {
     std::map<std::string, ApiList> api_flag_map;
 
     size_t line_number = 1;
+    bool errors = false;
     for (std::string line; std::getline(api_file, line); line_number++) {
       // Every line contains a comma separated list with the signature as the
       // first element and the api flags as the rest
@@ -1074,13 +1075,21 @@ class HiddenApi final {
       std::vector<std::string>::iterator apiListBegin = values.begin() + 1;
       std::vector<std::string>::iterator apiListEnd = values.end();
       bool success = ApiList::FromNames(apiListBegin, apiListEnd, &membership);
-      CHECK(success) << path << ":" << line_number
-          << ": Some flags were not recognized: " << line << kErrorHelp;
-      CHECK(membership.IsValid()) << path << ":" << line_number
-          << ": Invalid combination of flags: " << line << kErrorHelp;
+      if (!success) {
+        LOG(ERROR) << path << ":" << line_number
+            << ": Some flags were not recognized: " << line << kErrorHelp;
+        errors = true;
+        continue;
+      } else if (!membership.IsValid()) {
+        LOG(ERROR) << path << ":" << line_number
+            << ": Invalid combination of flags: " << line << kErrorHelp;
+        errors = true;
+        continue;
+      }
 
       api_flag_map.emplace(signature, membership);
     }
+    CHECK(!errors) << "Errors encountered while parsing file " << path;
 
     api_file.close();
     return api_flag_map;
