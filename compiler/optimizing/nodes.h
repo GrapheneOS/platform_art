@@ -137,6 +137,7 @@ enum GraphAnalysisResult {
   kAnalysisInvalidBytecode,
   kAnalysisFailThrowCatchLoop,
   kAnalysisFailAmbiguousArrayOp,
+  kAnalysisFailInliningIrreducibleLoop,
   kAnalysisFailIrreducibleLoopAndStringInit,
   kAnalysisFailPhiEquivalentInOsr,
   kAnalysisSuccess,

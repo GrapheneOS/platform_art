@@ -20,7 +20,6 @@ import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimi
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.Binder;
@@ -33,9 +32,9 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
-import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageState;
-import com.android.server.pm.snapshot.PackageDataSnapshot;
+import com.android.server.pm.PackageManagerLocal;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.PackageState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,11 +69,12 @@ public class DexOptHelper {
 
     /**
      * DO NOT use this method directly. Use {@link
-     * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeParams)}.
+     * ArtManagerLocal#optimizePackage(PackageManagerLocal.FilteredSnapshot, String,
+     * OptimizeParams)}.
      */
     @NonNull
-    public OptimizeResult dexopt(@NonNull PackageDataSnapshot snapshot,
-            @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg,
+    public OptimizeResult dexopt(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull PackageState pkgState, @NonNull AndroidPackage pkg,
             @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal)
             throws RemoteException {
         List<DexContainerFileOptimizeResult> results = new ArrayList<>();
@@ -96,7 +96,7 @@ public class DexOptHelper {
             // Acquire a wake lock.
             PowerManager powerManager = mInjector.getPowerManager();
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
-            wakeLock.setWorkSource(new WorkSource(pkg.getUid()));
+            wakeLock.setWorkSource(new WorkSource(pkgState.getAppId()));
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
 
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
@@ -129,8 +129,8 @@ public class DexOptHelper {
     }
 
     private boolean canOptimizePackage(
-            @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg) {
-        if (!pkg.isHasCode()) {
+            @NonNull PackageState pkgState, @NonNull AndroidPackage pkg) {
+        if (!pkg.getSplits().get(0).isHasCode()) {
             return false;
         }
 

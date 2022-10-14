@@ -23,10 +23,8 @@ import android.os.SystemProperties;
 import android.text.TextUtils;
 import android.util.SparseArray;
 
-import com.android.server.art.ArtifactsPath;
 import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.wrapper.PackageManagerLocal;
-import com.android.server.art.wrapper.PackageState;
+import com.android.server.pm.pkg.PackageState;
 
 import com.google.auto.value.AutoValue;
 

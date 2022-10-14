@@ -45,13 +45,14 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
-import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageState;
-import com.android.server.art.wrapper.PackageUserState;
-
-import com.google.auto.value.AutoValue;
+import com.android.server.pm.PackageManagerLocal;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.PackageState;
+import com.android.server.pm.pkg.PackageUserState;
 
 import dalvik.system.DexFile;
+
+import com.google.auto.value.AutoValue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,24 +74,25 @@ public class PrimaryDexOptimizer {
 
     /**
      * DO NOT use this method directly. Use {@link
-     * ArtManagerLocal#optimizePackage(PackageDataSnapshot, String, OptimizeParams)}.
+     * ArtManagerLocal#optimizePackage(PackageManagerLocal.FilteredSnapshot, String,
+     * OptimizeParams)}.
      */
     @NonNull
     public List<DexContainerFileOptimizeResult> dexopt(@NonNull PackageState pkgState,
-            @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params,
+            @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
             @NonNull CancellationSignal cancellationSignal) throws RemoteException {
         List<DexContainerFileOptimizeResult> results = new ArrayList<>();
 
-        int uid = pkg.getUid();
-        if (uid < 0) {
+        int appId = pkgState.getAppId();
+        if (appId < 0) {
             throw new IllegalStateException(
-                    "Package '" + pkgState.getPackageName() + "' has invalid app uid");
+                    "Package '" + pkgState.getPackageName() + "' has invalid app ID");
         }
-        int sharedGid = UserHandle.getSharedAppGid(uid);
+        int sharedGid = UserHandle.getSharedAppGid(appId);
         if (sharedGid < 0) {
             throw new IllegalStateException(
-                    String.format("Unable to get shared gid for package '%s' (uid: %d)",
-                            pkgState.getPackageName(), uid));
+                    String.format("Unable to get shared gid for package '%s' (app ID: %d)",
+                            pkgState.getPackageName(), appId));
         }
 
         String targetCompilerFilter =
@@ -120,16 +122,16 @@ public class PrimaryDexOptimizer {
                 boolean profileMerged = false;
                 if (DexFile.isProfileGuidedCompilerFilter(compilerFilter)) {
                     if (needsToBeShared) {
-                        profile = initReferenceProfile(pkgState, dexInfo, uid, sharedGid);
+                        profile = initReferenceProfile(pkgState, dexInfo, appId, sharedGid);
                     } else {
                         Pair<ProfilePath, Boolean> pair =
-                                getOrInitReferenceProfile(pkgState, dexInfo, uid, sharedGid);
+                                getOrInitReferenceProfile(pkgState, dexInfo, appId, sharedGid);
                         if (pair != null) {
                             profile = pair.first;
                             isOtherReadable = pair.second;
                         }
                         ProfilePath mergedProfile =
-                                mergeProfiles(pkgState, dexInfo, uid, sharedGid, profile);
+                                mergeProfiles(pkgState, dexInfo, appId, sharedGid, profile);
                         if (mergedProfile != null) {
                             if (profile != null
                                     && profile.getTag() == ProfilePath.tmpRefProfilePath) {
@@ -264,7 +266,7 @@ public class PrimaryDexOptimizer {
 
     @NonNull
     private String adjustCompilerFilter(@NonNull PackageState pkgState,
-            @NonNull AndroidPackageApi pkg, @NonNull String targetCompilerFilter,
+            @NonNull AndroidPackage pkg, @NonNull String targetCompilerFilter,
             @NonNull String reason) {
         if (mInjector.isSystemUiPackage(pkgState.getPackageName())) {
             String systemUiCompilerFilter = getSystemUiCompilerFilter();
@@ -297,10 +299,10 @@ public class PrimaryDexOptimizer {
         return compilerFilter;
     }
 
-    boolean isSharedLibrary(@NonNull AndroidPackageApi pkg) {
+    boolean isSharedLibrary(@NonNull AndroidPackage pkg) {
         // TODO(b/242688548): Package manager should provide a better API for this.
-        return !TextUtils.isEmpty(pkg.getSdkLibName())
-                || !TextUtils.isEmpty(pkg.getStaticSharedLibName())
+        return !TextUtils.isEmpty(pkg.getSdkLibraryName())
+                || !TextUtils.isEmpty(pkg.getStaticSharedLibraryName())
                 || !pkg.getLibraryNames().isEmpty();
     }
 
@@ -404,7 +406,7 @@ public class PrimaryDexOptimizer {
 
     @NonNull
     private DexoptOptions getDexoptOptions(@NonNull PackageState pkgState,
-            @NonNull AndroidPackageApi pkg, @NonNull OptimizeParams params,
+            @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
             boolean isProfileGuidedFilter) {
         DexoptOptions dexoptOptions = new DexoptOptions();
         dexoptOptions.compilationReason = params.getReason();
@@ -429,7 +431,7 @@ public class PrimaryDexOptimizer {
     }
 
     private boolean isHiddenApiPolicyEnabled(
-            @NonNull PackageState pkgState, @NonNull AndroidPackageApi pkg) {
+            @NonNull PackageState pkgState, @NonNull AndroidPackage pkg) {
         if (pkg.isSignedWithPlatformKey()) {
             return false;
         }
@@ -579,7 +581,7 @@ public class PrimaryDexOptimizer {
         for (UserHandle handle :
                 mInjector.getUserManager().getUserHandles(true /* excludeDying */)) {
             int userId = handle.getIdentifier();
-            PackageUserState userState = pkgState.getUserStateOrDefault(userId);
+            PackageUserState userState = pkgState.getStateForUser(handle);
             if (userState.isInstalled()) {
                 profiles.add(AidlUtils.buildProfilePathForCur(
                         userId, pkgState.getPackageName(), getProfileName(dexInfo.splitName())));

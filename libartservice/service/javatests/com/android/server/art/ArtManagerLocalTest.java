@@ -20,10 +20,10 @@ import static com.android.server.art.model.OptimizationStatus.DexContainerFileOp
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.argThat;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.same;
@@ -31,7 +31,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import android.content.pm.ApplicationInfo;
 import android.os.CancellationSignal;
 import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
@@ -43,10 +42,10 @@ import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.testing.StaticMockitoRule;
-import com.android.server.art.wrapper.AndroidPackageApi;
-import com.android.server.art.wrapper.PackageManagerLocal;
-import com.android.server.art.wrapper.PackageState;
-import com.android.server.pm.snapshot.PackageDataSnapshot;
+import com.android.server.pm.PackageManagerLocal;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.AndroidPackageSplit;
+import com.android.server.pm.pkg.PackageState;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -70,10 +69,11 @@ public class ArtManagerLocalTest {
 
     @Mock private ArtManagerLocal.Injector mInjector;
     @Mock private PackageManagerLocal mPackageManagerLocal;
+    @Mock private PackageManagerLocal.FilteredSnapshot mSnapshot;
     @Mock private IArtd mArtd;
     @Mock private DexOptHelper mDexOptHelper;
     private PackageState mPkgState;
-    private AndroidPackageApi mPkg;
+    private AndroidPackage mPkg;
 
     // True if the primary dex'es are in a readonly partition.
     @Parameter(0) public boolean mIsInReadonlyPartition;
@@ -108,7 +108,10 @@ public class ArtManagerLocalTest {
         mPkgState = createPackageState();
         mPkg = mPkgState.getAndroidPackage();
         lenient()
-                .when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME)))
+                .when(mPackageManagerLocal.withFilteredSnapshot())
+                .thenReturn(mSnapshot);
+        lenient()
+                .when(mSnapshot.getPackageState(mPkgState.getPackageName()))
                 .thenReturn(mPkgState);
 
         mArtManagerLocal = new ArtManagerLocal(mInjector);
@@ -119,7 +122,7 @@ public class ArtManagerLocalTest {
         when(mArtd.deleteArtifacts(any())).thenReturn(1l);
 
         DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
-                mock(PackageDataSnapshot.class), PKG_NAME);
+                mSnapshot, PKG_NAME);
         assertThat(result.getFreedBytes()).isEqualTo(4);
 
         verify(mArtd).deleteArtifacts(argThat(artifactsPath
@@ -151,8 +154,7 @@ public class ArtManagerLocalTest {
 
         when(mArtd.deleteArtifacts(any())).thenReturn(1l);
 
-        DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(
-                mock(PackageDataSnapshot.class), PKG_NAME);
+        DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(mSnapshot, PKG_NAME);
         assertThat(result.getFreedBytes()).isEqualTo(4);
 
         verify(mArtd).deleteArtifacts(argThat(artifactsPath
@@ -176,16 +178,16 @@ public class ArtManagerLocalTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testDeleteOptimizedArtifactsPackageNotFound() throws Exception {
-        when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME))).thenReturn(null);
+        when(mSnapshot.getPackageState(anyString())).thenReturn(null);
 
-        mArtManagerLocal.deleteOptimizedArtifacts(mock(PackageDataSnapshot.class), PKG_NAME);
+        mArtManagerLocal.deleteOptimizedArtifacts(mSnapshot, PKG_NAME);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testDeleteOptimizedArtifactsNoPackage() throws Exception {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
-        mArtManagerLocal.deleteOptimizedArtifacts(mock(PackageDataSnapshot.class), PKG_NAME);
+        mArtManagerLocal.deleteOptimizedArtifacts(mSnapshot, PKG_NAME);
     }
 
     @Test
@@ -201,7 +203,7 @@ public class ArtManagerLocalTest {
                                 "extract", "compilation-reason-3", "location-debug-string-3"));
 
         OptimizationStatus result =
-                mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+                mArtManagerLocal.getOptimizationStatus(mSnapshot, PKG_NAME);
 
         List<DexContainerFileOptimizationStatus> statuses =
                 result.getDexContainerFileOptimizationStatuses();
@@ -238,16 +240,16 @@ public class ArtManagerLocalTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testGetOptimizationStatusPackageNotFound() throws Exception {
-        when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME))).thenReturn(null);
+        when(mSnapshot.getPackageState(anyString())).thenReturn(null);
 
-        mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+        mArtManagerLocal.getOptimizationStatus(mSnapshot, PKG_NAME);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testGetOptimizationStatusNoPackage() throws Exception {
         when(mPkgState.getAndroidPackage()).thenReturn(null);
 
-        mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+        mArtManagerLocal.getOptimizationStatus(mSnapshot, PKG_NAME);
     }
 
     @Test
@@ -256,7 +258,7 @@ public class ArtManagerLocalTest {
                 .thenThrow(new ServiceSpecificException(1 /* errorCode */, "some error message"));
 
         OptimizationStatus result =
-                mArtManagerLocal.getOptimizationStatus(mock(PackageDataSnapshot.class), PKG_NAME);
+                mArtManagerLocal.getOptimizationStatus(mSnapshot, PKG_NAME);
 
         List<DexContainerFileOptimizationStatus> statuses =
                 result.getDexContainerFileOptimizationStatuses();
@@ -275,47 +277,50 @@ public class ArtManagerLocalTest {
         var result = mock(OptimizeResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        when(mDexOptHelper.dexopt(
-                     any(), same(mPkgState), same(mPkg), same(params), same(cancellationSignal)))
+        when(mDexOptHelper.dexopt(any(), same(mPkgState), same(mPkg), same(params),
+                same(cancellationSignal)))
                 .thenReturn(result);
 
-        assertThat(mArtManagerLocal.optimizePackage(
-                           mock(PackageDataSnapshot.class), PKG_NAME, params, cancellationSignal))
+        assertThat(mArtManagerLocal.optimizePackage(mSnapshot,
+                PKG_NAME, params, cancellationSignal))
                 .isSameInstanceAs(result);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testOptimizePackagePackageNotFound() throws Exception {
-        when(mPackageManagerLocal.getPackageState(any(), anyInt(), eq(PKG_NAME))).thenReturn(null);
+        when(mSnapshot.getPackageState(anyString())).thenReturn(null);
 
-        mArtManagerLocal.optimizePackage(mock(PackageDataSnapshot.class), PKG_NAME,
+        mArtManagerLocal.optimizePackage(mSnapshot, PKG_NAME,
                 new OptimizeParams.Builder("install").build());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testOptimizePackageNoPackage() throws Exception {
-        when(mPkgState.getAndroidPackage()).thenReturn(null);
+        lenient().when(mPkgState.getAndroidPackage()).thenReturn(null);
 
-        mArtManagerLocal.optimizePackage(mock(PackageDataSnapshot.class), PKG_NAME,
+        mArtManagerLocal.optimizePackage(mSnapshot, PKG_NAME,
                 new OptimizeParams.Builder("install").build());
     }
 
-    private AndroidPackageApi createPackage() {
-        AndroidPackageApi pkg = mock(AndroidPackageApi.class);
+    private AndroidPackage createPackage() {
+        AndroidPackage pkg = mock(AndroidPackage.class);
 
-        lenient().when(pkg.getBaseApkPath()).thenReturn("/data/app/foo/base.apk");
-        lenient().when(pkg.isHasCode()).thenReturn(true);
+        var baseSplit = mock(AndroidPackageSplit.class);
+        lenient().when(baseSplit.getPath()).thenReturn("/data/app/foo/base.apk");
+        lenient().when(baseSplit.isHasCode()).thenReturn(true);
 
         // split_0 has code while split_1 doesn't.
-        lenient().when(pkg.getSplitNames()).thenReturn(new String[] {"split_0", "split_1"});
-        lenient()
-                .when(pkg.getSplitCodePaths())
-                .thenReturn(
-                        new String[] {"/data/app/foo/split_0.apk", "/data/app/foo/split_1.apk"});
-        lenient()
-                .when(pkg.getSplitFlags())
-                .thenReturn(new int[] {ApplicationInfo.FLAG_HAS_CODE, 0});
+        var split0 = mock(AndroidPackageSplit.class);
+        lenient().when(split0.getName()).thenReturn("split_0");
+        lenient().when(split0.getPath()).thenReturn("/data/app/foo/split_0.apk");
+        lenient().when(split0.isHasCode()).thenReturn(true);
+        var split1 = mock(AndroidPackageSplit.class);
+        lenient().when(split1.getName()).thenReturn("split_1");
+        lenient().when(split1.getPath()).thenReturn("/data/app/foo/split_1.apk");
+        lenient().when(split1.isHasCode()).thenReturn(false);
 
+        var splits = List.of(baseSplit, split0, split1);
+        lenient().when(pkg.getSplits()).thenReturn(splits);
         return pkg;
     }
 
@@ -327,7 +332,7 @@ public class ArtManagerLocalTest {
         lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
         lenient().when(pkgState.isSystem()).thenReturn(mIsInReadonlyPartition);
         lenient().when(pkgState.isUpdatedSystemApp()).thenReturn(false);
-        AndroidPackageApi pkg = createPackage();
+        AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
 
         return pkgState;
