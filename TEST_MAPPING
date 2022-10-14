@@ -425,6 +425,9 @@
       "name": "art-run-test-2236-JdkUnsafeGetLong-regression[com.google.android.art.apex]"
     },
     {
+      "name": "art-run-test-2241-checker-inline-try-catch[com.google.android.art.apex]"
+    },
+    {
       "name": "art-run-test-300-package-override[com.google.android.art.apex]"
     },
     {
@@ -1747,6 +1750,9 @@
       "name": "art-run-test-2236-JdkUnsafeGetLong-regression"
     },
     {
+      "name": "art-run-test-2241-checker-inline-try-catch"
+    },
+    {
       "name": "art-run-test-300-package-override"
     },
     {
@@ -3064,6 +3070,9 @@
     },
     {
       "name": "art-run-test-2236-JdkUnsafeGetLong-regression"
+    },
+    {
+      "name": "art-run-test-2241-checker-inline-try-catch"
     },
     {
       "name": "art-run-test-300-package-override"
