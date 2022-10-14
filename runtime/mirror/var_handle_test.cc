@@ -40,6 +40,10 @@ namespace mirror {
 // Tests for mirror::VarHandle and it's descendents.
 class VarHandleTest : public CommonRuntimeTest {
  public:
+  VarHandleTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   static ObjPtr<FieldVarHandle> CreateFieldVarHandle(Thread* const self,
                                                      ArtField* art_field,
                                                      int32_t access_modes_bit_mask)

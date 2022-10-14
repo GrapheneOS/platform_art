@@ -27,7 +27,12 @@
 
 namespace art {
 
-class InternTableTest : public CommonRuntimeTest {};
+class InternTableTest : public CommonRuntimeTest {
+ protected:
+  InternTableTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 TEST_F(InternTableTest, Intern) {
   ScopedObjectAccess soa(Thread::Current());

@@ -18,11 +18,11 @@
 
 #include <limits>
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
 
 namespace art {
 
-class MathEntrypointsTest : public CommonRuntimeTest {};
+class MathEntrypointsTest : public CommonArtTest {};
 
 TEST_F(MathEntrypointsTest, DoubleToLong) {
   EXPECT_EQ(std::numeric_limits<int64_t>::max(), art_d2l(1.85e19));

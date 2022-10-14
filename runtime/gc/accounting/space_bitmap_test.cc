@@ -19,8 +19,8 @@
 #include <stdint.h>
 #include <memory>
 
+#include "base/common_art_test.h"
 #include "base/mutex.h"
-#include "common_runtime_test.h"
 #include "runtime_globals.h"
 #include "space_bitmap-inl.h"
 
@@ -28,7 +28,7 @@ namespace art {
 namespace gc {
 namespace accounting {
 
-class SpaceBitmapTest : public CommonRuntimeTest {};
+class SpaceBitmapTest : public CommonArtTest {};
 
 TEST_F(SpaceBitmapTest, Init) {
   uint8_t* heap_begin = reinterpret_cast<uint8_t*>(0x10000000);

@@ -38,6 +38,10 @@ namespace space {
 template <class Super>
 class SpaceTest : public Super {
  public:
+  SpaceTest() {
+    this->use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   jobject byte_array_class_ = nullptr;
 
   void AddSpace(ContinuousSpace* space, bool revoke = true) {

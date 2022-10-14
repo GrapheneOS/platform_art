@@ -71,7 +71,12 @@ namespace {
   }
 }  // namespace
 
-class MethodHandlesTest : public CommonRuntimeTest {};
+class MethodHandlesTest : public CommonRuntimeTest {
+ protected:
+  MethodHandlesTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 //
 // Primitive -> Primitive Conversions

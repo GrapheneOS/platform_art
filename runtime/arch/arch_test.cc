@@ -18,27 +18,13 @@
 
 #include "art_method-inl.h"
 #include "base/callee_save_type.h"
+#include "base/common_art_test.h"
 #include "entrypoints/quick/callee_save_frame.h"
-#include "common_runtime_test.h"
 #include "quick/quick_method_frame_info.h"
 
 namespace art {
 
-class ArchTest : public CommonRuntimeTest {
- protected:
-  void SetUpRuntimeOptions(RuntimeOptions *options) override {
-    // Use 64-bit ISA for runtime setup to make method size potentially larger
-    // than necessary (rather than smaller) during CreateCalleeSaveMethod
-    options->push_back(std::make_pair("imageinstructionset", "x86_64"));
-  }
-
-  // Do not do any of the finalization. We don't want to run any code, we don't need the heap
-  // prepared, it actually will be a problem with setting the instruction set to x86_64 in
-  // SetUpRuntimeOptions.
-  void FinalizeSetup() override {
-    ASSERT_EQ(InstructionSet::kX86_64, Runtime::Current()->GetInstructionSet());
-  }
-};
+class ArchTest : public CommonArtTest {};
 
 // Grab architecture specific constants.
 namespace arm {
