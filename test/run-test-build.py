@@ -23,8 +23,17 @@ import argparse, os, shutil, subprocess, glob, re, json, multiprocessing, pathli
 import art_build_rules
 from importlib.machinery import SourceFileLoader
 
+import art_build_rules
+
 ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
 BUILDFAILURES = json.loads(open(os.path.join("art", "test", "buildfailures.json"), "rt").read())
+
+class BuildTestContext:
+  def bash(self, cmd):
+    return subprocess.run(cmd, shell=True, check=True)
+
+  def default_build(self, **kwargs):
+    art_build_rules.default_build(self, **kwargs)
 
 def copy_sources(args, tmp, mode, srcdir):
   """Copy test files from Android tree into the build sandbox and return its path."""
@@ -43,7 +52,7 @@ def copy_sources(args, tmp, mode, srcdir):
   shutil.copytree(srcdir, dstdir)
 
   # Copy the default scripts if the test does not have a custom ones.
-  for name in ["build.py", "run", "check"]:
+  for name in ["run", "check"]:
     src, dst = f"art/test/etc/default-{name}", join(dstdir, name)
     if os.path.exists(dst):
       shutil.copy2(src, dstdir)  # Copy default script next to the custom script.
@@ -93,7 +102,13 @@ def build_test(args, mode, build_top, sbox, dstdir):
   os.chdir(dstdir)
   for name, value in env.items():
     os.environ[name] = str(value)
-  SourceFileLoader("build_" + test_name, join(dstdir, "build.py")).load_module()
+  ctx = BuildTestContext()
+  script = pathlib.Path(join(dstdir, "build.py"))
+  if script.exists():
+    module = SourceFileLoader("build_" + test_name, str(script)).load_module()
+    module.build(ctx)
+  else:
+    art_build_rules.default_build(ctx)
 
 # If we build just individual shard, we want to split the work among all the cores,
 # but if the build system builds all shards, we don't want to overload the machine.

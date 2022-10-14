@@ -13,4 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Nothing to do here.
+
+def build(ctx):
+  pass  # Nothing to do here.

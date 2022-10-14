@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
 # Don't use desugar because the build fails when it encounters ICCE.
 #
 # Exception in thread "main" java.lang.IllegalArgumentException
 #  at com.google.common.base.Preconditions.checkArgument(Preconditions.java:108)
 #  at com.google.devtools.build.android.desugar.DefaultMethodClassFixer$DefaultMethodFinder.visit(DefaultMethodClassFixer.java:295)
-build_run_test(use_desugar=False)
+def build(ctx):
+  ctx.default_build(use_desugar=False)

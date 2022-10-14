@@ -44,7 +44,8 @@ def rm(*patterns):
       else:
         os.remove(path)
 
-def build_run_test(
+def default_build(
+    ctx,
     use_desugar=True,
     use_hiddenapi=True,
     need_dex=None,
