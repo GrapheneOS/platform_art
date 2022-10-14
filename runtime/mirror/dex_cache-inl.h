@@ -49,23 +49,20 @@ static void InitializeArray(std::atomic<DexCachePair>* array) {
 }
 
 template<typename T>
-static void InitializeArray(GcRoot<T>*) {
-  // No special initialization is needed.
+static void InitializeArray(T*) {
+  // Nothing to do.
 }
 
-template<typename T, size_t kMaxCacheSize>
+template<typename T>
 T* DexCache::AllocArray(MemberOffset obj_offset, size_t num, LinearAllocKind kind) {
-  num = std::min<size_t>(num, kMaxCacheSize);
-  if (num == 0) {
-    return nullptr;
-  }
+  Thread* self = Thread::Current();
   mirror::DexCache* dex_cache = this;
-  if (gUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+  if (gUseReadBarrier && self->GetIsGcMarking()) {
     // Several code paths use DexCache without read-barrier for performance.
     // We have to check the "to-space" object here to avoid allocating twice.
-    dex_cache = reinterpret_cast<DexCache*>(ReadBarrier::Mark(dex_cache));
+    dex_cache = reinterpret_cast<DexCache*>(ReadBarrier::Mark(this));
   }
-  Thread* self = Thread::Current();
+  // DON'T USE 'this' from now on.
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   LinearAlloc* alloc = linker->GetOrCreateAllocatorForClassLoader(GetClassLoader());
   MutexLock mu(self, *Locks::dex_cache_lock_);  // Avoid allocation by multiple threads.
@@ -112,26 +109,29 @@ inline void NativeDexCachePair<T>::Initialize(std::atomic<NativeDexCachePair<T>>
   AtomicPairStoreRelease(&array[0], v);
 }
 
+template <typename T>
+inline void GcRootArray<T>::Set(uint32_t index, T* value) {
+  GcRoot<T> root(value);
+  entries_[index] = root;
+}
+
+template <typename T>
+inline T* GcRootArray<T>::Get(uint32_t index) {
+  return entries_[index].Read();
+}
+
 inline uint32_t DexCache::ClassSize(PointerSize pointer_size) {
   const uint32_t vtable_entries = Object::kVTableLength;
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
 
 inline String* DexCache::GetResolvedString(dex::StringIndex string_idx) {
-  auto* strings = GetStrings();
-  if (UNLIKELY(strings == nullptr)) {
-    return nullptr;
-  }
-  return strings->Get(string_idx.index_);
+  return GetStringsEntry(string_idx.index_);
 }
 
 inline void DexCache::SetResolvedString(dex::StringIndex string_idx, ObjPtr<String> resolved) {
   DCHECK(resolved != nullptr);
-  auto* strings = GetStrings();
-  if (UNLIKELY(strings == nullptr)) {
-    strings = AllocateStrings();
-  }
-  strings->Set(string_idx.index_, resolved.Ptr());
+  SetStringsEntry(string_idx.index_, resolved.Ptr());
   Runtime* const runtime = Runtime::Current();
   if (UNLIKELY(runtime->IsActiveTransaction())) {
     DCHECK(runtime->IsAotCompiler());
@@ -143,6 +143,10 @@ inline void DexCache::SetResolvedString(dex::StringIndex string_idx, ObjPtr<Stri
 
 inline void DexCache::ClearString(dex::StringIndex string_idx) {
   DCHECK(Runtime::Current()->IsAotCompiler());
+  auto* array = GetStringsArray();
+  if (array != nullptr) {
+    array->Set(string_idx.index_, nullptr);
+  }
   auto* strings = GetStrings();
   if (UNLIKELY(strings == nullptr)) {
     return;
@@ -151,33 +155,27 @@ inline void DexCache::ClearString(dex::StringIndex string_idx) {
 }
 
 inline Class* DexCache::GetResolvedType(dex::TypeIndex type_idx) {
-  // It is theorized that a load acquire is not required since obtaining the resolved class will
-  // always have an address dependency or a lock.
-  auto* resolved_types = GetResolvedTypes();
-  if (UNLIKELY(resolved_types == nullptr)) {
-    return nullptr;
-  }
-  return resolved_types->Get(type_idx.index_);
+  return GetResolvedTypesEntry(type_idx.index_);
 }
 
 inline void DexCache::SetResolvedType(dex::TypeIndex type_idx, ObjPtr<Class> resolved) {
   DCHECK(resolved != nullptr);
   DCHECK(resolved->IsResolved()) << resolved->GetStatus();
-  auto* resolved_types = GetResolvedTypes();
-  if (UNLIKELY(resolved_types == nullptr)) {
-    resolved_types = AllocateResolvedTypes();
-  }
   // TODO default transaction support.
   // Use a release store for SetResolvedType. This is done to prevent other threads from seeing a
   // class but not necessarily seeing the loaded members like the static fields array.
   // See b/32075261.
-  resolved_types->Set(type_idx.index_, resolved.Ptr());
+  SetResolvedTypesEntry(type_idx.index_, resolved.Ptr());
   // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
   WriteBarrier::ForEveryFieldWrite(this);
 }
 
 inline void DexCache::ClearResolvedType(dex::TypeIndex type_idx) {
   DCHECK(Runtime::Current()->IsAotCompiler());
+  auto* array = GetResolvedTypesArray();
+  if (array != nullptr) {
+    array->Set(type_idx.index_, nullptr);
+  }
   auto* resolved_types = GetResolvedTypes();
   if (UNLIKELY(resolved_types == nullptr)) {
     return;
@@ -186,20 +184,13 @@ inline void DexCache::ClearResolvedType(dex::TypeIndex type_idx) {
 }
 
 inline MethodType* DexCache::GetResolvedMethodType(dex::ProtoIndex proto_idx) {
-  auto* methods = GetResolvedMethodTypes();
-  if (UNLIKELY(methods == nullptr)) {
-    return nullptr;
-  }
-  return methods->Get(proto_idx.index_);
+  return GetResolvedMethodTypesEntry(proto_idx.index_);
 }
 
 inline void DexCache::SetResolvedMethodType(dex::ProtoIndex proto_idx, MethodType* resolved) {
   DCHECK(resolved != nullptr);
-  auto* methods = GetResolvedMethodTypes();
-  if (UNLIKELY(methods == nullptr)) {
-    methods = AllocateResolvedMethodTypes();
-  }
-  methods->Set(proto_idx.index_, resolved);
+  SetResolvedMethodTypesEntry(proto_idx.index_, resolved);
+
   Runtime* const runtime = Runtime::Current();
   if (UNLIKELY(runtime->IsActiveTransaction())) {
     DCHECK(runtime->IsAotCompiler());
@@ -211,6 +202,10 @@ inline void DexCache::SetResolvedMethodType(dex::ProtoIndex proto_idx, MethodTyp
 
 inline void DexCache::ClearMethodType(dex::ProtoIndex proto_idx) {
   DCHECK(Runtime::Current()->IsAotCompiler());
+  auto* array = GetResolvedMethodTypesArray();
+  if (array != nullptr) {
+    array->Set(proto_idx.index_, nullptr);
+  }
   auto* methods = GetResolvedMethodTypes();
   if (methods == nullptr) {
     return;
@@ -221,11 +216,11 @@ inline void DexCache::ClearMethodType(dex::ProtoIndex proto_idx) {
 inline CallSite* DexCache::GetResolvedCallSite(uint32_t call_site_idx) {
   DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
   DCHECK_LT(call_site_idx, GetDexFile()->NumCallSiteIds());
-  GcRoot<CallSite>* call_sites = GetResolvedCallSites();
+  GcRootArray<CallSite>* call_sites = GetResolvedCallSites();
   if (UNLIKELY(call_sites == nullptr)) {
     return nullptr;
   }
-  GcRoot<mirror::CallSite>& target = call_sites[call_site_idx];
+  GcRoot<mirror::CallSite>& target = call_sites->GetGcRoot(call_site_idx);
   Atomic<GcRoot<mirror::CallSite>>& ref =
       reinterpret_cast<Atomic<GcRoot<mirror::CallSite>>&>(target);
   return ref.load(std::memory_order_seq_cst).Read();
@@ -238,11 +233,11 @@ inline ObjPtr<CallSite> DexCache::SetResolvedCallSite(uint32_t call_site_idx,
 
   GcRoot<mirror::CallSite> null_call_site(nullptr);
   GcRoot<mirror::CallSite> candidate(call_site);
-  GcRoot<CallSite>* call_sites = GetResolvedCallSites();
+  GcRootArray<CallSite>* call_sites = GetResolvedCallSites();
   if (UNLIKELY(call_sites == nullptr)) {
     call_sites = AllocateResolvedCallSites();
   }
-  GcRoot<mirror::CallSite>& target = call_sites[call_site_idx];
+  GcRoot<mirror::CallSite>& target = call_sites->GetGcRoot(call_site_idx);
 
   // The first assignment for a given call site wins.
   Atomic<GcRoot<mirror::CallSite>>& ref =
@@ -257,37 +252,19 @@ inline ObjPtr<CallSite> DexCache::SetResolvedCallSite(uint32_t call_site_idx,
 }
 
 inline ArtField* DexCache::GetResolvedField(uint32_t field_idx) {
-  auto* fields = GetResolvedFields();
-  if (UNLIKELY(fields == nullptr)) {
-    return nullptr;
-  }
-  return fields->Get(field_idx);
+  return GetResolvedFieldsEntry(field_idx);
 }
 
 inline void DexCache::SetResolvedField(uint32_t field_idx, ArtField* field) {
-  DCHECK(field != nullptr);
-  auto* fields = GetResolvedFields();
-  if (UNLIKELY(fields == nullptr)) {
-    fields = AllocateResolvedFields();
-  }
-  fields->Set(field_idx, field);
+  SetResolvedFieldsEntry(field_idx, field);
 }
 
 inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx) {
-  auto* methods = GetResolvedMethods();
-  if (UNLIKELY(methods == nullptr)) {
-    return nullptr;
-  }
-  return methods->Get(method_idx);
+  return GetResolvedMethodsEntry(method_idx);
 }
 
 inline void DexCache::SetResolvedMethod(uint32_t method_idx, ArtMethod* method) {
-  DCHECK(method != nullptr);
-  auto* methods = GetResolvedMethods();
-  if (UNLIKELY(methods == nullptr)) {
-    methods = AllocateResolvedMethods();
-  }
-  methods->Set(method_idx, method);
+  SetResolvedMethodsEntry(method_idx, method);
 }
 
 template <ReadBarrierOption kReadBarrierOption,
@@ -349,10 +326,29 @@ inline void DexCache::VisitNativeRoots(const Visitor& visitor) {
   VisitDexCachePairs<kReadBarrierOption, Visitor>(
       GetResolvedMethodTypes<kVerifyFlags>(), NumResolvedMethodTypes<kVerifyFlags>(), visitor);
 
-  GcRoot<mirror::CallSite>* resolved_call_sites = GetResolvedCallSites<kVerifyFlags>();
+  GcRootArray<mirror::CallSite>* resolved_call_sites = GetResolvedCallSites<kVerifyFlags>();
   size_t num_call_sites = NumResolvedCallSites<kVerifyFlags>();
   for (size_t i = 0; resolved_call_sites != nullptr && i != num_call_sites; ++i) {
-    visitor.VisitRootIfNonNull(resolved_call_sites[i].AddressWithoutBarrier());
+    visitor.VisitRootIfNonNull(resolved_call_sites->GetGcRoot(i).AddressWithoutBarrier());
+  }
+
+  GcRootArray<mirror::Class>* resolved_types = GetResolvedTypesArray<kVerifyFlags>();
+  size_t num_resolved_types = NumResolvedTypesArray<kVerifyFlags>();
+  for (size_t i = 0; resolved_types != nullptr && i != num_resolved_types; ++i) {
+    visitor.VisitRootIfNonNull(resolved_types->GetGcRoot(i).AddressWithoutBarrier());
+  }
+
+  GcRootArray<mirror::String>* resolved_strings = GetStringsArray<kVerifyFlags>();
+  size_t num_resolved_strings = NumStringsArray<kVerifyFlags>();
+  for (size_t i = 0; resolved_strings != nullptr && i != num_resolved_strings; ++i) {
+    visitor.VisitRootIfNonNull(resolved_strings->GetGcRoot(i).AddressWithoutBarrier());
+  }
+
+  GcRootArray<mirror::MethodType>* resolved_method_types =
+      GetResolvedMethodTypesArray<kVerifyFlags>();
+  size_t num_resolved_method_types = NumResolvedMethodTypesArray<kVerifyFlags>();
+  for (size_t i = 0; resolved_method_types != nullptr && i != num_resolved_method_types; ++i) {
+    visitor.VisitRootIfNonNull(resolved_method_types->GetGcRoot(i).AddressWithoutBarrier());
   }
 }
 

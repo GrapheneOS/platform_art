@@ -205,6 +205,38 @@ template <typename T, size_t size> class DexCachePairArray {
   DexCachePairArray& operator=(const DexCachePairArray<T, size>&) = delete;
 };
 
+template <typename T> class GcRootArray {
+ public:
+  GcRootArray() {}
+
+  T* Get(uint32_t index) REQUIRES_SHARED(Locks::mutator_lock_);
+
+  GcRoot<T>& GetGcRoot(uint32_t index) REQUIRES_SHARED(Locks::mutator_lock_) {
+    return entries_[index];
+  }
+
+  void Set(uint32_t index, T* value) REQUIRES_SHARED(Locks::mutator_lock_);
+
+ private:
+  GcRoot<T> entries_[0];
+};
+
+template <typename T> class NativeArray {
+ public:
+  NativeArray() {}
+
+  T* Get(uint32_t index) {
+    return entries_[index];
+  }
+
+  void Set(uint32_t index, T* value) {
+    entries_[index] = value;
+  }
+
+ private:
+  T* entries_[0];
+};
+
 // C++ mirror of java.lang.DexCache.
 class MANAGED DexCache final : public Object {
  public:
@@ -333,8 +365,32 @@ class MANAGED DexCache final : public Object {
   void VisitNativeRoots(const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
 
-  // NOLINTBEGIN(bugprone-macro-parentheses)
-#define DEFINE_PAIR_ARRAY(name, pair_kind, getter_setter, type, size, ids, alloc_kind) \
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define DEFINE_ARRAY(name, array_kind, getter_setter, type, ids, alloc_kind) \
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
+  array_kind* Get ##getter_setter() \
+      ALWAYS_INLINE \
+      REQUIRES_SHARED(Locks::mutator_lock_) { \
+    return GetFieldPtr<array_kind*, kVerifyFlags>(getter_setter ##Offset()); \
+  } \
+  void Set ##getter_setter(array_kind* value) \
+      REQUIRES_SHARED(Locks::mutator_lock_) { \
+    SetFieldPtr<false>(getter_setter ##Offset(), value); \
+  } \
+  static constexpr MemberOffset getter_setter ##Offset() { \
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, name); \
+  } \
+  array_kind* Allocate ##getter_setter() \
+      REQUIRES_SHARED(Locks::mutator_lock_) { \
+    return reinterpret_cast<array_kind*>(AllocArray<type>( \
+        getter_setter ##Offset(), GetDexFile()->ids(), alloc_kind)); \
+  } \
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
+  size_t Num ##getter_setter() REQUIRES_SHARED(Locks::mutator_lock_) { \
+    return Get ##getter_setter() == nullptr ? 0u : GetDexFile()->ids(); \
+  } \
+
+#define DEFINE_PAIR_ARRAY(name, pair_kind, getter_setter, type, size, alloc_kind) \
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
   pair_kind ##Array<type, size>* Get ##getter_setter() \
       ALWAYS_INLINE \
@@ -351,89 +407,122 @@ class MANAGED DexCache final : public Object {
   pair_kind ##Array<type, size>* Allocate ##getter_setter() \
       REQUIRES_SHARED(Locks::mutator_lock_) { \
     return reinterpret_cast<pair_kind ##Array<type, size>*>( \
-        AllocArray<std::atomic<pair_kind<type>>, size>( \
-            getter_setter ##Offset(), GetDexFile()->ids(), alloc_kind)); \
+        AllocArray<std::atomic<pair_kind<type>>>( \
+            getter_setter ##Offset(), size, alloc_kind)); \
   } \
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
   size_t Num ##getter_setter() REQUIRES_SHARED(Locks::mutator_lock_) { \
-    return Get ##getter_setter() == nullptr ? 0u : std::min<size_t>(GetDexFile()->ids(), size); \
+    return Get ##getter_setter() == nullptr ? 0u : size; \
   } \
 
-#define DEFINE_ARRAY(name, getter_setter, type, ids, alloc_kind) \
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
-  type* Get ##getter_setter() \
-      ALWAYS_INLINE \
+#define DEFINE_DUAL_CACHE( \
+    name, pair_kind, getter_setter, type, pair_size, alloc_pair_kind, \
+    array_kind, component_type, ids, alloc_array_kind) \
+  DEFINE_PAIR_ARRAY( \
+      name, pair_kind, getter_setter, type, pair_size, alloc_pair_kind) \
+  DEFINE_ARRAY( \
+      name ##array_, array_kind, getter_setter ##Array, component_type, ids, alloc_array_kind) \
+  type* Get ##getter_setter ##Entry(uint32_t index) REQUIRES_SHARED(Locks::mutator_lock_) { \
+    DCHECK_LT(index, GetDexFile()->ids()); \
+    auto* array = Get ##getter_setter ##Array(); \
+    if (array != nullptr) { \
+      return array->Get(index); \
+    } \
+    auto* pairs = Get ##getter_setter(); \
+    if (pairs != nullptr) { \
+      return pairs->Get(index); \
+    } \
+    return nullptr; \
+  } \
+  void Set ##getter_setter ##Entry(uint32_t index, type* resolved) \
       REQUIRES_SHARED(Locks::mutator_lock_) { \
-    return GetFieldPtr<type*, kVerifyFlags>(getter_setter ##Offset()); \
-  } \
-  void Set ##getter_setter(type* value) \
-      REQUIRES_SHARED(Locks::mutator_lock_) { \
-    SetFieldPtr<false>(getter_setter ##Offset(), value); \
-  } \
-  static constexpr MemberOffset getter_setter ##Offset() { \
-    return OFFSET_OF_OBJECT_MEMBER(DexCache, name); \
-  } \
-  type* Allocate ##getter_setter() \
-      REQUIRES_SHARED(Locks::mutator_lock_) { \
-    return reinterpret_cast<type*>(AllocArray<type, std::numeric_limits<size_t>::max()>( \
-        getter_setter ##Offset(), GetDexFile()->ids(), alloc_kind)); \
-  } \
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
-  size_t Num ##getter_setter() REQUIRES_SHARED(Locks::mutator_lock_) { \
-    return GetDexFile()->ids(); \
-  } \
+    DCHECK_LT(index, GetDexFile()->ids()); \
+    auto* array = Get ##getter_setter ##Array(); \
+    if (array != nullptr) { \
+      array->Set(index, resolved); \
+    } else { \
+      auto* pairs = Get ##getter_setter(); \
+      if (pairs == nullptr) { \
+        if (GetDexFile()->ids() <= pair_size) { \
+          array = Allocate ##getter_setter ##Array(); \
+          array->Set(index, resolved); \
+        } else { \
+          pairs = Allocate ##getter_setter(); \
+          pairs->Set(index, resolved); \
+        } \
+      } else { \
+        pairs->Set(index, resolved); \
+      } \
+    } \
+  }
 
   DEFINE_ARRAY(resolved_call_sites_,
+               GcRootArray<CallSite>,
                ResolvedCallSites,
                GcRoot<CallSite>,
                NumCallSiteIds,
                LinearAllocKind::kGCRootArray)
 
-  DEFINE_PAIR_ARRAY(resolved_fields_,
+  DEFINE_DUAL_CACHE(resolved_fields_,
                     NativeDexCachePair,
                     ResolvedFields,
                     ArtField,
                     kDexCacheFieldCacheSize,
+                    LinearAllocKind::kNoGCRoots,
+                    NativeArray<ArtField>,
+                    ArtField,
                     NumFieldIds,
                     LinearAllocKind::kNoGCRoots)
 
-  DEFINE_PAIR_ARRAY(resolved_method_types_,
+  DEFINE_DUAL_CACHE(resolved_method_types_,
                     DexCachePair,
                     ResolvedMethodTypes,
                     mirror::MethodType,
                     kDexCacheMethodTypeCacheSize,
+                    LinearAllocKind::kDexCacheArray,
+                    GcRootArray<mirror::MethodType>,
+                    GcRoot<mirror::MethodType>,
                     NumProtoIds,
-                    LinearAllocKind::kDexCacheArray);
+                    LinearAllocKind::kGCRootArray);
 
-  DEFINE_PAIR_ARRAY(resolved_methods_,
+  DEFINE_DUAL_CACHE(resolved_methods_,
                     NativeDexCachePair,
                     ResolvedMethods,
                     ArtMethod,
                     kDexCacheMethodCacheSize,
+                    LinearAllocKind::kNoGCRoots,
+                    NativeArray<ArtMethod>,
+                    ArtMethod,
                     NumMethodIds,
                     LinearAllocKind::kNoGCRoots)
 
-  DEFINE_PAIR_ARRAY(resolved_types_,
+  DEFINE_DUAL_CACHE(resolved_types_,
                     DexCachePair,
                     ResolvedTypes,
                     mirror::Class,
                     kDexCacheTypeCacheSize,
+                    LinearAllocKind::kDexCacheArray,
+                    GcRootArray<mirror::Class>,
+                    GcRoot<mirror::Class>,
                     NumTypeIds,
-                    LinearAllocKind::kDexCacheArray);
+                    LinearAllocKind::kGCRootArray);
 
-  DEFINE_PAIR_ARRAY(strings_,
+  DEFINE_DUAL_CACHE(strings_,
                     DexCachePair,
                     Strings,
                     mirror::String,
                     kDexCacheStringCacheSize,
+                    LinearAllocKind::kDexCacheArray,
+                    GcRootArray<mirror::String>,
+                    GcRoot<mirror::String>,
                     NumStringIds,
-                    LinearAllocKind::kDexCacheArray);
+                    LinearAllocKind::kGCRootArray);
 
 // NOLINTEND(bugprone-macro-parentheses)
 
  private:
   // Allocate new array in linear alloc and save it in the given fields.
-  template<typename T, size_t kMaxCacheSize>
+  template<typename T>
   T* AllocArray(MemberOffset obj_offset, size_t num, LinearAllocKind kind)
      REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -448,14 +537,19 @@ class MANAGED DexCache final : public Object {
   HeapReference<ClassLoader> class_loader_;
   HeapReference<String> location_;
 
-  uint64_t dex_file_;                // const DexFile*
-
-  uint64_t resolved_call_sites_;     // Array of call sites
-  uint64_t resolved_fields_;         // NativeDexCacheArray holding ArtField's
-  uint64_t resolved_method_types_;   // DexCacheArray holding mirror::MethodType's
-  uint64_t resolved_methods_;        // NativeDexCacheArray holding ArtMethod's
-  uint64_t resolved_types_;          // DexCacheArray holding mirror::Class's
-  uint64_t strings_;                 // DexCacheArray holding mirror::String's
+  uint64_t dex_file_;                     // const DexFile*
+                                          //
+  uint64_t resolved_call_sites_;          // Array of call sites
+  uint64_t resolved_fields_;              // NativeDexCacheArray holding ArtField's
+  uint64_t resolved_fields_array_;        // Array of ArtField's.
+  uint64_t resolved_method_types_;        // DexCacheArray holding mirror::MethodType's
+  uint64_t resolved_method_types_array_;  // Array of mirror::MethodType's
+  uint64_t resolved_methods_;             // NativeDexCacheArray holding ArtMethod's
+  uint64_t resolved_methods_array_;       // Array of ArtMethod's
+  uint64_t resolved_types_;               // DexCacheArray holding mirror::Class's
+  uint64_t resolved_types_array_;         // Array of resolved types.
+  uint64_t strings_;                      // DexCacheArray holding mirror::String's
+  uint64_t strings_array_;                // Array of String's.
 
   friend struct art::DexCacheOffsets;  // for verifying offset information
   friend class linker::ImageWriter;
