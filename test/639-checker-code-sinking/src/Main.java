@@ -27,6 +27,7 @@ public class Main {
     testPhiInput();
     testVolatileStore();
     testCatchBlock();
+    $noinline$testTwoThrowingPathsAndStringBuilderAppend();
     doThrow = true;
     try {
       testInstanceSideEffects();
@@ -687,8 +688,61 @@ public class Main {
     return x;
   }
 
+  private static void $noinline$testTwoThrowingPathsAndStringBuilderAppend() {
+    try {
+      $noinline$twoThrowingPathsAndStringBuilderAppend(null);
+      throw new Error("Unreachable");
+    } catch (Error expected) {
+      assertEquals("Object is null", expected.getMessage());
+    }
+    try {
+      $noinline$twoThrowingPathsAndStringBuilderAppend(new Object());
+      throw new Error("Unreachable");
+    } catch (Error expected) {
+      assertEquals("s1s2", expected.getMessage());
+    }
+  }
+
+  // We currently do not inline the `StringBuilder` constructor.
+  // When we did, the `StringBuilderAppend` pattern recognition was looking for
+  // the inlined `NewArray` (and its associated `LoadClass`) and checked in
+  // debug build that the `StringBuilder` has an environment use from this
+  // `NewArray` (and maybe from `LoadClass`). However, code sinking was pruning
+  // the environment of the `NewArray`, leading to a crash when compiling the
+  // code below on the device (we do not inline `core-oj` on host). b/252799691
+  private static void $noinline$twoThrowingPathsAndStringBuilderAppend(Object o) {
+    String s1 = "s1";
+    String s2 = "s2";
+    StringBuilder sb = new StringBuilder();
+
+    // Before inlining, the environment use from this invoke prevents the
+    // `StringBuilderAppend` pattern recognition. After inlining, we end up
+    // with two paths ending with a `Throw` and we could sink the `sb`
+    // instructions from above down to those below, enabling the
+    // `StringBuilderAppend` pattern recognition.
+    // (But that does not happen when the `StringBuilder` constructor is
+    // not inlined, see above.)
+    $inline$requireNonNull(o);
+
+    String s1s2 = sb.append(s1).append(s2).toString();
+    sb = null;
+    throw new Error(s1s2);
+  }
+
+  private static void $inline$requireNonNull(Object o) {
+    if (o == null) {
+      throw new Error("Object is null");
+    }
+  }
+
   private static void assertEquals(int expected, int actual) {
     if (expected != actual) {
+      throw new AssertionError("Expected: " + expected + ", Actual: " + actual);
+    }
+  }
+
+  private static void assertEquals(String expected, String actual) {
+    if (!expected.equals(actual)) {
       throw new AssertionError("Expected: " + expected + ", Actual: " + actual);
     }
   }
