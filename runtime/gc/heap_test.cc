@@ -30,6 +30,10 @@ namespace gc {
 
 class HeapTest : public CommonRuntimeTest {
  public:
+  HeapTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void SetUp() override {
     MemMap::Init();
     std::string error_msg;
@@ -100,6 +104,11 @@ TEST_F(HeapTest, DumpGCPerformanceOnShutdown) {
 }
 
 class ZygoteHeapTest : public CommonRuntimeTest {
+ public:
+  ZygoteHeapTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void SetUpRuntimeOptions(RuntimeOptions* options) override {
     CommonRuntimeTest::SetUpRuntimeOptions(options);
     options->push_back(std::make_pair("-Xzygote", nullptr));

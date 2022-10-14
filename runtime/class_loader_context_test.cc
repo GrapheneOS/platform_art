@@ -46,6 +46,10 @@ namespace art {
 
 class ClassLoaderContextTest : public CommonRuntimeTest {
  public:
+  ClassLoaderContextTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void SetUp() override {
     CommonRuntimeTest::SetUp();
     scratch_dir_ = std::make_unique<ScratchDir>();

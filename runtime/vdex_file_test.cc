@@ -20,12 +20,11 @@
 
 #include <gtest/gtest.h>
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
 
 namespace art {
 
-class VdexFileTest : public CommonRuntimeTest {
-};
+class VdexFileTest : public CommonArtTest {};
 
 TEST_F(VdexFileTest, OpenEmptyVdex) {
   // Verify we fail to open an empty vdex file.

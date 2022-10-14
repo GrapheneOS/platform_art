@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
 #include "exec_utils.h"
 
 namespace art {
 
-class DexAnalyzeTest : public CommonRuntimeTest {
+class DexAnalyzeTest : public CommonArtTest {
  public:
   std::string GetDexAnalyzePath() {
     return GetArtBinDir() + "/dexanalyze";

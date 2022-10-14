@@ -16,11 +16,11 @@
 
 #include "timing_logger.h"
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
 
 namespace art {
 
-class TimingLoggerTest : public CommonRuntimeTest {};
+class TimingLoggerTest : public CommonArtTest {};
 
 // TODO: Negative test cases (improper pairing of EndSplit, etc.)
 

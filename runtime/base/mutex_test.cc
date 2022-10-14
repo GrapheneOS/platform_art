@@ -16,12 +16,12 @@
 
 #include "mutex-inl.h"
 
-#include "common_runtime_test.h"
+#include "base/common_art_test.h"
 #include "thread-current-inl.h"
 
 namespace art {
 
-class MutexTest : public CommonRuntimeTest {};
+class MutexTest : public CommonArtTest {};
 
 struct MutexTester {
   static void AssertDepth(Mutex& mu, uint32_t expected_depth) {

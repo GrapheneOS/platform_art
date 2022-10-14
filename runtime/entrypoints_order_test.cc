@@ -16,8 +16,8 @@
 
 #include <memory>
 
+#include "base/common_art_test.h"
 #include "base/macros.h"
-#include "common_runtime_test.h"
 #include "thread.h"
 
 // This test checks the offsets of values in the thread TLS and entrypoint structures. A failure
@@ -59,7 +59,7 @@ namespace art {
 #define EXPECT_OFFSET_DIFF_GT3(type, first_field, second_field, diff, name) \
   EXPECT_OFFSET_DIFF_GT(type, first_field, type, second_field, diff, name)
 
-class EntrypointsOrderTest : public CommonRuntimeTest {
+class EntrypointsOrderTest : public CommonArtTest {
  protected:
   void CheckThreadOffsets() {
     CHECKED(OFFSETOF_MEMBER(Thread, tls32_.state_and_flags) == 0, thread_flags_at_zero);

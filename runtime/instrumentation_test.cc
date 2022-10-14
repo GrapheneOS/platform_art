@@ -183,6 +183,10 @@ class InstrumentationTest : public CommonRuntimeTest {
   static constexpr const char* kClientOneKey = "TestClient1";
   static constexpr const char* kClientTwoKey = "TestClient2";
 
+  InstrumentationTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void CheckConfigureStubs(const char* key, Instrumentation::InstrumentationLevel level) {
     ScopedObjectAccess soa(Thread::Current());
     instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();

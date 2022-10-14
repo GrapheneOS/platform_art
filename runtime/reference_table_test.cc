@@ -40,7 +40,12 @@ namespace art {
 
 using android::base::StringPrintf;
 
-class ReferenceTableTest : public CommonRuntimeTest {};
+class ReferenceTableTest : public CommonRuntimeTest {
+ protected:
+  ReferenceTableTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 static ObjPtr<mirror::Object> CreateWeakReference(ObjPtr<mirror::Object> referent)
     REQUIRES_SHARED(Locks::mutator_lock_) {
