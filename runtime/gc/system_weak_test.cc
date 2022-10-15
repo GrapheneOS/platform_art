@@ -35,6 +35,10 @@ namespace art {
 namespace gc {
 
 class SystemWeakTest : public CommonRuntimeTest {
+ protected:
+  SystemWeakTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
 };
 
 struct CountingSystemWeakHolder : public SystemWeakHolder {

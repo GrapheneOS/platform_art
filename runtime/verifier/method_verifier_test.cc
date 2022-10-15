@@ -37,6 +37,10 @@ using metrics::test::CounterValue;
 
 class MethodVerifierTest : public CommonRuntimeTest {
  protected:
+  MethodVerifierTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void VerifyClass(const std::string& descriptor)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ASSERT_FALSE(descriptor.empty());

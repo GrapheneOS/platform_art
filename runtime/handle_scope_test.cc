@@ -38,7 +38,12 @@ static_assert(std::is_trivially_copyable<MutableHandle<mirror::Object>>::value,
 static_assert(std::is_trivially_copyable<ScopedNullHandle<mirror::Object>>::value,
               "ScopedNullHandle should be trivially copyable");
 
-class HandleScopeTest : public CommonRuntimeTest {};
+class HandleScopeTest : public CommonRuntimeTest {
+ protected:
+  HandleScopeTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 // Test the offsets computed for members of HandleScope. Because of cross-compiling
 // it is impossible the use OFFSETOF_MEMBER, so we do some reasonable computations ourselves. This

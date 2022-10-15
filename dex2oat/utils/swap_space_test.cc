@@ -24,14 +24,13 @@
 
 #include "gtest/gtest.h"
 
+#include "base/common_art_test.h"
 #include "base/os.h"
 #include "base/unix_file/fd_file.h"
-#include "common_runtime_test.h"
 
 namespace art {
 
-class SwapSpaceTest : public CommonRuntimeTest {
-};
+class SwapSpaceTest : public CommonArtTest {};
 
 static void SwapTest(bool use_file) {
   ScratchFile scratch;

@@ -168,9 +168,8 @@ struct SubtypeCheckInfo {
   //
   // Normally, return kSubtypeOf or kNotSubtypeOf.
   Result IsSubtypeOf(const SubtypeCheckInfo& target) {
-    if (target.GetState() != SubtypeCheckInfo::kAssigned) {
-      return Result::kUnknownSubtypeOf;
-    } else if (GetState() == SubtypeCheckInfo::kUninitialized) {
+    if (target.GetState() != SubtypeCheckInfo::kAssigned ||
+        GetState() == SubtypeCheckInfo::kUninitialized) {
       return Result::kUnknownSubtypeOf;
     }
 
