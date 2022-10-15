@@ -30,6 +30,10 @@ namespace proxy_test {
 
 class ProxyTest : public CommonRuntimeTest {
  protected:
+  ProxyTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void SetUp() override {
     CommonRuntimeTest::SetUp();
     // The creation of a Proxy class uses WellKnownClasses. These are not normally initialized by

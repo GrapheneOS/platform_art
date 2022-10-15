@@ -33,7 +33,9 @@ namespace gc {
 
 class VerificationTest : public CommonRuntimeTest {
  protected:
-  VerificationTest() {}
+  VerificationTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
 
   template <class T>
   ObjPtr<mirror::ObjectArray<T>> AllocObjectArray(Thread* self, size_t length)

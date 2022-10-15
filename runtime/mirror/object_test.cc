@@ -50,6 +50,10 @@ namespace mirror {
 
 class ObjectTest : public CommonRuntimeTest {
  protected:
+  ObjectTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+
   void AssertString(int32_t expected_utf16_length,
                     const char* utf8_in,
                     const char* utf16_expected_le,
