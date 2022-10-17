@@ -132,16 +132,16 @@ jmethodID WellKnownClasses::libcore_reflect_AnnotationMember_init;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
-ArtField* WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList;
-ArtField* WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
-ArtField* WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
-ArtField* WellKnownClasses::dalvik_system_DexFile_cookie;
-ArtField* WellKnownClasses::dalvik_system_DexFile_fileName;
-ArtField* WellKnownClasses::dalvik_system_DexPathList_dexElements;
-ArtField* WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
+jfieldID WellKnownClasses::dalvik_system_DexFile_cookie;
+jfieldID WellKnownClasses::dalvik_system_DexFile_fileName;
+jfieldID WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList;
+jfieldID WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
+jfieldID WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
+jfieldID WellKnownClasses::dalvik_system_DexPathList_dexElements;
+jfieldID WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
 jfieldID WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
 jfieldID WellKnownClasses::java_io_FileDescriptor_descriptor;
-ArtField* WellKnownClasses::java_lang_ClassLoader_parent;
+jfieldID WellKnownClasses::java_lang_ClassLoader_parent;
 jfieldID WellKnownClasses::java_lang_Thread_parkBlocker;
 jfieldID WellKnownClasses::java_lang_Thread_daemon;
 jfieldID WellKnownClasses::java_lang_Thread_group;
@@ -211,23 +211,6 @@ static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
                << os.str();
   }
   return fid;
-}
-
-static ArtField* CacheField(ObjPtr<mirror::Class> klass,
-                            bool is_static,
-                            const char* name,
-                            const char* signature) REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtField* field = is_static
-      ? klass->FindDeclaredStaticField(name, signature)
-      : klass->FindDeclaredInstanceField(name, signature);
-  if (UNLIKELY(field == nullptr)) {
-    std::ostringstream os;
-    klass->DumpClass(os, mirror::Class::kDumpClassFullDetail);
-    LOG(FATAL) << "Couldn't find " << (is_static ? "static" : "instance") << " field \""
-               << name << "\" with signature \"" << signature << "\": " << os.str();
-    UNREACHABLE();
-  }
-  return field;
 }
 
 static jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
@@ -418,9 +401,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   hiddenapi::ScopedHiddenApiEnforcementPolicySetting hiddenapi_exemption(
       hiddenapi::EnforcementPolicy::kDisabled);
 
-  Thread* self = Thread::Current();
-  ScopedObjectAccess soa(self);
-
   dalvik_system_BaseDexClassLoader_getLdLibraryPath = CacheMethod(env, dalvik_system_BaseDexClassLoader, false, "getLdLibraryPath", "()Ljava/lang/String;");
   dalvik_system_VMRuntime_runFinalization = CacheMethod(env, dalvik_system_VMRuntime, true, "runFinalization", "(J)V");
   dalvik_system_VMRuntime_hiddenApiUsed = CacheMethod(env, dalvik_system_VMRuntime, true, "hiddenApiUsed", "(ILjava/lang/String;Ljava/lang/String;IZ)V");
@@ -455,38 +435,20 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
-  // TODO: There should be no thread suspension when searching for fields and methods. Enable this
-  // assertion when all well known fields and methods are converted to `ArtField*` and `ArtMethod*`.
-  // ScopedAssertNoThreadSuspension sants(__FUNCTION__);
-
-  ObjPtr<mirror::Class> d_s_bdcl = soa.Decode<mirror::Class>(dalvik_system_BaseDexClassLoader);
-  dalvik_system_BaseDexClassLoader_pathList = CacheField(
-      d_s_bdcl, /*is_static=*/ false, "pathList", "Ldalvik/system/DexPathList;");
-  dalvik_system_BaseDexClassLoader_sharedLibraryLoaders = CacheField(
-      d_s_bdcl, /*is_static=*/ false, "sharedLibraryLoaders", "[Ljava/lang/ClassLoader;");
-  dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter = CacheField(
-      d_s_bdcl, /*is_static=*/ false, "sharedLibraryLoadersAfter", "[Ljava/lang/ClassLoader;");
-  ObjPtr<mirror::Class> d_s_df = soa.Decode<mirror::Class>(dalvik_system_DexFile);
-  dalvik_system_DexFile_cookie = CacheField(
-      d_s_df, /*is_static=*/ false, "mCookie", "Ljava/lang/Object;");
-  dalvik_system_DexFile_fileName = CacheField(
-      d_s_df, /*is_static=*/ false, "mFileName", "Ljava/lang/String;");
-  ObjPtr<mirror::Class> d_s_dpl = soa.Decode<mirror::Class>(dalvik_system_DexPathList);
-  dalvik_system_DexPathList_dexElements = CacheField(
-      d_s_dpl, /*is_static=*/ false, "dexElements", "[Ldalvik/system/DexPathList$Element;");
-  ObjPtr<mirror::Class> d_s_dpl_e = soa.Decode<mirror::Class>(dalvik_system_DexPathList__Element);
-  dalvik_system_DexPathList__Element_dexFile = CacheField(
-      d_s_dpl_e, /*is_static=*/ false, "dexFile", "Ldalvik/system/DexFile;");
-
+  dalvik_system_BaseDexClassLoader_pathList = CacheField(env, dalvik_system_BaseDexClassLoader, false, "pathList", "Ldalvik/system/DexPathList;");
+  dalvik_system_BaseDexClassLoader_sharedLibraryLoaders = CacheField(env, dalvik_system_BaseDexClassLoader, false, "sharedLibraryLoaders", "[Ljava/lang/ClassLoader;");
+  dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter = CacheField(env, dalvik_system_BaseDexClassLoader, false, "sharedLibraryLoadersAfter", "[Ljava/lang/ClassLoader;");
+  dalvik_system_DexFile_cookie = CacheField(env, dalvik_system_DexFile, false, "mCookie", "Ljava/lang/Object;");
+  dalvik_system_DexFile_fileName = CacheField(env, dalvik_system_DexFile, false, "mFileName", "Ljava/lang/String;");
+  dalvik_system_DexPathList_dexElements = CacheField(env, dalvik_system_DexPathList, false, "dexElements", "[Ldalvik/system/DexPathList$Element;");
+  dalvik_system_DexPathList__Element_dexFile = CacheField(env, dalvik_system_DexPathList__Element, false, "dexFile", "Ldalvik/system/DexFile;");
   dalvik_system_VMRuntime_nonSdkApiUsageConsumer = CacheField(env, dalvik_system_VMRuntime, true, "nonSdkApiUsageConsumer", "Ljava/util/function/Consumer;");
 
   ScopedLocalRef<jclass> java_io_FileDescriptor(env, env->FindClass("java/io/FileDescriptor"));
   java_io_FileDescriptor_descriptor = CacheField(env, java_io_FileDescriptor.get(), false, "descriptor", "I");
 
-  ObjPtr<mirror::Class> j_l_cl = soa.Decode<mirror::Class>(java_lang_ClassLoader);
-  java_lang_ClassLoader_parent = CacheField(
-      j_l_cl, /*is_static=*/ false, "parent", "Ljava/lang/ClassLoader;");
-
+  java_lang_ClassLoader_parent =
+      CacheField(env, java_lang_ClassLoader, false, "parent", "Ljava/lang/ClassLoader;");
   java_lang_Thread_parkBlocker =
       CacheField(env, java_lang_Thread, false, "parkBlocker", "Ljava/lang/Object;");
   java_lang_Thread_daemon = CacheField(env, java_lang_Thread, false, "daemon", "Z");

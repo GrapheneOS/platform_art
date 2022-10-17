@@ -82,11 +82,13 @@ inline RetType VisitClassLoaderDexElements(ScopedObjectAccessAlreadyRunnable& so
     REQUIRES_SHARED(Locks::mutator_lock_) {
   Thread* self = soa.Self();
   ObjPtr<mirror::Object> dex_path_list =
-      WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList->GetObject(class_loader.Get());
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
+          GetObject(class_loader.Get());
   if (dex_path_list != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
     ObjPtr<mirror::Object> dex_elements_obj =
-        WellKnownClasses::dalvik_system_DexPathList_dexElements->GetObject(dex_path_list);
+        jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
+            GetObject(dex_path_list);
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
     // at the mCookie which is a DexFile vector.
     if (dex_elements_obj != nullptr) {
@@ -120,8 +122,10 @@ inline RetType VisitClassLoaderDexFiles(ScopedObjectAccessAlreadyRunnable& soa,
                                         Visitor fn,
                                         RetType defaultReturn)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtField* const cookie_field = WellKnownClasses::dalvik_system_DexFile_cookie;
-  ArtField* const dex_file_field = WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
+  ArtField* const cookie_field =
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
+  ArtField* const dex_file_field =
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   if (dex_file_field == nullptr || cookie_field == nullptr) {
     return defaultReturn;
   }

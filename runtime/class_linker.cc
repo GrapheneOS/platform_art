@@ -2681,7 +2681,8 @@ bool ClassLinker::FindClassInSharedLibraries(ScopedObjectAccessAlreadyRunnable& 
                                              size_t hash,
                                              Handle<mirror::ClassLoader> class_loader,
                                              /*out*/ ObjPtr<mirror::Class>* result) {
-  ArtField* field = WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
+  ArtField* field =
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders);
   return FindClassInSharedLibrariesHelper(soa, self, descriptor, hash, class_loader, field, result);
 }
 
@@ -2717,7 +2718,8 @@ bool ClassLinker::FindClassInSharedLibrariesAfter(ScopedObjectAccessAlreadyRunna
                                                   size_t hash,
                                                   Handle<mirror::ClassLoader> class_loader,
                                                   /*out*/ ObjPtr<mirror::Class>* result) {
-  ArtField* field = WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
+  ArtField* field = jni::DecodeArtField(
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter);
   return FindClassInSharedLibrariesHelper(soa, self, descriptor, hash, class_loader, field, result);
 }
 
@@ -10037,7 +10039,8 @@ ObjPtr<mirror::ClassLoader> ClassLinker::CreateWellKnownClassLoader(
 
   StackHandleScope<5> hs(self);
 
-  ArtField* dex_elements_field = WellKnownClasses::dalvik_system_DexPathList_dexElements;
+  ArtField* dex_elements_field =
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
 
   Handle<mirror::Class> dex_elements_class(hs.NewHandle(dex_elements_field->ResolveType()));
   DCHECK(dex_elements_class != nullptr);
@@ -10049,13 +10052,14 @@ ObjPtr<mirror::ClassLoader> ClassLinker::CreateWellKnownClassLoader(
   Handle<mirror::Class> h_dex_element_class =
       hs.NewHandle(dex_elements_class->GetComponentType());
 
-  ArtField* element_file_field = WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
+  ArtField* element_file_field =
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   DCHECK_EQ(h_dex_element_class.Get(), element_file_field->GetDeclaringClass());
 
-  ArtField* cookie_field = WellKnownClasses::dalvik_system_DexFile_cookie;
+  ArtField* cookie_field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
   DCHECK_EQ(cookie_field->GetDeclaringClass(), element_file_field->LookupResolvedType());
 
-  ArtField* file_name_field = WellKnownClasses::dalvik_system_DexFile_fileName;
+  ArtField* file_name_field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_fileName);
   DCHECK_EQ(file_name_field->GetDeclaringClass(), element_file_field->LookupResolvedType());
 
   // Fill the elements array.
@@ -10127,13 +10131,15 @@ ObjPtr<mirror::ClassLoader> ClassLinker::CreateWellKnownClassLoader(
       ObjPtr<mirror::ClassLoader>::DownCast(loader_class->AllocObject(self)));
   DCHECK(h_class_loader != nullptr);
   // Set DexPathList.
-  ArtField* path_list_field = WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList;
+  ArtField* path_list_field =
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
   DCHECK(path_list_field != nullptr);
   path_list_field->SetObject<false>(h_class_loader.Get(), h_dex_path_list.Get());
 
   // Make a pretend boot-classpath.
   // TODO: Should we scan the image?
-  ArtField* const parent_field = WellKnownClasses::java_lang_ClassLoader_parent;
+  ArtField* const parent_field =
+      jni::DecodeArtField(WellKnownClasses::java_lang_ClassLoader_parent);
   DCHECK(parent_field != nullptr);
   if (parent_loader.Get() == nullptr) {
     ScopedObjectAccessUnchecked soa(self);
@@ -10145,12 +10151,13 @@ ObjPtr<mirror::ClassLoader> ClassLinker::CreateWellKnownClassLoader(
   }
 
   ArtField* shared_libraries_field =
-      WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
+      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders);
   DCHECK(shared_libraries_field != nullptr);
   shared_libraries_field->SetObject<false>(h_class_loader.Get(), shared_libraries.Get());
 
   ArtField* shared_libraries_after_field =
-        WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
+        jni::DecodeArtField(
+        WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter);
   DCHECK(shared_libraries_after_field != nullptr);
   shared_libraries_after_field->SetObject<false>(h_class_loader.Get(),
                                                  shared_libraries_after.Get());
