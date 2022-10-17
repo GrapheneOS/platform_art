@@ -517,6 +517,41 @@ static jboolean VMRuntime_isValidClassLoaderContext(JNIEnv* env,
   return ClassLoaderContext::IsValidEncoding(encoded_class_loader_context.c_str());
 }
 
+static jobject VMRuntime_getBaseApkOptimizationInfo(JNIEnv* env, jclass klass ATTRIBUTE_UNUSED) {
+  AppInfo* app_info = Runtime::Current()->GetAppInfo();
+  DCHECK(app_info != nullptr);
+
+  std::string compiler_filter;
+  std::string compilation_reason;
+  app_info->GetPrimaryApkOptimizationStatus(&compiler_filter, &compilation_reason);
+
+  ScopedLocalRef<jclass> cls(env, env->FindClass("dalvik/system/DexFile$OptimizationInfo"));
+  if (cls == nullptr) {
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
+  }
+
+  jmethodID ctor = env->GetMethodID(cls.get(), "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
+  if (ctor == nullptr) {
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
+  }
+
+  ScopedLocalRef<jstring> j_compiler_filter(env, env->NewStringUTF(compiler_filter.c_str()));
+  if (j_compiler_filter == nullptr) {
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
+  }
+
+  ScopedLocalRef<jstring> j_compilation_reason(env, env->NewStringUTF(compilation_reason.c_str()));
+  if (j_compilation_reason == nullptr) {
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
+  }
+
+  return env->NewObject(cls.get(), ctor, j_compiler_filter.get(), j_compilation_reason.get());
+}
+
 static JNINativeMethod gMethods[] = {
   FAST_NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -566,6 +601,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, bootCompleted, "()V"),
   NATIVE_METHOD(VMRuntime, resetJitCounters, "()V"),
   NATIVE_METHOD(VMRuntime, isValidClassLoaderContext, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(VMRuntime, getBaseApkOptimizationInfo,
+      "()Ldalvik/system/DexFile$OptimizationInfo;"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
