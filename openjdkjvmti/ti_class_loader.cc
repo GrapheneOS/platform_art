@@ -145,10 +145,10 @@ art::ObjPtr<art::mirror::ObjectArray<art::mirror::Object>> ClassLoaderHelper::Ge
           art::WellKnownClasses::dalvik_system_BaseDexClassLoader)->AsClass()));
 
   // Get all the ArtFields so we can look in the BaseDexClassLoader
-  art::ArtField* path_list_field = art::jni::DecodeArtField(
-      art::WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList);
+  art::ArtField* path_list_field =
+      art::WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList;
   art::ArtField* dex_path_list_element_field =
-      art::jni::DecodeArtField(art::WellKnownClasses::dalvik_system_DexPathList_dexElements);
+      art::WellKnownClasses::dalvik_system_DexPathList_dexElements;
 
   // Check if loader is a BaseDexClassLoader
   art::Handle<art::mirror::Class> loader_class(hs.NewHandle(loader->GetClass()));

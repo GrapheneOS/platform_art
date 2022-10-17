@@ -48,8 +48,8 @@ inline void ClassLoaderHelper::VisitDexFileObjects(art::Thread* self,
                                                    art::Handle<art::mirror::ClassLoader> loader,
                                                    const Visitor& visitor) {
   art::StackHandleScope<1> hs(self);
-  art::ArtField* element_dex_file_field = art::jni::DecodeArtField(
-      art::WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+  art::ArtField* element_dex_file_field =
+      art::WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
 
   art::Handle<art::mirror::ObjectArray<art::mirror::Object>> dex_elements_list(
       hs.NewHandle(GetDexElementList(self, loader)));
