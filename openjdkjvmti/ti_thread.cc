@@ -297,7 +297,7 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
 
     // ThreadGroup.
     if (peer != nullptr) {
-      art::ArtField* f = art::jni::DecodeArtField(art::WellKnownClasses::java_lang_Thread_group);
+      art::ArtField* f = art::WellKnownClasses::java_lang_Thread_group;
       CHECK(f != nullptr);
       art::ObjPtr<art::mirror::Object> group = f->GetObject(peer);
       info_ptr->thread_group = group == nullptr
@@ -322,7 +322,7 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
 
     // Name.
     {
-      art::ArtField* f = art::jni::DecodeArtField(art::WellKnownClasses::java_lang_Thread_name);
+      art::ArtField* f = art::WellKnownClasses::java_lang_Thread_name;
       CHECK(f != nullptr);
       art::ObjPtr<art::mirror::Object> name = f->GetObject(peer);
       std::string name_cpp;
@@ -343,21 +343,21 @@ jvmtiError ThreadUtil::GetThreadInfo(jvmtiEnv* env, jthread thread, jvmtiThreadI
 
     // Priority.
     {
-      art::ArtField* f = art::jni::DecodeArtField(art::WellKnownClasses::java_lang_Thread_priority);
+      art::ArtField* f = art::WellKnownClasses::java_lang_Thread_priority;
       CHECK(f != nullptr);
       info_ptr->priority = static_cast<jint>(f->GetInt(peer));
     }
 
     // Daemon.
     {
-      art::ArtField* f = art::jni::DecodeArtField(art::WellKnownClasses::java_lang_Thread_daemon);
+      art::ArtField* f = art::WellKnownClasses::java_lang_Thread_daemon;
       CHECK(f != nullptr);
       info_ptr->is_daemon = f->GetBoolean(peer) == 0 ? JNI_FALSE : JNI_TRUE;
     }
 
     // ThreadGroup.
     {
-      art::ArtField* f = art::jni::DecodeArtField(art::WellKnownClasses::java_lang_Thread_group);
+      art::ArtField* f = art::WellKnownClasses::java_lang_Thread_group;
       CHECK(f != nullptr);
       art::ObjPtr<art::mirror::Object> group = f->GetObject(peer);
       info_ptr->thread_group = group == nullptr
@@ -846,15 +846,16 @@ jvmtiError ThreadUtil::RunAgentThread(jvmtiEnv* jvmti_env,
   data->java_vm = art::Runtime::Current()->GetJavaVM();
   data->jvmti_env = jvmti_env;
   data->priority = priority;
-  ScopedLocalRef<jstring> s(
-      env,
-      reinterpret_cast<jstring>(
-          env->GetObjectField(thread, art::WellKnownClasses::java_lang_Thread_name)));
-  if (s == nullptr) {
-    data->name = "JVMTI Agent Thread";
-  } else {
-    ScopedUtfChars name(env, s.get());
-    data->name = name.c_str();
+  {
+    art::ScopedObjectAccess soa(env);
+    art::ObjPtr<art::mirror::Object> name =
+        art::WellKnownClasses::java_lang_Thread_name->GetObject(
+            soa.Decode<art::mirror::Object>(thread));
+    if (name == nullptr) {
+      data->name = "JVMTI Agent Thread";
+    } else {
+      data->name = name->AsString()->ToModifiedUtf8();
+    }
   }
 
   pthread_t pthread;

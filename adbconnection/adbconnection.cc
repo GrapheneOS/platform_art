@@ -23,6 +23,7 @@
 #include "adbconnection/client.h"
 #include "android-base/endian.h"
 #include "android-base/stringprintf.h"
+#include "art_field-inl.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/logging.h"
@@ -180,15 +181,18 @@ AdbConnectionState::~AdbConnectionState() {
   }
 }
 
-static jobject CreateAdbConnectionThread(art::Thread* thr) {
-  JNIEnv* env = thr->GetJniEnv();
-  // Move to native state to talk with the jnienv api.
-  art::ScopedThreadStateChange stsc(thr, art::ThreadState::kNative);
+static jobject CreateAdbConnectionThread(art::ScopedObjectAccess& soa)
+    REQUIRES_SHARED(art::Locks::mutator_lock_) {
+  JNIEnv* env = soa.Self()->GetJniEnv();
   ScopedLocalRef<jstring> thr_name(env, env->NewStringUTF(kAdbConnectionThreadName));
-  ScopedLocalRef<jobject> thr_group(
-      env,
-      env->GetStaticObjectField(art::WellKnownClasses::java_lang_ThreadGroup,
-                                art::WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
+  art::ArtField* system_thread_group_field =
+      art::WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
+  // Avoid using `ArtField::GetObject` as it requires linking against `libdexfile` for
+  // `operator<<(std::ostream&, Primitive::Type)`.
+  art::ObjPtr<art::mirror::Object> system_thread_group =
+      system_thread_group_field->GetDeclaringClass()->GetFieldObject<art::mirror::Object>(
+          system_thread_group_field->GetOffset());
+  ScopedLocalRef<jobject> thr_group(env, soa.AddLocalReference<jobject>(system_thread_group));
   return env->NewObject(art::WellKnownClasses::java_lang_Thread,
                         art::WellKnownClasses::java_lang_Thread_init,
                         thr_group.get(),
@@ -274,7 +278,7 @@ void AdbConnectionState::StartDebuggerThreads() {
     }
     runtime->StartThreadBirth();
   }
-  ScopedLocalRef<jobject> thr(soa.Env(), CreateAdbConnectionThread(soa.Self()));
+  ScopedLocalRef<jobject> thr(soa.Env(), CreateAdbConnectionThread(soa));
   // Note: Using pthreads instead of std::thread to not abort when the thread cannot be
   //       created (exception support required).
   std::unique_ptr<CallbackData> data(new CallbackData { this, soa.Env()->NewGlobalRef(thr.get()) });
