@@ -23,7 +23,6 @@
 
 namespace art {
 
-class ArtField;
 class ArtMethod;
 
 namespace mirror {
@@ -146,16 +145,16 @@ struct WellKnownClasses {
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
-  static ArtField* dalvik_system_BaseDexClassLoader_pathList;
-  static ArtField* dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
-  static ArtField* dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
-  static ArtField* dalvik_system_DexFile_cookie;
-  static ArtField* dalvik_system_DexFile_fileName;
-  static ArtField* dalvik_system_DexPathList_dexElements;
-  static ArtField* dalvik_system_DexPathList__Element_dexFile;
+  static jfieldID dalvik_system_BaseDexClassLoader_pathList;
+  static jfieldID dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
+  static jfieldID dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
+  static jfieldID dalvik_system_DexFile_cookie;
+  static jfieldID dalvik_system_DexFile_fileName;
+  static jfieldID dalvik_system_DexPathList_dexElements;
+  static jfieldID dalvik_system_DexPathList__Element_dexFile;
   static jfieldID dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
   static jfieldID java_io_FileDescriptor_descriptor;
-  static ArtField* java_lang_ClassLoader_parent;
+  static jfieldID java_lang_ClassLoader_parent;
   static jfieldID java_lang_Thread_parkBlocker;
   static jfieldID java_lang_Thread_daemon;
   static jfieldID java_lang_Thread_group;
