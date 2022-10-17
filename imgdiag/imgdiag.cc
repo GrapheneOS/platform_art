@@ -1319,10 +1319,7 @@ class ImgDiagDumper {
                          MappingData* mapping_data /*out*/) {
     std::ostream& os = *os_;
 
-    size_t virtual_page_idx = 0;   // Virtual page number (for an absolute memory address)
-    size_t page_idx = 0;           // Page index relative to 0
-    size_t previous_page_idx = 0;  // Previous page index relative to 0
-
+    size_t previous_page_idx = -1;  // Previous page index relative to 0
 
     // Iterate through one page at a time. Boot map begin/end already implicitly aligned.
     for (uintptr_t begin = boot_map.start; begin != boot_map.end; begin += kPageSize) {
@@ -1354,7 +1351,6 @@ class ImgDiagDumper {
     // Iterate through one byte at a time.
     ptrdiff_t page_off_begin = image_header.GetImageBegin() - image_begin;
     for (uintptr_t begin = boot_map.start; begin != boot_map.end; ++begin) {
-      previous_page_idx = page_idx;
       ptrdiff_t offset = begin - boot_map.start;
 
       // We treat the image header as part of the memory map for now
@@ -1363,10 +1359,11 @@ class ImgDiagDumper {
       const uint8_t* local_ptr = reinterpret_cast<const uint8_t*>(&image_header) + offset;
       const uint8_t* remote_ptr = &remote_contents[offset];
 
-      virtual_page_idx = reinterpret_cast<uintptr_t>(local_ptr) / kPageSize;
+      // Virtual page number (for an absolute memory address)
+      const size_t virtual_page_idx = reinterpret_cast<uintptr_t>(local_ptr) / kPageSize;
 
       // Calculate the page index, relative to the 0th page where the image begins
-      page_idx = (offset + page_off_begin) / kPageSize;
+      const size_t page_idx = (offset + page_off_begin) / kPageSize;
       if (*local_ptr != *remote_ptr) {
         // Track number of bytes that are different
         mapping_data->different_bytes++;
@@ -1411,6 +1408,7 @@ class ImgDiagDumper {
           }
         }
       }
+      previous_page_idx = page_idx;
     }
     mapping_data->false_dirty_pages = mapping_data->dirty_pages - mapping_data->different_pages;
     // Print low-level (bytes, int32s, pages) statistics.
