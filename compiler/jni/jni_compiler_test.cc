@@ -236,13 +236,14 @@ class JniCompilerTest : public CommonCompilerTest {
                       bool direct,
                       const char* method_name,
                       const char* method_sig) {
-    ScopedObjectAccess soa(Thread::Current());
-    StackHandleScope<2> hs(soa.Self());
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+    StackHandleScope<2> hs(self);
     Handle<mirror::ClassLoader> loader(
         hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
     // Compile the native method before starting the runtime
     Handle<mirror::Class> c =
-        hs.NewHandle(class_linker_->FindClass(soa.Self(), "LMyClassNatives;", loader));
+        hs.NewHandle(class_linker_->FindClass(self, "LMyClassNatives;", loader));
     const auto pointer_size = class_linker_->GetImagePointerSize();
     ArtMethod* method = c->FindClassMethod(method_name, method_sig, pointer_size);
     ASSERT_TRUE(method != nullptr) << method_name << " " << method_sig;
@@ -251,8 +252,11 @@ class JniCompilerTest : public CommonCompilerTest {
       // Class initialization could replace the entrypoint, so force
       // the initialization before we set up the entrypoint below.
       class_linker_->EnsureInitialized(
-          soa.Self(), c, /*can_init_fields=*/ true, /*can_init_parents=*/ true);
-      class_linker_->MakeInitializedClassesVisiblyInitialized(soa.Self(), /*wait=*/ true);
+          self, c, /*can_init_fields=*/ true, /*can_init_parents=*/ true);
+      {
+        ScopedThreadSuspension sts(self, ThreadState::kNative);
+        class_linker_->MakeInitializedClassesVisiblyInitialized(self, /*wait=*/ true);
+      }
     }
     if (check_generic_jni_) {
       method->SetEntryPointFromQuickCompiledCode(class_linker_->GetRuntimeQuickGenericJniStub());
@@ -1307,7 +1311,7 @@ void JniCompilerTest::ExceptionHandlingImpl() {
       CompileForTestWithCurrentJni(class_loader_, false, "synchronizedThrowException", "()V");
     }
   }
-  // Start runtime to avoid re-initialization in SetupForTest.
+  // Start runtime to avoid re-initialization in SetUpForTest.
   Thread::Current()->TransitionFromSuspendedToRunnable();
   bool started = runtime_->Start();
   CHECK(started);
