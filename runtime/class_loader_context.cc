@@ -1028,13 +1028,10 @@ static bool CollectDexFilesFromSupportedClassLoader(ScopedObjectAccessAlreadyRun
 
   // All supported class loaders inherit from BaseDexClassLoader.
   // We need to get the DexPathList and loop through it.
-  ArtField* const cookie_field =
-      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
-  ArtField* const dex_file_field =
-      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+  ArtField* const cookie_field = WellKnownClasses::dalvik_system_DexFile_cookie;
+  ArtField* const dex_file_field = WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
   ObjPtr<mirror::Object> dex_path_list =
-      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList)->
-          GetObject(class_loader.Get());
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList->GetObject(class_loader.Get());
   CHECK(cookie_field != nullptr);
   CHECK(dex_file_field != nullptr);
   if (dex_path_list == nullptr) {
@@ -1044,8 +1041,7 @@ static bool CollectDexFilesFromSupportedClassLoader(ScopedObjectAccessAlreadyRun
   }
   // DexPathList has an array dexElements of Elements[] which each contain a dex file.
   ObjPtr<mirror::Object> dex_elements_obj =
-      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
-          GetObject(dex_path_list);
+      WellKnownClasses::dalvik_system_DexPathList_dexElements->GetObject(dex_path_list);
   // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
   // at the mCookie which is a DexFile vector.
   if (dex_elements_obj == nullptr) {
@@ -1081,10 +1077,8 @@ static bool GetDexFilesFromDexElementsArray(
     std::vector<const DexFile*>* out_dex_files) REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(dex_elements != nullptr);
 
-  ArtField* const cookie_field =
-      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
-  ArtField* const dex_file_field =
-      jni::DecodeArtField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+  ArtField* const cookie_field = WellKnownClasses::dalvik_system_DexFile_cookie;
+  ArtField* const dex_file_field = WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
   const ObjPtr<mirror::Class> element_class = soa.Decode<mirror::Class>(
       WellKnownClasses::dalvik_system_DexPathList__Element);
   const ObjPtr<mirror::Class> dexfile_class = soa.Decode<mirror::Class>(
@@ -1198,8 +1192,7 @@ bool ClassLoaderContext::CreateInfoFromClassLoader(
 
   // Add the shared libraries.
   StackHandleScope<5> hs(Thread::Current());
-  ArtField* field =
-      jni::DecodeArtField(WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders);
+  ArtField* field = WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
   ObjPtr<mirror::Object> raw_shared_libraries = field->GetObject(class_loader.Get());
   if (raw_shared_libraries != nullptr) {
     Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries =
@@ -1217,8 +1210,7 @@ bool ClassLoaderContext::CreateInfoFromClassLoader(
       }
     }
   }
-  ArtField* field2 = jni::DecodeArtField(
-      WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter);
+  ArtField* field2 = WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter;
   ObjPtr<mirror::Object> raw_shared_libraries_after = field2->GetObject(class_loader.Get());
   if (raw_shared_libraries_after != nullptr) {
     Handle<mirror::ObjectArray<mirror::ClassLoader>> shared_libraries_after =
