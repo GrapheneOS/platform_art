@@ -1820,7 +1820,7 @@ class Dex2Oat final {
   }
 
   // Set up and create the compiler driver and then invoke it to compile all the dex files.
-  jobject Compile() {
+  jobject Compile() REQUIRES(!Locks::mutator_lock_) {
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
 
     TimingLogger::ScopedTiming t("dex2oat Compile", timings_);
@@ -3059,7 +3059,8 @@ class ScopedGlobalRef {
   jobject obj_;
 };
 
-static dex2oat::ReturnCode DoCompilation(Dex2Oat& dex2oat) {
+static dex2oat::ReturnCode DoCompilation(Dex2Oat& dex2oat) REQUIRES(!Locks::mutator_lock_) {
+  Locks::mutator_lock_->AssertNotHeld(Thread::Current());
   dex2oat.LoadClassProfileDescriptors();
   jobject class_loader = dex2oat.Compile();
   // Keep the class loader that was used for compilation live for the rest of the compilation
