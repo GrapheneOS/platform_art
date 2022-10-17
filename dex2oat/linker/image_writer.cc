@@ -273,7 +273,7 @@ static void ClearDexFileCookies() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     Class* klass = obj->GetClass();
     if (klass == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DexFile)) {
-      ArtField* field = WellKnownClasses::dalvik_system_DexFile_cookie;
+      ArtField* field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
       // Null out the cookie to enable determinism. b/34090128
       field->SetObject</*kTransactionActive*/false>(obj, nullptr);
     }
@@ -2229,7 +2229,7 @@ void ImageWriter::LayoutHelper::VerifyImageBinSlotsAssigned() {
           // Note: The app class loader is used only for checking against the runtime
           // class loader, the dex file cookie is cleared and therefore we do not need
           // to run the finalizer even if we implement app image objects collection.
-          ArtField* field = WellKnownClasses::dalvik_system_DexFile_cookie;
+          ArtField* field = jni::DecodeArtField(WellKnownClasses::dalvik_system_DexFile_cookie);
           CHECK(field->GetObject<kWithoutReadBarrier>(ref) == nullptr);
           return;
         }
