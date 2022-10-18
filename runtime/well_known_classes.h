@@ -153,8 +153,8 @@ struct WellKnownClasses {
   static ArtField* dalvik_system_DexFile_fileName;
   static ArtField* dalvik_system_DexPathList_dexElements;
   static ArtField* dalvik_system_DexPathList__Element_dexFile;
-  static jfieldID dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
-  static jfieldID java_io_FileDescriptor_descriptor;
+  static ArtField* dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
+  static ArtField* java_io_FileDescriptor_descriptor;
   static ArtField* java_lang_ClassLoader_parent;
   static jfieldID java_lang_Thread_parkBlocker;
   static jfieldID java_lang_Thread_daemon;
@@ -176,16 +176,14 @@ struct WellKnownClasses {
   static jfieldID java_lang_Throwable_stackTrace;
   static jfieldID java_lang_Throwable_stackState;
   static jfieldID java_lang_Throwable_suppressedExceptions;
-  static jfieldID java_nio_Buffer_address;
-  static jfieldID java_nio_Buffer_capacity;
-  static jfieldID java_nio_Buffer_elementSizeShift;
-  static jfieldID java_nio_Buffer_limit;
-  static jfieldID java_nio_Buffer_position;
-  static jfieldID java_nio_ByteBuffer_address;
-  static jfieldID java_nio_ByteBuffer_hb;
-  static jfieldID java_nio_ByteBuffer_isReadOnly;
-  static jfieldID java_nio_ByteBuffer_limit;
-  static jfieldID java_nio_ByteBuffer_offset;
+  static ArtField* java_nio_Buffer_address;
+  static ArtField* java_nio_Buffer_capacity;
+  static ArtField* java_nio_Buffer_elementSizeShift;
+  static ArtField* java_nio_Buffer_limit;
+  static ArtField* java_nio_Buffer_position;
+  static ArtField* java_nio_ByteBuffer_hb;
+  static ArtField* java_nio_ByteBuffer_isReadOnly;
+  static ArtField* java_nio_ByteBuffer_offset;
 
   static jfieldID java_util_Collections_EMPTY_LIST;
   static jfieldID libcore_util_EmptyArray_STACK_TRACE_ELEMENT;

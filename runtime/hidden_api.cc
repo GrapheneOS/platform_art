@@ -149,7 +149,7 @@ void InitializeDexFileDomain(const DexFile& dex_file, ObjPtr<mirror::ClassLoader
 void InitializeCorePlatformApiPrivateFields() {
   // The following fields in WellKnownClasses correspond to private fields in the Core Platform
   // API that cannot be otherwise expressed and propagated through tooling (b/144502743).
-  jfieldID private_core_platform_api_fields[] = {
+  ArtField* private_core_platform_api_fields[] = {
     WellKnownClasses::java_io_FileDescriptor_descriptor,
     WellKnownClasses::java_nio_Buffer_address,
     WellKnownClasses::java_nio_Buffer_elementSizeShift,
@@ -158,8 +158,7 @@ void InitializeCorePlatformApiPrivateFields() {
   };
 
   ScopedObjectAccess soa(Thread::Current());
-  for (const auto private_core_platform_api_field : private_core_platform_api_fields) {
-    ArtField* field = jni::DecodeArtField(private_core_platform_api_field);
+  for (ArtField* field : private_core_platform_api_fields) {
     const uint32_t access_flags = field->GetAccessFlags();
     uint32_t new_access_flags = access_flags | kAccCorePlatformApi;
     DCHECK(new_access_flags != access_flags);
@@ -408,12 +407,13 @@ void MemberSignature::NotifyHiddenApiListener(AccessMethod access_method) {
 
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsAotCompiler()) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
+    ScopedObjectAccess soa(Thread::Current());
 
+    ArtField* consumer_field = WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
     ScopedLocalRef<jobject> consumer_object(soa.Env(),
-        soa.Env()->GetStaticObjectField(
-            WellKnownClasses::dalvik_system_VMRuntime,
-            WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer));
+        soa.AddLocalReference<jobject>(
+            consumer_field->GetObject(consumer_field->GetDeclaringClass())));
+
     // If the consumer is non-null, we call back to it to let it know that we
     // have encountered an API that's in one of our lists.
     if (consumer_object != nullptr) {

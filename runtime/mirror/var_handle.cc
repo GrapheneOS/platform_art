@@ -221,11 +221,6 @@ inline void ReadBarrierForVarHandleAccess(ObjPtr<Object> obj, MemberOffset field
   }
 }
 
-inline MemberOffset GetMemberOffset(jfieldID field_id) REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtField* const field = jni::DecodeArtField(field_id);
-  return field->GetOffset();
-}
-
 //
 // Helper methods for storing results from atomic operations into
 // JValue instances.
@@ -1934,7 +1929,7 @@ bool ByteBufferViewVarHandle::Access(AccessMode access_mode,
 
   // Check access_mode is compatible with ByteBuffer's read-only property.
   bool is_read_only = byte_buffer->GetFieldBoolean(
-      GetMemberOffset(WellKnownClasses::java_nio_ByteBuffer_isReadOnly));
+      WellKnownClasses::java_nio_ByteBuffer_isReadOnly->GetOffset());
   if (is_read_only && !IsReadOnlyAccessMode(access_mode)) {
     ThrowReadOnlyBufferException();
     return false;
@@ -1942,20 +1937,20 @@ bool ByteBufferViewVarHandle::Access(AccessMode access_mode,
 
   // The native_address is only set for ByteBuffer instances backed by native memory.
   const int64_t native_address =
-      byte_buffer->GetField64(GetMemberOffset(WellKnownClasses::java_nio_ByteBuffer_address));
+      byte_buffer->GetField64(WellKnownClasses::java_nio_Buffer_address->GetOffset());
 
   // Determine offset and limit for accesses.
   int32_t byte_buffer_offset;
   if (native_address == 0L) {
     // Accessing a heap allocated byte buffer.
     byte_buffer_offset = byte_buffer->GetField32(
-        GetMemberOffset(WellKnownClasses::java_nio_ByteBuffer_offset));
+        WellKnownClasses::java_nio_ByteBuffer_offset->GetOffset());
   } else {
     // Accessing direct memory.
     byte_buffer_offset = 0;
   }
-  const int32_t byte_buffer_limit = byte_buffer->GetField32(
-      GetMemberOffset(WellKnownClasses::java_nio_ByteBuffer_limit));
+  const int32_t byte_buffer_limit =
+      byte_buffer->GetField32(WellKnownClasses::java_nio_Buffer_limit->GetOffset());
   const int32_t byte_buffer_length = byte_buffer_offset + byte_buffer_limit;
 
   const Primitive::Type primitive_type = GetVarType()->GetPrimitiveType();
@@ -1967,7 +1962,7 @@ bool ByteBufferViewVarHandle::Access(AccessMode access_mode,
   int8_t* data;
   if (native_address == 0) {
     ObjPtr<ByteArray> heap_byte_array = byte_buffer->GetFieldObject<ByteArray>(
-        GetMemberOffset(WellKnownClasses::java_nio_ByteBuffer_hb));
+        WellKnownClasses::java_nio_ByteBuffer_hb->GetOffset());
     data = heap_byte_array->GetData();
   } else {
     data = reinterpret_cast<int8_t*>(static_cast<uint32_t>(native_address));
