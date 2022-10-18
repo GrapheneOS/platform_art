@@ -25,6 +25,13 @@ import android.util.Log;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.Immutable;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.art.proto.DexUseProto;
+import com.android.server.art.proto.Int32Value;
+import com.android.server.art.proto.PackageDexUseProto;
+import com.android.server.art.proto.PrimaryDexUseProto;
+import com.android.server.art.proto.PrimaryDexUseRecordProto;
+import com.android.server.art.proto.SecondaryDexUseProto;
+import com.android.server.art.proto.SecondaryDexUseRecordProto;
 import com.android.server.art.wrapper.Environment;
 import com.android.server.art.wrapper.Process;
 import com.android.server.pm.PackageManagerLocal;
@@ -271,6 +278,35 @@ public class DexUseManager {
         mDexUse = new DexUse();
     }
 
+    public @NonNull String dump() {
+        var builder = DexUseProto.newBuilder();
+        synchronized (this) {
+            mDexUse.toProto(builder);
+        }
+        return builder.build().toString();
+    }
+
+    public void save(@NonNull String filename) throws IOException {
+        try (OutputStream out = new FileOutputStream(filename)) {
+            var builder = DexUseProto.newBuilder();
+            synchronized (this) {
+                mDexUse.toProto(builder);
+            }
+            builder.build().writeTo(out);
+        }
+    }
+
+    public void load(@NonNull String filename) throws IOException {
+        try (InputStream in = new FileInputStream(filename)) {
+            var proto = DexUseProto.parseFrom(in);
+            var dexUse = new DexUse();
+            dexUse.fromProto(proto);
+            synchronized (this) {
+                mDexUse = dexUse;
+            }
+        }
+    }
+
     private static boolean isUsedByOtherApps(
             @NonNull Set<DexLoader> loaders, @NonNull String owningPackageName) {
         // If the dex file is loaded by an isolated process of the same app, it can also be
@@ -364,6 +400,24 @@ public class DexUseManager {
 
     private static class DexUse {
         @NonNull Map<String, PackageDexUse> mPackageDexUseByOwningPackageName = new HashMap<>();
+
+        void toProto(@NonNull DexUseProto.Builder builder) {
+            for (var entry : mPackageDexUseByOwningPackageName.entrySet()) {
+                var packageBuilder =
+                        PackageDexUseProto.newBuilder().setOwningPackageName(entry.getKey());
+                entry.getValue().toProto(packageBuilder);
+                builder.addPackageDexUse(packageBuilder);
+            }
+        }
+
+        void fromProto(@NonNull DexUseProto proto) {
+            for (PackageDexUseProto packageProto : proto.getPackageDexUseList()) {
+                var packageDexUse = new PackageDexUse();
+                packageDexUse.fromProto(packageProto);
+                mPackageDexUseByOwningPackageName.put(
+                        Utils.assertNonEmpty(packageProto.getOwningPackageName()), packageDexUse);
+            }
+        }
     }
 
     private static class PackageDexUse {
@@ -378,15 +432,84 @@ public class DexUseManager {
          * JARs in CE and DE directories).
          */
         @NonNull Map<String, SecondaryDexUse> mSecondaryDexUseByDexFile = new HashMap<>();
+
+        void toProto(@NonNull PackageDexUseProto.Builder builder) {
+            for (var entry : mPrimaryDexUseByDexFile.entrySet()) {
+                var primaryBuilder = PrimaryDexUseProto.newBuilder().setDexFile(entry.getKey());
+                entry.getValue().toProto(primaryBuilder);
+                builder.addPrimaryDexUse(primaryBuilder);
+            }
+            for (var entry : mSecondaryDexUseByDexFile.entrySet()) {
+                var secondaryBuilder = SecondaryDexUseProto.newBuilder().setDexFile(entry.getKey());
+                entry.getValue().toProto(secondaryBuilder);
+                builder.addSecondaryDexUse(secondaryBuilder);
+            }
+        }
+
+        void fromProto(@NonNull PackageDexUseProto proto) {
+            for (PrimaryDexUseProto primaryProto : proto.getPrimaryDexUseList()) {
+                var primaryDexUse = new PrimaryDexUse();
+                primaryDexUse.fromProto(primaryProto);
+                mPrimaryDexUseByDexFile.put(
+                        Utils.assertNonEmpty(primaryProto.getDexFile()), primaryDexUse);
+            }
+            for (SecondaryDexUseProto secondaryProto : proto.getSecondaryDexUseList()) {
+                var secondaryDexUse = new SecondaryDexUse();
+                secondaryDexUse.fromProto(secondaryProto);
+                mSecondaryDexUseByDexFile.put(
+                        Utils.assertNonEmpty(secondaryProto.getDexFile()), secondaryDexUse);
+            }
+        }
     }
 
     private static class PrimaryDexUse {
         @NonNull Set<DexLoader> mLoaders = new HashSet<>();
+
+        void toProto(@NonNull PrimaryDexUseProto.Builder builder) {
+            for (DexLoader loader : mLoaders) {
+                builder.addRecord(PrimaryDexUseRecordProto.newBuilder()
+                                          .setLoadingPackageName(loader.loadingPackageName())
+                                          .setIsolatedProcess(loader.isolatedProcess()));
+            }
+        }
+
+        void fromProto(@NonNull PrimaryDexUseProto proto) {
+            for (PrimaryDexUseRecordProto recordProto : proto.getRecordList()) {
+                mLoaders.add(
+                        DexLoader.create(Utils.assertNonEmpty(recordProto.getLoadingPackageName()),
+                                recordProto.getIsolatedProcess()));
+            }
+        }
     }
 
     private static class SecondaryDexUse {
         @Nullable UserHandle mUserHandle = null;
         @NonNull Map<DexLoader, SecondaryDexUseRecord> mRecordByLoader = new HashMap<>();
+
+        void toProto(@NonNull SecondaryDexUseProto.Builder builder) {
+            builder.setUserId(Int32Value.newBuilder().setValue(mUserHandle.getIdentifier()));
+            for (var entry : mRecordByLoader.entrySet()) {
+                var recordBuilder =
+                        SecondaryDexUseRecordProto.newBuilder()
+                                .setLoadingPackageName(entry.getKey().loadingPackageName())
+                                .setIsolatedProcess(entry.getKey().isolatedProcess());
+                entry.getValue().toProto(recordBuilder);
+                builder.addRecord(recordBuilder);
+            }
+        }
+
+        void fromProto(@NonNull SecondaryDexUseProto proto) {
+            Utils.check(proto.hasUserId());
+            mUserHandle = UserHandle.of(proto.getUserId().getValue());
+            for (SecondaryDexUseRecordProto recordProto : proto.getRecordList()) {
+                var record = new SecondaryDexUseRecord();
+                record.fromProto(recordProto);
+                mRecordByLoader.put(
+                        DexLoader.create(Utils.assertNonEmpty(recordProto.getLoadingPackageName()),
+                                recordProto.getIsolatedProcess()),
+                        record);
+            }
+        }
     }
 
     /** Represents an entity that loads a dex file. */
@@ -409,5 +532,14 @@ public class DexUseManager {
         // reported by the app.
         @Nullable String mClassLoaderContext = null;
         @Nullable String mAbiName = null;
+
+        void toProto(@NonNull SecondaryDexUseRecordProto.Builder builder) {
+            builder.setClassLoaderContext(mClassLoaderContext).setAbiName(mAbiName);
+        }
+
+        void fromProto(@NonNull SecondaryDexUseRecordProto proto) {
+            mClassLoaderContext = Utils.assertNonEmpty(proto.getClassLoaderContext());
+            mAbiName = Utils.assertNonEmpty(proto.getAbiName());
+        }
     }
 }

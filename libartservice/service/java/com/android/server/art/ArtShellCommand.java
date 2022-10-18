@@ -170,6 +170,26 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     }
                     return 0;
                 }
+                case "dex-use-dump": {
+                    pw.println(mDexUseManager.dump());
+                    return 0;
+                }
+                case "dex-use-save": {
+                    try {
+                        mDexUseManager.save(getNextArgRequired());
+                        return 0;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                case "dex-use-load": {
+                    try {
+                        mDexUseManager.load(getNextArgRequired());
+                        return 0;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
                 default:
                     // Handles empty, help, and invalid commands.
                     return handleDefaultCommands(cmd);
@@ -217,6 +237,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("  dex-use-get-secondary PACKAGE_NAME");
         pw.println("    Print the dex use information about all secondary dex files owned by the");
         pw.println("    given package.");
+        pw.println("  dex-use-dump");
+        pw.println("    Print all dex use information in textproto format.");
+        pw.println("  dex-use-save PATH");
+        pw.println("    Save dex use information to a file in binary proto format.");
+        pw.println("  dex-use-load PATH");
+        pw.println("    Load dex use information from a file in binary proto format.");
     }
 
     private void enforceRoot() {

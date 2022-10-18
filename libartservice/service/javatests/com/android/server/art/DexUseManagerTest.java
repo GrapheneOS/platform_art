@@ -187,7 +187,17 @@ public class DexUseManagerTest {
 
     /** Checks that it ignores and dedups things correctly. */
     @Test
-    public void testPrimaryDexMultipleEntries() {
+    public void testPrimaryDexMultipleEntries() throws Exception {
+        verifyPrimaryDexMultipleEntries(false /* saveAndLoad */);
+    }
+
+    /** Checks that it saves and loads data correctly. */
+    @Test
+    public void testPrimaryDexMultipleEntriesPersisted() throws Exception {
+        verifyPrimaryDexMultipleEntries(true /*saveAndLoad */);
+    }
+
+    private void verifyPrimaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
         // These should be ignored.
         mDexUseManager.addDexUse(mSnapshot, "android", Map.of(BASE_APK, "CLC"));
         mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME,
@@ -205,6 +215,13 @@ public class DexUseManagerTest {
         when(Process.isIsolated(anyInt())).thenReturn(true);
         mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
         mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+
+        if (saveAndLoad) {
+            File tempFile = File.createTempFile("dex-use", ".pb");
+            mDexUseManager.save(tempFile.getPath());
+            mDexUseManager.clear();
+            mDexUseManager.load(tempFile.getPath());
+        }
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, BASE_APK))
                 .containsExactly(DexLoader.create(OWNING_PKG_NAME, false /* isolatedProcess */),
@@ -287,7 +304,17 @@ public class DexUseManagerTest {
 
     /** Checks that it ignores and dedups things correctly. */
     @Test
-    public void testSecondaryDexMultipleEntries() {
+    public void testSecondaryDexMultipleEntries() throws Exception {
+        verifySecondaryDexMultipleEntries(false /*saveAndLoad */);
+    }
+
+    /** Checks that it saves and loads data correctly. */
+    @Test
+    public void testSecondaryDexMultipleEntriesPersisted() throws Exception {
+        verifySecondaryDexMultipleEntries(true /*saveAndLoad */);
+    }
+
+    private void verifySecondaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
         // These should be ignored.
         mDexUseManager.addDexUse(mSnapshot, "android", Map.of(mCeDir + "/foo.apk", "CLC"));
         mDexUseManager.addDexUse(
@@ -315,6 +342,13 @@ public class DexUseManagerTest {
         mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
         mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME,
                 Map.of(mCeDir + "/foo.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
+
+        if (saveAndLoad) {
+            File tempFile = File.createTempFile("dex-use", ".pb");
+            mDexUseManager.save(tempFile.getPath());
+            mDexUseManager.clear();
+            mDexUseManager.load(tempFile.getPath());
+        }
 
         List<SecondaryDexInfo> dexInfoList = mDexUseManager.getSecondaryDexInfo(OWNING_PKG_NAME);
         assertThat(dexInfoList)
