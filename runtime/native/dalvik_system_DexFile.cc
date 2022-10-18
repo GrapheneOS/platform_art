@@ -761,6 +761,36 @@ static jboolean DexFile_isProfileGuidedCompilerFilter(JNIEnv* env,
   return CompilerFilter::DependsOnProfile(filter) ? JNI_TRUE : JNI_FALSE;
 }
 
+static jboolean DexFile_isVerifiedCompilerFilter(JNIEnv* env,
+                                                 jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                 jstring javaCompilerFilter) {
+  ScopedUtfChars compiler_filter(env, javaCompilerFilter);
+  if (env->ExceptionCheck()) {
+    return -1;
+  }
+
+  CompilerFilter::Filter filter;
+  if (!CompilerFilter::ParseCompilerFilter(compiler_filter.c_str(), &filter)) {
+    return JNI_FALSE;
+  }
+  return CompilerFilter::IsVerificationEnabled(filter) ? JNI_TRUE : JNI_FALSE;
+}
+
+static jboolean DexFile_isOptimizedCompilerFilter(JNIEnv* env,
+                                                  jclass javeDexFileClass ATTRIBUTE_UNUSED,
+                                                  jstring javaCompilerFilter) {
+  ScopedUtfChars compiler_filter(env, javaCompilerFilter);
+  if (env->ExceptionCheck()) {
+    return -1;
+  }
+
+  CompilerFilter::Filter filter;
+  if (!CompilerFilter::ParseCompilerFilter(compiler_filter.c_str(), &filter)) {
+    return JNI_FALSE;
+  }
+  return CompilerFilter::IsAotCompilationEnabled(filter) ? JNI_TRUE : JNI_FALSE;
+}
+
 static jstring DexFile_getNonProfileGuidedCompilerFilter(JNIEnv* env,
                                                          jclass javeDexFileClass ATTRIBUTE_UNUSED,
                                                          jstring javaCompilerFilter) {
@@ -984,6 +1014,8 @@ static JNINativeMethod gMethods[] = {
                 ")V"),
   NATIVE_METHOD(DexFile, isValidCompilerFilter, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, isProfileGuidedCompilerFilter, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(DexFile, isVerifiedCompilerFilter, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(DexFile, isOptimizedCompilerFilter, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile,
                 getNonProfileGuidedCompilerFilter,
                 "(Ljava/lang/String;)Ljava/lang/String;"),

@@ -221,7 +221,7 @@ class CommonRuntimeTestImpl : public CommonArtTestImpl {
   static std::string GetImageLocation();
   static std::string GetSystemImageFile();
 
-  static void EnterTransactionMode();
+  static void EnterTransactionMode() REQUIRES_SHARED(Locks::mutator_lock_);
   static void ExitTransactionMode();
   static void RollbackAndExitTransactionMode() REQUIRES_SHARED(Locks::mutator_lock_);
   static bool IsTransactionAborted();
