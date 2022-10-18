@@ -116,7 +116,8 @@ public class PrimaryDexOptimizer {
                 String compilerFilter = targetCompilerFilter;
 
                 boolean needsToBeShared = isSharedLibrary(pkg)
-                        || mInjector.isUsedByOtherApps(pkgState.getPackageName());
+                        || mInjector.getDexUseManager().isPrimaryDexUsedByOtherApps(
+                                pkgState.getPackageName(), dexInfo.dexPath());
                 boolean isOtherReadable = true;
                 // If true, implies that the profile has changed since the last compilation.
                 boolean profileMerged = false;
@@ -647,14 +648,14 @@ public class PrimaryDexOptimizer {
             return packageName.equals(mContext.getString(R.string.config_systemUi));
         }
 
-        boolean isUsedByOtherApps(@NonNull String packageName) {
-            // TODO(jiakaiz): Get the real value.
-            return false;
-        }
-
         @NonNull
         UserManager getUserManager() {
             return mContext.getSystemService(UserManager.class);
+        }
+
+        @NonNull
+        DexUseManager getDexUseManager() {
+            return DexUseManager.getInstance();
         }
 
         @NonNull

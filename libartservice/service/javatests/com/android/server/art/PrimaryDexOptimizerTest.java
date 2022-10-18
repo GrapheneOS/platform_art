@@ -347,7 +347,10 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
     @Test
     public void testDexoptNeedsToBeShared() throws Exception {
-        when(mInjector.isUsedByOtherApps(PKG_NAME)).thenReturn(true);
+        when(mDexUseManager.isPrimaryDexUsedByOtherApps(eq(PKG_NAME), eq(mDexPath)))
+                .thenReturn(true);
+        when(mDexUseManager.isPrimaryDexUsedByOtherApps(eq(PKG_NAME), eq(mSplit0DexPath)))
+                .thenReturn(true);
 
         // The ref profile is usable but shouldn't be used.
         makeProfileUsable(mRefProfile);
@@ -386,7 +389,11 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
     @Test
     public void testDexoptNeedsToBeSharedArtifactsArePublic() throws Exception {
         // Same setup as above, but the existing artifacts are public.
-        when(mInjector.isUsedByOtherApps(PKG_NAME)).thenReturn(true);
+        when(mDexUseManager.isPrimaryDexUsedByOtherApps(eq(PKG_NAME), eq(mDexPath)))
+                .thenReturn(true);
+        when(mDexUseManager.isPrimaryDexUsedByOtherApps(eq(PKG_NAME), eq(mSplit0DexPath)))
+                .thenReturn(true);
+
         makeProfileUsable(mRefProfile);
         makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);

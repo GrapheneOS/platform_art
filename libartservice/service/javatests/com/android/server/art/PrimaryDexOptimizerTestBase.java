@@ -58,6 +58,7 @@ public class PrimaryDexOptimizerTestBase {
     @Mock protected PrimaryDexOptimizer.Injector mInjector;
     @Mock protected IArtd mArtd;
     @Mock protected UserManager mUserManager;
+    @Mock protected DexUseManager mDexUseManager;
     protected PackageState mPkgState;
     protected AndroidPackage mPkg;
     protected PackageUserState mPkgUserStateNotInstalled;
@@ -70,8 +71,8 @@ public class PrimaryDexOptimizerTestBase {
     public void setUp() throws Exception {
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(false);
-        lenient().when(mInjector.isUsedByOtherApps(any())).thenReturn(false);
         lenient().when(mInjector.getUserManager()).thenReturn(mUserManager);
+        lenient().when(mInjector.getDexUseManager()).thenReturn(mDexUseManager);
 
         lenient()
                 .when(SystemProperties.get("dalvik.vm.systemuicompilerfilter"))
@@ -94,6 +95,8 @@ public class PrimaryDexOptimizerTestBase {
         lenient()
                 .when(mUserManager.getUserHandles(anyBoolean()))
                 .thenReturn(List.of(UserHandle.of(0), UserHandle.of(1), UserHandle.of(2)));
+
+        lenient().when(mDexUseManager.isPrimaryDexUsedByOtherApps(any(), any())).thenReturn(false);
 
         mPkgUserStateNotInstalled = createPackageUserState(false /* installed */);
         mPkgUserStateInstalled = createPackageUserState(true /* installed */);
