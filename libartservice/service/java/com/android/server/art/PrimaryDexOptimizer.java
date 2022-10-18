@@ -20,8 +20,8 @@ import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContext;
 import static com.android.server.art.PrimaryDexUtils.DetailedPrimaryDexInfo;
-import static com.android.server.art.ProfilePath.RefProfilePath;
-import static com.android.server.art.ProfilePath.TmpRefProfilePath;
+import static com.android.server.art.ProfilePath.TmpProfilePath;
+import static com.android.server.art.ProfilePath.WritableProfilePath;
 import static com.android.server.art.Utils.Abi;
 import static com.android.server.art.model.ArtFlags.OptimizeFlags;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
@@ -134,8 +134,7 @@ public class PrimaryDexOptimizer {
                         ProfilePath mergedProfile =
                                 mergeProfiles(pkgState, dexInfo, appId, sharedGid, profile);
                         if (mergedProfile != null) {
-                            if (profile != null
-                                    && profile.getTag() == ProfilePath.tmpRefProfilePath) {
+                            if (profile != null && profile.getTag() == ProfilePath.tmpProfilePath) {
                                 mInjector.getArtd().deleteProfile(profile);
                             }
                             profile = mergedProfile;
@@ -236,9 +235,9 @@ public class PrimaryDexOptimizer {
                 }
 
                 if (profile != null && succeeded) {
-                    if (profile.getTag() == ProfilePath.tmpRefProfilePath) {
+                    if (profile.getTag() == ProfilePath.tmpProfilePath) {
                         // Commit the profile only if dexopt succeeds.
-                        if (commitProfileChanges(profile.getTmpRefProfilePath())) {
+                        if (commitProfileChanges(profile.getTmpProfilePath())) {
                             profile = null;
                         }
                     }
@@ -256,7 +255,7 @@ public class PrimaryDexOptimizer {
                     }
                 }
             } finally {
-                if (profile != null && profile.getTag() == ProfilePath.tmpRefProfilePath) {
+                if (profile != null && profile.getTag() == ProfilePath.tmpProfilePath) {
                     mInjector.getArtd().deleteProfile(profile);
                 }
             }
@@ -315,7 +314,7 @@ public class PrimaryDexOptimizer {
     private ProfilePath initReferenceProfile(@NonNull PackageState pkgState,
             @NonNull DetailedPrimaryDexInfo dexInfo, int uid, int gid) throws RemoteException {
         String profileName = getProfileName(dexInfo.splitName());
-        OutputProfile output = AidlUtils.buildOutputProfile(
+        OutputProfile output = AidlUtils.buildOutputProfileForPrimary(
                 pkgState.getPackageName(), profileName, uid, gid, true /* isPublic */);
 
         ProfilePath prebuiltProfile = AidlUtils.buildProfilePathForPrebuilt(dexInfo.dexPath());
@@ -327,26 +326,24 @@ public class PrimaryDexOptimizer {
             // case is necessary.
             if (mInjector.getArtd().copyAndRewriteProfile(
                         prebuiltProfile, output, dexInfo.dexPath())) {
-                return ProfilePath.tmpRefProfilePath(output.profilePath);
+                return ProfilePath.tmpProfilePath(output.profilePath);
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
-                    String.format(
-                            "Failed to use prebuilt profile [packageName = %s, profileName = %s]",
-                            pkgState.getPackageName(), profileName),
+                    "Failed to use prebuilt profile "
+                            + AidlUtils.toString(output.profilePath.finalPath),
                     e);
         }
 
         ProfilePath dmProfile = AidlUtils.buildProfilePathForDm(dexInfo.dexPath());
         try {
             if (mInjector.getArtd().copyAndRewriteProfile(dmProfile, output, dexInfo.dexPath())) {
-                return ProfilePath.tmpRefProfilePath(output.profilePath);
+                return ProfilePath.tmpProfilePath(output.profilePath);
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
-                    String.format("Failed to use profile in dex metadata file "
-                                    + "[packageName = %s, profileName = %s]",
-                            pkgState.getPackageName(), profileName),
+                    "Failed to use profile in dex metadata file "
+                            + AidlUtils.toString(output.profilePath.finalPath),
                     e);
         }
 
@@ -366,7 +363,7 @@ public class PrimaryDexOptimizer {
             @NonNull DetailedPrimaryDexInfo dexInfo, int uid, int gid) throws RemoteException {
         String profileName = getProfileName(dexInfo.splitName());
         ProfilePath refProfile =
-                AidlUtils.buildProfilePathForRef(pkgState.getPackageName(), profileName);
+                AidlUtils.buildProfilePathForPrimaryRef(pkgState.getPackageName(), profileName);
         try {
             if (mInjector.getArtd().isProfileUsable(refProfile, dexInfo.dexPath())) {
                 boolean isOtherReadable = mInjector.getArtd().getProfileVisibility(refProfile)
@@ -375,9 +372,8 @@ public class PrimaryDexOptimizer {
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
-                    String.format("Failed to use the existing reference profile "
-                                    + "[packageName = %s, profileName = %s]",
-                            pkgState.getPackageName(), profileName),
+                    "Failed to use the existing reference profile "
+                            + AidlUtils.toString(refProfile),
                     e);
         }
 
@@ -529,17 +525,12 @@ public class PrimaryDexOptimizer {
         }
     }
 
-    private boolean commitProfileChanges(@NonNull TmpRefProfilePath profile)
-            throws RemoteException {
+    private boolean commitProfileChanges(@NonNull TmpProfilePath profile) throws RemoteException {
         try {
             mInjector.getArtd().commitTmpProfile(profile);
             return true;
         } catch (ServiceSpecificException e) {
-            RefProfilePath refProfilePath = profile.refProfilePath;
-            Log.e(TAG,
-                    String.format(
-                            "Failed to commit profile changes [packageName = %s, profileName = %s]",
-                            refProfilePath.packageName, refProfilePath.profileName),
+            Log.e(TAG, "Failed to commit profile changes " + AidlUtils.toString(profile.finalPath),
                     e);
             return false;
         }
@@ -550,18 +541,17 @@ public class PrimaryDexOptimizer {
             @NonNull DetailedPrimaryDexInfo dexInfo, int uid, int gid,
             @Nullable ProfilePath referenceProfile) throws RemoteException {
         String profileName = getProfileName(dexInfo.splitName());
-        OutputProfile output = AidlUtils.buildOutputProfile(
+        OutputProfile output = AidlUtils.buildOutputProfileForPrimary(
                 pkgState.getPackageName(), profileName, uid, gid, false /* isPublic */);
 
         try {
             if (mInjector.getArtd().mergeProfiles(getCurProfiles(pkgState, dexInfo),
                         referenceProfile, output, dexInfo.dexPath())) {
-                return ProfilePath.tmpRefProfilePath(output.profilePath);
+                return ProfilePath.tmpProfilePath(output.profilePath);
             }
         } catch (ServiceSpecificException e) {
             Log.e(TAG,
-                    String.format("Failed to merge profiles [packageName = %s, profileName = %s]",
-                            pkgState.getPackageName(), getProfileName(dexInfo.splitName())),
+                    "Failed to merge profiles " + AidlUtils.toString(output.profilePath.finalPath),
                     e);
         }
 
@@ -584,7 +574,7 @@ public class PrimaryDexOptimizer {
             int userId = handle.getIdentifier();
             PackageUserState userState = pkgState.getStateForUser(handle);
             if (userState.isInstalled()) {
-                profiles.add(AidlUtils.buildProfilePathForCur(
+                profiles.add(AidlUtils.buildProfilePathForPrimaryCur(
                         userId, pkgState.getPackageName(), getProfileName(dexInfo.splitName())));
             }
         }

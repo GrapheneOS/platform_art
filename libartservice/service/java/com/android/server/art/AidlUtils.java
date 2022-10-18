@@ -18,10 +18,13 @@ package com.android.server.art;
 
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContext;
-import static com.android.server.art.ProfilePath.CurProfilePath;
 import static com.android.server.art.ProfilePath.PrebuiltProfilePath;
-import static com.android.server.art.ProfilePath.RefProfilePath;
-import static com.android.server.art.ProfilePath.TmpRefProfilePath;
+import static com.android.server.art.ProfilePath.PrimaryCurProfilePath;
+import static com.android.server.art.ProfilePath.PrimaryRefProfilePath;
+import static com.android.server.art.ProfilePath.SecondaryCurProfilePath;
+import static com.android.server.art.ProfilePath.SecondaryRefProfilePath;
+import static com.android.server.art.ProfilePath.TmpProfilePath;
+import static com.android.server.art.ProfilePath.WritableProfilePath;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -83,18 +86,26 @@ public final class AidlUtils {
     }
 
     @NonNull
-    public static RefProfilePath buildRefProfilePath(
+    public static PrimaryRefProfilePath buildPrimaryRefProfilePath(
             @NonNull String packageName, @NonNull String profileName) {
-        var refProfilePath = new RefProfilePath();
-        refProfilePath.packageName = packageName;
-        refProfilePath.profileName = profileName;
-        return refProfilePath;
+        var primaryRefProfilePath = new PrimaryRefProfilePath();
+        primaryRefProfilePath.packageName = packageName;
+        primaryRefProfilePath.profileName = profileName;
+        return primaryRefProfilePath;
     }
 
     @NonNull
-    public static ProfilePath buildProfilePathForRef(
+    public static SecondaryRefProfilePath buildSecondaryRefProfilePath(@NonNull String dexPath) {
+        var secondaryRefProfilePath = new SecondaryRefProfilePath();
+        secondaryRefProfilePath.dexPath = dexPath;
+        return secondaryRefProfilePath;
+    }
+
+    @NonNull
+    public static ProfilePath buildProfilePathForPrimaryRef(
             @NonNull String packageName, @NonNull String profileName) {
-        return ProfilePath.refProfilePath(buildRefProfilePath(packageName, profileName));
+        return ProfilePath.primaryRefProfilePath(
+                buildPrimaryRefProfilePath(packageName, profileName));
     }
 
     @NonNull
@@ -110,23 +121,89 @@ public final class AidlUtils {
     }
 
     @NonNull
-    public static ProfilePath buildProfilePathForCur(
+    public static ProfilePath buildProfilePathForPrimaryCur(
             int userId, @NonNull String packageName, @NonNull String profileName) {
-        var curProfilePath = new CurProfilePath();
-        curProfilePath.userId = userId;
-        curProfilePath.packageName = packageName;
-        curProfilePath.profileName = profileName;
-        return ProfilePath.curProfilePath(curProfilePath);
+        var primaryCurProfilePath = new PrimaryCurProfilePath();
+        primaryCurProfilePath.userId = userId;
+        primaryCurProfilePath.packageName = packageName;
+        primaryCurProfilePath.profileName = profileName;
+        return ProfilePath.primaryCurProfilePath(primaryCurProfilePath);
     }
 
     @NonNull
-    public static OutputProfile buildOutputProfile(@NonNull String packageName,
-            @NonNull String profileName, int uid, int gid, boolean isPublic) {
+    public static ProfilePath buildProfilePathForSecondaryRef(@NonNull String dexPath) {
+        return ProfilePath.secondaryRefProfilePath(buildSecondaryRefProfilePath(dexPath));
+    }
+
+    @NonNull
+    public static ProfilePath buildProfilePathForSecondaryCur(@NonNull String dexPath) {
+        var secondaryCurProfilePath = new SecondaryCurProfilePath();
+        secondaryCurProfilePath.dexPath = dexPath;
+        return ProfilePath.secondaryCurProfilePath(secondaryCurProfilePath);
+    }
+
+    @NonNull
+    private static OutputProfile buildOutputProfile(
+            @NonNull WritableProfilePath finalPath, int uid, int gid, boolean isPublic) {
         var outputProfile = new OutputProfile();
-        outputProfile.profilePath = new TmpRefProfilePath();
-        outputProfile.profilePath.refProfilePath = buildRefProfilePath(packageName, profileName);
+        outputProfile.profilePath = new TmpProfilePath();
+        outputProfile.profilePath.finalPath = finalPath;
         outputProfile.profilePath.id = ""; // Will be filled by artd.
         outputProfile.fsPermission = buildFsPermission(uid, gid, isPublic);
         return outputProfile;
+    }
+
+    @NonNull
+    public static OutputProfile buildOutputProfileForPrimary(@NonNull String packageName,
+            @NonNull String profileName, int uid, int gid, boolean isPublic) {
+        return buildOutputProfile(WritableProfilePath.forPrimary(
+                                          buildPrimaryRefProfilePath(packageName, profileName)),
+                uid, gid, isPublic);
+    }
+
+    @NonNull
+    public static OutputProfile buildOutputProfileForSecondary(
+            @NonNull String dexPath, int uid, int gid, boolean isPublic) {
+        return buildOutputProfile(
+                WritableProfilePath.forSecondary(buildSecondaryRefProfilePath(dexPath)), uid, gid,
+                isPublic);
+    }
+
+    @NonNull
+    public static String toString(@NonNull PrimaryRefProfilePath profile) {
+        return String.format(
+                "[packageName = %s, profileName = %s]", profile.packageName, profile.profileName);
+    }
+
+    @NonNull
+    public static String toString(@NonNull SecondaryRefProfilePath profile) {
+        return String.format("[dexPath = %s]", profile.dexPath);
+    }
+
+    @NonNull
+    public static String toString(@NonNull WritableProfilePath profile) {
+        switch (profile.getTag()) {
+            case WritableProfilePath.forPrimary:
+                return toString(profile.getForPrimary());
+            case WritableProfilePath.forSecondary:
+                return toString(profile.getForSecondary());
+            default:
+                throw new IllegalStateException(
+                        "Unknown WritableProfilePath tag " + profile.getTag());
+        }
+    }
+
+    @NonNull
+    public static String toString(@NonNull ProfilePath profile) {
+        switch (profile.getTag()) {
+            case ProfilePath.primaryRefProfilePath:
+                return toString(profile.getPrimaryRefProfilePath());
+            case ProfilePath.secondaryRefProfilePath:
+                return toString(profile.getSecondaryRefProfilePath());
+            default:
+                throw new UnsupportedOperationException(
+                        "Only reference profile paths are supported to be converted to string, got "
+                        + profile.getTag());
+        }
     }
 }

@@ -97,9 +97,9 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::WithArg;
 
-using CurProfilePath = ProfilePath::CurProfilePath;
-using RefProfilePath = ProfilePath::RefProfilePath;
-using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
+using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
+using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
+using TmpProfilePath = ProfilePath::TmpProfilePath;
 
 using ::fmt::literals::operator""_format;  // NOLINT
 
@@ -294,14 +294,13 @@ class ArtdTest : public CommonArtTest {
     clc_2_ = GetTestDexFileName("Nested");
     class_loader_context_ = "PCL[{}:{}]"_format(clc_1_, clc_2_);
     compiler_filter_ = "speed";
-    TmpRefProfilePath tmp_ref_profile_path{
-        .refProfilePath =
-            RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
+    TmpProfilePath tmp_profile_path{
+        .finalPath =
+            PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
         .id = "12345"};
-    profile_path_ = tmp_ref_profile_path;
+    profile_path_ = tmp_profile_path;
     std::filesystem::create_directories(
-        std::filesystem::path(OR_FATAL(BuildTmpRefProfilePath(tmp_ref_profile_path)))
-            .parent_path());
+        std::filesystem::path(OR_FATAL(BuildFinalProfilePath(tmp_profile_path))).parent_path());
   }
 
   void TearDown() override {
@@ -1019,8 +1018,8 @@ TEST_F(ArtdTest, isProfileUsableFailed) {
 }
 
 TEST_F(ArtdTest, copyAndRewriteProfile) {
-  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
+  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(src));
   CreateFile(src_file, "abc");
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
@@ -1045,12 +1044,12 @@ TEST_F(ArtdTest, copyAndRewriteProfile) {
   EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
   EXPECT_TRUE(result);
   EXPECT_THAT(dst.profilePath.id, Not(IsEmpty()));
-  CheckContent(OR_FATAL(BuildTmpRefProfilePath(dst.profilePath)), "def");
+  CheckContent(OR_FATAL(BuildTmpProfilePath(dst.profilePath)), "def");
 }
 
 TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
-  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
+  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(src));
   CreateFile(src_file, "abc");
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
@@ -1068,7 +1067,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
 TEST_F(ArtdTest, copyAndRewriteProfileNotFound) {
   CreateFile(dex_file_);
 
-  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
 
@@ -1078,8 +1077,8 @@ TEST_F(ArtdTest, copyAndRewriteProfileNotFound) {
 }
 
 TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
-  const TmpRefProfilePath& src = profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  std::string src_file = OR_FATAL(BuildTmpRefProfilePath(src));
+  const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
+  std::string src_file = OR_FATAL(BuildTmpProfilePath(src));
   CreateFile(src_file, "abc");
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
@@ -1097,19 +1096,18 @@ TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
 }
 
 TEST_F(ArtdTest, commitTmpProfile) {
-  const TmpRefProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  std::string tmp_profile_file = OR_FATAL(BuildTmpRefProfilePath(tmp_profile_path));
+  const TmpProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
+  std::string tmp_profile_file = OR_FATAL(BuildTmpProfilePath(tmp_profile_path));
   CreateFile(tmp_profile_file);
 
   EXPECT_TRUE(artd_->commitTmpProfile(tmp_profile_path).isOk());
 
   EXPECT_FALSE(std::filesystem::exists(tmp_profile_file));
-  EXPECT_TRUE(
-      std::filesystem::exists(OR_FATAL(BuildProfileOrDmPath(tmp_profile_path.refProfilePath))));
+  EXPECT_TRUE(std::filesystem::exists(OR_FATAL(BuildFinalProfilePath(tmp_profile_path))));
 }
 
 TEST_F(ArtdTest, commitTmpProfileFailed) {
-  const TmpRefProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpRefProfilePath>();
+  const TmpProfilePath& tmp_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
   ndk::ScopedAStatus status = artd_->commitTmpProfile(tmp_profile_path);
 
   EXPECT_FALSE(status.isOk());
@@ -1118,8 +1116,7 @@ TEST_F(ArtdTest, commitTmpProfileFailed) {
       status.getMessage(),
       ContainsRegex(R"re(Failed to move .*primary\.prof\.12345\.tmp.* to .*primary\.prof)re"));
 
-  EXPECT_FALSE(
-      std::filesystem::exists(OR_FATAL(BuildProfileOrDmPath(tmp_profile_path.refProfilePath))));
+  EXPECT_FALSE(std::filesystem::exists(OR_FATAL(BuildFinalProfilePath(tmp_profile_path))));
 }
 
 TEST_F(ArtdTest, deleteProfile) {
@@ -1231,19 +1228,18 @@ TEST_F(ArtdTest, getArtifactsVisibilityPermissionDenied) {
 }
 
 TEST_F(ArtdTest, mergeProfiles) {
-  const TmpRefProfilePath& reference_profile_path =
-      profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  std::string reference_profile_file = OR_FATAL(BuildTmpRefProfilePath(reference_profile_path));
+  const TmpProfilePath& reference_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
+  std::string reference_profile_file = OR_FATAL(BuildTmpProfilePath(reference_profile_path));
   CreateFile(reference_profile_file, "abc");
 
   // Doesn't exist.
-  CurProfilePath profile_0_path{
+  PrimaryCurProfilePath profile_0_path{
       .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
-  std::string profile_0_file = OR_FATAL(BuildCurProfilePath(profile_0_path));
+  std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
 
-  CurProfilePath profile_1_path{
+  PrimaryCurProfilePath profile_1_path{
       .userId = 1, .packageName = "com.android.foo", .profileName = "primary"};
-  std::string profile_1_file = OR_FATAL(BuildCurProfilePath(profile_1_path));
+  std::string profile_1_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_1_path));
   CreateFile(profile_1_file, "def");
 
   OutputProfile output_profile{.profilePath = reference_profile_path,
@@ -1277,16 +1273,16 @@ TEST_F(ArtdTest, mergeProfiles) {
                   .isOk());
   EXPECT_TRUE(result);
   EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
-  CheckContent(OR_FATAL(BuildTmpRefProfilePath(output_profile.profilePath)), "merged");
+  CheckContent(OR_FATAL(BuildTmpProfilePath(output_profile.profilePath)), "merged");
 }
 
 TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
-  CurProfilePath profile_0_path{
+  PrimaryCurProfilePath profile_0_path{
       .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
-  std::string profile_0_file = OR_FATAL(BuildCurProfilePath(profile_0_path));
+  std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
   CreateFile(profile_0_file, "def");
 
-  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpRefProfilePath>(),
+  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
 
@@ -1312,24 +1308,23 @@ TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
           .isOk());
   EXPECT_TRUE(result);
   EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
-  CheckContent(OR_FATAL(BuildTmpRefProfilePath(output_profile.profilePath)), "merged");
+  CheckContent(OR_FATAL(BuildTmpProfilePath(output_profile.profilePath)), "merged");
 }
 
 TEST_F(ArtdTest, mergeProfilesProfilesDontExist) {
-  const TmpRefProfilePath& reference_profile_path =
-      profile_path_->get<ProfilePath::tmpRefProfilePath>();
-  std::string reference_profile_file = OR_FATAL(BuildTmpRefProfilePath(reference_profile_path));
+  const TmpProfilePath& reference_profile_path = profile_path_->get<ProfilePath::tmpProfilePath>();
+  std::string reference_profile_file = OR_FATAL(BuildTmpProfilePath(reference_profile_path));
   CreateFile(reference_profile_file, "abc");
 
   // Doesn't exist.
-  CurProfilePath profile_0_path{
+  PrimaryCurProfilePath profile_0_path{
       .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
-  std::string profile_0_file = OR_FATAL(BuildCurProfilePath(profile_0_path));
+  std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
 
   // Doesn't exist.
-  CurProfilePath profile_1_path{
+  PrimaryCurProfilePath profile_1_path{
       .userId = 1, .packageName = "com.android.foo", .profileName = "primary"};
-  std::string profile_1_file = OR_FATAL(BuildCurProfilePath(profile_1_path));
+  std::string profile_1_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_1_path));
 
   OutputProfile output_profile{.profilePath = reference_profile_path,
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};

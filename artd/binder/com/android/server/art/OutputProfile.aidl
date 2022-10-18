@@ -27,7 +27,7 @@ parcelable OutputProfile {
      *
      * Only outputing to a temporary file is supported to avoid race condition.
      */
-    com.android.server.art.ProfilePath.TmpRefProfilePath profilePath;
+    com.android.server.art.ProfilePath.TmpProfilePath profilePath;
 
     /** The permission of the file. */
     com.android.server.art.FsPermission fsPermission;
