@@ -65,8 +65,6 @@ public class PrimaryDexOptimizerTestBase {
     protected PackageUserState mPkgUserStateInstalled;
     protected CancellationSignal mCancellationSignal;
 
-    protected PrimaryDexOptimizer mPrimaryDexOptimizer;
-
     @Before
     public void setUp() throws Exception {
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
@@ -103,8 +101,6 @@ public class PrimaryDexOptimizerTestBase {
         mPkgState = createPackageState();
         mPkg = mPkgState.getAndroidPackage();
         mCancellationSignal = new CancellationSignal();
-
-        mPrimaryDexOptimizer = new PrimaryDexOptimizer(mInjector);
     }
 
     private AndroidPackage createPackage() {

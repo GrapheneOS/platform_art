@@ -93,6 +93,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
     private final DexoptResult mDexoptResult =
             createDexoptResult(false /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */);
 
+    private PrimaryDexOptimizer mPrimaryDexOptimizer;
+
     private List<ProfilePath> mUsedProfiles;
 
     @Before
@@ -115,6 +117,9 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         lenient()
                 .when(mArtd.createCancellationSignal())
                 .thenReturn(mock(IArtdCancellationSignal.class));
+
+        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
+                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
 
         mUsedProfiles = new ArrayList<>();
     }
@@ -163,7 +168,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                                 AidlUtils.buildDexMetadataPath(mSplit0DexPath))),
                         anyInt(), any(), any());
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
     }
 
     @Test
@@ -176,7 +181,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         verify(mArtd).getDexoptNeeded(
                 eq(mDexPath), eq("arm64"), any(), eq("speed-profile"), eq(mDefaultDexoptTrigger));
@@ -210,7 +215,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         checkDexoptWithPublicProfile(verify(mArtd), mDexPath, "arm64", mRefProfile);
         checkDexoptWithPublicProfile(verify(mArtd), mDexPath, "arm", mRefProfile);
@@ -225,7 +230,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         InOrder inOrder = inOrder(mArtd);
 
@@ -254,7 +259,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         InOrder inOrder = inOrder(mArtd);
 
@@ -295,7 +300,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         // It should still use "speed-profile", but with the existing reference profile only.
         verify(mArtd).getDexoptNeeded(
@@ -316,7 +321,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         verify(mArtd).copyAndRewriteProfile(
                 deepEq(mDmProfile), deepEq(mPublicOutputProfile), eq(mDexPath));
@@ -340,7 +345,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                      any()))
                 .thenThrow(ServiceSpecificException.class);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         verify(mArtd).deleteProfile(
                 deepEq(ProfilePath.tmpProfilePath(mPublicOutputProfile.profilePath)));
@@ -365,7 +370,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                      argThat(artifactsPath -> artifactsPath.dexPath == mDexPath)))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         verify(mArtd).copyAndRewriteProfile(
                 deepEq(mDmProfile), deepEq(mPublicOutputProfile), eq(mDexPath));
@@ -403,7 +408,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                      argThat(artifactsPath -> artifactsPath.dexPath == mDexPath)))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         // It should use the default dexopt trigger.
         verify(mArtd).getDexoptNeeded(
@@ -418,7 +423,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mArtd.getProfileVisibility(deepEq(mSplit0RefProfile)))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+        mPrimaryDexOptimizer.dexopt();
 
         verify(mArtd).getDexoptNeeded(eq(mSplit0DexPath), eq("arm64"), any(), eq("speed-profile"),
                 eq(mDefaultDexoptTrigger));
@@ -447,11 +452,10 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
         // The result should only contain one element: the result of the first file with
         // OPTIMIZE_CANCELLED.
-        assertThat(
-                mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal)
-                        .stream()
-                        .map(DexContainerFileOptimizeResult::getStatus)
-                        .collect(Collectors.toList()))
+        assertThat(mPrimaryDexOptimizer.dexopt()
+                           .stream()
+                           .map(DexContainerFileOptimizeResult::getStatus)
+                           .collect(Collectors.toList()))
                 .containsExactly(OptimizeResult.OPTIMIZE_CANCELLED);
 
         // It shouldn't continue after being cancelled on the first file.
@@ -486,10 +490,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .cancel();
 
         Future<List<DexContainerFileOptimizeResult>> results =
-                Executors.newSingleThreadExecutor().submit(() -> {
-                    return mPrimaryDexOptimizer.dexopt(
-                            mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
-                });
+                Executors.newSingleThreadExecutor().submit(
+                        () -> { return mPrimaryDexOptimizer.dexopt(); });
 
         assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
 

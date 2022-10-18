@@ -90,7 +90,6 @@ public class DexOptHelperTest {
 
     @Before
     public void setUp() throws Exception {
-        lenient().when(mInjector.getPrimaryDexOptimizer()).thenReturn(mPrimaryDexOptimizer);
         lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
         lenient().when(mInjector.getPowerManager()).thenReturn(mPowerManager);
 
@@ -105,14 +104,17 @@ public class DexOptHelperTest {
         mPkg = mPkgState.getAndroidPackage();
         mCancellationSignal = new CancellationSignal();
 
+        lenient()
+                .when(mInjector.getPrimaryDexOptimizer(
+                        same(mPkgState), same(mPkg), same(mParams), same(mCancellationSignal)))
+                .thenReturn(mPrimaryDexOptimizer);
+
         mDexOptHelper = new DexOptHelper(mInjector);
     }
 
     @Test
     public void testDexopt() throws Exception {
-        when(mPrimaryDexOptimizer.dexopt(
-                     same(mPkgState), same(mPkg), same(mParams), same(mCancellationSignal)))
-                .thenReturn(mPrimaryResults);
+        when(mPrimaryDexOptimizer.dexopt()).thenReturn(mPrimaryResults);
 
         OptimizeResult result = mDexOptHelper.dexopt(
                 mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg, mParams,
@@ -130,7 +132,7 @@ public class DexOptHelperTest {
 
         InOrder inOrder = inOrder(mPrimaryDexOptimizer, mWakeLock);
         inOrder.verify(mWakeLock).acquire(anyLong());
-        inOrder.verify(mPrimaryDexOptimizer).dexopt(any(), any(), any(), any());
+        inOrder.verify(mPrimaryDexOptimizer).dexopt();
         inOrder.verify(mWakeLock).release();
     }
 
@@ -165,9 +167,7 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isHibernatingGlobally(PKG_NAME)).thenReturn(true);
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(false);
 
-        when(mPrimaryDexOptimizer.dexopt(
-                     same(mPkgState), same(mPkg), same(mParams), same(mCancellationSignal)))
-                .thenReturn(mPrimaryResults);
+        when(mPrimaryDexOptimizer.dexopt()).thenReturn(mPrimaryResults);
 
         OptimizeResult result = mDexOptHelper.dexopt(
                 mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg, mParams,
@@ -179,9 +179,7 @@ public class DexOptHelperTest {
 
     @Test
     public void testDexoptAlwaysReleasesWakeLock() throws Exception {
-        when(mPrimaryDexOptimizer.dexopt(
-                     same(mPkgState), same(mPkg), same(mParams), same(mCancellationSignal)))
-                .thenThrow(IllegalStateException.class);
+        when(mPrimaryDexOptimizer.dexopt()).thenThrow(IllegalStateException.class);
 
         try {
             mDexOptHelper.dexopt(mock(PackageManagerLocal.FilteredSnapshot.class), mPkgState, mPkg,

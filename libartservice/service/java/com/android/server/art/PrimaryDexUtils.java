@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 import android.text.TextUtils;
 
 import com.android.internal.annotations.Immutable;
+import com.android.server.art.model.DetailedDexInfo;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
@@ -302,11 +303,11 @@ public class PrimaryDexUtils {
      * producing it requires {@link PackageState}.
      */
     @Immutable
-    public static class DetailedPrimaryDexInfo extends PrimaryDexInfo {
+    public static class DetailedPrimaryDexInfo extends PrimaryDexInfo implements DetailedDexInfo {
         private final @Nullable String mClassLoaderContext;
 
-        DetailedPrimaryDexInfo(@NonNull AndroidPackageSplit split,
-                @Nullable String classLoaderContext) {
+        DetailedPrimaryDexInfo(
+                @NonNull AndroidPackageSplit split, @Nullable String classLoaderContext) {
             super(split);
             mClassLoaderContext = classLoaderContext;
         }

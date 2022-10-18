@@ -25,6 +25,7 @@ import android.util.Log;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.Immutable;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.art.model.DetailedDexInfo;
 import com.android.server.art.proto.DexUseProto;
 import com.android.server.art.proto.Int32Value;
 import com.android.server.art.proto.PackageDexUseProto;
@@ -343,7 +344,7 @@ public class DexUseManager {
      */
     @Immutable
     @AutoValue
-    public abstract static class SecondaryDexInfo {
+    public abstract static class SecondaryDexInfo implements DetailedDexInfo {
         // Special encoding used to denote a foreign ClassLoader was found when trying to encode
         // class loader contexts for each classpath element in a ClassLoader.
         // Must be in sync with `kUnsupportedClassLoaderContextEncoding` in
