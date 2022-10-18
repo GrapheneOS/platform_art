@@ -30,6 +30,7 @@ class AccessPublicMethod {
   }
 }
 
+@SuppressWarnings("LockOnBoxedPrimitive")
 class AccessPublicMethodFromParent {
   public void foo(Integer i) {
     i.notify();
@@ -64,6 +65,7 @@ class AccessNonPublicMethod {
   }
 }
 
+@SuppressWarnings("LockOnBoxedPrimitive")
 class AccessNonPublicMethodFromParent {
   public void foo(Integer i) {
     i.notifyAll();
