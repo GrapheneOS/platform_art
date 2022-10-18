@@ -87,6 +87,7 @@
 #include "verifier/class_verifier.h"
 #include "verifier/verifier_deps.h"
 #include "verifier/verifier_enums.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -1010,13 +1011,67 @@ class RecordImageClassesVisitor : public ClassVisitor {
   HashSet<std::string>* const image_classes_;
 };
 
-// Add classes which contain intrinsics methods to the list of image classes.
-static void AddClassesContainingIntrinsics(/* out */ HashSet<std::string>* image_classes) {
-#define ADD_INTRINSIC_OWNER_CLASS(_, __, ___, ____, _____, ClassName, ______, _______) \
-  image_classes->insert(ClassName);
+// Verify that classes which contain intrinsics methods are in the list of image classes.
+static void VerifyClassesContainingIntrinsicsAreImageClasses(HashSet<std::string>* image_classes) {
+#define CHECK_INTRINSIC_OWNER_CLASS(_, __, ___, ____, _____, ClassName, ______, _______) \
+  CHECK(image_classes->find(std::string_view(ClassName)) != image_classes->end());
 
-  INTRINSICS_LIST(ADD_INTRINSIC_OWNER_CLASS)
-#undef ADD_INTRINSIC_OWNER_CLASS
+  INTRINSICS_LIST(CHECK_INTRINSIC_OWNER_CLASS)
+#undef CHECK_INTRINSIC_OWNER_CLASS
+}
+
+// We need to put classes required by app class loaders to the boot image,
+// otherwise we would not be able to store app class loaders in app images.
+static void AddClassLoaderClasses(/* out */ HashSet<std::string>* image_classes) {
+  ScopedObjectAccess soa(Thread::Current());
+  // Well known classes have been loaded and shall be added to image classes
+  // by the `RecordImageClassesVisitor`. However, there are fields with array
+  // types which we need to add to the image classes explicitly.
+  ArtField* class_loader_array_fields[] = {
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders,
+      // BaseDexClassLoader.sharedLibraryLoadersAfter has the same array type as above.
+      WellKnownClasses::dalvik_system_DexPathList_dexElements,
+  };
+  for (ArtField* field : class_loader_array_fields) {
+    const char* field_type_descriptor = field->GetTypeDescriptor();
+    DCHECK_EQ(field_type_descriptor[0], '[');
+    image_classes->insert(field_type_descriptor);
+  }
+}
+
+static void VerifyClassLoaderClassesAreImageClasses(/* out */ HashSet<std::string>* image_classes) {
+  ScopedObjectAccess soa(Thread::Current());
+  jclass class_loader_classes[] = {
+      WellKnownClasses::dalvik_system_BaseDexClassLoader,
+      WellKnownClasses::dalvik_system_DelegateLastClassLoader,
+      WellKnownClasses::dalvik_system_DexClassLoader,
+      WellKnownClasses::dalvik_system_DexFile,
+      WellKnownClasses::dalvik_system_DexPathList,
+      WellKnownClasses::dalvik_system_DexPathList__Element,
+      WellKnownClasses::dalvik_system_InMemoryDexClassLoader,
+      WellKnownClasses::dalvik_system_PathClassLoader,
+      WellKnownClasses::java_lang_BootClassLoader,
+      WellKnownClasses::java_lang_ClassLoader,
+  };
+  for (jclass klass : class_loader_classes) {
+    std::string temp;
+    std::string_view descriptor = soa.Decode<mirror::Class>(klass)->GetDescriptor(&temp);
+    CHECK(image_classes->find(descriptor) != image_classes->end());
+  }
+  ArtField* class_loader_fields[] = {
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList,
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders,
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter,
+      WellKnownClasses::dalvik_system_DexFile_cookie,
+      WellKnownClasses::dalvik_system_DexFile_fileName,
+      WellKnownClasses::dalvik_system_DexPathList_dexElements,
+      WellKnownClasses::dalvik_system_DexPathList__Element_dexFile,
+      WellKnownClasses::java_lang_ClassLoader_parent,
+  };
+  for (ArtField* field : class_loader_fields) {
+    std::string_view field_type_descriptor = field->GetTypeDescriptor();
+    CHECK(image_classes->find(field_type_descriptor) != image_classes->end());
+  }
 }
 
 // Make a list of descriptors for classes to include in the image
@@ -1030,7 +1085,10 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings,
   TimingLogger::ScopedTiming t("LoadImageClasses", timings);
 
   if (GetCompilerOptions().IsBootImage()) {
-    AddClassesContainingIntrinsics(image_classes);
+    // Image classes of intrinsics are loaded and shall be added
+    // to image classes by the `RecordImageClassesVisitor`.
+    // Add classes needed for storing class loaders in app images.
+    AddClassLoaderClasses(image_classes);
   }
 
   // Make a first pass to load all classes explicitly listed in the file
@@ -1100,6 +1158,11 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings,
   // classes, interfaces, and the required ClassLinker roots.
   RecordImageClassesVisitor visitor(image_classes);
   class_linker->VisitClasses(&visitor);
+
+  if (kIsDebugBuild && GetCompilerOptions().IsBootImage()) {
+    VerifyClassesContainingIntrinsicsAreImageClasses(image_classes);
+    VerifyClassLoaderClassesAreImageClasses(image_classes);
+  }
 
   if (GetCompilerOptions().IsBootImage()) {
     CHECK(!image_classes->empty());
