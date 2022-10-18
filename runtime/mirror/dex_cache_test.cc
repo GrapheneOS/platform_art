@@ -146,15 +146,16 @@ TEST_F(DexCacheMethodHandlesTest, TestResolvedMethodTypes) {
   // The MethodTypes dex file contains a single interface with two abstract
   // methods. It must therefore contain precisely two method IDs.
   ASSERT_EQ(2u, dex_file.NumProtoIds());
-  ASSERT_EQ(dex_file.NumProtoIds(), dex_cache->NumResolvedMethodTypes());
-  auto* method_types_cache = dex_cache->GetResolvedMethodTypes();
+  ASSERT_EQ(dex_file.NumProtoIds(), dex_cache->NumResolvedMethodTypesArray());
+  ASSERT_EQ(0u, dex_cache->NumResolvedMethodTypes());
+  auto* method_types_cache = dex_cache->GetResolvedMethodTypesArray();
 
   for (size_t i = 0; i < dex_file.NumProtoIds(); ++i) {
-    const DexCachePair<MethodType> pair = method_types_cache->GetPair(i);
-    if (dex::ProtoIndex(pair.index) == method1_id.proto_idx_) {
-      ASSERT_EQ(method1_type.Get(), pair.object.Read());
-    } else if (dex::ProtoIndex(pair.index) == method2_id.proto_idx_) {
-      ASSERT_EQ(method2_type.Get(), pair.object.Read());
+    auto* method_type = method_types_cache->Get(i);
+    if (dex::ProtoIndex(i) == method1_id.proto_idx_) {
+      ASSERT_EQ(method1_type.Get(), method_type);
+    } else if (dex::ProtoIndex(i) == method2_id.proto_idx_) {
+      ASSERT_EQ(method2_type.Get(), method_type);
     } else {
       ASSERT_TRUE(false);
     }
