@@ -27,6 +27,7 @@
 #include "class_linker.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
+#include "handle_scope-inl.h"
 #include "hidden_api.h"
 #include "jni/jni_internal.h"
 #include "jni_id_type.h"
@@ -139,8 +140,8 @@ ArtField* WellKnownClasses::dalvik_system_DexFile_cookie;
 ArtField* WellKnownClasses::dalvik_system_DexFile_fileName;
 ArtField* WellKnownClasses::dalvik_system_DexPathList_dexElements;
 ArtField* WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
-jfieldID WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
-jfieldID WellKnownClasses::java_io_FileDescriptor_descriptor;
+ArtField* WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
+ArtField* WellKnownClasses::java_io_FileDescriptor_descriptor;
 ArtField* WellKnownClasses::java_lang_ClassLoader_parent;
 jfieldID WellKnownClasses::java_lang_Thread_parkBlocker;
 jfieldID WellKnownClasses::java_lang_Thread_daemon;
@@ -162,22 +163,29 @@ jfieldID WellKnownClasses::java_lang_Throwable_detailMessage;
 jfieldID WellKnownClasses::java_lang_Throwable_stackTrace;
 jfieldID WellKnownClasses::java_lang_Throwable_stackState;
 jfieldID WellKnownClasses::java_lang_Throwable_suppressedExceptions;
-jfieldID WellKnownClasses::java_nio_Buffer_address;
-jfieldID WellKnownClasses::java_nio_Buffer_capacity;
-jfieldID WellKnownClasses::java_nio_Buffer_elementSizeShift;
-jfieldID WellKnownClasses::java_nio_Buffer_limit;
-jfieldID WellKnownClasses::java_nio_Buffer_position;
-jfieldID WellKnownClasses::java_nio_ByteBuffer_address;
-jfieldID WellKnownClasses::java_nio_ByteBuffer_hb;
-jfieldID WellKnownClasses::java_nio_ByteBuffer_isReadOnly;
-jfieldID WellKnownClasses::java_nio_ByteBuffer_limit;
-jfieldID WellKnownClasses::java_nio_ByteBuffer_offset;
+ArtField* WellKnownClasses::java_nio_Buffer_address;
+ArtField* WellKnownClasses::java_nio_Buffer_capacity;
+ArtField* WellKnownClasses::java_nio_Buffer_elementSizeShift;
+ArtField* WellKnownClasses::java_nio_Buffer_limit;
+ArtField* WellKnownClasses::java_nio_Buffer_position;
+ArtField* WellKnownClasses::java_nio_ByteBuffer_hb;
+ArtField* WellKnownClasses::java_nio_ByteBuffer_isReadOnly;
+ArtField* WellKnownClasses::java_nio_ByteBuffer_offset;
 jfieldID WellKnownClasses::java_util_Collections_EMPTY_LIST;
 jfieldID WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT;
 jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data;
 jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length;
 jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset;
 jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type;
+
+static ObjPtr<mirror::Class> FindSystemClass(ClassLinker* class_linker,
+                                             Thread* self,
+                                             const char* descriptor)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> klass = class_linker->FindSystemClass(self, descriptor);
+  CHECK(klass != nullptr) << "Couldn't find system class: " << descriptor;
+  return klass;
+}
 
 static jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
   ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
@@ -455,6 +463,11 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  StackHandleScope<1u> hs(self);
+  Handle<mirror::Class> j_i_fd =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/io/FileDescriptor;"));
+
   // TODO: There should be no thread suspension when searching for fields and methods. Enable this
   // assertion when all well known fields and methods are converted to `ArtField*` and `ArtMethod*`.
   // ScopedAssertNoThreadSuspension sants(__FUNCTION__);
@@ -478,10 +491,12 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   dalvik_system_DexPathList__Element_dexFile = CacheField(
       d_s_dpl_e, /*is_static=*/ false, "dexFile", "Ldalvik/system/DexFile;");
 
-  dalvik_system_VMRuntime_nonSdkApiUsageConsumer = CacheField(env, dalvik_system_VMRuntime, true, "nonSdkApiUsageConsumer", "Ljava/util/function/Consumer;");
+  ObjPtr<mirror::Class> d_s_vmr = soa.Decode<mirror::Class>(dalvik_system_VMRuntime);
+  dalvik_system_VMRuntime_nonSdkApiUsageConsumer = CacheField(
+      d_s_vmr, /*is_static=*/ true, "nonSdkApiUsageConsumer", "Ljava/util/function/Consumer;");
 
-  ScopedLocalRef<jclass> java_io_FileDescriptor(env, env->FindClass("java/io/FileDescriptor"));
-  java_io_FileDescriptor_descriptor = CacheField(env, java_io_FileDescriptor.get(), false, "descriptor", "I");
+  java_io_FileDescriptor_descriptor = CacheField(
+      j_i_fd.Get(), /*is_static=*/ false, "descriptor", "I");
 
   ObjPtr<mirror::Class> j_l_cl = soa.Decode<mirror::Class>(java_lang_ClassLoader);
   java_lang_ClassLoader_parent = CacheField(
@@ -521,18 +536,19 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Throwable_suppressedExceptions =
       CacheField(env, java_lang_Throwable, false, "suppressedExceptions", "Ljava/util/List;");
 
-  java_nio_Buffer_address = CacheField(env, java_nio_Buffer, false, "address", "J");
-  java_nio_Buffer_capacity = CacheField(env, java_nio_Buffer, false, "capacity", "I");
+  ObjPtr<mirror::Class> j_n_b = soa.Decode<mirror::Class>(java_nio_Buffer);
+  java_nio_Buffer_address = CacheField(j_n_b, /*is_static=*/ false, "address", "J");
+  java_nio_Buffer_capacity = CacheField(j_n_b, /*is_static=*/ false, "capacity", "I");
   java_nio_Buffer_elementSizeShift =
-      CacheField(env, java_nio_Buffer, false, "_elementSizeShift", "I");
-  java_nio_Buffer_limit = CacheField(env, java_nio_Buffer, false, "limit", "I");
-  java_nio_Buffer_position = CacheField(env, java_nio_Buffer, false, "position", "I");
+      CacheField(j_n_b, /*is_static=*/ false, "_elementSizeShift", "I");
+  java_nio_Buffer_limit = CacheField(j_n_b, /*is_static=*/ false, "limit", "I");
+  java_nio_Buffer_position = CacheField(j_n_b, /*is_static=*/ false, "position", "I");
 
-  java_nio_ByteBuffer_address = CacheField(env, java_nio_ByteBuffer, false, "address", "J");
-  java_nio_ByteBuffer_hb = CacheField(env, java_nio_ByteBuffer, false, "hb", "[B");
-  java_nio_ByteBuffer_isReadOnly = CacheField(env, java_nio_ByteBuffer, false, "isReadOnly", "Z");
-  java_nio_ByteBuffer_limit = CacheField(env, java_nio_ByteBuffer, false, "limit", "I");
-  java_nio_ByteBuffer_offset = CacheField(env, java_nio_ByteBuffer, false, "offset", "I");
+  ObjPtr<mirror::Class> j_n_bb = soa.Decode<mirror::Class>(java_nio_ByteBuffer);
+  java_nio_ByteBuffer_hb = CacheField(j_n_bb, /*is_static=*/ false, "hb", "[B");
+  java_nio_ByteBuffer_isReadOnly = CacheField(j_n_bb, /*is_static=*/ false, "isReadOnly", "Z");
+  java_nio_ByteBuffer_offset = CacheField(j_n_bb, /*is_static=*/ false, "offset", "I");
+
   java_util_Collections_EMPTY_LIST =
       CacheField(env, java_util_Collections, true, "EMPTY_LIST", "Ljava/util/List;");
   libcore_util_EmptyArray_STACK_TRACE_ELEMENT = CacheField(
@@ -707,10 +723,8 @@ void WellKnownClasses::Clear() {
   java_nio_Buffer_elementSizeShift = nullptr;
   java_nio_Buffer_limit = nullptr;
   java_nio_Buffer_position = nullptr;
-  java_nio_ByteBuffer_address = nullptr;
   java_nio_ByteBuffer_hb = nullptr;
   java_nio_ByteBuffer_isReadOnly = nullptr;
-  java_nio_ByteBuffer_limit = nullptr;
   java_nio_ByteBuffer_offset = nullptr;
   java_util_Collections_EMPTY_LIST = nullptr;
   libcore_util_EmptyArray_STACK_TRACE_ELEMENT = nullptr;
