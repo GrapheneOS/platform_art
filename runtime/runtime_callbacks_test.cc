@@ -303,6 +303,7 @@ class ClassLoadCallbackRuntimeCallbacksTest : public RuntimeCallbacksTest {
 TEST_F(ClassLoadCallbackRuntimeCallbacksTest, ClassLoadCallback) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
+  cb_.data.clear();  // Clear class loading records from `LoadDex()`, if any.
   VariableSizedHandleScope hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
       soa.Decode<mirror::ClassLoader>(jclass_loader)));
