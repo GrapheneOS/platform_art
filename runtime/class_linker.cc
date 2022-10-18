@@ -316,20 +316,13 @@ class ClassLinker::VisiblyInitializedCallback final
   std::forward_list<Barrier*> barriers_;
 };
 
-void ClassLinker::MakeInitializedClassesVisiblyInitialized(Thread* self,
-                                                           bool wait,
-                                                           bool allowLockChecking) {
+void ClassLinker::MakeInitializedClassesVisiblyInitialized(Thread* self, bool wait) {
   if (kRuntimeISA == InstructionSet::kX86 || kRuntimeISA == InstructionSet::kX86_64) {
     return;  // Nothing to do. Thanks to the x86 memory model classes skip the initialized status.
   }
   std::optional<Barrier> maybe_barrier;  // Avoid constructing the Barrier for `wait == false`.
   if (wait) {
-    // TODO(b/253691761): The following conditional and the parameter should be removed when
-    // possible so that AssertNotHeld() becomes unconditional. Currently EnterTransaction()
-    // violates the assertion.
-    if (allowLockChecking) {
-      Locks::mutator_lock_->AssertNotHeld(self);
-    }
+    Locks::mutator_lock_->AssertNotHeld(self);
     maybe_barrier.emplace(0);
   }
   int wait_count = 0;

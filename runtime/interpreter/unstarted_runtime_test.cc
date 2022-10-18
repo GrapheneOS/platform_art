@@ -1123,6 +1123,8 @@ class UnstartedClassForNameTest : public UnstartedRuntimeTest {
       CHECK(name_string != nullptr);
 
       if (in_transaction) {
+        StackHandleScope<1> hs(self);
+        HandleWrapperObjPtr<mirror::String> h(hs.NewHandleWrapper(&name_string));
         EnterTransactionMode();
       }
       CHECK(!self->IsExceptionPending());

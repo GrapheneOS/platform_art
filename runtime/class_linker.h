@@ -807,9 +807,7 @@ class ClassLinker {
     return cha_.get();
   }
 
-  void MakeInitializedClassesVisiblyInitialized(Thread* self,
-                                                bool wait /* ==> no locks held */,
-                                                bool allowLockChecking = true /* b/253691761 */);
+  void MakeInitializedClassesVisiblyInitialized(Thread* self, bool wait /* ==> no locks held */);
 
   // Registers the native method and returns the new entry point. NB The returned entry point
   // might be different from the native_method argument if some MethodCallback modifies it.
