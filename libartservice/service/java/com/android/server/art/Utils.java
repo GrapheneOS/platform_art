@@ -24,12 +24,14 @@ import android.text.TextUtils;
 import android.util.SparseArray;
 
 import com.android.server.art.model.OptimizeParams;
+import com.android.server.pm.PackageManagerLocal;
+import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
-
-import com.google.auto.value.AutoValue;
 
 import dalvik.system.DexFile;
 import dalvik.system.VMRuntime;
+
+import com.google.auto.value.AutoValue;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -63,32 +65,36 @@ public final class Utils {
     @NonNull
     public static List<Abi> getAllAbis(@NonNull PackageState pkgState) {
         List<Abi> abis = new ArrayList<>();
-        String primaryCpuAbi = pkgState.getPrimaryCpuAbi();
-        if (primaryCpuAbi != null) {
-            String isa = getTranslatedIsa(VMRuntime.getInstructionSet(primaryCpuAbi));
-            abis.add(Abi.create(nativeIsaToAbi(isa), isa, true /* isPrimaryAbi */));
-        }
-        String secondaryCpuAbi = pkgState.getSecondaryCpuAbi();
-        if (secondaryCpuAbi != null) {
-            Utils.check(primaryCpuAbi != null);
-            String isa = getTranslatedIsa(VMRuntime.getInstructionSet(secondaryCpuAbi));
+        abis.add(getPrimaryAbi(pkgState));
+        String pkgPrimaryCpuAbi = pkgState.getPrimaryCpuAbi();
+        String pkgSecondaryCpuAbi = pkgState.getSecondaryCpuAbi();
+        if (pkgSecondaryCpuAbi != null) {
+            Utils.check(pkgState.getPrimaryCpuAbi() != null);
+            String isa = getTranslatedIsa(VMRuntime.getInstructionSet(pkgSecondaryCpuAbi));
             abis.add(Abi.create(nativeIsaToAbi(isa), isa, false /* isPrimaryAbi */));
-        }
-        if (abis.isEmpty()) {
-            // This is the most common case. The package manager can't infer the ABIs, probably
-            // because the package doesn't contain any native library. The app is launched with
-            // the device's preferred ABI.
-            String preferredAbi = Constants.getPreferredAbi();
-            abis.add(Abi.create(preferredAbi, VMRuntime.getInstructionSet(preferredAbi),
-                    true /* isPrimaryAbi */));
         }
         // Primary and secondary ABIs should be guaranteed to have different ISAs.
         if (abis.size() == 2 && abis.get(0).isa().equals(abis.get(1).isa())) {
             throw new IllegalStateException(String.format(
                     "Duplicate ISA: primary ABI '%s' ('%s'), secondary ABI '%s' ('%s')",
-                    primaryCpuAbi, abis.get(0).name(), secondaryCpuAbi, abis.get(1).name()));
+                    pkgPrimaryCpuAbi, abis.get(0).name(), pkgSecondaryCpuAbi, abis.get(1).name()));
         }
         return abis;
+    }
+
+    @NonNull
+    public static Abi getPrimaryAbi(@NonNull PackageState pkgState) {
+        String primaryCpuAbi = pkgState.getPrimaryCpuAbi();
+        if (primaryCpuAbi != null) {
+            String isa = getTranslatedIsa(VMRuntime.getInstructionSet(primaryCpuAbi));
+            return Abi.create(nativeIsaToAbi(isa), isa, true /* isPrimaryAbi */);
+        }
+        // This is the most common case. The package manager can't infer the ABIs, probably because
+        // the package doesn't contain any native library. The app is launched with the device's
+        // preferred ABI.
+        String preferredAbi = Constants.getPreferredAbi();
+        return Abi.create(
+                preferredAbi, VMRuntime.getInstructionSet(preferredAbi), true /* isPrimaryAbi */);
     }
 
     /**
@@ -155,6 +161,34 @@ public final class Utils {
         if (!cond) {
             throw new IllegalStateException("Check failed");
         }
+    }
+
+    @NonNull
+    public static PackageState getPackageStateOrThrow(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName) {
+        PackageState pkgState = snapshot.getPackageState(packageName);
+        if (pkgState == null) {
+            throw new IllegalArgumentException("Package not found: " + packageName);
+        }
+        return pkgState;
+    }
+
+    @NonNull
+    public static AndroidPackage getPackageOrThrow(@NonNull PackageState pkgState) {
+        AndroidPackage pkg = pkgState.getAndroidPackage();
+        if (pkg == null) {
+            throw new IllegalArgumentException(
+                    "Unable to get package " + pkgState.getPackageName());
+        }
+        return pkg;
+    }
+
+    @NonNull
+    public static String assertNonEmpty(@Nullable String str) {
+        if (TextUtils.isEmpty(str)) {
+            throw new IllegalArgumentException();
+        }
+        return str;
     }
 
     @AutoValue

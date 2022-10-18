@@ -39,6 +39,7 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * This class handles ART shell commands.
@@ -50,6 +51,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
     private final ArtManagerLocal mArtManagerLocal;
     private final PackageManagerLocal mPackageManagerLocal;
+    private final DexUseManager mDexUseManager = DexUseManager.getInstance();
 
     private static Map<String, CancellationSignal> sCancellationSignalMap = new HashMap<>();
 
@@ -144,6 +146,30 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     pw.println("Job cancelled");
                     return 0;
                 }
+                case "dex-use-notify": {
+                    mArtManagerLocal.notifyDexContainersLoaded(snapshot, getNextArgRequired(),
+                            Map.of(getNextArgRequired(), getNextArgRequired()));
+                    return 0;
+                }
+                case "dex-use-get-primary": {
+                    String packageName = getNextArgRequired();
+                    String dexPath = getNextArgRequired();
+                    pw.println("Loaders: "
+                            + mDexUseManager.getPrimaryDexLoaders(packageName, dexPath)
+                                      .stream()
+                                      .map(Object::toString)
+                                      .collect(Collectors.joining(", ")));
+                    pw.println("Is used by other apps: "
+                            + mDexUseManager.isPrimaryDexUsedByOtherApps(packageName, dexPath));
+                    return 0;
+                }
+                case "dex-use-get-secondary": {
+                    for (DexUseManager.SecondaryDexInfo info :
+                            mDexUseManager.getSecondaryDexInfo(getNextArgRequired())) {
+                        pw.println(info);
+                    }
+                    return 0;
+                }
                 default:
                     // Handles empty, help, and invalid commands.
                     return handleDefaultCommands(cmd);
@@ -182,6 +208,15 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("      -f Force compilation.");
         pw.println("  cancel JOB_ID");
         pw.println("    Cancel a job.");
+        pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");
+        pw.println("    Notify that a dex file is loaded with the given class loader context by");
+        pw.println("    the given package.");
+        pw.println("  dex-use-get-primary PACKAGE_NAME DEX_PATH");
+        pw.println("    Print the dex use information about a primary dex file owned by the given");
+        pw.println("    package.");
+        pw.println("  dex-use-get-secondary PACKAGE_NAME");
+        pw.println("    Print the dex use information about all secondary dex files owned by the");
+        pw.println("    given package.");
     }
 
     private void enforceRoot() {
