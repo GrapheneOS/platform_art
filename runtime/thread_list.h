@@ -153,7 +153,7 @@ class ThreadList {
       REQUIRES(!Locks::mutator_lock_,
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
-  void Unregister(Thread* self)
+  void Unregister(Thread* self, bool should_run_callbacks)
       REQUIRES(!Locks::mutator_lock_,
                !Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
