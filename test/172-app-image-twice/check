@@ -21,5 +21,4 @@
 # $4: Test's actual standard error
 
 # Remove all lines not containing "passed".
-grep "^passed" "$2" | diff --strip-trailing-cr -q "$1" - >/dev/null \
-  && diff --strip-trailing-cr -q "$3" "$4" >/dev/null
+sed -i '/^passed/!d' "$2"
