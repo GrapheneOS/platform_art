@@ -2246,17 +2246,15 @@ void Runtime::ReclaimArenaPoolMemory() {
 }
 
 void Runtime::InitThreadGroups(Thread* self) {
-  JNIEnvExt* env = self->GetJniEnv();
-  ScopedJniEnvLocalRefState env_state(env);
+  ScopedObjectAccess soa(self);
+  ArtField* main_thread_group_field = WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
+  ArtField* system_thread_group_field = WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
+  ObjPtr<mirror::Class> thread_group_class = main_thread_group_field->GetDeclaringClass();
   main_thread_group_ =
-      env->NewGlobalRef(env->GetStaticObjectField(
-          WellKnownClasses::java_lang_ThreadGroup,
-          WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup));
+      soa.Vm()->AddGlobalRef(self, main_thread_group_field->GetObject(thread_group_class));
   CHECK_IMPLIES(main_thread_group_ == nullptr, IsAotCompiler());
   system_thread_group_ =
-      env->NewGlobalRef(env->GetStaticObjectField(
-          WellKnownClasses::java_lang_ThreadGroup,
-          WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
+      soa.Vm()->AddGlobalRef(self, system_thread_group_field->GetObject(thread_group_class));
   CHECK_IMPLIES(system_thread_group_ == nullptr, IsAotCompiler());
 }
 

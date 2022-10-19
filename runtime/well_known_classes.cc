@@ -143,21 +143,21 @@ ArtField* WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
 ArtField* WellKnownClasses::dalvik_system_VMRuntime_nonSdkApiUsageConsumer;
 ArtField* WellKnownClasses::java_io_FileDescriptor_descriptor;
 ArtField* WellKnownClasses::java_lang_ClassLoader_parent;
-jfieldID WellKnownClasses::java_lang_Thread_parkBlocker;
-jfieldID WellKnownClasses::java_lang_Thread_daemon;
-jfieldID WellKnownClasses::java_lang_Thread_group;
-jfieldID WellKnownClasses::java_lang_Thread_lock;
-jfieldID WellKnownClasses::java_lang_Thread_name;
-jfieldID WellKnownClasses::java_lang_Thread_priority;
-jfieldID WellKnownClasses::java_lang_Thread_nativePeer;
-jfieldID WellKnownClasses::java_lang_Thread_systemDaemon;
-jfieldID WellKnownClasses::java_lang_Thread_unparkedBeforeStart;
-jfieldID WellKnownClasses::java_lang_ThreadGroup_groups;
-jfieldID WellKnownClasses::java_lang_ThreadGroup_ngroups;
-jfieldID WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
-jfieldID WellKnownClasses::java_lang_ThreadGroup_name;
-jfieldID WellKnownClasses::java_lang_ThreadGroup_parent;
-jfieldID WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
+ArtField* WellKnownClasses::java_lang_Thread_parkBlocker;
+ArtField* WellKnownClasses::java_lang_Thread_daemon;
+ArtField* WellKnownClasses::java_lang_Thread_group;
+ArtField* WellKnownClasses::java_lang_Thread_lock;
+ArtField* WellKnownClasses::java_lang_Thread_name;
+ArtField* WellKnownClasses::java_lang_Thread_priority;
+ArtField* WellKnownClasses::java_lang_Thread_nativePeer;
+ArtField* WellKnownClasses::java_lang_Thread_systemDaemon;
+ArtField* WellKnownClasses::java_lang_Thread_unparkedBeforeStart;
+ArtField* WellKnownClasses::java_lang_ThreadGroup_groups;
+ArtField* WellKnownClasses::java_lang_ThreadGroup_ngroups;
+ArtField* WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
+ArtField* WellKnownClasses::java_lang_ThreadGroup_name;
+ArtField* WellKnownClasses::java_lang_ThreadGroup_parent;
+ArtField* WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
 jfieldID WellKnownClasses::java_lang_Throwable_cause;
 jfieldID WellKnownClasses::java_lang_Throwable_detailMessage;
 jfieldID WellKnownClasses::java_lang_Throwable_stackTrace;
@@ -502,29 +502,36 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_ClassLoader_parent = CacheField(
       j_l_cl, /*is_static=*/ false, "parent", "Ljava/lang/ClassLoader;");
 
+  ObjPtr<mirror::Class> j_l_Thread = soa.Decode<mirror::Class>(java_lang_Thread);
   java_lang_Thread_parkBlocker =
-      CacheField(env, java_lang_Thread, false, "parkBlocker", "Ljava/lang/Object;");
-  java_lang_Thread_daemon = CacheField(env, java_lang_Thread, false, "daemon", "Z");
+      CacheField(j_l_Thread, /*is_static=*/ false, "parkBlocker", "Ljava/lang/Object;");
+  java_lang_Thread_daemon = CacheField(j_l_Thread, /*is_static=*/ false, "daemon", "Z");
   java_lang_Thread_group =
-      CacheField(env, java_lang_Thread, false, "group", "Ljava/lang/ThreadGroup;");
-  java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/Object;");
-  java_lang_Thread_name = CacheField(env, java_lang_Thread, false, "name", "Ljava/lang/String;");
-  java_lang_Thread_priority = CacheField(env, java_lang_Thread, false, "priority", "I");
-  java_lang_Thread_nativePeer = CacheField(env, java_lang_Thread, false, "nativePeer", "J");
-  java_lang_Thread_systemDaemon = CacheField(env, java_lang_Thread, false, "systemDaemon", "Z");
+      CacheField(j_l_Thread, /*is_static=*/ false, "group", "Ljava/lang/ThreadGroup;");
+  java_lang_Thread_lock =
+      CacheField(j_l_Thread, /*is_static=*/ false, "lock", "Ljava/lang/Object;");
+  java_lang_Thread_name =
+      CacheField(j_l_Thread, /*is_static=*/ false, "name", "Ljava/lang/String;");
+  java_lang_Thread_priority = CacheField(j_l_Thread, /*is_static=*/ false, "priority", "I");
+  java_lang_Thread_nativePeer = CacheField(j_l_Thread, /*is_static=*/ false, "nativePeer", "J");
+  java_lang_Thread_systemDaemon =
+      CacheField(j_l_Thread, /*is_static=*/ false, "systemDaemon", "Z");
   java_lang_Thread_unparkedBeforeStart =
-      CacheField(env, java_lang_Thread, false, "unparkedBeforeStart", "Z");
+      CacheField(j_l_Thread, /*is_static=*/ false, "unparkedBeforeStart", "Z");
+
+  ObjPtr<mirror::Class> j_l_tg = soa.Decode<mirror::Class>(java_lang_ThreadGroup);
   java_lang_ThreadGroup_groups =
-      CacheField(env, java_lang_ThreadGroup, false, "groups", "[Ljava/lang/ThreadGroup;");
-  java_lang_ThreadGroup_ngroups = CacheField(env, java_lang_ThreadGroup, false, "ngroups", "I");
+      CacheField(j_l_tg, /*is_static=*/ false, "groups", "[Ljava/lang/ThreadGroup;");
+  java_lang_ThreadGroup_ngroups = CacheField(j_l_tg, /*is_static=*/ false, "ngroups", "I");
   java_lang_ThreadGroup_mainThreadGroup =
-      CacheField(env, java_lang_ThreadGroup, true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
+      CacheField(j_l_tg, /*is_static=*/ true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_name =
-      CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
+      CacheField(j_l_tg, /*is_static=*/ false, "name", "Ljava/lang/String;");
   java_lang_ThreadGroup_parent =
-      CacheField(env, java_lang_ThreadGroup, false, "parent", "Ljava/lang/ThreadGroup;");
+      CacheField(j_l_tg, /*is_static=*/ false, "parent", "Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_systemThreadGroup =
-      CacheField(env, java_lang_ThreadGroup, true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
+      CacheField(j_l_tg, /*is_static=*/ true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
+
   java_lang_Throwable_cause =
       CacheField(env, java_lang_Throwable, false, "cause", "Ljava/lang/Throwable;");
   java_lang_Throwable_detailMessage =

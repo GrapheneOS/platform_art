@@ -106,8 +106,7 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
 
   // Do the name first. It's the only thing that can fail.
   {
-    art::ArtField* name_field =
-        art::jni::DecodeArtField(art::WellKnownClasses::java_lang_ThreadGroup_name);
+    art::ArtField* name_field = art::WellKnownClasses::java_lang_ThreadGroup_name;
     CHECK(name_field != nullptr);
     art::ObjPtr<art::mirror::String> name_obj =
         art::ObjPtr<art::mirror::String>::DownCast(name_field->GetObject(obj.Get()));
@@ -129,8 +128,7 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
 
   // Parent.
   {
-    art::ArtField* parent_field =
-        art::jni::DecodeArtField(art::WellKnownClasses::java_lang_ThreadGroup_parent);
+    art::ArtField* parent_field = art::WellKnownClasses::java_lang_ThreadGroup_parent;
     CHECK(parent_field != nullptr);
     art::ObjPtr<art::mirror::Object> parent_group = parent_field->GetObject(obj.Get());
     info_ptr->parent = parent_group == nullptr
@@ -161,8 +159,7 @@ static bool IsInDesiredThreadGroup(art::Handle<art::mirror::Object> desired_thre
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
   CHECK(desired_thread_group != nullptr);
 
-  art::ArtField* thread_group_field =
-      art::jni::DecodeArtField(art::WellKnownClasses::java_lang_Thread_group);
+  art::ArtField* thread_group_field = art::WellKnownClasses::java_lang_Thread_group;
   DCHECK(thread_group_field != nullptr);
   art::ObjPtr<art::mirror::Object> group = thread_group_field->GetObject(peer);
   return (group == desired_thread_group.Get());
@@ -194,8 +191,7 @@ static void GetChildThreadGroups(art::Handle<art::mirror::Object> thread_group,
   CHECK(thread_group != nullptr);
 
   // Get the ThreadGroup[] "groups" out of this thread group...
-  art::ArtField* groups_field =
-      art::jni::DecodeArtField(art::WellKnownClasses::java_lang_ThreadGroup_groups);
+  art::ArtField* groups_field = art::WellKnownClasses::java_lang_ThreadGroup_groups;
   art::ObjPtr<art::mirror::Object> groups_array = groups_field->GetObject(thread_group.Get());
 
   if (groups_array == nullptr) {
