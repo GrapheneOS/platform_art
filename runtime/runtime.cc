@@ -2788,13 +2788,13 @@ void Runtime::EnterTransactionMode(bool strict, mirror::Class* root) {
     // Make initialized classes visibly initialized now. If that happened during the transaction
     // and then the transaction was aborted, we would roll back the status update but not the
     // ClassLinker's bookkeeping structures, so these classes would never be visibly initialized.
-    // TODO(b/253691761): We should normally be in a suspended state to call
-    // MakeInitializedClassesVisiblyInitialized with wait == true. Here we are not. Suspending
-    // here causes failures with heap poisoning, so this is apparently called where suspension is
-    // not allowed. Explain why this is safe as is, or fix.
-    GetClassLinker()->MakeInitializedClassesVisiblyInitialized(Thread::Current(),
-                                                               /*wait=*/ true,
-                                                               /*allowLockChecking=*/ false);
+    {
+      Thread* self = Thread::Current();
+      StackHandleScope<1> hs(self);
+      HandleWrapper<mirror::Class> h(hs.NewHandleWrapper(&root));
+      ScopedThreadSuspension sts(self, ThreadState::kNative);
+      GetClassLinker()->MakeInitializedClassesVisiblyInitialized(Thread::Current(), /*wait=*/ true);
+    }
     // Pass the runtime `ArenaPool` to the transaction.
     arena_pool = GetArenaPool();
   } else {
