@@ -119,6 +119,12 @@ void ThreadPoolWorker::Run() {
 void* ThreadPoolWorker::Callback(void* arg) {
   ThreadPoolWorker* worker = reinterpret_cast<ThreadPoolWorker*>(arg);
   Runtime* runtime = Runtime::Current();
+  // Don't run callbacks for ThreadPoolWorkers. These are created for JITThreadPool and
+  // HeapThreadPool and are purely internal threads of the runtime and we don't need to run
+  // callbacks for the thread attach / detach listeners.
+  // (b/251163712) Calling callbacks for heap thread pool workers causes deadlocks in some libjdwp
+  // tests. Deadlocks happen when a GC thread is attached while libjdwp holds the event handler
+  // lock for an event that triggers an entrypoint update from deopt manager.
   CHECK(runtime->AttachCurrentThread(
       worker->name_.c_str(),
       true,
@@ -129,13 +135,14 @@ void* ThreadPoolWorker::Callback(void* arg) {
       // rely on being able to (for example) wait for all threads to finish some task. If debuggers
       // are suspending these threads that might not be possible.
       worker->thread_pool_->create_peers_ ? runtime->GetSystemThreadGroup() : nullptr,
-      worker->thread_pool_->create_peers_));
+      worker->thread_pool_->create_peers_,
+      /* should_run_callbacks= */ false));
   worker->thread_ = Thread::Current();
   // Mark thread pool workers as runtime-threads.
   worker->thread_->SetIsRuntimeThread(true);
   // Do work until its time to shut down.
   worker->Run();
-  runtime->DetachCurrentThread();
+  runtime->DetachCurrentThread(/* should_run_callbacks= */ false);
   return nullptr;
 }
 
