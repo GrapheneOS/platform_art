@@ -131,12 +131,14 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(JavaLangObject->GetSuperClass() == nullptr);
     EXPECT_FALSE(JavaLangObject->HasSuperClass());
     EXPECT_TRUE(JavaLangObject->GetClassLoader() == nullptr);
-    // TODO(b/253691761): Remove the last argument to MakeInitializedClassesVisiblyInitial when
-    // possible. We should not be holding the mutator lock here, but temporarily releasing it
-    // would compromise the ObjPtr argument.
-    class_linker_->MakeInitializedClassesVisiblyInitialized(Thread::Current(),
-                                                            /*wait=*/ true,
-                                                            /*allowLockChecking=*/ false);
+    {
+      Thread* self = Thread::Current();
+      StackHandleScope<1> hs(self);
+      HandleWrapperObjPtr<mirror::Class> h(hs.NewHandleWrapper(&JavaLangObject));
+      ScopedThreadSuspension sts(self, ThreadState::kNative);
+      class_linker_->MakeInitializedClassesVisiblyInitialized(self, /*wait=*/ true);
+      // HandleWrapperObjPtr restores JavaLangObject here after becoming runnable again.
+    }
     EXPECT_EQ(ClassStatus::kVisiblyInitialized, JavaLangObject->GetStatus());
     EXPECT_FALSE(JavaLangObject->IsErroneous());
     EXPECT_TRUE(JavaLangObject->IsLoaded());
