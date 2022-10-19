@@ -29,7 +29,7 @@
 #include "dex/dex_file-inl.h"
 #include "dex/dex_instruction-inl.h"
 #include "dex/invoke_type.h"
-#include "mirror/class-inl.h"
+#include "mirror/class-alloc-inl.h"
 #include "mirror/method_type.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -701,20 +701,45 @@ void ThrowStackOverflowError(Thread* self) {
   }
 
   self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
-  JNIEnvExt* env = self->GetJniEnv();
-  std::string msg("stack size ");
-  msg += PrettySize(self->GetStackSize());
 
   // Avoid running Java code for exception initialization.
   // TODO: Checks to make this a bit less brittle.
   //
-  // Note: this lambda ensures that the destruction of the ScopedLocalRefs will run in the extended
-  //       stack, which is important for modes with larger stack sizes (e.g., ASAN). Using a lambda
-  //       instead of a block simplifies the control flow.
-  auto create_and_throw = [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Note: This lambda is used to make sure the `StackOverflowError` intitialization code
+  //       does not increase the frame size of `ThrowStackOverflowError()` itself. It runs
+  //       with its own frame in the extended stack, which is especially important for modes
+  //       with larger stack sizes (e.g., ASAN).
+  auto create_and_throw = [self]() REQUIRES_SHARED(Locks::mutator_lock_) NO_INLINE {
+    std::string msg("stack size ");
+    msg += PrettySize(self->GetStackSize());
+
+    ScopedObjectAccessUnchecked soa(self);
+    StackHandleScope<4u> hs(self);
+    Handle<mirror::Class> j_l_soe = hs.NewHandle(
+        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_StackOverflowError));
+    Handle<mirror::Class> j_u_c = hs.NewHandle(
+        WellKnownClasses::java_util_Collections_EMPTY_LIST->GetDeclaringClass());
+    Handle<mirror::Class> l_u_ea = hs.NewHandle(
+        WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetDeclaringClass());
+
+    // Initialize the required classes if needed.
+    // TODO: Initialize these classes during `ClassLinker` initialization to avoid doing it here.
+    auto ensure_initialized = [self](Handle<mirror::Class> klass)
+        REQUIRES_SHARED(Locks::mutator_lock_) {
+      if (UNLIKELY(!klass->IsVisiblyInitialized()) ||
+          UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
+                        self, klass, /*can_init_fields=*/ true, /*can_init_parents=*/ true))) {
+        LOG(WARNING) << "Failed to initialize class " << klass->PrettyDescriptor();
+        return false;
+      }
+      return true;
+    };
+    if (!ensure_initialized(j_l_soe) || !ensure_initialized(j_u_c) || !ensure_initialized(l_u_ea)) {
+      return;
+    }
+
     // Allocate an uninitialized object.
-    ScopedLocalRef<jobject> exc(env,
-                                env->AllocObject(WellKnownClasses::java_lang_StackOverflowError));
+    Handle<mirror::Object> exc = hs.NewHandle(j_l_soe->AllocObject(self));
     if (exc == nullptr) {
       LOG(WARNING) << "Could not allocate StackOverflowError object.";
       return;
@@ -733,53 +758,50 @@ void ThrowStackOverflowError(Thread* self) {
     //   fillInStackTrace();
 
     // detailMessage.
-    // TODO: Use String::FromModifiedUTF...?
-    ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg.c_str()));
-    if (s == nullptr) {
-      LOG(WARNING) << "Could not throw new StackOverflowError because JNI NewStringUTF failed.";
-      return;
+    {
+      ObjPtr<mirror::String> s = mirror::String::AllocFromModifiedUtf8(self, msg.c_str());
+      if (s == nullptr) {
+        LOG(WARNING) << "Could not throw new StackOverflowError because message allocation failed.";
+        return;
+      }
+      WellKnownClasses::java_lang_Throwable_detailMessage
+          ->SetObject</*kTransactionActive=*/ false>(exc.Get(), s);
     }
 
-    env->SetObjectField(exc.get(), WellKnownClasses::java_lang_Throwable_detailMessage, s.get());
-
     // cause.
-    env->SetObjectField(exc.get(), WellKnownClasses::java_lang_Throwable_cause, exc.get());
+    WellKnownClasses::java_lang_Throwable_cause
+        ->SetObject</*kTransactionActive=*/ false>(exc.Get(), exc.Get());
 
     // suppressedExceptions.
-    ScopedLocalRef<jobject> emptylist(env, env->GetStaticObjectField(
-        WellKnownClasses::java_util_Collections,
-        WellKnownClasses::java_util_Collections_EMPTY_LIST));
-    CHECK(emptylist != nullptr);
-    env->SetObjectField(exc.get(),
-                        WellKnownClasses::java_lang_Throwable_suppressedExceptions,
-                        emptylist.get());
+    {
+      ObjPtr<mirror::Object> empty_list =
+          WellKnownClasses::java_util_Collections_EMPTY_LIST->GetObject(j_u_c.Get());
+      CHECK(empty_list != nullptr);
+      WellKnownClasses::java_lang_Throwable_suppressedExceptions
+          ->SetObject</*kTransactionActive=*/ false>(exc.Get(), empty_list);
+    }
 
     // stackState is set as result of fillInStackTrace. fillInStackTrace calls
     // nativeFillInStackTrace.
-    ScopedLocalRef<jobject> stack_state_val(env, nullptr);
-    {
-      ScopedObjectAccessUnchecked soa(env);  // TODO: Is this necessary?
-      stack_state_val.reset(soa.Self()->CreateInternalStackTrace(soa));
-    }
+    ObjPtr<mirror::Object> stack_state_val =
+        soa.Decode<mirror::Object>(self->CreateInternalStackTrace(soa));
     if (stack_state_val != nullptr) {
-      env->SetObjectField(exc.get(),
-                          WellKnownClasses::java_lang_Throwable_stackState,
-                          stack_state_val.get());
+      WellKnownClasses::java_lang_Throwable_stackState
+          ->SetObject</*kTransactionActive=*/ false>(exc.Get(), stack_state_val);
 
       // stackTrace.
-      ScopedLocalRef<jobject> stack_trace_elem(env, env->GetStaticObjectField(
-          WellKnownClasses::libcore_util_EmptyArray,
-          WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT));
-      env->SetObjectField(exc.get(),
-                          WellKnownClasses::java_lang_Throwable_stackTrace,
-                          stack_trace_elem.get());
+      ObjPtr<mirror::Object> empty_ste =
+          WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetObject(l_u_ea.Get());
+      CHECK(empty_ste != nullptr);
+      WellKnownClasses::java_lang_Throwable_stackTrace
+          ->SetObject</*kTransactionActive=*/ false>(exc.Get(), empty_ste);
     } else {
       LOG(WARNING) << "Could not create stack trace.";
       // Note: we'll create an exception without stack state, which is valid.
     }
 
     // Throw the exception.
-    self->SetException(self->DecodeJObject(exc.get())->AsThrowable());
+    self->SetException(exc->AsThrowable());
   };
   create_and_throw();
   CHECK(self->IsExceptionPending());
