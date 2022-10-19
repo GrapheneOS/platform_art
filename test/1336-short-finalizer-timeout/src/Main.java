@@ -22,7 +22,8 @@ import static java.util.concurrent.TimeUnit.MINUTES;
  * Test a class with a bad finalizer in an environment with a short finalizer timeout.
  *
  * This test is inherently flaky. It assumes that the system will schedule the finalizer daemon
- * and finalizer watchdog daemon enough to reach the timeout and throwing the fatal exception.
+ * and finalizer watchdog daemon soon and often enough to reach the timeout and throw the fatal
+ * exception before we time out here.
  * Largely cloned from 030-bad-finalizer.
  */
 public class Main {
@@ -49,7 +50,7 @@ public class Main {
         snooze(9800);
 
         // We should not get here, since it should only take 5.5 seconds for the timed out
-        // fiinalizer to kill the process.
+        // finalizer to kill the process.
         System.out.println("UNREACHABLE");
         System.exit(0);
     }
