@@ -2647,15 +2647,12 @@ static bool TryReplaceStringBuilderAppend(HInvoke* invoke) {
   // Collect args and check for unexpected uses.
   // We expect one call to a constructor with no arguments, one constructor fence (unless
   // eliminated), some number of append calls and one call to StringBuilder.toString().
-  bool constructor_inlined = false;
   bool seen_constructor = false;
   bool seen_constructor_fence = false;
   bool seen_to_string = false;
   uint32_t format = 0u;
   uint32_t num_args = 0u;
   HInstruction* args[StringBuilderAppend::kMaxArgs];  // Added in reverse order.
-  // When inlining, `maybe_new_array` tracks an environment use that we want to allow.
-  HInstruction* maybe_new_array = nullptr;
   for (HBackwardInstructionIterator iter(block->GetInstructions()); !iter.Done(); iter.Advance()) {
     HInstruction* user = iter.Current();
     // Instructions of interest apply to `sb`, skip those that do not involve `sb`.
@@ -2736,25 +2733,13 @@ static bool TryReplaceStringBuilderAppend(HInvoke* invoke) {
       format = (format << StringBuilderAppend::kBitsPerArg) | static_cast<uint32_t>(arg);
       args[num_args] = as_invoke_virtual->InputAt(1u);
       ++num_args;
-    } else if (!seen_constructor) {
-      // At this point, we should see the constructor. However, we might have inlined it so we have
-      // to take care of both cases. We accept only the constructor with no extra arguments. This
-      // means that if we inline it, we have to check it is setting its field to a new array.
-      if (user->IsInvokeStaticOrDirect() &&
-          user->AsInvokeStaticOrDirect()->GetResolvedMethod() != nullptr &&
-          user->AsInvokeStaticOrDirect()->GetResolvedMethod()->IsConstructor() &&
-          user->AsInvokeStaticOrDirect()->GetNumberOfArguments() == 1u) {
-        constructor_inlined = false;
-      } else if (user->IsInstanceFieldSet() &&
-                 user->AsInstanceFieldSet()->GetFieldType() == DataType::Type::kReference &&
-                 user->AsInstanceFieldSet()->InputAt(0) == sb &&
-                 user->AsInstanceFieldSet()->GetValue()->IsNewArray()) {
-        maybe_new_array = user->AsInstanceFieldSet()->GetValue();
-        constructor_inlined = true;
-      } else {
-        // We were expecting a constructor but we haven't seen it. Abort optimization.
-        return false;
-      }
+    } else if (user->IsInvokeStaticOrDirect() &&
+               user->AsInvokeStaticOrDirect()->GetResolvedMethod() != nullptr &&
+               user->AsInvokeStaticOrDirect()->GetResolvedMethod()->IsConstructor() &&
+               user->AsInvokeStaticOrDirect()->GetNumberOfArguments() == 1u) {
+      // After arguments, we should see the constructor.
+      // We accept only the constructor with no extra arguments.
+      DCHECK(!seen_constructor);
       DCHECK(!seen_constructor_fence);
       seen_constructor = true;
     } else if (user->IsConstructorFence()) {
@@ -2780,17 +2765,6 @@ static bool TryReplaceStringBuilderAppend(HInvoke* invoke) {
     // Accept only calls on the StringBuilder (which shall all be removed).
     // TODO: Carve-out for const-string? Or rely on environment pruning (to be implemented)?
     if (holder->InputCount() == 0 || holder->InputAt(0) != sb) {
-      // When inlining the constructor, we have a NewArray and may have a LoadClass as an
-      // environment use.
-      if (constructor_inlined) {
-        if (holder == maybe_new_array) {
-          continue;
-        }
-        if (holder == maybe_new_array->InputAt(0)) {
-          DCHECK(holder->IsLoadClass());
-          continue;
-        }
-      }
       return false;
     }
   }
@@ -2823,33 +2797,6 @@ static bool TryReplaceStringBuilderAppend(HInvoke* invoke) {
   // Remove the StringBuilder's uses and StringBuilder.
   while (sb->HasNonEnvironmentUses()) {
     block->RemoveInstruction(sb->GetUses().front().GetUser());
-  }
-  if (constructor_inlined) {
-    // We need to remove the inlined constructor instructions,
-    // and all remaining environment uses (if any).
-    DCHECK(sb->HasEnvironmentUses());
-    DCHECK(maybe_new_array != nullptr);
-    DCHECK(maybe_new_array->IsNewArray());
-    DCHECK(maybe_new_array->HasNonEnvironmentUses());
-    HInstruction* fence = maybe_new_array->GetUses().front().GetUser();
-    DCHECK(fence->IsConstructorFence());
-    block->RemoveInstruction(fence);
-    block->RemoveInstruction(maybe_new_array);
-    if (sb->HasEnvironmentUses()) {
-      // We know the only remaining uses are from the LoadClass.
-      HInstruction* load_class = maybe_new_array->InputAt(0);
-      DCHECK(load_class->IsLoadClass());
-      for (HEnvironment* env = load_class->GetEnvironment();
-           env != nullptr;
-           env = env->GetParent()) {
-        for (size_t i = 0, size = env->Size(); i != size; ++i) {
-          if (env->GetInstructionAt(i) == sb) {
-            env->RemoveAsUserOfInput(i);
-            env->SetRawEnvAt(i, /*instruction=*/ nullptr);
-          }
-        }
-      }
-    }
   }
   DCHECK(!sb->HasEnvironmentUses());
   block->RemoveInstruction(sb);
