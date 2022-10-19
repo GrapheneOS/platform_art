@@ -487,8 +487,7 @@ static void Unsafe_unpark(JNIEnv* env, jobject, jobject jthread) {
     // or the thread has already terminated. Setting the field to true will be
     // respected when the thread does start, and is harmless if the thread has
     // already terminated.
-    ArtField* unparked =
-        jni::DecodeArtField(WellKnownClasses::java_lang_Thread_unparkedBeforeStart);
+    ArtField* unparked = WellKnownClasses::java_lang_Thread_unparkedBeforeStart;
     // JNI must use non transactional mode.
     unparked->SetBoolean<false>(soa.Decode<mirror::Object>(jthread), JNI_TRUE);
   }
