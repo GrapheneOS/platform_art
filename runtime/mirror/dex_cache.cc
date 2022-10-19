@@ -44,6 +44,12 @@ void DexCache::Initialize(const DexFile* dex_file, ObjPtr<ClassLoader> class_loa
   DCHECK(GetResolvedMethodTypes() == nullptr);
   DCHECK(GetResolvedCallSites() == nullptr);
 
+  DCHECK(GetStringsArray() == nullptr);
+  DCHECK(GetResolvedTypesArray() == nullptr);
+  DCHECK(GetResolvedMethodsArray() == nullptr);
+  DCHECK(GetResolvedFieldsArray() == nullptr);
+  DCHECK(GetResolvedMethodTypesArray() == nullptr);
+
   ScopedAssertNoThreadSuspension sants(__FUNCTION__);
 
   SetDexFile(dex_file);
@@ -96,6 +102,37 @@ void DexCache::VisitReflectiveTargets(ReflectiveValueVisitor* visitor) {
       wrote = true;
     }
   }
+
+  auto* fields_array = GetResolvedFieldsArray();
+  num_fields = NumResolvedFieldsArray();
+  for (size_t i = 0; fields_array != nullptr && i < num_fields; i++) {
+    ArtField* old_val = fields_array->Get(i);
+    if (old_val == nullptr) {
+      continue;
+    }
+    ArtField* new_val = visitor->VisitField(
+        old_val, DexCacheSourceInfo(kSourceDexCacheResolvedField, i, this));
+    if (new_val != old_val) {
+      fields_array->Set(i, new_val);
+      wrote = true;
+    }
+  }
+
+  auto* methods_array = GetResolvedMethodsArray();
+  num_methods = NumResolvedMethodsArray();
+  for (size_t i = 0; methods_array != nullptr && i < num_methods; i++) {
+    ArtMethod* old_val = methods_array->Get(i);
+    if (old_val == nullptr) {
+      continue;
+    }
+    ArtMethod* new_val = visitor->VisitMethod(
+        old_val, DexCacheSourceInfo(kSourceDexCacheResolvedMethod, i, this));
+    if (new_val != old_val) {
+      methods_array->Set(i, new_val);
+      wrote = true;
+    }
+  }
+
   if (wrote) {
     WriteBarrier::ForEveryFieldWrite(this);
   }
@@ -108,6 +145,12 @@ void DexCache::ResetNativeArrays() {
   SetResolvedFields(nullptr);
   SetResolvedMethodTypes(nullptr);
   SetResolvedCallSites(nullptr);
+
+  SetStringsArray(nullptr);
+  SetResolvedTypesArray(nullptr);
+  SetResolvedMethodsArray(nullptr);
+  SetResolvedFieldsArray(nullptr);
+  SetResolvedMethodTypesArray(nullptr);
 }
 
 void DexCache::SetLocation(ObjPtr<mirror::String> location) {

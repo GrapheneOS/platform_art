@@ -159,7 +159,16 @@ bool UploadStatsIfAvailable(/*out*/std::string* error_msg) {
       record.cache_space_free_end_mib,
       record.primary_bcp_compilation_millis,
       record.secondary_bcp_compilation_millis,
-      record.system_server_compilation_millis);
+      record.system_server_compilation_millis,
+      record.primary_bcp_dex2oat_result.status,
+      record.primary_bcp_dex2oat_result.exit_code,
+      record.primary_bcp_dex2oat_result.signal,
+      record.secondary_bcp_dex2oat_result.status,
+      record.secondary_bcp_dex2oat_result.exit_code,
+      record.secondary_bcp_dex2oat_result.signal,
+      record.system_server_dex2oat_result.status,
+      record.system_server_dex2oat_result.exit_code,
+      record.system_server_dex2oat_result.signal);
   if (bytes_written <= 0) {
     *error_msg = android::base::StringPrintf("stats_write returned %d", bytes_written);
     return false;

@@ -29,7 +29,6 @@
 #include "mirror/class_loader.h"
 #include "reflection.h"
 #include "runtime.h"
-#include "well_known_classes.h"
 
 namespace art {
 namespace hiddenapi {
