@@ -256,6 +256,8 @@ TEST_F(SigchainTest, EnsureFrontOfChain) {
 }
 
 #if defined(__aarch64__)
+// The test intentionally dereferences (tagged) null to trigger SIGSEGV.
+// We need to disable HWASAN since it would catch the dereference first.
 DISABLE_HWASAN void fault_address_tag_impl() {
   struct sigaction action = {};
   action.sa_flags = SA_SIGINFO;
