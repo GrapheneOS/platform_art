@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 import os
 
-# Use the jasmin sources for JVM, otherwise the smali sources.
-if os.environ["BUILD_MODE"] == "jvm":
-  build_run_test(has_smali=False)
-else:
-  build_run_test(has_jasmin=False)
+
+def build(ctx):
+  # Use the jasmin sources for JVM, otherwise the smali sources.
+  if os.environ["BUILD_MODE"] == "jvm":
+    ctx.default_build(has_smali=False)
+  else:
+    ctx.default_build(has_jasmin=False)

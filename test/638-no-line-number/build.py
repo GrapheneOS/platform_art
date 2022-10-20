@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
 # Only keep the source name, to make sure we do remove it in the stack trace
 # when there is no line number mapping.
-build_run_test(javac_args=["-g:source"])
+def build(ctx):
+  ctx.default_build(javac_args=["-g:source"])
