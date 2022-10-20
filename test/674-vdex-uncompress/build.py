@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
 # Uncompress and align the dex files so that dex2oat will not copy the dex
 # code to the .vdex file.
-build_run_test(zip_compression_method="store", zip_align_bytes="4")
+def build(ctx):
+  ctx.default_build(zip_compression_method="store", zip_align_bytes="4")

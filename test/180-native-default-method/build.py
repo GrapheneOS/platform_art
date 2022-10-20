@@ -13,17 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 import subprocess, os
 
-build_run_test()
 
-if os.environ["BUILD_MODE"] != "jvm":
-  # Change the generated dex file to have a v35 magic number if it is version 38
-  with open("classes.dex", "rb+") as f:
-    assert f.read(8) == b'dex\n038\x00'
-    f.seek(0)
-    f.write(b'dex\n035\x00')
-  os.remove("180-native-default-method.jar")
-  subprocess.run([os.environ["SOONG_ZIP"], "-o",
-                  "180-native-default-method.jar", "-f", "classes.dex"], check=True)
+def build(ctx):
+  ctx.default_build()
+
+  if os.environ["BUILD_MODE"] != "jvm":
+    # Change the generated dex file to have a v35 magic number if it is version 38
+    with open("classes.dex", "rb+") as f:
+      assert f.read(8) == b"dex\n038\x00"
+      f.seek(0)
+      f.write(b"dex\n035\x00")
+    os.remove("180-native-default-method.jar")
+    cmd = [
+        os.environ["SOONG_ZIP"], "-o", "180-native-default-method.jar", "-f",
+        "classes.dex"
+    ]
+    subprocess.run(cmd, check=True)

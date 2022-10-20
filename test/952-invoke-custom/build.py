@@ -13,6 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
-build_run_test(use_desugar=False, api_level=28)
+def build(ctx):
+  ctx.default_build(use_desugar=False, api_level=28)

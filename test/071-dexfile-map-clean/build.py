@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
 # Any JAR files used by this test shall have their classes.dex be stored, NOT compressed.
 # This is needed for our test correctness which validates classes.dex are mapped file-backed.
 #
 # In addition, align to at least 4 bytes since that's the dex alignment requirement.
-build_run_test(zip_compression_method="store", zip_align_bytes="4")
+def build(ctx):
+  ctx.default_build(zip_compression_method="store", zip_align_bytes="4")
