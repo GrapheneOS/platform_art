@@ -45,9 +45,8 @@ static void FixUpArguments(HInvokeStaticOrDirect* invoke) {
     if (DataType::IsFloatingPointType(input_type)) {
       bool is_double = (input_type == DataType::Type::kFloat64);
       DataType::Type converted_type = is_double ? DataType::Type::kInt64 : DataType::Type::kInt32;
-      jmethodID known_method = is_double ? WellKnownClasses::java_lang_Double_doubleToRawLongBits
-                                         : WellKnownClasses::java_lang_Float_floatToRawIntBits;
-      ArtMethod* resolved_method = jni::DecodeArtMethod(known_method);
+      ArtMethod* resolved_method = is_double ? WellKnownClasses::java_lang_Double_doubleToRawLongBits
+                                             : WellKnownClasses::java_lang_Float_floatToRawIntBits;
       DCHECK(resolved_method != nullptr);
       DCHECK(resolved_method->IsIntrinsic());
       MethodReference target_method(nullptr, 0);
