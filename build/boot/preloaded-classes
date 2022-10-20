@@ -2440,6 +2440,7 @@ jdk.internal.math.FormattedFloatingDecimal$Form
 jdk.internal.math.FormattedFloatingDecimal
 jdk.internal.misc.JavaObjectInputStreamAccess
 jdk.internal.misc.SharedSecrets
+jdk.internal.misc.TerminatingThreadLocal
 jdk.internal.misc.Unsafe
 jdk.internal.misc.VM
 jdk.internal.reflect.Reflection

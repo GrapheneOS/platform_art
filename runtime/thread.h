@@ -232,8 +232,11 @@ class Thread {
 
   // Attaches the calling native thread to the runtime, returning the new native peer.
   // Used to implement JNI AttachCurrentThread and AttachCurrentThreadAsDaemon calls.
-  static Thread* Attach(const char* thread_name, bool as_daemon, jobject thread_group,
-                        bool create_peer);
+  static Thread* Attach(const char* thread_name,
+                        bool as_daemon,
+                        jobject thread_group,
+                        bool create_peer,
+                        bool should_run_callbacks);
   // Attaches the calling native thread to the runtime, returning the new native peer.
   static Thread* Attach(const char* thread_name, bool as_daemon, jobject thread_peer);
 
@@ -1466,7 +1469,7 @@ class Thread {
  private:
   explicit Thread(bool daemon);
   ~Thread() REQUIRES(!Locks::mutator_lock_, !Locks::thread_suspend_count_lock_);
-  void Destroy();
+  void Destroy(bool should_run_callbacks);
 
   // Deletes and clears the tlsPtr_.jpeer field. Done in a way so that both it and opeer cannot be
   // observed to be set at the same time by instrumentation.
@@ -1477,7 +1480,8 @@ class Thread {
   template <typename PeerAction>
   static Thread* Attach(const char* thread_name,
                         bool as_daemon,
-                        PeerAction p);
+                        PeerAction p,
+                        bool should_run_callbacks);
 
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
 
