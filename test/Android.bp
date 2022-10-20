@@ -1888,7 +1888,6 @@ genrule_defaults {
     tool_files: [
         "art_build_rules.py",
         "run-test-build.py",
-        "buildfailures.json",
         "etc/default-check",
         "etc/default-run",
         "etc/run-test-jar",
