@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 import os
 
-if os.environ["BUILD_MODE"] != "jvm":
-  build_run_test(experimental="default-methods")
+
+def build(ctx):
+  if os.environ["BUILD_MODE"] != "jvm":
+    ctx.default_build(experimental="default-methods")

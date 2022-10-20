@@ -13,14 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
-# Specify old API level as d8 automagically produces a multidex file
-# when the API level is above 20. Failing the build here is deliberate.
-# Force DEX generation so test also passes with --jvm.
-try:
-  build_run_test(api_level=20, need_dex=True)
-  assert False, "Test was not expected to build successfully"
-except Exception as e:
-  # Check that a build failure happened (the test is not expected to run).
-  assert "Cannot fit requested classes in a single dex" in str(e), e
+def build(ctx):
+  # Specify old API level as d8 automagically produces a multidex file
+  # when the API level is above 20. Failing the build here is deliberate.
+  # Force DEX generation so test also passes with --jvm.
+  try:
+    ctx.default_build(api_level=20, need_dex=True)
+    assert False, "Test was not expected to build successfully"
+  except Exception as e:
+    # Check that a build failure happened (the test is not expected to run).
+    assert "Cannot fit requested classes in a single dex" in str(e), e
