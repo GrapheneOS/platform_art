@@ -171,11 +171,11 @@ struct WellKnownClasses {
   static ArtField* java_lang_ThreadGroup_name;
   static ArtField* java_lang_ThreadGroup_parent;
   static ArtField* java_lang_ThreadGroup_systemThreadGroup;
-  static jfieldID java_lang_Throwable_cause;
-  static jfieldID java_lang_Throwable_detailMessage;
-  static jfieldID java_lang_Throwable_stackTrace;
-  static jfieldID java_lang_Throwable_stackState;
-  static jfieldID java_lang_Throwable_suppressedExceptions;
+  static ArtField* java_lang_Throwable_cause;
+  static ArtField* java_lang_Throwable_detailMessage;
+  static ArtField* java_lang_Throwable_stackTrace;
+  static ArtField* java_lang_Throwable_stackState;
+  static ArtField* java_lang_Throwable_suppressedExceptions;
   static ArtField* java_nio_Buffer_address;
   static ArtField* java_nio_Buffer_capacity;
   static ArtField* java_nio_Buffer_elementSizeShift;
@@ -185,12 +185,12 @@ struct WellKnownClasses {
   static ArtField* java_nio_ByteBuffer_isReadOnly;
   static ArtField* java_nio_ByteBuffer_offset;
 
-  static jfieldID java_util_Collections_EMPTY_LIST;
-  static jfieldID libcore_util_EmptyArray_STACK_TRACE_ELEMENT;
-  static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_data;
-  static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_length;
-  static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_offset;
-  static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_type;
+  static ArtField* java_util_Collections_EMPTY_LIST;
+  static ArtField* libcore_util_EmptyArray_STACK_TRACE_ELEMENT;
+  static ArtField* org_apache_harmony_dalvik_ddmc_Chunk_data;
+  static ArtField* org_apache_harmony_dalvik_ddmc_Chunk_length;
+  static ArtField* org_apache_harmony_dalvik_ddmc_Chunk_offset;
+  static ArtField* org_apache_harmony_dalvik_ddmc_Chunk_type;
 };
 
 }  // namespace art

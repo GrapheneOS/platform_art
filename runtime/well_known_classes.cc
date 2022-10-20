@@ -158,11 +158,11 @@ ArtField* WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
 ArtField* WellKnownClasses::java_lang_ThreadGroup_name;
 ArtField* WellKnownClasses::java_lang_ThreadGroup_parent;
 ArtField* WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
-jfieldID WellKnownClasses::java_lang_Throwable_cause;
-jfieldID WellKnownClasses::java_lang_Throwable_detailMessage;
-jfieldID WellKnownClasses::java_lang_Throwable_stackTrace;
-jfieldID WellKnownClasses::java_lang_Throwable_stackState;
-jfieldID WellKnownClasses::java_lang_Throwable_suppressedExceptions;
+ArtField* WellKnownClasses::java_lang_Throwable_cause;
+ArtField* WellKnownClasses::java_lang_Throwable_detailMessage;
+ArtField* WellKnownClasses::java_lang_Throwable_stackTrace;
+ArtField* WellKnownClasses::java_lang_Throwable_stackState;
+ArtField* WellKnownClasses::java_lang_Throwable_suppressedExceptions;
 ArtField* WellKnownClasses::java_nio_Buffer_address;
 ArtField* WellKnownClasses::java_nio_Buffer_capacity;
 ArtField* WellKnownClasses::java_nio_Buffer_elementSizeShift;
@@ -171,12 +171,12 @@ ArtField* WellKnownClasses::java_nio_Buffer_position;
 ArtField* WellKnownClasses::java_nio_ByteBuffer_hb;
 ArtField* WellKnownClasses::java_nio_ByteBuffer_isReadOnly;
 ArtField* WellKnownClasses::java_nio_ByteBuffer_offset;
-jfieldID WellKnownClasses::java_util_Collections_EMPTY_LIST;
-jfieldID WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT;
-jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data;
-jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length;
-jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset;
-jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type;
+ArtField* WellKnownClasses::java_util_Collections_EMPTY_LIST;
+ArtField* WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT;
+ArtField* WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data;
+ArtField* WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length;
+ArtField* WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset;
+ArtField* WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type;
 
 static ObjPtr<mirror::Class> FindSystemClass(ClassLinker* class_linker,
                                              Thread* self,
@@ -193,32 +193,6 @@ static jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
     LOG(FATAL) << "Couldn't find class: " << jni_class_name;
   }
   return reinterpret_cast<jclass>(env->NewGlobalRef(c.get()));
-}
-
-static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
-                           const char* name, const char* signature) {
-  jfieldID fid;
-  {
-    ScopedObjectAccess soa(env);
-    if (Runtime::Current()->GetJniIdType() != JniIdType::kSwapablePointer) {
-      fid = jni::EncodeArtField</*kEnableIndexIds*/ true>(
-          FindFieldJNI(soa, c, name, signature, is_static));
-    } else {
-      fid = jni::EncodeArtField</*kEnableIndexIds*/ false>(
-          FindFieldJNI(soa, c, name, signature, is_static));
-    }
-  }
-  if (fid == nullptr) {
-    ScopedObjectAccess soa(env);
-    if (soa.Self()->IsExceptionPending()) {
-      LOG(FATAL_WITHOUT_ABORT) << soa.Self()->GetException()->Dump();
-    }
-    std::ostringstream os;
-    WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
-    LOG(FATAL) << "Couldn't find field \"" << name << "\" with signature \"" << signature << "\": "
-               << os.str();
-  }
-  return fid;
 }
 
 static ArtField* CacheField(ObjPtr<mirror::Class> klass,
@@ -532,16 +506,17 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_ThreadGroup_systemThreadGroup =
       CacheField(j_l_tg, /*is_static=*/ true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
 
-  java_lang_Throwable_cause =
-      CacheField(env, java_lang_Throwable, false, "cause", "Ljava/lang/Throwable;");
-  java_lang_Throwable_detailMessage =
-      CacheField(env, java_lang_Throwable, false, "detailMessage", "Ljava/lang/String;");
-  java_lang_Throwable_stackTrace =
-      CacheField(env, java_lang_Throwable, false, "stackTrace", "[Ljava/lang/StackTraceElement;");
-  java_lang_Throwable_stackState =
-      CacheField(env, java_lang_Throwable, false, "backtrace", "Ljava/lang/Object;");
-  java_lang_Throwable_suppressedExceptions =
-      CacheField(env, java_lang_Throwable, false, "suppressedExceptions", "Ljava/util/List;");
+  ObjPtr<mirror::Class> j_l_Throwable = soa.Decode<mirror::Class>(java_lang_Throwable);
+  java_lang_Throwable_cause = CacheField(
+      j_l_Throwable, /*is_static=*/ false, "cause", "Ljava/lang/Throwable;");
+  java_lang_Throwable_detailMessage = CacheField(
+      j_l_Throwable, /*is_static=*/ false, "detailMessage", "Ljava/lang/String;");
+  java_lang_Throwable_stackTrace = CacheField(
+      j_l_Throwable, /*is_static=*/ false, "stackTrace", "[Ljava/lang/StackTraceElement;");
+  java_lang_Throwable_stackState = CacheField(
+      j_l_Throwable, /*is_static=*/ false, "backtrace", "Ljava/lang/Object;");
+  java_lang_Throwable_suppressedExceptions = CacheField(
+      j_l_Throwable, /*is_static=*/ false, "suppressedExceptions", "Ljava/util/List;");
 
   ObjPtr<mirror::Class> j_n_b = soa.Decode<mirror::Class>(java_nio_Buffer);
   java_nio_Buffer_address = CacheField(j_n_b, /*is_static=*/ false, "address", "J");
@@ -556,18 +531,23 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_nio_ByteBuffer_isReadOnly = CacheField(j_n_bb, /*is_static=*/ false, "isReadOnly", "Z");
   java_nio_ByteBuffer_offset = CacheField(j_n_bb, /*is_static=*/ false, "offset", "I");
 
+  ObjPtr<mirror::Class> j_u_c = soa.Decode<mirror::Class>(java_util_Collections);
   java_util_Collections_EMPTY_LIST =
-      CacheField(env, java_util_Collections, true, "EMPTY_LIST", "Ljava/util/List;");
+      CacheField(j_u_c, /*is_static=*/ true, "EMPTY_LIST", "Ljava/util/List;");
+
+  ObjPtr<mirror::Class> l_u_ea = soa.Decode<mirror::Class>(libcore_util_EmptyArray);
   libcore_util_EmptyArray_STACK_TRACE_ELEMENT = CacheField(
-      env, libcore_util_EmptyArray, true, "STACK_TRACE_ELEMENT", "[Ljava/lang/StackTraceElement;");
+      l_u_ea, /*is_static=*/ true, "STACK_TRACE_ELEMENT", "[Ljava/lang/StackTraceElement;");
+
+  ObjPtr<mirror::Class> o_a_h_d_c = soa.Decode<mirror::Class>(org_apache_harmony_dalvik_ddmc_Chunk);
   org_apache_harmony_dalvik_ddmc_Chunk_data =
-      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "data", "[B");
+      CacheField(o_a_h_d_c, /*is_static=*/ false, "data", "[B");
   org_apache_harmony_dalvik_ddmc_Chunk_length =
-      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "length", "I");
+      CacheField(o_a_h_d_c, /*is_static=*/ false, "length", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_offset =
-      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "offset", "I");
+      CacheField(o_a_h_d_c, /*is_static=*/ false, "offset", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_type =
-      CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "type", "I");
+      CacheField(o_a_h_d_c, /*is_static=*/ false, "type", "I");
 
   java_lang_Boolean_valueOf = CachePrimitiveBoxingMethod(env, 'Z', "java/lang/Boolean");
   java_lang_Byte_valueOf = CachePrimitiveBoxingMethod(env, 'B', "java/lang/Byte");
