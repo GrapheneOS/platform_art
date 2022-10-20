@@ -40,15 +40,11 @@ inline bool ArtField::IsProxyField() {
   return GetDeclaringClass<kWithoutReadBarrier>()->IsProxyClass<kVerifyNone>();
 }
 
-// We are only ever allowed to set our own final fields. We do need to be careful since if a
-// structural redefinition occurs during <clinit> we can end up trying to set the non-obsolete
-// class's fields from the obsolete class. This is something we want to allow. This is tested by
-// run-test 2002-virtual-structural-initializing.
+// We are only ever allowed to set our own final fields
 inline bool ArtField::CanBeChangedBy(ArtMethod* method) {
   ObjPtr<mirror::Class> declaring_class(GetDeclaringClass());
   ObjPtr<mirror::Class> referring_class(method->GetDeclaringClass());
-  return !IsFinal() || (declaring_class == referring_class) ||
-         UNLIKELY(referring_class->IsObsoleteVersionOf(declaring_class));
+  return !IsFinal() || (declaring_class == referring_class);
 }
 
 template<ReadBarrierOption kReadBarrierOption>
