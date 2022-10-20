@@ -112,41 +112,49 @@ static bool CheckStack(unwindstack::AndroidUnwinder& unwinder,
   size_t cur_search_index = 0;  // The currently active index in seq.
   CHECK_GT(seq.size(), 0U);
 
-  bool any_empty_name = false;
+  bool ok = true;
   for (const unwindstack::FrameData& frame : data.frames) {
+    if (frame.map_info == nullptr) {
+      printf("Error: No map_info for frame #%02zu\n", frame.num);
+      ok = false;
+      continue;
+    }
     const std::string& function_name = frame.function_name;
-    if (frame.map_info != nullptr) {
-      if (cur_search_index < seq.size()) {
-        LOG(INFO) << "Got " << function_name << ", looking for " << seq[cur_search_index];
-        if (function_name.find(seq[cur_search_index]) != std::string::npos) {
-          cur_search_index++;
-        }
+    if (cur_search_index < seq.size()) {
+      LOG(INFO) << "Got " << function_name << ", looking for " << seq[cur_search_index];
+      if (function_name.find(seq[cur_search_index]) != std::string::npos) {
+        cur_search_index++;
       }
     }
-    any_empty_name |= function_name.empty();
     if (function_name == "main") {
       break;
     }
+#if !defined(__ANDROID__) && defined(__BIONIC__ )  // host-bionic
+    // TODO(b/182810709): Unwinding is broken on host-bionic so we expect some empty frames.
+#else
+    const std::string& lib_name = frame.map_info->name();
+    if (!kIsTargetBuild && lib_name.find("libc.so") != std::string::npos) {
+      // TODO(b/254626913): Unwinding can fail for libc on host.
+    } else if (function_name.empty()) {
+      printf("Error: No function name for frame #%02zu\n", frame.num);
+      ok = false;
+    }
+#endif
   }
 
   if (cur_search_index < seq.size()) {
-    printf("Cannot find %s in backtrace:\n", seq[cur_search_index].c_str());
-  } else if (any_empty_name) {
-#if defined(__BIONIC__ ) && !defined(__ANDROID__)
-    // TODO(b/182810709): Unwinding is broken on host-bionic so we expect some empty frames.
-    return true;
-#else
-    printf("Missing frames in backtrace:\n");
-#endif
-  } else {
-    return true;
+    printf("Error: Cannot find %s\n", seq[cur_search_index].c_str());
+    ok = false;
   }
 
-  for (const unwindstack::FrameData& frame : data.frames) {
-    printf("  %s\n", unwinder.FormatFrame(frame).c_str());
+  if (!ok) {
+    printf("Backtrace:\n");
+    for (const unwindstack::FrameData& frame : data.frames) {
+      printf("  %s\n", unwinder.FormatFrame(frame).c_str());
+    }
   }
 
-  return false;
+  return ok;
 }
 
 static void MoreErrorInfo(pid_t pid, bool sig_quit_on_fail) {
