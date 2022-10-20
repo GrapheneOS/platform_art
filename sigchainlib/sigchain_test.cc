@@ -37,6 +37,12 @@
 
 #include "sigchain.h"
 
+#if defined(__clang__) && __has_feature(hwaddress_sanitizer)
+#define DISABLE_HWASAN __attribute__((no_sanitize("hwaddress")))
+#else
+#define DISABLE_HWASAN
+#endif
+
 #if !defined(__BIONIC__)
 using sigset64_t = sigset_t;
 
@@ -249,9 +255,8 @@ TEST_F(SigchainTest, EnsureFrontOfChain) {
   called = 0;
 }
 
-TEST_F(SigchainTest, fault_address_tag) {
-#define SA_EXPOSE_TAGBITS 0x00000800
 #if defined(__aarch64__)
+DISABLE_HWASAN void fault_address_tag_impl() {
   struct sigaction action = {};
   action.sa_flags = SA_SIGINFO;
   action.sa_sigaction = [](int, siginfo_t* siginfo, void*) {
@@ -273,6 +278,13 @@ TEST_F(SigchainTest, fault_address_tag) {
     EXPECT_EXIT({ volatile int load __attribute__((unused)) = *tagged_null; },
                 testing::ExitedWithCode(0x2b), "");
   }
+}
+#endif
+
+TEST_F(SigchainTest, fault_address_tag) {
+#define SA_EXPOSE_TAGBITS 0x00000800
+#if defined(__aarch64__)
+  fault_address_tag_impl();
 #else
   GTEST_SKIP() << "arm64 only";
 #endif
