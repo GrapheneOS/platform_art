@@ -726,7 +726,7 @@ void ThrowStackOverflowError(Thread* self) {
     // TODO: Initialize these classes during `ClassLinker` initialization to avoid doing it here.
     auto ensure_initialized = [self](Handle<mirror::Class> klass)
         REQUIRES_SHARED(Locks::mutator_lock_) {
-      if (UNLIKELY(!klass->IsVisiblyInitialized()) ||
+      if (UNLIKELY(!klass->IsVisiblyInitialized()) &&
           UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
                         self, klass, /*can_init_fields=*/ true, /*can_init_parents=*/ true))) {
         LOG(WARNING) << "Failed to initialize class " << klass->PrettyDescriptor();
