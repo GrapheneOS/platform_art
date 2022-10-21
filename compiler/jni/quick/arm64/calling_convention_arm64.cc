@@ -174,6 +174,10 @@ ManagedRegister Arm64ManagedRuntimeCallingConvention::MethodRegister() {
   return Arm64ManagedRegister::FromXRegister(X0);
 }
 
+ManagedRegister Arm64ManagedRuntimeCallingConvention::ArgumentRegisterForMethodExitHook() {
+  return Arm64ManagedRegister::FromXRegister(X4);
+}
+
 bool Arm64ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
   if (IsCurrentParamAFloatOrDouble()) {
     return itr_float_and_doubles_ < kMaxFloatOrDoubleRegisterArguments;

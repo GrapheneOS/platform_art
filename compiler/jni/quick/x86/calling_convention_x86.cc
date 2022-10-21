@@ -143,6 +143,10 @@ ManagedRegister X86ManagedRuntimeCallingConvention::MethodRegister() {
   return X86ManagedRegister::FromCpuRegister(EAX);
 }
 
+ManagedRegister X86ManagedRuntimeCallingConvention::ArgumentRegisterForMethodExitHook() {
+  return X86ManagedRegister::FromCpuRegister(EBX);
+}
+
 void X86ManagedRuntimeCallingConvention::ResetIterator(FrameOffset displacement) {
   ManagedRuntimeCallingConvention::ResetIterator(displacement);
   gpr_arg_count_ = 1u;  // Skip EAX for ArtMethod*
