@@ -1086,19 +1086,56 @@ void ClassLinker::FinishInit(Thread* self) {
   VLOG(startup) << "ClassLinker::FinishInit exiting";
 }
 
-void ClassLinker::RunRootClinits(Thread* self) {
-  for (size_t i = 0; i < static_cast<size_t>(ClassRoot::kMax); ++i) {
-    ObjPtr<mirror::Class> c = GetClassRoot(ClassRoot(i), this);
-    if (!c->IsArrayClass() && !c->IsPrimitive()) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> h_class(hs.NewHandle(c));
-      if (!EnsureInitialized(self, h_class, true, true)) {
-        LOG(FATAL) << "Exception when initializing " << h_class->PrettyClass()
-            << ": " << self->GetException()->Dump();
-      }
-    } else {
-      DCHECK(c->IsInitialized());
+static void EnsureRootInitialized(ClassLinker* class_linker,
+                                  Thread* self,
+                                  ObjPtr<mirror::Class> klass)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (!klass->IsVisiblyInitialized()) {
+    DCHECK(!klass->IsArrayClass());
+    DCHECK(!klass->IsPrimitive());
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> h_class(hs.NewHandle(klass));
+    if (!class_linker->EnsureInitialized(
+             self, h_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true)) {
+      LOG(FATAL) << "Exception when initializing " << h_class->PrettyClass()
+          << ": " << self->GetException()->Dump();
     }
+  }
+}
+
+void ClassLinker::RunEarlyRootClinits(Thread* self) {
+  StackHandleScope<1u> hs(self);
+  Handle<mirror::ObjectArray<mirror::Class>> class_roots = hs.NewHandle(GetClassRoots());
+  EnsureRootInitialized(this, self, GetClassRoot<mirror::Class>(class_roots.Get()));
+  EnsureRootInitialized(this, self, GetClassRoot<mirror::String>(class_roots.Get()));
+  // Field class is needed for register_java_net_InetAddress in libcore, b/28153851.
+  EnsureRootInitialized(this, self, GetClassRoot<mirror::Field>(class_roots.Get()));
+}
+
+void ClassLinker::RunRootClinits(Thread* self) {
+  StackHandleScope<1u> hs(self);
+  Handle<mirror::ObjectArray<mirror::Class>> class_roots = hs.NewHandle(GetClassRoots());
+  for (size_t i = 0; i < static_cast<size_t>(ClassRoot::kMax); ++i) {
+    EnsureRootInitialized(this, self, GetClassRoot(ClassRoot(i), class_roots.Get()));
+  }
+
+  // Make sure certain well-known classes are initialized. Note that well-known
+  // classes are always in the boot image, so this code is primarily intended
+  // for running without boot image but may be needed for boot image if the
+  // AOT-initialization fails due to introduction of new code to `<clinit>`.
+  ArtMethod* static_methods_of_classes_to_initialize[] = {
+      // Initialize primitive boxing classes (avoid check at runtime).
+      WellKnownClasses::java_lang_Boolean_valueOf,
+      WellKnownClasses::java_lang_Byte_valueOf,
+      WellKnownClasses::java_lang_Character_valueOf,
+      WellKnownClasses::java_lang_Double_valueOf,
+      WellKnownClasses::java_lang_Float_valueOf,
+      WellKnownClasses::java_lang_Integer_valueOf,
+      WellKnownClasses::java_lang_Long_valueOf,
+      WellKnownClasses::java_lang_Short_valueOf,
+  };
+  for (ArtMethod* method : static_methods_of_classes_to_initialize) {
+    EnsureRootInitialized(this, self, method->GetDeclaringClass());
   }
 }
 

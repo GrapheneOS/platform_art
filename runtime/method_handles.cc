@@ -81,7 +81,7 @@ bool GetUnboxedPrimitiveType(ObjPtr<mirror::Class> klass, Primitive::Type* type)
 ObjPtr<mirror::Class> GetBoxedPrimitiveClass(Primitive::Type type)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-  jmethodID m = nullptr;
+  ArtMethod* m = nullptr;
   switch (type) {
 #define CASE_PRIMITIVE(primitive, _, java_name, __)              \
     case primitive:                                              \
@@ -93,7 +93,7 @@ ObjPtr<mirror::Class> GetBoxedPrimitiveClass(Primitive::Type type)
     case Primitive::Type::kPrimVoid:
       return nullptr;
   }
-  return jni::DecodeArtMethod(m)->GetDeclaringClass();
+  return m->GetDeclaringClass();
 }
 
 bool GetUnboxedTypeAndValue(ObjPtr<mirror::Object> o, Primitive::Type* type, JValue* value)
