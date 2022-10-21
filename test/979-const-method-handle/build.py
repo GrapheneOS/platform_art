@@ -15,4 +15,5 @@
 
 
 def build(ctx):
+  ctx.bash("./generate-sources")
   ctx.default_build(api_level=28)

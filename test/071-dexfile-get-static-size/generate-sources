@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-./default-build "$@"
-
 # Bundle with the test the following resources:
 # 1. test1.dex
 # 2. test2.dex
