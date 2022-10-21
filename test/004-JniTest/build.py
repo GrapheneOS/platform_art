@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 import shutil, os
 
 #
@@ -27,11 +26,13 @@ import shutil, os
 # has a different ABI and cannot be tested on RI.
 #
 
-# Use release mode to check optimizations do not break JNI.
-build_run_test(d8_flags=['--release'])
 
-# Remove the *-aotex build artifacts (but keep src-aotex) with dalvik.* annotations.
-shutil.rmtree("classes-aotex")
-if os.environ["BUILD_MODE"] != "jvm":
-  os.remove("classes-aotex.jar")
-  os.remove("004-JniTest-aotex.jar")
+# Use release mode to check optimizations do not break JNI.
+def build(ctx):
+  ctx.default_build(d8_flags=["--release"])
+
+  # Remove the *-aotex build artifacts (but keep src-aotex) with dalvik.* annotations.
+  shutil.rmtree("classes-aotex")
+  if os.environ["BUILD_MODE"] != "jvm":
+    os.remove("classes-aotex.jar")
+    os.remove("004-JniTest-aotex.jar")

@@ -102,7 +102,7 @@ using ::ndk::ScopedAStatus;
 using ::fmt::literals::operator""_format;  // NOLINT
 
 using ArtifactsLocation = GetDexoptNeededResult::ArtifactsLocation;
-using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
+using TmpProfilePath = ProfilePath::TmpProfilePath;
 
 constexpr const char* kServiceName = "artd";
 constexpr const char* kArtdCancellationSignalType = "ArtdCancellationSignal";
@@ -448,7 +448,7 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
                                                const std::string& in_dexFile,
                                                bool* _aidl_return) {
   std::string src_path = OR_RETURN_FATAL(BuildProfileOrDmPath(in_src));
-  std::string dst_path = OR_RETURN_FATAL(BuildRefProfilePath(in_dst->profilePath.refProfilePath));
+  std::string dst_path = OR_RETURN_FATAL(BuildFinalProfilePath(in_dst->profilePath));
   OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
 
   CmdlineBuilder args;
@@ -504,9 +504,9 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   return ScopedAStatus::ok();
 }
 
-ndk::ScopedAStatus Artd::commitTmpProfile(const TmpRefProfilePath& in_profile) {
-  std::string tmp_profile_path = OR_RETURN_FATAL(BuildTmpRefProfilePath(in_profile));
-  std::string ref_profile_path = OR_RETURN_FATAL(BuildRefProfilePath(in_profile.refProfilePath));
+ndk::ScopedAStatus Artd::commitTmpProfile(const TmpProfilePath& in_profile) {
+  std::string tmp_profile_path = OR_RETURN_FATAL(BuildTmpProfilePath(in_profile));
+  std::string ref_profile_path = OR_RETURN_FATAL(BuildFinalProfilePath(in_profile));
 
   std::error_code ec;
   std::filesystem::rename(tmp_profile_path, ref_profile_path, ec);
@@ -557,7 +557,7 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
     profile_paths.push_back(std::move(profile_path));
   }
   std::string output_profile_path =
-      OR_RETURN_FATAL(BuildRefProfilePath(in_outputProfile->profilePath.refProfilePath));
+      OR_RETURN_FATAL(BuildFinalProfilePath(in_outputProfile->profilePath));
   OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
 
   CmdlineBuilder args;

@@ -417,7 +417,7 @@ static ArtField* ResolveFieldWithAccessChecks(Thread* self,
                                                           field_index))) {
     return nullptr;
   }
-  if (UNLIKELY(is_put && resolved_field->IsFinal() && (fields_class != referring_class))) {
+  if (UNLIKELY(is_put && !resolved_field->CanBeChangedBy(caller))) {
     ThrowIllegalAccessErrorFinalField(caller, resolved_field);
     return nullptr;
   }

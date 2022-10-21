@@ -87,12 +87,36 @@ java_sdk_library {
     static_libs: [
         "artd-aidl-java",
         "modules-utils-shell-command-handler",
+        "service-art-proto-java",
     ],
     plugins: [
         "auto_value_plugin",
         "java_api_finder",
     ],
     jarjar_rules: "jarjar-rules.txt",
+    optimize: {
+        enabled: true,
+        optimize: true,
+        shrink: true,
+        proguard_compatibility: false,
+        proguard_flags_files: ["proguard.flags"],
+    },
+}
+
+java_library {
+    name: "service-art-proto-java",
+    proto: {
+        type: "lite",
+    },
+    srcs: [
+        "proto/**/*.proto",
+    ],
+    sdk_version: "system_server_current",
+    min_sdk_version: "31",
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
 }
 
 art_cc_defaults {

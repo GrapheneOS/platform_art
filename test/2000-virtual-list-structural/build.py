@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 import os
 
-build_run_test(use_desugar=False)
 
-os.rename("src-ex/java/util/AbstractCollection.bak",
-          "src-ex/java/util/AbstractCollection.java")
+def build(ctx):
+  ctx.default_build(use_desugar=False)
 
+  os.rename("src-ex/java/util/AbstractCollection.bak",
+            "src-ex/java/util/AbstractCollection.java")

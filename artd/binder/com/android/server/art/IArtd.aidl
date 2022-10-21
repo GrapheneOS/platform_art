@@ -60,7 +60,7 @@ interface IArtd {
      *
      * Throws fatal and non-fatal errors.
      */
-    void commitTmpProfile(in com.android.server.art.ProfilePath.TmpRefProfilePath profile);
+    void commitTmpProfile(in com.android.server.art.ProfilePath.TmpProfilePath profile);
 
     /**
      * Deletes the profile. Does nothing of the profile doesn't exist.

@@ -47,6 +47,7 @@ import com.android.server.pm.pkg.PackageState;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This class provides a system API for functionality provided by the ART module.
@@ -131,8 +132,8 @@ public final class ArtManagerLocal {
             throw new IllegalArgumentException("Nothing to delete");
         }
 
-        PackageState pkgState = getPackageStateOrThrow(snapshot, packageName);
-        AndroidPackage pkg = getPackageOrThrow(pkgState);
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
         try {
             long freedBytes = 0;
@@ -191,8 +192,8 @@ public final class ArtManagerLocal {
             throw new IllegalArgumentException("Nothing to check");
         }
 
-        PackageState pkgState = getPackageStateOrThrow(snapshot, packageName);
-        AndroidPackage pkg = getPackageOrThrow(pkgState);
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
         try {
             List<DexContainerFileOptimizationStatus> statuses = new ArrayList<>();
@@ -261,8 +262,8 @@ public final class ArtManagerLocal {
             throw new IllegalArgumentException("Nothing to optimize");
         }
 
-        PackageState pkgState = getPackageStateOrThrow(snapshot, packageName);
-        AndroidPackage pkg = getPackageOrThrow(pkgState);
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
         try {
             return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, params,
@@ -272,22 +273,28 @@ public final class ArtManagerLocal {
         }
     }
 
-    private PackageState getPackageStateOrThrow(
-            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName) {
-        PackageState pkgState = snapshot.getPackageState(packageName);
-        if (pkgState == null) {
-            throw new IllegalArgumentException("Package not found: " + packageName);
-        }
-        return pkgState;
-    }
-
-    private AndroidPackage getPackageOrThrow(@NonNull PackageState pkgState) {
-        AndroidPackage pkg = pkgState.getAndroidPackage();
-        if (pkg == null) {
-            throw new IllegalArgumentException(
-                    "Unable to get package " + pkgState.getPackageName());
-        }
-        return pkg;
+    /**
+     * Notifies ART Service that a list of dex container files have been loaded.
+     *
+     * ART Service uses this information to:
+     * <ul>
+     *   <li>Determine whether an app is used by another app
+     *   <li>Record which secondary dex container files to optimize and how to optimize them
+     * </ul>
+     *
+     * @param loadingPackageName the name of the package who performs the load. ART Service assumes
+     *         that this argument has been validated that it exists in the snapshot and matches the
+     *         calling UID
+     * @param classLoaderContextByDexContainerFile a map from dex container files' absolute paths to
+     *         the string representations of the class loader contexts used to load them
+     * @throws IllegalArgumentException if {@code classLoaderContextByDexContainerFile} contains
+     *         invalid entries
+     */
+    public void notifyDexContainersLoaded(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull String loadingPackageName,
+            @NonNull Map<String, String> classLoaderContextByDexContainerFile) {
+        DexUseManager.getInstance().addDexUse(
+                snapshot, loadingPackageName, classLoaderContextByDexContainerFile);
     }
 
     /**

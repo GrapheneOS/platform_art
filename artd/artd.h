@@ -95,7 +95,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       bool* _aidl_return) override;
 
   ndk::ScopedAStatus commitTmpProfile(
-      const aidl::com::android::server::art::ProfilePath::TmpRefProfilePath& in_profile) override;
+      const aidl::com::android::server::art::ProfilePath::TmpProfilePath& in_profile) override;
 
   ndk::ScopedAStatus deleteProfile(
       const aidl::com::android::server::art::ProfilePath& in_profile) override;

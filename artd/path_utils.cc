@@ -43,10 +43,13 @@ using ::android::base::Result;
 
 using ::fmt::literals::operator""_format;  // NOLINT
 
-using CurProfilePath = ProfilePath::CurProfilePath;
 using PrebuiltProfilePath = ProfilePath::PrebuiltProfilePath;
-using RefProfilePath = ProfilePath::RefProfilePath;
-using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
+using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
+using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
+using SecondaryCurProfilePath = ProfilePath::SecondaryCurProfilePath;
+using SecondaryRefProfilePath = ProfilePath::SecondaryRefProfilePath;
+using TmpProfilePath = ProfilePath::TmpProfilePath;
+using WritableProfilePath = ProfilePath::WritableProfilePath;
 
 Result<void> ValidateAbsoluteNormalPath(const std::string& path_str) {
   if (path_str.empty()) {
@@ -145,19 +148,13 @@ Result<std::string> BuildOatPath(const ArtifactsPath& artifacts_path) {
   }
 }
 
-Result<std::string> BuildRefProfilePath(const RefProfilePath& ref_profile_path) {
-  OR_RETURN(ValidatePathElement(ref_profile_path.packageName, "packageName"));
-  OR_RETURN(ValidatePathElementSubstring(ref_profile_path.profileName, "profileName"));
+Result<std::string> BuildPrimaryRefProfilePath(
+    const PrimaryRefProfilePath& primary_ref_profile_path) {
+  OR_RETURN(ValidatePathElement(primary_ref_profile_path.packageName, "packageName"));
+  OR_RETURN(ValidatePathElementSubstring(primary_ref_profile_path.profileName, "profileName"));
   return "{}/misc/profiles/ref/{}/{}.prof"_format(OR_RETURN(GetAndroidDataOrError()),
-                                                  ref_profile_path.packageName,
-                                                  ref_profile_path.profileName);
-}
-
-Result<std::string> BuildTmpRefProfilePath(const TmpRefProfilePath& tmp_ref_profile_path) {
-  OR_RETURN(ValidatePathElementSubstring(tmp_ref_profile_path.id, "id"));
-  return NewFile::BuildTempPath(
-      OR_RETURN(BuildRefProfilePath(tmp_ref_profile_path.refProfilePath)).c_str(),
-      tmp_ref_profile_path.id.c_str());
+                                                  primary_ref_profile_path.packageName,
+                                                  primary_ref_profile_path.profileName);
 }
 
 Result<std::string> BuildPrebuiltProfilePath(const PrebuiltProfilePath& prebuilt_profile_path) {
@@ -165,13 +162,47 @@ Result<std::string> BuildPrebuiltProfilePath(const PrebuiltProfilePath& prebuilt
   return prebuilt_profile_path.dexPath + ".prof";
 }
 
-Result<std::string> BuildCurProfilePath(const CurProfilePath& cur_profile_path) {
-  OR_RETURN(ValidatePathElement(cur_profile_path.packageName, "packageName"));
-  OR_RETURN(ValidatePathElementSubstring(cur_profile_path.profileName, "profileName"));
+Result<std::string> BuildPrimaryCurProfilePath(
+    const PrimaryCurProfilePath& primary_cur_profile_path) {
+  OR_RETURN(ValidatePathElement(primary_cur_profile_path.packageName, "packageName"));
+  OR_RETURN(ValidatePathElementSubstring(primary_cur_profile_path.profileName, "profileName"));
   return "{}/misc/profiles/cur/{}/{}/{}.prof"_format(OR_RETURN(GetAndroidDataOrError()),
-                                                     cur_profile_path.userId,
-                                                     cur_profile_path.packageName,
-                                                     cur_profile_path.profileName);
+                                                     primary_cur_profile_path.userId,
+                                                     primary_cur_profile_path.packageName,
+                                                     primary_cur_profile_path.profileName);
+}
+
+Result<std::string> BuildSecondaryRefProfilePath(
+    const SecondaryRefProfilePath& secondary_ref_profile_path) {
+  OR_RETURN(ValidateDexPath(secondary_ref_profile_path.dexPath));
+  std::filesystem::path dex_path(secondary_ref_profile_path.dexPath);
+  return "{}/oat/{}.prof"_format(dex_path.parent_path().string(), dex_path.filename().string());
+}
+
+Result<std::string> BuildSecondaryCurProfilePath(
+    const SecondaryCurProfilePath& secondary_cur_profile_path) {
+  OR_RETURN(ValidateDexPath(secondary_cur_profile_path.dexPath));
+  std::filesystem::path dex_path(secondary_cur_profile_path.dexPath);
+  return "{}/oat/{}.cur.prof"_format(dex_path.parent_path().string(), dex_path.filename().string());
+}
+
+Result<std::string> BuildFinalProfilePath(const TmpProfilePath& tmp_profile_path) {
+  const WritableProfilePath& final_path = tmp_profile_path.finalPath;
+  switch (final_path.getTag()) {
+    case WritableProfilePath::forPrimary:
+      return BuildPrimaryRefProfilePath(final_path.get<WritableProfilePath::forPrimary>());
+    case WritableProfilePath::forSecondary:
+      return BuildSecondaryRefProfilePath(final_path.get<WritableProfilePath::forSecondary>());
+      // No default. All cases should be explicitly handled, or the compilation will fail.
+  }
+  // This should never happen. Just in case we get a non-enumerator value.
+  LOG(FATAL) << "Unexpected writable profile path type {}"_format(final_path.getTag());
+}
+
+Result<std::string> BuildTmpProfilePath(const TmpProfilePath& tmp_profile_path) {
+  OR_RETURN(ValidatePathElementSubstring(tmp_profile_path.id, "id"));
+  return NewFile::BuildTempPath(OR_RETURN(BuildFinalProfilePath(tmp_profile_path)),
+                                tmp_profile_path.id);
 }
 
 Result<std::string> BuildDexMetadataPath(const DexMetadataPath& dex_metadata_path) {
@@ -186,14 +217,18 @@ Result<std::string> BuildDexMetadataPath(const VdexPath& vdex_path) {
 
 Result<std::string> BuildProfileOrDmPath(const ProfilePath& profile_path) {
   switch (profile_path.getTag()) {
-    case ProfilePath::refProfilePath:
-      return BuildRefProfilePath(profile_path.get<ProfilePath::refProfilePath>());
-    case ProfilePath::tmpRefProfilePath:
-      return BuildTmpRefProfilePath(profile_path.get<ProfilePath::tmpRefProfilePath>());
+    case ProfilePath::primaryRefProfilePath:
+      return BuildPrimaryRefProfilePath(profile_path.get<ProfilePath::primaryRefProfilePath>());
     case ProfilePath::prebuiltProfilePath:
       return BuildPrebuiltProfilePath(profile_path.get<ProfilePath::prebuiltProfilePath>());
-    case ProfilePath::curProfilePath:
-      return BuildCurProfilePath(profile_path.get<ProfilePath::curProfilePath>());
+    case ProfilePath::primaryCurProfilePath:
+      return BuildPrimaryCurProfilePath(profile_path.get<ProfilePath::primaryCurProfilePath>());
+    case ProfilePath::secondaryRefProfilePath:
+      return BuildSecondaryRefProfilePath(profile_path.get<ProfilePath::secondaryRefProfilePath>());
+    case ProfilePath::secondaryCurProfilePath:
+      return BuildSecondaryCurProfilePath(profile_path.get<ProfilePath::secondaryCurProfilePath>());
+    case ProfilePath::tmpProfilePath:
+      return BuildTmpProfilePath(profile_path.get<ProfilePath::tmpProfilePath>());
     case ProfilePath::dexMetadataPath:
       return BuildDexMetadataPath(profile_path.get<ProfilePath::dexMetadataPath>());
       // No default. All cases should be explicitly handled, or the compilation will fail.

@@ -9,6 +9,7 @@ package com.android.server.art {
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method public int handleShellCommand(@NonNull android.os.Binder, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull String[]);
+    method public void notifyDexContainersLoaded(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.Map<java.lang.String,java.lang.String>);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
   }

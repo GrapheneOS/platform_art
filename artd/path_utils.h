@@ -42,17 +42,30 @@ inline std::string OatPathToArtPath(const std::string& oat_path) {
   return ReplaceFileExtension(oat_path, "art");
 }
 
-android::base::Result<std::string> BuildRefProfilePath(
-    const aidl::com::android::server::art::ProfilePath::RefProfilePath& ref_profile_path);
-
-android::base::Result<std::string> BuildTmpRefProfilePath(
-    const aidl::com::android::server::art::ProfilePath::TmpRefProfilePath& tmp_ref_profile_path);
+android::base::Result<std::string> BuildPrimaryRefProfilePath(
+    const aidl::com::android::server::art::ProfilePath::PrimaryRefProfilePath&
+        primary_ref_profile_path);
 
 android::base::Result<std::string> BuildPrebuiltProfilePath(
     const aidl::com::android::server::art::ProfilePath::PrebuiltProfilePath& prebuilt_profile_path);
 
-android::base::Result<std::string> BuildCurProfilePath(
-    const aidl::com::android::server::art::ProfilePath::CurProfilePath& cur_profile_path);
+android::base::Result<std::string> BuildPrimaryCurProfilePath(
+    const aidl::com::android::server::art::ProfilePath::PrimaryCurProfilePath&
+        primary_cur_profile_path);
+
+android::base::Result<std::string> BuildSecondaryRefProfilePath(
+    const aidl::com::android::server::art::ProfilePath::SecondaryRefProfilePath&
+        secondary_ref_profile_path);
+
+android::base::Result<std::string> BuildSecondaryCurProfilePath(
+    const aidl::com::android::server::art::ProfilePath::SecondaryCurProfilePath&
+        secondary_cur_profile_path);
+
+android::base::Result<std::string> BuildFinalProfilePath(
+    const aidl::com::android::server::art::ProfilePath::TmpProfilePath& tmp_profile_path);
+
+android::base::Result<std::string> BuildTmpProfilePath(
+    const aidl::com::android::server::art::ProfilePath::TmpProfilePath& tmp_profile_path);
 
 android::base::Result<std::string> BuildDexMetadataPath(
     const aidl::com::android::server::art::DexMetadataPath& dex_metadata_path);

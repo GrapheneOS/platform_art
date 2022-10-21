@@ -70,6 +70,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
 
     private OptimizeParams mOptimizeParams;
 
+    private PrimaryDexOptimizer mPrimaryDexOptimizer;
+
     @Parameter(0) public Params mParams;
 
     @Parameters(name = "{0}")
@@ -187,6 +189,9 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         .setFlags(mParams.mShouldDowngrade ? ArtFlags.FLAG_SHOULD_DOWNGRADE : 0,
                                 ArtFlags.FLAG_SHOULD_DOWNGRADE)
                         .build();
+
+        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
+                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
     }
 
     @Test
@@ -255,8 +260,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
                         deepEq(dexoptOptions), any());
 
-        assertThat(
-                mPrimaryDexOptimizer.dexopt(mPkgState, mPkg, mOptimizeParams, mCancellationSignal))
+        assertThat(mPrimaryDexOptimizer.dexopt())
                 .comparingElementsUsing(TestingUtils.<DexContainerFileOptimizeResult>deepEquality())
                 .containsExactly(
                         new DexContainerFileOptimizeResult("/data/app/foo/base.apk",

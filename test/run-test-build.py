@@ -19,12 +19,21 @@ This scripts compiles Java files which are needed to execute run-tests.
 It is intended to be used only from soong genrule.
 """
 
-import argparse, os, shutil, subprocess, glob, re, json, multiprocessing, pathlib
+import argparse, os, shutil, subprocess, glob, re, json, multiprocessing, pathlib, fcntl
 import art_build_rules
 from importlib.machinery import SourceFileLoader
 
+import art_build_rules
+
 ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
 BUILDFAILURES = json.loads(open(os.path.join("art", "test", "buildfailures.json"), "rt").read())
+
+class BuildTestContext:
+  def bash(self, cmd):
+    return subprocess.run(cmd, shell=True, check=True)
+
+  def default_build(self, **kwargs):
+    art_build_rules.default_build(self, **kwargs)
 
 def copy_sources(args, tmp, mode, srcdir):
   """Copy test files from Android tree into the build sandbox and return its path."""
@@ -43,7 +52,7 @@ def copy_sources(args, tmp, mode, srcdir):
   shutil.copytree(srcdir, dstdir)
 
   # Copy the default scripts if the test does not have a custom ones.
-  for name in ["build.py", "run", "check"]:
+  for name in ["run", "check"]:
     src, dst = f"art/test/etc/default-{name}", join(dstdir, name)
     if os.path.exists(dst):
       shutil.copy2(src, dstdir)  # Copy default script next to the custom script.
@@ -93,7 +102,27 @@ def build_test(args, mode, build_top, sbox, dstdir):
   os.chdir(dstdir)
   for name, value in env.items():
     os.environ[name] = str(value)
-  SourceFileLoader("build_" + test_name, join(dstdir, "build.py")).load_module()
+  ctx = BuildTestContext()
+  script = pathlib.Path(join(dstdir, "build.py"))
+  if script.exists():
+    module = SourceFileLoader("build_" + test_name, str(script)).load_module()
+    module.build(ctx)
+  else:
+    art_build_rules.default_build(ctx)
+
+# If we build just individual shard, we want to split the work among all the cores,
+# but if the build system builds all shards, we don't want to overload the machine.
+# We don't know which situation we are in, so as simple work-around, we use a lock
+# file to allow only one shard to use multiprocessing at the same time.
+def use_multiprocessing(mode):
+  global lock_file  # Keep alive as long as this process is alive.
+  lock_path = os.path.join(os.environ["TMPDIR"], "art-test-run-test-build-py-" + mode)
+  lock_file = open(lock_path, "w")
+  try:
+    fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return True  # We are the only instance of this script in the build system.
+  except BlockingIOError:
+    return False  # Some other instance is already running.
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
@@ -113,7 +142,7 @@ def main():
   dstdirs = [copy_sources(args, ziproot, args.mode, srcdir) for srcdir in srcdirs]
   dstdirs = filter(lambda dstdir: dstdir, dstdirs)  # Remove None (skipped tests).
   # Use multiprocess (i.e. forking) since tests modify their current working directory.
-  with multiprocessing.Pool() as pool:
+  with multiprocessing.Pool(os.cpu_count() if use_multiprocessing(args.mode) else 1) as pool:
     jobs = [(d, pool.apply_async(build_test, (args, args.mode, build_top, sbox, d))) for d in dstdirs]
     for dstdir, job in jobs:
       try:
