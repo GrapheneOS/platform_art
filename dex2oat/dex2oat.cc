@@ -65,6 +65,7 @@
 #include "base/zip_archive.h"
 #include "class_linker.h"
 #include "class_loader_context.h"
+#include "class_root-inl.h"
 #include "cmdline_parser.h"
 #include "compiler.h"
 #include "compiler_callbacks.h"
@@ -2737,6 +2738,8 @@ class Dex2Oat final {
     interpreter::UnstartedRuntime::Initialize();
 
     Thread* self = Thread::Current();
+    runtime_->GetClassLinker()->RunEarlyRootClinits(self);
+    WellKnownClasses::Init(self->GetJniEnv());
     runtime_->RunRootClinits(self);
 
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
@@ -2745,7 +2748,6 @@ class Dex2Oat final {
 
     // Now that we are in native state, initialize well known classes and
     // intrinsics if we don't have a boot image.
-    WellKnownClasses::Init(self->GetJniEnv());
     if (IsBootImage() || runtime_->GetHeap()->GetBootImageSpaces().empty()) {
       InitializeIntrinsics();
     }
