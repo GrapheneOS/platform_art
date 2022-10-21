@@ -20,6 +20,5 @@
 # $3: Test's expected standard error
 # $4: Test's actual standard error
 
-# Check that the string "error" isn't present
-grep -vq error "$2"  \
-  && diff --strip-trailing-cr -q "$3" "$4" >/dev/null
+# Check that the string "error" isn't present (delete all non-error lines)
+sed -i '/error/!d' "$2"

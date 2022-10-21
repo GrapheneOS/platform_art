@@ -329,6 +329,7 @@ if True:
       shift()
     elif arg == "--verify-soft-fail":
       run_args += ["--verify-soft-fail"]
+      os.environ["VERIFY_SOFT_FAIL"] = "true"
       shift()
     elif arg == "--no-optimize":
       run_args += ["--no-optimize"]
@@ -949,9 +950,13 @@ if True:
         good_run = "yes"
     else:
       good_run = "yes"
+    if os.path.exists(check_cmd):
+      run(f'./{check_cmd} "{expected_stdout}" "{test_stdout}" "{expected_stderr}" "{test_stderr}"')
     proc = run(
-        f'./{check_cmd} "{expected_stdout}" "{test_stdout}" "{expected_stderr}" "{test_stderr}"',
-        check=False)
+      f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" &&'
+      f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}"',
+      check=False  # Don't crash on non-zero exit code.
+    )
     if proc.returncode == 0:
       if good_run == "yes":
         # test_stdout == expected_stdout && test_stderr == expected_stderr
