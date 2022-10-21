@@ -22,6 +22,4 @@
 
 # On gcstress configurations, an extra "JNI_OnUnload called" line may
 # be emitted. If so, remove it.
-sed -e '${/^JNI_OnUnload called$/d;}' "$2" > "$2.tmp"
-
-./default-check "$1" "$2.tmp" "$3" "$4"
+sed -i '/^JNI_OnUnload called$/d' "$2"

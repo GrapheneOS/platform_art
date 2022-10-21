@@ -21,10 +21,9 @@
 # $4: Test's actual standard error
 
 # Do not compare numbers, so replace numbers with 'N'.
+sed -i 's/[0-9][0-9]*/N/g' "$2"
+
 # Remove all messages relating to failing to allocate a java-peer for the
 # shutdown thread. This can occasionally happen with this test but it is not
 # something we really need to worry about here.
-sed '-es/[0-9][0-9]*/N/g' "$2" \
-    | diff --strip-trailing-cr -q "$1" - >/dev/null \
-  && grep -v "Exception creating thread peer:" "$4" \
-    | diff --strip-trailing-cr -q "$3" - >/dev/null
+sed -i '/Exception creating thread peer:/d' "$4"

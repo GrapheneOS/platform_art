@@ -23,8 +23,4 @@
 # The number of paused background threads (and therefore InterruptedExceptions)
 # can change so we will just delete their lines from the log.
 
-cat "$2" \
-    | sed "/Object allocated of type 'java\.lang\.InterruptedException'/d" \
-    | sed "/Object allocated of type 'java\.lang\.Long'/d" \
-    | diff --strip-trailing-cr -q "$1" - >/dev/null \
-  && diff --strip-trailing-cr -q "$3" "$4" >/dev/null
+sed -i -E "/Object allocated of type 'java\.lang\.(InterruptedException|Long)'/d" "$2"
