@@ -100,8 +100,9 @@ public class DexOptHelper {
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
 
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
-                results.addAll(mInjector.getPrimaryDexOptimizer().dexopt(
-                        pkgState, pkg, params, cancellationSignal));
+                results.addAll(
+                        mInjector.getPrimaryDexOptimizer(pkgState, pkg, params, cancellationSignal)
+                                .dexopt());
                 if (hasCancelledResult.get()) {
                     return createResult.get();
                 }
@@ -158,8 +159,10 @@ public class DexOptHelper {
         }
 
         @NonNull
-        PrimaryDexOptimizer getPrimaryDexOptimizer() {
-            return new PrimaryDexOptimizer(mContext);
+        PrimaryDexOptimizer getPrimaryDexOptimizer(@NonNull PackageState pkgState,
+                @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+                @NonNull CancellationSignal cancellationSignal) {
+            return new PrimaryDexOptimizer(mContext, pkgState, pkg, params, cancellationSignal);
         }
 
         @NonNull

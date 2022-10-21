@@ -13,6 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
-build_run_test(experimental="var-handles")
+def build(ctx):
+  ctx.default_build(experimental="var-handles")

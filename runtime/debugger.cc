@@ -229,17 +229,18 @@ bool Dbg::DdmHandleChunk(JNIEnv* env,
    *
    * So we're pretty much stuck with copying data around multiple times.
    */
-  ScopedLocalRef<jbyteArray> replyData(
-      env,
-      reinterpret_cast<jbyteArray>(
-          env->GetObjectField(
-              chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data)));
-  jint offset = env->GetIntField(chunk.get(),
-                                 WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset);
-  jint length = env->GetIntField(chunk.get(),
-                                 WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length);
-  *out_type = env->GetIntField(chunk.get(),
-                               WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type);
+  ScopedLocalRef<jbyteArray> replyData(env, nullptr);
+  jint offset;
+  jint length;
+  {
+    ScopedObjectAccess soa(env);
+    ObjPtr<mirror::Object> raw_chunk = soa.Decode<mirror::Object>(chunk.get());
+    replyData.reset(soa.AddLocalReference<jbyteArray>(
+        WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data->GetObject(raw_chunk)));
+    offset = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset->GetInt(raw_chunk);
+    length = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length->GetInt(raw_chunk);
+    *out_type = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type->GetInt(raw_chunk);
+  }
 
   VLOG(jdwp) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d",
                              type,

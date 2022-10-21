@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
 # Use API level 10000 for spaces in SimpleName
-build_run_test(use_desugar=False, api_level="10000")
+def build(ctx):
+  ctx.default_build(use_desugar=False, api_level="10000")

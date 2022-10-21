@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from art_build_rules import build_run_test
 
 # Build intermediate object to preserve class-retention annotations.
-build_run_test(d8_flags=['--intermediate'])
+def build(ctx):
+  ctx.default_build(d8_flags=['--intermediate'])

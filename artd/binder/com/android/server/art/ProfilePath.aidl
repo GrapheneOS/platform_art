@@ -22,27 +22,22 @@ package com.android.server.art;
  * @hide
  */
 union ProfilePath {
-    RefProfilePath refProfilePath;
-    TmpRefProfilePath tmpRefProfilePath;
+    PrimaryRefProfilePath primaryRefProfilePath;
     PrebuiltProfilePath prebuiltProfilePath;
-    CurProfilePath curProfilePath;
+    PrimaryCurProfilePath primaryCurProfilePath;
+    SecondaryRefProfilePath secondaryRefProfilePath;
+    SecondaryCurProfilePath secondaryCurProfilePath;
+    TmpProfilePath tmpProfilePath;
+
     /** Represents a profile in the dex metadata file. */
     com.android.server.art.DexMetadataPath dexMetadataPath;
 
     /** Represents a reference profile. */
-    parcelable RefProfilePath {
+    parcelable PrimaryRefProfilePath {
         /** The name of the package. */
         @utf8InCpp String packageName;
         /** The stem of the profile file */
         @utf8InCpp String profileName;
-    }
-
-    /** Represents a temporary reference profile. */
-    parcelable TmpRefProfilePath {
-        /** The reference profile that this temporary file is for. */
-        RefProfilePath refProfilePath;
-        /** A unique identifier to distinguish this temporary file from others. Filled by artd. */
-        @utf8InCpp String id;
     }
 
     /**
@@ -57,12 +52,43 @@ union ProfilePath {
     }
 
     /** Represents a current profile. */
-    parcelable CurProfilePath {
+    parcelable PrimaryCurProfilePath {
         /** The user ID of the user that owns the profile. */
         int userId;
         /** The name of the package. */
         @utf8InCpp String packageName;
         /** The stem of the profile file */
         @utf8InCpp String profileName;
+    }
+
+    /** Represents a reference profile of a secondary dex file. */
+    parcelable SecondaryRefProfilePath {
+        /**
+         * The path to the dex file that the profile is next to.
+         *
+         * Currently, possible paths are in the format of
+         * `{/data,/mnt/expand/<volume-uuid>}/{user,user_de}/<user-id>/<package-name>/...`.
+         */
+        @utf8InCpp String dexPath;
+    }
+
+    /** Represents a current profile of a secondary dex file. */
+    parcelable SecondaryCurProfilePath {
+        /** The path to the dex file that the profile is next to. */
+        @utf8InCpp String dexPath;
+    }
+
+    /** All types of profile paths that artd can write to. */
+    union WritableProfilePath {
+        PrimaryRefProfilePath forPrimary;
+        SecondaryRefProfilePath forSecondary;
+    }
+
+    /** Represents a temporary profile. */
+    parcelable TmpProfilePath {
+        /** The path that this temporary file will eventually be committed to. */
+        WritableProfilePath finalPath;
+        /** A unique identifier to distinguish this temporary file from others. Filled by artd. */
+        @utf8InCpp String id;
     }
 }

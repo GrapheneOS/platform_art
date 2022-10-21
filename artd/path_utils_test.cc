@@ -33,10 +33,12 @@ using ::android::base::testing::HasError;
 using ::android::base::testing::HasValue;
 using ::android::base::testing::WithMessage;
 
-using CurProfilePath = ProfilePath::CurProfilePath;
 using PrebuiltProfilePath = ProfilePath::PrebuiltProfilePath;
-using RefProfilePath = ProfilePath::RefProfilePath;
-using TmpRefProfilePath = ProfilePath::TmpRefProfilePath;
+using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
+using PrimaryRefProfilePath = ProfilePath::PrimaryRefProfilePath;
+using SecondaryCurProfilePath = ProfilePath::SecondaryCurProfilePath;
+using SecondaryRefProfilePath = ProfilePath::SecondaryRefProfilePath;
+using TmpProfilePath = ProfilePath::TmpProfilePath;
 
 using std::literals::operator""s;  // NOLINT
 
@@ -104,80 +106,110 @@ TEST_F(PathUtilsTest, OatPathToArtPath) {
   EXPECT_EQ(OatPathToArtPath("/a/oat/arm64/b.odex"), "/a/oat/arm64/b.art");
 }
 
-TEST_F(PathUtilsTest, BuildRefProfilePath) {
-  EXPECT_THAT(BuildRefProfilePath(
-                  RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"}),
+TEST_F(PathUtilsTest, BuildPrimaryRefProfilePath) {
+  EXPECT_THAT(BuildPrimaryRefProfilePath(PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                               .profileName = "primary"}),
               HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof"));
 }
 
-TEST_F(PathUtilsTest, BuildRefProfilePathPackageNameOk) {
-  EXPECT_THAT(BuildRefProfilePath(RefProfilePath{.packageName = "...", .profileName = "primary"}),
+TEST_F(PathUtilsTest, BuildPrimaryRefProfilePathPackageNameOk) {
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "...", .profileName = "primary"}),
               HasValue(android_data_ + "/misc/profiles/ref/.../primary.prof"));
-  EXPECT_THAT(BuildRefProfilePath(
-                  RefProfilePath{.packageName = "!@#$%^&*()_+-=", .profileName = "primary"}),
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "!@#$%^&*()_+-=", .profileName = "primary"}),
               HasValue(android_data_ + "/misc/profiles/ref/!@#$%^&*()_+-=/primary.prof"));
 }
 
-TEST_F(PathUtilsTest, BuildRefProfilePathPackageNameWrong) {
-  EXPECT_THAT(BuildRefProfilePath(RefProfilePath{.packageName = "", .profileName = "primary"}),
+TEST_F(PathUtilsTest, BuildPrimaryRefProfilePathPackageNameWrong) {
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "", .profileName = "primary"}),
               HasError(WithMessage("packageName is empty")));
-  EXPECT_THAT(BuildRefProfilePath(RefProfilePath{.packageName = ".", .profileName = "primary"}),
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = ".", .profileName = "primary"}),
               HasError(WithMessage("Invalid packageName '.'")));
-  EXPECT_THAT(BuildRefProfilePath(RefProfilePath{.packageName = "..", .profileName = "primary"}),
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "..", .profileName = "primary"}),
               HasError(WithMessage("Invalid packageName '..'")));
-  EXPECT_THAT(BuildRefProfilePath(RefProfilePath{.packageName = "a/b", .profileName = "primary"}),
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "a/b", .profileName = "primary"}),
               HasError(WithMessage("packageName 'a/b' has invalid character '/'")));
-  EXPECT_THAT(BuildRefProfilePath(RefProfilePath{.packageName = "a\0b"s, .profileName = "primary"}),
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "a\0b"s, .profileName = "primary"}),
               HasError(WithMessage("packageName 'a\0b' has invalid character '\\0'"s)));
 }
 
-TEST_F(PathUtilsTest, BuildRefProfilePathProfileNameOk) {
-  EXPECT_THAT(
-      BuildRefProfilePath(RefProfilePath{.packageName = "com.android.foo", .profileName = "."}),
-      HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/..prof"));
-  EXPECT_THAT(
-      BuildRefProfilePath(RefProfilePath{.packageName = "com.android.foo", .profileName = ".."}),
-      HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/...prof"));
-  EXPECT_THAT(BuildRefProfilePath(RefProfilePath{.packageName = "com.android.foo",
-                                                 .profileName = "!@#$%^&*()_+-="}),
+TEST_F(PathUtilsTest, BuildPrimaryRefProfilePathProfileNameOk) {
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "."}),
+              HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/..prof"));
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = ".."}),
+              HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/...prof"));
+  EXPECT_THAT(BuildPrimaryRefProfilePath(PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                               .profileName = "!@#$%^&*()_+-="}),
               HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/!@#$%^&*()_+-=.prof"));
 }
 
-TEST_F(PathUtilsTest, BuildRefProfilePathProfileNameWrong) {
-  EXPECT_THAT(
-      BuildRefProfilePath(RefProfilePath{.packageName = "com.android.foo", .profileName = ""}),
-      HasError(WithMessage("profileName is empty")));
-  EXPECT_THAT(
-      BuildRefProfilePath(RefProfilePath{.packageName = "com.android.foo", .profileName = "a/b"}),
-      HasError(WithMessage("profileName 'a/b' has invalid character '/'")));
-  EXPECT_THAT(
-      BuildRefProfilePath(RefProfilePath{.packageName = "com.android.foo", .profileName = "a\0b"s}),
-      HasError(WithMessage("profileName 'a\0b' has invalid character '\\0'"s)));
+TEST_F(PathUtilsTest, BuildPrimaryRefProfilePathProfileNameWrong) {
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = ""}),
+              HasError(WithMessage("profileName is empty")));
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "a/b"}),
+              HasError(WithMessage("profileName 'a/b' has invalid character '/'")));
+  EXPECT_THAT(BuildPrimaryRefProfilePath(
+                  PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "a\0b"s}),
+              HasError(WithMessage("profileName 'a\0b' has invalid character '\\0'"s)));
 }
 
-TEST_F(PathUtilsTest, BuildTmpRefProfilePath) {
+TEST_F(PathUtilsTest, BuildFinalProfilePathForPrimary) {
+  EXPECT_THAT(BuildFinalProfilePath(TmpProfilePath{
+                  .finalPath = PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                     .profileName = "primary"},
+                  .id = "12345"}),
+              HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof"));
+}
+
+TEST_F(PathUtilsTest, BuildFinalProfilePathForSecondary) {
+  EXPECT_THAT(BuildFinalProfilePath(TmpProfilePath{
+                  .finalPath = SecondaryRefProfilePath{.dexPath = android_data_ +
+                                                                  "/user/0/com.android.foo/a.apk"},
+                  .id = "12345"}),
+              HasValue(android_data_ + "/user/0/com.android.foo/oat/a.apk.prof"));
+}
+
+TEST_F(PathUtilsTest, BuildTmpProfilePathForPrimary) {
   EXPECT_THAT(
-      BuildTmpRefProfilePath(TmpRefProfilePath{
-          .refProfilePath =
-              RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
+      BuildTmpProfilePath(TmpProfilePath{
+          .finalPath =
+              PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
           .id = "12345"}),
       HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"));
 }
 
-TEST_F(PathUtilsTest, BuildTmpRefProfilePathIdWrong) {
-  EXPECT_THAT(BuildTmpRefProfilePath(TmpRefProfilePath{
-                  .refProfilePath =
-                      RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
+TEST_F(PathUtilsTest, BuildTmpProfilePathForSecondary) {
+  EXPECT_THAT(BuildTmpProfilePath(TmpProfilePath{
+                  .finalPath = SecondaryRefProfilePath{.dexPath = android_data_ +
+                                                                  "/user/0/com.android.foo/a.apk"},
+                  .id = "12345"}),
+              HasValue(android_data_ + "/user/0/com.android.foo/oat/a.apk.prof.12345.tmp"));
+}
+
+TEST_F(PathUtilsTest, BuildTmpProfilePathIdWrong) {
+  EXPECT_THAT(BuildTmpProfilePath(TmpProfilePath{
+                  .finalPath = PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                     .profileName = "primary"},
                   .id = ""}),
               HasError(WithMessage("id is empty")));
-  EXPECT_THAT(BuildTmpRefProfilePath(TmpRefProfilePath{
-                  .refProfilePath =
-                      RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
+  EXPECT_THAT(BuildTmpProfilePath(TmpProfilePath{
+                  .finalPath = PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                     .profileName = "primary"},
                   .id = "123/45"}),
               HasError(WithMessage("id '123/45' has invalid character '/'")));
-  EXPECT_THAT(BuildTmpRefProfilePath(TmpRefProfilePath{
-                  .refProfilePath =
-                      RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
+  EXPECT_THAT(BuildTmpProfilePath(TmpProfilePath{
+                  .finalPath = PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                     .profileName = "primary"},
                   .id = "123\0a"s}),
               HasError(WithMessage("id '123\0a' has invalid character '\\0'"s)));
 }
@@ -187,10 +219,22 @@ TEST_F(PathUtilsTest, BuildPrebuiltProfilePath) {
               HasValue("/a/b.apk.prof"));
 }
 
-TEST_F(PathUtilsTest, BuildCurProfilePath) {
-  EXPECT_THAT(BuildCurProfilePath(CurProfilePath{
+TEST_F(PathUtilsTest, BuildPrimaryCurProfilePath) {
+  EXPECT_THAT(BuildPrimaryCurProfilePath(PrimaryCurProfilePath{
                   .userId = 1, .packageName = "com.android.foo", .profileName = "primary"}),
               HasValue(android_data_ + "/misc/profiles/cur/1/com.android.foo/primary.prof"));
+}
+
+TEST_F(PathUtilsTest, BuildSecondaryRefProfilePath) {
+  EXPECT_THAT(BuildSecondaryRefProfilePath(SecondaryRefProfilePath{
+                  .dexPath = android_data_ + "/user/0/com.android.foo/a.apk"}),
+              HasValue(android_data_ + "/user/0/com.android.foo/oat/a.apk.prof"));
+}
+
+TEST_F(PathUtilsTest, BuildSecondaryCurProfilePath) {
+  EXPECT_THAT(BuildSecondaryCurProfilePath(SecondaryCurProfilePath{
+                  .dexPath = android_data_ + "/user/0/com.android.foo/a.apk"}),
+              HasValue(android_data_ + "/user/0/com.android.foo/oat/a.apk.cur.prof"));
 }
 
 TEST_F(PathUtilsTest, BuildDexMetadataPath) {
@@ -203,18 +247,18 @@ TEST_F(PathUtilsTest, BuildDexMetadataPathForVdex) {
 }
 
 TEST_F(PathUtilsTest, BuildProfilePath) {
-  EXPECT_THAT(BuildProfileOrDmPath(
-                  RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"}),
+  EXPECT_THAT(BuildProfileOrDmPath(PrimaryRefProfilePath{.packageName = "com.android.foo",
+                                                         .profileName = "primary"}),
               HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof"));
   EXPECT_THAT(
-      BuildProfileOrDmPath(TmpRefProfilePath{
-          .refProfilePath =
-              RefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
+      BuildProfileOrDmPath(TmpProfilePath{
+          .finalPath =
+              PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
           .id = "12345"}),
       HasValue(android_data_ + "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"));
   EXPECT_THAT(BuildProfileOrDmPath(PrebuiltProfilePath{.dexPath = "/a/b.apk"}),
               HasValue("/a/b.apk.prof"));
-  EXPECT_THAT(BuildProfileOrDmPath(CurProfilePath{
+  EXPECT_THAT(BuildProfileOrDmPath(PrimaryCurProfilePath{
                   .userId = 1, .packageName = "com.android.foo", .profileName = "primary"}),
               HasValue(android_data_ + "/misc/profiles/cur/1/com.android.foo/primary.prof"));
   EXPECT_THAT(BuildProfileOrDmPath(DexMetadataPath{.dexPath = "/a/b.apk"}), HasValue("/a/b.dm"));
