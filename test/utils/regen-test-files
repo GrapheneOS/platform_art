@@ -211,7 +211,6 @@ known_failing_tests = frozenset([
 known_failing_on_hwasan_tests = frozenset([
   "BootImageProfileTest", # b/232012605
   "CtsJdwpTestCases", # times out
-  "art_standalone_dex2oat_tests",  # b/228881278
 ])
 
 # ART gtests that do not need root access to the device.
