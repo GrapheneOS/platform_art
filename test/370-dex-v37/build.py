@@ -26,8 +26,8 @@ def build(ctx):
         f.seek(0)
         f.write(b"dex\n037\x00")
         os.remove("370-dex-v37.jar")
-        cmd = [
-            os.environ["SOONG_ZIP"], "-o", "370-dex-v37.jar", "-f",
-            "classes.dex"
-        ]
-        subprocess.run(cmd, check=True)
+    cmd = [
+        os.environ["SOONG_ZIP"], "-o", "370-dex-v37.jar", "-f",
+        "classes.dex"
+    ]
+    subprocess.run(cmd, check=True)
