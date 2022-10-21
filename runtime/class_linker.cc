@@ -1123,14 +1123,6 @@ void ClassLinker::RunRootClinits(Thread* self) {
   // classes are always in the boot image, so this code is primarily intended
   // for running without boot image but may be needed for boot image if the
   // AOT-initialization fails due to introduction of new code to `<clinit>`.
-  jclass classes_to_initialize[] = {
-      // Initialize `StackOverflowError`.
-      WellKnownClasses::java_lang_StackOverflowError,
-  };
-  auto* vm = down_cast<JNIEnvExt*>(self->GetJniEnv())->GetVm();
-  for (jclass c : classes_to_initialize) {
-    EnsureRootInitialized(this, self, ObjPtr<mirror::Class>::DownCast(vm->DecodeGlobal(c)));
-  }
   ArtMethod* static_methods_of_classes_to_initialize[] = {
       // Initialize primitive boxing classes (avoid check at runtime).
       WellKnownClasses::java_lang_Boolean_valueOf,
@@ -1144,14 +1136,6 @@ void ClassLinker::RunRootClinits(Thread* self) {
   };
   for (ArtMethod* method : static_methods_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, method->GetDeclaringClass());
-  }
-  ArtField* static_fields_of_classes_to_initialize[] = {
-      // Initialize empty arrays needed by `StackOverflowError`.
-      WellKnownClasses::java_util_Collections_EMPTY_LIST,
-      WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT,
-  };
-  for (ArtField* field : static_fields_of_classes_to_initialize) {
-    EnsureRootInitialized(this, self, field->GetDeclaringClass());
   }
 }
 
