@@ -21,7 +21,4 @@
 # $4: Test's actual standard error
 
 # Oat file manager will complain about duplicate dex files. Ignore.
-sed -e '/.*oat_file_manager.*/d' "$4" > "$4.tmp"
-
-diff --strip-trailing-cr -q "$1" "$2" >/dev/null \
-  && diff --strip-trailing-cr -q "$3" "$4.tmp" >/dev/null
+sed -i '/.*oat_file_manager.*/d' "$4"

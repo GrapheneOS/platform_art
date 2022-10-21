@@ -24,5 +24,3 @@
 if [[ "$TEST_RUNTIME" == "jvm" ]]; then
   patch -p0 expected-stdout.txt < jvm-expected.patch >/dev/null
 fi
-
-./default-check "$@"

@@ -23,7 +23,4 @@
 # Finalizers of DexFile will complain not being able to close
 # the main dex file, as it's still open. That's OK to ignore.
 # Oat file manager will also complain about duplicate dex files. Ignore.
-sed -e '/^E\/System/d' "$4" | sed -e '/.*oat_file_manager.*/d' > "$4.tmp"
-
-diff --strip-trailing-cr -q "$1" "$2" >/dev/null \
-  && diff --strip-trailing-cr -q "$3" "$4.tmp" >/dev/null
+sed -i -e '/^E\/System/d' -e '/.*oat_file_manager.*/d' "$4"
