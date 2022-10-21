@@ -26,9 +26,13 @@ from importlib.machinery import SourceFileLoader
 import art_build_rules
 
 ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
-BUILDFAILURES = json.loads(open(os.path.join("art", "test", "buildfailures.json"), "rt").read())
 
 class BuildTestContext:
+  def __init__(self, mode):
+    self.jvm = (mode == "jvm")
+    self.host = (mode == "host")
+    self.target = (mode == "target")
+
   def bash(self, cmd):
     return subprocess.run(cmd, shell=True, check=True)
 
@@ -41,12 +45,6 @@ def copy_sources(args, tmp, mode, srcdir):
   join = os.path.join
   test = os.path.basename(srcdir)
   dstdir = join(tmp, mode, test)
-
-  # Don't build tests that are disabled since they might not compile (e.g. on jvm).
-  def is_buildfailure(kf):
-    return test in kf.get("tests", []) and mode == kf.get("variant") and not kf.get("env_vars")
-  if any(is_buildfailure(kf) for kf in BUILDFAILURES):
-    return None
 
   # Copy all source files to the temporary directory.
   shutil.copytree(srcdir, dstdir)
@@ -102,7 +100,7 @@ def build_test(args, mode, build_top, sbox, dstdir):
   os.chdir(dstdir)
   for name, value in env.items():
     os.environ[name] = str(value)
-  ctx = BuildTestContext()
+  ctx = BuildTestContext(mode)
   script = pathlib.Path(join(dstdir, "build.py"))
   if script.exists():
     module = SourceFileLoader("build_" + test_name, str(script)).load_module()
