@@ -957,26 +957,11 @@ bool Runtime::Start() {
   // Restore main thread state to kNative as expected by native code.
   Thread* self = Thread::Current();
 
-  self->TransitionFromRunnableToSuspended(ThreadState::kNative);
-
   started_ = true;
 
-  if (!IsImageDex2OatEnabled() || !GetHeap()->HasBootImageSpace()) {
-    ScopedObjectAccess soa(self);
-    StackHandleScope<3> hs(soa.Self());
+  class_linker_->RunEarlyRootClinits(self);
 
-    ObjPtr<mirror::ObjectArray<mirror::Class>> class_roots = GetClassLinker()->GetClassRoots();
-    auto class_class(hs.NewHandle<mirror::Class>(GetClassRoot<mirror::Class>(class_roots)));
-    auto string_class(hs.NewHandle<mirror::Class>(GetClassRoot<mirror::String>(class_roots)));
-    auto field_class(hs.NewHandle<mirror::Class>(GetClassRoot<mirror::Field>(class_roots)));
-
-    class_linker_->EnsureInitialized(soa.Self(), class_class, true, true);
-    class_linker_->EnsureInitialized(soa.Self(), string_class, true, true);
-    self->AssertNoPendingException();
-    // Field class is needed for register_java_net_InetAddress in libcore, b/28153851.
-    class_linker_->EnsureInitialized(soa.Self(), field_class, true, true);
-    self->AssertNoPendingException();
-  }
+  self->TransitionFromRunnableToSuspended(ThreadState::kNative);
 
   // InitNativeMethods needs to be after started_ so that the classes
   // it touches will have methods linked to the oat file if necessary.

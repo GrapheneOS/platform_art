@@ -461,6 +461,12 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
 
+  // Initializes a few essential classes, namely `java.lang.Class`,
+  // `java.lang.Object` and `java.lang.reflect.Field`.
+  void RunEarlyRootClinits(Thread* self)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::dex_lock_, !Roles::uninterruptible_);
+
   // Initializes classes that have instances in the image but that have
   // <clinit> methods so they could not be initialized by the compiler.
   void RunRootClinits(Thread* self)
