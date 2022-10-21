@@ -17,6 +17,9 @@ import os
 
 
 def build(ctx):
+  if ctx.jvm:
+    return  # The test does not build on JVM
+
   # Build the jars twice. First with applying hiddenapi, creating a boot jar, then
   # a second time without to create a normal jar. We need to do this because we
   # want to load the jar once as an app module and once as a member of the boot
