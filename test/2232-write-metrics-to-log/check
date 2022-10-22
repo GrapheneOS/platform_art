@@ -21,14 +21,4 @@
 # $4: Test's actual standard error
 
 # Check that one of the metrics appears in stderr.
-grep 'ClassVerificationTotalTime' "$4" >/dev/null
-MSG_FOUND=$?
-
-if [[ $MSG_FOUND -ne 0 ]] ; then
-  # Print out the log and return with error.
-  cat "$4"
-  exit 1
-fi
-
-# Success.
-exit 0
+sed -i -n 's/.*\(ClassVerificationTotalTime\).*/\1/p' "$4"

@@ -23,6 +23,7 @@
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 
+#include "art_method-inl.h"
 #include "base/enums.h"
 #include "class_linker.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
@@ -93,24 +94,24 @@ jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
 jmethodID WellKnownClasses::dalvik_system_BaseDexClassLoader_getLdLibraryPath;
 jmethodID WellKnownClasses::dalvik_system_VMRuntime_runFinalization;
 jmethodID WellKnownClasses::dalvik_system_VMRuntime_hiddenApiUsed;
-jmethodID WellKnownClasses::java_lang_Boolean_valueOf;
-jmethodID WellKnownClasses::java_lang_Byte_valueOf;
-jmethodID WellKnownClasses::java_lang_Character_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Boolean_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Byte_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Character_valueOf;
 jmethodID WellKnownClasses::java_lang_ClassLoader_loadClass;
 jmethodID WellKnownClasses::java_lang_ClassNotFoundException_init;
 jmethodID WellKnownClasses::java_lang_Daemons_start;
 jmethodID WellKnownClasses::java_lang_Daemons_stop;
 jmethodID WellKnownClasses::java_lang_Daemons_waitForDaemonStart;
-jmethodID WellKnownClasses::java_lang_Double_doubleToRawLongBits;
-jmethodID WellKnownClasses::java_lang_Double_valueOf;
-jmethodID WellKnownClasses::java_lang_Float_floatToRawIntBits;
-jmethodID WellKnownClasses::java_lang_Float_valueOf;
-jmethodID WellKnownClasses::java_lang_Integer_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Double_doubleToRawLongBits;
+ArtMethod* WellKnownClasses::java_lang_Double_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Float_floatToRawIntBits;
+ArtMethod* WellKnownClasses::java_lang_Float_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Integer_valueOf;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_asType;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
 jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
-jmethodID WellKnownClasses::java_lang_Long_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Long_valueOf;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
 jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
 jmethodID WellKnownClasses::java_lang_reflect_InvocationTargetException_init;
@@ -118,7 +119,7 @@ jmethodID WellKnownClasses::java_lang_reflect_Parameter_init;
 jmethodID WellKnownClasses::java_lang_reflect_Proxy_init;
 jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
-jmethodID WellKnownClasses::java_lang_Short_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Short_valueOf;
 jmethodID WellKnownClasses::java_lang_String_charAt;
 jmethodID WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
 jmethodID WellKnownClasses::java_lang_Thread_init;
@@ -244,10 +245,32 @@ static jmethodID CacheMethod(JNIEnv* env, const char* klass, bool is_static,
   return CacheMethod(env, java_class.get(), is_static, name, signature);
 }
 
-static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const char* boxed_name) {
-  ScopedLocalRef<jclass> boxed_class(env, env->FindClass(boxed_name));
-  return CacheMethod(env, boxed_class.get(), true, "valueOf",
-                     android::base::StringPrintf("(%c)L%s;", prim_name, boxed_name).c_str());
+static ArtMethod* CacheMethod(ObjPtr<mirror::Class> klass,
+                              bool is_static,
+                              const char* name,
+                              const char* signature,
+                              PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_) {
+  // There are no well known interface methods.
+  DCHECK(!klass->IsInterface());
+  ArtMethod* method = klass->FindClassMethod(name, signature, pointer_size);
+  if (UNLIKELY(method == nullptr) || UNLIKELY(is_static != method->IsStatic())) {
+    std::ostringstream os;
+    klass->DumpClass(os, mirror::Class::kDumpClassFullDetail);
+    LOG(FATAL) << "Couldn't find " << (is_static ? "static" : "instance") << " method \""
+               << name << "\" with signature \"" << signature << "\": " << os.str();
+  }
+  return method;
+}
+
+static ArtMethod* CachePrimitiveBoxingMethod(ClassLinker* class_linker,
+                                             Thread* self,
+                                             char prim_name,
+                                             const char* boxed_name)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Class> boxed_class = FindSystemClass(class_linker, self, boxed_name);
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
+  std::string signature = android::base::StringPrintf("(%c)%s", prim_name, boxed_name);
+  return CacheMethod(boxed_class, /*is_static=*/ true, "valueOf", signature.c_str(), pointer_size);
 }
 
 #define STRING_INIT_LIST(V) \
@@ -402,6 +425,24 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
 
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  java_lang_Boolean_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'Z', "Ljava/lang/Boolean;");
+  java_lang_Byte_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'B', "Ljava/lang/Byte;");
+  java_lang_Character_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'C', "Ljava/lang/Character;");
+  java_lang_Double_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'D', "Ljava/lang/Double;");
+  java_lang_Float_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'F', "Ljava/lang/Float;");
+  java_lang_Integer_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'I', "Ljava/lang/Integer;");
+  java_lang_Long_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'J', "Ljava/lang/Long;");
+  java_lang_Short_valueOf =
+      CachePrimitiveBoxingMethod(class_linker, self, 'S', "Ljava/lang/Short;");
 
   dalvik_system_BaseDexClassLoader_getLdLibraryPath = CacheMethod(env, dalvik_system_BaseDexClassLoader, false, "getLdLibraryPath", "()Ljava/lang/String;");
   dalvik_system_VMRuntime_runFinalization = CacheMethod(env, dalvik_system_VMRuntime, true, "runFinalization", "(J)V");
@@ -437,14 +478,19 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   StackHandleScope<1u> hs(self);
   Handle<mirror::Class> j_i_fd =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/io/FileDescriptor;"));
 
-  // TODO: There should be no thread suspension when searching for fields and methods. Enable this
-  // assertion when all well known fields and methods are converted to `ArtField*` and `ArtMethod*`.
-  // ScopedAssertNoThreadSuspension sants(__FUNCTION__);
+  ScopedAssertNoThreadSuspension sants(__FUNCTION__);
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
+
+  ObjPtr<mirror::Class> j_l_Double = java_lang_Double_valueOf->GetDeclaringClass();
+  java_lang_Double_doubleToRawLongBits =
+      CacheMethod(j_l_Double, /*is_static=*/ true, "doubleToRawLongBits", "(D)J", pointer_size);
+  ObjPtr<mirror::Class> j_l_Float = java_lang_Float_valueOf->GetDeclaringClass();
+  java_lang_Float_floatToRawIntBits =
+      CacheMethod(j_l_Float, /*is_static=*/ true, "floatToRawIntBits", "(F)I", pointer_size);
 
   ObjPtr<mirror::Class> d_s_bdcl = soa.Decode<mirror::Class>(dalvik_system_BaseDexClassLoader);
   dalvik_system_BaseDexClassLoader_pathList = CacheField(
@@ -548,20 +594,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       CacheField(o_a_h_d_c, /*is_static=*/ false, "offset", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_type =
       CacheField(o_a_h_d_c, /*is_static=*/ false, "type", "I");
-
-  java_lang_Boolean_valueOf = CachePrimitiveBoxingMethod(env, 'Z', "java/lang/Boolean");
-  java_lang_Byte_valueOf = CachePrimitiveBoxingMethod(env, 'B', "java/lang/Byte");
-  java_lang_Character_valueOf = CachePrimitiveBoxingMethod(env, 'C', "java/lang/Character");
-  java_lang_Double_valueOf = CachePrimitiveBoxingMethod(env, 'D', "java/lang/Double");
-  java_lang_Float_valueOf = CachePrimitiveBoxingMethod(env, 'F', "java/lang/Float");
-  java_lang_Integer_valueOf = CachePrimitiveBoxingMethod(env, 'I', "java/lang/Integer");
-  java_lang_Long_valueOf = CachePrimitiveBoxingMethod(env, 'J', "java/lang/Long");
-  java_lang_Short_valueOf = CachePrimitiveBoxingMethod(env, 'S', "java/lang/Short");
-
-  java_lang_Double_doubleToRawLongBits =
-      CacheMethod(env, "java/lang/Double", /*is_static=*/ true, "doubleToRawLongBits", "(D)J");
-  java_lang_Float_floatToRawIntBits =
-      CacheMethod(env, "java/lang/Float", /*is_static=*/ true, "floatToRawIntBits", "(F)I");
 }
 
 void WellKnownClasses::LateInit(JNIEnv* env) {

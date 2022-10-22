@@ -840,7 +840,7 @@ ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& val
     return nullptr;
   }
 
-  jmethodID m = nullptr;
+  ArtMethod* m = nullptr;
   const char* shorty;
   switch (src_class) {
   case Primitive::kPrimBoolean:
@@ -891,11 +891,8 @@ ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& val
     arg_array.Append(value.GetI());
   }
 
-  jni::DecodeArtMethod(m)->Invoke(soa.Self(),
-                                  arg_array.GetArray(),
-                                  arg_array.GetNumBytes(),
-                                  &result,
-                                  shorty);
+  DCHECK(m->GetDeclaringClass()->IsInitialized());  // By `ClassLinker::RunRootClinits()`.
+  m->Invoke(soa.Self(), arg_array.GetArray(), arg_array.GetNumBytes(), &result, shorty);
   return result.GetL();
 }
 

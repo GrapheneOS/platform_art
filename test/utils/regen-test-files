@@ -101,7 +101,6 @@ runnable_test_exceptions = frozenset([
   "165-lock-owner-proxy",
   "168-vmstack-annotated",
   "176-app-image-string",
-  "2232-write-metrics-to-log",
   "304-method-tracing",
   "628-vdex",
   "643-checker-bogus-ic",

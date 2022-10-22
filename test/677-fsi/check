@@ -21,11 +21,8 @@
 # $4: Test's actual standard error
 
 # Only keep the lines we're interested in.
-sed -s '/Hello World/!d' "$2" > "$2.tmp"
-sed -s '/^.*: oat file has dex code, but APK has uncompressed dex code/!d' "$4" > "$4.tmp"
+sed -i '/Hello World/!d' "$2"
+sed -i '/^.*: oat file has dex code, but APK has uncompressed dex code/!d' "$4"
 
 # Remove part of message containing filename.
-sed -s 's/^.*: //' "$4.tmp" > "$4.tmp2"
-
-diff --strip-trailing-cr -q "$1" "$2.tmp" >/dev/null \
-  && diff --strip-trailing-cr -q "$3" "$4.tmp2" >/dev/null
+sed -i 's/^.*: //' "$4"

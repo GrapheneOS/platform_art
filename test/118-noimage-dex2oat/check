@@ -21,7 +21,4 @@
 # $4: Test's actual standard error
 
 # Strip the process pids and line numbers from exact error messages.
-sed -e '/^dalvikvm.* E.*\] /d' "$4" > "$4.tmp"
-
-diff --strip-trailing-cr -q "$1" "$2" >/dev/null \
-  && diff --strip-trailing-cr -q "$3" "$4.tmp" >/dev/null
+sed -i '/^dalvikvm.* E.*\] /d' "$4"
