@@ -379,9 +379,58 @@ extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t
   }
 }
 
+FLATTEN
+static ArtField* ResolveFieldWithAccessChecks(Thread* self,
+                                              ClassLinker* class_linker,
+                                              uint16_t field_index,
+                                              ArtMethod* caller,
+                                              bool is_static,
+                                              bool is_put,
+                                              size_t resolve_field_type)  // Resolve if not zero
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (caller->SkipAccessChecks()) {
+    return class_linker->ResolveField(field_index, caller, is_static);
+  }
+
+  caller = caller->GetInterfaceMethodIfProxy(kRuntimePointerSize);
+
+  StackHandleScope<2> hs(self);
+  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(caller->GetDexCache()));
+  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(caller->GetClassLoader()));
+
+  ArtField* resolved_field = class_linker->ResolveFieldJLS(field_index,
+                                                           h_dex_cache,
+                                                           h_class_loader);
+  if (resolved_field == nullptr) {
+    return nullptr;
+  }
+
+  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
+  if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
+    ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, caller);
+    return nullptr;
+  }
+  ObjPtr<mirror::Class> referring_class = caller->GetDeclaringClass();
+  if (UNLIKELY(!referring_class->CheckResolvedFieldAccess(fields_class,
+                                                          resolved_field,
+                                                          caller->GetDexCache(),
+                                                          field_index))) {
+    return nullptr;
+  }
+  if (UNLIKELY(is_put && !resolved_field->CanBeChangedBy(caller))) {
+    ThrowIllegalAccessErrorFinalField(caller, resolved_field);
+    return nullptr;
+  }
+  if (resolve_field_type != 0u && resolved_field->ResolveType() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+  return resolved_field;
+}
+
 extern "C" size_t NterpGetStaticField(Thread* self,
                                       ArtMethod* caller,
-                                      const uint16_t* dex_pc_ptr,
+                                      uint16_t* dex_pc_ptr,
                                       size_t resolve_field_type)  // Resolve if not zero
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
@@ -434,7 +483,7 @@ extern "C" size_t NterpGetStaticField(Thread* self,
 
 extern "C" uint32_t NterpGetInstanceFieldOffset(Thread* self,
                                                 ArtMethod* caller,
-                                                const uint16_t* dex_pc_ptr,
+                                                uint16_t* dex_pc_ptr,
                                                 size_t resolve_field_type)  // Resolve if not zero
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
