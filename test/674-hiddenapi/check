@@ -20,11 +20,5 @@
 # $3: Test's expected standard error
 # $4: Test's actual standard error
 
-# Remove pid and date from the log messages.
-grep -v JNI_OnLoad "$2" \
-    | grep -v JNI_OnUnload \
-    > "$2.tmp"
-grep -vE '^dalvikvm(32|64) E [^]]+]' "$4" \
-    > "$4.tmp"
-
-./default-check "$1" "$2.tmp" "$3" "$4.tmp"
+sed -i -E '/(JNI_OnLoad|JNI_OnUnload)/d' "$2"
+sed -i -E '/^dalvikvm(32|64) E [^]]+]/d' "$4"

@@ -424,10 +424,12 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   ASSERT_TRUE(field_id != nullptr);
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
-  ArtField* field = FindFieldFromCode<StaticObjectRead, true>(field_idx, clinit, Thread::Current(),
-                                                              sizeof(HeapReference<Object>));
+  ArtField* field = FindFieldFromCode<StaticObjectRead>(field_idx,
+                                                        clinit,
+                                                        Thread::Current(),
+                                                        sizeof(HeapReference<Object>));
   ObjPtr<Object> s0 = field->GetObj(klass.Get());
-  EXPECT_TRUE(s0 != nullptr);
+  EXPECT_TRUE(s0 != nullptr) << field->PrettyField();
 
   Handle<CharArray> char_array(hs.NewHandle(CharArray::Alloc(soa.Self(), 0)));
   field->SetObj<false>(field->GetDeclaringClass(), char_array.Get());

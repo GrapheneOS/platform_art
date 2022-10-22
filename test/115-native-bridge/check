@@ -22,6 +22,4 @@
 
 # ASAN prints a warning here.
 
-diff --strip-trailing-cr -q "$1" "$2" >/dev/null \
-  && sed -e '/WARNING: ASan is ignoring requested __asan_handle_no_return/,+2d' "$4" \
-       | diff --strip-trailing-cr -q "$3" - >/dev/null
+sed -i '/WARNING: ASan is ignoring requested __asan_handle_no_return/,+2d' "$4"
