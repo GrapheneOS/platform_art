@@ -57,10 +57,7 @@ static ResultT GetThreadStack(const ScopedFastNativeObjectAccess& soa,
     // Suspend thread to build stack trace.
     ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
-    bool timed_out;
-    Thread* thread = thread_list->SuspendThreadByPeer(peer,
-                                                      SuspendReason::kInternal,
-                                                      &timed_out);
+    Thread* thread = thread_list->SuspendThreadByPeer(peer, SuspendReason::kInternal);
     if (thread != nullptr) {
       // Must be runnable to create returned array.
       {
@@ -70,9 +67,6 @@ static ResultT GetThreadStack(const ScopedFastNativeObjectAccess& soa,
       // Restart suspended thread.
       bool resumed = thread_list->Resume(thread, SuspendReason::kInternal);
       DCHECK(resumed);
-    } else if (timed_out) {
-      LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
-          "generous timeout.";
     }
   }
   return trace;
