@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This test is for testing vdex when calling FastVerify and doing compilation.
-exec ${RUN} --vdex --vdex-filter speed "${@}"
+
+def run(ctx, args):
+  # This test is for testing vdex when calling FastVerify and doing compilation.
+  ctx.default_run(args, vdex=True, vdex_filter="speed")

@@ -14,4 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-${RUN} $@ --runtime-option -Xonly-use-system-oat-files
+
+def run(ctx, args):
+  ctx.default_run(args, runtime_option=["-Xonly-use-system-oat-files"])

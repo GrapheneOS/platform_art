@@ -14,13 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-${RUN} "$@"
-return_status1=$?
 
-# Force baseline JIT compilation as the test explicitly requests JIT
-# compilation, which by default is 'optimizing'.
-${RUN} "$@" -Xcompiler-option --baseline
-return_status2=$?
+def run(ctx, args):
+  ctx.default_run(args)
 
-# Make sure we don't silently ignore an early failure.
-(exit $return_status1) && (exit $return_status2)
+  # Force baseline JIT compilation as the test explicitly requests JIT
+  # compilation, which by default is 'optimizing'.
+  ctx.default_run(args, Xcompiler_option=["--baseline"])
