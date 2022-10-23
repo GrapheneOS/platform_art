@@ -1,3 +1,5 @@
 #!/bin/sh
 
-echo "Blort."
+
+def run(ctx, args):
+  ctx.echo("Blort.")

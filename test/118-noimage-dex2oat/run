@@ -14,38 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-flags="$@"
 
-# This test is supposed to test without oat files, so doesn't work for prebuild. Make sure that
-# flag isn't set, or complain.
-# Note: prebuild is the default.
-if [[ "${flags}" == *--prebuild* || "${flags}" != *--no-prebuild* ]] ; then
-  echo "Test 118-noimage-dex2oat cannot run in prebuild mode."
-  exit 1
-fi
+def run(ctx, args):
+  # This test is supposed to test without oat files, so doesn't work for prebuild.
+  assert not args.prebuild
 
-# Force relocation otherwise we will just use the already created core.oat/art pair.
-# Note: relocate is the default.
-if [[ "${flags}" == *--no-relocate* ]] ; then
-  echo "Test 118-noimage-dex2oat is not intended to run in no-relocate mode."
-  exit 1
-fi
+  # Force relocation otherwise we will just use the already created core.oat/art pair.
+  assert args.relocate
 
+  # Make sure we can run without an oat file.
+  ctx.echo("Run -Xnoimage-dex2oat")
+  ctx.default_run(args, runtime_option=["-Xnoimage-dex2oat"])
 
-# Make sure we can run without an oat file.
-echo "Run -Xnoimage-dex2oat"
-${RUN} ${flags} --runtime-option -Xnoimage-dex2oat
-return_status1=$?
+  # Make sure we can run with the oat file.
+  ctx.echo("Run -Ximage-dex2oat")
+  ctx.default_run(args, runtime_option=["-Ximage-dex2oat"])
 
-# Make sure we can run with the oat file.
-echo "Run -Ximage-dex2oat"
-${RUN} ${flags} --runtime-option -Ximage-dex2oat
-return_status2=$?
-
-# Make sure we can run with the default settings.
-echo "Run default"
-${RUN} ${flags}
-return_status3=$?
-
-# Make sure we don't silently ignore an early failure.
-(exit $return_status1) && (exit $return_status2) && (exit $return_status3)
+  # Make sure we can run with the default settings.
+  ctx.echo("Run default")
+  ctx.default_run(args)

@@ -14,11 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# On RI we need to turn class-load tests off since those events are buggy around
-# pop-frame (see b/116003018).
-ARGS=""
-if [[ "$TEST_RUNTIME" == "jvm" ]]; then
-  ARGS="--args DISABLE_CLASS_LOAD_TESTS"
-fi
 
-./default-run "$@" --jvmti $ARGS
+def run(ctx, args):
+  # On RI we need to turn class-load tests off since those events are buggy around
+  # pop-frame (see b/116003018).
+  test_args = ["DISABLE_CLASS_LOAD_TESTS"] if args.jvm else []
+
+  ctx.default_run(args, jvmti=True, test_args=test_args)

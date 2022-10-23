@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Limit the Java heap to 16MiB to force more GCs.
-exec ${RUN} $@ --runtime-option -Xmx16m
+
+def run(ctx, args):
+  # Limit the Java heap to 16MiB to force more GCs.
+  ctx.default_run(args, runtime_option=["-Xmx16m"])

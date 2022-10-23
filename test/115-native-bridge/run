@@ -14,27 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARGS=${@}
+import re
 
-BRIDGE_SO=libnativebridgetestd.so
-if echo ${ARGS} | grep -q " -O"; then
-  BRIDGE_SO=libnativebridgetest.so
-fi
 
-# Use libnativebridgetest as a native bridge, start NativeBridgeMain (Main is JniTest main file).
-LIBPATH=$(echo ${ARGS} | sed -r 's/.*Djava.library.path=([^ ]*) .*/\1/')
-# Trim all but the last entry in LIBPATH, which will be nativetest[64]
-LIBPATH=${LIBPATH##*:}
-ln -sf ${LIBPATH}/$BRIDGE_SO .
-touch libarttest.so
-touch libarttestd.so
-touch libinvalid.so
-ln -sf ${LIBPATH}/libarttest.so libarttest2.so
-ln -sf ${LIBPATH}/libarttestd.so libarttestd2.so
+def run(ctx, args):
+  bridge_so = "libnativebridgetest.so" if args.O else "libnativebridgetestd.so"
+  test_dir = ctx.env.DEX_LOCATION
 
-# pwd likely has /, so it's a pain to put that into a sed rule.
-LEFT=$(echo ${ARGS} | sed -r 's/-Djava.library.path.*//')
-RIGHT=$(echo ${ARGS} | sed -r 's/.*Djava.library.path[^ ]* //')
-MODARGS="${LEFT} -Djava.library.path=`pwd` ${RIGHT}"
-exec ${RUN} ${MODARGS} --runtime-option -Xforce-nb-testing \
-  --runtime-option -XX:NativeBridge=$BRIDGE_SO NativeBridgeMain
+  # Use libnativebridgetest as a native bridge, start NativeBridgeMain (Main is JniTest main file).
+  for i, opt in enumerate(args.runtime_option):
+    if opt.startswith("-Djava.library.path="):
+      libpath = opt.split(":")[-1]  # last entry in libpath is nativetest[64]
+      args.runtime_option[i] = "-Djava.library.path=" + test_dir
+
+  assert libpath
+  ctx.bash(f"ln -sf {libpath}/{bridge_so} {test_dir}/.")
+  ctx.bash(
+      f"touch {test_dir}/libarttest.so {test_dir}/libarttestd.so {test_dir}/libinvalid.so"
+  )
+  ctx.bash(f"ln -sf {libpath}/libarttest.so {test_dir}/libarttest2.so")
+  ctx.bash(f"ln -sf {libpath}/libarttestd.so {test_dir}/libarttestd2.so")
+
+  ctx.default_run(
+      args,
+      runtime_option=["-Xforce-nb-testing", f"-XX:NativeBridge={bridge_so}"],
+      main="NativeBridgeMain")
