@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use the `--secondary-class-loader-context` switch to compile the secondary dex
-# file with the right class loader context. Do not use `--secondary` as we're
-# loading the *-ex.jar file in a separate class loader.
-exec ${RUN} "${@}" \
-    --secondary-class-loader-context "PCL[$DEX_LOCATION/$TEST_NAME.jar]"
+
+def run(ctx, args):
+  # Use the `--secondary-class-loader-context` switch to compile the secondary dex
+  # file with the right class loader context. Do not use `--secondary` as we're
+  # loading the *-ex.jar file in a separate class loader.
+  pcl = f"PCL[{ctx.env.DEX_LOCATION}/{ctx.env.TEST_NAME}.jar]"
+  ctx.default_run(args, secondary_class_loader_context=pcl)

@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This test checks whether dex files can be injected into parent classloaders. App images preload
-# classes, which will make the injection moot. Turn off app images to avoid the issue.
 
-./default-run "$@" --jvmti \
-                   --no-app-image
+def run(ctx, args):
+  # This test checks whether dex files can be injected into parent classloaders. App images preload
+  # classes, which will make the injection moot. Turn off app images to avoid the issue.
+
+  ctx.default_run(args, jvmti=True, app_image=False)
