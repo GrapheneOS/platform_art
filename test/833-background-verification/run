@@ -14,12 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  # Target 31 to run the background verifier.
-  # Disable dex2oat of secondary dex files to ensure we always run the background
-  # verifier.
-  ctx.default_run(
-      args,
-      runtime_option=["-Xtarget-sdk-version:31"],
-      secondary_compilation=False)
+# Target 31 to run the background verifier.
+# Disable dex2oat of secondary dex files to ensure we always run the background
+# verifier.
+./default-run "$@" --runtime-option -Xtarget-sdk-version:31 --no-secondary-compilation

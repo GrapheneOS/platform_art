@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  # -Xjitinitialsize:32M to prevent profiling info creation failure.
-  ctx.default_run(args, runtime_option=["-Xjitinitialsize:32M"])
+# -Xjitinitialsize:32M to prevent profiling info creation failure.
+exec ${RUN} "${@}" \
+  --runtime-option -Xjitinitialsize:32M

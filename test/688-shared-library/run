@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  # App images are incompatible with what the test is doing: loading one
-  # dex file multiple times.
-  ctx.default_run(args, app_image=False)
+# App images are incompatible with what the test is doing: loading one
+# dex file multiple times.
+exec ${RUN} "${@}" --no-app-image

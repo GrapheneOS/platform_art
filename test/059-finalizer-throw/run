@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  # The test logs error messages which is expected, discard them.
-  ctx.env.ANDROID_LOG_TAGS = "*:f"
-  ctx.default_run(args, external_log_tags=True)
+# The test logs error messages which is expected, discard them.
+export ANDROID_LOG_TAGS='*:f'
+exec ${RUN} --external-log-tags "${@}"

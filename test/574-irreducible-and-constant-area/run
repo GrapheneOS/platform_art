@@ -14,7 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  # Don't do relocation, as this affects this test.
-  ctx.default_run(args, relocate=False)
+# Don't do relocation, as this affects this test.
+exec ${RUN} "$@" --no-relocate
