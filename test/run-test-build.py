@@ -22,7 +22,6 @@ It is intended to be used only from soong genrule.
 import argparse, os, shutil, subprocess, glob, re, json, multiprocessing, pathlib, fcntl
 import art_build_rules
 from importlib.machinery import SourceFileLoader
-from os.path import join, basename
 
 import art_build_rules
 
@@ -43,8 +42,22 @@ class BuildTestContext:
 def copy_sources(args, tmp, mode, srcdir):
   """Copy test files from Android tree into the build sandbox and return its path."""
 
-  dstdir = join(tmp, mode, basename(srcdir))
+  join = os.path.join
+  test = os.path.basename(srcdir)
+  dstdir = join(tmp, mode, test)
+
+  # Copy all source files to the temporary directory.
   shutil.copytree(srcdir, dstdir)
+
+  # Copy the default scripts if the test does not have a custom ones.
+  for name in ["run"]:
+    src, dst = f"art/test/etc/default-{name}", join(dstdir, name)
+    if os.path.exists(dst):
+      shutil.copy2(src, dstdir)  # Copy default script next to the custom script.
+    else:
+      shutil.copy2(src, dst)  # Use just the default script.
+    os.chmod(dst, 0o755)
+
   return dstdir
 
 def build_test(args, mode, build_top, sbox, dstdir):
