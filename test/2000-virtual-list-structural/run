@@ -14,4 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-./default-run "$@" --jvmti --runtime-option -Xopaque-jni-ids:true
+
+def run(ctx, args):
+  ctx.default_run(args, jvmti=True, runtime_option=["-Xopaque-jni-ids:true"])

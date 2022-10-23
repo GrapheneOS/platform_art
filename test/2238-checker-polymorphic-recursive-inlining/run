@@ -14,5 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use a profile to put specific classes in the app image to trigger polymorphic inlining.
-exec ${RUN} $@ --profile -Xcompiler-option --compiler-filter=speed-profile
+
+def run(ctx, args):
+  # Use a profile to put specific classes in the app image to trigger polymorphic inlining.
+  ctx.default_run(
+      args, profile=True, Xcompiler_option=["--compiler-filter=speed-profile"])

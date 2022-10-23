@@ -14,6 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Redirect logger to stderr, as the test relies on error
-# messages being printed there.
-exec ${RUN} $@ -Xcompiler-option --copy-dex-files=always --runtime-option -Xonly-use-system-oat-files --runtime-option -Xuse-stderr-logger
+
+def run(ctx, args):
+  # Redirect logger to stderr, as the test relies on error
+  # messages being printed there.
+  ctx.default_run(
+      args,
+      Xcompiler_option=["--copy-dex-files=always"],
+      runtime_option=["-Xonly-use-system-oat-files", "-Xuse-stderr-logger"])

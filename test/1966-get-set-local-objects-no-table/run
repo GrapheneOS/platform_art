@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# If we compile the .oat files non-debuggable we could end up with dex2dex running over the files
-# which will cause some instructions to be removed from smali/TestCases1966.smali. This test relies
-# on the instructions being exactly as written so pass --debuggable to 'dex2oat' only to prevent
-# this from happening.
-./default-run "$@" --jvmti --compiler-only-option --debuggable
+
+def run(ctx, args):
+  # If we compile the .oat files non-debuggable we could end up with dex2dex running over the files
+  # which will cause some instructions to be removed from smali/TestCases1966.smali. This test relies
+  # on the instructions being exactly as written so pass --debuggable to 'dex2oat' only to prevent
+  # this from happening.
+  ctx.default_run(args, jvmti=True, compiler_only_option=["--debuggable"])

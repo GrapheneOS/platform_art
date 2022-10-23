@@ -14,12 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Run normally.
-${RUN} $@
-return_status1=$?
 
-# Run without cdex to trigger the unalignment in the vdex file.
-${RUN} ${@} -Xcompiler-option --compact-dex-level=none
-return_status2=$?
+def run(ctx, args):
+  # Run normally.
+  ctx.default_run(args)
 
-(exit ${return_status1}) && (exit ${return_status2})
+  # Run without cdex to trigger the unalignment in the vdex file.
+  ctx.default_run(args, Xcompiler_option=["--compact-dex-level=none"])

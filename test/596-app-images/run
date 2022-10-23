@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# We need a profile to tell dex2oat to include classes in the final app image
-exec ${RUN} --profile $@
+
+def run(ctx, args):
+  # We need a profile to tell dex2oat to include classes in the final app image
+  ctx.default_run(args, profile=True)
