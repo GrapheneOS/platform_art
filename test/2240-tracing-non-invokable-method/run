@@ -14,7 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  ctx.default_run(
-      args, runtime_option=["-Xmethod-trace", "-Xmethod-trace-file:/dev/null"])
+./default-run "$@" --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:/dev/null
