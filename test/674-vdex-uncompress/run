@@ -14,4 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-exec ${RUN} -Xcompiler-option --compiler-filter=verify --vdex "${@}"
+
+def run(ctx, args):
+  ctx.default_run(
+      args, Xcompiler_option=["--compiler-filter=verify"], vdex=True)

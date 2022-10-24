@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Ensure the test is not subject to code collection
-./default-run "$@" --jvmti --runtime-option -Xjitinitialsize:32M
+
+def run(ctx, args):
+  # Ensure the test is not subject to code collection
+  ctx.default_run(args, jvmti=True, runtime_option=["-Xjitinitialsize:32M"])

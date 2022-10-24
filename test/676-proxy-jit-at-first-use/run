@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Enable "jit at first use" (-Xjitthreshold:0).
-# Ensure this test is not subject to unexpected code collection.
-${RUN} "${@}" --runtime-option -Xjitthreshold:0 --runtime-option -Xjitinitialsize:32M
+
+def run(ctx, args):
+  # Enable "jit at first use" (-Xjitthreshold:0).
+  # Ensure this test is not subject to unexpected code collection.
+  ctx.default_run(
+      args, runtime_option=["-Xjitthreshold:0", "-Xjitinitialsize:32M"])

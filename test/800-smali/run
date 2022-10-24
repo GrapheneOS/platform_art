@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Target 31 to have the verifier behavior the test expects.
-./default-run "$@" --runtime-option -Xtarget-sdk-version:31
+
+def run(ctx, args):
+  # Target 31 to have the verifier behavior the test expects.
+  ctx.default_run(args, runtime_option=["-Xtarget-sdk-version:31"])
