@@ -14,5 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Ask for stack traces to be dumped to a file rather than to stdout.
-./default-run "$@" --jvmti --android-runtime-option -Xopaque-jni-ids:true
+
+def run(ctx, args):
+  # Ask for stack traces to be dumped to a file rather than to stdout.
+  ctx.default_run(
+      args, jvmti=True, android_runtime_option=["-Xopaque-jni-ids:true"])

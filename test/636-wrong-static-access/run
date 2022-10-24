@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Make verification soft fail, to ensure the verifier does not flag
-# the method we want to compile as "non-compilable" because it sees
-# the method will throw IncompatibleClassChangeError.
-exec ${RUN} $@ --verify-soft-fail
+
+def run(ctx, args):
+  # Make verification soft fail, to ensure the verifier does not flag
+  # the method we want to compile as "non-compilable" because it sees
+  # the method will throw IncompatibleClassChangeError.
+  ctx.default_run(args, verify_soft_fail=True)

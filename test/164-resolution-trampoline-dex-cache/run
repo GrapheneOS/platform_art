@@ -14,8 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Make sure we compile the required method using speed-profile compiler filter.
-# Enable JIT through runtime option to avoid the compiler filter set by --jit.
-exec ${RUN} "${@}" \
-    -Xcompiler-option --compiler-filter=speed-profile --profile \
-    --runtime-option -Xusejit:true
+
+def run(ctx, args):
+  # Make sure we compile the required method using speed-profile compiler filter.
+  # Enable JIT through runtime option to avoid the compiler filter set by --jit.
+  ctx.default_run(
+      args,
+      Xcompiler_option=["--compiler-filter=speed-profile"],
+      profile=True,
+      runtime_option=["-Xusejit:true"])

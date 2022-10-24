@@ -14,6 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-args=$(echo "$@" | sed  's/--runtime-option -Xopaque-jni-ids\:true//g')
 
-./default-run $args --android-runtime-option -Xopaque-jni-ids:swapable --android-runtime-option -Xauto-promote-opaque-jni-ids:false
+def run(ctx, args):
+  for i, opt in enumerate(args.runtime_option):
+    if opt == '-Xopaque-jni-ids:true':
+      args.runtime_option.pop(i)
+      break
+
+  ctx.default_run(
+      args,
+      android_runtime_option=[
+          '-Xopaque-jni-ids:swapable', '-Xauto-promote-opaque-jni-ids:false'
+      ])
