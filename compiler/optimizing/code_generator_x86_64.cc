@@ -1561,8 +1561,10 @@ void InstructionCodeGeneratorX86_64::GenerateMethodEntryExitHook(HInstruction* i
   codegen_->AddSlowPath(slow_path);
 
   uint64_t address = reinterpret_cast64<uint64_t>(Runtime::Current()->GetInstrumentation());
-  int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
-  __ movq(CpuRegister(TMP), Immediate(address + offset));
+  MemberOffset  offset = instruction->IsMethodExitHook() ?
+      instrumentation::Instrumentation::NeedsExitHooksOffset()
+      : instrumentation::Instrumentation::HaveMethodEntryListenersOffset();
+  __ movq(CpuRegister(TMP), Immediate(address + offset.Int32Value()));
   __ cmpb(Address(CpuRegister(TMP), 0), Immediate(0));
   __ j(kNotEqual, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
