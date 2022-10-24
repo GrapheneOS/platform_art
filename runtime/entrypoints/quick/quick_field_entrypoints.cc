@@ -32,7 +32,7 @@ namespace art {
 inline ArtField* FindFieldFast(uint32_t field_idx,
                                ArtMethod* referrer,
                                FindFieldType type,
-                               size_t expected_size)
+                               bool should_resolve_type = false)
     REQUIRES(!Roles::uninterruptible_)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedAssertNoThreadSuspension ants(__FUNCTION__);
@@ -41,7 +41,6 @@ inline ArtField* FindFieldFast(uint32_t field_idx,
     return nullptr;
   }
   // Check for incompatible class change.
-  const bool is_primitive = (type & FindFieldFlags::PrimitiveBit) != 0;
   const bool is_set = (type & FindFieldFlags::WriteBit) != 0;
   const bool is_static = (type & FindFieldFlags::StaticBit) != 0;
   if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
@@ -63,8 +62,7 @@ inline ArtField* FindFieldFast(uint32_t field_idx,
     // Illegal access.
     return nullptr;
   }
-  if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
-               resolved_field->FieldSize() != expected_size)) {
+  if (should_resolve_type && resolved_field->LookupResolvedType() == nullptr) {
     return nullptr;
   }
   return resolved_field;
@@ -73,17 +71,17 @@ inline ArtField* FindFieldFast(uint32_t field_idx,
 // Helper function to do a null check after trying to resolve the field. Not for statics since obj
 // does not exist there. There is a suspend check, object is a double pointer to update the value
 // in the caller in case it moves.
-template<FindFieldType type, bool kAccessCheck>
+template<FindFieldType type>
 ALWAYS_INLINE static inline ArtField* FindInstanceField(uint32_t field_idx,
                                                         ArtMethod* referrer,
                                                         Thread* self,
-                                                        size_t size,
-                                                        mirror::Object** obj)
+                                                        mirror::Object** obj,
+                                                        bool should_resolve_type = false)
     REQUIRES(!Roles::uninterruptible_)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   StackHandleScope<1> hs(self);
   HandleWrapper<mirror::Object> h(hs.NewHandleWrapper(obj));
-  ArtField* field = FindFieldFromCode<type, kAccessCheck>(field_idx, referrer, self, size);
+  ArtField* field = FindFieldFromCode<type>(field_idx, referrer, self, should_resolve_type);
   if (LIKELY(field != nullptr) && UNLIKELY(h == nullptr)) {
     ThrowNullPointerExceptionForFieldAccess(field, referrer, (type & FindFieldFlags::ReadBit) != 0);
     return nullptr;
@@ -116,13 +114,12 @@ static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_
       REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
     ScopedQuickEntrypointChecks sqec(self);                                    \
     ArtField* field = FindFieldFast(                                           \
-        field_idx, referrer, Static ## PrimitiveOrObject ## Read,              \
-        sizeof(PrimitiveType));                                                \
+        field_idx, referrer, Static ## PrimitiveOrObject ## Read);             \
     if (LIKELY(field != nullptr)) {                                            \
       return field->Get ## Kind (field->GetDeclaringClass())Ptr;  /* NOLINT */ \
     }                                                                          \
-    field = FindFieldFromCode<Static ## PrimitiveOrObject ## Read, true>(      \
-        field_idx, referrer, self, sizeof(PrimitiveType));                     \
+    field = FindFieldFromCode<Static ## PrimitiveOrObject ## Read>(            \
+        field_idx, referrer, self);                                            \
     if (LIKELY(field != nullptr)) {                                            \
       return field->Get ## Kind (field->GetDeclaringClass())Ptr;  /* NOLINT */ \
     }                                                                          \
@@ -137,13 +134,12 @@ static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_
       REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
     ScopedQuickEntrypointChecks sqec(self);                                    \
     ArtField* field = FindFieldFast(                                           \
-        field_idx, referrer, Instance ## PrimitiveOrObject ## Read,            \
-        sizeof(PrimitiveType));                                                \
+        field_idx, referrer, Instance ## PrimitiveOrObject ## Read);           \
     if (LIKELY(field != nullptr) && obj != nullptr) {                          \
       return field->Get ## Kind (obj)Ptr;  /* NOLINT */                        \
     }                                                                          \
-    field = FindInstanceField<Instance ## PrimitiveOrObject ## Read, true>(    \
-        field_idx, referrer, self, sizeof(PrimitiveType), &obj);               \
+    field = FindInstanceField<Instance ## PrimitiveOrObject ## Read>(          \
+        field_idx, referrer, self, &obj);                                      \
     if (LIKELY(field != nullptr)) {                                            \
       return field->Get ## Kind (obj)Ptr;  /* NOLINT */                        \
     }                                                                          \
@@ -157,32 +153,29 @@ static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_
                                                   Thread* self)                \
       REQUIRES_SHARED(Locks::mutator_lock_) {                                  \
     ScopedQuickEntrypointChecks sqec(self);                                    \
+    bool should_resolve_type = (IsObject) && new_value != 0;                   \
     ArtField* field = FindFieldFast(                                           \
-        field_idx, referrer, Static ## PrimitiveOrObject ## Write,             \
-        sizeof(PrimitiveType));                                                \
+        field_idx,                                                             \
+        referrer,                                                              \
+        Static ## PrimitiveOrObject ## Write,                                  \
+        should_resolve_type);                                                  \
     if (UNLIKELY(field == nullptr)) {                                          \
       if (IsObject) {                                                          \
         StackHandleScope<1> hs(self);                                          \
         HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(               \
             reinterpret_cast<mirror::Object**>(&new_value)));                  \
-        field = FindFieldFromCode<Static ## PrimitiveOrObject ## Write, true>( \
-            field_idx, referrer, self, sizeof(PrimitiveType));                 \
+        field = FindFieldFromCode<Static ## PrimitiveOrObject ## Write>(       \
+            field_idx,                                                         \
+            referrer,                                                          \
+            self,                                                              \
+            should_resolve_type);                                              \
       } else {                                                                 \
-        field = FindFieldFromCode<Static ## PrimitiveOrObject ## Write, true>( \
-            field_idx, referrer, self, sizeof(PrimitiveType));                 \
+        field = FindFieldFromCode<Static ## PrimitiveOrObject ## Write>(       \
+            field_idx, referrer, self);                                        \
       }                                                                        \
       if (UNLIKELY(field == nullptr)) {                                        \
         return -1;                                                             \
       }                                                                        \
-    }                                                                          \
-    if (!referrer->SkipAccessChecks() && (IsObject) && new_value != 0) {       \
-      StackArtFieldHandleScope<1> rhs(self);                                   \
-      ReflectiveHandle<ArtField> field_handle(rhs.NewHandle(field));           \
-      if (field->ResolveType().IsNull()) {                                     \
-        self->AssertPendingException();                                        \
-        return -1;                                                             \
-      }                                                                        \
-      field = field_handle.Get();                                              \
     }                                                                          \
     field->Set ## Kind <false>(field->GetDeclaringClass(), new_value);         \
     return 0;                                                                  \
@@ -195,42 +188,30 @@ static ArtMethod* GetReferrer(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_
                                                     Thread* self)              \
     REQUIRES_SHARED(Locks::mutator_lock_) {                                    \
     ScopedQuickEntrypointChecks sqec(self);                                    \
+    bool should_resolve_type = (IsObject) && new_value != 0;                   \
     ArtField* field = FindFieldFast(                                           \
-        field_idx, referrer, Instance ## PrimitiveOrObject ## Write,           \
-        sizeof(PrimitiveType));                                                \
+        field_idx,                                                             \
+        referrer,                                                              \
+        Instance ## PrimitiveOrObject ## Write,                                \
+        should_resolve_type);                                                  \
     if (UNLIKELY(field == nullptr || obj == nullptr)) {                        \
       if (IsObject) {                                                          \
         StackHandleScope<1> hs(self);                                          \
         HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(               \
             reinterpret_cast<mirror::Object**>(&new_value)));                  \
-        field =                                                                \
-            FindInstanceField<Instance ## PrimitiveOrObject ## Write, true>(   \
-                field_idx,                                                     \
-                referrer,                                                      \
-                self,                                                          \
-                sizeof(PrimitiveType),                                         \
-                &obj);                                                         \
+        field = FindInstanceField<Instance ## PrimitiveOrObject ## Write>(     \
+            field_idx,                                                         \
+            referrer,                                                          \
+            self,                                                              \
+            &obj,                                                              \
+            should_resolve_type);                                              \
       } else {                                                                 \
-        field =                                                                \
-            FindInstanceField<Instance ## PrimitiveOrObject ## Write, true>(   \
-                field_idx,                                                     \
-                referrer,                                                      \
-                self,                                                          \
-                sizeof(PrimitiveType),                                         \
-                &obj);                                                         \
+        field = FindInstanceField<Instance ## PrimitiveOrObject ## Write>(     \
+            field_idx, referrer, self, &obj);                                  \
       }                                                                        \
       if (UNLIKELY(field == nullptr)) {                                        \
         return -1;                                                             \
       }                                                                        \
-    }                                                                          \
-    if (!referrer->SkipAccessChecks() && (IsObject) && new_value != 0) {       \
-      StackArtFieldHandleScope<1> rhs(self);                                   \
-      ReflectiveHandle<ArtField> field_handle(rhs.NewHandle(field));           \
-      if (field->ResolveType().IsNull()) {                                     \
-        self->AssertPendingException();                                        \
-        return -1;                                                             \
-      }                                                                        \
-      field = field_handle.Get();                                              \
     }                                                                          \
     field->Set ## Kind<false>(obj, new_value);                                 \
     return 0;                                                                  \
