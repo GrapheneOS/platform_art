@@ -14,6 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  ctx.default_run(args, vdex=True, vdex_filter="speed")
+exec ${RUN} --vdex --vdex-filter speed "${@}"

@@ -14,7 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  # Squash the exit status and put it in expected
-  ctx.default_run(args, jvmti=True)
+# Squash the exit status and put it in expected
+./default-run --jvmti "$@"

@@ -14,12 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def run(ctx, args):
-  ctx.default_run(
-      args,
-      profile=True,
-      Xcompiler_option=[
-          "--compiler-filter=speed-profile",
-          "--resolve-startup-const-strings=true"
-      ])
+exec ${RUN} $@ --profile -Xcompiler-option --compiler-filter=speed-profile -Xcompiler-option --resolve-startup-const-strings=true
