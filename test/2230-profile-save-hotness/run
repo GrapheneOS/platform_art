@@ -13,9 +13,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-${RUN} "${@}" \
-  -Xcompiler-option --count-hotness-in-compiled-code \
-  -Xcompiler-option --compiler-filter=speed \
-  --runtime-option -Xps-profile-aot-code \
-  --runtime-option -Xjitsaveprofilinginfo \
-  --runtime-option -Xusejit:true
+def run(ctx, args):
+  ctx.default_run(
+      args,
+      Xcompiler_option=[
+          "--count-hotness-in-compiled-code", "--compiler-filter=speed"
+      ],
+      runtime_option=[
+          "-Xps-profile-aot-code", "-Xjitsaveprofilinginfo", "-Xusejit:true"
+      ],
+  )

@@ -14,7 +14,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os, sys, glob, re, shutil, subprocess
+import os, sys, glob, re, shutil, subprocess, shlex, resource
+
+import etc.default_run
+
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+
+
+# Helper class which allows us to access the environment using syntax sugar.
+# E.g. `env.ANDROID_BUILD_TOP` instead of `os.environ["ANDROID_BUILD_TOP"]`.
+class Environment:
+
+  def __getattr__(self, name):
+    return os.environ.get(name)
+
+  def __setattr__(self, name, value):
+    os.environ[name] = str(value)
+
+
+# Context passed to individual tests to let them customize the behaviour.
+class RunTestContext:
+
+  def __init__(self):
+    self.env = Environment()
+
+  def echo(self, text):
+    with open(test_stdout, "a") as f:
+      f.write(text + "\n")
+
+  # Let the test execute arbitrary bash command.
+  def bash(self, cmd):
+    subprocess.run(cmd, shell=True)
+
+  # Execute the default runner (possibly with modified arguments).
+  def default_run(self, args, **kwargs):
+    etc.default_run.default_run(self, args, **kwargs)
+
 
 # TODO: Replace with 'def main():' (which might change variables from globals to locals)
 if True:
@@ -57,8 +93,7 @@ if True:
   def error(msg) -> None:
     print(msg, file=sys.stderr, flush=True)
 
-# ANDROID_BUILD_TOP is not set in a build environment.
-
+  # ANDROID_BUILD_TOP is not set in a build environment.
   ANDROID_BUILD_TOP = os.environ.get("ANDROID_BUILD_TOP")
   if not ANDROID_BUILD_TOP:
     export("ANDROID_BUILD_TOP", oldwd)
@@ -865,7 +900,7 @@ if True:
 
   run_args += [f'--testlib "{testlib}"']
 
-  run(f"ulimit -f {file_ulimit}")
+  resource.setrlimit(resource.RLIMIT_FSIZE, (file_ulimit * 1024, resource.RLIM_INFINITY))
 
   # Extract run-test data from the zip file.
   shutil.rmtree(tmp_dir)
@@ -889,84 +924,51 @@ if True:
   joined_run_args = " ".join(run_args)
   joined_args = " ".join(args)
 
-  good = "no"
-  good_run = "yes"
-  export("TEST_RUNTIME", runtime)
-  if dev_mode == "yes":
-    gdb_mode = "--gdb" in run_args
-    gdbserver_mode = "--gdbserver" in run_args
-    capture_output = not (gdb_mode or gdbserver_mode)
-    if gdb_mode:
-      export("TERM", os.environ.get("TERM"))
-    verbose(f"{test_dir}: running...")
-    run_exit = run(
-        f"./{run_cmd} {joined_run_args} {joined_args}",
-        check=False,
-        capture_output=capture_output).returncode
+  # Execute the "run" method in the per-test specific script file.
+  def run_test_script():
+    parsed_args = etc.default_run.parse_args(shlex.split(" ".join(run_args + args)))
+    parsed_args.stdout_file = os.path.join(tmp_dir, test_stdout)
+    parsed_args.stderr_file = os.path.join(tmp_dir, test_stderr)
 
-    if run_exit == 0:
-      if run_checker == "yes":
-        if target_mode == "yes":
-          run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
-        checker_exit = run(
-            '"{checker}" {checker_args} "{cfg_output}" "{tmp_dir}"',
-            check=False).returncode
-        if checker_exit == 0:
-          good = "yes"
-        verbose(f"checker exit status: {checker_exit}")
-      else:
-        good = "yes"
-    verbose(f"run exit status: {run_exit}")
-  elif update_mode == "yes":
-    verbose(f"{test_dir}: running...")
-    proc = run(
-        f"./{run_cmd} {joined_run_args} {joined_args} >{test_stdout} 2>{test_stderr}",
-        check=False)
-    if run_checker == "yes":
-      if target_mode == "yes":
-        run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
-      run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"'
-         )
-    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stdout}" >"{td_expected_stdout}"'''
-       )
-    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"'''
-       )
-    good = "yes"
-  else:
-    verbose(f"{test_dir}: running...")
-    proc = run(
-        f"./{run_cmd} {joined_run_args} {joined_args} >{test_stdout} 2>{test_stderr}",
-        check=False)
-    run_exit = proc.returncode
-    if run_exit != 0:
-      error(f"run exit status: {run_exit}")
-      good_run = "no"
-    elif run_checker == "yes":
-      if target_mode == "yes":
-        run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
-      proc = run(
-          f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"',
-          check=False)
-      checker_exit = proc.returncode
-      if checker_exit != 0:
-        error(f"checker exit status: {checker_exit}")
-        good_run = "no"
-      else:
-        good_run = "yes"
+    ctx = RunTestContext()
+    script = os.path.join(tmp_dir, "run")
+    if os.path.exists(script):
+      module = SourceFileLoader("run_" + TEST_NAME, script).load_module()
+      module.run(ctx, parsed_args)
     else:
-      good_run = "yes"
-    if os.path.exists(check_cmd):
-      run(f'./{check_cmd} "{expected_stdout}" "{test_stdout}" "{expected_stderr}" "{test_stderr}"')
-    proc = run(
-      f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" &&'
-      f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}"',
-      check=False  # Don't crash on non-zero exit code.
-    )
-    if proc.returncode == 0:
-      if good_run == "yes":
-        # test_stdout == expected_stdout && test_stderr == expected_stderr
-        good = "yes"
-        verbose(f"${test_dir}: succeeded!")
+      etc.default_run.default_run(ctx, parsed_args)
+
+  # Test might not execute anything but we still expect the output files to exist.
+  Path(test_stdout).touch()
+  Path(test_stderr).touch()
+
+  good = "no"
+  export("TEST_RUNTIME", runtime)
+
+  verbose(f"{test_dir}: running...")
+  run_test_script()
+  # NB: There is no exit code or return value.
+  # Failing tests just raise python exception.
+  os.chdir(tmp_dir)
+  if run_checker == "yes":
+    if target_mode == "yes":
+      run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
+    run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"')
+  if update_mode == "yes":
+    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stdout}" >"{td_expected_stdout}"''')
+    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"''')
+    good = "yes"
+
+  if os.path.exists(check_cmd):
+    run(f'./{check_cmd} "{expected_stdout}" "{test_stdout}" "{expected_stderr}" "{test_stderr}"')
+  proc = run(
+    f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" &&'
+    f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}"',
+    check=False  # Don't crash on non-zero exit code.
+  )
+  if proc.returncode == 0:
+    good = "yes"
+    verbose(f"${test_dir}: succeeded!")
 
   if good != "yes" and update_mode != "yes":
     error(f"{test_dir}: FAILED!")

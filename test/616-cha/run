@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Run without an app image to prevent the classes to be loaded at startup.
-exec ${RUN} "${@}" --no-app-image
+
+def run(ctx, args):
+  # Run without an app image to prevent the classes to be loaded at startup.
+  ctx.default_run(args, app_image=False)

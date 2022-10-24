@@ -14,14 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use a profile to put specific classes in the app image. Increase the large
-# method threshold to compile Main.$noinline$opt$testCriticalSignatures().
-${RUN} $@ --profile -Xcompiler-option --compiler-filter=speed-profile \
-    -Xcompiler-option --large-method-max=2000
-return_status1=$?
 
-# Also run with the verify filter to avoid compiling JNI stubs.
-${RUN} ${@} --profile -Xcompiler-option --compiler-filter=verify
-return_status2=$?
+def run(ctx, args):
+  # Use a profile to put specific classes in the app image. Increase the large
+  # method threshold to compile Main.$noinline$opt$testCriticalSignatures().
+  ctx.default_run(
+      args,
+      profile=True,
+      Xcompiler_option=[
+          "--compiler-filter=speed-profile", "--large-method-max=2000"
+      ])
 
-(exit ${return_status1}) && (exit ${return_status2})
+  # Also run with the verify filter to avoid compiling JNI stubs.
+  ctx.default_run(
+      args, profile=True, Xcompiler_option=["--compiler-filter=verify"])

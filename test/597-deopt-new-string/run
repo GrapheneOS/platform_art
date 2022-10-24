@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# We want to run in debuggable mode which keeps the call into StringFactory.newEmptyString().
-exec ${RUN} -Xcompiler-option --debuggable "${@}"
+
+def run(ctx, args):
+  # We want to run in debuggable mode which keeps the call into StringFactory.newEmptyString().
+  ctx.default_run(args, Xcompiler_option=["--debuggable"])

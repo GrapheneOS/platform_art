@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(b/144168550) This test uses access patterns that can be replaced by
-# iget-object-quick during dex2dex compilation. This breaks the test since the
-# -quick opcode encodes the exact byte offset of fields. Since this test changes
-# the offset this causes problems.
-./default-run "$@" --jvmti --runtime-option -Xopaque-jni-ids:true
+
+def run(ctx, args):
+  # TODO(b/144168550) This test uses access patterns that can be replaced by
+  # iget-object-quick during dex2dex compilation. This breaks the test since the
+  # -quick opcode encodes the exact byte offset of fields. Since this test changes
+  # the offset this causes problems.
+  ctx.default_run(args, jvmti=True, runtime_option=["-Xopaque-jni-ids:true"])

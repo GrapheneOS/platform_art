@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #
 # Copyright (C) 2022 The Android Open Source Project
 #
@@ -15,125 +14,16 @@
 # limitations under the License.
 
 import sys, os, shutil, shlex, re, subprocess, glob
-from apex_bootclasspath_utils import get_apex_bootclasspath, get_apex_bootclasspath_locations
-from argparse import ArgumentParser, BooleanOptionalAction
+from etc.apex_bootclasspath_utils import get_apex_bootclasspath, get_apex_bootclasspath_locations
+from argparse import ArgumentParser, BooleanOptionalAction, Namespace
 from os import path
 from os.path import isfile, isdir
 from typing import List
 from subprocess import DEVNULL, PIPE, STDOUT
 from tempfile import NamedTemporaryFile
 
-# TODO: Replace with 'def main():' (which might change variables from globals to locals)
-if True:
-  # Script debugging: Record executed commands into the given directory.
-  # This is useful to ensure that changes to the script don't change behaviour.
-  # (the commands are appended so the directory needs to be cleared before run)
-  ART_TEST_CMD_DIR = os.environ.get("ART_TEST_CMD_DIR")
 
-  # Script debugging: Record executed commands, but don't actually run the main test.
-  # This makes it possible the extract the test commands without waiting for days.
-  # This will make tests fail since there is no stdout.  Use with large -j value.
-  ART_TEST_DRY_RUN = os.environ.get("ART_TEST_DRY_RUN")
-
-  def run(cmdline: str,
-          env={},
-          quiet=True,
-          check=True,
-          save_cmd=True) -> subprocess.CompletedProcess:
-    env.setdefault("PATH", PATH)  # Ensure that PATH is always set.
-    env = {k: v for k, v in env.items() if v != None}  # Filter "None" entries.
-    if ART_TEST_CMD_DIR and save_cmd and cmdline != "true":
-      tmp = os.environ["DEX_LOCATION"]
-      with open(
-          os.path.join(ART_TEST_CMD_DIR, os.environ["FULL_TEST_NAME"]),
-          "a") as f:
-        # Replace DEX_LOCATION (which is randomly generated temporary directory),
-        # with a deterministic placeholder so that we can do a diff from run to run.
-        f.write("\n".join(
-            k + ":" + v.replace(tmp, "<tmp>") for k, v in env.items()) + "\n\n")
-        f.write(re.sub(" +", "\n", cmdline).replace(tmp, "<tmp>") + "\n\n")
-      if ART_TEST_DRY_RUN and ("dalvikvm" in cmdline or
-                               "adb shell chroot" in cmdline):
-        cmdline = "true"  # We still need to run some command, so run the no-op "true" binary instead.
-    if VERBOSE:
-      print("$ " + cmdline + "\n")
-    proc = subprocess.run([cmdline],
-                          shell=True,
-                          env=env,
-                          encoding="utf8",
-                          capture_output=True)
-    if (check and proc.returncode != 0) or (not quiet) or VERBOSE:
-      print(proc.stdout or "", file=sys.stdout, end="", flush=True)
-      print(proc.stderr or "", file=sys.stderr, end="", flush=True)
-    if (check and proc.returncode != 0):
-      raise Exception("Command returned exit code {}".format(proc.returncode))
-    return proc
-
-  class Adb():
-
-    def __init__(self):
-      self.env = {
-          "ADB_VENDOR_KEYS": os.environ.get("ADB_VENDOR_KEYS"),
-          "ANDROID_SERIAL": os.environ.get("ANDROID_SERIAL"),
-          "PATH": os.environ.get("PATH"),
-      }
-
-    def root(self) -> None:
-      run("adb root", self.env)
-
-    def wait_for_device(self) -> None:
-      run("adb wait-for-device", self.env)
-
-    def shell(self, cmdline: str, **kwargs) -> subprocess.CompletedProcess:
-      return run("adb shell " + cmdline, self.env, **kwargs)
-
-    def push(self, src: str, dst: str, **kwargs) -> None:
-      run(f"adb push {src} {dst}", self.env, **kwargs)
-
-  adb = Adb()
-
-  local_path = os.path.dirname(__file__)
-
-  # Check that stdout is connected to a terminal and that we have at least 1 color.
-  # This ensures that if the stdout is not connected to a terminal and instead
-  # the stdout will be used for a log, it will not append the color characters.
-  bold_red = ""
-  if sys.stdout.isatty():
-    if int(subprocess.run(["tput", "colors"], capture_output=True).stdout) >= 1:
-      bold_red = subprocess.run(["tput", "bold"],
-                                text=True,
-                                capture_output=True).stdout.strip()
-      bold_red += subprocess.run(["tput", "setaf", "1"],
-                                 text=True,
-                                 capture_output=True).stdout.strip()
-
-  def error_msg(msg: str):
-    print(f"{bold_red}ERROR: {msg}")
-
-  ANDROID_BUILD_TOP = os.environ.get("ANDROID_BUILD_TOP")
-  ANDROID_DATA = os.environ.get("ANDROID_DATA")
-  ANDROID_HOST_OUT = os.environ["ANDROID_HOST_OUT"]
-  ANDROID_LOG_TAGS = os.environ.get("ANDROID_LOG_TAGS", "")
-  ART_TIME_OUT_MULTIPLIER = int(os.environ.get("ART_TIME_OUT_MULTIPLIER", 1))
-  DEX2OAT = os.environ.get("DEX2OAT", "")
-  DEX_LOCATION = os.environ["DEX_LOCATION"]
-  JAVA = os.environ.get("JAVA")
-  OUT_DIR = os.environ.get("OUT_DIR")
-  PATH = os.environ.get("PATH", "")
-  SANITIZE_HOST = os.environ.get("SANITIZE_HOST", "")
-  TEST_NAME = os.environ["TEST_NAME"]
-  USE_EXRACTED_ZIPAPEX = os.environ.get("USE_EXRACTED_ZIPAPEX", "")
-
-  if not ANDROID_BUILD_TOP:
-    error_msg(
-        "ANDROID_BUILD_TOP environment variable is empty; did you forget to run `lunch`?"
-    )
-    sys.exit(1)
-
-  def msg(msg: str):
-    if VERBOSE:
-      print(msg)
-
+def parse_args(argv):
   argp, opt_bool = ArgumentParser(), BooleanOptionalAction
   argp.add_argument("--64", dest="is64", action="store_true")
   argp.add_argument("--O", action="store_true")
@@ -145,7 +35,6 @@ if True:
   argp.add_argument("--android-runtime-option", default=[], action="append")
   argp.add_argument("--android-tzdata-root", default="/apex/com.android.tzdata")
   argp.add_argument("--app-image", default=True, action=opt_bool)
-  argp.add_argument("--args", default=[], action="append")
   argp.add_argument("--baseline", action="store_true")
   argp.add_argument("--bionic", action="store_true")
   argp.add_argument("--boot", default="")
@@ -205,15 +94,18 @@ if True:
   argp.add_argument("--timeout", default=0, type=int)
   argp.add_argument("--vdex", action="store_true")
   argp.add_argument("--vdex-arg", default=[], action="append")
-  argp.add_argument("--vdex-filter")
+  argp.add_argument("--vdex-filter", default="")
   argp.add_argument("--verbose", action="store_true")
   argp.add_argument("--verify", default=True, action=opt_bool)
   argp.add_argument("--verify-soft-fail", action="store_true")
   argp.add_argument("--with-agent", default=[], action="append")
   argp.add_argument("--zygote", action="store_true")
-  argp.add_argument("test_args", nargs="*", default=["Main"])
+  argp.add_argument("--test_args", default=[], action="append")
+  argp.add_argument("--stdout_file", default="")
+  argp.add_argument("--stderr_file", default="")
+  argp.add_argument("--main", default="Main")
+  argp.add_argument("--expected_exit_code", default=0)
 
-  argv = list(sys.argv[1:])
   # Python parser requires the format --key=--value, since without the equals symbol
   # it looks like the required value has been omitted and there is just another flag.
   # For example, '--args --foo --host --64' will become '--arg=--foo --host --64'
@@ -224,16 +116,153 @@ if True:
         "-Xcompiler-option", "--compiler-only-option"
     ]:
       argv[i] += "=" + argv.pop(i + 1)
-# Accept single-dash arguments as if they were double-dash arguments.
-# For exmpample, '-Xcompiler-option' becomes '--Xcompiler-option'
-# became single-dash can be used only with single-letter arguments.
+
+  # Accept single-dash arguments as if they were double-dash arguments.
+  # For exmpample, '-Xcompiler-option' becomes '--Xcompiler-option'
+  # became single-dash can be used only with single-letter arguments.
   for i, arg in list(enumerate(argv)):
     if arg.startswith("-") and not arg.startswith("--"):
       argv[i] = "-" + arg
     if arg == "--":
       break
 
-  args = argp.parse_args(argv)
+  return argp.parse_args(argv)
+
+
+def default_run(ctx, args, **kwargs):
+  # Clone the args so we can modify them without affecting args in the caller.
+  args = Namespace(**vars(args))
+
+  # Overwrite args based on the named parameters.
+  # E.g. the caller can do `default_run(args, jvmti=True)` to modify args.jvmti.
+  for name, new_value in kwargs.items():
+    old_value = getattr(args, name)
+    assert isinstance(new_value, old_value.__class__), name + " should have type " + str(old_value.__class__)
+    if isinstance(old_value, list):
+      setattr(args, name, old_value + new_value)  # Lists get merged.
+    else:
+      setattr(args, name, new_value)
+
+  # Script debugging: Record executed commands into the given directory.
+  # This is useful to ensure that changes to the script don't change behaviour.
+  # (the commands are appended so the directory needs to be cleared before run)
+  ART_TEST_CMD_DIR = os.environ.get("ART_TEST_CMD_DIR")
+
+  # Script debugging: Record executed commands, but don't actually run the main test.
+  # This makes it possible the extract the test commands without waiting for days.
+  # This will make tests fail since there is no stdout.  Use with large -j value.
+  ART_TEST_DRY_RUN = os.environ.get("ART_TEST_DRY_RUN")
+
+  def run(cmdline: str,
+          env={},
+          stdout_file=None,
+          stderr_file=None,
+          check=True,
+          expected_exit_code=0,
+          save_cmd=True) -> subprocess.CompletedProcess:
+    env.setdefault("PATH", PATH)  # Ensure that PATH is always set.
+    env = {k: v for k, v in env.items() if v != None}  # Filter "None" entries.
+    if ART_TEST_CMD_DIR and save_cmd and cmdline != "true":
+      tmp = os.environ["DEX_LOCATION"]
+      with open(
+          os.path.join(ART_TEST_CMD_DIR, os.environ["FULL_TEST_NAME"]),
+          "a") as f:
+        # Replace DEX_LOCATION (which is randomly generated temporary directory),
+        # with a deterministic placeholder so that we can do a diff from run to run.
+        f.write("\n".join(
+            k + ":" + v.replace(tmp, "<tmp>") for k, v in env.items()) + "\n\n")
+        f.write(re.sub(" +", "\n", cmdline).replace(tmp, "<tmp>") + "\n\n")
+      if ART_TEST_DRY_RUN and ("dalvikvm" in cmdline or
+                               "adb shell chroot" in cmdline):
+        cmdline = "true"  # We still need to run some command, so run the no-op "true" binary instead.
+    proc = subprocess.run([cmdline],
+                          shell=True,
+                          env=env,
+                          encoding="utf8",
+                          capture_output=True)
+
+    # Save copy of the output on disk.
+    if stdout_file:
+      with open(stdout_file, "a") as f:
+        f.write(proc.stdout)
+        if proc.returncode != 0:
+          f.write("exit status: {}\n".format(proc.returncode))
+    if stderr_file:
+      with open(stderr_file, "a") as f:
+        f.write(proc.stderr)
+
+    # Check the exit code.
+    if (check and proc.returncode != expected_exit_code) or VERBOSE:
+      print("$ " + cmdline)
+      print(proc.stdout or "", file=sys.stdout, end="", flush=True)
+      print(proc.stderr or "", file=sys.stderr, end="", flush=True)
+    if (check and proc.returncode != expected_exit_code):
+      suffix = ""
+      if proc.returncode == 124:
+        suffix = " (TIME OUT)"
+      elif expected_exit_code != 0:
+        suffix = " (expected {})".format(expected_exit_code)
+      raise Exception("Command returned exit code {}{}".format(proc.returncode, suffix))
+
+    return proc
+
+  class Adb():
+
+    def __init__(self):
+      self.env = {
+          "ADB_VENDOR_KEYS": os.environ.get("ADB_VENDOR_KEYS"),
+          "ANDROID_SERIAL": os.environ.get("ANDROID_SERIAL"),
+          "PATH": os.environ.get("PATH"),
+      }
+
+    def root(self) -> None:
+      run("adb root", self.env)
+
+    def wait_for_device(self) -> None:
+      run("adb wait-for-device", self.env)
+
+    def shell(self, cmdline: str, **kwargs) -> subprocess.CompletedProcess:
+      return run("adb shell " + cmdline, self.env, **kwargs)
+
+    def push(self, src: str, dst: str, **kwargs) -> None:
+      run(f"adb push {src} {dst}", self.env, **kwargs)
+
+  adb = Adb()
+
+  local_path = os.path.dirname(__file__)
+
+  # Check that stdout is connected to a terminal and that we have at least 1 color.
+  # This ensures that if the stdout is not connected to a terminal and instead
+  # the stdout will be used for a log, it will not append the color characters.
+  bold_red = ""
+  if sys.stdout.isatty():
+    if int(subprocess.run(["tput", "colors"], capture_output=True).stdout) >= 1:
+      bold_red = subprocess.run(["tput", "bold"],
+                                text=True,
+                                capture_output=True).stdout.strip()
+      bold_red += subprocess.run(["tput", "setaf", "1"],
+                                 text=True,
+                                 capture_output=True).stdout.strip()
+
+  ANDROID_BUILD_TOP = os.environ.get("ANDROID_BUILD_TOP")
+  ANDROID_DATA = os.environ.get("ANDROID_DATA")
+  ANDROID_HOST_OUT = os.environ["ANDROID_HOST_OUT"]
+  ANDROID_LOG_TAGS = os.environ.get("ANDROID_LOG_TAGS", "")
+  ART_TIME_OUT_MULTIPLIER = int(os.environ.get("ART_TIME_OUT_MULTIPLIER", 1))
+  DEX2OAT = os.environ.get("DEX2OAT", "")
+  DEX_LOCATION = os.environ["DEX_LOCATION"]
+  JAVA = os.environ.get("JAVA")
+  OUT_DIR = os.environ.get("OUT_DIR")
+  PATH = os.environ.get("PATH", "")
+  SANITIZE_HOST = os.environ.get("SANITIZE_HOST", "")
+  TEST_NAME = os.environ["TEST_NAME"]
+  USE_EXRACTED_ZIPAPEX = os.environ.get("USE_EXRACTED_ZIPAPEX", "")
+
+  assert ANDROID_BUILD_TOP, "Did you forget to run `lunch`?"
+
+  def msg(msg: str):
+    if VERBOSE:
+      print(msg)
 
   ANDROID_ROOT = args.android_root
   ANDROID_ART_ROOT = args.android_art_root
@@ -282,7 +311,7 @@ if True:
   ISA = "x86"
   LIBRARY_DIRECTORY = "lib"
   TEST_DIRECTORY = "nativetest"
-  MAIN = args.test_args.pop(0)
+  MAIN = args.main
   OPTIMIZE = args.optimize
   PREBUILD = args.prebuild
   RELOCATE = args.relocate
@@ -353,7 +382,7 @@ if True:
     TIME_OUT_EXTRA += 1200
   for arg in args.testlib:
     ARGS += f" {arg}"
-  for arg in args.args:
+  for arg in args.test_args:
     ARGS += f" {arg}"
   for arg in args.compiler_only_option:
     COMPILE_FLAGS += f" {arg}"
@@ -495,8 +524,6 @@ if True:
   if CREATE_ANDROID_ROOT:
     ANDROID_ROOT = f"{DEX_LOCATION}/android-root"
 
-  test_args = (" " + " ".join(args.test_args)) if args.test_args else ""
-
   if ZYGOTE == "":
     if OPTIMIZE:
       if VERIFY == "y":
@@ -540,9 +567,7 @@ if True:
   elif DEBUGGER == "agent":
     PORT = 12345
     # TODO Support ddms connection and support target.
-    if not HOST:
-      error_msg("--debug-agent not supported yet for target!")
-      sys.exit(1)
+    assert HOST, "--debug-agent not supported yet for target!"
     AGENTPATH = DEBUGGER_AGENT
     if WRAP_DEBUGGER_AGENT:
       WRAPPROPS = f"{ANDROID_ROOT}/{LIBRARY_DIRECTORY}/libwrapagentpropertiesd.so"
@@ -626,7 +651,7 @@ if True:
       FLAGS += " -Xint"
     # Xmx is necessary since we don't pass down the ART flags to JVM.
     # We pass the classes2 path whether it's used (src-multidex) or not.
-    cmdline = f"{JAVA} {DEBUGGER_OPTS} {JVM_VERIFY_ARG} -Xmx256m -classpath classes:classes2 {FLAGS} {MAIN} {test_args} {ARGS}"
+    cmdline = f"{JAVA} {DEBUGGER_OPTS} {JVM_VERIFY_ARG} -Xmx256m -classpath classes:classes2 {FLAGS} {MAIN} {ARGS}"
     if CREATE_RUNNER:
       with open("runit.sh", "w") as f:
         f.write("#!/bin/bash")
@@ -635,10 +660,14 @@ if True:
       os.chmod("runit.sh", 0o777)
       pwd = os.getcwd()
       print(f"Runnable test script written to {pwd}/runit.sh")
-      sys.exit(0)
+      return
     else:
-      exit_value = run(cmdline, env, check=False, quiet=False).returncode
-      sys.exit(exit_value)
+      run(cmdline,
+          env,
+          stdout_file=args.stdout_file,
+          stderr_file=args.stderr_file,
+          expected_exit_code=args.expected_exit_code)
+      return
 
   b_path = get_apex_bootclasspath(HOST)
   b_path_locations = get_apex_bootclasspath_locations(HOST)
@@ -667,17 +696,11 @@ if True:
   DALVIKVM_BOOT_OPT = f"-Ximage:{BOOT_IMAGE}"
 
   if USE_GDB_DEX2OAT:
-    if not HOST:
-      print(
-          "The --gdb-dex2oat option is not yet implemented for target.",
-          file=sys.stderr)
-      sys.exit(1)
+    assert HOST, "The --gdb-dex2oat option is not yet implemented for target."
 
   if USE_GDB:
-    if USE_GDBSERVER:
-      error_msg("Cannot pass both --gdb and --gdbserver at the same time!")
-      sys.exit(1)
-    elif not HOST:
+    assert not USE_GDBSERVER, "Cannot pass both --gdb and --gdbserver at the same time!"
+    if not HOST:
       # We might not have any hostname resolution if we are using a chroot.
       GDB = f"{GDBSERVER_DEVICE} --no-startup-with-shell 127.0.0.1{GDBSERVER_PORT}"
     else:
@@ -697,9 +720,7 @@ if True:
     else:
       GDB = f"{GDBSERVER_HOST} {GDBSERVER_PORT}"
 
-      if shutil.which(GDBSERVER_HOST) is None:
-        error_msg(f"{GDBSERVER_HOST} is not available")
-        sys.exit(1)
+      assert shutil.which(GDBSERVER_HOST), f"{GDBSERVER_HOST} is not available"
 
   if INTERPRETER:
     INT_OPTS += " -Xint"
@@ -733,9 +754,8 @@ if True:
   if BIONIC:
     # This is the location that soong drops linux_bionic builds. Despite being
     # called linux_bionic-x86 the build is actually amd64 (x86_64) only.
-    if not path.exists(f"{OUT_DIR}/soong/host/linux_bionic-x86"):
-      error_msg("linux_bionic-x86 target doesn't seem to have been built!")
-      sys.exit(1)
+    assert path.exists(f"{OUT_DIR}/soong/host/linux_bionic-x86"), (
+        "linux_bionic-x86 target doesn't seem to have been built!")
     # Set TIMEOUT_DUMPER manually so it works even with apex's
     TIMEOUT_DUMPER = f"{OUT_DIR}/soong/host/linux_bionic-x86/bin/signal_dumper"
 
@@ -754,12 +774,7 @@ if True:
   DEX_LOCATION_STRIPPED = DEX_LOCATION.lstrip("/")
   VDEX_NAME = f"{DEX_LOCATION_STRIPPED}@{TEST_NAME}.jar@classes.vdex".replace(
       "/", "@")
-  if len(VDEX_NAME) > max_filename_size:
-    print("Dex location path too long:")
-    error_msg(
-        f"{VDEX_NAME} is {len(VDEX_NAME)} character long, and the limit is {max_filename_size}."
-    )
-    sys.exit(1)
+  assert len(VDEX_NAME) <= max_filename_size, "Dex location path too long"
 
   if HOST:
     # On host, run binaries (`dex2oat(d)`, `dalvikvm`, `profman`) from the `bin`
@@ -860,13 +875,12 @@ if True:
     # If the clang prebuilt directory exists and the reported clang version
     # string does not, then it is likely that the clang version reported by the
     # get_clang_version.py script does not match the expected directory name.
-    if (isdir(f"{ANDROID_BUILD_TOP}/{CLANG_BASE}/{PREBUILT_NAME}") and
-        not isdir(CLANG_PREBUILT_HOST_PATH)):
-      error_msg("The prebuilt clang directory exists, but the specific clang"\
-      "\nversion reported by get_clang_version.py does not exist in that path."\
-      "\nPlease make sure that the reported clang version resides in the"\
-      "\nprebuilt clang directory!")
-      sys.exit(1)
+    if isdir(f"{ANDROID_BUILD_TOP}/{CLANG_BASE}/{PREBUILT_NAME}"):
+      assert isdir(CLANG_PREBUILT_HOST_PATH), (
+          "The prebuilt clang directory exists, but the specific "
+          "clang\nversion reported by get_clang_version.py does not exist in "
+          "that path.\nPlease make sure that the reported clang version "
+          "resides in the\nprebuilt clang directory!")
 
     # The lldb-server binary is a dependency of lldb.
     os.environ[
@@ -881,7 +895,7 @@ if True:
     return f"{CLANG_PREBUILT_HOST_PATH}/bin/lldb.sh"
 
   def write_dex2oat_cmdlines(name: str):
-    global dex2oat_cmdline, dm_cmdline, vdex_cmdline
+    nonlocal dex2oat_cmdline, dm_cmdline, vdex_cmdline
 
     class_loader_context = ""
     enable_app_image = False
@@ -891,7 +905,7 @@ if True:
     # If the name ends in -ex then this is a secondary dex file
     if name.endswith("-ex"):
       # Lazily realize the default value in case DEX_LOCATION/TEST_NAME change
-      global SECONDARY_CLASS_LOADER_CONTEXT
+      nonlocal SECONDARY_CLASS_LOADER_CONTEXT
       if SECONDARY_CLASS_LOADER_CONTEXT == "":
         if SECONDARY_DEX == "":
           # Tests without `--secondary` load the "-ex" jar in a separate PathClassLoader
@@ -908,7 +922,7 @@ if True:
     if enable_app_image:
       app_image = f"--app-image-file={DEX_LOCATION}/oat/{ISA}/{name}.art --resolve-startup-const-strings=true"
 
-    global GDB_DEX2OAT, GDB_DEX2OAT_ARGS
+    nonlocal GDB_DEX2OAT, GDB_DEX2OAT_ARGS
     if USE_GDB_DEX2OAT:
       prebuilt_lldb_path = get_prebuilt_lldb_path()
       GDB_DEX2OAT = f"{prebuilt_lldb_path} -f"
@@ -1031,7 +1045,7 @@ if True:
                     {QUOTED_DALVIKVM_BOOT_OPT} \
                     {TMP_DIR_OPTION} \
                     -XX:DumpNativeStackOnSigQuit:false \
-                    -cp {DALVIKVM_CLASSPATH} {MAIN} {ARGS} {test_args}".strip()
+                    -cp {DALVIKVM_CLASSPATH} {MAIN} {ARGS}"
 
   if SIMPLEPERF:
     dalvikvm_cmdline = f"simpleperf record {dalvikvm_cmdline} && simpleperf report"
@@ -1043,6 +1057,7 @@ if True:
         arg = "--class-loader-context=\&"
       args.append(arg)
     return " ".join(args)
+
 
 # Remove whitespace.
 
@@ -1180,9 +1195,9 @@ if True:
       "PATH": f"{PREPEND_TARGET_PATH}:$PATH",
     }  # pyformat: disable
 
-    def run_cmd(cmdline: str, env={}, check: bool = True) -> int:
-      if cmdline == "true":  # Noop command which just executes the linux 'true' binary.
-        return 0
+    def run_cmd(cmdline: str, env={}, **kwargs) -> subprocess.CompletedProcess:
+      if cmdline == "true" or DRY_RUN:
+        return run('true')  # Noop command which just executes the linux 'true' binary.
       cmdline = (f"cd {DEX_LOCATION} && " +
                  "".join(f"export {k}={v} && " for k, v in env.items()) +
                  cmdline)
@@ -1194,13 +1209,8 @@ if True:
         adb.push(
             cmdfile.name, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False)
         run('echo cmdline.sh "' + cmdline.replace('"', '\\"') + '"')
-      if not DRY_RUN:
-        chroot_prefix = f"chroot {CHROOT} " if CHROOT else ""
-        return adb.shell(
-            f"{chroot_prefix} sh {DEX_LOCATION}/cmdline.sh",
-            check=check,
-            quiet=False).returncode
-      return 0
+      chroot_prefix = f"chroot {CHROOT} " if CHROOT else ""
+      return adb.shell(f"{chroot_prefix} sh {DEX_LOCATION}/cmdline.sh", **kwargs)
 
     if VERBOSE and (USE_GDB or USE_GDBSERVER):
       print(f"Forward {GDBSERVER_PORT} to local port and connect GDB")
@@ -1213,10 +1223,11 @@ if True:
     run_cmd(f"{vdex_cmdline}", env)
     run_cmd(f"{strip_cmdline}")
     run_cmd(f"{sync_cmdline}")
-    exit_status = run_cmd(
-        f"{timeout_prefix} {dalvikvm_cmdline}", env, check=False)
-
-    sys.exit(exit_status)
+    run_cmd(f"{timeout_prefix} {dalvikvm_cmdline}",
+            env,
+            stdout_file=args.stdout_file,
+            stderr_file=args.stderr_file,
+            expected_exit_code=args.expected_exit_code)
   else:
     # Host run.
     if USE_ZIPAPEX or USE_EXRACTED_ZIPAPEX:
@@ -1323,7 +1334,7 @@ if True:
       os.chmod("{DEX_LOCATION}/runit.sh", 0o777)
       print(f"Runnable test script written to {DEX_LOCATION}/runit.sh")
     if DRY_RUN:
-      sys.exit(0)
+      return
 
     if USE_GDB:
       # When running under gdb, we cannot do piping and grepping...
@@ -1335,12 +1346,11 @@ if True:
       subprocess.run(cmdline, env=env, shell=True)
     else:
       if TIME_OUT != "gdb":
-        proc = run(cmdline, env, check=False, quiet=False)
-        exit_value = proc.returncode
-        # Add extra detail if time out is enabled.
-        if exit_value == 124 and TIME_OUT == "timeout":
-          print("\e[91mTEST TIMED OUT!\e[0m", file=sys.stderr)
-        sys.exit(exit_value)
+        run(cmdline,
+            env,
+            stdout_file=args.stdout_file,
+            stderr_file=args.stderr_file,
+            expected_exit_code=args.expected_exit_code)
       else:
         # With a thread dump that uses gdb if a timeout.
         proc = run(cmdline, check=False)
@@ -1353,12 +1363,6 @@ if True:
         #     kill {pid} )) 2> /dev/null & watcher=$!
         test_exit_status = proc.returncode
         # pkill -P {watcher} 2> /dev/null # kill the sleep which will in turn end the watcher as well
-        if test_exit_status == 0:
-          # The test finished normally.
-          sys.exit(0)
-        else:
-          # The test failed or timed out.
-          if test_exit_status == 124:
-            # The test timed out.
-            print("\e[91mTEST TIMED OUT!\e[0m", file=sys.stderr)
-          sys.exit(test_exit_status)
+        if proc.returncode == 124 and TIME_OUT == "timeout":
+          print("\e[91mTEST TIMED OUT!\e[0m", file=sys.stderr)
+        assert proc.returncode == args.expected_exit_code, f"exit code: {proc.returncode}"
