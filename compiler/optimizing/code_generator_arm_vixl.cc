@@ -2166,9 +2166,11 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
       new (codegen_->GetScopedAllocator()) MethodEntryExitHooksSlowPathARMVIXL(instruction);
   codegen_->AddSlowPath(slow_path);
 
-  int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
+  MemberOffset  offset = instruction->IsMethodExitHook() ?
+      instrumentation::Instrumentation::NeedsExitHooksOffset() :
+      instrumentation::Instrumentation::HaveMethodEntryListenersOffset();
   uint32_t address = reinterpret_cast32<uint32_t>(Runtime::Current()->GetInstrumentation());
-  __ Mov(temp, address + offset);
+  __ Mov(temp, address + offset.Int32Value());
   __ Ldrb(temp, MemOperand(temp, 0));
   __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
