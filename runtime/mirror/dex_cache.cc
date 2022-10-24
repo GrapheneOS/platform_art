@@ -165,5 +165,21 @@ ObjPtr<ClassLoader> DexCache::GetClassLoader() {
   return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(DexCache, class_loader_));
 }
 
+bool DexCache::AtStartup() {
+  return !Runtime::Current()->GetStartupCompleted();
+}
+
+void DexCache::UnlinkStartupCaches() {
+  if (GetDexFile() == nullptr) {
+    // Unused dex cache.
+    return;
+  }
+  UnlinkStringsArrayIfStartup();
+  UnlinkResolvedFieldsArrayIfStartup();
+  UnlinkResolvedMethodsArrayIfStartup();
+  UnlinkResolvedTypesArrayIfStartup();
+  UnlinkResolvedMethodTypesArrayIfStartup();
+}
+
 }  // namespace mirror
 }  // namespace art
