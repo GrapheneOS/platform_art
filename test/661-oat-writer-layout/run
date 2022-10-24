@@ -14,9 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Always use the 'profile'.
-# Note that this test only works with --compiler-filter=speed
-# -- we accomplish this by blocklisting other compiler variants
-# and we also have to pass the option explicitly as dex2oat
-# defaults to speed-profile if a profile is specified.
-${RUN} "$@" --profile -Xcompiler-option --compiler-filter=speed
+
+def run(ctx, args):
+  # Always use the 'profile'.
+  # Note that this test only works with --compiler-filter=speed
+  # -- we accomplish this by blocklisting other compiler variants
+  # and we also have to pass the option explicitly as dex2oat
+  # defaults to speed-profile if a profile is specified.
+  ctx.default_run(
+      args, profile=True, Xcompiler_option=["--compiler-filter=speed"])

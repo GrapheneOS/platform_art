@@ -14,5 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export ANDROID_LOG_TAGS="*:i"
-exec ${RUN} $@ --external-log-tags --runtime-option -Xmetrics-write-to-logcat:true --runtime-option -Xmetrics-reporting-mods:100
+
+def run(ctx, args):
+  ctx.env.ANDROID_LOG_TAGS = "*:i"
+  ctx.default_run(
+      args,
+      external_log_tags=True,
+      runtime_option=[
+          "-Xmetrics-write-to-logcat:true", "-Xmetrics-reporting-mods:100"
+      ])

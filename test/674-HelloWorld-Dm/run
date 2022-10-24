@@ -14,10 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-${RUN} --dex2oat-dm "${@}"
-return_status1=$?
 
-${RUN} --runtime-dm "${@}"
-return_status2=$?
+def run(ctx, args):
+  ctx.default_run(args, dex2oat_dm=True)
 
-(exit ${return_status1}) && (exit ${return_status2})
+  ctx.default_run(args, runtime_dm=True)

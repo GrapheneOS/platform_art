@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Build an app image with TestClass (specified by profile).
 
-${RUN} $@ --profile -Xcompiler-option --compiler-filter=speed-profile
+def run(ctx, args):
+  # Build an app image with TestClass (specified by profile).
+
+  ctx.default_run(
+      args, profile=True, Xcompiler_option=["--compiler-filter=speed-profile"])

@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Run with a 2 minute default dex2oat timeout and a 2.5 minute hard dex2oat timeout.
-./default-run "$@" --dex2oat-timeout 120 --dex2oat-rt-timeout 180
+
+def run(ctx, args):
+  # Run with a 2 minute default dex2oat timeout and a 2.5 minute hard dex2oat timeout.
+  ctx.default_run(args, dex2oat_timeout=120, dex2oat_rt_timeout=180)

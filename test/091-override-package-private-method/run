@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use secondary switch to add secondary dex file to class path.
-exec ${RUN} "${@}" --secondary
+
+def run(ctx, args):
+  # Use secondary switch to add secondary dex file to class path.
+  ctx.default_run(args, secondary=True)

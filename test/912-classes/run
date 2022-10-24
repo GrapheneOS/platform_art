@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This test checks which classes are initiated by a classloader. App images preload classes.
-# In certain configurations, the app images may be valid even in a new classloader. Turn off
-# app images to avoid the issue.
 
-./default-run "$@" --jvmti \
-                   --no-app-image
+def run(ctx, args):
+  # This test checks which classes are initiated by a classloader. App images preload classes.
+  # In certain configurations, the app images may be valid even in a new classloader. Turn off
+  # app images to avoid the issue.
+
+  ctx.default_run(args, jvmti=True, app_image=False)
