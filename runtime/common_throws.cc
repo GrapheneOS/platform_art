@@ -714,29 +714,10 @@ void ThrowStackOverflowError(Thread* self) {
     msg += PrettySize(self->GetStackSize());
 
     ScopedObjectAccessUnchecked soa(self);
-    StackHandleScope<4u> hs(self);
+    StackHandleScope<2u> hs(self);
     Handle<mirror::Class> j_l_soe = hs.NewHandle(
         soa.Decode<mirror::Class>(WellKnownClasses::java_lang_StackOverflowError));
-    Handle<mirror::Class> j_u_c = hs.NewHandle(
-        WellKnownClasses::java_util_Collections_EMPTY_LIST->GetDeclaringClass());
-    Handle<mirror::Class> l_u_ea = hs.NewHandle(
-        WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetDeclaringClass());
-
-    // Initialize the required classes if needed.
-    // TODO: Initialize these classes during `ClassLinker` initialization to avoid doing it here.
-    auto ensure_initialized = [self](Handle<mirror::Class> klass)
-        REQUIRES_SHARED(Locks::mutator_lock_) {
-      if (UNLIKELY(!klass->IsVisiblyInitialized()) &&
-          UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
-                        self, klass, /*can_init_fields=*/ true, /*can_init_parents=*/ true))) {
-        LOG(WARNING) << "Failed to initialize class " << klass->PrettyDescriptor();
-        return false;
-      }
-      return true;
-    };
-    if (!ensure_initialized(j_l_soe) || !ensure_initialized(j_u_c) || !ensure_initialized(l_u_ea)) {
-      return;
-    }
+    DCHECK(j_l_soe->IsInitialized());
 
     // Allocate an uninitialized object.
     Handle<mirror::Object> exc = hs.NewHandle(j_l_soe->AllocObject(self));
@@ -774,8 +755,11 @@ void ThrowStackOverflowError(Thread* self) {
 
     // suppressedExceptions.
     {
+      ObjPtr<mirror::Class> j_u_c =
+          WellKnownClasses::java_util_Collections_EMPTY_LIST->GetDeclaringClass();
+      DCHECK(j_u_c->IsInitialized());
       ObjPtr<mirror::Object> empty_list =
-          WellKnownClasses::java_util_Collections_EMPTY_LIST->GetObject(j_u_c.Get());
+          WellKnownClasses::java_util_Collections_EMPTY_LIST->GetObject(j_u_c);
       CHECK(empty_list != nullptr);
       WellKnownClasses::java_lang_Throwable_suppressedExceptions
           ->SetObject</*kTransactionActive=*/ false>(exc.Get(), empty_list);
@@ -790,8 +774,11 @@ void ThrowStackOverflowError(Thread* self) {
           ->SetObject</*kTransactionActive=*/ false>(exc.Get(), stack_state_val);
 
       // stackTrace.
+      ObjPtr<mirror::Class> l_u_ea =
+          WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetDeclaringClass();
+      DCHECK(l_u_ea->IsInitialized());
       ObjPtr<mirror::Object> empty_ste =
-          WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetObject(l_u_ea.Get());
+          WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetObject(l_u_ea);
       CHECK(empty_ste != nullptr);
       WellKnownClasses::java_lang_Throwable_stackTrace
           ->SetObject</*kTransactionActive=*/ false>(exc.Get(), empty_ste);
