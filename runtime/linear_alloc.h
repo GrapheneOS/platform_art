@@ -61,7 +61,6 @@ class TrackingHeader final {
 
 std::ostream& operator<<(std::ostream& os, LinearAllocKind value);
 
-// TODO: Support freeing if we add class unloading.
 class LinearAlloc {
  public:
   static constexpr size_t kAlignment = 8u;
