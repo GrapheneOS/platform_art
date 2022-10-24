@@ -974,13 +974,63 @@ class LSEVisitor final : private HGraphDelegateVisitor {
                << " but LSE should be the only source of predicated-ifield-gets!";
   }
 
+  void HandleAcquireLoad(HInstruction* instruction) {
+    DCHECK((instruction->IsInstanceFieldGet() && instruction->AsInstanceFieldGet()->IsVolatile()) ||
+           (instruction->IsStaticFieldGet() && instruction->AsStaticFieldGet()->IsVolatile()) ||
+           (instruction->IsMonitorOperation() && instruction->AsMonitorOperation()->IsEnter()))
+        << "Unexpected instruction " << instruction->GetId() << ": " << instruction->DebugName();
+
+    // Acquire operations e.g. MONITOR_ENTER change the thread's view of the memory, so we must
+    // invalidate all current values.
+    ScopedArenaVector<ValueRecord>& heap_values =
+        heap_values_for_[instruction->GetBlock()->GetBlockId()];
+    for (size_t i = 0u, size = heap_values.size(); i != size; ++i) {
+      KeepStores(heap_values[i].stored_by);
+      heap_values[i].stored_by = Value::PureUnknown();
+      heap_values[i].value = Value::PartialUnknown(heap_values[i].value);
+    }
+
+    // Note that there's no need to record the load as subsequent acquire loads shouldn't be
+    // eliminated either.
+  }
+
+  void HandleReleaseStore(HInstruction* instruction) {
+    DCHECK((instruction->IsInstanceFieldSet() && instruction->AsInstanceFieldSet()->IsVolatile()) ||
+           (instruction->IsStaticFieldSet() && instruction->AsStaticFieldSet()->IsVolatile()) ||
+           (instruction->IsMonitorOperation() && !instruction->AsMonitorOperation()->IsEnter()))
+        << "Unexpected instruction " << instruction->GetId() << ": " << instruction->DebugName();
+
+    // Release operations e.g. MONITOR_EXIT do not affect this thread's view of the memory, but
+    // they will push the modifications for other threads to see. Therefore, we must keep the
+    // stores but there's no need to clobber the value.
+    ScopedArenaVector<ValueRecord>& heap_values =
+        heap_values_for_[instruction->GetBlock()->GetBlockId()];
+    for (size_t i = 0u, size = heap_values.size(); i != size; ++i) {
+      KeepStores(heap_values[i].stored_by);
+      heap_values[i].stored_by = Value::PureUnknown();
+    }
+
+    // Note that there's no need to record the store as subsequent release store shouldn't be
+    // eliminated either.
+  }
+
   void VisitInstanceFieldGet(HInstanceFieldGet* instruction) override {
+    if (instruction->IsVolatile()) {
+      HandleAcquireLoad(instruction);
+      return;
+    }
+
     HInstruction* object = instruction->InputAt(0);
     const FieldInfo& field = instruction->GetFieldInfo();
     VisitGetLocation(instruction, heap_location_collector_.GetFieldHeapLocation(object, &field));
   }
 
   void VisitInstanceFieldSet(HInstanceFieldSet* instruction) override {
+    if (instruction->IsVolatile()) {
+      HandleReleaseStore(instruction);
+      return;
+    }
+
     HInstruction* object = instruction->InputAt(0);
     const FieldInfo& field = instruction->GetFieldInfo();
     HInstruction* value = instruction->InputAt(1);
@@ -989,17 +1039,35 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   }
 
   void VisitStaticFieldGet(HStaticFieldGet* instruction) override {
+    if (instruction->IsVolatile()) {
+      HandleAcquireLoad(instruction);
+      return;
+    }
+
     HInstruction* cls = instruction->InputAt(0);
     const FieldInfo& field = instruction->GetFieldInfo();
     VisitGetLocation(instruction, heap_location_collector_.GetFieldHeapLocation(cls, &field));
   }
 
   void VisitStaticFieldSet(HStaticFieldSet* instruction) override {
+    if (instruction->IsVolatile()) {
+      HandleReleaseStore(instruction);
+      return;
+    }
+
     HInstruction* cls = instruction->InputAt(0);
     const FieldInfo& field = instruction->GetFieldInfo();
     HInstruction* value = instruction->InputAt(1);
     size_t idx = heap_location_collector_.GetFieldHeapLocation(cls, &field);
     VisitSetLocation(instruction, idx, value);
+  }
+
+  void VisitMonitorOperation(HMonitorOperation* monitor_op) override {
+    if (monitor_op->IsEnter()) {
+      HandleAcquireLoad(monitor_op);
+    } else {
+      HandleReleaseStore(monitor_op);
+    }
   }
 
   void VisitArrayGet(HArrayGet* instruction) override {
@@ -1150,12 +1218,6 @@ class LSEVisitor final : private HGraphDelegateVisitor {
 
   void VisitCheckCast(HCheckCast* check_cast) override {
     HandleThrowingInstruction(check_cast);
-  }
-
-  void VisitMonitorOperation(HMonitorOperation* monitor_op) override {
-    if (monitor_op->CanThrow()) {
-      HandleThrowingInstruction(monitor_op);
-    }
   }
 
   void HandleInvoke(HInstruction* instruction) {
