@@ -268,7 +268,6 @@ struct RegionCommon {
   size_t GetDirtyEntryBytes() const { return dirty_entry_bytes_; }
   size_t GetFalseDirtyEntryCount() const { return false_dirty_entries_.size(); }
   size_t GetFalseDirtyEntryBytes() const { return false_dirty_entry_bytes_; }
-  size_t GetZygoteDirtyEntryCount() const { return zygote_dirty_entries_.size(); }
 
  protected:
   bool IsEntryOnDirtyPage(T* entry, const std::set<size_t>& dirty_pages) const
@@ -287,10 +286,6 @@ struct RegionCommon {
       page_off++;
     } while ((current_page_idx * kPageSize) < RoundUp(entry_address + size, kObjectAlignment));
     return false;
-  }
-
-  void AddZygoteDirtyEntry(T* entry) REQUIRES_SHARED(Locks::mutator_lock_) {
-    zygote_dirty_entries_.insert(entry);
   }
 
   void AddImageDirtyEntry(T* entry) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -326,11 +321,6 @@ struct RegionCommon {
   // If zygote_pid_only_ == true, these are shared dirty entries in the zygote.
   // If zygote_pid_only_ == false, these are private dirty entries in the application.
   std::set<T*> image_dirty_entries_;
-
-  // Zygote dirty entries (probably private dirty).
-  // We only add entries here if they differed in both the image and the zygote, so
-  // they are probably private dirty.
-  std::set<T*> zygote_dirty_entries_;
 
   std::map<off_t /* field offset */, size_t /* count */> field_dirty_count_;
 
@@ -1009,24 +999,11 @@ class RegionData : public RegionSpecializedBase<T> {
         os_ << "  Application dirty entries (unknown whether private or shared dirty): ";
         break;
     }
-    DiffDirtyEntries(ProcessType::kRemote,
+    DiffDirtyEntries(RegionCommon<T>::image_dirty_entries_,
                      begin_image_ptr,
                      RegionCommon<T>::remote_contents_,
                      base_ptr,
                      /*log_dirty_objects=*/true);
-    // Print shared dirty after since it's less important.
-    if (RegionCommon<T>::GetZygoteDirtyEntryCount() != 0) {
-      // We only reach this point if both pids were specified.  Furthermore,
-      // entries are only displayed here if they differed in both the image
-      // and the zygote, so they are probably private dirty.
-      CHECK(remotes == RemoteProcesses::kImageAndZygote);
-      os_ << "\n" << "  Zygote dirty entries (probably shared dirty): ";
-      DiffDirtyEntries(ProcessType::kZygote,
-                       begin_image_ptr,
-                       RegionCommon<T>::zygote_contents_,
-                       begin_image_ptr,
-                       /*log_dirty_objects=*/false);
-    }
     RegionSpecializedBase<T>::DumpDirtyObjects();
     RegionSpecializedBase<T>::DumpDirtyEntries();
     RegionSpecializedBase<T>::DumpFalseDirtyEntries();
@@ -1036,17 +1013,13 @@ class RegionData : public RegionSpecializedBase<T> {
  private:
   std::ostream& os_;
 
-  void DiffDirtyEntries(ProcessType process_type,
+  void DiffDirtyEntries(const std::set<T*>& entries,
                         const uint8_t* begin_image_ptr,
                         ArrayRef<uint8_t> contents,
                         const uint8_t* base_ptr,
                         bool log_dirty_objects)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     os_ << RegionCommon<T>::dirty_entries_.size() << "\n";
-    const std::set<T*>& entries =
-        (process_type == ProcessType::kZygote) ?
-            RegionCommon<T>::zygote_dirty_entries_:
-            RegionCommon<T>::image_dirty_entries_;
     for (T* entry : entries) {
       uint8_t* entry_bytes = reinterpret_cast<uint8_t*>(entry);
       ptrdiff_t offset = entry_bytes - begin_image_ptr;
@@ -1077,16 +1050,10 @@ class RegionData : public RegionSpecializedBase<T> {
     // Test private dirty first.
     bool is_dirty = false;
     if (have_zygote) {
-      bool private_dirty = EntriesDiffer(entry, entry_zygote, entry_remote);
-      if (private_dirty) {
+      if (EntriesDiffer(entry, entry_zygote, entry_remote)) {
         // Private dirty, app vs zygote.
         is_dirty = true;
         RegionCommon<T>::AddImageDirtyEntry(entry);
-      }
-      if (EntriesDiffer(entry, entry_zygote, entry)) {
-        // Shared dirty, zygote vs image.
-        is_dirty = true;
-        RegionCommon<T>::AddZygoteDirtyEntry(entry);
       }
     } else if (EntriesDiffer(entry, entry_remote, entry)) {
       // Shared or private dirty, app vs image.
