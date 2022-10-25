@@ -211,7 +211,6 @@ known_failing_tests = frozenset([
 known_failing_on_hwasan_tests = frozenset([
   "BootImageProfileTest", # b/232012605
   "CtsJdwpTestCases", # times out
-  "art_standalone_compiler_tests", # b/230392320
   "art_standalone_dex2oat_tests",  # b/228881278
 ])
 
