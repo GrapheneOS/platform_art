@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 
 def build(ctx):
-  ctx.bash("./generate-sources")
-  ctx.default_build(experimental="var-handles")
+  ctx.bash("./generate-sources --" + os.environ["BUILD_MODE"])
+  ctx.default_build()
