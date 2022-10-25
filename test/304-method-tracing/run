@@ -14,5 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Runs the test with method tracing enabled.
-exec ${RUN} "$@" --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin
+
+def run(ctx, args):
+  # Runs the test with method tracing enabled.
+  ctx.default_run(
+      args,
+      runtime_option=[
+          "-Xmethod-trace", "-Xmethod-trace-file:${DEX_LOCATION}/trace.bin"
+      ])

@@ -14,14 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-./default-run "$@" --jvmti
 
-return_status1=$?
+def run(ctx, args):
+  ctx.default_run(args, jvmti=True)
 
-#Also do one run with --no-image to have one test coverage with no-image.
-./default-run "$@" --jvmti --no-image
-
-return_status2=$?
-
-# Make sure we don't silently ignore an early failure.
-(exit $return_status1) && (exit $return_status2)
+  #Also do one run with --no-image to have one test coverage with no-image.
+  ctx.default_run(args, jvmti=True, image=False)

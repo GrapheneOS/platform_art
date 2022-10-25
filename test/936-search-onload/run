@@ -14,10 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This test checks whether dex files can be injected into parent classloaders. App images preload
-# classes, which will make the injection moot. Turn off app images to avoid the issue.
-# Pass the correct `--secondary-class-loader-context` for the "-ex" jar.
 
-./default-run "$@" --jvmti \
-                   --no-app-image \
-                   --secondary-class-loader-context "PCL[$DEX_LOCATION/$TEST_NAME.jar]"
+def run(ctx, args):
+  # This test checks whether dex files can be injected into parent classloaders. App images preload
+  # classes, which will make the injection moot. Turn off app images to avoid the issue.
+  # Pass the correct `--secondary-class-loader-context` for the "-ex" jar.
+
+  pcl = f"PCL[{ctx.env.DEX_LOCATION}/{ctx.env.TEST_NAME}.jar]"
+  ctx.default_run(
+      args, jvmti=True, app_image=False, secondary_class_loader_context=pcl)

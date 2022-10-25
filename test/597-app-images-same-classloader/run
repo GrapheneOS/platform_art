@@ -14,5 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# We need a profile to tell dex2oat to include classes in the final app image
-exec ${RUN} --profile --secondary-class-loader-context "PCL[$DEX_LOCATION/$TEST_NAME.jar]" $@
+
+def run(ctx, args):
+  # We need a profile to tell dex2oat to include classes in the final app image
+  pcl = f"PCL[{ctx.env.DEX_LOCATION}/{ctx.env.TEST_NAME}.jar]"
+  ctx.default_run(args, profile=True, secondary_class_loader_context=pcl)

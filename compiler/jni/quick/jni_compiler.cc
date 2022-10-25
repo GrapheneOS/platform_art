@@ -246,7 +246,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   std::unique_ptr<JNIMacroLabel> method_entry_hook_return;
   if (UNLIKELY(needs_entry_exit_hooks)) {
     uint64_t address = reinterpret_cast64<uint64_t>(Runtime::Current()->GetInstrumentation());
-    int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
+    int offset = instrumentation::Instrumentation::HaveMethodEntryListenersOffset().Int32Value();
     method_entry_hook_slow_path = __ CreateLabel();
     method_entry_hook_return = __ CreateLabel();
     __ TestByteAndJumpIfNotZero(address + offset, method_entry_hook_slow_path.get());
@@ -570,7 +570,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
   std::unique_ptr<JNIMacroLabel> method_exit_hook_return;
   if (UNLIKELY(needs_entry_exit_hooks)) {
     uint64_t address = reinterpret_cast64<uint64_t>(Runtime::Current()->GetInstrumentation());
-    int offset = instrumentation::Instrumentation::NeedsEntryExitHooksOffset().Int32Value();
+    int offset = instrumentation::Instrumentation::NeedsExitHooksOffset().Int32Value();
     method_exit_hook_slow_path = __ CreateLabel();
     method_exit_hook_return = __ CreateLabel();
     __ TestByteAndJumpIfNotZero(address + offset, method_exit_hook_slow_path.get());

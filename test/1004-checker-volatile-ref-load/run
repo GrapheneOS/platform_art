@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Limit the managed heap to 16 MiB to force more garbage collections.
-exec ${RUN} $@ --runtime-option -Xmx16m
+
+def run(ctx, args):
+  # Limit the managed heap to 16 MiB to force more garbage collections.
+  ctx.default_run(args, runtime_option=["-Xmx16m"])

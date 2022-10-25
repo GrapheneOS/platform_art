@@ -23,6 +23,8 @@
 # The RI has restrictions and bugs around some PopFrame behavior that ART lacks.
 # See b/116003018. Some configurations cannot handle the class load events in
 # quite the right way so they are disabled there too.
-if [[ "$TEST_RUNTIME" == "jvm" || "x$VERIFY_SOFT_FAIL" == "xtrue" ]]; then
+if [[ "$TEST_RUNTIME" == "jvm" || \
+      "$VERIFY_SOFT_FAIL" == "true" || \
+      ("$JVMTI_REDEFINE_STRESS" == "true" && "$RUN_MODE" == "host") ]]; then
   patch -p0 expected-stdout.txt < jvm-expected.patch
 fi

@@ -14,5 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# We want to run in debuggable mode and compiled.
-exec ${RUN} --jit -Xcompiler-option --debuggable "${@}"
+
+def run(ctx, args):
+  # We want to run in debuggable mode and compiled.
+  ctx.default_run(args, jit=True, Xcompiler_option=["--debuggable"])

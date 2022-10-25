@@ -15,4 +15,5 @@
 # limitations under the License.
 
 
-./default-run "$@" --jvmti
+def run(ctx, args):
+  ctx.default_run(args, jvmti=True)
