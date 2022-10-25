@@ -1,0 +1,5 @@
+Exception in thread "Thread-1" java.lang.Error: 
+	at Main.callMethodThatThrows(Main.java:57)
+	at Main$Inner2.<clinit>(Main.java:38)
+	at Main$Inner.<clinit>(Main.java:32)
+	at Main$MyThread.run(Main.java:24)

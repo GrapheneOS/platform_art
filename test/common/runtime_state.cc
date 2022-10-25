@@ -451,4 +451,16 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isObsoleteObject(JNIEnv* env, jc
   return soa.Decode<mirror::Class>(c)->IsObsoleteObject();
 }
 
+extern "C" JNIEXPORT void JNICALL Java_Main_forceInterpreterOnThread(JNIEnv* env,
+                                                                     jclass cls ATTRIBUTE_UNUSED) {
+  ScopedObjectAccess soa(env);
+  MutexLock thread_list_mu(soa.Self(), *Locks::thread_list_lock_);
+  soa.Self()->IncrementForceInterpreterCount();
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_setAsyncExceptionsThrown(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                                     jclass cls ATTRIBUTE_UNUSED) {
+  Runtime::Current()->SetAsyncExceptionsThrown();
+}
+
 }  // namespace art
