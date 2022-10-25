@@ -1005,7 +1005,7 @@ bool Monitor::Deflate(Thread* self, ObjPtr<mirror::Object> obj) {
     if (monitor->num_waiters_.load(std::memory_order_relaxed) > 0) {
       return false;
     }
-    if (!monitor->monitor_lock_.ExclusiveTryLock(self)) {
+    if (!monitor->monitor_lock_.ExclusiveTryLock</* check= */ false>(self)) {
       // We cannot deflate a monitor that's currently held. It's unclear whether we should if
       // we could.
       return false;
@@ -1065,13 +1065,10 @@ void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWo
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     // Suspend the owner, inflate. First change to blocked and give up mutator_lock_.
     self->SetMonitorEnterObject(obj.Get());
-    bool timed_out;
     Thread* owner;
     {
       ScopedThreadSuspension sts(self, ThreadState::kWaitingForLockInflation);
-      owner = thread_list->SuspendThreadByThreadId(owner_thread_id,
-                                                   SuspendReason::kInternal,
-                                                   &timed_out);
+      owner = thread_list->SuspendThreadByThreadId(owner_thread_id, SuspendReason::kInternal);
     }
     if (owner != nullptr) {
       // We succeeded in suspending the thread, check the lock's status didn't change.

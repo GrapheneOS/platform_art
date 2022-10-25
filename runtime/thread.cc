@@ -1451,7 +1451,7 @@ uint64_t Thread::GetCpuMicroTime() const {
 }
 
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
-static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
+void Thread::UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
   LOG(ERROR) << *thread << " suspend count already zero.";
   Locks::thread_suspend_count_lock_->Unlock(self);
   if (!Locks::mutator_lock_->IsSharedHeld(self)) {
@@ -1469,139 +1469,49 @@ static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREA
   std::ostringstream ss;
   Runtime::Current()->GetThreadList()->Dump(ss);
   LOG(FATAL) << ss.str();
+  UNREACHABLE();
 }
 
-bool Thread::ModifySuspendCountInternal(Thread* self,
-                                        int delta,
-                                        AtomicInteger* suspend_barrier,
-                                        SuspendReason reason) {
-  if (kIsDebugBuild) {
-    DCHECK(delta == -1 || delta == +1)
-          << reason << " " << delta << " " << this;
-    Locks::thread_suspend_count_lock_->AssertHeld(self);
-    if (this != self && !IsSuspended()) {
-      Locks::thread_list_lock_->AssertHeld(self);
-    }
-  }
-  // User code suspensions need to be checked more closely since they originate from code outside of
-  // the runtime's control.
-  if (UNLIKELY(reason == SuspendReason::kForUserCode)) {
-    Locks::user_code_suspension_lock_->AssertHeld(self);
-    if (UNLIKELY(delta + tls32_.user_code_suspend_count < 0)) {
-      LOG(ERROR) << "attempting to modify suspend count in an illegal way.";
-      return false;
-    }
-  }
-  if (UNLIKELY(delta < 0 && tls32_.suspend_count <= 0)) {
-    UnsafeLogFatalForSuspendCount(self, this);
-    return false;
-  }
-
-  if (gUseReadBarrier && delta > 0 && this != self && tlsPtr_.flip_function != nullptr) {
-    // Force retry of a suspend request if it's in the middle of a thread flip to avoid a
-    // deadlock. b/31683379.
-    return false;
-  }
-
-  uint32_t flags = enum_cast<uint32_t>(ThreadFlag::kSuspendRequest);
-  if (delta > 0 && suspend_barrier != nullptr) {
-    uint32_t available_barrier = kMaxSuspendBarriers;
-    for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
-      if (tlsPtr_.active_suspend_barriers[i] == nullptr) {
-        available_barrier = i;
-        break;
-      }
-    }
-    if (available_barrier == kMaxSuspendBarriers) {
-      // No barrier spaces available, we can't add another.
-      return false;
-    }
-    tlsPtr_.active_suspend_barriers[available_barrier] = suspend_barrier;
-    flags |= enum_cast<uint32_t>(ThreadFlag::kActiveSuspendBarrier);
-  }
-
-  tls32_.suspend_count += delta;
-  switch (reason) {
-    case SuspendReason::kForUserCode:
-      tls32_.user_code_suspend_count += delta;
-      break;
-    case SuspendReason::kInternal:
-      break;
-  }
-
-  if (tls32_.suspend_count == 0) {
-    AtomicClearFlag(ThreadFlag::kSuspendRequest);
-  } else {
-    // Two bits might be set simultaneously.
-    tls32_.state_and_flags.fetch_or(flags, std::memory_order_seq_cst);
-    TriggerSuspend();
-  }
-  return true;
-}
-
-bool Thread::PassActiveSuspendBarriers(Thread* self) {
-  // Grab the suspend_count lock and copy the current set of
-  // barriers. Then clear the list and the flag. The ModifySuspendCount
-  // function requires the lock so we prevent a race between setting
+bool Thread::PassActiveSuspendBarriers() {
+  DCHECK_EQ(this, Thread::Current());
+  // Grab the suspend_count lock and copy the current set of barriers. Then clear the list and the
+  // flag. The IncrementSuspendCount function requires the lock so we prevent a race between setting
   // the kActiveSuspendBarrier flag and clearing it.
-  AtomicInteger* pass_barriers[kMaxSuspendBarriers];
+  std::vector<AtomicInteger*> pass_barriers{};
   {
-    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+    MutexLock mu(this, *Locks::thread_suspend_count_lock_);
     if (!ReadFlag(ThreadFlag::kActiveSuspendBarrier)) {
-      // quick exit test: the barriers have already been claimed - this is
-      // possible as there may be a race to claim and it doesn't matter
-      // who wins.
-      // All of the callers of this function (except the SuspendAllInternal)
-      // will first test the kActiveSuspendBarrier flag without lock. Here
-      // double-check whether the barrier has been passed with the
-      // suspend_count lock.
+      // quick exit test: the barriers have already been claimed - this is possible as there may
+      // be a race to claim and it doesn't matter who wins.
+      // All of the callers of this function (except the SuspendAllInternal) will first test the
+      // kActiveSuspendBarrier flag without lock. Here double-check whether the barrier has been
+      // passed with the suspend_count lock.
       return false;
     }
-
-    for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
-      pass_barriers[i] = tlsPtr_.active_suspend_barriers[i];
-      tlsPtr_.active_suspend_barriers[i] = nullptr;
+    if (tlsPtr_.active_suspendall_barrier != nullptr) {
+      pass_barriers.push_back(tlsPtr_.active_suspendall_barrier);
+      tlsPtr_.active_suspendall_barrier = nullptr;
     }
+    for (WrappedSuspend1Barrier* w = tlsPtr_.active_suspend1_barriers; w != nullptr; w = w->next_) {
+      pass_barriers.push_back(&(w->barrier_));
+    }
+    tlsPtr_.active_suspend1_barriers = nullptr;
     AtomicClearFlag(ThreadFlag::kActiveSuspendBarrier);
   }
 
   uint32_t barrier_count = 0;
-  for (uint32_t i = 0; i < kMaxSuspendBarriers; i++) {
-    AtomicInteger* pending_threads = pass_barriers[i];
-    if (pending_threads != nullptr) {
-      bool done = false;
-      do {
-        int32_t cur_val = pending_threads->load(std::memory_order_relaxed);
-        CHECK_GT(cur_val, 0) << "Unexpected value for PassActiveSuspendBarriers(): " << cur_val;
-        // Reduce value by 1.
-        done = pending_threads->CompareAndSetWeakRelaxed(cur_val, cur_val - 1);
+  for (AtomicInteger* barrier : pass_barriers) {
+    ++barrier_count;
+    int32_t old_val = barrier->fetch_sub(1, std::memory_order_release);
+    CHECK_GT(old_val, 0) << "Unexpected value for PassActiveSuspendBarriers(): " << old_val;
 #if ART_USE_FUTEXES
-        if (done && (cur_val - 1) == 0) {  // Weak CAS may fail spuriously.
-          futex(pending_threads->Address(), FUTEX_WAKE_PRIVATE, INT_MAX, nullptr, nullptr, 0);
-        }
-#endif
-      } while (!done);
-      ++barrier_count;
+    if (old_val == 1) {
+      futex(barrier->Address(), FUTEX_WAKE_PRIVATE, INT_MAX, nullptr, nullptr, 0);
     }
+#endif
   }
   CHECK_GT(barrier_count, 0U);
   return true;
-}
-
-void Thread::ClearSuspendBarrier(AtomicInteger* target) {
-  CHECK(ReadFlag(ThreadFlag::kActiveSuspendBarrier));
-  bool clear_flag = true;
-  for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
-    AtomicInteger* ptr = tlsPtr_.active_suspend_barriers[i];
-    if (ptr == target) {
-      tlsPtr_.active_suspend_barriers[i] = nullptr;
-    } else if (ptr != nullptr) {
-      clear_flag = false;
-    }
-  }
-  if (LIKELY(clear_flag)) {
-    AtomicClearFlag(ThreadFlag::kActiveSuspendBarrier);
-  }
 }
 
 void Thread::RunCheckpointFunction() {
@@ -1655,28 +1565,25 @@ void Thread::RunEmptyCheckpoint() {
 }
 
 bool Thread::RequestCheckpoint(Closure* function) {
-  StateAndFlags old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
-  if (old_state_and_flags.GetState() != ThreadState::kRunnable) {
-    return false;  // Fail, thread is suspended and so can't run a checkpoint.
-  }
-
-  // We must be runnable to request a checkpoint.
-  DCHECK_EQ(old_state_and_flags.GetState(), ThreadState::kRunnable);
-  StateAndFlags new_state_and_flags = old_state_and_flags;
-  new_state_and_flags.SetFlag(ThreadFlag::kCheckpointRequest);
-  bool success = tls32_.state_and_flags.CompareAndSetStrongSequentiallyConsistent(
-      old_state_and_flags.GetValue(), new_state_and_flags.GetValue());
-  if (success) {
-    // Succeeded setting checkpoint flag, now insert the actual checkpoint.
-    if (tlsPtr_.checkpoint_function == nullptr) {
-      tlsPtr_.checkpoint_function = function;
-    } else {
-      checkpoint_overflow_.push_back(function);
+  StateAndFlags old_state_and_flags(0 /* unused */), new_state_and_flags(0 /* unused */);
+  do {
+    old_state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
+    if (old_state_and_flags.GetState() != ThreadState::kRunnable) {
+      return false;  // Fail, thread is suspended and so can't run a checkpoint.
     }
-    CHECK(ReadFlag(ThreadFlag::kCheckpointRequest));
-    TriggerSuspend();
+    new_state_and_flags = old_state_and_flags;
+    new_state_and_flags.SetFlag(ThreadFlag::kCheckpointRequest);
+  } while (!tls32_.state_and_flags.CompareAndSetWeakSequentiallyConsistent(
+      old_state_and_flags.GetValue(), new_state_and_flags.GetValue()));
+  // Succeeded setting checkpoint flag, now insert the actual checkpoint.
+  if (tlsPtr_.checkpoint_function == nullptr) {
+    tlsPtr_.checkpoint_function = function;
+  } else {
+    checkpoint_overflow_.push_back(function);
   }
-  return success;
+  DCHECK(ReadFlag(ThreadFlag::kCheckpointRequest));
+  TriggerSuspend();
+  return true;
 }
 
 bool Thread::RequestEmptyCheckpoint() {
@@ -1755,85 +1662,85 @@ bool Thread::RequestSynchronousCheckpoint(Closure* function, ThreadState suspend
     Thread* self_thread;
   };
 
-  for (;;) {
-    Locks::thread_list_lock_->AssertExclusiveHeld(self);
-    // If this thread is runnable, try to schedule a checkpoint. Do some gymnastics to not hold the
-    // suspend-count lock for too long.
-    if (GetState() == ThreadState::kRunnable) {
-      BarrierClosure barrier_closure(function);
-      bool installed = false;
-      {
-        MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-        installed = RequestCheckpoint(&barrier_closure);
-      }
-      if (installed) {
-        // Relinquish the thread-list lock. We should not wait holding any locks. We cannot
-        // reacquire it since we don't know if 'this' hasn't been deleted yet.
-        Locks::thread_list_lock_->ExclusiveUnlock(self);
-        ScopedThreadStateChange sts(self, suspend_state);
-        barrier_closure.Wait(self, suspend_state);
-        return true;
-      }
-      // Fall-through.
-    }
-
-    // This thread is not runnable, make sure we stay suspended, then run the checkpoint.
-    // Note: ModifySuspendCountInternal also expects the thread_list_lock to be held in
-    //       certain situations.
+  Locks::thread_list_lock_->AssertExclusiveHeld(self);
+  // If this thread is runnable, try to schedule a checkpoint. Do some gymnastics to not hold the
+  // suspend-count lock for too long.
+  if (GetState() == ThreadState::kRunnable) {
+    BarrierClosure barrier_closure(function);
+    bool installed = false;
     {
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-
-      if (!ModifySuspendCount(self, +1, nullptr, SuspendReason::kInternal)) {
-        // Just retry the loop.
-        sched_yield();
-        continue;
-      }
+      MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+      installed = RequestCheckpoint(&barrier_closure);
     }
-
-    {
-      // Release for the wait. The suspension will keep us from being deleted. Reacquire after so
-      // that we can call ModifySuspendCount without racing against ThreadList::Unregister.
-      ScopedThreadListLockUnlock stllu(self);
-      {
-        ScopedThreadStateChange sts(self, suspend_state);
-        while (GetState() == ThreadState::kRunnable) {
-          // We became runnable again. Wait till the suspend triggered in ModifySuspendCount
-          // moves us to suspended.
-          sched_yield();
-        }
-      }
-
-      function->Run(this);
+    if (installed) {
+      // Relinquish the thread-list lock. We should not wait holding any locks. We cannot
+      // reacquire it since we don't know if 'this' hasn't been deleted yet.
+      Locks::thread_list_lock_->ExclusiveUnlock(self);
+      ScopedThreadStateChange sts(self, suspend_state);
+      barrier_closure.Wait(self, suspend_state);
+      return true;
     }
-
-    {
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-
-      DCHECK_NE(GetState(), ThreadState::kRunnable);
-      bool updated = ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
-      DCHECK(updated);
-    }
-
-    {
-      // Imitate ResumeAll, the thread may be waiting on Thread::resume_cond_ since we raised its
-      // suspend count. Now the suspend_count_ is lowered so we must do the broadcast.
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-      Thread::resume_cond_->Broadcast(self);
-    }
-
-    // Release the thread_list_lock_ to be consistent with the barrier-closure path.
-    Locks::thread_list_lock_->ExclusiveUnlock(self);
-
-    return true;  // We're done, break out of the loop.
+    // No longer runnable. Fall-through.
   }
+
+  // This thread is not runnable, make sure we stay suspended, then run the checkpoint.
+  // Note: IncrementSuspendCount also expects the thread_list_lock to be held in
+  //       certain situations.
+  while (true) {
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+
+    if (GetFlipFunction() == nullptr) {
+      IncrementSuspendCount(self);
+      break;
+    }
+    DCHECK(gUseReadBarrier);  // Flip functions are only used by CC collector.
+    sched_yield();
+  }
+
+  {
+    // Release for the wait. The suspension will keep the target thread from being unregistered
+    // and deleted.  Reacquire after so that we can call DecrementSuspendCount without racing
+    // against ThreadList::Unregister.
+    ScopedThreadListLockUnlock stllu(self);
+    {
+      ScopedThreadStateChange sts(self, suspend_state);
+      while (GetState() == ThreadState::kRunnable) {
+        // The target thread became runnable again. Wait till the suspend triggered in
+        // IncrementSuspendCount moves the target thread to suspended.
+        sched_yield();
+      }
+    }
+
+    function->Run(this);
+  }
+
+  {
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+
+    // Target was in a suspended state with a nonzero suspend count, so it must stay suspended.
+    DCHECK_NE(GetState(), ThreadState::kRunnable);
+    DecrementSuspendCount(self);
+  }
+
+  {
+    // Imitate ResumeAll, the thread may be waiting on Thread::resume_cond_ since we raised its
+    // suspend count. Now the suspend_count_ is lowered so we must do the broadcast.
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+    Thread::resume_cond_->Broadcast(self);
+  }
+
+  // Release the thread_list_lock_ to be consistent with the barrier-closure path.
+  Locks::thread_list_lock_->ExclusiveUnlock(self);
+
+  return true;  // We're done, break out of the loop.
 }
 
 void Thread::SetFlipFunction(Closure* function) {
   // This is called with all threads suspended, except for the calling thread.
   DCHECK(IsSuspended() || Thread::Current() == this);
   DCHECK(function != nullptr);
-  DCHECK(tlsPtr_.flip_function == nullptr);
-  tlsPtr_.flip_function = function;
+  DCHECK(GetFlipFunction() == nullptr);
+  tlsPtr_.flip_function.store(function, std::memory_order_relaxed);
   DCHECK(!GetStateAndFlags(std::memory_order_relaxed).IsAnyOfFlagsSet(FlipFunctionFlags()));
   AtomicSetFlag(ThreadFlag::kPendingFlipFunction, std::memory_order_release);
 }
@@ -1865,8 +1772,8 @@ void Thread::RunFlipFunction(Thread* self, bool notify) {
   // no other thread may run checkpoints on a thread that's actually Runnable.
   DCHECK_EQ(notify, ReadFlag(ThreadFlag::kRunningFlipFunction));
 
-  Closure* flip_function = tlsPtr_.flip_function;
-  tlsPtr_.flip_function = nullptr;
+  Closure* flip_function = GetFlipFunction();
+  tlsPtr_.flip_function.store(nullptr, std::memory_order_relaxed);
   DCHECK(flip_function != nullptr);
   flip_function->Run(this);
 
@@ -2229,19 +2136,27 @@ struct StackDumpVisitor : public MonitorObjectsStackVisitor {
     if (obj == nullptr) {
       os << msg << "an unknown object";
     } else {
-      if ((obj->GetLockWord(true).GetState() == LockWord::kThinLocked) &&
-          Locks::mutator_lock_->IsExclusiveHeld(Thread::Current())) {
-        // Getting the identity hashcode here would result in lock inflation and suspension of the
-        // current thread, which isn't safe if this is the only runnable thread.
-        os << msg << StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)",
-                                  reinterpret_cast<intptr_t>(obj.Ptr()),
-                                  obj->PrettyTypeOf().c_str());
+      const std::string pretty_type(obj->PrettyTypeOf());
+      // It's often unsafe to allow lock inflation here. We may be the only runnable thread, or
+      // this may be called from a checkpoint. We get the hashcode on a best effort basis.
+      static constexpr int kNumRetries = 3;
+      static constexpr int kSleepMicros = 10;
+      int32_t hash_code;
+      for (int i = 0;; ++i) {
+        hash_code = obj->IdentityHashCodeNoInflation();
+        if (hash_code != 0 || i == kNumRetries) {
+          break;
+        }
+        usleep(kSleepMicros);
+      }
+      if (hash_code == 0) {
+        os << msg
+           << StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)",
+                           reinterpret_cast<intptr_t>(obj.Ptr()),
+                           pretty_type.c_str());
       } else {
-        // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
-        // Call PrettyTypeOf before IdentityHashCode since IdentityHashCode can cause thread
-        // suspension and move pretty_object.
-        const std::string pretty_type(obj->PrettyTypeOf());
-        os << msg << StringPrintf("<0x%08x> (a %s)", obj->IdentityHashCode(), pretty_type.c_str());
+        // - waiting on <0x608c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
+        os << msg << StringPrintf("<0x%08x> (a %s)", hash_code, pretty_type.c_str());
       }
     }
     if (owner_tid != ThreadList::kInvalidThreadId) {
@@ -2465,10 +2380,9 @@ Thread::Thread(bool daemon)
             tlsPtr_.rosalloc_runs + kNumRosAllocThreadLocalSizeBracketsInThread,
             gc::allocator::RosAlloc::GetDedicatedFullRun());
   tlsPtr_.checkpoint_function = nullptr;
-  for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
-    tlsPtr_.active_suspend_barriers[i] = nullptr;
-  }
-  tlsPtr_.flip_function = nullptr;
+  tlsPtr_.active_suspendall_barrier = nullptr;
+  tlsPtr_.active_suspend1_barriers = nullptr;
+  tlsPtr_.flip_function.store(nullptr, std::memory_order_relaxed);
   tlsPtr_.thread_local_mark_stack = nullptr;
   tls32_.is_transitioning_to_runnable = false;
   ResetTlab();
@@ -2613,7 +2527,7 @@ Thread::~Thread() {
   CHECK(!ReadFlag(ThreadFlag::kEmptyCheckpointRequest));
   CHECK(tlsPtr_.checkpoint_function == nullptr);
   CHECK_EQ(checkpoint_overflow_.size(), 0u);
-  CHECK(tlsPtr_.flip_function == nullptr);
+  CHECK(GetFlipFunction() == nullptr);
   CHECK_EQ(tls32_.is_transitioning_to_runnable, false);
 
   // Make sure we processed all deoptimization requests.
