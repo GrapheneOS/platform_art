@@ -69,7 +69,6 @@ class Compiler:
     files = list(map(str, files))
     cmd = ['sh', '-a', '-e', '--', str(self.javac)] + args + sorted(files)
     subprocess.check_call(cmd)
-    print("Compiled {} files".format(len(files)))
 
   def execute(self):
     """
@@ -104,7 +103,6 @@ class Compiler:
       self.compile_files("-d {outdir} -cp {outdir}".format(outdir = self.classes_dir), files)
       # Remove these from the set of interfaces to be compiled.
       ifaces -= tops
-    print("Finished compiling all files.")
     return
 
 def main(argv):
@@ -125,7 +123,6 @@ def main(argv):
 
   with expected_txt.open('w') as out:
     print(mainclass.get_expected(), file=out)
-  print("Wrote expected output")
 
   Compiler(all_files, javac_exec, temp_dir, classes_dir).execute()
 
