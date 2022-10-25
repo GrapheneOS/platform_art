@@ -376,76 +376,77 @@ inline ObjPtr<mirror::Array> AllocArrayFromCodeResolved(ObjPtr<mirror::Class> kl
                                              allocator_type);
 }
 
-template<FindFieldType type, bool access_check>
+FLATTEN
+inline ArtField* ResolveFieldWithAccessChecks(Thread* self,
+                                              ClassLinker* class_linker,
+                                              uint16_t field_index,
+                                              ArtMethod* caller,
+                                              bool is_static,
+                                              bool is_put,
+                                              size_t resolve_field_type)  // Resolve if not zero
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (caller->SkipAccessChecks()) {
+    return class_linker->ResolveField(field_index, caller, is_static);
+  }
+
+  caller = caller->GetInterfaceMethodIfProxy(class_linker->GetImagePointerSize());
+
+  StackHandleScope<2> hs(self);
+  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(caller->GetDexCache()));
+  Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(caller->GetClassLoader()));
+
+  ArtField* resolved_field = class_linker->ResolveFieldJLS(field_index,
+                                                           h_dex_cache,
+                                                           h_class_loader);
+  if (resolved_field == nullptr) {
+    return nullptr;
+  }
+
+  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
+  if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
+    ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, caller);
+    return nullptr;
+  }
+  ObjPtr<mirror::Class> referring_class = caller->GetDeclaringClass();
+  if (UNLIKELY(!referring_class->CheckResolvedFieldAccess(fields_class,
+                                                          resolved_field,
+                                                          caller->GetDexCache(),
+                                                          field_index))) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+  if (UNLIKELY(is_put && !resolved_field->CanBeChangedBy(caller))) {
+    ThrowIllegalAccessErrorFinalField(caller, resolved_field);
+    return nullptr;
+  }
+
+  if (resolve_field_type != 0u) {
+    StackArtFieldHandleScope<1> rhs(self);
+    ReflectiveHandle<ArtField> field_handle(rhs.NewHandle(resolved_field));
+    if (resolved_field->ResolveType().IsNull()) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
+    }
+    resolved_field = field_handle.Get();
+  }
+  return resolved_field;
+}
+
+template<FindFieldType type>
 inline ArtField* FindFieldFromCode(uint32_t field_idx,
                                    ArtMethod* referrer,
                                    Thread* self,
-                                   size_t expected_size) {
-  constexpr bool is_primitive = (type & FindFieldFlags::PrimitiveBit) != 0;
+                                   bool should_resolve_type = false) {
   constexpr bool is_set = (type & FindFieldFlags::WriteBit) != 0;
   constexpr bool is_static = (type & FindFieldFlags::StaticBit) != 0;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-
-  ArtField* resolved_field;
-  if (access_check) {
-    // Slow path: According to JLS 13.4.8, a linkage error may occur if a compile-time
-    // qualifying type of a field and the resolved run-time qualifying type of a field differed
-    // in their static-ness.
-    //
-    // In particular, don't assume the dex instruction already correctly knows if the
-    // real field is static or not. The resolution must not be aware of this.
-    ArtMethod* method = referrer->GetInterfaceMethodIfProxy(kRuntimePointerSize);
-
-    StackHandleScope<2> hs(self);
-    Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(method->GetDexCache()));
-    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(method->GetClassLoader()));
-
-    resolved_field = class_linker->ResolveFieldJLS(field_idx,
-                                                   h_dex_cache,
-                                                   h_class_loader);
-  } else {
-    // Fast path: Verifier already would've called ResolveFieldJLS and we wouldn't
-    // be executing here if there was a static/non-static mismatch.
-    resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
-  }
-
-  if (UNLIKELY(resolved_field == nullptr)) {
-    DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
-    return nullptr;  // Failure.
-  }
-  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
-  if (access_check) {
-    if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
-      ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, referrer);
-      return nullptr;
-    }
-    ObjPtr<mirror::Class> referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CheckResolvedFieldAccess(fields_class,
-                                                            resolved_field,
-                                                            referrer->GetDexCache(),
-                                                            field_idx))) {
-      DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
-      return nullptr;  // Failure.
-    }
-    if (UNLIKELY(is_set && !resolved_field->CanBeChangedBy(referrer))) {
-      ThrowIllegalAccessErrorFinalField(referrer, resolved_field);
-      return nullptr;  // Failure.
-    } else {
-      if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
-                   resolved_field->FieldSize() != expected_size)) {
-        self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                                 "Attempted read of %zd-bit %s on field '%s'",
-                                 expected_size * (32 / sizeof(int32_t)),
-                                 is_primitive ? "primitive" : "non-primitive",
-                                 resolved_field->PrettyField(true).c_str());
-        return nullptr;  // Failure.
-      }
-    }
-  }
-  if (!is_static) {
+  ArtField* resolved_field = ResolveFieldWithAccessChecks(
+      self, class_linker, field_idx, referrer, is_static, is_set, should_resolve_type ? 1u : 0u);
+  if (!is_static || resolved_field == nullptr) {
     // instance fields must be being accessed on an initialized class
     return resolved_field;
   } else {
+    ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
     // If the class is initialized we're done.
     if (LIKELY(fields_class->IsVisiblyInitialized())) {
       return resolved_field;
@@ -463,28 +464,26 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
   }
 }
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 // Explicit template declarations of FindFieldFromCode for all field access types.
-#define EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, _access_check) \
+#define EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type) \
 template REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE \
-ArtField* FindFieldFromCode<_type, _access_check>(uint32_t field_idx, \
-                                                  ArtMethod* referrer, \
-                                                  Thread* self, size_t expected_size) \
+ArtField* FindFieldFromCode<_type>(uint32_t field_idx, \
+                                   ArtMethod* referrer, \
+                                   Thread* self, \
+                                   bool should_resolve_type = false) \
 
-#define EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(_type) \
-    EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, false); \
-    EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, true)
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(InstanceObjectRead);
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(InstanceObjectWrite);
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(InstancePrimitiveRead);
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(InstancePrimitiveWrite);
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(StaticObjectRead);
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(StaticObjectWrite);
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(StaticPrimitiveRead);
+EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(StaticPrimitiveWrite);
 
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(InstanceObjectRead);
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(InstanceObjectWrite);
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(InstancePrimitiveRead);
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(InstancePrimitiveWrite);
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticObjectRead);
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticObjectWrite);
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticPrimitiveRead);
-EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticPrimitiveWrite);
-
-#undef EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL
 #undef EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL
+// NOLINTEND(bugprone-macro-parentheses)
 
 static inline bool IsStringInit(const DexFile* dex_file, uint32_t method_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
