@@ -3941,30 +3941,35 @@ void Thread::QuickDeliverException(bool is_method_exit_exception) {
   if (Dbg::IsForcedInterpreterNeededForException(this) || force_deopt || IsForceInterpreter()) {
     NthCallerVisitor visitor(this, 0, false);
     visitor.WalkStack();
-    if (Runtime::Current()->IsAsyncDeoptimizeable(visitor.GetOuterMethod(), visitor.caller_pc)) {
-      // method_type shouldn't matter due to exception handling.
-      const DeoptimizationMethodType method_type = DeoptimizationMethodType::kDefault;
-      // Save the exception into the deoptimization context so it can be restored
-      // before entering the interpreter.
-      if (force_deopt) {
-        VLOG(deopt) << "Deopting " << cf->GetMethod()->PrettyMethod() << " for frame-pop";
-        DCHECK(Runtime::Current()->AreNonStandardExitsEnabled());
-        // Get rid of the exception since we are doing a framepop instead.
-        LOG(WARNING) << "Suppressing pending exception for retry-instruction/frame-pop: "
-                     << exception->Dump();
-        ClearException();
+    if (visitor.GetCurrentQuickFrame() != nullptr) {
+      if (Runtime::Current()->IsAsyncDeoptimizeable(visitor.GetOuterMethod(), visitor.caller_pc)) {
+        // method_type shouldn't matter due to exception handling.
+        const DeoptimizationMethodType method_type = DeoptimizationMethodType::kDefault;
+        // Save the exception into the deoptimization context so it can be restored
+        // before entering the interpreter.
+        if (force_deopt) {
+          VLOG(deopt) << "Deopting " << cf->GetMethod()->PrettyMethod() << " for frame-pop";
+          DCHECK(Runtime::Current()->AreNonStandardExitsEnabled());
+          // Get rid of the exception since we are doing a framepop instead.
+          LOG(WARNING) << "Suppressing pending exception for retry-instruction/frame-pop: "
+                       << exception->Dump();
+          ClearException();
+        }
+        PushDeoptimizationContext(
+            JValue(),
+            /* is_reference= */ false,
+            (force_deopt ? nullptr : exception),
+            /* from_code= */ false,
+            method_type);
+        artDeoptimize(this);
+        UNREACHABLE();
+      } else {
+        LOG(WARNING) << "Got a deoptimization request on un-deoptimizable method "
+                     << visitor.caller->PrettyMethod();
       }
-      PushDeoptimizationContext(
-          JValue(),
-          /* is_reference= */ false,
-          (force_deopt ? nullptr : exception),
-          /* from_code= */ false,
-          method_type);
-      artDeoptimize(this);
-      UNREACHABLE();
-    } else if (visitor.caller != nullptr) {
-      LOG(WARNING) << "Got a deoptimization request on un-deoptimizable method "
-                   << visitor.caller->PrettyMethod();
+    } else {
+      // This is either top of call stack, or shadow frame.
+      DCHECK(visitor.caller == nullptr || visitor.IsShadowFrame());
     }
   }
 
