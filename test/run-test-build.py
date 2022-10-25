@@ -73,17 +73,6 @@ def build_test(args, mode, build_top, sbox, dstdir):
     "NEED_DEX":    {"host": "true", "target": "true", "jvm": "false"}[mode],
   })
 
-  generate_sources = join(dstdir, "generate-sources")
-  if os.path.exists(generate_sources):
-    proc = subprocess.run([generate_sources, "--" + mode],
-                          cwd=dstdir,
-                          env=env,
-                          encoding=os.sys.stdout.encoding,
-                          stderr=subprocess.STDOUT,
-                          stdout=subprocess.PIPE)
-    if proc.returncode:
-      raise Exception("Failed to generate sources for " + test_name + ":\n" + proc.stdout)
-
   os.chdir(dstdir)
   for name, value in env.items():
     os.environ[name] = str(value)
