@@ -189,7 +189,6 @@ if True:
       target_mode = "no"
       DEX_LOCATION = tmp_dir
       run_args += ["--host"]
-      os.environ["RUN_MODE"] = "host"
       shift()
     elif arg == "--quiet":
       quiet = "yes"
@@ -258,19 +257,15 @@ if True:
       shift()
     elif arg == "--jvmti-step-stress":
       jvmti_step_stress = "true"
-      os.environ["JVMTI_STEP_STRESS"] = "true"
       shift()
     elif arg == "--jvmti-redefine-stress":
       jvmti_redefine_stress = "true"
-      os.environ["JVMTI_REDEFINE_STRESS"] = "true"
       shift()
     elif arg == "--jvmti-field-stress":
       jvmti_field_stress = "true"
-      os.environ["JVMTI_FIELD_STRESS"] = "true"
       shift()
     elif arg == "--jvmti-trace-stress":
       jvmti_trace_stress = "true"
-      os.environ["JVMTI_TRACE_STRESS"] = "true"
       shift()
     elif arg == "--suspend-timeout":
       shift()
