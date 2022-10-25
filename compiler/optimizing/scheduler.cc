@@ -721,6 +721,7 @@ bool HScheduler::IsSchedulable(const HInstruction* instruction) const {
   //    HNop
   //    HThrow
   //    HTryBoundary
+  //    All volatile field access e.g. HInstanceFieldGet
   // TODO: Some of the instructions above may be safe to schedule (maybe as
   // scheduling barriers).
   return instruction->IsArrayGet() ||
