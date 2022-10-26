@@ -3885,34 +3885,30 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
     // dex file location is /system/priv-app/SettingsProvider/SettingsProvider.apk
     CHECK_EQ(dex_cache_location, dex_file_suffix);
   }
+
+  // Check if we need to initialize OatFile data (.data.bimg.rel.ro and .bss
+  // sections) needed for code execution.
   const OatFile* oat_file =
       (dex_file.GetOatDexFile() != nullptr) ? dex_file.GetOatDexFile()->GetOatFile() : nullptr;
-  // Clean up pass to remove null dex caches; null dex caches can occur due to class unloading
-  // and we are lazily removing null entries. Also check if we need to initialize OatFile data
-  // (.data.bimg.rel.ro and .bss sections) needed for code execution.
   bool initialize_oat_file_data = (oat_file != nullptr) && oat_file->IsExecutable();
-  JavaVMExt* const vm = self->GetJniEnv()->GetVm();
-  for (auto it = dex_caches_.begin(); it != dex_caches_.end(); ) {
-    const DexCacheData& data = it->second;
-    if (self->IsJWeakCleared(data.weak_root)) {
-      vm->DeleteWeakGlobalRef(self, data.weak_root);
-      it = dex_caches_.erase(it);
-    } else {
-      if (initialize_oat_file_data &&
-          it->first->GetOatDexFile() != nullptr &&
-          it->first->GetOatDexFile()->GetOatFile() == oat_file) {
+  if (initialize_oat_file_data) {
+    for (const auto& entry : dex_caches_) {
+      if (!self->IsJWeakCleared(entry.second.weak_root) &&
+          entry.first->GetOatDexFile() != nullptr &&
+          entry.first->GetOatDexFile()->GetOatFile() == oat_file) {
         initialize_oat_file_data = false;  // Already initialized.
+        break;
       }
-      ++it;
     }
   }
   if (initialize_oat_file_data) {
     oat_file->InitializeRelocations();
   }
+
   // Let hiddenapi assign a domain to the newly registered dex file.
   hiddenapi::InitializeDexFileDomain(dex_file, class_loader);
 
-  jweak dex_cache_jweak = vm->AddWeakGlobalRef(self, dex_cache);
+  jweak dex_cache_jweak = self->GetJniEnv()->GetVm()->AddWeakGlobalRef(self, dex_cache);
   DexCacheData data;
   data.weak_root = dex_cache_jweak;
   data.class_table = ClassTableForClassLoader(class_loader);
@@ -10323,6 +10319,23 @@ void ClassLinker::CleanupClassLoaders() {
         VLOG(class_linker) << "Freeing class loader";
         to_delete.push_back(data);
         it = class_loaders_.erase(it);
+      }
+    }
+  }
+  if (!to_delete.empty()) {
+    JavaVMExt* vm = self->GetJniEnv()->GetVm();
+    WriterMutexLock mu(self, *Locks::dex_lock_);
+    for (auto it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ) {
+      const DexCacheData& data = it->second;
+      if (self->DecodeJObject(data.weak_root) == nullptr) {
+        DCHECK(to_delete.end() != std::find_if(
+            to_delete.begin(),
+            to_delete.end(),
+            [&](const ClassLoaderData& cld) { return cld.class_table == data.class_table; }));
+        vm->DeleteWeakGlobalRef(self, data.weak_root);
+        it = dex_caches_.erase(it);
+      } else {
+        ++it;
       }
     }
   }
