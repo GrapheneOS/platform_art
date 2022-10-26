@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <android-base/test_utils.h>
+
 #include <memory>
 #include <type_traits>
 
@@ -168,6 +170,7 @@ TEST_F(ExceptionTest, FindCatchHandler) {
 }
 
 TEST_F(ExceptionTest, StackTraceElement) {
+  SKIP_WITH_HWASAN;  // TODO(b/230392320): re-enable with HWASan once fixed.
   Thread* thread = Thread::Current();
   thread->TransitionFromSuspendedToRunnable();
   bool started = runtime_->Start();
