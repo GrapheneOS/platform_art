@@ -31,7 +31,7 @@ the module. It is also mutually exclusive with the other ones.
 
     See the [Android source access
     instructions](https://source.android.com/setup/build/downloading) for
-    further details.
+    further details. Google internal users please see [go/sync](http://go/sync).
 
 2.  Set up the development environment:
 
