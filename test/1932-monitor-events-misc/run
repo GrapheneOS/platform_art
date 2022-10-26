@@ -17,3 +17,7 @@
 
 def run(ctx, args):
   ctx.default_run(args, jvmti=True)
+
+  # The RI sends an extra event that art doesn't. Add it to the expected output.
+  if args.jvm:
+    ctx.run(fr"patch -p0 expected-stdout.txt < jvm-expected.patch >/dev/null")

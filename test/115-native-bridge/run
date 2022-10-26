@@ -28,14 +28,19 @@ def run(ctx, args):
       args.runtime_option[i] = "-Djava.library.path=" + test_dir
 
   assert libpath
-  ctx.bash(f"ln -sf {libpath}/{bridge_so} {test_dir}/.")
-  ctx.bash(
+  ctx.run(f"ln -sf {libpath}/{bridge_so} {test_dir}/.")
+  ctx.run(
       f"touch {test_dir}/libarttest.so {test_dir}/libarttestd.so {test_dir}/libinvalid.so"
   )
-  ctx.bash(f"ln -sf {libpath}/libarttest.so {test_dir}/libarttest2.so")
-  ctx.bash(f"ln -sf {libpath}/libarttestd.so {test_dir}/libarttestd2.so")
+  ctx.run(f"ln -sf {libpath}/libarttest.so {test_dir}/libarttest2.so")
+  ctx.run(f"ln -sf {libpath}/libarttestd.so {test_dir}/libarttestd2.so")
 
   ctx.default_run(
       args,
       runtime_option=["-Xforce-nb-testing", f"-XX:NativeBridge={bridge_so}"],
       main="NativeBridgeMain")
+
+  # ASAN prints a warning here.
+  ctx.run(
+      fr"sed -i '/WARNING: ASan is ignoring requested __asan_handle_no_return/,+2d' '{args.stderr_file}'"
+  )

@@ -22,3 +22,6 @@ def run(ctx, args):
   # N.B. Compilation of secondary dexes can prevent hidden API checks, e.g. if
   # a blocklisted field get is inlined.
   ctx.default_run(args, verify_soft_fail=True, secondary_compilation=False)
+
+  ctx.run(fr"sed -i -E '/(JNI_OnLoad|JNI_OnUnload)/d' '{args.stdout_file}'")
+  ctx.run(fr"sed -i -E '/^dalvikvm(32|64) E [^]]+]/d' '{args.stderr_file}'")

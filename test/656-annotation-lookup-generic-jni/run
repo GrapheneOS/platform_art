@@ -17,3 +17,7 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # On gcstress configurations, an extra "JNI_OnUnload called" line may
+  # be emitted. If so, remove it.
+  ctx.run(fr"sed -i '/^JNI_OnUnload called$/d' '{args.stdout_file}'")

@@ -44,8 +44,8 @@ class RunTestContext:
       f.write(text + "\n")
 
   # Let the test execute arbitrary bash command.
-  def bash(self, cmd):
-    subprocess.run(cmd, shell=True)
+  def run(self, cmd, check=True):
+    subprocess.run(cmd, shell=True, cwd=tmp_dir, check=check)
 
   # Execute the default runner (possibly with modified arguments).
   def default_run(self, args, **kwargs):
@@ -123,7 +123,6 @@ if True:
   run_cmd = "run"
   expected_stdout = "expected-stdout.txt"
   expected_stderr = "expected-stderr.txt"
-  check_cmd = "check"
   test_stdout = "test-stdout.txt"
   test_stderr = "test-stderr.txt"
   cfg_output = "graph.cfg"
@@ -959,8 +958,6 @@ if True:
     run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"''')
     good = "yes"
 
-  if os.path.exists(check_cmd):
-    run(f'./{check_cmd} "{expected_stdout}" "{test_stdout}" "{expected_stderr}" "{test_stderr}"')
   proc = run(
     f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" &&'
     f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}"',

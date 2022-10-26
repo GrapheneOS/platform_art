@@ -29,3 +29,11 @@ def run(ctx, args):
       runtime_option=[
           "-Xlockprofthreshold:10", "-Xstackdumplockprofthreshold:20"
       ])
+
+  # Do not compare numbers, so replace numbers with 'N'.
+  ctx.run(fr"sed -i 's/[0-9][0-9]*/N/g' '{args.stdout_file}'")
+
+  # Remove all messages relating to failing to allocate a java-peer for the
+  # shutdown thread. This can occasionally happen with this test but it is not
+  # something we really need to worry about here.
+  ctx.run(fr"sed -i '/Exception creating thread peer:/d' '{args.stderr_file}'")
