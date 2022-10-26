@@ -15,6 +15,7 @@
 
 
 def build(ctx):
+  ctx.bash("./generate-sources")
   if ctx.jvm:
     return  # The test does not build on JVM
 

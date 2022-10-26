@@ -22,4 +22,4 @@ mv src-ex/java/util/AbstractCollection.java src-ex/java/util/AbstractCollection.
 cp src-ex/java/util/AbstractCollection.bak src-ex/java/util/AbstractCollection.java
 
 # Patch the copied version.
-patch src-ex/java/util/AbstractCollection.java AbstractCollection.patch
+patch -s src-ex/java/util/AbstractCollection.java AbstractCollection.patch

@@ -15,6 +15,7 @@
 
 
 def build(ctx):
+  ctx.bash("./generate-sources")
   # Specify old API level as d8 automagically produces a multidex file
   # when the API level is above 20. Failing the build here is deliberate.
   # Force DEX generation so test also passes with --jvm.

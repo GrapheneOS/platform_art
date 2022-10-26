@@ -66,7 +66,10 @@ java_sdk_library {
     // This target is named 'service-art' to conform to the naming conventions
     // for JAR files in the System Server.
     name: "service-art",
-    defaults: ["framework-system-server-module-defaults"],
+    defaults: [
+        "framework-system-server-module-defaults",
+        "framework-system-server-module-optimize-defaults",
+    ],
     permitted_packages: ["com.android.server.art"],
     visibility: [
         "//art:__subpackages__",
@@ -95,10 +98,6 @@ java_sdk_library {
     ],
     jarjar_rules: "jarjar-rules.txt",
     optimize: {
-        enabled: true,
-        optimize: true,
-        shrink: true,
-        proguard_compatibility: false,
         proguard_flags_files: ["proguard.flags"],
     },
 }
