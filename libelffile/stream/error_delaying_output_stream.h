@@ -71,8 +71,9 @@ class ErrorDelayingOutputStream final : public OutputStream {
         PLOG(ERROR) << "Failed to seek in " << GetLocation() << ". Offset=" << offset
                     << " whence=" << whence << " new_offset=" << new_offset;
         output_good_ = false;
+      } else {
+        DCHECK_EQ(actual_offset, new_offset);
       }
-      DCHECK_EQ(actual_offset, new_offset);
     }
     output_offset_ = new_offset;
     return new_offset;
