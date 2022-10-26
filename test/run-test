@@ -953,7 +953,7 @@ if True:
   if run_checker == "yes":
     if target_mode == "yes":
       run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
-    run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"')
+    run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"', check=False)
   if update_mode == "yes":
     run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stdout}" >"{td_expected_stdout}"''')
     run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"''')
