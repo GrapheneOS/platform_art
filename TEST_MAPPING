@@ -3906,6 +3906,9 @@
       "name": "art_standalone_compiler_tests"
     },
     {
+      "name": "art_standalone_dex2oat_tests"
+    },
+    {
       "name": "art_standalone_dexdump_tests"
     },
     {
