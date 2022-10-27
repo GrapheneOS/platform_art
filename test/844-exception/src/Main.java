@@ -47,6 +47,9 @@ public class Main {
     // Execute the test in a different thread, to ensure we still
     // return a 0 exit status.
     Thread t = new MyThread();
+    t.setUncaughtExceptionHandler((th, e) -> {
+      System.out.println("Caught exception");
+    });
     t.start();
     t.join();
   }
