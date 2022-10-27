@@ -525,7 +525,6 @@ Runtime::~Runtime() {
   // Destroy allocators before shutting down the MemMap because they may use it.
   java_vm_.reset();
   linear_alloc_.reset();
-  startup_linear_alloc_.reset();
   linear_alloc_arena_pool_.reset();
   arena_pool_.reset();
   jit_arena_pool_.reset();
@@ -1749,7 +1748,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     linear_alloc_arena_pool_.reset(new MemMapArenaPool(low_4gb));
   }
   linear_alloc_.reset(CreateLinearAlloc());
-  startup_linear_alloc_.reset(CreateLinearAlloc());
 
   small_irt_allocator_ = new SmallIrtAllocator();
 
@@ -3308,14 +3306,6 @@ void Runtime::ResetStartupCompleted() {
   startup_completed_.store(false, std::memory_order_seq_cst);
 }
 
-class UnlinkStartupDexCacheVisitor : public DexCacheVisitor {
- public:
-  void Visit(ObjPtr<mirror::DexCache> dex_cache)
-      REQUIRES_SHARED(Locks::dex_lock_, Locks::mutator_lock_) override {
-    dex_cache->UnlinkStartupCaches();
-  }
-};
-
 class Runtime::NotifyStartupCompletedTask : public gc::HeapTask {
  public:
   NotifyStartupCompletedTask() : gc::HeapTask(/*target_run_time=*/ NanoTime()) {}
@@ -3323,25 +3313,11 @@ class Runtime::NotifyStartupCompletedTask : public gc::HeapTask {
   void Run(Thread* self) override {
     VLOG(startup) << "NotifyStartupCompletedTask running";
     Runtime* const runtime = Runtime::Current();
-    // Fetch the startup linear alloc before the checkpoint to play nice with
-    // 1002-notify-startup test which resets the startup state.
-    std::unique_ptr<LinearAlloc> startup_linear_alloc(runtime->ReleaseStartupLinearAlloc());
     {
-      ScopedTrace trace("Releasing dex caches and app image spaces metadata");
+      ScopedTrace trace("Releasing app image spaces metadata");
       ScopedObjectAccess soa(Thread::Current());
-
-      {
-        // Unlink dex caches that were allocated with the startup linear alloc.
-        UnlinkStartupDexCacheVisitor visitor;
-        ReaderMutexLock mu(self, *Locks::dex_lock_);
-        runtime->GetClassLinker()->VisitDexCaches(&visitor);
-      }
-
-      // Request empty checkpoints to make sure no threads are:
-      // - accessing the image space metadata section when we madvise it
-      // - accessing dex caches when we free them
-      //
-      // Use GC exclusion to prevent deadlocks that may happen if
+      // Request empty checkpoints to make sure no threads are accessing the image space metadata
+      // section when we madvise it. Use GC exclusion to prevent deadlocks that may happen if
       // multiple threads are attempting to run empty checkpoints at the same time.
       {
         // Avoid using ScopedGCCriticalSection since that does not allow thread suspension. This is
@@ -3352,7 +3328,6 @@ class Runtime::NotifyStartupCompletedTask : public gc::HeapTask {
                                                        gc::kCollectorTypeCriticalSection);
         runtime->GetThreadList()->RunEmptyCheckpoint();
       }
-
       for (gc::space::ContinuousSpace* space : runtime->GetHeap()->GetContinuousSpaces()) {
         if (space->IsImageSpace()) {
           gc::space::ImageSpace* image_space = space->AsImageSpace();
@@ -3367,13 +3342,6 @@ class Runtime::NotifyStartupCompletedTask : public gc::HeapTask {
       // Delete the thread pool used for app image loading since startup is assumed to be completed.
       ScopedTrace trace2("Delete thread pool");
       runtime->DeleteThreadPool();
-    }
-
-    {
-      // We know that after the checkpoint, there is no thread that can hold
-      // the startup linear alloc, so it's safe to delete it now.
-      ScopedTrace trace2("Delete startup linear alloc");
-      startup_linear_alloc.reset();
     }
   }
 };
