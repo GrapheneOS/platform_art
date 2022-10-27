@@ -18,12 +18,18 @@
 
 #include <thread>
 
-#include "base/common_art_test.h"
+#include "common_runtime_test.h"
 #include "thread-current-inl.h"
+#include "runtime.h"
 
 namespace art {
 
-class MessageQueueTest : public CommonArtTest {};
+class MessageQueueTest : public CommonRuntimeTest {
+ protected:
+  MessageQueueTest() {
+    this->use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 namespace {
 
@@ -81,6 +87,8 @@ TEST_F(MessageQueueTest, TestTimeout) {
 }
 
 TEST_F(MessageQueueTest, TwoWayMessaging) {
+  CHECK(Runtime::Current() != nullptr);  // Runtime is needed by Mutex.
+
   TestMessageQueue queue1;
   TestMessageQueue queue2;
 
