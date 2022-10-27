@@ -357,7 +357,7 @@ class ArtdTest : public CommonArtTest {
   OutputArtifacts output_artifacts_;
   std::string clc_1_;
   std::string clc_2_;
-  std::string class_loader_context_;
+  std::optional<std::string> class_loader_context_;
   std::string compiler_filter_;
   std::optional<VdexPath> vdex_path_;
   PriorityClass priority_class_ = PriorityClass::BACKGROUND;
@@ -522,6 +522,22 @@ TEST_F(ArtdTest, dexoptClassLoaderContext) {
                             Contains(Flag("--classpath-dir=", scratch_path_ + "/a")))),
           _,
           _))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptClassLoaderContextNull) {
+  class_loader_context_ = std::nullopt;
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(WhenSplitBy("--",
+                                      _,
+                                      AllOf(Not(Contains(Flag("--class-loader-context-fds=", _))),
+                                            Not(Contains(Flag("--class-loader-context=", _))),
+                                            Not(Contains(Flag("--classpath-dir=", _))))),
+                          _,
+                          _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -1225,6 +1241,45 @@ TEST_F(ArtdTest, getArtifactsVisibilityPermissionDenied) {
   EXPECT_FALSE(status.isOk());
   EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
   EXPECT_THAT(status.getMessage(), ContainsRegex(R"re(Failed to get status of .*b\.odex)re"));
+}
+
+TEST_F(ArtdTest, getDexFileVisibilityOtherReadable) {
+  CreateFile(dex_file_);
+  std::filesystem::permissions(
+      dex_file_, std::filesystem::perms::others_read, std::filesystem::perm_options::add);
+
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getDexFileVisibility(dex_file_, &result).isOk());
+  EXPECT_EQ(result, FileVisibility::OTHER_READABLE);
+}
+
+TEST_F(ArtdTest, getDexFileVisibilityNotOtherReadable) {
+  CreateFile(dex_file_);
+  std::filesystem::permissions(
+      dex_file_, std::filesystem::perms::others_read, std::filesystem::perm_options::remove);
+
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getDexFileVisibility(dex_file_, &result).isOk());
+  EXPECT_EQ(result, FileVisibility::NOT_OTHER_READABLE);
+}
+
+TEST_F(ArtdTest, getDexFileVisibilityNotFound) {
+  FileVisibility result;
+  ASSERT_TRUE(artd_->getDexFileVisibility(dex_file_, &result).isOk());
+  EXPECT_EQ(result, FileVisibility::NOT_FOUND);
+}
+
+TEST_F(ArtdTest, getDexFileVisibilityPermissionDenied) {
+  CreateFile(dex_file_);
+
+  auto scoped_inaccessible = ScopedInaccessible(std::filesystem::path(dex_file_).parent_path());
+  auto scoped_unroot = ScopedUnroot();
+
+  FileVisibility result;
+  ndk::ScopedAStatus status = artd_->getDexFileVisibility(dex_file_, &result);
+  EXPECT_FALSE(status.isOk());
+  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+  EXPECT_THAT(status.getMessage(), ContainsRegex(R"re(Failed to get status of .*/a/b\.apk)re"));
 }
 
 TEST_F(ArtdTest, mergeProfiles) {

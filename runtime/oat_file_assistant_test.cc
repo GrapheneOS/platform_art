@@ -23,6 +23,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -78,33 +79,40 @@ class OatFileAssistantTest : public OatFileAssistantBaseTest,
     // Verify the static method (called from PM for dumpsys).
     // This variant does not check class loader context.
     if (!check_context) {
-      std::string compilation_filter1;
-      std::string compilation_reason1;
+      std::string compilation_filter;
+      std::string compilation_reason;
 
       OatFileAssistant::GetOptimizationStatus(file,
                                               kRuntimeISA,
-                                              &compilation_filter1,
-                                              &compilation_reason1,
+                                              &compilation_filter,
+                                              &compilation_reason,
                                               MaybeGetOatFileAssistantContext());
 
-      ASSERT_EQ(expected_filter_name, compilation_filter1);
-      ASSERT_EQ(expected_reason, compilation_reason1);
+      ASSERT_EQ(expected_filter_name, compilation_filter);
+      ASSERT_EQ(expected_reason, compilation_reason);
     }
 
     // Verify the instance methods (called at runtime and from artd).
     OatFileAssistant assistant = CreateOatFileAssistant(file.c_str(), context);
+    VerifyOptimizationStatusWithInstance(
+        &assistant, expected_filter_name, expected_reason, expected_odex_status);
+  }
 
-    std::string odex_location3;  // ignored
-    std::string compilation_filter3;
-    std::string compilation_reason3;
-    std::string odex_status3;
+  void VerifyOptimizationStatusWithInstance(OatFileAssistant* assistant,
+                                            const std::string& expected_filter,
+                                            const std::string& expected_reason,
+                                            const std::string& expected_odex_status) {
+    std::string odex_location;  // ignored
+    std::string compilation_filter;
+    std::string compilation_reason;
+    std::string odex_status;
 
-    assistant.GetOptimizationStatus(
-        &odex_location3, &compilation_filter3, &compilation_reason3, &odex_status3);
+    assistant->GetOptimizationStatus(
+        &odex_location, &compilation_filter, &compilation_reason, &odex_status);
 
-    ASSERT_EQ(expected_filter_name, compilation_filter3);
-    ASSERT_EQ(expected_reason, compilation_reason3);
-    ASSERT_EQ(expected_odex_status, odex_status3);
+    ASSERT_EQ(expected_filter, compilation_filter);
+    ASSERT_EQ(expected_reason, compilation_reason);
+    ASSERT_EQ(expected_odex_status, odex_status);
   }
 
   bool InsertNewBootClasspathEntry(const std::string& src, std::string* error_msg) {
@@ -2377,7 +2385,33 @@ TEST_P(OatFileAssistantTest, Create) {
   ASSERT_NE(oat_file_assistant, nullptr);
 
   // Verify that the created instance is usable.
-  VerifyOptimizationStatus(dex_location, default_context_.get(), "speed", "install", "up-to-date");
+  VerifyOptimizationStatusWithInstance(oat_file_assistant.get(), "speed", "install", "up-to-date");
+}
+
+TEST_P(OatFileAssistantTest, CreateWithNullContext) {
+  std::string dex_location = GetScratchDir() + "/OdexUpToDate.jar";
+  std::string odex_location = GetOdexDir() + "/OdexUpToDate.odex";
+  Copy(GetDexSrc1(), dex_location);
+  GenerateOdexForTest(dex_location, odex_location, CompilerFilter::kSpeed, "install");
+
+  auto scoped_maybe_without_runtime = ScopedMaybeWithoutRuntime();
+
+  std::unique_ptr<ClassLoaderContext> context;
+  std::string error_msg;
+  std::unique_ptr<OatFileAssistant> oat_file_assistant =
+      OatFileAssistant::Create(dex_location,
+                               GetInstructionSetString(kRuntimeISA),
+                               /*context_str=*/std::nullopt,
+                               /*load_executable=*/false,
+                               /*only_load_trusted_executable=*/true,
+                               MaybeGetOatFileAssistantContext(),
+                               &context,
+                               &error_msg);
+  ASSERT_NE(oat_file_assistant, nullptr);
+  ASSERT_EQ(context, nullptr);
+
+  // Verify that the created instance is usable.
+  VerifyOptimizationStatusWithInstance(oat_file_assistant.get(), "speed", "install", "up-to-date");
 }
 
 TEST_P(OatFileAssistantTest, ErrorOnInvalidIsaString) {

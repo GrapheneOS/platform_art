@@ -109,9 +109,13 @@ public class DexOptHelper {
             }
 
             if ((params.getFlags() & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
-                // TODO(jiakaiz): Implement this.
-                throw new UnsupportedOperationException(
-                        "Optimizing secondary dex'es is not implemented yet");
+                results.addAll(
+                        mInjector
+                                .getSecondaryDexOptimizer(pkgState, pkg, params, cancellationSignal)
+                                .dexopt());
+                if (hasCancelledResult.get()) {
+                    return createResult.get();
+                }
             }
 
             if ((params.getFlags() & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0) {
@@ -163,6 +167,13 @@ public class DexOptHelper {
                 @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
                 @NonNull CancellationSignal cancellationSignal) {
             return new PrimaryDexOptimizer(mContext, pkgState, pkg, params, cancellationSignal);
+        }
+
+        @NonNull
+        SecondaryDexOptimizer getSecondaryDexOptimizer(@NonNull PackageState pkgState,
+                @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+                @NonNull CancellationSignal cancellationSignal) {
+            return new SecondaryDexOptimizer(mContext, pkgState, pkg, params, cancellationSignal);
         }
 
         @NonNull

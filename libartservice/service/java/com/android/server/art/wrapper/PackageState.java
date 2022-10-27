@@ -19,12 +19,15 @@ package com.android.server.art.wrapper;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.text.TextUtils;
+
+import com.android.server.pm.pkg.AndroidPackage;
 
 /** @hide */
 public class PackageState {
-    @NonNull private final Object mPkgState;
+    @NonNull private final com.android.server.pm.pkg.PackageState mPkgState;
 
-    public PackageState(@NonNull Object pkgState) {
+    public PackageState(@NonNull com.android.server.pm.pkg.PackageState pkgState) {
         mPkgState = pkgState;
     }
 
@@ -32,6 +35,34 @@ public class PackageState {
     public String getVolumeUuid() {
         try {
             return (String) mPkgState.getClass().getMethod("getVolumeUuid").invoke(mPkgState);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nullable
+    public String getSeInfo() {
+        try {
+            Object pkgStateUnserialized =
+                    mPkgState.getClass().getMethod("getTransientState").invoke(mPkgState);
+            String seInfo = (String) pkgStateUnserialized.getClass()
+                                    .getMethod("getOverrideSeInfo")
+                                    .invoke(pkgStateUnserialized);
+            if (!TextUtils.isEmpty(seInfo)) {
+                return seInfo;
+            }
+
+            // Default to the information in `AndroidPackage`. The defaulting behavior will
+            // eventually be done by `PackageState` internally.
+            AndroidPackage pkg = mPkgState.getAndroidPackage();
+            if (pkg == null) {
+                // This should never happen because we check the existence of the package at the
+                // beginning of each ART Services method.
+                throw new IllegalStateException("Unable to get package "
+                        + mPkgState.getPackageName() + ". This should never happen.");
+            }
+
+            return (String) pkg.getClass().getMethod("getSeInfo").invoke(pkg);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
