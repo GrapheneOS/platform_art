@@ -32,9 +32,59 @@ import zipfile
 from shutil import rmtree
 from os import remove
 from re import match
+from os.path import join
 
 USE_RBE_FOR_JAVAC = 100    # Percentage of tests that can use RBE (between 0 and 100)
 USE_RBE_FOR_D8 = 100       # Percentage of tests that can use RBE (between 0 and 100)
+
+class BuildTestContext:
+  def __init__(self, args, build_top, sbox, test_name, test_dir):
+    self.test_dir = test_dir
+    self.mode = args.mode
+    self.jvm = (self.mode == "jvm")
+    self.host = (self.mode == "host")
+    self.target = (self.mode == "target")
+    assert self.jvm or self.host or self.target
+
+    java_home = os.environ.get("JAVA_HOME")
+    tools_dir = os.path.abspath(join(os.path.dirname(__file__), "../../../out/bin"))
+    self.android_build_top = build_top
+    self.art_test_run_test_bootclasspath = join(build_top, args.bootclasspath)
+    self.d8 = join(tools_dir, "d8")
+    self.d8_flags = []
+    self.hiddenapi = join(tools_dir, "hiddenapi")
+    self.jasmin = join(tools_dir, "jasmin")
+    self.java = join(java_home, "bin/java")
+    self.javac = join(java_home, "bin/javac")
+    self.javac_args = "-g -Xlint:-options -source 1.8 -target 1.8"
+    self.need_dex = (self.host or self.target)
+    self.sbox_path = sbox
+    self.smali = join(tools_dir, "smali")
+    self.smali_flags = []
+    self.soong_zip = join(build_top, "prebuilts/build-tools/linux-x86/bin/soong_zip")
+    self.test_name = test_name
+    self.zipalign = join(build_top, "prebuilts/build-tools/linux-x86/bin/zipalign")
+
+    # Minimal environment needed for bash commands that we execute.
+    self.bash_env = {
+      "ANDROID_BUILD_TOP": self.android_build_top,
+      "D8": self.d8,
+      "JAVA": self.java,
+      "JAVAC": self.javac,
+      "JAVAC_ARGS": self.javac_args,
+      "JAVA_HOME": java_home,
+      "PATH": os.environ["PATH"],
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "SMALI": self.smali,
+      "SOONG_ZIP": self.soong_zip,
+      "TEST_NAME": self.test_name,
+    }
+
+  def bash(self, cmd):
+    return subprocess.run(cmd, shell=True, env=self.bash_env, check=True)
+
+  def default_build(self, **kwargs):
+    globals()['default_build'](self, **kwargs)
 
 def rm(*patterns):
   for pattern in patterns:
@@ -60,15 +110,12 @@ def default_build(
     has_jasmin=None,
   ):
 
-  def parse_bool(text):
-    return {"true": True, "false": False}[text.lower()]
-
-  ANDROID_BUILD_TOP = os.environ["ANDROID_BUILD_TOP"]
-  SBOX_PATH = os.environ["SBOX_PATH"]
+  ANDROID_BUILD_TOP = ctx.android_build_top
+  SBOX_PATH = ctx.sbox_path
   CWD = os.getcwd()
-  TEST_NAME = os.environ["TEST_NAME"]
-  ART_TEST_RUN_TEST_BOOTCLASSPATH = path.relpath(os.environ["ART_TEST_RUN_TEST_BOOTCLASSPATH"], CWD)
-  NEED_DEX = parse_bool(os.environ["NEED_DEX"]) if need_dex is None else need_dex
+  TEST_NAME = ctx.test_name
+  ART_TEST_RUN_TEST_BOOTCLASSPATH = path.relpath(ctx.art_test_run_test_bootclasspath, CWD)
+  NEED_DEX = ctx.need_dex if need_dex is None else need_dex
 
   RBE_exec_root = os.environ.get("RBE_exec_root")
   RBE_rewrapper = path.join(ANDROID_BUILD_TOP, "prebuilts/remoteexecution-client/live/rewrapper")
@@ -89,11 +136,11 @@ def default_build(
   HAS_SRC_BCPEX = path.exists("src-bcpex")
   HAS_HIDDENAPI_SPEC = path.exists("hiddenapi-flags.csv")
 
-  JAVAC_ARGS = shlex.split(os.environ.get("JAVAC_ARGS", "")) + javac_args
-  SMALI_ARGS = shlex.split(os.environ.get("SMALI_ARGS", "")) + smali_args
-  D8_FLAGS = shlex.split(os.environ.get("D8_FLAGS", "")) + d8_flags
+  JAVAC_ARGS = shlex.split(ctx.javac_args) + javac_args
+  SMALI_ARGS = ctx.smali_flags + smali_args
+  D8_FLAGS = ctx.d8_flags + d8_flags
 
-  BUILD_MODE = os.environ["BUILD_MODE"]
+  BUILD_MODE = ctx.mode
 
   # Setup experimental API level mappings in a bash associative array.
   EXPERIMENTAL_API_LEVEL = {}
@@ -119,13 +166,15 @@ def default_build(
   SMALI_ARGS.extend(["--api", str(api_level)])
   D8_FLAGS.extend(["--min-api", str(api_level)])
 
-
   def run(executable, args):
     cmd = shlex.split(executable) + args
     if executable.endswith(".sh"):
       cmd = ["/bin/bash"] + cmd
+    env = ctx.bash_env
+    env.update({k: v for k, v in os.environ.items() if k.startswith("RBE_")})
     p = subprocess.run(cmd,
                        encoding=os.sys.stdout.encoding,
+                       env=ctx.bash_env,
                        stderr=subprocess.STDOUT,
                        stdout=subprocess.PIPE)
     if p.returncode != 0:
@@ -135,13 +184,13 @@ def default_build(
 
 
   # Helper functions to execute tools.
-  soong_zip = functools.partial(run, os.environ["SOONG_ZIP"])
-  zipalign = functools.partial(run, os.environ["ZIPALIGN"])
-  javac = functools.partial(run, os.environ["JAVAC"])
-  jasmin = functools.partial(run, os.environ["JASMIN"])
-  smali = functools.partial(run, os.environ["SMALI"])
-  d8 = functools.partial(run, os.environ["D8"])
-  hiddenapi = functools.partial(run, os.environ["HIDDENAPI"])
+  soong_zip = functools.partial(run, ctx.soong_zip)
+  zipalign = functools.partial(run, ctx.zipalign)
+  javac = functools.partial(run, ctx.javac)
+  jasmin = functools.partial(run, ctx.jasmin)
+  smali = functools.partial(run, ctx.smali)
+  d8 = functools.partial(run, ctx.d8)
+  hiddenapi = functools.partial(run, ctx.hiddenapi)
 
   if "RBE_server_address" in os.environ:
     version = match(r"Version: (\d*)\.(\d*)\.(\d*)", run(RBE_rewrapper, ["--version"]).stdout)
@@ -164,7 +213,7 @@ def default_build(
         output = path.relpath(path.join(CWD, args[args.index("-d") + 1]), RBE_exec_root)
         return rbe_wrap([
           "--output_directories", output,
-          os.path.relpath(os.environ["JAVAC"], CWD),
+          os.path.relpath(ctx.javac, CWD),
         ] + args)
 
     if USE_RBE_FOR_D8 > (hash(TEST_NAME) % 100):  # Use for given percentage of tests.
@@ -174,7 +223,7 @@ def default_build(
         return rbe_wrap([
           "--output_files" if output.endswith(".jar") else "--output_directories", output,
           "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
-          os.path.relpath(os.environ["D8"], CWD)] + args, inputs)
+          os.path.relpath(ctx.d8, CWD)] + args, inputs)
 
   # If wrapper script exists, use it instead of the default javac.
   if os.path.exists("javac_wrapper.sh"):
