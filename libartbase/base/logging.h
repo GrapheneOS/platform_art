@@ -56,7 +56,7 @@ struct LogVerbosity {
   bool verifier;
   bool verifier_debug;   // Only works in debug builds.
   bool image;
-  bool systrace_lock_logging;  // Enabled with "-verbose:sys-locks".
+  bool systrace_lock_logging;  // Enabled with "-verbose:systrace-locks".
   bool agents;
   bool dex;  // Some dex access output etc.
   bool plugin;  // Used by some plugins.
