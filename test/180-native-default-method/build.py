@@ -21,12 +21,13 @@ def build(ctx):
   if ctx.jvm:
     return
   # Change the generated dex file to have a v35 magic number if it is version 38
-  with open("classes.dex", "rb+") as f:
+  with open(ctx.test_dir / "classes.dex", "rb+") as f:
     assert f.read(8) == b"dex\n038\x00"
     f.seek(0)
     f.write(b"dex\n035\x00")
-  os.remove("180-native-default-method.jar")
+  os.remove(ctx.test_dir / "180-native-default-method.jar")
   cmd = [
-      ctx.soong_zip, "-o", "180-native-default-method.jar", "-f", "classes.dex"
+      ctx.soong_zip, "-o", ctx.test_dir / "180-native-default-method.jar", "-j",
+      "-f", ctx.test_dir / "classes.dex"
   ]
   subprocess.run(cmd, check=True)
