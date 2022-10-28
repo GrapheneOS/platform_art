@@ -4685,25 +4685,29 @@ size_t Thread::NumberOfHeldMutexes() const {
 void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
   DCHECK_EQ(GetException(), Thread::GetDeoptimizationException());
   ClearException();
-  ShadowFrame* shadow_frame = MaybePopDeoptimizedStackedShadowFrame();
-  DCHECK_NE(shadow_frame, nullptr);
   ObjPtr<mirror::Throwable> pending_exception;
   bool from_code = false;
   DeoptimizationMethodType method_type;
   PopDeoptimizationContext(result, &pending_exception, &from_code, &method_type);
   SetTopOfStack(nullptr);
-  SetTopOfShadowStack(shadow_frame);
 
   // Restore the exception that was pending before deoptimization then interpret the
   // deoptimized frames.
   if (pending_exception != nullptr) {
     SetException(pending_exception);
   }
-  interpreter::EnterInterpreterFromDeoptimize(this,
-                                              shadow_frame,
-                                              result,
-                                              from_code,
-                                              method_type);
+
+  ShadowFrame* shadow_frame = MaybePopDeoptimizedStackedShadowFrame();
+  // We may not have a shadow frame if we deoptimized at the return of the
+  // quick_to_interpreter_bridge which got directly called by art_quick_invoke_stub.
+  if (shadow_frame != nullptr) {
+    SetTopOfShadowStack(shadow_frame);
+    interpreter::EnterInterpreterFromDeoptimize(this,
+                                                shadow_frame,
+                                                result,
+                                                from_code,
+                                                method_type);
+  }
 }
 
 void Thread::SetAsyncException(ObjPtr<mirror::Throwable> new_exception) {
