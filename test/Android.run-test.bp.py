@@ -53,7 +53,7 @@ def main():
           }}
           """.format(name=name, mode=mode, shard=shard)))
 
-      name = "art-run-test-{mode}-data".format(mode=mode)
+      name = "art-run-test-{mode}-data-merged".format(mode=mode)
       srcs = ("\n"+" "*8).join('":{}-tmp",'.format(n) for n in names)
       deps = ("\n"+" "*8).join('"{}",'.format(n) for n in names)
       f.write(textwrap.dedent("""
@@ -78,6 +78,34 @@ def main():
             ],
             sub_dir: "art",
             filename: "{name}.zip",
+        }}
+        """).format(name=name, srcs=srcs, deps=deps))
+
+      name = "art-run-test-{mode}-data".format(mode=mode)
+      srcs = ("\n"+" "*8).join('":{}-tmp",'.format(n) for n in names)
+      deps = ("\n"+" "*8).join('"{}",'.format(n) for n in names)
+      f.write(textwrap.dedent("""
+        // Phony target used to build all shards
+        java_genrule {{
+            name: "{name}-tmp",
+            defaults: ["art-run-test-data-defaults"],
+            out: ["{name}.txt"],
+            srcs: [
+                {srcs}
+            ],
+            cmd: "echo $(in) > $(out)",
+        }}
+
+        // Phony target used to install all shards
+        prebuilt_etc_host {{
+            name: "{name}",
+            defaults: ["art_module_source_build_prebuilt_defaults"],
+            src: ":{name}-tmp",
+            required: [
+                {deps}
+            ],
+            sub_dir: "art",
+            filename: "{name}.txt",
         }}
         """).format(name=name, srcs=srcs, deps=deps))
 
