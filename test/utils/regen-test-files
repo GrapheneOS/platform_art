@@ -319,36 +319,37 @@ class Generator:
                    for run_test in os.listdir(self.art_test_dir)
                    if re.match("^[0-9]{3,}-", run_test)])
 
-  # Read build file (Bash script) and return a canonized version of it
-  # (without comments, blank lines, "debugging" statements, etc.).
-  def canonize_build_script(self, build_file):
+  # Return the metadata of a test, if any.
+  def get_test_metadata(self, run_test):
+    run_test_path = os.path.join(self.art_test_dir, run_test)
+    metadata_file = os.path.join(run_test_path, "test-metadata.json")
+    metadata = {}
+    if os.path.exists(metadata_file):
+      with open(metadata_file, "r") as f:
+        try:
+          metadata = json.load(f)
+        except json.decoder.JSONDecodeError:
+          logging.error(f"Unable to parse test metadata file `{metadata_file}`")
+          raise
+    return metadata
 
-    def is_comment(line):
-      return re.match("^\\s*#", line)
-
-    def is_blank(line):
-      return re.match("^\\s*$", line)
-
-    def is_import(line):
-      return re.match("^\\s*from .* import .*", line)
-
-    # Should `line` be kept in the canonized build script?
-    def keep_line(line):
-      return not (is_comment(line) or is_blank(line) or is_import(line))
-
-    with open(build_file, "r") as f:
-      lines = f.readlines()
-    return list(filter(keep_line, lines))
-
-  # Can the build script in `build_file` be safely ignored?
-  def can_ignore_build_script(self, build_file):
-    build_script = self.canonize_build_script(build_file)
-    if len(build_script) == 1:
-      if build_script[0] == 'build_run_test(experimental="var-handles")\n':
-        # Soong builds JARs with VarHandle support by default (i.e. by
-        # using an API level greater or equal to 28), so we can ignore
-        # build scripts that just request support for this feature.
-        return True
+  # Can the build script of `run_test` be safely ignored?
+  def can_ignore_build_script(self, run_test):
+    # Check whether there are test metadata with build parameters
+    # enabling us to safely ignore the build script.
+    metadata = self.get_test_metadata(run_test)
+    build_param = metadata.get("build-param", {})
+    # Ignore build scripts that are just about preventing building for
+    # the JVM and/or using VarHandles (Soong builds JARs with
+    # VarHandle support by default (i.e. by using an API level greater
+    # or equal to 28), so we can ignore build scripts that just
+    # request support for this feature.)
+    experimental_var_handles = {"experimental": "var-handles"}
+    jvm_supported_false = {"jvm-supported": "false"}
+    if (build_param == experimental_var_handles or
+        build_param == jvm_supported_false or
+        build_param == experimental_var_handles | jvm_supported_false):
+      return True
     return False
 
   # Is building `run_test` supported?
@@ -362,7 +363,7 @@ class Generator:
         os.path.isfile(os.path.join(run_test_path, "javac_wrapper.sh"))):
       return False
     if os.path.isfile(os.path.join(run_test_path, "build.py")):
-      if not self.can_ignore_build_script(os.path.join(run_test_path, "build.py")):
+      if not self.can_ignore_build_script(run_test):
         return False
     # Skip tests with sources outside the `src` directory.
     for subdir in ["jasmin",
@@ -435,11 +436,7 @@ class Generator:
     bp_file = os.path.join(run_test_path, "Android.bp")
 
     # Optional test metadata (JSON file).
-    metadata_file = os.path.join(run_test_path, "test-metadata.json")
-    metadata = {}
-    if os.path.exists(metadata_file):
-      with open(metadata_file, "r") as f:
-        metadata = json.load(f)
+    metadata = self.get_test_metadata(run_test)
 
     run_test_module_name = ART_RUN_TEST_MODULE_NAME_PREFIX + run_test
 
