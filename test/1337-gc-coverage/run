@@ -17,3 +17,6 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # Check that the string "error" isn't present (delete all non-error lines)
+  ctx.run(fr"sed -i '/error/!d' '{args.stdout_file}'")

@@ -17,3 +17,10 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # Dump the output of the benchmarks that run and report success. The
+  # benchmarks ran successfully if we get as far as this script.
+  ctx.run(fr"cat '{args.stdout_file}'")
+
+  # Delete all output to make the diff unconditionally pass.
+  ctx.run(fr"> '{args.stdout_file}'")

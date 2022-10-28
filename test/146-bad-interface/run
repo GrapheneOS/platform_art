@@ -21,3 +21,6 @@ def run(ctx, args):
   # loading the *-ex.jar file in a separate class loader.
   pcl = f"PCL[{ctx.env.DEX_LOCATION}/{ctx.env.TEST_NAME}.jar]"
   ctx.default_run(args, secondary_class_loader_context=pcl)
+
+  # Oat file manager will complain about duplicate dex files. Ignore.
+  ctx.run(fr"sed -i '/.*oat_file_manager.*/d' '{args.stderr_file}'")

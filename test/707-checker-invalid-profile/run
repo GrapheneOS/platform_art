@@ -18,3 +18,12 @@
 def run(ctx, args):
   ctx.default_run(
       args, profile=True, Xcompiler_option=["--compiler-filter=speed-profile"])
+
+  # When profile verification fails, dex2oat logs an error. The following
+  # command strips out the error message.
+  ctx.run(
+      fr"grep -v -f expected-stdout.txt '{args.stdout_file}' > expected-stdout.txt",
+      check=False)
+  ctx.run(
+      fr"grep -v -f expected-stderr.txt '{args.stderr_file}' > expected-stderr.txt",
+      check=False)

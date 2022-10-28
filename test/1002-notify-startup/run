@@ -17,3 +17,6 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # Oat file manager will complain about duplicate dex files. Ignore.
+  ctx.run(fr"sed -i '/.*oat_file_manager.*/d' '{args.stderr_file}'")
