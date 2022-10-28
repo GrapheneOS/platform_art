@@ -1165,6 +1165,7 @@
                   "836-32768classes",
                   "837-deopt",
                   "844-exception",
+                  "844-exception2",
                   "999-redefine-hiddenapi",
                   "1000-non-moving-space-stress",
                   "1001-app-image-regions",
