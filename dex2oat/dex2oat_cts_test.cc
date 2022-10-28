@@ -14,11 +14,54 @@
  * limitations under the License.
  */
 
+#include "base/file_utils.h"
 #include "dex2oat_environment_test.h"
 
 namespace art {
 
-class Dex2oatCtsTest : public Dex2oatEnvironmentTest {};
+class Dex2oatCtsTest : public CommonArtTest, public Dex2oatScratchDirs {
+ public:
+  void SetUp() override {
+    CommonArtTest::SetUp();
+    Dex2oatScratchDirs::SetUp(android_data_);
+  }
+
+  void TearDown() override {
+    Dex2oatScratchDirs::TearDown();
+    CommonArtTest::TearDown();
+  }
+
+ protected:
+  // Stripped down counterpart to Dex2oatEnvironmentTest::Dex2Oat that only adds
+  // enough arguments for our purposes.
+  int Dex2Oat(const std::vector<std::string>& dex2oat_args,
+              std::string* output,
+              std::string* error_msg) {
+    // This command line should work regardless of bitness, ISA, etc.
+    std::vector<std::string> argv = {std::string(kAndroidArtApexDefaultPath) + "/bin/dex2oat"};
+    argv.insert(argv.end(), dex2oat_args.begin(), dex2oat_args.end());
+
+    // We must set --android-root.
+    const char* android_root = getenv("ANDROID_ROOT");
+    CHECK(android_root != nullptr);
+    argv.push_back("--android-root=" + std::string(android_root));
+
+    // We need dex2oat to actually log things.
+    auto post_fork_fn = []() { return setenv("ANDROID_LOG_TAGS", "*:d", 1) == 0; };
+    ForkAndExecResult res = ForkAndExec(argv, post_fork_fn, output);
+    if (res.stage != ForkAndExecResult::kFinished) {
+      *error_msg = strerror(errno);
+      ::testing::AssertionFailure() << "Failed to finish dex2oat invocation: " << *error_msg;
+    }
+
+    if (!res.StandardSuccess()) {
+      // We cannot use ASSERT_TRUE since the method returns an int and not void.
+      ::testing::AssertionFailure() << "dex2oat fork/exec failed: " << *error_msg;
+    }
+
+    return res.status_code;
+  }
+};
 
 // Run dex2oat with --enable-palette-compilation-hooks to force calls to
 // PaletteNotify{Start,End}Dex2oatCompilation.

@@ -146,6 +146,8 @@ class CommonArtTestImpl {
 
   static void TearDownAndroidDataDir(const std::string& android_data, bool fail_on_error);
 
+  static void ClearDirectory(const char* dirpath, bool recursive = true);
+
   // Get the names of the libcore modules.
   virtual std::vector<std::string> GetLibCoreModuleNames() const;
 
@@ -237,8 +239,6 @@ class CommonArtTestImpl {
   static std::string GetCoreOatLocation();
 
   std::unique_ptr<const DexFile> LoadExpectSingleDexFile(const char* location);
-
-  void ClearDirectory(const char* dirpath, bool recursive = true);
 
   // Open a file (allows reading of framework jars).
   std::vector<std::unique_ptr<const DexFile>> OpenDexFiles(const char* filename);
