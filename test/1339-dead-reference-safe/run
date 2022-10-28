@@ -17,3 +17,9 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # DeadReferenceSafe result differs for interpreted mode. A real failure
+  # will produce an extra line anyway.
+  ctx.run(
+      fr"sed -i -E 's/^(.*DeadReferenceSafe count: )[0-9]+(.*)$/\1N\2/' '{args.stdout_file}'"
+  )

@@ -33,3 +33,6 @@ def run(ctx, args):
   # Make sure we can run with the default settings.
   ctx.echo("Run default")
   ctx.default_run(args)
+
+  # Strip the process pids and line numbers from exact error messages.
+  ctx.run(fr"sed -i '/^dalvikvm.* E.*\] /d' '{args.stderr_file}'")

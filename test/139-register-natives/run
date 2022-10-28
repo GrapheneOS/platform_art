@@ -17,3 +17,7 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # Strip any JNI registration error messages
+  ctx.run(
+      fr"sed -i -E '/(jni_entrypoints|jni_internal.cc)/d' '{args.stderr_file}'")
