@@ -17,3 +17,9 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # The daemon thread seems to occasionally get stopped before finishing.
+  # Check that the actual output is a line-by-line prefix of expected.
+  ctx.run(
+      fr"head -n $(wc -l < '{args.stdout_file}') expected-stdout.txt > expected-stdout.txt.tmp &&"
+      fr"mv expected-stdout.txt.tmp expected-stdout.txt")

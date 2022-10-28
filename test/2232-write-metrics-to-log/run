@@ -23,3 +23,8 @@ def run(ctx, args):
       runtime_option=[
           "-Xmetrics-write-to-logcat:true", "-Xmetrics-reporting-mods:100"
       ])
+
+  # Check that one of the metrics appears in stderr.
+  ctx.run(
+      fr"sed -i -n 's/.*\(ClassVerificationTotalTime\).*/\1/p' '{args.stderr_file}'"
+  )

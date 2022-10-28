@@ -17,3 +17,8 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # Strip out temporary file path information and indices from output.
+  ctx.run(
+      fr"sed -i -e 's/ [(]declaration of.*//' -e 's/\[0x[0-9A-F]*\] //g' '{args.stdout_file}'"
+  )

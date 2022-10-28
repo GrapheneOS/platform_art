@@ -17,3 +17,9 @@
 
 def run(ctx, args):
   ctx.default_run(args, jvmti=True)
+
+  # The number of paused background threads (and therefore InterruptedExceptions)
+  # can change so we will just delete their lines from the log.
+  ctx.run(
+      fr"""sed -i -E "/Object allocated of type 'java\.lang\.(InterruptedException|Long)'/d" '{args.stdout_file}'"""
+  )
