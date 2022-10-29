@@ -26,6 +26,7 @@ package com.android.server.art;
  *
  * @hide
  */
+@Backing(type="int")
 enum FileVisibility {
     NOT_FOUND = 0,
     OTHER_READABLE = 1,

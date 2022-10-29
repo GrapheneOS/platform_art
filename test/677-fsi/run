@@ -22,3 +22,12 @@ def run(ctx, args):
       args,
       Xcompiler_option=["--copy-dex-files=always"],
       runtime_option=["-Xonly-use-system-oat-files", "-Xuse-stderr-logger"])
+
+  # Only keep the lines we're interested in.
+  ctx.run(fr"sed -i '/Hello World/!d' '{args.stdout_file}'")
+  ctx.run(
+      fr"sed -i '/^.*: oat file has dex code, but APK has uncompressed dex code/!d' '{args.stderr_file}'"
+  )
+
+  # Remove part of message containing filename.
+  ctx.run(fr"sed -i 's/^.*: //' '{args.stderr_file}'")

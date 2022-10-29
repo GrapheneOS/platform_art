@@ -228,7 +228,7 @@ Result<void> PrepareArtifactsDir(
     if (se_context.has_value()) {
       res = selinux_android_restorecon_pkgdir(path.c_str(),
                                               se_context->seInfo.c_str(),
-                                              se_context->packageUid,
+                                              se_context->uid,
                                               SELINUX_ANDROID_RESTORECON_RECURSE);
     } else {
       res = selinux_android_restorecon(path.c_str(), SELINUX_ANDROID_RESTORECON_RECURSE);
@@ -543,6 +543,13 @@ ndk::ScopedAStatus Artd::getArtifactsVisibility(const ArtifactsPath& in_artifact
   return ScopedAStatus::ok();
 }
 
+ndk::ScopedAStatus Artd::getDexFileVisibility(const std::string& in_dexFile,
+                                              FileVisibility* _aidl_return) {
+  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+  *_aidl_return = OR_RETURN_NON_FATAL(GetFileVisibility(in_dexFile));
+  return ScopedAStatus::ok();
+}
+
 ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profiles,
                                        const std::optional<ProfilePath>& in_referenceProfile,
                                        OutputProfile* in_outputProfile,
@@ -642,7 +649,7 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
 
 ndk::ScopedAStatus Artd::getDexoptNeeded(const std::string& in_dexFile,
                                          const std::string& in_instructionSet,
-                                         const std::string& in_classLoaderContext,
+                                         const std::optional<std::string>& in_classLoaderContext,
                                          const std::string& in_compilerFilter,
                                          int32_t in_dexoptTrigger,
                                          GetDexoptNeededResult* _aidl_return) {
@@ -653,9 +660,9 @@ ndk::ScopedAStatus Artd::getDexoptNeeded(const std::string& in_dexFile,
 
   std::unique_ptr<ClassLoaderContext> context;
   std::string error_msg;
-  auto oat_file_assistant = OatFileAssistant::Create(in_dexFile.c_str(),
-                                                     in_instructionSet.c_str(),
-                                                     in_classLoaderContext.c_str(),
+  auto oat_file_assistant = OatFileAssistant::Create(in_dexFile,
+                                                     in_instructionSet,
+                                                     in_classLoaderContext,
                                                      /*load_executable=*/false,
                                                      /*only_load_trusted_executable=*/true,
                                                      ofa_context.value(),
@@ -680,7 +687,7 @@ ndk::ScopedAStatus Artd::dexopt(
     const OutputArtifacts& in_outputArtifacts,
     const std::string& in_dexFile,
     const std::string& in_instructionSet,
-    const std::string& in_classLoaderContext,
+    const std::optional<std::string>& in_classLoaderContext,
     const std::string& in_compilerFilter,
     const std::optional<ProfilePath>& in_profile,
     const std::optional<VdexPath>& in_inputVdex,
@@ -701,10 +708,12 @@ ndk::ScopedAStatus Artd::dexopt(
   ArtdCancellationSignal* cancellation_signal =
       OR_RETURN_FATAL(ToArtdCancellationSignal(in_cancellationSignal.get()));
 
-  std::unique_ptr<ClassLoaderContext> context =
-      ClassLoaderContext::Create(in_classLoaderContext.c_str());
-  if (context == nullptr) {
-    return Fatal("Class loader context '{}' is invalid"_format(in_classLoaderContext));
+  std::unique_ptr<ClassLoaderContext> context = nullptr;
+  if (in_classLoaderContext.has_value()) {
+    context = ClassLoaderContext::Create(in_classLoaderContext->c_str());
+    if (context == nullptr) {
+      return Fatal("Class loader context '{}' is invalid"_format(in_classLoaderContext.value()));
+    }
   }
 
   OR_RETURN_NON_FATAL(PrepareArtifactsDirs(in_outputArtifacts));
@@ -754,21 +763,23 @@ ndk::ScopedAStatus Artd::dexopt(
   args.Add("--zip-fd=%d", dex_file->Fd()).Add("--zip-location=%s", in_dexFile);
   fd_logger.Add(*dex_file);
 
-  std::vector<std::string> flattened_context = context->FlattenDexPaths();
-  std::string dex_dir = Dirname(in_dexFile.c_str());
   std::vector<std::unique_ptr<File>> context_files;
-  std::vector<int> context_fds;
-  for (const std::string& context_element : flattened_context) {
-    std::string context_path = std::filesystem::path(dex_dir).append(context_element);
-    OR_RETURN_FATAL(ValidateDexPath(context_path));
-    std::unique_ptr<File> context_file = OR_RETURN_NON_FATAL(OpenFileForReading(context_path));
-    context_fds.push_back(context_file->Fd());
-    fd_logger.Add(*context_file);
-    context_files.push_back(std::move(context_file));
+  if (context != nullptr) {
+    std::vector<std::string> flattened_context = context->FlattenDexPaths();
+    std::string dex_dir = Dirname(in_dexFile.c_str());
+    std::vector<int> context_fds;
+    for (const std::string& context_element : flattened_context) {
+      std::string context_path = std::filesystem::path(dex_dir).append(context_element);
+      OR_RETURN_FATAL(ValidateDexPath(context_path));
+      std::unique_ptr<File> context_file = OR_RETURN_NON_FATAL(OpenFileForReading(context_path));
+      context_fds.push_back(context_file->Fd());
+      fd_logger.Add(*context_file);
+      context_files.push_back(std::move(context_file));
+    }
+    args.AddIfNonEmpty("--class-loader-context-fds=%s", Join(context_fds, /*separator=*/':'))
+        .Add("--class-loader-context=%s", in_classLoaderContext.value())
+        .Add("--classpath-dir=%s", dex_dir);
   }
-  args.Add("--class-loader-context-fds=%s", Join(context_fds, /*separator=*/':'))
-      .Add("--class-loader-context=%s", in_classLoaderContext)
-      .Add("--classpath-dir=%s", dex_dir);
 
   std::unique_ptr<File> input_vdex_file = nullptr;
   if (in_inputVdex.has_value()) {

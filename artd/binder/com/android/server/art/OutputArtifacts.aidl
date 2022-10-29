@@ -40,8 +40,8 @@ parcelable OutputArtifacts {
             /** The seinfo tag in SELinux policy. */
             @utf8InCpp String seInfo;
 
-            /** The package uid. */
-            int packageUid;
+            /** The uid that represents the combination of the user id and the app id. */
+            int uid;
         }
 
         /**

@@ -86,11 +86,6 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     public final List<DexContainerFileOptimizeResult> dexopt() throws RemoteException {
         List<DexContainerFileOptimizeResult> results = new ArrayList<>();
 
-        String targetCompilerFilter = adjustCompilerFilter(mParams.getCompilerFilter());
-        if (targetCompilerFilter.equals(OptimizeParams.COMPILER_FILTER_NOOP)) {
-            return results;
-        }
-
         for (DexInfoType dexInfo : getDexInfoList()) {
             ProfilePath profile = null;
             boolean succeeded = true;
@@ -99,7 +94,10 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                     continue;
                 }
 
-                String compilerFilter = targetCompilerFilter;
+                String compilerFilter = adjustCompilerFilter(mParams.getCompilerFilter(), dexInfo);
+                if (compilerFilter.equals(OptimizeParams.COMPILER_FILTER_NOOP)) {
+                    continue;
+                }
 
                 boolean needsToBeShared = needsToBeShared(dexInfo);
                 boolean isOtherReadable = true;
@@ -138,7 +136,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                         DexFile.isProfileGuidedCompilerFilter(compilerFilter);
                 Utils.check(isProfileGuidedCompilerFilter == (profile != null));
 
-                boolean canBePublic = !isProfileGuidedCompilerFilter || isOtherReadable;
+                boolean canBePublic = (!isProfileGuidedCompilerFilter || isOtherReadable)
+                        && isDexFilePublic(dexInfo);
                 Utils.check(Utils.implies(needsToBeShared, canBePublic));
                 PermissionSettings permissionSettings = getPermissionSettings(dexInfo, canBePublic);
 
@@ -245,7 +244,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     }
 
     @NonNull
-    private String adjustCompilerFilter(@NonNull String targetCompilerFilter) {
+    private String adjustCompilerFilter(
+            @NonNull String targetCompilerFilter, @NonNull DexInfoType dexInfo) {
         if (mInjector.isSystemUiPackage(mPkgState.getPackageName())) {
             String systemUiCompilerFilter = getSystemUiCompilerFilter();
             if (!systemUiCompilerFilter.isEmpty()) {
@@ -262,6 +262,12 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         // compiled code anyway.
         if (mPkg.isVmSafeMode() || mPkg.isDebuggable()) {
             return DexFile.getSafeModeCompilerFilter(targetCompilerFilter);
+        }
+
+        // We cannot do AOT compilation if we don't have a valid class loader context.
+        if (dexInfo.classLoaderContext() == null
+                && DexFile.isOptimizedCompilerFilter(targetCompilerFilter)) {
+            return "verify";
         }
 
         return targetCompilerFilter;
@@ -346,6 +352,9 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
 
         // The result should come from artd even if all the bits of `dexoptTrigger` are set
         // because the result also contains information about the usable VDEX file.
+        // Note that the class loader context can be null. In that case, we intentionally pass the
+        // null value down to lower levels to indicate that the class loader context check should be
+        // skipped because we are only going to verify the dex code (see `adjustCompilerFilter`).
         GetDexoptNeededResult result = mInjector.getArtd().getDexoptNeeded(
                 target.dexInfo().dexPath(), target.isa(), target.dexInfo().classLoaderContext(),
                 target.compilerFilter(), dexoptTrigger);
@@ -470,10 +479,19 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     @NonNull protected abstract List<DexInfoType> getDexInfoList();
 
     /** Returns true if the given dex file should be optimized. */
-    protected abstract boolean isOptimizable(@NonNull DexInfoType dexInfo) throws RemoteException;
+    protected abstract boolean isOptimizable(@NonNull DexInfoType dexInfo);
 
-    /** Returns true if the artifacts should be shared with other apps. */
+    /**
+     * Returns true if the artifacts should be shared with other apps. Note that this must imply
+     * {@link #isDexFilePublic(DexInfoType)}.
+     */
     protected abstract boolean needsToBeShared(@NonNull DexInfoType dexInfo);
+
+    /**
+     * Returns true if the filesystem permission of the dex file has the "read" bit for "others"
+     * (S_IROTH).
+     */
+    protected abstract boolean isDexFilePublic(@NonNull DexInfoType dexInfo);
 
     /**
      * Returns a reference profile initialized from an external profile (e.g., a DM profile) if
@@ -552,30 +570,30 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
      *
      * @hide
      */
-    @VisibleForTesting
+    @VisibleForTesting(visibility = VisibleForTesting.Visibility.PROTECTED)
     public static class Injector {
         @NonNull private final Context mContext;
 
-        Injector(@NonNull Context context) {
+        public Injector(@NonNull Context context) {
             mContext = context;
         }
 
-        boolean isSystemUiPackage(@NonNull String packageName) {
+        public boolean isSystemUiPackage(@NonNull String packageName) {
             return packageName.equals(mContext.getString(R.string.config_systemUi));
         }
 
         @NonNull
-        UserManager getUserManager() {
+        public UserManager getUserManager() {
             return Objects.requireNonNull(mContext.getSystemService(UserManager.class));
         }
 
         @NonNull
-        DexUseManager getDexUseManager() {
+        public DexUseManager getDexUseManager() {
             return DexUseManager.getInstance();
         }
 
         @NonNull
-        IArtd getArtd() {
+        public IArtd getArtd() {
             return Utils.getArtd();
         }
     }

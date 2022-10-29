@@ -17,3 +17,11 @@
 
 def run(ctx, args):
   ctx.default_run(args, jvmti=True)
+
+  # Some of our test devices are so old that they don't have memfd_create and are setup in such a way
+  # that tmpfile() doesn't work. In these cases this test cannot complete successfully.
+  # If we see this in stdout, make the expected stdout identical.
+  ctx.run(
+      fr"grep -q -- '---NO memfd_create---' '{args.stdout_file}' &&"
+      fr" echo '---NO memfd_create---' > expected-stdout.txt",
+      check=False)

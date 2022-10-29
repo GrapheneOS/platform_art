@@ -17,3 +17,6 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # Strip the process pids and line numbers from exact error messages.
+  ctx.run(fr"sed -i '/^.*dalvikvm\(\|32\|64\) E.*\] /d' '{args.stderr_file}'")

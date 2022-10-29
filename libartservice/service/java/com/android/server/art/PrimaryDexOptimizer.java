@@ -98,6 +98,13 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
     }
 
     @Override
+    protected boolean isDexFilePublic(@NonNull DetailedPrimaryDexInfo dexInfo) {
+        // The filesystem permission of a primary dex file always has the S_IROTH bit. In practice,
+        // the accessibility is enforced by Application Sandbox, not filesystem permission.
+        return true;
+    }
+
+    @Override
     @Nullable
     protected ProfilePath initReferenceProfile(@NonNull DetailedPrimaryDexInfo dexInfo)
             throws RemoteException {
@@ -170,6 +177,7 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
     protected boolean isAppImageAllowed() {
         // Disable app images if the app requests for the splits to be loaded in isolation because
         // app images are unsupported for multiple class loaders (b/72696798).
+        // TODO(jiakaiz): Investigate whether this is still the best choice today.
         return !PrimaryDexUtils.isIsolatedSplitLoading(mPkg);
     }
 
@@ -178,8 +186,8 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
     protected OutputProfile buildOutputProfile(
             @NonNull DetailedPrimaryDexInfo dexInfo, boolean isPublic) {
         String profileName = getProfileName(dexInfo.splitName());
-        return AidlUtils.buildOutputProfileForPrimary(mPkgState.getPackageName(), profileName,
-                mPkgState.getAppId(), mSharedGid, isPublic);
+        return AidlUtils.buildOutputProfileForPrimary(
+                mPkgState.getPackageName(), profileName, Process.SYSTEM_UID, mSharedGid, isPublic);
     }
 
     @Override

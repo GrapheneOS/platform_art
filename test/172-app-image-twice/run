@@ -20,3 +20,6 @@ def run(ctx, args):
 
   ctx.default_run(
       args, profile=True, Xcompiler_option=["--compiler-filter=speed-profile"])
+
+  # Remove all lines not containing "passed".
+  ctx.run(fr"sed -i '/^passed/!d' '{args.stdout_file}'")

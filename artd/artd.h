@@ -24,6 +24,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -115,10 +116,14 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const aidl::com::android::server::art::ArtifactsPath& in_artifactsPath,
       aidl::com::android::server::art::FileVisibility* _aidl_return) override;
 
+  ndk::ScopedAStatus getDexFileVisibility(
+      const std::string& in_dexFile,
+      aidl::com::android::server::art::FileVisibility* _aidl_return) override;
+
   ndk::ScopedAStatus getDexoptNeeded(
       const std::string& in_dexFile,
       const std::string& in_instructionSet,
-      const std::string& in_classLoaderContext,
+      const std::optional<std::string>& in_classLoaderContext,
       const std::string& in_compilerFilter,
       int32_t in_dexoptTrigger,
       aidl::com::android::server::art::GetDexoptNeededResult* _aidl_return) override;
@@ -127,7 +132,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const aidl::com::android::server::art::OutputArtifacts& in_outputArtifacts,
       const std::string& in_dexFile,
       const std::string& in_instructionSet,
-      const std::string& in_classLoaderContext,
+      const std::optional<std::string>& in_classLoaderContext,
       const std::string& in_compilerFilter,
       const std::optional<aidl::com::android::server::art::ProfilePath>& in_profile,
       const std::optional<aidl::com::android::server::art::VdexPath>& in_inputVdex,

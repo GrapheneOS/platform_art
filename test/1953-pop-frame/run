@@ -21,3 +21,10 @@ def run(ctx, args):
   test_args = ["DISABLE_CLASS_LOAD_TESTS"] if args.jvm else []
 
   ctx.default_run(args, jvmti=True, test_args=test_args)
+
+  # The RI has restrictions and bugs around some PopFrame behavior that ART lacks.
+  # See b/116003018. Some configurations cannot handle the class load events in
+  # quite the right way so they are disabled there too.
+  if not (args.jvm or args.verify_soft_fail or
+          (args.jvmti_redefine_stress and args.host)):
+    ctx.run(fr"patch -p0 expected-stdout.txt < class-loading-expected.patch")

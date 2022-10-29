@@ -36,6 +36,8 @@ import com.google.auto.value.AutoValue;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** @hide */
 public final class Utils {
@@ -62,6 +64,7 @@ public final class Utils {
         return array == null || array.length == 0;
     }
 
+    /** Returns the ABI information for the package. */
     @NonNull
     public static List<Abi> getAllAbis(@NonNull PackageState pkgState) {
         List<Abi> abis = new ArrayList<>();
@@ -80,6 +83,18 @@ public final class Utils {
                     pkgPrimaryCpuAbi, abis.get(0).name(), pkgSecondaryCpuAbi, abis.get(1).name()));
         }
         return abis;
+    }
+
+    /** Returns the ABI information for the ABIs with the given names. */
+    @NonNull
+    public static List<Abi> getAllAbisForNames(
+            @NonNull Set<String> abiNames, @NonNull PackageState pkgState) {
+        Abi pkgPrimaryAbi = getPrimaryAbi(pkgState);
+        return abiNames.stream()
+                .map(name
+                        -> Abi.create(name, VMRuntime.getInstructionSet(name),
+                                name.equals(pkgPrimaryAbi.name())))
+                .collect(Collectors.toList());
     }
 
     @NonNull

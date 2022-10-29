@@ -136,9 +136,10 @@ void ProfileSaver::Run() {
   {
     MutexLock mu(self, wait_lock_);
 
-    const uint64_t end_time = NanoTime() + MsToNs(force_early_first_save
+    const uint64_t sleep_time = MsToNs(force_early_first_save
       ? options_.GetMinFirstSaveMs()
       : options_.GetSaveResolvedClassesDelayMs());
+    const uint64_t end_time = NanoTime() + sleep_time;
     while (!Runtime::Current()->GetStartupCompleted()) {
       const uint64_t current_time = NanoTime();
       if (current_time >= end_time) {
@@ -146,7 +147,7 @@ void ProfileSaver::Run() {
       }
       period_condition_.TimedWait(self, NsToMs(end_time - current_time), 0);
     }
-    total_ms_of_sleep_ += options_.GetSaveResolvedClassesDelayMs();
+    total_ms_of_sleep_ += sleep_time;
   }
   // Tell the runtime that startup is completed if it has not already been notified.
   // TODO: We should use another thread to do this in case the profile saver is not running.

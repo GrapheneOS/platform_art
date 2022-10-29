@@ -19,6 +19,8 @@ package com.android.server.art;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.os.Binder;
+import android.os.RemoteException;
+import android.os.ServiceSpecificException;
 import android.os.UserHandle;
 import android.util.Log;
 
@@ -72,6 +74,8 @@ public class DexUseManager {
 
     @GuardedBy("DexUseManager.class") @Nullable private static DexUseManager sInstance = null;
 
+    @NonNull private final Injector mInjector;
+
     @GuardedBy("this") @NonNull private DexUse mDexUse = new DexUse();
 
     @NonNull
@@ -80,6 +84,15 @@ public class DexUseManager {
             sInstance = new DexUseManager();
         }
         return sInstance;
+    }
+
+    private DexUseManager() {
+        this(new Injector());
+    }
+
+    @VisibleForTesting
+    public DexUseManager(@NonNull Injector injector) {
+        mInjector = injector;
     }
 
     /** Returns all entities that load the given primary dex file owned by the given package. */
@@ -104,22 +117,65 @@ public class DexUseManager {
         return isUsedByOtherApps(getPrimaryDexLoaders(packageName, dexPath), packageName);
     }
 
-    /** Returns information about all secondary dex files owned by the given package. */
-    public synchronized @NonNull List<SecondaryDexInfo> getSecondaryDexInfo(
+    /**
+     * Returns the basic information about all secondary dex files owned by the given package. This
+     * method doesn't take dex file visibility into account, so it can only be used for debugging
+     * purpose, such as dumpsys.
+     *
+     * @see #getFilteredDetailedSecondaryDexInfo(String)
+     */
+    public @NonNull List<? extends SecondaryDexInfo> getSecondaryDexInfo(
             @NonNull String packageName) {
+        return getSecondaryDexInfoImpl(packageName, false /* checkDexFile */);
+    }
+
+    /**
+     * Same as above, but requires disk IO, and returns the detailed information, including dex file
+     * visibility, filtered by dex file existence and visibility.
+     */
+    public @NonNull List<DetailedSecondaryDexInfo> getFilteredDetailedSecondaryDexInfo(
+            @NonNull String packageName) {
+        return getSecondaryDexInfoImpl(packageName, true /* checkDexFile */);
+    }
+
+    /**
+     * @param checkDexFile if true, check the existence and visibility of the dex files, and filter
+     *         the results accordingly. Note that the value of the {@link
+     *         DetailedSecondaryDexInfo#isDexFilePublic()} field is undefined if this argument is
+     *         false.
+     */
+    private synchronized @NonNull List<DetailedSecondaryDexInfo> getSecondaryDexInfoImpl(
+            @NonNull String packageName, boolean checkDexFile) {
         PackageDexUse packageDexUse = mDexUse.mPackageDexUseByOwningPackageName.get(packageName);
         if (packageDexUse == null) {
             return List.of();
         }
-        var results = new ArrayList<SecondaryDexInfo>();
+        var results = new ArrayList<DetailedSecondaryDexInfo>();
         for (var entry : packageDexUse.mSecondaryDexUseByDexFile.entrySet()) {
             String dexPath = entry.getKey();
             SecondaryDexUse secondaryDexUse = entry.getValue();
-            if (secondaryDexUse.mRecordByLoader.isEmpty()) {
+
+            @FileVisibility
+            int visibility =
+                    checkDexFile ? getDexFileVisibility(dexPath) : FileVisibility.OTHER_READABLE;
+            if (visibility == FileVisibility.NOT_FOUND) {
+                continue;
+            }
+
+            Map<DexLoader, SecondaryDexUseRecord> filteredRecordByLoader;
+            if (visibility == FileVisibility.OTHER_READABLE) {
+                filteredRecordByLoader = secondaryDexUse.mRecordByLoader;
+            } else {
+                // Only keep the entry that belongs to the same app.
+                DexLoader sameApp = DexLoader.create(packageName, false /* isolatedProcess */);
+                SecondaryDexUseRecord record = secondaryDexUse.mRecordByLoader.get(sameApp);
+                filteredRecordByLoader = record != null ? Map.of(sameApp, record) : Map.of();
+            }
+            if (filteredRecordByLoader.isEmpty()) {
                 continue;
             }
             List<String> distinctClcList =
-                    secondaryDexUse.mRecordByLoader.values()
+                    filteredRecordByLoader.values()
                             .stream()
                             .map(record -> Utils.assertNonEmpty(record.mClassLoaderContext))
                             .filter(clc
@@ -140,14 +196,15 @@ public class DexUseManager {
             // need to take apps with unsupported CLCs into account because the vdex file is still
             // usable to them.
             Set<String> distinctAbiNames =
-                    secondaryDexUse.mRecordByLoader.values()
+                    filteredRecordByLoader.values()
                             .stream()
                             .map(record -> Utils.assertNonEmpty(record.mAbiName))
                             .collect(Collectors.toSet());
-            Set<DexLoader> loaders = Set.copyOf(secondaryDexUse.mRecordByLoader.keySet());
-            results.add(SecondaryDexInfo.create(dexPath,
+            Set<DexLoader> loaders = Set.copyOf(filteredRecordByLoader.keySet());
+            results.add(DetailedSecondaryDexInfo.create(dexPath,
                     Objects.requireNonNull(secondaryDexUse.mUserHandle), clc, distinctAbiNames,
-                    loaders, isUsedByOtherApps(loaders, packageName)));
+                    loaders, isUsedByOtherApps(loaders, packageName),
+                    visibility == FileVisibility.OTHER_READABLE));
         }
         return Collections.unmodifiableList(results);
     }
@@ -338,13 +395,21 @@ public class DexUseManager {
         // TODO(b/253570365): Make the validation more strict.
     }
 
+    private @FileVisibility int getDexFileVisibility(@NonNull String dexPath) {
+        try {
+            return mInjector.getArtd().getDexFileVisibility(dexPath);
+        } catch (ServiceSpecificException | RemoteException e) {
+            Log.e(TAG, "Failed to get visibility of " + dexPath, e);
+            return FileVisibility.NOT_FOUND;
+        }
+    }
+
     /**
-     * Detailed information about a secondary dex file (an APK or JAR file that an app adds to its
+     * Basic information about a secondary dex file (an APK or JAR file that an app adds to its
      * own data directory and loads dynamically).
      */
     @Immutable
-    @AutoValue
-    public abstract static class SecondaryDexInfo implements DetailedDexInfo {
+    public abstract static class SecondaryDexInfo {
         // Special encoding used to denote a foreign ClassLoader was found when trying to encode
         // class loader contexts for each classpath element in a ClassLoader.
         // Must be in sync with `kUnsupportedClassLoaderContextEncoding` in
@@ -357,14 +422,6 @@ public class DexUseManager {
         // written to the file, and so far only used here.
         @VisibleForTesting
         public static final String VARYING_CLASS_LOADER_CONTEXTS = "=VaryingClassLoaderContexts=";
-
-        static SecondaryDexInfo create(@NonNull String dexPath, @NonNull UserHandle userHandle,
-                @Nullable String classLoaderContext, @NonNull Set<String> abiNames,
-                @NonNull Set<DexLoader> loaders, boolean isUsedByOtherApps) {
-            return new AutoValue_DexUseManager_SecondaryDexInfo(dexPath, userHandle,
-                    classLoaderContext, Collections.unmodifiableSet(abiNames),
-                    Collections.unmodifiableSet(loaders), isUsedByOtherApps);
-        }
 
         /** The absolute path to the dex file within the user's app data directory. */
         public abstract @NonNull String dexPath();
@@ -379,24 +436,52 @@ public class DexUseManager {
          * A string describing the structure of the class loader that the dex file is loaded with,
          * or {@link #UNSUPPORTED_CLASS_LOADER_CONTEXT} or {@link #VARYING_CLASS_LOADER_CONTEXTS}.
          */
-        public abstract @NonNull String classLoaderContext();
+        public abstract @NonNull String displayClassLoaderContext();
 
-        /** The set of ABIs of the dex file is loaded with. */
+        /**
+         * A string describing the structure of the class loader that the dex file is loaded with,
+         * or null if the class loader context is invalid.
+         */
+        public @Nullable String classLoaderContext() {
+            return !displayClassLoaderContext().equals(UNSUPPORTED_CLASS_LOADER_CONTEXT)
+                            && !displayClassLoaderContext().equals(VARYING_CLASS_LOADER_CONTEXTS)
+                    ? displayClassLoaderContext()
+                    : null;
+        }
+
+        /** The set of ABIs of the dex file is loaded with. Guaranteed to be non-empty. */
         public abstract @NonNull Set<String> abiNames();
 
-        /** The set of entities that load the dex file. */
+        /** The set of entities that load the dex file. Guaranteed to be non-empty. */
         public abstract @NonNull Set<DexLoader> loaders();
 
         /** Returns whether the dex file is used by apps other than the app that owns it. */
         public abstract boolean isUsedByOtherApps();
+    }
+
+    /**
+     * Detailed information about a secondary dex file (an APK or JAR file that an app adds to its
+     * own data directory and loads dynamically). It contains the visibility of the dex file in
+     * addition to what is in {@link SecondaryDexInfo}, but producing it requires disk IO.
+     */
+    @Immutable
+    @AutoValue
+    public abstract static class DetailedSecondaryDexInfo
+            extends SecondaryDexInfo implements DetailedDexInfo {
+        static DetailedSecondaryDexInfo create(@NonNull String dexPath,
+                @NonNull UserHandle userHandle, @NonNull String displayClassLoaderContext,
+                @NonNull Set<String> abiNames, @NonNull Set<DexLoader> loaders,
+                boolean isUsedByOtherApps, boolean isDexFilePublic) {
+            return new AutoValue_DexUseManager_DetailedSecondaryDexInfo(dexPath, userHandle,
+                    displayClassLoaderContext, Collections.unmodifiableSet(abiNames),
+                    Collections.unmodifiableSet(loaders), isUsedByOtherApps, isDexFilePublic);
+        }
 
         /**
-         * Returns true if the class loader context is suitable for compilation.
+         * Returns true if the filesystem permission of the dex file has the "read" bit for "others"
+         * (S_IROTH).
          */
-        public boolean isClassLoaderContextValid() {
-            return !classLoaderContext().equals(UNSUPPORTED_CLASS_LOADER_CONTEXT)
-                    && !classLoaderContext().equals(VARYING_CLASS_LOADER_CONTEXTS);
-        }
+        public abstract boolean isDexFilePublic();
     }
 
     private static class DexUse {
@@ -541,6 +626,19 @@ public class DexUseManager {
         void fromProto(@NonNull SecondaryDexUseRecordProto proto) {
             mClassLoaderContext = Utils.assertNonEmpty(proto.getClassLoaderContext());
             mAbiName = Utils.assertNonEmpty(proto.getAbiName());
+        }
+    }
+
+    /**
+     * Injector pattern for testing purpose.
+     *
+     * @hide
+     */
+    @VisibleForTesting
+    public static class Injector {
+        @NonNull
+        public IArtd getArtd() {
+            return Utils.getArtd();
         }
     }
 }

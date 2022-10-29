@@ -38,6 +38,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.os.Process;
 import android.os.ServiceSpecificException;
 import android.os.UserHandle;
 
@@ -73,9 +74,9 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
     private final ProfilePath mPrebuiltProfile = AidlUtils.buildProfilePathForPrebuilt(mDexPath);
     private final ProfilePath mDmProfile = AidlUtils.buildProfilePathForDm(mDexPath);
     private final OutputProfile mPublicOutputProfile = AidlUtils.buildOutputProfileForPrimary(
-            PKG_NAME, "primary", UID, SHARED_GID, true /* isOtherReadable */);
+            PKG_NAME, "primary", Process.SYSTEM_UID, SHARED_GID, true /* isOtherReadable */);
     private final OutputProfile mPrivateOutputProfile = AidlUtils.buildOutputProfileForPrimary(
-            PKG_NAME, "primary", UID, SHARED_GID, false /* isOtherReadable */);
+            PKG_NAME, "primary", Process.SYSTEM_UID, SHARED_GID, false /* isOtherReadable */);
 
     private final String mSplit0DexPath = "/data/app/foo/split_0.apk";
     private final ProfilePath mSplit0RefProfile =

@@ -90,6 +90,11 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                             case "-f":
                                 paramsBuilder.setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE);
                                 break;
+                            case "--secondary-dex":
+                                paramsBuilder.setFlags(ArtFlags.FLAG_FOR_SECONDARY_DEX,
+                                        ArtFlags.FLAG_FOR_PRIMARY_DEX
+                                                | ArtFlags.FLAG_FOR_SECONDARY_DEX);
+                                break;
                             default:
                                 pw.println("Error: Unknown option: " + opt);
                                 return 1;
@@ -226,6 +231,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Options:");
         pw.println("      -m Set the compiler filter.");
         pw.println("      -f Force compilation.");
+        pw.println("      --secondary-dex Only compile secondary dex.");
         pw.println("  cancel JOB_ID");
         pw.println("    Cancel a job.");
         pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");

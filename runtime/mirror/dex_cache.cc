@@ -20,6 +20,7 @@
 #include "class_linker.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
+#include "jit/profile_saver.h"
 #include "linear_alloc.h"
 #include "oat_file.h"
 #include "object-inl.h"
@@ -163,6 +164,55 @@ void DexCache::SetClassLoader(ObjPtr<ClassLoader> class_loader) {
 
 ObjPtr<ClassLoader> DexCache::GetClassLoader() {
   return GetFieldObject<ClassLoader>(OFFSET_OF_OBJECT_MEMBER(DexCache, class_loader_));
+}
+
+bool DexCache::ShouldAllocateFullArrayAtStartup() {
+  Runtime* runtime = Runtime::Current();
+  if (runtime->IsAotCompiler()) {
+    // To save on memory in dex2oat, we don't allocate full arrays by default.
+    return false;
+  }
+
+  if (runtime->GetStartupCompleted()) {
+    // We only allocate full arrays during app startup.
+    return false;
+  }
+
+  if (GetClassLoader() == nullptr) {
+    // Only allocate full array for app dex files (also note that for
+    // multi-image, the `GetCompilerFilter` call below does not work for
+    // non-primary oat files).
+    return false;
+  }
+
+  const OatDexFile* oat_dex_file = GetDexFile()->GetOatDexFile();
+  if (oat_dex_file != nullptr &&
+      CompilerFilter::IsAotCompilationEnabled(oat_dex_file->GetOatFile()->GetCompilerFilter())) {
+    // We only allocate full arrays for dex files where we do not have
+    // compilation.
+    return false;
+  }
+
+  if (!ProfileSaver::IsStarted()) {
+    // Only allocate full arrays if the profile saver is running: if the app
+    // does not call `reportFullyDrawn`, then only the profile saver will notify
+    // that the app has eventually started.
+    return false;
+  }
+
+  return true;
+}
+
+void DexCache::UnlinkStartupCaches() {
+  if (GetDexFile() == nullptr) {
+    // Unused dex cache.
+    return;
+  }
+  UnlinkStringsArrayIfStartup();
+  UnlinkResolvedFieldsArrayIfStartup();
+  UnlinkResolvedMethodsArrayIfStartup();
+  UnlinkResolvedTypesArrayIfStartup();
+  UnlinkResolvedMethodTypesArrayIfStartup();
 }
 
 }  // namespace mirror

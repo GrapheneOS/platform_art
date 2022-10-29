@@ -17,6 +17,7 @@
 package com.android.server.art.model;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 
 import com.android.internal.annotations.Immutable;
 
@@ -31,7 +32,8 @@ public interface DetailedDexInfo {
     @NonNull String dexPath();
 
     /**
-     * A string describing the structure of the class loader that the dex file is loaded with.
+     * A string describing the structure of the class loader that the dex file is loaded with, or
+     * null if the class loader context is invalid.
      */
-    @NonNull String classLoaderContext();
+    @Nullable String classLoaderContext();
 }
