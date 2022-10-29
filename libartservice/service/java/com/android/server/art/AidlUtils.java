@@ -170,6 +170,14 @@ public final class AidlUtils {
     }
 
     @NonNull
+    public static SeContext buildSeContext(@NonNull String seInfo, int uid) {
+        var seContext = new SeContext();
+        seContext.seInfo = seInfo;
+        seContext.uid = uid;
+        return seContext;
+    }
+
+    @NonNull
     public static String toString(@NonNull PrimaryRefProfilePath profile) {
         return String.format(
                 "[packageName = %s, profileName = %s]", profile.packageName, profile.profileName);

@@ -103,6 +103,13 @@ interface IArtd {
             in com.android.server.art.ArtifactsPath artifactsPath);
 
     /**
+     * Returns the visibility of the dex file.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    com.android.server.art.FileVisibility getDexFileVisibility(@utf8InCpp String dexFile);
+
+    /**
      * Returns true if dexopt is needed. `dexoptTrigger` is a bit field that consists of values
      * defined in `com.android.server.art.DexoptTrigger`.
      *
@@ -110,7 +117,7 @@ interface IArtd {
      */
     com.android.server.art.GetDexoptNeededResult getDexoptNeeded(
             @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
-            @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
+            @nullable @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
             int dexoptTrigger);
 
     /**
@@ -121,7 +128,7 @@ interface IArtd {
     com.android.server.art.DexoptResult dexopt(
             in com.android.server.art.OutputArtifacts outputArtifacts,
             @utf8InCpp String dexFile, @utf8InCpp String instructionSet,
-            @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
+            @nullable @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
             in @nullable com.android.server.art.ProfilePath profile,
             in @nullable com.android.server.art.VdexPath inputVdex,
             com.android.server.art.PriorityClass priorityClass,

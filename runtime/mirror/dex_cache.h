@@ -365,6 +365,10 @@ class MANAGED DexCache final : public Object {
   void VisitNativeRoots(const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
 
+  // Sets null to dex cache array fields which were allocated with the startup
+  // allocator.
+  void UnlinkStartupCaches() REQUIRES_SHARED(Locks::mutator_lock_);
+
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_ARRAY(name, array_kind, getter_setter, type, ids, alloc_kind) \
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
@@ -380,10 +384,10 @@ class MANAGED DexCache final : public Object {
   static constexpr MemberOffset getter_setter ##Offset() { \
     return OFFSET_OF_OBJECT_MEMBER(DexCache, name); \
   } \
-  array_kind* Allocate ##getter_setter() \
+  array_kind* Allocate ##getter_setter(bool startup = false) \
       REQUIRES_SHARED(Locks::mutator_lock_) { \
     return reinterpret_cast<array_kind*>(AllocArray<type>( \
-        getter_setter ##Offset(), GetDexFile()->ids(), alloc_kind)); \
+        getter_setter ##Offset(), GetDexFile()->ids(), alloc_kind, startup)); \
   } \
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags> \
   size_t Num ##getter_setter() REQUIRES_SHARED(Locks::mutator_lock_) { \
@@ -443,8 +447,9 @@ class MANAGED DexCache final : public Object {
     } else { \
       auto* pairs = Get ##getter_setter(); \
       if (pairs == nullptr) { \
-        if (GetDexFile()->ids() <= pair_size) { \
-          array = Allocate ##getter_setter ##Array(); \
+        bool should_allocate_full_array = ShouldAllocateFullArray(GetDexFile()->ids(), pair_size); \
+        if (ShouldAllocateFullArrayAtStartup() || should_allocate_full_array) { \
+          array = Allocate ##getter_setter ##Array(!should_allocate_full_array); \
           array->Set(index, resolved); \
         } else { \
           pairs = Allocate ##getter_setter(); \
@@ -453,6 +458,12 @@ class MANAGED DexCache final : public Object {
       } else { \
         pairs->Set(index, resolved); \
       } \
+    } \
+  } \
+  void Unlink ##getter_setter ##ArrayIfStartup() \
+      REQUIRES_SHARED(Locks::mutator_lock_) { \
+    if (!ShouldAllocateFullArray(GetDexFile()->ids(), pair_size)) { \
+      Set ##getter_setter ##Array(nullptr) ; \
     } \
   }
 
@@ -523,7 +534,7 @@ class MANAGED DexCache final : public Object {
  private:
   // Allocate new array in linear alloc and save it in the given fields.
   template<typename T>
-  T* AllocArray(MemberOffset obj_offset, size_t num, LinearAllocKind kind)
+  T* AllocArray(MemberOffset obj_offset, size_t num, LinearAllocKind kind, bool startup = false)
      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit instance fields of the dex cache as well as its associated arrays.
@@ -533,6 +544,16 @@ class MANAGED DexCache final : public Object {
             typename Visitor>
   void VisitReferences(ObjPtr<Class> klass, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
+
+  // Returns whether we should allocate a full array given the current state of
+  // the runtime and oat files.
+  bool ShouldAllocateFullArrayAtStartup() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns whether we should allocate a full array given the number of
+  // elements.
+  static bool ShouldAllocateFullArray(size_t number_of_elements, size_t dex_cache_size) {
+    return number_of_elements <= dex_cache_size;
+  }
 
   HeapReference<ClassLoader> class_loader_;
   HeapReference<String> location_;

@@ -20,6 +20,9 @@
     </target_preparer>
     <target_preparer class="com.android.compatibility.targetprep.CheckGmsPreparer"/>
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <!-- We will fail if any command in RunCommandTargetPreparer fails.
+            This is useful to know if we failed to compile a package. -->
+        <option name="throw-if-cmd-fail" value="true"/>
         <option name="run-command" value="cmd package compile -m speed {package}"/>
         <option name="run-command" value="input keyevent KEYCODE_WAKEUP"/>
         <option name="run-command" value="input keyevent KEYCODE_MENU"/>

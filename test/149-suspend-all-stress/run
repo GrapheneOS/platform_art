@@ -17,3 +17,7 @@
 
 def run(ctx, args):
   ctx.default_run(args)
+
+  # Only compare the last line.
+  ctx.run(fr"tail -n 1 '{args.stdout_file}' > temp-stdout.txt")
+  ctx.run(fr"mv temp-stdout.txt '{args.stdout_file}'")

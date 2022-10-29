@@ -54,7 +54,7 @@ static void InitializeArray(T*) {
 }
 
 template<typename T>
-T* DexCache::AllocArray(MemberOffset obj_offset, size_t num, LinearAllocKind kind) {
+T* DexCache::AllocArray(MemberOffset obj_offset, size_t num, LinearAllocKind kind, bool startup) {
   Thread* self = Thread::Current();
   mirror::DexCache* dex_cache = this;
   if (gUseReadBarrier && self->GetIsGcMarking()) {
@@ -63,8 +63,14 @@ T* DexCache::AllocArray(MemberOffset obj_offset, size_t num, LinearAllocKind kin
     dex_cache = reinterpret_cast<DexCache*>(ReadBarrier::Mark(this));
   }
   // DON'T USE 'this' from now on.
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  LinearAlloc* alloc = linker->GetOrCreateAllocatorForClassLoader(GetClassLoader());
+  Runtime* runtime = Runtime::Current();
+  // Note: in the 1002-notify-startup test, the startup linear alloc can become null
+  // concurrently, even if the runtime is marked at startup. Therefore we should only
+  // fetch it once here.
+  LinearAlloc* startup_linear_alloc = runtime->GetStartupLinearAlloc();
+  LinearAlloc* alloc = (startup && startup_linear_alloc != nullptr)
+      ? startup_linear_alloc
+      : runtime->GetClassLinker()->GetOrCreateAllocatorForClassLoader(GetClassLoader());
   MutexLock mu(self, *Locks::dex_cache_lock_);  // Avoid allocation by multiple threads.
   T* array = dex_cache->GetFieldPtr64<T*>(obj_offset);
   if (array != nullptr) {

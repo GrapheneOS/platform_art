@@ -19,3 +19,10 @@ def run(ctx, args):
   # App images are incompatible with what the test is doing: loading one
   # dex file multiple times.
   ctx.default_run(args, app_image=False)
+
+  # Finalizers of DexFile will complain not being able to close
+  # the main dex file, as it's still open. That's OK to ignore.
+  # Oat file manager will also complain about duplicate dex files. Ignore.
+  ctx.run(
+      fr"sed -i -e '/^E\/System/d' -e '/.*oat_file_manager.*/d' '{args.stderr_file}'"
+  )

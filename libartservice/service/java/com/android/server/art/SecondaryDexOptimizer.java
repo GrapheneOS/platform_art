@@ -1,0 +1,141 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.server.art;
+
+import static com.android.server.art.DexUseManager.DetailedSecondaryDexInfo;
+import static com.android.server.art.OutputArtifacts.PermissionSettings;
+import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContext;
+import static com.android.server.art.Utils.Abi;
+
+import android.annotation.NonNull;
+import android.annotation.Nullable;
+import android.content.Context;
+import android.os.CancellationSignal;
+
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.art.model.OptimizeParams;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.PackageState;
+
+import java.util.List;
+
+/** @hide */
+public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo> {
+    private static final String TAG = "SecondaryDexOptimizer";
+
+    public SecondaryDexOptimizer(@NonNull Context context, @NonNull PackageState pkgState,
+            @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+            @NonNull CancellationSignal cancellationSignal) {
+        this(new Injector(context), pkgState, pkg, params, cancellationSignal);
+    }
+
+    @VisibleForTesting
+    public SecondaryDexOptimizer(@NonNull Injector injector, @NonNull PackageState pkgState,
+            @NonNull AndroidPackage pkg, @NonNull OptimizeParams params,
+            @NonNull CancellationSignal cancellationSignal) {
+        super(injector, pkgState, pkg, params, cancellationSignal);
+    }
+
+    @Override
+    protected boolean isInDalvikCache() {
+        // A secondary dex file is added by the app, so it's always in a writable location and hence
+        // never uses dalvik-cache.
+        return false;
+    }
+
+    @Override
+    @NonNull
+    protected List<DetailedSecondaryDexInfo> getDexInfoList() {
+        return mInjector.getDexUseManager().getFilteredDetailedSecondaryDexInfo(
+                mPkgState.getPackageName());
+    }
+
+    @Override
+    protected boolean isOptimizable(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        return true;
+    }
+
+    @Override
+    protected boolean needsToBeShared(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        return dexInfo.isUsedByOtherApps();
+    }
+
+    @Override
+    protected boolean isDexFilePublic(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        return dexInfo.isDexFilePublic();
+    }
+
+    @Override
+    @Nullable
+    protected ProfilePath initReferenceProfile(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        // A secondary dex file doesn't have any external profile to use.
+        return null;
+    }
+
+    @Override
+    @NonNull
+    protected PermissionSettings getPermissionSettings(
+            @NonNull DetailedSecondaryDexInfo dexInfo, boolean canBePublic) {
+        int uid = getUid(dexInfo);
+        // We don't need the "read" bit for "others" on the directories because others
+        // only need to access the files in the directories, but they don't need to "ls"
+        // the directories.
+        FsPermission dirFsPermission = AidlUtils.buildFsPermission(
+                uid, uid, false /* isOtherReadable */, canBePublic /* isOtherExecutable */);
+        FsPermission fileFsPermission = AidlUtils.buildFsPermission(uid, uid, canBePublic);
+        SeContext seContext = AidlUtils.buildSeContext(
+                new com.android.server.art.wrapper.PackageState(mPkgState).getSeInfo(), uid);
+        return AidlUtils.buildPermissionSettings(dirFsPermission, fileFsPermission, seContext);
+    }
+
+    @Override
+    @NonNull
+    protected List<Abi> getAllAbis(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        return Utils.getAllAbisForNames(dexInfo.abiNames(), mPkgState);
+    }
+
+    @Override
+    @NonNull
+    protected ProfilePath buildRefProfilePath(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        return AidlUtils.buildProfilePathForSecondaryRef(dexInfo.dexPath());
+    }
+
+    @Override
+    protected boolean isAppImageAllowed() {
+        // The runtime can only load the app image of the base APK.
+        return false;
+    }
+
+    @Override
+    @NonNull
+    protected OutputProfile buildOutputProfile(
+            @NonNull DetailedSecondaryDexInfo dexInfo, boolean isPublic) {
+        int uid = getUid(dexInfo);
+        return AidlUtils.buildOutputProfileForSecondary(dexInfo.dexPath(), uid, uid, isPublic);
+    }
+
+    @Override
+    @NonNull
+    protected List<ProfilePath> getCurProfiles(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        // A secondary dex file can only be loaded by one user, so there is only one profile.
+        return List.of(AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
+    }
+
+    private int getUid(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        return dexInfo.userHandle().getUid(mPkgState.getAppId());
+    }
+}
