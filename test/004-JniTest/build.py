@@ -33,6 +33,6 @@ def build(ctx):
 
   # Remove the *-aotex build artifacts (but keep src-aotex) with dalvik.* annotations.
   shutil.rmtree("classes-aotex")
-  if os.environ["BUILD_MODE"] != "jvm":
+  if not ctx.jvm:
     os.remove("classes-aotex.jar")
     os.remove("004-JniTest-aotex.jar")

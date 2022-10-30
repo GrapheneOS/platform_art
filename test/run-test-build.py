@@ -19,113 +19,96 @@ This scripts compiles Java files which are needed to execute run-tests.
 It is intended to be used only from soong genrule.
 """
 
-import argparse, os, shutil, subprocess, glob, re, json, multiprocessing, pathlib, fcntl
-import art_build_rules
+from argparse import ArgumentParser
+from art_build_rules import BuildTestContext, default_build
+from fcntl import lockf, LOCK_EX, LOCK_NB
 from importlib.machinery import SourceFileLoader
+from multiprocessing import Pool
+from multiprocessing.pool import ApplyResult
+from os import environ, getcwd, chdir, cpu_count
 from os.path import join, basename
-
-import art_build_rules
+from pathlib import Path
+from re import match
+from shutil import copytree
+from subprocess import run
+from typing import Dict
 
 ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
 
-class BuildTestContext:
-  def __init__(self, mode):
-    self.jvm = (mode == "jvm")
-    self.host = (mode == "host")
-    self.target = (mode == "target")
+lock_file = None  # Keep alive as long as this process is alive.
 
-  def bash(self, cmd):
-    return subprocess.run(cmd, shell=True, check=True)
 
-  def default_build(self, **kwargs):
-    art_build_rules.default_build(self, **kwargs)
-
-def copy_sources(args, tmp, mode, srcdir):
+def copy_sources(args, ziproot: Path, mode: str, srcdir: Path) -> Path:
   """Copy test files from Android tree into the build sandbox and return its path."""
 
-  dstdir = join(tmp, mode, basename(srcdir))
-  shutil.copytree(srcdir, dstdir)
+  dstdir = ziproot / mode / srcdir.name
+  copytree(srcdir, dstdir)
   return dstdir
 
-def build_test(args, mode, build_top, sbox, dstdir):
+
+def build_test(ctx: BuildTestContext) -> None:
   """Run the build script for single run-test"""
 
-  join = os.path.join
-  java_home = os.environ.get("JAVA_HOME")
-  tools_dir = os.path.abspath(join(os.path.dirname(__file__), "../../../out/bin"))
-  test_name = os.path.basename(dstdir)
-  env = dict(os.environ)
-  env.update({
-    "BUILD_MODE": mode,
-    "ANDROID_BUILD_TOP": build_top,
-    "SBOX_PATH":   sbox,
-    "ART_TEST_RUN_TEST_BOOTCLASSPATH": join(build_top, args.bootclasspath),
-    "TEST_NAME":   test_name,
-    "SOONG_ZIP":   join(build_top, "prebuilts/build-tools/linux-x86/bin/soong_zip"),
-    "ZIPALIGN":    join(build_top, "prebuilts/build-tools/linux-x86/bin/zipalign"),
-    "JAVA":        join(java_home, "bin/java"),
-    "JAVAC":       join(java_home, "bin/javac"),
-    "JAVAC_ARGS":  "-g -Xlint:-options -source 1.8 -target 1.8",
-    "D8":          join(tools_dir, "d8"),
-    "HIDDENAPI":   join(tools_dir, "hiddenapi"),
-    "JASMIN":      join(tools_dir, "jasmin"),
-    "SMALI":       join(tools_dir, "smali"),
-    "NEED_DEX":    {"host": "true", "target": "true", "jvm": "false"}[mode],
-  })
-
-  os.chdir(dstdir)
-  for name, value in env.items():
-    os.environ[name] = str(value)
-  ctx = BuildTestContext(mode)
-  script = pathlib.Path(join(dstdir, "build.py"))
+  chdir(ctx.test_dir)
+  script = ctx.test_dir / "build.py"
   if script.exists():
-    module = SourceFileLoader("build_" + test_name, str(script)).load_module()
+    module = SourceFileLoader("build_" + ctx.test_name,
+                              str(script)).load_module()
     module.build(ctx)
   else:
-    art_build_rules.default_build(ctx)
+    default_build(ctx)
+
 
 # If we build just individual shard, we want to split the work among all the cores,
 # but if the build system builds all shards, we don't want to overload the machine.
 # We don't know which situation we are in, so as simple work-around, we use a lock
 # file to allow only one shard to use multiprocessing at the same time.
-def use_multiprocessing(mode):
-  global lock_file  # Keep alive as long as this process is alive.
-  lock_path = os.path.join(os.environ["TMPDIR"], "art-test-run-test-build-py-" + mode)
+def use_multiprocessing(mode: str) -> bool:
+  global lock_file
+  lock_path = join(environ["TMPDIR"], "art-test-run-test-build-py-" + mode)
   lock_file = open(lock_path, "w")
   try:
-    fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    lockf(lock_file, LOCK_EX | LOCK_NB)
     return True  # We are the only instance of this script in the build system.
   except BlockingIOError:
     return False  # Some other instance is already running.
 
-def main():
-  parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--out", help="Path of the generated ZIP file with the build data")
-  parser.add_argument('--mode', choices=['host', 'jvm', 'target'])
-  parser.add_argument("--shard", help="Identifies subset of tests to build (00..99)")
-  parser.add_argument("--bootclasspath", help="JAR files used for javac compilation")
+
+def main() -> None:
+  parser = ArgumentParser(description=__doc__)
+  parser.add_argument(
+      "--out", help="Path of the generated ZIP file with the build data")
+  parser.add_argument("--mode", choices=["host", "jvm", "target"])
+  parser.add_argument(
+      "--shard", help="Identifies subset of tests to build (00..99)")
+  parser.add_argument(
+      "--bootclasspath", help="JAR files used for javac compilation")
   args = parser.parse_args()
 
-  build_top = os.getcwd()
-  sbox = pathlib.Path(__file__).absolute().parent.parent.parent.parent.parent
+  build_top = Path(getcwd())
+  sbox = Path(__file__).absolute().parent.parent.parent.parent.parent
   assert sbox.parent.name == "sbox" and len(sbox.name) == 40
 
-  ziproot = os.path.join(sbox, "zip")
-  srcdirs = sorted(glob.glob(os.path.join("art", "test", "*")))
-  srcdirs = filter(lambda srcdir: re.match(".*/\d*{}-.*".format(args.shard), srcdir), srcdirs)
-  dstdirs = [copy_sources(args, ziproot, args.mode, srcdir) for srcdir in srcdirs]
-  dstdirs = filter(lambda dstdir: dstdir, dstdirs)  # Remove None (skipped tests).
-  # Use multiprocess (i.e. forking) since tests modify their current working directory.
-  with multiprocessing.Pool(os.cpu_count() if use_multiprocessing(args.mode) else 1) as pool:
-    jobs = [(d, pool.apply_async(build_test, (args, args.mode, build_top, sbox, d))) for d in dstdirs]
-    for dstdir, job in jobs:
+  ziproot = sbox / "zip"
+  srcdirs = sorted(build_top.glob("art/test/*"))
+  srcdirs = [s for s in srcdirs if match("\d*{}-.*".format(args.shard), s.name)]
+  dstdirs = [copy_sources(args, ziproot, args.mode, s) for s in srcdirs]
+
+  # Use multiprocessing (i.e. forking) since tests modify their current working directory.
+  with Pool(cpu_count() if use_multiprocessing(args.mode) else 1) as pool:
+    jobs: Dict[Path, ApplyResult] = {}
+    for dstdir in dstdirs:
+      ctx = BuildTestContext(args, build_top, sbox, dstdir.name, dstdir)
+      jobs[dstdir] = pool.apply_async(build_test, (ctx,))
+    for dstdir, job in jobs.items():
       try:
         job.get()
       except Exception as e:
-        raise Exception("Failed to build " + os.path.basename(dstdir)) from e.__cause__
+        raise Exception("Failed to build " + dstdir.name) from e.__cause__
 
   # Create the final zip file which contains the content of the temporary directory.
-  proc = subprocess.run([ZIP, "-o", args.out, "-C", ziproot, "-D", ziproot], check=True)
+  proc = run([ZIP, "-o", args.out, "-C", ziproot, "-D", ziproot], check=True)
+
 
 if __name__ == "__main__":
   main()
