@@ -17,5 +17,5 @@ import os
 
 
 def build(ctx):
-  ctx.bash("./generate-sources --" + os.environ["BUILD_MODE"])
+  ctx.bash("./generate-sources --" + ctx.mode)
   ctx.default_build(experimental="default-methods")
