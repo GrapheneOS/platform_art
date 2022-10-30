@@ -21,7 +21,8 @@ def build(ctx):
   # Force DEX generation so test also passes with --jvm.
   try:
     ctx.default_build(api_level=20, need_dex=True)
-    assert False, "Test was not expected to build successfully"
   except Exception as e:
     # Check that a build failure happened (the test is not expected to run).
     assert "Cannot fit requested classes in a single dex" in str(e), e
+    return
+  assert False, "Test was not expected to build successfully"
