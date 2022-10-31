@@ -16,12 +16,17 @@
 
 #include "mutex-inl.h"
 
-#include "base/common_art_test.h"
+#include "common_runtime_test.h"
 #include "thread-current-inl.h"
 
 namespace art {
 
-class MutexTest : public CommonArtTest {};
+class MutexTest : public CommonRuntimeTest {
+ protected:
+  MutexTest() {
+    use_boot_image_ = true;  // Make the Runtime creation cheaper.
+  }
+};
 
 struct MutexTester {
   static void AssertDepth(Mutex& mu, uint32_t expected_depth) {
@@ -37,6 +42,9 @@ struct MutexTester {
 };
 
 TEST_F(MutexTest, LockUnlock) {
+  // TODO: Remove `Mutex` dependency on `Runtime` or at least make sure it works
+  // without a `Runtime` with reasonable defaults (and without dumping stack for timeout).
+  ASSERT_TRUE(Runtime::Current() != nullptr);
   Mutex mu("test mutex");
   MutexTester::AssertDepth(mu, 0U);
   mu.Lock(Thread::Current());
