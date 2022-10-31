@@ -146,6 +146,8 @@ class OatFileAssistant {
   // device. For example, on an arm device, use arm or arm64. An oat file can
   // be loaded executable only if the ISA matches the current runtime.
   //
+  // context should be the class loader context to check against, or null to skip the check.
+  //
   // load_executable should be true if the caller intends to try and load
   // executable code for this dex location.
   //
@@ -182,7 +184,7 @@ class OatFileAssistant {
   static std::unique_ptr<OatFileAssistant> Create(
       const std::string& filename,
       const std::string& isa_str,
-      const std::string& context_str,
+      const std::optional<std::string>& context_str,
       bool load_executable,
       bool only_load_trusted_executable,
       OatFileAssistantContext* ofa_context,
@@ -523,6 +525,8 @@ class OatFileAssistant {
 
   std::string dex_location_;
 
+  // The class loader context to check against, or null representing that the check should be
+  // skipped.
   ClassLoaderContext* context_;
 
   // Whether or not the parent directory of the dex file is writable.
