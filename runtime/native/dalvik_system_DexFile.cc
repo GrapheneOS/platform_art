@@ -617,6 +617,8 @@ static jstring DexFile_getDexFileStatus(JNIEnv* env,
     return nullptr;
   }
 
+  // The API doesn't support passing a class loader context, so skip the class loader context check
+  // and assume that it's OK.
   OatFileAssistant oat_file_assistant(filename.c_str(),
                                       target_instruction_set,
                                       /* context= */ nullptr,

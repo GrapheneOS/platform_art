@@ -226,7 +226,7 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
 std::unique_ptr<OatFileAssistant> OatFileAssistant::Create(
     const std::string& filename,
     const std::string& isa_str,
-    const std::string& context_str,
+    const std::optional<std::string>& context_str,
     bool load_executable,
     bool only_load_trusted_executable,
     OatFileAssistantContext* ofa_context,
@@ -238,20 +238,23 @@ std::unique_ptr<OatFileAssistant> OatFileAssistant::Create(
     return nullptr;
   }
 
-  std::unique_ptr<ClassLoaderContext> tmp_context = ClassLoaderContext::Create(context_str.c_str());
-  if (tmp_context == nullptr) {
-    *error_msg = StringPrintf("Class loader context '%s' is invalid", context_str.c_str());
-    return nullptr;
-  }
+  std::unique_ptr<ClassLoaderContext> tmp_context = nullptr;
+  if (context_str.has_value()) {
+    tmp_context = ClassLoaderContext::Create(context_str->c_str());
+    if (tmp_context == nullptr) {
+      *error_msg = StringPrintf("Class loader context '%s' is invalid", context_str->c_str());
+      return nullptr;
+    }
 
-  if (!tmp_context->OpenDexFiles(android::base::Dirname(filename.c_str()),
-                                 /*context_fds=*/{},
-                                 /*only_read_checksums=*/true)) {
-    *error_msg =
-        StringPrintf("Failed to load class loader context files for '%s' with context '%s'",
-                     filename.c_str(),
-                     context_str.c_str());
-    return nullptr;
+    if (!tmp_context->OpenDexFiles(android::base::Dirname(filename.c_str()),
+                                   /*context_fds=*/{},
+                                   /*only_read_checksums=*/true)) {
+      *error_msg =
+          StringPrintf("Failed to load class loader context files for '%s' with context '%s'",
+                       filename.c_str(),
+                       context_str->c_str());
+      return nullptr;
+    }
   }
 
   auto assistant = std::make_unique<OatFileAssistant>(filename.c_str(),
@@ -1182,6 +1185,11 @@ bool OatFileAssistant::OatFileInfo::ShouldRecompileForFilter(CompilerFilter::Fil
 }
 
 bool OatFileAssistant::ClassLoaderContextIsOkay(const OatFile& oat_file) const {
+  if (context_ == nullptr) {
+    // The caller requests to skip the check.
+    return true;
+  }
+
   if (oat_file.IsBackedByVdexOnly()) {
     // Only a vdex file, we don't depend on the class loader context.
     return true;
@@ -1190,12 +1198,6 @@ bool OatFileAssistant::ClassLoaderContextIsOkay(const OatFile& oat_file) const {
   if (!CompilerFilter::IsVerificationEnabled(oat_file.GetCompilerFilter())) {
     // If verification is not enabled we don't need to verify the class loader context and we
     // assume it's ok.
-    return true;
-  }
-
-  if (context_ == nullptr) {
-    // When no class loader context is provided (which happens for deprecated
-    // DexFile APIs), just assume it is OK.
     return true;
   }
 
