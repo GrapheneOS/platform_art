@@ -955,16 +955,15 @@ class JNI {
           WellKnownClasses::StringInitToStringFactory(jni::DecodeArtMethod(mid)));
       return CallStaticObjectMethodV(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
-    ObjPtr<mirror::Object> result = c->AllocObject(soa.Self());
+    ScopedLocalRef<jobject> result(env, soa.AddLocalReference<jobject>(c->AllocObject(soa.Self())));
     if (result == nullptr) {
       return nullptr;
     }
-    jobject local_result = soa.AddLocalReference<jobject>(result);
-    CallNonvirtualVoidMethodV(env, local_result, java_class, mid, args);
+    CallNonvirtualVoidMethodV(env, result.get(), java_class, mid, args);
     if (soa.Self()->IsExceptionPending()) {
       return nullptr;
     }
-    return local_result;
+    return result.release();
   }
 
   static jobject NewObjectA(JNIEnv* env, jclass java_class, jmethodID mid, const jvalue* args) {
@@ -982,16 +981,15 @@ class JNI {
           WellKnownClasses::StringInitToStringFactory(jni::DecodeArtMethod(mid)));
       return CallStaticObjectMethodA(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
-    ObjPtr<mirror::Object> result = c->AllocObject(soa.Self());
+    ScopedLocalRef<jobject> result(env, soa.AddLocalReference<jobject>(c->AllocObject(soa.Self())));
     if (result == nullptr) {
       return nullptr;
     }
-    jobject local_result = soa.AddLocalReference<jobjectArray>(result);
-    CallNonvirtualVoidMethodA(env, local_result, java_class, mid, args);
+    CallNonvirtualVoidMethodA(env, result.get(), java_class, mid, args);
     if (soa.Self()->IsExceptionPending()) {
       return nullptr;
     }
-    return local_result;
+    return result.release();
   }
 
   static jmethodID GetMethodID(JNIEnv* env, jclass java_class, const char* name, const char* sig) {
@@ -1270,8 +1268,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
-    jobject local_result = soa.AddLocalReference<jobject>(result.GetL());
-    return local_result;
+    return soa.AddLocalReference<jobject>(result.GetL());
   }
 
   static jobject CallNonvirtualObjectMethodV(JNIEnv* env, jobject obj, jclass, jmethodID mid,
@@ -1757,8 +1754,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, nullptr, mid, ap));
-    jobject local_result = soa.AddLocalReference<jobject>(result.GetL());
-    return local_result;
+    return soa.AddLocalReference<jobject>(result.GetL());
   }
 
   static jobject CallStaticObjectMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
