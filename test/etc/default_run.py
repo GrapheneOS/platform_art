@@ -197,8 +197,6 @@ def default_run(ctx, args, **kwargs):
     if stdout_file:
       with open(stdout_file, "a") as f:
         f.write(proc.stdout)
-        if proc.returncode != 0:
-          f.write("exit status: {}\n".format(proc.returncode))
     if stderr_file:
       with open(stderr_file, "a") as f:
         f.write(proc.stderr)
