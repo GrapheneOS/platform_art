@@ -88,6 +88,10 @@ static void WriteCIE(InstructionSet isa, /*inout*/ std::vector<uint8_t>* buffer)
       WriteCIE(is64bit, return_reg, opcodes, buffer);
       return;
     }
+    case InstructionSet::kRiscv64: {
+      UNIMPLEMENTED(FATAL);
+      return;
+    }
     case InstructionSet::kX86: {
       // FIXME: Add fp registers once libunwind adds support for them. Bug: 20491296
       constexpr bool generate_opcodes_for_x86_fp = false;
