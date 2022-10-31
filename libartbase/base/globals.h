@@ -107,6 +107,12 @@ static constexpr bool kHostStaticBuildEnabled = true;
 static constexpr bool kHostStaticBuildEnabled = false;
 #endif
 
+// System property for phenotype flag to test disabling compact dex and in
+// particular dexlayout.
+// TODO(b/256664509): Clean this up.
+static constexpr char kPhDisableCompactDex[] =
+    "persist.device_config.runtime_native_boot.disable_compact_dex";
+
 }  // namespace art
 
 #endif  // ART_LIBARTBASE_BASE_GLOBALS_H_
