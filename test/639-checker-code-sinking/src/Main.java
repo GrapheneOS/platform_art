@@ -710,6 +710,18 @@ public class Main {
   // `NewArray` (and maybe from `LoadClass`). However, code sinking was pruning
   // the environment of the `NewArray`, leading to a crash when compiling the
   // code below on the device (we do not inline `core-oj` on host). b/252799691
+
+  // We currently have a heuristic that disallows inlining methods if their basic blocks end with a
+  // throw. We could add code so that `requireNonNull`'s block doesn't end with a throw but that
+  // would mean that the string builder optimization wouldn't fire as it requires all uses to be in
+  // the same block. If `requireNonNull` is inlined at some point, we need to re-mark it as $inline$
+  // so that the test is operational again.
+
+  /// CHECK-START: void Main.$noinline$twoThrowingPathsAndStringBuilderAppend(java.lang.Object) inliner (before)
+  /// CHECK: InvokeStaticOrDirect method_name:Main.requireNonNull
+
+  /// CHECK-START: void Main.$noinline$twoThrowingPathsAndStringBuilderAppend(java.lang.Object) inliner (after)
+  /// CHECK: InvokeStaticOrDirect method_name:Main.requireNonNull
   private static void $noinline$twoThrowingPathsAndStringBuilderAppend(Object o) {
     String s1 = "s1";
     String s2 = "s2";
@@ -722,14 +734,14 @@ public class Main {
     // `StringBuilderAppend` pattern recognition.
     // (But that does not happen when the `StringBuilder` constructor is
     // not inlined, see above.)
-    $inline$requireNonNull(o);
+    requireNonNull(o);
 
     String s1s2 = sb.append(s1).append(s2).toString();
     sb = null;
     throw new Error(s1s2);
   }
 
-  private static void $inline$requireNonNull(Object o) {
+  private static void requireNonNull(Object o) {
     if (o == null) {
       throw new Error("Object is null");
     }
