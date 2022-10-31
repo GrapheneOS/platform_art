@@ -39,6 +39,7 @@
 #endif
 
 #include "android-base/parseint.h"
+#include "android-base/properties.h"
 #include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
@@ -1099,6 +1100,19 @@ class Dex2Oat final {
     AssignTrueIfExists(args, M::ForceAllowOjInlines, &force_allow_oj_inlines_);
     AssignIfExists(args, M::PublicSdk, &public_sdk_);
     AssignIfExists(args, M::ApexVersions, &apex_versions_argument_);
+
+    // Check for phenotype flag to override compact_dex_level_, if it isn't "none" already.
+    // TODO(b/256664509): Clean this up.
+    if (compact_dex_level_ != CompactDexLevel::kCompactDexLevelNone) {
+      std::string ph_disable_compact_dex =
+          android::base::GetProperty(kPhDisableCompactDex, "false");
+      if (ph_disable_compact_dex == "true") {
+        LOG(WARNING)
+            << "Overriding --compact-dex-level due to "
+               "persist.device_config.runtime_native_boot.disable_compact_dex set to `true`";
+        compact_dex_level_ = CompactDexLevel::kCompactDexLevelNone;
+      }
+    }
 
     AssignIfExists(args, M::Backend, &compiler_kind_);
     parser_options->requested_specific_compiler = args.Exists(M::Backend);
