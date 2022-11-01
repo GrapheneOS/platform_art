@@ -28,6 +28,7 @@
 #include "base/systrace.h"
 #include "base/time_utils.h"
 #include "base/value_object.h"
+#include "monitor.h"
 #include "mutex-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
@@ -463,7 +464,10 @@ void Mutex::ExclusiveLock(Thread* self) {
           do {
             timespec timeout_ts;
             timeout_ts.tv_sec = 0;
-            timeout_ts.tv_nsec = Runtime::Current()->GetMonitorTimeoutNs();
+            // NB: Some tests use the mutex without the runtime.
+            timeout_ts.tv_nsec = Runtime::Current() != nullptr
+                ? Runtime::Current()->GetMonitorTimeoutNs()
+                : Monitor::kDefaultMonitorTimeoutMs;
             if (futex(state_and_contenders_.Address(), FUTEX_WAIT_PRIVATE, cur_state,
                       enable_monitor_timeout_ ? &timeout_ts : nullptr , nullptr, 0) != 0) {
               // We only went to sleep after incrementing and contenders and checking that the
@@ -513,6 +517,7 @@ void Mutex::DumpStack(Thread* self, uint64_t wait_start_ms, uint64_t try_times) 
   Locks::thread_list_lock_->ExclusiveLock(self);
   std::string owner_stack_dump;
   pid_t owner_tid = GetExclusiveOwnerTid();
+  CHECK(Runtime::Current() != nullptr);
   Thread *owner = Runtime::Current()->GetThreadList()->FindThreadByTid(owner_tid);
   if (owner != nullptr) {
     if (IsDumpFrequent(owner, try_times)) {
