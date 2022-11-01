@@ -31,6 +31,7 @@ namespace android {
 namespace nativeloader {
 
 using ::testing::Eq;
+using ::testing::MatchesRegex;
 using ::testing::NotNull;
 using ::testing::StrEq;
 using internal::ConfigEntry;
@@ -224,7 +225,7 @@ class NativeLoaderTest_Create : public NativeLoaderTest {
     EXPECT_CALL(*mock, NativeBridgeInitialized()).Times(testing::AnyNumber());
 
     EXPECT_CALL(*mock, mock_create_namespace(
-                           Eq(IsBridged()), StrEq(expected_namespace_name), nullptr,
+                           Eq(IsBridged()), MatchesRegex(expected_namespace_name), nullptr,
                            StrEq(expected_library_path), expected_namespace_flags,
                            StrEq(expected_permitted_path), NsEq(expected_parent_namespace.c_str())))
         .WillOnce(Return(TO_MOCK_NAMESPACE(TO_ANDROID_NAMESPACE(dex_path.c_str()))));
@@ -375,7 +376,7 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
   is_shared = false;
 
   if (is_product_vndk_version_defined()) {
-    expected_namespace_name = "vendor-classloader-namespace";
+    expected_namespace_name = "(vendor|product)-classloader-namespace";
     expected_library_path = expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
     expected_permitted_path =
         expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
@@ -390,7 +391,7 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
     // variant of it here.
     expected_link_with_platform_ns = false;
     expected_shared_libs_to_platform_ns =
-        expected_shared_libs_to_platform_ns + ":" + llndk_libraries_product();
+        default_public_libraries() + ":" + llndk_libraries_product();
     EXPECT_CALL(*mock,
                 mock_link_namespaces(Eq(IsBridged()),
                                      _,
