@@ -20,7 +20,10 @@ import etc.default_run
 
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from inspect import currentframe, getframeinfo
 
+COLOR_RED = '\033[91m'
+COLOR_NORMAL = '\033[0m'
 
 # Helper class which allows us to access the environment using syntax sugar.
 # E.g. `env.ANDROID_BUILD_TOP` instead of `os.environ["ANDROID_BUILD_TOP"]`.
@@ -69,6 +72,7 @@ if True:
 
   def run(cmdline: str,
           check=True,
+          fail_message=None,
           capture_output=True) -> subprocess.CompletedProcess:
     proc = subprocess.run([cmdline],
                           shell=True,
@@ -77,9 +81,15 @@ if True:
     if (check and proc.returncode != 0) or (quiet == "no"):
       print("$ " + cmdline)
       print(proc.stdout or "", file=sys.stdout, end="", flush=True)
-      print(proc.stderr or "", file=sys.stderr, end="", flush=True)
+      print(COLOR_RED + (proc.stderr or "") + COLOR_NORMAL, file=sys.stderr, end="", flush=True)
     if (check and proc.returncode != 0):
-      raise Exception("Command returned exit code {}".format(proc.returncode))
+      if fail_message:
+        # If we have custom fail message, exit without printing the full backtrace.
+        caller = getframeinfo(currentframe().f_back)   # type: ignore
+        source = f"{caller.filename}:{caller.lineno}"  # Last line of backtrace.
+        print(f"Command failed: {fail_message} ({source})", file=sys.stderr)
+        sys.exit(1)
+      raise Exception(f"Command failed (exit code {proc.returncode})")
     return proc
 
   def export(env: str, value: str) -> None:
@@ -949,10 +959,6 @@ if True:
   # NB: There is no exit code or return value.
   # Failing tests just raise python exception.
   os.chdir(tmp_dir)
-  if run_checker == "yes":
-    if target_mode == "yes":
-      run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
-    run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}" >>"{test_stdout}" 2>>"{test_stderr}"', check=False)
   if update_mode == "yes":
     run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stdout}" >"{td_expected_stdout}"''')
     run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"''')
@@ -973,11 +979,7 @@ if True:
     error("#################### info")
     run(f'cat "{td_info}" | sed "s/^/# /g"')
     error("#################### stdout diffs")
-    if run_checker == "yes":
-      # Checker failures dump the whole CFG, so we output the whole diff.
-      run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}"', check=False)
-    else:
-      run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" | tail -n 10000', check=False)
+    run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" | tail -n 10000', check=False)
     error("####################")
     error("#################### stderr diffs")
     run(f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}" | tail -n 10000', check=False)
@@ -994,17 +996,19 @@ if True:
           f"""| {ANDROID_BUILD_TOP}/development/scripts/stack | tail -n 3000""")
     error(" ")
 
-# Copy the generated CFG to the specified path.
+  if run_checker == "yes":
+    if target_mode == "yes":
+      run(f'adb pull "{chroot}/{cfg_output_dir}/{cfg_output}"')
+    run(f'"{checker}" -q {checker_args} "{cfg_output}" "{tmp_dir}"',
+        fail_message="CFG checker failed")
+
+  # Copy the generated CFG to the specified path.
   if dump_cfg == "true":
-    if run_optimizing != "true":
-      error(
-          "Can't dump the .cfg if the compiler type isn't set to \"optimizing\"."
-      )
+    assert run_optimizing == "true", "The CFG can be dumped only in optimizing mode"
+    if target_mode == "yes":
+      run(f"adb pull {chroot}/{cfg_output_dir}/{cfg_output} {dump_cfg_path}")
     else:
-      if target_mode == "yes":
-        run(f"adb pull {chroot}/{cfg_output_dir}/{cfg_output} {dump_cfg_path}")
-      else:
-        run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
+      run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
 
 # Clean up test files.
   if (always_clean == "yes" or good == "yes") and never_clean == "no":
