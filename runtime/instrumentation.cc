@@ -1707,9 +1707,10 @@ bool Instrumentation::ShouldDeoptimizeCaller(Thread* self,
   bool needs_deopt = NeedsSlowInterpreterForMethod(self, caller);
 
   // Non java debuggable apps don't support redefinition and hence it isn't required to check if
-  // frame needs to be deoptimized. We also want to avoid getting method header when we need a
-  // deopt anyway.
-  if (Runtime::Current()->IsJavaDebuggable() && !needs_deopt) {
+  // frame needs to be deoptimized. Even in debuggable apps, we only need this check when a
+  // redefinition has actually happened. This is indicated by IsDeoptCheckRequired flag. We also
+  // want to avoid getting method header when we need a deopt anyway.
+  if (Runtime::Current()->IsJavaDebuggable() && !needs_deopt && self->IsDeoptCheckRequired()) {
     const OatQuickMethodHeader* header = caller->GetOatQuickMethodHeader(caller_pc);
     if (header != nullptr && header->HasShouldDeoptimizeFlag()) {
       DCHECK(header->IsOptimized());
