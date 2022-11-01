@@ -1475,6 +1475,14 @@ extern "C" bool ArtPlugin_Initialize() {
 }
 
 extern "C" bool ArtPlugin_Deinitialize() {
+  // When runtime is shutting down, it is not necessary to unregister callbacks or update
+  // instrumentation levels. Removing callbacks require a GC critical section in some cases and
+  // when runtime is shutting down we already stop GC and hence it is not safe to request to
+  // enter a GC critical section.
+  if (art::Runtime::Current()->IsShuttingDown(art::Thread::Current())) {
+    return true;
+  }
+
   gEventHandler->Shutdown();
   gDeoptManager->Shutdown();
   PhaseUtil::Unregister();
