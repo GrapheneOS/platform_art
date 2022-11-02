@@ -166,6 +166,8 @@ if [[ $build_target == "yes" ]]; then
 
   # Extract prebuilt APEXes.
   debugfs=$ANDROID_HOST_OUT/bin/debugfs_static
+  fsckerofs=$ANDROID_HOST_OUT/bin/fsck.erofs
+  blkid=$ANDROID_HOST_OUT/bin/blkid
   for apex in ${apexes[@]}; do
     dir="$ANDROID_PRODUCT_OUT/system/apex/${apex}"
     apexbase="$ANDROID_PRODUCT_OUT/system/apex/${apex}"
@@ -179,7 +181,8 @@ if [[ $build_target == "yes" ]]; then
       msginfo "Extracting APEX file:" "${file}"
       rm -rf $dir
       mkdir -p $dir
-      $ANDROID_HOST_OUT/bin/deapexer --debugfs_path $debugfs extract $file $dir
+      $ANDROID_HOST_OUT/bin/deapexer --debugfs_path $debugfs --fsckerofs_path $fsckerofs \
+        --blkid_path $blkid extract $file $dir
     fi
   done
 
