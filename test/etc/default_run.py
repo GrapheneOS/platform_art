@@ -158,6 +158,7 @@ def default_run(ctx, args, **kwargs):
           stdout_file=None,
           stderr_file=None,
           check=True,
+          parse_exit_code_from_stdout=False,
           expected_exit_code=0,
           save_cmd=True) -> subprocess.CompletedProcess:
     env.setdefault("PATH", PATH)  # Ensure that PATH is always set.
@@ -181,12 +182,21 @@ def default_run(ctx, args, **kwargs):
                           encoding="utf8",
                           capture_output=True)
 
+    # ADB forwards exit code from the executed command, but if ADB process itself crashes,
+    # it will also return non-zero exit code, and we can not distinguish those two cases.
+    # As a work-around, we wrap the executed command so that it always returns 0 exit code
+    # and we also make it print the actual exit code as the last line of its stdout.
+    if parse_exit_code_from_stdout:
+      assert proc.returncode == 0, f"ADB crashed (out:'{proc.stdout}' err:'{proc.stderr}')"
+      found = re.search("exit_code=([0-9]+)$", proc.stdout)
+      assert found, "Expected exit code as the last line of stdout"
+      proc.stdout = proc.stdout[:found.start(0)]  # Remove the exit code from stdout.
+      proc.returncode = int(found.group(1))  # Use it as if it was the process exit code.
+
     # Save copy of the output on disk.
     if stdout_file:
       with open(stdout_file, "a") as f:
         f.write(proc.stdout)
-        if proc.returncode != 0:
-          f.write("exit status: {}\n".format(proc.returncode))
     if stderr_file:
       with open(stderr_file, "a") as f:
         f.write(proc.stderr)
@@ -222,7 +232,8 @@ def default_run(ctx, args, **kwargs):
       run("adb wait-for-device", self.env)
 
     def shell(self, cmdline: str, **kwargs) -> subprocess.CompletedProcess:
-      return run("adb shell " + cmdline, self.env, **kwargs)
+      return run(f"adb shell '{cmdline}; echo exit_code=$?'", self.env,
+                 parse_exit_code_from_stdout=True, **kwargs)
 
     def push(self, src: str, dst: str, **kwargs) -> None:
       run(f"adb push {src} {dst}", self.env, **kwargs)
