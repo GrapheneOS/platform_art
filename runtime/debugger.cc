@@ -187,33 +187,29 @@ bool Dbg::DdmHandleChunk(JNIEnv* env,
                          const ArrayRef<const jbyte>& data,
                          /*out*/uint32_t* out_type,
                          /*out*/std::vector<uint8_t>* out_data) {
-  ScopedLocalRef<jbyteArray> dataArray(env, env->NewByteArray(data.size()));
-  if (dataArray.get() == nullptr) {
+  ScopedObjectAccess soa(env);
+  StackHandleScope<1u> hs(soa.Self());
+  Handle<mirror::ByteArray> data_array =
+      hs.NewHandle(mirror::ByteArray::Alloc(soa.Self(), data.size()));
+  if (data_array == nullptr) {
     LOG(WARNING) << "byte[] allocation failed: " << data.size();
     env->ExceptionClear();
     return false;
   }
-  env->SetByteArrayRegion(dataArray.get(),
-                          0,
-                          data.size(),
-                          reinterpret_cast<const jbyte*>(data.data()));
+  memcpy(data_array->GetData(), data.data(), data.size());
   // Call "private static Chunk dispatch(int type, byte[] data, int offset, int length)".
-  ScopedLocalRef<jobject> chunk(
-      env,
-      env->CallStaticObjectMethod(
-          WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer,
-          WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch,
-          type, dataArray.get(), 0, data.size()));
-  if (env->ExceptionCheck()) {
-    Thread* self = Thread::Current();
-    ScopedObjectAccess soa(self);
+  ArtMethod* dispatch = WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
+  DCHECK(dispatch->GetDeclaringClass()->IsInitialized());
+  ObjPtr<mirror::Object> chunk = dispatch->InvokeStatic<'L', 'I', 'L', 'I', 'I'>(
+      soa.Self(), type, data_array.Get(), 0, static_cast<jint>(data.size()));
+  if (soa.Self()->IsExceptionPending()) {
     LOG(INFO) << StringPrintf("Exception thrown by dispatcher for 0x%08x", type) << std::endl
-              << self->GetException()->Dump();
-    self->ClearException();
+              << soa.Self()->GetException()->Dump();
+    soa.Self()->ClearException();
     return false;
   }
 
-  if (chunk.get() == nullptr) {
+  if (chunk == nullptr) {
     return false;
   }
 
@@ -229,38 +225,32 @@ bool Dbg::DdmHandleChunk(JNIEnv* env,
    *
    * So we're pretty much stuck with copying data around multiple times.
    */
-  ScopedLocalRef<jbyteArray> replyData(env, nullptr);
-  jint offset;
-  jint length;
-  {
-    ScopedObjectAccess soa(env);
-    ObjPtr<mirror::Object> raw_chunk = soa.Decode<mirror::Object>(chunk.get());
-    replyData.reset(soa.AddLocalReference<jbyteArray>(
-        WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data->GetObject(raw_chunk)));
-    offset = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset->GetInt(raw_chunk);
-    length = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length->GetInt(raw_chunk);
-    *out_type = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type->GetInt(raw_chunk);
-  }
+  ObjPtr<mirror::ByteArray> reply_data = ObjPtr<mirror::ByteArray>::DownCast(
+      WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data->GetObject(chunk));
+  jint offset = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset->GetInt(chunk);
+  jint length = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length->GetInt(chunk);
+  *out_type = WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type->GetInt(chunk);
 
   VLOG(jdwp) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d",
                              type,
-                             replyData.get(),
+                             reply_data.Ptr(),
                              offset,
                              length);
-  out_data->resize(length);
-  env->GetByteArrayRegion(replyData.get(),
-                          offset,
-                          length,
-                          reinterpret_cast<jbyte*>(out_data->data()));
 
-  if (env->ExceptionCheck()) {
-    Thread* self = Thread::Current();
-    ScopedObjectAccess soa(self);
-    LOG(INFO) << StringPrintf("Exception thrown when reading response data from dispatcher 0x%08x",
-                              type) << std::endl << self->GetException()->Dump();
-    self->ClearException();
+  if (reply_data == nullptr) {
+    LOG(INFO) << "Null reply data";
     return false;
   }
+
+  jint reply_length = reply_data->GetLength();
+  if (offset < 0 || offset > reply_length || length < 0 || length > reply_length - offset) {
+    LOG(INFO) << "Invalid reply data range: offset=" << offset << ", length=" << length
+              << " reply_length=" << reply_length;
+    return false;
+  }
+
+  out_data->resize(length);
+  memcpy(out_data->data(), reply_data->GetData() + offset, length);
 
   return true;
 }
@@ -274,12 +264,14 @@ void Dbg::DdmBroadcast(bool connect) {
     /* try anyway? */
   }
 
+  // TODO: Can we really get here while not `Runnable`? If not, we do not need the `soa`.
+  ScopedObjectAccessUnchecked soa(self);
   JNIEnv* env = self->GetJniEnv();
   jint event = connect ? 1 /*DdmServer.CONNECTED*/ : 2 /*DdmServer.DISCONNECTED*/;
-  env->CallStaticVoidMethod(WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer,
-                            WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast,
-                            event);
-  if (env->ExceptionCheck()) {
+  ArtMethod* broadcast = WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
+  DCHECK(broadcast->GetDeclaringClass()->IsInitialized());
+  broadcast->InvokeStatic<'V', 'I'>(self, event);
+  if (self->IsExceptionPending()) {
     LOG(ERROR) << "DdmServer.broadcast " << event << " failed";
     env->ExceptionDescribe();
     env->ExceptionClear();

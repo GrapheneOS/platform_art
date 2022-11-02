@@ -1141,6 +1141,9 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_Integer_valueOf,
       WellKnownClasses::java_lang_Long_valueOf,
       WellKnownClasses::java_lang_Short_valueOf,
+      // We're suppressing exceptions from `DdmServer` and we do not want to repeatedly
+      // suppress class initialization error (say, due to OOM), so initialize it early.
+      WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch,
   };
   for (ArtMethod* method : static_methods_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, method->GetDeclaringClass());

@@ -88,8 +88,6 @@ jclass WellKnownClasses::java_util_function_Consumer;
 jclass WellKnownClasses::libcore_reflect_AnnotationFactory;
 jclass WellKnownClasses::libcore_reflect_AnnotationMember;
 jclass WellKnownClasses::libcore_util_EmptyArray;
-jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk;
-jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
 
 jmethodID WellKnownClasses::dalvik_system_BaseDexClassLoader_getLdLibraryPath;
 jmethodID WellKnownClasses::dalvik_system_VMRuntime_runFinalization;
@@ -131,8 +129,8 @@ jmethodID WellKnownClasses::java_nio_DirectByteBuffer_init;
 jmethodID WellKnownClasses::java_util_function_Consumer_accept;
 jmethodID WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation;
 jmethodID WellKnownClasses::libcore_reflect_AnnotationMember_init;
-jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
-jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
+ArtMethod* WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
+ArtMethod* WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
 ArtField* WellKnownClasses::dalvik_system_BaseDexClassLoader_pathList;
 ArtField* WellKnownClasses::dalvik_system_BaseDexClassLoader_sharedLibraryLoaders;
@@ -258,7 +256,9 @@ static ArtMethod* CacheMethod(ObjPtr<mirror::Class> klass,
     klass->DumpClass(os, mirror::Class::kDumpClassFullDetail);
     LOG(FATAL) << "Couldn't find " << (is_static ? "static" : "instance") << " method \""
                << name << "\" with signature \"" << signature << "\": " << os.str();
+    UNREACHABLE();
   }
+  DCHECK(method->GetDeclaringClass() == klass);
   return method;
 }
 
@@ -413,8 +413,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   libcore_reflect_AnnotationFactory = CacheClass(env, "libcore/reflect/AnnotationFactory");
   libcore_reflect_AnnotationMember = CacheClass(env, "libcore/reflect/AnnotationMember");
   libcore_util_EmptyArray = CacheClass(env, "libcore/util/EmptyArray");
-  org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
-  org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
 
   InitFieldsAndMethodsOnly(env);
 }
@@ -475,12 +473,14 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_util_function_Consumer_accept = CacheMethod(env, java_util_function_Consumer, false, "accept", "(Ljava/lang/Object;)V");
   libcore_reflect_AnnotationFactory_createAnnotation = CacheMethod(env, libcore_reflect_AnnotationFactory, true, "createAnnotation", "(Ljava/lang/Class;[Llibcore/reflect/AnnotationMember;)Ljava/lang/annotation/Annotation;");
   libcore_reflect_AnnotationMember_init = CacheMethod(env, libcore_reflect_AnnotationMember, false, "<init>", "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/reflect/Method;)V");
-  org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
-  org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
-  StackHandleScope<1u> hs(self);
+  StackHandleScope<3u> hs(self);
   Handle<mirror::Class> j_i_fd =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/io/FileDescriptor;"));
+  Handle<mirror::Class> o_a_h_d_c =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Lorg/apache/harmony/dalvik/ddmc/Chunk;"));
+  Handle<mirror::Class> o_a_h_d_d_ds =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Lorg/apache/harmony/dalvik/ddmc/DdmServer;"));
 
   ScopedAssertNoThreadSuspension sants(__FUNCTION__);
   PointerSize pointer_size = class_linker->GetImagePointerSize();
@@ -491,6 +491,15 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   ObjPtr<mirror::Class> j_l_Float = java_lang_Float_valueOf->GetDeclaringClass();
   java_lang_Float_floatToRawIntBits =
       CacheMethod(j_l_Float, /*is_static=*/ true, "floatToRawIntBits", "(F)I", pointer_size);
+
+  org_apache_harmony_dalvik_ddmc_DdmServer_broadcast =
+      CacheMethod(o_a_h_d_d_ds.Get(), /*is_static=*/ true, "broadcast", "(I)V", pointer_size);
+  org_apache_harmony_dalvik_ddmc_DdmServer_dispatch =
+      CacheMethod(o_a_h_d_d_ds.Get(),
+                  /*is_static=*/ true,
+                  "dispatch",
+                  "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;",
+                  pointer_size);
 
   ObjPtr<mirror::Class> d_s_bdcl = soa.Decode<mirror::Class>(dalvik_system_BaseDexClassLoader);
   dalvik_system_BaseDexClassLoader_pathList = CacheField(
@@ -585,15 +594,14 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   libcore_util_EmptyArray_STACK_TRACE_ELEMENT = CacheField(
       l_u_ea, /*is_static=*/ true, "STACK_TRACE_ELEMENT", "[Ljava/lang/StackTraceElement;");
 
-  ObjPtr<mirror::Class> o_a_h_d_c = soa.Decode<mirror::Class>(org_apache_harmony_dalvik_ddmc_Chunk);
   org_apache_harmony_dalvik_ddmc_Chunk_data =
-      CacheField(o_a_h_d_c, /*is_static=*/ false, "data", "[B");
+      CacheField(o_a_h_d_c.Get(), /*is_static=*/ false, "data", "[B");
   org_apache_harmony_dalvik_ddmc_Chunk_length =
-      CacheField(o_a_h_d_c, /*is_static=*/ false, "length", "I");
+      CacheField(o_a_h_d_c.Get(), /*is_static=*/ false, "length", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_offset =
-      CacheField(o_a_h_d_c, /*is_static=*/ false, "offset", "I");
+      CacheField(o_a_h_d_c.Get(), /*is_static=*/ false, "offset", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_type =
-      CacheField(o_a_h_d_c, /*is_static=*/ false, "type", "I");
+      CacheField(o_a_h_d_c.Get(), /*is_static=*/ false, "type", "I");
 }
 
 void WellKnownClasses::LateInit(JNIEnv* env) {
@@ -668,8 +676,6 @@ void WellKnownClasses::Clear() {
   libcore_reflect_AnnotationFactory = nullptr;
   libcore_reflect_AnnotationMember = nullptr;
   libcore_util_EmptyArray = nullptr;
-  org_apache_harmony_dalvik_ddmc_Chunk = nullptr;
-  org_apache_harmony_dalvik_ddmc_DdmServer = nullptr;
 
   dalvik_system_BaseDexClassLoader_getLdLibraryPath = nullptr;
   dalvik_system_VMRuntime_runFinalization = nullptr;
