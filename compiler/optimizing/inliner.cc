@@ -1469,9 +1469,9 @@ bool HInliner::IsInliningSupported(const HInvoke* invoke_instruction,
   return true;
 }
 
-// Returns whether our resource limits allow inlining this method.
-bool HInliner::IsInliningBudgetAvailable(ArtMethod* method,
-                                         const CodeItemDataAccessor& accessor) const {
+bool HInliner::IsInliningEncouraged(const HInvoke* invoke_instruction,
+                                    ArtMethod* method,
+                                    const CodeItemDataAccessor& accessor) const {
   if (CountRecursiveCallsOf(method) > kMaximumNumberOfRecursiveCalls) {
     LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedRecursiveBudget)
         << "Method "
@@ -1488,6 +1488,13 @@ bool HInliner::IsInliningBudgetAvailable(ArtMethod* method,
         << accessor.InsnsSizeInCodeUnits()
         << " > "
         << inline_max_code_units;
+    return false;
+  }
+
+  if (invoke_instruction->GetBlock()->GetLastInstruction()->IsThrow()) {
+    LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedEndsWithThrow)
+        << "Method " << method->PrettyMethod()
+        << " is not inlined because its block ends with a throw";
     return false;
   }
 
@@ -1557,7 +1564,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
     return false;
   }
 
-  if (!IsInliningBudgetAvailable(method, accessor)) {
+  if (!IsInliningEncouraged(invoke_instruction, method, accessor)) {
     return false;
   }
 

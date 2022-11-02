@@ -267,14 +267,14 @@ class Main {
         // inline the loading.
         try {
           $inline$getPrivateField();
-          throw new Error("Expected IllegalAccessError");
+          System.out.println("Expected IllegalAccessError");
         } catch (IllegalAccessError e) {
           // expected
         }
 
         try {
           $inline$missingType();
-          throw new Error("Expected NoClassDefFoundError");
+          System.out.println("Expected NoClassDefFoundError");
         } catch (NoClassDefFoundError e) {
           // expected
         }
