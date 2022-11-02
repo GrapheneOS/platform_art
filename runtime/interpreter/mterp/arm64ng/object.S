@@ -19,7 +19,7 @@
    mov     x0, xSELF
    ldr     x1, [sp]
    mov     x2, xPC
-   bl      nterp_get_class_or_allocate_object
+   bl      nterp_get_class
    mov     x1, x0
    b       1b
 
@@ -90,7 +90,7 @@
    mov     x0, xSELF
    ldr     x1, [sp]
    mov     x2, xPC
-   bl      nterp_get_class_or_allocate_object
+   bl      nterp_get_class
    mov     x1, x0
    b       1b
 
@@ -476,7 +476,7 @@
    mov     x0, xSELF
    ldr     x1, [sp]
    mov     x2, xPC
-   bl      nterp_get_class_or_allocate_object
+   bl      nterp_allocate_object
    b       1b
 3:
    bl      art_quick_read_barrier_mark_reg00

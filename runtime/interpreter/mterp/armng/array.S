@@ -186,7 +186,7 @@
    mov r0, rSELF
    ldr r1, [sp]
    mov r2, rPC
-   bl nterp_get_class_or_allocate_object
+   bl nterp_get_class
    b 1b
 3:
    bl art_quick_read_barrier_mark_reg00
