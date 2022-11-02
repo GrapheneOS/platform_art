@@ -249,76 +249,57 @@ extern "C" const char* NterpGetShortyFromInvokeCustom(ArtMethod* caller, uint16_
   return dex_file->GetShorty(proto_idx);
 }
 
+static constexpr uint8_t kInvalidInvokeType = 255u;
+static_assert(static_cast<uint8_t>(kMaxInvokeType) < kInvalidInvokeType);
+
+static constexpr uint8_t GetOpcodeInvokeType(uint8_t opcode) {
+  switch (opcode) {
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_DIRECT_RANGE:
+      return static_cast<uint8_t>(kDirect);
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+      return static_cast<uint8_t>(kInterface);
+    case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_STATIC_RANGE:
+      return static_cast<uint8_t>(kStatic);
+    case Instruction::INVOKE_SUPER:
+    case Instruction::INVOKE_SUPER_RANGE:
+      return static_cast<uint8_t>(kSuper);
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+      return static_cast<uint8_t>(kVirtual);
+
+    default:
+      return kInvalidInvokeType;
+  }
+}
+
+static constexpr std::array<uint8_t, 256u> GenerateOpcodeInvokeTypes() {
+  std::array<uint8_t, 256u> opcode_invoke_types{};
+  for (size_t opcode = 0u; opcode != opcode_invoke_types.size(); ++opcode) {
+    opcode_invoke_types[opcode] = GetOpcodeInvokeType(opcode);
+  }
+  return opcode_invoke_types;
+}
+
+static constexpr std::array<uint8_t, 256u> kOpcodeInvokeTypes = GenerateOpcodeInvokeTypes();
+
 FLATTEN
 extern "C" size_t NterpGetMethod(Thread* self, ArtMethod* caller, const uint16_t* dex_pc_ptr)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   UpdateHotness(caller);
   const Instruction* inst = Instruction::At(dex_pc_ptr);
-  InvokeType invoke_type = kStatic;
-  uint16_t method_index = 0;
-  switch (inst->Opcode()) {
-    case Instruction::INVOKE_DIRECT: {
-      method_index = inst->VRegB_35c();
-      invoke_type = kDirect;
-      break;
-    }
+  Instruction::Code opcode = inst->Opcode();
+  DCHECK(IsUint<8>(static_cast<std::underlying_type_t<Instruction::Code>>(opcode)));
+  uint8_t raw_invoke_type = kOpcodeInvokeTypes[opcode];
+  CHECK_LE(raw_invoke_type, kMaxInvokeType);
+  InvokeType invoke_type = static_cast<InvokeType>(raw_invoke_type);
 
-    case Instruction::INVOKE_INTERFACE: {
-      method_index = inst->VRegB_35c();
-      invoke_type = kInterface;
-      break;
-    }
-
-    case Instruction::INVOKE_STATIC: {
-      method_index = inst->VRegB_35c();
-      invoke_type = kStatic;
-      break;
-    }
-
-    case Instruction::INVOKE_SUPER: {
-      method_index = inst->VRegB_35c();
-      invoke_type = kSuper;
-      break;
-    }
-    case Instruction::INVOKE_VIRTUAL: {
-      method_index = inst->VRegB_35c();
-      invoke_type = kVirtual;
-      break;
-    }
-
-    case Instruction::INVOKE_DIRECT_RANGE: {
-      method_index = inst->VRegB_3rc();
-      invoke_type = kDirect;
-      break;
-    }
-
-    case Instruction::INVOKE_INTERFACE_RANGE: {
-      method_index = inst->VRegB_3rc();
-      invoke_type = kInterface;
-      break;
-    }
-
-    case Instruction::INVOKE_STATIC_RANGE: {
-      method_index = inst->VRegB_3rc();
-      invoke_type = kStatic;
-      break;
-    }
-
-    case Instruction::INVOKE_SUPER_RANGE: {
-      method_index = inst->VRegB_3rc();
-      invoke_type = kSuper;
-      break;
-    }
-
-    case Instruction::INVOKE_VIRTUAL_RANGE: {
-      method_index = inst->VRegB_3rc();
-      invoke_type = kVirtual;
-      break;
-    }
-
-    default:
-      LOG(FATAL) << "Unknown instruction " << inst->Opcode();
-  }
+  // In release mode, this is just a simple load.
+  // In debug mode, this checks that we're using the correct instruction format.
+  uint16_t method_index =
+      (opcode >= Instruction::INVOKE_VIRTUAL_RANGE) ? inst->VRegB_3rc() : inst->VRegB_35c();
 
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   ArtMethod* resolved_method = caller->SkipAccessChecks()
