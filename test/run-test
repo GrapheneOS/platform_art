@@ -19,8 +19,9 @@ import os, sys, glob, re, shutil, subprocess, shlex, resource
 import etc.default_run
 
 from importlib.machinery import SourceFileLoader
+from inspect import currentframe, getframeinfo, FrameInfo
 from pathlib import Path
-from inspect import currentframe, getframeinfo
+from typing import Optional
 
 COLOR_RED = '\033[91m'
 COLOR_NORMAL = '\033[0m'
@@ -70,6 +71,13 @@ if True:
     tmp_dir = f"{TMPDIR}/{test_dir}"
   checker = f"{progdir}/../tools/checker/checker.py"
 
+  def fail(message: str, caller:Optional[FrameInfo]=None):
+    caller = caller or getframeinfo(currentframe().f_back)  # type: ignore
+    source = "{}:{}".format(Path(caller.filename).relative_to(oldwd), caller.lineno)
+    print(f"\n{COLOR_RED}{TEST_NAME} FAILED: [{source}] {message}{COLOR_NORMAL}",
+          file=sys.stderr)
+    sys.exit(1)
+
   def run(cmdline: str,
           check=True,
           fail_message=None,
@@ -85,10 +93,7 @@ if True:
     if (check and proc.returncode != 0):
       if fail_message:
         # If we have custom fail message, exit without printing the full backtrace.
-        caller = getframeinfo(currentframe().f_back)   # type: ignore
-        source = f"{caller.filename}:{caller.lineno}"  # Last line of backtrace.
-        print(f"Command failed: {fail_message} ({source})", file=sys.stderr)
-        sys.exit(1)
+        fail(fail_message, getframeinfo(currentframe().f_back))  # type: ignore
       raise Exception(f"Command failed (exit code {proc.returncode})")
     return proc
 
@@ -951,10 +956,9 @@ if True:
   Path(test_stdout).touch()
   Path(test_stderr).touch()
 
-  good = "no"
   export("TEST_RUNTIME", runtime)
 
-  verbose(f"{test_dir}: running...")
+  print(f"{test_dir}: running...")
   run_test_script()
   # NB: There is no exit code or return value.
   # Failing tests just raise python exception.
@@ -962,39 +966,28 @@ if True:
   if update_mode == "yes":
     run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stdout}" >"{td_expected_stdout}"''')
     run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"''')
-    good = "yes"
 
-  proc = run(
-    f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" &&'
-    f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}"',
-    check=False  # Don't crash on non-zero exit code.
-  )
-  if proc.returncode == 0:
-    good = "yes"
-    verbose(f"${test_dir}: succeeded!")
-
-  if good != "yes" and update_mode != "yes":
-    error(f"{test_dir}: FAILED!")
-    error(" ")
-    error("#################### info")
-    run(f'cat "{td_info}" | sed "s/^/# /g"')
-    error("#################### stdout diffs")
-    run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}" | tail -n 10000', check=False)
-    error("####################")
-    error("#################### stderr diffs")
-    run(f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}" | tail -n 10000', check=False)
-    error("####################")
-    if strace == "yes":
-      error("#################### strace output")
-      run(f'tail -n 3000 "{tmp_dir}/{strace_output}"')
-      error("####################")
-    SANITIZE_HOST = os.environ.get("SANITIZE_HOST")
-    if target_mode == "no" and SANITIZE_HOST == "address":
-      # Run the stack script to symbolize any ASAN aborts on the host for SANITIZE_HOST. The
-      # tools used by the given ABI work for both x86 and x86-64.
-      run(f'''echo "ABI: 'x86_64'" | cat - "{test_stdout}" "{test_stderr}"'''
-          f"""| {ANDROID_BUILD_TOP}/development/scripts/stack | tail -n 3000""")
-    error(" ")
+  print("#################### info")
+  run(f'cat "{td_info}" | sed "s/^/# /g"')
+  print("#################### stdout diff")
+  proc_out = run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}"', check=False)
+  print("#################### stderr diff")
+  proc_err = run(f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}"', check=False)
+  if strace == "yes":
+    print("#################### strace output (trimmed to 3000 lines)")
+    run(f'tail -n 3000 "{tmp_dir}/{strace_output}"')
+  SANITIZE_HOST = os.environ.get("SANITIZE_HOST")
+  if target_mode == "no" and SANITIZE_HOST == "address":
+    # Run the stack script to symbolize any ASAN aborts on the host for SANITIZE_HOST. The
+    # tools used by the given ABI work for both x86 and x86-64.
+    print("#################### symbolizer (trimmed to 3000 lines)")
+    run(f'''echo "ABI: 'x86_64'" | cat - "{test_stdout}" "{test_stderr}"'''
+        f"""| {ANDROID_BUILD_TOP}/development/scripts/stack | tail -n 3000""")
+  print("####################", flush=True)
+  if proc_out.returncode != 0 or proc_err.returncode != 0:
+    kind = ((["stdout"] if proc_out.returncode != 0 else []) +
+            (["stderr"] if proc_err.returncode != 0 else []))
+    fail("{} did not match the expected file".format(" and ".join(kind)))
 
   if run_checker == "yes":
     if target_mode == "yes":
@@ -1011,13 +1004,11 @@ if True:
       run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
 
 # Clean up test files.
-  if (always_clean == "yes" or good == "yes") and never_clean == "no":
+  if always_clean == "yes" and never_clean == "no":
     os.chdir(oldwd)
     shutil.rmtree(tmp_dir)
     if target_mode == "yes":
       run(f"adb shell rm -rf {chroot_dex_location}")
-    if good == "yes":
-      sys.exit(0)
     verbose(f"{TEST_NAME} files deleted from host ")
     if target_mode == "yes":
       verbose("and from target")
@@ -1025,8 +1016,3 @@ if True:
     verbose(f"{TEST_NAME} files left in ${tmp_dir} on host")
     if target_mode == "yes":
       verbose("and in ${chroot_dex_location} on target")
-
-  if never_clean == "yes" and good == "yes":
-    sys.exit(0)
-  else:
-    sys.exit(1)
