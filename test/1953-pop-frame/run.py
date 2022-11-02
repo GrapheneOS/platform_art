@@ -27,4 +27,4 @@ def run(ctx, args):
   # quite the right way so they are disabled there too.
   if not (args.jvm or args.verify_soft_fail or not args.prebuild or
           (args.jvmti_redefine_stress and args.host)):
-    ctx.run(fr"patch -p0 expected-stdout.txt < class-loading-expected.patch")
+    ctx.expected_stdout = ctx.expected_stdout.with_suffix(".no-jvm.txt")
