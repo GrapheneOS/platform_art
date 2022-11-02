@@ -940,7 +940,7 @@ if True:
     parsed_args.stderr_file = os.path.join(tmp_dir, test_stderr)
 
     ctx = RunTestContext()
-    script = os.path.join(tmp_dir, "run")
+    script = os.path.join(tmp_dir, "run.py")
     if os.path.exists(script):
       module = SourceFileLoader("run_" + TEST_NAME, script).load_module()
       module.run(ctx, parsed_args)

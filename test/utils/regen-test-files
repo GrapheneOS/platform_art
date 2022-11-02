@@ -407,7 +407,7 @@ class Generator:
     if run_test in runnable_test_exceptions:
       return True
     # Skip tests with a custom `run` script.
-    if os.path.isfile(os.path.join(run_test_path, "run")):
+    if os.path.isfile(os.path.join(run_test_path, "run.py")):
       return False
     # Skip tests known to fail.
     if run_test in known_failing_tests:
