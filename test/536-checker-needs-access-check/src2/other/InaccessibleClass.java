@@ -31,7 +31,7 @@ import other2.GetInaccessibleClass;
     Class<?> klass = null;
     try {
       klass = GetInaccessibleClass.$inline$get();
-      throw new Error("Unreachable");
+      System.out.println("Unreachable");
     } catch (IllegalAccessError expected) {}
     return klass;
   }
