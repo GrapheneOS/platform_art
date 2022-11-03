@@ -16,7 +16,7 @@
 
 import os, sys, glob, re, shutil, subprocess, shlex, resource
 
-import etc.default_run
+import default_run as default_run_module
 
 from importlib.machinery import SourceFileLoader
 from inspect import currentframe, getframeinfo, FrameInfo
@@ -58,7 +58,7 @@ class RunTestContext:
 
   # Execute the default runner (possibly with modified arguments).
   def default_run(self, args, **kwargs):
-    etc.default_run.default_run(self, args, **kwargs)
+    default_run_module.default_run(self, args, **kwargs)
 
 
 # TODO: Replace with 'def main():' (which might change variables from globals to locals)
@@ -939,7 +939,7 @@ if True:
 
   # Execute the "run" method in the per-test specific script file.
   def run_test_script():
-    parsed_args = etc.default_run.parse_args(shlex.split(" ".join(run_args + args)))
+    parsed_args = default_run_module.parse_args(shlex.split(" ".join(run_args + args)))
     parsed_args.stdout_file = os.path.join(tmp_dir, test_stdout)
     parsed_args.stderr_file = os.path.join(tmp_dir, test_stderr)
 
@@ -948,7 +948,7 @@ if True:
       module = SourceFileLoader("run_" + TEST_NAME, script).load_module()
       module.run(ctx, parsed_args)
     else:
-      etc.default_run.default_run(ctx, parsed_args)
+      default_run_module.default_run(ctx, parsed_args)
 
   # Test might not execute anything but we still expect the output files to exist.
   Path(test_stdout).touch()
