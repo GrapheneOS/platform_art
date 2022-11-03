@@ -39,7 +39,7 @@ def main():
               out: ["{name}.zip"],
               srcs: ["*{shard}-*/**/*"],
               defaults: ["art-run-test-data-defaults"],
-              cmd: "$(location run-test-build.py) --out $(out) --mode {mode} --shard {shard} " +
+              cmd: "$(location run_test_build.py) --out $(out) --mode {mode} --shard {shard} " +
                   "--bootclasspath $(location :art-run-test-bootclasspath)",
           }}
 
