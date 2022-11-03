@@ -476,6 +476,11 @@ inline ArtMethod* ClassLinker::ResolveMethod(uint32_t method_idx,
       DCHECK(Thread::Current()->IsExceptionPending());
       return nullptr;
     }
+    // Look for the method again in case the type resolution updated the cache.
+    resolved = dex_cache->GetResolvedMethod(method_idx);
+    if (kResolveMode == ResolveMode::kNoChecks && resolved != nullptr) {
+      return resolved;
+    }
   }
 
   // Check if the invoke type matches the class type.
@@ -582,6 +587,12 @@ inline ArtField* ClassLinker::ResolveField(uint32_t field_idx,
   if (klass == nullptr) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return nullptr;
+  }
+
+  // Look for the field again in case the type resolution updated the cache.
+  resolved = dex_cache->GetResolvedField(field_idx);
+  if (resolved != nullptr) {
+    return resolved;
   }
 
   resolved = FindResolvedField(klass, dex_cache.Get(), class_loader.Get(), field_idx, is_static);
