@@ -22,8 +22,7 @@ def run(ctx, args):
   if args.interpreter:
     # On interpreter we are fully capable of providing the full jvmti api so we
     # have a slightly different expected output.
-    # TODO We should really be changing this in the 'check' script.
-    ctx.run("patch -s expected-stdout.txt <interpreter-expected.patch")
+    ctx.expected_stdout = ctx.expected_stdout.with_suffix(".interpreter.txt")
 
   # Provide additional runtime options when running on device.
   if not args.host:
