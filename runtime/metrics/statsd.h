@@ -27,8 +27,10 @@ class MetricsBackend;
 // Statsd is only supported on Android
 #ifdef __ANDROID__
 std::unique_ptr<MetricsBackend> CreateStatsdBackend();
+void ReportDeviceMetrics();
 #else
 inline std::unique_ptr<MetricsBackend> CreateStatsdBackend() { return nullptr; }
+inline void ReportDeviceMetrics() {}
 #endif
 
 }  // namespace metrics
