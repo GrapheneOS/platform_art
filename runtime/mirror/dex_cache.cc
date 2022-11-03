@@ -215,5 +215,46 @@ void DexCache::UnlinkStartupCaches() {
   UnlinkResolvedMethodTypesArrayIfStartup();
 }
 
+void DexCache::SetResolvedType(dex::TypeIndex type_idx, ObjPtr<Class> resolved) {
+  DCHECK(resolved != nullptr);
+  DCHECK(resolved->IsResolved()) << resolved->GetStatus();
+  // TODO default transaction support.
+  // Use a release store for SetResolvedType. This is done to prevent other threads from seeing a
+  // class but not necessarily seeing the loaded members like the static fields array.
+  // See b/32075261.
+  SetResolvedTypesEntry(type_idx.index_, resolved.Ptr());
+  // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
+  WriteBarrier::ForEveryFieldWrite(this);
+
+  if (this == resolved->GetDexCache()) {
+    // If we're updating the dex cache of the class, optimistically update the cache for methods and
+    // fields if the caches are full arrays.
+    auto* resolved_methods = GetResolvedMethodsArray();
+    if (resolved_methods != nullptr) {
+      PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      // Because there could be duplicate method entries, we make sure we only
+      // update the cache with the first one found to be consistent with method
+      // resolution.
+      uint32_t previous_method_index = dex::kDexNoIndex;
+      for (ArtMethod& current_method : resolved->GetDeclaredMethods(pointer_size)) {
+        uint32_t new_index = current_method.GetDexMethodIndex();
+        if (new_index != previous_method_index) {
+          resolved_methods->Set(new_index, &current_method);
+          previous_method_index = new_index;
+        }
+      }
+    }
+    auto* resolved_fields = GetResolvedFieldsArray();
+    if (resolved_fields != nullptr) {
+      for (ArtField& current_field : resolved->GetSFields()) {
+        resolved_fields->Set(current_field.GetDexFieldIndex(), &current_field);
+      }
+      for (ArtField& current_field : resolved->GetIFields()) {
+        resolved_fields->Set(current_field.GetDexFieldIndex(), &current_field);
+      }
+    }
+  }
+}
+
 }  // namespace mirror
 }  // namespace art
