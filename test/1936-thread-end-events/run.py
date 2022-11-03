@@ -19,6 +19,6 @@ def run(ctx, args):
   # Ask for stack traces to be dumped to a file rather than to stdout.
   ctx.default_run(args, jvmti=True)
 
-  # The RI sends an extra event that art doesn't. Add it to the expected output.
+  # The RI sends an extra event that art doesn't.
   if args.jvm:
-    ctx.run(fr"patch -p0 expected-stdout.txt < jvm-expected.patch >/dev/null")
+    ctx.expected_stdout = ctx.expected_stdout.with_suffix(".jvm.txt")
