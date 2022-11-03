@@ -371,10 +371,8 @@ ObjPtr<mirror::Object> ProcessEncodedAnnotation(const ClassData& klass, const ui
     return nullptr;
   }
 
-  ObjPtr<mirror::Class> annotation_member_class =
-      soa.Decode<mirror::Class>(WellKnownClasses::libcore_reflect_AnnotationMember);
   ObjPtr<mirror::Class> annotation_member_array_class =
-      class_linker->FindArrayClass(self, annotation_member_class);
+      soa.Decode<mirror::Class>(WellKnownClasses::libcore_reflect_AnnotationMember__array);
   if (annotation_member_array_class == nullptr) {
     return nullptr;
   }
@@ -397,18 +395,17 @@ ObjPtr<mirror::Object> ProcessEncodedAnnotation(const ClassData& klass, const ui
     h_element_array->SetWithoutChecks<false>(i, new_member);
   }
 
-  JValue result;
   ArtMethod* create_annotation_method =
-      jni::DecodeArtMethod(WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation);
-  uint32_t args[2] = { static_cast<uint32_t>(reinterpret_cast<uintptr_t>(annotation_class.Get())),
-                       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(h_element_array.Get())) };
-  create_annotation_method->Invoke(self, args, sizeof(args), &result, "LLL");
+      WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation;
+  DCHECK(create_annotation_method->GetDeclaringClass()->IsInitialized());
+  ObjPtr<mirror::Object> result = create_annotation_method->InvokeStatic<'L', 'L', 'L'>(
+      self, annotation_class.Get(), h_element_array.Get());
   if (self->IsExceptionPending()) {
     LOG(INFO) << "Exception in AnnotationFactory.createAnnotation";
     return nullptr;
   }
 
-  return result.GetL();
+  return result;
 }
 
 template <bool kTransactionActive>
@@ -725,8 +722,9 @@ ObjPtr<mirror::Object> CreateAnnotationMember(const ClassData& klass,
   }
   Handle<mirror::Object> value_object(hs.NewHandle(annotation_value.value_.GetL()));
 
-  ObjPtr<mirror::Class> annotation_member_class =
-      WellKnownClasses::ToClass(WellKnownClasses::libcore_reflect_AnnotationMember);
+  ArtMethod* annotation_member_init = WellKnownClasses::libcore_reflect_AnnotationMember_init;
+  ObjPtr<mirror::Class> annotation_member_class = annotation_member_init->GetDeclaringClass();
+  DCHECK(annotation_member_class->IsInitialized());
   Handle<mirror::Object> new_member(hs.NewHandle(annotation_member_class->AllocObject(self)));
   ObjPtr<mirror::Method> method_obj_ptr = (pointer_size == PointerSize::k64)
       ? mirror::Method::CreateFromArtMethod<PointerSize::k64>(self, annotation_method)
@@ -740,16 +738,12 @@ ObjPtr<mirror::Object> CreateAnnotationMember(const ClassData& klass,
     return nullptr;
   }
 
-  JValue result;
-  ArtMethod* annotation_member_init =
-      jni::DecodeArtMethod(WellKnownClasses::libcore_reflect_AnnotationMember_init);
-  uint32_t args[5] = { static_cast<uint32_t>(reinterpret_cast<uintptr_t>(new_member.Get())),
-                       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(string_name.Get())),
-                       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value_object.Get())),
-                       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(method_return.Get())),
-                       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(method_object.Get()))
-  };
-  annotation_member_init->Invoke(self, args, sizeof(args), &result, "VLLLL");
+  annotation_member_init->InvokeInstance<'V', 'L', 'L', 'L', 'L'>(self,
+                                                                  new_member.Get(),
+                                                                  string_name.Get(),
+                                                                  value_object.Get(),
+                                                                  method_return.Get(),
+                                                                  method_object.Get());
   if (self->IsExceptionPending()) {
     LOG(INFO) << "Exception in AnnotationMember.<init>";
     return nullptr;
