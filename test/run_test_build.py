@@ -552,9 +552,8 @@ def main() -> None:
       "--out", help="Path of the generated ZIP file with the build data")
   parser.add_argument("--mode", choices=["host", "jvm", "target"])
   parser.add_argument(
-      "--shard", help="Identifies subset of tests to build (00..99)")
-  parser.add_argument(
       "--bootclasspath", help="JAR files used for javac compilation")
+  parser.add_argument("srcs", nargs="+", help="glob of test directories to compile")
   args = parser.parse_args()
 
   build_top = Path(getcwd())
@@ -562,8 +561,7 @@ def main() -> None:
   assert sbox.parent.name == "sbox" and len(sbox.name) == 40
 
   ziproot = sbox / "zip"
-  srcdirs = sorted(build_top.glob("art/test/*"))
-  srcdirs = [s for s in srcdirs if match("\d*{}-.*".format(args.shard), s.name)]
+  srcdirs = set(Path(s).parents[-4] for s in args.srcs)  # The test directories.
   dstdirs = [copy_sources(args, ziproot, args.mode, s) for s in srcdirs]
 
   # Use multiprocessing (i.e. forking) since tests modify their current working directory.
