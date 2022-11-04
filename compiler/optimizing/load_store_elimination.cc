@@ -1088,25 +1088,9 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     VisitSetLocation(instruction, idx, instruction->GetValue());
   }
 
-  static bool IsBlockInsideATry(HBasicBlock* block) {
-    TryCatchInformation* try_catch_info = block->GetTryCatchInformation();
-    if (try_catch_info == nullptr) {
-      return false;
-    }
-
-    if (try_catch_info->IsTryBlock()) {
-      return true;
-    }
-
-    DCHECK(try_catch_info->IsCatchBlock());
-
-    // The catch block has an xhandler iff it is inside of an outer try.
-    return block->GetExceptionalSuccessors().size() != 0;
-  }
-
   void VisitDeoptimize(HDeoptimize* instruction) override {
     // If we are in a try, even singletons are observable.
-    const bool inside_a_try = IsBlockInsideATry(instruction->GetBlock());
+    const bool inside_a_try = instruction->GetBlock()->IsTryBlock();
     HBasicBlock* block = instruction->GetBlock();
     ScopedArenaVector<ValueRecord>& heap_values = heap_values_for_[block->GetBlockId()];
     for (size_t i = 0u, size = heap_values.size(); i != size; ++i) {
@@ -1165,7 +1149,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
   void HandleThrowingInstruction(HInstruction* instruction) {
     DCHECK(instruction->CanThrow());
     // If we are inside of a try, singletons can become visible since we may not exit the method.
-    HandleExit(instruction->GetBlock(), IsBlockInsideATry(instruction->GetBlock()));
+    HandleExit(instruction->GetBlock(), instruction->GetBlock()->IsTryBlock());
   }
 
   void VisitMethodEntryHook(HMethodEntryHook* method_entry) override {
@@ -1224,8 +1208,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
     // If `instruction` can throw we have to presume all stores are visible.
     const bool can_throw = instruction->CanThrow();
     // If we are in a try, even singletons are observable.
-    const bool can_throw_inside_a_try =
-        can_throw && IsBlockInsideATry(instruction->GetBlock());
+    const bool can_throw_inside_a_try = can_throw && instruction->GetBlock()->IsTryBlock();
     SideEffects side_effects = instruction->GetSideEffects();
     ScopedArenaVector<ValueRecord>& heap_values =
         heap_values_for_[instruction->GetBlock()->GetBlockId()];
@@ -1301,7 +1284,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
 
   void VisitNewInstance(HNewInstance* new_instance) override {
     // If we are in a try, even singletons are observable.
-    const bool inside_a_try = IsBlockInsideATry(new_instance->GetBlock());
+    const bool inside_a_try = new_instance->GetBlock()->IsTryBlock();
     ReferenceInfo* ref_info = heap_location_collector_.FindReferenceInfoOf(new_instance);
     if (ref_info == nullptr) {
       // new_instance isn't used for field accesses. No need to process it.
@@ -1340,7 +1323,7 @@ class LSEVisitor final : private HGraphDelegateVisitor {
 
   void VisitNewArray(HNewArray* new_array) override {
     // If we are in a try, even singletons are observable.
-    const bool inside_a_try = IsBlockInsideATry(new_array->GetBlock());
+    const bool inside_a_try = new_array->GetBlock()->IsTryBlock();
     ReferenceInfo* ref_info = heap_location_collector_.FindReferenceInfoOf(new_array);
     if (ref_info == nullptr) {
       // new_array isn't used for array accesses. No need to process it.
