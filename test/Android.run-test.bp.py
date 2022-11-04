@@ -37,10 +37,8 @@ def main():
           java_genrule {{
               name: "{name}-tmp",
               out: ["{name}.zip"],
-              srcs: ["*{shard}-*/**/*"],
-              defaults: ["art-run-test-data-defaults"],
-              cmd: "$(location run-test-build.py) --out $(out) --mode {mode} --shard {shard} " +
-                  "--bootclasspath $(location :art-run-test-bootclasspath)",
+              srcs: ["?{shard}-*/**/*", "??{shard}-*/**/*"],
+              defaults: ["art-run-test-{mode}-data-defaults"],
           }}
 
           // Install in the output directory to make it accessible for tests.
@@ -53,13 +51,36 @@ def main():
           }}
           """.format(name=name, mode=mode, shard=shard)))
 
+      f.write(textwrap.dedent("""
+        genrule_defaults {{
+            name: "art-run-test-{mode}-data-defaults",
+            defaults: [
+                // Enable only in source builds, where com.android.art.testing is
+                // available.
+                "art_module_source_build_genrule_defaults",
+            ],
+            tool_files: [
+                "run_test_build.py",
+                ":art-run-test-bootclasspath",
+            ],
+            tools: [
+                "d8",
+                "hiddenapi",
+                "jasmin",
+                "smali",
+            ],
+            cmd: "$(location run_test_build.py) --out $(out) --mode {mode} " +
+                "--bootclasspath $(location :art-run-test-bootclasspath) $(in)",
+        }}
+        """).format(mode=mode))
+
       name = "art-run-test-{mode}-data-merged".format(mode=mode)
       srcs = ("\n"+" "*8).join('":{}-tmp",'.format(n) for n in names)
       deps = ("\n"+" "*8).join('"{}",'.format(n) for n in names)
       f.write(textwrap.dedent("""
         java_genrule {{
             name: "{name}-tmp",
-            defaults: ["art-run-test-data-defaults"],
+            defaults: ["art_module_source_build_genrule_defaults"],
             out: ["{name}.zip"],
             srcs: [
                 {srcs}

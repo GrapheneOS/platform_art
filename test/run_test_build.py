@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # Copyright (C) 2021 The Android Open Source Project
 #
@@ -13,29 +14,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This is the default build script for run-tests.
-
-It can be overwrite by specific run-tests if needed.
-It is used from soong build and not intended to be called directly.
+"""
+This scripts compiles Java files which are needed to execute run-tests.
+It is intended to be used only from soong genrule.
 """
 
 import argparse
 import functools
 import glob
 import os
-from os import path
 import shlex
 import shutil
 import subprocess
 import tempfile
 import zipfile
-from shutil import rmtree
-from os import remove
+from argparse import ArgumentParser
+from fcntl import lockf, LOCK_EX, LOCK_NB
+from importlib.machinery import SourceFileLoader
+from multiprocessing import Pool
+from multiprocessing.pool import ApplyResult
+from os import environ, getcwd, chdir, cpu_count, remove, path
+from os.path import join, basename
+from pathlib import Path
 from re import match
-from os.path import join
+from shutil import copytree, rmtree
+from subprocess import run
+from typing import Dict
 
 USE_RBE_FOR_JAVAC = 100    # Percentage of tests that can use RBE (between 0 and 100)
 USE_RBE_FOR_D8 = 100       # Percentage of tests that can use RBE (between 0 and 100)
+ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
+
+lock_file = None  # Keep alive as long as this process is alive.
+
 
 class BuildTestContext:
   def __init__(self, args, build_top, sbox, test_name, test_dir):
@@ -497,3 +508,77 @@ def default_build(
       zip(TEST_NAME + ".jar", "classes.dex", "classes2.dex")
     else:
       zip(TEST_NAME + ".jar", "classes.dex")
+
+
+def copy_sources(args, ziproot: Path, mode: str, srcdir: Path) -> Path:
+  """Copy test files from Android tree into the build sandbox and return its path."""
+
+  dstdir = ziproot / mode / srcdir.name
+  copytree(srcdir, dstdir)
+  return dstdir
+
+
+def build_test(ctx: BuildTestContext) -> None:
+  """Run the build script for single run-test"""
+
+  chdir(ctx.test_dir)
+  script = ctx.test_dir / "build.py"
+  if script.exists():
+    module = SourceFileLoader("build_" + ctx.test_name,
+                              str(script)).load_module()
+    module.build(ctx)
+  else:
+    default_build(ctx)
+
+
+# If we build just individual shard, we want to split the work among all the cores,
+# but if the build system builds all shards, we don't want to overload the machine.
+# We don't know which situation we are in, so as simple work-around, we use a lock
+# file to allow only one shard to use multiprocessing at the same time.
+def use_multiprocessing(mode: str) -> bool:
+  global lock_file
+  lock_path = join(environ["TMPDIR"], "art-test-run-test-build-py-" + mode)
+  lock_file = open(lock_path, "w")
+  try:
+    lockf(lock_file, LOCK_EX | LOCK_NB)
+    return True  # We are the only instance of this script in the build system.
+  except BlockingIOError:
+    return False  # Some other instance is already running.
+
+
+def main() -> None:
+  parser = ArgumentParser(description=__doc__)
+  parser.add_argument(
+      "--out", help="Path of the generated ZIP file with the build data")
+  parser.add_argument("--mode", choices=["host", "jvm", "target"])
+  parser.add_argument(
+      "--bootclasspath", help="JAR files used for javac compilation")
+  parser.add_argument("srcs", nargs="+", help="glob of test directories to compile")
+  args = parser.parse_args()
+
+  build_top = Path(getcwd())
+  sbox = Path(__file__).absolute().parent.parent.parent.parent.parent
+  assert sbox.parent.name == "sbox" and len(sbox.name) == 40
+
+  ziproot = sbox / "zip"
+  srcdirs = set(Path(s).parents[-4] for s in args.srcs)  # The test directories.
+  dstdirs = [copy_sources(args, ziproot, args.mode, s) for s in srcdirs]
+
+  # Use multiprocessing (i.e. forking) since tests modify their current working directory.
+  with Pool(cpu_count() if use_multiprocessing(args.mode) else 1) as pool:
+    jobs: Dict[Path, ApplyResult] = {}
+    for dstdir in dstdirs:
+      ctx = BuildTestContext(args, build_top, sbox, dstdir.name, dstdir)
+      jobs[dstdir] = pool.apply_async(build_test, (ctx,))
+    for dstdir, job in jobs.items():
+      try:
+        job.get()
+      except Exception as e:
+        raise Exception("Failed to build " + dstdir.name) from e.__cause__
+
+  # Create the final zip file which contains the content of the temporary directory.
+  proc = run([ZIP, "-o", args.out, "-C", ziproot, "-D", ziproot], check=True)
+
+
+if __name__ == "__main__":
+  main()

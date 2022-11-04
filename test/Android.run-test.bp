@@ -4,10 +4,8 @@
 java_genrule {
     name: "art-run-test-host-data-shard00-tmp",
     out: ["art-run-test-host-data-shard00.zip"],
-    srcs: ["*00-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 00 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?00-*/**/*", "??00-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -22,10 +20,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard01-tmp",
     out: ["art-run-test-host-data-shard01.zip"],
-    srcs: ["*01-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 01 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?01-*/**/*", "??01-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -40,10 +36,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard02-tmp",
     out: ["art-run-test-host-data-shard02.zip"],
-    srcs: ["*02-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 02 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?02-*/**/*", "??02-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -58,10 +52,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard03-tmp",
     out: ["art-run-test-host-data-shard03.zip"],
-    srcs: ["*03-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 03 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?03-*/**/*", "??03-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -76,10 +68,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard04-tmp",
     out: ["art-run-test-host-data-shard04.zip"],
-    srcs: ["*04-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 04 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?04-*/**/*", "??04-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -94,10 +84,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard05-tmp",
     out: ["art-run-test-host-data-shard05.zip"],
-    srcs: ["*05-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 05 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?05-*/**/*", "??05-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -112,10 +100,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard06-tmp",
     out: ["art-run-test-host-data-shard06.zip"],
-    srcs: ["*06-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 06 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?06-*/**/*", "??06-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -130,10 +116,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard07-tmp",
     out: ["art-run-test-host-data-shard07.zip"],
-    srcs: ["*07-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 07 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?07-*/**/*", "??07-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -148,10 +132,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard08-tmp",
     out: ["art-run-test-host-data-shard08.zip"],
-    srcs: ["*08-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 08 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?08-*/**/*", "??08-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -166,10 +148,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard09-tmp",
     out: ["art-run-test-host-data-shard09.zip"],
-    srcs: ["*09-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 09 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?09-*/**/*", "??09-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -184,10 +164,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard10-tmp",
     out: ["art-run-test-host-data-shard10.zip"],
-    srcs: ["*10-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 10 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?10-*/**/*", "??10-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -202,10 +180,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard11-tmp",
     out: ["art-run-test-host-data-shard11.zip"],
-    srcs: ["*11-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 11 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?11-*/**/*", "??11-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -220,10 +196,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard12-tmp",
     out: ["art-run-test-host-data-shard12.zip"],
-    srcs: ["*12-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 12 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?12-*/**/*", "??12-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -238,10 +212,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard13-tmp",
     out: ["art-run-test-host-data-shard13.zip"],
-    srcs: ["*13-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 13 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?13-*/**/*", "??13-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -256,10 +228,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard14-tmp",
     out: ["art-run-test-host-data-shard14.zip"],
-    srcs: ["*14-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 14 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?14-*/**/*", "??14-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -274,10 +244,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard15-tmp",
     out: ["art-run-test-host-data-shard15.zip"],
-    srcs: ["*15-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 15 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?15-*/**/*", "??15-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -292,10 +260,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard16-tmp",
     out: ["art-run-test-host-data-shard16.zip"],
-    srcs: ["*16-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 16 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?16-*/**/*", "??16-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -310,10 +276,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard17-tmp",
     out: ["art-run-test-host-data-shard17.zip"],
-    srcs: ["*17-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 17 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?17-*/**/*", "??17-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -328,10 +292,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard18-tmp",
     out: ["art-run-test-host-data-shard18.zip"],
-    srcs: ["*18-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 18 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?18-*/**/*", "??18-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -346,10 +308,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard19-tmp",
     out: ["art-run-test-host-data-shard19.zip"],
-    srcs: ["*19-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 19 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?19-*/**/*", "??19-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -364,10 +324,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard20-tmp",
     out: ["art-run-test-host-data-shard20.zip"],
-    srcs: ["*20-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 20 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?20-*/**/*", "??20-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -382,10 +340,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard21-tmp",
     out: ["art-run-test-host-data-shard21.zip"],
-    srcs: ["*21-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 21 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?21-*/**/*", "??21-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -400,10 +356,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard22-tmp",
     out: ["art-run-test-host-data-shard22.zip"],
-    srcs: ["*22-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 22 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?22-*/**/*", "??22-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -418,10 +372,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard23-tmp",
     out: ["art-run-test-host-data-shard23.zip"],
-    srcs: ["*23-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 23 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?23-*/**/*", "??23-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -436,10 +388,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard24-tmp",
     out: ["art-run-test-host-data-shard24.zip"],
-    srcs: ["*24-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 24 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?24-*/**/*", "??24-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -454,10 +404,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard25-tmp",
     out: ["art-run-test-host-data-shard25.zip"],
-    srcs: ["*25-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 25 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?25-*/**/*", "??25-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -472,10 +420,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard26-tmp",
     out: ["art-run-test-host-data-shard26.zip"],
-    srcs: ["*26-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 26 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?26-*/**/*", "??26-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -490,10 +436,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard27-tmp",
     out: ["art-run-test-host-data-shard27.zip"],
-    srcs: ["*27-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 27 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?27-*/**/*", "??27-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -508,10 +452,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard28-tmp",
     out: ["art-run-test-host-data-shard28.zip"],
-    srcs: ["*28-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 28 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?28-*/**/*", "??28-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -526,10 +468,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard29-tmp",
     out: ["art-run-test-host-data-shard29.zip"],
-    srcs: ["*29-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 29 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?29-*/**/*", "??29-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -544,10 +484,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard30-tmp",
     out: ["art-run-test-host-data-shard30.zip"],
-    srcs: ["*30-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 30 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?30-*/**/*", "??30-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -562,10 +500,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard31-tmp",
     out: ["art-run-test-host-data-shard31.zip"],
-    srcs: ["*31-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 31 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?31-*/**/*", "??31-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -580,10 +516,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard32-tmp",
     out: ["art-run-test-host-data-shard32.zip"],
-    srcs: ["*32-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 32 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?32-*/**/*", "??32-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -598,10 +532,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard33-tmp",
     out: ["art-run-test-host-data-shard33.zip"],
-    srcs: ["*33-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 33 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?33-*/**/*", "??33-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -616,10 +548,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard34-tmp",
     out: ["art-run-test-host-data-shard34.zip"],
-    srcs: ["*34-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 34 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?34-*/**/*", "??34-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -634,10 +564,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard35-tmp",
     out: ["art-run-test-host-data-shard35.zip"],
-    srcs: ["*35-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 35 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?35-*/**/*", "??35-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -652,10 +580,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard36-tmp",
     out: ["art-run-test-host-data-shard36.zip"],
-    srcs: ["*36-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 36 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?36-*/**/*", "??36-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -670,10 +596,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard37-tmp",
     out: ["art-run-test-host-data-shard37.zip"],
-    srcs: ["*37-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 37 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?37-*/**/*", "??37-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -688,10 +612,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard38-tmp",
     out: ["art-run-test-host-data-shard38.zip"],
-    srcs: ["*38-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 38 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?38-*/**/*", "??38-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -706,10 +628,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard39-tmp",
     out: ["art-run-test-host-data-shard39.zip"],
-    srcs: ["*39-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 39 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?39-*/**/*", "??39-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -724,10 +644,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard40-tmp",
     out: ["art-run-test-host-data-shard40.zip"],
-    srcs: ["*40-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 40 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?40-*/**/*", "??40-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -742,10 +660,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard41-tmp",
     out: ["art-run-test-host-data-shard41.zip"],
-    srcs: ["*41-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 41 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?41-*/**/*", "??41-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -760,10 +676,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard42-tmp",
     out: ["art-run-test-host-data-shard42.zip"],
-    srcs: ["*42-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 42 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?42-*/**/*", "??42-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -778,10 +692,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard43-tmp",
     out: ["art-run-test-host-data-shard43.zip"],
-    srcs: ["*43-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 43 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?43-*/**/*", "??43-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -796,10 +708,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard44-tmp",
     out: ["art-run-test-host-data-shard44.zip"],
-    srcs: ["*44-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 44 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?44-*/**/*", "??44-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -814,10 +724,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard45-tmp",
     out: ["art-run-test-host-data-shard45.zip"],
-    srcs: ["*45-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 45 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?45-*/**/*", "??45-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -832,10 +740,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard46-tmp",
     out: ["art-run-test-host-data-shard46.zip"],
-    srcs: ["*46-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 46 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?46-*/**/*", "??46-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -850,10 +756,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard47-tmp",
     out: ["art-run-test-host-data-shard47.zip"],
-    srcs: ["*47-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 47 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?47-*/**/*", "??47-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -868,10 +772,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard48-tmp",
     out: ["art-run-test-host-data-shard48.zip"],
-    srcs: ["*48-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 48 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?48-*/**/*", "??48-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -886,10 +788,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard49-tmp",
     out: ["art-run-test-host-data-shard49.zip"],
-    srcs: ["*49-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 49 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?49-*/**/*", "??49-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -904,10 +804,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard50-tmp",
     out: ["art-run-test-host-data-shard50.zip"],
-    srcs: ["*50-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 50 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?50-*/**/*", "??50-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -922,10 +820,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard51-tmp",
     out: ["art-run-test-host-data-shard51.zip"],
-    srcs: ["*51-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 51 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?51-*/**/*", "??51-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -940,10 +836,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard52-tmp",
     out: ["art-run-test-host-data-shard52.zip"],
-    srcs: ["*52-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 52 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?52-*/**/*", "??52-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -958,10 +852,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard53-tmp",
     out: ["art-run-test-host-data-shard53.zip"],
-    srcs: ["*53-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 53 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?53-*/**/*", "??53-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -976,10 +868,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard54-tmp",
     out: ["art-run-test-host-data-shard54.zip"],
-    srcs: ["*54-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 54 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?54-*/**/*", "??54-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -994,10 +884,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard55-tmp",
     out: ["art-run-test-host-data-shard55.zip"],
-    srcs: ["*55-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 55 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?55-*/**/*", "??55-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1012,10 +900,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard56-tmp",
     out: ["art-run-test-host-data-shard56.zip"],
-    srcs: ["*56-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 56 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?56-*/**/*", "??56-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1030,10 +916,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard57-tmp",
     out: ["art-run-test-host-data-shard57.zip"],
-    srcs: ["*57-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 57 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?57-*/**/*", "??57-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1048,10 +932,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard58-tmp",
     out: ["art-run-test-host-data-shard58.zip"],
-    srcs: ["*58-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 58 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?58-*/**/*", "??58-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1066,10 +948,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard59-tmp",
     out: ["art-run-test-host-data-shard59.zip"],
-    srcs: ["*59-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 59 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?59-*/**/*", "??59-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1084,10 +964,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard60-tmp",
     out: ["art-run-test-host-data-shard60.zip"],
-    srcs: ["*60-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 60 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?60-*/**/*", "??60-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1102,10 +980,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard61-tmp",
     out: ["art-run-test-host-data-shard61.zip"],
-    srcs: ["*61-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 61 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?61-*/**/*", "??61-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1120,10 +996,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard62-tmp",
     out: ["art-run-test-host-data-shard62.zip"],
-    srcs: ["*62-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 62 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?62-*/**/*", "??62-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1138,10 +1012,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard63-tmp",
     out: ["art-run-test-host-data-shard63.zip"],
-    srcs: ["*63-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 63 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?63-*/**/*", "??63-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1156,10 +1028,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard64-tmp",
     out: ["art-run-test-host-data-shard64.zip"],
-    srcs: ["*64-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 64 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?64-*/**/*", "??64-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1174,10 +1044,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard65-tmp",
     out: ["art-run-test-host-data-shard65.zip"],
-    srcs: ["*65-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 65 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?65-*/**/*", "??65-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1192,10 +1060,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard66-tmp",
     out: ["art-run-test-host-data-shard66.zip"],
-    srcs: ["*66-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 66 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?66-*/**/*", "??66-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1210,10 +1076,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard67-tmp",
     out: ["art-run-test-host-data-shard67.zip"],
-    srcs: ["*67-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 67 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?67-*/**/*", "??67-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1228,10 +1092,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard68-tmp",
     out: ["art-run-test-host-data-shard68.zip"],
-    srcs: ["*68-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 68 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?68-*/**/*", "??68-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1246,10 +1108,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard69-tmp",
     out: ["art-run-test-host-data-shard69.zip"],
-    srcs: ["*69-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 69 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?69-*/**/*", "??69-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1264,10 +1124,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard70-tmp",
     out: ["art-run-test-host-data-shard70.zip"],
-    srcs: ["*70-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 70 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?70-*/**/*", "??70-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1282,10 +1140,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard71-tmp",
     out: ["art-run-test-host-data-shard71.zip"],
-    srcs: ["*71-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 71 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?71-*/**/*", "??71-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1300,10 +1156,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard72-tmp",
     out: ["art-run-test-host-data-shard72.zip"],
-    srcs: ["*72-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 72 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?72-*/**/*", "??72-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1318,10 +1172,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard73-tmp",
     out: ["art-run-test-host-data-shard73.zip"],
-    srcs: ["*73-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 73 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?73-*/**/*", "??73-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1336,10 +1188,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard74-tmp",
     out: ["art-run-test-host-data-shard74.zip"],
-    srcs: ["*74-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 74 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?74-*/**/*", "??74-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1354,10 +1204,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard75-tmp",
     out: ["art-run-test-host-data-shard75.zip"],
-    srcs: ["*75-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 75 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?75-*/**/*", "??75-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1372,10 +1220,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard76-tmp",
     out: ["art-run-test-host-data-shard76.zip"],
-    srcs: ["*76-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 76 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?76-*/**/*", "??76-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1390,10 +1236,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard77-tmp",
     out: ["art-run-test-host-data-shard77.zip"],
-    srcs: ["*77-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 77 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?77-*/**/*", "??77-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1408,10 +1252,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard78-tmp",
     out: ["art-run-test-host-data-shard78.zip"],
-    srcs: ["*78-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 78 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?78-*/**/*", "??78-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1426,10 +1268,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard79-tmp",
     out: ["art-run-test-host-data-shard79.zip"],
-    srcs: ["*79-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 79 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?79-*/**/*", "??79-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1444,10 +1284,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard80-tmp",
     out: ["art-run-test-host-data-shard80.zip"],
-    srcs: ["*80-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 80 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?80-*/**/*", "??80-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1462,10 +1300,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard81-tmp",
     out: ["art-run-test-host-data-shard81.zip"],
-    srcs: ["*81-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 81 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?81-*/**/*", "??81-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1480,10 +1316,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard82-tmp",
     out: ["art-run-test-host-data-shard82.zip"],
-    srcs: ["*82-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 82 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?82-*/**/*", "??82-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1498,10 +1332,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard83-tmp",
     out: ["art-run-test-host-data-shard83.zip"],
-    srcs: ["*83-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 83 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?83-*/**/*", "??83-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1516,10 +1348,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard84-tmp",
     out: ["art-run-test-host-data-shard84.zip"],
-    srcs: ["*84-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 84 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?84-*/**/*", "??84-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1534,10 +1364,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard85-tmp",
     out: ["art-run-test-host-data-shard85.zip"],
-    srcs: ["*85-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 85 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?85-*/**/*", "??85-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1552,10 +1380,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard86-tmp",
     out: ["art-run-test-host-data-shard86.zip"],
-    srcs: ["*86-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 86 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?86-*/**/*", "??86-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1570,10 +1396,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard87-tmp",
     out: ["art-run-test-host-data-shard87.zip"],
-    srcs: ["*87-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 87 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?87-*/**/*", "??87-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1588,10 +1412,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard88-tmp",
     out: ["art-run-test-host-data-shard88.zip"],
-    srcs: ["*88-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 88 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?88-*/**/*", "??88-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1606,10 +1428,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard89-tmp",
     out: ["art-run-test-host-data-shard89.zip"],
-    srcs: ["*89-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 89 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?89-*/**/*", "??89-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1624,10 +1444,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard90-tmp",
     out: ["art-run-test-host-data-shard90.zip"],
-    srcs: ["*90-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 90 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?90-*/**/*", "??90-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1642,10 +1460,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard91-tmp",
     out: ["art-run-test-host-data-shard91.zip"],
-    srcs: ["*91-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 91 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?91-*/**/*", "??91-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1660,10 +1476,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard92-tmp",
     out: ["art-run-test-host-data-shard92.zip"],
-    srcs: ["*92-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 92 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?92-*/**/*", "??92-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1678,10 +1492,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard93-tmp",
     out: ["art-run-test-host-data-shard93.zip"],
-    srcs: ["*93-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 93 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?93-*/**/*", "??93-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1696,10 +1508,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard94-tmp",
     out: ["art-run-test-host-data-shard94.zip"],
-    srcs: ["*94-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 94 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?94-*/**/*", "??94-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1714,10 +1524,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard95-tmp",
     out: ["art-run-test-host-data-shard95.zip"],
-    srcs: ["*95-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 95 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?95-*/**/*", "??95-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1732,10 +1540,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard96-tmp",
     out: ["art-run-test-host-data-shard96.zip"],
-    srcs: ["*96-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 96 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?96-*/**/*", "??96-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1750,10 +1556,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard97-tmp",
     out: ["art-run-test-host-data-shard97.zip"],
-    srcs: ["*97-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 97 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?97-*/**/*", "??97-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1768,10 +1572,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard98-tmp",
     out: ["art-run-test-host-data-shard98.zip"],
-    srcs: ["*98-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 98 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?98-*/**/*", "??98-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1786,10 +1588,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-host-data-shard99-tmp",
     out: ["art-run-test-host-data-shard99.zip"],
-    srcs: ["*99-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode host --shard 99 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?99-*/**/*", "??99-*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -1801,9 +1601,30 @@ prebuilt_etc_host {
     filename: "art-run-test-host-data-shard99.zip",
 }
 
+genrule_defaults {
+    name: "art-run-test-host-data-defaults",
+    defaults: [
+        // Enable only in source builds, where com.android.art.testing is
+        // available.
+        "art_module_source_build_genrule_defaults",
+    ],
+    tool_files: [
+        "run_test_build.py",
+        ":art-run-test-bootclasspath",
+    ],
+    tools: [
+        "d8",
+        "hiddenapi",
+        "jasmin",
+        "smali",
+    ],
+    cmd: "$(location run_test_build.py) --out $(out) --mode host " +
+        "--bootclasspath $(location :art-run-test-bootclasspath) $(in)",
+}
+
 java_genrule {
     name: "art-run-test-host-data-merged-tmp",
-    defaults: ["art-run-test-data-defaults"],
+    defaults: ["art_module_source_build_genrule_defaults"],
     out: ["art-run-test-host-data-merged.zip"],
     srcs: [
         ":art-run-test-host-data-shard00-tmp",
@@ -2246,10 +2067,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard00-tmp",
     out: ["art-run-test-target-data-shard00.zip"],
-    srcs: ["*00-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 00 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?00-*/**/*", "??00-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2264,10 +2083,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard01-tmp",
     out: ["art-run-test-target-data-shard01.zip"],
-    srcs: ["*01-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 01 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?01-*/**/*", "??01-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2282,10 +2099,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard02-tmp",
     out: ["art-run-test-target-data-shard02.zip"],
-    srcs: ["*02-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 02 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?02-*/**/*", "??02-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2300,10 +2115,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard03-tmp",
     out: ["art-run-test-target-data-shard03.zip"],
-    srcs: ["*03-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 03 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?03-*/**/*", "??03-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2318,10 +2131,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard04-tmp",
     out: ["art-run-test-target-data-shard04.zip"],
-    srcs: ["*04-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 04 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?04-*/**/*", "??04-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2336,10 +2147,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard05-tmp",
     out: ["art-run-test-target-data-shard05.zip"],
-    srcs: ["*05-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 05 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?05-*/**/*", "??05-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2354,10 +2163,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard06-tmp",
     out: ["art-run-test-target-data-shard06.zip"],
-    srcs: ["*06-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 06 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?06-*/**/*", "??06-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2372,10 +2179,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard07-tmp",
     out: ["art-run-test-target-data-shard07.zip"],
-    srcs: ["*07-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 07 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?07-*/**/*", "??07-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2390,10 +2195,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard08-tmp",
     out: ["art-run-test-target-data-shard08.zip"],
-    srcs: ["*08-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 08 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?08-*/**/*", "??08-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2408,10 +2211,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard09-tmp",
     out: ["art-run-test-target-data-shard09.zip"],
-    srcs: ["*09-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 09 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?09-*/**/*", "??09-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2426,10 +2227,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard10-tmp",
     out: ["art-run-test-target-data-shard10.zip"],
-    srcs: ["*10-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 10 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?10-*/**/*", "??10-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2444,10 +2243,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard11-tmp",
     out: ["art-run-test-target-data-shard11.zip"],
-    srcs: ["*11-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 11 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?11-*/**/*", "??11-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2462,10 +2259,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard12-tmp",
     out: ["art-run-test-target-data-shard12.zip"],
-    srcs: ["*12-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 12 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?12-*/**/*", "??12-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2480,10 +2275,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard13-tmp",
     out: ["art-run-test-target-data-shard13.zip"],
-    srcs: ["*13-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 13 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?13-*/**/*", "??13-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2498,10 +2291,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard14-tmp",
     out: ["art-run-test-target-data-shard14.zip"],
-    srcs: ["*14-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 14 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?14-*/**/*", "??14-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2516,10 +2307,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard15-tmp",
     out: ["art-run-test-target-data-shard15.zip"],
-    srcs: ["*15-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 15 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?15-*/**/*", "??15-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2534,10 +2323,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard16-tmp",
     out: ["art-run-test-target-data-shard16.zip"],
-    srcs: ["*16-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 16 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?16-*/**/*", "??16-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2552,10 +2339,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard17-tmp",
     out: ["art-run-test-target-data-shard17.zip"],
-    srcs: ["*17-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 17 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?17-*/**/*", "??17-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2570,10 +2355,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard18-tmp",
     out: ["art-run-test-target-data-shard18.zip"],
-    srcs: ["*18-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 18 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?18-*/**/*", "??18-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2588,10 +2371,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard19-tmp",
     out: ["art-run-test-target-data-shard19.zip"],
-    srcs: ["*19-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 19 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?19-*/**/*", "??19-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2606,10 +2387,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard20-tmp",
     out: ["art-run-test-target-data-shard20.zip"],
-    srcs: ["*20-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 20 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?20-*/**/*", "??20-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2624,10 +2403,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard21-tmp",
     out: ["art-run-test-target-data-shard21.zip"],
-    srcs: ["*21-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 21 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?21-*/**/*", "??21-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2642,10 +2419,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard22-tmp",
     out: ["art-run-test-target-data-shard22.zip"],
-    srcs: ["*22-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 22 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?22-*/**/*", "??22-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2660,10 +2435,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard23-tmp",
     out: ["art-run-test-target-data-shard23.zip"],
-    srcs: ["*23-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 23 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?23-*/**/*", "??23-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2678,10 +2451,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard24-tmp",
     out: ["art-run-test-target-data-shard24.zip"],
-    srcs: ["*24-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 24 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?24-*/**/*", "??24-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2696,10 +2467,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard25-tmp",
     out: ["art-run-test-target-data-shard25.zip"],
-    srcs: ["*25-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 25 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?25-*/**/*", "??25-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2714,10 +2483,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard26-tmp",
     out: ["art-run-test-target-data-shard26.zip"],
-    srcs: ["*26-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 26 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?26-*/**/*", "??26-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2732,10 +2499,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard27-tmp",
     out: ["art-run-test-target-data-shard27.zip"],
-    srcs: ["*27-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 27 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?27-*/**/*", "??27-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2750,10 +2515,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard28-tmp",
     out: ["art-run-test-target-data-shard28.zip"],
-    srcs: ["*28-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 28 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?28-*/**/*", "??28-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2768,10 +2531,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard29-tmp",
     out: ["art-run-test-target-data-shard29.zip"],
-    srcs: ["*29-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 29 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?29-*/**/*", "??29-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2786,10 +2547,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard30-tmp",
     out: ["art-run-test-target-data-shard30.zip"],
-    srcs: ["*30-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 30 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?30-*/**/*", "??30-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2804,10 +2563,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard31-tmp",
     out: ["art-run-test-target-data-shard31.zip"],
-    srcs: ["*31-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 31 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?31-*/**/*", "??31-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2822,10 +2579,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard32-tmp",
     out: ["art-run-test-target-data-shard32.zip"],
-    srcs: ["*32-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 32 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?32-*/**/*", "??32-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2840,10 +2595,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard33-tmp",
     out: ["art-run-test-target-data-shard33.zip"],
-    srcs: ["*33-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 33 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?33-*/**/*", "??33-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2858,10 +2611,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard34-tmp",
     out: ["art-run-test-target-data-shard34.zip"],
-    srcs: ["*34-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 34 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?34-*/**/*", "??34-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2876,10 +2627,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard35-tmp",
     out: ["art-run-test-target-data-shard35.zip"],
-    srcs: ["*35-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 35 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?35-*/**/*", "??35-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2894,10 +2643,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard36-tmp",
     out: ["art-run-test-target-data-shard36.zip"],
-    srcs: ["*36-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 36 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?36-*/**/*", "??36-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2912,10 +2659,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard37-tmp",
     out: ["art-run-test-target-data-shard37.zip"],
-    srcs: ["*37-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 37 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?37-*/**/*", "??37-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2930,10 +2675,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard38-tmp",
     out: ["art-run-test-target-data-shard38.zip"],
-    srcs: ["*38-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 38 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?38-*/**/*", "??38-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2948,10 +2691,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard39-tmp",
     out: ["art-run-test-target-data-shard39.zip"],
-    srcs: ["*39-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 39 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?39-*/**/*", "??39-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2966,10 +2707,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard40-tmp",
     out: ["art-run-test-target-data-shard40.zip"],
-    srcs: ["*40-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 40 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?40-*/**/*", "??40-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -2984,10 +2723,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard41-tmp",
     out: ["art-run-test-target-data-shard41.zip"],
-    srcs: ["*41-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 41 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?41-*/**/*", "??41-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3002,10 +2739,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard42-tmp",
     out: ["art-run-test-target-data-shard42.zip"],
-    srcs: ["*42-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 42 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?42-*/**/*", "??42-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3020,10 +2755,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard43-tmp",
     out: ["art-run-test-target-data-shard43.zip"],
-    srcs: ["*43-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 43 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?43-*/**/*", "??43-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3038,10 +2771,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard44-tmp",
     out: ["art-run-test-target-data-shard44.zip"],
-    srcs: ["*44-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 44 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?44-*/**/*", "??44-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3056,10 +2787,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard45-tmp",
     out: ["art-run-test-target-data-shard45.zip"],
-    srcs: ["*45-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 45 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?45-*/**/*", "??45-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3074,10 +2803,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard46-tmp",
     out: ["art-run-test-target-data-shard46.zip"],
-    srcs: ["*46-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 46 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?46-*/**/*", "??46-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3092,10 +2819,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard47-tmp",
     out: ["art-run-test-target-data-shard47.zip"],
-    srcs: ["*47-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 47 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?47-*/**/*", "??47-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3110,10 +2835,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard48-tmp",
     out: ["art-run-test-target-data-shard48.zip"],
-    srcs: ["*48-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 48 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?48-*/**/*", "??48-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3128,10 +2851,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard49-tmp",
     out: ["art-run-test-target-data-shard49.zip"],
-    srcs: ["*49-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 49 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?49-*/**/*", "??49-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3146,10 +2867,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard50-tmp",
     out: ["art-run-test-target-data-shard50.zip"],
-    srcs: ["*50-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 50 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?50-*/**/*", "??50-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3164,10 +2883,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard51-tmp",
     out: ["art-run-test-target-data-shard51.zip"],
-    srcs: ["*51-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 51 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?51-*/**/*", "??51-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3182,10 +2899,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard52-tmp",
     out: ["art-run-test-target-data-shard52.zip"],
-    srcs: ["*52-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 52 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?52-*/**/*", "??52-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3200,10 +2915,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard53-tmp",
     out: ["art-run-test-target-data-shard53.zip"],
-    srcs: ["*53-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 53 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?53-*/**/*", "??53-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3218,10 +2931,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard54-tmp",
     out: ["art-run-test-target-data-shard54.zip"],
-    srcs: ["*54-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 54 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?54-*/**/*", "??54-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3236,10 +2947,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard55-tmp",
     out: ["art-run-test-target-data-shard55.zip"],
-    srcs: ["*55-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 55 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?55-*/**/*", "??55-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3254,10 +2963,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard56-tmp",
     out: ["art-run-test-target-data-shard56.zip"],
-    srcs: ["*56-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 56 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?56-*/**/*", "??56-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3272,10 +2979,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard57-tmp",
     out: ["art-run-test-target-data-shard57.zip"],
-    srcs: ["*57-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 57 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?57-*/**/*", "??57-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3290,10 +2995,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard58-tmp",
     out: ["art-run-test-target-data-shard58.zip"],
-    srcs: ["*58-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 58 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?58-*/**/*", "??58-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3308,10 +3011,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard59-tmp",
     out: ["art-run-test-target-data-shard59.zip"],
-    srcs: ["*59-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 59 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?59-*/**/*", "??59-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3326,10 +3027,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard60-tmp",
     out: ["art-run-test-target-data-shard60.zip"],
-    srcs: ["*60-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 60 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?60-*/**/*", "??60-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3344,10 +3043,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard61-tmp",
     out: ["art-run-test-target-data-shard61.zip"],
-    srcs: ["*61-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 61 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?61-*/**/*", "??61-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3362,10 +3059,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard62-tmp",
     out: ["art-run-test-target-data-shard62.zip"],
-    srcs: ["*62-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 62 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?62-*/**/*", "??62-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3380,10 +3075,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard63-tmp",
     out: ["art-run-test-target-data-shard63.zip"],
-    srcs: ["*63-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 63 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?63-*/**/*", "??63-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3398,10 +3091,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard64-tmp",
     out: ["art-run-test-target-data-shard64.zip"],
-    srcs: ["*64-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 64 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?64-*/**/*", "??64-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3416,10 +3107,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard65-tmp",
     out: ["art-run-test-target-data-shard65.zip"],
-    srcs: ["*65-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 65 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?65-*/**/*", "??65-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3434,10 +3123,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard66-tmp",
     out: ["art-run-test-target-data-shard66.zip"],
-    srcs: ["*66-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 66 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?66-*/**/*", "??66-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3452,10 +3139,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard67-tmp",
     out: ["art-run-test-target-data-shard67.zip"],
-    srcs: ["*67-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 67 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?67-*/**/*", "??67-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3470,10 +3155,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard68-tmp",
     out: ["art-run-test-target-data-shard68.zip"],
-    srcs: ["*68-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 68 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?68-*/**/*", "??68-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3488,10 +3171,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard69-tmp",
     out: ["art-run-test-target-data-shard69.zip"],
-    srcs: ["*69-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 69 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?69-*/**/*", "??69-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3506,10 +3187,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard70-tmp",
     out: ["art-run-test-target-data-shard70.zip"],
-    srcs: ["*70-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 70 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?70-*/**/*", "??70-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3524,10 +3203,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard71-tmp",
     out: ["art-run-test-target-data-shard71.zip"],
-    srcs: ["*71-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 71 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?71-*/**/*", "??71-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3542,10 +3219,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard72-tmp",
     out: ["art-run-test-target-data-shard72.zip"],
-    srcs: ["*72-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 72 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?72-*/**/*", "??72-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3560,10 +3235,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard73-tmp",
     out: ["art-run-test-target-data-shard73.zip"],
-    srcs: ["*73-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 73 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?73-*/**/*", "??73-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3578,10 +3251,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard74-tmp",
     out: ["art-run-test-target-data-shard74.zip"],
-    srcs: ["*74-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 74 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?74-*/**/*", "??74-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3596,10 +3267,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard75-tmp",
     out: ["art-run-test-target-data-shard75.zip"],
-    srcs: ["*75-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 75 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?75-*/**/*", "??75-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3614,10 +3283,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard76-tmp",
     out: ["art-run-test-target-data-shard76.zip"],
-    srcs: ["*76-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 76 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?76-*/**/*", "??76-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3632,10 +3299,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard77-tmp",
     out: ["art-run-test-target-data-shard77.zip"],
-    srcs: ["*77-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 77 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?77-*/**/*", "??77-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3650,10 +3315,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard78-tmp",
     out: ["art-run-test-target-data-shard78.zip"],
-    srcs: ["*78-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 78 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?78-*/**/*", "??78-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3668,10 +3331,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard79-tmp",
     out: ["art-run-test-target-data-shard79.zip"],
-    srcs: ["*79-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 79 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?79-*/**/*", "??79-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3686,10 +3347,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard80-tmp",
     out: ["art-run-test-target-data-shard80.zip"],
-    srcs: ["*80-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 80 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?80-*/**/*", "??80-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3704,10 +3363,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard81-tmp",
     out: ["art-run-test-target-data-shard81.zip"],
-    srcs: ["*81-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 81 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?81-*/**/*", "??81-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3722,10 +3379,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard82-tmp",
     out: ["art-run-test-target-data-shard82.zip"],
-    srcs: ["*82-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 82 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?82-*/**/*", "??82-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3740,10 +3395,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard83-tmp",
     out: ["art-run-test-target-data-shard83.zip"],
-    srcs: ["*83-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 83 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?83-*/**/*", "??83-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3758,10 +3411,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard84-tmp",
     out: ["art-run-test-target-data-shard84.zip"],
-    srcs: ["*84-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 84 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?84-*/**/*", "??84-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3776,10 +3427,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard85-tmp",
     out: ["art-run-test-target-data-shard85.zip"],
-    srcs: ["*85-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 85 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?85-*/**/*", "??85-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3794,10 +3443,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard86-tmp",
     out: ["art-run-test-target-data-shard86.zip"],
-    srcs: ["*86-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 86 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?86-*/**/*", "??86-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3812,10 +3459,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard87-tmp",
     out: ["art-run-test-target-data-shard87.zip"],
-    srcs: ["*87-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 87 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?87-*/**/*", "??87-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3830,10 +3475,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard88-tmp",
     out: ["art-run-test-target-data-shard88.zip"],
-    srcs: ["*88-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 88 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?88-*/**/*", "??88-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3848,10 +3491,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard89-tmp",
     out: ["art-run-test-target-data-shard89.zip"],
-    srcs: ["*89-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 89 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?89-*/**/*", "??89-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3866,10 +3507,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard90-tmp",
     out: ["art-run-test-target-data-shard90.zip"],
-    srcs: ["*90-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 90 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?90-*/**/*", "??90-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3884,10 +3523,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard91-tmp",
     out: ["art-run-test-target-data-shard91.zip"],
-    srcs: ["*91-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 91 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?91-*/**/*", "??91-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3902,10 +3539,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard92-tmp",
     out: ["art-run-test-target-data-shard92.zip"],
-    srcs: ["*92-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 92 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?92-*/**/*", "??92-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3920,10 +3555,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard93-tmp",
     out: ["art-run-test-target-data-shard93.zip"],
-    srcs: ["*93-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 93 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?93-*/**/*", "??93-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3938,10 +3571,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard94-tmp",
     out: ["art-run-test-target-data-shard94.zip"],
-    srcs: ["*94-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 94 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?94-*/**/*", "??94-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3956,10 +3587,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard95-tmp",
     out: ["art-run-test-target-data-shard95.zip"],
-    srcs: ["*95-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 95 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?95-*/**/*", "??95-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3974,10 +3603,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard96-tmp",
     out: ["art-run-test-target-data-shard96.zip"],
-    srcs: ["*96-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 96 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?96-*/**/*", "??96-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -3992,10 +3619,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard97-tmp",
     out: ["art-run-test-target-data-shard97.zip"],
-    srcs: ["*97-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 97 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?97-*/**/*", "??97-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4010,10 +3635,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard98-tmp",
     out: ["art-run-test-target-data-shard98.zip"],
-    srcs: ["*98-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 98 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?98-*/**/*", "??98-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4028,10 +3651,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-target-data-shard99-tmp",
     out: ["art-run-test-target-data-shard99.zip"],
-    srcs: ["*99-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode target --shard 99 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?99-*/**/*", "??99-*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4043,9 +3664,30 @@ prebuilt_etc_host {
     filename: "art-run-test-target-data-shard99.zip",
 }
 
+genrule_defaults {
+    name: "art-run-test-target-data-defaults",
+    defaults: [
+        // Enable only in source builds, where com.android.art.testing is
+        // available.
+        "art_module_source_build_genrule_defaults",
+    ],
+    tool_files: [
+        "run_test_build.py",
+        ":art-run-test-bootclasspath",
+    ],
+    tools: [
+        "d8",
+        "hiddenapi",
+        "jasmin",
+        "smali",
+    ],
+    cmd: "$(location run_test_build.py) --out $(out) --mode target " +
+        "--bootclasspath $(location :art-run-test-bootclasspath) $(in)",
+}
+
 java_genrule {
     name: "art-run-test-target-data-merged-tmp",
-    defaults: ["art-run-test-data-defaults"],
+    defaults: ["art_module_source_build_genrule_defaults"],
     out: ["art-run-test-target-data-merged.zip"],
     srcs: [
         ":art-run-test-target-data-shard00-tmp",
@@ -4488,10 +4130,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard00-tmp",
     out: ["art-run-test-jvm-data-shard00.zip"],
-    srcs: ["*00-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 00 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?00-*/**/*", "??00-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4506,10 +4146,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard01-tmp",
     out: ["art-run-test-jvm-data-shard01.zip"],
-    srcs: ["*01-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 01 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?01-*/**/*", "??01-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4524,10 +4162,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard02-tmp",
     out: ["art-run-test-jvm-data-shard02.zip"],
-    srcs: ["*02-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 02 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?02-*/**/*", "??02-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4542,10 +4178,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard03-tmp",
     out: ["art-run-test-jvm-data-shard03.zip"],
-    srcs: ["*03-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 03 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?03-*/**/*", "??03-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4560,10 +4194,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard04-tmp",
     out: ["art-run-test-jvm-data-shard04.zip"],
-    srcs: ["*04-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 04 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?04-*/**/*", "??04-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4578,10 +4210,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard05-tmp",
     out: ["art-run-test-jvm-data-shard05.zip"],
-    srcs: ["*05-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 05 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?05-*/**/*", "??05-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4596,10 +4226,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard06-tmp",
     out: ["art-run-test-jvm-data-shard06.zip"],
-    srcs: ["*06-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 06 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?06-*/**/*", "??06-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4614,10 +4242,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard07-tmp",
     out: ["art-run-test-jvm-data-shard07.zip"],
-    srcs: ["*07-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 07 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?07-*/**/*", "??07-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4632,10 +4258,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard08-tmp",
     out: ["art-run-test-jvm-data-shard08.zip"],
-    srcs: ["*08-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 08 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?08-*/**/*", "??08-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4650,10 +4274,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard09-tmp",
     out: ["art-run-test-jvm-data-shard09.zip"],
-    srcs: ["*09-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 09 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?09-*/**/*", "??09-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4668,10 +4290,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard10-tmp",
     out: ["art-run-test-jvm-data-shard10.zip"],
-    srcs: ["*10-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 10 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?10-*/**/*", "??10-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4686,10 +4306,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard11-tmp",
     out: ["art-run-test-jvm-data-shard11.zip"],
-    srcs: ["*11-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 11 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?11-*/**/*", "??11-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4704,10 +4322,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard12-tmp",
     out: ["art-run-test-jvm-data-shard12.zip"],
-    srcs: ["*12-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 12 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?12-*/**/*", "??12-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4722,10 +4338,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard13-tmp",
     out: ["art-run-test-jvm-data-shard13.zip"],
-    srcs: ["*13-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 13 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?13-*/**/*", "??13-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4740,10 +4354,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard14-tmp",
     out: ["art-run-test-jvm-data-shard14.zip"],
-    srcs: ["*14-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 14 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?14-*/**/*", "??14-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4758,10 +4370,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard15-tmp",
     out: ["art-run-test-jvm-data-shard15.zip"],
-    srcs: ["*15-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 15 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?15-*/**/*", "??15-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4776,10 +4386,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard16-tmp",
     out: ["art-run-test-jvm-data-shard16.zip"],
-    srcs: ["*16-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 16 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?16-*/**/*", "??16-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4794,10 +4402,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard17-tmp",
     out: ["art-run-test-jvm-data-shard17.zip"],
-    srcs: ["*17-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 17 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?17-*/**/*", "??17-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4812,10 +4418,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard18-tmp",
     out: ["art-run-test-jvm-data-shard18.zip"],
-    srcs: ["*18-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 18 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?18-*/**/*", "??18-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4830,10 +4434,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard19-tmp",
     out: ["art-run-test-jvm-data-shard19.zip"],
-    srcs: ["*19-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 19 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?19-*/**/*", "??19-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4848,10 +4450,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard20-tmp",
     out: ["art-run-test-jvm-data-shard20.zip"],
-    srcs: ["*20-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 20 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?20-*/**/*", "??20-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4866,10 +4466,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard21-tmp",
     out: ["art-run-test-jvm-data-shard21.zip"],
-    srcs: ["*21-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 21 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?21-*/**/*", "??21-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4884,10 +4482,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard22-tmp",
     out: ["art-run-test-jvm-data-shard22.zip"],
-    srcs: ["*22-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 22 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?22-*/**/*", "??22-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4902,10 +4498,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard23-tmp",
     out: ["art-run-test-jvm-data-shard23.zip"],
-    srcs: ["*23-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 23 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?23-*/**/*", "??23-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4920,10 +4514,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard24-tmp",
     out: ["art-run-test-jvm-data-shard24.zip"],
-    srcs: ["*24-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 24 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?24-*/**/*", "??24-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4938,10 +4530,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard25-tmp",
     out: ["art-run-test-jvm-data-shard25.zip"],
-    srcs: ["*25-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 25 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?25-*/**/*", "??25-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4956,10 +4546,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard26-tmp",
     out: ["art-run-test-jvm-data-shard26.zip"],
-    srcs: ["*26-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 26 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?26-*/**/*", "??26-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4974,10 +4562,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard27-tmp",
     out: ["art-run-test-jvm-data-shard27.zip"],
-    srcs: ["*27-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 27 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?27-*/**/*", "??27-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -4992,10 +4578,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard28-tmp",
     out: ["art-run-test-jvm-data-shard28.zip"],
-    srcs: ["*28-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 28 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?28-*/**/*", "??28-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5010,10 +4594,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard29-tmp",
     out: ["art-run-test-jvm-data-shard29.zip"],
-    srcs: ["*29-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 29 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?29-*/**/*", "??29-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5028,10 +4610,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard30-tmp",
     out: ["art-run-test-jvm-data-shard30.zip"],
-    srcs: ["*30-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 30 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?30-*/**/*", "??30-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5046,10 +4626,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard31-tmp",
     out: ["art-run-test-jvm-data-shard31.zip"],
-    srcs: ["*31-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 31 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?31-*/**/*", "??31-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5064,10 +4642,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard32-tmp",
     out: ["art-run-test-jvm-data-shard32.zip"],
-    srcs: ["*32-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 32 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?32-*/**/*", "??32-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5082,10 +4658,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard33-tmp",
     out: ["art-run-test-jvm-data-shard33.zip"],
-    srcs: ["*33-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 33 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?33-*/**/*", "??33-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5100,10 +4674,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard34-tmp",
     out: ["art-run-test-jvm-data-shard34.zip"],
-    srcs: ["*34-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 34 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?34-*/**/*", "??34-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5118,10 +4690,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard35-tmp",
     out: ["art-run-test-jvm-data-shard35.zip"],
-    srcs: ["*35-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 35 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?35-*/**/*", "??35-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5136,10 +4706,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard36-tmp",
     out: ["art-run-test-jvm-data-shard36.zip"],
-    srcs: ["*36-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 36 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?36-*/**/*", "??36-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5154,10 +4722,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard37-tmp",
     out: ["art-run-test-jvm-data-shard37.zip"],
-    srcs: ["*37-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 37 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?37-*/**/*", "??37-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5172,10 +4738,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard38-tmp",
     out: ["art-run-test-jvm-data-shard38.zip"],
-    srcs: ["*38-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 38 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?38-*/**/*", "??38-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5190,10 +4754,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard39-tmp",
     out: ["art-run-test-jvm-data-shard39.zip"],
-    srcs: ["*39-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 39 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?39-*/**/*", "??39-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5208,10 +4770,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard40-tmp",
     out: ["art-run-test-jvm-data-shard40.zip"],
-    srcs: ["*40-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 40 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?40-*/**/*", "??40-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5226,10 +4786,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard41-tmp",
     out: ["art-run-test-jvm-data-shard41.zip"],
-    srcs: ["*41-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 41 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?41-*/**/*", "??41-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5244,10 +4802,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard42-tmp",
     out: ["art-run-test-jvm-data-shard42.zip"],
-    srcs: ["*42-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 42 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?42-*/**/*", "??42-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5262,10 +4818,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard43-tmp",
     out: ["art-run-test-jvm-data-shard43.zip"],
-    srcs: ["*43-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 43 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?43-*/**/*", "??43-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5280,10 +4834,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard44-tmp",
     out: ["art-run-test-jvm-data-shard44.zip"],
-    srcs: ["*44-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 44 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?44-*/**/*", "??44-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5298,10 +4850,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard45-tmp",
     out: ["art-run-test-jvm-data-shard45.zip"],
-    srcs: ["*45-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 45 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?45-*/**/*", "??45-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5316,10 +4866,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard46-tmp",
     out: ["art-run-test-jvm-data-shard46.zip"],
-    srcs: ["*46-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 46 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?46-*/**/*", "??46-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5334,10 +4882,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard47-tmp",
     out: ["art-run-test-jvm-data-shard47.zip"],
-    srcs: ["*47-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 47 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?47-*/**/*", "??47-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5352,10 +4898,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard48-tmp",
     out: ["art-run-test-jvm-data-shard48.zip"],
-    srcs: ["*48-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 48 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?48-*/**/*", "??48-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5370,10 +4914,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard49-tmp",
     out: ["art-run-test-jvm-data-shard49.zip"],
-    srcs: ["*49-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 49 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?49-*/**/*", "??49-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5388,10 +4930,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard50-tmp",
     out: ["art-run-test-jvm-data-shard50.zip"],
-    srcs: ["*50-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 50 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?50-*/**/*", "??50-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5406,10 +4946,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard51-tmp",
     out: ["art-run-test-jvm-data-shard51.zip"],
-    srcs: ["*51-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 51 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?51-*/**/*", "??51-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5424,10 +4962,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard52-tmp",
     out: ["art-run-test-jvm-data-shard52.zip"],
-    srcs: ["*52-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 52 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?52-*/**/*", "??52-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5442,10 +4978,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard53-tmp",
     out: ["art-run-test-jvm-data-shard53.zip"],
-    srcs: ["*53-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 53 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?53-*/**/*", "??53-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5460,10 +4994,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard54-tmp",
     out: ["art-run-test-jvm-data-shard54.zip"],
-    srcs: ["*54-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 54 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?54-*/**/*", "??54-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5478,10 +5010,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard55-tmp",
     out: ["art-run-test-jvm-data-shard55.zip"],
-    srcs: ["*55-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 55 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?55-*/**/*", "??55-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5496,10 +5026,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard56-tmp",
     out: ["art-run-test-jvm-data-shard56.zip"],
-    srcs: ["*56-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 56 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?56-*/**/*", "??56-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5514,10 +5042,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard57-tmp",
     out: ["art-run-test-jvm-data-shard57.zip"],
-    srcs: ["*57-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 57 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?57-*/**/*", "??57-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5532,10 +5058,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard58-tmp",
     out: ["art-run-test-jvm-data-shard58.zip"],
-    srcs: ["*58-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 58 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?58-*/**/*", "??58-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5550,10 +5074,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard59-tmp",
     out: ["art-run-test-jvm-data-shard59.zip"],
-    srcs: ["*59-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 59 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?59-*/**/*", "??59-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5568,10 +5090,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard60-tmp",
     out: ["art-run-test-jvm-data-shard60.zip"],
-    srcs: ["*60-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 60 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?60-*/**/*", "??60-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5586,10 +5106,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard61-tmp",
     out: ["art-run-test-jvm-data-shard61.zip"],
-    srcs: ["*61-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 61 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?61-*/**/*", "??61-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5604,10 +5122,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard62-tmp",
     out: ["art-run-test-jvm-data-shard62.zip"],
-    srcs: ["*62-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 62 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?62-*/**/*", "??62-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5622,10 +5138,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard63-tmp",
     out: ["art-run-test-jvm-data-shard63.zip"],
-    srcs: ["*63-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 63 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?63-*/**/*", "??63-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5640,10 +5154,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard64-tmp",
     out: ["art-run-test-jvm-data-shard64.zip"],
-    srcs: ["*64-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 64 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?64-*/**/*", "??64-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5658,10 +5170,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard65-tmp",
     out: ["art-run-test-jvm-data-shard65.zip"],
-    srcs: ["*65-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 65 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?65-*/**/*", "??65-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5676,10 +5186,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard66-tmp",
     out: ["art-run-test-jvm-data-shard66.zip"],
-    srcs: ["*66-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 66 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?66-*/**/*", "??66-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5694,10 +5202,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard67-tmp",
     out: ["art-run-test-jvm-data-shard67.zip"],
-    srcs: ["*67-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 67 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?67-*/**/*", "??67-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5712,10 +5218,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard68-tmp",
     out: ["art-run-test-jvm-data-shard68.zip"],
-    srcs: ["*68-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 68 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?68-*/**/*", "??68-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5730,10 +5234,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard69-tmp",
     out: ["art-run-test-jvm-data-shard69.zip"],
-    srcs: ["*69-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 69 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?69-*/**/*", "??69-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5748,10 +5250,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard70-tmp",
     out: ["art-run-test-jvm-data-shard70.zip"],
-    srcs: ["*70-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 70 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?70-*/**/*", "??70-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5766,10 +5266,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard71-tmp",
     out: ["art-run-test-jvm-data-shard71.zip"],
-    srcs: ["*71-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 71 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?71-*/**/*", "??71-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5784,10 +5282,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard72-tmp",
     out: ["art-run-test-jvm-data-shard72.zip"],
-    srcs: ["*72-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 72 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?72-*/**/*", "??72-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5802,10 +5298,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard73-tmp",
     out: ["art-run-test-jvm-data-shard73.zip"],
-    srcs: ["*73-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 73 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?73-*/**/*", "??73-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5820,10 +5314,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard74-tmp",
     out: ["art-run-test-jvm-data-shard74.zip"],
-    srcs: ["*74-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 74 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?74-*/**/*", "??74-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5838,10 +5330,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard75-tmp",
     out: ["art-run-test-jvm-data-shard75.zip"],
-    srcs: ["*75-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 75 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?75-*/**/*", "??75-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5856,10 +5346,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard76-tmp",
     out: ["art-run-test-jvm-data-shard76.zip"],
-    srcs: ["*76-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 76 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?76-*/**/*", "??76-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5874,10 +5362,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard77-tmp",
     out: ["art-run-test-jvm-data-shard77.zip"],
-    srcs: ["*77-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 77 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?77-*/**/*", "??77-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5892,10 +5378,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard78-tmp",
     out: ["art-run-test-jvm-data-shard78.zip"],
-    srcs: ["*78-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 78 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?78-*/**/*", "??78-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5910,10 +5394,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard79-tmp",
     out: ["art-run-test-jvm-data-shard79.zip"],
-    srcs: ["*79-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 79 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?79-*/**/*", "??79-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5928,10 +5410,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard80-tmp",
     out: ["art-run-test-jvm-data-shard80.zip"],
-    srcs: ["*80-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 80 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?80-*/**/*", "??80-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5946,10 +5426,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard81-tmp",
     out: ["art-run-test-jvm-data-shard81.zip"],
-    srcs: ["*81-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 81 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?81-*/**/*", "??81-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5964,10 +5442,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard82-tmp",
     out: ["art-run-test-jvm-data-shard82.zip"],
-    srcs: ["*82-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 82 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?82-*/**/*", "??82-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -5982,10 +5458,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard83-tmp",
     out: ["art-run-test-jvm-data-shard83.zip"],
-    srcs: ["*83-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 83 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?83-*/**/*", "??83-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6000,10 +5474,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard84-tmp",
     out: ["art-run-test-jvm-data-shard84.zip"],
-    srcs: ["*84-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 84 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?84-*/**/*", "??84-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6018,10 +5490,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard85-tmp",
     out: ["art-run-test-jvm-data-shard85.zip"],
-    srcs: ["*85-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 85 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?85-*/**/*", "??85-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6036,10 +5506,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard86-tmp",
     out: ["art-run-test-jvm-data-shard86.zip"],
-    srcs: ["*86-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 86 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?86-*/**/*", "??86-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6054,10 +5522,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard87-tmp",
     out: ["art-run-test-jvm-data-shard87.zip"],
-    srcs: ["*87-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 87 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?87-*/**/*", "??87-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6072,10 +5538,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard88-tmp",
     out: ["art-run-test-jvm-data-shard88.zip"],
-    srcs: ["*88-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 88 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?88-*/**/*", "??88-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6090,10 +5554,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard89-tmp",
     out: ["art-run-test-jvm-data-shard89.zip"],
-    srcs: ["*89-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 89 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?89-*/**/*", "??89-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6108,10 +5570,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard90-tmp",
     out: ["art-run-test-jvm-data-shard90.zip"],
-    srcs: ["*90-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 90 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?90-*/**/*", "??90-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6126,10 +5586,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard91-tmp",
     out: ["art-run-test-jvm-data-shard91.zip"],
-    srcs: ["*91-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 91 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?91-*/**/*", "??91-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6144,10 +5602,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard92-tmp",
     out: ["art-run-test-jvm-data-shard92.zip"],
-    srcs: ["*92-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 92 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?92-*/**/*", "??92-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6162,10 +5618,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard93-tmp",
     out: ["art-run-test-jvm-data-shard93.zip"],
-    srcs: ["*93-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 93 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?93-*/**/*", "??93-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6180,10 +5634,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard94-tmp",
     out: ["art-run-test-jvm-data-shard94.zip"],
-    srcs: ["*94-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 94 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?94-*/**/*", "??94-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6198,10 +5650,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard95-tmp",
     out: ["art-run-test-jvm-data-shard95.zip"],
-    srcs: ["*95-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 95 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?95-*/**/*", "??95-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6216,10 +5666,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard96-tmp",
     out: ["art-run-test-jvm-data-shard96.zip"],
-    srcs: ["*96-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 96 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?96-*/**/*", "??96-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6234,10 +5682,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard97-tmp",
     out: ["art-run-test-jvm-data-shard97.zip"],
-    srcs: ["*97-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 97 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?97-*/**/*", "??97-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6252,10 +5698,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard98-tmp",
     out: ["art-run-test-jvm-data-shard98.zip"],
-    srcs: ["*98-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 98 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?98-*/**/*", "??98-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6270,10 +5714,8 @@ prebuilt_etc_host {
 java_genrule {
     name: "art-run-test-jvm-data-shard99-tmp",
     out: ["art-run-test-jvm-data-shard99.zip"],
-    srcs: ["*99-*/**/*"],
-    defaults: ["art-run-test-data-defaults"],
-    cmd: "$(location run-test-build.py) --out $(out) --mode jvm --shard 99 " +
-        "--bootclasspath $(location :art-run-test-bootclasspath)",
+    srcs: ["?99-*/**/*", "??99-*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
 }
 
 // Install in the output directory to make it accessible for tests.
@@ -6285,9 +5727,30 @@ prebuilt_etc_host {
     filename: "art-run-test-jvm-data-shard99.zip",
 }
 
+genrule_defaults {
+    name: "art-run-test-jvm-data-defaults",
+    defaults: [
+        // Enable only in source builds, where com.android.art.testing is
+        // available.
+        "art_module_source_build_genrule_defaults",
+    ],
+    tool_files: [
+        "run_test_build.py",
+        ":art-run-test-bootclasspath",
+    ],
+    tools: [
+        "d8",
+        "hiddenapi",
+        "jasmin",
+        "smali",
+    ],
+    cmd: "$(location run_test_build.py) --out $(out) --mode jvm " +
+        "--bootclasspath $(location :art-run-test-bootclasspath) $(in)",
+}
+
 java_genrule {
     name: "art-run-test-jvm-data-merged-tmp",
-    defaults: ["art-run-test-data-defaults"],
+    defaults: ["art_module_source_build_genrule_defaults"],
     out: ["art-run-test-jvm-data-merged.zip"],
     srcs: [
         ":art-run-test-jvm-data-shard00-tmp",

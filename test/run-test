@@ -16,11 +16,12 @@
 
 import os, sys, glob, re, shutil, subprocess, shlex, resource
 
-import etc.default_run
+import default_run as default_run_module
 
 from importlib.machinery import SourceFileLoader
 from inspect import currentframe, getframeinfo, FrameInfo
 from pathlib import Path
+from shutil import copyfile
 from typing import Optional
 
 COLOR_RED = '\033[91m'
@@ -40,8 +41,12 @@ class Environment:
 # Context passed to individual tests to let them customize the behaviour.
 class RunTestContext:
 
-  def __init__(self):
+  def __init__(self, tmp_dir: Path) -> None:
     self.env = Environment()
+
+    # Note: The expected path can be modified by the tests.
+    self.expected_stdout = tmp_dir / "expected-stdout.txt"
+    self.expected_stderr = tmp_dir / "expected-stderr.txt"
 
   def echo(self, text):
     with open(test_stdout, "a") as f:
@@ -53,7 +58,7 @@ class RunTestContext:
 
   # Execute the default runner (possibly with modified arguments).
   def default_run(self, args, **kwargs):
-    etc.default_run.default_run(self, args, **kwargs)
+    default_run_module.default_run(self, args, **kwargs)
 
 
 # TODO: Replace with 'def main():' (which might change variables from globals to locals)
@@ -136,8 +141,6 @@ if True:
   chroot = ""
   info = "info.txt"
   run_cmd = "run"
-  expected_stdout = "expected-stdout.txt"
-  expected_stderr = "expected-stderr.txt"
   test_stdout = "test-stdout.txt"
   test_stderr = "test-stderr.txt"
   cfg_output = "graph.cfg"
@@ -875,15 +878,6 @@ if True:
   os.chdir(test_dir)
   test_dir = os.getcwd()
 
-  td_info = f"{test_dir}/{info}"
-  td_expected_stdout = f"{test_dir}/{expected_stdout}"
-  td_expected_stderr = f"{test_dir}/{expected_stderr}"
-
-  for td_file in [td_info, td_expected_stdout, td_expected_stderr]:
-    if not os.access(td_file, os.R_OK):
-      error(f"{test_dir}: missing file {td_file}")
-      sys.exit(1)
-
   TEST_NAME = os.path.basename(test_dir)
   export("TEST_NAME", TEST_NAME)
 
@@ -935,22 +929,26 @@ if True:
   run(f'unzip -q "{zip_file}" "{zip_entry}/*" -d "{tmp_dir}/.unzipped"')
   run(f'mv "{tmp_dir}"/.unzipped/{zip_entry}/* "{tmp_dir}"')
 
+  ctx = RunTestContext(Path(tmp_dir))
+  td_info = f"{test_dir}/{info}"
+  for td_file in [td_info, ctx.expected_stdout, ctx.expected_stderr]:
+    assert os.access(td_file, os.R_OK)
+
   joined_run_args = " ".join(run_args)
   joined_args = " ".join(args)
 
   # Execute the "run" method in the per-test specific script file.
   def run_test_script():
-    parsed_args = etc.default_run.parse_args(shlex.split(" ".join(run_args + args)))
+    parsed_args = default_run_module.parse_args(shlex.split(" ".join(run_args + args)))
     parsed_args.stdout_file = os.path.join(tmp_dir, test_stdout)
     parsed_args.stderr_file = os.path.join(tmp_dir, test_stderr)
 
-    ctx = RunTestContext()
     script = os.path.join(tmp_dir, "run.py")
     if os.path.exists(script):
       module = SourceFileLoader("run_" + TEST_NAME, script).load_module()
       module.run(ctx, parsed_args)
     else:
-      etc.default_run.default_run(ctx, parsed_args)
+      default_run_module.default_run(ctx, parsed_args)
 
   # Test might not execute anything but we still expect the output files to exist.
   Path(test_stdout).touch()
@@ -964,15 +962,19 @@ if True:
   # Failing tests just raise python exception.
   os.chdir(tmp_dir)
   if update_mode == "yes":
-    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stdout}" >"{td_expected_stdout}"''')
-    run(f'''sed -e 's/[[:cntrl:]]$//g' <"{test_stderr}" >"{td_expected_stderr}"''')
+    for src, dst in [(test_stdout, os.path.join(test_dir, ctx.expected_stdout.name)),
+                     (test_stderr, os.path.join(test_dir, ctx.expected_stderr.name))]:
+      if "[DO_NOT_UPDATE]" not in open(dst).readline():
+        copyfile(src, dst)
 
   print("#################### info")
   run(f'cat "{td_info}" | sed "s/^/# /g"')
   print("#################### stdout diff")
-  proc_out = run(f'diff --strip-trailing-cr -u "{expected_stdout}" "{test_stdout}"', check=False)
+  proc_out = run(f'diff --strip-trailing-cr -u '
+                 f'"{ctx.expected_stdout}" "{test_stdout}"', check=False)
   print("#################### stderr diff")
-  proc_err = run(f'diff --strip-trailing-cr -u "{expected_stderr}" "{test_stderr}"', check=False)
+  proc_err = run(f'diff --strip-trailing-cr -u '
+                 f'"{ctx.expected_stderr}" "{test_stderr}"', check=False)
   if strace == "yes":
     print("#################### strace output (trimmed to 3000 lines)")
     run(f'tail -n 3000 "{tmp_dir}/{strace_output}"')
