@@ -92,6 +92,8 @@ class X86JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86Assembler, Poi
 
   void Move(ManagedRegister dest, ManagedRegister src, size_t size) override;
 
+  void Move(ManagedRegister dest, size_t value) override;
+
   void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset32 thr_offs) override;
 
   void CopyRawPtrToThread(ThreadOffset32 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)

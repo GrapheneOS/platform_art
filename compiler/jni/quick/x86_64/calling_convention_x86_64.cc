@@ -147,6 +147,10 @@ ManagedRegister X86_64ManagedRuntimeCallingConvention::MethodRegister() {
   return X86_64ManagedRegister::FromCpuRegister(RDI);
 }
 
+ManagedRegister X86_64ManagedRuntimeCallingConvention::ArgumentRegisterForMethodExitHook() {
+  return X86_64ManagedRegister::FromCpuRegister(R8);
+}
+
 bool X86_64ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
   if (IsCurrentParamAFloatOrDouble()) {
     return itr_float_and_doubles_ < kMaxFloatOrDoubleRegisterArguments;

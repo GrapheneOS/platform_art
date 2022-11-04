@@ -2684,10 +2684,11 @@ extern "C" void artMethodEntryHook(ArtMethod* method, Thread* self, ArtMethod** 
 }
 
 extern "C" void artMethodExitHook(Thread* self,
-                                 ArtMethod* method,
-                                 uint64_t* gpr_result,
-                                 uint64_t* fpr_result)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+                                  ArtMethod** sp,
+                                  uint64_t* gpr_result,
+                                  uint64_t* fpr_result,
+                                  uint32_t frame_size)
+  REQUIRES_SHARED(Locks::mutator_lock_) {
   // For GenericJniTrampolines we call artMethodExitHook even for non debuggable runtimes though we
   // still install instrumentation stubs. So just return early here so we don't call method exit
   // twice. In all other cases (JITed JNI stubs / JITed code) we only call this for debuggable
@@ -2706,6 +2707,7 @@ extern "C" void artMethodExitHook(Thread* self,
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
   DCHECK(instr->AreExitStubsInstalled());
   bool is_ref;
+  ArtMethod* method = *sp;
   JValue return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
   bool deoptimize = false;
   {
@@ -2717,12 +2719,7 @@ extern "C" void artMethodExitHook(Thread* self,
     }
     DCHECK(!method->IsRuntimeMethod());
 
-    // Deoptimize if the caller needs to continue execution in the interpreter. Do nothing if we get
-    // back to an upcall.
-    NthCallerVisitor visitor(self, 1, /*include_runtime_and_upcalls=*/false);
-    visitor.WalkStack(true);
-    deoptimize = instr->ShouldDeoptimizeCaller(self, visitor);
-
+    deoptimize = instr->ShouldDeoptimizeCaller(self, sp, frame_size);
     // If we need a deoptimization MethodExitEvent will be called by the interpreter when it
     // re-executes the return instruction. For native methods we have to process method exit
     // events here since deoptimization just removes the native frame.
