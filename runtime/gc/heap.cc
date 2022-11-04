@@ -4060,12 +4060,6 @@ void Heap::RevokeAllThreadLocalBuffers() {
   }
 }
 
-void Heap::RunFinalization(JNIEnv* env, uint64_t timeout) {
-  env->CallStaticVoidMethod(WellKnownClasses::dalvik_system_VMRuntime,
-                            WellKnownClasses::dalvik_system_VMRuntime_runFinalization,
-                            static_cast<jlong>(timeout));
-}
-
 // For GC triggering purposes, we count old (pre-last-GC) and new native allocations as
 // different fractions of Java allocations.
 // For now, we essentially do not count old native allocations at all, so that we can preserve the
