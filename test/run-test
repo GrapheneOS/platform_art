@@ -977,7 +977,8 @@ if True:
                  f'"{ctx.expected_stderr}" "{test_stderr}"', check=False)
   if strace == "yes":
     print("#################### strace output (trimmed to 3000 lines)")
-    run(f'tail -n 3000 "{tmp_dir}/{strace_output}"')
+    # Some tests do not run dalvikvm, in which case the trace does not exist.
+    run(f'tail -n 3000 "{tmp_dir}/{strace_output}"', check=False)
   SANITIZE_HOST = os.environ.get("SANITIZE_HOST")
   if target_mode == "no" and SANITIZE_HOST == "address":
     # Run the stack script to symbolize any ASAN aborts on the host for SANITIZE_HOST. The
