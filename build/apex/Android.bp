@@ -524,6 +524,8 @@ python_binary_host {
 art_check_apex_gen_stem = "$(location art-apex-tester)" +
     " --deapexer $(location deapexer)" +
     " --debugfs $(location debugfs_static)" +
+    " --fsckerofs $(location fsck.erofs)" +
+    " --blkid $(location blkid)" +
     " --tmpdir $(genDir)"
 
 // The non-flattened APEXes are always checked, as they are always generated
@@ -533,8 +535,10 @@ genrule_defaults {
     defaults: ["art_module_source_build_genrule_defaults"],
     tools: [
         "art-apex-tester",
+        "blkid",
         "deapexer",
         "debugfs_static",
+        "fsck.erofs",
     ],
 }
 
