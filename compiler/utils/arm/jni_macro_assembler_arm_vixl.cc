@@ -878,6 +878,11 @@ void ArmVIXLJNIMacroAssembler::Move(ManagedRegister mdst,
   }
 }
 
+void ArmVIXLJNIMacroAssembler::Move(ManagedRegister mdst, size_t value) {
+  ArmManagedRegister dst = mdst.AsArm();
+  ___ Mov(AsVIXLRegister(dst), static_cast<uint32_t>(value));
+}
+
 void ArmVIXLJNIMacroAssembler::Copy(FrameOffset dest, FrameOffset src, size_t size) {
   DCHECK(size == 4 || size == 8) << size;
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());

@@ -37,6 +37,7 @@ class X86ManagedRuntimeCallingConvention final : public ManagedRuntimeCallingCon
   void ResetIterator(FrameOffset displacement) override;
   // Managed runtime calling convention
   ManagedRegister MethodRegister() override;
+  ManagedRegister ArgumentRegisterForMethodExitHook() override;
   void Next() override;
   bool IsCurrentParamInRegister() override;
   bool IsCurrentParamOnStack() override;

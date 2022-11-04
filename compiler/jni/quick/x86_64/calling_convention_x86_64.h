@@ -35,6 +35,7 @@ class X86_64ManagedRuntimeCallingConvention final : public ManagedRuntimeCalling
   ManagedRegister ReturnRegister() const override;
   // Managed runtime calling convention
   ManagedRegister MethodRegister() override;
+  ManagedRegister ArgumentRegisterForMethodExitHook() override;
   bool IsCurrentParamInRegister() override;
   bool IsCurrentParamOnStack() override;
   ManagedRegister CurrentParamRegister() override;
