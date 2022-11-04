@@ -1752,8 +1752,7 @@ void LSEVisitor::MergePredecessorRecords(HBasicBlock* block) {
   ScopedArenaVector<ValueRecord>& heap_values = heap_values_for_[block->GetBlockId()];
   DCHECK(heap_values.empty());
   size_t num_heap_locations = heap_location_collector_.GetNumberOfHeapLocations();
-  if (block->GetPredecessors().empty() || (block->GetTryCatchInformation() != nullptr &&
-                                           block->GetTryCatchInformation()->IsCatchBlock())) {
+  if (block->GetPredecessors().empty() || block->IsCatchBlock()) {
     DCHECK_IMPLIES(block->GetPredecessors().empty(), block->IsEntryBlock());
     heap_values.resize(num_heap_locations,
                        {/*value=*/Value::PureUnknown(), /*stored_by=*/Value::PureUnknown()});
