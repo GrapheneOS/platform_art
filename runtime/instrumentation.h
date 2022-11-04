@@ -513,6 +513,8 @@ class Instrumentation {
   // method requires a deopt or if this particular frame needs a deopt because of a class
   // redefinition.
   bool ShouldDeoptimizeCaller(Thread* self, ArtMethod** sp) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool ShouldDeoptimizeCaller(Thread* self, ArtMethod** sp, size_t frame_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // This is a helper function used by the two variants of ShouldDeoptimizeCaller.
   // Remove this once ShouldDeoptimizeCaller is updated not to use NthCallerVisitor.
   bool ShouldDeoptimizeCaller(Thread* self,

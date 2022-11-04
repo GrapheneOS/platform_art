@@ -215,6 +215,8 @@ class JNIMacroAssembler : public DeletableArenaObject<kArenaAllocAssembler> {
                     ManagedRegister scratch,
                     size_t size) = 0;
 
+  virtual void Move(ManagedRegister dst, size_t value) = 0;
+
   virtual void MemoryBarrier(ManagedRegister scratch) = 0;
 
   // Sign extension

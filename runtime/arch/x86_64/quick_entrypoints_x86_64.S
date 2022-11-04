@@ -1614,6 +1614,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     ret
 
 .Lcall_method_exit_hook:
+   movq LITERAL(FRAME_SIZE_SAVE_REFS_AND_ARGS), %r8
    call art_quick_method_exit_hook
    jmp .Lcall_method_exit_hook_done
 
@@ -2177,14 +2178,16 @@ END_FUNCTION art_quick_method_entry_hook
 DEFINE_FUNCTION art_quick_method_exit_hook
     SETUP_SAVE_EVERYTHING_FRAME
 
+    // R8 passed from JITed code contains frame_size
     leaq 16(%rsp), %rcx                         // floating-point result pointer in kSaveEverything
                                                 // frame
     leaq 144(%rsp), %rdx                        // integer result pointer in kSaveEverything frame
-    movq FRAME_SIZE_SAVE_EVERYTHING(%rsp), %rsi // ArtMethod
+    leaq FRAME_SIZE_SAVE_EVERYTHING(%rsp), %rsi // ArtMethod**
     movq %gs:THREAD_SELF_OFFSET, %rdi           // Thread::Current
-    call SYMBOL(artMethodExitHook)              // (Thread*, SP, gpr_res*, fpr_res*)
+    call SYMBOL(artMethodExitHook)              // (Thread*, ArtMethod**, gpr_res*, fpr_res*,
+                                                //  frame_size)
 
     // Normal return.
     RESTORE_SAVE_EVERYTHING_FRAME
     ret
-END_FUNCTION art_quick_method_entry_hook
+END_FUNCTION art_quick_method_exit_hook

@@ -199,6 +199,10 @@ ManagedRegister ArmManagedRuntimeCallingConvention::MethodRegister() {
   return ArmManagedRegister::FromCoreRegister(R0);
 }
 
+ManagedRegister ArmManagedRuntimeCallingConvention::ArgumentRegisterForMethodExitHook() {
+  return ArmManagedRegister::FromCoreRegister(R2);
+}
+
 void ArmManagedRuntimeCallingConvention::ResetIterator(FrameOffset displacement) {
   ManagedRuntimeCallingConvention::ResetIterator(displacement);
   gpr_index_ = 1u;  // Skip r0 for ArtMethod*
