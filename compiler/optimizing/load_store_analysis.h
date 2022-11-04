@@ -20,6 +20,7 @@
 #include "base/arena_allocator.h"
 #include "base/arena_bit_vector.h"
 #include "base/bit_vector-inl.h"
+#include "base/macros.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "base/stl_util.h"
@@ -28,7 +29,7 @@
 #include "nodes.h"
 #include "optimizing/optimizing_compiler_stats.h"
 
-namespace art {
+namespace art HIDDEN {
 
 enum class LoadStoreAnalysisType {
   kBasic,

@@ -26,7 +26,7 @@
 #include "base/scoped_arena_allocator.h"
 #include "nodes.h"
 
-namespace art {
+namespace art HIDDEN {
 
 ExecutionSubgraph::ExecutionSubgraph(HGraph* graph, ScopedArenaAllocator* allocator)
     : graph_(graph),

@@ -21,7 +21,7 @@
 #include "optimizing/data_type.h"
 #include "optimizing/nodes.h"
 
-namespace art {
+namespace art HIDDEN {
 
 // This visitor tries to simplify instructions that can be evaluated
 // as constants.

@@ -36,7 +36,7 @@
 #include "optimizing_unit_test.h"
 #include "scoped_thread_state_change.h"
 
-namespace art {
+namespace art HIDDEN {
 
 #define CHECK_SUBROUTINE_FAILURE() \
   do {                             \

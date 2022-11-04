@@ -19,7 +19,7 @@
 #include "optimizing/nodes.h"
 #include "reference_type_propagation.h"
 
-namespace art {
+namespace art HIDDEN {
 
 static constexpr size_t kMaxInstructionsInBranch = 1u;
 

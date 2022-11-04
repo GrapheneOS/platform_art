@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/macros.h"
 #include "load_store_analysis.h"
 
 #include <array>
@@ -36,7 +37,7 @@
 #include "optimizing_unit_test.h"
 #include "scoped_thread_state_change.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class LoadStoreAnalysisTest : public CommonCompilerTest, public OptimizingUnitTestHelper {
  public:
