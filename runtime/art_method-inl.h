@@ -48,6 +48,158 @@
 
 namespace art {
 
+namespace detail {
+
+template <> struct ShortyTraits<'V'> {
+  using Type = void;
+  static Type Get(const JValue& value ATTRIBUTE_UNUSED) {}
+  // `kVRegCount` and `Set()` are not defined.
+};
+
+template <> struct ShortyTraits<'Z'> {
+  // We're using `uint8_t` for `boolean`, see `JValue`.
+  using Type = uint8_t;
+  static Type Get(const JValue& value) { return value.GetZ(); }
+  static constexpr size_t kVRegCount = 1u;
+  static void Set(uint32_t* args, Type value) { args[0] = static_cast<uint32_t>(value); }
+};
+
+template <> struct ShortyTraits<'B'> {
+  using Type = int8_t;
+  static Type Get(const JValue& value) { return value.GetB(); }
+  static constexpr size_t kVRegCount = 1u;
+  static void Set(uint32_t* args, Type value) { args[0] = static_cast<uint32_t>(value); }
+};
+
+template <> struct ShortyTraits<'C'> {
+  using Type = uint16_t;
+  static Type Get(const JValue& value) { return value.GetC(); }
+  static constexpr size_t kVRegCount = 1u;
+  static void Set(uint32_t* args, Type value) { args[0] = static_cast<uint32_t>(value); }
+};
+
+template <> struct ShortyTraits<'S'> {
+  using Type = int16_t;
+  static Type Get(const JValue& value) { return value.GetS(); }
+  static constexpr size_t kVRegCount = 1u;
+  static void Set(uint32_t* args, Type value) { args[0] = static_cast<uint32_t>(value); }
+};
+
+template <> struct ShortyTraits<'I'> {
+  using Type = int32_t;
+  static Type Get(const JValue& value) { return value.GetI(); }
+  static constexpr size_t kVRegCount = 1u;
+  static void Set(uint32_t* args, Type value) { args[0] = static_cast<uint32_t>(value); }
+};
+
+template <> struct ShortyTraits<'J'> {
+  using Type = int64_t;
+  static Type Get(const JValue& value) { return value.GetJ(); }
+  static constexpr size_t kVRegCount = 2u;
+  static void Set(uint32_t* args, Type value) {
+    // Little-endian representation.
+    args[0] = static_cast<uint32_t>(value);
+    args[1] = static_cast<uint32_t>(static_cast<uint64_t>(value) >> 32);
+  }
+};
+
+template <> struct ShortyTraits<'F'> {
+  using Type = float;
+  static Type Get(const JValue& value) { return value.GetF(); }
+  static constexpr size_t kVRegCount = 1u;
+  static void Set(uint32_t* args, Type value) { args[0] = bit_cast<uint32_t>(value); }
+};
+
+template <> struct ShortyTraits<'D'> {
+  using Type = double;
+  static Type Get(const JValue& value) { return value.GetD(); }
+  static constexpr size_t kVRegCount = 2u;
+  static void Set(uint32_t* args, Type value) {
+    // Little-endian representation.
+    uint64_t v = bit_cast<uint64_t>(value);
+    args[0] = static_cast<uint32_t>(v);
+    args[1] = static_cast<uint32_t>(v >> 32);
+  }
+};
+
+template <> struct ShortyTraits<'L'> {
+  using Type = ObjPtr<mirror::Object>;
+  static Type Get(const JValue& value) REQUIRES_SHARED(Locks::mutator_lock_) {
+      return value.GetL();
+  }
+  static constexpr size_t kVRegCount = 1u;
+  static void Set(uint32_t* args, Type value) REQUIRES_SHARED(Locks::mutator_lock_) {
+    args[0] = StackReference<mirror::Object>::FromMirrorPtr(value.Ptr()).AsVRegValue();
+  }
+};
+
+template <char... Shorty>
+constexpr auto MaterializeShorty() {
+  constexpr size_t kSize = std::size({Shorty...}) + 1u;
+  return std::array<char, kSize>{Shorty..., '\0'};
+}
+
+template <char... ArgType>
+constexpr size_t NumberOfVRegs() {
+  constexpr size_t kArgVRegCount[] = {
+    ShortyTraits<ArgType>::kVRegCount...
+  };
+  size_t sum = 0u;
+  for (size_t count : kArgVRegCount) {
+    sum += count;
+  }
+  return sum;
+}
+
+template <char... ArgType>
+inline ALWAYS_INLINE void FillVRegs(uint32_t* vregs ATTRIBUTE_UNUSED,
+                                    typename ShortyTraits<ArgType>::Type... args ATTRIBUTE_UNUSED)
+    REQUIRES_SHARED(Locks::mutator_lock_) {}
+
+template <char FirstArgType, char... ArgType>
+inline ALWAYS_INLINE void FillVRegs(uint32_t* vregs,
+                                    typename ShortyTraits<FirstArgType>::Type first_arg,
+                                    typename ShortyTraits<ArgType>::Type... args)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ShortyTraits<FirstArgType>::Set(vregs, first_arg);
+  FillVRegs<ArgType...>(vregs + ShortyTraits<FirstArgType>::kVRegCount, args...);
+}
+
+template <char... ArgType>
+inline ALWAYS_INLINE auto MaterializeVRegs(typename ShortyTraits<ArgType>::Type... args)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  constexpr size_t kNumVRegs = NumberOfVRegs<ArgType...>();
+  std::array<uint32_t, kNumVRegs> vregs;
+  FillVRegs<ArgType...>(vregs.data(), args...);
+  return vregs;
+}
+
+}  // namespace detail
+
+template <char ReturnType, char... ArgType>
+inline typename detail::ShortyTraits<ReturnType>::Type
+ArtMethod::InvokeStatic(Thread* self, typename detail::ShortyTraits<ArgType>::Type... args) {
+  DCHECK(IsStatic());
+  JValue result;
+  constexpr auto shorty = detail::MaterializeShorty<ReturnType, ArgType...>();
+  auto vregs = detail::MaterializeVRegs<ArgType...>(args...);
+  Invoke(self, vregs.data(), sizeof(vregs), &result, shorty.data());
+  return detail::ShortyTraits<ReturnType>::Get(result);
+}
+
+template <char ReturnType, char... ArgType>
+typename detail::ShortyTraits<ReturnType>::Type
+ArtMethod::InvokeInstance(Thread* self,
+                          ObjPtr<mirror::Object> receiver,
+                          typename detail::ShortyTraits<ArgType>::Type... args) {
+  DCHECK(!IsStatic());
+  JValue result;
+  constexpr auto shorty = detail::MaterializeShorty<ReturnType, ArgType...>();
+  auto vregs = detail::MaterializeVRegs<'L', ArgType...>(receiver, args...);
+  Invoke(self, vregs.data(), sizeof(vregs), &result, shorty.data());
+  return detail::ShortyTraits<ReturnType>::Get(result);
+}
+
 template <ReadBarrierOption kReadBarrierOption>
 inline ObjPtr<mirror::Class> ArtMethod::GetDeclaringClassUnchecked() {
   GcRootSource gc_root_source(this);
