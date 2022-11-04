@@ -61,14 +61,25 @@
 namespace art {
 
 // We require MREMAP_DONTUNMAP functionality of the mremap syscall, which was
-// introduced in 5.13 kernel version. Check for that on host. Checking
-// on Android is not required as MREMAP_DONTUNMAP and userfaultfd were enabled
-// together.
+// introduced in 5.13 kernel version.
+static bool HaveMremapDontunmap() {
+  void* old = mmap(nullptr, kPageSize, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+  CHECK_NE(old, MAP_FAILED);
+  void* addr = mremap(old, kPageSize, kPageSize, MREMAP_MAYMOVE | MREMAP_DONTUNMAP, nullptr);
+  CHECK_EQ(munmap(old, kPageSize), 0);
+  if (addr != MAP_FAILED) {
+    CHECK_EQ(munmap(addr, kPageSize), 0);
+    return true;
+  } else {
+    return false;
+  }
+}
+static bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13) || HaveMremapDontunmap();
+
 // Concurrent compaction termination logic depends on the kernel having
 // the fault-retry feature (allowing repeated faults on the same page), which was
 // introduced in 5.7. On Android this feature is backported on all the kernels where
 // userfaultfd is enabled.
-static const bool gHaveMremapDontunmap = kIsTargetAndroid || IsKernelVersionAtLeast(5, 13);
 static const bool gKernelHasFaultRetry = kIsTargetAndroid || IsKernelVersionAtLeast(5, 7);
 
 #ifndef ART_FORCE_USE_READ_BARRIER
