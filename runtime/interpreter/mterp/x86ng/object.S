@@ -16,7 +16,7 @@
    movl rSELF:THREAD_SELF_OFFSET, ARG0
    movl 0(%esp), ARG1
    movl rPC, ARG2
-   call nterp_get_class_or_allocate_object
+   call nterp_get_class
    movl %eax, %ecx
    jmp 1b
 
@@ -58,7 +58,7 @@
    movl rSELF:THREAD_SELF_OFFSET, ARG0
    movl 0(%esp), ARG1
    movl rPC, ARG2
-   call nterp_get_class_or_allocate_object
+   call nterp_get_class
    movl %eax, %ecx
    jmp 1b
 
