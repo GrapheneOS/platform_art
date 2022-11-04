@@ -68,6 +68,20 @@ class PointerArray;
 class String;
 }  // namespace mirror
 
+namespace detail {
+template <char Type> struct ShortyTraits;
+template <> struct ShortyTraits<'V'>;
+template <> struct ShortyTraits<'Z'>;
+template <> struct ShortyTraits<'B'>;
+template <> struct ShortyTraits<'C'>;
+template <> struct ShortyTraits<'S'>;
+template <> struct ShortyTraits<'I'>;
+template <> struct ShortyTraits<'J'>;
+template <> struct ShortyTraits<'F'>;
+template <> struct ShortyTraits<'D'>;
+template <> struct ShortyTraits<'L'>;
+}  // namespace detail
+
 class ArtMethod final {
  public:
   // Should the class state be checked on sensitive operations?
@@ -642,6 +656,18 @@ class ArtMethod final {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, const char* shorty)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <char ReturnType, char... ArgType>
+  typename detail::ShortyTraits<ReturnType>::Type
+  InvokeStatic(Thread* self, typename detail::ShortyTraits<ArgType>::Type... args)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <char ReturnType, char... ArgType>
+  typename detail::ShortyTraits<ReturnType>::Type
+  InvokeInstance(Thread* self,
+                 ObjPtr<mirror::Object> receiver,
+                 typename detail::ShortyTraits<ArgType>::Type... args)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   const void* GetEntryPointFromQuickCompiledCode() const {
