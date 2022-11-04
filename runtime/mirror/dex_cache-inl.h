@@ -164,18 +164,6 @@ inline Class* DexCache::GetResolvedType(dex::TypeIndex type_idx) {
   return GetResolvedTypesEntry(type_idx.index_);
 }
 
-inline void DexCache::SetResolvedType(dex::TypeIndex type_idx, ObjPtr<Class> resolved) {
-  DCHECK(resolved != nullptr);
-  DCHECK(resolved->IsResolved()) << resolved->GetStatus();
-  // TODO default transaction support.
-  // Use a release store for SetResolvedType. This is done to prevent other threads from seeing a
-  // class but not necessarily seeing the loaded members like the static fields array.
-  // See b/32075261.
-  SetResolvedTypesEntry(type_idx.index_, resolved.Ptr());
-  // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
-  WriteBarrier::ForEveryFieldWrite(this);
-}
-
 inline void DexCache::ClearResolvedType(dex::TypeIndex type_idx) {
   DCHECK(Runtime::Current()->IsAotCompiler());
   auto* array = GetResolvedTypesArray();

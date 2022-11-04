@@ -18,6 +18,6 @@
 def run(ctx, args):
   ctx.default_run(args, jvmti=True)
 
-  # Art sends events for park/unpark, and the RI doesn't. Remove it from the expected output.
+  # Art sends events for park/unpark, and the RI doesn't.
   if args.jvm:
-    ctx.run(fr"patch -p0 expected-stdout.txt < jvm-expected.patch >/dev/null")
+    ctx.expected_stdout = ctx.expected_stdout.with_suffix(".jvm.txt")
