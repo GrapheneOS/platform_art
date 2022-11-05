@@ -1738,6 +1738,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     ret
 
 .Lcall_method_exit_hook:
+    movl LITERAL(FRAME_SIZE_SAVE_REFS_AND_ARGS), %ebx
     call art_quick_method_exit_hook
     jmp .Lcall_method_exit_hook_done
 
@@ -2363,25 +2364,29 @@ DEFINE_FUNCTION art_quick_method_entry_hook
 END_FUNCTION art_quick_method_entry_hook
 
 DEFINE_FUNCTION art_quick_method_exit_hook
-    SETUP_SAVE_EVERYTHING_FRAME ebx
+    PUSH edi
+    SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED edi
 
-    mov FRAME_SIZE_SAVE_EVERYTHING(%esp), %ebx // Remember ArtMethod*
-    subl LITERAL(8), %esp                      // Align stack.
-    CFI_ADJUST_CFA_OFFSET(8)
+    leal FRAME_SIZE_SAVE_EVERYTHING(%esp), %edi // Remember ArtMethod**
+    subl LITERAL(4), %esp                      // Align stack.
+    CFI_ADJUST_CFA_OFFSET(4)
+
     PUSH_ARG edx                   // Save gpr return value. edx and eax need to be together
                                    // which isn't the case in kSaveEverything frame.
     PUSH_ARG eax
     movl %esp, %edx                // Get pointer to gpr_result
-    leal 32(%esp), %eax            // Get pointer to fpr_result, in kSaveEverything frame
+    leal 28(%esp), %eax            // Get pointer to fpr_result, in kSaveEverything frame
+    PUSH_ARG ebx                   // push frame_size
     PUSH_ARG eax                   // Pass fpr_result
     PUSH_ARG edx                   // Pass gpr_result
-    PUSH_ARG ebx                   // Pass ArtMethod*
+    PUSH_ARG edi                   // Pass ArtMethod**
     pushl %fs:THREAD_SELF_OFFSET   // Pass Thread::Current.
     CFI_ADJUST_CFA_OFFSET(4)
-    call SYMBOL(artMethodExitHook) // (Thread*, ArtMethod*, gpr_result*, fpr_result*)
+    call SYMBOL(artMethodExitHook) // (Thread*, ArtMethod**, gpr_result*, fpr_result*,
+                                   // frame_size)
 
     // Return result could have been changed if it's a reference.
-    movl 16(%esp), %ecx
+    movl 20(%esp), %ecx
     movl %ecx, (80+32)(%esp)
     addl LITERAL(32), %esp         // Pop arguments and grp_result.
     CFI_ADJUST_CFA_OFFSET(-32)
@@ -2390,6 +2395,3 @@ DEFINE_FUNCTION art_quick_method_exit_hook
     RESTORE_SAVE_EVERYTHING_FRAME
     ret
 END_FUNCTION art_quick_method_exit_hook
-
-
-

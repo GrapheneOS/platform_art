@@ -643,6 +643,12 @@ void Arm64JNIMacroAssembler::Move(ManagedRegister m_dst, ManagedRegister m_src, 
   }
 }
 
+void Arm64JNIMacroAssembler::Move(ManagedRegister m_dst, size_t value) {
+  Arm64ManagedRegister dst = m_dst.AsArm64();
+  DCHECK(dst.IsXRegister());
+  ___ Mov(reg_x(dst.AsXRegister()), value);
+}
+
 void Arm64JNIMacroAssembler::CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset64 tr_offs) {
   UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
   Register scratch = temps.AcquireX();

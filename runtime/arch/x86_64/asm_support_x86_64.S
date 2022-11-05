@@ -485,11 +485,10 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
 END_MACRO
 
 MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
-    movq %gs:THREAD_EXCEPTION_OFFSET, %rcx // get exception field
-    testq %rcx, %rcx               // rcx == 0 ?
-    jnz 1f                         // if rcx != 0 goto 1
-    ret                            // return
-1:                                 // deliver exception on current thread
+    cmpq MACRO_LITERAL(0), %gs:THREAD_EXCEPTION_OFFSET  // compare exception field with 0
+    jne 1f                                              // if exception != 0 goto 1
+    ret                                                 // return
+1:                                                      // deliver exception on current thread
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 

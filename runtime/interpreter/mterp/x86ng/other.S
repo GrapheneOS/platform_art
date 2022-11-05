@@ -53,7 +53,7 @@
    jmp 1b
 
 %def op_const_class():
-%  op_const_object(jumbo="0", helper="nterp_get_class_or_allocate_object")
+%  op_const_object(jumbo="0", helper="nterp_get_class")
 
 %def op_const_method_handle():
 %  op_const_object(jumbo="0")

@@ -35,6 +35,7 @@ class Arm64ManagedRuntimeCallingConvention final : public ManagedRuntimeCallingC
   ManagedRegister ReturnRegister() const override;
   // Managed runtime calling convention
   ManagedRegister MethodRegister() override;
+  ManagedRegister ArgumentRegisterForMethodExitHook() override;
   bool IsCurrentParamInRegister() override;
   bool IsCurrentParamOnStack() override;
   ManagedRegister CurrentParamRegister() override;
