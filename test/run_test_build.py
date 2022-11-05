@@ -26,8 +26,10 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
+
 from argparse import ArgumentParser
 from fcntl import lockf, LOCK_EX, LOCK_NB
 from importlib.machinery import SourceFileLoader
@@ -36,45 +38,44 @@ from multiprocessing.pool import ApplyResult
 from os import environ, getcwd, chdir, cpu_count, remove, path
 from os.path import join, basename
 from pathlib import Path
+from pprint import pprint
 from re import match
 from shutil import copytree, rmtree
 from subprocess import run
-from typing import Dict
+from typing import Dict, List, Union
 
 USE_RBE_FOR_JAVAC = 100    # Percentage of tests that can use RBE (between 0 and 100)
 USE_RBE_FOR_D8 = 100       # Percentage of tests that can use RBE (between 0 and 100)
-ZIP = "prebuilts/build-tools/linux-x86/bin/soong_zip"
 
 lock_file = None  # Keep alive as long as this process is alive.
 
 
 class BuildTestContext:
-  def __init__(self, args, build_top, sbox, test_name, test_dir):
-    self.test_dir = test_dir
+  def __init__(self, args, test_dir):
+    self.test_name = test_dir.name
+    self.test_dir = test_dir.absolute()
     self.mode = args.mode
     self.jvm = (self.mode == "jvm")
     self.host = (self.mode == "host")
     self.target = (self.mode == "target")
     assert self.jvm or self.host or self.target
 
-    java_home = os.environ.get("JAVA_HOME")
-    tools_dir = os.path.abspath(join(os.path.dirname(__file__), "../../../out/bin"))
-    self.android_build_top = build_top
-    self.art_test_run_test_bootclasspath = join(build_top, args.bootclasspath)
-    self.d8 = join(tools_dir, "d8")
-    self.d8_flags = []
-    self.hiddenapi = join(tools_dir, "hiddenapi")
-    self.jasmin = join(tools_dir, "jasmin")
-    self.java = join(java_home, "bin/java")
-    self.javac = join(java_home, "bin/javac")
+    self.android_build_top = Path(getcwd())
+    self.tmp_dir = args.out.parent.absolute()
+
+    self.java_home = Path(os.environ.get("JAVA_HOME"))
+    self.java = self.java_home / "bin/java"
+    self.javac = self.java_home / "bin/javac"
     self.javac_args = "-g -Xlint:-options -source 1.8 -target 1.8"
+
+    self.bootclasspath = args.bootclasspath.absolute()
+    self.d8 = args.d8.absolute()
+    self.hiddenapi = args.hiddenapi.absolute()
+    self.jasmin = args.jasmin.absolute()
     self.need_dex = (self.host or self.target)
-    self.sbox_path = sbox
-    self.smali = join(tools_dir, "smali")
-    self.smali_flags = []
-    self.soong_zip = join(build_top, "prebuilts/build-tools/linux-x86/bin/soong_zip")
-    self.test_name = test_name
-    self.zipalign = join(build_top, "prebuilts/build-tools/linux-x86/bin/zipalign")
+    self.smali = args.smali.absolute()
+    self.soong_zip = args.soong_zip.absolute()
+    self.zipalign = args.zipalign.absolute()
 
     # Minimal environment needed for bash commands that we execute.
     self.bash_env = {
@@ -83,7 +84,7 @@ class BuildTestContext:
       "JAVA": self.java,
       "JAVAC": self.javac,
       "JAVAC_ARGS": self.javac_args,
-      "JAVA_HOME": java_home,
+      "JAVA_HOME": self.java_home,
       "PATH": os.environ["PATH"],
       "PYTHONDONTWRITEBYTECODE": "1",
       "SMALI": self.smali,
@@ -122,14 +123,13 @@ def default_build(
   ):
 
   ANDROID_BUILD_TOP = ctx.android_build_top
-  SBOX_PATH = ctx.sbox_path
   CWD = os.getcwd()
   TEST_NAME = ctx.test_name
-  ART_TEST_RUN_TEST_BOOTCLASSPATH = path.relpath(ctx.art_test_run_test_bootclasspath, CWD)
+  ART_TEST_RUN_TEST_BOOTCLASSPATH = path.relpath(ctx.bootclasspath, CWD)
   NEED_DEX = ctx.need_dex if need_dex is None else need_dex
 
   RBE_exec_root = os.environ.get("RBE_exec_root")
-  RBE_rewrapper = path.join(ANDROID_BUILD_TOP, "prebuilts/remoteexecution-client/live/rewrapper")
+  RBE_rewrapper = ctx.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
 
   # Set default values for directories.
   HAS_SMALI = path.exists("smali") if has_smali is None else has_smali
@@ -148,8 +148,8 @@ def default_build(
   HAS_HIDDENAPI_SPEC = path.exists("hiddenapi-flags.csv")
 
   JAVAC_ARGS = shlex.split(ctx.javac_args) + javac_args
-  SMALI_ARGS = ctx.smali_flags + smali_args
-  D8_FLAGS = ctx.d8_flags + d8_flags
+  SMALI_ARGS = smali_args.copy()
+  D8_FLAGS = d8_flags.copy()
 
   BUILD_MODE = ctx.mode
 
@@ -177,20 +177,23 @@ def default_build(
   SMALI_ARGS.extend(["--api", str(api_level)])
   D8_FLAGS.extend(["--min-api", str(api_level)])
 
-  def run(executable, args):
-    cmd = shlex.split(executable) + args
-    if executable.endswith(".sh"):
-      cmd = ["/bin/bash"] + cmd
+  def run(executable: Path, args: List[str]):
+    assert isinstance(executable, Path), executable
+    cmd: List[Union[Path, str]] = []
+    if executable.suffix == ".sh":
+      cmd += ["/bin/bash"]
+    cmd += [executable]
+    cmd += args
     env = ctx.bash_env
     env.update({k: v for k, v in os.environ.items() if k.startswith("RBE_")})
     p = subprocess.run(cmd,
-                       encoding=os.sys.stdout.encoding,
+                       encoding=sys.stdout.encoding,
                        env=ctx.bash_env,
                        stderr=subprocess.STDOUT,
                        stdout=subprocess.PIPE)
     if p.returncode != 0:
       raise Exception("Command failed with exit code {}\n$ {}\n{}".format(
-                      p.returncode, " ".join(cmd), p.stdout))
+                      p.returncode, " ".join(map(str, cmd)), p.stdout))
     return p
 
 
@@ -208,8 +211,9 @@ def default_build(
     assert version, "Could not parse RBE version"
     assert tuple(map(int, version.groups())) >= (0, 76, 0), "Please update " + RBE_rewrapper
 
-    def rbe_wrap(args, inputs=set()):
-      with tempfile.NamedTemporaryFile(mode="w+t", dir=RBE_exec_root) as input_list:
+    def rbe_wrap(args, inputs=None):
+      inputs = inputs or set()
+      with tempfile.NamedTemporaryFile(mode="w+t", dir=ctx.tmp_dir) as input_list:
         for arg in args:
           inputs.update(filter(path.exists, arg.split(":")))
         input_list.writelines([path.relpath(i, RBE_exec_root)+"\n" for i in inputs])
@@ -229,7 +233,7 @@ def default_build(
 
     if USE_RBE_FOR_D8 > (hash(TEST_NAME) % 100):  # Use for given percentage of tests.
       def d8(args):
-        inputs = set([path.join(SBOX_PATH, "tools/out/framework/d8.jar")])
+        inputs = set([ctx.d8.parent.parent / "framework/d8.jar"])
         output = path.relpath(path.join(CWD, args[args.index("--output") + 1]), RBE_exec_root)
         return rbe_wrap([
           "--output_files" if output.endswith(".jar") else "--output_directories", output,
@@ -237,8 +241,9 @@ def default_build(
           os.path.relpath(ctx.d8, CWD)] + args, inputs)
 
   # If wrapper script exists, use it instead of the default javac.
-  if os.path.exists("javac_wrapper.sh"):
-    javac = functools.partial(run, "javac_wrapper.sh")
+  javac_wrapper = ctx.test_dir / "javac_wrapper.sh"
+  if javac_wrapper.exists():
+    javac = functools.partial(run, javac_wrapper)
 
   def find(root, name):
     return sorted(glob.glob(path.join(root, "**", name), recursive=True))
@@ -254,7 +259,7 @@ def default_build(
 
     if zip_align_bytes:
       # zipalign does not operate in-place, so write results to a temp file.
-      with tempfile.TemporaryDirectory(dir=".") as tmp_dir:
+      with tempfile.TemporaryDirectory(dir=ctx.tmp_dir) as tmp_dir:
         tmp_file = path.join(tmp_dir, "aligned.zip")
         zipalign(["-f", str(zip_align_bytes), zip_target, tmp_file])
         # replace original zip target with our temp file.
@@ -290,7 +295,7 @@ def default_build(
     # D8 outputs to JAR files today rather than DEX files as DX used
     # to. To compensate, we extract the DEX from d8's output to meet the
     # expectations of make_dex callers.
-    with tempfile.TemporaryDirectory(dir=".") as tmp_dir:
+    with tempfile.TemporaryDirectory(dir=ctx.tmp_dir) as tmp_dir:
       zipfile.ZipFile(d8_output, "r").extractall(tmp_dir)
       os.rename(path.join(tmp_dir, "classes.dex"), dex_output)
 
@@ -548,27 +553,27 @@ def use_multiprocessing(mode: str) -> bool:
 
 def main() -> None:
   parser = ArgumentParser(description=__doc__)
-  parser.add_argument(
-      "--out", help="Path of the generated ZIP file with the build data")
+  parser.add_argument("--out", type=Path, help="Final zip file")
   parser.add_argument("--mode", choices=["host", "jvm", "target"])
-  parser.add_argument(
-      "--bootclasspath", help="JAR files used for javac compilation")
-  parser.add_argument("srcs", nargs="+", help="glob of test directories to compile")
+  parser.add_argument("--bootclasspath", type=Path)
+  parser.add_argument("--d8", type=Path)
+  parser.add_argument("--hiddenapi", type=Path)
+  parser.add_argument("--jasmin", type=Path)
+  parser.add_argument("--smali", type=Path)
+  parser.add_argument("--soong_zip", type=Path)
+  parser.add_argument("--zipalign", type=Path)
+  parser.add_argument("srcs", nargs="+", type=Path)
   args = parser.parse_args()
 
-  build_top = Path(getcwd())
-  sbox = Path(__file__).absolute().parent.parent.parent.parent.parent
-  assert sbox.parent.name == "sbox" and len(sbox.name) == 40
-
-  ziproot = sbox / "zip"
-  srcdirs = set(Path(s).parents[-4] for s in args.srcs)  # The test directories.
+  ziproot = Path(args.out).parent / "zip"
+  srcdirs = set(s.parents[-4] for s in args.srcs)
   dstdirs = [copy_sources(args, ziproot, args.mode, s) for s in srcdirs]
 
   # Use multiprocessing (i.e. forking) since tests modify their current working directory.
   with Pool(cpu_count() if use_multiprocessing(args.mode) else 1) as pool:
     jobs: Dict[Path, ApplyResult] = {}
     for dstdir in dstdirs:
-      ctx = BuildTestContext(args, build_top, sbox, dstdir.name, dstdir)
+      ctx = BuildTestContext(args, dstdir)
       jobs[dstdir] = pool.apply_async(build_test, (ctx,))
     for dstdir, job in jobs.items():
       try:
@@ -577,7 +582,7 @@ def main() -> None:
         raise Exception("Failed to build " + dstdir.name) from e.__cause__
 
   # Create the final zip file which contains the content of the temporary directory.
-  proc = run([ZIP, "-o", args.out, "-C", ziproot, "-D", ziproot], check=True)
+  proc = run([args.soong_zip, "-o", args.out, "-C", ziproot, "-D", ziproot], check=True)
 
 
 if __name__ == "__main__":
