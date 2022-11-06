@@ -689,6 +689,7 @@ static JniCompiledMethod ArtJniCompileMethodInternal(const CompilerOptions& comp
     // Method exit hooks is called just before tearing down the frame. So there are no live
     // registers and we can directly call the method exit hook and don't need a Jni specific
     // entrypoint.
+    __ Move(mr_conv->ArgumentRegisterForMethodExitHook(), managed_frame_size);
     __ CallFromThread(QUICK_ENTRYPOINT_OFFSET(kPointerSize, pMethodExitHook));
     __ Jump(method_exit_hook_return.get());
   }

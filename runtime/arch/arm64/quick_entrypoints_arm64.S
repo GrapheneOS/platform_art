@@ -1915,6 +1915,7 @@ ENTRY art_quick_generic_jni_trampoline
 
 .Lcall_method_exit_hook:
     fmov d0, x0
+    mov x4, FRAME_SIZE_SAVE_REFS_AND_ARGS
     bl art_quick_method_exit_hook
     b .Lcall_method_exit_hook_done
 
@@ -2677,15 +2678,16 @@ END art_quick_method_entry_hook
 ENTRY art_quick_method_exit_hook
     SETUP_SAVE_EVERYTHING_FRAME
 
+    // frame_size is passed from JITed code in x4
     add x3, sp, #16                           // floating-point result ptr in kSaveEverything frame
     add x2, sp, #272                          // integer result ptr in kSaveEverything frame
-    ldr x1, [sp, #FRAME_SIZE_SAVE_EVERYTHING] // ArtMethod*
+    add x1, sp, #FRAME_SIZE_SAVE_EVERYTHING   // ArtMethod**
     mov x0, xSELF                             // Thread::Current
-    bl  artMethodExitHook                     // (Thread*, ArtMethod*, gpr_res*, fpr_res*)
+    bl  artMethodExitHook                     // (Thread*, ArtMethod**, gpr_res*, fpr_res*,
+                                              // frame_size)
 
     // Normal return.
     RESTORE_SAVE_EVERYTHING_FRAME
     REFRESH_MARKING_REGISTER
     ret
 END art_quick_method_exit_hook
-
