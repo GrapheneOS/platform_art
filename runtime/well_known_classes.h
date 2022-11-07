@@ -102,7 +102,6 @@ struct WellKnownClasses {
   static jclass libcore_util_EmptyArray;
 
   static jmethodID dalvik_system_BaseDexClassLoader_getLdLibraryPath;
-  static jmethodID dalvik_system_VMRuntime_runFinalization;
   static jmethodID dalvik_system_VMRuntime_hiddenApiUsed;
   static ArtMethod* java_lang_Boolean_valueOf;
   static ArtMethod* java_lang_Byte_valueOf;

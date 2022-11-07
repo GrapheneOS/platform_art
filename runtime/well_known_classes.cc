@@ -90,7 +90,6 @@ jclass WellKnownClasses::libcore_reflect_AnnotationMember;
 jclass WellKnownClasses::libcore_util_EmptyArray;
 
 jmethodID WellKnownClasses::dalvik_system_BaseDexClassLoader_getLdLibraryPath;
-jmethodID WellKnownClasses::dalvik_system_VMRuntime_runFinalization;
 jmethodID WellKnownClasses::dalvik_system_VMRuntime_hiddenApiUsed;
 ArtMethod* WellKnownClasses::java_lang_Boolean_valueOf;
 ArtMethod* WellKnownClasses::java_lang_Byte_valueOf;
@@ -443,7 +442,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       CachePrimitiveBoxingMethod(class_linker, self, 'S', "Ljava/lang/Short;");
 
   dalvik_system_BaseDexClassLoader_getLdLibraryPath = CacheMethod(env, dalvik_system_BaseDexClassLoader, false, "getLdLibraryPath", "()Ljava/lang/String;");
-  dalvik_system_VMRuntime_runFinalization = CacheMethod(env, dalvik_system_VMRuntime, true, "runFinalization", "(J)V");
   dalvik_system_VMRuntime_hiddenApiUsed = CacheMethod(env, dalvik_system_VMRuntime, true, "hiddenApiUsed", "(ILjava/lang/String;Ljava/lang/String;IZ)V");
 
   java_lang_ClassNotFoundException_init = CacheMethod(env, java_lang_ClassNotFoundException, false, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
@@ -678,7 +676,6 @@ void WellKnownClasses::Clear() {
   libcore_util_EmptyArray = nullptr;
 
   dalvik_system_BaseDexClassLoader_getLdLibraryPath = nullptr;
-  dalvik_system_VMRuntime_runFinalization = nullptr;
   dalvik_system_VMRuntime_hiddenApiUsed = nullptr;
   java_io_FileDescriptor_descriptor = nullptr;
   java_lang_Boolean_valueOf = nullptr;
