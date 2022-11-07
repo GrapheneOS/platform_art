@@ -170,7 +170,6 @@ TEST_F(ExceptionTest, FindCatchHandler) {
 }
 
 TEST_F(ExceptionTest, StackTraceElement) {
-  SKIP_WITH_HWASAN;  // TODO(b/230392320): re-enable with HWASan once fixed.
   Thread* thread = Thread::Current();
   thread->TransitionFromSuspendedToRunnable();
   bool started = runtime_->Start();
@@ -197,13 +196,22 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
   OatQuickMethodHeader* header = OatQuickMethodHeader::FromEntryPoint(
       method_g_->GetEntryPointFromQuickCompiledCode());
-  fake_stack.push_back(header->ToNativeQuickPc(method_g_, kDexPc));  // return pc
+  // Untag native pc when running with hwasan since the pcs on the stack aren't tagged and we use
+  // this to create a fake stack. See OatQuickMethodHeader::Contains where we untag code pointers
+  // before comparing it with the PC from the stack.
+  uintptr_t native_pc = header->ToNativeQuickPc(method_g_, kDexPc);
+  if (running_with_hwasan()) {
+    // TODO(228989263): Use HWASanUntag once we have a hwasan target for tests too. HWASanUntag
+    // uses static checks which won't work if we don't have a dedicated target.
+    native_pc = (native_pc & ((1ULL << 56) - 1));
+  }
+  fake_stack.push_back(native_pc);  // return pc
 
   // Create/push fake 16byte stack frame for method g
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
   fake_stack.push_back(0);
   fake_stack.push_back(0);
-  fake_stack.push_back(header->ToNativeQuickPc(method_g_, kDexPc));  // return pc
+  fake_stack.push_back(native_pc);  // return pc.
 
   // Create/push fake 16byte stack frame for method f
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
