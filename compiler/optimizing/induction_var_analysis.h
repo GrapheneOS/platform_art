@@ -21,11 +21,12 @@
 
 #include "base/arena_containers.h"
 #include "base/array_ref.h"
+#include "base/macros.h"
 #include "base/scoped_arena_containers.h"
 #include "nodes.h"
 #include "optimization.h"
 
-namespace art {
+namespace art HIDDEN {
 
 /**
  * Induction variable analysis. This class does not have a direct public API.

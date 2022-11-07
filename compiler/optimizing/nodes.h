@@ -29,6 +29,7 @@
 #include "base/array_ref.h"
 #include "base/intrusive_forward_list.h"
 #include "base/iteration_range.h"
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "base/quasi_atomic.h"
 #include "base/stl_util.h"
@@ -51,7 +52,7 @@
 #include "mirror/method_type.h"
 #include "offsets.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class ArenaStack;
 class CodeGenerator;
@@ -8456,7 +8457,7 @@ class HIntermediateAddress final : public HExpression<2> {
 #include "nodes_x86.h"
 #endif
 
-namespace art {
+namespace art HIDDEN {
 
 class OptimizingCompilerStats;
 

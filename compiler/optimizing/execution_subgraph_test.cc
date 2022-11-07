@@ -37,7 +37,7 @@
 #include "optimizing_unit_test.h"
 #include "scoped_thread_state_change.h"
 
-namespace art {
+namespace art HIDDEN {
 
 using BlockSet = std::unordered_set<const HBasicBlock*>;
 
