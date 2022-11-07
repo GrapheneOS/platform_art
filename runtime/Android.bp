@@ -82,14 +82,8 @@ cc_library_headers {
     // ART's macros.h depends on libbase's macros.h.
     // Note: runtime_options.h depends on cmdline. But we don't really want to export this
     //       generically. dex2oat takes care of it itself.
-    header_libs: [
-        "art_libartbase_headers",
-        "dlmalloc",
-    ],
-    export_header_lib_headers: [
-        "art_libartbase_headers",
-        "dlmalloc",
-    ],
+    header_libs: ["art_libartbase_headers"],
+    export_header_lib_headers: ["art_libartbase_headers"],
 
     // We optimize Thread::Current() with a direct TLS access. This requires
     // access to a platform specific Bionic header.
@@ -110,82 +104,10 @@ cc_library_headers {
     ],
 }
 
-// cpp-define-generator-asm-support depends on libart_headers through "asm_defines.s"
-// This is a separate header lib to avoid circular dependency
-cc_library_headers {
-    name: "libart_generated_headers",
+libart_cc_defaults {
+    name: "libart_defaults",
     defaults: ["art_defaults"],
     host_supported: true,
-
-    // asm_support_gen.h (used by asm_support.h) is generated with cpp-define-generator
-    generated_headers: ["cpp-define-generator-asm-support"],
-    // export our headers so the libart(d)-gtest targets can use it as well.
-    export_generated_headers: ["cpp-define-generator-asm-support"],
-
-    apex_available: [
-        "com.android.art",
-        "com.android.art.debug",
-    ],
-}
-
-// Common defaults for libart-runtime_defaults and libart_defaults
-libart_cc_defaults {
-    name: "libart_common_defaults",
-    defaults: ["art_defaults"],
-    host_supported: true,
-    target: {
-        android: {
-            header_libs: [
-                "libnativeloader-headers", // For dlext_namespaces.h
-            ],
-            shared_libs: [
-                "libdl_android",
-                "libstatssocket",
-                "libz", // For adler32.
-                "heapprofd_client_api",
-            ],
-            static_libs: [
-                "libstatslog_art",
-            ],
-        },
-        host: {
-            shared_libs: [
-                "libz", // For adler32.
-            ],
-        },
-    },
-    header_libs: [
-        "art_cmdlineparser_headers",
-        "cpp-define-generator-definitions",
-        "dlmalloc",
-        "jni_platform_headers",
-        "libart-compiler_jit_headers",
-        "libart_generated_headers",
-        "libart_headers",
-        "libnativehelper_header_only",
-    ],
-    export_header_lib_headers: [
-        "dlmalloc",
-        "libart_generated_headers",
-        "libart_headers",
-    ],
-    shared_libs: [
-        "libartpalette",
-        "libbase", // For common macros.
-        "liblog",
-        "liblz4",
-        "liblzma", // libelffile(d) dependency; must be repeated here since it's a static lib.
-        "libnativebridge",
-        "libnativeloader",
-        "libsigchain",
-        "libunwindstack",
-    ],
-    static_libs: ["libodrstatslog"],
-}
-
-libart_cc_defaults {
-    name: "libart-runtime_defaults",
-    defaults: ["libart_common_defaults"],
     srcs: [
         "app_info.cc",
         "aot_class_linker.cc",
@@ -491,9 +413,33 @@ libart_cc_defaults {
                 "thread_android.cc",
                 "metrics/statsd.cc",
             ],
+            header_libs: [
+                "libnativeloader-headers", // For dlext_namespaces.h
+            ],
+            shared_libs: [
+                "libdl_android",
+                "libstatssocket",
+                "libz", // For adler32.
+                "heapprofd_client_api",
+            ],
+            static_libs: [
+                "libstatslog_art",
+            ],
             generated_sources: [
                 "apex-info-list-tinyxml",
             ],
+        },
+        android_arm: {
+            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
+        },
+        android_arm64: {
+            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
+        },
+        android_x86: {
+            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
+        },
+        android_x86_64: {
+            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
         },
         host: {
             srcs: [
@@ -505,15 +451,59 @@ libart_cc_defaults {
                 "-fsanitize-address-use-after-return=never",
                 "-Wno-unused-command-line-argument",
             ],
+            shared_libs: [
+                "libz", // For adler32.
+            ],
         },
     },
 
     generated_sources: [
         "art_operator_srcs",
     ],
+    // asm_support_gen.h (used by asm_support.h) is generated with cpp-define-generator
+    generated_headers: ["cpp-define-generator-asm-support"],
+    // export our headers so the libart(d)-gtest targets can use it as well.
+    export_generated_headers: ["cpp-define-generator-asm-support"],
 
+    header_libs: [
+        "art_cmdlineparser_headers",
+        "cpp-define-generator-definitions",
+        "dlmalloc",
+        "jni_platform_headers",
+        "libart_headers",
+        "libnativehelper_header_only",
+    ],
+    export_header_lib_headers: [
+        "dlmalloc",
+        "libart_headers",
+    ],
     whole_static_libs: [
         "libcpu_features",
+    ],
+    shared_libs: [
+        "libartpalette",
+        "libbase", // For common macros.
+        "liblog",
+        "liblz4",
+        "liblzma", // libelffile(d) dependency; must be repeated here since it's a static lib.
+        "libnativebridge",
+        "libnativeloader",
+        "libsigchain",
+        "libunwindstack",
+    ],
+    static_libs: ["libodrstatslog"],
+
+    runtime_libs: [
+        // Libraries loaded at runtime. Exceptions:
+        // - libart(d)-compiler.so and libopenjdk(d).so cannot be listed here
+        //   due to cyclic dependency.
+        // - libicu_jni.so is only loaded to handle dependency order in VM
+        //   startup (see Runtime::InitNativeMethods), but its API is internal
+        //   to com.android.i18n and not used by ART/libcore. Therefore it's not
+        //   listed here to avoid visibility issues. Instead it's linked from
+        //   the ART module namespace through an entry in requireNativeLibs in
+        //   manifest-art.json.
+        "libjavacore",
     ],
 }
 
@@ -550,7 +540,6 @@ libart_static_cc_defaults {
 cc_defaults {
     name: "libart_static_defaults",
     defaults: [
-        "libart-compiler_static_defaults",
         "libart_static_base_defaults",
         "libartbase_static_defaults",
         "libdexfile_static_defaults",
@@ -568,7 +557,6 @@ cc_defaults {
     defaults: [
         "libart_static_base_defaults",
         "libartbased_static_defaults",
-        "libartd-compiler_static_defaults",
         "libdexfiled_static_defaults",
         "libdexfiled_support_static_defaults",
         "libprofiled_static_defaults",
@@ -619,13 +607,15 @@ gensrcs {
 // We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
 // they are used to cross compile for the target.
 
-// Properties common to `libart-runtime` and `libart-runtime-broken`.
+// Properties common to `libart` and `libart-broken`.
 art_cc_defaults {
-    name: "libart-runtime_common_defaults",
+    name: "libart_common_defaults",
     defaults: [
-        "art_hugepage_defaults",
-        "libart-runtime_defaults",
+        "libart_defaults",
         "libart_nativeunwind_defaults",
+        "art_hugepage_defaults",
+    ],
+    whole_static_libs: [
     ],
     static_libs: [
         "libelffile",
@@ -647,12 +637,10 @@ art_cc_defaults {
     },
 }
 
-// `libart-runtime` is runtime-only side of `libart` (without compiler)
-// It doesn't have a source-level dependency on `libart-compiler`, except for the headers
-// required to load JIT
-art_cc_library_static {
-    name: "libart-runtime",
-    defaults: ["libart-runtime_common_defaults"],
+// Release version of the ART runtime library.
+art_cc_library {
+    name: "libart",
+    defaults: ["libart_common_defaults"],
     apex_available: [
         "com.android.art",
         "com.android.art.debug",
@@ -660,87 +648,26 @@ art_cc_library_static {
     afdo: true,
 }
 
-libart_cc_defaults {
-    name: "libart_defaults",
+// "Broken" version of the ART runtime library, used only for testing.
+art_cc_test_library {
+    name: "libart-broken",
     defaults: ["libart_common_defaults"],
-    target: {
-        android_arm: {
-            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
-        },
-        android_arm64: {
-            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
-        },
-        android_x86: {
-            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
-        },
-        android_x86_64: {
-            ldflags: JIT_DEBUG_REGISTER_CODE_LDFLAGS,
-        },
-    },
-    runtime_libs: [
-        // Libraries loaded at runtime. Exceptions:
-        // - libopenjdk(d).so cannot be listed here due to cyclic dependency.
-        // - libicu_jni.so is only loaded to handle dependency order in VM
-        //   startup (see Runtime::InitNativeMethods), but its API is internal
-        //   to com.android.i18n and not used by ART/libcore. Therefore it's not
-        //   listed here to avoid visibility issues. Instead it's linked from
-        //   the ART module namespace through an entry in requireNativeLibs in
-        //   manifest-art.json.
-        "libjavacore",
-    ],
-}
-
-// Release version of the ART runtime library.
-art_cc_library {
-    name: "libart",
-    defaults: [
-        "libart-compiler_dependencies",
-        "libart_defaults",
-    ],
-    // `libart-runtime` and `libart-compiler` are built separately because they use different
-    // optimization profiles (AFDO and PGO respectively), which can't be combined
-    whole_static_libs: [
-        "libart-runtime",
-        "libart-compiler",
-    ],
-    apex_available: [
-        "com.android.art",
-        "com.android.art.debug",
-    ],
-}
-
-art_cc_library_static {
-    name: "libart-runtime-broken",
-    defaults: ["libart-runtime_common_defaults"],
+    stem: "libart",
+    gtest: false,
     cflags: ["-DART_CRASH_RUNTIME_DELIBERATELY"],
     apex_available: [
         "test_broken_com.android.art",
     ],
 }
 
-// "Broken" version of the ART runtime library, used only for testing.
-art_cc_test_library {
-    name: "libart-broken",
-    defaults: [
-        "libart-compiler_dependencies",
-        "libart_defaults",
-    ],
-    stem: "libart",
-    gtest: false,
-    whole_static_libs: [
-        "libart-runtime-broken",
-        "libart-compiler",
-    ],
-    apex_available: [
-        "test_broken_com.android.art",
-    ],
-}
-
-art_cc_library_static {
-    name: "libartd-runtime",
+// Debug version of the ART runtime library.
+art_cc_library {
+    name: "libartd",
     defaults: [
         "art_debug_defaults",
-        "libart-runtime_defaults",
+        "libart_defaults",
+    ],
+    whole_static_libs: [
     ],
     static_libs: [
         "libelffiled",
@@ -752,24 +679,6 @@ art_cc_library_static {
     ],
     export_shared_lib_headers: [
         "libdexfiled",
-    ],
-    apex_available: [
-        "com.android.art.debug",
-        "com.android.art",
-    ],
-}
-
-// Debug version of the ART runtime library.
-art_cc_library {
-    name: "libartd",
-    defaults: [
-        "art_debug_defaults",
-        "libart_defaults",
-        "libartd-compiler_dependencies",
-    ],
-    whole_static_libs: [
-        "libartd-compiler",
-        "libartd-runtime",
     ],
     apex_available: [
         "com.android.art.debug",

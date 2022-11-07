@@ -411,6 +411,7 @@ LOCAL_REQUIRED_MODULES := \
     $(call art_module_lib,dex2oat) \
     $(call art_module_lib,dexoptanalyzer) \
     $(call art_module_lib,libart) \
+    $(call art_module_lib,libart-compiler) \
     $(call art_module_lib,libopenjdkjvm) \
     $(call art_module_lib,libopenjdkjvmti) \
     $(call art_module_lib,odrefresh) \
@@ -433,6 +434,7 @@ LOCAL_REQUIRED_MODULES += \
     $(call art_module_debug_lib,dex2oatd) \
     $(call art_module_debug_lib,dexoptanalyzerd) \
     $(call art_module_debug_lib,libartd) \
+    $(call art_module_debug_lib,libartd-compiler) \
     $(call art_module_debug_lib,libopenjdkd) \
     $(call art_module_debug_lib,libopenjdkjvmd) \
     $(call art_module_debug_lib,libopenjdkjvmtid) \
@@ -514,6 +516,7 @@ PRIVATE_ART_APEX_DEPENDENCY_LIBS := \
   lib/libadbconnection.so \
   lib/libandroidio.so \
   lib/libartbase.so \
+  lib/libart-compiler.so \
   lib/libart-dexlayout.so \
   lib/libart-disassembler.so \
   lib/libartpalette.so \
@@ -542,6 +545,7 @@ PRIVATE_ART_APEX_DEPENDENCY_LIBS := \
   lib64/libadbconnection.so \
   lib64/libandroidio.so \
   lib64/libartbase.so \
+  lib64/libart-compiler.so \
   lib64/libart-dexlayout.so \
   lib64/libart-disassembler.so \
   lib64/libartpalette.so \
