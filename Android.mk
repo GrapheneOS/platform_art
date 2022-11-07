@@ -625,7 +625,10 @@ define extract-from-apex
     rm -rf $$apex_dir && \
     mkdir -p $$apex_dir && \
     debugfs=$(HOST_OUT)/bin/debugfs_static && \
-    $(HOST_OUT)/bin/deapexer --debugfs_path $$debugfs extract $$apex_file $$apex_dir; \
+    blkid=$(HOST_OUT)/bin/blkid && \
+    fsckerofs=$(HOST_OUT)/bin/fsck.erofs && \
+    $(HOST_OUT)/bin/deapexer --debugfs_path $$debugfs --blkid_path $$blkid \
+		--fsckerofs_path $$fsckerofs extract $$apex_file $$apex_dir; \
   fi && \
   for f in $(2); do \
     sf=$$apex_dir/$$f && \
