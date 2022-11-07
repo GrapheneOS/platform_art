@@ -58,7 +58,6 @@ art_runtime_base_native_shared_libs_minus_libart = [
     "libadbconnection",
     // TODO(b/124476339): Clean up the following libraries once "required"
     // dependencies work with APEX libraries.
-    "libart-compiler",
     "libdt_fd_forward",
     "libdt_socket",
     "libjdwp",
@@ -107,7 +106,6 @@ art_runtime_debug_binaries_both_on_device_first_on_host = [
 art_runtime_debug_native_shared_libs = [
     "libadbconnectiond",
     "libartd",
-    "libartd-compiler",
     "libdexfiled",
     "libopenjdkjvmd",
     "libopenjdkjvmtid",

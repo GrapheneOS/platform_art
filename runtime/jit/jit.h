@@ -475,10 +475,7 @@ class Jit {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // JIT compiler
-  static void* jit_library_handle_;
   static JitCompilerInterface* jit_compiler_;
-  static JitCompilerInterface* (*jit_load_)(void);
-  template <typename T> static bool LoadSymbol(T*, const char* symbol, std::string* error_msg);
 
   // JIT resources owned by runtime.
   jit::JitCodeCache* const code_cache_;
