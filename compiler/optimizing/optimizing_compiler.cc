@@ -61,7 +61,7 @@
 #include "stack_map_stream.h"
 #include "utils/assembler.h"
 
-namespace art {
+namespace art HIDDEN {
 
 static constexpr size_t kArenaAllocatorMemoryReportThreshold = 8 * MB;
 

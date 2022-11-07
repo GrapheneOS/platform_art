@@ -19,9 +19,10 @@
 
 #include "base/bit_field.h"
 #include "base/bit_utils.h"
+#include "base/macros.h"
 #include "base/mutex.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class ClassLinker;
 template <class MirrorType> class ObjPtr;
@@ -56,15 +57,15 @@ class IntrinsicObjects {
   }
 
   // Functions for retrieving data for Integer.valueOf().
-  static ObjPtr<mirror::ObjectArray<mirror::Object>> LookupIntegerCache(
+  EXPORT static ObjPtr<mirror::ObjectArray<mirror::Object>> LookupIntegerCache(
       Thread* self, ClassLinker* class_linker) REQUIRES_SHARED(Locks::mutator_lock_);
-  static ObjPtr<mirror::ObjectArray<mirror::Object>> GetIntegerValueOfCache(
+  EXPORT static ObjPtr<mirror::ObjectArray<mirror::Object>> GetIntegerValueOfCache(
       ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  static ObjPtr<mirror::Object> GetIntegerValueOfObject(
+  EXPORT static ObjPtr<mirror::Object> GetIntegerValueOfObject(
       ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects,
       uint32_t index) REQUIRES_SHARED(Locks::mutator_lock_);
-  static MemberOffset GetIntegerValueOfArrayDataOffset(
+  EXPORT static MemberOffset GetIntegerValueOfArrayDataOffset(
       ObjPtr<mirror::ObjectArray<mirror::Object>> boot_image_live_objects)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

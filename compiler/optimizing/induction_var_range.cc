@@ -19,7 +19,7 @@
 #include <limits>
 #include "optimizing/nodes.h"
 
-namespace art {
+namespace art HIDDEN {
 
 /** Returns true if 64-bit constant fits in 32-bit constant. */
 static bool CanLongValueFitIntoInt(int64_t c) {

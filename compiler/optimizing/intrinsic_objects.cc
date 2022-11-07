@@ -22,7 +22,7 @@
 #include "image.h"
 #include "obj_ptr-inl.h"
 
-namespace art {
+namespace art HIDDEN {
 
 static constexpr size_t kIntrinsicObjectsOffset =
     enum_cast<size_t>(ImageHeader::kIntrinsicObjectsStart);

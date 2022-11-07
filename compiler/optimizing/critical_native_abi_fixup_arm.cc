@@ -23,7 +23,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "well_known_classes.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 // Fix up FP arguments passed in core registers for call to @CriticalNative by inserting fake calls

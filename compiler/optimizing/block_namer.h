@@ -19,7 +19,9 @@
 
 #include <ostream>
 
-namespace art {
+#include "base/macros.h"
+
+namespace art HIDDEN {
 class HBasicBlock;
 
 struct BlockNamer {

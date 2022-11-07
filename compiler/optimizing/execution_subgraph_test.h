@@ -19,7 +19,9 @@
 
 #include "android-base/macros.h"
 
-namespace art {
+#include "base/macros.h"
+
+namespace art HIDDEN {
 
 class HGraph;
 class ExecutionSubgraph;

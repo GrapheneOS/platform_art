@@ -22,7 +22,7 @@
 #include "base/scoped_arena_containers.h"
 #include "register_allocator.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class CodeGenerator;
 class HBasicBlock;
