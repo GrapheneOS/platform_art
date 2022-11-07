@@ -1141,6 +1141,9 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_Integer_valueOf,
       WellKnownClasses::java_lang_Long_valueOf,
       WellKnownClasses::java_lang_Short_valueOf,
+      // Ensure reflection annotation classes are initialized (avoid check at runtime).
+      WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation,
+      WellKnownClasses::libcore_reflect_AnnotationMember_init,
       // We're suppressing exceptions from `DdmServer` and we do not want to repeatedly
       // suppress class initialization error (say, due to OOM), so initialize it early.
       WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch,
