@@ -29,7 +29,6 @@
 #include "compiler.h"
 #include "debug/elf_debug_writer.h"
 #include "driver/compiler_options.h"
-#include "export/jit_load.h"
 #include "jit/debugger_interface.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"

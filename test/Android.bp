@@ -302,6 +302,7 @@ art_cc_defaults {
     // not contain the "d" (debug) variants.
     shared_libs: [
         "libart",
+        "libart-compiler",
         "libart-disassembler",
         "libdexfile",
         "libprofile",
@@ -390,6 +391,7 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libart",
+        "libart-compiler",
         "libdexfile",
         "libprofile",
         "libartbase",
@@ -404,6 +406,7 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libartd",
+        "libartd-compiler",
         "libdexfiled",
         "libprofiled",
         "libartbased",
@@ -459,6 +462,7 @@ art_cc_library {
     ],
     shared_libs: [
         "libart",
+        "libart-compiler",
         "libdexfile",
         "libprofile",
         "libartbase",
@@ -479,6 +483,7 @@ art_cc_library {
     ],
     shared_libs: [
         "libartd",
+        "libartd-compiler",
         "libdexfiled",
         "libprofiled",
         "libartbased",
