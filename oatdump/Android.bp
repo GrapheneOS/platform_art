@@ -62,7 +62,6 @@ art_cc_binary {
         android: {
             shared_libs: [
                 "libart",
-                "libart-compiler",
                 "libart-dexlayout",
                 "libart-disassembler",
                 "libartbase",
@@ -94,11 +93,11 @@ art_cc_library_static {
     device_supported: false,
     host_supported: true,
     defaults: [
+        "libartbased_static_defaults",
         "libartd-compiler_static_defaults",
         "libartd-dexlayout_static_defaults",
         "libartd-disassembler_static_defaults",
         "libartd_static_defaults",
-        "libartbased_static_defaults",
         "libdexfiled_static_defaults",
         "libprofiled_static_defaults",
         "oatdump-defaults",
@@ -120,7 +119,6 @@ art_cc_binary {
             shared_libs: [
                 "libartbased",
                 "libartd",
-                "libartd-compiler",
                 "libartd-dexlayout",
                 "libartd-disassembler",
                 "libbase",
@@ -169,12 +167,12 @@ cc_defaults {
 art_cc_binary {
     name: "oatdumps",
     defaults: [
+        "libart-compiler_static_defaults",
+        "libart-dexlayout_static_defaults",
         "libart_static_defaults",
         "libartbase_static_defaults",
         "libdexfile_static_defaults",
         "libprofile_static_defaults",
-        "libart-compiler_static_defaults",
-        "libart-dexlayout_static_defaults",
         "oatdumps-defaults",
     ],
     static_libs: [
@@ -187,12 +185,12 @@ art_cc_binary {
     name: "oatdumpds",
     defaults: [
         "art_debug_defaults",
-        "libartd_static_defaults",
         "libartbased_static_defaults",
-        "libdexfiled_static_defaults",
-        "libprofiled_static_defaults",
         "libartd-compiler_static_defaults",
         "libartd-dexlayout_static_defaults",
+        "libartd_static_defaults",
+        "libdexfiled_static_defaults",
+        "libprofiled_static_defaults",
         "oatdumps-defaults",
     ],
     static_libs: [
