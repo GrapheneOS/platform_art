@@ -20,6 +20,7 @@
 #include "arch/arm/registers_arm.h"
 #include "arch/instruction_set.h"
 #include "arch/x86/registers_x86.h"
+#include "base/macros.h"
 #include "code_simulator.h"
 #include "code_simulator_container.h"
 #include "common_compiler_test.h"
@@ -43,7 +44,7 @@
 #include "code_generator_x86_64.h"
 #endif
 
-namespace art {
+namespace art HIDDEN {
 
 using CreateCodegenFn = CodeGenerator* (*)(HGraph*, const CompilerOptions&);
 

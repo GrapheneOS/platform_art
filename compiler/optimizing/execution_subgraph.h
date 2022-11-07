@@ -27,6 +27,7 @@
 #include "base/bit_vector-inl.h"
 #include "base/globals.h"
 #include "base/iteration_range.h"
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
@@ -34,7 +35,7 @@
 #include "base/transform_iterator.h"
 #include "nodes.h"
 
-namespace art {
+namespace art HIDDEN {
 
 // Helper for transforming blocks to block_ids.
 class BlockToBlockIdTransformer {

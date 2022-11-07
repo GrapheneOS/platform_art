@@ -45,7 +45,7 @@
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 namespace vixl32 = vixl::aarch32;

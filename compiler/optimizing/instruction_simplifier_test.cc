@@ -26,7 +26,7 @@
 #include "optimizing/data_type.h"
 #include "optimizing_unit_test.h"
 
-namespace art {
+namespace art HIDDEN {
 
 namespace mirror {
 class ClassExt;
