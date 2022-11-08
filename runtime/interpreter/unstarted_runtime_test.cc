@@ -62,11 +62,6 @@ using UniqueDeoptShadowFramePtr = std::unique_ptr<ShadowFrame, DeoptShadowFrameD
 
 class UnstartedRuntimeTest : public CommonRuntimeTest {
  protected:
-  void SetUp() override {
-    CommonRuntimeTest::SetUp();
-    InitializeIntrinsics();
-  }
-
   // Re-expose all UnstartedRuntime implementations so we don't need to declare a million
   // test friends.
 
