@@ -34,13 +34,10 @@ namespace metrics {
 // other runtime setup logic.
 class MockMetricsReporter : public MetricsReporter {
  protected:
-  MockMetricsReporter(const ReportingConfig& config, Runtime* runtime) :
-      MetricsReporter(config, runtime),
-      art_metrics_(new ArtMetrics()) {}
+  MockMetricsReporter(const ReportingConfig& config, Runtime* runtime)
+      : MetricsReporter(config, runtime), art_metrics_(std::make_unique<ArtMetrics>()) {}
 
-  const ArtMetrics* GetMetrics() override {
-    return art_metrics_.get();
-  }
+  ArtMetrics* GetMetrics() override { return art_metrics_.get(); }
 
   std::unique_ptr<ArtMetrics> art_metrics_;
 

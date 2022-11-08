@@ -186,6 +186,19 @@ bool IsAddressKnownBackedByFileOrShared(const void* addr);
 // Returns the number of threads running.
 int GetTaskCount();
 
+// Returns a vector holding the raw pointer targets of the elements of "unique_pointers", a vector
+// of smart pointers. This does not affect the target objects e.g. by incrementing ref-counts; it's
+// a raw pointer read.
+template <typename T>
+static std::vector<T*> ToRawPointers(const std::vector<std::unique_ptr<T>>& unique_pointers) {
+  std::vector<T*> raw_pointers;
+  raw_pointers.reserve(unique_pointers.size());
+  for (const std::unique_ptr<T>& p : unique_pointers) {
+    raw_pointers.push_back(p.get());
+  }
+  return raw_pointers;
+}
+
 }  // namespace art
 
 #endif  // ART_LIBARTBASE_BASE_UTILS_H_

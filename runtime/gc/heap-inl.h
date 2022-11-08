@@ -214,6 +214,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
         need_gc = true;
       }
       GetMetrics()->TotalBytesAllocated()->Add(bytes_tl_bulk_allocated);
+      GetMetrics()->TotalBytesAllocatedDelta()->Add(bytes_tl_bulk_allocated);
     }
   }
   if (kIsDebugBuild && Runtime::Current()->IsStarted()) {

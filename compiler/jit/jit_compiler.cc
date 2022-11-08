@@ -199,6 +199,8 @@ bool JitCompiler::CompileMethod(
     VLOG(jit) << "Compilation of " << method->PrettyMethod() << " took "
               << PrettyDuration(UsToNs(duration_us));
     runtime->GetMetrics()->JitMethodCompileCount()->AddOne();
+    runtime->GetMetrics()->JitMethodCompileTotalTimeDelta()->Add(duration_us);
+    runtime->GetMetrics()->JitMethodCompileCountDelta()->AddOne();
   }
 
   // Trim maps to reduce memory usage.

@@ -136,7 +136,7 @@ class MetricsReporter {
   // Returns the metrics to be reported.
   // This exists only for testing purposes so that we can verify reporting with minimum
   // runtime interference.
-  virtual const ArtMetrics* GetMetrics();
+  virtual ArtMetrics* GetMetrics();
 
   MetricsReporter(const ReportingConfig& config, Runtime* runtime);
 

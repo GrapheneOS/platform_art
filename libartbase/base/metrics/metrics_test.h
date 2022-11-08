@@ -58,7 +58,7 @@ uint64_t CounterValue(const MetricType& counter) {
 
     uint64_t* counter_value_;
   } backend{&counter_value};
-  counter.Report(&backend);
+  counter.Report({&backend});
   return counter_value;
 }
 
@@ -75,7 +75,7 @@ std::vector<uint32_t> GetBuckets(
 
     std::vector<uint32_t>* buckets_;
   } backend{&buckets};
-  histogram.Report(&backend);
+  histogram.Report({&backend});
   return buckets;
 }
 
