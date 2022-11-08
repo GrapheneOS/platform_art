@@ -558,8 +558,9 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
         if (method_header != nullptr && method_header->HasShouldDeoptimizeFlag()) {
           if (deopt_all_frames_) {
             runtime_methods_need_deopt_check_ = true;
-            SetShouldDeoptimizeFlag(DeoptimizeFlagValue::kDebug);
+            SetShouldDeoptimizeFlag(DeoptimizeFlagValue::kForceDeoptForRedefinition);
           }
+          SetShouldDeoptimizeFlag(DeoptimizeFlagValue::kCheckCallerForDeopt);
           return true;
         }
         CHECK_NE(return_pc, 0U);
@@ -676,9 +677,6 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
           runtime_methods_need_deopt_check_(false) {}
 
     bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
-      if (instrumentation_stack_->size() == 0) {
-        return false;  // Stop.
-      }
       ArtMethod* m = GetMethod();
       if (GetCurrentQuickFrame() == nullptr) {
         if (kVerboseInstrumentation) {
@@ -695,9 +693,10 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
       }
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
       if (method_header != nullptr && method_header->HasShouldDeoptimizeFlag()) {
-        if (IsShouldDeoptimizeFlagForDebugSet()) {
+        if (ShouldForceDeoptForRedefinition()) {
           runtime_methods_need_deopt_check_ = true;
         }
+        UnsetShouldDeoptimizeFlag(DeoptimizeFlagValue::kCheckCallerForDeopt);
       }
       auto it = instrumentation_stack_->find(GetReturnPcAddr());
       if (it != instrumentation_stack_->end()) {
@@ -743,19 +742,17 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
   }
   std::map<uintptr_t, instrumentation::InstrumentationStackFrame>* stack =
       thread->GetInstrumentationStack();
-  if (stack->size() > 0) {
-    Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
-    uintptr_t instrumentation_exit_pc =
-        reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc());
-    RestoreStackVisitor visitor(thread, instrumentation_exit_pc, instrumentation);
-    visitor.WalkStack(true);
-    DCHECK_IMPLIES(visitor.runtime_methods_need_deopt_check_, thread->IsDeoptCheckRequired());
-    if (!visitor.runtime_methods_need_deopt_check_) {
-      thread->SetDeoptCheckRequired(false);
-    }
-    CHECK_EQ(visitor.frames_removed_, stack->size());
-    stack->clear();
+  Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
+  uintptr_t instrumentation_exit_pc =
+      reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc());
+  RestoreStackVisitor visitor(thread, instrumentation_exit_pc, instrumentation);
+  visitor.WalkStack(true);
+  DCHECK_IMPLIES(visitor.runtime_methods_need_deopt_check_, thread->IsDeoptCheckRequired());
+  if (!visitor.runtime_methods_need_deopt_check_) {
+    thread->SetDeoptCheckRequired(false);
   }
+  CHECK_EQ(visitor.frames_removed_, stack->size());
+  stack->clear();
 }
 
 void Instrumentation::DeoptimizeAllThreadFrames() {
@@ -1720,7 +1717,8 @@ bool Instrumentation::ShouldDeoptimizeCaller(Thread* self,
       DCHECK(header->IsOptimized());
       uint8_t* should_deopt_flag_addr =
           reinterpret_cast<uint8_t*>(caller_sp) + header->GetShouldDeoptimizeFlagOffset();
-      if ((*should_deopt_flag_addr & static_cast<uint8_t>(DeoptimizeFlagValue::kDebug)) != 0) {
+      if ((*should_deopt_flag_addr &
+           static_cast<uint8_t>(DeoptimizeFlagValue::kForceDeoptForRedefinition)) != 0) {
         needs_deopt = true;
       }
     }

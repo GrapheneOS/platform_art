@@ -2170,8 +2170,21 @@ void InstructionCodeGeneratorARMVIXL::GenerateMethodEntryExitHook(HInstruction* 
       new (codegen_->GetScopedAllocator()) MethodEntryExitHooksSlowPathARMVIXL(instruction);
   codegen_->AddSlowPath(slow_path);
 
+  if (instruction->IsMethodExitHook()) {
+    // Check if we are required to check if the caller needs a deoptimization. Strictly speaking it
+    // would be sufficient to check if CheckCallerForDeopt bit is set. Though it is faster to check
+    // if it is just non-zero. kCHA bit isn't used in debuggable runtimes as cha optimization is
+    // disabled in debuggable runtime. The other bit is used when this method itself requires a
+    // deoptimization due to redefinition. So it is safe to just check for non-zero value here.
+    GetAssembler()->LoadFromOffset(kLoadWord,
+                                   temp,
+                                   sp,
+                                   codegen_->GetStackOffsetOfShouldDeoptimizeFlag());
+    __ CompareAndBranchIfNonZero(temp, slow_path->GetEntryLabel());
+  }
+
   MemberOffset  offset = instruction->IsMethodExitHook() ?
-      instrumentation::Instrumentation::NeedsExitHooksOffset() :
+      instrumentation::Instrumentation::HaveMethodExitListenersOffset() :
       instrumentation::Instrumentation::HaveMethodEntryListenersOffset();
   uint32_t address = reinterpret_cast32<uint32_t>(Runtime::Current()->GetInstrumentation());
   __ Mov(temp, address + offset.Int32Value());
