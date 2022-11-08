@@ -160,23 +160,31 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap,
   if (young_gen_) {
     gc_time_histogram_ = metrics->YoungGcCollectionTime();
     metrics_gc_count_ = metrics->YoungGcCount();
+    metrics_gc_count_delta_ = metrics->YoungGcCountDelta();
     gc_throughput_histogram_ = metrics->YoungGcThroughput();
     gc_tracing_throughput_hist_ = metrics->YoungGcTracingThroughput();
     gc_throughput_avg_ = metrics->YoungGcThroughputAvg();
     gc_tracing_throughput_avg_ = metrics->YoungGcTracingThroughputAvg();
     gc_scanned_bytes_ = metrics->YoungGcScannedBytes();
+    gc_scanned_bytes_delta_ = metrics->YoungGcScannedBytesDelta();
     gc_freed_bytes_ = metrics->YoungGcFreedBytes();
+    gc_freed_bytes_delta_ = metrics->YoungGcFreedBytesDelta();
     gc_duration_ = metrics->YoungGcDuration();
+    gc_duration_delta_ = metrics->YoungGcDurationDelta();
   } else {
     gc_time_histogram_ = metrics->FullGcCollectionTime();
     metrics_gc_count_ = metrics->FullGcCount();
+    metrics_gc_count_delta_ = metrics->FullGcCountDelta();
     gc_throughput_histogram_ = metrics->FullGcThroughput();
     gc_tracing_throughput_hist_ = metrics->FullGcTracingThroughput();
     gc_throughput_avg_ = metrics->FullGcThroughputAvg();
     gc_tracing_throughput_avg_ = metrics->FullGcTracingThroughputAvg();
     gc_scanned_bytes_ = metrics->FullGcScannedBytes();
+    gc_scanned_bytes_delta_ = metrics->FullGcScannedBytesDelta();
     gc_freed_bytes_ = metrics->FullGcFreedBytes();
+    gc_freed_bytes_delta_ = metrics->FullGcFreedBytesDelta();
     gc_duration_ = metrics->FullGcDuration();
+    gc_duration_delta_ = metrics->FullGcDurationDelta();
   }
 }
 

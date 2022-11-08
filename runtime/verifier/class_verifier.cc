@@ -176,6 +176,9 @@ FailureKind ClassVerifier::VerifyClass(Thread* self,
 
   GetMetrics()->ClassVerificationCount()->AddOne();
 
+  GetMetrics()->ClassVerificationTotalTimeDelta()->Add(elapsed_time_microseconds);
+  GetMetrics()->ClassVerificationCountDelta()->AddOne();
+
   if (failure_data.kind == verifier::FailureKind::kHardFailure && callbacks != nullptr) {
     ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
     callbacks->ClassRejected(ref);
