@@ -25,7 +25,7 @@
 #include "base/globals.h"
 #include "base/macros.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86 {
 
 enum ByteRegister {

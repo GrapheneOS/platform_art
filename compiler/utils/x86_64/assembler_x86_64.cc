@@ -21,7 +21,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "thread.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86_64 {
 
 std::ostream& operator<<(std::ostream& os, const CpuRegister& reg) {

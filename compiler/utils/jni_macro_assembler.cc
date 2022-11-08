@@ -35,7 +35,7 @@
 #include "base/globals.h"
 #include "base/memory_region.h"
 
-namespace art {
+namespace art HIDDEN {
 
 using MacroAsm32UniquePtr = std::unique_ptr<JNIMacroAssembler<PointerSize::k32>>;
 

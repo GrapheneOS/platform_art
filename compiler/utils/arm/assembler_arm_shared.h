@@ -17,7 +17,9 @@
 #ifndef ART_COMPILER_UTILS_ARM_ASSEMBLER_ARM_SHARED_H_
 #define ART_COMPILER_UTILS_ARM_ASSEMBLER_ARM_SHARED_H_
 
-namespace art {
+#include "base/macros.h"
+
+namespace art HIDDEN {
 namespace arm {
 
 enum LoadOperandType {
