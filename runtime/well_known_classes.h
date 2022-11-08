@@ -68,7 +68,6 @@ struct WellKnownClasses {
   static jclass dalvik_system_EmulatedStackFrame;
   static jclass dalvik_system_InMemoryDexClassLoader;
   static jclass dalvik_system_PathClassLoader;
-  static jclass dalvik_system_VMRuntime;
   static jclass java_lang_annotation_Annotation__array;
   static jclass java_lang_BootClassLoader;
   static jclass java_lang_ClassLoader;
@@ -92,15 +91,10 @@ struct WellKnownClasses {
   static jclass java_lang_ThreadGroup;
   static jclass java_lang_Throwable;
   static jclass java_lang_Void;
-  static jclass java_nio_Buffer;
-  static jclass java_nio_ByteBuffer;
-  static jclass java_nio_DirectByteBuffer;
-  static jclass java_util_Collections;
-  static jclass java_util_function_Consumer;
   static jclass libcore_reflect_AnnotationMember__array;
 
   static jmethodID dalvik_system_BaseDexClassLoader_getLdLibraryPath;
-  static jmethodID dalvik_system_VMRuntime_hiddenApiUsed;
+  static ArtMethod* dalvik_system_VMRuntime_hiddenApiUsed;
   static ArtMethod* java_lang_Boolean_valueOf;
   static ArtMethod* java_lang_Byte_valueOf;
   static ArtMethod* java_lang_Character_valueOf;
@@ -133,9 +127,9 @@ struct WellKnownClasses {
   static jmethodID java_lang_Thread_run;
   static jmethodID java_lang_ThreadGroup_add;
   static jmethodID java_lang_ThreadGroup_removeThread;
-  static jmethodID java_nio_Buffer_isDirect;
-  static jmethodID java_nio_DirectByteBuffer_init;
-  static jmethodID java_util_function_Consumer_accept;
+  static ArtMethod* java_nio_Buffer_isDirect;
+  static ArtMethod* java_nio_DirectByteBuffer_init;
+  static ArtMethod* java_util_function_Consumer_accept;
   static ArtMethod* libcore_reflect_AnnotationFactory_createAnnotation;
   static ArtMethod* libcore_reflect_AnnotationMember_init;
   static ArtMethod* org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;

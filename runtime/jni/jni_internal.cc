@@ -2776,10 +2776,18 @@ class JNI {
     jlong address_arg = reinterpret_cast<jlong>(address);
     jint capacity_arg = static_cast<jint>(capacity);
 
-    jobject result = env->NewObject(WellKnownClasses::java_nio_DirectByteBuffer,
-                                    WellKnownClasses::java_nio_DirectByteBuffer_init,
-                                    address_arg, capacity_arg);
-    return static_cast<JNIEnvExt*>(env)->self_->IsExceptionPending() ? nullptr : result;
+    ScopedObjectAccess soa(env);
+    DCHECK(WellKnownClasses::java_nio_DirectByteBuffer_init->GetDeclaringClass()->IsInitialized());
+    Thread* self = soa.Self();
+    StackHandleScope<1u> hs(self);
+    Handle<mirror::Object> result = hs.NewHandle(
+        WellKnownClasses::java_nio_DirectByteBuffer_init->GetDeclaringClass()->AllocObject(self));
+    DCHECK_EQ(result == nullptr, self->IsExceptionPending());
+    if (result != nullptr) {
+      WellKnownClasses::java_nio_DirectByteBuffer_init->InvokeInstance<'V', 'J', 'I'>(
+          self, result.Get(), address_arg, capacity_arg);
+    }
+    return self->IsExceptionPending() ? nullptr : soa.AddLocalReference<jobject>(result.Get());
   }
 
   static void* GetDirectBufferAddress(JNIEnv* env, jobject java_buffer) {
@@ -2790,18 +2798,14 @@ class JNI {
 
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> buffer = soa.Decode<mirror::Object>(java_buffer);
-    ObjPtr<mirror::Class> java_nio_Buffer =
-       soa.Decode<mirror::Class>(WellKnownClasses::java_nio_Buffer);
-    DCHECK(java_nio_Buffer != nullptr);
 
     // Return null if |java_buffer| is not a java.nio.Buffer instance.
-    if (!buffer->InstanceOf(java_nio_Buffer)) {
+    if (!buffer->InstanceOf(WellKnownClasses::java_nio_Buffer_address->GetDeclaringClass())) {
       return nullptr;
     }
 
     // Buffer.address is non-null when the |java_buffer| is direct.
-    return reinterpret_cast<void*>(
-        WellKnownClasses::java_nio_Buffer_address->GetLong(buffer));
+    return reinterpret_cast<void*>(WellKnownClasses::java_nio_Buffer_address->GetLong(buffer));
   }
 
   static jlong GetDirectBufferCapacity(JNIEnv* env, jobject java_buffer) {
@@ -2810,13 +2814,9 @@ class JNI {
     }
 
     ScopedObjectAccess soa(env);
-    StackHandleScope<2u> hs(soa.Self());
+    StackHandleScope<1u> hs(soa.Self());
     Handle<mirror::Object> buffer = hs.NewHandle(soa.Decode<mirror::Object>(java_buffer));
-    Handle<mirror::Class> java_nio_Buffer =
-       hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_nio_Buffer));
-    DCHECK(java_nio_Buffer != nullptr);
-
-    if (!buffer->InstanceOf(java_nio_Buffer.Get())) {
+    if (!buffer->InstanceOf(WellKnownClasses::java_nio_Buffer_capacity->GetDeclaringClass())) {
       return -1;
     }
 
@@ -2827,9 +2827,10 @@ class JNI {
     //
     // NB GetDirectBufferAddress() does not need to call Buffer.isDirect() since it is only
     // able return a valid address if the Buffer address field is not-null.
-    jboolean direct = env->CallBooleanMethod(java_buffer,
-                                             WellKnownClasses::java_nio_Buffer_isDirect);
-    if (!direct) {
+    ArtMethod* is_direct_method = buffer->GetClass()->FindVirtualMethodForVirtual(
+        WellKnownClasses::java_nio_Buffer_isDirect, kRuntimePointerSize);
+    uint8_t direct = is_direct_method->InvokeInstance<'Z'>(soa.Self(), buffer.Get());
+    if (direct == 0u) {
       return -1;
     }
 
