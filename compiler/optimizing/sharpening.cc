@@ -63,9 +63,9 @@ HInvokeStaticOrDirect::DispatchInfo HSharpening::SharpenLoadMethod(
     bool for_interface_call,
     CodeGenerator* codegen) {
   if (kIsDebugBuild) {
-    ScopedObjectAccess soa(Thread::Current());  // Required for GetDeclaringClass below.
+    ScopedObjectAccess soa(Thread::Current());  // Required for `IsStringConstructor()` below.
     DCHECK(callee != nullptr);
-    DCHECK(!(callee->IsConstructor() && callee->GetDeclaringClass()->IsStringClass()));
+    DCHECK(!callee->IsStringConstructor());
   }
 
   MethodLoadKind method_load_kind;

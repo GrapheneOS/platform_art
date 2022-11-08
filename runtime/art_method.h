@@ -584,6 +584,11 @@ class ArtMethod final {
     AddAccessFlags(kAccNterpInvokeFastPathFlag);
   }
 
+  // Returns whether the method is a string constructor. The method must not
+  // be a class initializer. (Class initializers are called from a different
+  // context where we do not need to check for string constructors.)
+  bool IsStringConstructor() REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Returns true if this method could be overridden by a default method.
   bool IsOverridableByDefaultMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
