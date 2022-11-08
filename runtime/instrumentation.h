@@ -218,6 +218,15 @@ class Instrumentation {
     return MemberOffset(OFFSETOF_MEMBER(Instrumentation, have_method_entry_listeners_));
   }
 
+  static constexpr MemberOffset HaveMethodExitListenersOffset() {
+    // Assert that have_method_exit_listeners_ is 8bits wide. If the size changes
+    // update the compare instructions in the code generator when generating checks for
+    // MethodEntryExitHooks.
+    static_assert(sizeof(have_method_exit_listeners_) == 1,
+                  "have_method_exit_listeners_ isn't expected size");
+    return MemberOffset(OFFSETOF_MEMBER(Instrumentation, have_method_exit_listeners_));
+  }
+
   // Add a listener to be notified of the masked together sent of instrumentation events. This
   // suspend the runtime to install stubs. You are expected to hold the mutator lock as a proxy
   // for saying you should have suspended all threads (installing stubs while threads are running

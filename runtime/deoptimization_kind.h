@@ -56,9 +56,10 @@ std::ostream& operator<<(std::ostream& os, const DeoptimizationKind& kind);
 // for functions that are already on stack. The value in the slot specifies the
 // reason we need to deoptimize.
 enum class DeoptimizeFlagValue: uint8_t {
-  kCHA = 0b01,
-  kDebug = 0b10,
-  kAll = kCHA | kDebug
+  kCHA = 0b001,
+  kForceDeoptForRedefinition = 0b010,
+  kCheckCallerForDeopt = 0b100,
+  kAll = kCHA | kForceDeoptForRedefinition | kCheckCallerForDeopt
 };
 
 }  // namespace art
