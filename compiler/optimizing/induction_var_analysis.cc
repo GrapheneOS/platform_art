@@ -18,7 +18,7 @@
 
 #include "induction_var_range.h"
 
-namespace art {
+namespace art HIDDEN {
 
 /**
  * Returns true if the from/to types denote a narrowing, integral conversion (precision loss).

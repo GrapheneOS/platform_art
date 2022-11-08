@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_INSTRUCTION_BUILDER_H_
 
 #include "base/array_ref.h"
+#include "base/macros.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "data_type.h"
@@ -27,7 +28,7 @@
 #include "handle.h"
 #include "nodes.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class ArenaBitVector;
 class ArtField;

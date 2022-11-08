@@ -57,7 +57,7 @@ using vixl::EmissionCheckScope;
 #error "ARM64 Codegen VIXL macro-assembler macro already defined."
 #endif
 
-namespace art {
+namespace art HIDDEN {
 
 template<class MirrorType>
 class GcRoot;

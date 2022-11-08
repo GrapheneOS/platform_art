@@ -1124,9 +1124,6 @@ class Heap {
                                                size_t alloc_size,
                                                bool grow);
 
-  // Run the finalizers. If timeout is non zero, then we use the VMRuntime version.
-  void RunFinalization(JNIEnv* env, uint64_t timeout);
-
   // Blocks the caller until the garbage collector becomes idle and returns the type of GC we
   // waited for.
   collector::GcType WaitForGcToCompleteLocked(GcCause cause, Thread* self)

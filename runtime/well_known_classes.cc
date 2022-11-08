@@ -85,12 +85,9 @@ jclass WellKnownClasses::java_nio_ByteBuffer;
 jclass WellKnownClasses::java_nio_DirectByteBuffer;
 jclass WellKnownClasses::java_util_Collections;
 jclass WellKnownClasses::java_util_function_Consumer;
-jclass WellKnownClasses::libcore_reflect_AnnotationFactory;
-jclass WellKnownClasses::libcore_reflect_AnnotationMember;
-jclass WellKnownClasses::libcore_util_EmptyArray;
+jclass WellKnownClasses::libcore_reflect_AnnotationMember__array;
 
 jmethodID WellKnownClasses::dalvik_system_BaseDexClassLoader_getLdLibraryPath;
-jmethodID WellKnownClasses::dalvik_system_VMRuntime_runFinalization;
 jmethodID WellKnownClasses::dalvik_system_VMRuntime_hiddenApiUsed;
 ArtMethod* WellKnownClasses::java_lang_Boolean_valueOf;
 ArtMethod* WellKnownClasses::java_lang_Byte_valueOf;
@@ -127,8 +124,8 @@ jmethodID WellKnownClasses::java_lang_ThreadGroup_removeThread;
 jmethodID WellKnownClasses::java_nio_Buffer_isDirect;
 jmethodID WellKnownClasses::java_nio_DirectByteBuffer_init;
 jmethodID WellKnownClasses::java_util_function_Consumer_accept;
-jmethodID WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation;
-jmethodID WellKnownClasses::libcore_reflect_AnnotationMember_init;
+ArtMethod* WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation;
+ArtMethod* WellKnownClasses::libcore_reflect_AnnotationMember_init;
 ArtMethod* WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
 ArtMethod* WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
@@ -410,9 +407,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_nio_DirectByteBuffer = CacheClass(env, "java/nio/DirectByteBuffer");
   java_util_Collections = CacheClass(env, "java/util/Collections");
   java_util_function_Consumer = CacheClass(env, "java/util/function/Consumer");
-  libcore_reflect_AnnotationFactory = CacheClass(env, "libcore/reflect/AnnotationFactory");
-  libcore_reflect_AnnotationMember = CacheClass(env, "libcore/reflect/AnnotationMember");
-  libcore_util_EmptyArray = CacheClass(env, "libcore/util/EmptyArray");
+  libcore_reflect_AnnotationMember__array = CacheClass(env, "[Llibcore/reflect/AnnotationMember;");
 
   InitFieldsAndMethodsOnly(env);
 }
@@ -443,7 +438,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       CachePrimitiveBoxingMethod(class_linker, self, 'S', "Ljava/lang/Short;");
 
   dalvik_system_BaseDexClassLoader_getLdLibraryPath = CacheMethod(env, dalvik_system_BaseDexClassLoader, false, "getLdLibraryPath", "()Ljava/lang/String;");
-  dalvik_system_VMRuntime_runFinalization = CacheMethod(env, dalvik_system_VMRuntime, true, "runFinalization", "(J)V");
   dalvik_system_VMRuntime_hiddenApiUsed = CacheMethod(env, dalvik_system_VMRuntime, true, "hiddenApiUsed", "(ILjava/lang/String;Ljava/lang/String;IZ)V");
 
   java_lang_ClassNotFoundException_init = CacheMethod(env, java_lang_ClassNotFoundException, false, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
@@ -471,12 +465,16 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_nio_Buffer_isDirect = CacheMethod(env, java_nio_Buffer, false, "isDirect", "()Z");
   java_nio_DirectByteBuffer_init = CacheMethod(env, java_nio_DirectByteBuffer, false, "<init>", "(JI)V");
   java_util_function_Consumer_accept = CacheMethod(env, java_util_function_Consumer, false, "accept", "(Ljava/lang/Object;)V");
-  libcore_reflect_AnnotationFactory_createAnnotation = CacheMethod(env, libcore_reflect_AnnotationFactory, true, "createAnnotation", "(Ljava/lang/Class;[Llibcore/reflect/AnnotationMember;)Ljava/lang/annotation/Annotation;");
-  libcore_reflect_AnnotationMember_init = CacheMethod(env, libcore_reflect_AnnotationMember, false, "<init>", "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/reflect/Method;)V");
 
-  StackHandleScope<3u> hs(self);
+  StackHandleScope<6u> hs(self);
   Handle<mirror::Class> j_i_fd =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/io/FileDescriptor;"));
+  Handle<mirror::Class> l_r_af =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Llibcore/reflect/AnnotationFactory;"));
+  Handle<mirror::Class> l_r_am =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Llibcore/reflect/AnnotationMember;"));
+  Handle<mirror::Class> l_u_ea =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Llibcore/util/EmptyArray;"));
   Handle<mirror::Class> o_a_h_d_c =
       hs.NewHandle(FindSystemClass(class_linker, self, "Lorg/apache/harmony/dalvik/ddmc/Chunk;"));
   Handle<mirror::Class> o_a_h_d_d_ds =
@@ -491,6 +489,19 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   ObjPtr<mirror::Class> j_l_Float = java_lang_Float_valueOf->GetDeclaringClass();
   java_lang_Float_floatToRawIntBits =
       CacheMethod(j_l_Float, /*is_static=*/ true, "floatToRawIntBits", "(F)I", pointer_size);
+
+  libcore_reflect_AnnotationFactory_createAnnotation = CacheMethod(
+      l_r_af.Get(),
+      /*is_static=*/ true,
+      "createAnnotation",
+      "(Ljava/lang/Class;[Llibcore/reflect/AnnotationMember;)Ljava/lang/annotation/Annotation;",
+      pointer_size);
+  libcore_reflect_AnnotationMember_init = CacheMethod(
+      l_r_am.Get(),
+      /*is_static=*/ false,
+      "<init>",
+      "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Class;Ljava/lang/reflect/Method;)V",
+      pointer_size);
 
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast =
       CacheMethod(o_a_h_d_d_ds.Get(), /*is_static=*/ true, "broadcast", "(I)V", pointer_size);
@@ -590,9 +601,8 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_util_Collections_EMPTY_LIST =
       CacheField(j_u_c, /*is_static=*/ true, "EMPTY_LIST", "Ljava/util/List;");
 
-  ObjPtr<mirror::Class> l_u_ea = soa.Decode<mirror::Class>(libcore_util_EmptyArray);
   libcore_util_EmptyArray_STACK_TRACE_ELEMENT = CacheField(
-      l_u_ea, /*is_static=*/ true, "STACK_TRACE_ELEMENT", "[Ljava/lang/StackTraceElement;");
+      l_u_ea.Get(), /*is_static=*/ true, "STACK_TRACE_ELEMENT", "[Ljava/lang/StackTraceElement;");
 
   org_apache_harmony_dalvik_ddmc_Chunk_data =
       CacheField(o_a_h_d_c.Get(), /*is_static=*/ false, "data", "[B");
@@ -669,16 +679,14 @@ void WellKnownClasses::Clear() {
   java_lang_ThreadGroup = nullptr;
   java_lang_Throwable = nullptr;
   java_lang_Void = nullptr;
-  java_util_Collections = nullptr;
   java_nio_Buffer = nullptr;
   java_nio_ByteBuffer = nullptr;
   java_nio_DirectByteBuffer = nullptr;
-  libcore_reflect_AnnotationFactory = nullptr;
-  libcore_reflect_AnnotationMember = nullptr;
-  libcore_util_EmptyArray = nullptr;
+  java_util_Collections = nullptr;
+  java_util_function_Consumer = nullptr;
+  libcore_reflect_AnnotationMember__array = nullptr;
 
   dalvik_system_BaseDexClassLoader_getLdLibraryPath = nullptr;
-  dalvik_system_VMRuntime_runFinalization = nullptr;
   dalvik_system_VMRuntime_hiddenApiUsed = nullptr;
   java_io_FileDescriptor_descriptor = nullptr;
   java_lang_Boolean_valueOf = nullptr;

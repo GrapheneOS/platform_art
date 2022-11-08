@@ -18,7 +18,7 @@
 
 #include "nodes.h"
 
-namespace art {
+namespace art HIDDEN {
 
 std::ostream& BlockNamer::PrintName(std::ostream& os, HBasicBlock* blk) const {
   os << "B";

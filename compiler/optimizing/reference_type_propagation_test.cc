@@ -19,6 +19,7 @@
 #include <random>
 
 #include "base/arena_allocator.h"
+#include "base/macros.h"
 #include "base/transform_array_ref.h"
 #include "base/transform_iterator.h"
 #include "builder.h"
@@ -26,7 +27,7 @@
 #include "object_lock.h"
 #include "optimizing_unit_test.h"
 
-namespace art {
+namespace art HIDDEN {
 
 // TODO It would be good to use the following but there is a miniscule amount of
 // chance for flakiness so we'll just use a set seed instead.

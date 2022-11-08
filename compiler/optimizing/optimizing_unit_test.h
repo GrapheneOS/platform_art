@@ -25,6 +25,7 @@
 #include <vector>
 #include <variant>
 
+#include "base/macros.h"
 #include "base/indenter.h"
 #include "base/malloc_arena_pool.h"
 #include "base/scoped_arena_allocator.h"
@@ -46,7 +47,7 @@
 #include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"
 
-namespace art {
+namespace art HIDDEN {
 
 #define NUM_INSTRUCTIONS(...)  \
   (sizeof((uint16_t[]) {__VA_ARGS__}) /sizeof(uint16_t))

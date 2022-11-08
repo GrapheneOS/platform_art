@@ -42,7 +42,7 @@
 #include "ssa_builder.h"
 #include "well_known_classes.h"
 
-namespace art {
+namespace art HIDDEN {
 
 namespace {
 
