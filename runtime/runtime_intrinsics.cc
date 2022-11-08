@@ -90,10 +90,10 @@ bool IsIntrinsicInitialized(Thread* self,
   }
 }
 
-bool AreAllIntrinsicsInitialized() {
-  ScopedObjectAccess soa(Thread::Current());
+bool AreAllIntrinsicsInitialized() REQUIRES_SHARED(Locks::mutator_lock_) {
+  Thread* self = Thread::Current();
 #define IS_INTRINSIC_INITIALIZED(Name, InvokeType, _, __, ___, ClassName, MethodName, Signature) \
-  IsIntrinsicInitialized(soa.Self(),                                                             \
+  IsIntrinsicInitialized(self,                                                                   \
                          Intrinsics::k##Name,                                                    \
                          InvokeType,                                                             \
                          ClassName,                                                              \
@@ -107,11 +107,11 @@ bool AreAllIntrinsicsInitialized() {
 }  // namespace
 
 void InitializeIntrinsics() {
-  ScopedObjectAccess soa(Thread::Current());
+  Thread* self = Thread::Current();
   // Initialization here uses the short-circuit operator || to stop
   // initializing if there's an already initialized intrinsic.
 #define INITIALIZE_INTRINSIC(Name, InvokeType, _, __, ___, ClassName, MethodName, Signature) \
-  InitializeIntrinsic(soa.Self(),                                                            \
+  InitializeIntrinsic(self,                                                                  \
                       Intrinsics::k##Name,                                                   \
                       InvokeType,                                                            \
                       ClassName,                                                             \
