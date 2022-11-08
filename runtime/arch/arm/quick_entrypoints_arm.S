@@ -1543,7 +1543,6 @@ ENTRY art_quick_generic_jni_trampoline
     bx lr      // ret
 
 .Lcall_method_exit_hook:
-    mov r2, #FRAME_SIZE_SAVE_REFS_AND_ARGS
     bl art_quick_method_exit_hook
     b .Lcall_method_exit_hook_done
 
@@ -2573,18 +2572,15 @@ ENTRY art_quick_method_entry_hook
 END art_quick_method_entry_hook
 
 ENTRY art_quick_method_exit_hook
-    SETUP_SAVE_EVERYTHING_FRAME r5
+    SETUP_SAVE_EVERYTHING_FRAME r2
 
-    sub sp, #4                                @ align stack
-    push {r2}                                 @ pass frame_size stack
-    add r3, sp, #(8 + 8)                      @ store fpr_res pointer, in kSaveEverything frame
-    add r2, sp, #(136 + 8)                    @ store gpr_res pointer, in kSaveEverything frame
-    add r1, sp, #(FRAME_SIZE_SAVE_EVERYTHING + 8)   @ pass ArtMethod**
+    add r3, sp, #8                            @ store fpr_res pointer, in kSaveEverything frame
+    add r2, sp, #136                          @ store gpr_res pointer, in kSaveEverything frame
+    ldr r1, [sp, #FRAME_SIZE_SAVE_EVERYTHING] @ pass ArtMethod*
     mov r0, rSELF                             @ pass Thread::Current
-    blx artMethodExitHook                     @ (Thread*, ArtMethod**, gpr_res*, fpr_res*,
-                                              @ frame_size)
+    blx artMethodExitHook                     @ (Thread*, ArtMethod*, gpr_res*, fpr_res*)
 
-    add sp, #8                                @ pop arguments on stack
+    // Normal return.
     RESTORE_SAVE_EVERYTHING_FRAME
     REFRESH_MARKING_REGISTER
     blx lr
