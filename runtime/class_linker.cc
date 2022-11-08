@@ -3194,6 +3194,7 @@ ObjPtr<mirror::Class> ClassLinker::DefineClass(Thread* self,
   ScopedDefiningClass sdc(self);
   StackHandleScope<3> hs(self);
   metrics::AutoTimer timer{GetMetrics()->ClassLoadingTotalTime()};
+  metrics::AutoTimer timeDelta{GetMetrics()->ClassLoadingTotalTimeDelta()};
   auto klass = hs.NewHandle<mirror::Class>(nullptr);
 
   // Load the class from the dex file.
