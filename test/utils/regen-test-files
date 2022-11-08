@@ -398,19 +398,33 @@ class Generator:
     # All other tests are considered buildable.
     return True
 
-  # Is (successfully) running `run_test` supported?
-  # TODO(b/147812905): Add run-time support for more tests.
-  def is_runnable(self, run_test):
-    run_test_path = os.path.join(self.art_test_dir, run_test)
+  # Can the run script of `run_test` be safely ignored?
+  def can_ignore_run_script(self, run_test):
     # Unconditionally consider some identified tests that have a
     # (not-yet-handled) custom `run` script as runnable.
+    #
     # TODO(rpl): Get rid of this exception mechanism by supporting
     # these tests' `run` scripts properly.
     if run_test in runnable_test_exceptions:
       return True
-    # Skip tests with a custom `run` script.
+    # Check whether there are test metadata with run parameters
+    # enabling us to safely ignore the run script.
+    metadata = self.get_test_metadata(run_test)
+    run_param = metadata.get("run-param", {})
+    if run_param.get("default-run", ""):
+      return True
+    return False
+
+  # Is (successfully) running `run_test` supported?
+  # TODO(b/147812905): Add run-time support for more tests.
+  def is_runnable(self, run_test):
+    run_test_path = os.path.join(self.art_test_dir, run_test)
+
+    # Skip tests with non-default run rules, unless these run rules
+    # can be safely ignored.
     if os.path.isfile(os.path.join(run_test_path, "run.py")):
-      return False
+      if not self.can_ignore_run_script(run_test):
+        return False
     # Skip tests known to fail.
     if run_test in known_failing_tests:
       return False
