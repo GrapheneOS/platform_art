@@ -120,6 +120,10 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::string& in_dexFile,
       aidl::com::android::server::art::FileVisibility* _aidl_return) override;
 
+  ndk::ScopedAStatus getDmFileVisibility(
+      const aidl::com::android::server::art::DexMetadataPath& in_dmFile,
+      aidl::com::android::server::art::FileVisibility* _aidl_return) override;
+
   ndk::ScopedAStatus getDexoptNeeded(
       const std::string& in_dexFile,
       const std::string& in_instructionSet,
@@ -136,6 +140,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::string& in_compilerFilter,
       const std::optional<aidl::com::android::server::art::ProfilePath>& in_profile,
       const std::optional<aidl::com::android::server::art::VdexPath>& in_inputVdex,
+      const std::optional<aidl::com::android::server::art::DexMetadataPath>& in_dmFile,
       aidl::com::android::server::art::PriorityClass in_priorityClass,
       const aidl::com::android::server::art::DexoptOptions& in_dexoptOptions,
       const std::shared_ptr<aidl::com::android::server::art::IArtdCancellationSignal>&

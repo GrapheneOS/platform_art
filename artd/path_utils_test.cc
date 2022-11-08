@@ -241,11 +241,6 @@ TEST_F(PathUtilsTest, BuildDexMetadataPath) {
   EXPECT_THAT(BuildDexMetadataPath(DexMetadataPath{.dexPath = "/a/b.apk"}), HasValue("/a/b.dm"));
 }
 
-TEST_F(PathUtilsTest, BuildDexMetadataPathForVdex) {
-  EXPECT_THAT(BuildDexMetadataPath(VdexPath(DexMetadataPath{.dexPath = "/a/b.apk"})),
-              HasValue("/a/b.dm"));
-}
-
 TEST_F(PathUtilsTest, BuildProfilePath) {
   EXPECT_THAT(BuildProfileOrDmPath(PrimaryRefProfilePath{.packageName = "com.android.foo",
                                                          .profileName = "primary"}),

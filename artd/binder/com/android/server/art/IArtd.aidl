@@ -110,6 +110,14 @@ interface IArtd {
     com.android.server.art.FileVisibility getDexFileVisibility(@utf8InCpp String dexFile);
 
     /**
+     * Returns the visibility of the DM file.
+     *
+     * Throws fatal and non-fatal errors.
+     */
+    com.android.server.art.FileVisibility getDmFileVisibility(
+            in com.android.server.art.DexMetadataPath dmFile);
+
+    /**
      * Returns true if dexopt is needed. `dexoptTrigger` is a bit field that consists of values
      * defined in `com.android.server.art.DexoptTrigger`.
      *
@@ -131,6 +139,7 @@ interface IArtd {
             @nullable @utf8InCpp String classLoaderContext, @utf8InCpp String compilerFilter,
             in @nullable com.android.server.art.ProfilePath profile,
             in @nullable com.android.server.art.VdexPath inputVdex,
+            in @nullable com.android.server.art.DexMetadataPath dmFile,
             com.android.server.art.PriorityClass priorityClass,
             in com.android.server.art.DexoptOptions dexoptOptions,
             in com.android.server.art.IArtdCancellationSignal cancellationSignal);

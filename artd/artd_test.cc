@@ -299,6 +299,8 @@ class ArtdTest : public CommonArtTest {
             PrimaryRefProfilePath{.packageName = "com.android.foo", .profileName = "primary"},
         .id = "12345"};
     profile_path_ = tmp_profile_path;
+    vdex_path_ = artifacts_path_;
+    dm_path_ = DexMetadataPath{.dexPath = dex_file_};
     std::filesystem::create_directories(
         std::filesystem::path(OR_FATAL(BuildFinalProfilePath(tmp_profile_path))).parent_path());
   }
@@ -311,7 +313,7 @@ class ArtdTest : public CommonArtTest {
   void RunDexopt(binder_exception_t expected_status = EX_NONE,
                  Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled, false),
                  std::shared_ptr<IArtdCancellationSignal> cancellation_signal = nullptr) {
-    InitDexoptInputFiles();
+    InitFilesBeforeDexopt();
     if (cancellation_signal == nullptr) {
       ASSERT_TRUE(artd_->createCancellationSignal(&cancellation_signal).isOk());
     }
@@ -323,6 +325,7 @@ class ArtdTest : public CommonArtTest {
                                               compiler_filter_,
                                               profile_path_,
                                               vdex_path_,
+                                              dm_path_,
                                               priority_class_,
                                               dexopt_options_,
                                               cancellation_signal,
@@ -360,23 +363,32 @@ class ArtdTest : public CommonArtTest {
   std::optional<std::string> class_loader_context_;
   std::string compiler_filter_;
   std::optional<VdexPath> vdex_path_;
+  std::optional<DexMetadataPath> dm_path_;
   PriorityClass priority_class_ = PriorityClass::BACKGROUND;
   DexoptOptions dexopt_options_;
   std::optional<ProfilePath> profile_path_;
 
  private:
-  void InitDexoptInputFiles() {
+  void InitFilesBeforeDexopt() {
+    // Required files.
     CreateFile(dex_file_);
+
+    // Optional files.
     if (vdex_path_.has_value()) {
-      if (vdex_path_->getTag() == VdexPath::dexMetadataPath) {
-        CreateFile(OR_FATAL(BuildDexMetadataPath(vdex_path_.value())));
-      } else {
-        CreateFile(OR_FATAL(BuildVdexPath(vdex_path_.value())));
-      }
+      CreateFile(OR_FATAL(BuildVdexPath(vdex_path_.value())), "old_vdex");
+    }
+    if (dm_path_.has_value()) {
+      CreateFile(OR_FATAL(BuildDexMetadataPath(dm_path_.value())));
     }
     if (profile_path_.has_value()) {
       CreateFile(OR_FATAL(BuildProfileOrDmPath(profile_path_.value())));
     }
+
+    // Files to be replaced.
+    std::string oat_path = OR_FATAL(BuildOatPath(artifacts_path_));
+    CreateFile(oat_path, "old_oat");
+    CreateFile(OatPathToVdexPath(oat_path), "old_vdex");
+    CreateFile(OatPathToArtPath(oat_path), "old_art");
   }
 };
 
@@ -485,16 +497,18 @@ TEST_F(ArtdTest, dexopt) {
           WhenSplitBy(
               "--",
               AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-              AllOf(Contains(art_root_ + "/bin/dex2oat32"),
-                    Contains(Flag("--zip-fd=", FdOf(dex_file_))),
-                    Contains(Flag("--zip-location=", dex_file_)),
-                    Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
-                    Contains(Flag("--instruction-set=", "arm64")),
-                    Contains(Flag("--compiler-filter=", "speed")),
-                    Contains(
-                        Flag("--profile-file-fd=",
-                             FdOf(android_data_ +
-                                  "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"))))),
+              AllOf(
+                  Contains(art_root_ + "/bin/dex2oat32"),
+                  Contains(Flag("--zip-fd=", FdOf(dex_file_))),
+                  Contains(Flag("--zip-location=", dex_file_)),
+                  Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
+                  Contains(Flag("--instruction-set=", "arm64")),
+                  Contains(Flag("--compiler-filter=", "speed")),
+                  Contains(Flag("--profile-file-fd=",
+                                FdOf(android_data_ +
+                                     "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"))),
+                  Contains(Flag("--input-vdex-fd=", FdOf(scratch_path_ + "/a/oat/arm64/b.vdex"))),
+                  Contains(Flag("--dm-fd=", FdOf(scratch_path_ + "/a/b.dm"))))),
           _,
           _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
@@ -542,43 +556,19 @@ TEST_F(ArtdTest, dexoptClassLoaderContextNull) {
   RunDexopt();
 }
 
-TEST_F(ArtdTest, dexoptNoInputVdex) {
+TEST_F(ArtdTest, dexoptNoOptionalInputFiles) {
+  profile_path_ = std::nullopt;
+  vdex_path_ = std::nullopt;
+  dm_path_ = std::nullopt;
+
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(WhenSplitBy("--",
                                               _,
-                                              AllOf(Not(Contains(Flag("--dm-fd=", _))),
-                                                    Not(Contains(Flag("--input-vdex-fd=", _))))),
+                                              AllOf(Not(Contains(Flag("--profile-file-fd=", _))),
+                                                    Not(Contains(Flag("--input-vdex-fd=", _))),
+                                                    Not(Contains(Flag("--dm-fd=", _))))),
                                   _,
                                   _))
-      .WillOnce(Return(0));
-  RunDexopt();
-}
-
-TEST_F(ArtdTest, dexoptInputVdex) {
-  vdex_path_ = artifacts_path_;
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(
-                  WhenSplitBy("--",
-                              _,
-                              AllOf(Not(Contains(Flag("--dm-fd=", _))),
-                                    Contains(Flag("--input-vdex-fd=",
-                                                  FdOf(scratch_path_ + "/a/oat/arm64/b.vdex"))))),
-                  _,
-                  _))
-      .WillOnce(Return(0));
-  RunDexopt();
-}
-
-TEST_F(ArtdTest, dexoptInputVdexDm) {
-  vdex_path_ = DexMetadataPath{.dexPath = dex_file_};
-  EXPECT_CALL(*mock_exec_utils_,
-              DoExecAndReturnCode(
-                  WhenSplitBy("--",
-                              _,
-                              AllOf(Contains(Flag("--dm-fd=", FdOf(scratch_path_ + "/a/b.dm"))),
-                                    Not(Contains(Flag("--input-vdex-fd=", _))))),
-                  _,
-                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }
@@ -873,15 +863,15 @@ TEST_F(ArtdTest, dexoptAllResourceControlBackground) {
 TEST_F(ArtdTest, dexoptFailed) {
   dexopt_options_.generateAppImage = true;
   EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
-      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
-                      WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
-                      WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")),
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "new_oat")),
+                      WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "new_vdex")),
+                      WithArg<0>(WriteToFdFlag("--app-image-fd=", "new_art")),
                       Return(1)));
   RunDexopt(EX_SERVICE_SPECIFIC);
 
-  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
-  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
-  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.art"));
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "old_oat");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "old_vdex");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.art", "old_art");
 }
 
 TEST_F(ArtdTest, dexoptCancelledBeforeDex2oat) {
@@ -902,8 +892,9 @@ TEST_F(ArtdTest, dexoptCancelledBeforeDex2oat) {
 
   RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, true), cancellation_signal);
 
-  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
-  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "old_oat");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "old_vdex");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.art", "old_art");
 }
 
 TEST_F(ArtdTest, dexoptCancelledDuringDex2oat) {
@@ -948,8 +939,9 @@ TEST_F(ArtdTest, dexoptCancelledDuringDex2oat) {
   t.join();
 
   // Step 6.
-  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
-  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "old_oat");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "old_vdex");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.art", "old_art");
 }
 
 TEST_F(ArtdTest, dexoptCancelledAfterDex2oat) {
@@ -959,11 +951,13 @@ TEST_F(ArtdTest, dexoptCancelledAfterDex2oat) {
   constexpr pid_t kPid = 123;
 
   EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
-      .WillOnce([&](auto, const ExecCallbacks& callbacks, auto) {
-        callbacks.on_start(kPid);
-        callbacks.on_end(kPid);
-        return 0;
-      });
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "new_oat")),
+                      WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "new_vdex")),
+                      [&](auto, const ExecCallbacks& callbacks, auto) {
+                        callbacks.on_start(kPid);
+                        callbacks.on_end(kPid);
+                        return 0;
+                      }));
   EXPECT_CALL(mock_kill_, Call).Times(0);
 
   RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, false), cancellation_signal);
@@ -971,8 +965,9 @@ TEST_F(ArtdTest, dexoptCancelledAfterDex2oat) {
   // This signal should be ignored.
   cancellation_signal->cancel();
 
-  EXPECT_TRUE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.odex"));
-  EXPECT_TRUE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.vdex"));
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "new_oat");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "new_vdex");
+  EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.art"));
 }
 
 TEST_F(ArtdTest, isProfileUsable) {
@@ -1158,128 +1153,138 @@ TEST_F(ArtdTest, deleteProfileFailed) {
   EXPECT_TRUE(artd_->deleteProfile(profile_path_.value()).isOk());
 }
 
-TEST_F(ArtdTest, getProfileVisibilityOtherReadable) {
-  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
-  CreateFile(profile_file);
-  std::filesystem::permissions(
-      profile_file, std::filesystem::perms::others_read, std::filesystem::perm_options::add);
+class ArtdGetVisibilityTest : public ArtdTest {
+ protected:
+  template <typename PathType>
+  using Method = ndk::ScopedAStatus (Artd::*)(const PathType&, FileVisibility*);
 
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getProfileVisibility(profile_path_.value(), &result).isOk());
-  EXPECT_EQ(result, FileVisibility::OTHER_READABLE);
+  template <typename PathType>
+  void TestGetVisibilityOtherReadable(Method<PathType> method,
+                                      const PathType& input,
+                                      const std::string& path) {
+    CreateFile(path);
+    std::filesystem::permissions(
+        path, std::filesystem::perms::others_read, std::filesystem::perm_options::add);
+
+    FileVisibility result;
+    ASSERT_TRUE(((*artd_).*method)(input, &result).isOk());
+    EXPECT_EQ(result, FileVisibility::OTHER_READABLE);
+  }
+
+  template <typename PathType>
+  void TestGetVisibilityNotOtherReadable(Method<PathType> method,
+                                         const PathType& input,
+                                         const std::string& path) {
+    CreateFile(path);
+    std::filesystem::permissions(
+        path, std::filesystem::perms::others_read, std::filesystem::perm_options::remove);
+
+    FileVisibility result;
+    ASSERT_TRUE(((*artd_).*method)(input, &result).isOk());
+    EXPECT_EQ(result, FileVisibility::NOT_OTHER_READABLE);
+  }
+
+  template <typename PathType>
+  void TestGetVisibilityNotFound(Method<PathType> method, const PathType& input) {
+    FileVisibility result;
+    ASSERT_TRUE(((*artd_).*method)(input, &result).isOk());
+    EXPECT_EQ(result, FileVisibility::NOT_FOUND);
+  }
+
+  template <typename PathType>
+  void TestGetVisibilityPermissionDenied(Method<PathType> method,
+                                         const PathType& input,
+                                         const std::string& path) {
+    CreateFile(path);
+
+    auto scoped_inaccessible = ScopedInaccessible(std::filesystem::path(path).parent_path());
+    auto scoped_unroot = ScopedUnroot();
+
+    FileVisibility result;
+    ndk::ScopedAStatus status = ((*artd_).*method)(input, &result);
+    EXPECT_FALSE(status.isOk());
+    EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
+    EXPECT_THAT(status.getMessage(), HasSubstr("Failed to get status of"));
+  }
+};
+
+TEST_F(ArtdGetVisibilityTest, getProfileVisibilityOtherReadable) {
+  TestGetVisibilityOtherReadable(&Artd::getProfileVisibility,
+                                 profile_path_.value(),
+                                 OR_FATAL(BuildProfileOrDmPath(profile_path_.value())));
 }
 
-TEST_F(ArtdTest, getProfileVisibilityNotOtherReadable) {
-  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
-  CreateFile(profile_file);
-  std::filesystem::permissions(
-      profile_file, std::filesystem::perms::others_read, std::filesystem::perm_options::remove);
-
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getProfileVisibility(profile_path_.value(), &result).isOk());
-  EXPECT_EQ(result, FileVisibility::NOT_OTHER_READABLE);
+TEST_F(ArtdGetVisibilityTest, getProfileVisibilityNotOtherReadable) {
+  TestGetVisibilityNotOtherReadable(&Artd::getProfileVisibility,
+                                    profile_path_.value(),
+                                    OR_FATAL(BuildProfileOrDmPath(profile_path_.value())));
 }
 
-TEST_F(ArtdTest, getProfileVisibilityNotFound) {
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getProfileVisibility(profile_path_.value(), &result).isOk());
-  EXPECT_EQ(result, FileVisibility::NOT_FOUND);
+TEST_F(ArtdGetVisibilityTest, getProfileVisibilityNotFound) {
+  TestGetVisibilityNotFound(&Artd::getProfileVisibility, profile_path_.value());
 }
 
-TEST_F(ArtdTest, getProfileVisibilityPermissionDenied) {
-  std::string profile_file = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
-  CreateFile(profile_file);
-
-  auto scoped_inaccessible = ScopedInaccessible(std::filesystem::path(profile_file).parent_path());
-  auto scoped_unroot = ScopedUnroot();
-
-  FileVisibility result;
-  ndk::ScopedAStatus status = artd_->getProfileVisibility(profile_path_.value(), &result);
-  EXPECT_FALSE(status.isOk());
-  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
-  EXPECT_THAT(status.getMessage(),
-              ContainsRegex(R"re(Failed to get status of .*primary\.prof\.12345\.tmp)re"));
+TEST_F(ArtdGetVisibilityTest, getProfileVisibilityPermissionDenied) {
+  TestGetVisibilityPermissionDenied(&Artd::getProfileVisibility,
+                                    profile_path_.value(),
+                                    OR_FATAL(BuildProfileOrDmPath(profile_path_.value())));
 }
 
-TEST_F(ArtdTest, getArtifactsVisibilityOtherReadable) {
-  std::string oat_file = OR_FATAL(BuildOatPath(artifacts_path_));
-  CreateFile(oat_file);
-  std::filesystem::permissions(
-      oat_file, std::filesystem::perms::others_read, std::filesystem::perm_options::add);
-
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getArtifactsVisibility(artifacts_path_, &result).isOk());
-  EXPECT_EQ(result, FileVisibility::OTHER_READABLE);
+TEST_F(ArtdGetVisibilityTest, getArtifactsVisibilityOtherReadable) {
+  TestGetVisibilityOtherReadable(
+      &Artd::getArtifactsVisibility, artifacts_path_, OR_FATAL(BuildOatPath(artifacts_path_)));
 }
 
-TEST_F(ArtdTest, getArtifactsVisibilityNotOtherReadable) {
-  std::string oat_file = OR_FATAL(BuildOatPath(artifacts_path_));
-  CreateFile(oat_file);
-  std::filesystem::permissions(
-      oat_file, std::filesystem::perms::others_read, std::filesystem::perm_options::remove);
-
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getArtifactsVisibility(artifacts_path_, &result).isOk());
-  EXPECT_EQ(result, FileVisibility::NOT_OTHER_READABLE);
+TEST_F(ArtdGetVisibilityTest, getArtifactsVisibilityNotOtherReadable) {
+  TestGetVisibilityNotOtherReadable(
+      &Artd::getArtifactsVisibility, artifacts_path_, OR_FATAL(BuildOatPath(artifacts_path_)));
 }
 
-TEST_F(ArtdTest, getArtifactsVisibilityNotFound) {
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getArtifactsVisibility(artifacts_path_, &result).isOk());
-  EXPECT_EQ(result, FileVisibility::NOT_FOUND);
+TEST_F(ArtdGetVisibilityTest, getArtifactsVisibilityNotFound) {
+  TestGetVisibilityNotFound(&Artd::getArtifactsVisibility, artifacts_path_);
 }
 
-TEST_F(ArtdTest, getArtifactsVisibilityPermissionDenied) {
-  std::string oat_file = OR_FATAL(BuildOatPath(artifacts_path_));
-  CreateFile(oat_file);
-
-  auto scoped_inaccessible = ScopedInaccessible(std::filesystem::path(oat_file).parent_path());
-  auto scoped_unroot = ScopedUnroot();
-
-  FileVisibility result;
-  ndk::ScopedAStatus status = artd_->getArtifactsVisibility(artifacts_path_, &result);
-  EXPECT_FALSE(status.isOk());
-  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
-  EXPECT_THAT(status.getMessage(), ContainsRegex(R"re(Failed to get status of .*b\.odex)re"));
+TEST_F(ArtdGetVisibilityTest, getArtifactsVisibilityPermissionDenied) {
+  TestGetVisibilityPermissionDenied(
+      &Artd::getArtifactsVisibility, artifacts_path_, OR_FATAL(BuildOatPath(artifacts_path_)));
 }
 
-TEST_F(ArtdTest, getDexFileVisibilityOtherReadable) {
-  CreateFile(dex_file_);
-  std::filesystem::permissions(
-      dex_file_, std::filesystem::perms::others_read, std::filesystem::perm_options::add);
-
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getDexFileVisibility(dex_file_, &result).isOk());
-  EXPECT_EQ(result, FileVisibility::OTHER_READABLE);
+TEST_F(ArtdGetVisibilityTest, getDexFileVisibilityOtherReadable) {
+  TestGetVisibilityOtherReadable(&Artd::getDexFileVisibility, dex_file_, dex_file_);
 }
 
-TEST_F(ArtdTest, getDexFileVisibilityNotOtherReadable) {
-  CreateFile(dex_file_);
-  std::filesystem::permissions(
-      dex_file_, std::filesystem::perms::others_read, std::filesystem::perm_options::remove);
-
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getDexFileVisibility(dex_file_, &result).isOk());
-  EXPECT_EQ(result, FileVisibility::NOT_OTHER_READABLE);
+TEST_F(ArtdGetVisibilityTest, getDexFileVisibilityNotOtherReadable) {
+  TestGetVisibilityNotOtherReadable(&Artd::getDexFileVisibility, dex_file_, dex_file_);
 }
 
-TEST_F(ArtdTest, getDexFileVisibilityNotFound) {
-  FileVisibility result;
-  ASSERT_TRUE(artd_->getDexFileVisibility(dex_file_, &result).isOk());
-  EXPECT_EQ(result, FileVisibility::NOT_FOUND);
+TEST_F(ArtdGetVisibilityTest, getDexFileVisibilityNotFound) {
+  TestGetVisibilityNotFound(&Artd::getDexFileVisibility, dex_file_);
 }
 
-TEST_F(ArtdTest, getDexFileVisibilityPermissionDenied) {
-  CreateFile(dex_file_);
+TEST_F(ArtdGetVisibilityTest, getDexFileVisibilityPermissionDenied) {
+  TestGetVisibilityPermissionDenied(&Artd::getDexFileVisibility, dex_file_, dex_file_);
+}
 
-  auto scoped_inaccessible = ScopedInaccessible(std::filesystem::path(dex_file_).parent_path());
-  auto scoped_unroot = ScopedUnroot();
+TEST_F(ArtdGetVisibilityTest, getDmFileVisibilityOtherReadable) {
+  TestGetVisibilityOtherReadable(&Artd::getDmFileVisibility,
+                                 dm_path_.value(),
+                                 OR_FATAL(BuildDexMetadataPath(dm_path_.value())));
+}
 
-  FileVisibility result;
-  ndk::ScopedAStatus status = artd_->getDexFileVisibility(dex_file_, &result);
-  EXPECT_FALSE(status.isOk());
-  EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
-  EXPECT_THAT(status.getMessage(), ContainsRegex(R"re(Failed to get status of .*/a/b\.apk)re"));
+TEST_F(ArtdGetVisibilityTest, getDmFileVisibilityNotOtherReadable) {
+  TestGetVisibilityNotOtherReadable(&Artd::getDmFileVisibility,
+                                    dm_path_.value(),
+                                    OR_FATAL(BuildDexMetadataPath(dm_path_.value())));
+}
+
+TEST_F(ArtdGetVisibilityTest, getDmFileVisibilityNotFound) {
+  TestGetVisibilityNotFound(&Artd::getDmFileVisibility, dm_path_.value());
+}
+
+TEST_F(ArtdGetVisibilityTest, getDmFileVisibilityPermissionDenied) {
+  TestGetVisibilityPermissionDenied(&Artd::getDmFileVisibility,
+                                    dm_path_.value(),
+                                    OR_FATAL(BuildDexMetadataPath(dm_path_.value())));
 }
 
 TEST_F(ArtdTest, mergeProfiles) {

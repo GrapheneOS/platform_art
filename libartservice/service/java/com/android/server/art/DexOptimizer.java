@@ -148,13 +148,13 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                     long wallTimeMs = 0;
                     long cpuTimeMs = 0;
                     try {
-                        DexoptTarget target = DexoptTarget.builder()
+                        var target = DexoptTarget.<DexInfoType>builder()
                                                       .setDexInfo(dexInfo)
                                                       .setIsa(abi.isa())
                                                       .setIsInDalvikCache(isInDalvikCache())
                                                       .setCompilerFilter(compilerFilter)
                                                       .build();
-                        GetDexoptNeededOptions options =
+                        var options =
                                 GetDexoptNeededOptions.builder()
                                         .setProfileMerged(profileMerged)
                                         .setFlags(mParams.getFlags())
@@ -346,7 +346,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     }
 
     @NonNull
-    GetDexoptNeededResult getDexoptNeeded(@NonNull DexoptTarget target,
+    GetDexoptNeededResult getDexoptNeeded(@NonNull DexoptTarget<DexInfoType> target,
             @NonNull GetDexoptNeededOptions options) throws RemoteException {
         int dexoptTrigger = getDexoptTrigger(target, options);
 
@@ -362,8 +362,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         return result;
     }
 
-    int getDexoptTrigger(@NonNull DexoptTarget target, @NonNull GetDexoptNeededOptions options)
-            throws RemoteException {
+    int getDexoptTrigger(@NonNull DexoptTarget<DexInfoType> target,
+            @NonNull GetDexoptNeededOptions options) throws RemoteException {
         if ((options.flags() & ArtFlags.FLAG_FORCE) != 0) {
             return DexoptTrigger.COMPILER_FILTER_IS_BETTER | DexoptTrigger.COMPILER_FILTER_IS_SAME
                     | DexoptTrigger.COMPILER_FILTER_IS_WORSE
@@ -396,8 +396,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         return dexoptTrigger;
     }
 
-    private DexoptResult dexoptFile(@NonNull DexoptTarget target, @Nullable ProfilePath profile,
-            @NonNull GetDexoptNeededResult getDexoptNeededResult,
+    private DexoptResult dexoptFile(@NonNull DexoptTarget<DexInfoType> target,
+            @Nullable ProfilePath profile, @NonNull GetDexoptNeededResult getDexoptNeededResult,
             @NonNull PermissionSettings permissionSettings, @PriorityClass int priorityClass,
             @NonNull DexoptOptions dexoptOptions, IArtdCancellationSignal artdCancellationSignal)
             throws RemoteException {
@@ -407,9 +407,25 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         VdexPath inputVdex =
                 getInputVdex(getDexoptNeededResult, target.dexInfo().dexPath(), target.isa());
 
+        DexMetadataPath dmFile = getDmFile(target.dexInfo());
+        if (dmFile != null
+                && ReasonMapping.REASONS_FOR_INSTALL.contains(dexoptOptions.compilationReason)) {
+            // If the DM file is passed to dex2oat, then add the "-dm" suffix to the reason (e.g.,
+            // "install-dm").
+            // Note that this only applies to reasons for app install because the goal is to give
+            // Play a signal that a DM file is downloaded at install time. We actually pass the DM
+            // file regardless of the compilation reason, but we don't append a suffix when the
+            // compilation reason is not a reason for app install.
+            // Also note that the "-dm" suffix does NOT imply anything in the DM file being used by
+            // dex2oat. dex2oat may ignore some contents of the DM file when appropriate. The
+            // compilation reason can still be "install-dm" even if dex2oat left all contents of the
+            // DM file unused or an empty DM file is passed to dex2oat.
+            dexoptOptions.compilationReason = dexoptOptions.compilationReason + "-dm";
+        }
+
         return mInjector.getArtd().dexopt(outputArtifacts, target.dexInfo().dexPath(), target.isa(),
                 target.dexInfo().classLoaderContext(), target.compilerFilter(), profile, inputVdex,
-                priorityClass, dexoptOptions, artdCancellationSignal);
+                dmFile, priorityClass, dexoptOptions, artdCancellationSignal);
     }
 
     @Nullable
@@ -426,12 +442,29 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                 return VdexPath.artifactsPath(
                         AidlUtils.buildArtifactsPath(dexPath, isa, false /* isInDalvikCache */));
             case ArtifactsLocation.DM:
-                return VdexPath.dexMetadataPath(AidlUtils.buildDexMetadataPath(dexPath));
+                // The DM file is passed to dex2oat as a separate flag whenever it exists.
+                return null;
             default:
                 // This should never happen as the value is got from artd.
                 throw new IllegalStateException(
                         "Unknown artifacts location " + getDexoptNeededResult.artifactsLocation);
         }
+    }
+
+    @Nullable
+    private DexMetadataPath getDmFile(@NonNull DexInfoType dexInfo) throws RemoteException {
+        DexMetadataPath path = buildDmPath(dexInfo);
+        if (path == null) {
+            return null;
+        }
+        try {
+            if (mInjector.getArtd().getDmFileVisibility(path) != FileVisibility.NOT_FOUND) {
+                return path;
+            }
+        } catch (ServiceSpecificException e) {
+            Log.e(TAG, "Failed to check DM file for " + dexInfo.dexPath(), e);
+        }
+        return null;
     }
 
     private boolean commitProfileChanges(@NonNull TmpProfilePath profile) throws RemoteException {
@@ -525,24 +558,30 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     /** Returns the paths to the current profiles of the given dex file. */
     @NonNull protected abstract List<ProfilePath> getCurProfiles(@NonNull DexInfoType dexInfo);
 
+    /**
+     * Returns the path to the DM file that should be passed to dex2oat, or null if no DM file
+     * should be passed.
+     */
+    @Nullable protected abstract DexMetadataPath buildDmPath(@NonNull DexInfoType dexInfo);
+
     @AutoValue
-    abstract static class DexoptTarget {
-        abstract @NonNull DetailedDexInfo dexInfo();
+    abstract static class DexoptTarget<DexInfoType extends DetailedDexInfo> {
+        abstract @NonNull DexInfoType dexInfo();
         abstract @NonNull String isa();
         abstract boolean isInDalvikCache();
         abstract @NonNull String compilerFilter();
 
-        static Builder builder() {
-            return new AutoValue_DexOptimizer_DexoptTarget.Builder();
+        static <DexInfoType extends DetailedDexInfo> Builder<DexInfoType> builder() {
+            return new AutoValue_DexOptimizer_DexoptTarget.Builder<DexInfoType>();
         }
 
         @AutoValue.Builder
-        abstract static class Builder {
-            abstract Builder setDexInfo(@NonNull DetailedDexInfo value);
+        abstract static class Builder<DexInfoType extends DetailedDexInfo> {
+            abstract Builder setDexInfo(@NonNull DexInfoType value);
             abstract Builder setIsa(@NonNull String value);
             abstract Builder setIsInDalvikCache(boolean value);
             abstract Builder setCompilerFilter(@NonNull String value);
-            abstract DexoptTarget build();
+            abstract DexoptTarget<DexInfoType> build();
         }
     }
 

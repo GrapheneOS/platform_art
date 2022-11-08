@@ -135,6 +135,12 @@ public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo
         return List.of(AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
     }
 
+    @Override
+    @Nullable
+    protected DexMetadataPath buildDmPath(@NonNull DetailedSecondaryDexInfo dexInfo) {
+        return null;
+    }
+
     private int getUid(@NonNull DetailedSecondaryDexInfo dexInfo) {
         return dexInfo.userHandle().getUid(mPkgState.getAppId());
     }

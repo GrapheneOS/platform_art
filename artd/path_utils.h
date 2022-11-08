@@ -70,9 +70,6 @@ android::base::Result<std::string> BuildTmpProfilePath(
 android::base::Result<std::string> BuildDexMetadataPath(
     const aidl::com::android::server::art::DexMetadataPath& dex_metadata_path);
 
-android::base::Result<std::string> BuildDexMetadataPath(
-    const aidl::com::android::server::art::VdexPath& vdex_path);
-
 android::base::Result<std::string> BuildProfileOrDmPath(
     const aidl::com::android::server::art::ProfilePath& profile_path);
 
