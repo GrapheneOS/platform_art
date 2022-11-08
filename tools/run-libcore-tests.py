@@ -396,7 +396,9 @@ def get_test_names():
   if args.gcstress and args.debug:
     test_names = list(filter(lambda x: x not in DISABLED_GCSTRESS_DEBUG_TESTS, test_names))
   if not args.getrandom:
-    test_names = list(filter(lambda x: x not in DISABLED_FUGU_TESTS, test_names))
+    # Disable libcore.highmemorytest due to limited ram on fugu. http://b/258173036
+    test_names = list(filter(lambda x: x not in DISABLED_FUGU_TESTS and
+                                       not x.startswith("libcore.highmemorytest"), test_names))
   return test_names
 
 def get_vogar_command(test_name):
