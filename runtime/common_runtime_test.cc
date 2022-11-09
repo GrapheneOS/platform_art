@@ -193,20 +193,20 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader = hs.NewHandle(
       soa.Decode<mirror::ClassLoader>(jclass_loader));
-  return GetDexFiles(soa, class_loader);
+  return GetDexFiles(soa.Self(), class_loader);
 }
 
 std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(
-    ScopedObjectAccess& soa,
+    Thread* self,
     Handle<mirror::ClassLoader> class_loader) {
   DCHECK(
       (class_loader->GetClass() ==
-          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader)) ||
+          WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_PathClassLoader)) ||
       (class_loader->GetClass() ==
-          soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DelegateLastClassLoader)));
+          WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DelegateLastClassLoader)));
 
   std::vector<const DexFile*> ret;
-  VisitClassLoaderDexFiles(soa,
+  VisitClassLoaderDexFiles(self,
                            class_loader,
                            [&](const DexFile* cp_dex_file) {
                              if (cp_dex_file == nullptr) {
@@ -299,7 +299,7 @@ CommonRuntimeTestImpl::LoadDexInWellKnownClassLoader(const std::vector<std::stri
       CHECK_EQ(expected_parent, actual_parent);
     } else {
       // No parent given. The parent must be the BootClassLoader.
-      CHECK(Runtime::Current()->GetClassLinker()->IsBootClassLoader(soa, actual_parent));
+      CHECK(Runtime::Current()->GetClassLinker()->IsBootClassLoader(actual_parent));
     }
   }
 

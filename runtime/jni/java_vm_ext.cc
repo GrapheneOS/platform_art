@@ -945,7 +945,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
     ObjPtr<mirror::ClassLoader> loader = soa.Decode<mirror::ClassLoader>(class_loader);
 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (class_linker->IsBootClassLoader(soa, loader.Ptr())) {
+    if (class_linker->IsBootClassLoader(loader)) {
       loader = nullptr;
       class_loader = nullptr;
       if (caller_class != nullptr) {
@@ -957,7 +957,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
       }
     }
 
-    class_loader_allocator = class_linker->GetAllocatorForClassLoader(loader.Ptr());
+    class_loader_allocator = class_linker->GetAllocatorForClassLoader(loader);
     CHECK(class_loader_allocator != nullptr);
   }
   if (library != nullptr) {

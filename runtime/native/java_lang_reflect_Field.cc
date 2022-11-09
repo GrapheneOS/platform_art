@@ -491,7 +491,7 @@ static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField)
   if (field->GetDeclaringClass()->IsProxyClass()) {
     // Return an empty array instead of a null pointer.
     ObjPtr<mirror::Class> annotation_array_class =
-        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
+        WellKnownClasses::ToClass(WellKnownClasses::java_lang_annotation_Annotation__array);
     ObjPtr<mirror::ObjectArray<mirror::Object>> empty_array =
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
