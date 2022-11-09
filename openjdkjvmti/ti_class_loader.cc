@@ -63,9 +63,8 @@ namespace openjdkjvmti {
 bool ClassLoaderHelper::AddToClassLoader(art::Thread* self,
                                          art::Handle<art::mirror::ClassLoader> loader,
                                          const art::DexFile* dex_file) {
-  art::ScopedObjectAccessUnchecked soa(self);
   art::StackHandleScope<3> hs(self);
-  if (art::ClassLinker::IsBootClassLoader(soa, loader.Get())) {
+  if (art::ClassLinker::IsBootClassLoader(loader.Get())) {
     art::Runtime::Current()->AppendToBootClassPath(
         dex_file->GetLocation(), dex_file->GetLocation(), {dex_file});
     return true;

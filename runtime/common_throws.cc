@@ -716,7 +716,7 @@ void ThrowStackOverflowError(Thread* self) {
     ScopedObjectAccessUnchecked soa(self);
     StackHandleScope<2u> hs(self);
     Handle<mirror::Class> j_l_soe = hs.NewHandle(
-        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_StackOverflowError));
+        WellKnownClasses::ToClass(WellKnownClasses::java_lang_StackOverflowError));
     DCHECK(j_l_soe->IsInitialized());
 
     // Allocate an uninitialized object.

@@ -870,43 +870,35 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
   }
 
   ScopedObjectAccess soa(Thread::Current());
-  ClassLinker* cl = Runtime::Current()->GetClassLinker();
+  ClassLinker* cl = runtime->GetClassLinker();
   auto pointer_size = cl->GetImagePointerSize();
 
-  StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> class_loader_class(
-      hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_ClassLoader)));
-  CHECK(cl->EnsureInitialized(soa.Self(), class_loader_class, true, true));
+  ObjPtr<mirror::Class> class_loader_class = GetClassRoot<mirror::ClassLoader>(cl);
+  DCHECK(class_loader_class->IsInitialized());  // Class roots have been initialized.
 
   ArtMethod* getSystemClassLoader = class_loader_class->FindClassMethod(
       "getSystemClassLoader", "()Ljava/lang/ClassLoader;", pointer_size);
   CHECK(getSystemClassLoader != nullptr);
   CHECK(getSystemClassLoader->IsStatic());
 
-  JValue result = InvokeWithJValues(soa,
-                                    nullptr,
-                                    getSystemClassLoader,
-                                    nullptr);
-  JNIEnv* env = soa.Self()->GetJniEnv();
-  ScopedLocalRef<jobject> system_class_loader(env, soa.AddLocalReference<jobject>(result.GetL()));
-  CHECK(system_class_loader.get() != nullptr);
+  ObjPtr<mirror::Object> system_class_loader = getSystemClassLoader->InvokeStatic<'L'>(soa.Self());
+  CHECK(system_class_loader != nullptr);
 
-  soa.Self()->SetClassLoaderOverride(system_class_loader.get());
+  ScopedAssertNoThreadSuspension sants(__FUNCTION__);
+  jobject g_system_class_loader =
+      runtime->GetJavaVM()->AddGlobalRef(soa.Self(), system_class_loader);
+  soa.Self()->SetClassLoaderOverride(g_system_class_loader);
 
-  Handle<mirror::Class> thread_class(
-      hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_Thread)));
-  CHECK(cl->EnsureInitialized(soa.Self(), thread_class, true, true));
-
+  ObjPtr<mirror::Class> thread_class =
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_Thread);
   ArtField* contextClassLoader =
       thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != nullptr);
 
   // We can't run in a transaction yet.
-  contextClassLoader->SetObject<false>(
-      soa.Self()->GetPeer(),
-      soa.Decode<mirror::ClassLoader>(system_class_loader.get()).Ptr());
+  contextClassLoader->SetObject<false>(soa.Self()->GetPeer(), system_class_loader);
 
-  return env->NewGlobalRef(system_class_loader.get());
+  return g_system_class_loader;
 }
 
 std::string Runtime::GetCompilerExecutable() const {

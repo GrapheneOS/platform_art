@@ -1711,7 +1711,7 @@ class ClassLinkerClassLoaderTest : public ClassLinkerTest {
       }
       ASSERT_TRUE(klass == nullptr);
     } else if (expected_class_loader_obj == nullptr) {
-      ASSERT_TRUE(ClassLinker::IsBootClassLoader(soa, klass->GetClassLoader()));
+      ASSERT_TRUE(ClassLinker::IsBootClassLoader(klass->GetClassLoader()));
     } else {
       ASSERT_TRUE(klass != nullptr) << descriptor;
       Handle<mirror::ClassLoader> expected_class_loader(
