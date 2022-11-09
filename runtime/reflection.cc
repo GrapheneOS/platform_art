@@ -535,7 +535,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
     ThrowStackOverflowError(soa.Self());
     return JValue();
   }
-  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  bool is_string_init = method->IsStringConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
     method = WellKnownClasses::StringInitToStringFactory(method);
@@ -577,7 +577,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa,
     ThrowStackOverflowError(soa.Self());
     return JValue();
   }
-  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  bool is_string_init = method->IsStringConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
     method = WellKnownClasses::StringInitToStringFactory(method);
@@ -620,7 +620,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
   }
   ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object>(obj);
   ArtMethod* method = FindVirtualMethod(receiver, interface_method);
-  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  bool is_string_init = method->IsStringConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
     method = WellKnownClasses::StringInitToStringFactory(method);
@@ -664,7 +664,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
 
   ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object>(obj);
   ArtMethod* method = FindVirtualMethod(receiver, interface_method);
-  bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+  bool is_string_init = method->IsStringConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
     method = WellKnownClasses::StringInitToStringFactory(method);

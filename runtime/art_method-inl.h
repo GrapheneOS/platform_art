@@ -254,6 +254,15 @@ inline ObjPtr<mirror::Class> ArtMethod::ResolveClassFromTypeIndex(dex::TypeIndex
   return type;
 }
 
+inline bool ArtMethod::IsStringConstructor() {
+  uint32_t access_flags = GetAccessFlags();
+  DCHECK(!IsClassInitializer(access_flags));
+  return IsConstructor(access_flags) &&
+         // No read barrier needed for reading a constant reference only to read
+         // a constant string class flag. See `ReadBarrierOption`.
+         GetDeclaringClass<kWithoutReadBarrier>()->IsStringClass();
+}
+
 inline bool ArtMethod::IsOverridableByDefaultMethod() {
   // It is safe to avoid the read barrier here since the constant interface flag
   // in the `Class` object is stored before creating the `ArtMethod` and storing

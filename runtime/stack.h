@@ -308,13 +308,19 @@ class StackVisitor {
     *should_deoptimize_addr = *should_deoptimize_addr | static_cast<uint8_t>(value);
   };
 
+  void UnsetShouldDeoptimizeFlag(DeoptimizeFlagValue value) REQUIRES_SHARED(Locks::mutator_lock_) {
+    uint8_t* should_deoptimize_addr = GetShouldDeoptimizeFlagAddr();
+    *should_deoptimize_addr = *should_deoptimize_addr & ~static_cast<uint8_t>(value);
+  };
+
   uint8_t GetShouldDeoptimizeFlag() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return *GetShouldDeoptimizeFlagAddr();
   }
 
-  bool IsShouldDeoptimizeFlagForDebugSet() const REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool ShouldForceDeoptForRedefinition() const REQUIRES_SHARED(Locks::mutator_lock_) {
     uint8_t should_deopt_flag = GetShouldDeoptimizeFlag();
-    return (should_deopt_flag & static_cast<uint8_t>(DeoptimizeFlagValue::kDebug)) != 0;
+    return (should_deopt_flag &
+            static_cast<uint8_t>(DeoptimizeFlagValue::kForceDeoptForRedefinition)) != 0;
   }
 
   // Return the number of dex register in the map from the outermost frame to the number of inlined

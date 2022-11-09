@@ -2753,18 +2753,13 @@ class Dex2Oat final {
 
     Thread* self = Thread::Current();
     runtime_->GetClassLinker()->RunEarlyRootClinits(self);
+    InitializeIntrinsics();
     WellKnownClasses::Init(self->GetJniEnv());
     runtime_->RunRootClinits(self);
 
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
     // Runtime::Start, give it away now so that we don't starve GC.
     self->TransitionFromRunnableToSuspended(ThreadState::kNative);
-
-    // Now that we are in native state, initialize well known classes and
-    // intrinsics if we don't have a boot image.
-    if (IsBootImage() || runtime_->GetHeap()->GetBootImageSpaces().empty()) {
-      InitializeIntrinsics();
-    }
 
     WatchDog::SetRuntime(runtime_.get());
 
