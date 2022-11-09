@@ -16,7 +16,7 @@
 import sys, os, shutil, shlex, re, subprocess, glob
 from argparse import ArgumentParser, BooleanOptionalAction, Namespace
 from os import path
-from os.path import isfile, isdir
+from os.path import isfile, isdir, basename
 from typing import List
 from subprocess import DEVNULL, PIPE, STDOUT
 from tempfile import NamedTemporaryFile
@@ -207,8 +207,6 @@ def default_run(ctx, args, **kwargs):
 
   def run(cmdline: str,
           env={},
-          stdout_file=None,
-          stderr_file=None,
           check=True,
           parse_exit_code_from_stdout=False,
           expected_exit_code=0,
@@ -230,6 +228,7 @@ def default_run(ctx, args, **kwargs):
         cmdline = "true"  # We still need to run some command, so run the no-op "true" binary instead.
     proc = subprocess.run([cmdline],
                           shell=True,
+                          executable="/bin/bash",
                           env=env,
                           encoding="utf8",
                           capture_output=True)
@@ -245,14 +244,6 @@ def default_run(ctx, args, **kwargs):
       proc.stdout = proc.stdout[:found.start(0)]  # Remove the exit code from stdout.
       proc.returncode = int(found.group(1))  # Use it as if it was the process exit code.
 
-    # Save copy of the output on disk.
-    if stdout_file:
-      with open(stdout_file, "a") as f:
-        f.write(proc.stdout)
-    if stderr_file:
-      with open(stderr_file, "a") as f:
-        f.write(proc.stderr)
-
     # Check the exit code.
     if (check and proc.returncode != expected_exit_code) or VERBOSE:
       print("$ " + cmdline)
@@ -264,9 +255,18 @@ def default_run(ctx, args, **kwargs):
         suffix = " (TIME OUT)"
       elif expected_exit_code != 0:
         suffix = " (expected {})".format(expected_exit_code)
-      raise Exception("Command returned exit code {}{}".format(proc.returncode, suffix))
+      print("Command returned exit code {}{}".format(proc.returncode, suffix), file=sys.stderr)
+      sys.exit(1)
 
     return proc
+
+  # Store copy of stdout&stderr of command in files so that we can diff them later.
+  # This may run under 'adb shell' so we are limited only to 'sh' shell feature set.
+  def tee(cmd: str):
+    # 'tee' works on stdout only, so we need to temporarily swap stdout and stderr.
+    cmd = f"({cmd} | tee -a {DEX_LOCATION}/{basename(args.stdout_file)}) 3>&1 1>&2 2>&3"
+    cmd = f"({cmd} | tee -a {DEX_LOCATION}/{basename(args.stderr_file)}) 3>&1 1>&2 2>&3"
+    return f"set -o pipefail; {cmd}"  # Use exit code of first failure in piped command.
 
   class Adb():
 
@@ -289,6 +289,9 @@ def default_run(ctx, args, **kwargs):
 
     def push(self, src: str, dst: str, **kwargs) -> None:
       run(f"adb push {src} {dst}", self.env, **kwargs)
+
+    def pull(self, src: str, dst: str, **kwargs) -> None:
+      run(f"adb pull {src} {dst}", self.env, **kwargs)
 
   adb = Adb()
 
@@ -725,10 +728,8 @@ def default_run(ctx, args, **kwargs):
       print(f"Runnable test script written to {pwd}/runit.sh")
       return
     else:
-      run(cmdline,
+      run(tee(cmdline),
           env,
-          stdout_file=args.stdout_file,
-          stderr_file=args.stderr_file,
           expected_exit_code=args.expected_exit_code)
       return
 
@@ -1095,20 +1096,20 @@ def default_run(ctx, args, **kwargs):
   # b/24664297
 
   dalvikvm_cmdline = f"{INVOKE_WITH} {GDB} {ANDROID_ART_BIN_DIR}/{DALVIKVM} \
-                    {GDB_ARGS} \
-                    {FLAGS} \
-                    {DEX_VERIFY} \
-                    -XXlib:{LIB} \
-                    {DEX2OAT} \
-                    {DALVIKVM_ISA_FEATURES_ARGS} \
-                    {ZYGOTE} \
-                    {JNI_OPTS} \
-                    {INT_OPTS} \
-                    {DEBUGGER_OPTS} \
-                    {QUOTED_DALVIKVM_BOOT_OPT} \
-                    {TMP_DIR_OPTION} \
-                    -XX:DumpNativeStackOnSigQuit:false \
-                    -cp {DALVIKVM_CLASSPATH} {MAIN} {ARGS}"
+                       {GDB_ARGS} \
+                       {FLAGS} \
+                       {DEX_VERIFY} \
+                       -XXlib:{LIB} \
+                       {DEX2OAT} \
+                       {DALVIKVM_ISA_FEATURES_ARGS} \
+                       {ZYGOTE} \
+                       {JNI_OPTS} \
+                       {INT_OPTS} \
+                       {DEBUGGER_OPTS} \
+                       {QUOTED_DALVIKVM_BOOT_OPT} \
+                       {TMP_DIR_OPTION} \
+                       -XX:DumpNativeStackOnSigQuit:false \
+                       -cp {DALVIKVM_CLASSPATH} {MAIN} {ARGS}"
 
   if SIMPLEPERF:
     dalvikvm_cmdline = f"simpleperf record {dalvikvm_cmdline} && simpleperf report"
@@ -1267,12 +1268,13 @@ def default_run(ctx, args, **kwargs):
       # Create a script with the command. The command can get longer than the longest
       # allowed adb command and there is no way to get the exit status from a adb shell command.
       with NamedTemporaryFile(mode="w") as cmdfile:
+        cmdfile.write("echo '$$ {}'\n".format(cmdline.replace("'", r"'\''")))
         cmdfile.write(cmdline)
         cmdfile.flush()
         adb.push(
             cmdfile.name, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False)
         run('echo cmdline.sh "' + cmdline.replace('"', '\\"') + '"')
-      chroot_prefix = f"chroot {CHROOT} " if CHROOT else ""
+      chroot_prefix = f"chroot {CHROOT}" if CHROOT else ""
       return adb.shell(f"{chroot_prefix} sh {DEX_LOCATION}/cmdline.sh", **kwargs)
 
     if VERBOSE and (USE_GDB or USE_GDBSERVER):
@@ -1280,17 +1282,21 @@ def default_run(ctx, args, **kwargs):
 
     run_cmd(f"rm -rf {DEX_LOCATION}/dalvik-cache/")
     run_cmd(f"mkdir -p {mkdir_locations}")
+    # Restore stdout/stderr from previous run (the directory might have been cleared).
+    adb.push(args.stdout_file, f"{CHROOT}{DEX_LOCATION}/{basename(args.stdout_file)}")
+    adb.push(args.stderr_file, f"{CHROOT}{DEX_LOCATION}/{basename(args.stderr_file)}")
     run_cmd(f"{profman_cmdline}", env)
     run_cmd(f"{dex2oat_cmdline}", env)
     run_cmd(f"{dm_cmdline}", env)
     run_cmd(f"{vdex_cmdline}", env)
     run_cmd(f"{strip_cmdline}")
     run_cmd(f"{sync_cmdline}")
-    run_cmd(f"{timeout_prefix} {dalvikvm_cmdline}",
+    run_cmd(tee(f"{timeout_prefix} {dalvikvm_cmdline}"),
             env,
-            stdout_file=args.stdout_file,
-            stderr_file=args.stderr_file,
             expected_exit_code=args.expected_exit_code)
+    # Copy the on-device stdout/stderr to host.
+    adb.pull(f"{CHROOT}{DEX_LOCATION}/{basename(args.stdout_file)}", args.stdout_file)
+    adb.pull(f"{CHROOT}{DEX_LOCATION}/{basename(args.stderr_file)}", args.stderr_file)
   else:
     # Host run.
     if USE_ZIPAPEX or USE_EXRACTED_ZIPAPEX:
@@ -1409,10 +1415,8 @@ def default_run(ctx, args, **kwargs):
       subprocess.run(cmdline, env=env, shell=True)
     else:
       if TIME_OUT != "gdb":
-        run(cmdline,
+        run(tee(cmdline),
             env,
-            stdout_file=args.stdout_file,
-            stderr_file=args.stderr_file,
             expected_exit_code=args.expected_exit_code)
       else:
         # With a thread dump that uses gdb if a timeout.
