@@ -735,8 +735,7 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                ObjPtr<mirror::ClassLoader> class_loader)
+  static bool IsBootClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtMethod* AddMethodToConflictTable(ObjPtr<mirror::Class> klass,
@@ -1018,8 +1017,7 @@ class ClassLinker {
   // class-loader chain could be handled, false otherwise, i.e., a non-supported class-loader
   // was encountered while walking the parent chain (currently only BootClassLoader and
   // PathClassLoader are supported).
-  bool FindClassInBaseDexClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                     Thread* self,
+  bool FindClassInBaseDexClassLoader(Thread* self,
                                      const char* descriptor,
                                      size_t hash,
                                      Handle<mirror::ClassLoader> class_loader,
@@ -1027,8 +1025,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  bool FindClassInSharedLibraries(ScopedObjectAccessAlreadyRunnable& soa,
-                                  Thread* self,
+  bool FindClassInSharedLibraries(Thread* self,
                                   const char* descriptor,
                                   size_t hash,
                                   Handle<mirror::ClassLoader> class_loader,
@@ -1036,8 +1033,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  bool FindClassInSharedLibrariesHelper(ScopedObjectAccessAlreadyRunnable& soa,
-                                        Thread* self,
+  bool FindClassInSharedLibrariesHelper(Thread* self,
                                         const char* descriptor,
                                         size_t hash,
                                         Handle<mirror::ClassLoader> class_loader,
@@ -1046,8 +1042,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  bool FindClassInSharedLibrariesAfter(ScopedObjectAccessAlreadyRunnable& soa,
-                                       Thread* self,
+  bool FindClassInSharedLibrariesAfter(Thread* self,
                                        const char* descriptor,
                                        size_t hash,
                                        Handle<mirror::ClassLoader> class_loader,
@@ -1063,7 +1058,7 @@ class ClassLinker {
   // The method always returns true, to notify to the caller a
   // BaseDexClassLoader has a known lookup.
   bool FindClassInBaseDexClassLoaderClassPath(
-          ScopedObjectAccessAlreadyRunnable& soa,
+          Thread* self,
           const char* descriptor,
           size_t hash,
           Handle<mirror::ClassLoader> class_loader,

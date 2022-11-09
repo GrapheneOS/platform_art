@@ -198,8 +198,7 @@ class CommonRuntimeTestImpl : public CommonArtTestImpl {
   // Get the dex files from a PathClassLoader or DelegateLastClassLoader.
   // This only looks into the current class loader and does not recurse into the parents.
   std::vector<const DexFile*> GetDexFiles(jobject jclass_loader);
-  std::vector<const DexFile*> GetDexFiles(ScopedObjectAccess& soa,
-                                          Handle<mirror::ClassLoader> class_loader)
+  std::vector<const DexFile*> GetDexFiles(Thread* self, Handle<mirror::ClassLoader> class_loader)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the first dex file from a PathClassLoader. Will abort if it is null.

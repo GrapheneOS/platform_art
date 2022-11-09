@@ -45,7 +45,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_areClassesVerified(JNIEnv*,
 
   std::vector<const DexFile*> dex_files;
   VisitClassLoaderDexFiles(
-      soa,
+      soa.Self(),
       h_loader,
       [&](const DexFile* dex_file) {
         dex_files.push_back(dex_file);
@@ -84,7 +84,7 @@ extern "C" JNIEXPORT bool JNICALL Java_Main_hasVdexFile(JNIEnv*,
 
   std::vector<const DexFile*> dex_files;
   VisitClassLoaderDexFiles(
-      soa,
+      soa.Self(),
       h_loader,
       [&](const DexFile* dex_file) {
         dex_files.push_back(dex_file);
@@ -116,7 +116,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isBackedByOatFile(JNIEnv*,
   bool all_backed_by_oat = false;
 
   VisitClassLoaderDexFiles(
-      soa,
+      soa.Self(),
       h_loader,
       [&](const DexFile* dex_file) {
         bool is_backed_by_oat = (dex_file->GetOatDexFile() != nullptr);
@@ -141,7 +141,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_areClassesPreverified(JNIEnv*,
 
   std::vector<const DexFile*> dex_files;
   VisitClassLoaderDexFiles(
-      soa,
+      soa.Self(),
       h_loader,
       [&](const DexFile* dex_file) {
         dex_files.push_back(dex_file);
