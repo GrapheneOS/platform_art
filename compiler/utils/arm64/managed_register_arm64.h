@@ -20,9 +20,10 @@
 #include <android-base/logging.h>
 
 #include "arch/arm64/registers_arm64.h"
+#include "base/macros.h"
 #include "utils/managed_register.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm64 {
 
 const int kNumberOfXRegIds = kNumberOfXRegisters;

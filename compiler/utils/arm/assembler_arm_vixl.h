@@ -37,7 +37,7 @@
 
 namespace vixl32 = vixl::aarch32;
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 inline dwarf::Reg DWARFReg(vixl32::Register reg) {

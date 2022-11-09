@@ -20,9 +20,10 @@
 #include <type_traits>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/value_object.h"
 
-namespace art {
+namespace art HIDDEN {
 
 namespace arm {
 class ArmManagedRegister;

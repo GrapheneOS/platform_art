@@ -27,11 +27,12 @@
 #include "android-base/stringprintf.h"
 
 #include "base/hash_set.h"
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "base/time_utils.h"
 
-namespace art {
+namespace art HIDDEN {
 
 template <typename InKey,
           typename StoreKey,
