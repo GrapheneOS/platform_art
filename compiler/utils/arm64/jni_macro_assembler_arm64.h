@@ -37,7 +37,7 @@
 #include "aarch64/macro-assembler-aarch64.h"
 #pragma GCC diagnostic pop
 
-namespace art {
+namespace art HIDDEN {
 namespace arm64 {
 
 class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler, PointerSize::k64> {

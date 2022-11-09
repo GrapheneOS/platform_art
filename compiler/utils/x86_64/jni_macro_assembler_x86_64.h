@@ -28,7 +28,7 @@
 #include "utils/assembler.h"
 #include "utils/jni_macro_assembler.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86_64 {
 
 class X86_64JNIMacroAssembler final : public JNIMacroAssemblerFwd<X86_64Assembler,

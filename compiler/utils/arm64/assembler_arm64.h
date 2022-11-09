@@ -38,7 +38,7 @@
 #include "aarch64/macro-assembler-aarch64.h"
 #pragma GCC diagnostic pop
 
-namespace art {
+namespace art HIDDEN {
 
 class Arm64InstructionSetFeatures;
 

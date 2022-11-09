@@ -21,11 +21,12 @@
 #include <vector>
 
 #include "base/array_ref.h"
+#include "base/macros.h"
 #include "dedupe_set-inl.h"
 #include "gtest/gtest.h"
 #include "thread-current-inl.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class DedupeSetTestHashFunc {
  public:

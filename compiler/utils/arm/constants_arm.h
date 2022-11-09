@@ -26,8 +26,9 @@
 #include "arch/arm/registers_arm.h"
 #include "base/casts.h"
 #include "base/globals.h"
+#include "base/macros.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 // Defines constants and accessor classes to assemble, disassemble and
