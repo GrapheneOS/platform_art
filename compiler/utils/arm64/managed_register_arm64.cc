@@ -17,7 +17,7 @@
 #include "managed_register_arm64.h"
 #include "base/globals.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm64 {
 
 // TODO: Define convention

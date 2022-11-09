@@ -22,7 +22,7 @@
 #include "lock_word.h"
 #include "thread.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86_64 {
 
 static dwarf::Reg DWARFReg(Register reg) {

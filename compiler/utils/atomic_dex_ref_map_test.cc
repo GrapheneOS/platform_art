@@ -18,12 +18,13 @@
 
 #include <memory>
 
+#include "base/macros.h"
 #include "common_runtime_test.h"
 #include "dex/dex_file-inl.h"
 #include "dex/method_reference.h"
 #include "scoped_thread_state_change-inl.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class AtomicDexRefMapTest : public CommonRuntimeTest {};
 

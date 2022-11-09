@@ -21,12 +21,13 @@
 
 #include <type_traits>
 
+#include "base/macros.h"
 #include "dex/class_reference.h"
 #include "dex/dex_file-inl.h"
 #include "dex/method_reference.h"
 #include "dex/type_reference.h"
 
-namespace art {
+namespace art HIDDEN {
 
 template <typename DexFileReferenceType, typename Value>
 inline size_t AtomicDexRefMap<DexFileReferenceType, Value>::NumberOfDexIndices(

@@ -27,7 +27,7 @@
 #include "offsets.h"
 #include "utils/jni_macro_assembler.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86 {
 
 class X86JNIMacroLabel;

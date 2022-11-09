@@ -20,7 +20,9 @@
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 
-namespace art {
+#include "base/macros.h"
+
+namespace art HIDDEN {
 
 class Assembler;
 class AssemblerBuffer;

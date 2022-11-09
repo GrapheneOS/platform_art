@@ -17,11 +17,12 @@
 #include "assembler_x86.h"
 
 #include "base/arena_allocator.h"
+#include "base/macros.h"
 #include "base/malloc_arena_pool.h"
 #include "base/stl_util.h"
 #include "utils/assembler_test.h"
 
-namespace art {
+namespace art HIDDEN {
 
 TEST(AssemblerX86, CreateBuffer) {
   MallocArenaPool pool;

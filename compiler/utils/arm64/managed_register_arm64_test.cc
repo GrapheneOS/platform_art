@@ -18,9 +18,10 @@
 
 #include "assembler_arm64.h"
 #include "base/globals.h"
+#include "base/macros.h"
 #include "gtest/gtest.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm64 {
 
 TEST(Arm64ManagedRegister, NoRegister) {
