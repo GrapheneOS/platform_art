@@ -16,7 +16,7 @@
    movq rSELF:THREAD_SELF_OFFSET, %rdi
    movq 0(%rsp), %rsi
    movq rPC, %rdx
-   call nterp_get_class_or_allocate_object
+   call nterp_get_class
    movq %rax, %rsi
    jmp 1b
 
@@ -149,7 +149,7 @@
    movq rSELF:THREAD_SELF_OFFSET, %rdi
    movq 0(%rsp), %rsi
    movq rPC, %rdx
-   call nterp_get_class_or_allocate_object
+   call nterp_get_class
    movq %rax, %rsi
    jmp .L${opcode}_start
 

@@ -42,7 +42,7 @@
 #include "utils/x86/assembler_x86.h"
 #include "utils/x86/managed_register_x86.h"
 
-namespace art {
+namespace art HIDDEN {
 
 template<class MirrorType>
 class GcRoot;
@@ -966,6 +966,9 @@ class MethodEntryExitHooksSlowPathX86 : public SlowPathCode {
         (instruction_->IsMethodEntryHook()) ? kQuickMethodEntryHook : kQuickMethodExitHook;
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
+    if (instruction_->IsMethodExitHook()) {
+      __ movl(EBX, Immediate(codegen->GetFrameSize()));
+    }
     x86_codegen->InvokeRuntime(entry_point, instruction_, instruction_->GetDexPc(), this);
     RestoreLiveRegisters(codegen, locations);
     __ jmp(GetExitLabel());

@@ -25,7 +25,7 @@
 #include "optimizing/nodes.h"
 #include "ssa_phi_elimination.h"
 
-namespace art {
+namespace art HIDDEN {
 
 static void MarkReachableBlocks(HGraph* graph, ArenaBitVector* visited) {
   // Use local allocator for allocating memory.

@@ -17,11 +17,12 @@
 #ifndef ART_COMPILER_OPTIMIZING_CONSTANT_FOLDING_H_
 #define ART_COMPILER_OPTIMIZING_CONSTANT_FOLDING_H_
 
+#include "base/macros.h"
 #include "nodes.h"
 #include "optimization.h"
 #include "optimizing/optimizing_compiler_stats.h"
 
-namespace art {
+namespace art HIDDEN {
 
 /**
  * Optimization pass performing a simple constant-expression

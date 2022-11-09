@@ -1668,14 +1668,17 @@ bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, ArtMethod** sp) {
   ArtMethod* runtime_method = *sp;
   DCHECK(runtime_method->IsRuntimeMethod());
   QuickMethodFrameInfo frame_info = Runtime::Current()->GetRuntimeMethodFrameInfo(runtime_method);
+  return ShouldDeoptimizeCaller(self, sp, frame_info.FrameSizeInBytes());
+}
 
-  uintptr_t caller_sp = reinterpret_cast<uintptr_t>(sp) + frame_info.FrameSizeInBytes();
+bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, ArtMethod** sp, size_t frame_size) {
+  uintptr_t caller_sp = reinterpret_cast<uintptr_t>(sp) + frame_size;
   ArtMethod* caller = *(reinterpret_cast<ArtMethod**>(caller_sp));
-  uintptr_t caller_pc_addr = reinterpret_cast<uintptr_t>(sp) + frame_info.GetReturnPcOffset();
+  uintptr_t caller_pc_addr = reinterpret_cast<uintptr_t>(sp) + (frame_size - sizeof(void*));
   uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(caller_pc_addr);
-
   return ShouldDeoptimizeCaller(self, caller, caller_pc, caller_sp);
 }
+
 
 bool Instrumentation::ShouldDeoptimizeCaller(Thread* self, const NthCallerVisitor& visitor) {
   uintptr_t caller_sp = reinterpret_cast<uintptr_t>(visitor.GetCurrentQuickFrame());
@@ -1692,6 +1695,7 @@ bool Instrumentation::ShouldDeoptimizeCaller(Thread* self,
                                              uintptr_t caller_sp) {
   if (caller == nullptr ||
       caller->IsNative() ||
+      caller->IsRuntimeMethod() ||
       caller_pc == reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
     // If caller_pc is QuickInstrumentationExit then deoptimization will be handled by the
     // instrumentation exit trampoline so we don't need to handle deoptimizations here.

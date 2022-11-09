@@ -17,10 +17,11 @@
 #ifndef ART_COMPILER_OPTIMIZING_CRITICAL_NATIVE_ABI_FIXUP_ARM_H_
 #define ART_COMPILER_OPTIMIZING_CRITICAL_NATIVE_ABI_FIXUP_ARM_H_
 
+#include "base/macros.h"
 #include "nodes.h"
 #include "optimization.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 class CriticalNativeAbiFixupArm : public HOptimization {

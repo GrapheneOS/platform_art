@@ -92,6 +92,7 @@ class Arm64JNIMacroAssembler final : public JNIMacroAssemblerFwd<Arm64Assembler,
                      ArrayRef<ArgumentLocation> srcs,
                      ArrayRef<FrameOffset> refs) override;
   void Move(ManagedRegister dest, ManagedRegister src, size_t size) override;
+  void Move(ManagedRegister dest, size_t value) override;
   void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset64 thr_offs) override;
   void CopyRawPtrToThread(ThreadOffset64 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
       override;

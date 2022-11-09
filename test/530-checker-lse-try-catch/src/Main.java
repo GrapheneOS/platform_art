@@ -35,6 +35,14 @@ public class Main {
     assertEquals(30, $noinline$testDontKeepStoreInsideCatch(new int[]{}));
     assertEquals(10, $noinline$testKeepStoreInsideCatchWithOuterTry(new int[]{10}));
     assertEquals(30, $noinline$testKeepStoreInsideCatchWithOuterTry(new int[]{}));
+    assertEquals(40, $noinline$testDontKeepStoreInsideFinally(new int[]{10}));
+    try {
+      assertEquals(30, $noinline$testDontKeepStoreInsideFinally(new int[]{}));
+      throw new Error("Unreachable");
+    } catch (ArrayIndexOutOfBoundsException expected) {
+    }
+    assertEquals(10, $noinline$testDontKeepStoreInsideOuterCatch(new int[]{10}));
+    assertEquals(100030, $noinline$testDontKeepStoreInsideOuterCatch(new int[]{}));
     assertEquals(150, $noinline$test40());
   }
 
@@ -279,6 +287,66 @@ public class Main {
       }
     } catch (Exception e) {
       value = 100000;
+    }
+
+    return main.sumForKeepStoreInsideTryCatch + value;
+  }
+
+  // Note that there are four `InstanceFieldSet` instead of two since we split the `finally` block
+  // into the normal path, and the exceptional path.
+
+  /// CHECK-START: int Main.$noinline$testDontKeepStoreInsideFinally(int[]) load_store_elimination (before)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+
+  /// CHECK-START: int Main.$noinline$testDontKeepStoreInsideFinally(int[]) load_store_elimination (after)
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  private static int $noinline$testDontKeepStoreInsideFinally(int[] array) {
+    Main main = new Main();
+    int value = 0;
+    try {
+      value = array[0];
+    } finally {
+      // These sets can be eliminated even though we have invokes since this catch is not part of an
+      // outer try.
+      main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(10);
+      main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(20);
+    }
+    return main.sumForKeepStoreInsideTryCatch + value;
+  }
+
+  // Checks that we are able to do LSE inside of catches which are outside of try blocks.
+
+  /// CHECK-START: int Main.$noinline$testDontKeepStoreInsideOuterCatch(int[]) load_store_elimination (before)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+
+  // This store potentially can be eliminated too, but our phi creation logic doesn't realize it can
+  // create a Phi for `main.sumForKeepStoreInsideTryCatch` and skip a store+load.
+
+  /// CHECK-START: int Main.$noinline$testDontKeepStoreInsideOuterCatch(int[]) load_store_elimination (after)
+  /// CHECK:     InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+  /// CHECK-NOT: InstanceFieldSet field_name:Main.sumForKeepStoreInsideTryCatch
+
+  private static int $noinline$testDontKeepStoreInsideOuterCatch(int[] array) {
+    Main main = new Main();
+    int value = 0;
+    try {
+      value = array[0];
+    } catch (ArrayIndexOutOfBoundsException expected) {
+      // These sets and gets are not considered to be part of a try so they are free to be
+      // eliminated.
+      main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(10);
+      main.sumForKeepStoreInsideTryCatch += $noinline$returnValue(20);
+      try {
+        value = array[0];
+      } catch (ArrayIndexOutOfBoundsException expectedToo) {
+        value = 100000;
+      }
     }
 
     return main.sumForKeepStoreInsideTryCatch + value;

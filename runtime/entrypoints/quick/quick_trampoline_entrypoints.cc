@@ -2684,10 +2684,11 @@ extern "C" void artMethodEntryHook(ArtMethod* method, Thread* self, ArtMethod** 
 }
 
 extern "C" void artMethodExitHook(Thread* self,
-                                 ArtMethod* method,
-                                 uint64_t* gpr_result,
-                                 uint64_t* fpr_result)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+                                  ArtMethod** sp,
+                                  uint64_t* gpr_result,
+                                  uint64_t* fpr_result,
+                                  uint32_t frame_size)
+  REQUIRES_SHARED(Locks::mutator_lock_) {
   // For GenericJniTrampolines we call artMethodExitHook even for non debuggable runtimes though we
   // still install instrumentation stubs. So just return early here so we don't call method exit
   // twice. In all other cases (JITed JNI stubs / JITed code) we only call this for debuggable
@@ -2697,31 +2698,29 @@ extern "C" void artMethodExitHook(Thread* self,
   }
 
   DCHECK_EQ(reinterpret_cast<uintptr_t>(self), reinterpret_cast<uintptr_t>(Thread::Current()));
-  CHECK(gpr_result != nullptr);
-  CHECK(fpr_result != nullptr);
   // Instrumentation exit stub must not be entered with a pending exception.
   CHECK(!self->IsExceptionPending())
       << "Enter instrumentation exit stub with pending exception " << self->GetException()->Dump();
 
   instrumentation::Instrumentation* instr = Runtime::Current()->GetInstrumentation();
-  DCHECK(instr->AreExitStubsInstalled());
-  bool is_ref;
-  JValue return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
-  bool deoptimize = false;
-  {
+  JValue return_value;
+  bool is_ref = false;
+  ArtMethod* method = *sp;
+  bool deoptimize = instr->ShouldDeoptimizeCaller(self, sp, frame_size);
+  if (instr->HasMethodExitListeners()) {
     StackHandleScope<1> hs(self);
+
+    CHECK(gpr_result != nullptr);
+    CHECK(fpr_result != nullptr);
+    DCHECK(instr->AreExitStubsInstalled());
+
+    return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
     MutableHandle<mirror::Object> res(hs.NewHandle<mirror::Object>(nullptr));
     if (is_ref) {
       // Take a handle to the return value so we won't lose it if we suspend.
       res.Assign(return_value.GetL());
     }
     DCHECK(!method->IsRuntimeMethod());
-
-    // Deoptimize if the caller needs to continue execution in the interpreter. Do nothing if we get
-    // back to an upcall.
-    NthCallerVisitor visitor(self, 1, /*include_runtime_and_upcalls=*/false);
-    visitor.WalkStack(true);
-    deoptimize = instr->ShouldDeoptimizeCaller(self, visitor);
 
     // If we need a deoptimization MethodExitEvent will be called by the interpreter when it
     // re-executes the return instruction. For native methods we have to process method exit
@@ -2738,6 +2737,8 @@ extern "C" void artMethodExitHook(Thread* self,
       *reinterpret_cast<mirror::Object**>(gpr_result) = res.Get();
       return_value.SetL(res.Get());
     }
+  } else if (deoptimize) {
+    return_value = instr->GetReturnValue(method, &is_ref, gpr_result, fpr_result);
   }
 
   if (self->IsExceptionPending() || self->ObserveAsyncException()) {

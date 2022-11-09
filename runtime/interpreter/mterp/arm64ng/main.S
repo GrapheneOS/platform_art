@@ -273,7 +273,9 @@ ENTRY \name
   bl \helper
   RESTORE_SAVE_REFS_ONLY_FRAME
   REFRESH_MARKING_REGISTER
-  RETURN_OR_DELIVER_PENDING_EXCEPTION
+  ldr xIP0, [xSELF, # THREAD_EXCEPTION_OFFSET]   // Get exception field.
+  cbnz xIP0, nterp_deliver_pending_exception
+  ret
 END \name
 .endm
 
@@ -1910,10 +1912,15 @@ NTERP_TRAMPOLINE nterp_get_static_field, NterpGetStaticField
 NTERP_TRAMPOLINE nterp_get_instance_field_offset, NterpGetInstanceFieldOffset
 NTERP_TRAMPOLINE nterp_filled_new_array, NterpFilledNewArray
 NTERP_TRAMPOLINE nterp_filled_new_array_range, NterpFilledNewArrayRange
-NTERP_TRAMPOLINE nterp_get_class_or_allocate_object, NterpGetClassOrAllocateObject
+NTERP_TRAMPOLINE nterp_get_class, NterpGetClass
+NTERP_TRAMPOLINE nterp_allocate_object, NterpAllocateObject
 NTERP_TRAMPOLINE nterp_get_method, NterpGetMethod
 NTERP_TRAMPOLINE nterp_hot_method, NterpHotMethod
 NTERP_TRAMPOLINE nterp_load_object, NterpLoadObject
+
+ENTRY nterp_deliver_pending_exception
+    DELIVER_PENDING_EXCEPTION
+END nterp_deliver_pending_exception
 
 // gen_mterp.py will inline the following definitions
 // within [ExecuteNterpImpl, EndExecuteNterpImpl).

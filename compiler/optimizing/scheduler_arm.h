@@ -17,10 +17,11 @@
 #ifndef ART_COMPILER_OPTIMIZING_SCHEDULER_ARM_H_
 #define ART_COMPILER_OPTIMIZING_SCHEDULER_ARM_H_
 
+#include "base/macros.h"
 #include "code_generator_arm_vixl.h"
 #include "scheduler.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 // AArch32 instruction latencies.
 // We currently assume that all ARM CPUs share the same instruction latency list.

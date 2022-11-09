@@ -412,6 +412,11 @@ void X86JNIMacroAssembler::Move(ManagedRegister mdest, ManagedRegister msrc, siz
   }
 }
 
+void X86JNIMacroAssembler::Move(ManagedRegister mdest, size_t value) {
+  X86ManagedRegister dest = mdest.AsX86();
+  __ movl(dest.AsCpuRegister(), Immediate(value));
+}
+
 void X86JNIMacroAssembler::CopyRef(FrameOffset dest, FrameOffset src) {
   Register scratch = GetScratchRegister();
   __ movl(scratch, Address(ESP, src));
