@@ -166,7 +166,7 @@ TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackJava)
 
   {
     ScopedObjectAccess soa(self);
-    MakeExecutable(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_Thread));
+    MakeExecutable(WellKnownClasses::ToClass(WellKnownClasses::java_lang_Thread));
   }
 
   JNIEnv* env = self->GetJniEnv();

@@ -953,7 +953,7 @@ jvmtiError ClassUtil::GetClassLoaderClassDescriptors(jvmtiEnv* env,
       hs.NewHandle(soa.Decode<art::mirror::ClassLoader>(loader)));
   std::vector<const art::DexFile*> dex_files;
   art::VisitClassLoaderDexFiles(
-      soa,
+      self,
       class_loader,
       [&](const art::DexFile* dex_file) {
         dex_files.push_back(dex_file);

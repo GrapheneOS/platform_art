@@ -49,14 +49,13 @@ class VMClassLoader {
   }
 
   static ObjPtr<mirror::Class> FindClassInPathClassLoader(ClassLinker* cl,
-                                                          ScopedObjectAccessAlreadyRunnable& soa,
                                                           Thread* self,
                                                           const char* descriptor,
                                                           size_t hash,
                                                           Handle<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ObjPtr<mirror::Class> result;
-    if (cl->FindClassInBaseDexClassLoader(soa, self, descriptor, hash, class_loader, &result)) {
+    if (cl->FindClassInBaseDexClassLoader(self, descriptor, hash, class_loader, &result)) {
       DCHECK(!self->IsExceptionPending());
       return result;
     }
@@ -112,7 +111,6 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
     // Try the common case.
     StackHandleScope<1> hs(soa.Self());
     c = VMClassLoader::FindClassInPathClassLoader(cl,
-                                                  soa,
                                                   soa.Self(),
                                                   descriptor.c_str(),
                                                   descriptor_hash,
