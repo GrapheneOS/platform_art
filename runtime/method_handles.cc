@@ -459,7 +459,7 @@ ArtMethod* RefineTargetMethod(Thread* self,
   } else if (handle_kind == mirror::MethodHandle::Kind::kInvokeDirect) {
     // String constructors are a special case, they are replaced with
     // StringFactory methods.
-    if (target_method->IsConstructor() && target_method->GetDeclaringClass()->IsStringClass()) {
+    if (target_method->IsStringConstructor()) {
       DCHECK(handle_type->GetRType()->IsStringClass());
       return WellKnownClasses::StringInitToStringFactory(target_method);
     }

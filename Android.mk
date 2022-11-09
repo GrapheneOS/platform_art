@@ -380,76 +380,6 @@ $(art_apex_symlink_timestamp): .KATI_SYMLINK_OUTPUTS := $(PRIVATE_LINK_NAME)
 
 art_apex_manifest_file :=
 
-#######################
-# Fake packages for ART
-
-# The art-runtime package depends on the core ART libraries and binaries. It exists so we can
-# manipulate the set of things shipped, e.g., add debug versions and so on.
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := art-runtime
-LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
-LOCAL_LICENSE_CONDITIONS := notice
-LOCAL_NOTICE_FILE := $(LOCAL_PATH)/NOTICE
-
-# Reference the libraries and binaries in the appropriate APEX module, because
-# they don't have platform variants. However if
-# ART_MODULE_BUILD_FROM_SOURCE isn't true then the APEX
-# modules are disabled, so Soong won't apply the APEX mutators to them, and
-# then they are available with their plain names.
-ifeq (true,$(ART_MODULE_BUILD_FROM_SOURCE))
-  art_module_lib = $(1).com.android.art
-  art_module_debug_lib = $(1).com.android.art.debug
-else
-  art_module_lib = $(1)
-  art_module_debug_lib = $(1)
-endif
-
-# Base requirements.
-LOCAL_REQUIRED_MODULES := \
-    $(call art_module_lib,dalvikvm) \
-    $(call art_module_lib,dex2oat) \
-    $(call art_module_lib,dexoptanalyzer) \
-    $(call art_module_lib,libart) \
-    $(call art_module_lib,libart-compiler) \
-    $(call art_module_lib,libopenjdkjvm) \
-    $(call art_module_lib,libopenjdkjvmti) \
-    $(call art_module_lib,odrefresh) \
-    $(call art_module_lib,profman) \
-    $(call art_module_lib,libadbconnection) \
-    $(call art_module_lib,libperfetto_hprof) \
-
-# Potentially add in debug variants:
-#
-# * We will never add them if PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD = false.
-# * We will always add them if PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD = true.
-# * Otherwise, we will add them by default to eng builds.
-art_target_include_debug_build := $(PRODUCT_ART_TARGET_INCLUDE_DEBUG_BUILD)
-ifneq (false,$(art_target_include_debug_build))
-ifneq (,$(filter eng,$(TARGET_BUILD_VARIANT)))
-  art_target_include_debug_build := true
-endif
-ifeq (true,$(art_target_include_debug_build))
-LOCAL_REQUIRED_MODULES += \
-    $(call art_module_debug_lib,dex2oatd) \
-    $(call art_module_debug_lib,dexoptanalyzerd) \
-    $(call art_module_debug_lib,libartd) \
-    $(call art_module_debug_lib,libartd-compiler) \
-    $(call art_module_debug_lib,libopenjdkd) \
-    $(call art_module_debug_lib,libopenjdkjvmd) \
-    $(call art_module_debug_lib,libopenjdkjvmtid) \
-    $(call art_module_debug_lib,profmand) \
-    $(call art_module_debug_lib,libadbconnectiond) \
-    $(call art_module_debug_lib,libperfetto_hprofd) \
-
-endif
-endif
-
-art_module_lib :=
-art_module_debug_lib :=
-
-include $(BUILD_PHONY_PACKAGE)
-
 ####################################################################################################
 # Fake packages to ensure generation of libopenjdkd when one builds with mm/mmm/mmma.
 #
@@ -726,12 +656,6 @@ build-art-host-golem: build-art-host \
                       $(ART_HOST_SHARED_LIBRARY_BENCHMARK) \
 		      $(ART_HOST_OUT_SHARED_LIBRARIES)/libgolemtiagent.so \
                       $(HOST_OUT_EXECUTABLES)/dex2oat_wrapper
-
-########################################################################
-# Phony target for building what go/lem requires for syncing /system to target.
-.PHONY: build-art-unbundled-golem
-art_apex_jars := $(foreach pair,$(ART_APEX_JARS), $(call word-colon,2,$(pair)))
-build-art-unbundled-golem: art-runtime linker oatdump $(art_apex_jars) conscrypt crash_dump
 
 ########################################################################
 # Rules for building all dependencies for tests.

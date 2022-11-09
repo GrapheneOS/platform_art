@@ -961,6 +961,7 @@ bool Runtime::Start() {
   started_ = true;
 
   class_linker_->RunEarlyRootClinits(self);
+  InitializeIntrinsics();
 
   self->TransitionFromRunnableToSuspended(ThreadState::kNative);
 
@@ -970,11 +971,6 @@ bool Runtime::Start() {
     ScopedTrace trace2("InitNativeMethods");
     InitNativeMethods();
   }
-
-  // IntializeIntrinsics needs to be called after the WellKnownClasses::Init in InitNativeMethods
-  // because in checking the invocation types of intrinsic methods ArtMethod::GetInvokeType()
-  // needs the SignaturePolymorphic annotation class which is initialized in WellKnownClasses::Init.
-  InitializeIntrinsics();
 
   // InitializeCorePlatformApiPrivateFields() needs to be called after well known class
   // initializtion in InitNativeMethods().
