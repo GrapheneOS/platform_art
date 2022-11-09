@@ -92,7 +92,10 @@ LIBCORE_TEST_NAMES = [
   "libcore.sun.util",
   "libcore.xml",
   "org.apache.harmony.annotation",
-  "org.apache.harmony.luni",
+  "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnection",
+  "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnection",
+  "org.apache.harmony.luni.tests.java.io",
+  "org.apache.harmony.luni.tests.java.net",
   "org.apache.harmony.nio",
   "org.apache.harmony.regex",
   "org.apache.harmony.testframework",
@@ -264,6 +267,8 @@ DISABLED_GCSTRESS_DEBUG_TESTS = {
 }
 
 DISABLED_FUGU_TESTS = {
+  "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnection",
+  "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnection",
   "test.java.awt",
   "test.java.io.ByteArrayInputStream",
   "test.java.io.ByteArrayOutputStream",
