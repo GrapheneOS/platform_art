@@ -71,6 +71,7 @@ class Main implements InvokeInterface {
     static int invoke(int a) {
         Main foo = new Main();
 
+        // clang-format off
         return foo.virI_I(a) +
                foo.virI_II(a, 1) +
                foo.virI_III(a, 1, 2) +
@@ -84,6 +85,7 @@ class Main implements InvokeInterface {
                statI_IIIII(a, 1, 2, 3, 4) +
                statI_IIIIII(a, 1, 2, 3, 4, 5) +
                foo.interfaceMethod(a);
+        // clang-format on
     }
 
     public static void main(String[] args) {

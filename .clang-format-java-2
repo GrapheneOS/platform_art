@@ -1,4 +1,6 @@
-# Please keep in sync with .clang-format-java-2 where applicable.
+# Variant of .clang-format but with 2 space indent for Java files, for use in
+# subdirectories with that style.
+# Please keep in sync with .clang-format where applicable.
 ---
 BasedOnStyle: Google
 ---
@@ -28,15 +30,15 @@ TabWidth: 2
 
 Language: Java
 
-AccessModifierOffset: -4
+AccessModifierOffset: -2
 AlignOperands: false
 AllowShortFunctionsOnASingleLine: Inline
 AlwaysBreakBeforeMultilineStrings: false
 ColumnLimit: 100
 CommentPragmas: (NOLINT|CHECK[^ ]*):.*
-ConstructorInitializerIndentWidth: 6
-ContinuationIndentWidth: 8
-IndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
+IndentWidth: 2
 JavaImportGroups:
 - android
 - androidx

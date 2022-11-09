@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// clang-format off
+
 class Main extends IntMathBase {
 
     public static boolean mBoolean1, mBoolean2;
