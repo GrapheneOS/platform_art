@@ -220,12 +220,22 @@ static ObjPtr<T> RemoteContentsPointerToLocal(ObjPtr<T> remote_ptr,
   return reinterpret_cast<T*>(const_cast<uint8_t*>(local_ptr));
 }
 
-template <typename T> size_t EntrySize(T* entry);
-template<> size_t EntrySize(mirror::Object* object) REQUIRES_SHARED(Locks::mutator_lock_) {
+size_t EntrySize(mirror::Object* object) REQUIRES_SHARED(Locks::mutator_lock_) {
   return object->SizeOf();
 }
-template<> size_t EntrySize(ArtMethod* art_method) REQUIRES_SHARED(Locks::mutator_lock_) {
+size_t EntrySize(ArtMethod* art_method) REQUIRES_SHARED(Locks::mutator_lock_) {
   return sizeof(*art_method);
+}
+
+// Print all pages the entry belongs to
+void PrintEntryPages(uintptr_t entry_address, size_t entry_size, std::ostream& os) {
+    const char* tabs = "    ";
+    const uintptr_t first_page_idx = entry_address / kPageSize;
+    const uintptr_t last_page_idx = RoundUp(entry_address + entry_size,
+                                            kObjectAlignment) / kPageSize;
+    for (uintptr_t page_idx = first_page_idx; page_idx <= last_page_idx; ++page_idx) {
+      os << tabs << "page_idx=" << page_idx << "\n";
+    }
 }
 
 // entry1 and entry2 might be relocated, this means we must use the runtime image's entry
@@ -452,6 +462,7 @@ class RegionSpecializedBase<mirror::Object> : public RegionCommon<mirror::Object
       os_ << tabs
           << "Instance of " << mirror::Class::PrettyClass(klass) << " " << entry << "\n";
     }
+    PrintEntryPages(reinterpret_cast<uintptr_t>(entry), EntrySize(entry), os_);
 
     std::unordered_set<ArtField*> dirty_instance_fields;
     std::unordered_set<ArtField*> dirty_static_fields;
@@ -769,6 +780,7 @@ class RegionSpecializedBase<ArtMethod> : public RegionCommon<ArtMethod> {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* tabs = "    ";
     os_ << tabs << "ArtMethod " << ArtMethod::PrettyMethod(method) << "\n";
+    PrintEntryPages(reinterpret_cast<uintptr_t>(method), EntrySize(method), os_);
 
     std::unordered_set<size_t> dirty_members;
     // Examine the members comprising the ArtMethod, computing which members are dirty.
