@@ -36,7 +36,7 @@ static constexpr uint kEvacuateLivePercentThreshold = 75U;
 static constexpr bool kProtectClearedRegions = kIsDebugBuild;
 
 // Wether we poison memory areas occupied by dead objects in unevacuated regions.
-static constexpr bool kPoisonDeadObjectsInUnevacuatedRegions = true;
+static constexpr bool kPoisonDeadObjectsInUnevacuatedRegions = kIsDebugBuild;
 
 // Special 32-bit value used to poison memory areas occupied by dead
 // objects in unevacuated regions. Dereferencing this value is expected
