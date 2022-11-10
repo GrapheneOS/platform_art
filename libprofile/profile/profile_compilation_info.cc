@@ -1710,7 +1710,7 @@ ProfileCompilationInfo::ProfileLoadStatus ProfileCompilationInfo::LoadInternal(
   if (memcmp(header.GetVersion(), version_, kProfileVersionSize) != 0) {
     *error = IsForBootImage() ? "Expected boot profile, got app profile."
                               : "Expected app profile, got boot profile.";
-    return ProfileLoadStatus::kMergeError;
+    return ProfileLoadStatus::kVersionMismatch;
   }
 
   // Check if there are too many section infos.
