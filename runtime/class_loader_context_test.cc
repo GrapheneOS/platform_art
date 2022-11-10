@@ -247,7 +247,7 @@ class ClassLoaderContextTest : public CommonRuntimeTest {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ASSERT_TRUE(class_loader->GetClass() == soa.Decode<mirror::Class>(type));
 
-    std::vector<const DexFile*> class_loader_dex_files = GetDexFiles(soa, class_loader);
+    std::vector<const DexFile*> class_loader_dex_files = GetDexFiles(soa.Self(), class_loader);
     ASSERT_EQ(expected_dex_files.size(), class_loader_dex_files.size());
 
     for (size_t i = 0; i < expected_dex_files.size(); i++) {
@@ -678,9 +678,9 @@ TEST_F(ClassLoaderContextTest, CreateClassLoader) {
       soa.Decode<mirror::ClassLoader>(jclass_loader));
 
   ASSERT_TRUE(class_loader->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_PathClassLoader));
   ASSERT_TRUE(class_loader->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
 
   // For the first class loader the class path dex files must come first and then the
   // compilation sources.
@@ -719,7 +719,7 @@ TEST_F(ClassLoaderContextTest, CreateClassLoaderWithEmptyContext) {
                             WellKnownClasses::dalvik_system_PathClassLoader,
                             compilation_sources_raw);
   ASSERT_TRUE(class_loader->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
 }
 
 TEST_F(ClassLoaderContextTest, CreateClassLoaderWithComplexChain) {
@@ -789,7 +789,7 @@ TEST_F(ClassLoaderContextTest, CreateClassLoaderWithComplexChain) {
                             class_loader_3_dex_files);
   // The last class loader should have the BootClassLoader as a parent.
   ASSERT_TRUE(class_loader_3->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
 }
 
 TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSharedLibraries) {
@@ -871,11 +871,11 @@ TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSharedLibraries) {
 
   // All class loaders should have the BootClassLoader as a parent.
   ASSERT_TRUE(class_loader_1->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
   ASSERT_TRUE(class_loader_2->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
   ASSERT_TRUE(class_loader_3->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
 }
 
 TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSharedLibrariesInParentToo) {
@@ -970,11 +970,11 @@ TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSharedLibrariesInParentToo) 
 
   // Class loaders should have the BootClassLoader as a parent.
   ASSERT_TRUE(class_loader_2->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
   ASSERT_TRUE(class_loader_3->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
   ASSERT_TRUE(class_loader_4->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
 }
 
 TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSharedLibrariesDependencies) {
@@ -1069,11 +1069,11 @@ TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSharedLibrariesDependencies)
 
   // Class loaders should have the BootClassLoader as a parent.
   ASSERT_TRUE(class_loader_2->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
   ASSERT_TRUE(class_loader_3->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
   ASSERT_TRUE(class_loader_4->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
 }
 
 TEST_F(ClassLoaderContextTest, RemoveSourceLocations) {
@@ -1171,9 +1171,9 @@ TEST_F(ClassLoaderContextTest, CreateClassLoaderWithSameSharedLibraries) {
 
   // Class loaders should have the BootClassLoader as a parent.
   ASSERT_TRUE(class_loader_2->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
   ASSERT_TRUE(class_loader_3->GetParent()->GetClass() ==
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_BootClassLoader));
 }
 
 TEST_F(ClassLoaderContextTest, EncodeInOatFile) {

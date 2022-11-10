@@ -23,7 +23,7 @@
 
 #include "base/macros.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class Thread;
 

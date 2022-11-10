@@ -44,9 +44,11 @@ bool CanRuntimeUseNterp() REQUIRES_SHARED(Locks::mutator_lock_) {
   // parts of the runtime (like instrumentation) make assumption on an
   // interpreter-only runtime to always be in a switch-like interpreter.
   return IsNterpSupported() &&
+      !runtime->IsJavaDebuggable() &&
+      !instr->AreExitStubsInstalled() &&
       !instr->InterpretOnly() &&
       !runtime->IsAotCompiler() &&
-      !runtime->GetInstrumentation()->NeedsSlowInterpreterForListeners() &&
+      !instr->NeedsSlowInterpreterForListeners() &&
       // An async exception has been thrown. We need to go to the switch interpreter. nterp doesn't
       // know how to deal with these so we could end up never dealing with it if we are in an
       // infinite loop.

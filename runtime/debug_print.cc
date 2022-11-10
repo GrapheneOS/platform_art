@@ -97,13 +97,13 @@ std::string DescribeLoaders(ObjPtr<mirror::ClassLoader> loader, const char* clas
         loader->GetClass() == dex_class_loader ||
         loader->GetClass() == delegate_last_class_loader) {
       oss << "(";
-      ScopedObjectAccessUnchecked soa(Thread::Current());
-      StackHandleScope<1> hs(soa.Self());
+      Thread* self = Thread::Current();
+      StackHandleScope<1> hs(self);
       Handle<mirror::ClassLoader> handle(hs.NewHandle(loader));
       const char* path_separator = "";
       const DexFile* base_dex_file = nullptr;
       VisitClassLoaderDexFiles(
-          soa,
+          self,
           handle,
           [&](const DexFile* dex_file) {
               oss << path_separator;

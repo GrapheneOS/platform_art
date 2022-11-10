@@ -32,7 +32,7 @@
 #include "offsets.h"
 #include "utils/assembler.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86 {
 
 class Immediate : public ValueObject {

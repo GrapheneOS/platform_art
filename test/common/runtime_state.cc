@@ -18,6 +18,7 @@
 
 #include <android-base/logging.h>
 #include <android-base/macros.h>
+#include <sys/resource.h>
 
 #include "art_field.h"
 #include "art_method-inl.h"
@@ -461,6 +462,11 @@ extern "C" JNIEXPORT void JNICALL Java_Main_forceInterpreterOnThread(JNIEnv* env
 extern "C" JNIEXPORT void JNICALL Java_Main_setAsyncExceptionsThrown(JNIEnv* env ATTRIBUTE_UNUSED,
                                                                      jclass cls ATTRIBUTE_UNUSED) {
   Runtime::Current()->SetAsyncExceptionsThrown();
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_setRlimitNoFile(JNIEnv*, jclass, jint value) {
+  rlimit limit { static_cast<rlim_t>(value), static_cast<rlim_t>(value) };
+  setrlimit(RLIMIT_NOFILE, &limit);
 }
 
 }  // namespace art

@@ -45,7 +45,7 @@ static jobjectArray Executable_getDeclaredAnnotationsNative(JNIEnv* env, jobject
   if (method->GetDeclaringClass()->IsProxyClass()) {
     // Return an empty array instead of a null pointer.
     ObjPtr<mirror::Class> annotation_array_class =
-        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
+        WellKnownClasses::ToClass(WellKnownClasses::java_lang_annotation_Annotation__array);
     ObjPtr<mirror::ObjectArray<mirror::Object>> empty_array =
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
@@ -128,7 +128,7 @@ static jobjectArray Executable_getParameterAnnotationsNative(JNIEnv* env, jobjec
     // Workaround for dexers (d8/dx) that do not insert annotations
     // for implicit parameters (b/68033708).
     ObjPtr<mirror::Class> annotation_array_class =
-        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
+        WellKnownClasses::ToClass(WellKnownClasses::java_lang_annotation_Annotation__array);
     Handle<mirror::ObjectArray<mirror::Object>> empty_annotations = hs.NewHandle(
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0));
     if (empty_annotations.IsNull()) {
@@ -197,7 +197,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   // Instantiate a Parameter[] to hold the result.
   Handle<mirror::Class> parameter_array_class =
       hs.NewHandle(
-          soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Parameter__array));
+          WellKnownClasses::ToClass(WellKnownClasses::java_lang_reflect_Parameter__array));
   Handle<mirror::ObjectArray<mirror::Object>> parameter_array =
       hs.NewHandle(
           mirror::ObjectArray<mirror::Object>::Alloc(self,
@@ -209,7 +209,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   }
 
   Handle<mirror::Class> parameter_class =
-      hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Parameter));
+      hs.NewHandle(WellKnownClasses::ToClass(WellKnownClasses::java_lang_reflect_Parameter));
   ArtMethod* parameter_init =
       jni::DecodeArtMethod(WellKnownClasses::java_lang_reflect_Parameter_init);
 

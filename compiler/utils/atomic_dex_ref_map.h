@@ -19,10 +19,11 @@
 
 #include "base/atomic.h"
 #include "base/dchecked_vector.h"
+#include "base/macros.h"
 #include "base/safe_map.h"
 #include "dex/dex_file_reference.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class DexFile;
 

@@ -59,7 +59,7 @@ static bool Copy(const std::string& src, const std::string& dst, /*out*/ std::st
 }
 
 static bool LoadDexFiles(const std::string& path,
-                         ScopedObjectAccess& soa,
+                         Thread* self,
                          /* out */ std::vector<std::unique_ptr<const DexFile>>* dex_files,
                          /* out */ ObjPtr<mirror::ClassLoader>* class_loader,
                          /* out */ std::string* error_msg) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -74,11 +74,11 @@ static bool LoadDexFiles(const std::string& path,
 
   ClassLinker* const linker = Runtime::Current()->GetClassLinker();
 
-  StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> h_class = hs.NewHandle(soa.Decode<mirror::Class>(
+  StackHandleScope<2> hs(self);
+  Handle<mirror::Class> h_class = hs.NewHandle(WellKnownClasses::ToClass(
       WellKnownClasses::dalvik_system_PathClassLoader));
   Handle<mirror::ClassLoader> h_loader = hs.NewHandle(linker->CreateWellKnownClassLoader(
-      soa.Self(),
+      self,
       MakeNonOwningPointerVector(*dex_files),
       h_class,
       /* parent_loader= */ ScopedNullHandle<mirror::ClassLoader>(),
@@ -198,7 +198,7 @@ class HiddenApiTest : public CommonRuntimeTest {
     ObjPtr<mirror::ClassLoader> class_loader;
 
     ASSERT_TRUE(Copy(GetTestDexFileName("Main"), location, &error_msg)) << error_msg;
-    ASSERT_TRUE(LoadDexFiles(location, soa, &dex_files, &class_loader, &error_msg))
+    ASSERT_TRUE(LoadDexFiles(location, soa.Self(), &dex_files, &class_loader, &error_msg))
         << error_msg;
     ASSERT_GE(dex_files.size(), 1u);
     ASSERT_TRUE(CheckAllDexFilesInDomain(class_loader,

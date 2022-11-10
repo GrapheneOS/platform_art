@@ -30,6 +30,7 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle_scope-inl.h"
 #include "hidden_api.h"
+#include "jni/java_vm_ext.h"
 #include "jni/jni_internal.h"
 #include "jni_id_type.h"
 #include "mirror/class.h"
@@ -773,7 +774,8 @@ void WellKnownClasses::Clear() {
 }
 
 ObjPtr<mirror::Class> WellKnownClasses::ToClass(jclass global_jclass) {
-  auto ret = ObjPtr<mirror::Class>::DownCast(Thread::Current()->DecodeJObject(global_jclass));
+  JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+  auto ret = ObjPtr<mirror::Class>::DownCast(vm->DecodeGlobal(global_jclass));
   DCHECK(!ret.IsNull());
   return ret;
 }

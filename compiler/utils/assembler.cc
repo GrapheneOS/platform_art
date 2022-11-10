@@ -23,7 +23,7 @@
 #include "base/globals.h"
 #include "base/memory_region.h"
 
-namespace art {
+namespace art HIDDEN {
 
 AssemblerBuffer::AssemblerBuffer(ArenaAllocator* allocator)
     : allocator_(allocator) {

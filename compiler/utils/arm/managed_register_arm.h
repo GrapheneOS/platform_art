@@ -19,10 +19,11 @@
 
 #include <android-base/logging.h>
 
+#include "base/macros.h"
 #include "constants_arm.h"
 #include "utils/managed_register.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 // Values for register pairs.

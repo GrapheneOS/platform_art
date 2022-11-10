@@ -21,7 +21,4 @@ def run(ctx, args):
   # Filter out expected error messages, which happen on device.
   ctx.env.ANDROID_LOG_TAGS = "*:f"
 
-  # Reduce the file descriptor limit so the test will reach the limit sooner.
-  resource.setrlimit(resource.RLIMIT_NOFILE, (512, 512))
-
   ctx.default_run(args, external_log_tags=True)

@@ -17,10 +17,11 @@
 #ifndef ART_COMPILER_UTILS_X86_MANAGED_REGISTER_X86_H_
 #define ART_COMPILER_UTILS_X86_MANAGED_REGISTER_X86_H_
 
+#include "base/macros.h"
 #include "constants_x86.h"
 #include "utils/managed_register.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86 {
 
 // Values for register pairs.

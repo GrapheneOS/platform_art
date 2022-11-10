@@ -26,11 +26,12 @@
 #include <fstream>
 #include <iterator>
 
+#include "base/macros.h"
 #include "base/malloc_arena_pool.h"
 #include "assembler_test_base.h"
 #include "common_runtime_test.h"  // For ScratchFile
 
-namespace art {
+namespace art HIDDEN {
 
 // Helper for a constexpr string length.
 constexpr size_t ConstexprStrLen(char const* str, size_t count = 0) {

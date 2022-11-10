@@ -231,8 +231,7 @@ void UnstartedRuntime::UnstartedClassForNameCommon(Thread* self,
     class_loader = nullptr;
   }
 
-  ScopedObjectAccessUnchecked soa(self);
-  if (class_loader != nullptr && !ClassLinker::IsBootClassLoader(soa, class_loader)) {
+  if (class_loader != nullptr && !ClassLinker::IsBootClassLoader(class_loader)) {
     AbortTransactionOrFail(self,
                            "Only the boot classloader is supported: %s",
                            mirror::Object::PrettyTypeOf(class_loader).c_str());
