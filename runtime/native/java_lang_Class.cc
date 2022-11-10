@@ -564,7 +564,7 @@ static jobjectArray Class_getDeclaredAnnotations(JNIEnv* env, jobject javaThis) 
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     // Return an empty array instead of a null pointer.
     ObjPtr<mirror::Class>  annotation_array_class =
-        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
+        WellKnownClasses::ToClass(WellKnownClasses::java_lang_annotation_Annotation__array);
     ObjPtr<mirror::ObjectArray<mirror::Object>> empty_array =
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(),
                                                    annotation_array_class,

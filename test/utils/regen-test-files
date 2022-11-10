@@ -94,7 +94,6 @@ runnable_test_exceptions = frozenset([
   "1004-checker-volatile-ref-load",
   "133-static-invoke-super",
   "1338-gc-no-los",
-  "151-OpenFileLimit",
   "159-app-image-fields",
   "160-read-barrier-stress",
   "163-app-image-methods",

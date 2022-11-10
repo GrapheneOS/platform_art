@@ -29,7 +29,7 @@ namespace vixl32 = vixl::aarch32;
 using vixl::ExactAssemblyScope;
 using vixl::CodeBufferCheckScope;
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 #ifdef ___

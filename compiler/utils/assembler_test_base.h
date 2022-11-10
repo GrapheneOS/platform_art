@@ -26,6 +26,7 @@
 
 #include "android-base/strings.h"
 
+#include "base/macros.h"
 #include "base/os.h"
 #include "base/utils.h"
 #include "common_runtime_test.h"  // For ScratchDir.
@@ -34,7 +35,7 @@
 #include "exec_utils.h"
 #include "stream/file_output_stream.h"
 
-namespace art {
+namespace art HIDDEN {
 
 // If you want to take a look at the differences between the ART assembler and clang,
 // set this flag to true. The disassembled files will then remain in the tmp directory.

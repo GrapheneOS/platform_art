@@ -24,6 +24,9 @@ public class Main {
     private static final String TEMP_FILE_NAME_SUFFIX = ".txt";
 
     public static void main(String[] args) throws IOException {
+        System.loadLibrary(args[0]);
+
+        setRlimitNoFile(512);
 
         // Exhaust the number of open file descriptors.
         List<File> files = new ArrayList<File>();
@@ -79,4 +82,6 @@ public class Main {
             }
         }
     }
+
+    public static native void setRlimitNoFile(int value);
 }

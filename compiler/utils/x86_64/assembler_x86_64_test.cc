@@ -21,13 +21,14 @@
 #include <random>
 
 #include "base/bit_utils.h"
+#include "base/macros.h"
 #include "base/malloc_arena_pool.h"
 #include "base/stl_util.h"
 #include "jni_macro_assembler_x86_64.h"
 #include "utils/assembler_test.h"
 #include "utils/jni_macro_assembler_test.h"
 
-namespace art {
+namespace art HIDDEN {
 
 TEST(AssemblerX86_64, CreateBuffer) {
   MallocArenaPool pool;

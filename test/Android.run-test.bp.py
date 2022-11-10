@@ -68,9 +68,18 @@ def main():
                 "hiddenapi",
                 "jasmin",
                 "smali",
+                "soong_zip",
+                "zipalign",
             ],
             cmd: "$(location run_test_build.py) --out $(out) --mode {mode} " +
-                "--bootclasspath $(location :art-run-test-bootclasspath) $(in)",
+                 "--bootclasspath $(location :art-run-test-bootclasspath) " +
+                 "--d8 $(location d8) " +
+                 "--hiddenapi $(location hiddenapi) " +
+                 "--jasmin $(location jasmin) " +
+                 "--smali $(location smali) " +
+                 "--soong_zip $(location soong_zip) " +
+                 "--zipalign $(location zipalign) " +
+                 "$(in)",
         }}
         """).format(mode=mode))
 

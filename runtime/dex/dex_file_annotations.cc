@@ -356,7 +356,6 @@ ObjPtr<mirror::Object> ProcessEncodedAnnotation(const ClassData& klass, const ui
   uint32_t size = DecodeUnsignedLeb128(annotation);
 
   Thread* self = Thread::Current();
-  ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<4> hs(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Handle<mirror::Class> annotation_class(hs.NewHandle(
@@ -372,7 +371,7 @@ ObjPtr<mirror::Object> ProcessEncodedAnnotation(const ClassData& klass, const ui
   }
 
   ObjPtr<mirror::Class> annotation_member_array_class =
-      soa.Decode<mirror::Class>(WellKnownClasses::libcore_reflect_AnnotationMember__array);
+      WellKnownClasses::ToClass(WellKnownClasses::libcore_reflect_AnnotationMember__array);
   if (annotation_member_array_class == nullptr) {
     return nullptr;
   }
@@ -921,10 +920,9 @@ ObjPtr<mirror::ObjectArray<mirror::Object>> ProcessAnnotationSet(
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const DexFile& dex_file = klass.GetDexFile();
   Thread* self = Thread::Current();
-  ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<2> hs(self);
   Handle<mirror::Class> annotation_array_class(hs.NewHandle(
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array)));
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_annotation_Annotation__array)));
   if (annotation_set == nullptr) {
     return mirror::ObjectArray<mirror::Object>::Alloc(self, annotation_array_class.Get(), 0);
   }
@@ -979,10 +977,9 @@ ObjPtr<mirror::ObjectArray<mirror::Object>> ProcessAnnotationSetRefList(
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const DexFile& dex_file = klass.GetDexFile();
   Thread* self = Thread::Current();
-  ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<1> hs(self);
   ObjPtr<mirror::Class> annotation_array_class =
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
+      WellKnownClasses::ToClass(WellKnownClasses::java_lang_annotation_Annotation__array);
   ObjPtr<mirror::Class> annotation_array_array_class =
       Runtime::Current()->GetClassLinker()->FindArrayClass(self, annotation_array_class);
   if (annotation_array_array_class == nullptr) {

@@ -30,10 +30,11 @@
 #include "utils/assembler_test_base.h"
 
 #include "base/hex_dump.h"
+#include "base/macros.h"
 #include "base/malloc_arena_pool.h"
 #include "common_runtime_test.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 // Include results file (generated manually)

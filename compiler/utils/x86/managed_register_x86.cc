@@ -18,7 +18,7 @@
 
 #include "base/globals.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86 {
 
 // Define register pairs.
