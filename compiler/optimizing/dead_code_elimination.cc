@@ -486,6 +486,189 @@ void HDeadCodeElimination::ConnectSuccessiveBlocks() {
   }
 }
 
+struct HDeadCodeElimination::TryBelongingInformation {
+  TryBelongingInformation(ScopedArenaAllocator* allocator)
+      : blocks_in_try(allocator->Adapter(kArenaAllocDCE)),
+        coalesced_try_entries(allocator->Adapter(kArenaAllocDCE)) {}
+
+  // Which blocks belong in the try.
+  ScopedArenaSet<HBasicBlock*> blocks_in_try;
+  // Which other try entries are referencing this same try.
+  ScopedArenaSet<HBasicBlock*> coalesced_try_entries;
+};
+
+bool HDeadCodeElimination::CanPerformTryRemoval(const TryBelongingInformation& try_belonging_info) {
+  for (HBasicBlock* block : try_belonging_info.blocks_in_try) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      if (it.Current()->CanThrow()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+void HDeadCodeElimination::DisconnectHandlersAndUpdateTryBoundary(
+    HBasicBlock* block,
+    /* out */ bool* any_handler_in_loop) {
+  // Disconnect the handlers.
+  while (block->GetSuccessors().size() > 1) {
+    HBasicBlock* handler = block->GetSuccessors()[1];
+    DCHECK(handler->IsCatchBlock());
+    block->RemoveSuccessor(handler);
+    handler->RemovePredecessor(block);
+    if (handler->IsInLoop()) {
+      *any_handler_in_loop = true;
+    }
+  }
+
+  // Change TryBoundary to Goto.
+  DCHECK(block->EndsWithTryBoundary());
+  HInstruction* last = block->GetLastInstruction();
+  block->RemoveInstruction(last);
+  block->AddInstruction(new (graph_->GetAllocator()) HGoto(last->GetDexPc()));
+  DCHECK_EQ(block->GetSuccessors().size(), 1u);
+}
+
+void HDeadCodeElimination::RemoveTry(HBasicBlock* try_entry,
+                                     const TryBelongingInformation& try_belonging_info,
+                                     /* out */ bool* any_handler_in_loop) {
+  // Update all try entries.
+  DCHECK(try_entry->EndsWithTryBoundary());
+  DCHECK(try_entry->GetLastInstruction()->AsTryBoundary()->IsEntry());
+  DisconnectHandlersAndUpdateTryBoundary(try_entry, any_handler_in_loop);
+
+  for (HBasicBlock* other_try_entry : try_belonging_info.coalesced_try_entries) {
+    DCHECK(other_try_entry->EndsWithTryBoundary());
+    DCHECK(other_try_entry->GetLastInstruction()->AsTryBoundary()->IsEntry());
+    DisconnectHandlersAndUpdateTryBoundary(other_try_entry, any_handler_in_loop);
+  }
+
+  // Update the blocks in the try.
+  for (HBasicBlock* block : try_belonging_info.blocks_in_try) {
+    // Update the try catch information since now the try doesn't exist.
+    block->SetTryCatchInformation(nullptr);
+
+    if (block->EndsWithTryBoundary()) {
+      // Try exits.
+      DCHECK(!block->GetLastInstruction()->AsTryBoundary()->IsEntry());
+      DisconnectHandlersAndUpdateTryBoundary(block, any_handler_in_loop);
+
+      if (block->GetSingleSuccessor()->IsExitBlock()) {
+        // `predecessor` used to be a single exit TryBoundary that got turned into a Goto. It
+        // is now pointing to the exit which we don't allow. To fix it, we disconnect
+        // `predecessor` from its predecessor and RemoveDeadBlocks will remove it from the
+        // graph.
+        DCHECK(block->IsSingleGoto());
+        HBasicBlock* predecessor = block->GetSinglePredecessor();
+        predecessor->ReplaceSuccessor(block, graph_->GetExitBlock());
+      }
+    }
+  }
+}
+
+bool HDeadCodeElimination::RemoveUnneededTries() {
+  if (!graph_->HasTryCatch()) {
+    return false;
+  }
+
+  // Use local allocator for allocating memory.
+  ScopedArenaAllocator allocator(graph_->GetArenaStack());
+
+  // Collect which blocks are part of which try.
+  std::unordered_map<HBasicBlock*, TryBelongingInformation> tries;
+  for (HBasicBlock* block : graph_->GetReversePostOrderSkipEntryBlock()) {
+    if (block->IsTryBlock()) {
+      HBasicBlock* key = block->GetTryCatchInformation()->GetTryEntry().GetBlock();
+      auto it = tries.find(key);
+      if (it == tries.end()) {
+        it = tries.insert({key, TryBelongingInformation(&allocator)}).first;
+      }
+      it->second.blocks_in_try.insert(block);
+    }
+  }
+
+  // Deduplicate the tries which have different try entries but they are really the same try.
+  for (auto it = tries.begin(); it != tries.end(); it++) {
+    DCHECK(it->first->EndsWithTryBoundary());
+    HTryBoundary* try_boundary = it->first->GetLastInstruction()->AsTryBoundary();
+    for (auto other_it = next(it); other_it != tries.end(); /*other_it++ in the loop*/) {
+      DCHECK(other_it->first->EndsWithTryBoundary());
+      HTryBoundary* other_try_boundary = other_it->first->GetLastInstruction()->AsTryBoundary();
+      if (try_boundary->HasSameExceptionHandlersAs(*other_try_boundary)) {
+        // Merge the entries as they are really the same one.
+        // Block merging.
+        it->second.blocks_in_try.insert(other_it->second.blocks_in_try.begin(),
+                                        other_it->second.blocks_in_try.end());
+
+        // Add the coalesced try entry to update it too.
+        it->second.coalesced_try_entries.insert(other_it->first);
+
+        // Erase the other entry.
+        other_it = tries.erase(other_it);
+      } else {
+        other_it++;
+      }
+    }
+  }
+
+  const size_t total_tries = tries.size();
+  size_t removed_tries = 0;
+  bool any_handler_in_loop = false;
+
+  // Check which tries contain throwing instructions.
+  for (const auto& entry : tries) {
+    if (CanPerformTryRemoval(entry.second)) {
+      ++removed_tries;
+      RemoveTry(entry.first, entry.second, &any_handler_in_loop);
+    }
+  }
+
+  if (removed_tries == total_tries) {
+    graph_->SetHasTryCatch(false);
+  }
+
+  if (removed_tries != 0) {
+    // We want to:
+    //   1) Update the dominance information
+    //   2) Remove catch block subtrees, if they are now unreachable.
+    // If we run the dominance recomputation without removing the code, those catch blocks will
+    // not be part of the post order and won't be removed. If we don't run the dominance
+    // recomputation, we risk RemoveDeadBlocks not running it and leaving the graph in an
+    // inconsistent state. So, what we can do is run RemoveDeadBlocks and if it didn't remove any
+    // block we trigger a recomputation.
+    // Note that we are not guaranteed to remove a catch block if we have nested try blocks:
+    //
+    //   try {
+    //     ... nothing can throw. TryBoundary A ...
+    //     try {
+    //       ... can throw. TryBoundary B...
+    //     } catch (Error e) {}
+    //   } catch (Exception e) {}
+    //
+    // In the example above, we can remove the TryBoundary A but the Exception catch cannot be
+    // removed as the TryBoundary B might still throw into that catch. TryBoundary A and B don't get
+    // coalesced since they have different catch handlers.
+
+    if (!RemoveDeadBlocks()) {
+      // If the catches that we modified were in a loop, we have to update the loop information.
+      if (any_handler_in_loop) {
+        graph_->ClearLoopInformation();
+        graph_->ClearDominanceInformation();
+        graph_->BuildDominatorTree();
+      } else {
+        graph_->ClearDominanceInformation();
+        graph_->ComputeDominanceInformation();
+        graph_->ComputeTryBlockInformation();
+      }
+    }
+    MaybeRecordStat(stats_, MethodCompilationStat::kRemovedTry, removed_tries);
+    return true;
+  } else {
+    return false;
+  }
+}
+
 bool HDeadCodeElimination::RemoveDeadBlocks() {
   // Use local allocator for allocating memory.
   ScopedArenaAllocator allocator(graph_->GetArenaStack());
@@ -561,6 +744,11 @@ bool HDeadCodeElimination::Run() {
     did_any_simplification |= SimplifyAlwaysThrows();
     did_any_simplification |= SimplifyIfs();
     did_any_simplification |= RemoveDeadBlocks();
+    // We call RemoveDeadBlocks before RemoveUnneededTries to remove the dead blocks from the
+    // previous optimizations. Otherwise, we might detect that a try has throwing instructions but
+    // they are actually dead code. RemoveUnneededTryBoundary will call RemoveDeadBlocks again if
+    // needed.
+    did_any_simplification |= RemoveUnneededTries();
     if (did_any_simplification) {
       // Connect successive blocks created by dead branches.
       ConnectSuccessiveBlocks();
