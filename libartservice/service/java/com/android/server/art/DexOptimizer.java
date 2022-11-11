@@ -490,8 +490,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         OutputProfile output = buildOutputProfile(dexInfo, false /* isPublic */);
 
         try {
-            if (mInjector.getArtd().mergeProfiles(
-                        getCurProfiles(dexInfo), referenceProfile, output, dexInfo.dexPath())) {
+            if (mInjector.getArtd().mergeProfiles(getCurProfiles(dexInfo), referenceProfile, output,
+                        List.of(dexInfo.dexPath()), new MergeProfileOptions())) {
                 return ProfilePath.tmpProfilePath(output.profilePath);
             }
         } catch (ServiceSpecificException e) {

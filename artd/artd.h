@@ -109,7 +109,8 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       const std::vector<aidl::com::android::server::art::ProfilePath>& in_profiles,
       const std::optional<aidl::com::android::server::art::ProfilePath>& in_referenceProfile,
       aidl::com::android::server::art::OutputProfile* in_outputProfile,
-      const std::string& in_dexFile,
+      const std::vector<std::string>& in_dexFiles,
+      const aidl::com::android::server::art::MergeProfileOptions& in_options,
       bool* _aidl_return) override;
 
   ndk::ScopedAStatus getArtifactsVisibility(

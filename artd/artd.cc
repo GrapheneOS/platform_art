@@ -83,6 +83,7 @@ using ::aidl::com::android::server::art::FsPermission;
 using ::aidl::com::android::server::art::GetDexoptNeededResult;
 using ::aidl::com::android::server::art::GetOptimizationStatusResult;
 using ::aidl::com::android::server::art::IArtdCancellationSignal;
+using ::aidl::com::android::server::art::MergeProfileOptions;
 using ::aidl::com::android::server::art::OutputArtifacts;
 using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
@@ -511,6 +512,7 @@ ndk::ScopedAStatus Artd::copyAndRewriteProfile(const ProfilePath& in_src,
   OR_RETURN_NON_FATAL(dst->Keep());
   *_aidl_return = true;
   in_dst->profilePath.id = dst->TempId();
+  in_dst->profilePath.tmpPath = dst->TempPath();
   return ScopedAStatus::ok();
 }
 
@@ -570,7 +572,8 @@ ndk::ScopedAStatus Artd::getDmFileVisibility(const DexMetadataPath& in_dmFile,
 ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profiles,
                                        const std::optional<ProfilePath>& in_referenceProfile,
                                        OutputProfile* in_outputProfile,
-                                       const std::string& in_dexFile,
+                                       const std::vector<std::string>& in_dexFiles,
+                                       const MergeProfileOptions& in_options,
                                        bool* _aidl_return) {
   std::vector<std::string> profile_paths;
   for (const ProfilePath& profile : in_profiles) {
@@ -582,7 +585,9 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
   }
   std::string output_profile_path =
       OR_RETURN_FATAL(BuildFinalProfilePath(in_outputProfile->profilePath));
-  OR_RETURN_FATAL(ValidateDexPath(in_dexFile));
+  for (const std::string& dex_file : in_dexFiles) {
+    OR_RETURN_FATAL(ValidateDexPath(dex_file));
+  }
 
   CmdlineBuilder args;
   FdLogger fd_logger;
@@ -629,14 +634,20 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
   args.Add("--reference-profile-file-fd=%d", output_profile_file->Fd());
   fd_logger.Add(*output_profile_file);
 
-  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(in_dexFile));
-  args.Add("--apk-fd=%d", dex_file->Fd());
-  fd_logger.Add(*dex_file);
+  std::vector<std::unique_ptr<File>> dex_files;
+  for (const std::string& dex_path : in_dexFiles) {
+    std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(dex_path));
+    args.Add("--apk-fd=%d", dex_file->Fd());
+    fd_logger.Add(*dex_file);
+    dex_files.push_back(std::move(dex_file));
+  }
 
   args.AddIfNonEmpty("--min-new-classes-percent-change=%s",
                      props_->GetOrEmpty("dalvik.vm.bgdexopt.new-classes-percent"))
       .AddIfNonEmpty("--min-new-methods-percent-change=%s",
-                     props_->GetOrEmpty("dalvik.vm.bgdexopt.new-methods-percent"));
+                     props_->GetOrEmpty("dalvik.vm.bgdexopt.new-methods-percent"))
+      .AddIf(in_options.forceMerge, "--force-merge")
+      .AddIf(in_options.forBootImage, "--boot-image-merge");
 
   LOG(INFO) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
             << "\nOpened FDs: " << fd_logger;
@@ -654,13 +665,16 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
     return ScopedAStatus::ok();
   }
 
-  if (result.value() != ProfmanResult::kCompile) {
+  ProfmanResult::ProcessingResult expected_result =
+      in_options.forceMerge ? ProfmanResult::kSuccess : ProfmanResult::kCompile;
+  if (result.value() != expected_result) {
     return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
   }
 
   OR_RETURN_NON_FATAL(output_profile_file->Keep());
   *_aidl_return = true;
   in_outputProfile->profilePath.id = output_profile_file->TempId();
+  in_outputProfile->profilePath.tmpPath = output_profile_file->TempPath();
   return ScopedAStatus::ok();
 }
 

@@ -16,6 +16,8 @@
 
 package com.android.server.art;
 
+import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
+
 import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 
@@ -25,10 +27,13 @@ import static org.mockito.AdditionalMatchers.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -36,8 +41,12 @@ import static org.mockito.Mockito.when;
 
 import android.apphibernation.AppHibernationManager;
 import android.os.CancellationSignal;
+import android.os.ParcelFileDescriptor;
+import android.os.Process;
 import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
+import android.os.UserHandle;
+import android.os.UserManager;
 
 import androidx.test.filters.SmallTest;
 
@@ -51,6 +60,7 @@ import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
+import com.android.server.pm.pkg.PackageUserState;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -61,6 +71,11 @@ import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mock;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -82,6 +97,7 @@ public class ArtManagerLocalTest {
     @Mock private IArtd mArtd;
     @Mock private DexOptHelper mDexOptHelper;
     @Mock private AppHibernationManager mAppHibernationManager;
+    @Mock private UserManager mUserManager;
     private PackageState mPkgState;
     private AndroidPackage mPkg;
     private Config mConfig;
@@ -108,6 +124,7 @@ public class ArtManagerLocalTest {
         lenient().when(mInjector.getDexOptHelper()).thenReturn(mDexOptHelper);
         lenient().when(mInjector.getConfig()).thenReturn(mConfig);
         lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAppHibernationManager);
+        lenient().when(mInjector.getUserManager()).thenReturn(mUserManager);
 
         lenient().when(SystemProperties.get(eq("pm.dexopt.install"))).thenReturn("speed-profile");
         lenient().when(SystemProperties.get(eq("pm.dexopt.bg-dexopt"))).thenReturn("speed-profile");
@@ -127,6 +144,10 @@ public class ArtManagerLocalTest {
 
         lenient().when(mAppHibernationManager.isHibernatingGlobally(any())).thenReturn(false);
         lenient().when(mAppHibernationManager.isOatArtifactDeletionEnabled()).thenReturn(true);
+
+        lenient()
+                .when(mUserManager.getUserHandles(anyBoolean()))
+                .thenReturn(List.of(UserHandle.of(0), UserHandle.of(1)));
 
         lenient().when(mPackageManagerLocal.withFilteredSnapshot()).thenReturn(mSnapshot);
         List<PackageState> pkgStates = createPackageStates();
@@ -387,6 +408,146 @@ public class ArtManagerLocalTest {
         mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal);
     }
 
+    @Test
+    public void testSnapshotAppProfile() throws Exception {
+        var options = new MergeProfileOptions();
+        options.forceMerge = true;
+        options.forBootImage = false;
+
+        File tempFile = File.createTempFile("primary", ".prof");
+        tempFile.deleteOnExit();
+
+        when(mArtd.mergeProfiles(
+                     deepEq(List.of(AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     0 /* userId */, PKG_NAME, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     1 /* userId */, PKG_NAME, "primary"))),
+                     isNull(),
+                     deepEq(AidlUtils.buildOutputProfileForPrimary(PKG_NAME, "primary",
+                             Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */)),
+                     deepEq(List.of("/data/app/foo/base.apk")), deepEq(options)))
+                .thenAnswer(invocation -> {
+                    try (var writer = new FileWriter(tempFile)) {
+                        writer.write("snapshot");
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    var output = invocation.<OutputProfile>getArgument(2);
+                    output.profilePath.tmpPath = tempFile.getPath();
+                    return true;
+                });
+
+        ParcelFileDescriptor fd =
+                mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME, null /* splitName */);
+
+        verify(mArtd).deleteProfile(
+                argThat(profile -> profile.getTmpProfilePath().tmpPath.equals(tempFile.getPath())));
+
+        try (InputStream inputStream = new AutoCloseInputStream(fd)) {
+            String contents = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(contents).isEqualTo("snapshot");
+        }
+    }
+
+    @Test
+    public void testSnapshotAppProfileSplit() throws Exception {
+        when(mArtd.mergeProfiles(deepEq(List.of(AidlUtils.buildProfilePathForPrimaryRef(
+                                                        PKG_NAME, "split_0.split"),
+                                         AidlUtils.buildProfilePathForPrimaryCur(
+                                                 0 /* userId */, PKG_NAME, "split_0.split"),
+                                         AidlUtils.buildProfilePathForPrimaryCur(
+                                                 1 /* userId */, PKG_NAME, "split_0.split"))),
+                     isNull(),
+                     deepEq(AidlUtils.buildOutputProfileForPrimary(PKG_NAME, "split_0.split",
+                             Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */)),
+                     deepEq(List.of("/data/app/foo/split_0.apk")), any()))
+                .thenReturn(false);
+
+        mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME, "split_0");
+    }
+
+    @Test
+    public void testSnapshotAppProfileEmpty() throws Exception {
+        when(mArtd.mergeProfiles(any(), any(), any(), any(), any())).thenReturn(false);
+
+        ParcelFileDescriptor fd =
+                mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME, null /* splitName */);
+
+        verify(mArtd, never()).deleteProfile(any());
+
+        try (InputStream inputStream = new AutoCloseInputStream(fd)) {
+            assertThat(inputStream.readAllBytes()).isEmpty();
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSnapshotAppProfilePackageNotFound() throws Exception {
+        when(mSnapshot.getPackageState(anyString())).thenReturn(null);
+
+        mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME, null /* splitName */);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSnapshotAppProfileNoPackage() throws Exception {
+        when(mPkgState.getAndroidPackage()).thenReturn(null);
+
+        mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME, null /* splitName */);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSnapshotAppProfileSplitNotFound() throws Exception {
+        mArtManagerLocal.snapshotAppProfile(mSnapshot, PKG_NAME, "non-existent-split");
+    }
+
+    @Test
+    public void testSnapshotBootImageProfile() throws Exception {
+        // `lenient()` is required to allow mocking the same method multiple times.
+        lenient().when(Constants.getenv("BOOTCLASSPATH")).thenReturn("bcp0:bcp1");
+        lenient().when(Constants.getenv("SYSTEMSERVERCLASSPATH")).thenReturn("sscp0:sscp1");
+        lenient().when(Constants.getenv("STANDALONE_SYSTEMSERVER_JARS")).thenReturn("sssj0:sssj1");
+
+        var options = new MergeProfileOptions();
+        options.forceMerge = true;
+        options.forBootImage = true;
+
+        when(mArtd.mergeProfiles(
+                     deepEq(List.of(AidlUtils.buildProfilePathForPrimaryRef("android", "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     0 /* userId */, "android", "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     1 /* userId */, "android", "primary"),
+                             AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     0 /* userId */, PKG_NAME, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     1 /* userId */, PKG_NAME, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "split_0.split"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     0 /* userId */, PKG_NAME, "split_0.split"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     1 /* userId */, PKG_NAME, "split_0.split"),
+                             AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME_SYS_UI, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     0 /* userId */, PKG_NAME_SYS_UI, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     1 /* userId */, PKG_NAME_SYS_UI, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryRef(
+                                     PKG_NAME_HIBERNATING, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     0 /* userId */, PKG_NAME_HIBERNATING, "primary"),
+                             AidlUtils.buildProfilePathForPrimaryCur(
+                                     1 /* userId */, PKG_NAME_HIBERNATING, "primary"))),
+                     isNull(),
+                     deepEq(AidlUtils.buildOutputProfileForPrimary("android", "primary",
+                             Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */)),
+                     deepEq(List.of("bcp0", "bcp1", "sscp0", "sscp1", "sssj0", "sssj1")),
+                     deepEq(options)))
+                .thenReturn(false); // A non-empty merge is tested in `testSnapshotAppProfile`.
+
+        mArtManagerLocal.snapshotBootImageProfile(mSnapshot);
+    }
+
     private AndroidPackage createPackage(boolean multiSplit) {
         AndroidPackage pkg = mock(AndroidPackage.class);
 
@@ -413,6 +574,12 @@ public class ArtManagerLocalTest {
         return pkg;
     }
 
+    private PackageUserState createPackageUserState() {
+        PackageUserState pkgUserState = mock(PackageUserState.class);
+        lenient().when(pkgUserState.isInstalled()).thenReturn(true);
+        return pkgUserState;
+    }
+
     private PackageState createPackageState(
             String packageName, int appId, boolean hasPackage, boolean multiSplit) {
         PackageState pkgState = mock(PackageState.class);
@@ -431,6 +598,9 @@ public class ArtManagerLocalTest {
             lenient().when(pkgState.getAndroidPackage()).thenReturn(null);
         }
 
+        PackageUserState pkgUserState = createPackageUserState();
+        lenient().when(pkgState.getStateForUser(any())).thenReturn(pkgUserState);
+
         return pkgState;
     }
 
@@ -441,7 +611,8 @@ public class ArtManagerLocalTest {
         PackageState sysUiPkgState = createPackageState(
                 PKG_NAME_SYS_UI, 1234 /* appId */, true /* hasPackage */, false /* multiSplit */);
 
-        // This should not be optimized because it's hibernating.
+        // This should not be optimized because it's hibernating. However, it should be included
+        // when snapshotting boot image profile.
         PackageState pkgHibernatingState = createPackageState(PKG_NAME_HIBERNATING,
                 10002 /* appId */, true /* hasPackage */, false /* multiSplit */);
         lenient()

@@ -149,6 +149,7 @@ public final class AidlUtils {
         outputProfile.profilePath = new TmpProfilePath();
         outputProfile.profilePath.finalPath = finalPath;
         outputProfile.profilePath.id = ""; // Will be filled by artd.
+        outputProfile.profilePath.tmpPath = ""; // Will be filled by artd.
         outputProfile.fsPermission = buildFsPermission(uid, gid, isPublic);
         return outputProfile;
     }

@@ -1063,6 +1063,7 @@ TEST_F(ArtdTest, copyAndRewriteProfile) {
   CreateFile(src_file, "abc");
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
+  dst.profilePath.tmpPath = "";
 
   CreateFile(dex_file_);
 
@@ -1084,7 +1085,9 @@ TEST_F(ArtdTest, copyAndRewriteProfile) {
   EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
   EXPECT_TRUE(result);
   EXPECT_THAT(dst.profilePath.id, Not(IsEmpty()));
-  CheckContent(OR_FATAL(BuildTmpProfilePath(dst.profilePath)), "def");
+  std::string real_path = OR_FATAL(BuildTmpProfilePath(dst.profilePath));
+  EXPECT_EQ(dst.profilePath.tmpPath, real_path);
+  CheckContent(real_path, "def");
 }
 
 TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
@@ -1093,6 +1096,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
   CreateFile(src_file, "abc");
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
+  dst.profilePath.tmpPath = "";
 
   CreateFile(dex_file_);
 
@@ -1102,6 +1106,8 @@ TEST_F(ArtdTest, copyAndRewriteProfileFalse) {
   bool result;
   EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
   EXPECT_FALSE(result);
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
 }
 
 TEST_F(ArtdTest, copyAndRewriteProfileNotFound) {
@@ -1110,10 +1116,13 @@ TEST_F(ArtdTest, copyAndRewriteProfileNotFound) {
   const TmpProfilePath& src = profile_path_->get<ProfilePath::tmpProfilePath>();
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
+  dst.profilePath.tmpPath = "";
 
   bool result;
   EXPECT_TRUE(artd_->copyAndRewriteProfile(src, &dst, dex_file_, &result).isOk());
   EXPECT_FALSE(result);
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
 }
 
 TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
@@ -1122,6 +1131,7 @@ TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
   CreateFile(src_file, "abc");
   OutputProfile dst{.profilePath = src, .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   dst.profilePath.id = "";
+  dst.profilePath.tmpPath = "";
 
   CreateFile(dex_file_);
 
@@ -1133,6 +1143,8 @@ TEST_F(ArtdTest, copyAndRewriteProfileFailed) {
   EXPECT_FALSE(status.isOk());
   EXPECT_EQ(status.getExceptionCode(), EX_SERVICE_SPECIFIC);
   EXPECT_THAT(status.getMessage(), HasSubstr("profman returned an unexpected code: 100"));
+  EXPECT_THAT(dst.profilePath.id, IsEmpty());
+  EXPECT_THAT(dst.profilePath.tmpPath, IsEmpty());
 }
 
 TEST_F(ArtdTest, commitTmpProfile) {
@@ -1334,8 +1346,12 @@ TEST_F(ArtdTest, mergeProfiles) {
   OutputProfile output_profile{.profilePath = reference_profile_path,
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
+  output_profile.profilePath.tmpPath = "";
 
-  CreateFile(dex_file_);
+  std::string dex_file_1 = scratch_path_ + "/a/b.apk";
+  std::string dex_file_2 = scratch_path_ + "/a/c.apk";
+  CreateFile(dex_file_1);
+  CreateFile(dex_file_2);
 
   EXPECT_CALL(
       *mock_exec_utils_,
@@ -1346,7 +1362,10 @@ TEST_F(ArtdTest, mergeProfiles) {
                             Not(Contains(Flag("--profile-file-fd=", FdOf(profile_0_file)))),
                             Contains(Flag("--profile-file-fd=", FdOf(profile_1_file))),
                             Contains(Flag("--reference-profile-file-fd=", FdHasContent("abc"))),
-                            Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+                            Contains(Flag("--apk-fd=", FdOf(dex_file_1))),
+                            Contains(Flag("--apk-fd=", FdOf(dex_file_2))),
+                            Not(Contains("--force-merge")),
+                            Not(Contains("--boot-image-merge")))),
           _,
           _))
       .WillOnce(DoAll(WithArg<0>(ClearAndWriteToFdFlag("--reference-profile-file-fd=", "merged")),
@@ -1357,12 +1376,15 @@ TEST_F(ArtdTest, mergeProfiles) {
                   ->mergeProfiles({profile_0_path, profile_1_path},
                                   reference_profile_path,
                                   &output_profile,
-                                  dex_file_,
+                                  {dex_file_1, dex_file_2},
+                                  /*in_options=*/{},
                                   &result)
                   .isOk());
   EXPECT_TRUE(result);
   EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
-  CheckContent(OR_FATAL(BuildTmpProfilePath(output_profile.profilePath)), "merged");
+  std::string real_path = OR_FATAL(BuildTmpProfilePath(output_profile.profilePath));
+  EXPECT_EQ(output_profile.profilePath.tmpPath, real_path);
+  CheckContent(real_path, "merged");
 }
 
 TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
@@ -1374,6 +1396,7 @@ TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
   OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
+  output_profile.profilePath.tmpPath = "";
 
   CreateFile(dex_file_);
 
@@ -1392,12 +1415,17 @@ TEST_F(ArtdTest, mergeProfilesEmptyReferenceProfile) {
                       Return(ProfmanResult::kCompile)));
 
   bool result;
-  EXPECT_TRUE(
-      artd_->mergeProfiles({profile_0_path}, std::nullopt, &output_profile, dex_file_, &result)
-          .isOk());
+  EXPECT_TRUE(artd_
+                  ->mergeProfiles({profile_0_path},
+                                  std::nullopt,
+                                  &output_profile,
+                                  {dex_file_},
+                                  /*in_options=*/{},
+                                  &result)
+                  .isOk());
   EXPECT_TRUE(result);
   EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
-  CheckContent(OR_FATAL(BuildTmpProfilePath(output_profile.profilePath)), "merged");
+  EXPECT_THAT(output_profile.profilePath.tmpPath, Not(IsEmpty()));
 }
 
 TEST_F(ArtdTest, mergeProfilesProfilesDontExist) {
@@ -1418,17 +1446,59 @@ TEST_F(ArtdTest, mergeProfilesProfilesDontExist) {
   OutputProfile output_profile{.profilePath = reference_profile_path,
                                .fsPermission = FsPermission{.uid = -1, .gid = -1}};
   output_profile.profilePath.id = "";
+  output_profile.profilePath.tmpPath = "";
 
   CreateFile(dex_file_);
 
   EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode).Times(0);
 
   bool result;
-  EXPECT_TRUE(
-      artd_->mergeProfiles({profile_0_path}, std::nullopt, &output_profile, dex_file_, &result)
-          .isOk());
+  EXPECT_TRUE(artd_
+                  ->mergeProfiles({profile_0_path},
+                                  std::nullopt,
+                                  &output_profile,
+                                  {dex_file_},
+                                  /*in_options=*/{},
+                                  &result)
+                  .isOk());
   EXPECT_FALSE(result);
   EXPECT_THAT(output_profile.profilePath.id, IsEmpty());
+  EXPECT_THAT(output_profile.profilePath.tmpPath, IsEmpty());
+}
+
+TEST_F(ArtdTest, mergeProfilesWithOptions) {
+  PrimaryCurProfilePath profile_0_path{
+      .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
+  CreateFile(profile_0_file, "def");
+
+  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
+                               .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  output_profile.profilePath.id = "";
+  output_profile.profilePath.tmpPath = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(
+      *mock_exec_utils_,
+      DoExecAndReturnCode(
+          WhenSplitBy("--", _, AllOf(Contains("--force-merge"), Contains("--boot-image-merge"))),
+          _,
+          _))
+      .WillOnce(Return(ProfmanResult::kSuccess));
+
+  bool result;
+  EXPECT_TRUE(artd_
+                  ->mergeProfiles({profile_0_path},
+                                  std::nullopt,
+                                  &output_profile,
+                                  {dex_file_},
+                                  {.forceMerge = true, .forBootImage = true},
+                                  &result)
+                  .isOk());
+  EXPECT_TRUE(result);
+  EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
+  EXPECT_THAT(output_profile.profilePath.tmpPath, Not(IsEmpty()));
 }
 
 }  // namespace
