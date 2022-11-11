@@ -220,7 +220,7 @@ public class DexUseManager {
         // "android" comes from `SystemServerDexLoadReporter`. ART Services doesn't need to handle
         // this case because it doesn't compile system server and system server isn't allowed to
         // load artifacts produced by ART Services.
-        if (loadingPackageName.equals("android")) {
+        if (loadingPackageName.equals(Utils.PLATFORM_PACKAGE_NAME)) {
             return;
         }
 

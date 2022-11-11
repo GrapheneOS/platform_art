@@ -4,6 +4,7 @@ package com.android.server.art {
   public final class ArtManagerLocal {
     ctor @Deprecated public ArtManagerLocal();
     ctor public ArtManagerLocal(@NonNull android.content.Context);
+    method public void clearOptimizePackagesCallback();
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
@@ -12,6 +13,11 @@ package com.android.server.art {
     method public void notifyDexContainersLoaded(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.Map<java.lang.String,java.lang.String>);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
+    method public void setOptimizePackagesCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackagesCallback);
+  }
+
+  public static interface ArtManagerLocal.OptimizePackagesCallback {
+    method public void onOverrideBatchOptimizeParams(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.List<java.lang.String>, @NonNull com.android.server.art.model.BatchOptimizeParams.Builder);
   }
 
   public class ReasonMapping {
@@ -45,6 +51,17 @@ package com.android.server.art.model {
     field public static final int PRIORITY_BOOT = 100; // 0x64
     field public static final int PRIORITY_INTERACTIVE = 60; // 0x3c
     field public static final int PRIORITY_INTERACTIVE_FAST = 80; // 0x50
+  }
+
+  public abstract class BatchOptimizeParams {
+    method @NonNull public abstract com.android.server.art.model.OptimizeParams getOptimizeParams();
+    method @NonNull public abstract java.util.List<java.lang.String> getPackages();
+  }
+
+  public static final class BatchOptimizeParams.Builder {
+    method @NonNull public com.android.server.art.model.BatchOptimizeParams build();
+    method @NonNull public com.android.server.art.model.BatchOptimizeParams.Builder setOptimizeParams(@NonNull com.android.server.art.model.OptimizeParams);
+    method @NonNull public com.android.server.art.model.BatchOptimizeParams.Builder setPackages(@NonNull java.util.List<java.lang.String>);
   }
 
   public class DeleteResult {

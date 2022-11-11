@@ -18,6 +18,7 @@ package com.android.server.art;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.apphibernation.AppHibernationManager;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.text.TextUtils;
@@ -40,12 +41,15 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 
 /** @hide */
 public final class Utils {
+    public static final String PLATFORM_PACKAGE_NAME = "android";
+
     private Utils() {}
 
     /**
@@ -211,6 +215,10 @@ public final class Utils {
         return str;
     }
 
+    public static void executeAndWait(@NonNull Executor executor, @NonNull Runnable runnable) {
+        getFuture(execute(executor, Executors.callable(runnable)));
+    }
+
     public static <T> Future<T> execute(@NonNull Executor executor, @NonNull Callable<T> callable) {
         var future = new FutureTask<T>(callable);
         executor.execute(future);
@@ -229,6 +237,41 @@ public final class Utils {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Returns true if the given package is optimizable.
+     *
+     * @param appHibernationManager the {@link AppHibernationManager} instance for checking
+     *         hibernation status, or null to skip the check
+     */
+    public static boolean canOptimizePackage(
+            @NonNull PackageState pkgState, @Nullable AppHibernationManager appHibernationManager) {
+        // An APEX has a uid of -1.
+        // TODO(b/256637152): Consider using `isApex` instead.
+        if (pkgState.getAppId() <= 0) {
+            return false;
+        }
+
+        // "android" is a special package that represents the platform, not an app.
+        if (pkgState.getPackageName().equals(Utils.PLATFORM_PACKAGE_NAME)) {
+            return false;
+        }
+
+        AndroidPackage pkg = pkgState.getAndroidPackage();
+        if (pkg == null || !pkg.getSplits().get(0).isHasCode()) {
+            return false;
+        }
+
+        // We do not dexopt unused packages.
+        // If `appHibernationManager` is null, the caller's intention is to skip the check.
+        if (appHibernationManager != null
+                && appHibernationManager.isHibernatingGlobally(pkgState.getPackageName())
+                && appHibernationManager.isOatArtifactDeletionEnabled()) {
+            return false;
+        }
+
+        return true;
     }
 
     @AutoValue

@@ -42,13 +42,14 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -146,7 +147,7 @@ public class DexOptHelper {
 
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
-        if (!canOptimizePackage(pkgState, pkg)) {
+        if (!canOptimizePackage(pkgState)) {
             return createResult.get();
         }
 
@@ -178,20 +179,8 @@ public class DexOptHelper {
         return createResult.get();
     }
 
-    private boolean canOptimizePackage(
-            @NonNull PackageState pkgState, @NonNull AndroidPackage pkg) {
-        if (!pkg.getSplits().get(0).isHasCode()) {
-            return false;
-        }
-
-        // We do not dexopt unused packages.
-        AppHibernationManager ahm = mInjector.getAppHibernationManager();
-        if (ahm.isHibernatingGlobally(pkgState.getPackageName())
-                && ahm.isOatArtifactDeletionEnabled()) {
-            return false;
-        }
-
-        return true;
+    private boolean canOptimizePackage(@NonNull PackageState pkgState) {
+        return Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager());
     }
 
     @NonNull
@@ -213,9 +202,9 @@ public class DexOptHelper {
 
         for (String packageName : packageNames) {
             PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-            AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+            Utils.getPackageOrThrow(pkgState);
             pkgStates.put(packageName, pkgState);
-            if (includeDependencies && canOptimizePackage(pkgState, pkg)) {
+            if (includeDependencies && canOptimizePackage(pkgState)) {
                 for (SharedLibrary library : pkgState.getUsesLibraries()) {
                     maybeEnqueue.accept(library);
                 }
@@ -226,8 +215,7 @@ public class DexOptHelper {
         while ((library = queue.poll()) != null) {
             String packageName = library.getPackageName();
             PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-            AndroidPackage pkg = pkgState.getAndroidPackage();
-            if (pkg != null && canOptimizePackage(pkgState, pkg)) {
+            if (canOptimizePackage(pkgState)) {
                 pkgStates.put(packageName, pkgState);
 
                 // Note that `library.getDependencies()` is different from
@@ -274,12 +262,12 @@ public class DexOptHelper {
 
         @NonNull
         public AppHibernationManager getAppHibernationManager() {
-            return mContext.getSystemService(AppHibernationManager.class);
+            return Objects.requireNonNull(mContext.getSystemService(AppHibernationManager.class));
         }
 
         @NonNull
         public PowerManager getPowerManager() {
-            return mContext.getSystemService(PowerManager.class);
+            return Objects.requireNonNull(mContext.getSystemService(PowerManager.class));
         }
     }
 }
