@@ -4,7 +4,9 @@ package com.android.server.art {
   public final class ArtManagerLocal {
     ctor @Deprecated public ArtManagerLocal();
     ctor public ArtManagerLocal(@NonNull android.content.Context);
+    method public void cancelBackgroundDexoptJob();
     method public void clearOptimizePackagesCallback();
+    method public void clearScheduleBackgroundDexoptJobCallback();
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
@@ -13,11 +15,19 @@ package com.android.server.art {
     method public void notifyDexContainersLoaded(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.Map<java.lang.String,java.lang.String>);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
+    method public int scheduleBackgroundDexoptJob();
     method public void setOptimizePackagesCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackagesCallback);
+    method public void setScheduleBackgroundDexoptJobCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.ScheduleBackgroundDexoptJobCallback);
+    method public void startBackgroundDexoptJob();
+    method public void unscheduleBackgroundDexoptJob();
   }
 
   public static interface ArtManagerLocal.OptimizePackagesCallback {
     method public void onOverrideBatchOptimizeParams(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.List<java.lang.String>, @NonNull com.android.server.art.model.BatchOptimizeParams.Builder);
+  }
+
+  public static interface ArtManagerLocal.ScheduleBackgroundDexoptJobCallback {
+    method public void onOverrideJobInfo(@NonNull android.app.job.JobInfo.Builder);
   }
 
   public class ReasonMapping {
@@ -51,6 +61,9 @@ package com.android.server.art.model {
     field public static final int PRIORITY_BOOT = 100; // 0x64
     field public static final int PRIORITY_INTERACTIVE = 60; // 0x3c
     field public static final int PRIORITY_INTERACTIVE_FAST = 80; // 0x50
+    field public static final int SCHEDULE_DISABLED_BY_SYSPROP = 2; // 0x2
+    field public static final int SCHEDULE_JOB_SCHEDULER_FAILURE = 1; // 0x1
+    field public static final int SCHEDULE_SUCCESS = 0; // 0x0
   }
 
   public abstract class BatchOptimizeParams {

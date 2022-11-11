@@ -183,6 +183,42 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                         throw new RuntimeException(e);
                     }
                 }
+                case "bg-dexopt-job": {
+                    String opt = getNextOption();
+                    if (opt == null) {
+                        mArtManagerLocal.startBackgroundDexoptJob();
+                        return 0;
+                    }
+                    switch (opt) {
+                        case "--cancel": {
+                            mArtManagerLocal.cancelBackgroundDexoptJob();
+                            return 0;
+                        }
+                        case "--enable": {
+                            // This operation requires the uid to be "system" (1000).
+                            long identityToken = Binder.clearCallingIdentity();
+                            try {
+                                mArtManagerLocal.scheduleBackgroundDexoptJob();
+                            } finally {
+                                Binder.restoreCallingIdentity(identityToken);
+                            }
+                            return 0;
+                        }
+                        case "--disable": {
+                            // This operation requires the uid to be "system" (1000).
+                            long identityToken = Binder.clearCallingIdentity();
+                            try {
+                                mArtManagerLocal.unscheduleBackgroundDexoptJob();
+                            } finally {
+                                Binder.restoreCallingIdentity(identityToken);
+                            }
+                            return 0;
+                        }
+                        default:
+                            pw.println("Error: Unknown option: " + opt);
+                            return 1;
+                    }
+                }
                 default:
                     // Handles empty, help, and invalid commands.
                     return handleDefaultCommands(cmd);
@@ -242,6 +278,22 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Save dex use information to a file in binary proto format.");
         pw.println("  dex-use-load PATH");
         pw.println("    Load dex use information from a file in binary proto format.");
+        pw.println("  bg-dexopt-job [--cancel | --disable | --enable]");
+        pw.println("    Control the background dexopt job.");
+        pw.println("    Without flags, it starts a background dexopt job immediately. It does");
+        pw.println("      nothing if a job is already started either automatically by the system");
+        pw.println("      or through this command. This command is not blocking.");
+        pw.println("    Options:");
+        pw.println("      --cancel Cancel any currently running background dexopt job");
+        pw.println("        immediately. This cancels jobs started either automatically by the");
+        pw.println("        system or through this command. This command is not blocking.");
+        pw.println("      --disable: Disable the background dexopt job from being started by the");
+        pw.println("        job scheduler. If a job is already started by the job scheduler and");
+        pw.println("        is running, it will be cancelled immediately. Does not affect");
+        pw.println("        jobs started through this command or by the system in other ways.");
+        pw.println("        This state will be lost when the system_server process exits.");
+        pw.println("      --enable: Enable the background dexopt job to be started by the job");
+        pw.println("        scheduler again, if previously disabled by --disable.");
     }
 
     private void enforceRoot() {

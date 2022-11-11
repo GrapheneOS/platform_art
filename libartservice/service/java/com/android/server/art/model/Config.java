@@ -17,6 +17,7 @@
 package com.android.server.art.model;
 
 import static com.android.server.art.ArtManagerLocal.OptimizePackagesCallback;
+import static com.android.server.art.ArtManagerLocal.ScheduleBackgroundDexoptJobCallback;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -40,6 +41,15 @@ public class Config {
     @Nullable
     private Callback<OptimizePackagesCallback> mOptimizePackagesCallback = null;
 
+    /**
+     * @see ArtManagerLocal#setScheduleBackgroundDexoptJobCallback(Executor,
+     *         ScheduleBackgroundDexoptJobCallback)
+     */
+    @GuardedBy("this")
+    @Nullable
+    private Callback<ScheduleBackgroundDexoptJobCallback> mScheduleBackgroundDexoptJobCallback =
+            null;
+
     public synchronized void setOptimizePackagesCallback(
             @NonNull Executor executor, @NonNull OptimizePackagesCallback callback) {
         mOptimizePackagesCallback = Callback.<OptimizePackagesCallback>create(callback, executor);
@@ -52,6 +62,22 @@ public class Config {
     @Nullable
     public synchronized Callback<OptimizePackagesCallback> getOptimizePackagesCallback() {
         return mOptimizePackagesCallback;
+    }
+
+    public synchronized void setScheduleBackgroundDexoptJobCallback(
+            @NonNull Executor executor, @NonNull ScheduleBackgroundDexoptJobCallback callback) {
+        mScheduleBackgroundDexoptJobCallback =
+                Callback.<ScheduleBackgroundDexoptJobCallback>create(callback, executor);
+    }
+
+    public synchronized void clearScheduleBackgroundDexoptJobCallback() {
+        mScheduleBackgroundDexoptJobCallback = null;
+    }
+
+    @Nullable
+    public synchronized Callback<ScheduleBackgroundDexoptJobCallback>
+    getScheduleBackgroundDexoptJobCallback() {
+        return mScheduleBackgroundDexoptJobCallback;
     }
 
     @AutoValue

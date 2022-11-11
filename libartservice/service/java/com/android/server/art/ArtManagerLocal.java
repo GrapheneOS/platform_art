@@ -22,6 +22,7 @@ import static com.android.server.art.ReasonMapping.BatchOptimizeReason;
 import static com.android.server.art.Utils.Abi;
 import static com.android.server.art.model.ArtFlags.DeleteFlags;
 import static com.android.server.art.model.ArtFlags.GetStatusFlags;
+import static com.android.server.art.model.ArtFlags.ScheduleStatus;
 import static com.android.server.art.model.Config.Callback;
 import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
 
@@ -30,6 +31,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.SystemService;
+import android.app.job.JobInfo;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.Binder;
@@ -78,11 +80,11 @@ public final class ArtManagerLocal {
 
     @Deprecated
     public ArtManagerLocal() {
-        this(new Injector(null /* context */));
+        mInjector = new Injector(this, null /* context */);
     }
 
     public ArtManagerLocal(@NonNull Context context) {
-        this(new Injector(context));
+        mInjector = new Injector(this, context);
     }
 
     /** @hide */
@@ -248,6 +250,9 @@ public final class ArtManagerLocal {
      * Optimizes a package. The time this operation takes ranges from a few milliseconds to several
      * minutes, depending on the params and the code size of the package.
      *
+     * When this operation ends (either completed or cancelled), callbacks added by {@link
+     * #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} are called.
+     *
      * @throws IllegalArgumentException if the package is not found or the params are illegal
      * @throws IllegalStateException if an internal error occurs
      */
@@ -299,6 +304,9 @@ public final class ArtManagerLocal {
      * concurrent threads is the product of the two system properties. Note that the physical core
      * usage is always bound by {@code dalvik.vm.*dex2oat-cpu-set} regardless of the number of
      * threads.
+     *
+     * When this operation ends (either completed or cancelled), callbacks added by {@link
+     * #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} are called.
      *
      * @param snapshot the snapshot from {@link PackageManagerLocal} to operate on
      * @param reason determines the default list of packages and options
@@ -358,6 +366,105 @@ public final class ArtManagerLocal {
     }
 
     /**
+     * Schedules a background dexopt job. Does nothing if the job is already scheduled.
+     *
+     * Use this method if you want the system to automatically determine the best time to run
+     * dexopt.
+     *
+     * The job will be run by the job scheduler. The job scheduling configuration can be overridden
+     * by {@link #setScheduleBackgroundDexoptJobCallback(Executor,
+     * ScheduleBackgroundDexoptJobCallback)}. By default, it runs periodically (at most once a day)
+     * when all the following constraints are meet.
+     *
+     * <ul>
+     *   <li>The device is idling. (see {@link JobInfo.Builder#setRequiresDeviceIdle(boolean)})
+     *   <li>The device is charging. (see {@link JobInfo.Builder#setRequiresCharging(boolean)})
+     *   <li>The battery level is not low.
+     *     (see {@link JobInfo.Builder#setRequiresBatteryNotLow(boolean)})
+     *   <li>The free storage space is not low.
+     *     (see {@link JobInfo.Builder#setRequiresStorageNotLow(boolean)})
+     * </ul>
+     *
+     * When the job is running, the job scheduler cancels the job immediately whenever one of the
+     * constraints above is no longer met, and retries it in the next <i>maintenance window</i>.
+     * For information about <i>maintenance window</i>, see
+     * https://developer.android.com/training/monitoring-device-state/doze-standby.
+     *
+     * See {@link #optimizePackages(PackageManagerLocal.FilteredSnapshot, String,
+     * CancellationSignal)} for how to customize the behavior of the job.
+     *
+     * When the job ends (either completed or cancelled), the result is sent to the callbacks added
+     * by {@link #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} with the
+     * reason {@link ReasonMapping#REASON_BG_DEXOPT}.
+     */
+    public @ScheduleStatus int scheduleBackgroundDexoptJob() {
+        return mInjector.getBackgroundDexOptJob().schedule();
+    }
+
+    /**
+     * Unschedules the background dexopt job scheduled by {@link #scheduleBackgroundDexoptJob()}.
+     * Does nothing if the job is not scheduled.
+     *
+     * Use this method if you no longer want the system to automatically run dexopt.
+     *
+     * If the job is already started by the job scheduler and is running, it will be cancelled
+     * immediately, and the result sent to the callbacks added by {@link
+     * #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} will contain {@link
+     * OptimizeResult#OPTIMIZE_CANCELLED}. Note that a job started by {@link
+     * #startBackgroundDexoptJob()} will not be cancelled by this method.
+     */
+    public void unscheduleBackgroundDexoptJob() {
+        mInjector.getBackgroundDexOptJob().unschedule();
+    }
+
+    /**
+     * Overrides the configuration of the background dexopt job. This method is thread-safe.
+     */
+    public void setScheduleBackgroundDexoptJobCallback(@NonNull @CallbackExecutor Executor executor,
+            @NonNull ScheduleBackgroundDexoptJobCallback callback) {
+        mInjector.getConfig().setScheduleBackgroundDexoptJobCallback(executor, callback);
+    }
+
+    /**
+     * Clears the callback set by {@link #setScheduleBackgroundDexoptJobCallback(Executor,
+     * ScheduleBackgroundDexoptJobCallback)}. This method is thread-safe.
+     */
+    public void clearScheduleBackgroundDexoptJobCallback() {
+        mInjector.getConfig().clearScheduleBackgroundDexoptJobCallback();
+    }
+
+    /**
+     * Manually starts a background dexopt job. Does nothing if a job is already started by this
+     * method or by the job scheduler. This method is not blocking.
+     *
+     * Unlike the job started by job scheduler, the job started by this method does not respect
+     * constraints described in {@link #scheduleBackgroundDexoptJob()}, and hence will not be
+     * cancelled when they aren't met.
+     *
+     * See {@link #optimizePackages(PackageManagerLocal.FilteredSnapshot, String,
+     * CancellationSignal)} for how to customize the behavior of the job.
+     *
+     * When the job ends (either completed or cancelled), the result is sent to the callbacks added
+     * by {@link #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} with the
+     * reason {@link ReasonMapping#REASON_BG_DEXOPT}.
+     */
+    public void startBackgroundDexoptJob() {
+        mInjector.getBackgroundDexOptJob().start();
+    }
+
+    /**
+     * Cancels the running background dexopt job started by the job scheduler or by {@link
+     * #startBackgroundDexoptJob()}. Does nothing if the job is not running. This method is not
+     * blocking.
+     *
+     * The result sent to the callbacks added by {@link #addOptimizePackageDoneCallback(Executor,
+     * OptimizePackageDoneCallback)} will contain {@link OptimizeResult#OPTIMIZE_CANCELLED}.
+     */
+    public void cancelBackgroundDexoptJob() {
+        mInjector.getBackgroundDexOptJob().cancel();
+    }
+
+    /**
      * Notifies ART Service that a list of dex container files have been loaded.
      *
      * ART Service uses this information to:
@@ -379,6 +486,16 @@ public final class ArtManagerLocal {
             @NonNull Map<String, String> classLoaderContextByDexContainerFile) {
         DexUseManager.getInstance().addDexUse(
                 snapshot, loadingPackageName, classLoaderContextByDexContainerFile);
+    }
+
+    /**
+     * Should be used by {@link BackgroundDexOptJobService} ONLY.
+     *
+     * @hide
+     */
+    @NonNull
+    BackgroundDexOptJob getBackgroundDexOptJob() {
+        return mInjector.getBackgroundDexOptJob();
     }
 
     @NonNull
@@ -415,6 +532,17 @@ public final class ArtManagerLocal {
                 @NonNull BatchOptimizeParams.Builder builder);
     }
 
+    public interface ScheduleBackgroundDexoptJobCallback {
+        /**
+         * Mutates {@code builder} to override the configuration of the background dexopt job.
+         *
+         * The default configuration described in {@link
+         * ArtManagerLocal#scheduleBackgroundDexoptJob()} is passed to the callback as the {@code
+         * builder} argument.
+         */
+        void onOverrideJobInfo(@NonNull JobInfo.Builder builder);
+    }
+
     /**
      * Injector pattern for testing purpose.
      *
@@ -425,16 +553,19 @@ public final class ArtManagerLocal {
         @Nullable private final Context mContext;
         @Nullable private final PackageManagerLocal mPackageManagerLocal;
         @Nullable private final Config mConfig;
+        @Nullable private final BackgroundDexOptJob mBgDexOptJob;
 
-        Injector(@Nullable Context context) {
+        Injector(@NonNull ArtManagerLocal artManagerLocal, @Nullable Context context) {
             mContext = context;
             if (context != null) {
                 // We only need them on Android U and above, where a context is passed.
                 mPackageManagerLocal = LocalManagerRegistry.getManager(PackageManagerLocal.class);
                 mConfig = new Config();
+                mBgDexOptJob = new BackgroundDexOptJob(context, artManagerLocal, mConfig);
             } else {
                 mPackageManagerLocal = null;
                 mConfig = null;
+                mBgDexOptJob = null;
             }
         }
 
@@ -466,6 +597,11 @@ public final class ArtManagerLocal {
         @NonNull
         public AppHibernationManager getAppHibernationManager() {
             return Objects.requireNonNull(mContext.getSystemService(AppHibernationManager.class));
+        }
+
+        @NonNull
+        public BackgroundDexOptJob getBackgroundDexOptJob() {
+            return Objects.requireNonNull(mBgDexOptJob);
         }
     }
 }

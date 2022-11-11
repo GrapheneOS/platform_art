@@ -18,6 +18,7 @@ package com.android.server.art.model;
 
 import android.annotation.IntDef;
 import android.annotation.SystemApi;
+import android.app.job.JobScheduler;
 
 import com.android.server.art.ArtManagerLocal;
 import com.android.server.art.PriorityClass;
@@ -169,6 +170,30 @@ public class ArtFlags {
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
     public @interface PriorityClassApi {}
+
+    /** The job has been successfully scheduled. */
+    public static final int SCHEDULE_SUCCESS = 0;
+
+    /** @see JobScheduler#RESULT_FAILURE */
+    public static final int SCHEDULE_JOB_SCHEDULER_FAILURE = 1;
+
+    /** The job is disabled by the system property {@code pm.dexopt.disable_bg_dexopt}. */
+    public static final int SCHEDULE_DISABLED_BY_SYSPROP = 2;
+
+    /**
+     * Indicates the result of scheduling a background dexopt job.
+     *
+     * @hide
+     */
+    // clang-format off
+    @IntDef(prefix = "SCHEDULE_", value = {
+        SCHEDULE_SUCCESS,
+        SCHEDULE_JOB_SCHEDULER_FAILURE,
+        SCHEDULE_DISABLED_BY_SYSPROP,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface ScheduleStatus {}
 
     private ArtFlags() {}
 }
