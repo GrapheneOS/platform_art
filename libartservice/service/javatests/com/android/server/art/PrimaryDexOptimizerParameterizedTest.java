@@ -216,8 +216,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                 .when(mArtd)
                 .getDexoptNeeded("/data/app/foo/base.apk", "arm64", "PCL[]",
                         mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
-        doReturn(createDexoptResult(
-                         false /* cancelled */, 100 /* wallTimeMs */, 400 /* cpuTimeMs */))
+        doReturn(createDexoptResult(false /* cancelled */, 100 /* wallTimeMs */,
+                         400 /* cpuTimeMs */, 30000 /* sizeBytes */, 32000 /* sizeBeforeBytes */))
                 .when(mArtd)
                 .dexopt(deepEq(buildOutputArtifacts("/data/app/foo/base.apk", "arm64",
                                 mParams.mExpectedIsInDalvikCache, permissionSettings)),
@@ -251,8 +251,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                 .when(mArtd)
                 .getDexoptNeeded("/data/app/foo/split_0.apk", "arm", "PCL[base.apk]",
                         mParams.mExpectedCompilerFilter, mParams.mExpectedDexoptTrigger);
-        doReturn(createDexoptResult(
-                         false /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */))
+        doReturn(createDexoptResult(false /* cancelled */, 200 /* wallTimeMs */,
+                         200 /* cpuTimeMs */, 10000 /* sizeBytes */, 0 /* sizeBeforeBytes */))
                 .when(mArtd)
                 .dexopt(deepEq(buildOutputArtifacts("/data/app/foo/split_0.apk", "arm",
                                 mParams.mExpectedIsInDalvikCache, permissionSettings)),
@@ -267,19 +267,23 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                         new DexContainerFileOptimizeResult("/data/app/foo/base.apk",
                                 true /* isPrimaryAbi */, "arm64-v8a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
-                                100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */),
+                                100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
+                                30000 /* sizeBytes */, 32000 /* sizeBeforeBytes */),
                         new DexContainerFileOptimizeResult("/data/app/foo/base.apk",
                                 false /* isPrimaryAbi */, "armeabi-v7a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_FAILED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
                         new DexContainerFileOptimizeResult("/data/app/foo/split_0.apk",
                                 true /* isPrimaryAbi */, "arm64-v8a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_SKIPPED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
                         new DexContainerFileOptimizeResult("/data/app/foo/split_0.apk",
                                 false /* isPrimaryAbi */, "armeabi-v7a",
                                 mParams.mExpectedCompilerFilter, OptimizeResult.OPTIMIZE_PERFORMED,
-                                200 /* dex2oatWallTimeMillis */, 200 /* dex2oatCpuTimeMillis */));
+                                200 /* dex2oatWallTimeMillis */, 200 /* dex2oatCpuTimeMillis */,
+                                10000 /* sizeBytes */, 0 /* sizeBeforeBytes */));
     }
 
     private static class Params {

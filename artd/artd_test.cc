@@ -518,7 +518,10 @@ TEST_F(ArtdTest, dexopt) {
   RunDexopt(EX_NONE,
             AllOf(Field(&DexoptResult::cancelled, false),
                   Field(&DexoptResult::wallTimeMs, 100),
-                  Field(&DexoptResult::cpuTimeMs, 400)));
+                  Field(&DexoptResult::cpuTimeMs, 400),
+                  Field(&DexoptResult::sizeBytes, strlen("oat") + strlen("vdex")),
+                  Field(&DexoptResult::sizeBeforeBytes,
+                        strlen("old_art") + strlen("old_oat") + strlen("old_vdex"))));
 
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "vdex");
@@ -872,6 +875,25 @@ TEST_F(ArtdTest, dexoptFailed) {
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "old_oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "old_vdex");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.art", "old_art");
+}
+
+TEST_F(ArtdTest, dexoptFailedToCommit) {
+  std::unique_ptr<ScopeGuard<std::function<void()>>> scoped_inaccessible;
+  std::unique_ptr<ScopeGuard<std::function<void()>>> scoped_unroot;
+
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "new_oat")),
+                      WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "new_vdex")),
+                      [&](auto, auto, auto) {
+                        scoped_inaccessible = std::make_unique<ScopeGuard<std::function<void()>>>(
+                            ScopedInaccessible(scratch_path_ + "/a/oat/arm64"));
+                        scoped_unroot =
+                            std::make_unique<ScopeGuard<std::function<void()>>>(ScopedUnroot());
+                        return 0;
+                      }));
+
+  RunDexopt(EX_SERVICE_SPECIFIC,
+            AllOf(Field(&DexoptResult::sizeBytes, 0), Field(&DexoptResult::sizeBeforeBytes, 0)));
 }
 
 TEST_F(ArtdTest, dexoptCancelledBeforeDex2oat) {

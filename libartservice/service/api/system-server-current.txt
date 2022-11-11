@@ -135,6 +135,8 @@ package com.android.server.art.model {
     method public long getDex2oatCpuTimeMillis();
     method public long getDex2oatWallTimeMillis();
     method @NonNull public String getDexContainerFile();
+    method public long getSizeBeforeBytes();
+    method public long getSizeBytes();
     method public int getStatus();
     method public boolean isPrimaryAbi();
   }

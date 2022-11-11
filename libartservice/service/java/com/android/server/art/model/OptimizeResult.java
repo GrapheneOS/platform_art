@@ -157,11 +157,14 @@ public class OptimizeResult {
         private final @OptimizeStatus int mStatus;
         private final long mDex2oatWallTimeMillis;
         private final long mDex2oatCpuTimeMillis;
+        private final long mSizeBytes;
+        private final long mSizeBeforeBytes;
 
         /** @hide */
         public DexContainerFileOptimizeResult(@NonNull String dexContainerFile,
                 boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
-                @OptimizeStatus int status, long dex2oatWallTimeMillis, long dex2oatCpuTimeMillis) {
+                @OptimizeStatus int status, long dex2oatWallTimeMillis, long dex2oatCpuTimeMillis,
+                long sizeBytes, long sizeBeforeBytes) {
             mDexContainerFile = dexContainerFile;
             mIsPrimaryAbi = isPrimaryAbi;
             mAbi = abi;
@@ -169,6 +172,8 @@ public class OptimizeResult {
             mStatus = status;
             mDex2oatWallTimeMillis = dex2oatWallTimeMillis;
             mDex2oatCpuTimeMillis = dex2oatCpuTimeMillis;
+            mSizeBytes = sizeBytes;
+            mSizeBeforeBytes = sizeBeforeBytes;
         }
 
         /** The absolute path to the dex container file. */
@@ -221,6 +226,23 @@ public class OptimizeResult {
          */
         public @DurationMillisLong long getDex2oatCpuTimeMillis() {
             return mDex2oatCpuTimeMillis;
+        }
+
+        /**
+         * The total size, in bytes, of the optimized artifacts. Returns 0 if {@link #getStatus()}
+         * is not {@link #OPTIMIZE_PERFORMED}.
+         */
+        public long getSizeBytes() {
+            return mSizeBytes;
+        }
+
+        /**
+         * The total size, in bytes, of the previous optimized artifacts that has been replaced.
+         * Returns 0 if there were no previous optimized artifacts or {@link #getStatus()} is not
+         * {@link #OPTIMIZE_PERFORMED}.
+         */
+        public long getSizeBeforeBytes() {
+            return mSizeBeforeBytes;
         }
     }
 }

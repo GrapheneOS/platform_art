@@ -164,16 +164,20 @@ public class SecondaryDexOptimizerTest {
                 .containsExactly(
                         new DexContainerFileOptimizeResult(DEX_1, true /* isPrimaryAbi */,
                                 "arm64-v8a", "speed-profile", OptimizeResult.OPTIMIZE_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
                         new DexContainerFileOptimizeResult(DEX_2, true /* isPrimaryAbi */,
                                 "arm64-v8a", "speed", OptimizeResult.OPTIMIZE_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
                         new DexContainerFileOptimizeResult(DEX_2, false /* isPrimaryAbi */,
                                 "armeabi-v7a", "speed", OptimizeResult.OPTIMIZE_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */),
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
                         new DexContainerFileOptimizeResult(DEX_3, true /* isPrimaryAbi */,
                                 "arm64-v8a", "verify", OptimizeResult.OPTIMIZE_PERFORMED,
-                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */));
+                                0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */));
 
         // It should use profile for dex 1.
 
@@ -307,6 +311,8 @@ public class SecondaryDexOptimizerTest {
         result.cancelled = false;
         result.wallTimeMs = 0;
         result.cpuTimeMs = 0;
+        result.sizeBytes = 0;
+        result.sizeBeforeBytes = 0;
         return result;
     }
 

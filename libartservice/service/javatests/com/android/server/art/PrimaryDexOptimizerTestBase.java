@@ -178,11 +178,19 @@ public class PrimaryDexOptimizerTestBase {
         return result;
     }
 
-    protected DexoptResult createDexoptResult(boolean cancelled, long wallTimeMs, long cpuTimeMs) {
+    protected DexoptResult createDexoptResult(boolean cancelled, long wallTimeMs, long cpuTimeMs,
+            long sizeBytes, long sizeBeforeBytes) {
         var result = new DexoptResult();
         result.cancelled = cancelled;
         result.wallTimeMs = wallTimeMs;
         result.cpuTimeMs = cpuTimeMs;
+        result.sizeBytes = sizeBytes;
+        result.sizeBeforeBytes = sizeBeforeBytes;
         return result;
+    }
+
+    protected DexoptResult createDexoptResult(boolean cancelled) {
+        return createDexoptResult(cancelled, 0 /* wallTimeMs */, 0 /* cpuTimeMs */,
+                0 /* sizeBytes */, 0 /* sizeBeforeBytes */);
     }
 }

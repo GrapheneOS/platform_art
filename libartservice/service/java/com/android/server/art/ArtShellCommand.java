@@ -326,12 +326,13 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     packageResult.getDexContainerFileOptimizeResults()) {
                 pw.printf("dexContainerFile = %s, isPrimaryAbi = %b, abi = %s, "
                                 + "compilerFilter = %s, status = %s, "
-                                + "dex2oatWallTimeMillis = %d, dex2oatCpuTimeMillis = %d\n",
+                                + "dex2oatWallTimeMillis = %d, dex2oatCpuTimeMillis = %d, "
+                                + "sizeBytes = %d, sizeBeforeBytes = %d\n",
                         fileResult.getDexContainerFile(), fileResult.isPrimaryAbi(),
                         fileResult.getAbi(), fileResult.getActualCompilerFilter(),
                         optimizeStatusToString(fileResult.getStatus()),
-                        fileResult.getDex2oatWallTimeMillis(),
-                        fileResult.getDex2oatCpuTimeMillis());
+                        fileResult.getDex2oatWallTimeMillis(), fileResult.getDex2oatCpuTimeMillis(),
+                        fileResult.getSizeBytes(), fileResult.getSizeBeforeBytes());
             }
         }
     }

@@ -147,6 +147,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                     @OptimizeResult.OptimizeStatus int status = OptimizeResult.OPTIMIZE_SKIPPED;
                     long wallTimeMs = 0;
                     long cpuTimeMs = 0;
+                    long sizeBytes = 0;
+                    long sizeBeforeBytes = 0;
                     try {
                         var target = DexoptTarget.<DexInfoType>builder()
                                                       .setDexInfo(dexInfo)
@@ -186,6 +188,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                                                         : OptimizeResult.OPTIMIZE_PERFORMED;
                         wallTimeMs = dexoptResult.wallTimeMs;
                         cpuTimeMs = dexoptResult.cpuTimeMs;
+                        sizeBytes = dexoptResult.sizeBytes;
+                        sizeBeforeBytes = dexoptResult.sizeBeforeBytes;
 
                         if (status == OptimizeResult.OPTIMIZE_CANCELLED) {
                             return results;
@@ -202,7 +206,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                     } finally {
                         results.add(new DexContainerFileOptimizeResult(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
-                                cpuTimeMs));
+                                cpuTimeMs, sizeBytes, sizeBeforeBytes));
                         if (status != OptimizeResult.OPTIMIZE_SKIPPED
                                 && status != OptimizeResult.OPTIMIZE_PERFORMED) {
                             succeeded = false;

@@ -92,8 +92,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
             | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE
             | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE;
 
-    private final DexoptResult mDexoptResult =
-            createDexoptResult(false /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */);
+    private final DexoptResult mDexoptResult = createDexoptResult(false /* cancelled */);
 
     private PrimaryDexOptimizer mPrimaryDexOptimizer;
 
@@ -467,8 +466,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
 
         doAnswer(invocation -> {
             verify(artdCancellationSignal).cancel();
-            return createDexoptResult(
-                    true /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */);
+            return createDexoptResult(true /* cancelled */);
         })
                 .when(mArtd)
                 .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
@@ -501,8 +499,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         doAnswer(invocation -> {
             dexoptStarted.release();
             assertThat(dexoptCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
-            return createDexoptResult(
-                    true /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */);
+            return createDexoptResult(true /* cancelled */);
         })
                 .when(mArtd)
                 .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
