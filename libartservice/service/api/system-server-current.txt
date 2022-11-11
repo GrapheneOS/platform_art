@@ -4,6 +4,7 @@ package com.android.server.art {
   public final class ArtManagerLocal {
     ctor @Deprecated public ArtManagerLocal();
     ctor public ArtManagerLocal(@NonNull android.content.Context);
+    method public void addOptimizePackageDoneCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
     method public void cancelBackgroundDexoptJob();
     method public void clearOptimizePackagesCallback();
     method public void clearScheduleBackgroundDexoptJobCallback();
@@ -15,11 +16,16 @@ package com.android.server.art {
     method public void notifyDexContainersLoaded(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.Map<java.lang.String,java.lang.String>);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
+    method public void removeOptimizePackageDoneCallback(@NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
     method public int scheduleBackgroundDexoptJob();
     method public void setOptimizePackagesCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackagesCallback);
     method public void setScheduleBackgroundDexoptJobCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.ScheduleBackgroundDexoptJobCallback);
     method public void startBackgroundDexoptJob();
     method public void unscheduleBackgroundDexoptJob();
+  }
+
+  public static interface ArtManagerLocal.OptimizePackageDoneCallback {
+    method public void onOptimizePackageDone(@NonNull com.android.server.art.model.OptimizeResult);
   }
 
   public static interface ArtManagerLocal.OptimizePackagesCallback {

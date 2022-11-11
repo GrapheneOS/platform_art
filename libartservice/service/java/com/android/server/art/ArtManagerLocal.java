@@ -489,6 +489,28 @@ public final class ArtManagerLocal {
     }
 
     /**
+     * Adds a global listener that listens to any result of optimizing package(s), no matter run
+     * manually or automatically. Calling this method multiple times with different callbacks is
+     * allowed. Callbacks are executed in the same order as the one in which they were added. This
+     * method is thread-safe.
+     *
+     * @throws IllegalStateException if the same callback instance is already added
+     */
+    public void addOptimizePackageDoneCallback(@NonNull @CallbackExecutor Executor executor,
+            @NonNull OptimizePackageDoneCallback callback) {
+        mInjector.getConfig().addOptimizePackageDoneCallback(executor, callback);
+    }
+
+    /**
+     * Removes the listener added by {@link #addOptimizePackageDoneCallback(Executor,
+     * OptimizePackageDoneCallback)}. Does nothing if the callback was not added. This method is
+     * thread-safe.
+     */
+    public void removeOptimizePackageDoneCallback(@NonNull OptimizePackageDoneCallback callback) {
+        mInjector.getConfig().removeOptimizePackageDoneCallback(callback);
+    }
+
+    /**
      * Should be used by {@link BackgroundDexOptJobService} ONLY.
      *
      * @hide
@@ -543,6 +565,10 @@ public final class ArtManagerLocal {
         void onOverrideJobInfo(@NonNull JobInfo.Builder builder);
     }
 
+    public interface OptimizePackageDoneCallback {
+        void onOptimizePackageDone(@NonNull OptimizeResult result);
+    }
+
     /**
      * Injector pattern for testing purpose.
      *
@@ -586,7 +612,7 @@ public final class ArtManagerLocal {
 
         @NonNull
         public DexOptHelper getDexOptHelper() {
-            return new DexOptHelper(getContext());
+            return new DexOptHelper(getContext(), getConfig());
         }
 
         @NonNull

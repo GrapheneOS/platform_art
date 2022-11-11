@@ -16,6 +16,8 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback;
+import static com.android.server.art.model.Config.Callback;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
@@ -30,6 +32,7 @@ import android.os.WorkSource;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
+import com.android.server.art.model.Config;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
@@ -70,8 +73,8 @@ public class DexOptHelper {
 
     @NonNull private final Injector mInjector;
 
-    public DexOptHelper(@NonNull Context context) {
-        this(new Injector(context));
+    public DexOptHelper(@NonNull Context context, @NonNull Config config) {
+        this(new Injector(context, config));
     }
 
     @VisibleForTesting
@@ -123,7 +126,17 @@ public class DexOptHelper {
             List<PackageOptimizeResult> results =
                     futures.stream().map(Utils::getFuture).collect(Collectors.toList());
 
-            return new OptimizeResult(params.getCompilerFilter(), params.getReason(), results);
+            var result =
+                    new OptimizeResult(params.getCompilerFilter(), params.getReason(), results);
+
+            for (Callback<OptimizePackageDoneCallback> callback :
+                    mInjector.getConfig().getOptimizePackageDoneCallbacks()) {
+                // TODO(b/257027956): Consider filtering the packages before calling the callback.
+                Utils.executeAndWait(callback.executor(),
+                        () -> { callback.get().onOptimizePackageDone(result); });
+            }
+
+            return result;
         } finally {
             if (wakeLock != null) {
                 wakeLock.release();
@@ -241,9 +254,11 @@ public class DexOptHelper {
     @VisibleForTesting
     public static class Injector {
         @NonNull private final Context mContext;
+        @NonNull private final Config mConfig;
 
-        Injector(@NonNull Context context) {
+        Injector(@NonNull Context context, @NonNull Config config) {
             mContext = context;
+            mConfig = config;
         }
 
         @NonNull
@@ -268,6 +283,11 @@ public class DexOptHelper {
         @NonNull
         public PowerManager getPowerManager() {
             return Objects.requireNonNull(mContext.getSystemService(PowerManager.class));
+        }
+
+        @NonNull
+        public Config getConfig() {
+            return mConfig;
         }
     }
 }

@@ -16,6 +16,7 @@
 
 package com.android.server.art.model;
 
+import static com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback;
 import static com.android.server.art.ArtManagerLocal.OptimizePackagesCallback;
 import static com.android.server.art.ArtManagerLocal.ScheduleBackgroundDexoptJobCallback;
 
@@ -27,6 +28,9 @@ import com.android.server.art.ArtManagerLocal;
 
 import com.google.auto.value.AutoValue;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
@@ -49,6 +53,14 @@ public class Config {
     @Nullable
     private Callback<ScheduleBackgroundDexoptJobCallback> mScheduleBackgroundDexoptJobCallback =
             null;
+
+    /**
+     * @see ArtManagerLocal#addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)
+     */
+    @GuardedBy("this")
+    @NonNull
+    private LinkedHashMap<OptimizePackageDoneCallback, Callback<OptimizePackageDoneCallback>>
+            mOptimizePackageDoneCallbacks = new LinkedHashMap<>();
 
     public synchronized void setOptimizePackagesCallback(
             @NonNull Executor executor, @NonNull OptimizePackagesCallback callback) {
@@ -78,6 +90,26 @@ public class Config {
     public synchronized Callback<ScheduleBackgroundDexoptJobCallback>
     getScheduleBackgroundDexoptJobCallback() {
         return mScheduleBackgroundDexoptJobCallback;
+    }
+
+    public synchronized void addOptimizePackageDoneCallback(
+            @NonNull Executor executor, @NonNull OptimizePackageDoneCallback callback) {
+        if (mOptimizePackageDoneCallbacks.putIfAbsent(
+                    callback, Callback.<OptimizePackageDoneCallback>create(callback, executor))
+                != null) {
+            throw new IllegalStateException("callback already added");
+        }
+    }
+
+    public synchronized void removeOptimizePackageDoneCallback(
+            @NonNull OptimizePackageDoneCallback callback) {
+        mOptimizePackageDoneCallbacks.remove(callback);
+    }
+
+    @NonNull
+    public synchronized List<Callback<OptimizePackageDoneCallback>>
+    getOptimizePackageDoneCallbacks() {
+        return new ArrayList<>(mOptimizePackageDoneCallbacks.values());
     }
 
     @AutoValue
