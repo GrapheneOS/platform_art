@@ -19,6 +19,9 @@
 #include "arch/instruction_set.h"
 #include "base/compiler_filter.h"
 #include "base/metrics/metrics.h"
+#include "gc/heap.h"
+#include "gc/space/image_space.h"
+#include "runtime.h"
 #include "statslog_art.h"
 
 #pragma clang diagnostic push
@@ -281,6 +284,20 @@ class StatsdBackend : public MetricsBackend {
 }  // namespace
 
 std::unique_ptr<MetricsBackend> CreateStatsdBackend() { return std::make_unique<StatsdBackend>(); }
+
+void ReportDeviceMetrics() {
+  Runtime* runtime = Runtime::Current();
+  int32_t boot_image_status;
+  if (runtime->GetHeap()->HasBootImageSpace() && !runtime->HasImageWithProfile()) {
+    boot_image_status = statsd::ART_DEVICE_DATUM_REPORTED__BOOT_IMAGE_STATUS__STATUS_FULL;
+  } else if (runtime->GetHeap()->HasBootImageSpace() &&
+             runtime->GetHeap()->GetBootImageSpaces()[0]->GetProfileFiles().empty()) {
+    boot_image_status = statsd::ART_DEVICE_DATUM_REPORTED__BOOT_IMAGE_STATUS__STATUS_MINIMAL;
+  } else {
+    boot_image_status = statsd::ART_DEVICE_DATUM_REPORTED__BOOT_IMAGE_STATUS__STATUS_NONE;
+  }
+  statsd::stats_write(statsd::ART_DEVICE_DATUM_REPORTED, boot_image_status);
+}
 
 }  // namespace metrics
 }  // namespace art
