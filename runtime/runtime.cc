@@ -102,6 +102,7 @@
 #include "jni_id_type.h"
 #include "linear_alloc.h"
 #include "memory_representation.h"
+#include "metrics/statsd.h"
 #include "mirror/array.h"
 #include "mirror/class-alloc-inl.h"
 #include "mirror/class-inl.h"
@@ -1216,12 +1217,13 @@ void Runtime::InitNonZygoteOrPostFork(
   }
   if (Runtime::Current()->IsSystemServer()) {
     std::string err;
-    ScopedTrace tr("odrefresh stats logging");
+    ScopedTrace tr("odrefresh and device stats logging");
     ScopedThreadSuspension sts(Thread::Current(), ThreadState::kNative);
     // Report stats if available. This should be moved into ART Services when they are ready.
     if (!odrefresh::UploadStatsIfAvailable(&err)) {
       LOG(WARNING) << "Failed to upload odrefresh metrics: " << err;
     }
+    metrics::ReportDeviceMetrics();
   }
 
   if (LIKELY(automatically_set_jni_ids_indirection_) && CanSetJniIdType()) {
