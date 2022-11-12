@@ -37,6 +37,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 
 /** @hide */
@@ -204,6 +209,26 @@ public final class Utils {
             throw new IllegalArgumentException();
         }
         return str;
+    }
+
+    public static <T> Future<T> execute(@NonNull Executor executor, @NonNull Callable<T> callable) {
+        var future = new FutureTask<T>(callable);
+        executor.execute(future);
+        return future;
+    }
+
+    public static <T> T getFuture(Future<T> future) {
+        try {
+            return future.get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException(cause);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @AutoValue

@@ -48,6 +48,7 @@ import com.android.server.pm.pkg.PackageState;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 /**
  * This class provides a system API for functionality provided by the ART module.
@@ -262,15 +263,15 @@ public final class ArtManagerLocal {
             throw new IllegalArgumentException("Nothing to optimize");
         }
 
-        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-
-        try {
-            return mInjector.getDexOptHelper().dexopt(snapshot, pkgState, pkg, params,
-                    cancellationSignal);
-        } catch (RemoteException e) {
-            throw new IllegalStateException("An error occurred when calling artd", e);
+        if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
+                && (params.getFlags() & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0) {
+            throw new IllegalArgumentException(
+                    "FLAG_SHOULD_INCLUDE_DEPENDENCIES must not set if FLAG_FOR_PRIMARY_DEX is not "
+                    + "set.");
         }
+
+        return mInjector.getDexOptHelper().dexopt(
+                snapshot, List.of(packageName), params, cancellationSignal, Runnable::run);
     }
 
     /**

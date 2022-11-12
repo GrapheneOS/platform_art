@@ -74,6 +74,7 @@ namespace artd {
 namespace {
 
 using ::aidl::com::android::server::art::ArtifactsPath;
+using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
 using ::aidl::com::android::server::art::DexoptResult;
 using ::aidl::com::android::server::art::DexoptTrigger;
@@ -550,6 +551,13 @@ ndk::ScopedAStatus Artd::getDexFileVisibility(const std::string& in_dexFile,
   return ScopedAStatus::ok();
 }
 
+ndk::ScopedAStatus Artd::getDmFileVisibility(const DexMetadataPath& in_dmFile,
+                                             FileVisibility* _aidl_return) {
+  std::string dm_path = OR_RETURN_FATAL(BuildDexMetadataPath(in_dmFile));
+  *_aidl_return = OR_RETURN_NON_FATAL(GetFileVisibility(dm_path));
+  return ScopedAStatus::ok();
+}
+
 ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profiles,
                                        const std::optional<ProfilePath>& in_referenceProfile,
                                        OutputProfile* in_outputProfile,
@@ -691,6 +699,7 @@ ndk::ScopedAStatus Artd::dexopt(
     const std::string& in_compilerFilter,
     const std::optional<ProfilePath>& in_profile,
     const std::optional<VdexPath>& in_inputVdex,
+    const std::optional<DexMetadataPath>& in_dmFile,
     PriorityClass in_priorityClass,
     const DexoptOptions& in_dexoptOptions,
     const std::shared_ptr<IArtdCancellationSignal>& in_cancellationSignal,
@@ -783,16 +792,18 @@ ndk::ScopedAStatus Artd::dexopt(
 
   std::unique_ptr<File> input_vdex_file = nullptr;
   if (in_inputVdex.has_value()) {
-    if (in_inputVdex->getTag() == VdexPath::dexMetadataPath) {
-      std::string input_vdex_path = OR_RETURN_FATAL(BuildDexMetadataPath(in_inputVdex.value()));
-      input_vdex_file = OR_RETURN_NON_FATAL(OpenFileForReading(input_vdex_path));
-      args.Add("--dm-fd=%d", input_vdex_file->Fd());
-    } else {
-      std::string input_vdex_path = OR_RETURN_FATAL(BuildVdexPath(in_inputVdex.value()));
-      input_vdex_file = OR_RETURN_NON_FATAL(OpenFileForReading(input_vdex_path));
-      args.Add("--input-vdex-fd=%d", input_vdex_file->Fd());
-    }
+    std::string input_vdex_path = OR_RETURN_FATAL(BuildVdexPath(in_inputVdex.value()));
+    input_vdex_file = OR_RETURN_NON_FATAL(OpenFileForReading(input_vdex_path));
+    args.Add("--input-vdex-fd=%d", input_vdex_file->Fd());
     fd_logger.Add(*input_vdex_file);
+  }
+
+  std::unique_ptr<File> dm_file = nullptr;
+  if (in_dmFile.has_value()) {
+    std::string dm_path = OR_RETURN_FATAL(BuildDexMetadataPath(in_dmFile.value()));
+    dm_file = OR_RETURN_NON_FATAL(OpenFileForReading(dm_path));
+    args.Add("--dm-fd=%d", dm_file->Fd());
+    fd_logger.Add(*dm_file);
   }
 
   std::unique_ptr<File> profile_file = nullptr;

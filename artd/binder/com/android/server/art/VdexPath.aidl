@@ -24,6 +24,4 @@ package com.android.server.art;
 union VdexPath {
     /** Represents a VDEX file as part of the artifacts. */
     com.android.server.art.ArtifactsPath artifactsPath;
-    /** Represents a VDEX file in a dex metadata file. */
-    com.android.server.art.DexMetadataPath dexMetadataPath;
 }

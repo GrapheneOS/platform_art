@@ -17,6 +17,7 @@
 package com.android.server.art;
 
 import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
+import static com.android.server.art.testing.TestingUtils.deepEq;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -277,29 +278,13 @@ public class ArtManagerLocalTest {
         var result = mock(OptimizeResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        when(mDexOptHelper.dexopt(any(), same(mPkgState), same(mPkg), same(params),
-                same(cancellationSignal)))
+        when(mDexOptHelper.dexopt(any(), deepEq(List.of(PKG_NAME)), same(params),
+                     same(cancellationSignal), any()))
                 .thenReturn(result);
 
         assertThat(mArtManagerLocal.optimizePackage(mSnapshot,
                 PKG_NAME, params, cancellationSignal))
                 .isSameInstanceAs(result);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testOptimizePackagePackageNotFound() throws Exception {
-        when(mSnapshot.getPackageState(anyString())).thenReturn(null);
-
-        mArtManagerLocal.optimizePackage(mSnapshot, PKG_NAME,
-                new OptimizeParams.Builder("install").build());
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testOptimizePackageNoPackage() throws Exception {
-        lenient().when(mPkgState.getAndroidPackage()).thenReturn(null);
-
-        mArtManagerLocal.optimizePackage(mSnapshot, PKG_NAME,
-                new OptimizeParams.Builder("install").build());
     }
 
     private AndroidPackage createPackage() {

@@ -209,6 +209,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         dexoptOptions.hiddenApiPolicyEnabled = mParams.mExpectedIsHiddenApiPolicyEnabled;
 
         when(mArtd.createCancellationSignal()).thenReturn(mock(IArtdCancellationSignal.class));
+        when(mArtd.getDmFileVisibility(any())).thenReturn(FileVisibility.NOT_FOUND);
 
         // The first one is normal.
         doReturn(dexoptIsNeeded())
@@ -222,8 +223,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                                 mParams.mExpectedIsInDalvikCache, permissionSettings)),
                         eq("/data/app/foo/base.apk"), eq("arm64"), eq("PCL[]"),
                         eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
-                        isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
-                        deepEq(dexoptOptions), any());
+                        isNull() /* inputVdex */, isNull() /* dmFile */,
+                        eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions), any());
 
         // The second one fails on `dexopt`.
         doReturn(dexoptIsNeeded())
@@ -236,8 +237,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                                 mParams.mExpectedIsInDalvikCache, permissionSettings)),
                         eq("/data/app/foo/base.apk"), eq("arm"), eq("PCL[]"),
                         eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
-                        isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
-                        deepEq(dexoptOptions), any());
+                        isNull() /* inputVdex */, isNull() /* dmFile */,
+                        eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions), any());
 
         // The third one doesn't need dexopt.
         doReturn(dexoptIsNotNeeded())
@@ -257,8 +258,8 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
                                 mParams.mExpectedIsInDalvikCache, permissionSettings)),
                         eq("/data/app/foo/split_0.apk"), eq("arm"), eq("PCL[base.apk]"),
                         eq(mParams.mExpectedCompilerFilter), isNull() /* profile */,
-                        isNull() /* inputVdex */, eq(PriorityClass.INTERACTIVE),
-                        deepEq(dexoptOptions), any());
+                        isNull() /* inputVdex */, isNull() /* dmFile */,
+                        eq(PriorityClass.INTERACTIVE), deepEq(dexoptOptions), any());
 
         assertThat(mPrimaryDexOptimizer.dexopt())
                 .comparingElementsUsing(TestingUtils.<DexContainerFileOptimizeResult>deepEquality())

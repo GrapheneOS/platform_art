@@ -109,6 +109,17 @@ public abstract class OptimizationStatus {
          *   <li>{@code "unknown"}: if the reason is empty or the optimized artifacts do not exist.
          *   <li>{@code "error"}: if an unexpected error occurs.
          * </ul>
+         *
+         * Note that this value can differ from the requested compilation reason passed to {@link
+         * OptimizeParams.Builder}. Specifically, if the requested reason is for app install (e.g.,
+         * "install"), and a DM file is passed to {@code dex2oat}, a "-dm" suffix will be appended
+         * to the actual reason (e.g., "install-dm"). Other compilation reasons remain unchanged
+         * even if a DM file is passed to {@code dex2oat}.
+         *
+         * Also note that the "-dm" suffix does <b>not</b> imply anything in the DM file being used
+         * by {@code dex2oat}. The compilation reason can still be "install-dm" even if {@code
+         * dex2oat} left all contents of the DM file unused or an empty DM file is passed to
+         * {@code dex2oat}.
          */
         public abstract @NonNull String getCompilationReason();
 
