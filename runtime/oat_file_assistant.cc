@@ -787,11 +787,11 @@ bool OatFileAssistant::ValidateBootClassPathChecksums(OatFileAssistantContext* o
 
   size_t oat_bcp_size = gc::space::ImageSpace::CheckAndCountBCPComponents(
       oat_boot_class_path, ArrayRef<const std::string>(bcp_locations), error_msg);
-  DCHECK_LE(oat_bcp_size, bcp_locations.size());
   if (oat_bcp_size == static_cast<size_t>(-1)) {
     DCHECK(!error_msg->empty());
     return false;
   }
+  DCHECK_LE(oat_bcp_size, bcp_locations.size());
 
   size_t bcp_index = 0;
   size_t boot_image_index = 0;
