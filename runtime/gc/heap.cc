@@ -1481,6 +1481,8 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType 
         Runtime::Current()->GetPreAllocatedOutOfMemoryErrorWhenHandlingStackOverflow());
     return;
   }
+  // Allow plugins to intercept out of memory errors.
+  Runtime::Current()->OutOfMemoryErrorHook();
 
   std::ostringstream oss;
   size_t total_bytes_free = GetFreeMemory();
