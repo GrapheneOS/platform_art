@@ -308,7 +308,8 @@ Runtime::Runtime()
       verifier_logging_threshold_ms_(100),
       verifier_missing_kthrow_fatal_(false),
       perfetto_hprof_enabled_(false),
-      perfetto_javaheapprof_enabled_(false) {
+      perfetto_javaheapprof_enabled_(false),
+      out_of_memory_error_hook_(nullptr) {
   static_assert(Runtime::kCalleeSaveSize ==
                     static_cast<uint32_t>(CalleeSaveType::kLastCalleeSaveType), "Unexpected size");
   CheckConstants();

@@ -50,6 +50,7 @@ cc_defaults {
     compile_multilib: "both",
 
     shared_libs: [
+        "libartpalette",
         "libbase",
         "liblog",
     ],
