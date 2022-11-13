@@ -145,8 +145,8 @@ public class SecondaryDexOptimizerTest {
                 .when(mArtd.getDexoptNeeded(any(), any(), any(), any(), anyInt()))
                 .thenReturn(dexoptIsNeeded());
         lenient()
-                .when(mArtd.dexopt(
-                        any(), any(), any(), any(), any(), any(), any(), anyInt(), any(), any()))
+                .when(mArtd.dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(),
+                        any(), any()))
                 .thenReturn(createDexoptResult());
 
         lenient()
@@ -316,7 +316,7 @@ public class SecondaryDexOptimizerTest {
         OutputArtifacts outputArtifacts = AidlUtils.buildOutputArtifacts(
                 dexPath, isa, false /* isInDalvikCache */, permissionSettings);
         artd.dexopt(deepEq(outputArtifacts), eq(dexPath), eq(isa), eq(classLoaderContext),
-                eq("speed-profile"), deepEq(profile), any(), anyInt(),
+                eq("speed-profile"), deepEq(profile), any(), isNull() /* dmFile */, anyInt(),
                 argThat(dexoptOptions -> dexoptOptions.generateAppImage == false), any());
     }
 
@@ -326,7 +326,7 @@ public class SecondaryDexOptimizerTest {
         OutputArtifacts outputArtifacts = AidlUtils.buildOutputArtifacts(
                 dexPath, isa, false /* isInDalvikCache */, permissionSettings);
         artd.dexopt(deepEq(outputArtifacts), eq(dexPath), eq(isa), eq(classLoaderContext),
-                eq(compilerFilter), isNull(), any(), anyInt(),
+                eq(compilerFilter), isNull(), any(), isNull() /* dmFile */, anyInt(),
                 argThat(dexoptOptions -> dexoptOptions.generateAppImage == false), any());
     }
 

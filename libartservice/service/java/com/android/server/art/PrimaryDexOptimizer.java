@@ -206,6 +206,12 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
         return profiles;
     }
 
+    @Override
+    @Nullable
+    protected DexMetadataPath buildDmPath(@NonNull DetailedPrimaryDexInfo dexInfo) {
+        return AidlUtils.buildDexMetadataPath(dexInfo.dexPath());
+    }
+
     private boolean isSharedLibrary() {
         // TODO(b/242688548): Package manager should provide a better API for this.
         return !TextUtils.isEmpty(mPkg.getSdkLibraryName())

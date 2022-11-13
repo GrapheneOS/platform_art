@@ -112,13 +112,16 @@ public class OptimizeResult {
         private final @NonNull String mPackageName;
         private final
                 @NonNull List<DexContainerFileOptimizeResult> mDexContainerFileOptimizeResults;
+        private final boolean mIsCanceled;
 
         /** @hide */
-        public PackageOptimizeResult(@NonNull String packageName,
-                @NonNull List<DexContainerFileOptimizeResult> dexContainerFileOptimizeResults) {
-            mPackageName = packageName;
-            mDexContainerFileOptimizeResults = dexContainerFileOptimizeResults;
-        }
+    public PackageOptimizeResult(@NonNull String packageName,
+            @NonNull List<DexContainerFileOptimizeResult> dexContainerFileOptimizeResults,
+            boolean isCanceled) {
+        mPackageName = packageName;
+        mDexContainerFileOptimizeResults = dexContainerFileOptimizeResults;
+        mIsCanceled = isCanceled;
+    }
 
         /** The package name. */
         public @NonNull String getPackageName() {
@@ -136,10 +139,11 @@ public class OptimizeResult {
 
         /** The overall status of the package. */
         public @OptimizeStatus int getStatus() {
-            return mDexContainerFileOptimizeResults.stream()
-                    .mapToInt(result -> result.getStatus())
-                    .max()
-                    .orElse(OPTIMIZE_SKIPPED);
+            return mIsCanceled ? OPTIMIZE_CANCELLED
+                               : mDexContainerFileOptimizeResults.stream()
+                                         .mapToInt(result -> result.getStatus())
+                                         .max()
+                                         .orElse(OPTIMIZE_SKIPPED);
         }
     }
 

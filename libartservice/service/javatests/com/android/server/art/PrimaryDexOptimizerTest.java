@@ -73,6 +73,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
             AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary");
     private final ProfilePath mPrebuiltProfile = AidlUtils.buildProfilePathForPrebuilt(mDexPath);
     private final ProfilePath mDmProfile = AidlUtils.buildProfilePathForDm(mDexPath);
+    private final DexMetadataPath mDmFile = AidlUtils.buildDexMetadataPath(mDexPath);
     private final OutputProfile mPublicOutputProfile = AidlUtils.buildOutputProfileForPrimary(
             PKG_NAME, "primary", Process.SYSTEM_UID, SHARED_GID, true /* isOtherReadable */);
     private final OutputProfile mPrivateOutputProfile = AidlUtils.buildOutputProfileForPrimary(
@@ -106,13 +107,16 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         lenient().when(mArtd.isProfileUsable(any(), any())).thenReturn(false);
         lenient().when(mArtd.copyAndRewriteProfile(any(), any(), any())).thenReturn(false);
 
+        // By default, no DM file exists.
+        lenient().when(mArtd.getDmFileVisibility(any())).thenReturn(FileVisibility.NOT_FOUND);
+
         // Dexopt is by default needed and successful.
         lenient()
                 .when(mArtd.getDexoptNeeded(any(), any(), any(), any(), anyInt()))
                 .thenReturn(dexoptIsNeeded());
         lenient()
-                .when(mArtd.dexopt(
-                        any(), any(), any(), any(), any(), any(), any(), anyInt(), any(), any()))
+                .when(mArtd.dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(),
+                        any(), any()))
                 .thenReturn(mDexoptResult);
 
         lenient()
@@ -133,8 +137,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .getDexoptNeeded(eq(mDexPath), eq("arm64"), any(), any(), anyInt());
         doReturn(mDexoptResult)
                 .when(mArtd)
-                .dexopt(any(), eq(mDexPath), eq("arm64"), any(), any(), any(), isNull(), anyInt(),
-                        any(), any());
+                .dexopt(any(), eq(mDexPath), eq("arm64"), any(), any(), any(), isNull(), any(),
+                        anyInt(), any(), any());
 
         // ArtifactsPath, isInDalvikCache=true.
         doReturn(dexoptIsNeeded(ArtifactsLocation.DALVIK_CACHE))
@@ -145,7 +149,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .dexopt(any(), eq(mDexPath), eq("arm"), any(), any(), any(),
                         deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
                                 mDexPath, "arm", true /* isInDalvikCache */))),
-                        anyInt(), any(), any());
+                        any(), anyInt(), any(), any());
 
         // ArtifactsPath, isInDalvikCache=false.
         doReturn(dexoptIsNeeded(ArtifactsLocation.NEXT_TO_DEX))
@@ -156,7 +160,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .dexopt(any(), eq(mSplit0DexPath), eq("arm64"), any(), any(), any(),
                         deepEq(VdexPath.artifactsPath(AidlUtils.buildArtifactsPath(
                                 mSplit0DexPath, "arm64", false /* isInDalvikCache */))),
-                        anyInt(), any(), any());
+                        any(), anyInt(), any(), any());
 
         // DexMetadataPath.
         doReturn(dexoptIsNeeded(ArtifactsLocation.DM))
@@ -164,12 +168,31 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .getDexoptNeeded(eq(mSplit0DexPath), eq("arm"), any(), any(), anyInt());
         doReturn(mDexoptResult)
                 .when(mArtd)
-                .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(),
-                        deepEq(VdexPath.dexMetadataPath(
-                                AidlUtils.buildDexMetadataPath(mSplit0DexPath))),
+                .dexopt(any(), eq(mSplit0DexPath), eq("arm"), any(), any(), any(), isNull(), any(),
                         anyInt(), any(), any());
 
         mPrimaryDexOptimizer.dexopt();
+    }
+
+    @Test
+    public void testDexoptDm() throws Exception {
+        lenient()
+                .when(mArtd.getDmFileVisibility(deepEq(mDmFile)))
+                .thenReturn(FileVisibility.OTHER_READABLE);
+
+        mPrimaryDexOptimizer.dexopt();
+
+        verify(mArtd, times(2))
+                .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), deepEq(mDmFile),
+                        anyInt(),
+                        argThat(dexoptOptions
+                                -> dexoptOptions.compilationReason.equals("install-dm")),
+                        any());
+        verify(mArtd, times(2))
+                .dexopt(any(), eq(mSplit0DexPath), any(), any(), any(), any(), any(), isNull(),
+                        anyInt(),
+                        argThat(dexoptOptions -> dexoptOptions.compilationReason.equals("install")),
+                        any());
     }
 
     @Test
@@ -342,8 +365,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         makeProfileNotUsable(mPrebuiltProfile);
         makeProfileUsable(mDmProfile);
 
-        when(mArtd.dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), anyInt(), any(),
-                     any()))
+        when(mArtd.dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
+                     any(), any()))
                 .thenThrow(ServiceSpecificException.class);
 
         mPrimaryDexOptimizer.dexopt();
@@ -448,7 +471,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                     true /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */);
         })
                 .when(mArtd)
-                .dexopt(any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
+                .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
                         same(artdCancellationSignal));
 
         // The result should only contain one element: the result of the first file with
@@ -462,7 +485,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         // It shouldn't continue after being cancelled on the first file.
         verify(mArtd, times(1)).createCancellationSignal();
         verify(mArtd, times(1))
-                .dexopt(any(), any(), any(), any(), any(), any(), any(), anyInt(), any(), any());
+                .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
+                        any());
     }
 
     @Test
@@ -481,7 +505,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                     true /* cancelled */, 200 /* wallTimeMs */, 200 /* cpuTimeMs */);
         })
                 .when(mArtd)
-                .dexopt(any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
+                .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
                         same(artdCancellationSignal));
         doAnswer(invocation -> {
             dexoptCancelled.release();
@@ -507,7 +531,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         // It shouldn't continue after being cancelled on the first file.
         verify(mArtd, times(1)).createCancellationSignal();
         verify(mArtd, times(1))
-                .dexopt(any(), any(), any(), any(), any(), any(), any(), anyInt(), any(), any());
+                .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
+                        any());
     }
 
     private void checkDexoptWithPublicProfile(
@@ -515,8 +540,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         artd.dexopt(
                 argThat(artifacts
                         -> artifacts.permissionSettings.fileFsPermission.isOtherReadable == true),
-                eq(dexPath), eq(isa), any(), eq("speed-profile"), deepEq(profile), any(), anyInt(),
-                argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
+                eq(dexPath), eq(isa), any(), eq("speed-profile"), deepEq(profile), any(), any(),
+                anyInt(), argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
     }
 
     private void checkDexoptWithPrivateProfile(
@@ -524,8 +549,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         artd.dexopt(
                 argThat(artifacts
                         -> artifacts.permissionSettings.fileFsPermission.isOtherReadable == false),
-                eq(dexPath), eq(isa), any(), eq("speed-profile"), deepEq(profile), any(), anyInt(),
-                argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
+                eq(dexPath), eq(isa), any(), eq("speed-profile"), deepEq(profile), any(), any(),
+                anyInt(), argThat(dexoptOptions -> dexoptOptions.generateAppImage == true), any());
     }
 
     private void checkDexoptWithNoProfile(
@@ -533,7 +558,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         artd.dexopt(
                 argThat(artifacts
                         -> artifacts.permissionSettings.fileFsPermission.isOtherReadable == true),
-                eq(dexPath), eq(isa), any(), eq(compilerFilter), isNull(), any(), anyInt(),
+                eq(dexPath), eq(isa), any(), eq(compilerFilter), isNull(), any(), any(), anyInt(),
                 argThat(dexoptOptions -> dexoptOptions.generateAppImage == false), any());
     }
 

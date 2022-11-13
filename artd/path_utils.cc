@@ -210,11 +210,6 @@ Result<std::string> BuildDexMetadataPath(const DexMetadataPath& dex_metadata_pat
   return ReplaceFileExtension(dex_metadata_path.dexPath, "dm");
 }
 
-Result<std::string> BuildDexMetadataPath(const VdexPath& vdex_path) {
-  DCHECK(vdex_path.getTag() == VdexPath::dexMetadataPath);
-  return BuildDexMetadataPath(vdex_path.get<VdexPath::dexMetadataPath>());
-}
-
 Result<std::string> BuildProfileOrDmPath(const ProfilePath& profile_path) {
   switch (profile_path.getTag()) {
     case ProfilePath::primaryRefProfilePath:
