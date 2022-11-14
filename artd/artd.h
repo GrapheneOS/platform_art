@@ -157,13 +157,15 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   android::base::Result<OatFileAssistantContext*> GetOatFileAssistantContext()
       EXCLUDES(ofa_context_mu_);
 
-  android::base::Result<const std::vector<std::string>*> GetBootImageLocations();
+  android::base::Result<const std::vector<std::string>*> GetBootImageLocations()
+      EXCLUDES(cache_mu_);
 
-  android::base::Result<const std::vector<std::string>*> GetBootClassPath();
+  android::base::Result<const std::vector<std::string>*> GetBootClassPath() EXCLUDES(cache_mu_);
 
-  bool UseJitZygote();
+  bool UseJitZygoteLocked() REQUIRES(cache_mu_);
 
-  bool DenyArtApexDataFiles();
+  bool DenyArtApexDataFiles() EXCLUDES(cache_mu_);
+  bool DenyArtApexDataFilesLocked() REQUIRES(cache_mu_);
 
   android::base::Result<int> ExecAndReturnCode(const std::vector<std::string>& arg_vector,
                                                int timeout_sec,
@@ -189,18 +191,18 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   void AddPerfConfigFlags(aidl::com::android::server::art::PriorityClass priority_class,
                           /*out*/ art::tools::CmdlineBuilder& args);
 
-  std::optional<std::vector<std::string>> cached_boot_image_locations_;
-  std::optional<std::vector<std::string>> cached_boot_class_path_;
-  std::optional<std::string> cached_apex_versions_;
-  std::optional<bool> cached_use_jit_zygote_;
-  std::optional<bool> cached_deny_art_apex_data_files_;
+  std::mutex cache_mu_;
+  std::optional<std::vector<std::string>> cached_boot_image_locations_ GUARDED_BY(cache_mu_);
+  std::optional<std::vector<std::string>> cached_boot_class_path_ GUARDED_BY(cache_mu_);
+  std::optional<bool> cached_use_jit_zygote_ GUARDED_BY(cache_mu_);
+  std::optional<bool> cached_deny_art_apex_data_files_ GUARDED_BY(cache_mu_);
 
   std::mutex ofa_context_mu_;
   std::unique_ptr<OatFileAssistantContext> ofa_context_ GUARDED_BY(ofa_context_mu_);
 
-  std::unique_ptr<art::tools::SystemProperties> props_;
-  std::unique_ptr<ExecUtils> exec_utils_;
-  std::function<int(pid_t, int)> kill_;
+  const std::unique_ptr<art::tools::SystemProperties> props_;
+  const std::unique_ptr<ExecUtils> exec_utils_;
+  const std::function<int(pid_t, int)> kill_;
 };
 
 }  // namespace artd

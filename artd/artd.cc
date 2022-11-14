@@ -941,10 +941,12 @@ Result<OatFileAssistantContext*> Artd::GetOatFileAssistantContext() {
 }
 
 Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+
   if (!cached_boot_image_locations_.has_value()) {
     std::string location_str;
 
-    if (UseJitZygote()) {
+    if (UseJitZygoteLocked()) {
       location_str = GetJitZygoteBootImageLocation();
     } else if (std::string value = props_->GetOrEmpty("dalvik.vm.boot-image"); !value.empty()) {
       location_str = std::move(value);
@@ -954,7 +956,7 @@ Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
       if (!error_msg.empty()) {
         return Errorf("Failed to get ANDROID_ROOT: {}", error_msg);
       }
-      location_str = GetDefaultBootImageLocation(android_root, DenyArtApexDataFiles());
+      location_str = GetDefaultBootImageLocation(android_root, DenyArtApexDataFilesLocked());
     }
 
     cached_boot_image_locations_ = Split(location_str, ":");
@@ -964,6 +966,8 @@ Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
 }
 
 Result<const std::vector<std::string>*> Artd::GetBootClassPath() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+
   if (!cached_boot_class_path_.has_value()) {
     const char* env_value = getenv("BOOTCLASSPATH");
     if (env_value == nullptr || strlen(env_value) == 0) {
@@ -975,7 +979,7 @@ Result<const std::vector<std::string>*> Artd::GetBootClassPath() {
   return &cached_boot_class_path_.value();
 }
 
-bool Artd::UseJitZygote() {
+bool Artd::UseJitZygoteLocked() {
   if (!cached_use_jit_zygote_.has_value()) {
     cached_use_jit_zygote_ =
         props_->GetBool("dalvik.vm.profilebootclasspath",
@@ -987,6 +991,11 @@ bool Artd::UseJitZygote() {
 }
 
 bool Artd::DenyArtApexDataFiles() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+  return DenyArtApexDataFilesLocked();
+}
+
+bool Artd::DenyArtApexDataFilesLocked() {
   if (!cached_deny_art_apex_data_files_.has_value()) {
     cached_deny_art_apex_data_files_ =
         !props_->GetBool("odsign.verification.success", /*default_value=*/false);
