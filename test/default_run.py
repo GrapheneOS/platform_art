@@ -21,6 +21,9 @@ from typing import List
 from subprocess import DEVNULL, PIPE, STDOUT
 from tempfile import NamedTemporaryFile
 
+COLOR_RED = '\033[91m'
+COLOR_BLUE = '\033[94m'
+COLOR_NORMAL = '\033[0m'
 
 def parse_args(argv):
   argp, opt_bool = ArgumentParser(), BooleanOptionalAction
@@ -30,6 +33,7 @@ def parse_args(argv):
   argp.add_argument("--add-libdir-argument", action="store_true")
   argp.add_argument("--android-art-root", default="/apex/com.android.art")
   argp.add_argument("--android-i18n-root", default="/apex/com.android.i18n")
+  argp.add_argument("--android-log-tags", default="*:i")
   argp.add_argument("--android-root", default="/system")
   argp.add_argument("--android-runtime-option", default=[], action="append")
   argp.add_argument("--android-tzdata-root", default="/apex/com.android.tzdata")
@@ -41,6 +45,7 @@ def parse_args(argv):
   argp.add_argument("--compact-dex-level")
   argp.add_argument("--compiler-only-option", default=[], action="append")
   argp.add_argument("--create-runner", action="store_true")
+  argp.add_argument("--diff-min-log-tag", default="E")
   argp.add_argument("--debug", action="store_true")
   argp.add_argument("--debug-agent")
   argp.add_argument("--debug-wrap-agent", action="store_true")
@@ -94,7 +99,6 @@ def parse_args(argv):
   argp.add_argument("--vdex", action="store_true")
   argp.add_argument("--vdex-arg", default=[], action="append")
   argp.add_argument("--vdex-filter", default="")
-  argp.add_argument("--verbose", action="store_true")
   argp.add_argument("--verify", default=True, action=opt_bool)
   argp.add_argument("--verify-soft-fail", action="store_true")
   argp.add_argument("--with-agent", default=[], action="append")
@@ -226,36 +230,40 @@ def default_run(ctx, args, **kwargs):
       if ART_TEST_DRY_RUN and ("dalvikvm" in cmdline or
                                "adb shell chroot" in cmdline):
         cmdline = "true"  # We still need to run some command, so run the no-op "true" binary instead.
+
+    if cmdline != "true":
+      print(f"{COLOR_BLUE}$ {cmdline}{COLOR_NORMAL}")
     proc = subprocess.run([cmdline],
                           shell=True,
                           executable="/bin/bash",
                           env=env,
                           encoding="utf8",
                           capture_output=True)
+    if proc.stdout:
+      print(proc.stdout.strip(), flush=True)
+    if proc.stderr:
+      print(proc.stderr.strip(), flush=True)
 
     # ADB forwards exit code from the executed command, but if ADB process itself crashes,
     # it will also return non-zero exit code, and we can not distinguish those two cases.
     # As a work-around, we wrap the executed command so that it always returns 0 exit code
     # and we also make it print the actual exit code as the last line of its stdout.
     if parse_exit_code_from_stdout:
-      assert proc.returncode == 0, f"ADB crashed (out:'{proc.stdout}' err:'{proc.stderr}')"
+      assert proc.returncode == 0, f"ADB failed (exit code {proc.returncode})"
       found = re.search("exit_code=([0-9]+)$", proc.stdout)
       assert found, "Expected exit code as the last line of stdout"
       proc.stdout = proc.stdout[:found.start(0)]  # Remove the exit code from stdout.
       proc.returncode = int(found.group(1))  # Use it as if it was the process exit code.
 
     # Check the exit code.
-    if (check and proc.returncode != expected_exit_code) or VERBOSE:
-      print("$ " + cmdline)
-      print(proc.stdout or "", file=sys.stdout, end="", flush=True)
-      print(proc.stderr or "", file=sys.stderr, end="", flush=True)
     if (check and proc.returncode != expected_exit_code):
       suffix = ""
       if proc.returncode == 124:
         suffix = " (TIME OUT)"
       elif expected_exit_code != 0:
         suffix = " (expected {})".format(expected_exit_code)
-      print("Command returned exit code {}{}".format(proc.returncode, suffix), file=sys.stderr)
+      print(f"{COLOR_RED}{TEST_NAME} FAILED: Command returned exit code "
+            f"{proc.returncode}{suffix}{COLOR_NORMAL}", file=sys.stderr)
       sys.exit(1)
 
     return proc
@@ -326,10 +334,6 @@ def default_run(ctx, args, **kwargs):
 
   assert ANDROID_BUILD_TOP, "Did you forget to run `lunch`?"
 
-  def msg(msg: str):
-    if VERBOSE:
-      print(msg)
-
   ANDROID_ROOT = args.android_root
   ANDROID_ART_ROOT = args.android_art_root
   ANDROID_I18N_ROOT = args.android_i18n_root
@@ -346,7 +350,6 @@ def default_run(ctx, args, **kwargs):
   WITH_AGENT = args.with_agent
   DEBUGGER_AGENT = args.debug_agent
   WRAP_DEBUGGER_AGENT = args.debug_wrap_agent
-  VERBOSE = args.verbose
   DEX2OAT_NDEBUG_BINARY = "dex2oat32"
   DEX2OAT_DEBUG_BINARY = "dex2oatd32"
   EXPERIMENTAL = args.experimental
@@ -398,7 +401,6 @@ def default_run(ctx, args, **kwargs):
   INSTRUCTION_SET_FEATURES = args.instruction_set_features
   ARGS = ""
   VDEX_ARGS = ""
-  EXTERNAL_LOG_TAGS = args.external_log_tags  # respect external ANDROID_LOG_TAGS.
   DRY_RUN = args.dry_run
   TEST_VDEX = args.vdex
   TEST_DEX2OAT_DM = args.dex2oat_dm
@@ -515,7 +517,6 @@ def default_run(ctx, args, **kwargs):
     GDBSERVER_HOST = arg
     GDBSERVER_DEVICE = arg
   if args.gdbserver or args.gdb or USE_GDB_DEX2OAT:
-    VERBOSE = True
     TIME_OUT = "n"
   for arg in args.gdb_arg:
     GDB_ARGS += f" {arg}"
@@ -524,7 +525,7 @@ def default_run(ctx, args, **kwargs):
       GDB_DEX2OAT_ARGS += f"{arg} "
   if args.zygote:
     ZYGOTE = "-Xzygote"
-    msg("Spawning from zygote")
+    print("Spawning from zygote")
   if args.baseline:
     FLAGS += " -Xcompiler-option --baseline"
     COMPILE_FLAGS += " --baseline"
@@ -596,24 +597,24 @@ def default_run(ctx, args, **kwargs):
         DEX_OPTIMIZE = "-Xdexopt:verified"
       else:
         DEX_OPTIMIZE = "-Xdexopt:all"
-      msg("Performing optimizations")
+      print("Performing optimizations")
     else:
       DEX_OPTIMIZE = "-Xdexopt:none"
-      msg("Skipping optimizations")
+      print("Skipping optimizations")
 
     if VERIFY == "y":
       JVM_VERIFY_ARG = "-Xverify:all"
-      msg("Performing verification")
+      print("Performing verification")
     elif VERIFY == "s":
       JVM_VERIFY_ARG = "Xverify:all"
       DEX_VERIFY = "-Xverify:softfail"
-      msg("Forcing verification to be soft fail")
+      print("Forcing verification to be soft fail")
     else:  # VERIFY == "n"
       DEX_VERIFY = "-Xverify:none"
       JVM_VERIFY_ARG = "-Xverify:none"
-      msg("Skipping verification")
+      print("Skipping verification")
 
-  msg("------------------------------")
+  print("------------------------------")
 
   if DEBUGGER == "y":
     # Use this instead for ddms and connect by running 'ddms':
@@ -621,10 +622,10 @@ def default_run(ctx, args, **kwargs):
     # TODO: add a separate --ddms option?
 
     PORT = 12345
-    msg("Waiting for jdb to connect:")
+    print("Waiting for jdb to connect:")
     if not HOST:
-      msg(f"    adb forward tcp:{PORT} tcp:{PORT}")
-    msg(f"    jdb -attach localhost:{PORT}")
+      print(f"    adb forward tcp:{PORT} tcp:{PORT}")
+    print(f"    jdb -attach localhost:{PORT}")
     if not USE_JVM:
       # Use the default libjdwp agent. Use --debug-agent to use a custom one.
       DEBUGGER_OPTS = f"-agentpath:libjdwp.so=transport=dt_socket,address={PORT},server=y,suspend=y -XjdwpProvider:internal"
@@ -640,7 +641,7 @@ def default_run(ctx, args, **kwargs):
       if TEST_IS_NDEBUG:
         WRAPPROPS = f"{ANDROID_ROOT}/{LIBRARY_DIRECTORY}/libwrapagentproperties.so"
       AGENTPATH = f"{WRAPPROPS}={ANDROID_BUILD_TOP}/art/tools/libjdwp-compat.props,{AGENTPATH}"
-    msg(f"Connect to localhost:{PORT}")
+    print(f"Connect to localhost:{PORT}")
     DEBUGGER_OPTS = f"-agentpath:{AGENTPATH}=transport=dt_socket,address={PORT},server=y,suspend=y"
 
   for agent in WITH_AGENT:
@@ -740,7 +741,7 @@ def default_run(ctx, args, **kwargs):
   if isfile(f"{TEST_NAME}-bcpex.jar"):
     BCPEX = f":{DEX_LOCATION}/{TEST_NAME}-bcpex.jar"
 
-# Pass down the bootclasspath
+  # Pass down the bootclasspath
   FLAGS += f" -Xbootclasspath:{b_path}{BCPEX}"
   FLAGS += f" -Xbootclasspath-locations:{b_path_locations}{BCPEX}"
   COMPILE_FLAGS += f" --runtime-arg -Xbootclasspath:{b_path}"
@@ -823,10 +824,10 @@ def default_run(ctx, args, **kwargs):
     # Set TIMEOUT_DUMPER manually so it works even with apex's
     TIMEOUT_DUMPER = f"{OUT_DIR}/soong/host/linux_bionic-x86/bin/signal_dumper"
 
-# Prevent test from silently falling back to interpreter in no-prebuild mode. This happens
-# when DEX_LOCATION path is too long, because vdex/odex filename is constructed by taking
-# full path to dex, stripping leading '/', appending '@classes.vdex' and changing every
-# remaining '/' into '@'.
+  # Prevent test from silently falling back to interpreter in no-prebuild mode. This happens
+  # when DEX_LOCATION path is too long, because vdex/odex filename is constructed by taking
+  # full path to dex, stripping leading '/', appending '@classes.vdex' and changing every
+  # remaining '/' into '@'.
   if HOST:
     max_filename_size = int(
         run(f"getconf NAME_MAX {DEX_LOCATION}", save_cmd=False).stdout)
@@ -834,7 +835,7 @@ def default_run(ctx, args, **kwargs):
     # There is no getconf on device, fallback to standard value.
     # See NAME_MAX in kernel <linux/limits.h>
     max_filename_size = 255
-# Compute VDEX_NAME.
+  # Compute VDEX_NAME.
   DEX_LOCATION_STRIPPED = DEX_LOCATION.lstrip("/")
   VDEX_NAME = f"{DEX_LOCATION_STRIPPED}@{TEST_NAME}.jar@classes.vdex".replace(
       "/", "@")
@@ -898,8 +899,8 @@ def default_run(ctx, args, **kwargs):
     installapex_test_cmdline = f"test -L {DEX_LOCATION}/zipapex"
     installapex_cmdline = f"ln -s -f --verbose {EXTRACTED_ZIPAPEX_LOC} {DEX_LOCATION}/zipapex"
 
-# PROFILE takes precedence over RANDOM_PROFILE, since PROFILE tests require a
-# specific profile to run properly.
+  # PROFILE takes precedence over RANDOM_PROFILE, since PROFILE tests require a
+  # specific profile to run properly.
   if PROFILE or RANDOM_PROFILE:
     profman_cmdline = f"{ANDROID_ART_BIN_DIR}/profman  \
       --apk={DEX_LOCATION}/{TEST_NAME}.jar \
@@ -1122,9 +1123,7 @@ def default_run(ctx, args, **kwargs):
       args.append(arg)
     return " ".join(args)
 
-
-# Remove whitespace.
-
+  # Remove whitespace.
   dex2oat_cmdline = sanitize_dex2oat_cmdline(dex2oat_cmdline)
   dalvikvm_cmdline = re.sub(" +", " ", dalvikvm_cmdline)
   dm_cmdline = re.sub(" +", " ", dm_cmdline)
@@ -1140,28 +1139,16 @@ def default_run(ctx, args, **kwargs):
     RUN_TEST_ASAN_OPTIONS = f"{RUN_TEST_ASAN_OPTIONS}:"
   RUN_TEST_ASAN_OPTIONS = f"{RUN_TEST_ASAN_OPTIONS}detect_leaks=0"
 
-  # For running, we must turn off logging when dex2oat is missing. Otherwise we use
-  # the same defaults as for prebuilt: everything when --dev, otherwise errors and above only.
-  if not EXTERNAL_LOG_TAGS:
-    if VERBOSE:
-      ANDROID_LOG_TAGS = "*:d"
-    elif not HAVE_IMAGE:
-      # All tests would log the error of missing image. Be silent here and only log fatal
-      # events.
-      ANDROID_LOG_TAGS = "*:s"
-    else:
-      # We are interested in LOG(ERROR) output.
-      ANDROID_LOG_TAGS = "*:e"
+  assert not args.external_log_tags, "Deprecated: use --android-log-tags=*:v"
+
+  ANDROID_LOG_TAGS = args.android_log_tags
 
   if not HOST:
     adb.root()
     adb.wait_for_device()
     adb.shell(f"rm -rf {CHROOT_DEX_LOCATION}")
     adb.shell(f"mkdir -p {CHROOT_DEX_LOCATION}")
-    adb.push(f"{TEST_NAME}.jar", CHROOT_DEX_LOCATION)
-    adb.push(f"{TEST_NAME}-ex.jar", CHROOT_DEX_LOCATION, check=False)
-    adb.push(f"{TEST_NAME}-aotex.jar", CHROOT_DEX_LOCATION, check=False)
-    adb.push(f"{TEST_NAME}-bcpex.jar", CHROOT_DEX_LOCATION, check=False)
+    adb.push(f"{TEST_NAME}*.jar", CHROOT_DEX_LOCATION)
     if PROFILE or RANDOM_PROFILE:
       adb.push("profile", CHROOT_DEX_LOCATION, check=False)
     # Copy resource folder
@@ -1277,7 +1264,7 @@ def default_run(ctx, args, **kwargs):
       chroot_prefix = f"chroot {CHROOT}" if CHROOT else ""
       return adb.shell(f"{chroot_prefix} sh {DEX_LOCATION}/cmdline.sh", **kwargs)
 
-    if VERBOSE and (USE_GDB or USE_GDBSERVER):
+    if USE_GDB or USE_GDBSERVER:
       print(f"Forward {GDBSERVER_PORT} to local port and connect GDB")
 
     run_cmd(f"rm -rf {DEX_LOCATION}/dalvik-cache/")
@@ -1378,28 +1365,7 @@ def default_run(ctx, args, **kwargs):
                    ).split(" "):
           value = os.environ.get(var, "")
           f.write(f'export {var}="{value}"')
-        if VERBOSE:
-          f.write(cmdline)
-        else:
-          f.writelines([
-              "STDERR=$(mktemp)",
-              "STDOUT=$(mktemp)",
-              cmdline + " >${STDOUT} 2>${STDERR}",
-              "if diff ${STDOUT} {ANDROID_DATA}/expected-stdout.txt; then",
-              "  rm -f ${STDOUT} ${STDERR}",
-              "  exit 0",
-              "elif diff ${STDERR} {ANDROID_DATA}/expected-stderr.txt; then",
-              "  rm -f ${STDOUT} ${STDERR}",
-              "  exit 0",
-              "else",
-              "  echo  STDOUT:",
-              "  cat ${STDOUT}",
-              "  echo  STDERR:",
-              "  cat ${STDERR}",
-              "  rm -f ${STDOUT} ${STDERR}",
-              "  exit 1",
-              "fi",
-          ])
+        f.write(cmdline)
       os.chmod("{DEX_LOCATION}/runit.sh", 0o777)
       print(f"Runnable test script written to {DEX_LOCATION}/runit.sh")
     if DRY_RUN:
@@ -1418,6 +1384,15 @@ def default_run(ctx, args, **kwargs):
         run(tee(cmdline),
             env,
             expected_exit_code=args.expected_exit_code)
+
+        ALL_LOG_TAGS = ["V", "D", "I", "W", "E", "F", "S"]
+        skip_tag_set = "|".join(ALL_LOG_TAGS[:ALL_LOG_TAGS.index(args.diff_min_log_tag.upper())])
+        skip_reg_exp = f'^[[:alnum:]]+ ({skip_tag_set}) #-# #:#:# '.replace('#', '[0-9]+')
+        run(fr"sed -i -E '/{skip_reg_exp}/d' '{args.stderr_file}'")
+        if not HAVE_IMAGE:
+          run(fr"sed -i -E '/^dalvikvm(|32|64) E .* Unable to open file/d' '{args.stderr_file}'")
+        if "D" in skip_tag_set:
+          run(fr"sed -i -E '/^(Time zone|I18n) APEX ICU file found/d' '{args.stderr_file}'")
       else:
         # With a thread dump that uses gdb if a timeout.
         proc = run(cmdline, check=False)

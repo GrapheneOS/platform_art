@@ -42,7 +42,6 @@ def run(ctx, args):
         args.runtime_option[i] += ":/"
         break
 
-  ctx.env.ANDROID_LOG_TAGS = "*:f"
   ctx.default_run(
       args,
       android_runtime_option=[
@@ -55,9 +54,9 @@ def run(ctx, args):
   ctx.default_run(
       args,
       test_args=[f"agent:{agent}=909-attach-agent"],
-      external_log_tags=True)
+      android_log_tags="*:f")
 
   ctx.default_run(
       args,
       test_args=[f"agent:{agent}=909-attach-agent", "disallow-debugging"],
-      external_log_tags=True)
+      android_log_tags="*:f")
