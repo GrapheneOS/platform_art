@@ -21,10 +21,13 @@ def build(ctx):
   if ctx.jvm:
     return
   # Change the generated dex file to have a v37 magic number if it is version 35
-  with open("classes.dex", "rb+") as f:
+  with open(ctx.test_dir / "classes.dex", "rb+") as f:
     if f.read(8) == b"dex\n035\x00":
       f.seek(0)
       f.write(b"dex\n037\x00")
-      os.remove("370-dex-v37.jar")
-  cmd = [ctx.soong_zip, "-o", "370-dex-v37.jar", "-f", "classes.dex"]
+      os.remove(ctx.test_dir / "370-dex-v37.jar")
+  cmd = [
+      ctx.soong_zip, "-o", ctx.test_dir / "370-dex-v37.jar", "-j", "-f",
+      ctx.test_dir / "classes.dex"
+  ]
   subprocess.run(cmd, check=True)

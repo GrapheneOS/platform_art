@@ -20,5 +20,5 @@ def build(ctx):
   ctx.bash("./generate-sources")
   ctx.default_build(use_desugar=False)
 
-  os.rename("src-ex/java/util/AbstractCollection.bak",
-            "src-ex/java/util/AbstractCollection.java")
+  os.rename(ctx.test_dir / "src-ex/java/util/AbstractCollection.bak",
+            ctx.test_dir / "src-ex/java/util/AbstractCollection.java")
