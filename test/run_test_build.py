@@ -42,7 +42,7 @@ from re import match
 from shutil import copytree, rmtree
 from subprocess import run
 from tempfile import TemporaryDirectory, NamedTemporaryFile
-from typing import Dict, List, Union, Set
+from typing import Dict, List, Union, Set, Optional
 
 USE_RBE_FOR_JAVAC = 100    # Percentage of tests that can use RBE (between 0 and 100)
 USE_RBE_FOR_D8 = 100       # Percentage of tests that can use RBE (between 0 and 100)
@@ -74,8 +74,6 @@ class BuildTestContext:
     self.smali = args.smali.absolute()
     self.soong_zip = args.soong_zip.absolute()
     self.zipalign = args.zipalign.absolute()
-
-    self.need_dex = (self.host or self.target)
 
     # Minimal environment needed for bash commands that we execute.
     self.bash_env = {
@@ -122,8 +120,8 @@ def default_build(
     javac_args=[],
     d8_flags=[],
     smali_args=[],
-    has_smali=None,
-    has_jasmin=None,
+    use_smali=True,
+    use_jasmin=True,
   ):
 
   # Wrap "pathlib.Path" with our own version that ensures all paths are absolute.
@@ -135,14 +133,12 @@ def default_build(
 
   ANDROID_BUILD_TOP = ctx.android_build_top
   TEST_NAME = ctx.test_name
-  NEED_DEX = ctx.need_dex if need_dex is None else need_dex
+  need_dex = (ctx.host or ctx.target) if need_dex is None else need_dex
 
   RBE_exec_root = os.environ.get("RBE_exec_root")
   RBE_rewrapper = ctx.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
 
   # Set default values for directories.
-  HAS_SMALI = Path("smali").exists() if has_smali is None else has_smali
-  HAS_JASMIN = Path("jasmin").exists() if has_jasmin is None else has_jasmin
   HAS_SRC = Path("src").exists()
   HAS_SRC_ART = Path("src-art").exists()
   HAS_SRC2 = Path("src2").exists()
@@ -195,10 +191,16 @@ def default_build(
     cmd += args
     env = ctx.bash_env
     env.update({k: v for k, v in os.environ.items() if k.startswith("RBE_")})
+    # Make paths relative as otherwise we could create too long command line.
     for i, arg in enumerate(cmd):
       if isinstance(arg, pathlib.Path):
         assert arg.absolute(), arg
         cmd[i] = relpath(arg, ctx.test_dir)
+      elif isinstance(arg, list):
+        assert all(p.absolute() for p in arg), arg
+        cmd[i] = ":".join(relpath(p, ctx.test_dir) for p in arg)
+      else:
+        assert isinstance(arg, str), arg
     p = subprocess.run(cmd,
                        encoding=sys.stdout.encoding,
                        cwd=ctx.test_dir,
@@ -228,12 +230,13 @@ def default_build(
     def rbe_wrap(args, inputs: Set[pathlib.Path]=None):
       with NamedTemporaryFile(mode="w+t") as input_list:
         inputs = inputs or set()
-        inputs.update(arg for arg in args if isinstance(arg, pathlib.Path))
         for i, arg in enumerate(args):
-          if isinstance(arg, str):
-            for part in arg.split(":"):
-              if (ctx.test_dir / part).exists():
-                inputs.add(Path(ctx.test_dir / part))
+          if isinstance(arg, pathlib.Path):
+            assert arg.absolute(), arg
+            inputs.add(arg)
+          elif isinstance(arg, list):
+            assert all(p.absolute() for p in arg), arg
+            inputs.update(arg)
         input_list.writelines([relpath(i, RBE_exec_root)+"\n" for i in inputs])
         input_list.flush()
         return run(RBE_rewrapper, [
@@ -277,58 +280,70 @@ def default_build(
         tmp_file.rename(zip_target)
 
 
-  def make_jasmin(out_directory: Path, jasmin_sources: List[Path]):
-    out_directory.mkdir()
-    jasmin(["-d", out_directory] + sorted(jasmin_sources))
+  def make_jasmin(dst_dir: Path, src_dir: Path) -> Optional[Path]:
+    if not use_jasmin or not src_dir.exists():
+      return None  # No sources to compile.
+    dst_dir.mkdir()
+    jasmin(["-d", dst_dir] + sorted(src_dir.glob("**/*.j")))
+    return dst_dir
+
+  def make_smali(dst_dex: Path, src_dir: Path) -> Optional[Path]:
+    if not use_smali or not src_dir.exists():
+      return None  # No sources to compile.
+    smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
+          ["--output", dst_dex] + sorted(src_dir.glob("**/*.smali")))
+    return dst_dex
 
 
-  # Like regular javac but may include libcore on the bootclasspath.
-  def javac_with_bootclasspath(args):
-    flags = JAVAC_ARGS + ["-encoding", "utf8"]
-    if BUILD_MODE != "jvm":
-      flags.extend(["-bootclasspath", ctx.bootclasspath])
-    javac(flags + args)
+  java_classpath: List[Path] = []
+
+  def make_java(dst_dir: Path, *src_dirs: Path) -> Optional[Path]:
+    if not any(src_dir.exists() for src_dir in src_dirs):
+      return None  # No sources to compile.
+    dst_dir.mkdir(exist_ok=True)
+    args = JAVAC_ARGS + ["-implicit:none", "-encoding", "utf8", "-d", dst_dir]
+    if not ctx.jvm:
+      args += ["-bootclasspath", ctx.bootclasspath]
+    if java_classpath:
+      args += ["-classpath", java_classpath]
+    for src_dir in src_dirs:
+      args += sorted(src_dir.glob("**/*.java"))
+    javac(args)
+    return dst_dir
 
 
   # Make a "dex" file given a directory of classes. This will be
   # packaged in a jar file.
-  def make_dex(name: str):
-    d8_inputs = sorted(Path(name).glob("**/*.class"))
-    d8_output = Path(name + ".jar")
-    dex_output = Path(name + ".dex")
-    if use_desugar:
-      flags = ["--lib", ctx.bootclasspath]
-    else:
-      flags = ["--no-desugaring"]
-    assert d8_inputs
-    d8(D8_FLAGS + flags + ["--output", d8_output] + d8_inputs)
+  def make_dex(src_dir: Path):
+    dst_jar = Path(src_dir.name + ".jar")
+    args = D8_FLAGS + ["--output", dst_jar]
+    args += ["--lib", ctx.bootclasspath] if use_desugar else ["--no-desugaring"]
+    args += sorted(src_dir.glob("**/*.class"))
+    d8(args)
 
     # D8 outputs to JAR files today rather than DEX files as DX used
     # to. To compensate, we extract the DEX from d8's output to meet the
     # expectations of make_dex callers.
+    dst_dex = Path(src_dir.name + ".dex")
     with TemporaryDirectory() as tmp_dir:
-      zipfile.ZipFile(d8_output, "r").extractall(tmp_dir)
-      (Path(tmp_dir) / "classes.dex").rename(dex_output)
+      zipfile.ZipFile(dst_jar, "r").extractall(tmp_dir)
+      (Path(tmp_dir) / "classes.dex").rename(dst_dex)
 
   # Merge all the dex files.
   # Skip non-existing files, but at least 1 file must exist.
-  def make_dexmerge(*dex_files_to_merge: Path):
-    # Dex file that acts as the destination.
-    dst_file = dex_files_to_merge[0]
-
-    # Skip any non-existing files.
-    src_files = [f for f in dex_files_to_merge if f.exists()]
+  def make_dexmerge(dst_dex: Path, *src_dexs: Path):
+    # Include destination. Skip any non-existing files.
+    srcs = [f for f in [dst_dex] + list(src_dexs) if f.exists()]
 
     # NB: We merge even if there is just single input.
     # It is useful to normalize non-deterministic smali output.
-
     tmp_dir = ctx.test_dir / "dexmerge"
     tmp_dir.mkdir()
-    d8(["--min-api", api_level, "--output", tmp_dir] + src_files)
+    d8(["--min-api", api_level, "--output", tmp_dir] + srcs)
     assert not (tmp_dir / "classes2.dex").exists()
-    for src_file in src_files:
+    for src_file in srcs:
       src_file.unlink()
-    (tmp_dir / "classes.dex").rename(dst_file)
+    (tmp_dir / "classes.dex").rename(dst_dex)
     tmp_dir.rmdir()
 
 
@@ -354,24 +369,11 @@ def default_build(
     return HAS_SRC_MULTIDEX or HAS_JASMIN_MULTIDEX or HAS_SMALI_MULTIDEX
 
 
-  def add_to_cp_args(old_cp_args, path):
-    if len(old_cp_args) == 0:
-      return ["-cp", path]
-    else:
-      return ["-cp", old_cp_args[1] + ":" + path]
+  if make_jasmin(Path("jasmin_classes"), Path("jasmin")):
+    java_classpath.append(Path("jasmin_classes"))
 
-
-  src_tmp_all = []
-
-  if HAS_JASMIN:
-    make_jasmin(Path("jasmin_classes"),
-                sorted(Path("jasmin").glob("**/*.j")))
-    src_tmp_all = add_to_cp_args(src_tmp_all, "jasmin_classes")
-
-  if HAS_JASMIN_MULTIDEX:
-    make_jasmin(Path("jasmin_classes2"),
-                sorted(Path("jasmin-multidex").glob("**/*.j")))
-    src_tmp_all = add_to_cp_args(src_tmp_all, "jasmin_classes2")
+  if make_jasmin(Path("jasmin_classes2"), Path("jasmin-multidex")):
+    java_classpath.append(Path("jasmin_classes2"))
 
   if HAS_SRC and (HAS_SRC_MULTIDEX or HAS_SRC_AOTEX or HAS_SRC_BCPEX or
                   HAS_SRC_EX or HAS_SRC_ART or HAS_SRC2 or HAS_SRC_EX2):
@@ -380,74 +382,47 @@ def default_build(
     # Replacement sources in src-art/, src2/ and src-ex2/ can replace symbols
     # used by the other src-* sources we compile here but everything needed to
     # compile the other src-* sources should be present in src/ (and jasmin*/).
-    Path("classes-tmp-all").mkdir()
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes-tmp-all")] +
-                             sorted(Path("src").glob("**/*.java")) +
-                             sorted(Path("src-multidex").glob("**/*.java")) +
-                             sorted(Path("src-aotex").glob("**/*.java")) +
-                             sorted(Path("src-bcpex").glob("**/*.java")) +
-                             sorted(Path("src-ex").glob("**/*.java")))
-    src_tmp_all = add_to_cp_args(src_tmp_all, "classes-tmp-all")
+    make_java(Path("classes-tmp-all"),
+              Path("src"),
+              Path("src-multidex"),
+              Path("src-aotex"),
+              Path("src-bcpex"),
+              Path("src-ex"))
+    java_classpath.append(Path("classes-tmp-all"))
 
-  if HAS_SRC_AOTEX:
-    Path("classes-aotex").mkdir()
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes-aotex")] +
-                             sorted(Path("src-aotex").glob("**/*.java")))
-    if NEED_DEX:
-      make_dex("classes-aotex")
-      # rename it so it shows up as "classes.dex" in the zip file.
-      Path("classes-aotex.dex").rename(Path("classes.dex"))
-      zip(Path(TEST_NAME + "-aotex.jar"), Path("classes.dex"))
+  if make_java(Path("classes-aotex"), Path("src-aotex")) and need_dex:
+    make_dex(Path("classes-aotex"))
+    # rename it so it shows up as "classes.dex" in the zip file.
+    Path("classes-aotex.dex").rename(Path("classes.dex"))
+    zip(Path(TEST_NAME + "-aotex.jar"), Path("classes.dex"))
 
-  if HAS_SRC_BCPEX:
-    Path("classes-bcpex").mkdir()
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes-bcpex")] +
-                             sorted(Path("src-bcpex").glob("**/*.java")))
-    if NEED_DEX:
-      make_dex("classes-bcpex")
-      # rename it so it shows up as "classes.dex" in the zip file.
-      Path("classes-bcpex.dex").rename(Path("classes.dex"))
-      zip(Path(TEST_NAME + "-bcpex.jar"), Path("classes.dex"))
+  if make_java(Path("classes-bcpex"), Path("src-bcpex")) and need_dex:
+    make_dex(Path("classes-bcpex"))
+    # rename it so it shows up as "classes.dex" in the zip file.
+    Path("classes-bcpex.dex").rename(Path("classes.dex"))
+    zip(Path(TEST_NAME + "-bcpex.jar"), Path("classes.dex"))
 
-  if HAS_SRC:
-    Path("classes").mkdir(exist_ok=True)
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes")] +
-                             sorted(Path("src").glob("**/*.java")))
+  make_java(Path("classes"), Path("src"))
 
-  if HAS_SRC_ART:
-    Path("classes").mkdir(exist_ok=True)
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes")] +
-                             sorted(Path("src-art").glob("**/*.java")))
+  if not ctx.jvm:
+    # Do not attempt to build src-art directories on jvm,
+    # since it would fail without libcore.
+    make_java(Path("classes"), Path("src-art"))
 
-  if HAS_SRC_MULTIDEX:
-    Path("classes2").mkdir()
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes2")] +
-                             sorted(Path("src-multidex").glob("**/*.java")))
-    if NEED_DEX:
-      make_dex("classes2")
+  if make_java(Path("classes2"), Path("src-multidex")) and need_dex:
+    make_dex(Path("classes2"))
 
-  if HAS_SRC2:
-    Path("classes").mkdir(exist_ok=True)
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes")] +
-                             sorted(Path("src2").glob("**/*.java")))
+  make_java(Path("classes"), Path("src2"))
 
   # If the classes directory is not-empty, package classes in a DEX file.
   # NB: some tests provide classes rather than java files.
-  if any(Path("classes").glob("*")):
-    if NEED_DEX:
-      make_dex("classes")
+  if any(Path("classes").glob("*")) and need_dex:
+    make_dex(Path("classes"))
 
-  if HAS_JASMIN:
+  if Path("jasmin_classes").exists():
     # Compile Jasmin classes as if they were part of the classes.dex file.
-    if NEED_DEX:
-      make_dex("jasmin_classes")
+    if need_dex:
+      make_dex(Path("jasmin_classes"))
       make_dexmerge(Path("classes.dex"), Path("jasmin_classes.dex"))
     else:
       # Move jasmin classes into classes directory so that they are picked up
@@ -455,12 +430,7 @@ def default_build(
       Path("classes").mkdir(exist_ok=True)
       copytree(Path("jasmin_classes"), Path("classes"), dirs_exist_ok=True)
 
-  if HAS_SMALI and NEED_DEX:
-    # Compile Smali classes
-    smali_output = Path("smali_classes.dex")
-    smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
-          ["--output", smali_output] + sorted(Path("smali").glob("**/*.smali")))
-    assert smali_output.exists()
+  if need_dex and make_smali(Path("smali_classes.dex"), Path("smali")):
     # Merge smali files into classes.dex,
     # this takes priority over any jasmin files.
     make_dexmerge(Path("classes.dex"), Path("smali_classes.dex"))
@@ -468,8 +438,8 @@ def default_build(
   # Compile Jasmin classes in jasmin-multidex as if they were part of
   # the classes2.jar
   if HAS_JASMIN_MULTIDEX:
-    if NEED_DEX:
-      make_dex("jasmin_classes2")
+    if need_dex:
+      make_dex(Path("jasmin_classes2"))
       make_dexmerge(Path("classes2.dex"), Path("jasmin_classes2.dex"))
     else:
       # Move jasmin classes into classes2 directory so that
@@ -478,34 +448,18 @@ def default_build(
       copytree(Path("jasmin_classes2"), Path("classes2"), dirs_exist_ok=True)
       rmtree(Path("jasmin_classes2"))
 
-  if HAS_SMALI_MULTIDEX and NEED_DEX:
-    # Compile Smali classes
-    smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
-          ["--output", "smali_classes2.dex"] + sorted(Path("smali-multidex").glob("**/*.smali")))
-
+  if need_dex and make_smali(Path("smali_classes2.dex"), Path("smali-multidex")):
     # Merge smali_classes2.dex into classes2.dex
     make_dexmerge(Path("classes2.dex"), Path("smali_classes2.dex"))
 
-  if HAS_SRC_EX:
-    Path("classes-ex").mkdir()
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes-ex")] +
-                             sorted(Path("src-ex").glob("**/*.java")))
+  make_java(Path("classes-ex"), Path("src-ex"))
 
-  if HAS_SRC_EX2:
-    Path("classes-ex").mkdir(exist_ok=True)
-    javac_with_bootclasspath(["-implicit:none"] + src_tmp_all +
-                             ["-d", Path("classes-ex")] +
-                             sorted(Path("src-ex2").glob("**/*.java")))
+  make_java(Path("classes-ex"), Path("src-ex2"))
 
-  if Path("classes-ex").exists() and NEED_DEX:
-    make_dex("classes-ex")
+  if Path("classes-ex").exists() and need_dex:
+    make_dex(Path("classes-ex"))
 
-  if HAS_SMALI_EX and NEED_DEX:
-    # Compile Smali classes
-    smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
-          ["--output", "smali_classes-ex.dex"] + sorted(Path("smali-ex").glob("**/*.smali")))
-    assert Path("smali_classes-ex.dex").exists()
+  if need_dex and make_smali(Path("smali_classes-ex.dex"), Path("smali-ex")):
     # Merge smali files into classes-ex.dex.
     make_dexmerge(Path("classes-ex.dex"), Path("smali_classes-ex.dex"))
 
@@ -522,14 +476,14 @@ def default_build(
     Path("classes-1.dex").rename(Path("classes.dex"))
 
   # Apply hiddenapi on the dex files if the test has API list file(s).
-  if NEED_DEX and use_hiddenapi and HAS_HIDDENAPI_SPEC:
+  if need_dex and use_hiddenapi and HAS_HIDDENAPI_SPEC:
     if has_multidex():
       make_hiddenapi(Path("classes.dex"), Path("classes2.dex"))
     else:
       make_hiddenapi(Path("classes.dex"))
 
   # Create a single dex jar with two dex files for multidex.
-  if NEED_DEX:
+  if need_dex:
     if Path("classes2.dex").exists():
       zip(Path(TEST_NAME + ".jar"), Path("classes.dex"), Path("classes2.dex"))
     else:
