@@ -19,37 +19,37 @@ import java.lang.reflect.Method;
 
 public class Main {
 
-  public static void main(String[] args) throws Exception {
-    Class<?> c = Class.forName("TestCase");
-    Method m = c.getMethod("filledNewArray");
-    try {
-      m.invoke(null);
-      throw new Error("Expected IllegalAccessError");
-    } catch (InvocationTargetException e) {
-      if (!(e.getCause() instanceof IllegalAccessError)) {
-        throw new Error("Expected IllegalAccessError, got " + e.getCause());
-      }
-    }
+    public static void main(String[] args) throws Exception {
+        Class<?> c = Class.forName("TestCase");
+        Method m = c.getMethod("filledNewArray");
+        try {
+            m.invoke(null);
+            throw new Error("Expected IllegalAccessError");
+        } catch (InvocationTargetException e) {
+            if (!(e.getCause() instanceof IllegalAccessError)) {
+                throw new Error("Expected IllegalAccessError, got " + e.getCause());
+            }
+        }
 
-    m = c.getMethod("filledNewArrayRange");
-    try {
-      m.invoke(null);
-      throw new Error("Expected IllegalAccessError");
-    } catch (InvocationTargetException e) {
-      if (!(e.getCause() instanceof IllegalAccessError)) {
-        throw new Error("Expected IllegalAccessError, got " + e.getCause());
-      }
-    }
+        m = c.getMethod("filledNewArrayRange");
+        try {
+            m.invoke(null);
+            throw new Error("Expected IllegalAccessError");
+        } catch (InvocationTargetException e) {
+            if (!(e.getCause() instanceof IllegalAccessError)) {
+                throw new Error("Expected IllegalAccessError, got " + e.getCause());
+            }
+        }
 
-    m = c.getMethod("newArray");
-    try {
-      m.invoke(null);
-      throw new Error("Expected IllegalAccessError");
-    } catch (InvocationTargetException e) {
-      if (!(e.getCause() instanceof IllegalAccessError)) {
-        throw new Error("Expected IllegalAccessError, got " + e.getCause());
-      }
+        m = c.getMethod("newArray");
+        try {
+            m.invoke(null);
+            throw new Error("Expected IllegalAccessError");
+        } catch (InvocationTargetException e) {
+            if (!(e.getCause() instanceof IllegalAccessError)) {
+                throw new Error("Expected IllegalAccessError, got " + e.getCause());
+            }
+        }
     }
-  }
 }
 

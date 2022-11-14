@@ -15,10 +15,10 @@
  */
 
 public class Main {
-  public static void main(String[] args) {
-    System.loadLibrary(args[0]);
-    System.out.println("Has oat is " + hasOatFile() + ".");
-  }
+    public static void main(String[] args) {
+        System.loadLibrary(args[0]);
+        System.out.println("Has oat is " + hasOatFile() + ".");
+    }
 
-  private native static boolean hasOatFile();
+    private native static boolean hasOatFile();
 }
