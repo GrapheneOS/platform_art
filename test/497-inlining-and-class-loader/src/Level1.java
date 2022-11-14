@@ -15,13 +15,13 @@
  */
 
 public class Level1 {
-  public static void $inline$bar() {
-    Level2.$inline$bar();
-  }
+    public static void $inline$bar() {
+        Level2.$inline$bar();
+    }
 }
 
 class Level2 {
-  public static void $inline$bar() {
-    Main.$noinline$bar();
-  }
+    public static void $inline$bar() {
+        Main.$noinline$bar();
+    }
 }
