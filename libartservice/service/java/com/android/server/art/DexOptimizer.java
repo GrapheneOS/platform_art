@@ -270,9 +270,19 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         }
 
         // We cannot do AOT compilation if we don't have a valid class loader context.
-        if (dexInfo.classLoaderContext() == null
-                && DexFile.isOptimizedCompilerFilter(targetCompilerFilter)) {
-            return "verify";
+        if (dexInfo.classLoaderContext() == null) {
+            return DexFile.isOptimizedCompilerFilter(targetCompilerFilter) ? "verify"
+                                                                           : targetCompilerFilter;
+        }
+
+        // This application wants to use the embedded dex in the APK, rather than extracted or
+        // locally compiled variants, so we only verify it.
+        // "verify" does not prevent dex2oat from extracting the dex code, but in practice, dex2oat
+        // won't extract the dex code because the APK is uncompressed, and the assumption is that
+        // such applications always use uncompressed APKs.
+        if (mPkg.isUseEmbeddedDex()) {
+            return DexFile.isOptimizedCompilerFilter(targetCompilerFilter) ? "verify"
+                                                                           : targetCompilerFilter;
         }
 
         return targetCompilerFilter;
