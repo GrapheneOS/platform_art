@@ -117,7 +117,7 @@ public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo
     }
 
     @Override
-    protected boolean isAppImageAllowed() {
+    protected boolean isAppImageAllowed(@NonNull DetailedSecondaryDexInfo dexInfo) {
         // The runtime can only load the app image of the base APK.
         return false;
     }

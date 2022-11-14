@@ -141,7 +141,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                 Utils.check(Utils.implies(needsToBeShared, canBePublic));
                 PermissionSettings permissionSettings = getPermissionSettings(dexInfo, canBePublic);
 
-                DexoptOptions dexoptOptions = getDexoptOptions(isProfileGuidedCompilerFilter);
+                DexoptOptions dexoptOptions =
+                        getDexoptOptions(dexInfo, isProfileGuidedCompilerFilter);
 
                 for (Abi abi : getAllAbis(dexInfo)) {
                     @OptimizeResult.OptimizeStatus int status = OptimizeResult.OPTIMIZE_SKIPPED;
@@ -317,7 +318,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     }
 
     @NonNull
-    private DexoptOptions getDexoptOptions(boolean isProfileGuidedFilter) {
+    private DexoptOptions getDexoptOptions(
+            @NonNull DexInfoType dexInfo, boolean isProfileGuidedFilter) {
         DexoptOptions dexoptOptions = new DexoptOptions();
         dexoptOptions.compilationReason = mParams.getReason();
         dexoptOptions.targetSdkVersion = mPkg.getTargetSdkVersion();
@@ -325,7 +327,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         // Generating a meaningful app image needs a profile to determine what to include in the
         // image. Otherwise, the app image will be nearly empty.
         dexoptOptions.generateAppImage =
-                isProfileGuidedFilter && isAppImageAllowed() && isAppImageEnabled();
+                isProfileGuidedFilter && isAppImageAllowed(dexInfo) && isAppImageEnabled();
         dexoptOptions.hiddenApiPolicyEnabled = isHiddenApiPolicyEnabled();
         return dexoptOptions;
     }
@@ -550,7 +552,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     @NonNull protected abstract ProfilePath buildRefProfilePath(@NonNull DexInfoType dexInfo);
 
     /** Returns true if app image (--app-image-fd) is allowed. */
-    protected abstract boolean isAppImageAllowed();
+    protected abstract boolean isAppImageAllowed(@NonNull DexInfoType dexInfo);
 
     /**
      * Returns the data structure that represents the temporary profile to use during processing.
