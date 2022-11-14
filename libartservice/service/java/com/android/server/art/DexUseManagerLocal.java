@@ -18,6 +18,7 @@ package com.android.server.art;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SystemApi;
 import android.os.Binder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -27,6 +28,7 @@ import android.util.Log;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.Immutable;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.LocalManagerRegistry;
 import com.android.server.art.model.DetailedDexInfo;
 import com.android.server.art.proto.DexUseProto;
 import com.android.server.art.proto.Int32Value;
@@ -69,49 +71,80 @@ import java.util.stream.Collectors;
  *
  * @hide
  */
-public class DexUseManager {
-    private static final String TAG = "DexUseManager";
+@SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+public class DexUseManagerLocal {
+    private static final String TAG = "DexUseManagerLocal";
 
-    @GuardedBy("DexUseManager.class") @Nullable private static DexUseManager sInstance = null;
+    private static final Object sLock = new Object();
+    @GuardedBy("sLock") @Nullable private static DexUseManagerLocal sInstance = null;
 
     @NonNull private final Injector mInjector;
 
-    @GuardedBy("this") @NonNull private DexUse mDexUse = new DexUse();
+    private final Object mLock = new Object();
+    @GuardedBy("mLock") @NonNull private DexUse mDexUse = new DexUse();
 
+    /**
+     * Creates the singleton instance.
+     *
+     * Only {@code SystemServer} should create the instance and register it in {@link
+     * LocalManagerRegistry}. Other API users should obtain the instance from {@link
+     * LocalManagerRegistry}.
+     *
+     * In practice, it must be created and registered in {@link LocalManagerRegistry} before {@code
+     * PackageManagerService} starts because {@code PackageManagerService} needs it as soon as it
+     * starts. It's safe to create an instance early because it doesn't depend on anything else.
+     *
+     * @throws IllegalStateException if the instance is already created
+     */
     @NonNull
-    public static synchronized DexUseManager getInstance() {
-        if (sInstance == null) {
-            sInstance = new DexUseManager();
+    public static DexUseManagerLocal createInstance() {
+        synchronized (sLock) {
+            if (sInstance != null) {
+                throw new IllegalStateException("DexUseManagerLocal is already created");
+            }
+            sInstance = new DexUseManagerLocal();
+            return sInstance;
         }
-        return sInstance;
     }
 
-    private DexUseManager() {
+    private DexUseManagerLocal() {
         this(new Injector());
     }
 
+    /** @hide */
     @VisibleForTesting
-    public DexUseManager(@NonNull Injector injector) {
+    public DexUseManagerLocal(@NonNull Injector injector) {
         mInjector = injector;
     }
 
-    /** Returns all entities that load the given primary dex file owned by the given package. */
+    /**
+     * Returns all entities that load the given primary dex file owned by the given package.
+     *
+     * @hide
+     */
     @VisibleForTesting
     @NonNull
-    public synchronized Set<DexLoader> getPrimaryDexLoaders(
+    public Set<DexLoader> getPrimaryDexLoaders(
             @NonNull String packageName, @NonNull String dexPath) {
-        PackageDexUse packageDexUse = mDexUse.mPackageDexUseByOwningPackageName.get(packageName);
-        if (packageDexUse == null) {
-            return Set.of();
+        synchronized (mLock) {
+            PackageDexUse packageDexUse =
+                    mDexUse.mPackageDexUseByOwningPackageName.get(packageName);
+            if (packageDexUse == null) {
+                return Set.of();
+            }
+            PrimaryDexUse primaryDexUse = packageDexUse.mPrimaryDexUseByDexFile.get(dexPath);
+            if (primaryDexUse == null) {
+                return Set.of();
+            }
+            return Set.copyOf(primaryDexUse.mLoaders);
         }
-        PrimaryDexUse primaryDexUse = packageDexUse.mPrimaryDexUseByDexFile.get(dexPath);
-        if (primaryDexUse == null) {
-            return Set.of();
-        }
-        return Set.copyOf(primaryDexUse.mLoaders);
     }
 
-    /** Returns whether a primary dex file owned by the given package is used by other apps. */
+    /**
+     * Returns whether a primary dex file owned by the given package is used by other apps.
+     *
+     * @hide
+     */
     public boolean isPrimaryDexUsedByOtherApps(
             @NonNull String packageName, @NonNull String dexPath) {
         return isUsedByOtherApps(getPrimaryDexLoaders(packageName, dexPath), packageName);
@@ -123,6 +156,7 @@ public class DexUseManager {
      * purpose, such as dumpsys.
      *
      * @see #getFilteredDetailedSecondaryDexInfo(String)
+     * @hide
      */
     public @NonNull List<? extends SecondaryDexInfo> getSecondaryDexInfo(
             @NonNull String packageName) {
@@ -132,6 +166,8 @@ public class DexUseManager {
     /**
      * Same as above, but requires disk IO, and returns the detailed information, including dex file
      * visibility, filtered by dex file existence and visibility.
+     *
+     * @hide
      */
     public @NonNull List<DetailedSecondaryDexInfo> getFilteredDetailedSecondaryDexInfo(
             @NonNull String packageName) {
@@ -144,77 +180,93 @@ public class DexUseManager {
      *         DetailedSecondaryDexInfo#isDexFilePublic()} field is undefined if this argument is
      *         false.
      */
-    private synchronized @NonNull List<DetailedSecondaryDexInfo> getSecondaryDexInfoImpl(
+    private @NonNull List<DetailedSecondaryDexInfo> getSecondaryDexInfoImpl(
             @NonNull String packageName, boolean checkDexFile) {
-        PackageDexUse packageDexUse = mDexUse.mPackageDexUseByOwningPackageName.get(packageName);
-        if (packageDexUse == null) {
-            return List.of();
-        }
-        var results = new ArrayList<DetailedSecondaryDexInfo>();
-        for (var entry : packageDexUse.mSecondaryDexUseByDexFile.entrySet()) {
-            String dexPath = entry.getKey();
-            SecondaryDexUse secondaryDexUse = entry.getValue();
+        synchronized (mLock) {
+            PackageDexUse packageDexUse =
+                    mDexUse.mPackageDexUseByOwningPackageName.get(packageName);
+            if (packageDexUse == null) {
+                return List.of();
+            }
+            var results = new ArrayList<DetailedSecondaryDexInfo>();
+            for (var entry : packageDexUse.mSecondaryDexUseByDexFile.entrySet()) {
+                String dexPath = entry.getKey();
+                SecondaryDexUse secondaryDexUse = entry.getValue();
 
-            @FileVisibility
-            int visibility =
-                    checkDexFile ? getDexFileVisibility(dexPath) : FileVisibility.OTHER_READABLE;
-            if (visibility == FileVisibility.NOT_FOUND) {
-                continue;
-            }
+                @FileVisibility
+                int visibility = checkDexFile ? getDexFileVisibility(dexPath)
+                                              : FileVisibility.OTHER_READABLE;
+                if (visibility == FileVisibility.NOT_FOUND) {
+                    continue;
+                }
 
-            Map<DexLoader, SecondaryDexUseRecord> filteredRecordByLoader;
-            if (visibility == FileVisibility.OTHER_READABLE) {
-                filteredRecordByLoader = secondaryDexUse.mRecordByLoader;
-            } else {
-                // Only keep the entry that belongs to the same app.
-                DexLoader sameApp = DexLoader.create(packageName, false /* isolatedProcess */);
-                SecondaryDexUseRecord record = secondaryDexUse.mRecordByLoader.get(sameApp);
-                filteredRecordByLoader = record != null ? Map.of(sameApp, record) : Map.of();
+                Map<DexLoader, SecondaryDexUseRecord> filteredRecordByLoader;
+                if (visibility == FileVisibility.OTHER_READABLE) {
+                    filteredRecordByLoader = secondaryDexUse.mRecordByLoader;
+                } else {
+                    // Only keep the entry that belongs to the same app.
+                    DexLoader sameApp = DexLoader.create(packageName, false /* isolatedProcess */);
+                    SecondaryDexUseRecord record = secondaryDexUse.mRecordByLoader.get(sameApp);
+                    filteredRecordByLoader = record != null ? Map.of(sameApp, record) : Map.of();
+                }
+                if (filteredRecordByLoader.isEmpty()) {
+                    continue;
+                }
+                List<String> distinctClcList =
+                        filteredRecordByLoader.values()
+                                .stream()
+                                .map(record -> Utils.assertNonEmpty(record.mClassLoaderContext))
+                                .filter(clc
+                                        -> !clc.equals(
+                                                SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT))
+                                .distinct()
+                                .collect(Collectors.toList());
+                String clc;
+                if (distinctClcList.size() == 0) {
+                    clc = SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT;
+                } else if (distinctClcList.size() == 1) {
+                    clc = distinctClcList.get(0);
+                } else {
+                    // If there are more than one class loader contexts, we can't optimize the dex
+                    // file.
+                    clc = SecondaryDexInfo.VARYING_CLASS_LOADER_CONTEXTS;
+                }
+                // Although we filter out unsupported CLCs above, `distinctAbiNames` and `loaders`
+                // still need to take apps with unsupported CLCs into account because the vdex file
+                // is still usable to them.
+                Set<String> distinctAbiNames =
+                        filteredRecordByLoader.values()
+                                .stream()
+                                .map(record -> Utils.assertNonEmpty(record.mAbiName))
+                                .collect(Collectors.toSet());
+                Set<DexLoader> loaders = Set.copyOf(filteredRecordByLoader.keySet());
+                results.add(DetailedSecondaryDexInfo.create(dexPath,
+                        Objects.requireNonNull(secondaryDexUse.mUserHandle), clc, distinctAbiNames,
+                        loaders, isUsedByOtherApps(loaders, packageName),
+                        visibility == FileVisibility.OTHER_READABLE));
             }
-            if (filteredRecordByLoader.isEmpty()) {
-                continue;
-            }
-            List<String> distinctClcList =
-                    filteredRecordByLoader.values()
-                            .stream()
-                            .map(record -> Utils.assertNonEmpty(record.mClassLoaderContext))
-                            .filter(clc
-                                    -> !clc.equals(
-                                            SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT))
-                            .distinct()
-                            .collect(Collectors.toList());
-            String clc;
-            if (distinctClcList.size() == 0) {
-                clc = SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT;
-            } else if (distinctClcList.size() == 1) {
-                clc = distinctClcList.get(0);
-            } else {
-                // If there are more than one class loader contexts, we can't optimize the dex file.
-                clc = SecondaryDexInfo.VARYING_CLASS_LOADER_CONTEXTS;
-            }
-            // Although we filter out unsupported CLCs above, `distinctAbiNames` and `loaders` still
-            // need to take apps with unsupported CLCs into account because the vdex file is still
-            // usable to them.
-            Set<String> distinctAbiNames =
-                    filteredRecordByLoader.values()
-                            .stream()
-                            .map(record -> Utils.assertNonEmpty(record.mAbiName))
-                            .collect(Collectors.toSet());
-            Set<DexLoader> loaders = Set.copyOf(filteredRecordByLoader.keySet());
-            results.add(DetailedSecondaryDexInfo.create(dexPath,
-                    Objects.requireNonNull(secondaryDexUse.mUserHandle), clc, distinctAbiNames,
-                    loaders, isUsedByOtherApps(loaders, packageName),
-                    visibility == FileVisibility.OTHER_READABLE));
+            return Collections.unmodifiableList(results);
         }
-        return Collections.unmodifiableList(results);
     }
 
     /**
-     * Handles {@link
-     * ArtManagerLocal#notifyDexContainersLoaded(PackageManagerLocal.FilteredSnapshot, String,
-     * Map<String, String>)}.
+     * Notifies ART Service that a list of dex container files have been loaded.
+     *
+     * ART Service uses this information to:
+     * <ul>
+     *   <li>Determine whether an app is used by another app
+     *   <li>Record which secondary dex container files to optimize and how to optimize them
+     * </ul>
+     *
+     * @param loadingPackageName the name of the package who performs the load. ART Service assumes
+     *         that this argument has been validated that it exists in the snapshot and matches the
+     *         calling UID
+     * @param classLoaderContextByDexContainerFile a map from dex container files' absolute paths to
+     *         the string representations of the class loader contexts used to load them
+     * @throws IllegalArgumentException if {@code classLoaderContextByDexContainerFile} contains
+     *         invalid entries
      */
-    public void addDexUse(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+    public void notifyDexContainersLoaded(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull String loadingPackageName,
             @NonNull Map<String, String> classLoaderContextByDexContainerFile) {
         // "android" comes from `SystemServerDexLoadReporter`. ART Services doesn't need to handle
@@ -234,13 +286,13 @@ public class DexUseManager {
             String dexPath = Utils.assertNonEmpty(entry.getKey());
             String classLoaderContext = Utils.assertNonEmpty(entry.getValue());
             String owningPackageName = findOwningPackage(snapshot, loadingPackageName, dexPath,
-                    DexUseManager::isOwningPackageForPrimaryDex);
+                    DexUseManagerLocal::isOwningPackageForPrimaryDex);
             if (owningPackageName != null) {
                 addPrimaryDexUse(owningPackageName, dexPath, loadingPackageName, isolatedProcess);
                 continue;
             }
             owningPackageName = findOwningPackage(snapshot, loadingPackageName, dexPath,
-                    DexUseManager::isOwningPackageForSecondaryDex);
+                    DexUseManagerLocal::isOwningPackageForSecondaryDex);
             if (owningPackageName != null) {
                 PackageState loadingPkgState =
                         Utils.getPackageStateOrThrow(snapshot, loadingPackageName);
@@ -307,59 +359,69 @@ public class DexUseManager {
         return false;
     }
 
-    private synchronized void addPrimaryDexUse(@NonNull String owningPackageName,
-            @NonNull String dexPath, @NonNull String loadingPackageName, boolean isolatedProcess) {
-        mDexUse.mPackageDexUseByOwningPackageName
-                .computeIfAbsent(owningPackageName, k -> new PackageDexUse())
-                .mPrimaryDexUseByDexFile.computeIfAbsent(dexPath, k -> new PrimaryDexUse())
-                .mLoaders.add(DexLoader.create(loadingPackageName, isolatedProcess));
+    private void addPrimaryDexUse(@NonNull String owningPackageName, @NonNull String dexPath,
+            @NonNull String loadingPackageName, boolean isolatedProcess) {
+        synchronized (mLock) {
+            mDexUse.mPackageDexUseByOwningPackageName
+                    .computeIfAbsent(owningPackageName, k -> new PackageDexUse())
+                    .mPrimaryDexUseByDexFile.computeIfAbsent(dexPath, k -> new PrimaryDexUse())
+                    .mLoaders.add(DexLoader.create(loadingPackageName, isolatedProcess));
+        }
     }
 
-    private synchronized void addSecondaryDexUse(@NonNull String owningPackageName,
-            @NonNull String dexPath, @NonNull String loadingPackageName, boolean isolatedProcess,
+    private void addSecondaryDexUse(@NonNull String owningPackageName, @NonNull String dexPath,
+            @NonNull String loadingPackageName, boolean isolatedProcess,
             @NonNull String classLoaderContext, @NonNull String abiName) {
-        SecondaryDexUse secondaryDexUse =
-                mDexUse.mPackageDexUseByOwningPackageName
-                        .computeIfAbsent(owningPackageName, k -> new PackageDexUse())
-                        .mSecondaryDexUseByDexFile.computeIfAbsent(
-                                dexPath, k -> new SecondaryDexUse());
-        secondaryDexUse.mUserHandle = Binder.getCallingUserHandle();
-        SecondaryDexUseRecord record = secondaryDexUse.mRecordByLoader.computeIfAbsent(
-                DexLoader.create(loadingPackageName, isolatedProcess),
-                k -> new SecondaryDexUseRecord());
-        record.mClassLoaderContext = classLoaderContext;
-        record.mAbiName = abiName;
+        synchronized (mLock) {
+            SecondaryDexUse secondaryDexUse =
+                    mDexUse.mPackageDexUseByOwningPackageName
+                            .computeIfAbsent(owningPackageName, k -> new PackageDexUse())
+                            .mSecondaryDexUseByDexFile.computeIfAbsent(
+                                    dexPath, k -> new SecondaryDexUse());
+            secondaryDexUse.mUserHandle = Binder.getCallingUserHandle();
+            SecondaryDexUseRecord record = secondaryDexUse.mRecordByLoader.computeIfAbsent(
+                    DexLoader.create(loadingPackageName, isolatedProcess),
+                    k -> new SecondaryDexUseRecord());
+            record.mClassLoaderContext = classLoaderContext;
+            record.mAbiName = abiName;
+        }
     }
 
+    /** @hide */
     @VisibleForTesting
-    public synchronized void clear() {
-        mDexUse = new DexUse();
+    public void clear() {
+        synchronized (mLock) {
+            mDexUse = new DexUse();
+        }
     }
 
+    /** @hide */
     public @NonNull String dump() {
         var builder = DexUseProto.newBuilder();
-        synchronized (this) {
+        synchronized (mLock) {
             mDexUse.toProto(builder);
         }
         return builder.build().toString();
     }
 
+    /** @hide */
     public void save(@NonNull String filename) throws IOException {
         try (OutputStream out = new FileOutputStream(filename)) {
             var builder = DexUseProto.newBuilder();
-            synchronized (this) {
+            synchronized (mLock) {
                 mDexUse.toProto(builder);
             }
             builder.build().writeTo(out);
         }
     }
 
+    /** @hide */
     public void load(@NonNull String filename) throws IOException {
         try (InputStream in = new FileInputStream(filename)) {
             var proto = DexUseProto.parseFrom(in);
             var dexUse = new DexUse();
             dexUse.fromProto(proto);
-            synchronized (this) {
+            synchronized (mLock) {
                 mDexUse = dexUse;
             }
         }
@@ -407,6 +469,8 @@ public class DexUseManager {
     /**
      * Basic information about a secondary dex file (an APK or JAR file that an app adds to its
      * own data directory and loads dynamically).
+     *
+     * @hide
      */
     @Immutable
     public abstract static class SecondaryDexInfo {
@@ -463,6 +527,8 @@ public class DexUseManager {
      * Detailed information about a secondary dex file (an APK or JAR file that an app adds to its
      * own data directory and loads dynamically). It contains the visibility of the dex file in
      * addition to what is in {@link SecondaryDexInfo}, but producing it requires disk IO.
+     *
+     * @hide
      */
     @Immutable
     @AutoValue
@@ -472,7 +538,7 @@ public class DexUseManager {
                 @NonNull UserHandle userHandle, @NonNull String displayClassLoaderContext,
                 @NonNull Set<String> abiNames, @NonNull Set<DexLoader> loaders,
                 boolean isUsedByOtherApps, boolean isDexFilePublic) {
-            return new AutoValue_DexUseManager_DetailedSecondaryDexInfo(dexPath, userHandle,
+            return new AutoValue_DexUseManagerLocal_DetailedSecondaryDexInfo(dexPath, userHandle,
                     displayClassLoaderContext, Collections.unmodifiableSet(abiNames),
                     Collections.unmodifiableSet(loaders), isUsedByOtherApps, isDexFilePublic);
         }
@@ -598,12 +664,16 @@ public class DexUseManager {
         }
     }
 
-    /** Represents an entity that loads a dex file. */
+    /**
+     * Represents an entity that loads a dex file.
+     *
+     * @hide
+     */
     @Immutable
     @AutoValue
     public abstract static class DexLoader {
         static DexLoader create(@NonNull String loadingPackageName, boolean isolatedProcess) {
-            return new AutoValue_DexUseManager_DexLoader(loadingPackageName, isolatedProcess);
+            return new AutoValue_DexUseManagerLocal_DexLoader(loadingPackageName, isolatedProcess);
         }
 
         abstract @NonNull String loadingPackageName();
