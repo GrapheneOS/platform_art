@@ -763,6 +763,7 @@ ndk::ScopedAStatus Artd::dexopt(
   if (in_dexoptOptions.generateAppImage) {
     art_file = OR_RETURN_NON_FATAL(NewFile::Create(art_path, fs_permission));
     args.Add("--app-image-fd=%d", art_file->Fd());
+    args.AddIfNonEmpty("--image-format=%s", props_->GetOrEmpty("dalvik.vm.appimageformat"));
     fd_logger.Add(*art_file);
     files_to_commit.push_back(art_file.get());
   } else {

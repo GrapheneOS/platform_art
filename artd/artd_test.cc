@@ -681,6 +681,8 @@ TEST_F(ArtdTest, dexoptDexoptOptions2) {
 }
 
 TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
+  dexopt_options_.generateAppImage = true;
+
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(
                   WhenSplitBy("--",
@@ -698,7 +700,8 @@ TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
                                     Not(Contains(Flag("-j", _))),
                                     Not(Contains(Flag("-Xms", _))),
                                     Not(Contains(Flag("-Xmx", _))),
-                                    Not(Contains("--compile-individually")))),
+                                    Not(Contains("--compile-individually")),
+                                    Not(Contains(Flag("--image-format=", _))))),
                   _,
                   _))
       .WillOnce(Return(0));
@@ -706,6 +709,8 @@ TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
 }
 
 TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
+  dexopt_options_.generateAppImage = true;
+
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-swap")).WillOnce(Return("0"));
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.isa.arm64.features"))
       .WillOnce(Return("features"));
@@ -722,6 +727,7 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-Xms")).WillOnce(Return("xms"));
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-Xmx")).WillOnce(Return("xmx"));
   EXPECT_CALL(*mock_props_, GetProperty("ro.config.low_ram")).WillOnce(Return("1"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.appimageformat")).WillOnce(Return("imgfmt"));
 
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(
@@ -738,7 +744,8 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
                                     Not(Contains("-Xdeny-art-apex-data-files")),
                                     Contains(Flag("-Xms", "xms")),
                                     Contains(Flag("-Xmx", "xmx")),
-                                    Contains("--compile-individually"))),
+                                    Contains("--compile-individually"),
+                                    Contains(Flag("--image-format=", "imgfmt")))),
                   _,
                   _))
       .WillOnce(Return(0));
