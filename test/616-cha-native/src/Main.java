@@ -15,19 +15,19 @@
  */
 
 abstract class A {
-  public abstract void foo();
+    public abstract void foo();
 }
 
 class B extends A {
-  public native void foo();
+    public native void foo();
 }
 
 class C extends B {
-  public void foo() {}
+    public void foo() {}
 }
 
 public class Main {
-  public static void main(String[] args) {
-    System.loadLibrary(args[0]);
-  }
+    public static void main(String[] args) {
+        System.loadLibrary(args[0]);
+    }
 }
