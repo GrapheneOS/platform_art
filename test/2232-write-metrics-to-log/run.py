@@ -16,10 +16,10 @@
 
 
 def run(ctx, args):
-  ctx.env.ANDROID_LOG_TAGS = "*:i"
   ctx.default_run(
       args,
-      external_log_tags=True,
+      android_log_tags="*:i",
+      diff_min_log_tag="i",
       runtime_option=[
           "-Xmetrics-write-to-logcat:true", "-Xmetrics-reporting-mods:100"
       ])
