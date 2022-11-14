@@ -428,6 +428,11 @@ def get_vogar_command(test_name):
   if args.debug:
     cmd.append("--vm-arg -XXlib:libartd.so --vm-arg -XX:SlowDebug=true")
 
+  # The only device in go/art-buildbot without getrandom is fugu. We limit the amount of memory
+  # per runtime for fugu to avoid low memory killer, fugu has 4-cores 1GB RAM (b/258171768).
+  if not args.getrandom:
+    cmd.append("--vm-arg -Xmx128M")
+
   if args.mode == "device":
     if ART_TEST_CHROOT:
       cmd.append(f"--chroot {ART_TEST_CHROOT} --device-dir=/tmp/vogar/test-{test_name}")
