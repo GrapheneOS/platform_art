@@ -337,9 +337,11 @@ public class SecondaryDexOptimizerTest {
     }
 
     private PermissionSettings buildPermissionSettings(boolean isPublic) {
+        FsPermission dirFsPermission = AidlUtils.buildFsPermission(UID /* uid */, UID /* gid */,
+                false /* isOtherReadable */, true /* isOtherExecutable */);
+        FsPermission fileFsPermission =
+                AidlUtils.buildFsPermission(UID /* uid */, UID /* gid */, isPublic);
         return AidlUtils.buildPermissionSettings(
-                AidlUtils.buildFsPermission(UID, UID, false /* isOtherReadable */, isPublic),
-                AidlUtils.buildFsPermission(UID, UID, isPublic),
-                AidlUtils.buildSeContext("se-info", UID));
+                dirFsPermission, fileFsPermission, AidlUtils.buildSeContext("se-info", UID));
     }
 }

@@ -197,9 +197,10 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
     @Test
     public void testDexopt() throws Exception {
         PermissionSettings permissionSettings = buildPermissionSettings(
-                buildFsPermission(Process.SYSTEM_UID, Process.SYSTEM_UID,
+                buildFsPermission(Process.SYSTEM_UID /* uid */, Process.SYSTEM_UID /* gid */,
                         false /* isOtherReadable */, true /* isOtherExecutable */),
-                buildFsPermission(Process.SYSTEM_UID, SHARED_GID, true /* isOtherReadable */),
+                buildFsPermission(Process.SYSTEM_UID /* uid */, SHARED_GID /* gid */,
+                        true /* isOtherReadable */),
                 null /* seContext */);
         DexoptOptions dexoptOptions = new DexoptOptions();
         dexoptOptions.compilationReason = "install";
