@@ -32,7 +32,7 @@ def build(ctx):
   ctx.default_build(d8_flags=["--release"])
 
   # Remove the *-aotex build artifacts (but keep src-aotex) with dalvik.* annotations.
-  shutil.rmtree("classes-aotex")
+  shutil.rmtree(ctx.test_dir / "classes-aotex")
   if not ctx.jvm:
-    os.remove("classes-aotex.jar")
-    os.remove("004-JniTest-aotex.jar")
+    os.remove(ctx.test_dir / "classes-aotex.jar")
+    os.remove(ctx.test_dir / "004-JniTest-aotex.jar")

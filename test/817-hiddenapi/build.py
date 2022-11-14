@@ -30,8 +30,8 @@ def build(ctx):
   ctx.default_build(use_hiddenapi=True)
 
   # Move the jar file into the resource folder to be bundled with the test.
-  os.mkdir("res")
-  os.rename("817-hiddenapi.jar", "res/boot.jar")
+  os.mkdir(ctx.test_dir / "res")
+  os.rename(ctx.test_dir / "817-hiddenapi.jar", ctx.test_dir / "res/boot.jar")
 
   # Clear all intermediate files otherwise default-build would either skip
   # compilation or fail rebuilding.
