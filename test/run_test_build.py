@@ -335,6 +335,10 @@ def default_build(
     zip(TEST_NAME + ".jar", "classes.dex")
     return
 
+  if path.exists("classes.dm"):
+    zip(TEST_NAME + ".jar", "classes.dm")
+    return
+
 
   def has_multidex():
     return HAS_SRC_MULTIDEX or HAS_JASMIN_MULTIDEX or HAS_SMALI_MULTIDEX
