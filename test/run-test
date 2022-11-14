@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os, sys, glob, re, shutil, subprocess, shlex, resource
+import os, sys, glob, re, shutil, subprocess, shlex, resource, atexit
 
 import default_run as default_run_module
 
@@ -25,6 +25,7 @@ from shutil import copyfile
 from typing import Optional
 
 COLOR_RED = '\033[91m'
+COLOR_GREEN = '\033[92m'
 COLOR_NORMAL = '\033[0m'
 
 # Helper class which allows us to access the environment using syntax sugar.
@@ -105,10 +106,6 @@ if True:
   def export(env: str, value: str) -> None:
     os.environ[env] = value
     globals()[env] = value
-
-  def verbose(msg) -> None:
-    if quiet == "no":
-      print(msg, file=sys.stdout, flush=True)
 
   def error(msg) -> None:
     print(msg, file=sys.stderr, flush=True)
@@ -931,6 +928,21 @@ if True:
   run(f'unzip -q "{zip_file}" "{zip_entry}/*" -d "{tmp_dir}/.unzipped"')
   run(f'mv "{tmp_dir}"/.unzipped/{zip_entry}/* "{tmp_dir}"')
 
+  def clean_up(passed: bool):
+    if always_clean == "yes" or (passed and never_clean == "no"):
+      os.chdir(oldwd)
+      shutil.rmtree(tmp_dir)
+      if target_mode == "yes":
+        run(f"adb shell rm -rf {chroot_dex_location}")
+      print(f"{TEST_NAME} files deleted from host" +
+            (" and from target" if target_mode == "yes" else ""))
+    else:
+      print(f"{TEST_NAME} files left in {tmp_dir} on host" +
+            (f" and in {chroot_dex_location} on target" if target_mode == "yes" else ""))
+    atexit.unregister(clean_up)
+  # TODO: Run this in global try-finally once the script is more refactored.
+  atexit.register(clean_up, passed=False)
+
   ctx = RunTestContext(Path(tmp_dir))
   td_info = f"{test_dir}/{info}"
   for td_file in [td_info, ctx.expected_stdout, ctx.expected_stderr]:
@@ -1008,16 +1020,5 @@ if True:
     else:
       run(f"cp {cfg_output_dir}/{cfg_output} {dump_cfg_path}")
 
-# Clean up test files.
-  if always_clean == "yes" and never_clean == "no":
-    os.chdir(oldwd)
-    shutil.rmtree(tmp_dir)
-    if target_mode == "yes":
-      run(f"adb shell rm -rf {chroot_dex_location}")
-    verbose(f"{TEST_NAME} files deleted from host ")
-    if target_mode == "yes":
-      verbose("and from target")
-  else:
-    verbose(f"{TEST_NAME} files left in ${tmp_dir} on host")
-    if target_mode == "yes":
-      verbose("and in ${chroot_dex_location} on target")
+  clean_up(passed=True)
+  print(f"{COLOR_GREEN}{test_dir}: PASSED{COLOR_NORMAL}")
