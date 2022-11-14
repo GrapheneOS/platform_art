@@ -701,7 +701,9 @@ TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
                                     Not(Contains(Flag("-Xms", _))),
                                     Not(Contains(Flag("-Xmx", _))),
                                     Not(Contains("--compile-individually")),
-                                    Not(Contains(Flag("--image-format=", _))))),
+                                    Not(Contains(Flag("--image-format=", _))),
+                                    Not(Contains("--force-jit-zygote")),
+                                    Not(Contains(Flag("--boot-image=", _))))),
                   _,
                   _))
       .WillOnce(Return(0));
@@ -728,6 +730,7 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.dex2oat-Xmx")).WillOnce(Return("xmx"));
   EXPECT_CALL(*mock_props_, GetProperty("ro.config.low_ram")).WillOnce(Return("1"));
   EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.appimageformat")).WillOnce(Return("imgfmt"));
+  EXPECT_CALL(*mock_props_, GetProperty("dalvik.vm.boot-image")).WillOnce(Return("boot-image"));
 
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(
@@ -745,9 +748,28 @@ TEST_F(ArtdTest, dexoptFlagsFromSystemProps) {
                                     Contains(Flag("-Xms", "xms")),
                                     Contains(Flag("-Xmx", "xmx")),
                                     Contains("--compile-individually"),
-                                    Contains(Flag("--image-format=", "imgfmt")))),
+                                    Contains(Flag("--image-format=", "imgfmt")),
+                                    Not(Contains("--force-jit-zygote")),
+                                    Contains(Flag("--boot-image=", "boot-image")))),
                   _,
                   _))
+      .WillOnce(Return(0));
+  RunDexopt();
+}
+
+TEST_F(ArtdTest, dexoptFlagsForceJitZygote) {
+  EXPECT_CALL(*mock_props_,
+              GetProperty("persist.device_config.runtime_native_boot.profilebootclasspath"))
+      .WillOnce(Return("true"));
+  ON_CALL(*mock_props_, GetProperty("dalvik.vm.boot-image")).WillByDefault(Return("boot-image"));
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(WhenSplitBy("--",
+                                              _,
+                                              AllOf(Contains("--force-jit-zygote"),
+                                                    Not(Contains(Flag("--boot-image=", _))))),
+                                  _,
+                                  _))
       .WillOnce(Return(0));
   RunDexopt();
 }

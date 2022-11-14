@@ -837,6 +837,7 @@ ndk::ScopedAStatus Artd::dexopt(
     fd_logger.Add(*profile_file);
   }
 
+  AddBootImageFlags(args);
   AddCompilerConfigFlags(
       in_instructionSet, in_compilerFilter, in_priorityClass, in_dexoptOptions, args);
   AddPerfConfigFlags(in_priorityClass, args);
@@ -962,7 +963,7 @@ Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
 
     if (UseJitZygoteLocked()) {
       location_str = GetJitZygoteBootImageLocation();
-    } else if (std::string value = props_->GetOrEmpty("dalvik.vm.boot-image"); !value.empty()) {
+    } else if (std::string value = GetUserDefinedBootImageLocationsLocked(); !value.empty()) {
       location_str = std::move(value);
     } else {
       std::string error_msg;
@@ -993,15 +994,33 @@ Result<const std::vector<std::string>*> Artd::GetBootClassPath() {
   return &cached_boot_class_path_.value();
 }
 
+bool Artd::UseJitZygote() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+  return UseJitZygoteLocked();
+}
+
 bool Artd::UseJitZygoteLocked() {
   if (!cached_use_jit_zygote_.has_value()) {
     cached_use_jit_zygote_ =
-        props_->GetBool("dalvik.vm.profilebootclasspath",
-                        "persist.device_config.runtime_native_boot.profilebootclasspath",
+        props_->GetBool("persist.device_config.runtime_native_boot.profilebootclasspath",
+                        "dalvik.vm.profilebootclasspath",
                         /*default_value=*/false);
   }
 
   return cached_use_jit_zygote_.value();
+}
+
+const std::string& Artd::GetUserDefinedBootImageLocations() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+  return GetUserDefinedBootImageLocationsLocked();
+}
+
+const std::string& Artd::GetUserDefinedBootImageLocationsLocked() {
+  if (!cached_user_defined_boot_image_locations_.has_value()) {
+    cached_user_defined_boot_image_locations_ = props_->GetOrEmpty("dalvik.vm.boot-image");
+  }
+
+  return cached_user_defined_boot_image_locations_.value();
 }
 
 bool Artd::DenyArtApexDataFiles() {
@@ -1036,6 +1055,14 @@ Result<std::string> Artd::GetDex2Oat() {
 bool Artd::ShouldCreateSwapFileForDexopt() {
   // Create a swap file by default. Dex2oat will decide whether to use it or not.
   return props_->GetBool("dalvik.vm.dex2oat-swap", /*default_value=*/true);
+}
+
+void Artd::AddBootImageFlags(/*out*/ CmdlineBuilder& args) {
+  if (UseJitZygote()) {
+    args.Add("--force-jit-zygote");
+  } else {
+    args.AddIfNonEmpty("--boot-image=%s", GetUserDefinedBootImageLocations());
+  }
 }
 
 void Artd::AddCompilerConfigFlags(const std::string& instruction_set,

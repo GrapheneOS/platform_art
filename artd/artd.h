@@ -163,7 +163,11 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   android::base::Result<const std::vector<std::string>*> GetBootClassPath() EXCLUDES(cache_mu_);
 
+  bool UseJitZygote() EXCLUDES(cache_mu_);
   bool UseJitZygoteLocked() REQUIRES(cache_mu_);
+
+  const std::string& GetUserDefinedBootImageLocations() EXCLUDES(cache_mu_);
+  const std::string& GetUserDefinedBootImageLocationsLocked() REQUIRES(cache_mu_);
 
   bool DenyArtApexDataFiles() EXCLUDES(cache_mu_);
   bool DenyArtApexDataFilesLocked() REQUIRES(cache_mu_);
@@ -183,6 +187,8 @@ class Artd : public aidl::com::android::server::art::BnArtd {
 
   bool ShouldCreateSwapFileForDexopt();
 
+  void AddBootImageFlags(/*out*/ art::tools::CmdlineBuilder& args);
+
   void AddCompilerConfigFlags(const std::string& instruction_set,
                               const std::string& compiler_filter,
                               aidl::com::android::server::art::PriorityClass priority_class,
@@ -196,6 +202,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   std::optional<std::vector<std::string>> cached_boot_image_locations_ GUARDED_BY(cache_mu_);
   std::optional<std::vector<std::string>> cached_boot_class_path_ GUARDED_BY(cache_mu_);
   std::optional<bool> cached_use_jit_zygote_ GUARDED_BY(cache_mu_);
+  std::optional<std::string> cached_user_defined_boot_image_locations_ GUARDED_BY(cache_mu_);
   std::optional<bool> cached_deny_art_apex_data_files_ GUARDED_BY(cache_mu_);
 
   std::mutex ofa_context_mu_;
