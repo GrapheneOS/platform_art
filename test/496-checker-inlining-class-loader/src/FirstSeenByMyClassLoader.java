@@ -15,12 +15,12 @@
  */
 
 public class FirstSeenByMyClassLoader {
-  public static void $inline$bar() {
-  }
+    public static void $inline$bar() {
+    }
 
-  public static void $noinline$bar() {
-    try {
-      System.out.println("In $noinline$bar");
-    } catch (Throwable t) { /* Ignore */ }
-  }
+    public static void $noinline$bar() {
+        try {
+            System.out.println("In $noinline$bar");
+        } catch (Throwable t) { /* Ignore */ }
+    }
 }

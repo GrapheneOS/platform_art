@@ -17,9 +17,9 @@
 package art;
 
 public class Test999 {
-  public void foo() {
-    System.out.println("Goodbye");
-  }
+    public void foo() {
+        System.out.println("Goodbye");
+    }
 
-  public int bar = 64;
+    public int bar = 64;
 }

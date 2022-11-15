@@ -17,11 +17,11 @@
 import java.lang.reflect.Method;
 
 public class Main {
-  public static void main(String[] args) throws Exception {
-    Class<?> c = Class.forName("TypePropagation");
-    Method m = c.getMethod("method", int[].class);
-    int[] array = new int[7];
-    Object[] arguments = { array };
-    m.invoke(null, arguments);
-  }
+    public static void main(String[] args) throws Exception {
+        Class<?> c = Class.forName("TypePropagation");
+        Method m = c.getMethod("method", int[].class);
+        int[] array = new int[7];
+        Object[] arguments = { array };
+        m.invoke(null, arguments);
+    }
 }
