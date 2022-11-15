@@ -15,27 +15,27 @@
  */
 
 interface Base {
-  default public int foo(int i) {
-    if (i != 1) {
-      return -2;
+    default public int foo(int i) {
+        if (i != 1) {
+            return -2;
+        }
+        return i + 10;
     }
-    return i + 10;
-  }
 
-  // Test default method that's not inlined.
-  default public int $noinline$bar() {
-    System.out.print("");
-    System.out.print("");
-    System.out.print("");
-    System.out.print("");
-    System.out.print("");
-    System.out.print("");
-    System.out.print("");
-    System.out.print("");
-    return -1;
-  }
+    // Test default method that's not inlined.
+    default public int $noinline$bar() {
+        System.out.print("");
+        System.out.print("");
+        System.out.print("");
+        System.out.print("");
+        System.out.print("");
+        System.out.print("");
+        System.out.print("");
+        System.out.print("");
+        return -1;
+    }
 
-  default void printError(String msg) {
-    System.out.println(msg);
-  }
+    default void printError(String msg) {
+        System.out.println(msg);
+    }
 }

@@ -15,5 +15,5 @@
  */
 
 interface Foo {
-  public Object bar(Object obj);
+    public Object bar(Object obj);
 }

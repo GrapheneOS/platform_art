@@ -138,10 +138,12 @@ TEST_F(ArtDisassemblerTest, LoadLiteralVisit) {
   COMPARE(ldr(x0, MemOperand(x18, 0)), "ldr x0, \\[x18\\]$");
 
   // Check we do append some extra info in the right text format for valid literal load instruction.
-  COMPARE(ldr(x0, vixl::aarch64::Assembler::ImmLLiteral(0)),
-      "ldr x0, pc\\+0 \\(addr -?0x[0-9a-f]+\\) \\(0x[0-9a-fA-F]+ / -?[0-9]+\\)");
-  COMPARE(ldr(d0, vixl::aarch64::Assembler::ImmLLiteral(0)),
-      "ldr d0, pc\\+0 \\(addr -?0x[0-9a-f]+\\) \\([0-9]+.[0-9]+e(\\+|-)[0-9]+\\)");
+  COMPARE(ldr(w0, vixl::aarch64::Assembler::ImmLLiteral(0)),
+      "ldr w0, pc\\+0 \\(addr -?0x[0-9a-f]+\\) \\(0x18000000 / 402653184\\)");
+  // We don't compare with exact value even though it's a known literal (the encoding of the
+  // instruction itself) since the precision of printed floating point values could change.
+  COMPARE(ldr(s0, vixl::aarch64::Assembler::ImmLLiteral(0)),
+      "ldr s0, pc\\+0 \\(addr -?0x[0-9a-f]+\\) \\([0-9]+.[0-9]+e(\\+|-)[0-9]+\\)");
 }
 
 TEST_F(ArtDisassemblerTest, LoadStoreUnsignedOffsetVisit) {

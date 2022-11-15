@@ -18,53 +18,53 @@ import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 
 class DebugProxy implements java.lang.reflect.InvocationHandler {
-  private Object obj;
-  static Class<?>[] interfaces = {Foo.class};
+    private Object obj;
+    static Class<?>[] interfaces = {Foo.class};
 
-  public static Object newInstance(Object obj) {
-    return java.lang.reflect.Proxy.newProxyInstance(
-      Foo.class.getClassLoader(),
-      interfaces,
-      new DebugProxy(obj));
-  }
-
-  private DebugProxy(Object obj) {
-    this.obj = obj;
-  }
-
-  public Object invoke(Object proxy, Method m, Object[] args) throws Throwable {
-    Object result;
-    if (obj == null) {
-      return null;
+    public static Object newInstance(Object obj) {
+        return java.lang.reflect.Proxy.newProxyInstance(
+            Foo.class.getClassLoader(),
+            interfaces,
+            new DebugProxy(obj));
     }
-    try {
-      System.out.println("before invoking method " + m.getName());
-      result = m.invoke(obj, args);
-    } catch (InvocationTargetException e) {
-      throw e.getTargetException();
-    } catch (Exception e) {
-      throw new RuntimeException("unexpected invocation exception: " + e.getMessage());
-    } finally {
-      System.out.println("after invoking method " + m.getName());
+
+    private DebugProxy(Object obj) {
+        this.obj = obj;
     }
-    return result;
-  }
+
+    public Object invoke(Object proxy, Method m, Object[] args) throws Throwable {
+        Object result;
+        if (obj == null) {
+            return null;
+        }
+        try {
+            System.out.println("before invoking method " + m.getName());
+            result = m.invoke(obj, args);
+        } catch (InvocationTargetException e) {
+            throw e.getTargetException();
+        } catch (Exception e) {
+            throw new RuntimeException("unexpected invocation exception: " + e.getMessage());
+        } finally {
+            System.out.println("after invoking method " + m.getName());
+        }
+        return result;
+    }
 }
 
 public class Main {
-  public static void call(Foo foo) {
-    if (foo == null) {
-      return;
+    public static void call(Foo foo) {
+        if (foo == null) {
+            return;
+        }
+        foo.bar(null);
     }
-    foo.bar(null);
-  }
 
-  public static void main(String[] args) {
-    System.loadLibrary(args[0]);
-    Foo foo = (Foo)DebugProxy.newInstance(null);
-    ensureJitCompiled(Main.class, "call");
-    call(foo);
-  }
+    public static void main(String[] args) {
+        System.loadLibrary(args[0]);
+        Foo foo = (Foo)DebugProxy.newInstance(null);
+        ensureJitCompiled(Main.class, "call");
+        call(foo);
+    }
 
-  private static native void ensureJitCompiled(Class<?> itf, String method_name);
+    private static native void ensureJitCompiled(Class<?> itf, String method_name);
 }

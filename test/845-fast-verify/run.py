@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2017 The Android Open Source Project
+# Copyright 2016 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 def run(ctx, args):
   ctx.default_run(
       args,
-      android_log_tags="*:f",
-      runtime_option=["-XX:FinalizerTimeoutMs=500"],
-      expected_exit_code=2)
+      # Disable app image to make sure we compile dex files individually.
+      app_image=False,
+      # Pass a .dm file to run FastVerify and ask to compile dex files
+      # individually in order to run the problematic code.
+      Xcompiler_option=[f"--dm-file={ctx.env.DEX_LOCATION}/classes.dm", "--compile-individually"])

@@ -394,6 +394,9 @@ if True:
     elif arg == "--no-precise":
       run_args += ["--no-precise"]
       shift()
+    elif arg.startswith("--android-log-tags"):
+      run_args += [arg]
+      shift()
     elif arg == "--external-log-tags":
       run_args += ["--external-log-tags"]
       shift()
@@ -413,7 +416,6 @@ if True:
       create_runner = "yes"
       shift()
     elif arg == "--dev":
-      run_args += ["--verbose"]
       dev_mode = "yes"
       shift()
     elif arg == "--temp-path":

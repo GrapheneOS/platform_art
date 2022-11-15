@@ -17,21 +17,21 @@
 import java.util.function.Consumer;
 
 class Transform {
-  private void Start(Consumer<String> reporter) {
-    reporter.accept("hello - private");
-  }
+    private void Start(Consumer<String> reporter) {
+        reporter.accept("hello - private");
+    }
 
-  private void Finish(Consumer<String> reporter) {
-    reporter.accept("goodbye - private");
-  }
+    private void Finish(Consumer<String> reporter) {
+        reporter.accept("goodbye - private");
+    }
 
-  public void sayHi(Runnable r, Consumer<String> reporter) {
-    reporter.accept("Pre Start private method call");
-    Start(reporter);
-    reporter.accept("Post Start private method call");
-    r.run();
-    reporter.accept("Pre Finish private method call");
-    Finish(reporter);
-    reporter.accept("Post Finish private method call");
-  }
+    public void sayHi(Runnable r, Consumer<String> reporter) {
+        reporter.accept("Pre Start private method call");
+        Start(reporter);
+        reporter.accept("Post Start private method call");
+        r.run();
+        reporter.accept("Pre Finish private method call");
+        Finish(reporter);
+        reporter.accept("Post Finish private method call");
+    }
 }
