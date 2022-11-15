@@ -18,7 +18,4 @@ import resource
 
 
 def run(ctx, args):
-  # Filter out expected error messages, which happen on device.
-  ctx.env.ANDROID_LOG_TAGS = "*:f"
-
-  ctx.default_run(args, external_log_tags=True)
+  ctx.default_run(args, android_log_tags="*:f")

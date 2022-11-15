@@ -760,6 +760,18 @@ bool VerifierDeps::VerifyAssignability(Handle<mirror::ClassLoader> class_loader,
   return true;
 }
 
+void VerifierDeps::ClearData(const std::vector<const DexFile*>& dex_files) {
+  for (const DexFile* dex_file : dex_files) {
+    auto it = dex_deps_.find(dex_file);
+    if (it == dex_deps_.end()) {
+      continue;
+    }
+    std::unique_ptr<DexFileDeps> deps(new DexFileDeps(dex_file->NumClassDefs()));
+    it->second.swap(deps);
+  }
+}
+
+
 bool VerifierDeps::VerifyDexFile(Handle<mirror::ClassLoader> class_loader,
                                  const DexFile& dex_file,
                                  const DexFileDeps& deps,

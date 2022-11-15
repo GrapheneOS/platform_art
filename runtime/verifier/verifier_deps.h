@@ -137,6 +137,9 @@ class VerifierDeps {
     return GetDexFileDeps(dex_file) != nullptr;
   }
 
+  // Resets the data related to the given dex files.
+  void ClearData(const std::vector<const DexFile*>& dex_files);
+
   // Parses raw VerifierDeps data to extract bitvectors of which class def indices
   // were verified or not. The given `dex_files` must match the order and count of
   // dex files used to create the VerifierDeps.
