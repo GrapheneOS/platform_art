@@ -336,7 +336,7 @@ class AllocationInfo {
 
 size_t FreeListSpace::GetSlotIndexForAllocationInfo(const AllocationInfo* info) const {
   DCHECK_GE(info, allocation_info_);
-  DCHECK_LT(info, reinterpret_cast<AllocationInfo*>(allocation_info_map_.End()));
+  DCHECK_LE(info, reinterpret_cast<AllocationInfo*>(allocation_info_map_.End()));
   return info - allocation_info_;
 }
 
@@ -457,6 +457,10 @@ size_t FreeListSpace::Free(Thread* self, mirror::Object* obj) {
     // The previous allocation info must not be free since we are supposed to always coalesce.
     DCHECK_EQ(info->GetPrevFreeBytes(), 0U) << "Previous allocation was free";
   }
+  // NOTE: next_info could be pointing right after the allocation_info_map_
+  // when freeing object in the very end of the space. But that's safe
+  // as we don't dereference it in that case. We only use it to calculate
+  // next_addr using offset within the map.
   uintptr_t next_addr = GetAddressForAllocationInfo(next_info);
   if (next_addr >= free_end_start) {
     // Easy case, the next chunk is the end free region.
