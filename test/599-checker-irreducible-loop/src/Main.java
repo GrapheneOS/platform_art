@@ -17,11 +17,11 @@
 import java.lang.reflect.Method;
 
 public class Main {
-  public static void main(String[] args) throws Exception {
-    Class<?> c = Class.forName("IrreducibleLoop");
-    Method m = c.getMethod("test", int.class);
-    Object[] arguments = { 42 };
-    // Invoke the code just for validation purposes.
-    System.out.println(m.invoke(null, arguments));
-  }
+    public static void main(String[] args) throws Exception {
+        Class<?> c = Class.forName("IrreducibleLoop");
+        Method m = c.getMethod("test", int.class);
+        Object[] arguments = { 42 };
+        // Invoke the code just for validation purposes.
+        System.out.println(m.invoke(null, arguments));
+    }
 }
