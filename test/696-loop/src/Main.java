@@ -15,24 +15,24 @@
  */
 
 public class Main {
-  static int[] sA = new int[12];
-  static int a = 1;
+    static int[] sA = new int[12];
+    static int a = 1;
 
-  static void doIt(int n) {
-    for (int i = 0; i < 2; i++) {
-      n+=a;
+    static void doIt(int n) {
+        for (int i = 0; i < 2; i++) {
+            n += a;
+        }
+        for (int i = 0; i < n; i++) {
+            sA[i] += 1;
+        }
     }
-    for (int i = 0; i < n; i++) {
-      sA[i] += 1;
-    }
-  }
 
-  public static void main(String[] args) {
-    doIt(10);
-    for (int i = 0; i < sA.length; i++) {
-      if (sA[i] != 1) {
-        throw new Error("Expected 1, got " + sA[i]);
-      }
+    public static void main(String[] args) {
+        doIt(10);
+        for (int i = 0; i < sA.length; i++) {
+            if (sA[i] != 1) {
+                throw new Error("Expected 1, got " + sA[i]);
+            }
+        }
     }
-  }
 }
