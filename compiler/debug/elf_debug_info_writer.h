@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "art_field-inl.h"
+#include "base/macros.h"
 #include "debug/elf_compilation_unit.h"
 #include "debug/elf_debug_loc_writer.h"
 #include "debug/method_debug_info.h"
@@ -39,7 +40,7 @@
 #include "oat_file.h"
 #include "obj_ptr-inl.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace debug {
 
 static std::vector<const char*> GetParamNames(const MethodDebugInfo* mi) {
