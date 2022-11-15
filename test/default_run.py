@@ -1390,7 +1390,8 @@ def default_run(ctx, args, **kwargs):
         skip_reg_exp = f'^[[:alnum:]]+ ({skip_tag_set}) #-# #:#:# '.replace('#', '[0-9]+')
         run(fr"sed -i -E '/{skip_reg_exp}/d' '{args.stderr_file}'")
         if not HAVE_IMAGE:
-          run(fr"sed -i -E '/^dalvikvm(|32|64) E .* Unable to open file/d' '{args.stderr_file}'")
+          message = "(Unable to open file|Could not create image space)"
+          run(fr"sed -i -E '/^dalvikvm(|32|64) E .* {message}/d' '{args.stderr_file}'")
         if "D" in skip_tag_set:
           run(fr"sed -i -E '/^(Time zone|I18n) APEX ICU file found/d' '{args.stderr_file}'")
       else:
