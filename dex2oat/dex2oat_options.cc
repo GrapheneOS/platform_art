@@ -448,7 +448,8 @@ Parser CreateDex2oatArgumentParser() {
           .IntoKey(M::ForceJitZygote)
       .Define("--force-palette-compilation-hooks")
           .WithHelp("Force PaletteNotify{Start,End}Dex2oatCompilation calls.")
-          .IntoKey(M::ForcePaletteCompilationHooks);
+          .IntoKey(M::ForcePaletteCompilationHooks)
+      .Ignore({"--comments=_"});
 
   AddCompilerOptionsArgumentParserOptions<Dex2oatArgumentMap>(*parser_builder);
 
