@@ -97,8 +97,17 @@ class BuildTestContext:
                           env=self.bash_env,
                           check=True)
 
+  def build(self) -> None:
+    script = self.test_dir / "build.py"
+    if script.exists():
+      module = SourceFileLoader("build_" + self.test_name,
+                                str(script)).load_module()
+      module.build(self)
+    else:
+      self.default_build()
+
   def default_build(
-      ctx,
+      self,
       use_desugar=True,
       use_hiddenapi=True,
       need_dex=None,
@@ -114,62 +123,32 @@ class BuildTestContext:
     ):
 
     # Wrap "pathlib.Path" with our own version that ensures all paths are absolute.
-    # Plain filenames are assumed to be relative to ctx.test_dir and made absolute.
+    # Plain filenames are assumed to be relative to self.test_dir and made absolute.
     class Path(pathlib.Path):
       def __new__(cls, filename: str):
         path = pathlib.Path(filename)
-        return path if path.is_absolute() else (ctx.test_dir / path)
+        return path if path.is_absolute() else (self.test_dir / path)
 
-    ANDROID_BUILD_TOP = ctx.android_build_top
-    TEST_NAME = ctx.test_name
-    need_dex = (ctx.host or ctx.target) if need_dex is None else need_dex
+    need_dex = (self.host or self.target) if need_dex is None else need_dex
 
-    RBE_exec_root = os.environ.get("RBE_exec_root")
-    RBE_rewrapper = ctx.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
-
-    # Set default values for directories.
-    HAS_SRC = Path("src").exists()
-    HAS_SRC_ART = Path("src-art").exists()
-    HAS_SRC2 = Path("src2").exists()
-    HAS_SRC_MULTIDEX = Path("src-multidex").exists()
-    HAS_SMALI_MULTIDEX = Path("smali-multidex").exists()
-    HAS_JASMIN_MULTIDEX = Path("jasmin-multidex").exists()
-    HAS_SMALI_EX = Path("smali-ex").exists()
-    HAS_SRC_EX = Path("src-ex").exists()
-    HAS_SRC_EX2 = Path("src-ex2").exists()
-    HAS_SRC_AOTEX = Path("src-aotex").exists()
-    HAS_SRC_BCPEX = Path("src-bcpex").exists()
-    HAS_HIDDENAPI_SPEC = Path("hiddenapi-flags.csv").exists()
-
-    JAVAC_ARGS = shlex.split(ctx.javac_args) + javac_args
-    SMALI_ARGS = smali_args.copy()
-    D8_FLAGS = d8_flags.copy()
-
-    BUILD_MODE = ctx.mode
-
-    # Setup experimental API level mappings in a bash associative array.
-    EXPERIMENTAL_API_LEVEL = {}
-    EXPERIMENTAL_API_LEVEL["no-experiment"] = "26"
-    EXPERIMENTAL_API_LEVEL["default-methods"] = "24"
-    EXPERIMENTAL_API_LEVEL["parameter-annotations"] = "25"
-    EXPERIMENTAL_API_LEVEL["agents"] = "26"
-    EXPERIMENTAL_API_LEVEL["method-handles"] = "26"
-    EXPERIMENTAL_API_LEVEL["var-handles"] = "28"
-
-    if BUILD_MODE == "jvm":
+    if self.jvm:
       # No desugaring on jvm because it supports the latest functionality.
       use_desugar = False
-      # Do not attempt to build src-art directories on jvm,
-      # since it would fail without libcore.
-      HAS_SRC_ART = False
 
     # Set API level for smali and d8.
-    if not api_level:
-      api_level = EXPERIMENTAL_API_LEVEL[experimental]
-
-    # Add API level arguments to smali and dx
-    SMALI_ARGS.extend(["--api", str(api_level)])
-    D8_FLAGS.extend(["--min-api", str(api_level)])
+    if api_level:
+      assert isinstance(api_level, int), api_level
+      assert experimental == "no-experiment", experimental
+    else:
+      experiment2api_level = {
+        "no-experiment": 26,
+        "default-methods": 24,
+        "parameter-annotations": 25,
+        "agents": 26,
+        "method-handles": 26,
+        "var-handles": 28,
+      }
+      api_level = experiment2api_level[experimental]
 
     def run(executable: pathlib.Path, args: List[str]):
       assert isinstance(executable, pathlib.Path), executable
@@ -178,22 +157,22 @@ class BuildTestContext:
         cmd += ["/bin/bash"]
       cmd += [executable]
       cmd += args
-      env = ctx.bash_env
+      env = self.bash_env
       env.update({k: v for k, v in os.environ.items() if k.startswith("RBE_")})
       # Make paths relative as otherwise we could create too long command line.
       for i, arg in enumerate(cmd):
         if isinstance(arg, pathlib.Path):
           assert arg.absolute(), arg
-          cmd[i] = relpath(arg, ctx.test_dir)
+          cmd[i] = relpath(arg, self.test_dir)
         elif isinstance(arg, list):
           assert all(p.absolute() for p in arg), arg
-          cmd[i] = ":".join(relpath(p, ctx.test_dir) for p in arg)
+          cmd[i] = ":".join(relpath(p, self.test_dir) for p in arg)
         else:
           assert isinstance(arg, str), arg
       p = subprocess.run(cmd,
                          encoding=sys.stdout.encoding,
-                         cwd=ctx.test_dir,
-                         env=ctx.bash_env,
+                         cwd=self.test_dir,
+                         env=self.bash_env,
                          stderr=subprocess.STDOUT,
                          stdout=subprocess.PIPE)
       if p.returncode != 0:
@@ -203,18 +182,21 @@ class BuildTestContext:
 
 
     # Helper functions to execute tools.
-    soong_zip = functools.partial(run, ctx.soong_zip)
-    zipalign = functools.partial(run, ctx.zipalign)
-    javac = functools.partial(run, ctx.javac)
-    jasmin = functools.partial(run, ctx.jasmin)
-    smali = functools.partial(run, ctx.smali)
-    d8 = functools.partial(run, ctx.d8)
-    hiddenapi = functools.partial(run, ctx.hiddenapi)
+    soong_zip = functools.partial(run, self.soong_zip)
+    zipalign = functools.partial(run, self.zipalign)
+    javac = functools.partial(run, self.javac)
+    jasmin = functools.partial(run, self.jasmin)
+    smali = functools.partial(run, self.smali)
+    d8 = functools.partial(run, self.d8)
+    hiddenapi = functools.partial(run, self.hiddenapi)
 
     if "RBE_server_address" in os.environ:
-      version = match(r"Version: (\d*)\.(\d*)\.(\d*)", run(RBE_rewrapper, ["--version"]).stdout)
+      rbe_exec_root = os.environ.get("RBE_exec_root")
+      rbe_rewrapper = self.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
+
+      version = match(r"Version: (\d*)\.(\d*)\.(\d*)", run(rbe_rewrapper, ["--version"]).stdout)
       assert version, "Could not parse RBE version"
-      assert tuple(map(int, version.groups())) >= (0, 76, 0), "Please update " + RBE_rewrapper
+      assert tuple(map(int, version.groups())) >= (0, 76, 0), "Please update " + rbe_rewrapper
 
       def rbe_wrap(args, inputs: Set[pathlib.Path]=None):
         with NamedTemporaryFile(mode="w+t") as input_list:
@@ -226,26 +208,26 @@ class BuildTestContext:
             elif isinstance(arg, list):
               assert all(p.absolute() for p in arg), arg
               inputs.update(arg)
-          input_list.writelines([relpath(i, RBE_exec_root)+"\n" for i in inputs])
+          input_list.writelines([relpath(i, rbe_exec_root)+"\n" for i in inputs])
           input_list.flush()
-          return run(RBE_rewrapper, [
+          return run(rbe_rewrapper, [
             "--platform=" + os.environ["RBE_platform"],
             "--input_list_paths=" + input_list.name,
           ] + args)
 
-      if USE_RBE_FOR_JAVAC > (hash(TEST_NAME) % 100):  # Use for given percentage of tests.
+      if USE_RBE_FOR_JAVAC > (hash(self.test_name) % 100):  # Use for given percentage of tests.
         def javac(args):
-          output = relpath(Path(args[args.index("-d") + 1]), RBE_exec_root)
-          return rbe_wrap(["--output_directories", output, ctx.javac] + args)
+          output = relpath(Path(args[args.index("-d") + 1]), rbe_exec_root)
+          return rbe_wrap(["--output_directories", output, self.javac] + args)
 
-      if USE_RBE_FOR_D8 > (hash(TEST_NAME) % 100):  # Use for given percentage of tests.
+      if USE_RBE_FOR_D8 > (hash(self.test_name) % 100):  # Use for given percentage of tests.
         def d8(args):
-          inputs = set([ctx.d8.parent.parent / "framework/d8.jar"])
-          output = relpath(Path(args[args.index("--output") + 1]), RBE_exec_root)
+          inputs = set([self.d8.parent.parent / "framework/d8.jar"])
+          output = relpath(Path(args[args.index("--output") + 1]), rbe_exec_root)
           return rbe_wrap([
             "--output_files" if output.endswith(".jar") else "--output_directories", output,
             "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
-            ctx.d8] + args, inputs)
+            self.d8] + args, inputs)
 
     # If wrapper script exists, use it instead of the default javac.
     javac_wrapper = Path("javac_wrapper.sh")
@@ -279,7 +261,7 @@ class BuildTestContext:
     def make_smali(dst_dex: Path, src_dir: Path) -> Optional[Path]:
       if not use_smali or not src_dir.exists():
         return None  # No sources to compile.
-      smali(["-JXmx512m", "assemble"] + SMALI_ARGS +
+      smali(["-JXmx512m", "assemble"] + smali_args + ["--api", str(api_level)] +
             ["--output", dst_dex] + sorted(src_dir.glob("**/*.smali")))
       return dst_dex
 
@@ -290,9 +272,10 @@ class BuildTestContext:
       if not any(src_dir.exists() for src_dir in src_dirs):
         return None  # No sources to compile.
       dst_dir.mkdir(exist_ok=True)
-      args = JAVAC_ARGS + ["-implicit:none", "-encoding", "utf8", "-d", dst_dir]
-      if not ctx.jvm:
-        args += ["-bootclasspath", ctx.bootclasspath]
+      args = self.javac_args.split(" ") + javac_args
+      args += ["-implicit:none", "-encoding", "utf8", "-d", dst_dir]
+      if not self.jvm:
+        args += ["-bootclasspath", self.bootclasspath]
       if java_classpath:
         args += ["-classpath", java_classpath]
       for src_dir in src_dirs:
@@ -305,8 +288,8 @@ class BuildTestContext:
     # packaged in a jar file.
     def make_dex(src_dir: Path):
       dst_jar = Path(src_dir.name + ".jar")
-      args = D8_FLAGS + ["--output", dst_jar]
-      args += ["--lib", ctx.bootclasspath] if use_desugar else ["--no-desugaring"]
+      args = d8_flags + ["--min-api", str(api_level), "--output", dst_jar]
+      args += ["--lib", self.bootclasspath] if use_desugar else ["--no-desugaring"]
       args += sorted(src_dir.glob("**/*.class"))
       d8(args)
 
@@ -326,9 +309,9 @@ class BuildTestContext:
 
       # NB: We merge even if there is just single input.
       # It is useful to normalize non-deterministic smali output.
-      tmp_dir = ctx.test_dir / "dexmerge"
+      tmp_dir = self.test_dir / "dexmerge"
       tmp_dir.mkdir()
-      d8(["--min-api", api_level, "--output", tmp_dir] + srcs)
+      d8(["--min-api", str(api_level), "--output", tmp_dir] + srcs)
       assert not (tmp_dir / "classes2.dex").exists()
       for src_file in srcs:
         src_file.unlink()
@@ -337,6 +320,8 @@ class BuildTestContext:
 
 
     def make_hiddenapi(*dex_files: Path):
+      if not use_hiddenapi or not Path("hiddenapi-flags.csv").exists():
+        return  # Nothing to do.
       args: List[Union[str, Path]] = ["encode"]
       for dex_file in dex_files:
         args.extend(["--input-dex=" + str(dex_file), "--output-dex=" + str(dex_file)])
@@ -346,17 +331,12 @@ class BuildTestContext:
 
 
     if Path("classes.dex").exists():
-      zip(Path(TEST_NAME + ".jar"), Path("classes.dex"))
+      zip(Path(self.test_name + ".jar"), Path("classes.dex"))
       return
 
     if Path("classes.dm").exists():
-      zip(Path(TEST_NAME + ".jar"), Path("classes.dm"))
+      zip(Path(self.test_name + ".jar"), Path("classes.dm"))
       return
-
-
-    def has_multidex():
-      return HAS_SRC_MULTIDEX or HAS_JASMIN_MULTIDEX or HAS_SMALI_MULTIDEX
-
 
     if make_jasmin(Path("jasmin_classes"), Path("jasmin")):
       java_classpath.append(Path("jasmin_classes"))
@@ -364,36 +344,33 @@ class BuildTestContext:
     if make_jasmin(Path("jasmin_classes2"), Path("jasmin-multidex")):
       java_classpath.append(Path("jasmin_classes2"))
 
-    if HAS_SRC and (HAS_SRC_MULTIDEX or HAS_SRC_AOTEX or HAS_SRC_BCPEX or
-                    HAS_SRC_EX or HAS_SRC_ART or HAS_SRC2 or HAS_SRC_EX2):
-      # To allow circular references, compile src/, src-multidex/, src-aotex/,
-      # src-bcpex/, src-ex/ together and pass the output as class path argument.
-      # Replacement sources in src-art/, src2/ and src-ex2/ can replace symbols
-      # used by the other src-* sources we compile here but everything needed to
-      # compile the other src-* sources should be present in src/ (and jasmin*/).
-      make_java(Path("classes-tmp-all"),
-                Path("src"),
-                Path("src-multidex"),
-                Path("src-aotex"),
-                Path("src-bcpex"),
-                Path("src-ex"))
+    # To allow circular references, compile src/, src-multidex/, src-aotex/,
+    # src-bcpex/, src-ex/ together and pass the output as class path argument.
+    # Replacement sources in src-art/, src2/ and src-ex2/ can replace symbols
+    # used by the other src-* sources we compile here but everything needed to
+    # compile the other src-* sources should be present in src/ (and jasmin*/).
+    extra_srcs = ["src-multidex", "src-aotex", "src-bcpex", "src-ex"]
+    replacement_srcs = ["src2", "src-ex2"] + ([] if self.jvm else ["src-art"])
+    if (Path("src").exists() and
+        any(Path(p).exists() for p in extra_srcs + replacement_srcs)):
+      make_java(Path("classes-tmp-all"), Path("src"), *map(Path, extra_srcs))
       java_classpath.append(Path("classes-tmp-all"))
 
     if make_java(Path("classes-aotex"), Path("src-aotex")) and need_dex:
       make_dex(Path("classes-aotex"))
       # rename it so it shows up as "classes.dex" in the zip file.
       Path("classes-aotex.dex").rename(Path("classes.dex"))
-      zip(Path(TEST_NAME + "-aotex.jar"), Path("classes.dex"))
+      zip(Path(self.test_name + "-aotex.jar"), Path("classes.dex"))
 
     if make_java(Path("classes-bcpex"), Path("src-bcpex")) and need_dex:
       make_dex(Path("classes-bcpex"))
       # rename it so it shows up as "classes.dex" in the zip file.
       Path("classes-bcpex.dex").rename(Path("classes.dex"))
-      zip(Path(TEST_NAME + "-bcpex.jar"), Path("classes.dex"))
+      zip(Path(self.test_name + "-bcpex.jar"), Path("classes.dex"))
 
     make_java(Path("classes"), Path("src"))
 
-    if not ctx.jvm:
+    if not self.jvm:
       # Do not attempt to build src-art directories on jvm,
       # since it would fail without libcore.
       make_java(Path("classes"), Path("src-art"))
@@ -426,7 +403,7 @@ class BuildTestContext:
 
     # Compile Jasmin classes in jasmin-multidex as if they were part of
     # the classes2.jar
-    if HAS_JASMIN_MULTIDEX:
+    if Path("jasmin-multidex").exists():
       if need_dex:
         make_dex(Path("jasmin_classes2"))
         make_dexmerge(Path("classes2.dex"), Path("jasmin_classes2.dex"))
@@ -454,19 +431,18 @@ class BuildTestContext:
 
     if Path("classes-ex.dex").exists():
       # Apply hiddenapi on the dex files if the test has API list file(s).
-      if use_hiddenapi and HAS_HIDDENAPI_SPEC:
-        make_hiddenapi(Path("classes-ex.dex"))
+      make_hiddenapi(Path("classes-ex.dex"))
 
       # quick shuffle so that the stored name is "classes.dex"
       Path("classes.dex").rename(Path("classes-1.dex"))
       Path("classes-ex.dex").rename(Path("classes.dex"))
-      zip(Path(TEST_NAME + "-ex.jar"), Path("classes.dex"))
+      zip(Path(self.test_name + "-ex.jar"), Path("classes.dex"))
       Path("classes.dex").rename(Path("classes-ex.dex"))
       Path("classes-1.dex").rename(Path("classes.dex"))
 
     # Apply hiddenapi on the dex files if the test has API list file(s).
-    if need_dex and use_hiddenapi and HAS_HIDDENAPI_SPEC:
-      if has_multidex():
+    if need_dex:
+      if any(Path(".").glob("*-multidex")):
         make_hiddenapi(Path("classes.dex"), Path("classes2.dex"))
       else:
         make_hiddenapi(Path("classes.dex"))
@@ -474,21 +450,9 @@ class BuildTestContext:
     # Create a single dex jar with two dex files for multidex.
     if need_dex:
       if Path("classes2.dex").exists():
-        zip(Path(TEST_NAME + ".jar"), Path("classes.dex"), Path("classes2.dex"))
+        zip(Path(self.test_name + ".jar"), Path("classes.dex"), Path("classes2.dex"))
       else:
-        zip(Path(TEST_NAME + ".jar"), Path("classes.dex"))
-
-
-  def build_test(ctx) -> None:
-    """Run the build script for single run-test"""
-
-    script = ctx.test_dir / "build.py"
-    if script.exists():
-      module = SourceFileLoader("build_" + ctx.test_name,
-                                str(script)).load_module()
-      module.build(ctx)
-    else:
-      ctx.default_build()
+        zip(Path(self.test_name + ".jar"), Path("classes.dex"))
 
 
 # If we build just individual shard, we want to split the work among all the cores,
@@ -540,7 +504,7 @@ def main() -> None:
     with ThreadPoolExecutor(cpu_count() if use_multiprocessing(args.mode) else 1) as pool:
       jobs = {}
       for ctx in tests:
-        jobs[ctx.test_name] = pool.submit(ctx.build_test)
+        jobs[ctx.test_name] = pool.submit(ctx.build)
       for test_name, job in jobs.items():
         try:
           job.result()
