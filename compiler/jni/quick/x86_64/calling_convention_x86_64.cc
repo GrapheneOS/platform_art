@@ -23,7 +23,7 @@
 #include "base/bit_utils.h"
 #include "utils/x86_64/managed_register_x86_64.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86_64 {
 
 static constexpr ManagedRegister kCoreArgumentRegisters[] = {

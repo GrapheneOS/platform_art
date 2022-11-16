@@ -20,11 +20,12 @@
 #include "base/arena_object.h"
 #include "base/array_ref.h"
 #include "base/enums.h"
+#include "base/macros.h"
 #include "dex/primitive.h"
 #include "thread.h"
 #include "utils/managed_register.h"
 
-namespace art {
+namespace art HIDDEN {
 
 enum class InstructionSet;
 

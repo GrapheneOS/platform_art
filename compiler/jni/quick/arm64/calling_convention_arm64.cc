@@ -22,7 +22,7 @@
 #include "arch/instruction_set.h"
 #include "utils/arm64/managed_register_arm64.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm64 {
 
 static constexpr ManagedRegister kXArgumentRegisters[] = {

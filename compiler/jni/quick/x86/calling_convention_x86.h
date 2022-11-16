@@ -18,9 +18,10 @@
 #define ART_COMPILER_JNI_QUICK_X86_CALLING_CONVENTION_X86_H_
 
 #include "base/enums.h"
+#include "base/macros.h"
 #include "jni/quick/calling_convention.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace x86 {
 
 class X86ManagedRuntimeCallingConvention final : public ManagedRuntimeCallingConvention {

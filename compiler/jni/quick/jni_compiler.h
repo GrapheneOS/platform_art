@@ -21,8 +21,9 @@
 
 #include "arch/instruction_set.h"
 #include "base/array_ref.h"
+#include "base/macros.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class ArenaAllocator;
 class ArtMethod;

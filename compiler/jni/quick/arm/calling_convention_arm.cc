@@ -23,7 +23,7 @@
 #include "base/macros.h"
 #include "utils/arm/managed_register_arm.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 //
