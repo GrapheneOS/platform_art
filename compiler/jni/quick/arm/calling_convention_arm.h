@@ -18,9 +18,10 @@
 #define ART_COMPILER_JNI_QUICK_ARM_CALLING_CONVENTION_ARM_H_
 
 #include "base/enums.h"
+#include "base/macros.h"
 #include "jni/quick/calling_convention.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace arm {
 
 class ArmManagedRuntimeCallingConvention final : public ManagedRuntimeCallingConvention {
