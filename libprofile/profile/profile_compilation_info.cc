@@ -1717,7 +1717,7 @@ ProfileCompilationInfo::ProfileLoadStatus ProfileCompilationInfo::LoadInternal(
   uint32_t section_count = header.GetFileSectionCount();
   uint32_t uncompressed_data_size = sizeof(FileHeader) + section_count * sizeof(FileSectionInfo);
   if (uncompressed_data_size > GetSizeErrorThresholdBytes()) {
-    LOG(ERROR) << "Profile data size exceeds " << GetSizeErrorThresholdBytes()
+    LOG(WARNING) << "Profile data size exceeds " << GetSizeErrorThresholdBytes()
                << " bytes. It has " << uncompressed_data_size << " bytes.";
     return ProfileLoadStatus::kBadData;
   }
@@ -1743,7 +1743,7 @@ ProfileCompilationInfo::ProfileLoadStatus ProfileCompilationInfo::LoadInternal(
   // Allow large profiles for non target builds for the case where we are merging many profiles
   // to generate a boot image profile.
   if (uncompressed_data_size > GetSizeErrorThresholdBytes()) {
-    LOG(ERROR) << "Profile data size exceeds "
+    LOG(WARNING) << "Profile data size exceeds "
                << GetSizeErrorThresholdBytes()
                << " bytes. It has " << uncompressed_data_size << " bytes.";
     return ProfileLoadStatus::kBadData;
