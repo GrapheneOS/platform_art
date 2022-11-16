@@ -110,6 +110,81 @@ TEST(X86InstructionSetFeaturesTest, X86FeaturesFromSilvermontVariant) {
   EXPECT_FALSE(x86_64_features->Equals(x86_features.get()));
 }
 
+TEST(X86InstructionSetFeaturesTest, X86FeaturesFromGoldmontVariant) {
+  // Build features for a 32-bit x86 goldmont processor.
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> x86_features(
+      InstructionSetFeatures::FromVariant(InstructionSet::kX86, "goldmont", &error_msg));
+  ASSERT_TRUE(x86_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_features->GetInstructionSet(), InstructionSet::kX86);
+  EXPECT_TRUE(x86_features->Equals(x86_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_features->AsBitmap(), 39U);
+
+  // Build features for a 64-bit x86-64 goldmont processor.
+  std::unique_ptr<const InstructionSetFeatures> x86_64_features(
+      InstructionSetFeatures::FromVariant(InstructionSet::kX86_64, "goldmont", &error_msg));
+  ASSERT_TRUE(x86_64_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_64_features->GetInstructionSet(), InstructionSet::kX86_64);
+  EXPECT_TRUE(x86_64_features->Equals(x86_64_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_64_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_64_features->AsBitmap(), 39U);
+
+  EXPECT_FALSE(x86_64_features->Equals(x86_features.get()));
+}
+
+TEST(X86InstructionSetFeaturesTest, X86FeaturesFromGoldmontPlusVariant) {
+  // Build features for a 32-bit x86 goldmont-plus processor.
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> x86_features(
+      InstructionSetFeatures::FromVariant(InstructionSet::kX86, "goldmont-plus", &error_msg));
+  ASSERT_TRUE(x86_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_features->GetInstructionSet(), InstructionSet::kX86);
+  EXPECT_TRUE(x86_features->Equals(x86_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_features->AsBitmap(), 39U);
+
+  // Build features for a 64-bit x86-64 goldmont-plus processor.
+  std::unique_ptr<const InstructionSetFeatures> x86_64_features(
+      InstructionSetFeatures::FromVariant(InstructionSet::kX86_64, "goldmont-plus", &error_msg));
+  ASSERT_TRUE(x86_64_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_64_features->GetInstructionSet(), InstructionSet::kX86_64);
+  EXPECT_TRUE(x86_64_features->Equals(x86_64_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_64_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_64_features->AsBitmap(), 39U);
+
+  EXPECT_FALSE(x86_64_features->Equals(x86_features.get()));
+}
+
+TEST(X86InstructionSetFeaturesTest, X86FeaturesFromTremontVariant) {
+  // Build features for a 32-bit x86 tremont processor.
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> x86_features(
+      InstructionSetFeatures::FromVariant(InstructionSet::kX86, "tremont", &error_msg));
+  ASSERT_TRUE(x86_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_features->GetInstructionSet(), InstructionSet::kX86);
+  EXPECT_TRUE(x86_features->Equals(x86_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_features->AsBitmap(), 39U);
+
+  // Build features for a 64-bit x86-64 tremont processor.
+  std::unique_ptr<const InstructionSetFeatures> x86_64_features(
+      InstructionSetFeatures::FromVariant(InstructionSet::kX86_64, "tremont", &error_msg));
+  ASSERT_TRUE(x86_64_features.get() != nullptr) << error_msg;
+  EXPECT_EQ(x86_64_features->GetInstructionSet(), InstructionSet::kX86_64);
+  EXPECT_TRUE(x86_64_features->Equals(x86_64_features.get()));
+  EXPECT_STREQ("ssse3,sse4.1,sse4.2,-avx,-avx2,popcnt",
+               x86_64_features->GetFeatureString().c_str());
+  EXPECT_EQ(x86_64_features->AsBitmap(), 39U);
+
+  EXPECT_FALSE(x86_64_features->Equals(x86_features.get()));
+}
+
 TEST(X86InstructionSetFeaturesTest, X86FeaturesFromKabylakeVariant) {
   // Build features for a 32-bit kabylake x86 processor.
   std::string error_msg;
