@@ -15,8 +15,8 @@
  */
 
 public class Main {
-  public static void main(String[] args) {
-    // Nothing to run. This regression test merely makes sure the smali test
-    // case successfully compiles.
-  }
+    public static void main(String[] args) {
+        // Nothing to run. This regression test merely makes sure the smali test
+        // case successfully compiles.
+    }
 }
