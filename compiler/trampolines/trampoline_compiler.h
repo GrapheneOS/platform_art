@@ -22,9 +22,10 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "base/macros.h"
 #include "offsets.h"
 
-namespace art {
+namespace art HIDDEN {
 
 enum EntryPointCallingConvention {
   // ABI of invocations to a method's interpreter entry point.
@@ -36,12 +37,10 @@ enum EntryPointCallingConvention {
 };
 
 // Create code that will invoke the function held in thread local storage.
-std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline32(InstructionSet isa,
-                                                               EntryPointCallingConvention abi,
-                                                               ThreadOffset32 entry_point_offset);
-std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(InstructionSet isa,
-                                                               EntryPointCallingConvention abi,
-                                                               ThreadOffset64 entry_point_offset);
+EXPORT std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline32(
+    InstructionSet isa, EntryPointCallingConvention abi, ThreadOffset32 entry_point_offset);
+EXPORT std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(
+    InstructionSet isa, EntryPointCallingConvention abi, ThreadOffset64 entry_point_offset);
 
 }  // namespace art
 

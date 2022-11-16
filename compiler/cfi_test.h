@@ -23,6 +23,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/enums.h"
+#include "base/macros.h"
 #include "debug/dwarf/dwarf_test.h"
 #include "disassembler.h"
 #include "dwarf/dwarf_constants.h"
@@ -30,7 +31,7 @@
 #include "gtest/gtest.h"
 #include "thread.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class CFITest : public dwarf::DwarfTest {
  public:

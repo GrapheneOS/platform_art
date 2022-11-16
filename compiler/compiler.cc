@@ -25,7 +25,7 @@
 #include "oat.h"
 #include "optimizing/optimizing_compiler.h"
 
-namespace art {
+namespace art HIDDEN {
 
 Compiler* Compiler::Create(const CompilerOptions& compiler_options,
                            CompiledCodeStorage* storage,
