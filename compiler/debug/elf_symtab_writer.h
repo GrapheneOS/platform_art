@@ -21,6 +21,7 @@
 #include <unordered_set>
 #include <unordered_map>
 
+#include "base/macros.h"
 #include "base/utils.h"
 #include "debug/debug_info.h"
 #include "debug/method_debug_info.h"
@@ -29,7 +30,7 @@
 #include "dex/dex_file-inl.h"
 #include "elf/elf_builder.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace debug {
 
 // The ARM specification defines three special mapping symbols
