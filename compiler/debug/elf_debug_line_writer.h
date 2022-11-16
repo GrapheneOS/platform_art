@@ -20,6 +20,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "base/macros.h"
 #include "debug/elf_compilation_unit.h"
 #include "debug/src_map_elem.h"
 #include "dex/dex_file-inl.h"
@@ -29,7 +30,7 @@
 #include "oat_file.h"
 #include "stack_map.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace debug {
 
 using PositionInfos = std::vector<DexFile::PositionInfo>;
