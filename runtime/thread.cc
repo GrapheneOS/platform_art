@@ -601,6 +601,10 @@ void Thread::DeleteJPeer(JNIEnv* env) {
   env->DeleteGlobalRef(old_jpeer);
 }
 
+void* Thread::CreateCallbackWithUffdGc(void* arg) {
+  return Thread::CreateCallback(arg);
+}
+
 void* Thread::CreateCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
   Runtime* runtime = Runtime::Current();
@@ -893,7 +897,8 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
     CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
     pthread_create_result = pthread_create(&new_pthread,
                                            &attr,
-                                           Thread::CreateCallback,
+                                           gUseUserfaultfd ? Thread::CreateCallbackWithUffdGc
+                                                           : Thread::CreateCallback,
                                            child_thread);
     CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
 

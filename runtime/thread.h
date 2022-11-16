@@ -1498,6 +1498,9 @@ class Thread {
   // Like Thread::Dump(std::cerr).
   void DumpFromGdb() const REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // A wrapper around CreateCallback used when userfaultfd GC is used to
+  // identify the GC by stacktrace.
+  static NO_INLINE void* CreateCallbackWithUffdGc(void* arg);
   static void* CreateCallback(void* arg);
 
   void HandleUncaughtExceptions(ScopedObjectAccessAlreadyRunnable& soa)
