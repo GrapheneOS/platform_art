@@ -111,10 +111,9 @@ class BuildTestContext:
       use_desugar=True,
       use_hiddenapi=True,
       need_dex=None,
-      experimental="no-experiment",
       zip_compression_method="deflate",
       zip_align_bytes=None,
-      api_level=None,
+      api_level:Union[int, str]=26,  # Can also be named alias (string).
       javac_args=[],
       d8_flags=[],
       smali_args=[],
@@ -136,19 +135,16 @@ class BuildTestContext:
       use_desugar = False
 
     # Set API level for smali and d8.
-    if api_level:
-      assert isinstance(api_level, int), api_level
-      assert experimental == "no-experiment", experimental
-    else:
-      experiment2api_level = {
-        "no-experiment": 26,
+    if isinstance(api_level, str):
+      API_LEVEL = {
         "default-methods": 24,
         "parameter-annotations": 25,
         "agents": 26,
         "method-handles": 26,
         "var-handles": 28,
       }
-      api_level = experiment2api_level[experimental]
+      api_level = API_LEVEL[api_level]
+    assert isinstance(api_level, int), api_level
 
     def run(executable: pathlib.Path, args: List[str]):
       assert isinstance(executable, pathlib.Path), executable
