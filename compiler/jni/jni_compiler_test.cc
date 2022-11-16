@@ -22,6 +22,7 @@
 #include "art_method-inl.h"
 #include "base/bit_utils.h"
 #include "base/casts.h"
+#include "base/macros.h"
 #include "base/mem_map.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
@@ -71,7 +72,7 @@ extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_sbar_1Critical(jint count)
 // TODO: In the Baker read barrier configuration, add checks to ensure
 // the Marking Register's value is correct.
 
-namespace art {
+namespace art HIDDEN {
 
 enum class JniKind {
   kNormal,      // Regular kind of un-annotated natives.
@@ -849,6 +850,7 @@ jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject, jlong x, jlon
   return x | y;
 }
 
+EXPORT  // Defined in `libart.so`.
 void InitEntryPoints(JniEntryPoints* jpoints,
                      QuickEntryPoints* qpoints,
                      bool monitor_jni_entry_exit);
