@@ -169,7 +169,9 @@ public final class Utils {
 
     @NonNull
     public static IArtd getArtd() {
-        IArtd artd = IArtd.Stub.asInterface(ServiceManager.waitForService("artd"));
+        IArtd artd = IArtd.Stub.asInterface(ArtModuleServiceInitializer.getArtModuleServiceManager()
+                                                    .getArtdServiceRegisterer()
+                                                    .waitForService());
         if (artd == null) {
             throw new IllegalStateException("Unable to connect to artd");
         }
