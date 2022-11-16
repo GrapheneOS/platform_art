@@ -19,6 +19,6 @@ import os
 def build(ctx):
   # Use the jasmin sources for JVM, otherwise the smali sources.
   if ctx.jvm:
-    ctx.default_build(has_smali=False)
+    ctx.default_build(use_smali=False)
   else:
-    ctx.default_build(has_jasmin=False)
+    ctx.default_build(use_jasmin=False)
