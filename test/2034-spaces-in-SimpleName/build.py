@@ -17,4 +17,4 @@
 # Use API level 10000 for spaces in SimpleName
 def build(ctx):
   ctx.bash("./generate-sources")
-  ctx.default_build(use_desugar=False, api_level="10000")
+  ctx.default_build(use_desugar=False, api_level=10000)
