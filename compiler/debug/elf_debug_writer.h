@@ -27,7 +27,7 @@
 #include "dwarf/dwarf_constants.h"
 #include "elf/elf_builder.h"
 
-namespace art {
+namespace art HIDDEN {
 class OatHeader;
 struct JITCodeEntry;
 namespace mirror {
@@ -37,11 +37,11 @@ namespace debug {
 struct MethodDebugInfo;
 
 template <typename ElfTypes>
-void WriteDebugInfo(
+EXPORT void WriteDebugInfo(
     ElfBuilder<ElfTypes>* builder,
     const DebugInfo& debug_info);
 
-std::vector<uint8_t> MakeMiniDebugInfo(
+EXPORT std::vector<uint8_t> MakeMiniDebugInfo(
     InstructionSet isa,
     const InstructionSetFeatures* features,
     uint64_t text_section_address,

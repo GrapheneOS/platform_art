@@ -20,9 +20,10 @@
 #include <map>
 
 #include "base/array_ref.h"
+#include "base/macros.h"
 #include "method_debug_info.h"
 
-namespace art {
+namespace art HIDDEN {
 class DexFile;
 
 namespace debug {
