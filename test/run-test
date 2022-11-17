@@ -915,7 +915,7 @@ if True:
   os.chdir(tmp_dir)
   m = re.match("[0-9]*([0-9][0-9])-.*", TEST_NAME)
   assert m, "Can not find test number in " + TEST_NAME
-  SHARD = m.group(1)
+  SHARD = "HiddenApi" if "hiddenapi" in TEST_NAME else m.group(1)
   if target_mode == "yes":
     zip_file = f"{ANDROID_HOST_OUT}/etc/art/art-run-test-target-data-shard{SHARD}.zip"
     zip_entry = f"target/{TEST_NAME}"

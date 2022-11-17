@@ -1601,6 +1601,32 @@ prebuilt_etc_host {
     filename: "art-run-test-host-data-shard99.zip",
 }
 
+java_genrule {
+    name: "art-run-test-host-data-shardHiddenApi-tmp",
+    out: ["art-run-test-host-data-shardHiddenApi.zip"],
+    srcs: ["???-*hiddenapi*/**/*", "????-*hiddenapi*/**/*"],
+    defaults: ["art-run-test-host-data-defaults"],
+    tools: ["hiddenapi"],
+    cmd: "$(location run_test_build.py) --out $(out) --mode host " +
+         "--bootclasspath $(location :art-run-test-bootclasspath) " +
+         "--d8 $(location d8) " +
+         "--hiddenapi $(location hiddenapi) " +
+         "--jasmin $(location jasmin) " +
+         "--smali $(location smali) " +
+         "--soong_zip $(location soong_zip) " +
+         "--zipalign $(location zipalign) " +
+         "$(in)",
+}
+
+// Install in the output directory to make it accessible for tests.
+prebuilt_etc_host {
+    name: "art-run-test-host-data-shardHiddenApi",
+    defaults: ["art_module_source_build_prebuilt_defaults"],
+    src: ":art-run-test-host-data-shardHiddenApi-tmp",
+    sub_dir: "art",
+    filename: "art-run-test-host-data-shardHiddenApi.zip",
+}
+
 genrule_defaults {
     name: "art-run-test-host-data-defaults",
     defaults: [
@@ -1614,7 +1640,6 @@ genrule_defaults {
     ],
     tools: [
         "d8",
-        "hiddenapi",
         "jasmin",
         "smali",
         "soong_zip",
@@ -1623,7 +1648,6 @@ genrule_defaults {
     cmd: "$(location run_test_build.py) --out $(out) --mode host " +
          "--bootclasspath $(location :art-run-test-bootclasspath) " +
          "--d8 $(location d8) " +
-         "--hiddenapi $(location hiddenapi) " +
          "--jasmin $(location jasmin) " +
          "--smali $(location smali) " +
          "--soong_zip $(location soong_zip) " +
@@ -1736,6 +1760,7 @@ java_genrule {
         ":art-run-test-host-data-shard97-tmp",
         ":art-run-test-host-data-shard98-tmp",
         ":art-run-test-host-data-shard99-tmp",
+        ":art-run-test-host-data-shardHiddenApi-tmp",
     ],
     tools: ["merge_zips"],
     cmd: "$(location merge_zips) $(out) $(in)",
@@ -1847,6 +1872,7 @@ prebuilt_etc_host {
         "art-run-test-host-data-shard97",
         "art-run-test-host-data-shard98",
         "art-run-test-host-data-shard99",
+        "art-run-test-host-data-shardHiddenApi",
     ],
     sub_dir: "art",
     filename: "art-run-test-host-data-merged.zip",
@@ -1958,6 +1984,7 @@ java_genrule {
         ":art-run-test-host-data-shard97-tmp",
         ":art-run-test-host-data-shard98-tmp",
         ":art-run-test-host-data-shard99-tmp",
+        ":art-run-test-host-data-shardHiddenApi-tmp",
     ],
     cmd: "echo $(in) > $(out)",
 }
@@ -2068,6 +2095,7 @@ prebuilt_etc_host {
         "art-run-test-host-data-shard97",
         "art-run-test-host-data-shard98",
         "art-run-test-host-data-shard99",
+        "art-run-test-host-data-shardHiddenApi",
     ],
     sub_dir: "art",
     filename: "art-run-test-host-data.txt",
@@ -3673,6 +3701,32 @@ prebuilt_etc_host {
     filename: "art-run-test-target-data-shard99.zip",
 }
 
+java_genrule {
+    name: "art-run-test-target-data-shardHiddenApi-tmp",
+    out: ["art-run-test-target-data-shardHiddenApi.zip"],
+    srcs: ["???-*hiddenapi*/**/*", "????-*hiddenapi*/**/*"],
+    defaults: ["art-run-test-target-data-defaults"],
+    tools: ["hiddenapi"],
+    cmd: "$(location run_test_build.py) --out $(out) --mode target " +
+         "--bootclasspath $(location :art-run-test-bootclasspath) " +
+         "--d8 $(location d8) " +
+         "--hiddenapi $(location hiddenapi) " +
+         "--jasmin $(location jasmin) " +
+         "--smali $(location smali) " +
+         "--soong_zip $(location soong_zip) " +
+         "--zipalign $(location zipalign) " +
+         "$(in)",
+}
+
+// Install in the output directory to make it accessible for tests.
+prebuilt_etc_host {
+    name: "art-run-test-target-data-shardHiddenApi",
+    defaults: ["art_module_source_build_prebuilt_defaults"],
+    src: ":art-run-test-target-data-shardHiddenApi-tmp",
+    sub_dir: "art",
+    filename: "art-run-test-target-data-shardHiddenApi.zip",
+}
+
 genrule_defaults {
     name: "art-run-test-target-data-defaults",
     defaults: [
@@ -3686,7 +3740,6 @@ genrule_defaults {
     ],
     tools: [
         "d8",
-        "hiddenapi",
         "jasmin",
         "smali",
         "soong_zip",
@@ -3695,7 +3748,6 @@ genrule_defaults {
     cmd: "$(location run_test_build.py) --out $(out) --mode target " +
          "--bootclasspath $(location :art-run-test-bootclasspath) " +
          "--d8 $(location d8) " +
-         "--hiddenapi $(location hiddenapi) " +
          "--jasmin $(location jasmin) " +
          "--smali $(location smali) " +
          "--soong_zip $(location soong_zip) " +
@@ -3808,6 +3860,7 @@ java_genrule {
         ":art-run-test-target-data-shard97-tmp",
         ":art-run-test-target-data-shard98-tmp",
         ":art-run-test-target-data-shard99-tmp",
+        ":art-run-test-target-data-shardHiddenApi-tmp",
     ],
     tools: ["merge_zips"],
     cmd: "$(location merge_zips) $(out) $(in)",
@@ -3919,6 +3972,7 @@ prebuilt_etc_host {
         "art-run-test-target-data-shard97",
         "art-run-test-target-data-shard98",
         "art-run-test-target-data-shard99",
+        "art-run-test-target-data-shardHiddenApi",
     ],
     sub_dir: "art",
     filename: "art-run-test-target-data-merged.zip",
@@ -4030,6 +4084,7 @@ java_genrule {
         ":art-run-test-target-data-shard97-tmp",
         ":art-run-test-target-data-shard98-tmp",
         ":art-run-test-target-data-shard99-tmp",
+        ":art-run-test-target-data-shardHiddenApi-tmp",
     ],
     cmd: "echo $(in) > $(out)",
 }
@@ -4140,6 +4195,7 @@ prebuilt_etc_host {
         "art-run-test-target-data-shard97",
         "art-run-test-target-data-shard98",
         "art-run-test-target-data-shard99",
+        "art-run-test-target-data-shardHiddenApi",
     ],
     sub_dir: "art",
     filename: "art-run-test-target-data.txt",
@@ -5745,6 +5801,32 @@ prebuilt_etc_host {
     filename: "art-run-test-jvm-data-shard99.zip",
 }
 
+java_genrule {
+    name: "art-run-test-jvm-data-shardHiddenApi-tmp",
+    out: ["art-run-test-jvm-data-shardHiddenApi.zip"],
+    srcs: ["???-*hiddenapi*/**/*", "????-*hiddenapi*/**/*"],
+    defaults: ["art-run-test-jvm-data-defaults"],
+    tools: ["hiddenapi"],
+    cmd: "$(location run_test_build.py) --out $(out) --mode jvm " +
+         "--bootclasspath $(location :art-run-test-bootclasspath) " +
+         "--d8 $(location d8) " +
+         "--hiddenapi $(location hiddenapi) " +
+         "--jasmin $(location jasmin) " +
+         "--smali $(location smali) " +
+         "--soong_zip $(location soong_zip) " +
+         "--zipalign $(location zipalign) " +
+         "$(in)",
+}
+
+// Install in the output directory to make it accessible for tests.
+prebuilt_etc_host {
+    name: "art-run-test-jvm-data-shardHiddenApi",
+    defaults: ["art_module_source_build_prebuilt_defaults"],
+    src: ":art-run-test-jvm-data-shardHiddenApi-tmp",
+    sub_dir: "art",
+    filename: "art-run-test-jvm-data-shardHiddenApi.zip",
+}
+
 genrule_defaults {
     name: "art-run-test-jvm-data-defaults",
     defaults: [
@@ -5758,7 +5840,6 @@ genrule_defaults {
     ],
     tools: [
         "d8",
-        "hiddenapi",
         "jasmin",
         "smali",
         "soong_zip",
@@ -5767,7 +5848,6 @@ genrule_defaults {
     cmd: "$(location run_test_build.py) --out $(out) --mode jvm " +
          "--bootclasspath $(location :art-run-test-bootclasspath) " +
          "--d8 $(location d8) " +
-         "--hiddenapi $(location hiddenapi) " +
          "--jasmin $(location jasmin) " +
          "--smali $(location smali) " +
          "--soong_zip $(location soong_zip) " +
@@ -5880,6 +5960,7 @@ java_genrule {
         ":art-run-test-jvm-data-shard97-tmp",
         ":art-run-test-jvm-data-shard98-tmp",
         ":art-run-test-jvm-data-shard99-tmp",
+        ":art-run-test-jvm-data-shardHiddenApi-tmp",
     ],
     tools: ["merge_zips"],
     cmd: "$(location merge_zips) $(out) $(in)",
@@ -5991,6 +6072,7 @@ prebuilt_etc_host {
         "art-run-test-jvm-data-shard97",
         "art-run-test-jvm-data-shard98",
         "art-run-test-jvm-data-shard99",
+        "art-run-test-jvm-data-shardHiddenApi",
     ],
     sub_dir: "art",
     filename: "art-run-test-jvm-data-merged.zip",
@@ -6102,6 +6184,7 @@ java_genrule {
         ":art-run-test-jvm-data-shard97-tmp",
         ":art-run-test-jvm-data-shard98-tmp",
         ":art-run-test-jvm-data-shard99-tmp",
+        ":art-run-test-jvm-data-shardHiddenApi-tmp",
     ],
     cmd: "echo $(in) > $(out)",
 }
@@ -6212,6 +6295,7 @@ prebuilt_etc_host {
         "art-run-test-jvm-data-shard97",
         "art-run-test-jvm-data-shard98",
         "art-run-test-jvm-data-shard99",
+        "art-run-test-jvm-data-shardHiddenApi",
     ],
     sub_dir: "art",
     filename: "art-run-test-jvm-data.txt",

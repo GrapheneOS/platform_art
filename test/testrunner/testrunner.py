@@ -1244,10 +1244,12 @@ def main():
     build_targets = []
     # Build only the needed shards (depending on the selected tests).
     shards = set(re.search("(\d\d)-", t).group(1) for t in tests)
+    if any("hiddenapi" in t for t in tests):
+      shards.add("HiddenApi")  # Include special HiddenApi shard.
     for mode in ['host', 'target', 'jvm']:
       if mode in _user_input_variants['target']:
         build_targets += ['test-art-{}-run-test-dependencies'.format(mode)]
-        if len(shards) == 100:
+        if len(shards) >= 100:
           build_targets += ["art-run-test-{}-data".format(mode)]  # Build all.
         else:
           build_targets += ["art-run-test-{}-data-shard{}".format(mode, s) for s in shards]
