@@ -117,9 +117,7 @@ constexpr int kShortTimeoutSec = 60;  // 1 minute.
 // would take down the system server.
 constexpr int kLongTimeoutSec = 570;  // 9.5 minutes.
 
-// Deletes a file. Returns the size of the deleted file, or 0 if the deleted file is empty or an
-// error occurs.
-int64_t GetSizeAndDeleteFile(const std::string& path) {
+std::optional<int64_t> GetSize(std::string_view path) {
   std::error_code ec;
   int64_t size = std::filesystem::file_size(path, ec);
   if (ec) {
@@ -127,15 +125,26 @@ int64_t GetSizeAndDeleteFile(const std::string& path) {
     if (ec.value() != ENOENT) {
       LOG(ERROR) << "Failed to get the file size of '{}': {}"_format(path, ec.message());
     }
+    return std::nullopt;
+  }
+  return size;
+}
+
+// Deletes a file. Returns the size of the deleted file, or 0 if the deleted file is empty or an
+// error occurs.
+int64_t GetSizeAndDeleteFile(const std::string& path) {
+  std::optional<int64_t> size = GetSize(path);
+  if (!size.has_value()) {
     return 0;
   }
 
+  std::error_code ec;
   if (!std::filesystem::remove(path, ec)) {
     LOG(ERROR) << "Failed to remove '{}': {}"_format(path, ec.message());
     return 0;
   }
 
-  return size;
+  return size.value();
 }
 
 std::string EscapeErrorMessage(const std::string& message) {
@@ -754,6 +763,7 @@ ndk::ScopedAStatus Artd::dexopt(
   if (in_dexoptOptions.generateAppImage) {
     art_file = OR_RETURN_NON_FATAL(NewFile::Create(art_path, fs_permission));
     args.Add("--app-image-fd=%d", art_file->Fd());
+    args.AddIfNonEmpty("--image-format=%s", props_->GetOrEmpty("dalvik.vm.appimageformat"));
     fd_logger.Add(*art_file);
     files_to_commit.push_back(art_file.get());
   } else {
@@ -860,8 +870,19 @@ ndk::ScopedAStatus Artd::dexopt(
     return NonFatal("dex2oat returned an unexpected code: %d"_format(result.value()));
   }
 
-  NewFile::CommitAllOrAbandon(files_to_commit, files_to_delete);
+  int64_t size_bytes = 0;
+  int64_t size_before_bytes = 0;
+  for (const NewFile* file : files_to_commit) {
+    size_bytes += GetSize(file->TempPath()).value_or(0);
+    size_before_bytes += GetSize(file->FinalPath()).value_or(0);
+  }
+  for (std::string_view path : files_to_delete) {
+    size_before_bytes += GetSize(path).value_or(0);
+  }
+  OR_RETURN_NON_FATAL(NewFile::CommitAllOrAbandon(files_to_commit, files_to_delete));
 
+  _aidl_return->sizeBytes = size_bytes;
+  _aidl_return->sizeBeforeBytes = size_before_bytes;
   return ScopedAStatus::ok();
 }
 
@@ -920,10 +941,12 @@ Result<OatFileAssistantContext*> Artd::GetOatFileAssistantContext() {
 }
 
 Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+
   if (!cached_boot_image_locations_.has_value()) {
     std::string location_str;
 
-    if (UseJitZygote()) {
+    if (UseJitZygoteLocked()) {
       location_str = GetJitZygoteBootImageLocation();
     } else if (std::string value = props_->GetOrEmpty("dalvik.vm.boot-image"); !value.empty()) {
       location_str = std::move(value);
@@ -933,7 +956,7 @@ Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
       if (!error_msg.empty()) {
         return Errorf("Failed to get ANDROID_ROOT: {}", error_msg);
       }
-      location_str = GetDefaultBootImageLocation(android_root, DenyArtApexDataFiles());
+      location_str = GetDefaultBootImageLocation(android_root, DenyArtApexDataFilesLocked());
     }
 
     cached_boot_image_locations_ = Split(location_str, ":");
@@ -943,6 +966,8 @@ Result<const std::vector<std::string>*> Artd::GetBootImageLocations() {
 }
 
 Result<const std::vector<std::string>*> Artd::GetBootClassPath() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+
   if (!cached_boot_class_path_.has_value()) {
     const char* env_value = getenv("BOOTCLASSPATH");
     if (env_value == nullptr || strlen(env_value) == 0) {
@@ -954,7 +979,7 @@ Result<const std::vector<std::string>*> Artd::GetBootClassPath() {
   return &cached_boot_class_path_.value();
 }
 
-bool Artd::UseJitZygote() {
+bool Artd::UseJitZygoteLocked() {
   if (!cached_use_jit_zygote_.has_value()) {
     cached_use_jit_zygote_ =
         props_->GetBool("dalvik.vm.profilebootclasspath",
@@ -966,6 +991,11 @@ bool Artd::UseJitZygote() {
 }
 
 bool Artd::DenyArtApexDataFiles() {
+  std::lock_guard<std::mutex> lock(cache_mu_);
+  return DenyArtApexDataFilesLocked();
+}
+
+bool Artd::DenyArtApexDataFilesLocked() {
   if (!cached_deny_art_apex_data_files_.has_value()) {
     cached_deny_art_apex_data_files_ =
         !props_->GetBool("odsign.verification.success", /*default_value=*/false);

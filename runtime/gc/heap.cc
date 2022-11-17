@@ -418,6 +418,7 @@ Heap::Heap(size_t initial_size,
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
+  LOG(INFO) << "Using " << foreground_collector_type_ << " GC.";
   if (gUseReadBarrier) {
     CHECK_EQ(foreground_collector_type_, kCollectorTypeCC);
     CHECK_EQ(background_collector_type_, kCollectorTypeCCBackground);
@@ -4644,6 +4645,7 @@ void Heap::PostForkChildAction(Thread* self) {
   uint64_t last_adj_time = NanoTime();
   next_gc_type_ = NonStickyGcType();  // Always start with a full gc.
 
+  LOG(INFO) << "Using " << foreground_collector_type_ << " GC.";
   if (gUseUserfaultfd) {
     DCHECK_NE(mark_compact_, nullptr);
     mark_compact_->CreateUserfaultfd(/*post_fork*/true);

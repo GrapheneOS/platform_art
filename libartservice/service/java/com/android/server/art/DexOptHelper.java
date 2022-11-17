@@ -16,6 +16,8 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback;
+import static com.android.server.art.model.Config.Callback;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
@@ -30,6 +32,7 @@ import android.os.WorkSource;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
+import com.android.server.art.model.Config;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
@@ -42,13 +45,14 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -69,8 +73,8 @@ public class DexOptHelper {
 
     @NonNull private final Injector mInjector;
 
-    public DexOptHelper(@NonNull Context context) {
-        this(new Injector(context));
+    public DexOptHelper(@NonNull Context context, @NonNull Config config) {
+        this(new Injector(context, config));
     }
 
     @VisibleForTesting
@@ -122,7 +126,17 @@ public class DexOptHelper {
             List<PackageOptimizeResult> results =
                     futures.stream().map(Utils::getFuture).collect(Collectors.toList());
 
-            return new OptimizeResult(params.getCompilerFilter(), params.getReason(), results);
+            var result =
+                    new OptimizeResult(params.getCompilerFilter(), params.getReason(), results);
+
+            for (Callback<OptimizePackageDoneCallback> callback :
+                    mInjector.getConfig().getOptimizePackageDoneCallbacks()) {
+                // TODO(b/257027956): Consider filtering the packages before calling the callback.
+                Utils.executeAndWait(callback.executor(),
+                        () -> { callback.get().onOptimizePackageDone(result); });
+            }
+
+            return result;
         } finally {
             if (wakeLock != null) {
                 wakeLock.release();
@@ -146,7 +160,7 @@ public class DexOptHelper {
 
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
 
-        if (!canOptimizePackage(pkgState, pkg)) {
+        if (!canOptimizePackage(pkgState)) {
             return createResult.get();
         }
 
@@ -178,20 +192,8 @@ public class DexOptHelper {
         return createResult.get();
     }
 
-    private boolean canOptimizePackage(
-            @NonNull PackageState pkgState, @NonNull AndroidPackage pkg) {
-        if (!pkg.getSplits().get(0).isHasCode()) {
-            return false;
-        }
-
-        // We do not dexopt unused packages.
-        AppHibernationManager ahm = mInjector.getAppHibernationManager();
-        if (ahm.isHibernatingGlobally(pkgState.getPackageName())
-                && ahm.isOatArtifactDeletionEnabled()) {
-            return false;
-        }
-
-        return true;
+    private boolean canOptimizePackage(@NonNull PackageState pkgState) {
+        return Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager());
     }
 
     @NonNull
@@ -213,9 +215,9 @@ public class DexOptHelper {
 
         for (String packageName : packageNames) {
             PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-            AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+            Utils.getPackageOrThrow(pkgState);
             pkgStates.put(packageName, pkgState);
-            if (includeDependencies && canOptimizePackage(pkgState, pkg)) {
+            if (includeDependencies && canOptimizePackage(pkgState)) {
                 for (SharedLibrary library : pkgState.getUsesLibraries()) {
                     maybeEnqueue.accept(library);
                 }
@@ -226,8 +228,7 @@ public class DexOptHelper {
         while ((library = queue.poll()) != null) {
             String packageName = library.getPackageName();
             PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
-            AndroidPackage pkg = pkgState.getAndroidPackage();
-            if (pkg != null && canOptimizePackage(pkgState, pkg)) {
+            if (canOptimizePackage(pkgState)) {
                 pkgStates.put(packageName, pkgState);
 
                 // Note that `library.getDependencies()` is different from
@@ -253,9 +254,11 @@ public class DexOptHelper {
     @VisibleForTesting
     public static class Injector {
         @NonNull private final Context mContext;
+        @NonNull private final Config mConfig;
 
-        Injector(@NonNull Context context) {
+        Injector(@NonNull Context context, @NonNull Config config) {
             mContext = context;
+            mConfig = config;
         }
 
         @NonNull
@@ -274,12 +277,17 @@ public class DexOptHelper {
 
         @NonNull
         public AppHibernationManager getAppHibernationManager() {
-            return mContext.getSystemService(AppHibernationManager.class);
+            return Objects.requireNonNull(mContext.getSystemService(AppHibernationManager.class));
         }
 
         @NonNull
         public PowerManager getPowerManager() {
-            return mContext.getSystemService(PowerManager.class);
+            return Objects.requireNonNull(mContext.getSystemService(PowerManager.class));
+        }
+
+        @NonNull
+        public Config getConfig() {
+            return mConfig;
         }
     }
 }

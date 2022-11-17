@@ -18,6 +18,8 @@ package com.android.server.art;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.when;
 
 import android.os.SystemProperties;
@@ -75,5 +77,12 @@ public class ReasonMappingTest {
     @Test(expected = IllegalArgumentException.class)
     public void testGetPriorityClassForReasonInvalidReason() throws Exception {
         ReasonMapping.getPriorityClassForReason("foo");
+    }
+
+    @Test
+    public void testGetConcurrencyForReason() {
+        when(SystemProperties.getInt(eq("pm.dexopt.bg-dexopt.concurrency"), anyInt()))
+                .thenReturn(3);
+        assertThat(ReasonMapping.getConcurrencyForReason("bg-dexopt")).isEqualTo(3);
     }
 }

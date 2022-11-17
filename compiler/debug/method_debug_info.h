@@ -21,9 +21,10 @@
 
 #include "arch/instruction_set.h"
 #include "base/array_ref.h"
+#include "base/macros.h"
 #include "dex/dex_file.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace debug {
 
 struct MethodDebugInfo {

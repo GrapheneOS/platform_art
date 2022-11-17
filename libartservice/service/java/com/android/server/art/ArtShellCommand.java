@@ -27,6 +27,7 @@ import android.os.Binder;
 import android.os.CancellationSignal;
 import android.os.Process;
 
+import com.android.internal.annotations.GuardedBy;
 import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
@@ -53,7 +54,9 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
     private final PackageManagerLocal mPackageManagerLocal;
     private final DexUseManager mDexUseManager = DexUseManager.getInstance();
 
-    private static Map<String, CancellationSignal> sCancellationSignalMap = new HashMap<>();
+    @GuardedBy("sCancellationSignalMap")
+    @NonNull
+    private static final Map<String, CancellationSignal> sCancellationSignalMap = new HashMap<>();
 
     public ArtShellCommand(
             ArtManagerLocal artManagerLocal, PackageManagerLocal packageManagerLocal) {
@@ -105,40 +108,21 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                         }
                     }
 
-                    String jobId = UUID.randomUUID().toString();
-                    var signal = new CancellationSignal();
-                    pw.printf("Job ID: %s\n", jobId);
-                    pw.flush();
-
-                    synchronized (sCancellationSignalMap) {
-                        sCancellationSignalMap.put(jobId, signal);
-                    }
-
                     OptimizeResult result;
-                    try {
-                        result = mArtManagerLocal.optimizePackage(
-                                snapshot, getNextArgRequired(), paramsBuilder.build(), signal);
-                    } finally {
-                        synchronized (sCancellationSignalMap) {
-                            sCancellationSignalMap.remove(jobId);
-                        }
+                    try (var signal = new WithCancellationSignal(pw)) {
+                        result = mArtManagerLocal.optimizePackage(snapshot, getNextArgRequired(),
+                                paramsBuilder.build(), signal.get());
                     }
-
-                    pw.println(optimizeStatusToString(result.getFinalStatus()));
-                    for (PackageOptimizeResult packageResult : result.getPackageOptimizeResults()) {
-                        pw.printf("[%s]\n", packageResult.getPackageName());
-                        for (DexContainerFileOptimizeResult fileResult :
-                                packageResult.getDexContainerFileOptimizeResults()) {
-                            pw.printf("dexContainerFile = %s, isPrimaryAbi = %b, abi = %s, "
-                                            + "compilerFilter = %s, status = %s, "
-                                            + "dex2oatWallTimeMillis = %d, dex2oatCpuTimeMillis = %d\n",
-                                    fileResult.getDexContainerFile(), fileResult.isPrimaryAbi(),
-                                    fileResult.getAbi(), fileResult.getActualCompilerFilter(),
-                                    optimizeStatusToString(fileResult.getStatus()),
-                                    fileResult.getDex2oatWallTimeMillis(),
-                                    fileResult.getDex2oatCpuTimeMillis());
-                        }
+                    printOptimizeResult(pw, result);
+                    return 0;
+                }
+                case "optimize-packages": {
+                    OptimizeResult result;
+                    try (var signal = new WithCancellationSignal(pw)) {
+                        result = mArtManagerLocal.optimizePackages(
+                                snapshot, getNextArgRequired(), signal.get());
                     }
+                    printOptimizeResult(pw, result);
                     return 0;
                 }
                 case "cancel": {
@@ -199,6 +183,42 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                         throw new RuntimeException(e);
                     }
                 }
+                case "bg-dexopt-job": {
+                    String opt = getNextOption();
+                    if (opt == null) {
+                        mArtManagerLocal.startBackgroundDexoptJob();
+                        return 0;
+                    }
+                    switch (opt) {
+                        case "--cancel": {
+                            mArtManagerLocal.cancelBackgroundDexoptJob();
+                            return 0;
+                        }
+                        case "--enable": {
+                            // This operation requires the uid to be "system" (1000).
+                            long identityToken = Binder.clearCallingIdentity();
+                            try {
+                                mArtManagerLocal.scheduleBackgroundDexoptJob();
+                            } finally {
+                                Binder.restoreCallingIdentity(identityToken);
+                            }
+                            return 0;
+                        }
+                        case "--disable": {
+                            // This operation requires the uid to be "system" (1000).
+                            long identityToken = Binder.clearCallingIdentity();
+                            try {
+                                mArtManagerLocal.unscheduleBackgroundDexoptJob();
+                            } finally {
+                                Binder.restoreCallingIdentity(identityToken);
+                            }
+                            return 0;
+                        }
+                        default:
+                            pw.println("Error: Unknown option: " + opt);
+                            return 1;
+                    }
+                }
                 default:
                     // Handles empty, help, and invalid commands.
                     return handleDefaultCommands(cmd);
@@ -237,6 +257,10 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("      -f Force compilation.");
         pw.println("      --secondary-dex Only compile secondary dex.");
         pw.println("      --include-dependencies Include dependencies.");
+        pw.println("  optimize-packages REASON");
+        pw.println("    Run batch optimization for the given reason.");
+        pw.println("    The command prints a job ID, which can be used to cancel the job using the"
+                + "'cancel' command.");
         pw.println("  cancel JOB_ID");
         pw.println("    Cancel a job.");
         pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");
@@ -254,6 +278,22 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Save dex use information to a file in binary proto format.");
         pw.println("  dex-use-load PATH");
         pw.println("    Load dex use information from a file in binary proto format.");
+        pw.println("  bg-dexopt-job [--cancel | --disable | --enable]");
+        pw.println("    Control the background dexopt job.");
+        pw.println("    Without flags, it starts a background dexopt job immediately. It does");
+        pw.println("      nothing if a job is already started either automatically by the system");
+        pw.println("      or through this command. This command is not blocking.");
+        pw.println("    Options:");
+        pw.println("      --cancel Cancel any currently running background dexopt job");
+        pw.println("        immediately. This cancels jobs started either automatically by the");
+        pw.println("        system or through this command. This command is not blocking.");
+        pw.println("      --disable: Disable the background dexopt job from being started by the");
+        pw.println("        job scheduler. If a job is already started by the job scheduler and");
+        pw.println("        is running, it will be cancelled immediately. Does not affect");
+        pw.println("        jobs started through this command or by the system in other ways.");
+        pw.println("        This state will be lost when the system_server process exits.");
+        pw.println("      --enable: Enable the background dexopt job to be started by the job");
+        pw.println("        scheduler again, if previously disabled by --disable.");
     }
 
     private void enforceRoot() {
@@ -276,5 +316,50 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 return "CANCELLED";
         }
         throw new IllegalArgumentException("Unknown optimize status " + status);
+    }
+
+    private void printOptimizeResult(@NonNull PrintWriter pw, @NonNull OptimizeResult result) {
+        pw.println(optimizeStatusToString(result.getFinalStatus()));
+        for (PackageOptimizeResult packageResult : result.getPackageOptimizeResults()) {
+            pw.printf("[%s]\n", packageResult.getPackageName());
+            for (DexContainerFileOptimizeResult fileResult :
+                    packageResult.getDexContainerFileOptimizeResults()) {
+                pw.printf("dexContainerFile = %s, isPrimaryAbi = %b, abi = %s, "
+                                + "compilerFilter = %s, status = %s, "
+                                + "dex2oatWallTimeMillis = %d, dex2oatCpuTimeMillis = %d, "
+                                + "sizeBytes = %d, sizeBeforeBytes = %d\n",
+                        fileResult.getDexContainerFile(), fileResult.isPrimaryAbi(),
+                        fileResult.getAbi(), fileResult.getActualCompilerFilter(),
+                        optimizeStatusToString(fileResult.getStatus()),
+                        fileResult.getDex2oatWallTimeMillis(), fileResult.getDex2oatCpuTimeMillis(),
+                        fileResult.getSizeBytes(), fileResult.getSizeBeforeBytes());
+            }
+        }
+    }
+
+    private static class WithCancellationSignal implements AutoCloseable {
+        @NonNull private final CancellationSignal mSignal = new CancellationSignal();
+        @NonNull private final String mJobId;
+
+        public WithCancellationSignal(@NonNull PrintWriter pw) {
+            mJobId = UUID.randomUUID().toString();
+            pw.printf("Job ID: %s\n", mJobId);
+            pw.flush();
+
+            synchronized (sCancellationSignalMap) {
+                sCancellationSignalMap.put(mJobId, mSignal);
+            }
+        }
+
+        @NonNull
+        public CancellationSignal get() {
+            return mSignal;
+        }
+
+        public void close() {
+            synchronized (sCancellationSignalMap) {
+                sCancellationSignalMap.remove(mJobId);
+            }
+        }
     }
 }

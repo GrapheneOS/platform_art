@@ -19,15 +19,19 @@ package com.android.server.art;
 import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 
 import android.annotation.NonNull;
+import android.annotation.StringDef;
 import android.annotation.SystemApi;
 import android.os.SystemProperties;
 import android.text.TextUtils;
 
 import com.android.server.art.model.ArtFlags;
+import com.android.server.pm.PackageManagerLocal;
 
 import dalvik.system.DexFile;
 
 import java.util.Set;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /**
  * Maps a compilation reason to a compiler filter and a priority class.
@@ -63,6 +67,22 @@ public class ReasonMapping {
     public static final Set<String> REASONS_FOR_INSTALL = Set.of(REASON_INSTALL,
             REASON_INSTALL_FAST, REASON_INSTALL_BULK, REASON_INSTALL_BULK_SECONDARY,
             REASON_INSTALL_BULK_DOWNGRADED, REASON_INSTALL_BULK_SECONDARY_DOWNGRADED);
+
+    /**
+     * Reasons for
+     * {@link ArtManagerLocal#optimizePackages(PackageManagerLocal.FilteredSnapshot, String)}.
+     *
+     * @hide
+     */
+    // clang-format off
+    @StringDef(prefix = "REASON_", value = {
+        REASON_FIRST_BOOT,
+        REASON_BOOT_AFTER_OTA,
+        REASON_BG_DEXOPT,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface BatchOptimizeReason {}
 
     /**
      * Loads the compiler filter from the system property for the given reason and checks for
@@ -135,5 +155,16 @@ public class ReasonMapping {
             default:
                 throw new IllegalArgumentException("No priority class for reason '" + reason + "'");
         }
+    }
+
+    /**
+     * Loads the concurrency from the system property, for batch optimization ({@link
+     * ArtManagerLocal#optimizePackages(PackageManagerLocal.FilteredSnapshot, String)}), or 1 if the
+     * system property is not found or cannot be parsed.
+     *
+     * @hide
+     */
+    public static int getConcurrencyForReason(@NonNull @BatchOptimizeReason String reason) {
+        return SystemProperties.getInt("pm.dexopt." + reason + ".concurrency", 1 /* def */);
     }
 }
