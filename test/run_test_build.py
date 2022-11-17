@@ -44,8 +44,7 @@ from subprocess import run
 from tempfile import TemporaryDirectory, NamedTemporaryFile
 from typing import Dict, List, Union, Set, Optional
 
-USE_RBE_FOR_JAVAC = 100    # Percentage of tests that can use RBE (between 0 and 100)
-USE_RBE_FOR_D8 = 100       # Percentage of tests that can use RBE (between 0 and 100)
+USE_RBE = 100  # Percentage of tests that can use RBE (between 0 and 100)
 
 lock_file = None  # Keep alive as long as this process is alive.
 
@@ -66,7 +65,6 @@ class BuildTestContext:
     self.java_path = self.java_home / "bin/java"
     self.javac_path = self.java_home / "bin/javac"
     self.javac_args = "-g -Xlint:-options -source 1.8 -target 1.8"
-    self.d8_path = args.d8.absolute()
 
     # Helper functions to execute tools.
     self.d8 = functools.partial(self.run, args.d8.absolute())
@@ -79,13 +77,12 @@ class BuildTestContext:
       self.hiddenapi = functools.partial(self.run, args.hiddenapi.absolute())
 
     # RBE wrapper for some of the tools.
-    if "RBE_server_address" in os.environ:
+    if "RBE_server_address" in os.environ and USE_RBE > (hash(self.test_name) % 100):
       self.rbe_exec_root = os.environ.get("RBE_exec_root")
       self.rbe_rewrapper = self.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
-      if USE_RBE_FOR_JAVAC > (hash(self.test_name) % 100):
-        self.javac = self.rbe_javac
-      if USE_RBE_FOR_D8 > (hash(self.test_name) % 100):
-        self.d8 = self.rbe_d8
+      self.d8 = functools.partial(self.rbe_d8, args.d8.absolute())
+      self.javac = functools.partial(self.rbe_javac, self.javac_path)
+      self.smali = functools.partial(self.rbe_smali, args.smali.absolute())
 
     # Minimal environment needed for bash commands that we execute.
     self.bash_env = {
@@ -156,17 +153,25 @@ class BuildTestContext:
         "--input_list_paths=" + input_list.name,
       ] + args)
 
-  def rbe_javac(self, args):
+  def rbe_javac(self, javac_path:Path, args):
     output = relpath(Path(args[args.index("-d") + 1]), self.rbe_exec_root)
-    return self.rbe_wrap(["--output_directories", output, self.javac_path] + args)
+    return self.rbe_wrap(["--output_directories", output, javac_path] + args)
 
-  def rbe_d8(self, args):
-    inputs = set([self.d8_path.parent.parent / "framework/d8.jar"])
+  def rbe_d8(self, d8_path:Path, args):
+    inputs = set([d8_path.parent.parent / "framework/d8.jar"])
     output = relpath(Path(args[args.index("--output") + 1]), self.rbe_exec_root)
     return self.rbe_wrap([
       "--output_files" if output.endswith(".jar") else "--output_directories", output,
       "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
-      self.d8_path] + args, inputs)
+      d8_path] + args, inputs)
+
+  def rbe_smali(self, smali_path:Path, args):
+    inputs = set([smali_path.parent.parent / "framework/smali.jar"])
+    output = relpath(Path(args[args.index("--output") + 1]), self.rbe_exec_root)
+    return self.rbe_wrap([
+      "--output_files", output,
+      "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
+      smali_path] + args, inputs)
 
   def build(self) -> None:
     script = self.test_dir / "build.py"
