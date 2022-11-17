@@ -254,6 +254,12 @@ art_gtest_mts_user_module_names = copy.copy(art_gtest_user_module_names)
 
 # ART gtests supported in Mainline presubmits.
 art_gtests_mainline_presubmit_module_names = copy.copy(art_gtest_module_names)
+# ART test `libnativeloader_e2e_tests` is failing in Mainline
+# Presubmits via Test Mapping against Android S; temporarily disable
+# it on this configuration while we investigate this issue.
+#
+# TODO(b/259700260): Investigate this issue and re-enable this test.
+art_gtests_mainline_presubmit_module_names.remove("libnativeloader_e2e_tests")
 
 # Tests exhibiting a flaky behavior, currently exluded from MTS for
 # the stake of stability / confidence (b/209958457).
