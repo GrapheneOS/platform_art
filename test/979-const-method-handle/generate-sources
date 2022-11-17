@@ -24,3 +24,6 @@ mkdir classes
 ${JAVAC:-javac} ${JAVAC_ARGS} -cp "${ASM_JAR}" -d classes $(find util-src -name '*.java')
 ${SOONG_ZIP} --jar -o transformer.jar -C classes -D classes
 rm -rf classes
+
+# Add annotation src files to our compiler inputs.
+cp -r util-src/annotations src/
