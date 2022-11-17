@@ -20,7 +20,7 @@
 
 #include "base/macros.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace debug {
 
 TEST(SrcMapElem, Operators) {

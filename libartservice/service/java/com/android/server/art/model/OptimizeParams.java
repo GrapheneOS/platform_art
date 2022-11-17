@@ -22,11 +22,13 @@ import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 
+import com.android.internal.annotations.Immutable;
 import com.android.server.art.ReasonMapping;
 import com.android.server.art.Utils;
 
 /** @hide */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+@Immutable
 public class OptimizeParams {
     public static final class Builder {
         private OptimizeParams mParams = new OptimizeParams();

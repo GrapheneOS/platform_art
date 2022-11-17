@@ -26,6 +26,7 @@
 #include <set>
 #include <string>
 
+#include "base/macros.h"
 #include "base/os.h"
 #include "base/unix_file/fd_file.h"
 #include "common_compiler_test.h"
@@ -33,7 +34,7 @@
 #include "gtest/gtest.h"
 #include "stream/file_output_stream.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace dwarf {
 
 #define DW_CHECK(substring) Check(substring, false, __FILE__, __LINE__)

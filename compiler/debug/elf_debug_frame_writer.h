@@ -20,13 +20,14 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "base/macros.h"
 #include "debug/method_debug_info.h"
 #include "dwarf/debug_frame_opcode_writer.h"
 #include "dwarf/dwarf_constants.h"
 #include "dwarf/headers.h"
 #include "elf/elf_builder.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace debug {
 
 static constexpr bool kWriteDebugFrameHdr = false;

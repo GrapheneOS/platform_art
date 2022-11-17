@@ -16,6 +16,7 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
@@ -41,6 +42,7 @@ import android.os.PowerManager;
 import androidx.test.filters.SmallTest;
 
 import com.android.server.art.model.ArtFlags;
+import com.android.server.art.model.Config;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
@@ -56,6 +58,7 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -95,15 +98,13 @@ public class DexOptHelperTest {
     private ExecutorService mExecutor = Executors.newSingleThreadExecutor();
     private List<DexContainerFileOptimizeResult> mPrimaryResults;
     private List<DexContainerFileOptimizeResult> mSecondaryResults;
+    private Config mConfig;
     private OptimizeParams mParams;
     private List<String> mRequestedPackages;
     private DexOptHelper mDexOptHelper;
 
     @Before
     public void setUp() throws Exception {
-        lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
-        lenient().when(mInjector.getPowerManager()).thenReturn(mPowerManager);
-
         lenient()
                 .when(mPowerManager.newWakeLock(eq(PowerManager.PARTIAL_WAKE_LOCK), any()))
                 .thenReturn(mWakeLock);
@@ -112,6 +113,7 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
 
         mCancellationSignal = new CancellationSignal();
+        mConfig = new Config();
 
         preparePackagesAndLibraries();
 
@@ -136,6 +138,10 @@ public class DexOptHelperTest {
                                   ArtFlags.FLAG_FOR_SECONDARY_DEX
                                           | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
                           .build();
+
+        lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAhm);
+        lenient().when(mInjector.getPowerManager()).thenReturn(mPowerManager);
+        lenient().when(mInjector.getConfig()).thenReturn(mConfig);
 
         mDexOptHelper = new DexOptHelper(mInjector);
     }
@@ -420,6 +426,47 @@ public class DexOptHelperTest {
         verifyNoDexopt();
     }
 
+    @Test
+    public void testCallbacks() throws Exception {
+        List<OptimizeResult> list1 = new ArrayList<>();
+        mConfig.addOptimizePackageDoneCallback(Runnable::run, result -> list1.add(result));
+
+        List<OptimizeResult> list2 = new ArrayList<>();
+        mConfig.addOptimizePackageDoneCallback(Runnable::run, result -> list2.add(result));
+
+        OptimizeResult result = mDexOptHelper.dexopt(
+                mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
+
+        assertThat(list1).containsExactly(result);
+        assertThat(list2).containsExactly(result);
+    }
+
+    @Test
+    public void testCallbackRemoved() throws Exception {
+        List<OptimizeResult> list1 = new ArrayList<>();
+        OptimizePackageDoneCallback callback1 = result -> list1.add(result);
+        mConfig.addOptimizePackageDoneCallback(Runnable::run, callback1);
+
+        List<OptimizeResult> list2 = new ArrayList<>();
+        mConfig.addOptimizePackageDoneCallback(Runnable::run, result -> list2.add(result));
+
+        mConfig.removeOptimizePackageDoneCallback(callback1);
+
+        OptimizeResult result = mDexOptHelper.dexopt(
+                mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
+
+        assertThat(list1).isEmpty();
+        assertThat(list2).containsExactly(result);
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testCallbackAlreadyAdded() throws Exception {
+        List<OptimizeResult> list = new ArrayList<>();
+        OptimizePackageDoneCallback callback = result -> list.add(result);
+        mConfig.addOptimizePackageDoneCallback(Runnable::run, callback);
+        mConfig.addOptimizePackageDoneCallback(Runnable::run, callback);
+    }
+
     private AndroidPackage createPackage() {
         AndroidPackage pkg = mock(AndroidPackage.class);
         var baseSplit = mock(AndroidPackageSplit.class);
@@ -514,12 +561,14 @@ public class DexOptHelperTest {
             String dexPath, boolean partialFailure) {
         return List.of(new DexContainerFileOptimizeResult(dexPath, true /* isPrimaryAbi */,
                                "arm64-v8a", "verify", OptimizeResult.OPTIMIZE_PERFORMED,
-                               100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */),
+                               100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
+                               0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
                 new DexContainerFileOptimizeResult(dexPath, false /* isPrimaryAbi */, "armeabi-v7a",
                         "verify",
                         partialFailure ? OptimizeResult.OPTIMIZE_FAILED
                                        : OptimizeResult.OPTIMIZE_PERFORMED,
-                        100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */));
+                        100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
+                        0 /* sizeBytes */, 0 /* sizeBeforeBytes */));
     }
 
     private void checkPackageResult(OptimizeResult result, int index, String packageName,

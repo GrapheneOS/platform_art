@@ -86,8 +86,16 @@ java_sdk_library {
     ],
     libs: [
         "auto_value_annotations",
+        // TODO(b/256866172): Transitive dependency, for r8 only.
+        "framework-statsd.stubs.module_lib",
+        // TODO(b/256866172): Transitive dependency, for r8 only. This module
+        // always refers to the jar in prebuilts/sdk. We can't use
+        // "framework-connectivity.stubs.module_lib" here because it's not
+        // available on master-art.
+        "sdk_module-lib_current_framework-connectivity",
     ],
     static_libs: [
+        "art-statslog-art-java",
         "artd-aidl-java",
         "modules-utils-shell-command-handler",
         "service-art-proto-java",
@@ -116,6 +124,29 @@ java_library {
         "com.android.art",
         "com.android.art.debug",
     ],
+}
+
+java_library {
+    name: "art-statslog-art-java",
+    srcs: [
+        ":art-statslog-art-java-gen",
+    ],
+    libs: [
+        "framework-statsd.stubs.module_lib",
+    ],
+    sdk_version: "system_server_current",
+    min_sdk_version: "31",
+    apex_available: [
+        "com.android.art",
+        "com.android.art.debug",
+    ],
+}
+
+genrule {
+    name: "art-statslog-art-java-gen",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --java $(out) --module art --javaPackage com.android.server.art --javaClass ArtStatsLog",
+    out: ["java/com/android/server/art/ArtStatsLog.java"],
 }
 
 art_cc_defaults {

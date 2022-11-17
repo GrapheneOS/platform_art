@@ -20,6 +20,7 @@
 #include "arch/instruction_set.h"
 #include "base/arena_allocator.h"
 #include "base/enums.h"
+#include "base/macros.h"
 #include "base/malloc_arena_pool.h"
 #include "cfi_test.h"
 #include "gtest/gtest.h"
@@ -30,7 +31,7 @@
 
 #include "jni/jni_cfi_test_expected.inc"
 
-namespace art {
+namespace art HIDDEN {
 
 // Run the tests only on host.
 #ifndef ART_TARGET_ANDROID

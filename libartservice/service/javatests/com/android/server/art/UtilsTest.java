@@ -38,7 +38,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -171,5 +174,26 @@ public class UtilsTest {
     @Test(expected = IllegalStateException.class)
     public void testCheckFailed() throws Exception {
         Utils.check(false);
+    }
+
+    @Test
+    public void testExecuteAndWait() {
+        Executor executor = Executors.newSingleThreadExecutor();
+        List<String> results = new ArrayList<>();
+        Utils.executeAndWait(executor, () -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            results.add("foo");
+        });
+        assertThat(results).containsExactly("foo");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testExecuteAndWaitPropagatesException() {
+        Executor executor = Executors.newSingleThreadExecutor();
+        Utils.executeAndWait(executor, () -> { throw new IllegalArgumentException(); });
     }
 }

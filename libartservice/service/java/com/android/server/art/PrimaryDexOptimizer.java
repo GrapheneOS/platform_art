@@ -151,10 +151,11 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
         // them (e.g., move them around).
         // We don't need the "read" bit for "others" on the directories because others only need to
         // access the files in the directories, but they don't need to "ls" the directories.
-        FsPermission dirFsPermission = AidlUtils.buildFsPermission(Process.SYSTEM_UID,
-                Process.SYSTEM_UID, false /* isOtherReadable */, true /* isOtherExecutable */);
-        FsPermission fileFsPermission =
-                AidlUtils.buildFsPermission(Process.SYSTEM_UID, mSharedGid, canBePublic);
+        FsPermission dirFsPermission = AidlUtils.buildFsPermission(Process.SYSTEM_UID /* uid */,
+                Process.SYSTEM_UID /* gid */, false /* isOtherReadable */,
+                true /* isOtherExecutable */);
+        FsPermission fileFsPermission = AidlUtils.buildFsPermission(
+                Process.SYSTEM_UID /* uid */, mSharedGid /* gid */, canBePublic);
         // For primary dex, we can use the default SELinux context.
         SeContext seContext = null;
         return AidlUtils.buildPermissionSettings(dirFsPermission, fileFsPermission, seContext);
@@ -174,11 +175,13 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
     }
 
     @Override
-    protected boolean isAppImageAllowed() {
-        // Disable app images if the app requests for the splits to be loaded in isolation because
-        // app images are unsupported for multiple class loaders (b/72696798).
+    protected boolean isAppImageAllowed(@NonNull DetailedPrimaryDexInfo dexInfo) {
+        // Only allow app image for the base APK because having multiple app images is not
+        // supported.
+        // Additionally, disable app images if the app requests for the splits to be loaded in
+        // isolation because app images are unsupported for multiple class loaders (b/72696798).
         // TODO(jiakaiz): Investigate whether this is still the best choice today.
-        return !PrimaryDexUtils.isIsolatedSplitLoading(mPkg);
+        return dexInfo.splitName() == null && !PrimaryDexUtils.isIsolatedSplitLoading(mPkg);
     }
 
     @Override

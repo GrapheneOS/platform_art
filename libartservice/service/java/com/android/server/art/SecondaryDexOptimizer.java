@@ -91,12 +91,14 @@ public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo
     protected PermissionSettings getPermissionSettings(
             @NonNull DetailedSecondaryDexInfo dexInfo, boolean canBePublic) {
         int uid = getUid(dexInfo);
-        // We don't need the "read" bit for "others" on the directories because others
-        // only need to access the files in the directories, but they don't need to "ls"
-        // the directories.
-        FsPermission dirFsPermission = AidlUtils.buildFsPermission(
-                uid, uid, false /* isOtherReadable */, canBePublic /* isOtherExecutable */);
-        FsPermission fileFsPermission = AidlUtils.buildFsPermission(uid, uid, canBePublic);
+        // We need the "execute" bit for "others" even though `canBePublic` is false because the
+        // directory can contain other artifacts that needs to be public.
+        // We don't need the "read" bit for "others" on the directories because others only need to
+        // access the files in the directories, but they don't need to "ls" the directories.
+        FsPermission dirFsPermission = AidlUtils.buildFsPermission(uid /* uid */, uid /* gid */,
+                false /* isOtherReadable */, true /* isOtherExecutable */);
+        FsPermission fileFsPermission =
+                AidlUtils.buildFsPermission(uid /* uid */, uid /* gid */, canBePublic);
         SeContext seContext = AidlUtils.buildSeContext(
                 new com.android.server.art.wrapper.PackageState(mPkgState).getSeInfo(), uid);
         return AidlUtils.buildPermissionSettings(dirFsPermission, fileFsPermission, seContext);
@@ -115,7 +117,7 @@ public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo
     }
 
     @Override
-    protected boolean isAppImageAllowed() {
+    protected boolean isAppImageAllowed(@NonNull DetailedSecondaryDexInfo dexInfo) {
         // The runtime can only load the app image of the base APK.
         return false;
     }

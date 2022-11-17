@@ -19,7 +19,9 @@
 
 #include <stdint.h>
 
-namespace art {
+#include "base/macros.h"
+
+namespace art HIDDEN {
 
 class SrcMapElem {
  public:

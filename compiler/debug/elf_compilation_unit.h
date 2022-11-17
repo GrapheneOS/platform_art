@@ -19,9 +19,10 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "debug/method_debug_info.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace debug {
 
 struct ElfCompilationUnit {
