@@ -41,21 +41,17 @@ namespace art {
 
 static constexpr bool kDebugArgs = false;
 
-// Test class that provides some helpers to set a test up for compilation using dex2oat.
-class Dex2oatEnvironmentTest : public CommonRuntimeTest {
+class Dex2oatScratchDirs {
  public:
-  void SetUp() override {
-    CommonRuntimeTest::SetUp();
-    const ArtDexFileLoader dex_file_loader;
-
+  void SetUp(const std::string& android_data) {
     // Create a scratch directory to work from.
 
     // Get the realpath of the android data. The oat dir should always point to real location
     // when generating oat files in dalvik-cache. This avoids complicating the unit tests
     // when matching the expected paths.
-    UniqueCPtr<const char[]> android_data_real(realpath(android_data_.c_str(), nullptr));
+    UniqueCPtr<const char[]> android_data_real(realpath(android_data.c_str(), nullptr));
     ASSERT_TRUE(android_data_real != nullptr)
-      << "Could not get the realpath of the android data" << android_data_ << strerror(errno);
+        << "Could not get the realpath of the android data" << android_data << strerror(errno);
 
     scratch_dir_.assign(android_data_real.get());
     scratch_dir_ += "/Dex2oatEnvironmentTest";
@@ -67,6 +63,41 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
 
     odex_dir_ = odex_oat_dir_ + "/" + std::string(GetInstructionSetString(kRuntimeISA));
     ASSERT_EQ(0, mkdir(odex_dir_.c_str(), 0700));
+  }
+
+  void TearDown() {
+    CommonArtTest::ClearDirectory(odex_dir_.c_str());
+    ASSERT_EQ(0, rmdir(odex_dir_.c_str()));
+
+    CommonArtTest::ClearDirectory(odex_oat_dir_.c_str());
+    ASSERT_EQ(0, rmdir(odex_oat_dir_.c_str()));
+
+    CommonArtTest::ClearDirectory(scratch_dir_.c_str());
+    ASSERT_EQ(0, rmdir(scratch_dir_.c_str()));
+  }
+
+  // Scratch directory, for dex and odex files (oat files will go in the
+  // dalvik cache).
+  const std::string& GetScratchDir() const { return scratch_dir_; }
+
+  // Odex directory is the subdirectory in the scratch directory where odex
+  // files should be located.
+  const std::string& GetOdexDir() const { return odex_dir_; }
+
+ private:
+  std::string scratch_dir_;
+  std::string odex_oat_dir_;
+  std::string odex_dir_;
+};
+
+// Test class that provides some helpers to set a test up for compilation using dex2oat.
+class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTest {
+ public:
+  void SetUp() override {
+    CommonRuntimeTest::SetUp();
+    Dex2oatScratchDirs::SetUp(android_data_);
+
+    const ArtDexFileLoader dex_file_loader;
 
     // Verify the environment is as we expect
     std::vector<uint32_t> checksums;
@@ -122,15 +153,7 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
   }
 
   void TearDown() override {
-    ClearDirectory(odex_dir_.c_str());
-    ASSERT_EQ(0, rmdir(odex_dir_.c_str()));
-
-    ClearDirectory(odex_oat_dir_.c_str());
-    ASSERT_EQ(0, rmdir(odex_oat_dir_.c_str()));
-
-    ClearDirectory(scratch_dir_.c_str());
-    ASSERT_EQ(0, rmdir(scratch_dir_.c_str()));
-
+    Dex2oatScratchDirs::TearDown();
     CommonRuntimeTest::TearDown();
   }
 
@@ -163,18 +186,6 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
 
   std::string GetDexSrc2() const {
     return GetTestDexFileName("Nested");
-  }
-
-  // Scratch directory, for dex and odex files (oat files will go in the
-  // dalvik cache).
-  const std::string& GetScratchDir() const {
-    return scratch_dir_;
-  }
-
-  // Odex directory is the subdirectory in the scratch directory where odex
-  // files should be located.
-  const std::string& GetOdexDir() const {
-    return odex_dir_;
   }
 
   int Dex2Oat(const std::vector<std::string>& dex2oat_args,
@@ -232,11 +243,6 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
 
     return res.status_code;
   }
-
- private:
-  std::string scratch_dir_;
-  std::string odex_oat_dir_;
-  std::string odex_dir_;
 };
 
 }  // namespace art
