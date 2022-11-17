@@ -15,4 +15,4 @@
 
 
 def build(ctx):
-  ctx.default_build(experimental="parameter-annotations")
+  ctx.default_build(api_level="parameter-annotations")
