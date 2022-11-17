@@ -1146,8 +1146,7 @@ def default_run(ctx, args, **kwargs):
   if not HOST:
     adb.root()
     adb.wait_for_device()
-    adb.shell(f"rm -rf {CHROOT_DEX_LOCATION}")
-    adb.shell(f"mkdir -p {CHROOT_DEX_LOCATION}")
+    adb.shell(f"rm -rf {CHROOT_DEX_LOCATION} && mkdir -p {CHROOT_DEX_LOCATION}")
     adb.push(f"{TEST_NAME}*.jar", CHROOT_DEX_LOCATION)
     if PROFILE or RANDOM_PROFILE:
       adb.push("profile", CHROOT_DEX_LOCATION, check=False)
@@ -1260,15 +1259,13 @@ def default_run(ctx, args, **kwargs):
         cmdfile.flush()
         adb.push(
             cmdfile.name, f"{CHROOT_DEX_LOCATION}/cmdline.sh", save_cmd=False)
-        run('echo cmdline.sh "' + cmdline.replace('"', '\\"') + '"')
       chroot_prefix = f"chroot {CHROOT}" if CHROOT else ""
       return adb.shell(f"{chroot_prefix} sh {DEX_LOCATION}/cmdline.sh", **kwargs)
 
     if USE_GDB or USE_GDBSERVER:
       print(f"Forward {GDBSERVER_PORT} to local port and connect GDB")
 
-    run_cmd(f"rm -rf {DEX_LOCATION}/dalvik-cache/")
-    run_cmd(f"mkdir -p {mkdir_locations}")
+    run_cmd(f"rm -rf {DEX_LOCATION}/dalvik-cache/ && mkdir -p {mkdir_locations}")
     # Restore stdout/stderr from previous run (the directory might have been cleared).
     adb.push(args.stdout_file, f"{CHROOT}{DEX_LOCATION}/{basename(args.stdout_file)}")
     adb.push(args.stderr_file, f"{CHROOT}{DEX_LOCATION}/{basename(args.stderr_file)}")
