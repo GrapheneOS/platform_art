@@ -69,7 +69,7 @@ class BuildTestContext:
 
     self.bootclasspath = args.bootclasspath.absolute()
     self.d8 = args.d8.absolute()
-    self.hiddenapi = args.hiddenapi.absolute()
+    self.hiddenapi = args.hiddenapi.absolute() if args.hiddenapi else None
     self.jasmin = args.jasmin.absolute()
     self.smali = args.smali.absolute()
     self.soong_zip = args.soong_zip.absolute()
@@ -484,10 +484,15 @@ def main() -> None:
   ziproot = args.out.absolute().parent / "zip"
   srcdirs = set(s.parents[-4].absolute() for s in args.srcs)
 
+  # Special hidden-api shard: If the --hiddenapi flag is provided, build only
+  # hiddenapi tests. Otherwise exclude all hiddenapi tests from normal shards.
+  def filter_by_hiddenapi(srcdir: Path) -> bool:
+    return (args.hiddenapi != None) == ("hiddenapi" in srcdir.name)
+
   # Initialize the test objects.
   # We need to do this before we change the working directory below.
   tests: List[BuildTestContext] = []
-  for srcdir in srcdirs:
+  for srcdir in filter(filter_by_hiddenapi, srcdirs):
     dstdir = ziproot / args.mode / srcdir.name
     copytree(srcdir, dstdir)
     tests.append(BuildTestContext(args, android_build_top, dstdir))
