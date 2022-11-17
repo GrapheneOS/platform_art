@@ -1025,16 +1025,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  // Same as above, but doesn't lookup the class in the class loader's class
-  // table.
-  bool FindClassInBaseDexClassLoaderHelper(Thread* self,
-                                           const char* descriptor,
-                                           size_t hash,
-                                           Handle<mirror::ClassLoader> class_loader,
-                                           /*out*/ ObjPtr<mirror::Class>* result)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::dex_lock_);
-
   bool FindClassInSharedLibraries(Thread* self,
                                   const char* descriptor,
                                   size_t hash,
@@ -1084,15 +1074,6 @@ class ClassLinker {
                                            const char* descriptor,
                                            size_t hash,
                                            /*out*/ ObjPtr<mirror::Class>* result)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::dex_lock_);
-
-  // Finds the class in a non null class loader.
-  ObjPtr<mirror::Class> FindClassInAppClassLoader(Thread* self,
-                                                  const char* descriptor,
-                                                  size_t hash,
-                                                  Handle<mirror::ClassLoader> class_loader,
-                                                  /*out*/ bool* descriptor_equals)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
