@@ -16,6 +16,7 @@
 
 #include "reflection.h"
 
+#include "base/macros.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "handle_scope-inl.h"
@@ -23,7 +24,7 @@
 #include "mirror/class.h"
 #include "mirror/class_loader.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class CompilerReflectionTest : public CommonCompilerTest {};
 

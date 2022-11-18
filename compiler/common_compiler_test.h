@@ -24,11 +24,12 @@
 
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "base/macros.h"
 #include "common_runtime_test.h"
 #include "compiler.h"
 #include "oat_file.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace mirror {
 class ClassLoader;
 }  // namespace mirror
@@ -40,7 +41,8 @@ class TimingLogger;
 
 template<class T> class Handle;
 
-class CommonCompilerTestImpl {
+// Export all symbols in `CommonCompilerTestImpl` for dex2oat tests.
+class EXPORT CommonCompilerTestImpl {
  public:
   static std::unique_ptr<CompilerOptions> CreateCompilerOptions(InstructionSet instruction_set,
                                                                 const std::string& variant);

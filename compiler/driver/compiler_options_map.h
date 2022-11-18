@@ -21,10 +21,11 @@
 #include <vector>
 
 #include "base/compiler_filter.h"
+#include "base/macros.h"
 #include "base/variant_map.h"
 #include "cmdline_types.h"
 
-namespace art {
+namespace art HIDDEN {
 
 enum class ProfileMethodsCheck : uint8_t;
 

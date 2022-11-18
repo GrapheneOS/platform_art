@@ -23,9 +23,10 @@
 #include <memory>
 
 #include "compiler_options_map-inl.h"
+#include "base/macros.h"
 #include "base/variant_map.h"
 
-namespace art {
+namespace art HIDDEN {
 
 template <typename TValue>
 struct SimpleParseArgumentMapKey : VariantMapKey<TValue> {
