@@ -150,6 +150,9 @@ class OnDeviceRefresh final {
   WARN_UNUSED bool CheckSystemPropertiesHaveNotChanged(
       const com::android::art::CacheInfo& cache_info) const;
 
+  // Returns true if the system image is built with the right userfaultfd GC flag.
+  WARN_UNUSED bool CheckBuildUserfaultFdGc() const;
+
   // Returns true if boot classpath artifacts on /system are usable if they exist. Note that this
   // function does not check file existence.
   WARN_UNUSED bool BootClasspathArtifactsOnSystemUsable(
