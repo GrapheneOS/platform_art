@@ -1403,10 +1403,9 @@ class Thread {
   // Set to the read barrier marking entrypoints to be non-null.
   void SetReadBarrierEntrypoints();
 
-  static jobject CreateCompileTimePeer(JNIEnv* env,
-                                       const char* name,
-                                       bool as_daemon,
-                                       jobject thread_group)
+  ObjPtr<mirror::Object> CreateCompileTimePeer(const char* name,
+                                               bool as_daemon,
+                                               jobject thread_group)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE InterpreterCache* GetInterpreterCache() {
@@ -1486,11 +1485,10 @@ class Thread {
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
 
   template<bool kTransactionActive>
-  static void InitPeer(ScopedObjectAccessAlreadyRunnable& soa,
-                       ObjPtr<mirror::Object> peer,
+  static void InitPeer(ObjPtr<mirror::Object> peer,
                        jboolean thread_is_daemon,
-                       jobject thread_group,
-                       jobject thread_name,
+                       ObjPtr<mirror::Object> thread_group,
+                       ObjPtr<mirror::String> thread_name,
                        jint thread_priority)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1556,10 +1554,8 @@ class Thread {
   static NO_INLINE void* CreateCallbackWithUffdGc(void* arg);
   static void* CreateCallback(void* arg);
 
-  void HandleUncaughtExceptions(ScopedObjectAccessAlreadyRunnable& soa)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  void RemoveFromThreadGroup(ScopedObjectAccessAlreadyRunnable& soa)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  void HandleUncaughtExceptions() REQUIRES_SHARED(Locks::mutator_lock_);
+  void RemoveFromThreadGroup() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Initialize a thread.
   //
