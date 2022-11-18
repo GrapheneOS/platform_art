@@ -81,16 +81,4 @@ public class DataAppTest {
         TestUtils.assertLibraryNotFound(() -> VendorSharedLib.loadLibrary("product_private5"));
         VendorSharedLib.loadLibrary("vendor_private5");
     }
-
-    @Test
-    public void testLoadPrivateLibrariesWithAbsolutePaths() {
-        TestUtils.assertLinkerNamespaceError(
-                () -> System.load(TestUtils.libPath("/system", "system_private6")));
-        TestUtils.assertLinkerNamespaceError(
-                () -> System.load(TestUtils.libPath("/system_ext", "systemext_private6")));
-        TestUtils.assertLinkerNamespaceError(
-                () -> System.load(TestUtils.libPath("/product", "product_private6")));
-        TestUtils.assertLinkerNamespaceError(
-                () -> System.load(TestUtils.libPath("/vendor", "vendor_private6")));
-    }
 }
