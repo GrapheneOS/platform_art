@@ -30,6 +30,7 @@
 #include <android-base/macros.h>
 #include <android-base/result.h>
 #include <android-base/strings.h>
+#include <android-base/stringprintf.h>
 #include <nativehelper/scoped_utf_chars.h>
 
 #include "nativeloader/dlext_namespaces.h"
@@ -55,19 +56,20 @@ constexpr const char* kVndkNamespaceName = "vndk";
 // vndk_product namespace for unbundled product apps
 constexpr const char* kVndkProductNamespaceName = "vndk_product";
 
-// classloader-namespace is a linker namespace that is created for the loaded
-// app. To be specific, it is created for the app classloader. When
-// System.load() is called from a Java class that is loaded from the
-// classloader, the classloader-namespace namespace associated with that
-// classloader is selected for dlopen. The namespace is configured so that its
-// search path is set to the app-local JNI directory and it is linked to the
-// system namespace with the names of libs listed in the public.libraries.txt.
-// This way an app can only load its own JNI libraries along with the public libs.
-constexpr const char* kClassloaderNamespaceName = "classloader-namespace";
-// Same thing for unbundled vendor APKs.
-constexpr const char* kVendorClassloaderNamespaceName = "vendor-classloader-namespace";
-// Same thing for unbundled product APKs.
-constexpr const char* kProductClassloaderNamespaceName = "product-classloader-namespace";
+// clns-XX is a linker namespace that is created for normal apps installed in
+// the data partition. To be specific, it is created for the app classloader.
+// When System.load() is called from a Java class that is loaded from the
+// classloader, the clns namespace associated with that classloader is selected
+// for dlopen. The namespace is configured so that its search path is set to the
+// app-local JNI directory and it is linked to the system namespace with the
+// names of libs listed in the public.libraries.txt and other public libraries.
+// This way an app can only load its own JNI libraries along with the public
+// libs.
+constexpr const char* kClassloaderNamespaceName = "clns";
+// Same thing for unbundled APKs in the vendor partition.
+constexpr const char* kVendorClassloaderNamespaceName = "vendor-clns";
+// Same thing for unbundled APKs in the product partition.
+constexpr const char* kProductClassloaderNamespaceName = "product-clns";
 // If the namespace is shared then add this suffix to help identify it in debug
 // messages. A shared namespace (cf. ANDROID_NAMESPACE_TYPE_SHARED) has
 // inherited all the libraries of the parent classloader namespace, or the
@@ -293,6 +295,11 @@ Result<NativeLoaderNamespace*> LibraryNamespaces::Create(JNIEnv* env, uint32_t t
     // purposes.
     namespace_name = namespace_name + kSharedNamespaceSuffix;
   }
+
+  // Append a unique number to the namespace name, to tell them apart when
+  // debugging linker issues, e.g. with debug.ld.all set to "dlopen,dlerror".
+  static int clns_count = 0;
+  namespace_name = android::base::StringPrintf("%s-%d", namespace_name.c_str(), ++clns_count);
 
   ALOGD(
       "Configuring %s for %s %s. target_sdk_version=%u, uses_libraries=%s, library_path=%s, "
