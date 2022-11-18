@@ -51,6 +51,39 @@ def main():
           }}
           """.format(name=name, mode=mode, shard=shard)))
 
+      # Build all hiddenapi tests in their own shard.
+      # This removes the dependency on hiddenapi from all other shards,
+      # which in turn removes dependency on ART C++ source code.
+      name = "art-run-test-{mode}-data-shardHiddenApi".format(mode=mode)
+      names.append(name)
+      f.write(textwrap.dedent("""
+        java_genrule {{
+            name: "{name}-tmp",
+            out: ["{name}.zip"],
+            srcs: ["???-*hiddenapi*/**/*", "????-*hiddenapi*/**/*"],
+            defaults: ["art-run-test-{mode}-data-defaults"],
+            tools: ["hiddenapi"],
+            cmd: "$(location run_test_build.py) --out $(out) --mode {mode} " +
+                 "--bootclasspath $(location :art-run-test-bootclasspath) " +
+                 "--d8 $(location d8) " +
+                 "--hiddenapi $(location hiddenapi) " +
+                 "--jasmin $(location jasmin) " +
+                 "--smali $(location smali) " +
+                 "--soong_zip $(location soong_zip) " +
+                 "--zipalign $(location zipalign) " +
+                 "$(in)",
+        }}
+
+        // Install in the output directory to make it accessible for tests.
+        prebuilt_etc_host {{
+            name: "{name}",
+            defaults: ["art_module_source_build_prebuilt_defaults"],
+            src: ":{name}-tmp",
+            sub_dir: "art",
+            filename: "{name}.zip",
+        }}
+        """.format(name=name, mode=mode)))
+
       f.write(textwrap.dedent("""
         genrule_defaults {{
             name: "art-run-test-{mode}-data-defaults",
@@ -65,7 +98,6 @@ def main():
             ],
             tools: [
                 "d8",
-                "hiddenapi",
                 "jasmin",
                 "smali",
                 "soong_zip",
@@ -74,7 +106,6 @@ def main():
             cmd: "$(location run_test_build.py) --out $(out) --mode {mode} " +
                  "--bootclasspath $(location :art-run-test-bootclasspath) " +
                  "--d8 $(location d8) " +
-                 "--hiddenapi $(location hiddenapi) " +
                  "--jasmin $(location jasmin) " +
                  "--smali $(location smali) " +
                  "--soong_zip $(location soong_zip) " +

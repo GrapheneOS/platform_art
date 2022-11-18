@@ -24,9 +24,10 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Optional
 
-COLOR_RED = '\033[91m'
+COLOR_BLUE = '\033[94m'
 COLOR_GREEN = '\033[92m'
 COLOR_NORMAL = '\033[0m'
+COLOR_RED = '\033[91m'
 
 # Helper class which allows us to access the environment using syntax sugar.
 # E.g. `env.ANDROID_BUILD_TOP` instead of `os.environ["ANDROID_BUILD_TOP"]`.
@@ -93,7 +94,7 @@ if True:
                           encoding="utf8",
                           capture_output=capture_output)
     if (check and proc.returncode != 0) or (quiet == "no"):
-      print("$ " + cmdline)
+      print(f"{COLOR_BLUE}$ {cmdline}{COLOR_NORMAL}")
       print(proc.stdout or "", file=sys.stdout, end="", flush=True)
       print(COLOR_RED + (proc.stderr or "") + COLOR_NORMAL, file=sys.stderr, end="", flush=True)
     if (check and proc.returncode != 0):
@@ -915,7 +916,7 @@ if True:
   os.chdir(tmp_dir)
   m = re.match("[0-9]*([0-9][0-9])-.*", TEST_NAME)
   assert m, "Can not find test number in " + TEST_NAME
-  SHARD = m.group(1)
+  SHARD = "HiddenApi" if "hiddenapi" in TEST_NAME else m.group(1)
   if target_mode == "yes":
     zip_file = f"{ANDROID_HOST_OUT}/etc/art/art-run-test-target-data-shard{SHARD}.zip"
     zip_entry = f"target/{TEST_NAME}"
