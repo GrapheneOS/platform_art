@@ -24,6 +24,7 @@
 #include "base/callee_save_type.h"
 #include "base/enums.h"
 #include "base/leb128.h"
+#include "base/macros.h"
 #include "base/malloc_arena_pool.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
@@ -44,7 +45,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class ExceptionTest : public CommonRuntimeTest {
  protected:

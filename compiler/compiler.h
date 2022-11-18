@@ -17,12 +17,13 @@
 #ifndef ART_COMPILER_COMPILER_H_
 #define ART_COMPILER_COMPILER_H_
 
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "base/os.h"
 #include "compilation_kind.h"
 #include "dex/invoke_type.h"
 
-namespace art {
+namespace art HIDDEN {
 
 namespace dex {
 struct CodeItem;
@@ -52,9 +53,9 @@ class Compiler {
     kOptimizing
   };
 
-  static Compiler* Create(const CompilerOptions& compiler_options,
-                          CompiledCodeStorage* storage,
-                          Kind kind);
+  EXPORT static Compiler* Create(const CompilerOptions& compiler_options,
+                                 CompiledCodeStorage* storage,
+                                 Kind kind);
 
   virtual bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file) const = 0;
 

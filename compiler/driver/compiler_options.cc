@@ -35,7 +35,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "simple_compiler_options_map.h"
 
-namespace art {
+namespace art HIDDEN {
 
 CompilerOptions::CompilerOptions()
     : compiler_filter_(CompilerFilter::kDefaultCompilerFilter),

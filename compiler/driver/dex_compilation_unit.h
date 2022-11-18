@@ -20,11 +20,12 @@
 #include <stdint.h>
 
 #include "base/arena_object.h"
+#include "base/macros.h"
 #include "dex/code_item_accessors.h"
 #include "dex/dex_file.h"
 #include "handle.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace mirror {
 class Class;
 class ClassLoader;

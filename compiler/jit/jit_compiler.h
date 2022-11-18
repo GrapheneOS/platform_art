@@ -17,12 +17,13 @@
 #ifndef ART_COMPILER_JIT_JIT_COMPILER_H_
 #define ART_COMPILER_JIT_JIT_COMPILER_H_
 
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "compilation_kind.h"
 
 #include "jit/jit.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class ArtMethod;
 class Compiler;
