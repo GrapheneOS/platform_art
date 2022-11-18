@@ -19,7 +19,6 @@ package android.test.lib;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
-import dalvik.system.VMRuntime;
 import org.junit.function.ThrowingRunnable;
 
 public final class TestUtils {
@@ -32,10 +31,5 @@ public final class TestUtils {
         Throwable t = assertThrows(UnsatisfiedLinkError.class, loadLibrary);
         assertThat(t.getMessage())
                 .containsMatch("dlopen failed: .* is not accessible for the namespace");
-    }
-
-    public static String libPath(String dir, String libName) {
-        String libDirName = VMRuntime.getRuntime().is64Bit() ? "lib64" : "lib";
-        return dir + "/" + libDirName + "/lib" + libName + ".so";
     }
 }
