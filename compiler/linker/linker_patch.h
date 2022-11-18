@@ -23,9 +23,10 @@
 #include <android-base/logging.h>
 
 #include "base/bit_utils.h"
+#include "base/macros.h"
 #include "dex/method_reference.h"
 
-namespace art {
+namespace art HIDDEN {
 
 class DexFile;
 
@@ -328,7 +329,7 @@ class LinkerPatch {
   friend bool operator==(const LinkerPatch& lhs, const LinkerPatch& rhs);
   friend bool operator<(const LinkerPatch& lhs, const LinkerPatch& rhs);
 };
-std::ostream& operator<<(std::ostream& os, LinkerPatch::Type type);
+EXPORT std::ostream& operator<<(std::ostream& os, LinkerPatch::Type type);
 
 inline bool operator==(const LinkerPatch& lhs, const LinkerPatch& rhs) {
   return lhs.literal_offset_ == rhs.literal_offset_ &&
