@@ -70,10 +70,11 @@ func globalFlags(ctx android.LoadHookContext) ([]string, []string) {
 		if !ctx.Config().IsEnvFalse("ART_USE_GENERATIONAL_CC") {
 			cflags = append(cflags, "-DART_USE_GENERATIONAL_CC=1")
 		}
-		// For now force CC as we don't want to make userfaultfd GC the default.
-		// Eventually, make it such that we force CC only if ART_USE_READ_BARRIER
-		// was set to true explicitly during build time.
-		cflags = append(cflags, "-DART_FORCE_USE_READ_BARRIER=1")
+		// Force CC only if ART_USE_READ_BARRIER was set to true explicitly during
+		// build time.
+		if ctx.Config().IsEnvTrue("ART_USE_READ_BARRIER") {
+			cflags = append(cflags, "-DART_FORCE_USE_READ_BARRIER=1")
+		}
 		tlab = true
 	} else if gcType == "CMC" {
 		tlab = true
