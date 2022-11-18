@@ -17,14 +17,14 @@
 public class Main {
 
   public static void main(String[] args) {}
-  public static int foo = 42;
+  public static long foo = 42;
 
   // Primitive array initialization is trivial for purposes of the ClinitCheck. It cannot
   // leak instances of erroneous classes or initialize subclasses of erroneous classes.
-  public static int[] array1 = new int[] { 1, 2, 3 };
-  public static int[] array2;
+  public static long[] array1 = new long[] { 1, 2, 3 };
+  public static long[] array2;
   static {
-    int[] a = new int[4];
+    long[] a = new long[4];
     a[0] = 42;
     array2 = a;
   }
@@ -46,35 +46,35 @@ class Sub extends Main {
   /// CHECK-NOT:                    ClinitCheck
   public void invokeSuperClass() {
     // No Class initialization check as Main.<clinit> is trivial. b/62478025
-    int a = Main.foo;
+    long a = Main.foo;
   }
 
   /// CHECK-START: void Sub.invokeItself() builder (after)
   /// CHECK-NOT:                    ClinitCheck
   public void invokeItself() {
     // No Class initialization check as Sub.<clinit> and Main.<clinit> are trivial. b/62478025
-    int a = foo;
+    long a = foo;
   }
 
   /// CHECK-START: void Sub.invokeSubClass() builder (after)
   /// CHECK:                        ClinitCheck
   public void invokeSubClass() {
-    int a = SubSub.foo;
+    long a = SubSub.foo;
   }
 
-  public static int foo = 42;
+  public static long foo = 42;
 }
 
 class SubSub {
   public static void bar() {
-    int a = Main.foo;
+    long a = Main.foo;
   }
-  public static int foo = 42;
+  public static long foo = 42;
 }
 
 class NonTrivial {
-  public static int staticFoo = 42;
-  public int instanceFoo;
+  public static long staticFoo = 42;
+  public long instanceFoo;
 
   static {
     System.out.println("NonTrivial.<clinit>");
