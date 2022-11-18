@@ -1,166 +1,65 @@
-# Build and Run ART tests on ARM FVP
+# Testing ART on a model (QEMU or Arm FVP)
 
-This document describes how to build and run an Android system image targeting
-the ARM Fixed Virtual Platform and to use it as a target platform for running
-ART tests via ADB.
+This document describes how to test ART on a model - QEMU or the ARM Fixed Virtual Platform.
 
-This instruction was checked to be working for the AOSP master tree on
-2021-01-13; the up-to-date instruction on how to build the kernel and firmware
-could be found here: device/generic/goldfish/fvpbase/README.md.
+It covers steps on how to build and run an Android system image targeting a model
+and to use it as a target platform for running ART tests via ADB in chroot mode. The guide
+covers both QEMU and the ARM Fixed Virtual Platform; the setup is very similar.
 
-## Configuring and Building AOSP
+More information on QEMU and Arm FVP could be found in
+{AOSP}/device/generic/goldfish/fvpbase/README.md.
 
-First, an AOSP image should be configured and built, including the kernel and
-firmware.
+One would need two AOSP trees for this setup:
+ - a full stable (tagged) tree - to be used to build AOSP image for the model.
+   - android-13.0.0_r12 was tested successfully to run QEMU:
+     ```repo init  -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r12```
+ - a full or minimal tree - the one to be tested as part of ART test run.
 
-### Generating build system configs
+## Setting up the QEMU/Arm FVP
 
-```
-cd $AOSP
+Once a full AOSP tree is downloaded, please follow the instructions in
+${AOSP}/device/generic/goldfish/fvpbase/README.md; they should cover:
+ - fetching, configuring and building the model.
+ - building AOSP image for it.
+ - launching the model.
 
-. build/envsetup.sh
-# fvp_mini target is used as we don't need a GUI for ART tests.
-lunch fvp_mini-eng
+Once the model is started and reachable via adb, ART tests could be run.
 
-# This is expected to fail; it generates all the build rules files.
-m
-```
+Notes:
+ - fvp_mini lunch target should be used as we don't need graphics to run ART tests.
+ - 'Running the image in QEMU' mentions that a special commit should be checked out for QEMU
+   for GUI runs. Actually it is recommended to use it even for non-GUI runs (fvp_mini).
 
-### Building the kernel
+### Running the Arm FVP with SVE enabled
 
-```
-cd $SOME_DIRECTORY_OUTSIDE_AOSP
-
-mkdir android-kernel-mainline
-cd android-kernel-mainline
-repo init -u https://android.googlesource.com/kernel/manifest -b common-android-mainline
-repo sync
-BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
-BUILD_CONFIG=common-modules/virtual-device/build.config.fvp build/build.sh
-```
-
-The resulting kernel image and DTB (Device Tree Binary) must then be copied into
-the product output directory:
+To test SVE on Arm FVP, one extra step is needed when following the instructions above;
+for QEMU run this is not needed. When launching the model some extra cmdline options should
+be provided for 'run_model':
 
 ```
-cp out/android-mainline/dist/Image $ANDROID_PRODUCT_OUT/kernel
-cp out/android-mainline/dist/fvp-base-revc.dtb out/android-mainline/dist/initramfs.img $ANDROID_PRODUCT_OUT/
-```
-
-### Building the firmware (ARM Trusted Firmware and U-Boot)
-
-First, install ``dtc``, the device tree compiler. On Debian, this is in the
-``device-tree-compiler`` package.
-
-```
-sudo apt-get install device-tree-compiler
-```
-
-Then run:
-
-```
-mkdir platform
-cd platform
-repo init -u https://git.linaro.org/landing-teams/working/arm/manifest.git -m pinned-uboot.xml -b 20.01
-repo sync
-
-# The included copy of U-Boot is incompatible with this version of AOSP, switch to a recent upstream checkout.
-cd u-boot
-git fetch https://gitlab.denx.de/u-boot/u-boot.git/ master
-git checkout 18b9c98024ec89e00a57707f07ff6ada06089d26
-cd ..
-
-mkdir -p tools/gcc
-cd tools/gcc
-wget https://releases.linaro.org/components/toolchain/binaries/6.2-2016.11/aarch64-linux-gnu/gcc-linaro-6.2.1-2016.11-x86_64_aarch64-linux-gnu.tar.xz
-tar -xJf gcc-linaro-6.2.1-2016.11-x86_64_aarch64-linux-gnu.tar.xz
-cd ../..
-
-build-scripts/build-test-uboot.sh -p fvp all
-```
-
-These components must then be copied into the product output directory:
-
-```
-cp output/fvp/fvp-uboot/uboot/{bl1,fip}.bin $ANDROID_PRODUCT_OUT/
-```
-
-## Setting up the FVP model
-
-### Obtaining the model
-
-The public Arm FVP could be obtained from https://developer.arm.com/; one would
-need to create an account there and accept EULA to download and install it.
-A link for the latest version:
-
-https://developer.arm.com/tools-and-software/simulation-models/fixed-virtual-platforms/arm-ecosystem-models: "Armv8-A Base RevC AEM FVP"
-
-The AEMv8-A Base Platform FVP is a free of charge Fixed Virtual Platform of the
-latest Arm v8-A architecture features and has been validated with compatible
-Open Source software, which can be found on the reference open source software
-stacks page along with instructions for running the software
-
-### Running the model
-
-From a lunched environment:
-
-```
-export MODEL_PATH=/path/to/model/dir
-export MODEL_BIN=${MODEL_PATH}/models/Linux64_GCC-6.4/FVP_Base_RevC-2xAEMv8A
-./device/generic/goldfish/fvpbase/run_model
-```
-
-If any extra parameters are needed for the model (e.g. specifying plugins) they
-should be specified as cmdline options for 'run_model'. E.g. to run a model
-which support SVE:
-
-```
-export SVE_PLUGIN=${MODEL_PATH}/plugins/Linux64_GCC-6.4/ScalableVectorExtension.so
+export SVE_PLUGIN=${MODEL_PATH}/plugins/<os_and_toolchain>/ScalableVectorExtension.so
 $ ./device/generic/goldfish/fvpbase/run_model --plugin ${SVE_PLUGIN} -C SVE.ScalableVectorExtension.veclen=2
 ```
 
 Note: SVE vector length is passed in units of 64-bit blocks. So "2" would stand
 for 128-bit vector length.
 
-The model will start and will have fully booted to shell in around 20 minutes
-(you will see "sys.boot_completed=1" in the log). It can be accessed as a
-regular device with adb:
+## Running ART test
 
-```
-adb connect localhost:5555
-```
+QEMU/FVP behaves as a regular adb device so running ART tests is possible using
+the standard chroot method described in test/README.chroot.md with an additional step,
+described below. A separate AOSP tree (not the one used for the model itself), should
+be used - full or minimal.
 
-To terminate the model, press ``Ctrl-] Ctrl-D`` to terminate the telnet
-connection.
-
-## Running ART test on FVP
-
-The model behaves as a regular adb device so running ART tests could be done using
-the standard chroot method described in test/README.chroot.md; the steps are
-also described below. A separate AOSP tree (not the one used for the model
-itself), should be used - full or minimal.
-
-Then the regular ART testing routine could be performed; the regular "lunch"
+Then the regular ART testing routine should be performed; the regular "lunch"
 target ("armv8" and other targets, not "fvp-eng").
 
-
 ```
-export ART_TEST_CHROOT=/data/local/art-test-chroot
-export OVERRIDE_TARGET_FLATTEN_APEX=true
-export SOONG_ALLOW_MISSING_DEPENDENCIES=true
-export BUILD_BROKEN_DISABLE_BAZEL=true
-export TARGET_BUILD_UNBUNDLED=true
+# Config the test run for QEMU/FVP.
 export ART_TEST_RUN_ON_ARM_FVP=true
 
-. ./build/envsetup.sh
-lunch armv8-userdebug
-art/tools/buildbot-build.sh --target
-
-art/tools/buildbot-teardown-device.sh
-art/tools/buildbot-cleanup-device.sh
-art/tools/buildbot-setup-device.sh
-art/tools/buildbot-sync.sh
-
-art/test/testrunner/testrunner.py --target --64 --optimizing -j1
-
+# Build, sync ART tests to the model and run, see test/README.chroot.md.
 ```
+
+Note: ART scripts only support one adb device at a time. If you have other adb devices
+connected, use `export ANDROID_SERIAL=localhost:5555` to run scripts on QEMU/FVP."
