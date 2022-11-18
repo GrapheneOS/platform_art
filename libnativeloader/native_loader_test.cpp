@@ -32,6 +32,7 @@ namespace nativeloader {
 
 using ::testing::Eq;
 using ::testing::NotNull;
+using ::testing::StartsWith;
 using ::testing::StrEq;
 using internal::ConfigEntry;  // NOLINT - ConfigEntry is actually used
 using internal::ParseApexLibrariesConfig;
@@ -191,7 +192,7 @@ class NativeLoaderTest_Create : public NativeLoaderTest {
   std::string permitted_path = "/data/app/foo/" LIB_DIR;
 
   // expected output (.. for the default test inputs)
-  std::string expected_namespace_name = "classloader-namespace";
+  std::string expected_namespace_prefix = "clns";
   uint64_t expected_namespace_flags =
       ANDROID_NAMESPACE_TYPE_ISOLATED | ANDROID_NAMESPACE_TYPE_ALSO_USED_AS_ANONYMOUS;
   std::string expected_library_path = library_path;
@@ -227,7 +228,7 @@ class NativeLoaderTest_Create : public NativeLoaderTest {
     EXPECT_CALL(*mock, NativeBridgeInitialized()).Times(testing::AnyNumber());
 
     EXPECT_CALL(*mock, mock_create_namespace(
-                           Eq(IsBridged()), StrEq(expected_namespace_name), nullptr,
+                           Eq(IsBridged()), StartsWith(expected_namespace_prefix + "-"), nullptr,
                            StrEq(expected_library_path), expected_namespace_flags,
                            StrEq(expected_permitted_path), NsEq(expected_parent_namespace.c_str())))
         .WillOnce(Return(TO_MOCK_NAMESPACE(TO_ANDROID_NAMESPACE(dex_path.c_str()))));
@@ -322,7 +323,7 @@ TEST_P(NativeLoaderTest_Create, BundledSystemApp) {
   dex_path = "/system/app/foo/foo.apk";
   is_shared = true;
 
-  expected_namespace_name = "classloader-namespace-shared";
+  expected_namespace_prefix = "clns-shared";
   expected_namespace_flags |= ANDROID_NAMESPACE_TYPE_SHARED;
   SetExpectations();
   RunTest();
@@ -332,7 +333,7 @@ TEST_P(NativeLoaderTest_Create, BundledVendorApp) {
   dex_path = "/vendor/app/foo/foo.apk";
   is_shared = true;
 
-  expected_namespace_name = "classloader-namespace-shared";
+  expected_namespace_prefix = "clns-shared";
   expected_namespace_flags |= ANDROID_NAMESPACE_TYPE_SHARED;
   SetExpectations();
   RunTest();
@@ -342,7 +343,7 @@ TEST_P(NativeLoaderTest_Create, UnbundledVendorApp) {
   dex_path = "/vendor/app/foo/foo.apk";
   is_shared = false;
 
-  expected_namespace_name = "vendor-classloader-namespace";
+  expected_namespace_prefix = "vendor-clns";
   expected_library_path = expected_library_path + ":/vendor/" LIB_DIR;
   expected_permitted_path = expected_permitted_path + ":/vendor/" LIB_DIR;
   expected_shared_libs_to_platform_ns =
@@ -356,7 +357,7 @@ TEST_P(NativeLoaderTest_Create, BundledProductApp) {
   dex_path = "/product/app/foo/foo.apk";
   is_shared = true;
 
-  expected_namespace_name = "classloader-namespace-shared";
+  expected_namespace_prefix = "clns-shared";
   expected_namespace_flags |= ANDROID_NAMESPACE_TYPE_SHARED;
   SetExpectations();
   RunTest();
@@ -366,7 +367,7 @@ TEST_P(NativeLoaderTest_Create, SystemServerWithApexJars) {
   dex_path = "/system/framework/services.jar:/apex/com.android.conscrypt/javalib/service-foo.jar";
   is_shared = true;
 
-  expected_namespace_name = "classloader-namespace-shared";
+  expected_namespace_prefix = "clns-shared";
   expected_namespace_flags |= ANDROID_NAMESPACE_TYPE_SHARED;
   expected_link_with_conscrypt_ns = true;
   SetExpectations();
@@ -378,7 +379,7 @@ TEST_P(NativeLoaderTest_Create, UnbundledProductApp) {
   is_shared = false;
 
   if (is_product_vndk_version_defined()) {
-    expected_namespace_name = "product-classloader-namespace";
+    expected_namespace_prefix = "product-clns";
     expected_library_path = expected_library_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
     expected_permitted_path =
         expected_permitted_path + ":/product/" LIB_DIR ":/system/product/" LIB_DIR;
@@ -416,7 +417,7 @@ TEST_P(NativeLoaderTest_Create, TwoApks) {
   const std::string second_app_permitted_path = "/data/app/bar/" LIB_DIR;
   const std::string expected_second_app_permitted_path =
       std::string("/data:/mnt/expand:") + second_app_permitted_path;
-  const std::string expected_second_app_parent_namespace = "classloader-namespace";
+  const std::string expected_second_app_parent_namespace = "clns";
   // no ALSO_USED_AS_ANONYMOUS
   const uint64_t expected_second_namespace_flags = ANDROID_NAMESPACE_TYPE_ISOLATED;
 
@@ -429,7 +430,7 @@ TEST_P(NativeLoaderTest_Create, TwoApks) {
   // namespace for the second app is created. Its parent is set to the namespace
   // of the first app.
   EXPECT_CALL(*mock, mock_create_namespace(
-                         Eq(IsBridged()), StrEq(expected_namespace_name), nullptr,
+                         Eq(IsBridged()), StartsWith(expected_namespace_prefix + "-"), nullptr,
                          StrEq(second_app_library_path), expected_second_namespace_flags,
                          StrEq(expected_second_app_permitted_path), NsEq(dex_path.c_str())))
       .WillOnce(Return(TO_MOCK_NAMESPACE(TO_ANDROID_NAMESPACE(second_app_dex_path.c_str()))));
