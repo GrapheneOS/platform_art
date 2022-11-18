@@ -814,8 +814,12 @@ void AdbConnectionState::PerformHandshake() {
 void AdbConnectionState::AttachJdwpAgent(art::Thread* self) {
   art::Runtime* runtime = art::Runtime::Current();
   self->AssertNoPendingException();
+
+  std::string args = MakeAgentArg();
+  VLOG(jdwp) << "Attaching JDWP agent with args '" << args << "'";
+
   runtime->AttachAgent(/* env= */ nullptr,
-                       MakeAgentArg(),
+                       args,
                        /* class_loader= */ nullptr);
   if (self->IsExceptionPending()) {
     LOG(ERROR) << "Failed to load agent " << agent_name_;
