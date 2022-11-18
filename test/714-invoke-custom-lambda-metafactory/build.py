@@ -15,4 +15,4 @@
 
 
 def build(ctx):
-  ctx.default_build(use_desugar=False, experimental="method-handles")
+  ctx.default_build(use_desugar=False, api_level="method-handles")

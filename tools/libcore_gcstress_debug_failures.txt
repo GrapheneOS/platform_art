@@ -70,5 +70,11 @@
   names: ["jsr166.CompletableFutureTest#testCompleteOnTimeout_completed",
           "jsr166.CompletableFutureTest#testDelayedExecutor"
          ]
+},
+{
+  description: "SocketTimeout test gcstress and debug.",
+  result: EXEC_FAILED,
+  bug: 259530489,
+  names: ["org.apache.harmony.luni.tests.java.net.URLConnectionTest#test_setReadTimeoutI_SocketTimeoutException"]
 }
 ]

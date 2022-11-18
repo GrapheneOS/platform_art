@@ -52,6 +52,8 @@ lock_file = None  # Keep alive as long as this process is alive.
 
 class BuildTestContext:
   def __init__(self, args, android_build_top, test_dir):
+    self.android_build_top = android_build_top.absolute()
+    self.bootclasspath = args.bootclasspath.absolute()
     self.test_name = test_dir.name
     self.test_dir = test_dir.absolute()
     self.mode = args.mode
@@ -60,33 +62,43 @@ class BuildTestContext:
     self.target = (self.mode == "target")
     assert self.jvm or self.host or self.target
 
-    self.android_build_top = android_build_top.absolute()
-
     self.java_home = Path(os.environ.get("JAVA_HOME")).absolute()
-    self.java = self.java_home / "bin/java"
-    self.javac = self.java_home / "bin/javac"
+    self.java_path = self.java_home / "bin/java"
+    self.javac_path = self.java_home / "bin/javac"
     self.javac_args = "-g -Xlint:-options -source 1.8 -target 1.8"
+    self.d8_path = args.d8.absolute()
 
-    self.bootclasspath = args.bootclasspath.absolute()
-    self.d8 = args.d8.absolute()
-    self.hiddenapi = args.hiddenapi.absolute()
-    self.jasmin = args.jasmin.absolute()
-    self.smali = args.smali.absolute()
-    self.soong_zip = args.soong_zip.absolute()
-    self.zipalign = args.zipalign.absolute()
+    # Helper functions to execute tools.
+    self.d8 = functools.partial(self.run, args.d8.absolute())
+    self.jasmin = functools.partial(self.run, args.jasmin.absolute())
+    self.javac = functools.partial(self.run, self.javac_path)
+    self.smali = functools.partial(self.run, args.smali.absolute())
+    self.soong_zip = functools.partial(self.run, args.soong_zip.absolute())
+    self.zipalign = functools.partial(self.run, args.zipalign.absolute())
+    if args.hiddenapi:
+      self.hiddenapi = functools.partial(self.run, args.hiddenapi.absolute())
+
+    # RBE wrapper for some of the tools.
+    if "RBE_server_address" in os.environ:
+      self.rbe_exec_root = os.environ.get("RBE_exec_root")
+      self.rbe_rewrapper = self.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
+      if USE_RBE_FOR_JAVAC > (hash(self.test_name) % 100):
+        self.javac = self.rbe_javac
+      if USE_RBE_FOR_D8 > (hash(self.test_name) % 100):
+        self.d8 = self.rbe_d8
 
     # Minimal environment needed for bash commands that we execute.
     self.bash_env = {
       "ANDROID_BUILD_TOP": self.android_build_top,
-      "D8": self.d8,
-      "JAVA": self.java,
-      "JAVAC": self.javac,
+      "D8": args.d8.absolute(),
+      "JAVA": self.java_path,
+      "JAVAC": self.javac_path,
       "JAVAC_ARGS": self.javac_args,
       "JAVA_HOME": self.java_home,
       "PATH": os.environ["PATH"],
       "PYTHONDONTWRITEBYTECODE": "1",
-      "SMALI": self.smali,
-      "SOONG_ZIP": self.soong_zip,
+      "SMALI": args.smali.absolute(),
+      "SOONG_ZIP": args.soong_zip.absolute(),
       "TEST_NAME": self.test_name,
     }
 
@@ -96,6 +108,65 @@ class BuildTestContext:
                           cwd=self.test_dir,
                           env=self.bash_env,
                           check=True)
+
+  def run(self, executable: pathlib.Path, args: List[str]):
+    assert isinstance(executable, pathlib.Path), executable
+    cmd: List[Union[pathlib.Path, str]] = []
+    if executable.suffix == ".sh":
+      cmd += ["/bin/bash"]
+    cmd += [executable]
+    cmd += args
+    env = self.bash_env
+    env.update({k: v for k, v in os.environ.items() if k.startswith("RBE_")})
+    # Make paths relative as otherwise we could create too long command line.
+    for i, arg in enumerate(cmd):
+      if isinstance(arg, pathlib.Path):
+        assert arg.absolute(), arg
+        cmd[i] = relpath(arg, self.test_dir)
+      elif isinstance(arg, list):
+        assert all(p.absolute() for p in arg), arg
+        cmd[i] = ":".join(relpath(p, self.test_dir) for p in arg)
+      else:
+        assert isinstance(arg, str), arg
+    p = subprocess.run(cmd,
+                       encoding=sys.stdout.encoding,
+                       cwd=self.test_dir,
+                       env=self.bash_env,
+                       stderr=subprocess.STDOUT,
+                       stdout=subprocess.PIPE)
+    if p.returncode != 0:
+      raise Exception("Command failed with exit code {}\n$ {}\n{}".format(
+                      p.returncode, " ".join(map(str, cmd)), p.stdout))
+    return p
+
+  def rbe_wrap(self, args, inputs: Set[pathlib.Path]=None):
+    with NamedTemporaryFile(mode="w+t") as input_list:
+      inputs = inputs or set()
+      for i, arg in enumerate(args):
+        if isinstance(arg, pathlib.Path):
+          assert arg.absolute(), arg
+          inputs.add(arg)
+        elif isinstance(arg, list):
+          assert all(p.absolute() for p in arg), arg
+          inputs.update(arg)
+      input_list.writelines([relpath(i, self.rbe_exec_root)+"\n" for i in inputs])
+      input_list.flush()
+      return self.run(self.rbe_rewrapper, [
+        "--platform=" + os.environ["RBE_platform"],
+        "--input_list_paths=" + input_list.name,
+      ] + args)
+
+  def rbe_javac(self, args):
+    output = relpath(Path(args[args.index("-d") + 1]), self.rbe_exec_root)
+    return self.rbe_wrap(["--output_directories", output, self.javac_path] + args)
+
+  def rbe_d8(self, args):
+    inputs = set([self.d8_path.parent.parent / "framework/d8.jar"])
+    output = relpath(Path(args[args.index("--output") + 1]), self.rbe_exec_root)
+    return self.rbe_wrap([
+      "--output_files" if output.endswith(".jar") else "--output_directories", output,
+      "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
+      self.d8_path] + args, inputs)
 
   def build(self) -> None:
     script = self.test_dir / "build.py"
@@ -111,10 +182,9 @@ class BuildTestContext:
       use_desugar=True,
       use_hiddenapi=True,
       need_dex=None,
-      experimental="no-experiment",
       zip_compression_method="deflate",
       zip_align_bytes=None,
-      api_level=None,
+      api_level:Union[int, str]=26,  # Can also be named alias (string).
       javac_args=[],
       d8_flags=[],
       smali_args=[],
@@ -136,103 +206,21 @@ class BuildTestContext:
       use_desugar = False
 
     # Set API level for smali and d8.
-    if api_level:
-      assert isinstance(api_level, int), api_level
-      assert experimental == "no-experiment", experimental
-    else:
-      experiment2api_level = {
-        "no-experiment": 26,
+    if isinstance(api_level, str):
+      API_LEVEL = {
         "default-methods": 24,
         "parameter-annotations": 25,
         "agents": 26,
         "method-handles": 26,
         "var-handles": 28,
       }
-      api_level = experiment2api_level[experimental]
-
-    def run(executable: pathlib.Path, args: List[str]):
-      assert isinstance(executable, pathlib.Path), executable
-      cmd: List[Union[pathlib.Path, str]] = []
-      if executable.suffix == ".sh":
-        cmd += ["/bin/bash"]
-      cmd += [executable]
-      cmd += args
-      env = self.bash_env
-      env.update({k: v for k, v in os.environ.items() if k.startswith("RBE_")})
-      # Make paths relative as otherwise we could create too long command line.
-      for i, arg in enumerate(cmd):
-        if isinstance(arg, pathlib.Path):
-          assert arg.absolute(), arg
-          cmd[i] = relpath(arg, self.test_dir)
-        elif isinstance(arg, list):
-          assert all(p.absolute() for p in arg), arg
-          cmd[i] = ":".join(relpath(p, self.test_dir) for p in arg)
-        else:
-          assert isinstance(arg, str), arg
-      p = subprocess.run(cmd,
-                         encoding=sys.stdout.encoding,
-                         cwd=self.test_dir,
-                         env=self.bash_env,
-                         stderr=subprocess.STDOUT,
-                         stdout=subprocess.PIPE)
-      if p.returncode != 0:
-        raise Exception("Command failed with exit code {}\n$ {}\n{}".format(
-                        p.returncode, " ".join(map(str, cmd)), p.stdout))
-      return p
-
-
-    # Helper functions to execute tools.
-    soong_zip = functools.partial(run, self.soong_zip)
-    zipalign = functools.partial(run, self.zipalign)
-    javac = functools.partial(run, self.javac)
-    jasmin = functools.partial(run, self.jasmin)
-    smali = functools.partial(run, self.smali)
-    d8 = functools.partial(run, self.d8)
-    hiddenapi = functools.partial(run, self.hiddenapi)
-
-    if "RBE_server_address" in os.environ:
-      rbe_exec_root = os.environ.get("RBE_exec_root")
-      rbe_rewrapper = self.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
-
-      version = match(r"Version: (\d*)\.(\d*)\.(\d*)", run(rbe_rewrapper, ["--version"]).stdout)
-      assert version, "Could not parse RBE version"
-      assert tuple(map(int, version.groups())) >= (0, 76, 0), "Please update " + rbe_rewrapper
-
-      def rbe_wrap(args, inputs: Set[pathlib.Path]=None):
-        with NamedTemporaryFile(mode="w+t") as input_list:
-          inputs = inputs or set()
-          for i, arg in enumerate(args):
-            if isinstance(arg, pathlib.Path):
-              assert arg.absolute(), arg
-              inputs.add(arg)
-            elif isinstance(arg, list):
-              assert all(p.absolute() for p in arg), arg
-              inputs.update(arg)
-          input_list.writelines([relpath(i, rbe_exec_root)+"\n" for i in inputs])
-          input_list.flush()
-          return run(rbe_rewrapper, [
-            "--platform=" + os.environ["RBE_platform"],
-            "--input_list_paths=" + input_list.name,
-          ] + args)
-
-      if USE_RBE_FOR_JAVAC > (hash(self.test_name) % 100):  # Use for given percentage of tests.
-        def javac(args):
-          output = relpath(Path(args[args.index("-d") + 1]), rbe_exec_root)
-          return rbe_wrap(["--output_directories", output, self.javac] + args)
-
-      if USE_RBE_FOR_D8 > (hash(self.test_name) % 100):  # Use for given percentage of tests.
-        def d8(args):
-          inputs = set([self.d8.parent.parent / "framework/d8.jar"])
-          output = relpath(Path(args[args.index("--output") + 1]), rbe_exec_root)
-          return rbe_wrap([
-            "--output_files" if output.endswith(".jar") else "--output_directories", output,
-            "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
-            self.d8] + args, inputs)
+      api_level = API_LEVEL[api_level]
+    assert isinstance(api_level, int), api_level
 
     # If wrapper script exists, use it instead of the default javac.
     javac_wrapper = Path("javac_wrapper.sh")
     if javac_wrapper.exists():
-      javac = functools.partial(run, javac_wrapper)
+      self.javac = functools.partial(self.run, javac_wrapper)
 
     def zip(zip_target: Path, *files: Path):
       zip_args = ["-o", zip_target, "-C", zip_target.parent]
@@ -240,13 +228,13 @@ class BuildTestContext:
         zip_args.extend(["-L", "0"])
       for f in files:
         zip_args.extend(["-f", f])
-      soong_zip(zip_args)
+      self.soong_zip(zip_args)
 
       if zip_align_bytes:
         # zipalign does not operate in-place, so write results to a temp file.
         with TemporaryDirectory() as tmp_dir:
           tmp_file = Path(tmp_dir) / "aligned.zip"
-          zipalign(["-f", str(zip_align_bytes), zip_target, tmp_file])
+          self.zipalign(["-f", str(zip_align_bytes), zip_target, tmp_file])
           # replace original zip target with our temp file.
           tmp_file.rename(zip_target)
 
@@ -255,14 +243,14 @@ class BuildTestContext:
       if not use_jasmin or not src_dir.exists():
         return None  # No sources to compile.
       dst_dir.mkdir()
-      jasmin(["-d", dst_dir] + sorted(src_dir.glob("**/*.j")))
+      self.jasmin(["-d", dst_dir] + sorted(src_dir.glob("**/*.j")))
       return dst_dir
 
     def make_smali(dst_dex: Path, src_dir: Path) -> Optional[Path]:
       if not use_smali or not src_dir.exists():
         return None  # No sources to compile.
-      smali(["-JXmx512m", "assemble"] + smali_args + ["--api", str(api_level)] +
-            ["--output", dst_dex] + sorted(src_dir.glob("**/*.smali")))
+      self.smali(["-JXmx512m", "assemble"] + smali_args + ["--api", str(api_level)] +
+                 ["--output", dst_dex] + sorted(src_dir.glob("**/*.smali")))
       return dst_dex
 
 
@@ -280,7 +268,7 @@ class BuildTestContext:
         args += ["-classpath", java_classpath]
       for src_dir in src_dirs:
         args += sorted(src_dir.glob("**/*.java"))
-      javac(args)
+      self.javac(args)
       return dst_dir
 
 
@@ -291,7 +279,7 @@ class BuildTestContext:
       args = d8_flags + ["--min-api", str(api_level), "--output", dst_jar]
       args += ["--lib", self.bootclasspath] if use_desugar else ["--no-desugaring"]
       args += sorted(src_dir.glob("**/*.class"))
-      d8(args)
+      self.d8(args)
 
       # D8 outputs to JAR files today rather than DEX files as DX used
       # to. To compensate, we extract the DEX from d8's output to meet the
@@ -311,7 +299,7 @@ class BuildTestContext:
       # It is useful to normalize non-deterministic smali output.
       tmp_dir = self.test_dir / "dexmerge"
       tmp_dir.mkdir()
-      d8(["--min-api", str(api_level), "--output", tmp_dir] + srcs)
+      self.d8(["--min-api", str(api_level), "--output", tmp_dir] + srcs)
       assert not (tmp_dir / "classes2.dex").exists()
       for src_file in srcs:
         src_file.unlink()
@@ -327,7 +315,7 @@ class BuildTestContext:
         args.extend(["--input-dex=" + str(dex_file), "--output-dex=" + str(dex_file)])
       args.append("--api-flags=hiddenapi-flags.csv")
       args.append("--no-force-assign-all")
-      hiddenapi(args)
+      self.hiddenapi(args)
 
 
     if Path("classes.dex").exists():
@@ -488,10 +476,15 @@ def main() -> None:
   ziproot = args.out.absolute().parent / "zip"
   srcdirs = set(s.parents[-4].absolute() for s in args.srcs)
 
+  # Special hidden-api shard: If the --hiddenapi flag is provided, build only
+  # hiddenapi tests. Otherwise exclude all hiddenapi tests from normal shards.
+  def filter_by_hiddenapi(srcdir: Path) -> bool:
+    return (args.hiddenapi != None) == ("hiddenapi" in srcdir.name)
+
   # Initialize the test objects.
   # We need to do this before we change the working directory below.
   tests: List[BuildTestContext] = []
-  for srcdir in srcdirs:
+  for srcdir in filter(filter_by_hiddenapi, srcdirs):
     dstdir = ziproot / args.mode / srcdir.name
     copytree(srcdir, dstdir)
     tests.append(BuildTestContext(args, android_build_top, dstdir))
