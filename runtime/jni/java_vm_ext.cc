@@ -306,6 +306,7 @@ class Libraries {
       *detail += "No implementation found for ";
       *detail += m->PrettyMethod();
       *detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
+      *detail += " - is the library loaded, e.g. System.loadLibrary?";
     }
     return nullptr;
   }
