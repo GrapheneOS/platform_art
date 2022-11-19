@@ -25,7 +25,7 @@
 #include "mirror/dex_cache.h"
 #include "scoped_thread_state_change-inl.h"
 
-namespace art {
+namespace art HIDDEN {
 
 DexCompilationUnit::DexCompilationUnit(Handle<mirror::ClassLoader> class_loader,
                                        ClassLinker* class_linker,

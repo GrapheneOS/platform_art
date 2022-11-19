@@ -25,6 +25,7 @@ package {
 
 cc_library {
     name: "libnativeloader_testlib",
+    sdk_version: "31",
     srcs: [],
     stl: "none",
 }
@@ -34,6 +35,7 @@ cc_library {
 android_test_helper_app {
     name: "library_container_app",
     defaults: ["art_module_source_build_java_defaults"],
+    sdk_version: "31",
     manifest: "library_container_app_manifest.xml",
     compile_multilib: "both",
     jni_libs: ["libnativeloader_testlib"],
@@ -41,6 +43,7 @@ android_test_helper_app {
 
 java_library {
     name: "loadlibrarytest_test_utils",
+    sdk_version: "31",
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.ext.truth",
@@ -51,6 +54,7 @@ java_library {
 // Test fixture that represents a shared library in /system/framework.
 java_library {
     name: "libnativeloader_system_shared_lib",
+    sdk_version: "31",
     installable: true,
     srcs: ["src/android/test/systemsharedlib/SystemSharedLib.java"],
 }
@@ -58,6 +62,7 @@ java_library {
 // Test fixture that represents a shared library in /system_ext/framework.
 java_library {
     name: "libnativeloader_system_ext_shared_lib",
+    sdk_version: "31",
     installable: true,
     srcs: ["src/android/test/systemextsharedlib/SystemExtSharedLib.java"],
 }
@@ -66,7 +71,7 @@ java_library {
 java_library {
     name: "libnativeloader_product_shared_lib",
     product_specific: true,
-    sdk_version: "33",
+    sdk_version: "31",
     installable: true,
     srcs: ["src/android/test/productsharedlib/ProductSharedLib.java"],
 }
@@ -75,7 +80,7 @@ java_library {
 java_library {
     name: "libnativeloader_vendor_shared_lib",
     vendor: true,
-    sdk_version: "33",
+    sdk_version: "31",
     installable: true,
     srcs: ["src/android/test/vendorsharedlib/VendorSharedLib.java"],
 }
@@ -83,6 +88,7 @@ java_library {
 java_defaults {
     name: "loadlibrarytest_app_defaults",
     defaults: ["art_module_source_build_java_defaults"],
+    sdk_version: "31",
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.rules",

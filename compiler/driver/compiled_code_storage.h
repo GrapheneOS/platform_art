@@ -20,8 +20,9 @@
 #include <string>
 
 #include "base/array_ref.h"
+#include "base/macros.h"
 
-namespace art {
+namespace art HIDDEN {
 
 namespace linker {
 class LinkerPatch;
