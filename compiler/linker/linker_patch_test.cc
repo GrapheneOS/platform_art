@@ -16,9 +16,10 @@
 
 #include <gtest/gtest.h>
 
+#include "base/macros.h"
 #include "linker_patch.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace linker {
 
 TEST(LinkerPatch, LinkerPatchOperators) {

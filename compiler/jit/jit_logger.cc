@@ -24,7 +24,7 @@
 #include "jit/jit_code_cache.h"
 #include "oat_file-inl.h"
 
-namespace art {
+namespace art HIDDEN {
 namespace jit {
 
 #ifdef ART_TARGET_ANDROID

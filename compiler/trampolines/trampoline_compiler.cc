@@ -38,7 +38,7 @@
 
 #define __ assembler.
 
-namespace art {
+namespace art HIDDEN {
 
 #ifdef ART_ENABLE_CODEGEN_arm
 namespace arm {

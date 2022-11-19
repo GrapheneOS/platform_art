@@ -10,11 +10,11 @@ by the platform.
 
 The most typical use case of this library is calling `System.loadLibrary(name)`.
 When the method is called, the ART runtime delegates the call to this library
-along with the reference to the classloader where the call was made.  Then this
-library finds the linker namespace (named `classloader-namespace`) that is
-associated with the given classloader, and tries to load the requested library
-from the namespace. The actual searching, loading, and linking of the library
-is performed by the dynamic linker.
+along with the reference to the classloader where the call was made. Then this
+library finds the linker namespace (typically with the name `clns-` followed by
+a number to make it unique) that is associated with the given classloader, and
+tries to load the requested library from that namespace. The actual searching,
+loading, and linking of the library is performed by the dynamic linker.
 
 The linker namespace is created when an APK is loaded into the process, and is
 associated with the classloader that loaded the APK. The linker namespace is

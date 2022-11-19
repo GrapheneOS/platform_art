@@ -700,8 +700,6 @@ ObjPtr<mirror::Object> CreateAnnotationMember(const ClassData& klass,
   StackHandleScope<5> hs(self);
   uint32_t element_name_index = DecodeUnsignedLeb128(annotation);
   const char* name = dex_file.StringDataByIdx(dex::StringIndex(element_name_index));
-  Handle<mirror::String> string_name(
-      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, name)));
 
   PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   ArtMethod* annotation_method =
@@ -709,7 +707,19 @@ ObjPtr<mirror::Object> CreateAnnotationMember(const ClassData& klass,
   if (annotation_method == nullptr) {
     return nullptr;
   }
-  Handle<mirror::Class> method_return(hs.NewHandle(annotation_method->ResolveReturnType()));
+
+  Handle<mirror::String> string_name =
+      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, name));
+  if (UNLIKELY(string_name == nullptr)) {
+    LOG(ERROR) << "Failed to allocate name for annotation member";
+    return nullptr;
+  }
+
+  Handle<mirror::Class> method_return = hs.NewHandle(annotation_method->ResolveReturnType());
+  if (UNLIKELY(method_return == nullptr)) {
+    LOG(ERROR) << "Failed to resolve method return type for annotation member";
+    return nullptr;
+  }
 
   DexFile::AnnotationValue annotation_value;
   if (!ProcessAnnotationValue<false>(klass,
@@ -717,23 +727,26 @@ ObjPtr<mirror::Object> CreateAnnotationMember(const ClassData& klass,
                                      &annotation_value,
                                      method_return,
                                      DexFile::kAllObjects)) {
+    // TODO: Logging the error breaks run-test 005-annotations.
+    // LOG(ERROR) << "Failed to process annotation value for annotation member";
     return nullptr;
   }
-  Handle<mirror::Object> value_object(hs.NewHandle(annotation_value.value_.GetL()));
+  Handle<mirror::Object> value_object = hs.NewHandle(annotation_value.value_.GetL());
+
+  Handle<mirror::Method> method_object = hs.NewHandle((pointer_size == PointerSize::k64)
+      ? mirror::Method::CreateFromArtMethod<PointerSize::k64>(self, annotation_method)
+      : mirror::Method::CreateFromArtMethod<PointerSize::k32>(self, annotation_method));
+  if (UNLIKELY(method_object == nullptr)) {
+    LOG(ERROR) << "Failed to create method object for annotation member";
+    return nullptr;
+  }
 
   ArtMethod* annotation_member_init = WellKnownClasses::libcore_reflect_AnnotationMember_init;
-  ObjPtr<mirror::Class> annotation_member_class = annotation_member_init->GetDeclaringClass();
-  DCHECK(annotation_member_class->IsInitialized());
-  Handle<mirror::Object> new_member(hs.NewHandle(annotation_member_class->AllocObject(self)));
-  ObjPtr<mirror::Method> method_obj_ptr = (pointer_size == PointerSize::k64)
-      ? mirror::Method::CreateFromArtMethod<PointerSize::k64>(self, annotation_method)
-      : mirror::Method::CreateFromArtMethod<PointerSize::k32>(self, annotation_method);
-  Handle<mirror::Method> method_object(hs.NewHandle(method_obj_ptr));
-
-  if (new_member == nullptr || string_name == nullptr ||
-      method_object == nullptr || method_return == nullptr) {
-    LOG(ERROR) << StringPrintf("Failed creating annotation element (m=%p n=%p a=%p r=%p",
-        new_member.Get(), string_name.Get(), method_object.Get(), method_return.Get());
+  DCHECK(annotation_member_init->GetDeclaringClass()->IsInitialized());
+  Handle<mirror::Object> new_member =
+      hs.NewHandle(annotation_member_init->GetDeclaringClass()->AllocObject(self));
+  if (new_member == nullptr) {
+    LOG(ERROR) << "Failed to allocate annotation member";
     return nullptr;
   }
 
