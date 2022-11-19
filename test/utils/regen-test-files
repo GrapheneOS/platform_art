@@ -263,37 +263,37 @@ art_gtests_mainline_presubmit_module_names.remove("libnativeloader_e2e_tests")
 
 # Tests exhibiting a flaky behavior, currently exluded from MTS for
 # the stake of stability / confidence (b/209958457).
-flaky_tests_excluded_from_mts = [
-    ("CtsLibcoreFileIOTestCases" +
-     " android.cts.FileChannelInterProcessLockTest#" + m) for m in [
+flaky_tests_excluded_from_mts = {
+    "CtsLibcoreFileIOTestCases": [
+        ("android.cts.FileChannelInterProcessLockTest#" + m) for m in [
          "test_lockJJZ_Exclusive_asyncChannel",
          "test_lockJJZ_Exclusive_syncChannel",
          "test_lock_differentChannelTypes",
          "test_lockJJZ_Shared_asyncChannel",
          "test_lockJJZ_Shared_syncChannel",
+        ]
+    ],
+    "CtsLibcoreTestCases": [
+        ("com.android.org.conscrypt.javax.net.ssl.SSLSocketVersionCompatibilityTest#" + m + c)
+        for (m, c) in itertools.product(
+            [
+                "test_SSLSocket_interrupt_read_withoutAutoClose",
+                "test_SSLSocket_setSoWriteTimeout",
+            ],
+            [
+                "[0: TLSv1.2 client, TLSv1.2 server]",
+                "[1: TLSv1.2 client, TLSv1.3 server]",
+                "[2: TLSv1.3 client, TLSv1.2 server]",
+                "[3: TLSv1.3 client, TLSv1.3 server]",
+            ]
+        )
+    ] + [
+        ("libcore.dalvik.system.DelegateLastClassLoaderTest#" + m) for m in [
+            "testLookupOrderNodelegate_getResource",
+            "testLookupOrder_getResource",
+        ]
     ]
-] + [
-    ("CtsLibcoreTestCases" +
-     " com.android.org.conscrypt.javax.net.ssl.SSLSocketVersionCompatibilityTest#" + m + c)
-    for (m, c) in itertools.product(
-         [
-             "test_SSLSocket_interrupt_read_withoutAutoClose",
-             "test_SSLSocket_setSoWriteTimeout",
-         ],
-         [
-             "[0: TLSv1.2 client, TLSv1.2 server]",
-             "[1: TLSv1.2 client, TLSv1.3 server]",
-             "[2: TLSv1.3 client, TLSv1.2 server]",
-             "[3: TLSv1.3 client, TLSv1.3 server]",
-         ]
-     )
-] + [
-    ("CtsLibcoreTestCases" +
-     " libcore.dalvik.system.DelegateLastClassLoaderTest#" + m) for m in [
-         "testLookupOrderNodelegate_getResource",
-         "testLookupOrder_getResource",
-    ]
-]
+}
 
 # Tests failing because of linking issues, currently exluded from MTS
 # and Mainline Presubmits to minimize noise in continuous runs while
@@ -746,8 +746,9 @@ class Generator:
     # Excluded flaky tests.
     xml_comment = root.createComment(" Excluded flaky tests (b/209958457). ")
     configuration.appendChild(xml_comment)
-    for t in flaky_tests_excluded_from_mts:
-      append_test_exclusion(t)
+    for module in flaky_tests_excluded_from_mts:
+      for testcase in flaky_tests_excluded_from_mts[module]:
+        append_test_exclusion(f"{module} {testcase}")
 
     # Excluded failing tests.
     xml_comment = root.createComment(" Excluded failing tests (b/247108425). ")
