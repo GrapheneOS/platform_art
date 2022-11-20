@@ -1918,74 +1918,74 @@ TEST_F(StubTest, StringIndexOf) {
 // TODO: Exercise the ReadBarrierMarkRegX entry points.
 
 TEST_F(StubTest, ReadBarrier) {
-#if defined(ART_USE_READ_BARRIER) && (defined(__i386__) || defined(__arm__) || \
-      defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__)))
-  Thread* self = Thread::Current();
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) ||\
+      (defined(__x86_64__) && !defined(__APPLE__))
+  if (gUseReadBarrier) {
+    Thread* self = Thread::Current();
 
-  const uintptr_t readBarrierSlow = StubTest::GetEntrypoint(self, kQuickReadBarrierSlow);
+    const uintptr_t readBarrierSlow = StubTest::GetEntrypoint(self, kQuickReadBarrierSlow);
 
-  // Create an object
-  ScopedObjectAccess soa(self);
-  // garbage is created during ClassLinker::Init
+    // Create an object
+    ScopedObjectAccess soa(self);
+    // garbage is created during ClassLinker::Init
 
-  StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> c(
-      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;")));
+    StackHandleScope<2> hs(soa.Self());
+    Handle<mirror::Class> c(
+        hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;")));
 
-  // Build an object instance
-  Handle<mirror::Object> obj(hs.NewHandle(c->AllocObject(soa.Self())));
+    // Build an object instance
+    Handle<mirror::Object> obj(hs.NewHandle(c->AllocObject(soa.Self())));
 
-  EXPECT_FALSE(self->IsExceptionPending());
+    EXPECT_FALSE(self->IsExceptionPending());
 
-  size_t result = Invoke3(0U, reinterpret_cast<size_t>(obj.Get()),
-                          mirror::Object::ClassOffset().SizeValue(), readBarrierSlow, self);
+    size_t result = Invoke3(0U, reinterpret_cast<size_t>(obj.Get()),
+                            mirror::Object::ClassOffset().SizeValue(), readBarrierSlow, self);
 
-  EXPECT_FALSE(self->IsExceptionPending());
-  EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
-  mirror::Class* klass = reinterpret_cast<mirror::Class*>(result);
-  EXPECT_OBJ_PTR_EQ(klass, obj->GetClass());
-
-  // Tests done.
-#else
+    EXPECT_FALSE(self->IsExceptionPending());
+    EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
+    mirror::Class* klass = reinterpret_cast<mirror::Class*>(result);
+    EXPECT_OBJ_PTR_EQ(klass, obj->GetClass());
+    return;
+  }
+#endif
   LOG(INFO) << "Skipping read_barrier_slow";
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping read_barrier_slow" << std::endl;
-#endif
 }
 
 TEST_F(StubTest, ReadBarrierForRoot) {
-#if defined(ART_USE_READ_BARRIER) && (defined(__i386__) || defined(__arm__) || \
-      defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__)))
-  Thread* self = Thread::Current();
+#if defined(__i386__) || defined(__arm__) || defined(__aarch64__) ||\
+      (defined(__x86_64__) && !defined(__APPLE__))
+  if (gUseReadBarrier) {
+    Thread* self = Thread::Current();
 
-  const uintptr_t readBarrierForRootSlow =
-      StubTest::GetEntrypoint(self, kQuickReadBarrierForRootSlow);
+    const uintptr_t readBarrierForRootSlow =
+        StubTest::GetEntrypoint(self, kQuickReadBarrierForRootSlow);
 
-  // Create an object
-  ScopedObjectAccess soa(self);
-  // garbage is created during ClassLinker::Init
+    // Create an object
+    ScopedObjectAccess soa(self);
+    // garbage is created during ClassLinker::Init
 
-  StackHandleScope<1> hs(soa.Self());
+    StackHandleScope<1> hs(soa.Self());
 
-  Handle<mirror::String> obj(
-      hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!")));
+    Handle<mirror::String> obj(
+        hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!")));
 
-  EXPECT_FALSE(self->IsExceptionPending());
+    EXPECT_FALSE(self->IsExceptionPending());
 
-  GcRoot<mirror::Class> root(GetClassRoot<mirror::String>());
-  size_t result = Invoke3(reinterpret_cast<size_t>(&root), 0U, 0U, readBarrierForRootSlow, self);
+    GcRoot<mirror::Class> root(GetClassRoot<mirror::String>());
+    size_t result = Invoke3(reinterpret_cast<size_t>(&root), 0U, 0U, readBarrierForRootSlow, self);
 
-  EXPECT_FALSE(self->IsExceptionPending());
-  EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
-  mirror::Class* klass = reinterpret_cast<mirror::Class*>(result);
-  EXPECT_OBJ_PTR_EQ(klass, obj->GetClass());
-
-  // Tests done.
-#else
+    EXPECT_FALSE(self->IsExceptionPending());
+    EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
+    mirror::Class* klass = reinterpret_cast<mirror::Class*>(result);
+    EXPECT_OBJ_PTR_EQ(klass, obj->GetClass());
+    return;
+  }
+#endif
   LOG(INFO) << "Skipping read_barrier_for_root_slow";
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping read_barrier_for_root_slow" << std::endl;
-#endif
 }
 
 }  // namespace art

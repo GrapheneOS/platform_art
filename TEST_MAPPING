@@ -1259,7 +1259,12 @@
       "name": "art_standalone_cmdline_tests[com.google.android.art.apex]"
     },
     {
-      "name": "art_standalone_compiler_tests[com.google.android.art.apex]"
+      "name": "art_standalone_compiler_tests[com.google.android.art.apex]",
+      "options": [
+        {
+          "exclude-filter": "JniCompilerTest*"
+        }
+      ]
     },
     {
       "name": "art_standalone_dex2oat_tests[com.google.android.art.apex]"
@@ -1308,9 +1313,6 @@
     },
     {
       "name": "art_standalone_sigchain_tests[com.google.android.art.apex]"
-    },
-    {
-      "name": "libnativeloader_e2e_tests[com.google.android.art.apex]"
     },
     {
       "name": "libnativeloader_test[com.google.android.art.apex]"
