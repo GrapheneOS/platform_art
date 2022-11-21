@@ -205,6 +205,7 @@ android_test {
         "libdexmakerjvmtiagent",
         "libstaticjvmtiagent",
     ],
+    compile_multilib: "both",
 
     // TODO: This module should move to sdk_version: "system_server_current" when possible,
     //   as this will restrict the APIs available to just that expected system API. For now,
