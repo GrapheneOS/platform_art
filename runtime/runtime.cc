@@ -891,7 +891,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
   soa.Self()->SetClassLoaderOverride(g_system_class_loader);
 
   ObjPtr<mirror::Class> thread_class =
-      WellKnownClasses::ToClass(WellKnownClasses::java_lang_Thread);
+      WellKnownClasses::java_lang_Thread_init->GetDeclaringClass();
   ArtField* contextClassLoader =
       thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != nullptr);
@@ -2226,12 +2226,26 @@ void Runtime::InitThreadGroups(Thread* self) {
   ScopedObjectAccess soa(self);
   ArtField* main_thread_group_field = WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
   ArtField* system_thread_group_field = WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
-  ObjPtr<mirror::Class> thread_group_class = main_thread_group_field->GetDeclaringClass();
+  // Note: This is running before `ClassLinker::RunRootClinits()`, so we cannot rely on
+  // `ThreadGroup` and `Thread` being initialized.
+  // TODO: Clean up initialization order after all well-known methods are converted to `ArtMethod*`
+  // (and therefore the `WellKnownClasses::Init()` shall not initialize any classes).
+  StackHandleScope<2u> hs(self);
+  Handle<mirror::Class> thread_group_class =
+      hs.NewHandle(main_thread_group_field->GetDeclaringClass());
+  bool initialized = GetClassLinker()->EnsureInitialized(
+      self, thread_group_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true);
+  CHECK(initialized);
+  Handle<mirror::Class> thread_class =
+      hs.NewHandle(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass());
+  initialized = GetClassLinker()->EnsureInitialized(
+      self, thread_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true);
+  CHECK(initialized);
   main_thread_group_ =
-      soa.Vm()->AddGlobalRef(self, main_thread_group_field->GetObject(thread_group_class));
+      soa.Vm()->AddGlobalRef(self, main_thread_group_field->GetObject(thread_group_class.Get()));
   CHECK_IMPLIES(main_thread_group_ == nullptr, IsAotCompiler());
   system_thread_group_ =
-      soa.Vm()->AddGlobalRef(self, system_thread_group_field->GetObject(thread_group_class));
+      soa.Vm()->AddGlobalRef(self, system_thread_group_field->GetObject(thread_group_class.Get()));
   CHECK_IMPLIES(system_thread_group_ == nullptr, IsAotCompiler());
 }
 

@@ -1112,18 +1112,14 @@ void UnstartedRuntime::UnstartedThreadCurrentThread(
     // thread as unstarted to the ThreadGroup. A faked-up main thread peer is good enough for
     // these purposes.
     Runtime::Current()->InitThreadGroups(self);
-    jobject main_peer =
-        self->CreateCompileTimePeer(self->GetJniEnv(),
-                                    "main",
-                                    false,
-                                    Runtime::Current()->GetMainThreadGroup());
+    ObjPtr<mirror::Object> main_peer = self->CreateCompileTimePeer(
+        "main", /*as_daemon=*/ false, Runtime::Current()->GetMainThreadGroup());
     if (main_peer == nullptr) {
       AbortTransactionOrFail(self, "Failed allocating peer");
       return;
     }
 
-    result->SetL(self->DecodeJObject(main_peer));
-    self->GetJniEnv()->DeleteLocalRef(main_peer);
+    result->SetL(main_peer);
   } else {
     AbortTransactionOrFail(self,
                            "Thread.currentThread() does not support %s",

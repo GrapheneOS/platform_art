@@ -667,9 +667,7 @@ void* Thread::CreateCallback(void* arg) {
     }
     // Invoke the 'run' method of our java.lang.Thread.
     ObjPtr<mirror::Object> receiver = self->tlsPtr_.opeer;
-    jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-    ScopedLocalRef<jobject> ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
-    InvokeVirtualOrInterfaceWithJValues(soa, ref.get(), mid, nullptr);
+    WellKnownClasses::java_lang_Thread_run->InvokeVirtual<'V'>(self, receiver);
   }
   // Detach and delete self.
   Runtime::Current()->GetThreadList()->Unregister(self, /* should_run_callbacks= */ true);
@@ -1125,43 +1123,40 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_p
 void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsStarted());
-  JNIEnv* env = tlsPtr_.jni_env;
+  Thread* self = this;
+  DCHECK_EQ(self, Thread::Current());
 
-  if (thread_group == nullptr) {
-    thread_group = runtime->GetMainThreadGroup();
-  }
-  ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF(name));
+  ScopedObjectAccess soa(self);
+  StackHandleScope<4u> hs(self);
+  DCHECK(WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass()->IsInitialized());
+  Handle<mirror::Object> thr_group = hs.NewHandle(soa.Decode<mirror::Object>(
+      thread_group != nullptr ? thread_group : runtime->GetMainThreadGroup()));
+  Handle<mirror::String> thread_name = hs.NewHandle(
+      name != nullptr ? mirror::String::AllocFromModifiedUtf8(self, name) : nullptr);
   // Add missing null check in case of OOM b/18297817
-  if (name != nullptr && thread_name.get() == nullptr) {
-    CHECK(IsExceptionPending());
+  if (name != nullptr && UNLIKELY(thread_name == nullptr)) {
+    CHECK(self->IsExceptionPending());
     return;
   }
   jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
 
-  ScopedLocalRef<jobject> peer(env, env->AllocObject(WellKnownClasses::java_lang_Thread));
-  if (peer.get() == nullptr) {
+  DCHECK(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->IsInitialized());
+  Handle<mirror::Object> peer = hs.NewHandle(
+      WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->AllocObject(self));
+  if (UNLIKELY(peer == nullptr)) {
     CHECK(IsExceptionPending());
     return;
   }
-  {
-    ScopedObjectAccess soa(this);
-    tlsPtr_.opeer = soa.Decode<mirror::Object>(peer.get()).Ptr();
-  }
-  env->CallNonvirtualVoidMethod(peer.get(),
-                                WellKnownClasses::java_lang_Thread,
-                                WellKnownClasses::java_lang_Thread_init,
-                                thread_group, thread_name.get(), thread_priority, thread_is_daemon);
-  if (IsExceptionPending()) {
+  tlsPtr_.opeer = peer.Get();
+  WellKnownClasses::java_lang_Thread_init->InvokeInstance<'V', 'L', 'L', 'I', 'Z'>(
+      self, peer.Get(), thr_group.Get(), thread_name.Get(), thread_priority, thread_is_daemon);
+  if (self->IsExceptionPending()) {
     return;
   }
 
-  Thread* self = this;
-  DCHECK_EQ(self, Thread::Current());
-  ScopedObjectAccess soa(self);
-  SetNativePeer</*kSupportTransaction=*/ false>(soa.Decode<mirror::Object>(peer.get()), self);
+  SetNativePeer</*kSupportTransaction=*/ false>(peer.Get(), self);
 
-  StackHandleScope<1> hs(self);
   MutableHandle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName()));
   if (peer_thread_name == nullptr) {
     // The Thread constructor should have set the Thread.name to a
@@ -1169,18 +1164,16 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
     if (runtime->IsActiveTransaction()) {
-      InitPeer<true>(soa,
-                     tlsPtr_.opeer,
+      InitPeer<true>(tlsPtr_.opeer,
                      thread_is_daemon,
-                     thread_group,
-                     thread_name.get(),
+                     thr_group.Get(),
+                     thread_name.Get(),
                      thread_priority);
     } else {
-      InitPeer<false>(soa,
-                      tlsPtr_.opeer,
+      InitPeer<false>(tlsPtr_.opeer,
                       thread_is_daemon,
-                      thread_group,
-                      thread_name.get(),
+                      thr_group.Get(),
+                      thread_name.Get(),
                       thread_priority);
     }
     peer_thread_name.Assign(GetThreadName());
@@ -1191,27 +1184,33 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   }
 }
 
-jobject Thread::CreateCompileTimePeer(JNIEnv* env,
-                                      const char* name,
-                                      bool as_daemon,
-                                      jobject thread_group) {
+ObjPtr<mirror::Object> Thread::CreateCompileTimePeer(const char* name,
+                                                     bool as_daemon,
+                                                     jobject thread_group) {
   Runtime* runtime = Runtime::Current();
   CHECK(!runtime->IsStarted());
+  Thread* self = this;
+  DCHECK_EQ(self, Thread::Current());
 
-  if (thread_group == nullptr) {
-    thread_group = runtime->GetMainThreadGroup();
-  }
-  ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF(name));
+  ScopedObjectAccessUnchecked soa(self);
+  StackHandleScope<3u> hs(self);
+  DCHECK(WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass()->IsInitialized());
+  Handle<mirror::Object> thr_group = hs.NewHandle(soa.Decode<mirror::Object>(
+      thread_group != nullptr ? thread_group : runtime->GetMainThreadGroup()));
+  Handle<mirror::String> thread_name = hs.NewHandle(
+      name != nullptr ? mirror::String::AllocFromModifiedUtf8(self, name) : nullptr);
   // Add missing null check in case of OOM b/18297817
-  if (name != nullptr && thread_name.get() == nullptr) {
-    CHECK(Thread::Current()->IsExceptionPending());
+  if (name != nullptr && UNLIKELY(thread_name == nullptr)) {
+    CHECK(self->IsExceptionPending());
     return nullptr;
   }
   jint thread_priority = kNormThreadPriority;  // Always normalize to NORM priority.
   jboolean thread_is_daemon = as_daemon;
 
-  ScopedLocalRef<jobject> peer(env, env->AllocObject(WellKnownClasses::java_lang_Thread));
-  if (peer.get() == nullptr) {
+  DCHECK(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->IsInitialized());
+  Handle<mirror::Object> peer = hs.NewHandle(
+      WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->AllocObject(self));
+  if (peer == nullptr) {
     CHECK(Thread::Current()->IsExceptionPending());
     return nullptr;
   }
@@ -1222,39 +1221,32 @@ jobject Thread::CreateCompileTimePeer(JNIEnv* env,
   // non-null value. However, because we can run without code
   // available (in the compiler, in tests), we manually assign the
   // fields the constructor should have set.
-  ScopedObjectAccessUnchecked soa(Thread::Current());
   if (runtime->IsActiveTransaction()) {
-    InitPeer<true>(soa,
-                   soa.Decode<mirror::Object>(peer.get()),
+    InitPeer<true>(peer.Get(),
                    thread_is_daemon,
-                   thread_group,
-                   thread_name.get(),
+                   thr_group.Get(),
+                   thread_name.Get(),
                    thread_priority);
   } else {
-    InitPeer<false>(soa,
-                    soa.Decode<mirror::Object>(peer.get()),
+    InitPeer<false>(peer.Get(),
                     thread_is_daemon,
-                    thread_group,
-                    thread_name.get(),
+                    thr_group.Get(),
+                    thread_name.Get(),
                     thread_priority);
   }
 
-  return peer.release();
+  return peer.Get();
 }
 
 template<bool kTransactionActive>
-void Thread::InitPeer(ScopedObjectAccessAlreadyRunnable& soa,
-                      ObjPtr<mirror::Object> peer,
+void Thread::InitPeer(ObjPtr<mirror::Object> peer,
                       jboolean thread_is_daemon,
-                      jobject thread_group,
-                      jobject thread_name,
+                      ObjPtr<mirror::Object> thread_group,
+                      ObjPtr<mirror::String> thread_name,
                       jint thread_priority) {
-  WellKnownClasses::java_lang_Thread_daemon->
-      SetBoolean<kTransactionActive>(peer, thread_is_daemon);
-  WellKnownClasses::java_lang_Thread_group->
-      SetObject<kTransactionActive>(peer, soa.Decode<mirror::Object>(thread_group));
-  WellKnownClasses::java_lang_Thread_name->
-      SetObject<kTransactionActive>(peer, soa.Decode<mirror::Object>(thread_name));
+  WellKnownClasses::java_lang_Thread_daemon->SetBoolean<kTransactionActive>(peer, thread_is_daemon);
+  WellKnownClasses::java_lang_Thread_group->SetObject<kTransactionActive>(peer, thread_group);
+  WellKnownClasses::java_lang_Thread_name->SetObject<kTransactionActive>(peer, thread_name);
   WellKnownClasses::java_lang_Thread_priority->SetInt<kTransactionActive>(peer, thread_priority);
 }
 
@@ -2434,25 +2426,19 @@ void Thread::Shutdown() {
 }
 
 void Thread::NotifyThreadGroup(ScopedObjectAccessAlreadyRunnable& soa, jobject thread_group) {
-  ScopedLocalRef<jobject> thread_jobject(
-      soa.Env(), soa.Env()->AddLocalReference<jobject>(Thread::Current()->GetPeer()));
-  ScopedLocalRef<jobject> thread_group_jobject_scoped(
-      soa.Env(), nullptr);
-  jobject thread_group_jobject = thread_group;
+  ObjPtr<mirror::Object> thread_object = soa.Self()->GetPeer();
+  ObjPtr<mirror::Object> thread_group_object = soa.Decode<mirror::Object>(thread_group);
   if (thread_group == nullptr || kIsDebugBuild) {
     // There is always a group set. Retrieve it.
-    thread_group_jobject_scoped.reset(soa.AddLocalReference<jobject>(
-        WellKnownClasses::java_lang_Thread_group->GetObject(
-            soa.Decode<mirror::Object>(thread_jobject.get()))));
-    thread_group_jobject = thread_group_jobject_scoped.get();
+    thread_group_object = WellKnownClasses::java_lang_Thread_group->GetObject(thread_object);
     if (kIsDebugBuild && thread_group != nullptr) {
-      CHECK(soa.Env()->IsSameObject(thread_group, thread_group_jobject));
+      CHECK(thread_group_object == soa.Decode<mirror::Object>(thread_group));
     }
   }
-  soa.Env()->CallNonvirtualVoidMethod(thread_group_jobject,
-                                      WellKnownClasses::java_lang_ThreadGroup,
-                                      WellKnownClasses::java_lang_ThreadGroup_add,
-                                      thread_jobject.get());
+  // TODO: Why are we calling the non-final method `ThreadGroup.add(Thread)` directly
+  // instead of using the virtual dispatch? (Preserved from old code.)
+  WellKnownClasses::java_lang_ThreadGroup_add->InvokeInstance<'V', 'L'>(
+      soa.Self(), thread_group_object, thread_object);
 }
 
 Thread::Thread(bool daemon)
@@ -2577,8 +2563,8 @@ void Thread::Destroy(bool should_run_callbacks) {
   if (tlsPtr_.opeer != nullptr) {
     ScopedObjectAccess soa(self);
     // We may need to call user-supplied managed code, do this before final clean-up.
-    HandleUncaughtExceptions(soa);
-    RemoveFromThreadGroup(soa);
+    HandleUncaughtExceptions();
+    RemoveFromThreadGroup();
     Runtime* runtime = Runtime::Current();
     if (runtime != nullptr && should_run_callbacks) {
       runtime->GetRuntimeCallbacks()->ThreadDeath(self);
@@ -2657,38 +2643,35 @@ Thread::~Thread() {
   TearDownAlternateSignalStack();
 }
 
-void Thread::HandleUncaughtExceptions(ScopedObjectAccessAlreadyRunnable& soa) {
-  if (!IsExceptionPending()) {
+void Thread::HandleUncaughtExceptions() {
+  Thread* self = this;
+  DCHECK_EQ(self, Thread::Current());
+  if (!self->IsExceptionPending()) {
     return;
   }
-  ScopedLocalRef<jobject> peer(tlsPtr_.jni_env, soa.AddLocalReference<jobject>(tlsPtr_.opeer));
-  ScopedThreadStateChange tsc(this, ThreadState::kNative);
 
   // Get and clear the exception.
-  ScopedLocalRef<jthrowable> exception(tlsPtr_.jni_env, tlsPtr_.jni_env->ExceptionOccurred());
-  tlsPtr_.jni_env->ExceptionClear();
+  ObjPtr<mirror::Object> exception = self->GetException();
+  self->ClearException();
 
   // Call the Thread instance's dispatchUncaughtException(Throwable)
-  tlsPtr_.jni_env->CallVoidMethod(peer.get(),
-      WellKnownClasses::java_lang_Thread_dispatchUncaughtException,
-      exception.get());
+  WellKnownClasses::java_lang_Thread_dispatchUncaughtException->InvokeFinal<'V', 'L'>(
+      self, tlsPtr_.opeer, exception);
 
   // If the dispatchUncaughtException threw, clear that exception too.
-  tlsPtr_.jni_env->ExceptionClear();
+  self->ClearException();
 }
 
-void Thread::RemoveFromThreadGroup(ScopedObjectAccessAlreadyRunnable& soa) {
-  // this.group.removeThread(this);
+void Thread::RemoveFromThreadGroup() {
+  Thread* self = this;
+  DCHECK_EQ(self, Thread::Current());
+  // this.group.threadTerminated(this);
   // group can be null if we're in the compiler or a test.
-  ObjPtr<mirror::Object> ogroup =
+  ObjPtr<mirror::Object> group =
       WellKnownClasses::java_lang_Thread_group->GetObject(tlsPtr_.opeer);
-  if (ogroup != nullptr) {
-    ScopedLocalRef<jobject> group(soa.Env(), soa.AddLocalReference<jobject>(ogroup));
-    ScopedLocalRef<jobject> peer(soa.Env(), soa.AddLocalReference<jobject>(tlsPtr_.opeer));
-    ScopedThreadStateChange tsc(soa.Self(), ThreadState::kNative);
-    tlsPtr_.jni_env->CallVoidMethod(group.get(),
-                                    WellKnownClasses::java_lang_ThreadGroup_removeThread,
-                                    peer.get());
+  if (group != nullptr) {
+    WellKnownClasses::java_lang_ThreadGroup_threadTerminated->InvokeVirtual<'V', 'L'>(
+        self, group, tlsPtr_.opeer);
   }
 }
 

@@ -2827,9 +2827,8 @@ class JNI {
     //
     // NB GetDirectBufferAddress() does not need to call Buffer.isDirect() since it is only
     // able return a valid address if the Buffer address field is not-null.
-    ArtMethod* is_direct_method = buffer->GetClass()->FindVirtualMethodForVirtual(
-        WellKnownClasses::java_nio_Buffer_isDirect, kRuntimePointerSize);
-    uint8_t direct = is_direct_method->InvokeInstance<'Z'>(soa.Self(), buffer.Get());
+    uint8_t direct = WellKnownClasses::java_nio_Buffer_isDirect->InvokeVirtual<'Z'>(
+        soa.Self(), buffer.Get());
     if (direct == 0u) {
       return -1;
     }
