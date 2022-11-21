@@ -50,6 +50,7 @@
 #include "mirror/object-inl.h"
 #include "oat.h"
 #include "oat_writer.h"
+#include "read_barrier_config.h"
 #include "scoped_thread_state_change-inl.h"
 #include "signal_catcher.h"
 #include "stream/buffered_output_stream.h"
@@ -229,6 +230,8 @@ inline void ImageTest::DoCompile(ImageHeader::StorageMode storage_mode,
       key_value_store.Put(OatHeader::kBootClassPathKey,
                           android::base::Join(out_helper.dex_file_locations, ':'));
       key_value_store.Put(OatHeader::kApexVersionsKey, Runtime::Current()->GetApexVersions());
+      key_value_store.Put(OatHeader::kConcurrentCopying,
+                          gUseReadBarrier ? OatHeader::kTrueValue : OatHeader::kFalseValue);
 
       std::vector<std::unique_ptr<ElfWriter>> elf_writers;
       std::vector<std::unique_ptr<OatWriter>> oat_writers;
