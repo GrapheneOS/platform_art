@@ -24,10 +24,11 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Optional
 
-COLOR_BLUE = '\033[94m'
-COLOR_GREEN = '\033[92m'
-COLOR_NORMAL = '\033[0m'
-COLOR_RED = '\033[91m'
+COLOR = (os.environ.get("LUCI_CONTEXT") == None)  # Disable colors on LUCI.
+COLOR_BLUE = '\033[94m' if COLOR else ''
+COLOR_GREEN = '\033[92m' if COLOR else ''
+COLOR_NORMAL = '\033[0m' if COLOR else ''
+COLOR_RED = '\033[91m' if COLOR else ''
 
 # Helper class which allows us to access the environment using syntax sugar.
 # E.g. `env.ANDROID_BUILD_TOP` instead of `os.environ["ANDROID_BUILD_TOP"]`.

@@ -21,9 +21,11 @@ from typing import List
 from subprocess import DEVNULL, PIPE, STDOUT
 from tempfile import NamedTemporaryFile
 
-COLOR_RED = '\033[91m'
-COLOR_BLUE = '\033[94m'
-COLOR_NORMAL = '\033[0m'
+COLOR = (os.environ.get("LUCI_CONTEXT") == None)  # Disable colors on LUCI.
+COLOR_BLUE = '\033[94m' if COLOR else ''
+COLOR_GREEN = '\033[92m' if COLOR else ''
+COLOR_NORMAL = '\033[0m' if COLOR else ''
+COLOR_RED = '\033[91m' if COLOR else ''
 
 def parse_args(argv):
   argp, opt_bool = ArgumentParser(), BooleanOptionalAction
