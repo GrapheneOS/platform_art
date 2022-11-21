@@ -56,6 +56,7 @@
 #include "android-base/file.h"
 #include "android-base/logging.h"
 #include "android-base/macros.h"
+#include "android-base/parsebool.h"
 #include "android-base/parseint.h"
 #include "android-base/properties.h"
 #include "android-base/result.h"
@@ -76,6 +77,7 @@
 #include "dex/art_dex_file_loader.h"
 #include "dexoptanalyzer.h"
 #include "exec_utils.h"
+#include "fmt/format.h"
 #include "log/log.h"
 #include "odr_artifacts.h"
 #include "odr_common.h"
@@ -86,16 +88,21 @@
 #include "odrefresh/odrefresh.h"
 #include "palette/palette.h"
 #include "palette/palette_types.h"
+#include "read_barrier_config.h"
 
 namespace art {
 namespace odrefresh {
 
+namespace {
+
 namespace apex = com::android::apex;
 namespace art_apex = com::android::art;
 
-using android::base::Result;
+using ::android::base::ParseBool;
+using ::android::base::ParseBoolResult;
+using ::android::base::Result;
 
-namespace {
+using ::fmt::literals::operator""_format;  // NOLINT
 
 // Name of cache info file in the ART Apex artifact cache.
 constexpr const char* kCacheInfoFile = "cache-info.xml";
@@ -905,17 +912,35 @@ WARN_UNUSED bool OnDeviceRefresh::CheckSystemPropertiesHaveNotChanged(
   return true;
 }
 
+WARN_UNUSED bool OnDeviceRefresh::CheckBuildUserfaultFdGc() const {
+  auto it = config_.GetSystemProperties().find("ro.dalvik.vm.enable_uffd_gc");
+  bool build_enable_uffd_gc = it != config_.GetSystemProperties().end() ?
+                                  ParseBool(it->second) == ParseBoolResult::kTrue :
+                                  false;
+  if (build_enable_uffd_gc != gUseUserfaultfd) {
+    // Normally, this should not happen. If this happens, the system image was probably built with a
+    // wrong PRODUCT_ENABLE_UFFD_GC flag.
+    LOG(WARNING) << "Userfaultfd GC check failed (build-time: {}, runtime: {})."_format(
+        build_enable_uffd_gc, gUseUserfaultfd);
+    return false;
+  }
+  return true;
+}
+
 WARN_UNUSED bool OnDeviceRefresh::BootClasspathArtifactsOnSystemUsable(
     const apex::ApexInfo& art_apex_info) const {
   if (!art_apex_info.getIsFactory()) {
+    LOG(INFO) << "Updated ART APEX mounted";
     return false;
   }
-  LOG(INFO) << "Factory ART APEX mounted.";
 
   if (!CheckSystemPropertiesAreDefault()) {
     return false;
   }
-  LOG(INFO) << "System properties are set to default values.";
+
+  if (!CheckBuildUserfaultFdGc()) {
+    return false;
+  }
 
   return true;
 }
@@ -925,14 +950,17 @@ WARN_UNUSED bool OnDeviceRefresh::SystemServerArtifactsOnSystemUsable(
   if (std::any_of(apex_info_list.begin(),
                   apex_info_list.end(),
                   [](const apex::ApexInfo& apex_info) { return !apex_info.getIsFactory(); })) {
+    LOG(INFO) << "Updated APEXes mounted";
     return false;
   }
-  LOG(INFO) << "Factory APEXes mounted.";
 
   if (!CheckSystemPropertiesAreDefault()) {
     return false;
   }
-  LOG(INFO) << "System properties are set to default values.";
+
+  if (!CheckBuildUserfaultFdGc()) {
+    return false;
+  }
 
   return true;
 }
