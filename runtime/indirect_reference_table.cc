@@ -27,7 +27,7 @@
 #include "mirror/object-inl.h"
 #include "nth_caller_visitor.h"
 #include "reference_table.h"
-#include "runtime.h"
+#include "runtime-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
@@ -528,10 +528,29 @@ void IndirectReferenceTable::Trim() {
 
 void IndirectReferenceTable::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
   BufferedRootVisitor<kDefaultBufferedRootCount> root_visitor(visitor, root_info);
-  for (auto ref : *this) {
+  for (size_t i = 0, capacity = Capacity(); i != capacity; ++i) {
+    GcRoot<mirror::Object>* ref = table_[i].GetReference();
     if (!ref->IsNull()) {
       root_visitor.VisitRoot(*ref);
       DCHECK(!ref->IsNull());
+    }
+  }
+}
+
+void IndirectReferenceTable::SweepJniWeakGlobals(IsMarkedVisitor* visitor) {
+  CHECK_EQ(kind_, kWeakGlobal);
+  MutexLock mu(Thread::Current(), *Locks::jni_weak_globals_lock_);
+  Runtime* const runtime = Runtime::Current();
+  for (size_t i = 0, capacity = Capacity(); i != capacity; ++i) {
+    GcRoot<mirror::Object>* entry = table_[i].GetReference();
+    // Need to skip null here to distinguish between null entries and cleared weak ref entries.
+    if (!entry->IsNull()) {
+      mirror::Object* obj = entry->Read<kWithoutReadBarrier>();
+      mirror::Object* new_obj = visitor->IsMarked(obj);
+      if (new_obj == nullptr) {
+        new_obj = runtime->GetClearedJniWeakGlobal();
+      }
+      *entry = GcRoot<mirror::Object>(new_obj);
     }
   }
 }

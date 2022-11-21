@@ -37,6 +37,7 @@
 
 namespace art {
 
+class IsMarkedVisitor;
 class RootInfo;
 
 namespace mirror {
@@ -181,42 +182,6 @@ class IrtEntry {
 static_assert(sizeof(IrtEntry) == 2 * sizeof(uint32_t), "Unexpected sizeof(IrtEntry)");
 static_assert(IsPowerOfTwo(sizeof(IrtEntry)), "Unexpected sizeof(IrtEntry)");
 
-class IrtIterator {
- public:
-  IrtIterator(IrtEntry* table, size_t i, size_t capacity) REQUIRES_SHARED(Locks::mutator_lock_)
-      : table_(table), i_(i), capacity_(capacity) {
-    // capacity_ is used in some target; has warning with unused attribute.
-    UNUSED(capacity_);
-  }
-
-  IrtIterator& operator++() REQUIRES_SHARED(Locks::mutator_lock_) {
-    ++i_;
-    return *this;
-  }
-
-  GcRoot<mirror::Object>* operator*() REQUIRES_SHARED(Locks::mutator_lock_) {
-    // This does not have a read barrier as this is used to visit roots.
-    return table_[i_].GetReference();
-  }
-
-  bool equals(const IrtIterator& rhs) const {
-    return (i_ == rhs.i_ && table_ == rhs.table_);
-  }
-
- private:
-  IrtEntry* const table_;
-  size_t i_;
-  const size_t capacity_;
-};
-
-bool inline operator==(const IrtIterator& lhs, const IrtIterator& rhs) {
-  return lhs.equals(rhs);
-}
-
-bool inline operator!=(const IrtIterator& lhs, const IrtIterator& rhs) {
-  return !lhs.equals(rhs);
-}
-
 // We initially allocate local reference tables with a very small number of entries, packing
 // multiple tables into a single page. If we need to expand one, we allocate them in units of
 // pages.
@@ -340,15 +305,6 @@ class IndirectReferenceTable {
   // without recovering holes. Thus this is a conservative estimate.
   size_t FreeCapacity() const;
 
-  // Note IrtIterator does not have a read barrier as it's used to visit roots.
-  IrtIterator begin() {
-    return IrtIterator(table_, 0, Capacity());
-  }
-
-  IrtIterator end() {
-    return IrtIterator(table_, Capacity(), Capacity());
-  }
-
   void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -376,6 +332,10 @@ class IndirectReferenceTable {
   /* Reference validation for CheckJNI. */
   bool IsValidReference(IndirectRef, /*out*/std::string* error_msg) const
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  void SweepJniWeakGlobals(IsMarkedVisitor* visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Locks::jni_weak_globals_lock_);
 
  private:
   static constexpr uint32_t kShiftedSerialMask = (1u << kIRTSerialBits) - 1;

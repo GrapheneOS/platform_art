@@ -1169,23 +1169,6 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m, std::string* error_msg, b
   return native_method;
 }
 
-void JavaVMExt::SweepJniWeakGlobals(IsMarkedVisitor* visitor) {
-  MutexLock mu(Thread::Current(), *Locks::jni_weak_globals_lock_);
-  Runtime* const runtime = Runtime::Current();
-  for (auto* entry : weak_globals_) {
-    // Need to skip null here to distinguish between null entries and cleared weak ref entries.
-    if (!entry->IsNull()) {
-      // Since this is called by the GC, we don't need a read barrier.
-      mirror::Object* obj = entry->Read<kWithoutReadBarrier>();
-      mirror::Object* new_obj = visitor->IsMarked(obj);
-      if (new_obj == nullptr) {
-        new_obj = runtime->GetClearedJniWeakGlobal();
-      }
-      *entry = GcRoot<mirror::Object>(new_obj);
-    }
-  }
-}
-
 void JavaVMExt::TrimGlobals() {
   WriterMutexLock mu(Thread::Current(), *Locks::jni_globals_lock_);
   globals_.Trim();
