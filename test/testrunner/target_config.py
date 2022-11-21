@@ -246,6 +246,20 @@ target_config = {
             'ASAN_OPTIONS' : 'detect_leaks=0'
         }
     },
+    'art-gtest-asan32': {
+        'make' : 'test-art-host-gtest32',
+        'env': {
+            'SANITIZE_HOST' : 'address',
+            'ASAN_OPTIONS' : 'detect_leaks=0'
+        }
+    },
+    'art-gtest-asan64': {
+        'make' : 'test-art-host-gtest64',
+        'env': {
+            'SANITIZE_HOST' : 'address',
+            'ASAN_OPTIONS' : 'detect_leaks=0'
+        }
+    },
     'art-asan': {
         'run-test' : ['--interpreter',
                       '--interp-ac',
