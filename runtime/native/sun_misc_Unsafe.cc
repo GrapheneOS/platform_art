@@ -521,12 +521,14 @@ static void Unsafe_park(JNIEnv* env, jobject, jboolean isAbsolute, jlong time) {
 
 static void Unsafe_unpark(JNIEnv* env, jobject, jobject jthread) {
   art::ScopedFastNativeObjectAccess soa(env);
-  if (jthread == nullptr || !env->IsInstanceOf(jthread, WellKnownClasses::java_lang_Thread)) {
+  ObjPtr<mirror::Object> mirror_thread = soa.Decode<mirror::Object>(jthread);
+  if (mirror_thread == nullptr ||
+      !mirror_thread->InstanceOf(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
     ThrowIllegalArgumentException("Argument to unpark() was not a Thread");
     return;
   }
   art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
-  art::Thread* thread = art::Thread::FromManagedThread(soa, jthread);
+  art::Thread* thread = art::Thread::FromManagedThread(soa, mirror_thread);
   if (thread != nullptr) {
     thread->Unpark();
   } else {
@@ -536,7 +538,7 @@ static void Unsafe_unpark(JNIEnv* env, jobject, jobject jthread) {
     // already terminated.
     ArtField* unparked = WellKnownClasses::java_lang_Thread_unparkedBeforeStart;
     // JNI must use non transactional mode.
-    unparked->SetBoolean<false>(soa.Decode<mirror::Object>(jthread), JNI_TRUE);
+    unparked->SetBoolean<false>(mirror_thread, JNI_TRUE);
   }
 }
 

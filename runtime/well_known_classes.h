@@ -87,8 +87,6 @@ struct WellKnownClasses {
   static jclass java_lang_String;
   static jclass java_lang_StringFactory;
   static jclass java_lang_System;
-  static jclass java_lang_Thread;
-  static jclass java_lang_ThreadGroup;
   static jclass java_lang_Throwable;
   static jclass java_lang_Void;
   static jclass libcore_reflect_AnnotationMember__array;
@@ -122,11 +120,11 @@ struct WellKnownClasses {
   static jmethodID java_lang_Runtime_nativeLoad;
   static ArtMethod* java_lang_Short_valueOf;
   static jmethodID java_lang_String_charAt;
-  static jmethodID java_lang_Thread_dispatchUncaughtException;
-  static jmethodID java_lang_Thread_init;
-  static jmethodID java_lang_Thread_run;
-  static jmethodID java_lang_ThreadGroup_add;
-  static jmethodID java_lang_ThreadGroup_removeThread;
+  static ArtMethod* java_lang_Thread_dispatchUncaughtException;
+  static ArtMethod* java_lang_Thread_init;
+  static ArtMethod* java_lang_Thread_run;
+  static ArtMethod* java_lang_ThreadGroup_add;
+  static ArtMethod* java_lang_ThreadGroup_threadTerminated;
   static ArtMethod* java_nio_Buffer_isDirect;
   static ArtMethod* java_nio_DirectByteBuffer_init;
   static ArtMethod* java_util_function_Consumer_accept;

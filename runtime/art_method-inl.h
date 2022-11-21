@@ -192,12 +192,54 @@ typename detail::ShortyTraits<ReturnType>::Type
 ArtMethod::InvokeInstance(Thread* self,
                           ObjPtr<mirror::Object> receiver,
                           typename detail::ShortyTraits<ArgType>::Type... args) {
+  DCHECK(!GetDeclaringClass()->IsInterface());
   DCHECK(!IsStatic());
   JValue result;
   constexpr auto shorty = detail::MaterializeShorty<ReturnType, ArgType...>();
   auto vregs = detail::MaterializeVRegs<'L', ArgType...>(receiver, args...);
   Invoke(self, vregs.data(), sizeof(vregs), &result, shorty.data());
   return detail::ShortyTraits<ReturnType>::Get(result);
+}
+
+template <char ReturnType, char... ArgType>
+typename detail::ShortyTraits<ReturnType>::Type
+ArtMethod::InvokeFinal(Thread* self,
+                       ObjPtr<mirror::Object> receiver,
+                       typename detail::ShortyTraits<ArgType>::Type... args) {
+  DCHECK(!GetDeclaringClass()->IsInterface());
+  DCHECK(!IsStatic());
+  DCHECK(IsFinal());
+  DCHECK(receiver != nullptr);
+  return InvokeInstance<ReturnType, ArgType...>(self, receiver, args...);
+}
+
+template <char ReturnType, char... ArgType>
+typename detail::ShortyTraits<ReturnType>::Type
+ArtMethod::InvokeVirtual(Thread* self,
+                         ObjPtr<mirror::Object> receiver,
+                         typename detail::ShortyTraits<ArgType>::Type... args) {
+  DCHECK(!GetDeclaringClass()->IsInterface());
+  DCHECK(!IsStatic());
+  DCHECK(!IsFinal());
+  DCHECK(receiver != nullptr);
+  ArtMethod* target_method =
+      receiver->GetClass()->FindVirtualMethodForVirtual(this, kRuntimePointerSize);
+  DCHECK(target_method != nullptr);
+  return target_method->InvokeInstance<ReturnType, ArgType...>(self, receiver, args...);
+}
+
+template <char ReturnType, char... ArgType>
+typename detail::ShortyTraits<ReturnType>::Type
+ArtMethod::InvokeInterface(Thread* self,
+                           ObjPtr<mirror::Object> receiver,
+                           typename detail::ShortyTraits<ArgType>::Type... args) {
+  DCHECK(GetDeclaringClass()->IsInterface());
+  DCHECK(!IsStatic());
+  DCHECK(receiver != nullptr);
+  ArtMethod* target_method =
+      receiver->GetClass()->FindVirtualMethodForInterface(this, kRuntimePointerSize);
+  DCHECK(target_method != nullptr);
+  return target_method->InvokeInstance<ReturnType, ArgType...>(self, receiver, args...);
 }
 
 template <ReadBarrierOption kReadBarrierOption>
