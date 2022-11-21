@@ -21,7 +21,7 @@
 #include "art_method-inl.h"
 #include "base/mem_map.h"
 #include "common_runtime_test.h"
-#include "indirect_reference_table.h"
+#include "local_reference_table.h"
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "mirror/string-inl.h"
@@ -2580,24 +2580,23 @@ TEST_F(JniInternalTest, IndirectReferenceTableOffsets) {
   // by modifying memory.
   // The parameters don't really matter here.
   std::string error_msg;
-  IndirectReferenceTable irt(IndirectRefKind::kGlobal,
-                             IndirectReferenceTable::ResizableCapacity::kNo);
-  bool success = irt.Initialize(/*max_count=*/ 5, &error_msg);
+  jni::LocalReferenceTable lrt;
+  bool success = lrt.Initialize(/*max_count=*/ 5, &error_msg);
   ASSERT_TRUE(success) << error_msg;
-  IRTSegmentState old_state = irt.GetSegmentState();
+  jni::LRTSegmentState old_state = lrt.GetSegmentState();
 
   // Write some new state directly. We invert parts of old_state to ensure a new value.
-  IRTSegmentState new_state;
+  jni::LRTSegmentState new_state;
   new_state.top_index = old_state.top_index ^ 0x07705005;
   ASSERT_NE(old_state.top_index, new_state.top_index);
 
-  uint8_t* base = reinterpret_cast<uint8_t*>(&irt);
+  uint8_t* base = reinterpret_cast<uint8_t*>(&lrt);
   int32_t segment_state_offset =
-      IndirectReferenceTable::SegmentStateOffset(sizeof(void*)).Int32Value();
-  *reinterpret_cast<IRTSegmentState*>(base + segment_state_offset) = new_state;
+      jni::LocalReferenceTable::SegmentStateOffset(sizeof(void*)).Int32Value();
+  *reinterpret_cast<jni::LRTSegmentState*>(base + segment_state_offset) = new_state;
 
   // Read and compare.
-  EXPECT_EQ(new_state.top_index, irt.GetSegmentState().top_index);
+  EXPECT_EQ(new_state.top_index, lrt.GetSegmentState().top_index);
 }
 
 // Test the offset computation of JNIEnvExt offsets. b/26071368.
@@ -2611,7 +2610,7 @@ TEST_F(JniInternalTest, JNIEnvExtOffsets) {
   // hope it to be.
   uint32_t segment_state_now =
       OFFSETOF_MEMBER(JNIEnvExt, locals_) +
-      IndirectReferenceTable::SegmentStateOffset(sizeof(void*)).Uint32Value();
+      jni::LocalReferenceTable::SegmentStateOffset(sizeof(void*)).Uint32Value();
   uint32_t segment_state_computed = JNIEnvExt::SegmentStateOffset(sizeof(void*)).Uint32Value();
   EXPECT_EQ(segment_state_now, segment_state_computed);
 }

@@ -2768,9 +2768,9 @@ ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
   bool expect_null = false;
   // The "kinds" below are sorted by the frequency we expect to encounter them.
   if (kind == kLocal) {
-    IndirectReferenceTable& locals = tlsPtr_.jni_env->locals_;
+    jni::LocalReferenceTable& locals = tlsPtr_.jni_env->locals_;
     // Local references do not need a read barrier.
-    result = locals.Get<kWithoutReadBarrier>(ref);
+    result = locals.Get(ref);
   } else if (kind == kJniTransition) {
     // The `jclass` for a static method points to the CompressedReference<> in the
     // `ArtMethod::declaring_class_`. Other `jobject` arguments point to spilled stack

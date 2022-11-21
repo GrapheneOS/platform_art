@@ -28,6 +28,9 @@
 #include "obj_ptr.h"
 
 namespace art {
+namespace jni {
+class LocalReferenceTable;
+}  // namespace jni
 namespace mirror {
 class Object;
 }  // namespace mirror
@@ -61,6 +64,7 @@ class ReferenceTable {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::alloc_tracker_lock_);
   friend class IndirectReferenceTable;  // For Dump.
+  friend class jni::LocalReferenceTable;  // For Dump.
 
   std::string name_;
   Table entries_;
