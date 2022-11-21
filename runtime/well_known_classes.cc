@@ -76,8 +76,6 @@ jclass WellKnownClasses::java_lang_StackOverflowError;
 jclass WellKnownClasses::java_lang_String;
 jclass WellKnownClasses::java_lang_StringFactory;
 jclass WellKnownClasses::java_lang_System;
-jclass WellKnownClasses::java_lang_Thread;
-jclass WellKnownClasses::java_lang_ThreadGroup;
 jclass WellKnownClasses::java_lang_Throwable;
 jclass WellKnownClasses::java_lang_Void;
 jclass WellKnownClasses::libcore_reflect_AnnotationMember__array;
@@ -111,11 +109,11 @@ jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 ArtMethod* WellKnownClasses::java_lang_Short_valueOf;
 jmethodID WellKnownClasses::java_lang_String_charAt;
-jmethodID WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
-jmethodID WellKnownClasses::java_lang_Thread_init;
-jmethodID WellKnownClasses::java_lang_Thread_run;
-jmethodID WellKnownClasses::java_lang_ThreadGroup_add;
-jmethodID WellKnownClasses::java_lang_ThreadGroup_removeThread;
+ArtMethod* WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
+ArtMethod* WellKnownClasses::java_lang_Thread_init;
+ArtMethod* WellKnownClasses::java_lang_Thread_run;
+ArtMethod* WellKnownClasses::java_lang_ThreadGroup_add;
+ArtMethod* WellKnownClasses::java_lang_ThreadGroup_threadTerminated;
 ArtMethod* WellKnownClasses::java_nio_Buffer_isDirect;
 ArtMethod* WellKnownClasses::java_nio_DirectByteBuffer_init;
 ArtMethod* WellKnownClasses::java_util_function_Consumer_accept;
@@ -392,8 +390,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_String = CacheClass(env, "java/lang/String");
   java_lang_StringFactory = CacheClass(env, "java/lang/StringFactory");
   java_lang_System = CacheClass(env, "java/lang/System");
-  java_lang_Thread = CacheClass(env, "java/lang/Thread");
-  java_lang_ThreadGroup = CacheClass(env, "java/lang/ThreadGroup");
   java_lang_Throwable = CacheClass(env, "java/lang/Throwable");
   java_lang_Void = CacheClass(env, "java/lang/Void");
   libcore_reflect_AnnotationMember__array = CacheClass(env, "[Llibcore/reflect/AnnotationMember;");
@@ -445,17 +441,16 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_reflect_InvocationTargetException_init = CacheMethod(env, java_lang_reflect_InvocationTargetException, false, "<init>", "(Ljava/lang/Throwable;)V");
   java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
   java_lang_String_charAt = CacheMethod(env, java_lang_String, false, "charAt", "(I)C");
-  java_lang_Thread_dispatchUncaughtException = CacheMethod(env, java_lang_Thread, false, "dispatchUncaughtException", "(Ljava/lang/Throwable;)V");
-  java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
-  java_lang_Thread_run = CacheMethod(env, java_lang_Thread, false, "run", "()V");
-  java_lang_ThreadGroup_add = CacheMethod(env, java_lang_ThreadGroup, false, "add", "(Ljava/lang/Thread;)V");
-  java_lang_ThreadGroup_removeThread = CacheMethod(env, java_lang_ThreadGroup, false, "threadTerminated", "(Ljava/lang/Thread;)V");
 
-  StackHandleScope<12u> hs(self);
+  StackHandleScope<14u> hs(self);
   Handle<mirror::Class> d_s_vmr =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VMRuntime;"));
   Handle<mirror::Class> j_i_fd =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/io/FileDescriptor;"));
+  Handle<mirror::Class> j_l_Thread =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Thread;"));
+  Handle<mirror::Class> j_l_tg =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ThreadGroup;"));
   Handle<mirror::Class> j_n_b =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/nio/Buffer;"));
   Handle<mirror::Class> j_n_bb =
@@ -493,6 +488,29 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   ObjPtr<mirror::Class> j_l_Float = java_lang_Float_valueOf->GetDeclaringClass();
   java_lang_Float_floatToRawIntBits =
       CacheMethod(j_l_Float, /*is_static=*/ true, "floatToRawIntBits", "(F)I", pointer_size);
+
+  java_lang_Thread_dispatchUncaughtException = CacheMethod(
+      j_l_Thread.Get(),
+      /*is_static=*/ false,
+      "dispatchUncaughtException",
+      "(Ljava/lang/Throwable;)V",
+      pointer_size);
+  java_lang_Thread_init = CacheMethod(
+      j_l_Thread.Get(),
+      /*is_static=*/ false,
+      "<init>",
+      "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V",
+      pointer_size);
+  java_lang_Thread_run = CacheMethod(
+      j_l_Thread.Get(), /*is_static=*/ false, "run", "()V", pointer_size);
+  java_lang_ThreadGroup_add = CacheMethod(
+      j_l_tg.Get(), /*is_static=*/ false, "add", "(Ljava/lang/Thread;)V", pointer_size);
+  java_lang_ThreadGroup_threadTerminated = CacheMethod(
+      j_l_tg.Get(),
+      /*is_static=*/ false,
+      "threadTerminated",
+      "(Ljava/lang/Thread;)V",
+      pointer_size);
 
   java_nio_Buffer_isDirect =
       CacheMethod(j_n_b.Get(), /*is_static=*/ false, "isDirect", "()Z", pointer_size);
@@ -556,35 +574,34 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_ClassLoader_parent = CacheField(
       j_l_cl, /*is_static=*/ false, "parent", "Ljava/lang/ClassLoader;");
 
-  ObjPtr<mirror::Class> j_l_Thread = soa.Decode<mirror::Class>(java_lang_Thread);
   java_lang_Thread_parkBlocker =
-      CacheField(j_l_Thread, /*is_static=*/ false, "parkBlocker", "Ljava/lang/Object;");
-  java_lang_Thread_daemon = CacheField(j_l_Thread, /*is_static=*/ false, "daemon", "Z");
+      CacheField(j_l_Thread.Get(), /*is_static=*/ false, "parkBlocker", "Ljava/lang/Object;");
+  java_lang_Thread_daemon = CacheField(j_l_Thread.Get(), /*is_static=*/ false, "daemon", "Z");
   java_lang_Thread_group =
-      CacheField(j_l_Thread, /*is_static=*/ false, "group", "Ljava/lang/ThreadGroup;");
+      CacheField(j_l_Thread.Get(), /*is_static=*/ false, "group", "Ljava/lang/ThreadGroup;");
   java_lang_Thread_lock =
-      CacheField(j_l_Thread, /*is_static=*/ false, "lock", "Ljava/lang/Object;");
+      CacheField(j_l_Thread.Get(), /*is_static=*/ false, "lock", "Ljava/lang/Object;");
   java_lang_Thread_name =
-      CacheField(j_l_Thread, /*is_static=*/ false, "name", "Ljava/lang/String;");
-  java_lang_Thread_priority = CacheField(j_l_Thread, /*is_static=*/ false, "priority", "I");
-  java_lang_Thread_nativePeer = CacheField(j_l_Thread, /*is_static=*/ false, "nativePeer", "J");
+      CacheField(j_l_Thread.Get(), /*is_static=*/ false, "name", "Ljava/lang/String;");
+  java_lang_Thread_priority = CacheField(j_l_Thread.Get(), /*is_static=*/ false, "priority", "I");
+  java_lang_Thread_nativePeer =
+      CacheField(j_l_Thread.Get(), /*is_static=*/ false, "nativePeer", "J");
   java_lang_Thread_systemDaemon =
-      CacheField(j_l_Thread, /*is_static=*/ false, "systemDaemon", "Z");
+      CacheField(j_l_Thread.Get(), /*is_static=*/ false, "systemDaemon", "Z");
   java_lang_Thread_unparkedBeforeStart =
-      CacheField(j_l_Thread, /*is_static=*/ false, "unparkedBeforeStart", "Z");
+      CacheField(j_l_Thread.Get(), /*is_static=*/ false, "unparkedBeforeStart", "Z");
 
-  ObjPtr<mirror::Class> j_l_tg = soa.Decode<mirror::Class>(java_lang_ThreadGroup);
   java_lang_ThreadGroup_groups =
-      CacheField(j_l_tg, /*is_static=*/ false, "groups", "[Ljava/lang/ThreadGroup;");
-  java_lang_ThreadGroup_ngroups = CacheField(j_l_tg, /*is_static=*/ false, "ngroups", "I");
+      CacheField(j_l_tg.Get(), /*is_static=*/ false, "groups", "[Ljava/lang/ThreadGroup;");
+  java_lang_ThreadGroup_ngroups = CacheField(j_l_tg.Get(), /*is_static=*/ false, "ngroups", "I");
   java_lang_ThreadGroup_mainThreadGroup =
-      CacheField(j_l_tg, /*is_static=*/ true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
+      CacheField(j_l_tg.Get(), /*is_static=*/ true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_name =
-      CacheField(j_l_tg, /*is_static=*/ false, "name", "Ljava/lang/String;");
+      CacheField(j_l_tg.Get(), /*is_static=*/ false, "name", "Ljava/lang/String;");
   java_lang_ThreadGroup_parent =
-      CacheField(j_l_tg, /*is_static=*/ false, "parent", "Ljava/lang/ThreadGroup;");
+      CacheField(j_l_tg.Get(), /*is_static=*/ false, "parent", "Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_systemThreadGroup =
-      CacheField(j_l_tg, /*is_static=*/ true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
+      CacheField(j_l_tg.Get(), /*is_static=*/ true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
 
   ObjPtr<mirror::Class> j_l_Throwable = soa.Decode<mirror::Class>(java_lang_Throwable);
   java_lang_Throwable_cause = CacheField(
@@ -686,8 +703,6 @@ void WellKnownClasses::Clear() {
   java_lang_String = nullptr;
   java_lang_StringFactory = nullptr;
   java_lang_System = nullptr;
-  java_lang_Thread = nullptr;
-  java_lang_ThreadGroup = nullptr;
   java_lang_Throwable = nullptr;
   java_lang_Void = nullptr;
   libcore_reflect_AnnotationMember__array = nullptr;
@@ -725,7 +740,7 @@ void WellKnownClasses::Clear() {
   java_lang_Thread_init = nullptr;
   java_lang_Thread_run = nullptr;
   java_lang_ThreadGroup_add = nullptr;
-  java_lang_ThreadGroup_removeThread = nullptr;
+  java_lang_ThreadGroup_threadTerminated = nullptr;
   java_nio_Buffer_isDirect = nullptr;
   java_nio_DirectByteBuffer_init = nullptr;
   libcore_reflect_AnnotationFactory_createAnnotation = nullptr;

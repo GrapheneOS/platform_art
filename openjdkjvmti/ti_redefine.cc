@@ -457,7 +457,7 @@ jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> 
     // Check Thread specifically since it's not a root but too many things reach into it with Unsafe
     // too allow structural redefinition.
     if (klass->IsAssignableFrom(
-            self->DecodeJObject(art::WellKnownClasses::java_lang_Thread)->AsClass())) {
+            art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
       *error_msg =
           "java.lang.Thread has fields accessed using sun.misc.unsafe directly. It is not "
           "safe to structurally redefine it.";

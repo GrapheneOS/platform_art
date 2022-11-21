@@ -95,21 +95,21 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
   }
 
   art::ScopedObjectAccess soa(art::Thread::Current());
-  if (soa.Env()->IsInstanceOf(group, art::WellKnownClasses::java_lang_ThreadGroup) == JNI_FALSE) {
+  art::StackHandleScope<2> hs(soa.Self());
+  art::Handle<art::mirror::Class> tg_class =
+      hs.NewHandle(art::WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass());
+  art::Handle<art::mirror::Object> thread_group =
+      hs.NewHandle(soa.Decode<art::mirror::Object>(group));
+  if (!thread_group->InstanceOf(tg_class.Get())) {
     return ERR(INVALID_THREAD_GROUP);
   }
-
-  art::StackHandleScope<2> hs(soa.Self());
-  art::Handle<art::mirror::Class> tg_class(
-      hs.NewHandle(soa.Decode<art::mirror::Class>(art::WellKnownClasses::java_lang_ThreadGroup)));
-  art::Handle<art::mirror::Object> obj(hs.NewHandle(soa.Decode<art::mirror::Object>(group)));
 
   // Do the name first. It's the only thing that can fail.
   {
     art::ArtField* name_field = art::WellKnownClasses::java_lang_ThreadGroup_name;
     CHECK(name_field != nullptr);
     art::ObjPtr<art::mirror::String> name_obj =
-        art::ObjPtr<art::mirror::String>::DownCast(name_field->GetObject(obj.Get()));
+        art::ObjPtr<art::mirror::String>::DownCast(name_field->GetObject(thread_group.Get()));
     std::string tmp_str;
     const char* tmp_cstr;
     if (name_obj == nullptr) {
@@ -130,7 +130,7 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
   {
     art::ArtField* parent_field = art::WellKnownClasses::java_lang_ThreadGroup_parent;
     CHECK(parent_field != nullptr);
-    art::ObjPtr<art::mirror::Object> parent_group = parent_field->GetObject(obj.Get());
+    art::ObjPtr<art::mirror::Object> parent_group = parent_field->GetObject(thread_group.Get());
     info_ptr->parent = parent_group == nullptr
                            ? nullptr
                            : soa.AddLocalReference<jthreadGroup>(parent_group);
@@ -140,14 +140,14 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
   {
     art::ArtField* prio_field = tg_class->FindDeclaredInstanceField("maxPriority", "I");
     CHECK(prio_field != nullptr);
-    info_ptr->max_priority = static_cast<jint>(prio_field->GetInt(obj.Get()));
+    info_ptr->max_priority = static_cast<jint>(prio_field->GetInt(thread_group.Get()));
   }
 
   // Daemon.
   {
     art::ArtField* daemon_field = tg_class->FindDeclaredInstanceField("daemon", "Z");
     CHECK(daemon_field != nullptr);
-    info_ptr->is_daemon = daemon_field->GetBoolean(obj.Get()) == 0 ? JNI_FALSE : JNI_TRUE;
+    info_ptr->is_daemon = daemon_field->GetBoolean(thread_group.Get()) == 0 ? JNI_FALSE : JNI_TRUE;
   }
 
   return ERR(NONE);
@@ -221,14 +221,14 @@ jvmtiError ThreadGroupUtil::GetThreadGroupChildren(jvmtiEnv* env,
   }
 
   art::ScopedObjectAccess soa(art::Thread::Current());
-
-  if (!soa.Env()->IsInstanceOf(group, art::WellKnownClasses::java_lang_ThreadGroup)) {
+  art::StackHandleScope<1> hs(soa.Self());
+  art::Handle<art::mirror::Object> thread_group =
+      hs.NewHandle(soa.Decode<art::mirror::Object>(group));
+  if (!thread_group->InstanceOf(
+          art::WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass())) {
     return ERR(INVALID_THREAD_GROUP);
   }
 
-  art::StackHandleScope<1> hs(soa.Self());
-  art::Handle<art::mirror::Object> thread_group = hs.NewHandle(
-      soa.Decode<art::mirror::Object>(group));
 
   art::ObjectLock<art::mirror::Object> thread_group_lock(soa.Self(), thread_group);
 
