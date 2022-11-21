@@ -24,6 +24,7 @@ from pathlib import Path
 from shutil import copyfile
 from testrunner import env
 from typing import Optional
+from zipfile import ZipFile
 
 COLOR = (os.environ.get("LUCI_CONTEXT") == None)  # Disable colors on LUCI.
 COLOR_BLUE = '\033[94m' if COLOR else ''
@@ -934,15 +935,18 @@ if True:
   SHARD = "HiddenApi" if "hiddenapi" in TEST_NAME else m.group(1)
   if target_mode == "yes":
     zip_file = f"{ANDROID_HOST_OUT}/etc/art/art-run-test-target-data-shard{SHARD}.zip"
-    zip_entry = f"target/{TEST_NAME}"
+    zip_entry = f"target/{TEST_NAME}/"
   elif runtime == "jvm":
     zip_file = f"{ANDROID_HOST_OUT}/etc/art/art-run-test-jvm-data-shard{SHARD}.zip"
-    zip_entry = f"jvm/{TEST_NAME}"
+    zip_entry = f"jvm/{TEST_NAME}/"
   else:
     zip_file = f"{ANDROID_HOST_OUT}/etc/art/art-run-test-host-data-shard{SHARD}.zip"
-    zip_entry = f"host/{TEST_NAME}"
-  run(f'unzip -q "{zip_file}" "{zip_entry}/*" -d "{tmp_dir}/.unzipped"')
-  run(f'mv "{tmp_dir}"/.unzipped/{zip_entry}/* "{tmp_dir}"')
+    zip_entry = f"host/{TEST_NAME}/"
+  zip = ZipFile(zip_file, "r")
+  zip_entries = [e for e in zip.namelist() if e.startswith(zip_entry)]
+  zip.extractall(Path(tmp_dir) / ".unzipped", members=zip_entries)
+  for entry in (Path(tmp_dir) / ".unzipped" / zip_entry).iterdir():
+    entry.rename(Path(tmp_dir) / entry.name)
 
   def clean_up(passed: bool):
     if always_clean == "yes" or (passed and never_clean == "no"):
