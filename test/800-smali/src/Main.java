@@ -21,7 +21,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * Smali excercise.
+ * Smali exercise.
  */
 public class Main {
 
