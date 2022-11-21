@@ -257,17 +257,14 @@ class IndirectReferenceTable {
     kYes
   };
 
-  // WARNING: Construction of the IndirectReferenceTable may fail.
-  // error_msg must not be null. If error_msg is set by the constructor, then
-  // construction has failed and the IndirectReferenceTable will be in an
-  // invalid state. Use IsValid to check whether the object is in an invalid
-  // state.
+  // Constructs an uninitialized indirect reference table. Use `Initialize()` to initialize it.
+  IndirectReferenceTable(IndirectRefKind kind, ResizableCapacity resizable);
+
+  // Initialize the indirect reference table.
+  //
   // Max_count is the minimum initial capacity (resizable), or minimum total capacity
   // (not resizable). A value of 1 indicates an implementation-convenient small size.
-  IndirectReferenceTable(size_t max_count,
-                         IndirectRefKind kind,
-                         ResizableCapacity resizable,
-                         std::string* error_msg);
+  bool Initialize(size_t max_count, std::string* error_msg);
 
   ~IndirectReferenceTable();
 
