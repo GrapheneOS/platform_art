@@ -113,23 +113,24 @@ void SmallIrtAllocator::Deallocate(IrtEntry* unneeded) {
   small_irt_freelist_ = unneeded;
 }
 
-IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
-                                               IndirectRefKind desired_kind,
-                                               ResizableCapacity resizable,
-                                               std::string* error_msg)
+IndirectReferenceTable::IndirectReferenceTable(IndirectRefKind desired_kind,
+                                               ResizableCapacity resizable)
     : segment_state_(kIRTFirstSegment),
       table_(nullptr),
       kind_(desired_kind),
-      max_entries_(max_count),
+      max_entries_(0u),
       current_num_holes_(0),
       resizable_(resizable) {
-  CHECK(error_msg != nullptr);
   CHECK_NE(desired_kind, kJniTransitionOrInvalid);
+}
+
+bool IndirectReferenceTable::Initialize(size_t max_count, std::string* error_msg) {
+  CHECK(error_msg != nullptr);
 
   // Overflow and maximum check.
   CHECK_LE(max_count, kMaxTableSizeInBytes / sizeof(IrtEntry));
 
-  if (max_entries_ <= kSmallIrtEntries) {
+  if (max_count <= kSmallIrtEntries) {
     table_ = Runtime::Current()->GetSmallIrtAllocator()->Allocate(error_msg);
     if (table_ != nullptr) {
       max_entries_ = kSmallIrtEntries;
@@ -139,20 +140,18 @@ IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
   if (table_ == nullptr) {
     const size_t table_bytes = RoundUp(max_count * sizeof(IrtEntry), kPageSize);
     table_mem_map_ = NewIRTMap(table_bytes, error_msg);
-    if (!table_mem_map_.IsValid() && error_msg->empty()) {
-      *error_msg = "Unable to map memory for indirect ref table";
+    if (!table_mem_map_.IsValid()) {
+      DCHECK(!error_msg->empty());
+      return false;
     }
 
-    if (table_mem_map_.IsValid()) {
-      table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
-    } else {
-      table_ = nullptr;
-    }
+    table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
     // Take into account the actual length.
     max_entries_ = table_bytes / sizeof(IrtEntry);
   }
   segment_state_ = kIRTFirstSegment;
   last_known_previous_state_ = kIRTFirstSegment;
+  return true;
 }
 
 IndirectReferenceTable::~IndirectReferenceTable() {
