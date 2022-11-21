@@ -19,6 +19,7 @@
 
 #include "jni_env_ext.h"
 
+#include "indirect_reference_table-inl.h"
 #include "mirror/object.h"
 
 namespace art {
@@ -47,6 +48,10 @@ inline T JNIEnvExt::AddLocalReference(ObjPtr<mirror::Object> obj) {
   }
 
   return reinterpret_cast<T>(ref);
+}
+
+inline void JNIEnvExt::UpdateLocal(IndirectRef iref, ObjPtr<mirror::Object> obj) {
+  locals_.Update(iref, obj);
 }
 
 }  // namespace art

@@ -63,9 +63,8 @@ class JNIEnvExt : public JNIEnv {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::alloc_tracker_lock_);
 
-  void UpdateLocal(IndirectRef iref, ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_) {
-    locals_.Update(iref, obj);
-  }
+  void UpdateLocal(IndirectRef iref, ObjPtr<mirror::Object> obj)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   jobject NewLocalRef(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
   void DeleteLocalRef(jobject obj) REQUIRES_SHARED(Locks::mutator_lock_);
