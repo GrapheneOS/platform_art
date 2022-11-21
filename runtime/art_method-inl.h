@@ -57,11 +57,11 @@ template <> struct ShortyTraits<'V'> {
 };
 
 template <> struct ShortyTraits<'Z'> {
-  // We're using `uint8_t` for `boolean`, see `JValue`.
-  using Type = uint8_t;
-  static Type Get(const JValue& value) { return value.GetZ(); }
+  // Despite using `uint8_t` for `boolean` in `JValue`, we shall use `bool` here.
+  using Type = bool;
+  static Type Get(const JValue& value) { return value.GetZ() != 0u; }
   static constexpr size_t kVRegCount = 1u;
-  static void Set(uint32_t* args, Type value) { args[0] = static_cast<uint32_t>(value); }
+  static void Set(uint32_t* args, Type value) { args[0] = static_cast<uint32_t>(value ? 1u : 0u); }
 };
 
 template <> struct ShortyTraits<'B'> {
@@ -208,7 +208,7 @@ ArtMethod::InvokeFinal(Thread* self,
                        typename detail::ShortyTraits<ArgType>::Type... args) {
   DCHECK(!GetDeclaringClass()->IsInterface());
   DCHECK(!IsStatic());
-  DCHECK(IsFinal());
+  DCHECK(IsFinal() || GetDeclaringClass()->IsFinal());
   DCHECK(receiver != nullptr);
   return InvokeInstance<ReturnType, ArgType...>(self, receiver, args...);
 }
