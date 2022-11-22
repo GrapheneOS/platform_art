@@ -165,7 +165,9 @@ class JavaVMExt : public JavaVM {
 
   void SweepJniWeakGlobals(IsMarkedVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::jni_weak_globals_lock_);
+      REQUIRES(!Locks::jni_weak_globals_lock_) {
+    weak_globals_.SweepJniWeakGlobals(visitor);
+  }
 
   ObjPtr<mirror::Object> DecodeGlobal(IndirectRef ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -218,9 +220,12 @@ class JavaVMExt : public JavaVM {
   static jstring GetLibrarySearchPath(JNIEnv* env, jobject class_loader);
 
  private:
-  // The constructor should not be called directly. It may leave the object in
-  // an erroneous state, and the result needs to be checked.
-  JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options, std::string* error_msg);
+  // The constructor should not be called directly. Use `Create()` that initializes
+  // the new `JavaVMExt` object by calling `Initialize()`.
+  JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options);
+
+  // Initialize the `JavaVMExt` object.
+  bool Initialize(std::string* error_msg);
 
   // Return true if self can currently access weak globals.
   bool MayAccessWeakGlobals(Thread* self) const REQUIRES_SHARED(Locks::mutator_lock_);

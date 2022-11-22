@@ -22,12 +22,14 @@ from importlib.machinery import SourceFileLoader
 from inspect import currentframe, getframeinfo, FrameInfo
 from pathlib import Path
 from shutil import copyfile
+from testrunner import env
 from typing import Optional
 
-COLOR_BLUE = '\033[94m'
-COLOR_GREEN = '\033[92m'
-COLOR_NORMAL = '\033[0m'
-COLOR_RED = '\033[91m'
+COLOR = (os.environ.get("LUCI_CONTEXT") == None)  # Disable colors on LUCI.
+COLOR_BLUE = '\033[94m' if COLOR else ''
+COLOR_GREEN = '\033[92m' if COLOR else ''
+COLOR_NORMAL = '\033[0m' if COLOR else ''
+COLOR_RED = '\033[91m' if COLOR else ''
 
 # Helper class which allows us to access the environment using syntax sugar.
 # E.g. `env.ANDROID_BUILD_TOP` instead of `os.environ["ANDROID_BUILD_TOP"]`.
@@ -655,6 +657,19 @@ if True:
         target_arch_name = grep64bit
       else:
         target_arch_name = grep32bit
+
+    # We may build for two arches. Get the one with the expected bitness.
+    arches = [env.TARGET_ARCH, env.TARGET_2ND_ARCH]
+    if suffix64 == "64":
+      arch = [a for a in arches if a and a.endswith("64")]
+      assert len(arch) == 1, f"Can not find unique 64-bit arch in {arches}"
+    else:
+      arch = [a for a in arches if a and not a.endswith("64")]
+      assert len(arch) == 1, f"Can not find unique 32-bit arch in {arches}"
+
+    # Check that the heuristics matches build configuration.
+    assert target_arch_name.strip() == arch[0], f"{target_arch_name.strip()} != {arch[0]}"
+
     return target_arch_name.strip()
 
   def guess_host_arch_name():

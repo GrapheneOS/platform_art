@@ -495,9 +495,7 @@ const JNIInvokeInterface gJniInvokeInterface = {
   JII::AttachCurrentThreadAsDaemon
 };
 
-JavaVMExt::JavaVMExt(Runtime* runtime,
-                     const RuntimeArgumentMap& runtime_options,
-                     std::string* error_msg)
+JavaVMExt::JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options)
     : runtime_(runtime),
       check_jni_abort_hook_(nullptr),
       check_jni_abort_hook_data_(nullptr),
@@ -506,13 +504,10 @@ JavaVMExt::JavaVMExt(Runtime* runtime,
       tracing_enabled_(runtime_options.Exists(RuntimeArgumentMap::JniTrace)
                        || VLOG_IS_ON(third_party_jni)),
       trace_(runtime_options.GetOrDefault(RuntimeArgumentMap::JniTrace)),
-      globals_(kGlobalsMax, kGlobal, IndirectReferenceTable::ResizableCapacity::kNo, error_msg),
+      globals_(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo),
       libraries_(new Libraries),
       unchecked_functions_(&gJniInvokeInterface),
-      weak_globals_(kWeakGlobalsMax,
-                    kWeakGlobal,
-                    IndirectReferenceTable::ResizableCapacity::kNo,
-                    error_msg),
+      weak_globals_(kWeakGlobal, IndirectReferenceTable::ResizableCapacity::kNo),
       allow_accessing_weak_globals_(true),
       weak_globals_add_condition_("weak globals add condition",
                                   (CHECK(Locks::jni_weak_globals_lock_ != nullptr),
@@ -527,21 +522,23 @@ JavaVMExt::JavaVMExt(Runtime* runtime,
   SetCheckJniEnabled(runtime_options.Exists(RuntimeArgumentMap::CheckJni) || kIsDebugBuild);
 }
 
+bool JavaVMExt::Initialize(std::string* error_msg) {
+  return globals_.Initialize(kGlobalsMax, error_msg) &&
+         weak_globals_.Initialize(kWeakGlobalsMax, error_msg);
+}
+
 JavaVMExt::~JavaVMExt() {
   UnloadBootNativeLibraries();
 }
 
-// Checking "globals" and "weak_globals" usually requires locks, but we
-// don't need the locks to check for validity when constructing the
-// object. Use NO_THREAD_SAFETY_ANALYSIS for this.
 std::unique_ptr<JavaVMExt> JavaVMExt::Create(Runtime* runtime,
                                              const RuntimeArgumentMap& runtime_options,
-                                             std::string* error_msg) NO_THREAD_SAFETY_ANALYSIS {
-  std::unique_ptr<JavaVMExt> java_vm(new JavaVMExt(runtime, runtime_options, error_msg));
-  if (java_vm && java_vm->globals_.IsValid() && java_vm->weak_globals_.IsValid()) {
-    return java_vm;
+                                             std::string* error_msg) {
+  std::unique_ptr<JavaVMExt> java_vm(new JavaVMExt(runtime, runtime_options));
+  if (!java_vm->Initialize(error_msg)) {
+    return nullptr;
   }
-  return nullptr;
+  return java_vm;
 }
 
 jint JavaVMExt::HandleGetEnv(/*out*/void** env, jint version) {
@@ -1170,23 +1167,6 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m, std::string* error_msg, b
     native_method = FindCodeForNativeMethodInAgents(m);
   }
   return native_method;
-}
-
-void JavaVMExt::SweepJniWeakGlobals(IsMarkedVisitor* visitor) {
-  MutexLock mu(Thread::Current(), *Locks::jni_weak_globals_lock_);
-  Runtime* const runtime = Runtime::Current();
-  for (auto* entry : weak_globals_) {
-    // Need to skip null here to distinguish between null entries and cleared weak ref entries.
-    if (!entry->IsNull()) {
-      // Since this is called by the GC, we don't need a read barrier.
-      mirror::Object* obj = entry->Read<kWithoutReadBarrier>();
-      mirror::Object* new_obj = visitor->IsMarked(obj);
-      if (new_obj == nullptr) {
-        new_obj = runtime->GetClearedJniWeakGlobal();
-      }
-      *entry = GcRoot<mirror::Object>(new_obj);
-    }
-  }
 }
 
 void JavaVMExt::TrimGlobals() {
