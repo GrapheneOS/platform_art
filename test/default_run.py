@@ -1193,30 +1193,6 @@ def default_run(ctx, args, **kwargs):
 
     timeout_dumper_cmd = ""
 
-    # Check whether signal_dumper is available.
-    if TIMEOUT_DUMPER == "signal_dumper":
-      # Chroot? Use as prefix for tests.
-      TIMEOUT_DUMPER_PATH_PREFIX = ""
-      if CHROOT:
-        TIMEOUT_DUMPER_PATH_PREFIX = f"{CHROOT}/"
-
-      # Testing APEX?
-      if adb.shell(
-          f"test -x {TIMEOUT_DUMPER_PATH_PREFIX}/apex/com.android.art/bin/signal_dumper",
-          check=False,
-          save_cmd=False).returncode:
-        TIMEOUT_DUMPER = "/apex/com.android.art/bin/signal_dumper"
-      # Is it in /system/bin?
-      elif adb.shell(
-          f"test -x {TIMEOUT_DUMPER_PATH_PREFIX}/system/bin/signal_dumper",
-          check=False,
-          save_cmd=False).returncode:
-        TIMEOUT_DUMPER = "/system/bin/signal_dumper"
-      else:
-        TIMEOUT_DUMPER = ""
-    else:
-      TIMEOUT_DUMPER = ""
-
     if TIMEOUT_DUMPER:
       # Use "-l" to dump to logcat. That is convenience for the build bot crash symbolization.
       # Use exit code 124 for toybox timeout (b/141007616).
