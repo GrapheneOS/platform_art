@@ -2772,7 +2772,7 @@ ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
     IndirectReferenceTable& locals = tlsPtr_.jni_env->locals_;
     // Local references do not need a read barrier.
     result = locals.Get<kWithoutReadBarrier>(ref);
-  } else if (kind == kJniTransitionOrInvalid) {
+  } else if (kind == kJniTransition) {
     // The `jclass` for a static method points to the CompressedReference<> in the
     // `ArtMethod::declaring_class_`. Other `jobject` arguments point to spilled stack
     // references but a StackReference<> is just a subclass of CompressedReference<>.
