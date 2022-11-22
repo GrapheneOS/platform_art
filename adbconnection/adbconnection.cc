@@ -207,7 +207,7 @@ static art::ObjPtr<art::mirror::Object> CreateAdbConnectionThread(art::Thread* s
       system_thread_group_field->GetDeclaringClass()->GetFieldObject<art::mirror::Object>(
           system_thread_group_field->GetOffset());
   art::WellKnownClasses::java_lang_Thread_init->InvokeInstance<'V', 'L', 'L', 'I', 'Z'>(
-      self, thread.Get(), system_thread_group, thr_name.Get(), /*priority=*/ 0, /*daemon=*/ 1u);
+      self, thread.Get(), system_thread_group, thr_name.Get(), /*priority=*/ 0, /*daemon=*/ true);
   return self->IsExceptionPending() ? nullptr : thread.Get();
 }
 

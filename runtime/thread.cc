@@ -1139,7 +1139,6 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     return;
   }
   jint thread_priority = GetNativePriority();
-  jboolean thread_is_daemon = as_daemon;
 
   DCHECK(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->IsInitialized());
   Handle<mirror::Object> peer = hs.NewHandle(
@@ -1150,7 +1149,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   }
   tlsPtr_.opeer = peer.Get();
   WellKnownClasses::java_lang_Thread_init->InvokeInstance<'V', 'L', 'L', 'I', 'Z'>(
-      self, peer.Get(), thr_group.Get(), thread_name.Get(), thread_priority, thread_is_daemon);
+      self, peer.Get(), thr_group.Get(), thread_name.Get(), thread_priority, as_daemon);
   if (self->IsExceptionPending()) {
     return;
   }
@@ -1165,13 +1164,13 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     // fields the constructor should have set.
     if (runtime->IsActiveTransaction()) {
       InitPeer<true>(tlsPtr_.opeer,
-                     thread_is_daemon,
+                     as_daemon,
                      thr_group.Get(),
                      thread_name.Get(),
                      thread_priority);
     } else {
       InitPeer<false>(tlsPtr_.opeer,
-                      thread_is_daemon,
+                      as_daemon,
                       thr_group.Get(),
                       thread_name.Get(),
                       thread_priority);
@@ -1205,7 +1204,6 @@ ObjPtr<mirror::Object> Thread::CreateCompileTimePeer(const char* name,
     return nullptr;
   }
   jint thread_priority = kNormThreadPriority;  // Always normalize to NORM priority.
-  jboolean thread_is_daemon = as_daemon;
 
   DCHECK(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->IsInitialized());
   Handle<mirror::Object> peer = hs.NewHandle(
@@ -1223,13 +1221,13 @@ ObjPtr<mirror::Object> Thread::CreateCompileTimePeer(const char* name,
   // fields the constructor should have set.
   if (runtime->IsActiveTransaction()) {
     InitPeer<true>(peer.Get(),
-                   thread_is_daemon,
+                   as_daemon,
                    thr_group.Get(),
                    thread_name.Get(),
                    thread_priority);
   } else {
     InitPeer<false>(peer.Get(),
-                    thread_is_daemon,
+                    as_daemon,
                     thr_group.Get(),
                     thread_name.Get(),
                     thread_priority);
@@ -1240,11 +1238,12 @@ ObjPtr<mirror::Object> Thread::CreateCompileTimePeer(const char* name,
 
 template<bool kTransactionActive>
 void Thread::InitPeer(ObjPtr<mirror::Object> peer,
-                      jboolean thread_is_daemon,
+                      bool as_daemon,
                       ObjPtr<mirror::Object> thread_group,
                       ObjPtr<mirror::String> thread_name,
                       jint thread_priority) {
-  WellKnownClasses::java_lang_Thread_daemon->SetBoolean<kTransactionActive>(peer, thread_is_daemon);
+  WellKnownClasses::java_lang_Thread_daemon->SetBoolean<kTransactionActive>(peer,
+      static_cast<uint8_t>(as_daemon ? 1u : 0u));
   WellKnownClasses::java_lang_Thread_group->SetObject<kTransactionActive>(peer, thread_group);
   WellKnownClasses::java_lang_Thread_name->SetObject<kTransactionActive>(peer, thread_name);
   WellKnownClasses::java_lang_Thread_priority->SetInt<kTransactionActive>(peer, thread_priority);
