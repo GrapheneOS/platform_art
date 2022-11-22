@@ -677,6 +677,27 @@ class ArtMethod final {
                  typename detail::ShortyTraits<ArgType>::Type... args)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <char ReturnType, char... ArgType>
+  typename detail::ShortyTraits<ReturnType>::Type
+  InvokeFinal(Thread* self,
+              ObjPtr<mirror::Object> receiver,
+              typename detail::ShortyTraits<ArgType>::Type... args)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <char ReturnType, char... ArgType>
+  typename detail::ShortyTraits<ReturnType>::Type
+  InvokeVirtual(Thread* self,
+                ObjPtr<mirror::Object> receiver,
+                typename detail::ShortyTraits<ArgType>::Type... args)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <char ReturnType, char... ArgType>
+  typename detail::ShortyTraits<ReturnType>::Type
+  InvokeInterface(Thread* self,
+                  ObjPtr<mirror::Object> receiver,
+                  typename detail::ShortyTraits<ArgType>::Type... args)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   const void* GetEntryPointFromQuickCompiledCode() const {
     return GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
   }

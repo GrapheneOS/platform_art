@@ -33,6 +33,7 @@
 #include "debugger.h"
 #include "jni/java_vm_ext.h"
 #include "jni/jni_env_ext.h"
+#include "mirror/class-alloc-inl.h"
 #include "mirror/throwable.h"
 #include "nativehelper/scoped_local_ref.h"
 #include "runtime-inl.h"
@@ -181,24 +182,33 @@ AdbConnectionState::~AdbConnectionState() {
   }
 }
 
-static jobject CreateAdbConnectionThread(art::ScopedObjectAccess& soa)
+static art::ObjPtr<art::mirror::Object> CreateAdbConnectionThread(art::Thread* self)
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  JNIEnv* env = soa.Self()->GetJniEnv();
-  ScopedLocalRef<jstring> thr_name(env, env->NewStringUTF(kAdbConnectionThreadName));
+  art::StackHandleScope<2u> hs(self);
+  art::Handle<art::mirror::String> thr_name =
+      hs.NewHandle(art::mirror::String::AllocFromModifiedUtf8(self, kAdbConnectionThreadName));
+  if (thr_name == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+  art::ObjPtr<art::mirror::Class> thread_class =
+      art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass();
+  art::Handle<art::mirror::Object> thread = hs.NewHandle(thread_class->AllocObject(self));
+  if (thread == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
   art::ArtField* system_thread_group_field =
       art::WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
+  DCHECK(system_thread_group_field->GetDeclaringClass()->IsInitialized());
   // Avoid using `ArtField::GetObject` as it requires linking against `libdexfile` for
   // `operator<<(std::ostream&, Primitive::Type)`.
   art::ObjPtr<art::mirror::Object> system_thread_group =
       system_thread_group_field->GetDeclaringClass()->GetFieldObject<art::mirror::Object>(
           system_thread_group_field->GetOffset());
-  ScopedLocalRef<jobject> thr_group(env, soa.AddLocalReference<jobject>(system_thread_group));
-  return env->NewObject(art::WellKnownClasses::java_lang_Thread,
-                        art::WellKnownClasses::java_lang_Thread_init,
-                        thr_group.get(),
-                        thr_name.get(),
-                        /*Priority=*/ 0,
-                        /*Daemon=*/ true);
+  art::WellKnownClasses::java_lang_Thread_init->InvokeInstance<'V', 'L', 'L', 'I', 'Z'>(
+      self, thread.Get(), system_thread_group, thr_name.Get(), /*priority=*/ 0, /*daemon=*/ 1u);
+  return self->IsExceptionPending() ? nullptr : thread.Get();
 }
 
 struct CallbackData {
@@ -278,10 +288,14 @@ void AdbConnectionState::StartDebuggerThreads() {
     }
     runtime->StartThreadBirth();
   }
-  ScopedLocalRef<jobject> thr(soa.Env(), CreateAdbConnectionThread(soa));
+  jobject thr = soa.Env()->GetVm()->AddGlobalRef(self, CreateAdbConnectionThread(soa.Self()));
+  if (thr == nullptr) {
+    LOG(ERROR) << "Failed to create debugger thread!";
+    return;
+  }
   // Note: Using pthreads instead of std::thread to not abort when the thread cannot be
   //       created (exception support required).
-  std::unique_ptr<CallbackData> data(new CallbackData { this, soa.Env()->NewGlobalRef(thr.get()) });
+  std::unique_ptr<CallbackData> data(new CallbackData { this, thr });
   started_debugger_threads_ = true;
   gPthread.emplace();
   int pthread_create_result = pthread_create(&gPthread.value(),
@@ -293,7 +307,7 @@ void AdbConnectionState::StartDebuggerThreads() {
     started_debugger_threads_ = false;
     // If the create succeeded the other thread will call EndThreadBirth.
     art::Runtime* runtime = art::Runtime::Current();
-    soa.Env()->DeleteGlobalRef(data->thr_);
+    soa.Env()->DeleteGlobalRef(thr);
     LOG(ERROR) << "Failed to create thread for adb-jdwp connection manager!";
     art::MutexLock mu(art::Thread::Current(), *art::Locks::runtime_shutdown_lock_);
     runtime->EndThreadBirth();

@@ -1079,7 +1079,8 @@
           "1946-list-descriptors",
           "1947-breakpoint-redefine-deopt",
           "2041-bad-cleaner",
-          "2230-profile-save-hotness"
+          "2230-profile-save-hotness",
+          "2245-checker-smali-instance-of-comparison"
         ],
         "variant": "jvm",
         "bug": "b/73888836",

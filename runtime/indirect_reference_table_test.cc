@@ -60,11 +60,9 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   ScopedObjectAccess soa(Thread::Current());
   static const size_t kTableMax = 20;
   std::string error_msg;
-  IndirectReferenceTable irt(kTableMax,
-                             kGlobal,
-                             IndirectReferenceTable::ResizableCapacity::kNo,
-                             &error_msg);
-  ASSERT_TRUE(irt.IsValid()) << error_msg;
+  IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
+  bool success = irt.Initialize(kTableMax, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
 
   StackHandleScope<5> hs(soa.Self());
   Handle<mirror::Class> c =
@@ -302,11 +300,9 @@ TEST_F(IndirectReferenceTableTest, Holes) {
 
   // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference.
   {
-    IndirectReferenceTable irt(kTableMax,
-                               kGlobal,
-                               IndirectReferenceTable::ResizableCapacity::kNo,
-                               &error_msg);
-    ASSERT_TRUE(irt.IsValid()) << error_msg;
+    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
+    bool success = irt.Initialize(kTableMax, &error_msg);
+    ASSERT_TRUE(success) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
 
@@ -333,11 +329,9 @@ TEST_F(IndirectReferenceTableTest, Holes) {
 
   // 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
   {
-    IndirectReferenceTable irt(kTableMax,
-                               kGlobal,
-                               IndirectReferenceTable::ResizableCapacity::kNo,
-                               &error_msg);
-    ASSERT_TRUE(irt.IsValid()) << error_msg;
+    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
+    bool success = irt.Initialize(kTableMax, &error_msg);
+    ASSERT_TRUE(success) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
 
@@ -369,11 +363,9 @@ TEST_F(IndirectReferenceTableTest, Holes) {
   // 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
   //    reference.
   {
-    IndirectReferenceTable irt(kTableMax,
-                               kGlobal,
-                               IndirectReferenceTable::ResizableCapacity::kNo,
-                               &error_msg);
-    ASSERT_TRUE(irt.IsValid()) << error_msg;
+    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
+    bool success = irt.Initialize(kTableMax, &error_msg);
+    ASSERT_TRUE(success) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
 
@@ -408,11 +400,9 @@ TEST_F(IndirectReferenceTableTest, Holes) {
 
   // 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference.
   {
-    IndirectReferenceTable irt(kTableMax,
-                               kGlobal,
-                               IndirectReferenceTable::ResizableCapacity::kNo,
-                               &error_msg);
-    ASSERT_TRUE(irt.IsValid()) << error_msg;
+    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
+    bool success = irt.Initialize(kTableMax, &error_msg);
+    ASSERT_TRUE(success) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
 
@@ -451,11 +441,9 @@ TEST_F(IndirectReferenceTableTest, Holes) {
   // 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
   //    reference
   {
-    IndirectReferenceTable irt(kTableMax,
-                               kGlobal,
-                               IndirectReferenceTable::ResizableCapacity::kNo,
-                               &error_msg);
-    ASSERT_TRUE(irt.IsValid()) << error_msg;
+    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
+    bool success = irt.Initialize(kTableMax, &error_msg);
+    ASSERT_TRUE(success) << error_msg;
 
     const IRTSegmentState cookie0 = kIRTFirstSegment;
 
@@ -501,11 +489,9 @@ TEST_F(IndirectReferenceTableTest, Resize) {
   ASSERT_TRUE(obj0 != nullptr);
 
   std::string error_msg;
-  IndirectReferenceTable irt(kTableMax,
-                             kLocal,
-                             IndirectReferenceTable::ResizableCapacity::kYes,
-                             &error_msg);
-  ASSERT_TRUE(irt.IsValid()) << error_msg;
+  IndirectReferenceTable irt(kLocal, IndirectReferenceTable::ResizableCapacity::kYes);
+  bool success = irt.Initialize(kTableMax, &error_msg);
+  ASSERT_TRUE(success) << error_msg;
 
   CheckDump(&irt, 0, 0);
   const IRTSegmentState cookie = kIRTFirstSegment;

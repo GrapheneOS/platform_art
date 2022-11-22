@@ -1141,6 +1141,9 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_Integer_valueOf,
       WellKnownClasses::java_lang_Long_valueOf,
       WellKnownClasses::java_lang_Short_valueOf,
+      // Ensure `Thread` and `ThreadGroup` classes are initialized (avoid check at runtime).
+      WellKnownClasses::java_lang_Thread_init,
+      WellKnownClasses::java_lang_ThreadGroup_add,
       // Ensure `DirectByteBuffer` class is initialized (avoid check at runtime).
       WellKnownClasses::java_nio_DirectByteBuffer_init,
       // Ensure reflection annotation classes are initialized (avoid check at runtime).

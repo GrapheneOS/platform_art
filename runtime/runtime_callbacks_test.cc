@@ -35,7 +35,7 @@
 #include "dex/class_reference.h"
 #include "handle.h"
 #include "handle_scope-inl.h"
-#include "mirror/class-inl.h"
+#include "mirror/class-alloc-inl.h"
 #include "mirror/class_loader.h"
 #include "monitor-inl.h"
 #include "nativehelper/scoped_local_ref.h"
@@ -164,40 +164,40 @@ TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackJava)
 
   cb_.state = CallbackState::kBase;  // Ignore main thread attach.
 
-  {
-    ScopedObjectAccess soa(self);
-    MakeExecutable(WellKnownClasses::ToClass(WellKnownClasses::java_lang_Thread));
-  }
+  ScopedObjectAccess soa(self);
+  MakeExecutable(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass());
 
-  JNIEnv* env = self->GetJniEnv();
+  StackHandleScope<2u> hs(self);
+  Handle<mirror::String> thread_name = hs.NewHandle(
+      mirror::String::AllocFromModifiedUtf8(self, "ThreadLifecycleCallback test thread"));
+  ASSERT_TRUE(thread_name != nullptr);
 
-  ScopedLocalRef<jobject> thread_name(env,
-                                      env->NewStringUTF("ThreadLifecycleCallback test thread"));
-  ASSERT_TRUE(thread_name.get() != nullptr);
+  DCHECK(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->IsInitialized());
+  Handle<mirror::Object> thread = hs.NewHandle(
+      WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->AllocObject(self));
+  ASSERT_TRUE(thread != nullptr);
 
-  ScopedLocalRef<jobject> thread(env, env->AllocObject(WellKnownClasses::java_lang_Thread));
-  ASSERT_TRUE(thread.get() != nullptr);
+  WellKnownClasses::java_lang_Thread_init->InvokeInstance<'V', 'L', 'L', 'I', 'Z'>(
+      self,
+      thread.Get(),
+      soa.Decode<mirror::Object>(runtime_->GetMainThreadGroup()),
+      thread_name.Get(),
+      kMinThreadPriority,
+      /*daemon=*/ 0u);
+  ASSERT_FALSE(self->IsExceptionPending());
 
-  env->CallNonvirtualVoidMethod(thread.get(),
-                                WellKnownClasses::java_lang_Thread,
-                                WellKnownClasses::java_lang_Thread_init,
-                                runtime_->GetMainThreadGroup(),
-                                thread_name.get(),
-                                kMinThreadPriority,
-                                JNI_FALSE);
-  ASSERT_FALSE(env->ExceptionCheck());
+  ArtMethod* start_method =
+      thread->GetClass()->FindClassMethod("start", "()V", kRuntimePointerSize);
+  ASSERT_TRUE(start_method != nullptr);
 
-  jmethodID start_id = env->GetMethodID(WellKnownClasses::java_lang_Thread, "start", "()V");
-  ASSERT_TRUE(start_id != nullptr);
+  start_method->InvokeVirtual<'V'>(self, thread.Get());
+  ASSERT_FALSE(self->IsExceptionPending());
 
-  env->CallVoidMethod(thread.get(), start_id);
-  ASSERT_FALSE(env->ExceptionCheck());
+  ArtMethod* join_method = thread->GetClass()->FindClassMethod("join", "()V", kRuntimePointerSize);
+  ASSERT_TRUE(join_method != nullptr);
 
-  jmethodID join_id = env->GetMethodID(WellKnownClasses::java_lang_Thread, "join", "()V");
-  ASSERT_TRUE(join_id != nullptr);
-
-  env->CallVoidMethod(thread.get(), join_id);
-  ASSERT_FALSE(env->ExceptionCheck());
+  join_method->InvokeFinal<'V'>(self, thread.Get());
+  ASSERT_FALSE(self->IsExceptionPending());
 
   EXPECT_EQ(cb_.state, CallbackState::kDied);
 }

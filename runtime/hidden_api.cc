@@ -432,9 +432,7 @@ void MemberSignature::NotifyHiddenApiListener(AccessMethod access_method) {
       CHECK(signature_str != nullptr);
 
       // Call through to Consumer.accept(String memberSignature);
-      ArtMethod* accept_method = consumer_object->GetClass()->FindVirtualMethodForInterface(
-          WellKnownClasses::java_util_function_Consumer_accept, kRuntimePointerSize);
-      accept_method->InvokeInstance<'V', 'L'>(
+      WellKnownClasses::java_util_function_Consumer_accept->InvokeInterface<'V', 'L'>(
           soa.Self(), consumer_object.Get(), signature_str.Get());
     }
   }

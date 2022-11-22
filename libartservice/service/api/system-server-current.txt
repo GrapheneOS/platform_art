@@ -36,6 +36,10 @@ package com.android.server.art {
     method public void onOverrideJobInfo(@NonNull android.app.job.JobInfo.Builder);
   }
 
+  public class ArtModuleServiceInitializer {
+    method public static void setArtModuleServiceManager(@NonNull android.os.ArtModuleServiceManager);
+  }
+
   public class ReasonMapping {
     field public static final String REASON_BG_DEXOPT = "bg-dexopt";
     field public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";

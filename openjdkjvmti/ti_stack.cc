@@ -578,10 +578,11 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
     if (thread_list[i] == nullptr) {
       return ERR(INVALID_THREAD);
     }
-    if (!soa.Env()->IsInstanceOf(thread_list[i], art::WellKnownClasses::java_lang_Thread)) {
+    art::ObjPtr<art::mirror::Object> thread = soa.Decode<art::mirror::Object>(thread_list[i]);
+    if (!thread->InstanceOf(art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
       return ERR(INVALID_THREAD);
     }
-    data.handles.push_back(hs.NewHandle(soa.Decode<art::mirror::Object>(thread_list[i])));
+    data.handles.push_back(hs.NewHandle(thread));
   }
 
   RunCheckpointAndWait(&data, static_cast<size_t>(max_frame_count));
