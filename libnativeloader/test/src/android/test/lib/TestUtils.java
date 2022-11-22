@@ -19,6 +19,7 @@ package android.test.lib;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
+import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.function.ThrowingRunnable;
 
 public final class TestUtils {
@@ -31,5 +32,10 @@ public final class TestUtils {
         Throwable t = assertThrows(UnsatisfiedLinkError.class, loadLibrary);
         assertThat(t.getMessage())
                 .containsMatch("dlopen failed: .* is not accessible for the namespace");
+    }
+
+    public static String libPath(String dir, String libName) {
+        String libDirName = InstrumentationRegistry.getArguments().getString("libDirName");
+        return dir + "/" + libDirName + "/lib" + libName + ".so";
     }
 }
