@@ -819,6 +819,7 @@ art_cc_defaults {
         "arch/stub_test.cc",
         "arch/x86/instruction_set_features_x86_test.cc",
         "arch/x86_64/instruction_set_features_x86_64_test.cc",
+        "art_method_test.cc",
         "barrier_test.cc",
         "base/message_queue_test.cc",
         "base/mutex_test.cc",
