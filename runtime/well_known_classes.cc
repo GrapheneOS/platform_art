@@ -51,9 +51,6 @@ jclass WellKnownClasses::dalvik_annotation_optimization_NeverInline;
 jclass WellKnownClasses::dalvik_system_BaseDexClassLoader;
 jclass WellKnownClasses::dalvik_system_DelegateLastClassLoader;
 jclass WellKnownClasses::dalvik_system_DexClassLoader;
-jclass WellKnownClasses::dalvik_system_DexFile;
-jclass WellKnownClasses::dalvik_system_DexPathList;
-jclass WellKnownClasses::dalvik_system_DexPathList__Element;
 jclass WellKnownClasses::dalvik_system_EmulatedStackFrame;
 jclass WellKnownClasses::dalvik_system_InMemoryDexClassLoader;
 jclass WellKnownClasses::dalvik_system_PathClassLoader;
@@ -76,7 +73,6 @@ jclass WellKnownClasses::java_lang_StackOverflowError;
 jclass WellKnownClasses::java_lang_String;
 jclass WellKnownClasses::java_lang_StringFactory;
 jclass WellKnownClasses::java_lang_System;
-jclass WellKnownClasses::java_lang_Throwable;
 jclass WellKnownClasses::java_lang_Void;
 jclass WellKnownClasses::libcore_reflect_AnnotationMember__array;
 
@@ -364,9 +360,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   dalvik_system_BaseDexClassLoader = CacheClass(env, "dalvik/system/BaseDexClassLoader");
   dalvik_system_DelegateLastClassLoader = CacheClass(env, "dalvik/system/DelegateLastClassLoader");
   dalvik_system_DexClassLoader = CacheClass(env, "dalvik/system/DexClassLoader");
-  dalvik_system_DexFile = CacheClass(env, "dalvik/system/DexFile");
-  dalvik_system_DexPathList = CacheClass(env, "dalvik/system/DexPathList");
-  dalvik_system_DexPathList__Element = CacheClass(env, "dalvik/system/DexPathList$Element");
   dalvik_system_EmulatedStackFrame = CacheClass(env, "dalvik/system/EmulatedStackFrame");
   dalvik_system_InMemoryDexClassLoader = CacheClass(env, "dalvik/system/InMemoryDexClassLoader");
   dalvik_system_PathClassLoader = CacheClass(env, "dalvik/system/PathClassLoader");
@@ -390,7 +383,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_String = CacheClass(env, "java/lang/String");
   java_lang_StringFactory = CacheClass(env, "java/lang/StringFactory");
   java_lang_System = CacheClass(env, "java/lang/System");
-  java_lang_Throwable = CacheClass(env, "java/lang/Throwable");
   java_lang_Void = CacheClass(env, "java/lang/Void");
   libcore_reflect_AnnotationMember__array = CacheClass(env, "[Llibcore/reflect/AnnotationMember;");
 
@@ -438,7 +430,13 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
   java_lang_String_charAt = CacheMethod(env, java_lang_String, false, "charAt", "(I)C");
 
-  StackHandleScope<17u> hs(self);
+  StackHandleScope<21u> hs(self);
+  Handle<mirror::Class> d_s_df =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/DexFile;"));
+  Handle<mirror::Class> d_s_dpl =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/DexPathList;"));
+  Handle<mirror::Class> d_s_dpl_e =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/DexPathList$Element;"));
   Handle<mirror::Class> d_s_vmr =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VMRuntime;"));
   Handle<mirror::Class> j_i_fd =
@@ -447,6 +445,8 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Thread;"));
   Handle<mirror::Class> j_l_tg =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ThreadGroup;"));
+  Handle<mirror::Class> j_l_Throwable =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Throwable;"));
   Handle<mirror::Class> j_l_i_MethodHandle =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandle;"));
   Handle<mirror::Class> j_l_i_MethodHandles =
@@ -576,17 +576,14 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       d_s_bdcl, /*is_static=*/ false, "sharedLibraryLoaders", "[Ljava/lang/ClassLoader;");
   dalvik_system_BaseDexClassLoader_sharedLibraryLoadersAfter = CacheField(
       d_s_bdcl, /*is_static=*/ false, "sharedLibraryLoadersAfter", "[Ljava/lang/ClassLoader;");
-  ObjPtr<mirror::Class> d_s_df = soa.Decode<mirror::Class>(dalvik_system_DexFile);
   dalvik_system_DexFile_cookie = CacheField(
-      d_s_df, /*is_static=*/ false, "mCookie", "Ljava/lang/Object;");
+      d_s_df.Get(), /*is_static=*/ false, "mCookie", "Ljava/lang/Object;");
   dalvik_system_DexFile_fileName = CacheField(
-      d_s_df, /*is_static=*/ false, "mFileName", "Ljava/lang/String;");
-  ObjPtr<mirror::Class> d_s_dpl = soa.Decode<mirror::Class>(dalvik_system_DexPathList);
+      d_s_df.Get(), /*is_static=*/ false, "mFileName", "Ljava/lang/String;");
   dalvik_system_DexPathList_dexElements = CacheField(
-      d_s_dpl, /*is_static=*/ false, "dexElements", "[Ldalvik/system/DexPathList$Element;");
-  ObjPtr<mirror::Class> d_s_dpl_e = soa.Decode<mirror::Class>(dalvik_system_DexPathList__Element);
+      d_s_dpl.Get(), /*is_static=*/ false, "dexElements", "[Ldalvik/system/DexPathList$Element;");
   dalvik_system_DexPathList__Element_dexFile = CacheField(
-      d_s_dpl_e, /*is_static=*/ false, "dexFile", "Ldalvik/system/DexFile;");
+      d_s_dpl_e.Get(), /*is_static=*/ false, "dexFile", "Ldalvik/system/DexFile;");
 
   dalvik_system_VMRuntime_nonSdkApiUsageConsumer = CacheField(
       d_s_vmr.Get(),
@@ -630,17 +627,16 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_ThreadGroup_systemThreadGroup =
       CacheField(j_l_tg.Get(), /*is_static=*/ true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
 
-  ObjPtr<mirror::Class> j_l_Throwable = soa.Decode<mirror::Class>(java_lang_Throwable);
   java_lang_Throwable_cause = CacheField(
-      j_l_Throwable, /*is_static=*/ false, "cause", "Ljava/lang/Throwable;");
+      j_l_Throwable.Get(), /*is_static=*/ false, "cause", "Ljava/lang/Throwable;");
   java_lang_Throwable_detailMessage = CacheField(
-      j_l_Throwable, /*is_static=*/ false, "detailMessage", "Ljava/lang/String;");
+      j_l_Throwable.Get(), /*is_static=*/ false, "detailMessage", "Ljava/lang/String;");
   java_lang_Throwable_stackTrace = CacheField(
-      j_l_Throwable, /*is_static=*/ false, "stackTrace", "[Ljava/lang/StackTraceElement;");
+      j_l_Throwable.Get(), /*is_static=*/ false, "stackTrace", "[Ljava/lang/StackTraceElement;");
   java_lang_Throwable_stackState = CacheField(
-      j_l_Throwable, /*is_static=*/ false, "backtrace", "Ljava/lang/Object;");
+      j_l_Throwable.Get(), /*is_static=*/ false, "backtrace", "Ljava/lang/Object;");
   java_lang_Throwable_suppressedExceptions = CacheField(
-      j_l_Throwable, /*is_static=*/ false, "suppressedExceptions", "Ljava/util/List;");
+      j_l_Throwable.Get(), /*is_static=*/ false, "suppressedExceptions", "Ljava/util/List;");
 
   java_nio_Buffer_address = CacheField(j_n_b.Get(), /*is_static=*/ false, "address", "J");
   java_nio_Buffer_capacity = CacheField(j_n_b.Get(), /*is_static=*/ false, "capacity", "I");
@@ -706,9 +702,6 @@ void WellKnownClasses::Clear() {
   dalvik_system_BaseDexClassLoader = nullptr;
   dalvik_system_DelegateLastClassLoader = nullptr;
   dalvik_system_DexClassLoader = nullptr;
-  dalvik_system_DexFile = nullptr;
-  dalvik_system_DexPathList = nullptr;
-  dalvik_system_DexPathList__Element = nullptr;
   dalvik_system_EmulatedStackFrame = nullptr;
   dalvik_system_PathClassLoader = nullptr;
   java_lang_annotation_Annotation__array = nullptr;
@@ -730,7 +723,6 @@ void WellKnownClasses::Clear() {
   java_lang_String = nullptr;
   java_lang_StringFactory = nullptr;
   java_lang_System = nullptr;
-  java_lang_Throwable = nullptr;
   java_lang_Void = nullptr;
   libcore_reflect_AnnotationMember__array = nullptr;
 

@@ -59,7 +59,7 @@
 #include "thread-current-inl.h"
 #include "thread_list.h"
 #include "ti_phase.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace openjdkjvmti {
 
@@ -192,8 +192,7 @@ void ThreadUtil::CacheData() {
   gThreadCallback.started = true;
   art::Thread* self = art::Thread::Current();
   art::ScopedObjectAccess soa(self);
-  art::ObjPtr<art::mirror::Class> thread_class =
-      art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass();
+  art::ObjPtr<art::mirror::Class> thread_class = art::WellKnownClasses::java_lang_Thread.Get();
   CHECK(thread_class != nullptr);
   context_class_loader_ = thread_class->FindDeclaredInstanceField("contextClassLoader",
                                                                   "Ljava/lang/ClassLoader;");
@@ -238,7 +237,7 @@ bool ThreadUtil::GetNativeThread(jthread thread,
     return true;
   }
   art::ObjPtr<art::mirror::Object> othread = soa.Decode<art::mirror::Object>(thread);
-  if (!othread->InstanceOf(art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
+  if (!othread->InstanceOf(art::WellKnownClasses::java_lang_Thread.Get())) {
     *err = ERR(INVALID_THREAD);
     return false;
   } else {
@@ -619,8 +618,7 @@ jvmtiError ThreadUtil::GetThreadState(jvmtiEnv* env ATTRIBUTE_UNUSED,
 
   // Need to read the Java "started" field to know whether this is starting or terminated.
   art::Handle<art::mirror::Object> peer(hs.NewHandle(soa.Decode<art::mirror::Object>(thread)));
-  art::ObjPtr<art::mirror::Class> thread_klass =
-      art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass();
+  art::ObjPtr<art::mirror::Class> thread_klass = art::WellKnownClasses::java_lang_Thread.Get();
   if (!thread_klass->IsAssignableFrom(peer->GetClass())) {
     return ERR(INVALID_THREAD);
   }
@@ -826,7 +824,7 @@ jvmtiError ThreadUtil::RunAgentThread(jvmtiEnv* jvmti_env,
   {
     art::ScopedObjectAccess soa(self);
     art::ObjPtr<art::mirror::Object> othread = soa.Decode<art::mirror::Object>(thread);
-    if (!othread->InstanceOf(art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
+    if (!othread->InstanceOf(art::WellKnownClasses::java_lang_Thread.Get())) {
       return ERR(INVALID_THREAD);
     }
     if (proc == nullptr) {

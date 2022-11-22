@@ -64,7 +64,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
@@ -2792,7 +2792,7 @@ class JNI {
     ObjPtr<mirror::Object> buffer = soa.Decode<mirror::Object>(java_buffer);
 
     // Return null if |java_buffer| is not a java.nio.Buffer instance.
-    if (!buffer->InstanceOf(WellKnownClasses::java_nio_Buffer_address->GetDeclaringClass())) {
+    if (!buffer->InstanceOf(WellKnownClasses::java_nio_Buffer.Get())) {
       return nullptr;
     }
 
@@ -2808,7 +2808,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     StackHandleScope<1u> hs(soa.Self());
     Handle<mirror::Object> buffer = hs.NewHandle(soa.Decode<mirror::Object>(java_buffer));
-    if (!buffer->InstanceOf(WellKnownClasses::java_nio_Buffer_capacity->GetDeclaringClass())) {
+    if (!buffer->InstanceOf(WellKnownClasses::java_nio_Buffer.Get())) {
       return -1;
     }
 

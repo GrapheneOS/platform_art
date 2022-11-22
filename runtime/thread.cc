@@ -115,7 +115,7 @@
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
 #include "verify_object.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 #if ART_USE_FUTEXES
 #include "linux/futex.h"
@@ -1128,7 +1128,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 
   ScopedObjectAccess soa(self);
   StackHandleScope<4u> hs(self);
-  DCHECK(WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass()->IsInitialized());
+  DCHECK(WellKnownClasses::java_lang_ThreadGroup->IsInitialized());
   Handle<mirror::Object> thr_group = hs.NewHandle(soa.Decode<mirror::Object>(
       thread_group != nullptr ? thread_group : runtime->GetMainThreadGroup()));
   Handle<mirror::String> thread_name = hs.NewHandle(
@@ -1140,9 +1140,9 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   }
   jint thread_priority = GetNativePriority();
 
-  DCHECK(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->IsInitialized());
-  Handle<mirror::Object> peer = hs.NewHandle(
-      WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->AllocObject(self));
+  DCHECK(WellKnownClasses::java_lang_Thread->IsInitialized());
+  Handle<mirror::Object> peer =
+      hs.NewHandle(WellKnownClasses::java_lang_Thread->AllocObject(self));
   if (UNLIKELY(peer == nullptr)) {
     CHECK(IsExceptionPending());
     return;
@@ -1193,7 +1193,7 @@ ObjPtr<mirror::Object> Thread::CreateCompileTimePeer(const char* name,
 
   ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<3u> hs(self);
-  DCHECK(WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass()->IsInitialized());
+  DCHECK(WellKnownClasses::java_lang_ThreadGroup->IsInitialized());
   Handle<mirror::Object> thr_group = hs.NewHandle(soa.Decode<mirror::Object>(
       thread_group != nullptr ? thread_group : runtime->GetMainThreadGroup()));
   Handle<mirror::String> thread_name = hs.NewHandle(
@@ -1205,9 +1205,9 @@ ObjPtr<mirror::Object> Thread::CreateCompileTimePeer(const char* name,
   }
   jint thread_priority = kNormThreadPriority;  // Always normalize to NORM priority.
 
-  DCHECK(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->IsInitialized());
+  DCHECK(WellKnownClasses::java_lang_Thread->IsInitialized());
   Handle<mirror::Object> peer = hs.NewHandle(
-      WellKnownClasses::java_lang_Thread_init->GetDeclaringClass()->AllocObject(self));
+      WellKnownClasses::java_lang_Thread->AllocObject(self));
   if (peer == nullptr) {
     CHECK(Thread::Current()->IsExceptionPending());
     return nullptr;

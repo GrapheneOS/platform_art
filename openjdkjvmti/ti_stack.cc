@@ -82,7 +82,7 @@
 #include "thread_list.h"
 #include "thread_pool.h"
 #include "ti_thread.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace openjdkjvmti {
 
@@ -579,7 +579,7 @@ jvmtiError StackUtil::GetThreadListStackTraces(jvmtiEnv* env,
       return ERR(INVALID_THREAD);
     }
     art::ObjPtr<art::mirror::Object> thread = soa.Decode<art::mirror::Object>(thread_list[i]);
-    if (!thread->InstanceOf(art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
+    if (!thread->InstanceOf(art::WellKnownClasses::java_lang_Thread.Get())) {
       return ERR(INVALID_THREAD);
     }
     data.handles.push_back(hs.NewHandle(thread));
