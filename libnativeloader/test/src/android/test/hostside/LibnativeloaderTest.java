@@ -30,6 +30,7 @@ import com.android.tradefed.testtype.IAbi;
 import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
+import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 import com.google.common.io.ByteStreams;
 import java.io.File;
@@ -119,33 +120,41 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
     public void testSystemPrivApp() throws Exception {
         // There's currently no difference in the tests between /system/priv-app and /system/app, so
         // let's reuse the same one.
-        runDeviceTests("android.test.app.system_priv", "android.test.app.SystemAppTest");
+        runTests("android.test.app.system_priv", "android.test.app.SystemAppTest");
     }
 
     @Test
     public void testSystemApp() throws Exception {
-        runDeviceTests("android.test.app.system", "android.test.app.SystemAppTest");
+        runTests("android.test.app.system", "android.test.app.SystemAppTest");
     }
 
     @Test
     public void testSystemExtApp() throws Exception {
         // /system_ext should behave the same as /system, so run the same test class there.
-        runDeviceTests("android.test.app.system_ext", "android.test.app.SystemAppTest");
+        runTests("android.test.app.system_ext", "android.test.app.SystemAppTest");
     }
 
     @Test
     public void testProductApp() throws Exception {
-        runDeviceTests("android.test.app.product", "android.test.app.ProductAppTest");
+        runTests("android.test.app.product", "android.test.app.ProductAppTest");
     }
 
     @Test
     public void testVendorApp() throws Exception {
-        runDeviceTests("android.test.app.vendor", "android.test.app.VendorAppTest");
+        runTests("android.test.app.vendor", "android.test.app.VendorAppTest");
     }
 
     @Test
     public void testDataApp() throws Exception {
-        runDeviceTests("android.test.app.data", "android.test.app.DataAppTest");
+        runTests("android.test.app.data", "android.test.app.DataAppTest");
+    }
+
+    private void runTests(String pkgName, String testClassName) throws Exception {
+        DeviceContext ctx = new DeviceContext(getTestInformation());
+        var options = new DeviceTestRunOptions(pkgName)
+                              .setTestClassName(testClassName)
+                              .addInstrumentationArg("libDirName", ctx.libDirName());
+        runDeviceTests(options);
     }
 
     // Utility class that keeps track of a set of paths the need to be deleted after testing.
@@ -234,7 +243,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
         void pushPrivateLibs(ZipFile libApk) throws Exception {
             // Push the libraries once for each test. Since we cannot unload them, we need a fresh
             // never-before-loaded library in each loadLibrary call.
-            for (int i = 1; i <= 5; ++i) {
+            for (int i = 1; i <= 6; ++i) {
                 pushNativeTestLib(libApk, "/system/${LIB}/libsystem_private" + i + ".so");
                 pushNativeTestLib(libApk, "/system_ext/${LIB}/libsystemext_private" + i + ".so");
                 pushNativeTestLib(libApk, "/product/${LIB}/libproduct_private" + i + ".so");
@@ -272,6 +281,10 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             return mTestArch;
         }
 
+        String libDirName() throws DeviceNotAvailableException {
+            return getTestArch().contains("64") ? "lib64" : "lib";
+        }
+
         // Pushes the given file contents to the device at the given destination path. destPath is
         // assumed to have no risk of overlapping with existing files, and is deleted in tearDown(),
         // along with any directory levels that had to be created.
@@ -305,8 +318,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
                 libraryTempFile = writeStreamToTempFile("libnativeloader_testlib.so", inStream);
             }
 
-            String libDir = getTestArch().contains("64") ? "lib64" : "lib";
-            destPath = destPath.replace("${LIB}", libDir);
+            destPath = destPath.replace("${LIB}", libDirName());
 
             mCleanup.addPath(destPath);
             assertThat(mDevice.pushFile(libraryTempFile, destPath)).isTrue();
