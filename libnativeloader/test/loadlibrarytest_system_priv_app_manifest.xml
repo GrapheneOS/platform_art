@@ -25,9 +25,10 @@
         <uses-library android:required="false" android:name="android.test.productsharedlib" />
         <uses-library android:required="false" android:name="android.test.vendorsharedlib" />
         <!-- System apps get a shared classloader namespace, so they don't need
-             uses-native-library entries for anything in /system. -->
-        <uses-native-library android:required="false" android:name="libfoo.product1.so" />
-        <uses-native-library android:required="false" android:name="libbar.product1.so" />
+             uses-native-library entries for anything in /system or /system_ext. -->
+        <uses-native-library android:required="false" android:name="libproduct_extpub.product1.so" />
+        <uses-native-library android:required="false" android:name="libproduct_extpub1.product1.so" />
+        <uses-native-library android:required="false" android:name="libproduct_extpub2.product1.so" />
     </application>
 </manifest>
 
