@@ -42,7 +42,6 @@ ObjPtr<MethodHandlesLookup> MethodHandlesLookup::Create(Thread* const self,
 
 ObjPtr<MethodHandlesLookup> MethodHandlesLookup::GetDefault(Thread* const self) {
   ArtMethod* lookup = WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
-  DCHECK(lookup->GetDeclaringClass()->IsInitialized());
   return ObjPtr<MethodHandlesLookup>::DownCast(lookup->InvokeStatic<'L'>(self));
 }
 

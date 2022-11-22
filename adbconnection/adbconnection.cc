@@ -24,6 +24,7 @@
 #include "android-base/endian.h"
 #include "android-base/stringprintf.h"
 #include "art_field-inl.h"
+#include "art_method-alloc-inl.h"
 #include "base/file_utils.h"
 #include "base/globals.h"
 #include "base/logging.h"
@@ -184,17 +185,10 @@ AdbConnectionState::~AdbConnectionState() {
 
 static art::ObjPtr<art::mirror::Object> CreateAdbConnectionThread(art::Thread* self)
     REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  art::StackHandleScope<2u> hs(self);
+  art::StackHandleScope<3u> hs(self);
   art::Handle<art::mirror::String> thr_name =
       hs.NewHandle(art::mirror::String::AllocFromModifiedUtf8(self, kAdbConnectionThreadName));
   if (thr_name == nullptr) {
-    DCHECK(self->IsExceptionPending());
-    return nullptr;
-  }
-  art::ObjPtr<art::mirror::Class> thread_class =
-      art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass();
-  art::Handle<art::mirror::Object> thread = hs.NewHandle(thread_class->AllocObject(self));
-  if (thread == nullptr) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }
@@ -203,12 +197,11 @@ static art::ObjPtr<art::mirror::Object> CreateAdbConnectionThread(art::Thread* s
   DCHECK(system_thread_group_field->GetDeclaringClass()->IsInitialized());
   // Avoid using `ArtField::GetObject` as it requires linking against `libdexfile` for
   // `operator<<(std::ostream&, Primitive::Type)`.
-  art::ObjPtr<art::mirror::Object> system_thread_group =
+  art::Handle<art::mirror::Object> system_thread_group = hs.NewHandle(
       system_thread_group_field->GetDeclaringClass()->GetFieldObject<art::mirror::Object>(
-          system_thread_group_field->GetOffset());
-  art::WellKnownClasses::java_lang_Thread_init->InvokeInstance<'V', 'L', 'L', 'I', 'Z'>(
-      self, thread.Get(), system_thread_group, thr_name.Get(), /*priority=*/ 0, /*daemon=*/ true);
-  return self->IsExceptionPending() ? nullptr : thread.Get();
+          system_thread_group_field->GetOffset()));
+  return art::WellKnownClasses::java_lang_Thread_init->NewObject<'L', 'L', 'I', 'Z'>(
+      hs, self, system_thread_group, thr_name, /*priority=*/ 0, /*daemon=*/ true).Get();
 }
 
 struct CallbackData {
