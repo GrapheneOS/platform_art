@@ -2435,9 +2435,7 @@ void Thread::NotifyThreadGroup(ScopedObjectAccessAlreadyRunnable& soa, jobject t
       CHECK(thread_group_object == soa.Decode<mirror::Object>(thread_group));
     }
   }
-  // TODO: Why are we calling the non-final method `ThreadGroup.add(Thread)` directly
-  // instead of using the virtual dispatch? (Preserved from old code.)
-  WellKnownClasses::java_lang_ThreadGroup_add->InvokeInstance<'V', 'L'>(
+  WellKnownClasses::java_lang_ThreadGroup_add->InvokeVirtual<'V', 'L'>(
       soa.Self(), thread_group_object, thread_object);
 }
 
