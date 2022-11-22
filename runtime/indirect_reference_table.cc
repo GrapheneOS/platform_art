@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "base/bit_utils.h"
-#include "base/globals.h"
 #include "indirect_reference_table-inl.h"
 
+#include "base/bit_utils.h"
+#include "base/globals.h"
 #include "base/mutator_locked_dumpable.h"
 #include "base/systrace.h"
 #include "base/utils.h"
@@ -26,6 +26,7 @@
 #include "jni/jni_internal.h"
 #include "mirror/object-inl.h"
 #include "nth_caller_visitor.h"
+#include "object_callbacks.h"
 #include "reference_table.h"
 #include "runtime-inl.h"
 #include "scoped_thread_state_change-inl.h"
@@ -41,10 +42,10 @@ static constexpr bool kDebugIRT = false;
 // Maximum table size we allow.
 static constexpr size_t kMaxTableSizeInBytes = 128 * MB;
 
-const char* GetIndirectRefKindString(const IndirectRefKind& kind) {
+const char* GetIndirectRefKindString(IndirectRefKind kind) {
   switch (kind) {
-    case kJniTransitionOrInvalid:
-      return "JniTransitionOrInvalid";
+    case kJniTransition:
+      return "JniTransition";
     case kLocal:
       return "Local";
     case kGlobal:
@@ -113,15 +114,14 @@ void SmallIrtAllocator::Deallocate(IrtEntry* unneeded) {
   small_irt_freelist_ = unneeded;
 }
 
-IndirectReferenceTable::IndirectReferenceTable(IndirectRefKind desired_kind,
-                                               ResizableCapacity resizable)
+IndirectReferenceTable::IndirectReferenceTable(IndirectRefKind kind, ResizableCapacity resizable)
     : segment_state_(kIRTFirstSegment),
       table_(nullptr),
-      kind_(desired_kind),
+      kind_(kind),
       max_entries_(0u),
       current_num_holes_(0),
       resizable_(resizable) {
-  CHECK_NE(desired_kind, kJniTransitionOrInvalid);
+  CHECK_NE(kind, kJniTransition);
 }
 
 bool IndirectReferenceTable::Initialize(size_t max_count, std::string* error_msg) {
@@ -420,7 +420,7 @@ bool IndirectReferenceTable::Remove(IRTSegmentState previous_state, IndirectRef 
   // TODO: We should eagerly check the ref kind against the `kind_` instead of
   // relying on this weak check and postponing the rest until `CheckEntry()` below.
   // Passing the wrong kind shall currently result in misleading warnings.
-  if (GetIndirectRefKind(iref) == kJniTransitionOrInvalid) {
+  if (GetIndirectRefKind(iref) == kJniTransition) {
     auto* self = Thread::Current();
     ScopedObjectAccess soa(self);
     if (self->IsJniTransitionReference(reinterpret_cast<jobject>(iref))) {
