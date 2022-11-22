@@ -75,8 +75,6 @@ class Object;
 // If there's more than one segment, we don't guarantee that the table will fill completely before
 // we fail due to lack of space. We do ensure that the current segment will pack tightly, which
 // should satisfy JNI requirements (e.g. EnsureLocalCapacity).
-//
-// Only SynchronizedGet is synchronized.
 
 // Indirect reference definition.  This must be interchangeable with JNI's jobject, and it's
 // convenient to let null be null, so we use void*.
@@ -91,16 +89,17 @@ using IndirectRef = void*;
 
 // Indirect reference kind, used as the two low bits of IndirectRef.
 //
-// For convenience these match up with enum jobjectRefType from jni.h.
+// For convenience these match up with enum jobjectRefType from jni.h, except that
+// we use value 0 for JNI transitions instead of marking invalid reference type.
 enum IndirectRefKind {
-  kJniTransitionOrInvalid = 0,  // <<JNI transition frame reference or invalid reference>>
-  kLocal                  = 1,  // <<local reference>>
-  kGlobal                 = 2,  // <<global reference>>
-  kWeakGlobal             = 3,  // <<weak global reference>>
-  kLastKind               = kWeakGlobal
+  kJniTransition = 0,  // <<JNI transition frame reference>>
+  kLocal         = 1,  // <<local reference>>
+  kGlobal        = 2,  // <<global reference>>
+  kWeakGlobal    = 3,  // <<weak global reference>>
+  kLastKind      = kWeakGlobal
 };
 std::ostream& operator<<(std::ostream& os, IndirectRefKind rhs);
-const char* GetIndirectRefKindString(const IndirectRefKind& kind);
+const char* GetIndirectRefKindString(IndirectRefKind kind);
 
 // Table definition.
 //
@@ -256,13 +255,6 @@ class IndirectReferenceTable {
   ObjPtr<mirror::Object> Get(IndirectRef iref) const REQUIRES_SHARED(Locks::mutator_lock_)
       ALWAYS_INLINE;
 
-  // Synchronized get which reads a reference, acquiring a lock if necessary.
-  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ObjPtr<mirror::Object> SynchronizedGet(IndirectRef iref) const
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    return Get<kReadBarrierOption>(iref);
-  }
-
   // Updates an existing indirect reference to point to a new object.
   void Update(IndirectRef iref, ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -404,10 +396,10 @@ class IndirectReferenceTable {
   // Mem map where we store the indirect refs. If it's invalid, and table_ is non-null, then
   // table_ is valid, but was allocated via allocSmallIRT();
   MemMap table_mem_map_;
-  // bottom of the stack. Do not directly access the object references
+  // Bottom of the stack. Do not directly access the object references
   // in this as they are roots. Use Get() that has a read barrier.
   IrtEntry* table_;
-  // bit mask, ORed into all irefs.
+  // Bit mask, ORed into all irefs.
   const IndirectRefKind kind_;
 
   // max #of entries allowed (modulo resizing).
