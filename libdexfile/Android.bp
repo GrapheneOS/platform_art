@@ -288,6 +288,7 @@ art_cc_defaults {
         ":art-gtest-jars-GetMethodSignature",
         ":art-gtest-jars-Lookup",
         ":art-gtest-jars-Main",
+        ":art-gtest-jars-MainEmptyUncompressed",
         ":art-gtest-jars-MultiDex",
         ":art-gtest-jars-Nested",
     ],
