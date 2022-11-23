@@ -32,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.job.JobInfo;
+import android.app.job.JobParameters;
 import android.app.job.JobScheduler;
 import android.os.CancellationSignal;
 import android.os.SystemProperties;
@@ -74,8 +75,11 @@ public class BackgroundDexOptJobTest {
     @Mock private PackageManagerLocal.FilteredSnapshot mSnapshot;
     @Mock private JobScheduler mJobScheduler;
     @Mock private OptimizeResult mOptimizeResult;
+    @Mock private BackgroundDexOptJobService mJobService;
+    @Mock private JobParameters mJobParameters;
     private Config mConfig;
     private BackgroundDexOptJob mBackgroundDexOptJob;
+    private Semaphore mJobFinishedCalled = new Semaphore(0);
 
     @Before
     public void setUp() throws Exception {
@@ -94,6 +98,18 @@ public class BackgroundDexOptJobTest {
 
         mBackgroundDexOptJob = new BackgroundDexOptJob(mInjector);
         lenient().when(BackgroundDexOptJobService.getJob()).thenReturn(mBackgroundDexOptJob);
+
+        lenient()
+                .doAnswer(invocation -> {
+                    mJobFinishedCalled.release();
+                    return null;
+                })
+                .when(mJobService)
+                .jobFinished(any(), anyBoolean());
+
+        lenient()
+                .when(mJobParameters.getStopReason())
+                .thenReturn(JobParameters.STOP_REASON_UNDEFINED);
     }
 
     @Test
@@ -240,5 +256,38 @@ public class BackgroundDexOptJobTest {
     public void testUnschedule() {
         mBackgroundDexOptJob.unschedule();
         verify(mJobScheduler).cancel(anyInt());
+    }
+
+    @Test
+    public void testWantsRescheduleFalsePerformed() throws Exception {
+        when(mOptimizeResult.getFinalStatus()).thenReturn(OptimizeResult.OPTIMIZE_PERFORMED);
+        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenReturn(mOptimizeResult);
+
+        mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
+        assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+        verify(mJobService).jobFinished(any(), eq(false) /* wantsReschedule */);
+    }
+
+    @Test
+    public void testWantsRescheduleFalseFatalError() throws Exception {
+        when(mArtManagerLocal.optimizePackages(any(), any(), any()))
+                .thenThrow(RuntimeException.class);
+
+        mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
+        assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+        verify(mJobService).jobFinished(any(), eq(false) /* wantsReschedule */);
+    }
+
+    @Test
+    public void testWantsRescheduleTrue() throws Exception {
+        when(mOptimizeResult.getFinalStatus()).thenReturn(OptimizeResult.OPTIMIZE_CANCELLED);
+        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenReturn(mOptimizeResult);
+
+        mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
+        assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+
+        verify(mJobService).jobFinished(any(), eq(true) /* wantsReschedule */);
     }
 }

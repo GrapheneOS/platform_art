@@ -54,6 +54,7 @@ import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
 
 import java.io.File;
@@ -345,11 +346,12 @@ public final class ArtManagerLocal {
 
     /**
      * Overrides the default params for {@link
-     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String). This method is thread-safe.
+     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal). This
+     * method is thread-safe.
      *
      * This method gives users the opportunity to change the behavior of {@link
-     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String)}, which is called by ART
-     * Service automatically during boot / background dexopt.
+     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)}, which
+     * is called by ART Service automatically during boot / background dexopt.
      *
      * If this method is not called, the default list of packages and options determined by {@code
      * reason} will be used.
@@ -360,8 +362,9 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Clears the callback set by {@link #setOptimizePackagesCallback(Executor,
-     * OptimizePackagesCallback)}. This method is thread-safe.
+     * Clears the callback set by {@link
+     * #setOptimizePackagesCallback(Executor, OptimizePackagesCallback)}. This method is
+     * thread-safe.
      */
     public void clearOptimizePackagesCallback() {
         mInjector.getConfig().clearOptimizePackagesCallback();
@@ -374,9 +377,10 @@ public final class ArtManagerLocal {
      * dexopt.
      *
      * The job will be run by the job scheduler. The job scheduling configuration can be overridden
-     * by {@link #setScheduleBackgroundDexoptJobCallback(Executor,
-     * ScheduleBackgroundDexoptJobCallback)}. By default, it runs periodically (at most once a day)
-     * when all the following constraints are meet.
+     * by {@link
+     * #setScheduleBackgroundDexoptJobCallback(Executor, ScheduleBackgroundDexoptJobCallback)}. By
+     * default, it runs periodically (at most once a day) when all the following constraints are
+     * meet.
      *
      * <ul>
      *   <li>The device is idling. (see {@link JobInfo.Builder#setRequiresDeviceIdle(boolean)})
@@ -387,13 +391,15 @@ public final class ArtManagerLocal {
      *     (see {@link JobInfo.Builder#setRequiresStorageNotLow(boolean)})
      * </ul>
      *
-     * When the job is running, the job scheduler cancels the job immediately whenever one of the
-     * constraints above is no longer met, and retries it in the next <i>maintenance window</i>.
-     * For information about <i>maintenance window</i>, see
+     * When the job is running, it may be cancelled by the job scheduler immediately whenever one of
+     * the constraints above is no longer met or cancelled by the {@link
+     * #cancelBackgroundDexoptJob()} API. The job scheduler retries it in the next <i>maintenance
+     * window</i>. For information about <i>maintenance window</i>, see
      * https://developer.android.com/training/monitoring-device-state/doze-standby.
      *
-     * See {@link #optimizePackages(PackageManagerLocal.FilteredSnapshot, String,
-     * CancellationSignal)} for how to customize the behavior of the job.
+     * See {@link
+     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)} for how
+     * to customize the behavior of the job.
      *
      * When the job ends (either completed or cancelled), the result is sent to the callbacks added
      * by {@link #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} with the
@@ -428,8 +434,9 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Clears the callback set by {@link #setScheduleBackgroundDexoptJobCallback(Executor,
-     * ScheduleBackgroundDexoptJobCallback)}. This method is thread-safe.
+     * Clears the callback set by {@link
+     * #setScheduleBackgroundDexoptJobCallback(Executor, ScheduleBackgroundDexoptJobCallback)}. This
+     * method is thread-safe.
      */
     public void clearScheduleBackgroundDexoptJobCallback() {
         mInjector.getConfig().clearScheduleBackgroundDexoptJobCallback();
@@ -443,8 +450,9 @@ public final class ArtManagerLocal {
      * constraints described in {@link #scheduleBackgroundDexoptJob()}, and hence will not be
      * cancelled when they aren't met.
      *
-     * See {@link #optimizePackages(PackageManagerLocal.FilteredSnapshot, String,
-     * CancellationSignal)} for how to customize the behavior of the job.
+     * See {@link
+     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)} for how
+     * to customize the behavior of the job.
      *
      * When the job ends (either completed or cancelled), the result is sent to the callbacks added
      * by {@link #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} with the
@@ -459,8 +467,9 @@ public final class ArtManagerLocal {
      * #startBackgroundDexoptJob()}. Does nothing if the job is not running. This method is not
      * blocking.
      *
-     * The result sent to the callbacks added by {@link #addOptimizePackageDoneCallback(Executor,
-     * OptimizePackageDoneCallback)} will contain {@link OptimizeResult#OPTIMIZE_CANCELLED}.
+     * The result sent to the callbacks added by {@link
+     * #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} will contain {@link
+     * OptimizeResult#OPTIMIZE_CANCELLED}.
      */
     public void cancelBackgroundDexoptJob() {
         mInjector.getBackgroundDexOptJob().cancel();
@@ -480,9 +489,9 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Removes the listener added by {@link #addOptimizePackageDoneCallback(Executor,
-     * OptimizePackageDoneCallback)}. Does nothing if the callback was not added. This method is
-     * thread-safe.
+     * Removes the listener added by {@link
+     * #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)}. Does nothing if the
+     * callback was not added. This method is thread-safe.
      */
     public void removeOptimizePackageDoneCallback(@NonNull OptimizePackageDoneCallback callback) {
         mInjector.getConfig().removeOptimizePackageDoneCallback(callback);
@@ -643,8 +652,8 @@ public final class ArtManagerLocal {
     public interface OptimizePackagesCallback {
         /**
          * Mutates {@code builder} to override the default params for {@link
-         * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String). It must ignore unknown
-         * reasons because more reasons may be added in the future.
+         * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal). It
+         * must ignore unknown reasons because more reasons may be added in the future.
          *
          * If {@code builder.setPackages} is not called, {@code defaultPackages} will be used as the
          * list of packages to optimize.
@@ -653,9 +662,15 @@ public final class ArtManagerLocal {
          * new OptimizeParams.Builder(reason)} will to used as the params for optimizing each
          * package.
          *
+         * Additionally, if {@code reason} is {@link ReasonMapping#REASON_BG_DEXOPT}, {@link
+         * #cancelBackgroundDexoptJob()} can be called to skip this run. The job will be retried in
+         * the next <i>maintenance window</i>. For information about <i>maintenance window</i>, see
+         * https://developer.android.com/training/monitoring-device-state/doze-standby.
+         *
          * Changing the reason is not allowed. Doing so will result in {@link IllegalStateException}
-         * when {@link #optimizePackages(PackageManagerLocal.FilteredSnapshot, String,
-         * CancellationSignal)} is called.
+         * when {@link
+         * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)} is
+         * called.
          */
         void onOverrideBatchOptimizeParams(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
                 @NonNull @BatchOptimizeReason String reason, @NonNull List<String> defaultPackages,
