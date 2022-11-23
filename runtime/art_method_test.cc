@@ -16,7 +16,7 @@
 
 #include <type_traits>
 
-#include "art_method-inl.h"
+#include "art_method-alloc-inl.h"
 
 #include "base/casts.h"
 #include "common_runtime_test.h"
@@ -135,10 +135,9 @@ TEST_F(ArtMethodTest, ArrayList) {
       list_class->FindInterfaceMethod("size", "()I", kRuntimePointerSize);
   DCHECK(list_size_method != nullptr);
 
-  Handle<mirror::Object> array_list = hs.NewHandle(array_list_class->AllocObject(self));
-  ASSERT_TRUE(array_list != nullptr);
-  init->InvokeInstance<'V'>(self, array_list.Get());
+  Handle<mirror::Object> array_list = init->NewObject<>(hs, self);
   ASSERT_FALSE(self->IsExceptionPending());
+  ASSERT_TRUE(array_list != nullptr);
 
   // Invoke `ArrayList.size()` directly, with virtual dispatch from
   // `AbstractList.size()` and with interface dispatch from `List.size()`.
