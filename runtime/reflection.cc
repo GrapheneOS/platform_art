@@ -1066,8 +1066,8 @@ void UpdateReference(Thread* self, jobject obj, ObjPtr<mirror::Object> result) {
   IndirectRefKind kind = IndirectReferenceTable::GetIndirectRefKind(ref);
   if (kind == kLocal) {
     self->GetJniEnv()->UpdateLocal(obj, result);
-  } else if (kind == kJniTransitionOrInvalid) {
-    LOG(FATAL) << "Unsupported UpdateReference for kind kJniTransitionOrInvalid";
+  } else if (kind == kJniTransition) {
+    LOG(FATAL) << "Unsupported UpdateReference for kind kJniTransition";
   } else if (kind == kGlobal) {
     self->GetJniEnv()->GetVm()->UpdateGlobal(self, ref, result);
   } else {

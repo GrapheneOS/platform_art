@@ -183,7 +183,7 @@ TEST_F(ThreadLifecycleCallbackRuntimeCallbacksTest, ThreadLifecycleCallbackJava)
       soa.Decode<mirror::Object>(runtime_->GetMainThreadGroup()),
       thread_name.Get(),
       kMinThreadPriority,
-      /*daemon=*/ 0u);
+      /*daemon=*/ false);
   ASSERT_FALSE(self->IsExceptionPending());
 
   ArtMethod* start_method =

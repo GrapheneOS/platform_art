@@ -253,7 +253,6 @@ class JavaVMExt : public JavaVM {
   // Extra diagnostics.
   const std::string trace_;
 
-  // Not guarded by globals_lock since we sometimes use SynchronizedGet in Thread::DecodeJObject.
   IndirectReferenceTable globals_;
 
   // No lock annotation since UnloadNativeLibraries is called on libraries_ but locks the
@@ -265,10 +264,8 @@ class JavaVMExt : public JavaVM {
 
   // Since weak_globals_ contain weak roots, be careful not to
   // directly access the object references in it. Use Get() with the
-  // read barrier enabled.
-  // Not guarded by weak_globals_lock since we may use SynchronizedGet in DecodeWeakGlobal.
+  // read barrier enabled or disabled based on the use case.
   IndirectReferenceTable weak_globals_;
-  // Not guarded by weak_globals_lock since we may use SynchronizedGet in DecodeWeakGlobal.
   Atomic<bool> allow_accessing_weak_globals_;
   ConditionVariable weak_globals_add_condition_ GUARDED_BY(Locks::jni_weak_globals_lock_);
 

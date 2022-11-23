@@ -392,7 +392,7 @@ void MemberSignature::LogAccessToEventLog(uint32_t sampled_value,
           package_str.Get(),
           signature_jstr.Get(),
           static_cast<jint>(access_method),
-          static_cast<uint8_t>(access_denied ? 1u : 0u));
+          access_denied);
   if (soa.Self()->IsExceptionPending()) {
     soa.Self()->ClearException();
     LOG(ERROR) << "Unable to report hidden api usage";
