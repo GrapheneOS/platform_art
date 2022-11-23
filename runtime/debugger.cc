@@ -199,7 +199,6 @@ bool Dbg::DdmHandleChunk(JNIEnv* env,
   memcpy(data_array->GetData(), data.data(), data.size());
   // Call "private static Chunk dispatch(int type, byte[] data, int offset, int length)".
   ArtMethod* dispatch = WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
-  DCHECK(dispatch->GetDeclaringClass()->IsInitialized());
   ObjPtr<mirror::Object> chunk = dispatch->InvokeStatic<'L', 'I', 'L', 'I', 'I'>(
       soa.Self(), type, data_array.Get(), 0, static_cast<jint>(data.size()));
   if (soa.Self()->IsExceptionPending()) {
@@ -269,7 +268,6 @@ void Dbg::DdmBroadcast(bool connect) {
   JNIEnv* env = self->GetJniEnv();
   jint event = connect ? 1 /*DdmServer.CONNECTED*/ : 2 /*DdmServer.DISCONNECTED*/;
   ArtMethod* broadcast = WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
-  DCHECK(broadcast->GetDeclaringClass()->IsInitialized());
   broadcast->InvokeStatic<'V', 'I'>(self, event);
   if (self->IsExceptionPending()) {
     LOG(ERROR) << "DdmServer.broadcast " << event << " failed";

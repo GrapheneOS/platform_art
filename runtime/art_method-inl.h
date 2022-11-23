@@ -180,6 +180,7 @@ template <char ReturnType, char... ArgType>
 inline typename detail::ShortyTraits<ReturnType>::Type
 ArtMethod::InvokeStatic(Thread* self, typename detail::ShortyTraits<ArgType>::Type... args) {
   DCHECK(IsStatic());
+  DCHECK(GetDeclaringClass()->IsInitialized());  // Used only for initialized well-known classes.
   JValue result;
   constexpr auto shorty = detail::MaterializeShorty<ReturnType, ArgType...>();
   auto vregs = detail::MaterializeVRegs<ArgType...>(args...);
