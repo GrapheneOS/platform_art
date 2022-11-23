@@ -17,6 +17,7 @@
 #include "artd.h"
 
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -82,6 +83,7 @@ using ::android::base::WriteStringToFile;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyNumber;
+using ::testing::AnyOf;
 using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::DoAll;
@@ -92,6 +94,7 @@ using ::testing::IsEmpty;
 using ::testing::Matcher;
 using ::testing::MockFunction;
 using ::testing::Not;
+using ::testing::Property;
 using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::SetArgPointee;
@@ -114,6 +117,12 @@ void CheckContent(const std::string& path, const std::string& expected_content) 
   std::string actual_content;
   ASSERT_TRUE(ReadFileToString(path, &actual_content));
   EXPECT_EQ(actual_content, expected_content);
+}
+
+void CheckOtherReadable(const std::string& path, bool expected_value) {
+  EXPECT_EQ((std::filesystem::status(path).permissions() & std::filesystem::perms::others_read) !=
+                std::filesystem::perms::none,
+            expected_value);
 }
 
 void WriteToFdFlagImpl(const std::vector<std::string>& args,
@@ -168,11 +177,7 @@ MATCHER_P2(ListFlag, flag, matcher, "") {
 
 // Matches an FD of a file whose path matches `matcher`.
 MATCHER_P(FdOf, matcher, "") {
-  int fd;
-  if (!ParseInt(arg, &fd)) {
-    return false;
-  }
-  std::string proc_path = "/proc/self/fd/{}"_format(fd);
+  std::string proc_path = "/proc/self/fd/{}"_format(arg);
   char path[PATH_MAX];
   ssize_t len = readlink(proc_path.c_str(), path, sizeof(path));
   if (len < 0) {
@@ -245,12 +250,16 @@ class ArtdTest : public CommonArtTest {
     EXPECT_CALL(*mock_props_, GetProperty).Times(AnyNumber()).WillRepeatedly(Return(""));
     auto mock_exec_utils = std::make_unique<MockExecUtils>();
     mock_exec_utils_ = mock_exec_utils.get();
-    artd_ = ndk::SharedRefBase::make<Artd>(
-        std::move(mock_props), std::move(mock_exec_utils), mock_kill_.AsStdFunction());
+    artd_ = ndk::SharedRefBase::make<Artd>(std::move(mock_props),
+                                           std::move(mock_exec_utils),
+                                           mock_kill_.AsStdFunction(),
+                                           mock_fstat_.AsStdFunction());
     scratch_dir_ = std::make_unique<ScratchDir>();
     scratch_path_ = scratch_dir_->GetPath();
     // Remove the trailing '/';
     scratch_path_.resize(scratch_path_.length() - 1);
+
+    ON_CALL(mock_fstat_, Call).WillByDefault(fstat);
 
     // Use an arbitrary existing directory as ART root.
     art_root_ = scratch_path_ + "/com.android.art";
@@ -313,6 +322,14 @@ class ArtdTest : public CommonArtTest {
   void RunDexopt(binder_exception_t expected_status = EX_NONE,
                  Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled, false),
                  std::shared_ptr<IArtdCancellationSignal> cancellation_signal = nullptr) {
+    RunDexopt(Property(&ndk::ScopedAStatus::getExceptionCode, expected_status),
+              std::move(aidl_return_matcher),
+              cancellation_signal);
+  }
+
+  void RunDexopt(Matcher<ndk::ScopedAStatus> status_matcher,
+                 Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled, false),
+                 std::shared_ptr<IArtdCancellationSignal> cancellation_signal = nullptr) {
     InitFilesBeforeDexopt();
     if (cancellation_signal == nullptr) {
       ASSERT_TRUE(artd_->createCancellationSignal(&cancellation_signal).isOk());
@@ -330,7 +347,7 @@ class ArtdTest : public CommonArtTest {
                                               dexopt_options_,
                                               cancellation_signal,
                                               &aidl_return);
-    ASSERT_EQ(status.getExceptionCode(), expected_status) << status.getMessage();
+    ASSERT_THAT(status, std::move(status_matcher)) << status.getMessage();
     if (status.isOk()) {
       ASSERT_THAT(aidl_return, std::move(aidl_return_matcher));
     }
@@ -353,6 +370,7 @@ class ArtdTest : public CommonArtTest {
   MockSystemProperties* mock_props_;
   MockExecUtils* mock_exec_utils_;
   MockFunction<int(pid_t, int)> mock_kill_;
+  MockFunction<int(int, struct stat*)> mock_fstat_;
 
   std::string dex_file_;
   std::string isa_;
@@ -367,11 +385,17 @@ class ArtdTest : public CommonArtTest {
   PriorityClass priority_class_ = PriorityClass::BACKGROUND;
   DexoptOptions dexopt_options_;
   std::optional<ProfilePath> profile_path_;
+  bool dex_file_other_readable_ = true;
+  bool profile_other_readable_ = true;
 
  private:
   void InitFilesBeforeDexopt() {
     // Required files.
     CreateFile(dex_file_);
+    std::filesystem::permissions(dex_file_,
+                                 std::filesystem::perms::others_read,
+                                 dex_file_other_readable_ ? std::filesystem::perm_options::add :
+                                                            std::filesystem::perm_options::remove);
 
     // Optional files.
     if (vdex_path_.has_value()) {
@@ -381,7 +405,12 @@ class ArtdTest : public CommonArtTest {
       CreateFile(OR_FATAL(BuildDexMetadataPath(dm_path_.value())));
     }
     if (profile_path_.has_value()) {
-      CreateFile(OR_FATAL(BuildProfileOrDmPath(profile_path_.value())));
+      std::string path = OR_FATAL(BuildProfileOrDmPath(profile_path_.value()));
+      CreateFile(path);
+      std::filesystem::permissions(path,
+                                   std::filesystem::perms::others_read,
+                                   profile_other_readable_ ? std::filesystem::perm_options::add :
+                                                             std::filesystem::perm_options::remove);
     }
 
     // Files to be replaced.
@@ -525,6 +554,8 @@ TEST_F(ArtdTest, dexopt) {
 
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "vdex");
+  CheckOtherReadable(scratch_path_ + "/a/oat/arm64/b.odex", true);
+  CheckOtherReadable(scratch_path_ + "/a/oat/arm64/b.vdex", true);
 }
 
 TEST_F(ArtdTest, dexoptClassLoaderContext) {
@@ -1019,6 +1050,101 @@ TEST_F(ArtdTest, dexoptCancelledAfterDex2oat) {
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "new_oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "new_vdex");
   EXPECT_FALSE(std::filesystem::exists(scratch_path_ + "/a/oat/arm64/b.art"));
+}
+
+TEST_F(ArtdTest, dexoptDexFileNotOtherReadable) {
+  dex_file_other_readable_ = false;
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).Times(0);
+  RunDexopt(AllOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_SERVICE_SPECIFIC),
+                  Property(&ndk::ScopedAStatus::getMessage,
+                           HasSubstr("Outputs cannot be other-readable because the dex file"))));
+}
+
+TEST_F(ArtdTest, dexoptProfileNotOtherReadable) {
+  profile_other_readable_ = false;
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).Times(0);
+  RunDexopt(AllOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_SERVICE_SPECIFIC),
+                  Property(&ndk::ScopedAStatus::getMessage,
+                           HasSubstr("Outputs cannot be other-readable because the profile"))));
+}
+
+TEST_F(ArtdTest, dexoptOutputNotOtherReadable) {
+  output_artifacts_.permissionSettings.fileFsPermission.isOtherReadable = false;
+  dex_file_other_readable_ = false;
+  profile_other_readable_ = false;
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillOnce(Return(0));
+  RunDexopt();
+  CheckOtherReadable(scratch_path_ + "/a/oat/arm64/b.odex", false);
+  CheckOtherReadable(scratch_path_ + "/a/oat/arm64/b.vdex", false);
+}
+
+TEST_F(ArtdTest, dexoptUidMismatch) {
+  output_artifacts_.permissionSettings.fileFsPermission.uid = 12345;
+  output_artifacts_.permissionSettings.fileFsPermission.isOtherReadable = false;
+  dex_file_other_readable_ = false;
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).Times(0);
+  RunDexopt(AllOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_SERVICE_SPECIFIC),
+                  Property(&ndk::ScopedAStatus::getMessage,
+                           HasSubstr("Outputs' owner doesn't match the dex file"))));
+}
+
+TEST_F(ArtdTest, dexoptGidMismatch) {
+  output_artifacts_.permissionSettings.fileFsPermission.gid = 12345;
+  output_artifacts_.permissionSettings.fileFsPermission.isOtherReadable = false;
+  dex_file_other_readable_ = false;
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).Times(0);
+  RunDexopt(AllOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_SERVICE_SPECIFIC),
+                  Property(&ndk::ScopedAStatus::getMessage,
+                           HasSubstr("Outputs' owner doesn't match the dex file"))));
+}
+
+TEST_F(ArtdTest, dexoptGidMatchesUid) {
+  output_artifacts_.permissionSettings.fileFsPermission = {
+      .uid = 123, .gid = 123, .isOtherReadable = false};
+  EXPECT_CALL(mock_fstat_, Call(_, _)).WillRepeatedly(fstat);  // For profile.
+  EXPECT_CALL(mock_fstat_, Call(FdOf(dex_file_), _))
+      .WillOnce(DoAll(SetArgPointee<1>((struct stat){
+                          .st_mode = S_IRUSR | S_IRGRP, .st_uid = 123, .st_gid = 456}),
+                      Return(0)));
+  ON_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillByDefault(Return(0));
+  // It's okay to fail on chown. This happens when the test is not run as root.
+  RunDexopt(AnyOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_NONE),
+                  AllOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_SERVICE_SPECIFIC),
+                        Property(&ndk::ScopedAStatus::getMessage, HasSubstr("Failed to chown")))));
+}
+
+TEST_F(ArtdTest, dexoptGidMatchesGid) {
+  output_artifacts_.permissionSettings.fileFsPermission = {
+      .uid = 123, .gid = 456, .isOtherReadable = false};
+  EXPECT_CALL(mock_fstat_, Call(_, _)).WillRepeatedly(fstat);  // For profile.
+  EXPECT_CALL(mock_fstat_, Call(FdOf(dex_file_), _))
+      .WillOnce(DoAll(SetArgPointee<1>((struct stat){
+                          .st_mode = S_IRUSR | S_IRGRP, .st_uid = 123, .st_gid = 456}),
+                      Return(0)));
+  ON_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillByDefault(Return(0));
+  // It's okay to fail on chown. This happens when the test is not run as root.
+  RunDexopt(AnyOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_NONE),
+                  AllOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_SERVICE_SPECIFIC),
+                        Property(&ndk::ScopedAStatus::getMessage, HasSubstr("Failed to chown")))));
+}
+
+TEST_F(ArtdTest, dexoptUidGidChangeOk) {
+  // The dex file is other-readable, so we don't check uid and gid.
+  output_artifacts_.permissionSettings.fileFsPermission = {
+      .uid = 12345, .gid = 12345, .isOtherReadable = false};
+  ON_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillByDefault(Return(0));
+  // It's okay to fail on chown. This happens when the test is not run as root.
+  RunDexopt(AnyOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_NONE),
+                  AllOf(Property(&ndk::ScopedAStatus::getExceptionCode, EX_SERVICE_SPECIFIC),
+                        Property(&ndk::ScopedAStatus::getMessage, HasSubstr("Failed to chown")))));
+}
+
+TEST_F(ArtdTest, dexoptNoUidGidChange) {
+  output_artifacts_.permissionSettings.fileFsPermission = {
+      .uid = -1, .gid = -1, .isOtherReadable = false};
+  dex_file_other_readable_ = false;
+  EXPECT_CALL(*mock_exec_utils_, DoExecAndReturnCode(_, _, _)).WillOnce(Return(0));
+  RunDexopt();
 }
 
 TEST_F(ArtdTest, isProfileUsable) {
