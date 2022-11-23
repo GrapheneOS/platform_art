@@ -2751,6 +2751,49 @@ public class Main {
     return (byte) ((value & mask) >> 8);
   }
 
+  /// CHECK-START: int Main.$noinline$deadAddAfterUnrollingAndSimplification(int[]) dead_code_elimination$before_codegen (before)
+  /// CHECK-DAG: <<Param:l\d+>>     ParameterValue                             loop:none
+  /// CHECK-DAG: <<Const0:i\d+>>    IntConstant 0                              loop:none
+  /// CHECK-DAG: <<Const1:i\d+>>    IntConstant 1                              loop:none
+  /// CHECK-DAG: <<Const2:i\d+>>    IntConstant 2                              loop:none
+  /// CHECK-DAG: <<IndexPhi:i\d+>>  Phi [<<Const0>>,{{i\d+}}]                  loop:<<Loop:B\d+>> outer_loop:none
+  //            Induction variable:
+  /// CHECK-DAG:                    Add [<<IndexPhi>>,<<Const2>>]              loop:<<Loop>>      outer_loop:none
+  //            Array Element Addition:
+  /// CHECK-DAG: <<Store1:i\d+>>    Add [{{i\d+}},<<Const1>>]                  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG: <<Store2:i\d+>>    Add [{{i\d+}},<<Const2>>]                  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:                    ArraySet [<<Param>>,<<Const0>>,<<Store2>>] loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START: int Main.$noinline$deadAddAfterUnrollingAndSimplification(int[]) dead_code_elimination$before_codegen (before)
+  /// CHECK:                        Add
+  /// CHECK:                        Add
+  /// CHECK:                        Add
+  /// CHECK:                        Add
+  /// CHECK-NOT:                    Add
+
+  /// CHECK-START: int Main.$noinline$deadAddAfterUnrollingAndSimplification(int[]) dead_code_elimination$before_codegen (after)
+  /// CHECK-DAG: <<Param:l\d+>>     ParameterValue                             loop:none
+  /// CHECK-DAG: <<Const0:i\d+>>    IntConstant 0                              loop:none
+  /// CHECK-DAG: <<Const2:i\d+>>    IntConstant 2                              loop:none
+  /// CHECK-DAG: <<IndexPhi:i\d+>>  Phi [<<Const0>>,{{i\d+}}]                  loop:<<Loop:B\d+>> outer_loop:none
+  //            Induction variable:
+  /// CHECK-DAG:                    Add [<<IndexPhi>>,<<Const2>>]              loop:<<Loop>>      outer_loop:none
+  //            Array Element Addition:
+  /// CHECK-DAG: <<Store:i\d+>>     Add [{{i\d+}},<<Const2>>]                  loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:                    ArraySet [<<Param>>,<<Const0>>,<<Store>>] loop:<<Loop>>      outer_loop:none
+
+  /// CHECK-START: int Main.$noinline$deadAddAfterUnrollingAndSimplification(int[]) dead_code_elimination$before_codegen (after)
+  /// CHECK:                        Add
+  /// CHECK:                        Add
+  /// CHECK-NOT:                    Add
+  public static int $noinline$deadAddAfterUnrollingAndSimplification(int[] array) {
+    for (int i = 0; i < 50; ++i) {
+        // Array access prevents transformation to closed-form expression
+        array[0]++;
+    }
+    return array[0];
+  }
+
   public static void main(String[] args) throws Exception {
     Class smaliTests2 = Class.forName("SmaliTests2");
     Method $noinline$XorAllOnes = smaliTests2.getMethod("$noinline$XorAllOnes", int.class);
@@ -3058,6 +3101,8 @@ public class Main {
     assertIntEquals(-1, $noinline$redundantAndIntToByteShortAndConstant(0x7fffff45));
     assertIntEquals(-1, $noinline$redundantAndIntToByteShortAndConstant(0xffffff45));
     assertIntEquals(111, $noinline$redundantAndRegressionNotConstant(-1, 0x6f45));
+
+    assertIntEquals(50, $noinline$deadAddAfterUnrollingAndSimplification(new int[] { 0 }));
   }
 
   private static boolean $inline$true() { return true; }
