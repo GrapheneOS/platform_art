@@ -115,6 +115,7 @@ public class Main {
 // and the verification of Main is last and fills the DexCache with Derived.value.
 //
 class Fields {
+    // clang-format off
     public static int clobberDexCache() {
         return 0
                 + testField0000

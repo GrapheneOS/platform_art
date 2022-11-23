@@ -44,6 +44,7 @@ class Goto {
         if (which) {
             i += filler(i);
         } else {
+            // clang-format off
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
@@ -54,6 +55,7 @@ class Goto {
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
+            // clang-format on
         }
 
         return i;
@@ -67,6 +69,7 @@ class Goto {
         if (which) {
             i += filler(i);
         } else {
+            // clang-format off
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
@@ -2392,6 +2395,7 @@ class Goto {
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
             i -= filler(i);  i -= filler(i);  i -= filler(i);  i -= filler(i);
+            // clang-format on
         }
 
         return i;
