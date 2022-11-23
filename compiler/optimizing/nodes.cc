@@ -2885,7 +2885,10 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       // At this point we might either have:
       // A) Return/ReturnVoid/Throw as the last instruction
       // B) `Return/ReturnVoid->TryBoundary->Goto` as the last instruction chain
-      // C) `Throw->TryBoundary` as the last instruction chain
+      // C) `Return/ReturnVoid->Goto` as the last instruction chain. This exists when we added the
+      //     extra Goto because we had a TryBoundary which we could eliminate in DCE after
+      //     substituting arguments.
+      // D) `Throw->TryBoundary` as the last instruction chain
 
       const bool saw_goto = last->IsGoto();
       if (saw_goto) {
@@ -2903,7 +2906,6 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       }
 
       // Check that if we have an instruction chain, it is one of the allowed ones.
-      DCHECK_IMPLIES(saw_goto, saw_try_boundary);
       DCHECK_IMPLIES(saw_goto, last->IsReturnVoid() || last->IsReturn());
 
       if (last->IsThrow()) {
