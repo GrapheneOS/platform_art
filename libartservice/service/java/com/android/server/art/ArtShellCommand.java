@@ -112,6 +112,13 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                                 paramsBuilder.setFlags(ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES,
                                         ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
                                 break;
+                            case "--split":
+                                String splitName = getNextArgRequired();
+                                paramsBuilder
+                                        .setFlags(ArtFlags.FLAG_FOR_SINGLE_SPLIT,
+                                                ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                                        .setSplitName(!splitName.isEmpty() ? splitName : null);
+                                break;
                             default:
                                 pw.println("Error: Unknown option: " + opt);
                                 return 1;
@@ -280,7 +287,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Print the optimization status of a package.");
         pw.println("    By default, the command only prints the optimization status of primary "
                 + "dex'es.");
-        pw.println("  optimize-package [-m COMPILER_FILTER] [-f] PACKAGE_NAME");
+        pw.println("  optimize-package [-m COMPILER_FILTER] [-f] [--secondary-dex] ");
+        pw.println("      [--include-dependencies] [--split SPLIT_NAME] PACKAGE_NAME");
         pw.println("    Optimize a package.");
         pw.println("    By default, the command only optimizes primary dex'es.");
         pw.println("    The command prints a job ID, which can be used to cancel the job using the"
@@ -288,8 +296,10 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Options:");
         pw.println("      -m Set the compiler filter.");
         pw.println("      -f Force compilation.");
-        pw.println("      --secondary-dex Only compile secondary dex.");
+        pw.println("      --secondary-dex Only optimize secondary dex.");
         pw.println("      --include-dependencies Include dependencies.");
+        pw.println("      --split SPLIT_NAME Only optimize the given split. If SPLIT_NAME is an");
+        pw.println("        empty string, only optimize the base APK.");
         pw.println("  optimize-packages REASON");
         pw.println("    Run batch optimization for the given reason.");
         pw.println("    The command prints a job ID, which can be used to cancel the job using the"

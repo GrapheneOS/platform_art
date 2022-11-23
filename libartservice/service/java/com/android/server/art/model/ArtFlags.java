@@ -52,6 +52,15 @@ public class ArtFlags {
      * any existing optimized artifacts.
      */
     public static final int FLAG_FORCE = 1 << 4;
+    /**
+     * If set, the optimization will be performed for a single split. Otherwise, the optimization
+     * will be performed for all splits. {@link OptimizeParams.Builder#setSplitName()} can be used
+     * to specify the split to optimize.
+     *
+     * When this flag is set, {@link #FLAG_FOR_PRIMARY_DEX} must be set, and {@link
+     * #FLAG_FOR_SECONDARY_DEX} and {@link #FLAG_SHOULD_INCLUDE_DEPENDENCIES} must not be set.
+     */
+    public static final int FLAG_FOR_SINGLE_SPLIT = 1 << 5;
 
     /**
      * Flags for
@@ -118,6 +127,7 @@ public class ArtFlags {
         FLAG_SHOULD_INCLUDE_DEPENDENCIES,
         FLAG_SHOULD_DOWNGRADE,
         FLAG_FORCE,
+        FLAG_FOR_SINGLE_SPLIT,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)

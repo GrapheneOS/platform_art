@@ -284,18 +284,6 @@ public final class ArtManagerLocal {
     public OptimizeResult optimizePackage(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull String packageName, @NonNull OptimizeParams params,
             @NonNull CancellationSignal cancellationSignal) {
-        if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
-                && (params.getFlags() & ArtFlags.FLAG_FOR_SECONDARY_DEX) == 0) {
-            throw new IllegalArgumentException("Nothing to optimize");
-        }
-
-        if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
-                && (params.getFlags() & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0) {
-            throw new IllegalArgumentException(
-                    "FLAG_SHOULD_INCLUDE_DEPENDENCIES must not set if FLAG_FOR_PRIMARY_DEX is not "
-                    + "set.");
-        }
-
         return mInjector.getDexOptHelper().dexopt(
                 snapshot, List.of(packageName), params, cancellationSignal, Runnable::run);
     }
@@ -544,20 +532,7 @@ public final class ArtManagerLocal {
             @Nullable String splitName) throws SnapshotProfileException {
         PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
-
-        PrimaryDexInfo dexInfo;
-        if (splitName == null) {
-            dexInfo = PrimaryDexUtils.getDexInfo(pkg).get(0);
-        } else {
-            dexInfo = PrimaryDexUtils.getDexInfo(pkg)
-                              .stream()
-                              .filter(info -> splitName.equals(info.splitName()))
-                              .findFirst()
-                              .orElseThrow(() -> {
-                                  return new IllegalArgumentException(
-                                          String.format("Split '%s' not found", splitName));
-                              });
-        }
+        PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfoBySplitName(pkg, splitName);
 
         List<ProfilePath> profiles = new ArrayList<>();
         profiles.add(PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
