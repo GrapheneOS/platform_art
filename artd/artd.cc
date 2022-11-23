@@ -882,7 +882,7 @@ ndk::ScopedAStatus Artd::dexopt(
   LOG(INFO) << "dex2oat returned code {}"_format(result.value());
 
   if (result.value() != 0) {
-    return NonFatal("dex2oat returned an unexpected code: %d"_format(result.value()));
+    return NonFatal("dex2oat returned an unexpected code: {}"_format(result.value()));
   }
 
   int64_t size_bytes = 0;
