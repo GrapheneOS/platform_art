@@ -46,6 +46,26 @@ class HDeadCodeElimination : public HOptimization {
   bool SimplifyIfs();
   void ConnectSuccessiveBlocks();
 
+  // Helper struct to eliminate tries.
+  struct TryBelongingInformation;
+  // Disconnects `block`'s handlers and update its `TryBoundary` instruction to a `Goto`.
+  // Sets `any_handler_in_loop` to true if any handler is currently a loop to later update the loop
+  // information if needed.
+  void DisconnectHandlersAndUpdateTryBoundary(HBasicBlock* block,
+                                              /* out */ bool* any_handler_in_loop);
+  // Returns true iff the try doesn't contain throwing instructions.
+  bool CanPerformTryRemoval(const TryBelongingInformation& try_belonging_info);
+  // Removes the try by disconnecting all try entries and exits from their handlers. Also updates
+  // the graph in the case that a `TryBoundary` instruction of kind `exit` has the Exit block as
+  // its successor.
+  void RemoveTry(HBasicBlock* try_entry,
+                 const TryBelongingInformation& try_belonging_info,
+                 bool* any_catch_in_loop);
+  // Checks which tries (if any) are currently in the graph, coalesces the different try entries
+  // that are referencing the same try, and removes the tries which don't contain any throwing
+  // instructions.
+  bool RemoveUnneededTries();
+
   DISALLOW_COPY_AND_ASSIGN(HDeadCodeElimination);
 };
 
