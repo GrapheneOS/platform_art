@@ -44,7 +44,6 @@
 #include "nativehelper/scoped_local_ref.h"
 #include "nativehelper/scoped_utf_chars.h"
 #include "nativeloader/native_loader.h"
-#include "object_callbacks.h"
 #include "parsed_options.h"
 #include "runtime-inl.h"
 #include "runtime_options.h"
@@ -306,6 +305,7 @@ class Libraries {
       *detail += "No implementation found for ";
       *detail += m->PrettyMethod();
       *detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
+      *detail += " - is the library loaded, e.g. System.loadLibrary?";
     }
     return nullptr;
   }
@@ -831,7 +831,7 @@ void JavaVMExt::BroadcastForNewWeakGlobals() {
 }
 
 ObjPtr<mirror::Object> JavaVMExt::DecodeGlobal(IndirectRef ref) {
-  return globals_.SynchronizedGet(ref);
+  return globals_.Get(ref);
 }
 
 void JavaVMExt::UpdateGlobal(Thread* self, IndirectRef ref, ObjPtr<mirror::Object> result) {
@@ -848,7 +848,7 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref
   // if MayAccessWeakGlobals is false.
   DCHECK_EQ(IndirectReferenceTable::GetIndirectRefKind(ref), kWeakGlobal);
   if (LIKELY(MayAccessWeakGlobals(self))) {
-    return weak_globals_.SynchronizedGet(ref);
+    return weak_globals_.Get(ref);
   }
   MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   return DecodeWeakGlobalLocked(self, ref);
@@ -876,7 +876,7 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobalDuringShutdown(Thread* self, I
   if (!gUseReadBarrier) {
     DCHECK(allow_accessing_weak_globals_.load(std::memory_order_seq_cst));
   }
-  return weak_globals_.SynchronizedGet(ref);
+  return weak_globals_.Get(ref);
 }
 
 bool JavaVMExt::IsWeakGlobalCleared(Thread* self, IndirectRef ref) {
