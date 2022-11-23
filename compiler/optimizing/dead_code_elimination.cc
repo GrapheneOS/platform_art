@@ -487,7 +487,7 @@ void HDeadCodeElimination::ConnectSuccessiveBlocks() {
 }
 
 struct HDeadCodeElimination::TryBelongingInformation {
-  TryBelongingInformation(ScopedArenaAllocator* allocator)
+  explicit TryBelongingInformation(ScopedArenaAllocator* allocator)
       : blocks_in_try(allocator->Adapter(kArenaAllocDCE)),
         coalesced_try_entries(allocator->Adapter(kArenaAllocDCE)) {}
 
