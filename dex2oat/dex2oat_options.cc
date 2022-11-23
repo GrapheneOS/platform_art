@@ -55,6 +55,7 @@ using Parser = CmdlineParser<Dex2oatArgumentMap, Dex2oatArgumentMap::Key>;
 using Builder = Parser::Builder;
 
 static void AddInputMappings(Builder& builder) {
+  // clang-format off
   builder.
       Define("--dex-file=_")
           .WithType<std::vector<std::string>>().AppendValues()
@@ -102,9 +103,11 @@ static void AddInputMappings(Builder& builder) {
                     "         class path components' paths)\n"
                     "Default: $ANDROID_ROOT/system/framework/boot.art")
           .IntoKey(M::BootImage);
+  // clang-format on
 }
 
 static void AddGeneratedArtifactMappings(Builder& builder) {
+  // clang-format off
   builder.
       Define("--input-vdex-fd=_")
           .WithType<int>()
@@ -156,9 +159,11 @@ static void AddGeneratedArtifactMappings(Builder& builder) {
                     "specified by --oat-fd.\n"
                     "Eg: --oat-location=/data/dalvik-cache/system@app@Calculator.apk.oat")
           .IntoKey(M::OatLocation);
+  // clang-format on
 }
 
 static void AddImageMappings(Builder& builder) {
+  // clang-format off
   builder.
       Define("--image=_")
           .WithType<std::string>()
@@ -214,9 +219,11 @@ static void AddImageMappings(Builder& builder) {
           .WithHelp("Which format to store the image Defaults to uncompressed. Eg:"
                     " --image-format=lz4")
           .IntoKey(M::ImageFormat);
+  // clang-format on
 }
 
 static void AddSwapMappings(Builder& builder) {
+  // clang-format off
   builder.
       Define("--swap-file=_")
           .WithType<std::string>()
@@ -234,9 +241,11 @@ static void AddSwapMappings(Builder& builder) {
           .WithType<unsigned int>()
           .WithHelp("specifies the minimum number of dex file to allow the use of swap.")
           .IntoKey(M::SwapDexCountThreshold);
+  // clang-format on
 }
 
 static void AddCompilerMappings(Builder& builder) {
+  // clang-format off
   builder.
       Define("--run-passes=_")
           .WithType<std::string>()
@@ -264,9 +273,11 @@ static void AddCompilerMappings(Builder& builder) {
           .WithType<std::vector<int>>().AppendValues()
           .WithHelp("Specify files containing list of classes preloaded in the zygote.")
           .IntoKey(M::PreloadedClassesFds);
+  // clang-format on
 }
 
 static void AddTargetMappings(Builder& builder) {
+  // clang-format off
   builder.
       Define("--instruction-set=_")
           .WithType<InstructionSet>()
@@ -288,6 +299,7 @@ static void AddTargetMappings(Builder& builder) {
                     "Example: --instruction-set-features=div\n"
                     "Default: default")
           .IntoKey(M::TargetInstructionSetFeatures);
+  // clang-format on
 }
 
 Parser CreateDex2oatArgumentParser() {
@@ -300,6 +312,7 @@ Parser CreateDex2oatArgumentParser() {
   AddCompilerMappings(*parser_builder);
   AddTargetMappings(*parser_builder);
 
+  // clang-format off
   parser_builder->
       Define({"--watch-dog", "--no-watch-dog"})
           .WithHelp("Enable or disable the watchdog timer.")
@@ -450,6 +463,7 @@ Parser CreateDex2oatArgumentParser() {
           .WithHelp("Force PaletteNotify{Start,End}Dex2oatCompilation calls.")
           .IntoKey(M::ForcePaletteCompilationHooks)
       .Ignore({"--comments=_"});
+  // clang-format on
 
   AddCompilerOptionsArgumentParserOptions<Dex2oatArgumentMap>(*parser_builder);
 
