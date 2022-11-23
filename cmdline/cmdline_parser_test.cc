@@ -528,10 +528,12 @@ TEST_F(CmdlineParserTest, TestVerify) {
 TEST_F(CmdlineParserTest, TestIgnoreUnrecognized) {
   RuntimeParser::Builder parserBuilder;
 
+  // clang-format off
   parserBuilder
       .Define("-help")
           .IntoKey(M::Help)
       .IgnoreUnrecognized(true);
+  // clang-format on
 
   parser_.reset(new RuntimeParser(parserBuilder.Build()));
 

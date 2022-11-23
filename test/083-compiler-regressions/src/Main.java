@@ -9756,6 +9756,7 @@ class MirOpSelectTests {
     private static int ifLez(int src, int thn, int els) { return (src <= 0) ? thn : els; }
 
     public static void testIfCcz() {
+        // clang-format off
         int[] results = new int[] {
             ifEqzThen0Else1(-1), 1,
             ifEqzThen0Else1(0), 0,
@@ -9826,6 +9827,7 @@ class MirOpSelectTests {
             ifGtzThen8Else9(0), 9,
             ifGtzThen8Else9(1), 8
         };
+        // clang-format on
 
         boolean success = true;
         StringBuilder fails = new StringBuilder();

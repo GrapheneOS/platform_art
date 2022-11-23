@@ -119,6 +119,7 @@ public class Main {
      * Confirms that we can have 32 nested monitors on one method.
      */
     void notExcessiveNesting() {
+        // clang-format off
         assertIsManaged();
         synchronized (this) {   // 1
         synchronized (this) {   // 2
@@ -153,6 +154,7 @@ public class Main {
         synchronized (this) {   // 31
         synchronized (this) {   // 32
         }}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+        // clang-format on
     }
 
     /**
@@ -160,6 +162,7 @@ public class Main {
      * method.
      */
     void notNested() {
+        // clang-format off
         assertIsManaged();
         synchronized (this) {}  // 1
         synchronized (this) {}  // 2
@@ -195,6 +198,7 @@ public class Main {
         synchronized (this) {}  // 32
         synchronized (this) {}  // 33
         synchronized (this) {}  // 34
+        // clang-format on
     }
 
     /* does nothing but ensure that the compiler doesn't discard an object */
