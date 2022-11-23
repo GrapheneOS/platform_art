@@ -106,10 +106,10 @@ struct WellKnownClasses {
   static ArtMethod* java_lang_Float_floatToRawIntBits;
   static ArtMethod* java_lang_Float_valueOf;
   static ArtMethod* java_lang_Integer_valueOf;
-  static jmethodID java_lang_invoke_MethodHandle_asType;
-  static jmethodID java_lang_invoke_MethodHandle_invokeExact;
-  static jmethodID java_lang_invoke_MethodHandles_lookup;
-  static jmethodID java_lang_invoke_MethodHandles_Lookup_findConstructor;
+  static ArtMethod* java_lang_invoke_MethodHandle_asType;
+  static ArtMethod* java_lang_invoke_MethodHandle_invokeExact;
+  static ArtMethod* java_lang_invoke_MethodHandles_lookup;
+  static ArtMethod* java_lang_invoke_MethodHandles_Lookup_findConstructor;
   static ArtMethod* java_lang_Long_valueOf;
   static jmethodID java_lang_ref_FinalizerReference_add;
   static jmethodID java_lang_ref_ReferenceQueue_add;

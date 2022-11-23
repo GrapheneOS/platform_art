@@ -864,19 +864,13 @@ static bool MethodHandleInvokeInternal(Thread* self,
   if (atc == nullptr || !callsite_type->IsExactMatch(atc->GetMethodType())) {
     // Cached asType adapter does not exist or is for another call site. Call
     // MethodHandle::asType() to get an appropriate adapter.
-    ArtMethod* as_type =
-        jni::DecodeArtMethod(WellKnownClasses::java_lang_invoke_MethodHandle_asType);
-    uint32_t as_type_args[] = {
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(method_handle.Get())),
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(callsite_type.Get()))};
-    JValue atc_result;
-    as_type->Invoke(self, as_type_args, sizeof(as_type_args), &atc_result, "LL");
-    if (atc_result.GetL() == nullptr) {
+    ArtMethod* as_type = WellKnownClasses::java_lang_invoke_MethodHandle_asType;
+    ObjPtr<mirror::MethodHandle> atc_method_handle = ObjPtr<mirror::MethodHandle>::DownCast(
+        as_type->InvokeVirtual<'L', 'L'>(self, method_handle.Get(), callsite_type.Get()));
+    if (atc_method_handle == nullptr) {
       DCHECK(self->IsExceptionPending());
       return false;
     }
-    ObjPtr<mirror::MethodHandle> atc_method_handle =
-        down_cast<mirror::MethodHandle*>(atc_result.GetL());
     atc.Assign(atc_method_handle);
     DCHECK(!atc.IsNull());
   }
@@ -917,8 +911,7 @@ void MethodHandleInvokeExactWithFrame(Thread* self,
   const uint16_t num_vregs = callsite_type->NumberOfVRegs();
 
   const char* old_cause = self->StartAssertNoThreadSuspension("EmulatedStackFrame to ShadowFrame");
-  ArtMethod* invoke_exact =
-      jni::DecodeArtMethod(WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact);
+  ArtMethod* invoke_exact = WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
   ShadowFrameAllocaUniquePtr shadow_frame =
       CREATE_SHADOW_FRAME(num_vregs, invoke_exact, /*dex_pc*/ 0);
   emulated_frame->WriteToShadowFrame(self, callsite_type, 0, shadow_frame.get());
