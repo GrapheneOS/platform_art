@@ -71,15 +71,23 @@ static constexpr bool kUseTableLookupReadBarrier = true;
 static constexpr bool kUseTableLookupReadBarrier = false;
 #endif
 
+// Only if read-barrier isn't forced (see build/art.go) but is selected, that we need
+// to see if we support userfaultfd GC. All the other cases can be constexpr here.
 #ifdef ART_FORCE_USE_READ_BARRIER
 constexpr bool gUseReadBarrier = kUseBakerReadBarrier || kUseTableLookupReadBarrier;
 constexpr bool gUseUserfaultfd = !gUseReadBarrier;
+static_assert(!gUseUserfaultfd);
 #else
-extern const bool gUseReadBarrier;
+#ifndef ART_USE_READ_BARRIER
+constexpr bool gUseReadBarrier = false;
 #ifdef ART_DEFAULT_GC_TYPE_IS_CMC
-extern const bool gUseUserfaultfd;
+constexpr bool gUseUserfaultfd = true;
 #else
 constexpr bool gUseUserfaultfd = false;
+#endif
+#else
+extern const bool gUseReadBarrier;
+extern const bool gUseUserfaultfd;
 #endif
 #endif
 
