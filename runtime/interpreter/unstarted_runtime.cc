@@ -61,7 +61,7 @@
 #include "thread-inl.h"
 #include "transaction.h"
 #include "unstarted_runtime_list.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 namespace interpreter {
@@ -658,8 +658,7 @@ void UnstartedRuntime::UnstartedClassLoaderGetResourceAsStream(
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> this_classloader_class(hs.NewHandle(this_obj->GetClass()));
 
-    if (self->DecodeJObject(WellKnownClasses::java_lang_BootClassLoader) !=
-            this_classloader_class.Get()) {
+    if (WellKnownClasses::java_lang_BootClassLoader != this_classloader_class.Get()) {
       AbortTransactionOrFail(self,
                              "Unsupported classloader type %s for getResourceAsStream",
                              mirror::Class::PrettyClass(this_classloader_class.Get()).c_str());
