@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <memory>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -143,7 +144,7 @@ void parseInputFile(const char* inputFileName) {
   /* Add space for a sentinel record at the end */
   numRecords += 1;
   records = new dataRecord[numRecords];
-  stack* callStack = new stack[numThreads];
+  std::unique_ptr<stack[]> callStack(new stack[numThreads]);
   for (int32_t ii = 0; ii < numThreads; ++ii) {
     callStack[ii].frames = nullptr;
     callStack[ii].indentLevel = 0;
