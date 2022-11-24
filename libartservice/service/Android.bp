@@ -83,7 +83,6 @@ java_sdk_library {
     ],
     static_libs: [
     ],
-    plugins: ["java_api_finder"],
     jarjar_rules: "jarjar-rules.txt",
 }
 
