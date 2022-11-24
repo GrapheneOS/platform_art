@@ -38,7 +38,6 @@ import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
-import com.android.server.pm.pkg.PackageUserState;
 
 import dalvik.system.DexFile;
 
@@ -170,8 +169,7 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
     @Override
     @NonNull
     protected ProfilePath buildRefProfilePath(@NonNull DetailedPrimaryDexInfo dexInfo) {
-        String profileName = getProfileName(dexInfo.splitName());
-        return AidlUtils.buildProfilePathForPrimaryRef(mPkgState.getPackageName(), profileName);
+        return PrimaryDexUtils.buildRefProfilePath(mPkgState, dexInfo);
     }
 
     @Override
@@ -188,25 +186,14 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
     @NonNull
     protected OutputProfile buildOutputProfile(
             @NonNull DetailedPrimaryDexInfo dexInfo, boolean isPublic) {
-        String profileName = getProfileName(dexInfo.splitName());
-        return AidlUtils.buildOutputProfileForPrimary(
-                mPkgState.getPackageName(), profileName, Process.SYSTEM_UID, mSharedGid, isPublic);
+        return PrimaryDexUtils.buildOutputProfile(
+                mPkgState, dexInfo, Process.SYSTEM_UID, mSharedGid, isPublic);
     }
 
     @Override
     @NonNull
     protected List<ProfilePath> getCurProfiles(@NonNull DetailedPrimaryDexInfo dexInfo) {
-        List<ProfilePath> profiles = new ArrayList<>();
-        for (UserHandle handle :
-                mInjector.getUserManager().getUserHandles(true /* excludeDying */)) {
-            int userId = handle.getIdentifier();
-            PackageUserState userState = mPkgState.getStateForUser(handle);
-            if (userState.isInstalled()) {
-                profiles.add(AidlUtils.buildProfilePathForPrimaryCur(
-                        userId, mPkgState.getPackageName(), getProfileName(dexInfo.splitName())));
-            }
-        }
-        return profiles;
+        return PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), mPkgState, dexInfo);
     }
 
     @Override
@@ -220,10 +207,5 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
         return !TextUtils.isEmpty(mPkg.getSdkLibraryName())
                 || !TextUtils.isEmpty(mPkg.getStaticSharedLibraryName())
                 || !mPkg.getLibraryNames().isEmpty();
-    }
-
-    @NonNull
-    private String getProfileName(@Nullable String splitName) {
-        return splitName == null ? "primary" : splitName + ".split";
     }
 }

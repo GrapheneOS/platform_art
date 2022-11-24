@@ -17,6 +17,8 @@
 import dalvik.annotation.optimization.FastNative;
 import dalvik.annotation.optimization.CriticalNative;
 
+// clang-format off
+
 public class Main {
 
   public static void main(String[] args) throws Exception {

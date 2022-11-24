@@ -20,6 +20,8 @@ package com.android.server.art {
     method public int scheduleBackgroundDexoptJob();
     method public void setOptimizePackagesCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackagesCallback);
     method public void setScheduleBackgroundDexoptJobCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.ScheduleBackgroundDexoptJobCallback);
+    method @NonNull public android.os.ParcelFileDescriptor snapshotAppProfile(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @Nullable String) throws com.android.server.art.ArtManagerLocal.SnapshotProfileException;
+    method @NonNull public android.os.ParcelFileDescriptor snapshotBootImageProfile(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot) throws com.android.server.art.ArtManagerLocal.SnapshotProfileException;
     method public void startBackgroundDexoptJob();
     method public void unscheduleBackgroundDexoptJob();
   }
@@ -34,6 +36,10 @@ package com.android.server.art {
 
   public static interface ArtManagerLocal.ScheduleBackgroundDexoptJobCallback {
     method public void onOverrideJobInfo(@NonNull android.app.job.JobInfo.Builder);
+  }
+
+  public static class ArtManagerLocal.SnapshotProfileException extends java.lang.Exception {
+    ctor public ArtManagerLocal.SnapshotProfileException(@NonNull Throwable);
   }
 
   public class ArtModuleServiceInitializer {

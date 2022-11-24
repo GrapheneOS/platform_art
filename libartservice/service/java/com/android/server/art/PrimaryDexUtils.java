@@ -18,6 +18,8 @@ package com.android.server.art;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.os.UserHandle;
+import android.os.UserManager;
 import android.text.TextUtils;
 
 import com.android.internal.annotations.Immutable;
@@ -25,6 +27,7 @@ import com.android.server.art.model.DetailedDexInfo;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
+import com.android.server.pm.pkg.PackageUserState;
 import com.android.server.pm.pkg.SharedLibrary;
 
 import dalvik.system.DelegateLastClassLoader;
@@ -270,6 +273,41 @@ public class PrimaryDexUtils {
 
     public static boolean isIsolatedSplitLoading(@NonNull AndroidPackage pkg) {
         return pkg.isIsolatedSplitLoading() && pkg.getSplits().size() > 1;
+    }
+
+    @NonNull
+    public static ProfilePath buildRefProfilePath(
+            @NonNull PackageState pkgState, @NonNull PrimaryDexInfo dexInfo) {
+        String profileName = getProfileName(dexInfo.splitName());
+        return AidlUtils.buildProfilePathForPrimaryRef(pkgState.getPackageName(), profileName);
+    }
+
+    @NonNull
+    public static OutputProfile buildOutputProfile(@NonNull PackageState pkgState,
+            @NonNull PrimaryDexInfo dexInfo, int uid, int gid, boolean isPublic) {
+        String profileName = getProfileName(dexInfo.splitName());
+        return AidlUtils.buildOutputProfileForPrimary(
+                pkgState.getPackageName(), profileName, uid, gid, isPublic);
+    }
+
+    @NonNull
+    public static List<ProfilePath> getCurProfiles(@NonNull UserManager userManager,
+            @NonNull PackageState pkgState, @NonNull PrimaryDexInfo dexInfo) {
+        List<ProfilePath> profiles = new ArrayList<>();
+        for (UserHandle handle : userManager.getUserHandles(true /* excludeDying */)) {
+            int userId = handle.getIdentifier();
+            PackageUserState userState = pkgState.getStateForUser(handle);
+            if (userState.isInstalled()) {
+                profiles.add(AidlUtils.buildProfilePathForPrimaryCur(
+                        userId, pkgState.getPackageName(), getProfileName(dexInfo.splitName())));
+            }
+        }
+        return profiles;
+    }
+
+    @NonNull
+    private static String getProfileName(@Nullable String splitName) {
+        return splitName == null ? "primary" : splitName + ".split";
     }
 
     /** Basic information about a primary dex file (either the base APK or a split APK). */

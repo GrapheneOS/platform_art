@@ -90,5 +90,7 @@ union ProfilePath {
         WritableProfilePath finalPath;
         /** A unique identifier to distinguish this temporary file from others. Filled by artd. */
         @utf8InCpp String id;
+        /** The path to the temporary file. Filled by artd. */
+        @utf8InCpp String tmpPath;
     }
 }

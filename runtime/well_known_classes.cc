@@ -95,10 +95,10 @@ ArtMethod* WellKnownClasses::java_lang_Double_valueOf;
 ArtMethod* WellKnownClasses::java_lang_Float_floatToRawIntBits;
 ArtMethod* WellKnownClasses::java_lang_Float_valueOf;
 ArtMethod* WellKnownClasses::java_lang_Integer_valueOf;
-jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_asType;
-jmethodID WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
-jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
-jmethodID WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_asType;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
 ArtMethod* WellKnownClasses::java_lang_Long_valueOf;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
 jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
@@ -430,10 +430,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
   java_lang_Daemons_stop = CacheMethod(env, java_lang_Daemons, true, "stop", "()V");
   java_lang_Daemons_waitForDaemonStart = CacheMethod(env, java_lang_Daemons, true, "waitForDaemonStart", "()V");
-  java_lang_invoke_MethodHandle_asType = CacheMethod(env, "java/lang/invoke/MethodHandle", false, "asType", "(Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;");
-  java_lang_invoke_MethodHandle_invokeExact = CacheMethod(env, "java/lang/invoke/MethodHandle", false, "invokeExact", "([Ljava/lang/Object;)Ljava/lang/Object;");
-  java_lang_invoke_MethodHandles_lookup = CacheMethod(env, "java/lang/invoke/MethodHandles", true, "lookup", "()Ljava/lang/invoke/MethodHandles$Lookup;");
-  java_lang_invoke_MethodHandles_Lookup_findConstructor = CacheMethod(env, "java/lang/invoke/MethodHandles$Lookup", false, "findConstructor", "(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;");
 
   java_lang_ref_FinalizerReference_add = CacheMethod(env, "java/lang/ref/FinalizerReference", true, "add", "(Ljava/lang/Object;)V");
   java_lang_ref_ReferenceQueue_add = CacheMethod(env, "java/lang/ref/ReferenceQueue", true, "add", "(Ljava/lang/ref/Reference;)V");
@@ -442,7 +438,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
   java_lang_String_charAt = CacheMethod(env, java_lang_String, false, "charAt", "(I)C");
 
-  StackHandleScope<14u> hs(self);
+  StackHandleScope<17u> hs(self);
   Handle<mirror::Class> d_s_vmr =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VMRuntime;"));
   Handle<mirror::Class> j_i_fd =
@@ -451,6 +447,12 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Thread;"));
   Handle<mirror::Class> j_l_tg =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ThreadGroup;"));
+  Handle<mirror::Class> j_l_i_MethodHandle =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandle;"));
+  Handle<mirror::Class> j_l_i_MethodHandles =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandles;"));
+  Handle<mirror::Class> j_l_i_MethodHandles_Lookup =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandles$Lookup;"));
   Handle<mirror::Class> j_n_b =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/nio/Buffer;"));
   Handle<mirror::Class> j_n_bb =
@@ -510,6 +512,31 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       /*is_static=*/ false,
       "threadTerminated",
       "(Ljava/lang/Thread;)V",
+      pointer_size);
+
+  java_lang_invoke_MethodHandle_asType = CacheMethod(
+      j_l_i_MethodHandle.Get(),
+      /*is_static=*/ false,
+      "asType",
+      "(Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;",
+      pointer_size);
+  java_lang_invoke_MethodHandle_invokeExact = CacheMethod(
+      j_l_i_MethodHandle.Get(),
+      /*is_static=*/ false,
+      "invokeExact",
+      "([Ljava/lang/Object;)Ljava/lang/Object;",
+      pointer_size);
+  java_lang_invoke_MethodHandles_lookup = CacheMethod(
+      j_l_i_MethodHandles.Get(),
+      /*is_static=*/ true,
+      "lookup",
+      "()Ljava/lang/invoke/MethodHandles$Lookup;",
+      pointer_size);
+  java_lang_invoke_MethodHandles_Lookup_findConstructor = CacheMethod(
+      j_l_i_MethodHandles_Lookup.Get(),
+      /*is_static=*/ false,
+      "findConstructor",
+      "(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;",
       pointer_size);
 
   java_nio_Buffer_isDirect =

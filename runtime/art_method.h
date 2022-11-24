@@ -69,7 +69,7 @@ class String;
 }  // namespace mirror
 
 namespace detail {
-template <char Type> struct ShortyTraits;
+template <char Shorty> struct ShortyTraits;
 template <> struct ShortyTraits<'V'>;
 template <> struct ShortyTraits<'Z'>;
 template <> struct ShortyTraits<'B'>;
@@ -80,6 +80,8 @@ template <> struct ShortyTraits<'J'>;
 template <> struct ShortyTraits<'F'>;
 template <> struct ShortyTraits<'D'>;
 template <> struct ShortyTraits<'L'>;
+template <char Shorty> struct HandleShortyTraits;
+template <> struct HandleShortyTraits<'L'>;
 }  // namespace detail
 
 class ArtMethod final {
@@ -696,6 +698,17 @@ class ArtMethod final {
   InvokeInterface(Thread* self,
                   ObjPtr<mirror::Object> receiver,
                   typename detail::ShortyTraits<ArgType>::Type... args)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <char... ArgType, typename HandleScopeType>
+  Handle<mirror::Object> NewObject(HandleScopeType& hs,
+                                   Thread* self,
+                                   typename detail::HandleShortyTraits<ArgType>::Type... args)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template <char... ArgType>
+  ObjPtr<mirror::Object> NewObject(Thread* self,
+                                   typename detail::HandleShortyTraits<ArgType>::Type... args)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   const void* GetEntryPointFromQuickCompiledCode() const {

@@ -130,6 +130,12 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         list.add(params);
 
         params = new Params();
+        params.mIsUseEmbeddedDex = true;
+        params.mRequestedCompilerFilter = "speed";
+        params.mExpectedCompilerFilter = "verify";
+        list.add(params);
+
+        params = new Params();
         params.mAlwaysDebuggable = true;
         params.mExpectedIsDebuggable = true;
         list.add(params);
@@ -178,6 +184,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         lenient().when(mPkg.getTargetSdkVersion()).thenReturn(123);
         lenient().when(mPkg.isSignedWithPlatformKey()).thenReturn(mParams.mIsSignedWithPlatformKey);
         lenient().when(mPkg.isUsesNonSdkApi()).thenReturn(mParams.mIsUsesNonSdkApi);
+        lenient().when(mPkg.isUseEmbeddedDex()).thenReturn(mParams.mIsUseEmbeddedDex);
         lenient().when(mPkgState.isSystem()).thenReturn(mParams.mIsSystem);
         lenient().when(mPkgState.isUpdatedSystemApp()).thenReturn(mParams.mIsUpdatedSystemApp);
 
@@ -296,6 +303,7 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         public boolean mIsVmSafeMode = false;
         public boolean mIsDebuggable = false;
         public boolean mIsSystemUi = false;
+        public boolean mIsUseEmbeddedDex = false;
 
         // Options.
         public String mRequestedCompilerFilter = "verify";
@@ -316,15 +324,15 @@ public class PrimaryDexOptimizerParameterizedTest extends PrimaryDexOptimizerTes
         public String toString() {
             return String.format("isSystem=%b,isUpdatedSystemApp=%b,isSignedWithPlatformKey=%b,"
                             + "isUsesNonSdkApi=%b,isVmSafeMode=%b,isDebuggable=%b,isSystemUi=%b,"
-                            + "requestedCompilerFilter=%s,force=%b,shouldDowngrade=%b,"
-                            + "alwaysDebuggable=%b => targetCompilerFilter=%s,"
+                            + "isUseEmbeddedDex=%b,requestedCompilerFilter=%s,force=%b,"
+                            + "shouldDowngrade=%b,alwaysDebuggable=%b => targetCompilerFilter=%s,"
                             + "expectedDexoptTrigger=%d,expectedIsInDalvikCache=%b,"
                             + "expectedIsDebuggable=%b,expectedIsHiddenApiPolicyEnabled=%b",
                     mIsSystem, mIsUpdatedSystemApp, mIsSignedWithPlatformKey, mIsUsesNonSdkApi,
-                    mIsVmSafeMode, mIsDebuggable, mIsSystemUi, mRequestedCompilerFilter, mForce,
-                    mShouldDowngrade, mAlwaysDebuggable, mExpectedCompilerFilter,
-                    mExpectedDexoptTrigger, mExpectedIsInDalvikCache, mExpectedIsDebuggable,
-                    mExpectedIsHiddenApiPolicyEnabled);
+                    mIsVmSafeMode, mIsDebuggable, mIsSystemUi, mIsUseEmbeddedDex,
+                    mRequestedCompilerFilter, mForce, mShouldDowngrade, mAlwaysDebuggable,
+                    mExpectedCompilerFilter, mExpectedDexoptTrigger, mExpectedIsInDalvikCache,
+                    mExpectedIsDebuggable, mExpectedIsHiddenApiPolicyEnabled);
         }
     }
 }
