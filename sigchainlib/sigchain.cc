@@ -407,7 +407,15 @@ void SignalChain::Handler(int signo, siginfo_t* siginfo, void* ucontext_raw) {
     if (handler == SIG_IGN) {
       return;
     } else if (handler == SIG_DFL) {
-      fatal("exiting due to SIG_DFL handler for signal %d, ucontext %p", signo, ucontext);
+      // We'll only get here if debuggerd is disabled. In that case, whatever next tries to handle
+      // the crash will have no way to know our ucontext, and thus no way to dump the original crash
+      // stack (since we're on an alternate stack.) Let's remove our handler and return. Then the
+      // pre-crash state is restored, the crash happens again, and the next handler gets a chance.
+      log("reverting to SIG_DFL handler for signal %d, ucontext %p", signo, ucontext);
+      struct sigaction dfl = {};
+      dfl.sa_handler = SIG_DFL;
+      linked_sigaction(signo, &dfl, nullptr);
+      return;
     } else {
       handler(signo);
     }
