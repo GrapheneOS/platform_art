@@ -47,7 +47,7 @@
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"
 #include "thread_list.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace openjdkjvmti {
 
@@ -97,7 +97,7 @@ jvmtiError ThreadGroupUtil::GetThreadGroupInfo(jvmtiEnv* env,
   art::ScopedObjectAccess soa(art::Thread::Current());
   art::StackHandleScope<2> hs(soa.Self());
   art::Handle<art::mirror::Class> tg_class =
-      hs.NewHandle(art::WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass());
+      hs.NewHandle(art::WellKnownClasses::java_lang_ThreadGroup.Get());
   art::Handle<art::mirror::Object> thread_group =
       hs.NewHandle(soa.Decode<art::mirror::Object>(group));
   if (!thread_group->InstanceOf(tg_class.Get())) {
@@ -224,8 +224,7 @@ jvmtiError ThreadGroupUtil::GetThreadGroupChildren(jvmtiEnv* env,
   art::StackHandleScope<1> hs(soa.Self());
   art::Handle<art::mirror::Object> thread_group =
       hs.NewHandle(soa.Decode<art::mirror::Object>(group));
-  if (!thread_group->InstanceOf(
-          art::WellKnownClasses::java_lang_ThreadGroup_add->GetDeclaringClass())) {
+  if (!thread_group->InstanceOf(art::WellKnownClasses::java_lang_ThreadGroup.Get())) {
     return ERR(INVALID_THREAD_GROUP);
   }
 

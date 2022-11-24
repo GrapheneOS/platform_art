@@ -44,7 +44,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
@@ -1079,9 +1079,8 @@ static bool GetDexFilesFromDexElementsArray(
   ArtField* const cookie_field = WellKnownClasses::dalvik_system_DexFile_cookie;
   ArtField* const dex_file_field = WellKnownClasses::dalvik_system_DexPathList__Element_dexFile;
   const ObjPtr<mirror::Class> element_class =
-      WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DexPathList__Element);
-  const ObjPtr<mirror::Class> dexfile_class =
-      WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DexFile);
+      WellKnownClasses::dalvik_system_DexPathList__Element.Get();
+  const ObjPtr<mirror::Class> dexfile_class = WellKnownClasses::dalvik_system_DexFile.Get();
 
   for (auto element : dex_elements.Iterate<mirror::Object>()) {
     // We can hit a null element here because this is invoked with a partially filled dex_elements
