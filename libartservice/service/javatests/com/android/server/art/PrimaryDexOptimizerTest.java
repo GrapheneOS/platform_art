@@ -92,6 +92,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
             | DexoptTrigger.PRIMARY_BOOT_IMAGE_BECOMES_USABLE
             | DexoptTrigger.COMPILER_FILTER_IS_SAME | DexoptTrigger.COMPILER_FILTER_IS_WORSE;
 
+    private final MergeProfileOptions mMergeProfileOptions = new MergeProfileOptions();
+
     private final DexoptResult mDexoptResult = createDexoptResult(false /* cancelled */);
 
     private PrimaryDexOptimizer mPrimaryDexOptimizer;
@@ -282,7 +284,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mPkgState.getStateForUser(eq(UserHandle.of(0)))).thenReturn(mPkgUserStateInstalled);
         when(mPkgState.getStateForUser(eq(UserHandle.of(2)))).thenReturn(mPkgUserStateInstalled);
 
-        when(mArtd.mergeProfiles(any(), any(), any(), any())).thenReturn(true);
+        when(mArtd.mergeProfiles(any(), any(), any(), any(), any())).thenReturn(true);
 
         makeProfileUsable(mRefProfile);
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))
@@ -297,7 +299,8 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                                        0 /* userId */, PKG_NAME, "primary"),
                         AidlUtils.buildProfilePathForPrimaryCur(
                                 2 /* userId */, PKG_NAME, "primary"))),
-                deepEq(mRefProfile), deepEq(mPrivateOutputProfile), eq(mDexPath));
+                deepEq(mRefProfile), deepEq(mPrivateOutputProfile), deepEq(List.of(mDexPath)),
+                deepEq(mMergeProfileOptions));
 
         // It should use `mBetterOrSameDexoptTrigger` and the merged profile for both ISAs.
         inOrder.verify(mArtd).getDexoptNeeded(eq(mDexPath), eq("arm64"), any(), eq("speed-profile"),
@@ -325,7 +328,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         when(mPkgState.getStateForUser(eq(UserHandle.of(0)))).thenReturn(mPkgUserStateInstalled);
         when(mPkgState.getStateForUser(eq(UserHandle.of(2)))).thenReturn(mPkgUserStateInstalled);
 
-        when(mArtd.mergeProfiles(any(), any(), any(), any())).thenReturn(false);
+        when(mArtd.mergeProfiles(any(), any(), any(), any(), any())).thenReturn(false);
 
         makeProfileUsable(mRefProfile);
         when(mArtd.getProfileVisibility(deepEq(mRefProfile)))

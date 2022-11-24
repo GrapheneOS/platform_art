@@ -118,6 +118,7 @@ inline bool ReadCompilerOptions(Base& map, CompilerOptions* options, std::string
 
 template <typename Map, typename Builder>
 inline void AddCompilerOptionsArgumentParserOptions(Builder& b) {
+  // clang-format off
   b.
       Define("--compiler-filter=_")
           .template WithType<CompilerFilter::Filter>()
@@ -256,6 +257,7 @@ inline void AddCompilerOptionsArgumentParserOptions(Builder& b) {
           .template WithType<unsigned int>()
           .WithHelp("Maximum solid block size for compressed images.")
           .IntoKey(Map::MaxImageBlockSize);
+  // clang-format on
 }
 
 #pragma GCC diagnostic pop

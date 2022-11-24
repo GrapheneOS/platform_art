@@ -393,43 +393,11 @@ public class Main {
   }
 
   private static void testCatchBlock() {
-    assertEquals(456, testSinkToCatchBlock());
     assertEquals(456, testDoNotSinkToTry());
-    assertEquals(456, testDoNotSinkToCatchInsideTry());
     assertEquals(456, testSinkWithinTryBlock());
     assertEquals(456, testSinkRightBeforeTryBlock());
-    assertEquals(456, testSinkToSecondCatch());
     assertEquals(456, testDoNotSinkToCatchInsideTryWithMoreThings(false, false));
-    assertEquals(456, testSinkToCatchBlockCustomClass());
     assertEquals(456, DoNotSinkWithOOMThrow());
-  }
-
-  /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (before)
-  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
-  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
-  /// CHECK:                         TryBoundary kind:entry
-
-  /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (after)
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
-  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
-
-  // Consistency check to make sure there's only one entry TryBoundary.
-  /// CHECK-START: int Main.testSinkToCatchBlock() code_sinking (after)
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK-NOT:                     TryBoundary kind:entry
-
-  // Tests that we can sink the Object creation to the catch block.
-  private static int testSinkToCatchBlock() {
-    Object o = new Object();
-    try {
-      if (doEarlyReturn) {
-        return 123;
-      }
-    } catch (Error e) {
-      throw new Error(o.toString());
-    }
-    return 456;
   }
 
   /// CHECK-START: int Main.testDoNotSinkToTry() code_sinking (before)
@@ -452,41 +420,6 @@ public class Main {
     Object o = new Object();
     try {
       if (doEarlyReturn) {
-        throw new Error(o.toString());
-      }
-    } catch (Error e) {
-      throw new Error();
-    }
-    return 456;
-  }
-
-  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTry() code_sinking (before)
-  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
-  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK:                         TryBoundary kind:entry
-
-  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTry() code_sinking (after)
-  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
-  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK:                         TryBoundary kind:entry
-
-  // Consistency check to make sure there's exactly two entry TryBoundary.
-  /// CHECK-START: int Main.testDoNotSinkToCatchInsideTry() code_sinking (after)
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK-NOT:                     TryBoundary kind:entry
-
-  // Tests that we don't sink the Object creation into a catch handler surrounded by try/catch.
-  private static int testDoNotSinkToCatchInsideTry() {
-    Object o = new Object();
-    try {
-      try {
-        if (doEarlyReturn) {
-          return 123;
-        }
-      } catch (Error e) {
         throw new Error(o.toString());
       }
     } catch (Error e) {
@@ -539,46 +472,6 @@ public class Main {
     return 456;
   }
 
-  /// CHECK-START: int Main.testSinkToSecondCatch() code_sinking (before)
-  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
-  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK:                         TryBoundary kind:entry
-
-  /// CHECK-START: int Main.testSinkToSecondCatch() code_sinking (after)
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
-  /// CHECK:                         NewInstance [<<ObjLoadClass>>]
-
-  // Consistency check to make sure there's exactly two entry TryBoundary.
-  /// CHECK-START: int Main.testSinkToSecondCatch() code_sinking (after)
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK-NOT:                     TryBoundary kind:entry
-  private static int testSinkToSecondCatch() {
-    Object o = new Object();
-    try {
-      if (doEarlyReturn) {
-        return 123;
-      }
-    } catch (Error e) {
-      throw new Error();
-    }
-
-    try {
-      // We need a different boolean to the one above, so that the compiler cannot optimize this
-      // return away.
-      if (doOtherEarlyReturn) {
-        return 789;
-      }
-    } catch (Error e) {
-      throw new Error(o.toString());
-    }
-
-    return 456;
-  }
-
   /// CHECK-START: int Main.testDoNotSinkToCatchInsideTryWithMoreThings(boolean, boolean) code_sinking (before)
   /// CHECK-NOT:                     TryBoundary kind:entry
   /// CHECK: <<ObjLoadClass:l\d+>>   LoadClass class_name:java.lang.Object
@@ -615,38 +508,6 @@ public class Main {
 
   private static class ObjectWithInt {
     int x;
-  }
-
-  /// CHECK-START: int Main.testSinkToCatchBlockCustomClass() code_sinking (before)
-  /// CHECK: <<LoadClass:l\d+>>      LoadClass class_name:Main$ObjectWithInt
-  /// CHECK: <<Clinit:l\d+>>         ClinitCheck [<<LoadClass>>]
-  /// CHECK:                         NewInstance [<<Clinit>>]
-  /// CHECK:                         TryBoundary kind:entry
-
-  /// CHECK-START: int Main.testSinkToCatchBlockCustomClass() code_sinking (after)
-  /// CHECK: <<LoadClass:l\d+>>      LoadClass class_name:Main$ObjectWithInt
-  /// CHECK: <<Clinit:l\d+>>         ClinitCheck [<<LoadClass>>]
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK:                         NewInstance [<<Clinit>>]
-
-  // Consistency check to make sure there's only one entry TryBoundary.
-  /// CHECK-START: int Main.testSinkToCatchBlockCustomClass() code_sinking (after)
-  /// CHECK:                         TryBoundary kind:entry
-  /// CHECK-NOT:                     TryBoundary kind:entry
-
-  // Similar to testSinkToCatchBlock, but using a custom class. CLinit check is not an instruction
-  // that we sink since it can throw and it is not in the allow list. We can sink the NewInstance
-  // nevertheless.
-  private static int testSinkToCatchBlockCustomClass() {
-    ObjectWithInt obj = new ObjectWithInt();
-    try {
-      if (doEarlyReturn) {
-        return 123;
-      }
-    } catch (Error e) {
-      throw new Error(Integer.toString(obj.x));
-    }
-    return 456;
   }
 
   /// CHECK-START: int Main.DoNotSinkWithOOMThrow() code_sinking (before)

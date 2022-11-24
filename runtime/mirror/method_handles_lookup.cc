@@ -20,7 +20,6 @@
 #include "class_root-inl.h"
 #include "dex/modifiers.h"
 #include "handle_scope.h"
-#include "jni/jni_internal.h"
 #include "mirror/method_handle_impl.h"
 #include "obj_ptr-inl.h"
 #include "object-inl.h"
@@ -42,25 +41,17 @@ ObjPtr<MethodHandlesLookup> MethodHandlesLookup::Create(Thread* const self,
 }
 
 ObjPtr<MethodHandlesLookup> MethodHandlesLookup::GetDefault(Thread* const self) {
-  ArtMethod* lookup = jni::DecodeArtMethod(WellKnownClasses::java_lang_invoke_MethodHandles_lookup);
-  JValue result;
-  lookup->Invoke(self, nullptr, 0, &result, "L");
-  return ObjPtr<MethodHandlesLookup>::DownCast(result.GetL());
+  ArtMethod* lookup = WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
+  return ObjPtr<MethodHandlesLookup>::DownCast(lookup->InvokeStatic<'L'>(self));
 }
 
 ObjPtr<MethodHandle> MethodHandlesLookup::FindConstructor(Thread* const self,
                                                           Handle<Class> klass,
                                                           Handle<MethodType> method_type) {
-  ArtMethod* findConstructor =
-      jni::DecodeArtMethod(WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor);
-  uint32_t args[] = {
-    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this)),
-    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(klass.Get())),
-    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(method_type.Get()))
-  };
-  JValue result;
-  findConstructor->Invoke(self, args, sizeof(args), &result, "LLL");
-  return ObjPtr<MethodHandle>::DownCast(result.GetL());
+  ArtMethod* find_constructor =
+      WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
+  return ObjPtr<MethodHandle>::DownCast(
+      find_constructor->InvokeFinal<'L', 'L', 'L'>(self, this, klass.Get(), method_type.Get()));
 }
 
 }  // namespace mirror

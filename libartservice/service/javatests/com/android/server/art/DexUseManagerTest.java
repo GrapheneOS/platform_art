@@ -230,6 +230,7 @@ public class DexUseManagerTest {
 
         if (saveAndLoad) {
             File tempFile = File.createTempFile("dex-use", ".pb");
+            tempFile.deleteOnExit();
             mDexUseManager.save(tempFile.getPath());
             mDexUseManager.clear();
             mDexUseManager.load(tempFile.getPath());
@@ -363,6 +364,7 @@ public class DexUseManagerTest {
 
         if (saveAndLoad) {
             File tempFile = File.createTempFile("dex-use", ".pb");
+            tempFile.deleteOnExit();
             mDexUseManager.save(tempFile.getPath());
             mDexUseManager.clear();
             mDexUseManager.load(tempFile.getPath());

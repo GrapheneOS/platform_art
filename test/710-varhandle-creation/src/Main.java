@@ -271,6 +271,7 @@ public final class Main {
     private static void checkInstantiatedVarHandles() {
         System.out.print("checkInstantiatedVarHandles...");
 
+        // clang-format off
         System.out.print("vz...");
         checkNotNull(vz);
         checkVarType(vz, boolean.class);
@@ -2052,6 +2053,7 @@ public final class Main {
 
         System.out.print("vbbo...");
         checkNull(vbbo);
+        // clang-format on
 
         System.out.println("PASS");
     }
@@ -2090,6 +2092,7 @@ public final class Main {
         if (VarHandle.AccessMode.values().length != expectedLength) {
             fail("VarHandle.AccessMode.value().length != " + expectedLength);
         }
+        // clang-format off
         checkAccessMode(VarHandle.AccessMode.GET, "GET", "get", 0);
         checkAccessMode(VarHandle.AccessMode.SET, "SET", "set", 1);
         checkAccessMode(VarHandle.AccessMode.GET_VOLATILE, "GET_VOLATILE", "getVolatile", 2);
@@ -2121,6 +2124,7 @@ public final class Main {
         checkAccessMode(VarHandle.AccessMode.GET_AND_BITWISE_XOR, "GET_AND_BITWISE_XOR", "getAndBitwiseXor", 28);
         checkAccessMode(VarHandle.AccessMode.GET_AND_BITWISE_XOR_RELEASE, "GET_AND_BITWISE_XOR_RELEASE", "getAndBitwiseXorRelease", 29);
         checkAccessMode(VarHandle.AccessMode.GET_AND_BITWISE_XOR_ACQUIRE, "GET_AND_BITWISE_XOR_ACQUIRE", "getAndBitwiseXorAcquire", 30);
+        // clang-format on
         System.out.println("PASS");
     }
 
@@ -2456,4 +2460,3 @@ public final class Main {
         checkStaticFieldVarHandleGc();
     }
 }
-

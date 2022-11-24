@@ -82,6 +82,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
   DCHECK_EQ(hiddenapi_policy_valuemap.size(),
             static_cast<size_t>(hiddenapi::EnforcementPolicy::kMax) + 1);
 
+  // clang-format off
   parser_builder->
        SetCategory("standard")
       .Define({"-classpath _", "-cp _"})
@@ -468,18 +469,44 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .WithType<bool>()
           .WithValueMap({{"false", false}, {"true", true}})
           .IntoKey(M::PerfettoJavaHeapStackProf);
+  // clang-format on
 
-      FlagBase::AddFlagsToCmdlineParser(parser_builder.get());
+  FlagBase::AddFlagsToCmdlineParser(parser_builder.get());
 
-      parser_builder->Ignore({
-          "-ea", "-da", "-enableassertions", "-disableassertions", "--runtime-arg", "-esa",
-          "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:_",
-          "-Xdexopt:_", "-Xnoquithandler", "-Xjnigreflimit:_", "-Xgenregmap", "-Xnogenregmap",
-          "-Xverifyopt:_", "-Xcheckdexsum", "-Xincludeselectedop", "-Xjitop:_",
-          "-Xincludeselectedmethod",
-          "-Xjitblocking", "-Xjitmethod:_", "-Xjitclass:_", "-Xjitoffset:_",
-          "-Xjitosrthreshold:_", "-Xjitconfig:_", "-Xjitcheckcg", "-Xjitverbose", "-Xjitprofile",
-          "-Xjitdisableopt", "-Xjitsuspendpoll", "-XX:mainThreadStackSize=_"})
+  parser_builder
+      ->Ignore({"-ea",
+                "-da",
+                "-enableassertions",
+                "-disableassertions",
+                "--runtime-arg",
+                "-esa",
+                "-dsa",
+                "-enablesystemassertions",
+                "-disablesystemassertions",
+                "-Xrs",
+                "-Xint:_",
+                "-Xdexopt:_",
+                "-Xnoquithandler",
+                "-Xjnigreflimit:_",
+                "-Xgenregmap",
+                "-Xnogenregmap",
+                "-Xverifyopt:_",
+                "-Xcheckdexsum",
+                "-Xincludeselectedop",
+                "-Xjitop:_",
+                "-Xincludeselectedmethod",
+                "-Xjitblocking",
+                "-Xjitmethod:_",
+                "-Xjitclass:_",
+                "-Xjitoffset:_",
+                "-Xjitosrthreshold:_",
+                "-Xjitconfig:_",
+                "-Xjitcheckcg",
+                "-Xjitverbose",
+                "-Xjitprofile",
+                "-Xjitdisableopt",
+                "-Xjitsuspendpoll",
+                "-XX:mainThreadStackSize=_"})
       .IgnoreUnrecognized(ignore_unrecognized)
       .OrderCategories({"standard", "extended", "Dalvik", "ART"});
 

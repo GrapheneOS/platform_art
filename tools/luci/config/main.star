@@ -154,7 +154,12 @@ luci.gitiles_poller(
     refs = ["refs/heads/master-art"],
 )
 
-def ci_builder(name, category, short_name, dimensions={}):
+def ci_builder(name, category, short_name, dimensions=None):
+    dimensions = dimensions or {}  # Initialize if it is None.
+    if category.startswith("host"):
+      dimensions["os"] = ["Linux"]
+    else:
+      dimensions["builder"] = name
     luci.builder(
         name = name,
         bucket = "ci",
@@ -165,9 +170,6 @@ def ci_builder(name, category, short_name, dimensions={}):
         ),
         dimensions = dimensions | {
             "pool": "luci.art.ci",
-
-            # Some builders require specific hardware, so we make the assignment in bots.cfg
-            "builder": name,
         },
         service_account = "art-ci-builder@chops-service-accounts.iam.gserviceaccount.com",
 

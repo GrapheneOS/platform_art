@@ -19,6 +19,7 @@ package com.android.server.art;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.os.Build;
+import android.system.Os;
 
 /**
  * A mockable wrapper class for device-specific constants.
@@ -48,5 +49,10 @@ public class Constants {
         // The value comes from "ro.product.cpu.abilist32" and we assume that the first element is
         // the native one.
         return Build.SUPPORTED_32_BIT_ABIS.length > 0 ? Build.SUPPORTED_32_BIT_ABIS[0] : null;
+    }
+
+    @Nullable
+    public static String getenv(@NonNull String name) {
+        return Os.getenv(name);
     }
 }

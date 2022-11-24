@@ -37,8 +37,11 @@ import android.content.Context;
 import android.os.Binder;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.os.UserManager;
+import android.text.TextUtils;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalManagerRegistry;
@@ -53,13 +56,17 @@ import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 /**
  * This class provides a system API for functionality provided by the ART module.
@@ -75,6 +82,8 @@ import java.util.concurrent.Executors;
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public final class ArtManagerLocal {
     private static final String TAG = "ArtService";
+    private static final String[] CLASSPATHS_FOR_BOOT_IMAGE_PROFILE = {
+            "BOOTCLASSPATH", "SYSTEMSERVERCLASSPATH", "STANDALONE_SYSTEMSERVER_JARS"};
 
     @NonNull private final Injector mInjector;
 
@@ -122,7 +131,8 @@ public final class ArtManagerLocal {
      * Uses the default flags ({@link ArtFlags#defaultDeleteFlags()}).
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
-     * @throws IllegalStateException if an internal error occurs
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
      */
     @NonNull
     public DeleteResult deleteOptimizedArtifacts(
@@ -182,7 +192,8 @@ public final class ArtManagerLocal {
      * Uses the default flags ({@link ArtFlags#defaultGetStatusFlags()}).
      *
      * @throws IllegalArgumentException if the package is not found or the flags are illegal
-     * @throws IllegalStateException if an internal error occurs
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
      */
     @NonNull
     public OptimizationStatus getOptimizationStatus(
@@ -254,7 +265,8 @@ public final class ArtManagerLocal {
      * #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} are called.
      *
      * @throws IllegalArgumentException if the package is not found or the params are illegal
-     * @throws IllegalStateException if an internal error occurs
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
      */
     @NonNull
     public OptimizeResult optimizePackage(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
@@ -311,7 +323,8 @@ public final class ArtManagerLocal {
      * @param snapshot the snapshot from {@link PackageManagerLocal} to operate on
      * @param reason determines the default list of packages and options
      * @param cancellationSignal provides the ability to cancel this operation
-     * @throws IllegalStateException if an internal error occurs, or the callback set by {@link
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error), or the callback set by {@link
      *         #setOptimizePackagesCallback(Executor, OptimizePackagesCallback)} provides invalid
      *         params.
      *
@@ -511,6 +524,111 @@ public final class ArtManagerLocal {
     }
 
     /**
+     * Snapshots the profile of the given app split. The profile snapshot is the aggregation of all
+     * existing profiles of the app split (all current user profiles and the reference profile).
+     *
+     * @param snapshot the snapshot from {@link PackageManagerLocal} to operate on
+     * @param packageName the name of the app that owns the profile
+     * @param splitName see {@link AndroidPackageSplit#getName()}
+     * @return the file descriptor of the snapshot. It doesn't have any path associated with it. The
+     *         caller is responsible for closing it. Note that the content may be empty.
+     * @throws IllegalArgumentException if the package or the split is not found
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
+     * @throws SnapshotProfileException if the operation encounters an error that the caller should
+     *         handle (e.g., an I/O error, a sub-process crash).
+     */
+    @NonNull
+    public ParcelFileDescriptor snapshotAppProfile(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
+            @Nullable String splitName) throws SnapshotProfileException {
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+
+        PrimaryDexInfo dexInfo;
+        if (splitName == null) {
+            dexInfo = PrimaryDexUtils.getDexInfo(pkg).get(0);
+        } else {
+            dexInfo = PrimaryDexUtils.getDexInfo(pkg)
+                              .stream()
+                              .filter(info -> splitName.equals(info.splitName()))
+                              .findFirst()
+                              .orElseThrow(() -> {
+                                  return new IllegalArgumentException(
+                                          String.format("Split '%s' not found", splitName));
+                              });
+        }
+
+        List<ProfilePath> profiles = new ArrayList<>();
+        profiles.add(PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
+        profiles.addAll(
+                PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
+
+        OutputProfile output = PrimaryDexUtils.buildOutputProfile(
+                pkgState, dexInfo, Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
+
+        return mergeProfilesAndGetFd(
+                profiles, output, List.of(dexInfo.dexPath()), false /* forBootImage */);
+    }
+
+    /**
+     * Snapshots the boot image profile
+     * (https://source.android.com/docs/core/bootloader/boot-image-profiles). The profile snapshot
+     * is the aggregation of all existing profiles on the device (all current user profiles and
+     * reference profiles) of all apps and the system server filtered by applicable classpaths.
+     *
+     * @param snapshot the snapshot from {@link PackageManagerLocal} to operate on
+     * @return the file descriptor of the snapshot. It doesn't have any path associated with it. The
+     *         caller is responsible for closing it. Note that the content may be empty.
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
+     * @throws SnapshotProfileException if the operation encounters an error that the caller should
+     *         handle (e.g., an I/O error, a sub-process crash).
+     */
+    @NonNull
+    public ParcelFileDescriptor snapshotBootImageProfile(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot)
+            throws SnapshotProfileException {
+        List<ProfilePath> profiles = new ArrayList<>();
+
+        // System server profiles.
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, Utils.PLATFORM_PACKAGE_NAME);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+        PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfo(pkg).get(0);
+        profiles.add(PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
+        profiles.addAll(
+                PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
+
+        // App profiles.
+        snapshot.forAllPackageStates((appPkgState) -> {
+            // Hibernating apps can still provide useful profile contents, so skip the hibernation
+            // check.
+            if (Utils.canOptimizePackage(appPkgState, null /* appHibernationManager */)) {
+                AndroidPackage appPkg = Utils.getPackageOrThrow(appPkgState);
+                for (PrimaryDexInfo appDexInfo : PrimaryDexUtils.getDexInfo(appPkg)) {
+                    if (!appDexInfo.hasCode()) {
+                        continue;
+                    }
+                    profiles.add(PrimaryDexUtils.buildRefProfilePath(appPkgState, appDexInfo));
+                    profiles.addAll(PrimaryDexUtils.getCurProfiles(
+                            mInjector.getUserManager(), appPkgState, appDexInfo));
+                }
+            }
+        });
+
+        OutputProfile output = AidlUtils.buildOutputProfileForPrimary(Utils.PLATFORM_PACKAGE_NAME,
+                "primary", Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
+
+        List<String> dexPaths = Arrays.stream(CLASSPATHS_FOR_BOOT_IMAGE_PROFILE)
+                                        .map(envVar -> Constants.getenv(envVar))
+                                        .filter(classpath -> !TextUtils.isEmpty(classpath))
+                                        .flatMap(classpath -> Arrays.stream(classpath.split(":")))
+                                        .collect(Collectors.toList());
+
+        return mergeProfilesAndGetFd(profiles, output, dexPaths, true /* forBootImage */);
+    }
+
+    /**
      * Should be used by {@link BackgroundDexOptJobService} ONLY.
      *
      * @hide
@@ -530,6 +648,44 @@ public final class ArtManagerLocal {
             }
         });
         return packages;
+    }
+
+    @NonNull
+    private ParcelFileDescriptor mergeProfilesAndGetFd(@NonNull List<ProfilePath> profiles,
+            @NonNull OutputProfile output, @NonNull List<String> dexPaths, boolean forBootImage)
+            throws SnapshotProfileException {
+        try {
+            var options = new MergeProfileOptions();
+            options.forceMerge = true;
+            options.forBootImage = forBootImage;
+
+            boolean hasContent = false;
+            try {
+                hasContent = mInjector.getArtd().mergeProfiles(
+                        profiles, null /* referenceProfile */, output, dexPaths, options);
+            } catch (ServiceSpecificException e) {
+                throw new SnapshotProfileException(e);
+            }
+
+            String path = hasContent ? output.profilePath.tmpPath : "/dev/null";
+            ParcelFileDescriptor fd;
+            try {
+                fd = ParcelFileDescriptor.open(new File(path), ParcelFileDescriptor.MODE_READ_ONLY);
+            } catch (FileNotFoundException e) {
+                throw new IllegalStateException(
+                        String.format("Failed to open profile snapshot '%s'", path), e);
+            }
+
+            if (hasContent) {
+                // This is done on the open file so that only the FD keeps a reference to its
+                // contents.
+                mInjector.getArtd().deleteProfile(ProfilePath.tmpProfilePath(output.profilePath));
+            }
+
+            return fd;
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
     }
 
     public interface OptimizePackagesCallback {
@@ -567,6 +723,13 @@ public final class ArtManagerLocal {
 
     public interface OptimizePackageDoneCallback {
         void onOptimizePackageDone(@NonNull OptimizeResult result);
+    }
+
+    /** Represents an error that happens when snapshotting profiles.  */
+    public static class SnapshotProfileException extends Exception {
+        public SnapshotProfileException(@NonNull Throwable cause) {
+            super(cause);
+        }
     }
 
     /**
@@ -628,6 +791,11 @@ public final class ArtManagerLocal {
         @NonNull
         public BackgroundDexOptJob getBackgroundDexOptJob() {
             return Objects.requireNonNull(mBgDexOptJob);
+        }
+
+        @NonNull
+        public UserManager getUserManager() {
+            return Objects.requireNonNull(mContext.getSystemService(UserManager.class));
         }
     }
 }
