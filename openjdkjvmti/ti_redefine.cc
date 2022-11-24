@@ -130,7 +130,7 @@
 #include "transform.h"
 #include "verifier/class_verifier.h"
 #include "verifier/verifier_enums.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 #include "write_barrier.h"
 
 namespace openjdkjvmti {
@@ -456,8 +456,7 @@ jvmtiError Redefiner::GetClassRedefinitionError(art::Handle<art::mirror::Class> 
     }
     // Check Thread specifically since it's not a root but too many things reach into it with Unsafe
     // too allow structural redefinition.
-    if (klass->IsAssignableFrom(
-            art::WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
+    if (klass->IsAssignableFrom(art::WellKnownClasses::java_lang_Thread.Get())) {
       *error_msg =
           "java.lang.Thread has fields accessed using sun.misc.unsafe directly. It is not "
           "safe to structurally redefine it.";
