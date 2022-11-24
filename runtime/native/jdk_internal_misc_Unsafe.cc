@@ -34,7 +34,7 @@
 #include "art_field-inl.h"
 #include "native_util.h"
 #include "scoped_fast_native_object_access-inl.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
@@ -476,7 +476,7 @@ static void Unsafe_unpark(JNIEnv* env, jobject, jobject jthread) {
   art::ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::Object> mirror_thread = soa.Decode<mirror::Object>(jthread);
   if (mirror_thread == nullptr ||
-      !mirror_thread->InstanceOf(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass())) {
+      !mirror_thread->InstanceOf(WellKnownClasses::java_lang_Thread.Get())) {
     ThrowIllegalArgumentException("Argument to unpark() was not a Thread");
     return;
   }

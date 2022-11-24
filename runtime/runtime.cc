@@ -178,7 +178,7 @@
 #include "transaction.h"
 #include "vdex_file.h"
 #include "verifier/class_verifier.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 #ifdef ART_TARGET_ANDROID
 #include <android/api-level.h>
@@ -890,8 +890,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
       runtime->GetJavaVM()->AddGlobalRef(soa.Self(), system_class_loader);
   soa.Self()->SetClassLoaderOverride(g_system_class_loader);
 
-  ObjPtr<mirror::Class> thread_class =
-      WellKnownClasses::java_lang_Thread_init->GetDeclaringClass();
+  ObjPtr<mirror::Class> thread_class = WellKnownClasses::java_lang_Thread.Get();
   ArtField* contextClassLoader =
       thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != nullptr);
@@ -2236,8 +2235,7 @@ void Runtime::InitThreadGroups(Thread* self) {
   bool initialized = GetClassLinker()->EnsureInitialized(
       self, thread_group_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true);
   CHECK(initialized);
-  Handle<mirror::Class> thread_class =
-      hs.NewHandle(WellKnownClasses::java_lang_Thread_init->GetDeclaringClass());
+  Handle<mirror::Class> thread_class = hs.NewHandle(WellKnownClasses::java_lang_Thread.Get());
   initialized = GetClassLinker()->EnsureInitialized(
       self, thread_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true);
   CHECK(initialized);
