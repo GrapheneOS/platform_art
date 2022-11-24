@@ -18,6 +18,11 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
+// Note that this is run with a tiny heap.
+// See b/260228356 for some discussion. It's unclear if and how this reliably forces an
+// OOME. For now, we're keeping this around because it appears to have detected some bugs
+// in the past. It may need revisiting.
+
 public class Main {
     static final int numberOfThreads = 5;
     static final int totalOperations = 10000;
@@ -27,9 +32,16 @@ public class Main {
     static volatile boolean finish = false;
 
     public static void main(String[] args) throws Exception {
+        // Wait for system daemons to start, so that we minimize the chances of
+        // a system daemon still starting up if/when we run out of memory.
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            System.out.println("Unexpected interrupt:" + e);
+        }
+
         inf = (SimpleInterface)Proxy.newProxyInstance(SimpleInterface.class.getClassLoader(),
             new Class[] { SimpleInterface.class }, new EmptyInvocationHandler());
-
         Thread garbageThread = new Thread(new GarbageRunner());
         garbageThread.start();
 
@@ -111,6 +123,7 @@ public class Main {
                 try {
                     Thread.sleep(10);
                 } catch (Exception e) {
+                    System.out.println("Unexpected exception in sleep():" + e);
                 }
             }
         }
