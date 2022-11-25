@@ -69,8 +69,7 @@ public class ReasonMapping {
             REASON_INSTALL_BULK_DOWNGRADED, REASON_INSTALL_BULK_SECONDARY_DOWNGRADED);
 
     /**
-     * Reasons for
-     * {@link ArtManagerLocal#optimizePackages(PackageManagerLocal.FilteredSnapshot, String)}.
+     * Reasons for {@link ArtManagerLocal#optimizePackages}.
      *
      * @hide
      */
@@ -159,8 +158,8 @@ public class ReasonMapping {
 
     /**
      * Loads the concurrency from the system property, for batch optimization ({@link
-     * ArtManagerLocal#optimizePackages(PackageManagerLocal.FilteredSnapshot, String)}), or 1 if the
-     * system property is not found or cannot be parsed.
+     * ArtManagerLocal#optimizePackages}), or 1 if the system property is not found or cannot be
+     * parsed.
      *
      * @hide
      */

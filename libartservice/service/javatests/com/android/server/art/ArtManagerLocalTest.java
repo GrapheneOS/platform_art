@@ -345,10 +345,11 @@ public class ArtManagerLocalTest {
 
         // It should use the default package list and params.
         when(mDexOptHelper.dexopt(any(), deepEq(List.of(PKG_NAME, PKG_NAME_SYS_UI)), any(),
-                     same(cancellationSignal), any()))
+                     same(cancellationSignal), any(), any(), any()))
                 .thenReturn(result);
 
-        assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal))
+        assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal,
+                           null /* processCallbackExecutor */, null /* processCallback */))
                 .isSameInstanceAs(result);
     }
 
@@ -367,10 +368,11 @@ public class ArtManagerLocalTest {
 
         // It should use the overridden package list and params.
         when(mDexOptHelper.dexopt(any(), deepEq(List.of(PKG_NAME)), same(params),
-                     same(cancellationSignal), any()))
+                     same(cancellationSignal), any(), any(), any()))
                 .thenReturn(result);
 
-        assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal))
+        assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal,
+                           null /* processCallbackExecutor */, null /* processCallback */))
                 .isSameInstanceAs(result);
     }
 
@@ -388,10 +390,11 @@ public class ArtManagerLocalTest {
 
         // It should use the default package list and params.
         when(mDexOptHelper.dexopt(any(), deepEq(List.of(PKG_NAME, PKG_NAME_SYS_UI)),
-                     not(same(params)), same(cancellationSignal), any()))
+                     not(same(params)), same(cancellationSignal), any(), any(), any()))
                 .thenReturn(result);
 
-        assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal))
+        assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal,
+                           null /* processCallbackExecutor */, null /* processCallback */))
                 .isSameInstanceAs(result);
     }
 
@@ -405,7 +408,8 @@ public class ArtManagerLocalTest {
                     builder.setOptimizeParams(params);
                 });
 
-        mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal);
+        mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal,
+                null /* processCallbackExecutor */, null /* processCallback */);
     }
 
     @Test

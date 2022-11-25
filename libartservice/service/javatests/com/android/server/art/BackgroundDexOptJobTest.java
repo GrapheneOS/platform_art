@@ -115,7 +115,7 @@ public class BackgroundDexOptJobTest {
     @Test
     public void testStart() {
         when(mArtManagerLocal.optimizePackages(
-                     same(mSnapshot), eq(ReasonMapping.REASON_BG_DEXOPT), any()))
+                     same(mSnapshot), eq(ReasonMapping.REASON_BG_DEXOPT), any(), any(), any()))
                 .thenReturn(mOptimizeResult);
 
         Result result = Utils.getFuture(mBackgroundDexOptJob.start());
@@ -126,10 +126,11 @@ public class BackgroundDexOptJobTest {
     @Test
     public void testStartAlreadyRunning() {
         Semaphore optimizeDone = new Semaphore(0);
-        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenAnswer(invocation -> {
-            assertThat(optimizeDone.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
-            return mOptimizeResult;
-        });
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    assertThat(optimizeDone.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+                    return mOptimizeResult;
+                });
 
         Future<Result> future1 = mBackgroundDexOptJob.start();
         Future<Result> future2 = mBackgroundDexOptJob.start();
@@ -138,12 +139,13 @@ public class BackgroundDexOptJobTest {
         optimizeDone.release();
         Utils.getFuture(future1);
 
-        verify(mArtManagerLocal, times(1)).optimizePackages(any(), any(), any());
+        verify(mArtManagerLocal, times(1)).optimizePackages(any(), any(), any(), any(), any());
     }
 
     @Test
     public void testStartAnother() {
-        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenReturn(mOptimizeResult);
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
+                .thenReturn(mOptimizeResult);
 
         Future<Result> future1 = mBackgroundDexOptJob.start();
         Utils.getFuture(future1);
@@ -154,7 +156,7 @@ public class BackgroundDexOptJobTest {
 
     @Test
     public void testStartFatalError() {
-        when(mArtManagerLocal.optimizePackages(any(), any(), any()))
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
                 .thenThrow(IllegalStateException.class);
 
         Result result = Utils.getFuture(mBackgroundDexOptJob.start());
@@ -167,7 +169,8 @@ public class BackgroundDexOptJobTest {
                 .when(SystemProperties.getBoolean(eq("pm.dexopt.disable_bg_dexopt"), anyBoolean()))
                 .thenReturn(true);
 
-        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenReturn(mOptimizeResult);
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
+                .thenReturn(mOptimizeResult);
 
         // The `start` method should ignore the system property. The system property is for
         // `schedule`.
@@ -177,12 +180,14 @@ public class BackgroundDexOptJobTest {
     @Test
     public void testCancel() {
         Semaphore optimizeCancelled = new Semaphore(0);
-        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenAnswer(invocation -> {
-            assertThat(optimizeCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
-            var cancellationSignal = invocation.<CancellationSignal>getArgument(2);
-            assertThat(cancellationSignal.isCanceled()).isTrue();
-            return mOptimizeResult;
-        });
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    assertThat(optimizeCancelled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS))
+                            .isTrue();
+                    var cancellationSignal = invocation.<CancellationSignal>getArgument(2);
+                    assertThat(cancellationSignal.isCanceled()).isTrue();
+                    return mOptimizeResult;
+                });
 
         Future<Result> future = mBackgroundDexOptJob.start();
         mBackgroundDexOptJob.cancel();
@@ -261,7 +266,8 @@ public class BackgroundDexOptJobTest {
     @Test
     public void testWantsRescheduleFalsePerformed() throws Exception {
         when(mOptimizeResult.getFinalStatus()).thenReturn(OptimizeResult.OPTIMIZE_PERFORMED);
-        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenReturn(mOptimizeResult);
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
+                .thenReturn(mOptimizeResult);
 
         mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
         assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
@@ -271,7 +277,7 @@ public class BackgroundDexOptJobTest {
 
     @Test
     public void testWantsRescheduleFalseFatalError() throws Exception {
-        when(mArtManagerLocal.optimizePackages(any(), any(), any()))
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
                 .thenThrow(RuntimeException.class);
 
         mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
@@ -283,7 +289,8 @@ public class BackgroundDexOptJobTest {
     @Test
     public void testWantsRescheduleTrue() throws Exception {
         when(mOptimizeResult.getFinalStatus()).thenReturn(OptimizeResult.OPTIMIZE_CANCELLED);
-        when(mArtManagerLocal.optimizePackages(any(), any(), any())).thenReturn(mOptimizeResult);
+        when(mArtManagerLocal.optimizePackages(any(), any(), any(), any(), any()))
+                .thenReturn(mOptimizeResult);
 
         mBackgroundDexOptJob.onStartJob(mJobService, mJobParameters);
         assertThat(mJobFinishedCalled.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();

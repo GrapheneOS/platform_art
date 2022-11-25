@@ -51,6 +51,7 @@ import com.android.server.art.model.Config;
 import com.android.server.art.model.DeleteResult;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
+import com.android.server.art.model.OptimizeProgress;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -67,6 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -313,6 +315,8 @@ public final class ArtManagerLocal {
      * @param snapshot the snapshot from {@link PackageManagerLocal} to operate on
      * @param reason determines the default list of packages and options
      * @param cancellationSignal provides the ability to cancel this operation
+     * @param processCallbackExecutor the executor to call {@code progressCallback}
+     * @param progressCallback called repeatedly whenever there is an update on the progress
      * @throws IllegalStateException if the operation encounters an error that should never happen
      *         (e.g., an internal logic error), or the callback set by {@link
      *         #setOptimizePackagesCallback(Executor, OptimizePackagesCallback)} provides invalid
@@ -323,7 +327,9 @@ public final class ArtManagerLocal {
     @NonNull
     public OptimizeResult optimizePackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull @BatchOptimizeReason String reason,
-            @NonNull CancellationSignal cancellationSignal) {
+            @NonNull CancellationSignal cancellationSignal,
+            @Nullable @CallbackExecutor Executor processCallbackExecutor,
+            @Nullable Consumer<OptimizeProgress> progressCallback) {
         List<String> defaultPackages =
                 Collections.unmodifiableList(getDefaultPackages(snapshot, reason));
         OptimizeParams defaultOptimizeParams = new OptimizeParams.Builder(reason).build();
@@ -341,17 +347,15 @@ public final class ArtManagerLocal {
 
         return mInjector.getDexOptHelper().dexopt(snapshot, params.getPackages(),
                 params.getOptimizeParams(), cancellationSignal,
-                Executors.newFixedThreadPool(ReasonMapping.getConcurrencyForReason(reason)));
+                Executors.newFixedThreadPool(ReasonMapping.getConcurrencyForReason(reason)),
+                processCallbackExecutor, progressCallback);
     }
 
     /**
-     * Overrides the default params for {@link
-     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal). This
-     * method is thread-safe.
+     * Overrides the default params for {@link #optimizePackages}. This method is thread-safe.
      *
-     * This method gives users the opportunity to change the behavior of {@link
-     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)}, which
-     * is called by ART Service automatically during boot / background dexopt.
+     * This method gives users the opportunity to change the behavior of {@link #optimizePackages},
+     * which is called by ART Service automatically during boot / background dexopt.
      *
      * If this method is not called, the default list of packages and options determined by {@code
      * reason} will be used.
@@ -397,9 +401,7 @@ public final class ArtManagerLocal {
      * window</i>. For information about <i>maintenance window</i>, see
      * https://developer.android.com/training/monitoring-device-state/doze-standby.
      *
-     * See {@link
-     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)} for how
-     * to customize the behavior of the job.
+     * See {@link #optimizePackages} for how to customize the behavior of the job.
      *
      * When the job ends (either completed or cancelled), the result is sent to the callbacks added
      * by {@link #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} with the
@@ -450,9 +452,7 @@ public final class ArtManagerLocal {
      * constraints described in {@link #scheduleBackgroundDexoptJob()}, and hence will not be
      * cancelled when they aren't met.
      *
-     * See {@link
-     * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)} for how
-     * to customize the behavior of the job.
+     * See {@link #optimizePackages} for how to customize the behavior of the job.
      *
      * When the job ends (either completed or cancelled), the result is sent to the callbacks added
      * by {@link #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} with the
@@ -651,8 +651,7 @@ public final class ArtManagerLocal {
 
     public interface OptimizePackagesCallback {
         /**
-         * Mutates {@code builder} to override the default params for {@link
-         * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal). It
+         * Mutates {@code builder} to override the default params for {@link #optimizePackages}. It
          * must ignore unknown reasons because more reasons may be added in the future.
          *
          * If {@code builder.setPackages} is not called, {@code defaultPackages} will be used as the
@@ -668,9 +667,7 @@ public final class ArtManagerLocal {
          * https://developer.android.com/training/monitoring-device-state/doze-standby.
          *
          * Changing the reason is not allowed. Doing so will result in {@link IllegalStateException}
-         * when {@link
-         * #optimizePackages(PackageManagerLocal.FilteredSnapshot, String, CancellationSignal)} is
-         * called.
+         * when {@link #optimizePackages} is called.
          */
         void onOverrideBatchOptimizeParams(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
                 @NonNull @BatchOptimizeReason String reason, @NonNull List<String> defaultPackages,

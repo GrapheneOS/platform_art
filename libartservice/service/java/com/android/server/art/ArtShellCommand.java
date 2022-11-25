@@ -53,6 +53,8 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -141,11 +143,17 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 }
                 case "optimize-packages": {
                     OptimizeResult result;
+                    Executor executor = Executors.newSingleThreadExecutor();
                     try (var signal = new WithCancellationSignal(pw)) {
-                        result = mArtManagerLocal.optimizePackages(
-                                snapshot, getNextArgRequired(), signal.get());
+                        result = mArtManagerLocal.optimizePackages(snapshot, getNextArgRequired(),
+                                signal.get(), executor, progress -> {
+                                    pw.println(String.format("Optimizing packages: %d/%d",
+                                            progress.getDonePackageCount(),
+                                            progress.getTotalPackageCount()));
+                                    pw.flush();
+                                });
                     }
-                    printOptimizeResult(pw, result);
+                    Utils.executeAndWait(executor, () -> printOptimizeResult(pw, result));
                     return 0;
                 }
                 case "cancel": {

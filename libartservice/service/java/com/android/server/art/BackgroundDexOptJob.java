@@ -195,8 +195,9 @@ public class BackgroundDexOptJob {
         long startTimeMs = SystemClock.uptimeMillis();
         OptimizeResult dexoptResult;
         try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {
-            dexoptResult = mInjector.getArtManagerLocal().optimizePackages(
-                    snapshot, ReasonMapping.REASON_BG_DEXOPT, cancellationSignal);
+            dexoptResult = mInjector.getArtManagerLocal().optimizePackages(snapshot,
+                    ReasonMapping.REASON_BG_DEXOPT, cancellationSignal,
+                    null /* processCallbackExecutor */, null /* processCallback */);
         }
         return CompletedResult.create(dexoptResult, SystemClock.uptimeMillis() - startTimeMs);
     }
