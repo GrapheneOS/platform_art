@@ -2159,7 +2159,6 @@ TEST_P(OatFileAssistantTest, DmUpToDate) {
 
 // Case: We have an ODEX file, but the DEX file is gone.
 // Expect: No dexopt is needed, as there's nothing we can do.
-// TODO(jiakaiz): Fix this. The result should be the same as `NoDexNoOat`.
 TEST_P(OatFileAssistantTest, OdexNoDex) {
   std::string dex_location = GetScratchDir() + "/OdexNoDex.jar";
   std::string odex_location = GetOdexDir() + "/OdexNoDex.oat";
@@ -2174,15 +2173,14 @@ TEST_P(OatFileAssistantTest, OdexNoDex) {
 
   VerifyGetDexOptNeededDefault(&oat_file_assistant,
                                CompilerFilter::kSpeed,
-                               /*expected_dexopt_needed=*/true,
-                               /*expected_is_vdex_usable=*/true,
-                               /*expected_location=*/OatFileAssistant::kLocationOdex,
-                               /*expected_legacy_result=*/-OatFileAssistant::kDex2OatForFilter);
+                               /*expected_dexopt_needed=*/false,
+                               /*expected_is_vdex_usable=*/false,
+                               /*expected_location=*/OatFileAssistant::kLocationNoneOrError,
+                               /*expected_legacy_result=*/OatFileAssistant::kNoDexOptNeeded);
 }
 
 // Case: We have a VDEX file, but the DEX file is gone.
 // Expect: No dexopt is needed, as there's nothing we can do.
-// TODO(jiakaiz): Fix this. The result should be the same as `NoDexNoOat`.
 TEST_P(OatFileAssistantTest, VdexNoDex) {
   std::string dex_location = GetScratchDir() + "/VdexNoDex.jar";
   std::string odex_location = GetOdexDir() + "/VdexNoDex.oat";
@@ -2198,10 +2196,10 @@ TEST_P(OatFileAssistantTest, VdexNoDex) {
 
   VerifyGetDexOptNeededDefault(&oat_file_assistant,
                                CompilerFilter::kSpeed,
-                               /*expected_dexopt_needed=*/true,
-                               /*expected_is_vdex_usable=*/true,
-                               /*expected_location=*/OatFileAssistant::kLocationOdex,
-                               /*expected_legacy_result=*/-OatFileAssistant::kDex2OatForFilter);
+                               /*expected_dexopt_needed=*/false,
+                               /*expected_is_vdex_usable=*/false,
+                               /*expected_location=*/OatFileAssistant::kLocationNoneOrError,
+                               /*expected_legacy_result=*/OatFileAssistant::kNoDexOptNeeded);
 }
 
 // Test that GetLocation of a dex file is the same whether the dex
