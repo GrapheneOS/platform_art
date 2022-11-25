@@ -46,6 +46,8 @@ public class ReasonMapping {
     public static final String REASON_FIRST_BOOT = "first-boot";
     /** Optimizing apps on the next boot after an OTA. */
     public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";
+    /** Optimizing apps on the next boot after a mainline update. */
+    public static final String REASON_BOOT_AFTER_MAINLINE_UPDATE = "boot-after-mainline-update";
     /** Installing an app after user presses the "install"/"update" button. */
     public static final String REASON_INSTALL = "install";
     /** Optimizing apps in the background. */
@@ -77,6 +79,7 @@ public class ReasonMapping {
     @StringDef(prefix = "REASON_", value = {
         REASON_FIRST_BOOT,
         REASON_BOOT_AFTER_OTA,
+        REASON_BOOT_AFTER_MAINLINE_UPDATE,
         REASON_BG_DEXOPT,
     })
     // clang-format on
@@ -92,6 +95,7 @@ public class ReasonMapping {
     @StringDef(prefix = "REASON_", value = {
         REASON_FIRST_BOOT,
         REASON_BOOT_AFTER_OTA,
+        REASON_BOOT_AFTER_MAINLINE_UPDATE,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
@@ -152,6 +156,7 @@ public class ReasonMapping {
         switch (reason) {
             case REASON_FIRST_BOOT:
             case REASON_BOOT_AFTER_OTA:
+            case REASON_BOOT_AFTER_MAINLINE_UPDATE:
                 return ArtFlags.PRIORITY_BOOT;
             case REASON_INSTALL_FAST:
                 return ArtFlags.PRIORITY_INTERACTIVE_FAST;

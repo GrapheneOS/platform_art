@@ -125,12 +125,21 @@ public class ArtManagerLocalTest {
         lenient().when(mInjector.getConfig()).thenReturn(mConfig);
         lenient().when(mInjector.getAppHibernationManager()).thenReturn(mAppHibernationManager);
         lenient().when(mInjector.getUserManager()).thenReturn(mUserManager);
+        lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(false);
+        lenient().when(mInjector.isSystemUiPackage(PKG_NAME_SYS_UI)).thenReturn(true);
 
         lenient().when(SystemProperties.get(eq("pm.dexopt.install"))).thenReturn("speed-profile");
         lenient().when(SystemProperties.get(eq("pm.dexopt.bg-dexopt"))).thenReturn("speed-profile");
         lenient().when(SystemProperties.get(eq("pm.dexopt.first-boot"))).thenReturn("verify");
         lenient()
+                .when(SystemProperties.get(eq("pm.dexopt.boot-after-mainline-update")))
+                .thenReturn("verify");
+        lenient()
                 .when(SystemProperties.getInt(eq("pm.dexopt.bg-dexopt.concurrency"), anyInt()))
+                .thenReturn(3);
+        lenient()
+                .when(SystemProperties.getInt(
+                        eq("pm.dexopt.boot-after-mainline-update.concurrency"), anyInt()))
                 .thenReturn(3);
 
         // No ISA translation.
@@ -350,6 +359,22 @@ public class ArtManagerLocalTest {
 
         assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "bg-dexopt", cancellationSignal,
                            null /* processCallbackExecutor */, null /* processCallback */))
+                .isSameInstanceAs(result);
+    }
+
+    @Test
+    public void testOptimizePackagesBootAfterMainlineUpdate() throws Exception {
+        var result = mock(OptimizeResult.class);
+        var cancellationSignal = new CancellationSignal();
+
+        // It should only optimize system UI.
+        when(mDexOptHelper.dexopt(
+                     any(), deepEq(List.of(PKG_NAME_SYS_UI)), any(), any(), any(), any(), any()))
+                .thenReturn(result);
+
+        assertThat(mArtManagerLocal.optimizePackages(mSnapshot, "boot-after-mainline-update",
+                           cancellationSignal, null /* processCallbackExecutor */,
+                           null /* processCallback */))
                 .isSameInstanceAs(result);
     }
 

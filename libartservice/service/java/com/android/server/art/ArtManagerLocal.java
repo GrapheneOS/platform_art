@@ -27,6 +27,7 @@ import static com.android.server.art.model.ArtFlags.ScheduleStatus;
 import static com.android.server.art.model.Config.Callback;
 import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
 
+import android.R;
 import android.annotation.CallbackExecutor;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -623,12 +624,24 @@ public final class ArtManagerLocal {
     private List<String> getDefaultPackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull @BatchOptimizeReason String reason) {
         var packages = new ArrayList<String>();
-        // TODO(b/258818709): Filter packages by last active time.
-        snapshot.forAllPackageStates((pkgState) -> {
-            if (Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager())) {
-                packages.add(pkgState.getPackageName());
-            }
-        });
+        switch (reason) {
+            case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
+                snapshot.forAllPackageStates((pkgState) -> {
+                    if (mInjector.isSystemUiPackage(pkgState.getPackageName())
+                            && Utils.canOptimizePackage(
+                                    pkgState, mInjector.getAppHibernationManager())) {
+                        packages.add(pkgState.getPackageName());
+                    }
+                });
+                break;
+            default:
+                // TODO(b/258818709): Filter packages by last active time.
+                snapshot.forAllPackageStates((pkgState) -> {
+                    if (Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager())) {
+                        packages.add(pkgState.getPackageName());
+                    }
+                });
+        }
         return packages;
     }
 
@@ -787,6 +800,11 @@ public final class ArtManagerLocal {
         public DexUseManagerLocal getDexUseManager() {
             return Objects.requireNonNull(
                     LocalManagerRegistry.getManager(DexUseManagerLocal.class));
+        }
+
+        @NonNull
+        public boolean isSystemUiPackage(@NonNull String packageName) {
+            return packageName.equals(mContext.getString(R.string.config_systemUi));
         }
     }
 }

@@ -53,6 +53,7 @@ package com.android.server.art {
 
   public class ReasonMapping {
     field public static final String REASON_BG_DEXOPT = "bg-dexopt";
+    field public static final String REASON_BOOT_AFTER_MAINLINE_UPDATE = "boot-after-mainline-update";
     field public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";
     field public static final String REASON_CMDLINE = "cmdline";
     field public static final String REASON_FIRST_BOOT = "first-boot";

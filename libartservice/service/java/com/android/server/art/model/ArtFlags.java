@@ -154,6 +154,7 @@ public class ArtFlags {
                 return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX | FLAG_SHOULD_DOWNGRADE;
             case ReasonMapping.REASON_FIRST_BOOT:
             case ReasonMapping.REASON_BOOT_AFTER_OTA:
+            case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
                 return FLAG_FOR_PRIMARY_DEX | FLAG_SHOULD_INCLUDE_DEPENDENCIES;
             case ReasonMapping.REASON_BG_DEXOPT:
             case ReasonMapping.REASON_CMDLINE:
