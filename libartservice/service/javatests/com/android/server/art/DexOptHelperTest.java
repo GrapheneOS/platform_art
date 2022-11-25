@@ -22,6 +22,7 @@ import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.eq;
@@ -427,6 +428,34 @@ public class DexOptHelperTest {
     }
 
     @Test
+    public void testDexoptSplit() throws Exception {
+        mRequestedPackages = List.of(PKG_NAME_FOO);
+        mParams = new OptimizeParams.Builder("install")
+                          .setCompilerFilter("speed-profile")
+                          .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                          .setSplitName("split_0")
+                          .build();
+
+        mDexOptHelper.dexopt(
+                mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
+    }
+
+    @Test
+    public void testDexoptSplitNotFound() throws Exception {
+        mRequestedPackages = List.of(PKG_NAME_FOO);
+        mParams = new OptimizeParams.Builder("install")
+                          .setCompilerFilter("speed-profile")
+                          .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                          .setSplitName("split_bogus")
+                          .build();
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            mDexOptHelper.dexopt(
+                    mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
+        });
+    }
+
+    @Test
     public void testCallbacks() throws Exception {
         List<OptimizeResult> list1 = new ArrayList<>();
         mConfig.addOptimizePackageDoneCallback(Runnable::run, result -> list1.add(result));
@@ -467,20 +496,32 @@ public class DexOptHelperTest {
         mConfig.addOptimizePackageDoneCallback(Runnable::run, callback);
     }
 
-    private AndroidPackage createPackage() {
+    private AndroidPackage createPackage(boolean multiSplit) {
         AndroidPackage pkg = mock(AndroidPackage.class);
+
         var baseSplit = mock(AndroidPackageSplit.class);
         lenient().when(baseSplit.isHasCode()).thenReturn(true);
-        lenient().when(pkg.getSplits()).thenReturn(List.of(baseSplit));
+
+        if (multiSplit) {
+            var split0 = mock(AndroidPackageSplit.class);
+            lenient().when(split0.getName()).thenReturn("split_0");
+            lenient().when(split0.isHasCode()).thenReturn(true);
+
+            lenient().when(pkg.getSplits()).thenReturn(List.of(baseSplit, split0));
+        } else {
+            lenient().when(pkg.getSplits()).thenReturn(List.of(baseSplit));
+        }
+
         return pkg;
     }
 
-    private PackageState createPackageState(String packageName, List<SharedLibrary> deps) {
+    private PackageState createPackageState(
+            String packageName, List<SharedLibrary> deps, boolean multiSplit) {
         PackageState pkgState = mock(PackageState.class);
         lenient().when(pkgState.getPackageName()).thenReturn(packageName);
         lenient().when(pkgState.getAppId()).thenReturn(12345);
         lenient().when(pkgState.getUsesLibraries()).thenReturn(deps);
-        AndroidPackage pkg = createPackage();
+        AndroidPackage pkg = createPackage(multiSplit);
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         return pkgState;
     }
@@ -515,32 +556,34 @@ public class DexOptHelperTest {
         SharedLibrary lib1b = createLibrary("lib1b", PKG_NAME_LIB1, List.of(lib2, lib4));
         SharedLibrary lib1c = createLibrary("lib1c", PKG_NAME_LIB1, List.of(lib3));
 
-        mPkgStateFoo = createPackageState(PKG_NAME_FOO, List.of(lib1a));
+        mPkgStateFoo = createPackageState(PKG_NAME_FOO, List.of(lib1a), true /* multiSplit */);
         mPkgFoo = mPkgStateFoo.getAndroidPackage();
         lenient().when(mSnapshot.getPackageState(PKG_NAME_FOO)).thenReturn(mPkgStateFoo);
 
-        mPkgStateBar = createPackageState(PKG_NAME_BAR, List.of(lib1b));
+        mPkgStateBar = createPackageState(PKG_NAME_BAR, List.of(lib1b), false /* multiSplit */);
         mPkgBar = mPkgStateBar.getAndroidPackage();
         lenient().when(mSnapshot.getPackageState(PKG_NAME_BAR)).thenReturn(mPkgStateBar);
 
-        mPkgStateLib1 = createPackageState(PKG_NAME_LIB1, List.of(libbaz, lib2, lib3, lib4));
+        mPkgStateLib1 = createPackageState(
+                PKG_NAME_LIB1, List.of(libbaz, lib2, lib3, lib4), false /* multiSplit */);
         mPkgLib1 = mPkgStateLib1.getAndroidPackage();
         lenient().when(mSnapshot.getPackageState(PKG_NAME_LIB1)).thenReturn(mPkgStateLib1);
 
-        mPkgStateLib2 = createPackageState(PKG_NAME_LIB2, List.of());
+        mPkgStateLib2 = createPackageState(PKG_NAME_LIB2, List.of(), false /* multiSplit */);
         mPkgLib2 = mPkgStateLib2.getAndroidPackage();
         lenient().when(mSnapshot.getPackageState(PKG_NAME_LIB2)).thenReturn(mPkgStateLib2);
 
         // This should not be considered as a transitive dependency of any requested package, even
         // though it is a dependency of package "lib1".
-        PackageState pkgStateLib3 = createPackageState(PKG_NAME_LIB3, List.of());
+        PackageState pkgStateLib3 =
+                createPackageState(PKG_NAME_LIB3, List.of(), false /* multiSplit */);
         lenient().when(mSnapshot.getPackageState(PKG_NAME_LIB3)).thenReturn(pkgStateLib3);
 
-        mPkgStateLib4 = createPackageState(PKG_NAME_LIB4, List.of());
+        mPkgStateLib4 = createPackageState(PKG_NAME_LIB4, List.of(), false /* multiSplit */);
         mPkgLib4 = mPkgStateLib4.getAndroidPackage();
         lenient().when(mSnapshot.getPackageState(PKG_NAME_LIB4)).thenReturn(mPkgStateLib4);
 
-        mPkgStateLibbaz = createPackageState(PKG_NAME_LIBBAZ, List.of());
+        mPkgStateLibbaz = createPackageState(PKG_NAME_LIBBAZ, List.of(), false /* multiSplit */);
         mPkgLibbaz = mPkgStateLibbaz.getAndroidPackage();
         lenient().when(mSnapshot.getPackageState(PKG_NAME_LIBBAZ)).thenReturn(mPkgStateLibbaz);
     }

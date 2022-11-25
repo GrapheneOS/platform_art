@@ -64,4 +64,46 @@ public class OptimizeParamsTest {
     public void testBuildCustomReasonEmptyPriorityClass() {
         new OptimizeParams.Builder("custom").setCompilerFilter("speed").build();
     }
+
+    @Test
+    public void testSingleSplit() {
+        new OptimizeParams.Builder("install")
+                .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                .setSplitName("split_0")
+                .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSingleSplitNoPrimaryFlag() {
+        new OptimizeParams.Builder("install")
+                .setFlags(ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                .setSplitName("split_0")
+                .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSingleSplitSecondaryFlag() {
+        new OptimizeParams.Builder("install")
+                .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
+                        | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                .setSplitName("split_0")
+                .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSingleSplitDependenciesFlag() {
+        new OptimizeParams.Builder("install")
+                .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES
+                        | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                .setSplitName("split_0")
+                .build();
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSplitNameNoSingleSplitFlag() {
+        new OptimizeParams.Builder("install")
+                .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX)
+                .setSplitName("split_0")
+                .build();
+    }
 }

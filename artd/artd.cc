@@ -761,6 +761,34 @@ ndk::ScopedAStatus Artd::dexopt(
   FdLogger fd_logger;
 
   const FsPermission& fs_permission = in_outputArtifacts.permissionSettings.fileFsPermission;
+
+  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(in_dexFile));
+  args.Add("--zip-fd=%d", dex_file->Fd()).Add("--zip-location=%s", in_dexFile);
+  fd_logger.Add(*dex_file);
+  struct stat dex_st = OR_RETURN_NON_FATAL(Fstat(*dex_file));
+  if ((dex_st.st_mode & S_IROTH) == 0) {
+    if (fs_permission.isOtherReadable) {
+      return NonFatal(
+          "Outputs cannot be other-readable because the dex file '{}' is not other-readable"_format(
+              dex_file->GetPath()));
+    }
+    // Negative numbers mean no `chown`. 0 means root.
+    // Note: this check is more strict than it needs to be. For example, it doesn't allow the
+    // outputs to belong to a group that is a subset of the dex file's group. This is for
+    // simplicity, and it's okay as we don't have to handle such complicated cases in practice.
+    if ((fs_permission.uid > 0 && static_cast<uid_t>(fs_permission.uid) != dex_st.st_uid) ||
+        (fs_permission.gid > 0 && static_cast<gid_t>(fs_permission.gid) != dex_st.st_uid &&
+         static_cast<gid_t>(fs_permission.gid) != dex_st.st_gid)) {
+      return NonFatal(
+          "Outputs' owner doesn't match the dex file '{}' (outputs: {}:{}, dex file: {}:{})"_format(
+              dex_file->GetPath(),
+              fs_permission.uid,
+              fs_permission.gid,
+              dex_st.st_uid,
+              dex_st.st_gid));
+    }
+  }
+
   std::unique_ptr<NewFile> oat_file = OR_RETURN_NON_FATAL(NewFile::Create(oat_path, fs_permission));
   args.Add("--oat-fd=%d", oat_file->Fd()).Add("--oat-location=%s", oat_path);
   fd_logger.Add(*oat_file);
@@ -791,10 +819,6 @@ ndk::ScopedAStatus Artd::dexopt(
     args.Add("--swap-fd=%d", swap_file->Fd());
     fd_logger.Add(*swap_file);
   }
-
-  std::unique_ptr<File> dex_file = OR_RETURN_NON_FATAL(OpenFileForReading(in_dexFile));
-  args.Add("--zip-fd=%d", dex_file->Fd()).Add("--zip-location=%s", in_dexFile);
-  fd_logger.Add(*dex_file);
 
   std::vector<std::unique_ptr<File>> context_files;
   if (context != nullptr) {
@@ -835,6 +859,13 @@ ndk::ScopedAStatus Artd::dexopt(
     profile_file = OR_RETURN_NON_FATAL(OpenFileForReading(profile_path.value()));
     args.Add("--profile-file-fd=%d", profile_file->Fd());
     fd_logger.Add(*profile_file);
+    struct stat profile_st = OR_RETURN_NON_FATAL(Fstat(*profile_file));
+    if (fs_permission.isOtherReadable && (profile_st.st_mode & S_IROTH) == 0) {
+      return NonFatal(
+          "Outputs cannot be other-readable because the profile '{}' is not other-readable"_format(
+              profile_file->GetPath()));
+    }
+    // TODO(b/260228411): Check uid and gid.
   }
 
   AddBootImageFlags(args);
@@ -1131,10 +1162,10 @@ void Artd::AddPerfConfigFlags(PriorityClass priority_class, /*out*/ CmdlineBuild
              "--compile-individually");
 }
 
-android::base::Result<int> Artd::ExecAndReturnCode(const std::vector<std::string>& args,
-                                                   int timeout_sec,
-                                                   const ExecCallbacks& callbacks,
-                                                   ProcessStat* stat) const {
+Result<int> Artd::ExecAndReturnCode(const std::vector<std::string>& args,
+                                    int timeout_sec,
+                                    const ExecCallbacks& callbacks,
+                                    ProcessStat* stat) const {
   std::string error_msg;
   ExecResult result =
       exec_utils_->ExecAndReturnResult(args, timeout_sec, callbacks, stat, &error_msg);
@@ -1142,6 +1173,14 @@ android::base::Result<int> Artd::ExecAndReturnCode(const std::vector<std::string
     return Error() << error_msg;
   }
   return result.exit_code;
+}
+
+Result<struct stat> Artd::Fstat(const File& file) const {
+  struct stat st;
+  if (fstat_(file.Fd(), &st) != 0) {
+    return Errorf("Unable to fstat file '{}'", file.GetPath());
+  }
+  return st;
 }
 
 }  // namespace artd

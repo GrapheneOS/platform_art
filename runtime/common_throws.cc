@@ -36,7 +36,7 @@
 #include "nativehelper/scoped_local_ref.h"
 #include "obj_ptr-inl.h"
 #include "thread.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
@@ -755,8 +755,7 @@ void ThrowStackOverflowError(Thread* self) {
 
     // suppressedExceptions.
     {
-      ObjPtr<mirror::Class> j_u_c =
-          WellKnownClasses::java_util_Collections_EMPTY_LIST->GetDeclaringClass();
+      ObjPtr<mirror::Class> j_u_c = WellKnownClasses::java_util_Collections.Get();
       DCHECK(j_u_c->IsInitialized());
       ObjPtr<mirror::Object> empty_list =
           WellKnownClasses::java_util_Collections_EMPTY_LIST->GetObject(j_u_c);
@@ -774,8 +773,7 @@ void ThrowStackOverflowError(Thread* self) {
           ->SetObject</*kTransactionActive=*/ false>(exc.Get(), stack_state_val);
 
       // stackTrace.
-      ObjPtr<mirror::Class> l_u_ea =
-          WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetDeclaringClass();
+      ObjPtr<mirror::Class> l_u_ea = WellKnownClasses::libcore_util_EmptyArray.Get();
       DCHECK(l_u_ea->IsInitialized());
       ObjPtr<mirror::Object> empty_ste =
           WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT->GetObject(l_u_ea);

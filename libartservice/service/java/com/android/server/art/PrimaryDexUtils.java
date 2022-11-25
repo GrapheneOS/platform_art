@@ -70,6 +70,24 @@ public class PrimaryDexUtils {
                 .collect(Collectors.toList());
     }
 
+    /** Returns the basic information about a dex file specified by {@code splitName}. */
+    @NonNull
+    public static PrimaryDexInfo getDexInfoBySplitName(
+            @NonNull AndroidPackage pkg, @Nullable String splitName) {
+        if (splitName == null) {
+            return getDexInfo(pkg).get(0);
+        } else {
+            return getDexInfo(pkg)
+                    .stream()
+                    .filter(info -> splitName.equals(info.splitName()))
+                    .findFirst()
+                    .orElseThrow(() -> {
+                        return new IllegalArgumentException(
+                                String.format("Split '%s' not found", splitName));
+                    });
+        }
+    }
+
     @NonNull
     private static List<PrimaryDexInfoBuilder> getDexInfoImpl(@NonNull AndroidPackage pkg) {
         List<PrimaryDexInfoBuilder> dexInfos = new ArrayList<>();

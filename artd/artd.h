@@ -17,6 +17,7 @@
 #ifndef ART_ARTD_ARTD_H_
 #define ART_ARTD_ARTD_H_
 
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include <csignal>
@@ -36,6 +37,7 @@
 #include "android-base/result.h"
 #include "android-base/thread_annotations.h"
 #include "android/binder_auto_utils.h"
+#include "base/os.h"
 #include "exec_utils.h"
 #include "oat_file_assistant_context.h"
 #include "tools/cmdline_builder.h"
@@ -70,8 +72,12 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   explicit Artd(std::unique_ptr<art::tools::SystemProperties> props =
                     std::make_unique<art::tools::SystemProperties>(),
                 std::unique_ptr<ExecUtils> exec_utils = std::make_unique<ExecUtils>(),
-                std::function<int(pid_t, int)> kill_func = kill)
-      : props_(std::move(props)), exec_utils_(std::move(exec_utils)), kill_(std::move(kill_func)) {}
+                std::function<int(pid_t, int)> kill_func = kill,
+                std::function<int(int, struct stat*)> fstat_func = fstat)
+      : props_(std::move(props)),
+        exec_utils_(std::move(exec_utils)),
+        kill_(std::move(kill_func)),
+        fstat_(std::move(fstat_func)) {}
 
   ndk::ScopedAStatus isAlive(bool* _aidl_return) override;
 
@@ -198,6 +204,8 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   void AddPerfConfigFlags(aidl::com::android::server::art::PriorityClass priority_class,
                           /*out*/ art::tools::CmdlineBuilder& args);
 
+  android::base::Result<struct stat> Fstat(const art::File& file) const;
+
   std::mutex cache_mu_;
   std::optional<std::vector<std::string>> cached_boot_image_locations_ GUARDED_BY(cache_mu_);
   std::optional<std::vector<std::string>> cached_boot_class_path_ GUARDED_BY(cache_mu_);
@@ -211,6 +219,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
   const std::unique_ptr<art::tools::SystemProperties> props_;
   const std::unique_ptr<ExecUtils> exec_utils_;
   const std::function<int(pid_t, int)> kill_;
+  const std::function<int(int, struct stat*)> fstat_;
 };
 
 }  // namespace artd

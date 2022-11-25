@@ -33,6 +33,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
@@ -45,6 +46,7 @@ import com.google.auto.value.AutoValue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /** @hide */
 public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
@@ -85,8 +87,13 @@ public class PrimaryDexOptimizer extends DexOptimizer<DetailedPrimaryDexInfo> {
 
     @Override
     protected boolean isOptimizable(@NonNull DetailedPrimaryDexInfo dexInfo) {
-        // TODO(jiakaiz): Support optimizing a single split.
-        return dexInfo.hasCode();
+        if (!dexInfo.hasCode()) {
+            return false;
+        }
+        if ((mParams.getFlags() & ArtFlags.FLAG_FOR_SINGLE_SPLIT) != 0) {
+            return Objects.equals(mParams.getSplitName(), dexInfo.splitName());
+        }
+        return true;
     }
 
     @Override

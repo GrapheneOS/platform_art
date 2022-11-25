@@ -20,6 +20,7 @@ import static com.android.server.art.model.ArtFlags.OptimizeFlags;
 import static com.android.server.art.model.ArtFlags.PriorityClassApi;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.SystemApi;
 
 import com.android.internal.annotations.Immutable;
@@ -98,6 +99,16 @@ public class OptimizeParams {
         }
 
         /**
+         * The name of the split to optimize, or null for the base split. This option is only
+         * available when {@link ArtFlags#FLAG_FOR_SINGLE_SPLIT} is set.
+         */
+        @NonNull
+        public Builder setSplitName(@Nullable String value) {
+            mParams.mSplitName = value;
+            return this;
+        }
+
+        /**
          * Returns the built object.
          *
          * @throws IllegalArgumentException if the built options would be invalid
@@ -122,6 +133,38 @@ public class OptimizeParams {
                         + mParams.mPriorityClass + ". Must be between 0 and 100");
             }
 
+            if ((mParams.mFlags & (ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX))
+                    == 0) {
+                throw new IllegalArgumentException("Nothing to optimize");
+            }
+
+            if ((mParams.mFlags & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0
+                    && (mParams.mFlags & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0) {
+                throw new IllegalArgumentException(
+                        "FLAG_SHOULD_INCLUDE_DEPENDENCIES must not set if FLAG_FOR_PRIMARY_DEX is "
+                        + "not set.");
+            }
+
+            if ((mParams.mFlags & ArtFlags.FLAG_FOR_SINGLE_SPLIT) != 0) {
+                if ((mParams.mFlags & ArtFlags.FLAG_FOR_PRIMARY_DEX) == 0) {
+                    throw new IllegalArgumentException(
+                            "FLAG_FOR_PRIMARY_DEX must be set when FLAG_FOR_SINGLE_SPLIT is set");
+                }
+                if ((mParams.mFlags
+                            & (ArtFlags.FLAG_FOR_SECONDARY_DEX
+                                    | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES))
+                        != 0) {
+                    throw new IllegalArgumentException(
+                            "FLAG_FOR_SECONDARY_DEX and FLAG_SHOULD_INCLUDE_DEPENDENCIES must "
+                            + "not be set when FLAG_FOR_SINGLE_SPLIT is set");
+                }
+            } else {
+                if (mParams.mSplitName != null) {
+                    throw new IllegalArgumentException(
+                            "Split name must not be set when FLAG_FOR_SINGLE_SPLIT is not set");
+                }
+            }
+
             return mParams;
         }
     }
@@ -136,6 +179,7 @@ public class OptimizeParams {
     private @NonNull String mCompilerFilter = "";
     private @PriorityClassApi int mPriorityClass = ArtFlags.PRIORITY_NONE;
     private @NonNull String mReason = "";
+    private @Nullable String mSplitName = null;
 
     private OptimizeParams() {}
 
@@ -162,5 +206,10 @@ public class OptimizeParams {
      */
     public @NonNull String getReason() {
         return mReason;
+    }
+
+    /** The name of the split to optimize, or null for the base split. */
+    public @Nullable String getSplitName() {
+        return mSplitName;
     }
 }
