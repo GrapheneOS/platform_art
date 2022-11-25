@@ -38,6 +38,7 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
+import com.android.server.art.model.OperationProgress;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
@@ -164,9 +165,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     try (var signal = new WithCancellationSignal(pw)) {
                         result = mArtManagerLocal.optimizePackages(snapshot, getNextArgRequired(),
                                 signal.get(), executor, progress -> {
-                                    pw.println(String.format("Optimizing packages: %d/%d",
-                                            progress.getDonePackageCount(),
-                                            progress.getTotalPackageCount()));
+                                    pw.println(String.format(
+                                            "Optimizing apps: %d%%", progress.getPercentage()));
                                     pw.flush();
                                 });
                     }

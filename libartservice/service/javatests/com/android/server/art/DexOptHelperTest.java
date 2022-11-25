@@ -45,8 +45,8 @@ import androidx.test.filters.SmallTest;
 
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
+import com.android.server.art.model.OperationProgress;
 import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeProgress;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -512,7 +512,7 @@ public class DexOptHelperTest {
         // Delay the executor to verify that the commands passed to the executor are not bound to
         // changing variables.
         var progressCallbackExecutor = new DelayedExecutor();
-        Consumer<OptimizeProgress> progressCallback = mock(Consumer.class);
+        Consumer<OperationProgress> progressCallback = mock(Consumer.class);
 
         mDexOptHelper.dexopt(mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor,
                 progressCallbackExecutor, progressCallback);
@@ -521,17 +521,13 @@ public class DexOptHelperTest {
 
         InOrder inOrder = inOrder(progressCallback);
         inOrder.verify(progressCallback)
-                .accept(eq(OptimizeProgress.create(
-                        0 /* donePackageCount */, 3 /* totalPackageCount */)));
+                .accept(eq(OperationProgress.create(0 /* current */, 3 /* total */)));
         inOrder.verify(progressCallback)
-                .accept(eq(OptimizeProgress.create(
-                        1 /* donePackageCount */, 3 /* totalPackageCount */)));
+                .accept(eq(OperationProgress.create(1 /* current */, 3 /* total */)));
         inOrder.verify(progressCallback)
-                .accept(eq(OptimizeProgress.create(
-                        2 /* donePackageCount */, 3 /* totalPackageCount */)));
+                .accept(eq(OperationProgress.create(2 /* current */, 3 /* total */)));
         inOrder.verify(progressCallback)
-                .accept(eq(OptimizeProgress.create(
-                        3 /* donePackageCount */, 3 /* totalPackageCount */)));
+                .accept(eq(OperationProgress.create(3 /* current */, 3 /* total */)));
     }
 
     private AndroidPackage createPackage(boolean multiSplit) {

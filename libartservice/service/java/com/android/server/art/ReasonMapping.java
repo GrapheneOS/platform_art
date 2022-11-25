@@ -42,7 +42,7 @@ import java.lang.annotation.RetentionPolicy;
 public class ReasonMapping {
     private ReasonMapping() {}
 
-    /** Optimizing apps on the first boot. */
+    /** Optimizing apps on the first boot after flashing or factory resetting the device. */
     public static final String REASON_FIRST_BOOT = "first-boot";
     /** Optimizing apps on the next boot after an OTA. */
     public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";
@@ -82,6 +82,20 @@ public class ReasonMapping {
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
     public @interface BatchOptimizeReason {}
+
+    /**
+     * Reasons for {@link ArtManagerLocal#onBoot(String, Executor, Consumer<OperationProgress>)}.
+     *
+     * @hide
+     */
+    // clang-format off
+    @StringDef(prefix = "REASON_", value = {
+        REASON_FIRST_BOOT,
+        REASON_BOOT_AFTER_OTA,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface BootReason {}
 
     /**
      * Loads the compiler filter from the system property for the given reason and checks for

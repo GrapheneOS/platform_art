@@ -34,8 +34,8 @@ import android.os.WorkSource;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
+import com.android.server.art.model.OperationProgress;
 import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeProgress;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -107,7 +107,7 @@ public class DexOptHelper {
             @NonNull List<String> packageNames, @NonNull OptimizeParams params,
             @NonNull CancellationSignal cancellationSignal, @NonNull Executor dexoptExecutor,
             @Nullable Executor progressCallbackExecutor,
-            @Nullable Consumer<OptimizeProgress> progressCallback) {
+            @Nullable Consumer<OperationProgress> progressCallback) {
         return dexoptPackages(
                 getPackageStates(snapshot, packageNames,
                         (params.getFlags() & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0),
@@ -123,7 +123,7 @@ public class DexOptHelper {
     private OptimizeResult dexoptPackages(@NonNull List<PackageState> pkgStates,
             @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal,
             @NonNull Executor dexoptExecutor, @Nullable Executor progressCallbackExecutor,
-            @Nullable Consumer<OptimizeProgress> progressCallback) {
+            @Nullable Consumer<OperationProgress> progressCallback) {
         int callingUid = Binder.getCallingUid();
         long identityToken = Binder.clearCallingIdentity();
         PowerManager.WakeLock wakeLock = null;
@@ -144,13 +144,13 @@ public class DexOptHelper {
             if (progressCallback != null) {
                 CompletableFuture.runAsync(() -> {
                     progressCallback.accept(
-                            OptimizeProgress.create(0 /* donePackageCount */, futures.size()));
+                            OperationProgress.create(0 /* current */, futures.size()));
                 }, progressCallbackExecutor);
-                AtomicInteger donePackageCount = new AtomicInteger(0);
+                AtomicInteger current = new AtomicInteger(0);
                 for (CompletableFuture<PackageOptimizeResult> future : futures) {
                     future.thenRunAsync(() -> {
-                        progressCallback.accept(OptimizeProgress.create(
-                                donePackageCount.incrementAndGet(), futures.size()));
+                        progressCallback.accept(OperationProgress.create(
+                                current.incrementAndGet(), futures.size()));
                     }, progressCallbackExecutor);
                 }
             }

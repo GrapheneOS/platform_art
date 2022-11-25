@@ -13,6 +13,7 @@ package com.android.server.art {
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method public int handleShellCommand(@NonNull android.os.Binder, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull String[]);
+    method public void onBoot(@NonNull String, @Nullable java.util.concurrent.Executor, @Nullable java.util.function.Consumer<com.android.server.art.model.OperationProgress>);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
     method public void removeOptimizePackageDoneCallback(@NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
@@ -99,6 +100,10 @@ package com.android.server.art.model {
 
   public class DeleteResult {
     method public long getFreedBytes();
+  }
+
+  public abstract class OperationProgress {
+    method public int getPercentage();
   }
 
   public abstract class OptimizationStatus {

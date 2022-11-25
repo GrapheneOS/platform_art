@@ -19,6 +19,7 @@ package com.android.server.art;
 import static com.android.server.art.PrimaryDexUtils.DetailedPrimaryDexInfo;
 import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 import static com.android.server.art.ReasonMapping.BatchOptimizeReason;
+import static com.android.server.art.ReasonMapping.BootReason;
 import static com.android.server.art.Utils.Abi;
 import static com.android.server.art.model.ArtFlags.DeleteFlags;
 import static com.android.server.art.model.ArtFlags.GetStatusFlags;
@@ -49,9 +50,9 @@ import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.BatchOptimizeParams;
 import com.android.server.art.model.Config;
 import com.android.server.art.model.DeleteResult;
+import com.android.server.art.model.OperationProgress;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeProgress;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -329,7 +330,7 @@ public final class ArtManagerLocal {
             @NonNull @BatchOptimizeReason String reason,
             @NonNull CancellationSignal cancellationSignal,
             @Nullable @CallbackExecutor Executor processCallbackExecutor,
-            @Nullable Consumer<OptimizeProgress> progressCallback) {
+            @Nullable Consumer<OperationProgress> progressCallback) {
         List<String> defaultPackages =
                 Collections.unmodifiableList(getDefaultPackages(snapshot, reason));
         OptimizeParams defaultOptimizeParams = new OptimizeParams.Builder(reason).build();
@@ -590,6 +591,25 @@ public final class ArtManagerLocal {
     }
 
     /**
+     * Notifies ART Service that this is a boot that falls into one of the categories listed in
+     * {@link BootReason}. The current behavior is that ART Service goes through all recently used
+     * packages and optimizes those that are not optimized. This might change in the future.
+     *
+     * This method is blocking. It takes about 30 seconds to a few minutes. During execution, {@code
+     * progressCallback} is repeatedly called whenever there is an update on the progress.
+     *
+     * See {@link #optimizePackages} for how to customize the behavior.
+     */
+    public void onBoot(@NonNull @BootReason String bootReason,
+            @Nullable @CallbackExecutor Executor progressCallbackExecutor,
+            @Nullable Consumer<OperationProgress> progressCallback) {
+        try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {
+            optimizePackages(snapshot, bootReason, new CancellationSignal(),
+                    progressCallbackExecutor, progressCallback);
+        }
+    }
+
+    /**
      * Should be used by {@link BackgroundDexOptJobService} ONLY.
      *
      * @hide
@@ -603,6 +623,7 @@ public final class ArtManagerLocal {
     private List<String> getDefaultPackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull @BatchOptimizeReason String reason) {
         var packages = new ArrayList<String>();
+        // TODO(b/258818709): Filter packages by last active time.
         snapshot.forAllPackageStates((pkgState) -> {
             if (Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager())) {
                 packages.add(pkgState.getPackageName());
