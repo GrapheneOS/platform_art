@@ -109,10 +109,9 @@ class Dex2oatEnvironmentTest : public Dex2oatScratchDirs, public CommonRuntimeTe
       << "Expected dex file to be at: " << GetDexSrc1();
     ASSERT_TRUE(OS::FileExists(GetResourceOnlySrc1().c_str()))
       << "Expected stripped dex file to be at: " << GetResourceOnlySrc1();
-    ASSERT_FALSE(
-        dex_file_loader.GetMultiDexChecksums(
-            GetResourceOnlySrc1().c_str(), &checksums, &dex_locations, &error_msg))
-      << "Expected stripped dex file to be stripped: " << GetResourceOnlySrc1();
+    ASSERT_TRUE(dex_file_loader.GetMultiDexChecksums(
+        GetResourceOnlySrc1().c_str(), &checksums, &dex_locations, &error_msg))
+        << "Expected stripped dex file to be stripped: " << GetResourceOnlySrc1();
     ASSERT_TRUE(OS::FileExists(GetDexSrc2().c_str()))
       << "Expected dex file to be at: " << GetDexSrc2();
 
