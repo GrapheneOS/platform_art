@@ -164,6 +164,11 @@ public class DexOptHelper {
             return createResult.get();
         }
 
+        if ((params.getFlags() & ArtFlags.FLAG_FOR_SINGLE_SPLIT) != 0) {
+            // Throws if the split is not found.
+            PrimaryDexUtils.getDexInfoBySplitName(pkg, params.getSplitName());
+        }
+
         try {
             if ((params.getFlags() & ArtFlags.FLAG_FOR_PRIMARY_DEX) != 0) {
                 if (cancellationSignal.isCanceled()) {

@@ -45,6 +45,7 @@ import android.os.UserHandle;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.testing.TestingUtils;
@@ -65,9 +66,6 @@ import java.util.stream.Collectors;
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
-    private final OptimizeParams mOptimizeParams =
-            new OptimizeParams.Builder("install").setCompilerFilter("speed-profile").build();
-
     private final String mDexPath = "/data/app/foo/base.apk";
     private final ProfilePath mRefProfile =
             AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary");
@@ -95,6 +93,9 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
     private final MergeProfileOptions mMergeProfileOptions = new MergeProfileOptions();
 
     private final DexoptResult mDexoptResult = createDexoptResult(false /* cancelled */);
+
+    private OptimizeParams mOptimizeParams =
+            new OptimizeParams.Builder("install").setCompilerFilter("speed-profile").build();
 
     private PrimaryDexOptimizer mPrimaryDexOptimizer;
 
@@ -549,6 +550,48 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
         verify(mArtd, times(1))
                 .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
                         any());
+    }
+
+    @Test
+    public void testDexoptBaseApk() throws Exception {
+        mOptimizeParams =
+                new OptimizeParams.Builder("install")
+                        .setCompilerFilter("speed-profile")
+                        .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                        .setSplitName(null)
+                        .build();
+        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
+                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+
+        mPrimaryDexOptimizer.dexopt();
+
+        verify(mArtd, times(2))
+                .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
+                        any(), any());
+        verify(mArtd, never())
+                .dexopt(any(), eq(mSplit0DexPath), any(), any(), any(), any(), any(), any(),
+                        anyInt(), any(), any());
+    }
+
+    @Test
+    public void testDexoptSplitApk() throws Exception {
+        mOptimizeParams =
+                new OptimizeParams.Builder("install")
+                        .setCompilerFilter("speed-profile")
+                        .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
+                        .setSplitName("split_0")
+                        .build();
+        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
+                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+
+        mPrimaryDexOptimizer.dexopt();
+
+        verify(mArtd, never())
+                .dexopt(any(), eq(mDexPath), any(), any(), any(), any(), any(), any(), anyInt(),
+                        any(), any());
+        verify(mArtd, times(2))
+                .dexopt(any(), eq(mSplit0DexPath), any(), any(), any(), any(), any(), any(),
+                        anyInt(), any(), any());
     }
 
     private void checkDexoptWithProfile(IArtd artd, String dexPath, String isa, ProfilePath profile,

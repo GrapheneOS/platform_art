@@ -71,6 +71,7 @@ package com.android.server.art.model {
     field public static final int FLAG_FORCE = 16; // 0x10
     field public static final int FLAG_FOR_PRIMARY_DEX = 1; // 0x1
     field public static final int FLAG_FOR_SECONDARY_DEX = 2; // 0x2
+    field public static final int FLAG_FOR_SINGLE_SPLIT = 32; // 0x20
     field public static final int FLAG_SHOULD_DOWNGRADE = 8; // 0x8
     field public static final int FLAG_SHOULD_INCLUDE_DEPENDENCIES = 4; // 0x4
     field public static final int PRIORITY_BACKGROUND = 40; // 0x28
@@ -115,6 +116,7 @@ package com.android.server.art.model {
     method public int getFlags();
     method public int getPriorityClass();
     method @NonNull public String getReason();
+    method @Nullable public String getSplitName();
     field public static final String COMPILER_FILTER_NOOP = "skip";
   }
 
@@ -126,6 +128,7 @@ package com.android.server.art.model {
     method @NonNull public com.android.server.art.model.OptimizeParams.Builder setFlags(int);
     method @NonNull public com.android.server.art.model.OptimizeParams.Builder setFlags(int, int);
     method @NonNull public com.android.server.art.model.OptimizeParams.Builder setPriorityClass(int);
+    method @NonNull public com.android.server.art.model.OptimizeParams.Builder setSplitName(@Nullable String);
   }
 
   public class OptimizeResult {
