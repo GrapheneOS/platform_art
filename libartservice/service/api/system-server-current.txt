@@ -71,7 +71,6 @@ package com.android.server.art.model {
   public class ArtFlags {
     method public static int defaultDeleteFlags();
     method public static int defaultGetStatusFlags();
-    method public static int defaultOptimizeFlags();
     field public static final int FLAG_FORCE = 16; // 0x10
     field public static final int FLAG_FOR_PRIMARY_DEX = 1; // 0x1
     field public static final int FLAG_FOR_SECONDARY_DEX = 2; // 0x2

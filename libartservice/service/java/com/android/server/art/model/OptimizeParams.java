@@ -46,7 +46,7 @@ public class OptimizeParams {
          *         compiler filter must be explicitly set.
          */
         public Builder(@NonNull String reason) {
-            this(reason, ArtFlags.defaultOptimizeFlags());
+            this(reason, ArtFlags.defaultOptimizeFlags(reason));
         }
 
         /**
