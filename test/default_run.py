@@ -1146,16 +1146,6 @@ def default_run(ctx, args, **kwargs):
   ANDROID_LOG_TAGS = args.android_log_tags
 
   if not HOST:
-    adb.root()
-    adb.wait_for_device()
-    adb.shell(f"rm -rf {CHROOT_DEX_LOCATION} && mkdir -p {CHROOT_DEX_LOCATION}")
-    adb.push(f"{TEST_NAME}*.jar", CHROOT_DEX_LOCATION)
-    if PROFILE or RANDOM_PROFILE:
-      adb.push("profile", CHROOT_DEX_LOCATION, check=False)
-    # Copy resource folder
-    if isdir("res"):
-      adb.push("res", CHROOT_DEX_LOCATION)
-
     # Populate LD_LIBRARY_PATH.
     LD_LIBRARY_PATH = ""
     if ANDROID_ROOT != "/system":
@@ -1243,10 +1233,7 @@ def default_run(ctx, args, **kwargs):
     if USE_GDB or USE_GDBSERVER:
       print(f"Forward {GDBSERVER_PORT} to local port and connect GDB")
 
-    run_cmd(f"rm -rf {DEX_LOCATION}/dalvik-cache/ && mkdir -p {mkdir_locations}")
-    # Restore stdout/stderr from previous run (the directory might have been cleared).
-    adb.push(args.stdout_file, f"{CHROOT}{DEX_LOCATION}/{basename(args.stdout_file)}")
-    adb.push(args.stderr_file, f"{CHROOT}{DEX_LOCATION}/{basename(args.stderr_file)}")
+    run_cmd(f"rm -rf {DEX_LOCATION}/{{oat,dalvik-cache}}/ && mkdir -p {mkdir_locations}")
     run_cmd(f"{profman_cmdline}", env)
     run_cmd(f"{dex2oat_cmdline}", env)
     run_cmd(f"{dm_cmdline}", env)
@@ -1256,9 +1243,6 @@ def default_run(ctx, args, **kwargs):
     run_cmd(tee(f"{timeout_prefix} {dalvikvm_cmdline}"),
             env,
             expected_exit_code=args.expected_exit_code)
-    # Copy the on-device stdout/stderr to host.
-    adb.pull(f"{CHROOT}{DEX_LOCATION}/{basename(args.stdout_file)}", args.stdout_file)
-    adb.pull(f"{CHROOT}{DEX_LOCATION}/{basename(args.stderr_file)}", args.stderr_file)
   else:
     # Host run.
     if USE_ZIPAPEX or USE_EXRACTED_ZIPAPEX:
