@@ -18,6 +18,7 @@ import os, sys, glob, re, shutil, subprocess, shlex, resource, atexit
 
 import default_run as default_run_module
 
+from default_run import get_target_arch
 from importlib.machinery import SourceFileLoader
 from inspect import currentframe, getframeinfo, FrameInfo
 from pathlib import Path
@@ -666,17 +667,9 @@ if True:
       else:
         target_arch_name = grep32bit
 
-    # We may build for two arches. Get the one with the expected bitness.
-    arches = [env.TARGET_ARCH, env.TARGET_2ND_ARCH]
-    if suffix64 == "64":
-      arch = [a for a in arches if a and a.endswith("64")]
-      assert len(arch) == 1, f"Can not find unique 64-bit arch in {arches}"
-    else:
-      arch = [a for a in arches if a and not a.endswith("64")]
-      assert len(arch) == 1, f"Can not find unique 32-bit arch in {arches}"
-
     # Check that the heuristics matches build configuration.
-    assert target_arch_name.strip() == arch[0], f"{target_arch_name.strip()} != {arch[0]}"
+    arch = get_target_arch(suffix64 == "64")
+    assert target_arch_name.strip() == arch, f"{target_arch_name.strip()} != {arch}"
 
     return target_arch_name.strip()
 
