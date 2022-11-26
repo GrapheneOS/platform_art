@@ -69,10 +69,7 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
             ctx.pushExtendedPublicProductLibs(libApk);
             ctx.pushPrivateLibs(libApk);
         }
-        ctx.pushSystemSharedLib("/system/framework", "android.test.systemsharedlib",
-                "libnativeloader_system_shared_lib.jar");
-        ctx.pushSystemSharedLib("/system_ext/framework", "android.test.systemextsharedlib",
-                "libnativeloader_system_ext_shared_lib.jar");
+        ctx.pushSystemSharedLib();
 
         // "Install" apps in various partitions through plain adb push followed by a soft reboot. We
         // need them in these locations to test library loading restrictions, so for all except
@@ -233,18 +230,17 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
         void pushPrivateLibs(ZipFile libApk) throws Exception {
             // Push the libraries once for each test. Since we cannot unload them, we need a fresh
             // never-before-loaded library in each loadLibrary call.
-            for (int i = 1; i <= 3; ++i) {
+            for (int i = 1; i <= 2; ++i) {
                 pushNativeTestLib(libApk, "/system/${LIB}/libsystem_private" + i + ".so");
-                pushNativeTestLib(libApk, "/system_ext/${LIB}/libsystemext_private" + i + ".so");
                 pushNativeTestLib(libApk, "/product/${LIB}/libproduct_private" + i + ".so");
                 pushNativeTestLib(libApk, "/vendor/${LIB}/libvendor_private" + i + ".so");
             }
         }
 
-        void pushSystemSharedLib(String packageDir, String packageName, String buildJarName)
-                throws Exception {
-            String path = packageDir + "/" + packageName + ".jar";
-            pushFile(buildJarName, path);
+        void pushSystemSharedLib() throws Exception {
+            String packageName = "android.test.systemsharedlib";
+            String path = "/system/framework/" + packageName + ".jar";
+            pushFile("libnativeloader_system_shared_lib.jar", path);
             pushString("<permissions>\n"
                             + "<library name=\"" + packageName + "\" file=\"" + path + "\" />\n"
                             + "</permissions>\n",

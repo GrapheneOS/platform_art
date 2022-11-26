@@ -21,7 +21,6 @@
                      android:targetPackage="android.test.app.vendor" />
     <application>
         <uses-library android:name="android.test.systemsharedlib" />
-        <uses-library android:name="android.test.systemextsharedlib" />
         <uses-native-library android:required="false" android:name="libfoo.oem1.so" />
         <uses-native-library android:required="false" android:name="libbar.oem1.so" />
         <uses-native-library android:required="false" android:name="libfoo.oem2.so" />

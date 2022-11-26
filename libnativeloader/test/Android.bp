@@ -55,13 +55,6 @@ java_library {
     srcs: ["src/android/test/systemsharedlib/SystemSharedLib.java"],
 }
 
-// Test fixture that represents a shared library in /system_ext/framework.
-java_library {
-    name: "libnativeloader_system_ext_shared_lib",
-    installable: true,
-    srcs: ["src/android/test/systemextsharedlib/SystemExtSharedLib.java"],
-}
-
 java_defaults {
     name: "loadlibrarytest_app_defaults",
     defaults: ["art_module_source_build_java_defaults"],
@@ -70,10 +63,7 @@ java_defaults {
         "androidx.test.rules",
         "loadlibrarytest_test_utils",
     ],
-    libs: [
-        "libnativeloader_system_shared_lib",
-        "libnativeloader_system_ext_shared_lib",
-    ],
+    libs: ["libnativeloader_system_shared_lib"],
 }
 
 android_test_helper_app {
@@ -135,7 +125,6 @@ java_test_host {
     data: [
         ":library_container_app",
         ":libnativeloader_system_shared_lib",
-        ":libnativeloader_system_ext_shared_lib",
         ":loadlibrarytest_system_priv_app",
         ":loadlibrarytest_system_app",
         ":loadlibrarytest_system_ext_app",
