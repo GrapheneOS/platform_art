@@ -102,7 +102,6 @@ java_sdk_library {
     ],
     plugins: [
         "auto_value_plugin",
-        "java_api_finder",
     ],
     jarjar_rules: "jarjar-rules.txt",
     optimize: {

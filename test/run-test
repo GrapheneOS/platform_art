@@ -18,6 +18,7 @@ import os, sys, glob, re, shutil, subprocess, shlex, resource, atexit
 
 import default_run as default_run_module
 
+from default_run import get_target_arch
 from importlib.machinery import SourceFileLoader
 from inspect import currentframe, getframeinfo, FrameInfo
 from pathlib import Path
@@ -46,20 +47,27 @@ class Environment:
 # Context passed to individual tests to let them customize the behaviour.
 class RunTestContext:
 
-  def __init__(self, tmp_dir: Path) -> None:
+  def __init__(self, tmp_dir: Path, target: bool, chroot, dex_location) -> None:
     self.env = Environment()
+    self.target = target
+    self.chroot = chroot
+    self.dex_location = dex_location
 
     # Note: The expected path can be modified by the tests.
     self.expected_stdout = tmp_dir / "expected-stdout.txt"
     self.expected_stderr = tmp_dir / "expected-stderr.txt"
 
   def echo(self, text):
-    with open(test_stdout, "a") as f:
-      f.write(text + "\n")
+    self.run(f"echo {text} > {test_stdout}")
 
   # Let the test execute arbitrary bash command.
+  # The command is executed in the test directory (on device for target tests).
   def run(self, cmd, check=True):
-    subprocess.run(cmd, shell=True, cwd=tmp_dir, check=check)
+    if self.target:
+      cmd = "sh -c 'cd {}; {}'".format(self.dex_location, cmd.replace("'", r"'\''"))
+      cmd = "adb shell 'chroot {} {}'".format(self.chroot, cmd.replace("'", r"'\''"))
+    print(f"{COLOR_BLUE}$ {cmd}{COLOR_NORMAL}", flush=True)
+    subprocess.run(cmd, shell=True, cwd=tmp_dir, stderr=subprocess.STDOUT, check=check)
 
   # Execute the default runner (possibly with modified arguments).
   def default_run(self, args, **kwargs):
@@ -659,17 +667,9 @@ if True:
       else:
         target_arch_name = grep32bit
 
-    # We may build for two arches. Get the one with the expected bitness.
-    arches = [env.TARGET_ARCH, env.TARGET_2ND_ARCH]
-    if suffix64 == "64":
-      arch = [a for a in arches if a and a.endswith("64")]
-      assert len(arch) == 1, f"Can not find unique 64-bit arch in {arches}"
-    else:
-      arch = [a for a in arches if a and not a.endswith("64")]
-      assert len(arch) == 1, f"Can not find unique 32-bit arch in {arches}"
-
     # Check that the heuristics matches build configuration.
-    assert target_arch_name.strip() == arch[0], f"{target_arch_name.strip()} != {arch[0]}"
+    arch = get_target_arch(suffix64 == "64")
+    assert target_arch_name.strip() == arch, f"{target_arch_name.strip()} != {arch}"
 
     return target_arch_name.strip()
 
@@ -963,7 +963,7 @@ if True:
   # TODO: Run this in global try-finally once the script is more refactored.
   atexit.register(clean_up, passed=False)
 
-  ctx = RunTestContext(Path(tmp_dir))
+  ctx = RunTestContext(Path(tmp_dir), target_mode == "yes", chroot, DEX_LOCATION)
   td_info = f"{test_dir}/{info}"
   for td_file in [td_info, ctx.expected_stdout, ctx.expected_stderr]:
     assert os.access(td_file, os.R_OK)
@@ -974,8 +974,8 @@ if True:
   # Execute the "run" method in the per-test specific script file.
   def run_test_script():
     parsed_args = default_run_module.parse_args(shlex.split(" ".join(run_args + args)))
-    parsed_args.stdout_file = os.path.join(tmp_dir, test_stdout)
-    parsed_args.stderr_file = os.path.join(tmp_dir, test_stderr)
+    parsed_args.stdout_file = os.path.join(DEX_LOCATION, test_stdout)
+    parsed_args.stderr_file = os.path.join(DEX_LOCATION, test_stderr)
 
     script = os.path.join(tmp_dir, "run.py")
     if os.path.exists(script):
@@ -991,7 +991,26 @@ if True:
   export("TEST_RUNTIME", runtime)
 
   print(f"{test_dir}: running...")
-  run_test_script()
+  if target_mode == "yes":
+    # Prepare the on-device test directory
+    run("adb root")
+    run("adb wait-for-device")
+    run(f"adb shell 'rm -rf {chroot_dex_location} && mkdir -p {chroot_dex_location}'")
+    push_files = list(Path(".").glob(f"{TEST_NAME}*.jar"))
+    push_files += list(Path(".").glob(f"expected-*.txt"))
+    push_files += [p for p in [Path("profile"), Path("res")] if p.exists()]
+    if push_files:
+      run("adb push {} {}".format(" ".join(map(str, push_files)), chroot_dex_location))
+    run(f"adb shell 'echo -n > {chroot_dex_location}/{test_stdout}'")  # Empty file.
+    run(f"adb shell 'echo -n > {chroot_dex_location}/{test_stderr}'")  # Empty file.
+
+    run_test_script()
+
+    # Copy the on-device stdout/stderr to host.
+    pull_files = [test_stdout, test_stderr, "expected-stdout.txt", "expected-stderr.txt"]
+    run("adb pull {} .".format(" ".join(f"{chroot_dex_location}/{f}" for f in pull_files)))
+  else:
+    run_test_script()
   # NB: There is no exit code or return value.
   # Failing tests just raise python exception.
   os.chdir(tmp_dir)

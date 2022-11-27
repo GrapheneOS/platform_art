@@ -103,6 +103,20 @@ TEST_F(ArtDexFileLoaderTest, GetMultiDexChecksums) {
   EXPECT_EQ(dexes[1]->GetLocationChecksum(), checksums[1]);
 }
 
+TEST_F(ArtDexFileLoaderTest, GetMultiDexChecksumsEmptyZip) {
+  std::string error_msg;
+  std::vector<uint32_t> checksums;
+  std::vector<std::string> dex_locations;
+  std::string multidex_file = GetTestDexFileName("MainEmptyUncompressed");
+  const ArtDexFileLoader dex_file_loader;
+  EXPECT_TRUE(dex_file_loader.GetMultiDexChecksums(
+      multidex_file.c_str(), &checksums, &dex_locations, &error_msg))
+      << error_msg;
+
+  EXPECT_EQ(dex_locations.size(), 0);
+  EXPECT_EQ(checksums.size(), 0);
+}
+
 TEST_F(ArtDexFileLoaderTest, ClassDefs) {
   std::unique_ptr<const DexFile> raw(OpenTestDexFile("Nested"));
   ASSERT_TRUE(raw.get() != nullptr);
