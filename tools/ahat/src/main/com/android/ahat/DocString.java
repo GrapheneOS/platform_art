@@ -136,7 +136,7 @@ class DocString {
     if (isPlaceHolder) {
       string.append(DocString.removed("del"));
     } else if (size != 0) {
-      string.appendFormat("%,14d", size);
+      string.appendFormat("%,d", size);
     }
     return string;
   }
@@ -162,13 +162,13 @@ class DocString {
   public DocString appendDelta(boolean noCurrent, boolean noBaseline,
       long current, long baseline) {
     if (noCurrent) {
-      append(removed(format("%+,14d", 0 - baseline)));
+      append(removed(format("%+,d", 0 - baseline)));
     } else if (noBaseline) {
       append(added("new"));
     } else if (current > baseline) {
-      append(added(format("%+,14d", current - baseline)));
+      append(added(format("%+,d", current - baseline)));
     } else if (current < baseline) {
-      append(removed(format("%+,14d", current - baseline)));
+      append(removed(format("%+,d", current - baseline)));
     }
     return this;
   }
