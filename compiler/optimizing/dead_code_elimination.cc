@@ -555,13 +555,22 @@ void HDeadCodeElimination::RemoveTry(HBasicBlock* try_entry,
       DisconnectHandlersAndUpdateTryBoundary(block, any_handler_in_loop);
 
       if (block->GetSingleSuccessor()->IsExitBlock()) {
-        // `predecessor` used to be a single exit TryBoundary that got turned into a Goto. It
+        // `block` used to be a single exit TryBoundary that got turned into a Goto. It
         // is now pointing to the exit which we don't allow. To fix it, we disconnect
-        // `predecessor` from its predecessor and RemoveDeadBlocks will remove it from the
+        // `block` from its predecessor and RemoveDeadBlocks will remove it from the
         // graph.
         DCHECK(block->IsSingleGoto());
         HBasicBlock* predecessor = block->GetSinglePredecessor();
         predecessor->ReplaceSuccessor(block, graph_->GetExitBlock());
+
+        if (!block->GetDominatedBlocks().empty()) {
+          // Update domination tree if `block` dominates a block to keep the graph consistent.
+          DCHECK_EQ(block->GetDominatedBlocks().size(), 1u);
+          DCHECK_EQ(graph_->GetExitBlock()->GetDominator(), block);
+          predecessor->AddDominatedBlock(graph_->GetExitBlock());
+          graph_->GetExitBlock()->SetDominator(predecessor);
+          block->RemoveDominatedBlock(graph_->GetExitBlock());
+        }
       }
     }
   }
