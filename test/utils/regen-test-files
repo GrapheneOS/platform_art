@@ -195,6 +195,8 @@ known_failing_tests = frozenset([
   #           at Main.main(Main.java:20)
   #
   "821-many-args",
+  # 823-cha-inlining: Dependency on `libarttest`.
+  "823-cha-inlining",
   # 826-infinite-loop: The test expects an argument passed to `Main.main` (the test library,
   # usually `arttestd` or `arttest)`, but the ART run-test TradeFed test runner
   # (`com.android.tradefed.testtype.ArtRunTest`) does not implement this yet.
@@ -207,6 +209,8 @@ known_failing_tests = frozenset([
   "844-exception",
   # 844-exception2: Dependency on `libarttest`.
   "844-exception2",
+  # 966-default-conflict: Dependency on `libarttest`.
+  "966-default-conflict",
   # 993-breakpoints-non-debuggable: This test needs native code.
   "993-breakpoints-non-debuggable",
 ])
@@ -381,8 +385,7 @@ class Generator:
                    "src-bcpex",
                    "src-ex",
                    "src-ex2",
-                   "src-multidex",
-                   "src2"]:
+                   "src-multidex"]:
       if os.path.isdir(os.path.join(run_test_path, subdir)):
         return False
     # Skip tests that have both an `src` directory and an `src-art` directory.
@@ -418,6 +421,33 @@ class Generator:
     if run_param.get("default-run", ""):
       return True
     return False
+
+  def gen_libs_list_impl(self, library_type, libraries):
+    if len(libraries) == 0:
+      return ""
+    libraries_joined = """,
+              """.join(libraries)
+    return f"""
+          {library_type}: [
+              {libraries_joined}
+          ],"""
+
+  def gen_libs_list(self, libraries):
+    return self.gen_libs_list_impl("libs", libraries);
+
+  def gen_static_libs_list(self, libraries):
+    return self.gen_libs_list_impl("static_libs", libraries);
+
+  def gen_java_library_rule(self, name, src_dir, libraries):
+    return f"""\
+
+
+      // Library with {src_dir}/ sources for the test.
+      java_library {{
+          name: "{name}",
+          defaults: ["art-run-test-defaults"],{self.gen_libs_list(libraries)}
+          srcs: ["{src_dir}/**/*.java"],
+      }}"""
 
   # Is (successfully) running `run_test` supported?
   # TODO(b/147812905): Add run-time support for more tests.
@@ -493,6 +523,16 @@ class Generator:
     else:
       source_dir = "src"
 
+    src_library_rules = []
+    test_libraries = []
+    if os.path.isdir(os.path.join(run_test_path, "src2")):
+      src_library_rules.append(self.gen_java_library_rule(
+          f"{run_test_module_name}-{source_dir}",
+          source_dir,
+          test_libraries))
+      test_libraries.append(f"\"{run_test_module_name}-src\"")
+      source_dir = "src2"
+
     with open(bp_file, "w") as f:
       logging.debug(f"Writing `{bp_file}`.")
       f.write(textwrap.dedent(f"""\
@@ -507,14 +547,14 @@ class Generator:
           // to get the below license kinds:
           //   SPDX-license-identifier-Apache-2.0
           default_applicable_licenses: ["art_license"],
-      }}
+      }}{''.join(src_library_rules)}
 
       // Test's Dex code.
       java_test {{
           name: "{run_test_module_name}",
           defaults: ["art-run-test-defaults"],
           test_config_template: ":{test_config_template}",
-          srcs: ["{source_dir}/**/*.java"],
+          srcs: ["{source_dir}/**/*.java"],{self.gen_static_libs_list(test_libraries)}
           data: [
               ":{run_test_module_name}-expected-stdout",
               ":{run_test_module_name}-expected-stderr",
