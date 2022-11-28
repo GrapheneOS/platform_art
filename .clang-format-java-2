@@ -30,13 +30,8 @@ TabWidth: 2
 
 Language: Java
 
-AccessModifierOffset: -2
-AlignOperands: false
-AllowShortFunctionsOnASingleLine: Inline
-AlwaysBreakBeforeMultilineStrings: false
 ColumnLimit: 100
 CommentPragmas: (NOLINT|CHECK[^ ]*):.*
-ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
 IndentWidth: 2
 JavaImportGroups:
@@ -51,5 +46,3 @@ JavaImportGroups:
 - org
 - java
 - javax
-PenaltyBreakBeforeFirstCallParameter: 100000
-SpacesBeforeTrailingComments: 1
