@@ -49,7 +49,10 @@ class TrackingHeader final {
   }
 
   LinearAllocKind GetKind() const { return kind_; }
-  size_t GetSize() const { return size_ & ~kIs16Aligned; }
+  // Since we are linearly allocating and hop from one object to the next during
+  // visits, reading 'size_ == 0' indicates that there are no more objects to
+  // visit in the given page. But ASAN detects it as use-after-poison access.
+  ATTRIBUTE_NO_SANITIZE_ADDRESS size_t GetSize() const { return size_ & ~kIs16Aligned; }
   bool Is16Aligned() const { return size_ & kIs16Aligned; }
 
  private:
