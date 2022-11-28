@@ -32,7 +32,12 @@ import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
+
 import com.google.common.io.ByteStreams;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -40,10 +45,9 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 /**
  * Test libnativeloader behavior for apps and libs in various partitions by overlaying them over
@@ -218,26 +222,53 @@ public class LibnativeloaderTest extends BaseHostJUnit4Test {
 
         public void close() throws DeviceNotAvailableException { mCleanup.cleanup(); }
 
-        void pushExtendedPublicSystemOemLibs(ZipFile libApk) throws Exception {
-            pushNativeTestLib(libApk, "/system/${LIB}/libfoo.oem1.so");
-            pushNativeTestLib(libApk, "/system/${LIB}/libbar.oem1.so");
-            pushString("libfoo.oem1.so\n"
-                            + "libbar.oem1.so\n",
-                    "/system/etc/public.libraries-oem1.txt");
+        // Helper class to both push a library to device and record it in a public.libraries-xxx.txt
+        // file.
+        class PublicLibs {
+            private ZipFile mLibApk;
+            private List<String> mPublicLibs = new ArrayList<String>();
 
-            pushNativeTestLib(libApk, "/system/${LIB}/libfoo.oem2.so");
-            pushNativeTestLib(libApk, "/system/${LIB}/libbar.oem2.so");
-            pushString("libfoo.oem2.so\n"
-                            + "libbar.oem2.so\n",
-                    "/system/etc/public.libraries-oem2.txt");
+            PublicLibs(ZipFile libApk) {
+                mLibApk = libApk;
+            }
+
+            void addLib(String dir, String name) throws Exception {
+                pushNativeTestLib(mLibApk, dir + "/" + name);
+                mPublicLibs.add(name);
+            }
+
+            void pushPublicLibrariesFile(String path) throws DeviceNotAvailableException {
+                pushString(mPublicLibs.stream().collect(Collectors.joining("\n")) + "\n", path);
+            }
+        }
+
+        void pushExtendedPublicSystemOemLibs(ZipFile libApk) throws Exception {
+            var oem1Libs = new PublicLibs(libApk);
+            // Push libextpub<n>.oem1.so for each test. Since we cannot unload them, we need a fresh
+            // never-before-loaded library in each loadLibrary call.
+            for (int i = 1; i <= 2; ++i) {
+                oem1Libs.addLib("/system/${LIB}", "libsystem_extpub" + i + ".oem1.so");
+            }
+            oem1Libs.addLib("/system/${LIB}", "libsystem_extpub.oem1.so");
+            oem1Libs.pushPublicLibrariesFile("/system/etc/public.libraries-oem1.txt");
+
+            var oem2Libs = new PublicLibs(libApk);
+            oem2Libs.addLib("/system/${LIB}", "libsystem_extpub.oem2.so");
+            // libextpub_nouses.oem2.so is a library that the test apps don't have
+            // <uses-native-library> dependencies for.
+            oem2Libs.addLib("/system/${LIB}", "libsystem_extpub_nouses.oem2.so");
+            oem2Libs.pushPublicLibrariesFile("/system/etc/public.libraries-oem2.txt");
         }
 
         void pushExtendedPublicProductLibs(ZipFile libApk) throws Exception {
-            pushNativeTestLib(libApk, "/product/${LIB}/libfoo.product1.so");
-            pushNativeTestLib(libApk, "/product/${LIB}/libbar.product1.so");
-            pushString("libfoo.product1.so\n"
-                            + "libbar.product1.so\n",
-                    "/product/etc/public.libraries-product1.txt");
+            var product1Libs = new PublicLibs(libApk);
+            // Push libfoo<n>.product1.so for each test. Since we cannot unload them, we need a
+            // fresh never-before-loaded library in each loadLibrary call.
+            for (int i = 1; i <= 2; ++i) {
+                product1Libs.addLib("/product/${LIB}", "libproduct_extpub" + i + ".product1.so");
+            }
+            product1Libs.addLib("/product/${LIB}", "libproduct_extpub.product1.so");
+            product1Libs.pushPublicLibrariesFile("/product/etc/public.libraries-product1.txt");
         }
 
         void pushPrivateLibs(ZipFile libApk) throws Exception {
