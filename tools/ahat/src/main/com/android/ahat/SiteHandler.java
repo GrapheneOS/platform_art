@@ -102,7 +102,7 @@ class SiteHandler implements AhatHandler {
           DocString.link(
             DocString.formattedUri("objects?id=%d&heap=%s&class=%s",
               site.getId(), info.heap.getName(), className),
-            DocString.format("%,14d", info.numInstances)),
+            DocString.format("%,d", info.numInstances)),
           DocString.delta(false, false, info.numInstances, baseinfo.numInstances),
           DocString.text(info.heap.getName()),
           Summarizer.summarize(info.classObj));
