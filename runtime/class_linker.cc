@@ -3884,8 +3884,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   std::string dex_file_location = dex_file.GetLocation();
   // The following paths checks don't work on preopt when using boot dex files, where the dex
   // cache location is the one on device, and the dex_file's location is the one on host.
-  Runtime* runtime = Runtime::Current();
-  if (!(runtime->IsAotCompiler() && class_loader == nullptr && !kIsTargetBuild)) {
+  if (!(Runtime::Current()->IsAotCompiler() && class_loader == nullptr && !kIsTargetBuild)) {
     CHECK_GE(dex_file_location.length(), dex_cache_length)
         << dex_cache_location << " " << dex_file.GetLocation();
     const std::string dex_file_suffix = dex_file_location.substr(
@@ -3897,7 +3896,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   }
 
   // Check if we need to initialize OatFile data (.data.bimg.rel.ro and .bss
-  // sections) needed for code execution and register the oat code range.
+  // sections) needed for code execution.
   const OatFile* oat_file =
       (dex_file.GetOatDexFile() != nullptr) ? dex_file.GetOatDexFile()->GetOatFile() : nullptr;
   bool initialize_oat_file_data = (oat_file != nullptr) && oat_file->IsExecutable();
@@ -3913,13 +3912,6 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file,
   }
   if (initialize_oat_file_data) {
     oat_file->InitializeRelocations();
-    // Notify the fault handler about the new executable code range if needed.
-    size_t exec_offset = oat_file->GetOatHeader().GetExecutableOffset();
-    DCHECK_LE(exec_offset, oat_file->Size());
-    size_t exec_size = oat_file->Size() - exec_offset;
-    if (exec_size != 0u) {
-      runtime->AddGeneratedCodeRange(oat_file->Begin() + exec_offset, exec_size);
-    }
   }
 
   // Let hiddenapi assign a domain to the newly registered dex file.
@@ -10342,23 +10334,16 @@ void ClassLinker::CleanupClassLoaders() {
       }
     }
   }
-  std::set<const OatFile*> unregistered_oat_files;
   if (!to_delete.empty()) {
     JavaVMExt* vm = self->GetJniEnv()->GetVm();
     WriterMutexLock mu(self, *Locks::dex_lock_);
     for (auto it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ) {
-      const DexFile* dex_file = it->first;
       const DexCacheData& data = it->second;
       if (self->DecodeJObject(data.weak_root) == nullptr) {
         DCHECK(to_delete.end() != std::find_if(
             to_delete.begin(),
             to_delete.end(),
             [&](const ClassLoaderData& cld) { return cld.class_table == data.class_table; }));
-        if (dex_file->GetOatDexFile() != nullptr &&
-            dex_file->GetOatDexFile()->GetOatFile() != nullptr &&
-            dex_file->GetOatDexFile()->GetOatFile()->IsExecutable()) {
-          unregistered_oat_files.insert(dex_file->GetOatDexFile()->GetOatFile());
-        }
         vm->DeleteWeakGlobalRef(self, data.weak_root);
         it = dex_caches_.erase(it);
       } else {
@@ -10369,33 +10354,6 @@ void ClassLinker::CleanupClassLoaders() {
   for (ClassLoaderData& data : to_delete) {
     // CHA unloading analysis and SingleImplementaion cleanups are required.
     DeleteClassLoader(self, data, /*cleanup_cha=*/ true);
-  }
-  if (!unregistered_oat_files.empty()) {
-    // Removing the code range requires running an empty checkpoint and we cannot do
-    // that while holding the mutator lock. This thread is not currently `Runnable`
-    // for CC GC, so we need explicit unlock/lock instead of `ScopedThreadStateChange`.
-    // TODO: Clean up state transition in CC GC and possibly other GC types. b/259440389
-    bool runnable = (self->GetState() == ThreadState::kRunnable);
-    if (runnable) {
-      self->TransitionFromRunnableToSuspended(ThreadState::kNative);
-    } else {
-      Locks::mutator_lock_->SharedUnlock(self);
-    }
-    for (const OatFile* oat_file : unregistered_oat_files) {
-      // Notify the fault handler about removal of the executable code range if needed.
-      DCHECK(oat_file->IsExecutable());
-      size_t exec_offset = oat_file->GetOatHeader().GetExecutableOffset();
-      DCHECK_LE(exec_offset, oat_file->Size());
-      size_t exec_size = oat_file->Size() - exec_offset;
-      if (exec_size != 0u) {
-        Runtime::Current()->RemoveGeneratedCodeRange(oat_file->Begin() + exec_offset, exec_size);
-      }
-    }
-    if (runnable) {
-      self->TransitionFromSuspendedToRunnable();
-    } else {
-      Locks::mutator_lock_->SharedLock(self);
-    }
   }
 }
 
