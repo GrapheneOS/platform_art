@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+html {
+    /* Roboto has tabular numbers, use it if available, fallback to other sans. */
+    font-family: "Roboto", "Arial", "sans-serif";
+}
+
 div.menu {
   background-color: #eeffff;
 }
