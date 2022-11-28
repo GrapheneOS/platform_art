@@ -1147,6 +1147,9 @@ class Runtime {
     return no_sig_chain_;
   }
 
+  void AddGeneratedCodeRange(const void* start, size_t size);
+  void RemoveGeneratedCodeRange(const void* start, size_t size);
+
   // Trigger a flag reload from system properties or device congfigs.
   //
   // Should only be called from runtime init and zygote post fork as
@@ -1168,6 +1171,11 @@ class Runtime {
   static void InitPlatformSignalHandlers();
 
   Runtime();
+
+  bool HandlesSignalsInCompiledCode() const {
+    return !no_sig_chain_ &&
+           (implicit_null_checks_ || implicit_so_checks_ || implicit_suspend_checks_);
+  }
 
   void BlockSignals();
 
