@@ -94,16 +94,8 @@ struct WellKnownClasses {
   static jclass dalvik_annotation_optimization_FastNative;
   static jclass dalvik_annotation_optimization_NeverCompile;
   static jclass dalvik_annotation_optimization_NeverInline;
-  static jclass dalvik_system_BaseDexClassLoader;
-  static jclass dalvik_system_DelegateLastClassLoader;
-  static jclass dalvik_system_DexClassLoader;
   static jclass dalvik_system_EmulatedStackFrame;
-  static jclass dalvik_system_InMemoryDexClassLoader;
-  static jclass dalvik_system_PathClassLoader;
   static jclass java_lang_annotation_Annotation__array;
-  static jclass java_lang_BootClassLoader;
-  static jclass java_lang_ClassLoader;
-  static jclass java_lang_ClassNotFoundException;
   static jclass java_lang_Daemons;
   static jclass java_lang_Error;
   static jclass java_lang_IllegalAccessError;
@@ -122,13 +114,18 @@ struct WellKnownClasses {
   static jclass java_lang_Void;
   static jclass libcore_reflect_AnnotationMember__array;
 
-  static jmethodID dalvik_system_BaseDexClassLoader_getLdLibraryPath;
+  static ArtMethod* dalvik_system_BaseDexClassLoader_getLdLibraryPath;
+  static ArtMethod* dalvik_system_DelegateLastClassLoader_init;  // Only for the declaring class.
+  static ArtMethod* dalvik_system_DexClassLoader_init;  // Only for the declaring class.
+  static ArtMethod* dalvik_system_InMemoryDexClassLoader_init;  // Only for the declaring class.
+  static ArtMethod* dalvik_system_PathClassLoader_init;  // Only for the declaring class.
   static ArtMethod* dalvik_system_VMRuntime_hiddenApiUsed;
   static ArtMethod* java_lang_Boolean_valueOf;
+  static ArtMethod* java_lang_BootClassLoader_init;  // Only for the declaring class.
   static ArtMethod* java_lang_Byte_valueOf;
   static ArtMethod* java_lang_Character_valueOf;
-  static jmethodID java_lang_ClassLoader_loadClass;
-  static jmethodID java_lang_ClassNotFoundException_init;
+  static ArtMethod* java_lang_ClassLoader_loadClass;
+  static ArtMethod* java_lang_ClassNotFoundException_init;
   static jmethodID java_lang_Daemons_start;
   static jmethodID java_lang_Daemons_stop;
   static jmethodID java_lang_Daemons_waitForDaemonStart;
@@ -210,10 +207,22 @@ struct WellKnownClasses {
   static ArtField* org_apache_harmony_dalvik_ddmc_Chunk_offset;
   static ArtField* org_apache_harmony_dalvik_ddmc_Chunk_type;
 
+  static constexpr ClassFromField<&dalvik_system_BaseDexClassLoader_pathList>
+      dalvik_system_BaseDexClassLoader;
+  static constexpr ClassFromMethod<&dalvik_system_DelegateLastClassLoader_init>
+      dalvik_system_DelegateLastClassLoader;
+  static constexpr ClassFromMethod<&dalvik_system_DexClassLoader_init>
+      dalvik_system_DexClassLoader;
   static constexpr ClassFromField<&dalvik_system_DexFile_cookie> dalvik_system_DexFile;
   static constexpr ClassFromField<&dalvik_system_DexPathList_dexElements> dalvik_system_DexPathList;
   static constexpr ClassFromField<&dalvik_system_DexPathList__Element_dexFile>
       dalvik_system_DexPathList__Element;
+  static constexpr ClassFromMethod<&dalvik_system_InMemoryDexClassLoader_init>
+      dalvik_system_InMemoryDexClassLoader;
+  static constexpr ClassFromMethod<&dalvik_system_PathClassLoader_init>
+      dalvik_system_PathClassLoader;
+  static constexpr ClassFromMethod<&java_lang_BootClassLoader_init> java_lang_BootClassLoader;
+  static constexpr ClassFromField<&java_lang_ClassLoader_parent> java_lang_ClassLoader;
   static constexpr ClassFromField<&java_lang_Thread_daemon> java_lang_Thread;
   static constexpr ClassFromField<&java_lang_ThreadGroup_groups> java_lang_ThreadGroup;
   static constexpr ClassFromField<&java_lang_Throwable_cause> java_lang_Throwable;

@@ -80,7 +80,7 @@
 #include "ti_phase.h"
 #include "ti_redefine.h"
 #include "transform.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace openjdkjvmti {
 
@@ -927,40 +927,42 @@ jvmtiError ClassUtil::GetClassLoaderClassDescriptors(jvmtiEnv* env,
   } else if (count_ptr == nullptr || classes == nullptr) {
     return ERR(NULL_POINTER);
   }
-  art::JNIEnvExt* jnienv = self->GetJniEnv();
-  if (loader == nullptr ||
-      jnienv->IsInstanceOf(loader, art::WellKnownClasses::java_lang_BootClassLoader)) {
+  std::vector<const art::DexFile*> dex_files_storage;
+  const std::vector<const art::DexFile*>* dex_files = nullptr;
+  if (loader == nullptr) {
     // We can just get the dex files directly for the boot class path.
-    return CopyClassDescriptors(env,
-                                art::Runtime::Current()->GetClassLinker()->GetBootClassPath(),
-                                count_ptr,
-                                classes);
+    dex_files = &art::Runtime::Current()->GetClassLinker()->GetBootClassPath();
+  } else {
+    art::ScopedObjectAccess soa(self);
+    art::StackHandleScope<1> hs(self);
+    art::Handle<art::mirror::ClassLoader> class_loader(
+        hs.NewHandle(soa.Decode<art::mirror::ClassLoader>(loader)));
+    if (class_loader->InstanceOf(art::WellKnownClasses::java_lang_BootClassLoader.Get())) {
+      // We can just get the dex files directly for the boot class path.
+      dex_files = &art::Runtime::Current()->GetClassLinker()->GetBootClassPath();
+    } else if (!class_loader->InstanceOf(art::WellKnownClasses::java_lang_ClassLoader.Get())) {
+      return ERR(ILLEGAL_ARGUMENT);
+    } else if (!class_loader->InstanceOf(
+          art::WellKnownClasses::dalvik_system_BaseDexClassLoader.Get())) {
+      JVMTI_LOG(ERROR, env) << "GetClassLoaderClassDescriptors is only implemented for "
+                            << "BootClassPath and dalvik.system.BaseDexClassLoader class loaders";
+      // TODO Possibly return OK With no classes would  be better since these ones cannot have any
+      // real classes associated with them.
+      return ERR(NOT_IMPLEMENTED);
+    } else {
+      art::VisitClassLoaderDexFiles(
+          self,
+          class_loader,
+          [&](const art::DexFile* dex_file) {
+            dex_files_storage.push_back(dex_file);
+            return true;  // Continue with other dex files.
+          });
+      dex_files = &dex_files_storage;
+    }
   }
-  if (!jnienv->IsInstanceOf(loader, art::WellKnownClasses::java_lang_ClassLoader)) {
-    return ERR(ILLEGAL_ARGUMENT);
-  } else if (!jnienv->IsInstanceOf(loader,
-                                   art::WellKnownClasses::dalvik_system_BaseDexClassLoader)) {
-    JVMTI_LOG(ERROR, env) << "GetClassLoaderClassDescriptors is only implemented for "
-                          << "BootClassPath and dalvik.system.BaseDexClassLoader class loaders";
-    // TODO Possibly return OK With no classes would  be better since these ones cannot have any
-    // real classes associated with them.
-    return ERR(NOT_IMPLEMENTED);
-  }
-
-  art::ScopedObjectAccess soa(self);
-  art::StackHandleScope<1> hs(self);
-  art::Handle<art::mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<art::mirror::ClassLoader>(loader)));
-  std::vector<const art::DexFile*> dex_files;
-  art::VisitClassLoaderDexFiles(
-      self,
-      class_loader,
-      [&](const art::DexFile* dex_file) {
-        dex_files.push_back(dex_file);
-        return true;  // Continue with other dex files.
-      });
   // We hold the loader so the dex files won't go away until after this call at worst.
-  return CopyClassDescriptors(env, dex_files, count_ptr, classes);
+  DCHECK(dex_files != nullptr);
+  return CopyClassDescriptors(env, *dex_files, count_ptr, classes);
 }
 
 jvmtiError ClassUtil::GetClassLoaderClasses(jvmtiEnv* env,
@@ -973,19 +975,17 @@ jvmtiError ClassUtil::GetClassLoaderClasses(jvmtiEnv* env,
     return ERR(NULL_POINTER);
   }
   art::Thread* self = art::Thread::Current();
-  if (!self->GetJniEnv()->IsInstanceOf(initiating_loader,
-                                       art::WellKnownClasses::java_lang_ClassLoader)) {
-    return ERR(ILLEGAL_ARGUMENT);
-  }
-  if (self->GetJniEnv()->IsInstanceOf(initiating_loader,
-                                      art::WellKnownClasses::java_lang_BootClassLoader)) {
-    // Need to use null for the BootClassLoader.
-    initiating_loader = nullptr;
-  }
-
   art::ScopedObjectAccess soa(self);
   art::ObjPtr<art::mirror::ClassLoader> class_loader =
       soa.Decode<art::mirror::ClassLoader>(initiating_loader);
+  if (class_loader == nullptr) {
+    // Keep null, meaning the boot class loader.
+  } else if (!class_loader->InstanceOf(art::WellKnownClasses::java_lang_ClassLoader.Get())) {
+    return ERR(ILLEGAL_ARGUMENT);
+  } else if (class_loader->InstanceOf(art::WellKnownClasses::java_lang_BootClassLoader.Get())) {
+    // Need to use null for the BootClassLoader.
+    class_loader = nullptr;
+  }
 
   art::ClassLinker* class_linker = art::Runtime::Current()->GetClassLinker();
 

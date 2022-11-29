@@ -61,7 +61,7 @@ inline bool JniThrowNullPointerException(JNIEnv* env, const char* msg) {
 
   ScopedLocalRef<jclass> exc_class(env, env->FindClass("java/lang/NullPointerException"));
   if (exc_class.get() == nullptr) {
-    return -1;
+    return false;
   }
 
   return env->ThrowNew(exc_class.get(), msg) == JNI_OK;
