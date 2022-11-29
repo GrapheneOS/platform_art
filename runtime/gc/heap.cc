@@ -3826,12 +3826,11 @@ void Heap::ClearGrowthLimit() {
 
 void Heap::AddFinalizerReference(Thread* self, ObjPtr<mirror::Object>* object) {
   ScopedObjectAccess soa(self);
-  ScopedLocalRef<jobject> arg(self->GetJniEnv(), soa.AddLocalReference<jobject>(*object));
-  jvalue args[1];
-  args[0].l = arg.get();
-  InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_FinalizerReference_add, args);
-  // Restore object in case it gets moved.
-  *object = soa.Decode<mirror::Object>(arg.get());
+  StackHandleScope<1u> hs(self);
+  // Use handle wrapper to update the `*object` if the object gets moved.
+  HandleWrapperObjPtr<mirror::Object> h_object = hs.NewHandleWrapper(object);
+  WellKnownClasses::java_lang_ref_FinalizerReference_add->InvokeStatic<'V', 'L'>(
+      self, h_object.Get());
 }
 
 void Heap::RequestConcurrentGCAndSaveObject(Thread* self,

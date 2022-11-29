@@ -160,7 +160,6 @@ void CommonRuntimeTestImpl::FinalizeSetup() {
     ScopedObjectAccess soa(Thread::Current());
     runtime_->GetClassLinker()->RunEarlyRootClinits(soa.Self());
     InitializeIntrinsics();
-    WellKnownClasses::Init(Thread::Current()->GetJniEnv());
     runtime_->RunRootClinits(soa.Self());
   }
 

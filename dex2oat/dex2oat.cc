@@ -110,7 +110,6 @@
 #include "stream/file_output_stream.h"
 #include "vdex_file.h"
 #include "verifier/verifier_deps.h"
-#include "well_known_classes.h"
 
 namespace art {
 
@@ -2754,7 +2753,6 @@ class Dex2Oat final {
     Thread* self = Thread::Current();
     runtime_->GetClassLinker()->RunEarlyRootClinits(self);
     InitializeIntrinsics();
-    WellKnownClasses::Init(self->GetJniEnv());
     runtime_->RunRootClinits(self);
 
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we
