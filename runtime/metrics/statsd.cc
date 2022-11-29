@@ -292,6 +292,36 @@ constexpr int32_t EncodeInstructionSet(InstructionSet isa) {
   }
 }
 
+constexpr int32_t EncodeGcCollectorType(gc::CollectorType collector_type) {
+  switch (collector_type) {
+    case gc::CollectorType::kCollectorTypeMS:
+      return statsd::ART_DATUM_REPORTED__GC__ART_GC_COLLECTOR_TYPE_MARK_SWEEP;
+    case gc::CollectorType::kCollectorTypeCMS:
+      return statsd::ART_DATUM_REPORTED__GC__ART_GC_COLLECTOR_TYPE_CONCURRENT_MARK_SWEEP;
+    case gc::CollectorType::kCollectorTypeCMC:
+      return statsd::ART_DATUM_REPORTED__GC__ART_GC_COLLECTOR_TYPE_CONCURRENT_MARK_COMPACT;
+    case gc::CollectorType::kCollectorTypeSS:
+      return statsd::ART_DATUM_REPORTED__GC__ART_GC_COLLECTOR_TYPE_SEMI_SPACE;
+    case gc::kCollectorTypeCC:
+      return statsd::ART_DATUM_REPORTED__GC__ART_GC_COLLECTOR_TYPE_CONCURRENT_COPYING;
+    case gc::kCollectorTypeCCBackground:
+      return statsd::ART_DATUM_REPORTED__GC__ART_GC_COLLECTOR_TYPE_CONCURRENT_COPYING_BACKGROUND;
+    case gc::kCollectorTypeNone:
+    case gc::kCollectorTypeInstrumentation:
+    case gc::kCollectorTypeAddRemoveAppImageSpace:
+    case gc::kCollectorTypeDebugger:
+    case gc::kCollectorTypeHomogeneousSpaceCompact:
+    case gc::kCollectorTypeClassLinker:
+    case gc::kCollectorTypeJitCodeCache:
+    case gc::kCollectorTypeHprof:
+    case gc::kCollectorTypeAddRemoveSystemWeakHolder:
+    case gc::kCollectorTypeGetObjectsAllocated:
+    case gc::kCollectorTypeCriticalSection:
+    case gc::kCollectorTypeHeapTrim:
+      return statsd::ART_DATUM_REPORTED__GC__ART_GC_COLLECTOR_TYPE_UNKNOWN;
+  }
+}
+
 class StatsdBackend : public MetricsBackend {
  public:
   void BeginOrUpdateSession(const SessionData& session_data) override {
@@ -337,7 +367,8 @@ class StatsdBackend : public MetricsBackend {
         static_cast<int64_t>(value),
         statsd::ART_DATUM_REPORTED__DEX_METADATA_TYPE__ART_DEX_METADATA_TYPE_UNKNOWN,
         statsd::ART_DATUM_REPORTED__APK_TYPE__ART_APK_TYPE_UNKNOWN,
-        EncodeInstructionSet(kRuntimeISA));
+        EncodeInstructionSet(kRuntimeISA),
+        EncodeGcCollectorType(Runtime::Current()->GetHeap()->GetForegroundCollectorType()));
   }
 
   void ReportHistogram(DatumId /*histogram_type*/,
