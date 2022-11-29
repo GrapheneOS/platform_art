@@ -58,7 +58,7 @@ public class PrimaryDexOptimizerTestBase {
     @Mock protected PrimaryDexOptimizer.Injector mInjector;
     @Mock protected IArtd mArtd;
     @Mock protected UserManager mUserManager;
-    @Mock protected DexUseManager mDexUseManager;
+    @Mock protected DexUseManagerLocal mDexUseManager;
     protected PackageState mPkgState;
     protected AndroidPackage mPkg;
     protected PackageUserState mPkgUserStateNotInstalled;

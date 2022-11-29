@@ -37,6 +37,7 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.LocalManagerRegistry;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DetailedDexInfo;
 import com.android.server.art.model.OptimizeParams;
@@ -643,8 +644,9 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         }
 
         @NonNull
-        public DexUseManager getDexUseManager() {
-            return DexUseManager.getInstance();
+        public DexUseManagerLocal getDexUseManager() {
+            return Objects.requireNonNull(
+                    LocalManagerRegistry.getManager(DexUseManagerLocal.class));
         }
 
         @NonNull

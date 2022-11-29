@@ -111,7 +111,7 @@ class ObjectsHandler implements AhatHandler {
     heapChoice.append(")");
     doc.description(DocString.text("Heap"), heapChoice);
 
-    doc.description(DocString.text("Count"), DocString.format("%,14d", insts.size()));
+    doc.description(DocString.text("Count"), DocString.format("%,d", insts.size()));
     doc.end();
     doc.println(DocString.text(""));
 

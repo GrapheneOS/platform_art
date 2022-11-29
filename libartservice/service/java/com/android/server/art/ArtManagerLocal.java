@@ -120,7 +120,8 @@ public final class ArtManagerLocal {
     public int handleShellCommand(@NonNull Binder target, @NonNull ParcelFileDescriptor in,
             @NonNull ParcelFileDescriptor out, @NonNull ParcelFileDescriptor err,
             @NonNull String[] args) {
-        return new ArtShellCommand(this, mInjector.getPackageManagerLocal())
+        return new ArtShellCommand(
+                this, mInjector.getPackageManagerLocal(), mInjector.getDexUseManager())
                 .exec(target, in.getFileDescriptor(), out.getFileDescriptor(),
                         err.getFileDescriptor(), args);
     }
@@ -466,30 +467,6 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Notifies ART Service that a list of dex container files have been loaded.
-     *
-     * ART Service uses this information to:
-     * <ul>
-     *   <li>Determine whether an app is used by another app
-     *   <li>Record which secondary dex container files to optimize and how to optimize them
-     * </ul>
-     *
-     * @param loadingPackageName the name of the package who performs the load. ART Service assumes
-     *         that this argument has been validated that it exists in the snapshot and matches the
-     *         calling UID
-     * @param classLoaderContextByDexContainerFile a map from dex container files' absolute paths to
-     *         the string representations of the class loader contexts used to load them
-     * @throws IllegalArgumentException if {@code classLoaderContextByDexContainerFile} contains
-     *         invalid entries
-     */
-    public void notifyDexContainersLoaded(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull String loadingPackageName,
-            @NonNull Map<String, String> classLoaderContextByDexContainerFile) {
-        DexUseManager.getInstance().addDexUse(
-                snapshot, loadingPackageName, classLoaderContextByDexContainerFile);
-    }
-
-    /**
      * Adds a global listener that listens to any result of optimizing package(s), no matter run
      * manually or automatically. Calling this method multiple times with different callbacks is
      * allowed. Callbacks are executed in the same order as the one in which they were added. This
@@ -771,6 +748,12 @@ public final class ArtManagerLocal {
         @NonNull
         public UserManager getUserManager() {
             return Objects.requireNonNull(mContext.getSystemService(UserManager.class));
+        }
+
+        @NonNull
+        public DexUseManagerLocal getDexUseManager() {
+            return Objects.requireNonNull(
+                    LocalManagerRegistry.getManager(DexUseManagerLocal.class));
         }
     }
 }

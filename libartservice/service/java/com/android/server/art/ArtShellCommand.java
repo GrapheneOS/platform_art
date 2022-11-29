@@ -62,16 +62,18 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
     private final ArtManagerLocal mArtManagerLocal;
     private final PackageManagerLocal mPackageManagerLocal;
-    private final DexUseManager mDexUseManager = DexUseManager.getInstance();
+    private final DexUseManagerLocal mDexUseManager;
 
     @GuardedBy("sCancellationSignalMap")
     @NonNull
     private static final Map<String, CancellationSignal> sCancellationSignalMap = new HashMap<>();
 
-    public ArtShellCommand(
-            ArtManagerLocal artManagerLocal, PackageManagerLocal packageManagerLocal) {
+    public ArtShellCommand(@NonNull ArtManagerLocal artManagerLocal,
+            @NonNull PackageManagerLocal packageManagerLocal,
+            @NonNull DexUseManagerLocal dexUseManager) {
         mArtManagerLocal = artManagerLocal;
         mPackageManagerLocal = packageManagerLocal;
+        mDexUseManager = dexUseManager;
     }
 
     @Override
@@ -157,7 +159,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     return 0;
                 }
                 case "dex-use-notify": {
-                    mArtManagerLocal.notifyDexContainersLoaded(snapshot, getNextArgRequired(),
+                    mDexUseManager.notifyDexContainersLoaded(snapshot, getNextArgRequired(),
                             Map.of(getNextArgRequired(), getNextArgRequired()));
                     return 0;
                 }
@@ -174,7 +176,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     return 0;
                 }
                 case "dex-use-get-secondary": {
-                    for (DexUseManager.SecondaryDexInfo info :
+                    for (DexUseManagerLocal.SecondaryDexInfo info :
                             mDexUseManager.getSecondaryDexInfo(getNextArgRequired())) {
                         pw.println(info);
                     }
