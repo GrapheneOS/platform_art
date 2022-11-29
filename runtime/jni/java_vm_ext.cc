@@ -52,7 +52,7 @@
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "ti/agent.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
@@ -1185,12 +1185,14 @@ jstring JavaVMExt::GetLibrarySearchPath(JNIEnv* env, jobject class_loader) {
   if (class_loader == nullptr) {
     return nullptr;
   }
-  if (!env->IsInstanceOf(class_loader, WellKnownClasses::dalvik_system_BaseDexClassLoader)) {
+  ScopedObjectAccess soa(env);
+  ObjPtr<mirror::Object> mirror_class_loader = soa.Decode<mirror::Object>(class_loader);
+  if (!mirror_class_loader->InstanceOf(WellKnownClasses::dalvik_system_BaseDexClassLoader.Get())) {
     return nullptr;
   }
-  return reinterpret_cast<jstring>(env->CallObjectMethod(
-      class_loader,
-      WellKnownClasses::dalvik_system_BaseDexClassLoader_getLdLibraryPath));
+  return soa.AddLocalReference<jstring>(
+      WellKnownClasses::dalvik_system_BaseDexClassLoader_getLdLibraryPath->InvokeVirtual<'L'>(
+          soa.Self(), mirror_class_loader));
 }
 
 // JNI Invocation interface.
