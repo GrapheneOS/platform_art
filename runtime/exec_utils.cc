@@ -16,9 +16,11 @@
 
 #include "exec_utils.h"
 
+#include <errno.h>
 #include <poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sysexits.h>
 #include <unistd.h>
 
 #include <ctime>
@@ -88,6 +90,12 @@ pid_t ExecWithoutWait(const std::vector<std::string>& arg_vector, std::string* e
       execv(program, &args[0]);
     } else {
       execve(program, &args[0], envp);
+    }
+    if (errno == EACCES) {
+      // This usually happens when a non-Zygote process invokes dex2oat to generate an in-memory
+      // boot image, which is WAI.
+      PLOG(DEBUG) << "Failed to execute (" << ToCommandLine(arg_vector) << ")";
+      _exit(EX_NOPERM);
     }
     // This should be regarded as a crash rather than a normal return.
     PLOG(FATAL) << "Failed to execute (" << ToCommandLine(arg_vector) << ")";
