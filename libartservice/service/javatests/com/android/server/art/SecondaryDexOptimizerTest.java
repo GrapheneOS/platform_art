@@ -16,8 +16,8 @@
 
 package com.android.server.art;
 
-import static com.android.server.art.DexUseManager.DetailedSecondaryDexInfo;
-import static com.android.server.art.DexUseManager.SecondaryDexInfo;
+import static com.android.server.art.DexUseManagerLocal.DetailedSecondaryDexInfo;
+import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
@@ -103,7 +103,7 @@ public class SecondaryDexOptimizerTest {
 
     @Mock private SecondaryDexOptimizer.Injector mInjector;
     @Mock private IArtd mArtd;
-    @Mock private DexUseManager mDexUseManager;
+    @Mock private DexUseManagerLocal mDexUseManager;
     private PackageState mPkgState;
     private AndroidPackage mPkg;
     private CancellationSignal mCancellationSignal;

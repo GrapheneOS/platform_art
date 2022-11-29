@@ -57,8 +57,6 @@ class OverviewHandler implements AhatHandler {
 
     doc.section("Bytes Retained by Heap");
     printHeapSizes(doc);
-
-    doc.big(Menu.getMenu());
   }
 
   private void printHeapSizes(Doc doc) {

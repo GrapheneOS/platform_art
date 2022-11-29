@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,33 +14,6 @@
  * limitations under the License.
  */
 
-html {
-    /* Roboto has tabular numbers, use it if available, fallback to other sans. */
-    font-family: "Roboto", "Arial", "sans-serif";
-}
-
-div.menu {
-  background-color: #eeffff;
-}
-
-span.added {
-  color: #770000;
-}
-
-span.removed {
-  color: #007700;
-}
-
-/*
- * Most of the columns show numbers of bytes. Numbers should be right aligned.
- */
-table td {
-  background-color: #eeeeee;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-table th {
-  padding-left: 8px;
-  padding-right: 8px;
+public class Main {
+    public static void main(String[] args) {}
 }

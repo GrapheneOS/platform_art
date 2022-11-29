@@ -16,9 +16,9 @@
 
 package com.android.server.art;
 
-import static com.android.server.art.DexUseManager.DetailedSecondaryDexInfo;
-import static com.android.server.art.DexUseManager.DexLoader;
-import static com.android.server.art.DexUseManager.SecondaryDexInfo;
+import static com.android.server.art.DexUseManagerLocal.DetailedSecondaryDexInfo;
+import static com.android.server.art.DexUseManagerLocal.DexLoader;
+import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -73,8 +73,8 @@ public class DexUseManagerTest {
     private static final String SPLIT_APK = "/data/app/" + OWNING_PKG_NAME + "/split_0.apk";
 
     @Rule
-    public StaticMockitoRule mockitoRule = new StaticMockitoRule(
-            SystemProperties.class, Constants.class, Process.class);
+    public StaticMockitoRule mockitoRule =
+            new StaticMockitoRule(SystemProperties.class, Constants.class, Process.class);
 
     @Parameter(0) public String mVolumeUuid;
 
@@ -88,9 +88,9 @@ public class DexUseManagerTest {
     private final boolean mDefaultIsDexFilePublic = true;
 
     @Mock private PackageManagerLocal.FilteredSnapshot mSnapshot;
-    @Mock private DexUseManager.Injector mInjector;
+    @Mock private DexUseManagerLocal.Injector mInjector;
     @Mock private IArtd mArtd;
-    private DexUseManager mDexUseManager;
+    private DexUseManagerLocal mDexUseManager;
     private String mCeDir;
     private String mDeDir;
 
@@ -141,12 +141,13 @@ public class DexUseManagerTest {
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
 
-        mDexUseManager = new DexUseManager(mInjector);
+        mDexUseManager = new DexUseManagerLocal(mInjector);
     }
 
     @Test
     public void testPrimaryDexOwned() {
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, BASE_APK))
                 .containsExactly(DexLoader.create(OWNING_PKG_NAME, false /* isolatedProcess */));
@@ -160,7 +161,8 @@ public class DexUseManagerTest {
     @Test
     public void testPrimaryDexOwnedIsolated() {
         when(Process.isIsolated(anyInt())).thenReturn(true);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, BASE_APK))
                 .containsExactly(DexLoader.create(OWNING_PKG_NAME, true /* isolatedProcess */));
@@ -174,7 +176,8 @@ public class DexUseManagerTest {
     @Test
     public void testPrimaryDexOwnedSplitIsolated() {
         when(Process.isIsolated(anyInt())).thenReturn(true);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(SPLIT_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(SPLIT_APK, "CLC"));
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, BASE_APK)).isEmpty();
         assertThat(mDexUseManager.isPrimaryDexUsedByOtherApps(OWNING_PKG_NAME, BASE_APK)).isFalse();
@@ -186,7 +189,8 @@ public class DexUseManagerTest {
 
     @Test
     public void testPrimaryDexOthers() {
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, BASE_APK))
                 .containsExactly(DexLoader.create(LOADING_PKG_NAME, false /* isolatedProcess */));
@@ -211,22 +215,27 @@ public class DexUseManagerTest {
 
     private void verifyPrimaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
         // These should be ignored.
-        mDexUseManager.addDexUse(mSnapshot, Utils.PLATFORM_PACKAGE_NAME, Map.of(BASE_APK, "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME,
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, Utils.PLATFORM_PACKAGE_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
                 Map.of("/data/app/" + OWNING_PKG_NAME + "/non-existing.apk", "CLC"));
 
         // Some of these should be deduped.
-        mDexUseManager.addDexUse(
+        mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC", SPLIT_APK, "CLC"));
-        mDexUseManager.addDexUse(
+        mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC", SPLIT_APK, "CLC"));
 
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(BASE_APK, "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
         when(Process.isIsolated(anyInt())).thenReturn(true);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
         if (saveAndLoad) {
             File tempFile = File.createTempFile("dex-use", ".pb");
@@ -247,7 +256,8 @@ public class DexUseManagerTest {
 
     @Test
     public void testSecondaryDexOwned() {
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         List<? extends SecondaryDexInfo> dexInfoList =
                 mDexUseManager.getSecondaryDexInfo(OWNING_PKG_NAME);
@@ -262,7 +272,8 @@ public class DexUseManagerTest {
     @Test
     public void testSecondaryDexOwnedIsolated() {
         when(Process.isIsolated(anyInt())).thenReturn(true);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mDeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mDeDir + "/foo.apk", "CLC"));
 
         List<? extends SecondaryDexInfo> dexInfoList =
                 mDexUseManager.getSecondaryDexInfo(OWNING_PKG_NAME);
@@ -276,7 +287,8 @@ public class DexUseManagerTest {
 
     @Test
     public void testSecondaryDexOthers() {
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         List<? extends SecondaryDexInfo> dexInfoList =
                 mDexUseManager.getSecondaryDexInfo(OWNING_PKG_NAME);
@@ -290,7 +302,7 @@ public class DexUseManagerTest {
 
     @Test
     public void testSecondaryDexUnsupportedClc() {
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME,
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, LOADING_PKG_NAME,
                 Map.of(mCeDir + "/foo.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
 
         List<? extends SecondaryDexInfo> dexInfoList =
@@ -305,8 +317,10 @@ public class DexUseManagerTest {
 
     @Test
     public void testSecondaryDexVariableClc() {
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC2"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC2"));
 
         List<? extends SecondaryDexInfo> dexInfoList =
                 mDexUseManager.getSecondaryDexInfo(OWNING_PKG_NAME);
@@ -334,32 +348,34 @@ public class DexUseManagerTest {
 
     private void verifySecondaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
         // These should be ignored.
-        mDexUseManager.addDexUse(
+        mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, Utils.PLATFORM_PACKAGE_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
-        mDexUseManager.addDexUse(
+        mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of("/some/non-existing.apk", "CLC"));
 
         // Some of these should be deduped.
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME,
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
                 Map.of(mCeDir + "/foo.apk", "CLC", mCeDir + "/bar.apk", "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME,
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
                 Map.of(mCeDir + "/foo.apk", "UpdatedCLC", mCeDir + "/bar.apk", "UpdatedCLC"));
 
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
-        mDexUseManager.addDexUse(
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "UpdatedCLC"));
 
-        mDexUseManager.addDexUse(
+        mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/bar.apk", "DifferentCLC"));
-        mDexUseManager.addDexUse(
+        mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/bar.apk", "UpdatedDifferentCLC"));
 
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME,
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
                 Map.of(mCeDir + "/baz.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
 
         when(Process.isIsolated(anyInt())).thenReturn(true);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME,
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
                 Map.of(mCeDir + "/foo.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
 
         if (saveAndLoad) {
@@ -403,8 +419,10 @@ public class DexUseManagerTest {
         when(mArtd.getDexFileVisibility(mCeDir + "/foo.apk"))
                 .thenReturn(FileVisibility.OTHER_READABLE);
 
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         assertThat(mDexUseManager.getFilteredDetailedSecondaryDexInfo(OWNING_PKG_NAME))
                 .containsExactly(DetailedSecondaryDexInfo.create(mCeDir + "/foo.apk", mUserHandle,
@@ -419,11 +437,14 @@ public class DexUseManagerTest {
         when(mArtd.getDexFileVisibility(mCeDir + "/foo.apk"))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         when(Process.isIsolated(anyInt())).thenReturn(true);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         assertThat(mDexUseManager.getFilteredDetailedSecondaryDexInfo(OWNING_PKG_NAME))
                 .containsExactly(DetailedSecondaryDexInfo.create(mCeDir + "/foo.apk", mUserHandle,
@@ -437,10 +458,12 @@ public class DexUseManagerTest {
         when(mArtd.getDexFileVisibility(mCeDir + "/foo.apk"))
                 .thenReturn(FileVisibility.NOT_OTHER_READABLE);
 
-        mDexUseManager.addDexUse(mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         when(Process.isIsolated(anyInt())).thenReturn(true);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         assertThat(mDexUseManager.getFilteredDetailedSecondaryDexInfo(OWNING_PKG_NAME)).isEmpty();
     }
@@ -449,38 +472,40 @@ public class DexUseManagerTest {
     public void testFilteredDetailedSecondaryDexFilteredDueToNotFound() throws Exception {
         when(mArtd.getDexFileVisibility(mCeDir + "/foo.apk")).thenReturn(FileVisibility.NOT_FOUND);
 
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
         assertThat(mDexUseManager.getFilteredDetailedSecondaryDexInfo(OWNING_PKG_NAME)).isEmpty();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testUnknownPackage() {
-        mDexUseManager.addDexUse(mSnapshot, "bogus", Map.of(BASE_APK, "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, "bogus", Map.of(BASE_APK, "CLC"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testEmptyMap() {
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of());
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME, Map.of());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testNullKey() {
         var map = new HashMap<String, String>();
         map.put(null, "CLC");
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, map);
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME, map);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testNonAbsoluteKey() {
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, Map.of("a/b.jar", "CLC"));
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, OWNING_PKG_NAME, Map.of("a/b.jar", "CLC"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testNullValue() {
         var map = new HashMap<String, String>();
         map.put(mCeDir + "/foo.apk", null);
-        mDexUseManager.addDexUse(mSnapshot, OWNING_PKG_NAME, map);
+        mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME, map);
     }
 
     private AndroidPackage createPackage(String packageName) {

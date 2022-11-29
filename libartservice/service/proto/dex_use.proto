@@ -21,8 +21,8 @@ option java_multiple_files = true;
 
 import "art/libartservice/service/proto/common.proto";
 
-// The protobuf representation of `DexUseManager.DexUse`. See classes in
-// java/com/android/server/art/DexUseManager.java for details.
+// The protobuf representation of `DexUseManagerLocal.DexUse`. See classes in
+// java/com/android/server/art/DexUseManagerLocal.java for details.
 // This proto is persisted on disk and both forward and backward compatibility are considerations.
 message DexUseProto {
     repeated PackageDexUseProto package_dex_use = 1;

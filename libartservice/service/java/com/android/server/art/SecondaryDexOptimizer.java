@@ -16,7 +16,7 @@
 
 package com.android.server.art;
 
-import static com.android.server.art.DexUseManager.DetailedSecondaryDexInfo;
+import static com.android.server.art.DexUseManagerLocal.DetailedSecondaryDexInfo;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.OutputArtifacts.PermissionSettings.SeContext;
 import static com.android.server.art.Utils.Abi;
