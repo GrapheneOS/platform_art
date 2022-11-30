@@ -208,9 +208,10 @@ JitCodeCache* JitCodeCache::Create(bool used_only_for_profile_data,
     }
   }
 
-  size_t initial_capacity = Runtime::Current()->GetJITOptions()->GetCodeCacheInitialCapacity();
+  Runtime* runtime = Runtime::Current();
+  size_t initial_capacity = runtime->GetJITOptions()->GetCodeCacheInitialCapacity();
   // Check whether the provided max capacity in options is below 1GB.
-  size_t max_capacity = Runtime::Current()->GetJITOptions()->GetCodeCacheMaxCapacity();
+  size_t max_capacity = runtime->GetJITOptions()->GetCodeCacheMaxCapacity();
   // We need to have 32 bit offsets from method headers in code cache which point to things
   // in the data cache. If the maps are more than 4G apart, having multiple maps wouldn't work.
   // Ensure we're below 1 GB to be safe.
@@ -230,6 +231,11 @@ JitCodeCache* JitCodeCache::Create(bool used_only_for_profile_data,
                          is_zygote,
                          error_msg)) {
     return nullptr;
+  }
+
+  if (region.HasCodeMapping()) {
+    const MemMap* exec_pages = region.GetExecPages();
+    runtime->AddGeneratedCodeRange(exec_pages->Begin(), exec_pages->Size());
   }
 
   std::unique_ptr<JitCodeCache> jit_code_cache(new JitCodeCache());
@@ -266,7 +272,16 @@ JitCodeCache::JitCodeCache()
       histogram_profiling_info_memory_use_("Memory used for profiling info", 16) {
 }
 
-JitCodeCache::~JitCodeCache() {}
+JitCodeCache::~JitCodeCache() {
+  if (private_region_.HasCodeMapping()) {
+    const MemMap* exec_pages = private_region_.GetExecPages();
+    Runtime::Current()->RemoveGeneratedCodeRange(exec_pages->Begin(), exec_pages->Size());
+  }
+  if (shared_region_.HasCodeMapping()) {
+    const MemMap* exec_pages = shared_region_.GetExecPages();
+    Runtime::Current()->RemoveGeneratedCodeRange(exec_pages->Begin(), exec_pages->Size());
+  }
+}
 
 bool JitCodeCache::PrivateRegionContainsPc(const void* ptr) const {
   return private_region_.IsInExecSpace(ptr);
@@ -1888,7 +1903,8 @@ void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
   // We do this now and not in Jit::PostForkChildAction, as system server calls
   // JitCodeCache::PostForkChildAction first, and then does some code loading
   // that may result in new JIT tasks that we want to keep.
-  ThreadPool* pool = Runtime::Current()->GetJit()->GetThreadPool();
+  Runtime* runtime = Runtime::Current();
+  ThreadPool* pool = runtime->GetJit()->GetThreadPool();
   if (pool != nullptr) {
     pool->RemoveAllTasks(self);
   }
@@ -1899,7 +1915,7 @@ void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
   // to write to them.
   shared_region_.ResetWritableMappings();
 
-  if (is_zygote || Runtime::Current()->IsSafeMode()) {
+  if (is_zygote || runtime->IsSafeMode()) {
     // Don't create a private region for a child zygote. Regions are usually map shared
     // (to satisfy dual-view), and we don't want children of a child zygote to inherit it.
     return;
@@ -1914,8 +1930,8 @@ void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
   histogram_code_memory_use_.Reset();
   histogram_profiling_info_memory_use_.Reset();
 
-  size_t initial_capacity = Runtime::Current()->GetJITOptions()->GetCodeCacheInitialCapacity();
-  size_t max_capacity = Runtime::Current()->GetJITOptions()->GetCodeCacheMaxCapacity();
+  size_t initial_capacity = runtime->GetJITOptions()->GetCodeCacheInitialCapacity();
+  size_t max_capacity = runtime->GetJITOptions()->GetCodeCacheMaxCapacity();
   std::string error_msg;
   if (!private_region_.Initialize(initial_capacity,
                                   max_capacity,
@@ -1923,6 +1939,10 @@ void JitCodeCache::PostForkChildAction(bool is_system_server, bool is_zygote) {
                                   is_zygote,
                                   &error_msg)) {
     LOG(WARNING) << "Could not create private region after zygote fork: " << error_msg;
+  }
+  if (private_region_.HasCodeMapping()) {
+    const MemMap* exec_pages = private_region_.GetExecPages();
+    runtime->AddGeneratedCodeRange(exec_pages->Begin(), exec_pages->Size());
   }
 }
 
