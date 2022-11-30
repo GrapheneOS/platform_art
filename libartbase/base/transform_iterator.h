@@ -160,7 +160,7 @@ TransformIterator<BaseIterator, Function> MakeTransformIterator(BaseIterator bas
 }
 
 template <typename BaseRange, typename Function>
-auto MakeTransformRange(BaseRange& range, Function f) {
+auto MakeTransformRange(BaseRange&& range, Function f) {
   return MakeIterationRange(MakeTransformIterator(range.begin(), f),
                             MakeTransformIterator(range.end(), f));
 }
