@@ -265,6 +265,13 @@ ArenaAllocator::~ArenaAllocator() {
   pool_->FreeArenaChain(arena_head_);
 }
 
+void ArenaAllocator::ResetCurrentArena() {
+  UpdateBytesAllocated();
+  begin_ = nullptr;
+  ptr_ = nullptr;
+  end_ = nullptr;
+}
+
 uint8_t* ArenaAllocator::AllocFromNewArena(size_t bytes) {
   Arena* new_arena = pool_->AllocArena(std::max(arena_allocator::kArenaDefaultSize, bytes));
   DCHECK(new_arena != nullptr);
