@@ -33,8 +33,8 @@ namespace art {
 class TrackedArena final : public Arena {
  public:
   // Used for searching in maps. Only arena's starting address is relevant.
-  explicit TrackedArena(uint8_t* addr) { memory_ = addr; }
-  TrackedArena(uint8_t* start, size_t size);
+  explicit TrackedArena(uint8_t* addr) : pre_zygote_fork_(false) { memory_ = addr; }
+  TrackedArena(uint8_t* start, size_t size, bool pre_zygote_fork);
 
   template <typename PageVisitor>
   void VisitRoots(PageVisitor& visitor) const REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -74,11 +74,13 @@ class TrackedArena final : public Arena {
   void SetFirstObject(uint8_t* obj_begin, uint8_t* obj_end);
 
   void Release() override;
+  bool IsPreZygoteForkArena() const { return pre_zygote_fork_; }
 
  private:
   // first_obj_array_[i] is the object that overlaps with the ith page's
   // beginning, i.e. first_obj_array_[i] <= ith page_begin.
   std::unique_ptr<uint8_t*[]> first_obj_array_;
+  const bool pre_zygote_fork_;
 };
 
 // An arena-pool wherein allocations can be tracked so that the GC can visit all
@@ -95,7 +97,9 @@ class GcVisitedArenaPool final : public ArenaPool {
   static constexpr size_t kLinearAllocPoolSize = 32 * MB;
 #endif
 
-  explicit GcVisitedArenaPool(bool low_4gb = false, const char* name = "LinearAlloc");
+  explicit GcVisitedArenaPool(bool low_4gb = false,
+                              bool is_zygote = false,
+                              const char* name = "LinearAlloc");
   virtual ~GcVisitedArenaPool();
   Arena* AllocArena(size_t size) override;
   void FreeArenaChain(Arena* first) override;
@@ -120,10 +124,22 @@ class GcVisitedArenaPool final : public ArenaPool {
     }
   }
 
+  // Called in Heap::PreZygoteFork(). All allocations after this are done in
+  // arena-pool which is visited by userfaultfd.
+  void SetupPostZygoteMode() {
+    std::lock_guard<std::mutex> lock(lock_);
+    DCHECK(pre_zygote_fork_);
+    pre_zygote_fork_ = false;
+  }
+
  private:
   void FreeRangeLocked(uint8_t* range_begin, size_t range_size) REQUIRES(lock_);
-  // Add a map to the pool of at least min_size
-  void AddMap(size_t min_size) REQUIRES(lock_);
+  // Add a map (to be visited by userfaultfd) to the pool of at least min_size
+  // and return its address.
+  uint8_t* AddMap(size_t min_size) REQUIRES(lock_);
+  // Add a private anonymous map prior to zygote fork to the pool and return its
+  // address.
+  uint8_t* AddPreZygoteForkMap(size_t size) REQUIRES(lock_);
 
   class Chunk {
    public:
@@ -169,6 +185,11 @@ class GcVisitedArenaPool final : public ArenaPool {
   size_t bytes_allocated_ GUARDED_BY(lock_);
   const char* name_;
   const bool low_4gb_;
+  // Set to true in zygote process so that all linear-alloc allocations are in
+  // private-anonymous mappings and not on userfaultfd visited pages. At
+  // first zygote fork, it's set to false, after which all allocations are done
+  // in userfaultfd visited space.
+  bool pre_zygote_fork_ GUARDED_BY(lock_);
 
   DISALLOW_COPY_AND_ASSIGN(GcVisitedArenaPool);
 };

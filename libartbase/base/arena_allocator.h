@@ -366,6 +366,9 @@ class ArenaAllocator
     DCHECK_LE(ptr_, end_);
     return end_ - ptr_;
   }
+  // Resets the current arena in use, which will force us to get a new arena
+  // on next allocation.
+  void ResetCurrentArena();
 
   bool Contains(const void* ptr) const;
 

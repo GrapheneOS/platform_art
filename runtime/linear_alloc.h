@@ -91,6 +91,9 @@ class LinearAlloc {
   size_t GetUsedMemory() const REQUIRES(!lock_);
 
   ArenaPool* GetArenaPool() REQUIRES(!lock_);
+  // Force arena allocator to ask for a new arena on next allocation. This
+  // is to preserve private/shared clean pages across zygote fork.
+  void SetupForPostZygoteFork(Thread* self) REQUIRES(!lock_);
 
   // Return true if the linear alloc contains an address.
   bool Contains(void* ptr) const REQUIRES(!lock_);
