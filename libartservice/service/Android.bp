@@ -85,6 +85,7 @@ java_sdk_library {
         "java/**/*.java",
     ],
     libs: [
+        "androidx.annotation_annotation",
         "auto_value_annotations",
         // TODO(b/256866172): Transitive dependency, for r8 only.
         "framework-statsd.stubs.module_lib",

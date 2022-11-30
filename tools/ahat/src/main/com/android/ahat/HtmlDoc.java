@@ -18,6 +18,7 @@ package com.android.ahat;
 
 import java.io.PrintStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -26,6 +27,7 @@ import java.util.List;
 class HtmlDoc implements Doc {
   private PrintStream ps;
   private Column[] mCurrentTableColumns;
+  private List<String> mSections;
 
   /**
    * Create an HtmlDoc that writes to the given print stream.
@@ -34,6 +36,7 @@ class HtmlDoc implements Doc {
    */
   public HtmlDoc(PrintStream ps, DocString title, URI style) {
     this.ps = ps;
+    mSections = new ArrayList<>();
 
     ps.println("<!DOCTYPE html>");
     ps.println("<html>");
@@ -59,9 +62,10 @@ class HtmlDoc implements Doc {
 
   @Override
   public void section(String title) {
-    ps.print("<h2>");
+    ps.format("<h2 id=\"%d\">", mSections.size());
     ps.print(DocString.text(title).html());
     ps.println(":</h2>");
+    mSections.add(title);
   }
 
   @Override
@@ -182,8 +186,17 @@ class HtmlDoc implements Doc {
     mCurrentTableColumns = null;
   }
 
+  private void sidebar() {
+    ps.println("<div class=\"sidebar\">");
+    for (int i = 0; i < mSections.size(); i++) {
+      ps.format("<p><a href=\"#%d\">%s</a></p>", i, mSections.get(i));
+    }
+    ps.println("</div>");
+  }
+
   @Override
   public void close() {
+    sidebar();
     ps.println("</body>");
     ps.println("</html>");
     ps.close();

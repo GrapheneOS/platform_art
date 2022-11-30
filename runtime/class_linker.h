@@ -670,31 +670,19 @@ class ClassLinker {
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Creates a GlobalRef PathClassLoader or DelegateLastClassLoader (specified by loader_class)
-  // that can be used to load classes from the given dex files. The parent of the class loader
-  // will be set to `parent_loader`. If `parent_loader` is null the parent will be
-  // the boot class loader.
-  // If class_loader points to a different class than PathClassLoader or DelegateLastClassLoader
-  // this method will abort.
-  // Note: the objects are not completely set up. Do not use this outside of tests and the compiler.
-  jobject CreateWellKnownClassLoader(Thread* self,
-                                     const std::vector<const DexFile*>& dex_files,
-                                     jclass loader_class,
-                                     jobject parent_loader,
-                                     jobject shared_libraries = nullptr,
-                                     jobject shared_libraries_after = nullptr)
-      REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::dex_lock_);
-
-  // Calls CreateWellKnownClassLoader(self,
-  //                                  dex_files,
-  //                                  WellKnownClasses::dalvik_system_PathClassLoader,
-  //                                  nullptr)
+  // Calls `CreateWellKnownClassLoader()` with `WellKnownClasses::dalvik_system_PathClassLoader`,
+  // and null parent and libraries. Wraps the result in a JNI global reference.
   jobject CreatePathClassLoader(Thread* self, const std::vector<const DexFile*>& dex_files)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::dex_lock_);
 
-  // Non-GlobalRef version of CreateWellKnownClassLoader
+  // Creates a `PathClassLoader`, `DelegateLastClassLoader` or `InMemoryDexClassLoader`
+  // (specified by loader_class) that can be used to load classes from the given dex files.
+  // The parent of the class loader will be set to `parent_loader`. If `parent_loader` is
+  // null the parent will be the boot class loader.
+  // If `loader_class` points to a different class than `PathClassLoader`,
+  // `DelegateLastClassLoader` or `InMemoryDexClassLoader` this method will abort.
+  // Note: the objects are not completely set up. Do not use this outside of tests and the compiler.
   ObjPtr<mirror::ClassLoader> CreateWellKnownClassLoader(
       Thread* self,
       const std::vector<const DexFile*>& dex_files,

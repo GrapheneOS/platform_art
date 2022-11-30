@@ -27,9 +27,12 @@ import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import android.annotation.NonNull;
 import android.os.Binder;
+import android.os.Build;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.modules.utils.BasicShellCommandHandler;
@@ -76,6 +79,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         mDexUseManager = dexUseManager;
     }
 
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @Override
     public int onCommand(String cmd) {
         enforceRoot();

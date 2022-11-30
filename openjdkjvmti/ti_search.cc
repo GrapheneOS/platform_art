@@ -60,7 +60,7 @@
 #include "thread_list.h"
 #include "ti_logging.h"
 #include "ti_phase.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace openjdkjvmti {
 
@@ -339,33 +339,33 @@ jvmtiError SearchUtil::AddToDexClassLoader(jvmtiEnv* jvmti_env,
   // exceptions are swallowed.
 
   art::Thread* self = art::Thread::Current();
-  JNIEnv* env = self->GetJniEnv();
-  if (!env->IsInstanceOf(classloader, art::WellKnownClasses::dalvik_system_BaseDexClassLoader)) {
+  art::ScopedObjectAccess soa(self);
+  art::StackHandleScope<2u> hs(self);
+  art::Handle<art::mirror::ClassLoader> class_loader =
+      hs.NewHandle(soa.Decode<art::mirror::ClassLoader>(classloader));
+  if (!class_loader->InstanceOf(art::WellKnownClasses::dalvik_system_BaseDexClassLoader.Get())) {
     JVMTI_LOG(ERROR, jvmti_env) << "Unable to add " << segment << " to non BaseDexClassLoader!";
     return ERR(CLASS_LOADER_UNSUPPORTED);
   }
 
-  jmethodID add_dex_path_id = env->GetMethodID(
-      art::WellKnownClasses::dalvik_system_BaseDexClassLoader,
-      "addDexPath",
-      "(Ljava/lang/String;)V");
+  art::ArtMethod* add_dex_path_id =
+      art::WellKnownClasses::dalvik_system_BaseDexClassLoader->FindClassMethod(
+          "addDexPath", "(Ljava/lang/String;)V", art::kRuntimePointerSize);
   if (add_dex_path_id == nullptr) {
     return ERR(INTERNAL);
   }
 
-  ScopedLocalRef<jstring> dex_path(env, env->NewStringUTF(segment));
-  if (dex_path.get() == nullptr) {
+  art::Handle<art::mirror::String> dex_path =
+      hs.NewHandle(art::mirror::String::AllocFromModifiedUtf8(self, segment));
+  if (dex_path == nullptr) {
     return ERR(INTERNAL);
   }
-  env->CallVoidMethod(classloader, add_dex_path_id, dex_path.get());
 
-  if (env->ExceptionCheck()) {
-    {
-      art::ScopedObjectAccess soa(self);
-      JVMTI_LOG(ERROR, jvmti_env) << "Failed to add " << segment << " to classloader. Error was "
-                                  << self->GetException()->Dump();
-    }
-    env->ExceptionClear();
+  add_dex_path_id->InvokeVirtual<'V', 'L'>(self, class_loader.Get(), dex_path.Get());
+  if (self->IsExceptionPending()) {
+    JVMTI_LOG(ERROR, jvmti_env) << "Failed to add " << segment << " to classloader. Error was "
+                                << self->GetException()->Dump();
+    self->ClearException();
     return ERR(ILLEGAL_ARGUMENT);
   }
   return OK;
@@ -392,10 +392,13 @@ jvmtiError SearchUtil::AddToSystemClassLoaderSearch(jvmtiEnv* jvmti_env, const c
     return ERR(INTERNAL);
   }
 
-  art::Thread* self = art::Thread::Current();
-  JNIEnv* env = self->GetJniEnv();
-  if (!env->IsInstanceOf(loader, art::WellKnownClasses::dalvik_system_BaseDexClassLoader)) {
-    return ERR(INTERNAL);
+  {
+    art::ScopedObjectAccess soa(art::Thread::Current());
+    art::ObjPtr<art::mirror::ClassLoader> class_loader =
+        soa.Decode<art::mirror::ClassLoader>(loader);
+    if (!class_loader->InstanceOf(art::WellKnownClasses::dalvik_system_BaseDexClassLoader.Get())) {
+      return ERR(INTERNAL);
+    }
   }
 
   return AddToDexClassLoader(jvmti_env, loader, segment);
