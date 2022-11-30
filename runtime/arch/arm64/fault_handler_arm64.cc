@@ -38,56 +38,66 @@ extern "C" void art_quick_implicit_suspend();
 
 namespace art {
 
-uintptr_t FaultManager::GetFaultPc(siginfo_t* siginfo, void* context) {
+void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo,
+                                             void* context,
+                                             ArtMethod** out_method,
+                                             uintptr_t* out_return_pc,
+                                             uintptr_t* out_sp,
+                                             bool* out_is_stack_overflow) {
+  struct ucontext *uc = reinterpret_cast<struct ucontext *>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+
   // SEGV_MTEAERR (Async MTE fault) is delivered at an arbitrary point after the actual fault.
   // Register contents, including PC and SP, are unrelated to the fault and can only confuse ART
   // signal handlers.
   if (siginfo->si_signo == SIGSEGV && siginfo->si_code == SEGV_MTEAERR) {
-    VLOG(signals) << "Async MTE fault";
-    return 0u;
+    return;
   }
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  if (sc->sp == 0) {
-    VLOG(signals) << "Missing SP";
-    return 0u;
+  *out_sp = static_cast<uintptr_t>(sc->sp);
+  VLOG(signals) << "sp: " << *out_sp;
+  if (*out_sp == 0) {
+    return;
   }
-  return sc->pc;
-}
 
-uintptr_t FaultManager::GetFaultSp(void* context) {
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  return sc->sp;
+  // In the case of a stack overflow, the stack is not valid and we can't
+  // get the method from the top of the stack.  However it's in x0.
+  uintptr_t* fault_addr = reinterpret_cast<uintptr_t*>(sc->fault_address);
+  uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
+      reinterpret_cast<uint8_t*>(*out_sp) - GetStackOverflowReservedBytes(InstructionSet::kArm64));
+  if (overflow_addr == fault_addr) {
+    *out_method = reinterpret_cast<ArtMethod*>(sc->regs[0]);
+    *out_is_stack_overflow = true;
+  } else {
+    // The method is at the top of the stack.
+    *out_method = *reinterpret_cast<ArtMethod**>(*out_sp);
+    *out_is_stack_overflow = false;
+  }
+
+  // Work out the return PC.  This will be the address of the instruction
+  // following the faulting ldr/str instruction.
+  VLOG(signals) << "pc: " << std::hex
+      << static_cast<void*>(reinterpret_cast<uint8_t*>(sc->pc));
+
+  *out_return_pc = sc->pc + 4;
 }
 
 bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
-  uintptr_t fault_address = reinterpret_cast<uintptr_t>(info->si_addr);
-  if (!IsValidFaultAddress(fault_address)) {
+  if (!IsValidImplicitCheck(info)) {
     return false;
   }
+  // The code that looks for the catch location needs to know the value of the
+  // PC at the point of call.  For Null checks we insert a GC map that is immediately after
+  // the load/store instruction that might cause the fault.
 
-  // For null checks in compiled code we insert a stack map that is immediately
-  // after the load/store instruction that might cause the fault and we need to
-  // pass the return PC to the handler. For null checks in Nterp, we similarly
-  // need the return PC to recognize that this was a null check in Nterp, so
-  // that the handler can get the needed data from the Nterp frame.
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  ArtMethod** sp = reinterpret_cast<ArtMethod**>(sc->sp);
-  uintptr_t return_pc = sc->pc + 4u;
-  if (!IsValidMethod(*sp) || !IsValidReturnPc(sp, return_pc)) {
-    return false;
-  }
-
-  // Push the return PC to the stack and pass the fault address in LR.
+  // Push the gc map location to the stack and pass the fault address in LR.
   sc->sp -= sizeof(uintptr_t);
-  *reinterpret_cast<uintptr_t*>(sc->sp) = return_pc;
-  sc->regs[30] = fault_address;
+  *reinterpret_cast<uintptr_t*>(sc->sp) = sc->pc + 4;
+  sc->regs[30] = reinterpret_cast<uintptr_t>(info->si_addr);
 
-  // Arrange for the signal handler to return to the NPE entrypoint.
   sc->pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
   VLOG(signals) << "Generating null pointer exception";
   return true;
@@ -102,11 +112,12 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
   constexpr uint32_t checkinst =
       0xf9400000 | (kSuspendCheckRegister << 5) | (kSuspendCheckRegister << 0);
 
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  struct ucontext *uc = reinterpret_cast<struct ucontext *>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  VLOG(signals) << "checking suspend";
 
   uint32_t inst = *reinterpret_cast<uint32_t*>(sc->pc);
-  VLOG(signals) << "checking suspend; inst: " << std::hex << inst << " checkinst: " << checkinst;
+  VLOG(signals) << "inst: " << std::hex << inst << " checkinst: " << checkinst;
   if (inst != checkinst) {
     // The instruction is not good, not ours.
     return false;
@@ -130,8 +141,8 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
 
 bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
                                   void* context) {
-  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  struct ucontext *uc = reinterpret_cast<struct ucontext *>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
   VLOG(signals) << "sigcontext: " << std::hex << sc;
 
