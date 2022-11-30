@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 
 import android.content.pm.ApplicationInfo;
 import android.os.Binder;
+import android.os.Process;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 
@@ -39,7 +40,6 @@ import androidx.test.filters.SmallTest;
 
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.art.wrapper.Environment;
-import com.android.server.art.wrapper.Process;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
@@ -113,7 +113,7 @@ public class DexUseManagerTest {
         lenient().when(Constants.getNative64BitAbi()).thenReturn("arm64-v8a");
         lenient().when(Constants.getNative32BitAbi()).thenReturn("armeabi-v7a");
 
-        lenient().when(Process.isIsolated(anyInt())).thenReturn(false);
+        lenient().when(Process.isIsolatedUid(anyInt())).thenReturn(false);
 
         PackageState loadingPkgState = createPackageState(LOADING_PKG_NAME, "armeabi-v7a");
         lenient().when(mSnapshot.getPackageState(eq(LOADING_PKG_NAME))).thenReturn(loadingPkgState);
@@ -160,7 +160,7 @@ public class DexUseManagerTest {
 
     @Test
     public void testPrimaryDexOwnedIsolated() {
-        when(Process.isIsolated(anyInt())).thenReturn(true);
+        when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
@@ -175,7 +175,7 @@ public class DexUseManagerTest {
 
     @Test
     public void testPrimaryDexOwnedSplitIsolated() {
-        when(Process.isIsolated(anyInt())).thenReturn(true);
+        when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(SPLIT_APK, "CLC"));
 
@@ -231,7 +231,7 @@ public class DexUseManagerTest {
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, LOADING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
-        when(Process.isIsolated(anyInt())).thenReturn(true);
+        when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
         mDexUseManager.notifyDexContainersLoaded(
@@ -271,7 +271,7 @@ public class DexUseManagerTest {
 
     @Test
     public void testSecondaryDexOwnedIsolated() {
-        when(Process.isIsolated(anyInt())).thenReturn(true);
+        when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(mDeDir + "/foo.apk", "CLC"));
 
@@ -372,7 +372,7 @@ public class DexUseManagerTest {
         mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
                 Map.of(mCeDir + "/baz.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
 
-        when(Process.isIsolated(anyInt())).thenReturn(true);
+        when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
         mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
@@ -442,7 +442,7 @@ public class DexUseManagerTest {
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
-        when(Process.isIsolated(anyInt())).thenReturn(true);
+        when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
@@ -461,7 +461,7 @@ public class DexUseManagerTest {
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 
-        when(Process.isIsolated(anyInt())).thenReturn(true);
+        when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
 

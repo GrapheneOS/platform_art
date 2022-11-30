@@ -72,13 +72,17 @@ GarbageCollector::GarbageCollector(Heap* heap, const std::string& name)
       freed_bytes_histogram_((name_ + " freed-bytes").c_str(), kMemBucketSize, kMemBucketCount),
       gc_time_histogram_(nullptr),
       metrics_gc_count_(nullptr),
+      metrics_gc_count_delta_(nullptr),
       gc_throughput_histogram_(nullptr),
       gc_tracing_throughput_hist_(nullptr),
       gc_throughput_avg_(nullptr),
       gc_tracing_throughput_avg_(nullptr),
       gc_scanned_bytes_(nullptr),
+      gc_scanned_bytes_delta_(nullptr),
       gc_freed_bytes_(nullptr),
+      gc_freed_bytes_delta_(nullptr),
       gc_duration_(nullptr),
+      gc_duration_delta_(nullptr),
       cumulative_timings_(name),
       pause_histogram_lock_("pause histogram lock", kDefaultMutexLevel, true),
       is_transaction_active_(false),
@@ -203,11 +207,15 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   const uint64_t total_pause_time_us = total_pause_time_ns / 1'000;
   metrics->WorldStopTimeDuringGCAvg()->Add(total_pause_time_us);
   metrics->GcWorldStopTime()->Add(total_pause_time_us);
+  metrics->GcWorldStopTimeDelta()->Add(total_pause_time_us);
   metrics->GcWorldStopCount()->AddOne();
+  metrics->GcWorldStopCountDelta()->AddOne();
   // Report total collection time of all GCs put together.
   metrics->TotalGcCollectionTime()->Add(NsToMs(duration_ns));
+  metrics->TotalGcCollectionTimeDelta()->Add(NsToMs(duration_ns));
   if (are_metrics_initialized_) {
     metrics_gc_count_->Add(1);
+    metrics_gc_count_delta_->Add(1);
     // Report GC time in milliseconds.
     gc_time_histogram_->Add(NsToMs(duration_ns));
     // Throughput in bytes/s. Add 1us to prevent possible division by 0.
@@ -224,8 +232,11 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
     gc_throughput_avg_->Add(throughput);
 
     gc_scanned_bytes_->Add(current_iteration->GetScannedBytes());
+    gc_scanned_bytes_delta_->Add(current_iteration->GetScannedBytes());
     gc_freed_bytes_->Add(current_iteration->GetFreedBytes());
+    gc_freed_bytes_delta_->Add(current_iteration->GetFreedBytes());
     gc_duration_->Add(NsToMs(current_iteration->GetDurationNs()));
+    gc_duration_delta_->Add(NsToMs(current_iteration->GetDurationNs()));
   }
   is_transaction_active_ = false;
 }

@@ -26,7 +26,7 @@
 #include "common_runtime_test.h"
 #include "jni/jni_internal.h"
 #include "proxy_test.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
@@ -75,8 +75,8 @@ static bool LoadDexFiles(const std::string& path,
   ClassLinker* const linker = Runtime::Current()->GetClassLinker();
 
   StackHandleScope<2> hs(self);
-  Handle<mirror::Class> h_class = hs.NewHandle(WellKnownClasses::ToClass(
-      WellKnownClasses::dalvik_system_PathClassLoader));
+  Handle<mirror::Class> h_class =
+      hs.NewHandle(WellKnownClasses::dalvik_system_PathClassLoader.Get());
   Handle<mirror::ClassLoader> h_loader = hs.NewHandle(linker->CreateWellKnownClassLoader(
       self,
       MakeNonOwningPointerVector(*dex_files),

@@ -26,15 +26,14 @@
 #include "mirror/object.h"
 #include "native/dalvik_system_DexFile.h"
 #include "scoped_thread_state_change-inl.h"
-#include "well_known_classes.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
 // Returns true if the given class loader derives from BaseDexClassLoader.
 inline bool IsInstanceOfBaseDexClassLoader(Handle<mirror::ClassLoader> class_loader)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  return class_loader->InstanceOf(
-      WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_BaseDexClassLoader));
+  return class_loader->InstanceOf(WellKnownClasses::dalvik_system_BaseDexClassLoader.Get());
 }
 
 // Returns true if the given class loader is either a PathClassLoader or a DexClassLoader.
@@ -42,26 +41,21 @@ inline bool IsInstanceOfBaseDexClassLoader(Handle<mirror::ClassLoader> class_loa
 inline bool IsPathOrDexClassLoader(Handle<mirror::ClassLoader> class_loader)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Class> class_loader_class = class_loader->GetClass();
-  return
-      (class_loader_class ==
-          WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_PathClassLoader)) ||
-      (class_loader_class ==
-          WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DexClassLoader));
+  return (class_loader_class == WellKnownClasses::dalvik_system_PathClassLoader) ||
+         (class_loader_class == WellKnownClasses::dalvik_system_DexClassLoader);
 }
 
 // Returns true if the given class loader is an InMemoryDexClassLoader.
 inline bool IsInMemoryDexClassLoader(Handle<mirror::ClassLoader> class_loader)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Class> class_loader_class = class_loader->GetClass();
-  return (class_loader_class ==
-      WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_InMemoryDexClassLoader));
+  return (class_loader_class == WellKnownClasses::dalvik_system_InMemoryDexClassLoader);
 }
 
 inline bool IsDelegateLastClassLoader(Handle<mirror::ClassLoader> class_loader)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ObjPtr<mirror::Class> class_loader_class = class_loader->GetClass();
-  return class_loader_class ==
-      WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_DelegateLastClassLoader);
+  return class_loader_class == WellKnownClasses::dalvik_system_DelegateLastClassLoader;
 }
 
 // Visit the DexPathList$Element instances in the given classloader with the given visitor.

@@ -28,6 +28,7 @@ public class Main {
     assertEquals(10, $noinline$testRemoveTryBoundaryNested(60));
     assertEquals(-2000, $noinline$testRemoveTryBoundaryNestedButNotCatch(60, true));
     assertEquals(30, $noinline$testRemoveTryBoundaryNestedButNotCatch(60, false));
+    assertEquals(30, $noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(60, false));
   }
 
   public static void assertEquals(int expected, int result) {
@@ -274,6 +275,81 @@ public class Main {
         // TryBoundary kind:exit
       } catch (Error e) {
         return -2000;
+      }
+    } catch (Exception e) {
+      return -1000;
+    }
+    return a;
+  }
+
+  // We eliminate the return -1000 catch block which is outside of the loop in
+  // dead_code_elimination$initial. We can do so since we eliminated the TryBoundary of `a /= 2;`.
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (before)
+  /// CHECK:     TryBoundary
+  /// CHECK:     TryBoundary
+  /// CHECK:     TryBoundary
+  /// CHECK:     TryBoundary
+  /// CHECK-NOT: TryBoundary
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (before)
+  /// CHECK:     flags "catch_block"
+  /// CHECK:     flags "catch_block"
+  /// CHECK:     flags "catch_block"
+  /// CHECK-NOT: flags "catch_block"
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (before)
+  /// CHECK:     IntConstant -1000
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK:     TryBoundary
+  /// CHECK:     TryBoundary
+  /// CHECK-NOT: TryBoundary
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK:     flags "catch_block"
+  /// CHECK:     flags "catch_block"
+  /// CHECK-NOT: flags "catch_block"
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK-NOT: IntConstant -1000
+
+  // When removing that block, we are removing a block outside of a loop but we still need to update
+  // the loop information in the graph since we removed TryBoundary instructions inside of a loop
+  // and now `a /= 2;` is not considered part of a loop (Cannot throw so it will not `continue` and
+  // will always return).
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (before)
+  /// CHECK:     Div loop:B2
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK-NOT:  Div loop:B2
+
+  /// CHECK-START: int Main.$noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(int, boolean) dead_code_elimination$initial (after)
+  /// CHECK:      Div
+  /// CHECK-NOT:  Div
+  public static int $noinline$testNestedTryBoundariesWithLoopAndCatchOutsideOfLoop(
+          int a, boolean val) {
+    try {
+      for (int i = 0; i < 4; ++i) {
+        try {
+          try {
+            if (val) {
+              // TryBoundary kind:entry
+              throw new Error();
+              // TryBoundary kind:exit
+            }
+            // TryBoundary kind:exit
+          } catch (Exception e) {
+              continue;
+          }
+          // TryBoundary kind:entry
+          a /= 2;
+          // TryBoundary kind:exit
+          return a;
+        } catch (Error e) {
+          continue;
+        }
       }
     } catch (Exception e) {
       return -1000;

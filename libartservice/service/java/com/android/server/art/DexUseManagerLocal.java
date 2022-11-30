@@ -20,10 +20,14 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.os.Binder;
+import android.os.Build;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.UserHandle;
 import android.util.Log;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.Immutable;
@@ -38,7 +42,6 @@ import com.android.server.art.proto.PrimaryDexUseRecordProto;
 import com.android.server.art.proto.SecondaryDexUseProto;
 import com.android.server.art.proto.SecondaryDexUseRecordProto;
 import com.android.server.art.wrapper.Environment;
-import com.android.server.art.wrapper.Process;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -266,6 +269,7 @@ public class DexUseManagerLocal {
      * @throws IllegalArgumentException if {@code classLoaderContextByDexContainerFile} contains
      *         invalid entries
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     public void notifyDexContainersLoaded(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull String loadingPackageName,
             @NonNull Map<String, String> classLoaderContextByDexContainerFile) {
@@ -280,7 +284,7 @@ public class DexUseManagerLocal {
 
         // TODO(jiakaiz): Investigate whether it should also be considered as isolated process if
         // `Process.isSdkSandboxUid` returns true.
-        boolean isolatedProcess = Process.isIsolated(Binder.getCallingUid());
+        boolean isolatedProcess = Process.isIsolatedUid(Binder.getCallingUid());
 
         for (var entry : classLoaderContextByDexContainerFile.entrySet()) {
             String dexPath = Utils.assertNonEmpty(entry.getKey());
@@ -678,7 +682,7 @@ public class DexUseManagerLocal {
 
         abstract @NonNull String loadingPackageName();
 
-        /** @see Process#isIsolated(int) */
+        /** @see Process#isIsolatedUid(int) */
         abstract boolean isolatedProcess();
     }
 

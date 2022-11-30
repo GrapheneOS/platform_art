@@ -57,6 +57,7 @@
 #include "object_lock.h"
 #include "runtime.h"
 #include "transform.h"
+#include "well_known_classes-inl.h"
 
 namespace openjdkjvmti {
 
@@ -139,9 +140,8 @@ art::ObjPtr<art::mirror::ObjectArray<art::mirror::Object>> ClassLoaderHelper::Ge
     art::Handle<art::mirror::ClassLoader> loader) {
   art::StackHandleScope<4> hs(self);
 
-  art::Handle<art::mirror::Class>
-      base_dex_loader_class(hs.NewHandle(self->DecodeJObject(
-          art::WellKnownClasses::dalvik_system_BaseDexClassLoader)->AsClass()));
+  art::Handle<art::mirror::Class> base_dex_loader_class =
+      hs.NewHandle(art::WellKnownClasses::dalvik_system_BaseDexClassLoader.Get());
 
   // Get all the ArtFields so we can look in the BaseDexClassLoader
   art::ArtField* path_list_field =

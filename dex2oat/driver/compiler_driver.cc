@@ -1043,16 +1043,16 @@ static void VerifyClassLoaderClassesAreImageClasses(/* out */ HashSet<std::strin
   ScopedObjectAccess soa(Thread::Current());
   ScopedAssertNoThreadSuspension sants(__FUNCTION__);
   ObjPtr<mirror::Class> class_loader_classes[] = {
-      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_BaseDexClassLoader),
-      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DelegateLastClassLoader),
-      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_DexClassLoader),
+      WellKnownClasses::dalvik_system_BaseDexClassLoader.Get(),
+      WellKnownClasses::dalvik_system_DelegateLastClassLoader.Get(),
+      WellKnownClasses::dalvik_system_DexClassLoader.Get(),
       WellKnownClasses::dalvik_system_DexFile.Get(),
       WellKnownClasses::dalvik_system_DexPathList.Get(),
       WellKnownClasses::dalvik_system_DexPathList__Element.Get(),
-      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_InMemoryDexClassLoader),
-      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader),
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader),
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_ClassLoader),
+      WellKnownClasses::dalvik_system_InMemoryDexClassLoader.Get(),
+      WellKnownClasses::dalvik_system_PathClassLoader.Get(),
+      WellKnownClasses::java_lang_BootClassLoader.Get(),
+      WellKnownClasses::java_lang_ClassLoader.Get(),
   };
   for (ObjPtr<mirror::Class> klass : class_loader_classes) {
     std::string temp;

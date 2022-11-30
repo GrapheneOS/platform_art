@@ -44,3 +44,23 @@ table th {
   padding-left: 8px;
   padding-right: 8px;
 }
+
+.sidebar {
+  position: fixed;
+  right: 0;
+  top: 48px;
+  padding-left: 12px;
+  padding-right: 24px;
+  font-size: small;
+  border-left: 4px solid #dcedc8;
+}
+
+.sidebar a {
+  text-decoration: none;
+  color: #4285f4;
+}
+
+.sidebar a:hover {
+  text-decoration: underline;
+  color: #073042;
+}

@@ -778,14 +778,15 @@ void ClassLoaderContext::EncodeSharedLibAndParent(const ClassLoaderInfo& info,
 }
 
 // Returns the WellKnownClass for the given class loader type.
-static jclass GetClassLoaderClass(ClassLoaderContext::ClassLoaderType type) {
+static ObjPtr<mirror::Class> GetClassLoaderClass(ClassLoaderContext::ClassLoaderType type)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   switch (type) {
     case ClassLoaderContext::kPathClassLoader:
-      return WellKnownClasses::dalvik_system_PathClassLoader;
+      return WellKnownClasses::dalvik_system_PathClassLoader.Get();
     case ClassLoaderContext::kDelegateLastClassLoader:
-      return WellKnownClasses::dalvik_system_DelegateLastClassLoader;
+      return WellKnownClasses::dalvik_system_DelegateLastClassLoader.Get();
     case ClassLoaderContext::kInMemoryDexClassLoader:
-      return WellKnownClasses::dalvik_system_InMemoryDexClassLoader;
+      return WellKnownClasses::dalvik_system_InMemoryDexClassLoader.Get();
     case ClassLoaderContext::kInvalidClassLoader: break;  // will fail after the switch.
   }
   LOG(FATAL) << "Invalid class loader type " << type;
@@ -883,8 +884,7 @@ static ObjPtr<mirror::ClassLoader> CreateClassLoaderInternal(
                             compilation_sources.begin(),
                             compilation_sources.end());
   }
-  Handle<mirror::Class> loader_class = hs.NewHandle<mirror::Class>(
-      soa.Decode<mirror::Class>(GetClassLoaderClass(info.type)));
+  Handle<mirror::Class> loader_class = hs.NewHandle<mirror::Class>(GetClassLoaderClass(info.type));
   ObjPtr<mirror::ClassLoader> loader =
       Runtime::Current()->GetClassLinker()->CreateWellKnownClassLoader(
           self,

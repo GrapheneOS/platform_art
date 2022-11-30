@@ -19,6 +19,7 @@
 #include "android-base/logging.h"
 #include "base/array_ref.h"
 #include "base/bit_vector-inl.h"
+#include "base/logging.h"
 #include "base/scoped_arena_allocator.h"
 #include "base/scoped_arena_containers.h"
 #include "base/stl_util.h"
@@ -510,7 +511,11 @@ bool HDeadCodeElimination::CanPerformTryRemoval(const TryBelongingInformation& t
 
 void HDeadCodeElimination::DisconnectHandlersAndUpdateTryBoundary(
     HBasicBlock* block,
-    /* out */ bool* any_handler_in_loop) {
+    /* out */ bool* any_block_in_loop) {
+  if (block->IsInLoop()) {
+    *any_block_in_loop = true;
+  }
+
   // Disconnect the handlers.
   while (block->GetSuccessors().size() > 1) {
     HBasicBlock* handler = block->GetSuccessors()[1];
@@ -518,7 +523,7 @@ void HDeadCodeElimination::DisconnectHandlersAndUpdateTryBoundary(
     block->RemoveSuccessor(handler);
     handler->RemovePredecessor(block);
     if (handler->IsInLoop()) {
-      *any_handler_in_loop = true;
+      *any_block_in_loop = true;
     }
   }
 
@@ -532,27 +537,30 @@ void HDeadCodeElimination::DisconnectHandlersAndUpdateTryBoundary(
 
 void HDeadCodeElimination::RemoveTry(HBasicBlock* try_entry,
                                      const TryBelongingInformation& try_belonging_info,
-                                     /* out */ bool* any_handler_in_loop) {
+                                     /* out */ bool* any_block_in_loop) {
   // Update all try entries.
   DCHECK(try_entry->EndsWithTryBoundary());
   DCHECK(try_entry->GetLastInstruction()->AsTryBoundary()->IsEntry());
-  DisconnectHandlersAndUpdateTryBoundary(try_entry, any_handler_in_loop);
+  DisconnectHandlersAndUpdateTryBoundary(try_entry, any_block_in_loop);
 
   for (HBasicBlock* other_try_entry : try_belonging_info.coalesced_try_entries) {
     DCHECK(other_try_entry->EndsWithTryBoundary());
     DCHECK(other_try_entry->GetLastInstruction()->AsTryBoundary()->IsEntry());
-    DisconnectHandlersAndUpdateTryBoundary(other_try_entry, any_handler_in_loop);
+    DisconnectHandlersAndUpdateTryBoundary(other_try_entry, any_block_in_loop);
   }
 
   // Update the blocks in the try.
   for (HBasicBlock* block : try_belonging_info.blocks_in_try) {
     // Update the try catch information since now the try doesn't exist.
     block->SetTryCatchInformation(nullptr);
+    if (block->IsInLoop()) {
+      *any_block_in_loop = true;
+    }
 
     if (block->EndsWithTryBoundary()) {
       // Try exits.
       DCHECK(!block->GetLastInstruction()->AsTryBoundary()->IsEntry());
-      DisconnectHandlersAndUpdateTryBoundary(block, any_handler_in_loop);
+      DisconnectHandlersAndUpdateTryBoundary(block, any_block_in_loop);
 
       if (block->GetSingleSuccessor()->IsExitBlock()) {
         // `block` used to be a single exit TryBoundary that got turned into a Goto. It
@@ -623,13 +631,13 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
 
   const size_t total_tries = tries.size();
   size_t removed_tries = 0;
-  bool any_handler_in_loop = false;
+  bool any_block_in_loop = false;
 
   // Check which tries contain throwing instructions.
   for (const auto& entry : tries) {
     if (CanPerformTryRemoval(entry.second)) {
       ++removed_tries;
-      RemoveTry(entry.first, entry.second, &any_handler_in_loop);
+      RemoveTry(entry.first, entry.second, &any_block_in_loop);
     }
   }
 
@@ -644,8 +652,7 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
     // If we run the dominance recomputation without removing the code, those catch blocks will
     // not be part of the post order and won't be removed. If we don't run the dominance
     // recomputation, we risk RemoveDeadBlocks not running it and leaving the graph in an
-    // inconsistent state. So, what we can do is run RemoveDeadBlocks and if it didn't remove any
-    // block we trigger a recomputation.
+    // inconsistent state. So, what we can do is run RemoveDeadBlocks and force a recomputation.
     // Note that we are not guaranteed to remove a catch block if we have nested try blocks:
     //
     //   try {
@@ -659,18 +666,7 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
     // removed as the TryBoundary B might still throw into that catch. TryBoundary A and B don't get
     // coalesced since they have different catch handlers.
 
-    if (!RemoveDeadBlocks()) {
-      // If the catches that we modified were in a loop, we have to update the loop information.
-      if (any_handler_in_loop) {
-        graph_->ClearLoopInformation();
-        graph_->ClearDominanceInformation();
-        graph_->BuildDominatorTree();
-      } else {
-        graph_->ClearDominanceInformation();
-        graph_->ComputeDominanceInformation();
-        graph_->ComputeTryBlockInformation();
-      }
-    }
+    RemoveDeadBlocks(/* force_recomputation= */ true, any_block_in_loop);
     MaybeRecordStat(stats_, MethodCompilationStat::kRemovedTry, removed_tries);
     return true;
   } else {
@@ -678,7 +674,10 @@ bool HDeadCodeElimination::RemoveUnneededTries() {
   }
 }
 
-bool HDeadCodeElimination::RemoveDeadBlocks() {
+bool HDeadCodeElimination::RemoveDeadBlocks(bool force_recomputation,
+                                            bool force_loop_recomputation) {
+  DCHECK_IMPLIES(force_loop_recomputation, force_recomputation);
+
   // Use local allocator for allocating memory.
   ScopedArenaAllocator allocator(graph_->GetArenaStack());
 
@@ -707,8 +706,8 @@ bool HDeadCodeElimination::RemoveDeadBlocks() {
 
   // If we removed at least one block, we need to recompute the full
   // dominator tree and try block membership.
-  if (removed_one_or_more_blocks) {
-    if (rerun_dominance_and_loop_analysis) {
+  if (removed_one_or_more_blocks || force_recomputation) {
+    if (rerun_dominance_and_loop_analysis || force_loop_recomputation) {
       graph_->ClearLoopInformation();
       graph_->ClearDominanceInformation();
       graph_->BuildDominatorTree();
