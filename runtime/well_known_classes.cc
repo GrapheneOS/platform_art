@@ -26,6 +26,7 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "class_linker.h"
+#include "class_root-inl.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle_scope-inl.h"
@@ -62,7 +63,6 @@ jclass WellKnownClasses::java_lang_reflect_Parameter__array;
 jclass WellKnownClasses::java_lang_reflect_Proxy;
 jclass WellKnownClasses::java_lang_RuntimeException;
 jclass WellKnownClasses::java_lang_StackOverflowError;
-jclass WellKnownClasses::java_lang_String;
 jclass WellKnownClasses::java_lang_StringFactory;
 jclass WellKnownClasses::java_lang_System;
 jclass WellKnownClasses::java_lang_Void;
@@ -101,7 +101,7 @@ jmethodID WellKnownClasses::java_lang_reflect_Proxy_init;
 jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 ArtMethod* WellKnownClasses::java_lang_Short_valueOf;
-jmethodID WellKnownClasses::java_lang_String_charAt;
+ArtMethod* WellKnownClasses::java_lang_String_charAt;
 ArtMethod* WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
 ArtMethod* WellKnownClasses::java_lang_Thread_init;
 ArtMethod* WellKnownClasses::java_lang_Thread_run;
@@ -369,7 +369,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
   java_lang_RuntimeException = CacheClass(env, "java/lang/RuntimeException");
   java_lang_StackOverflowError = CacheClass(env, "java/lang/StackOverflowError");
-  java_lang_String = CacheClass(env, "java/lang/String");
   java_lang_StringFactory = CacheClass(env, "java/lang/StringFactory");
   java_lang_System = CacheClass(env, "java/lang/System");
   java_lang_Void = CacheClass(env, "java/lang/Void");
@@ -412,9 +411,8 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
 
   java_lang_reflect_InvocationTargetException_init = CacheMethod(env, java_lang_reflect_InvocationTargetException, false, "<init>", "(Ljava/lang/Throwable;)V");
   java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
-  java_lang_String_charAt = CacheMethod(env, java_lang_String, false, "charAt", "(I)C");
 
-  StackHandleScope<29u> hs(self);
+  StackHandleScope<28u> hs(self);
   Handle<mirror::Class> d_s_bdcl =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/BaseDexClassLoader;"));
   Handle<mirror::Class> d_s_dlcl =
@@ -445,8 +443,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Thread;"));
   Handle<mirror::Class> j_l_tg =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ThreadGroup;"));
-  Handle<mirror::Class> j_l_Throwable =
-      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Throwable;"));
   Handle<mirror::Class> j_l_i_MethodHandle =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandle;"));
   Handle<mirror::Class> j_l_i_MethodHandles =
@@ -537,6 +533,10 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   ObjPtr<mirror::Class> j_l_Float = java_lang_Float_valueOf->GetDeclaringClass();
   java_lang_Float_floatToRawIntBits =
       CacheMethod(j_l_Float, /*is_static=*/ true, "floatToRawIntBits", "(F)I", pointer_size);
+
+  ObjPtr<mirror::Class> j_l_String = GetClassRoot<mirror::String>(class_linker);
+  java_lang_String_charAt = CacheMethod(
+      j_l_String, /*is_static=*/ false, "charAt", "(I)C", pointer_size);
 
   java_lang_Thread_dispatchUncaughtException = CacheMethod(
       j_l_Thread.Get(),
@@ -675,16 +675,17 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_ThreadGroup_systemThreadGroup =
       CacheField(j_l_tg.Get(), /*is_static=*/ true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
 
+  ObjPtr<mirror::Class> j_l_Throwable = GetClassRoot<mirror::Throwable>(class_linker);
   java_lang_Throwable_cause = CacheField(
-      j_l_Throwable.Get(), /*is_static=*/ false, "cause", "Ljava/lang/Throwable;");
+      j_l_Throwable, /*is_static=*/ false, "cause", "Ljava/lang/Throwable;");
   java_lang_Throwable_detailMessage = CacheField(
-      j_l_Throwable.Get(), /*is_static=*/ false, "detailMessage", "Ljava/lang/String;");
+      j_l_Throwable, /*is_static=*/ false, "detailMessage", "Ljava/lang/String;");
   java_lang_Throwable_stackTrace = CacheField(
-      j_l_Throwable.Get(), /*is_static=*/ false, "stackTrace", "[Ljava/lang/StackTraceElement;");
+      j_l_Throwable, /*is_static=*/ false, "stackTrace", "[Ljava/lang/StackTraceElement;");
   java_lang_Throwable_stackState = CacheField(
-      j_l_Throwable.Get(), /*is_static=*/ false, "backtrace", "Ljava/lang/Object;");
+      j_l_Throwable, /*is_static=*/ false, "backtrace", "Ljava/lang/Object;");
   java_lang_Throwable_suppressedExceptions = CacheField(
-      j_l_Throwable.Get(), /*is_static=*/ false, "suppressedExceptions", "Ljava/util/List;");
+      j_l_Throwable, /*is_static=*/ false, "suppressedExceptions", "Ljava/util/List;");
 
   java_nio_Buffer_address = CacheField(j_n_b.Get(), /*is_static=*/ false, "address", "J");
   java_nio_Buffer_capacity = CacheField(j_n_b.Get(), /*is_static=*/ false, "capacity", "I");
@@ -761,7 +762,6 @@ void WellKnownClasses::Clear() {
   java_lang_reflect_Proxy = nullptr;
   java_lang_RuntimeException = nullptr;
   java_lang_StackOverflowError = nullptr;
-  java_lang_String = nullptr;
   java_lang_StringFactory = nullptr;
   java_lang_System = nullptr;
   java_lang_Void = nullptr;
