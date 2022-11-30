@@ -79,7 +79,7 @@ public class SecondaryDexOptimizerTest {
     private final OptimizeParams mOptimizeParams =
             new OptimizeParams.Builder("bg-dexopt")
                     .setCompilerFilter("speed-profile")
-                    .setFlags(ArtFlags.FLAG_FOR_SECONDARY_DEX, ArtFlags.FLAG_FOR_SECONDARY_DEX)
+                    .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX)
                     .build();
 
     private final ProfilePath mDex1RefProfile = AidlUtils.buildProfilePathForSecondaryRef(DEX_1);
@@ -167,19 +167,23 @@ public class SecondaryDexOptimizerTest {
                         new DexContainerFileOptimizeResult(DEX_1, true /* isPrimaryAbi */,
                                 "arm64-v8a", "speed-profile", OptimizeResult.OPTIMIZE_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                                false /* isSkippedDueToStorageLow */),
                         new DexContainerFileOptimizeResult(DEX_2, true /* isPrimaryAbi */,
                                 "arm64-v8a", "speed", OptimizeResult.OPTIMIZE_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                                false /* isSkippedDueToStorageLow */),
                         new DexContainerFileOptimizeResult(DEX_2, false /* isPrimaryAbi */,
                                 "armeabi-v7a", "speed", OptimizeResult.OPTIMIZE_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                                false /* isSkippedDueToStorageLow */),
                         new DexContainerFileOptimizeResult(DEX_3, true /* isPrimaryAbi */,
                                 "arm64-v8a", "verify", OptimizeResult.OPTIMIZE_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
-                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */));
+                                0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                                false /* isSkippedDueToStorageLow */));
 
         // It should use profile for dex 1.
 

@@ -30,6 +30,7 @@ import android.os.CancellationSignal;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.storage.StorageManager;
 
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -59,6 +60,7 @@ public class PrimaryDexOptimizerTestBase {
     @Mock protected IArtd mArtd;
     @Mock protected UserManager mUserManager;
     @Mock protected DexUseManagerLocal mDexUseManager;
+    @Mock protected StorageManager mStorageManager;
     protected PackageState mPkgState;
     protected AndroidPackage mPkg;
     protected PackageUserState mPkgUserStateNotInstalled;
@@ -71,6 +73,7 @@ public class PrimaryDexOptimizerTestBase {
         lenient().when(mInjector.isSystemUiPackage(any())).thenReturn(false);
         lenient().when(mInjector.getUserManager()).thenReturn(mUserManager);
         lenient().when(mInjector.getDexUseManager()).thenReturn(mDexUseManager);
+        lenient().when(mInjector.getStorageManager()).thenReturn(mStorageManager);
 
         lenient()
                 .when(SystemProperties.get("dalvik.vm.systemuicompilerfilter"))
@@ -95,6 +98,8 @@ public class PrimaryDexOptimizerTestBase {
                 .thenReturn(List.of(UserHandle.of(0), UserHandle.of(1), UserHandle.of(2)));
 
         lenient().when(mDexUseManager.isPrimaryDexUsedByOtherApps(any(), any())).thenReturn(false);
+
+        lenient().when(mStorageManager.getAllocatableBytes(any())).thenReturn(1l);
 
         mPkgUserStateNotInstalled = createPackageUserState(false /* installed */);
         mPkgUserStateInstalled = createPackageUserState(true /* installed */);

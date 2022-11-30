@@ -125,8 +125,7 @@ public class BackgroundDexOptJob {
                         .setPeriodic(JOB_INTERVAL_MS)
                         .setRequiresDeviceIdle(true)
                         .setRequiresCharging(true)
-                        .setRequiresBatteryNotLow(true)
-                        .setRequiresStorageNotLow(true);
+                        .setRequiresBatteryNotLow(true);
 
         Callback<ScheduleBackgroundDexoptJobCallback> callback =
                 mInjector.getConfig().getScheduleBackgroundDexoptJobCallback();
@@ -135,7 +134,14 @@ public class BackgroundDexOptJob {
                     callback.executor(), () -> { callback.get().onOverrideJobInfo(builder); });
         }
 
-        return mInjector.getJobScheduler().schedule(builder.build()) == JobScheduler.RESULT_SUCCESS
+        JobInfo info = builder.build();
+        if (info.isRequireStorageNotLow()) {
+            // See the javadoc of
+            // `ArtManagerLocal.ScheduleBackgroundDexoptJobCallback.onOverrideJobInfo` for details.
+            throw new IllegalStateException("'setRequiresStorageNotLow' must not be set");
+        }
+
+        return mInjector.getJobScheduler().schedule(info) == JobScheduler.RESULT_SUCCESS
                 ? ArtFlags.SCHEDULE_SUCCESS
                 : ArtFlags.SCHEDULE_JOB_SCHEDULER_FAILURE;
     }
@@ -227,9 +233,20 @@ public class BackgroundDexOptJob {
             } else {
                 return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_API;
             }
-        } else {
-            return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_JOB_FINISHED;
         }
+
+        boolean isSkippedDueToStorageLow =
+                result.dexoptResult()
+                        .getPackageOptimizeResults()
+                        .stream()
+                        .flatMap(packageResult
+                                -> packageResult.getDexContainerFileOptimizeResults().stream())
+                        .anyMatch(fileResult -> fileResult.isSkippedDueToStorageLow());
+        if (isSkippedDueToStorageLow) {
+            return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_NO_SPACE_LEFT;
+        }
+
+        return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_JOB_FINISHED;
     }
 
     static abstract class Result {}
