@@ -14,7 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e # Stop on error - the caller script may not have this set.
-$JAVAC "$@"
-mkdir -p classes-ex
-mv classes/OverridePackagePrivateMethodSuper.class classes-ex
+set -e
+
+export ASM_JAR="${ANDROID_BUILD_TOP}/prebuilts/misc/common/asm/asm-9.2.jar"
+
+# Move original classes to intermediate location.
+mv classes intermediate-classes
+mkdir classes
+
+# Transform intermediate classes.
+transformer_args="-cp ${ASM_JAR}:$PWD/transformer.jar transformer.ConstantTransformer"
+for class in intermediate-classes/*.class ; do
+  transformed_class=classes/$(basename ${class})
+  ${JAVA:-java} ${transformer_args} ${class} ${transformed_class}
+done
+
+# Remove class which we want missing at runtime.
+rm classes/MissingType.class
