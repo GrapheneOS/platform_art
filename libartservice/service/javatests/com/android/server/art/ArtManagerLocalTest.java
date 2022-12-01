@@ -79,7 +79,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @SmallTest
@@ -379,8 +380,8 @@ public class ArtManagerLocalTest {
         var result = mock(OptimizeResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        mArtManagerLocal.setOptimizePackagesCallback(Executors.newSingleThreadExecutor(),
-                (snapshot, reason, defaultPackages, builder) -> {
+        mArtManagerLocal.setOptimizePackagesCallback(
+                ForkJoinPool.commonPool(), (snapshot, reason, defaultPackages, builder) -> {
                     assertThat(reason).isEqualTo("bg-dexopt");
                     assertThat(defaultPackages).containsExactly(PKG_NAME, PKG_NAME_SYS_UI);
                     builder.setPackages(List.of(PKG_NAME)).setOptimizeParams(params);
@@ -402,8 +403,8 @@ public class ArtManagerLocalTest {
         var result = mock(OptimizeResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        mArtManagerLocal.setOptimizePackagesCallback(Executors.newSingleThreadExecutor(),
-                (snapshot, reason, defaultPackages, builder) -> {
+        mArtManagerLocal.setOptimizePackagesCallback(
+                ForkJoinPool.commonPool(), (snapshot, reason, defaultPackages, builder) -> {
                     builder.setPackages(List.of(PKG_NAME)).setOptimizeParams(params);
                 });
         mArtManagerLocal.clearOptimizePackagesCallback();
@@ -423,8 +424,8 @@ public class ArtManagerLocalTest {
         var params = new OptimizeParams.Builder("first-boot").build();
         var cancellationSignal = new CancellationSignal();
 
-        mArtManagerLocal.setOptimizePackagesCallback(Executors.newSingleThreadExecutor(),
-                (snapshot, reason, defaultPackages, builder) -> {
+        mArtManagerLocal.setOptimizePackagesCallback(
+                ForkJoinPool.commonPool(), (snapshot, reason, defaultPackages, builder) -> {
                     builder.setOptimizeParams(params);
                 });
 

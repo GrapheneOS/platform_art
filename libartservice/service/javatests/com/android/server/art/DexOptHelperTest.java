@@ -54,6 +54,7 @@ import com.android.server.pm.pkg.AndroidPackageSplit;
 import com.android.server.pm.pkg.PackageState;
 import com.android.server.pm.pkg.SharedLibrary;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -100,7 +101,7 @@ public class DexOptHelperTest {
     private AndroidPackage mPkgLib4;
     private AndroidPackage mPkgLibbaz;
     private CancellationSignal mCancellationSignal;
-    private ExecutorService mExecutor = Executors.newSingleThreadExecutor();
+    private ExecutorService mExecutor;
     private List<DexContainerFileOptimizeResult> mPrimaryResults;
     private List<DexContainerFileOptimizeResult> mSecondaryResults;
     private Config mConfig;
@@ -118,6 +119,7 @@ public class DexOptHelperTest {
         lenient().when(mAhm.isOatArtifactDeletionEnabled()).thenReturn(true);
 
         mCancellationSignal = new CancellationSignal();
+        mExecutor = Executors.newSingleThreadExecutor();
         mConfig = new Config();
 
         preparePackagesAndLibraries();
@@ -149,6 +151,11 @@ public class DexOptHelperTest {
         lenient().when(mInjector.getConfig()).thenReturn(mConfig);
 
         mDexOptHelper = new DexOptHelper(mInjector);
+    }
+
+    @After
+    public void tearDown() {
+        mExecutor.shutdown();
     }
 
     @Test
