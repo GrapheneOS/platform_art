@@ -1098,7 +1098,7 @@ extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self,
 static std::string DumpInstruction(ArtMethod* method, uint32_t dex_pc)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (dex_pc == static_cast<uint32_t>(-1)) {
-    CHECK(method == jni::DecodeArtMethod(WellKnownClasses::java_lang_String_charAt));
+    CHECK(method == WellKnownClasses::java_lang_String_charAt);
     return "<native>";
   } else {
     CodeItemInstructionAccessor accessor = method->DexInstructions();
@@ -1176,7 +1176,7 @@ static void DumpB74410240DebugData(ArtMethod** sp) REQUIRES_SHARED(Locks::mutato
       if (dex_pc == static_cast<uint32_t>(-1)) {
         tag = "special ";
         CHECK(inline_info.Equals(inline_infos.back()));
-        caller = jni::DecodeArtMethod(WellKnownClasses::java_lang_String_charAt);
+        caller = WellKnownClasses::java_lang_String_charAt;
         CHECK_EQ(caller->GetDexMethodIndex(), method_index);
       } else {
         ObjPtr<mirror::DexCache> dex_cache = caller->GetDexCache();

@@ -22,6 +22,7 @@
 
 #include "art_method-inl.h"
 #include "class_linker.h"
+#include "class_root-inl.h"
 #include "common_runtime_test.h"
 #include "dex/primitive.h"
 #include "handle_scope-inl.h"
@@ -34,7 +35,6 @@
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-current-inl.h"
-#include "well_known_classes.h"
 
 namespace art {
 
@@ -199,18 +199,12 @@ TEST_F(ReferenceTableTest, Basics) {
     // avoids having to create the low-level args array ourselves.
     Handle<mirror::Object> h_with_trace;
     {
-      jmethodID substr = soa.Env()->GetMethodID(WellKnownClasses::java_lang_String,
-                                                "substring",
-                                                "(II)Ljava/lang/String;");
+      ArtMethod* substr = GetClassRoot<mirror::String>()->FindClassMethod(
+          "substring", "(II)Ljava/lang/String;", kRuntimePointerSize);
       ASSERT_TRUE(substr != nullptr);
-      jobject jobj = soa.Env()->AddLocalReference<jobject>(h_without_trace.Get());
-      ASSERT_TRUE(jobj != nullptr);
-      jobject result = soa.Env()->CallObjectMethod(jobj,
-                                                   substr,
-                                                   static_cast<jint>(0),
-                                                   static_cast<jint>(4));
-      ASSERT_TRUE(result != nullptr);
-      h_with_trace = hs.NewHandle(soa.Self()->DecodeJObject(result));
+      h_with_trace = hs.NewHandle(
+          substr->InvokeFinal<'L', 'I', 'I'>(soa.Self(), h_without_trace.Get(), 0, 4));
+      ASSERT_TRUE(h_with_trace != nullptr);
     }
 
     Handle<mirror::Object> h_ref;

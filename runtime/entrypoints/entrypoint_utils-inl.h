@@ -34,7 +34,6 @@
 #include "imt_conflict_table.h"
 #include "imtable-inl.h"
 #include "indirect_reference_table.h"
-#include "jni/jni_internal.h"
 #include "mirror/array-alloc-inl.h"
 #include "mirror/class-alloc-inl.h"
 #include "mirror/class-inl.h"
@@ -122,7 +121,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
     uint32_t method_index = code_info.GetMethodIndexOf(inline_info);
     if (inline_info.GetDexPc() == static_cast<uint32_t>(-1)) {
       // "charAt" special case. It is the only non-leaf method we inline across dex files.
-      ArtMethod* inlined_method = jni::DecodeArtMethod(WellKnownClasses::java_lang_String_charAt);
+      ArtMethod* inlined_method = WellKnownClasses::java_lang_String_charAt;
       DCHECK_EQ(inlined_method->GetDexMethodIndex(), method_index);
       return inlined_method;
     }

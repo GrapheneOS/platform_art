@@ -19,43 +19,53 @@
 #include <memory>
 
 #include "class_loader_context.h"
+#include "class_root-inl.h"
+#include "mirror/object_array-alloc-inl.h"
 #include "native_util.h"
 #include "nativehelper/jni_macros.h"
-#include "well_known_classes.h"
 
 namespace art {
 
-static bool append_string(JNIEnv* env, jobjectArray array, uint32_t& i, const std::string& string) {
-  ScopedLocalRef<jstring> jstring(env, env->NewStringUTF(string.c_str()));
-  if (jstring.get() == nullptr) {
-    DCHECK(env->ExceptionCheck());
+static bool append_string(Thread* self,
+                          Handle<mirror::ObjectArray<mirror::String>> array,
+                          uint32_t& i,
+                          const std::string& string) REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::String> ostring = mirror::String::AllocFromModifiedUtf8(self, string.c_str());
+  if (ostring == nullptr) {
+    DCHECK(self->IsExceptionPending());
     return false;
   }
-  env->SetObjectArrayElement(array, i++, jstring.get());
+  // We're initializing a newly allocated array object, so we do not need to record that under
+  // a transaction. If the transaction is aborted, the whole object shall be unreachable.
+  array->SetWithoutChecks</*kTransactionActive=*/ false, /*kCheckTransaction=*/ false>(i, ostring);
+  ++i;
   return true;
 }
 
 static jobjectArray BaseDexClassLoader_computeClassLoaderContextsNative(JNIEnv* env,
                                                                         jobject class_loader) {
   CHECK(class_loader != nullptr);
-  std::map<std::string, std::string> contextMap =
+  std::map<std::string, std::string> context_map =
       ClassLoaderContext::EncodeClassPathContextsForClassLoader(class_loader);
-  jobjectArray result = env->NewObjectArray(2 * contextMap.size(),
-                                            WellKnownClasses::java_lang_String,
-                                            nullptr);
-  if (result == nullptr) {
-    DCHECK(env->ExceptionCheck());
+  Thread* self = down_cast<JNIEnvExt*>(env)->GetSelf();
+  ScopedObjectAccess soa(self);
+  StackHandleScope<1u> hs(self);
+  Handle<mirror::ObjectArray<mirror::String>> array = hs.NewHandle(
+      mirror::ObjectArray<mirror::String>::Alloc(
+          self, GetClassRoot<mirror::ObjectArray<mirror::String>>(), 2 * context_map.size()));
+  if (array == nullptr) {
+    DCHECK(self->IsExceptionPending());
     return nullptr;
   }
   uint32_t i = 0;
-  for (const auto& classpath_to_context : contextMap) {
+  for (const auto& classpath_to_context : context_map) {
     const std::string& classpath = classpath_to_context.first;
     const std::string& context = classpath_to_context.second;
-    if (!append_string(env, result, i, classpath) || !append_string(env, result, i, context)) {
+    if (!append_string(self, array, i, classpath) || !append_string(self, array, i, context)) {
       return nullptr;
     }
   }
-  return result;
+  return soa.AddLocalReference<jobjectArray>(array.Get());
 }
 
 static JNINativeMethod gMethods[] = {
