@@ -2166,20 +2166,26 @@ void Runtime::InitNativeMethods() {
   // By setting calling class to java.lang.Object, the caller location for these
   // JNI libs is core-oj.jar in the ART APEX, and hence they are loaded from the
   // com_android_art linker namespace.
+  jclass java_lang_Object;
+  {
+    ScopedObjectAccess soa(self);
+    java_lang_Object = reinterpret_cast<jclass>(
+        GetJavaVM()->AddGlobalRef(self, GetClassRoot<mirror::Object>(GetClassLinker())));
+  }
 
   // libicu_jni has to be initialized before libopenjdk{d} due to runtime dependency from
   // libopenjdk{d} to Icu4cMetadata native methods in libicu_jni. See http://b/143888405
   {
     std::string error_msg;
     if (!java_vm_->LoadNativeLibrary(
-          env, "libicu_jni.so", nullptr, WellKnownClasses::java_lang_Object, &error_msg)) {
+          env, "libicu_jni.so", nullptr, java_lang_Object, &error_msg)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"libicu_jni.so\": " << error_msg;
     }
   }
   {
     std::string error_msg;
     if (!java_vm_->LoadNativeLibrary(
-          env, "libjavacore.so", nullptr, WellKnownClasses::java_lang_Object, &error_msg)) {
+          env, "libjavacore.so", nullptr, java_lang_Object, &error_msg)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"libjavacore.so\": " << error_msg;
     }
   }
@@ -2189,10 +2195,11 @@ void Runtime::InitNativeMethods() {
                                                 : "libopenjdk.so";
     std::string error_msg;
     if (!java_vm_->LoadNativeLibrary(
-          env, kOpenJdkLibrary, nullptr, WellKnownClasses::java_lang_Object, &error_msg)) {
+          env, kOpenJdkLibrary, nullptr, java_lang_Object, &error_msg)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"" << kOpenJdkLibrary << "\": " << error_msg;
     }
   }
+  env->DeleteGlobalRef(java_lang_Object);
 
   // Initialize well known classes that may invoke runtime native methods.
   WellKnownClasses::LateInit(env);
