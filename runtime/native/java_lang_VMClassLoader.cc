@@ -18,6 +18,8 @@
 
 #include "base/zip_archive.h"
 #include "class_linker.h"
+#include "base/transform_iterator.h"
+#include "base/stl_util.h"
 #include "dex/descriptors_names.h"
 #include "dex/dex_file_loader.h"
 #include "dex/utf.h"
@@ -25,12 +27,14 @@
 #include "jni/jni_internal.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-alloc-inl.h"
 #include "native_util.h"
 #include "nativehelper/jni_macros.h"
 #include "nativehelper/scoped_local_ref.h"
 #include "nativehelper/scoped_utf_chars.h"
 #include "obj_ptr.h"
 #include "scoped_fast_native_object_access-inl.h"
+#include "string_array_utils.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -129,28 +133,37 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
  * Returns an array of entries from the boot classpath that could contain resources.
  */
 static jobjectArray VMClassLoader_getBootClassPathEntries(JNIEnv* env, jclass) {
-  const std::vector<const DexFile*>& path =
-      Runtime::Current()->GetClassLinker()->GetBootClassPath();
-  jobjectArray array =
-      env->NewObjectArray(path.size(), WellKnownClasses::java_lang_String, nullptr);
-  if (array == nullptr) {
-    DCHECK(env->ExceptionCheck());
-    return nullptr;
-  }
-  for (size_t i = 0; i < path.size(); ++i) {
-    const DexFile* dex_file = path[i];
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const std::vector<const DexFile*>& path = class_linker->GetBootClassPath();
+  auto is_base_dex = [](const DexFile* dex_file) {
+    return !DexFileLoader::IsMultiDexLocation(dex_file->GetLocation().c_str());
+  };
+  size_t jar_count = std::count_if(path.begin(), path.end(), is_base_dex);
 
+  const DexFile* last_dex_file = nullptr;
+  auto dchecked_is_base_dex = [&](const DexFile* dex_file) {
     // For multidex locations, e.g., x.jar!classes2.dex, we want to look into x.jar.
-    const std::string location(DexFileLoader::GetBaseLocation(dex_file->GetLocation()));
-
-    ScopedLocalRef<jstring> javaPath(env, env->NewStringUTF(location.c_str()));
-    if (javaPath.get() == nullptr) {
-      DCHECK(env->ExceptionCheck());
-      return nullptr;
+    // But we do not need to look into the base dex file more than once so we filter
+    // out multidex locations using the fact that they follow the base location.
+    if (kIsDebugBuild) {
+      if (is_base_dex(dex_file)) {
+        CHECK_EQ(DexFileLoader::GetBaseLocation(dex_file->GetLocation().c_str()),
+                 dex_file->GetLocation());
+      } else {
+        CHECK(last_dex_file != nullptr);
+        CHECK_EQ(DexFileLoader::GetBaseLocation(dex_file->GetLocation().c_str()),
+                 DexFileLoader::GetBaseLocation(last_dex_file->GetLocation().c_str()));
+      }
+      last_dex_file = dex_file;
     }
-    env->SetObjectArrayElement(array, i, javaPath.get());
-  }
-  return array;
+    return is_base_dex(dex_file);
+  };
+  auto get_location = [](const DexFile* dex_file) { return dex_file->GetLocation(); };
+  ScopedObjectAccess soa(down_cast<JNIEnvExt*>(env)->GetSelf());
+  return soa.AddLocalReference<jobjectArray>(CreateStringArray(
+      soa.Self(),
+      jar_count,
+      MakeTransformRange(Filter(path, dchecked_is_base_dex), get_location)));
 }
 
 static JNINativeMethod gMethods[] = {

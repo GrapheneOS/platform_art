@@ -16,13 +16,4 @@
 
 set -e # Stop on error - the caller script may not have this set.
 
-$JAVAC "$@"
-
-# Classes available at compile time, but not at runtime.
-rm -f classes/android/test/anno/MissingAnnotation.class
-rm -f 'classes/android/test/anno/ClassWithInnerAnnotationClass$MissingInnerAnnotationClass.class'
-
-# overwrite RenamedEnum in classes
-if [ -f classes2/android/test/anno/RenamedEnumClass.java ] ; then
-  mv classes2/android/test/anno/RenamedEnumClass.java classes/android/test/anno/RenamedEnumClass.java
-fi
+rm -f classes/UnresClass.class

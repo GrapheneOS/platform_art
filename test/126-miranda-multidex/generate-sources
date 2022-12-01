@@ -19,3 +19,4 @@ set -e
 
 # Signal to default-build that this is a multidex test.
 mkdir src-multidex
+touch src-multidex/Empty.java

@@ -48,6 +48,11 @@ USE_RBE = 100  # Percentage of tests that can use RBE (between 0 and 100)
 
 lock_file = None  # Keep alive as long as this process is alive.
 
+RBE_D8_DISABLED_FOR = {
+  "089-many-methods",         # D8 compilation intentionally fails.
+  "952-invoke-custom",        # b/228312861: RBE uses wrong inputs.
+  "979-const-method-handle",  # b/228312861: RBE uses wrong inputs.
+}
 
 class BuildTestContext:
   def __init__(self, args, android_build_top, test_dir):
@@ -80,7 +85,8 @@ class BuildTestContext:
     if "RBE_server_address" in os.environ and USE_RBE > (hash(self.test_name) % 100):
       self.rbe_exec_root = os.environ.get("RBE_exec_root")
       self.rbe_rewrapper = self.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
-      self.d8 = functools.partial(self.rbe_d8, args.d8.absolute())
+      if self.test_name not in RBE_D8_DISABLED_FOR:
+        self.d8 = functools.partial(self.rbe_d8, args.d8.absolute())
       self.javac = functools.partial(self.rbe_javac, self.javac_path)
       self.smali = functools.partial(self.rbe_smali, args.smali.absolute())
 
@@ -106,7 +112,7 @@ class BuildTestContext:
                           env=self.bash_env,
                           check=True)
 
-  def run(self, executable: pathlib.Path, args: List[str]):
+  def run(self, executable: pathlib.Path, args: List[Union[pathlib.Path, str]]):
     assert isinstance(executable, pathlib.Path), executable
     cmd: List[Union[pathlib.Path, str]] = []
     if executable.suffix == ".sh":
@@ -191,11 +197,13 @@ class BuildTestContext:
       zip_align_bytes=None,
       api_level:Union[int, str]=26,  # Can also be named alias (string).
       javac_args=[],
+      javac_classpath: List[Path]=[],
       d8_flags=[],
       smali_args=[],
       use_smali=True,
       use_jasmin=True,
     ):
+    javac_classpath = javac_classpath.copy()  # Do not modify default value.
 
     # Wrap "pathlib.Path" with our own version that ensures all paths are absolute.
     # Plain filenames are assumed to be relative to self.test_dir and made absolute.
@@ -221,11 +229,6 @@ class BuildTestContext:
       }
       api_level = API_LEVEL[api_level]
     assert isinstance(api_level, int), api_level
-
-    # If wrapper script exists, use it instead of the default javac.
-    javac_wrapper = Path("javac_wrapper.sh")
-    if javac_wrapper.exists():
-      self.javac = functools.partial(self.run, javac_wrapper)
 
     def zip(zip_target: Path, *files: Path):
       zip_args = ["-o", zip_target, "-C", zip_target.parent]
@@ -258,9 +261,6 @@ class BuildTestContext:
                  ["--output", dst_dex] + sorted(src_dir.glob("**/*.smali")))
       return dst_dex
 
-
-    java_classpath: List[Path] = []
-
     def make_java(dst_dir: Path, *src_dirs: Path) -> Optional[Path]:
       if not any(src_dir.exists() for src_dir in src_dirs):
         return None  # No sources to compile.
@@ -269,11 +269,14 @@ class BuildTestContext:
       args += ["-implicit:none", "-encoding", "utf8", "-d", dst_dir]
       if not self.jvm:
         args += ["-bootclasspath", self.bootclasspath]
-      if java_classpath:
-        args += ["-classpath", java_classpath]
+      if javac_classpath:
+        args += ["-classpath", javac_classpath]
       for src_dir in src_dirs:
         args += sorted(src_dir.glob("**/*.java"))
       self.javac(args)
+      javac_post = Path("javac_post.sh")
+      if javac_post.exists():
+        self.run(javac_post, [dst_dir])
       return dst_dir
 
 
@@ -332,10 +335,10 @@ class BuildTestContext:
       return
 
     if make_jasmin(Path("jasmin_classes"), Path("jasmin")):
-      java_classpath.append(Path("jasmin_classes"))
+      javac_classpath.append(Path("jasmin_classes"))
 
     if make_jasmin(Path("jasmin_classes2"), Path("jasmin-multidex")):
-      java_classpath.append(Path("jasmin_classes2"))
+      javac_classpath.append(Path("jasmin_classes2"))
 
     # To allow circular references, compile src/, src-multidex/, src-aotex/,
     # src-bcpex/, src-ex/ together and pass the output as class path argument.
@@ -347,7 +350,7 @@ class BuildTestContext:
     if (Path("src").exists() and
         any(Path(p).exists() for p in extra_srcs + replacement_srcs)):
       make_java(Path("classes-tmp-all"), Path("src"), *map(Path, extra_srcs))
-      java_classpath.append(Path("classes-tmp-all"))
+      javac_classpath.append(Path("classes-tmp-all"))
 
     if make_java(Path("classes-aotex"), Path("src-aotex")) and need_dex:
       make_dex(Path("classes-aotex"))

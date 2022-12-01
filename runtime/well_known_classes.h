@@ -108,7 +108,6 @@ struct WellKnownClasses {
   static jclass java_lang_reflect_Proxy;
   static jclass java_lang_RuntimeException;
   static jclass java_lang_StackOverflowError;
-  static jclass java_lang_String;
   static jclass java_lang_StringFactory;
   static jclass java_lang_System;
   static jclass java_lang_Void;
@@ -147,7 +146,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_reflect_Proxy_invoke;
   static jmethodID java_lang_Runtime_nativeLoad;
   static ArtMethod* java_lang_Short_valueOf;
-  static jmethodID java_lang_String_charAt;
+  static ArtMethod* java_lang_String_charAt;
   static ArtMethod* java_lang_Thread_dispatchUncaughtException;
   static ArtMethod* java_lang_Thread_init;
   static ArtMethod* java_lang_Thread_run;
@@ -225,7 +224,6 @@ struct WellKnownClasses {
   static constexpr ClassFromField<&java_lang_ClassLoader_parent> java_lang_ClassLoader;
   static constexpr ClassFromField<&java_lang_Thread_daemon> java_lang_Thread;
   static constexpr ClassFromField<&java_lang_ThreadGroup_groups> java_lang_ThreadGroup;
-  static constexpr ClassFromField<&java_lang_Throwable_cause> java_lang_Throwable;
   static constexpr ClassFromField<&java_nio_Buffer_address> java_nio_Buffer;
   static constexpr ClassFromField<&java_util_Collections_EMPTY_LIST> java_util_Collections;
   static constexpr ClassFromField<&libcore_util_EmptyArray_STACK_TRACE_ELEMENT>
