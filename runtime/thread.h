@@ -248,6 +248,9 @@ class Thread {
   // TODO: mark as PURE so the compiler may coalesce and remove?
   static Thread* Current();
 
+  // Get the thread from the JNI environment.
+  static Thread* ForEnv(JNIEnv* env);
+
   // On a runnable thread, check for pending thread suspension request and handle if pending.
   void AllowThreadSuspension() REQUIRES_SHARED(Locks::mutator_lock_);
 

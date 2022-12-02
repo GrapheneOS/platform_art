@@ -34,7 +34,7 @@
 namespace art {
 
 // Quickly access the current thread from a JNIEnv.
-static inline Thread* ThreadForEnv(JNIEnv* env) {
+inline Thread* Thread::ForEnv(JNIEnv* env) {
   JNIEnvExt* full_env(down_cast<JNIEnvExt*>(env));
   return full_env->GetSelf();
 }
