@@ -81,7 +81,7 @@
     },
     {
         "tests" : "629-vdex-speed",
-        "variant": "interp-ac | interpreter | no-prebuild | debuggable | trace",
+        "variant": "interp-ac | interpreter | no-prebuild | debuggable | trace | stream",
         "description": "629 requires compilation."
     },
     {
@@ -386,7 +386,7 @@
         "test_patterns": ["616-cha.*"],
         "description": ["cha tests rely on knowing the exact set of optimizations available. ",
                         "Debuggable runtimes change the set of optimizations."],
-        "variant": "debuggable | trace"
+        "variant": "debuggable | trace | stream"
     },
     {
         "test_patterns": ["616-cha.*"],
@@ -760,7 +760,7 @@
     },
     {
         "tests": ["004-StackWalk"],
-        "variant": "speed-profile | interp-ac | interpreter | jit | no-prebuild | no-image | trace | redefine-stress | jvmti-stress | debuggable",
+        "variant": "speed-profile | interp-ac | interpreter | jit | no-prebuild | no-image | trace | redefine-stress | jvmti-stress | debuggable | stream",
         "description": ["Test is designed to only check --optimizing"]
     },
     {
@@ -1308,7 +1308,7 @@
     },
     {
         "tests": ["1339-dead-reference-safe"],
-        "variant": "debuggable | trace",
+        "variant": "debuggable | trace | stream",
         "description": [ "Fails to eliminate dead reference when debuggable." ]
     },
     {
@@ -1367,12 +1367,12 @@
     },
     {
         "tests": ["2029-contended-monitors", "2043-reference-pauses"],
-        "variant": "interpreter | interp-ac | gcstress | trace",
+        "variant": "interpreter | interp-ac | gcstress | trace | stream",
         "description": ["Slow tests. Prone to timeouts."]
     },
     {
         "tests": ["2042-reference-processing"],
-        "variant": "interpreter | interp-ac | gcstress | trace | debuggable",
+        "variant": "interpreter | interp-ac | gcstress | trace | debuggable | stream",
         "description": ["Slow test. Prone to timeouts."]
     },
     {
