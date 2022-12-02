@@ -167,7 +167,7 @@ if [[ $build_target == "yes" ]]; then
   # Extract prebuilt APEXes.
   debugfs=$ANDROID_HOST_OUT/bin/debugfs_static
   fsckerofs=$ANDROID_HOST_OUT/bin/fsck.erofs
-  blkid=$ANDROID_HOST_OUT/bin/blkid
+  blkid=$ANDROID_HOST_OUT/bin/blkid_static
   for apex in ${apexes[@]}; do
     dir="$ANDROID_PRODUCT_OUT/system/apex/${apex}"
     apexbase="$ANDROID_PRODUCT_OUT/system/apex/${apex}"
