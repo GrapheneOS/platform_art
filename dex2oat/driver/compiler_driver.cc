@@ -1603,8 +1603,7 @@ class ResolveTypeVisitor : public CompilationVisitor {
       mirror::Throwable* exception = soa.Self()->GetException();
       DCHECK(exception != nullptr);
       VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
-      if (exception->GetClass() ==
-              WellKnownClasses::ToClass(WellKnownClasses::java_lang_OutOfMemoryError)) {
+      if (exception->GetClass() == WellKnownClasses::java_lang_OutOfMemoryError.Get()) {
         // There's little point continuing compilation if the heap is exhausted.
         // Trying to do so would also introduce non-deterministic compilation results.
         LOG(FATAL) << "Out of memory during type resolution for compilation";
