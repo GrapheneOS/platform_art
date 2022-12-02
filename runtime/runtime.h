@@ -1188,7 +1188,7 @@ class Runtime {
   void RegisterRuntimeNativeMethods(JNIEnv* env);
   void InitMetrics();
 
-  void StartDaemonThreads();
+  void StartDaemonThreads() REQUIRES_SHARED(Locks::mutator_lock_);
   void StartSignalCatcher();
 
   void MaybeSaveJitProfilingInfo();

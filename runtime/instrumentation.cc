@@ -196,8 +196,7 @@ static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_)
   // Annoyingly this can be called before we have actually initialized WellKnownClasses so therefore
   // we also need to check this based on the declaring-class descriptor. The check is valid because
   // Proxy only has a single constructor.
-  ArtMethod* well_known_proxy_init = jni::DecodeArtMethod(
-      WellKnownClasses::java_lang_reflect_Proxy_init);
+  ArtMethod* well_known_proxy_init = WellKnownClasses::java_lang_reflect_Proxy_init;
   if (well_known_proxy_init == method) {
     return true;
   }
