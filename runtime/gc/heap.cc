@@ -103,6 +103,7 @@
 #include "runtime.h"
 #include "javaheapprof/javaheapsampler.h"
 #include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 #include "verify_object-inl.h"
 #include "well_known_classes.h"
@@ -4147,7 +4148,7 @@ inline void Heap::CheckGCForNative(Thread* self) {
 // About kNotifyNativeInterval allocations have occurred. Check whether we should garbage collect.
 void Heap::NotifyNativeAllocations(JNIEnv* env) {
   native_objects_notified_.fetch_add(kNotifyNativeInterval, std::memory_order_relaxed);
-  CheckGCForNative(ThreadForEnv(env));
+  CheckGCForNative(Thread::ForEnv(env));
 }
 
 // Register a native allocation with an explicit size.
@@ -4161,7 +4162,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
       native_objects_notified_.fetch_add(1, std::memory_order_relaxed);
   if (objects_notified % kNotifyNativeInterval == kNotifyNativeInterval - 1
       || bytes > kCheckImmediatelyThreshold) {
-    CheckGCForNative(ThreadForEnv(env));
+    CheckGCForNative(Thread::ForEnv(env));
   }
   // Heap profiler treats this as a Java allocation with a null object.
   JHPCheckNonTlabSampleAllocation(Thread::Current(), nullptr, bytes);

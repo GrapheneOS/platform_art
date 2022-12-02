@@ -714,13 +714,12 @@ void ThrowStackOverflowError(Thread* self) {
     msg += PrettySize(self->GetStackSize());
 
     ScopedObjectAccessUnchecked soa(self);
-    StackHandleScope<2u> hs(self);
-    Handle<mirror::Class> j_l_soe = hs.NewHandle(
-        WellKnownClasses::ToClass(WellKnownClasses::java_lang_StackOverflowError));
-    DCHECK(j_l_soe->IsInitialized());
+    StackHandleScope<1u> hs(self);
 
     // Allocate an uninitialized object.
-    Handle<mirror::Object> exc = hs.NewHandle(j_l_soe->AllocObject(self));
+    DCHECK(WellKnownClasses::java_lang_StackOverflowError->IsInitialized());
+    Handle<mirror::Object> exc = hs.NewHandle(
+        WellKnownClasses::java_lang_StackOverflowError->AllocObject(self));
     if (exc == nullptr) {
       LOG(WARNING) << "Could not allocate StackOverflowError object.";
       return;

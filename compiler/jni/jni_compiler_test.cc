@@ -44,7 +44,7 @@
 #include "oat_quick_method_header.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
-#include "thread.h"
+#include "thread-inl.h"
 
 extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_bar(JNIEnv*, jobject, jint count) {
   return count + 1;
@@ -407,7 +407,7 @@ jobject JniCompilerTest::jobj_;
 jobject JniCompilerTest::class_loader_;
 
 void JniCompilerTest::AssertCallerObjectLocked(JNIEnv* env) {
-  Thread* self = down_cast<JNIEnvExt*>(env)->GetSelf();
+  Thread* self = Thread::ForEnv(env);
   CHECK_EQ(self, Thread::Current());
   ScopedObjectAccess soa(self);
   ArtMethod** caller_frame = self->GetManagedStack()->GetTopQuickFrame();

@@ -94,7 +94,7 @@ inline bool ScopedObjectAccessAlreadyRunnable::IsRunnable() const {
 }
 
 inline ScopedObjectAccessAlreadyRunnable::ScopedObjectAccessAlreadyRunnable(JNIEnv* env)
-    : self_(ThreadForEnv(env)), env_(down_cast<JNIEnvExt*>(env)), vm_(env_->GetVm()) {}
+    : self_(Thread::ForEnv(env)), env_(down_cast<JNIEnvExt*>(env)), vm_(env_->GetVm()) {}
 
 inline ScopedObjectAccessAlreadyRunnable::ScopedObjectAccessAlreadyRunnable(Thread* self)
     : self_(self),
