@@ -363,9 +363,8 @@ class ClearedReferenceTask : public HeapTask {
   }
   void Run(Thread* thread) override {
     ScopedObjectAccess soa(thread);
-    jvalue args[1];
-    args[0].l = cleared_references_;
-    InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_ReferenceQueue_add, args);
+    WellKnownClasses::java_lang_ref_ReferenceQueue_add->InvokeStatic<'V', 'L'>(
+        thread, soa.Decode<mirror::Object>(cleared_references_));
     soa.Env()->DeleteGlobalRef(cleared_references_);
   }
 
