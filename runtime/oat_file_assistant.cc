@@ -775,7 +775,7 @@ const std::vector<uint32_t>* OatFileAssistant::GetRequiredDexChecksums(std::stri
   }
 
   if (cached_required_dex_checksums_.has_value()) {
-    return &*cached_required_dex_checksums_;
+    return &cached_required_dex_checksums_.value();
   } else {
     *error_msg = cached_required_dex_checksums_error_;
     DCHECK(!error_msg->empty());
