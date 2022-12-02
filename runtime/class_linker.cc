@@ -1108,8 +1108,17 @@ void ClassLinker::RunEarlyRootClinits(Thread* self) {
   Handle<mirror::ObjectArray<mirror::Class>> class_roots = hs.NewHandle(GetClassRoots());
   EnsureRootInitialized(this, self, GetClassRoot<mirror::Class>(class_roots.Get()));
   EnsureRootInitialized(this, self, GetClassRoot<mirror::String>(class_roots.Get()));
-  // Field class is needed for register_java_net_InetAddress in libcore, b/28153851.
+  // `Field` class is needed for register_java_net_InetAddress in libcore, b/28153851.
   EnsureRootInitialized(this, self, GetClassRoot<mirror::Field>(class_roots.Get()));
+
+  WellKnownClasses::Init(self->GetJniEnv());
+
+  // `FinalizerReference` class is needed for initialization of `java.net.InetAddress`.
+  // (Indirectly by constructing a `ObjectStreamField` which uses a `StringBuilder`
+  // and, when resizing, initializes the `System` class for `System.arraycopy()`
+  // and `System.<clinit> creates a finalizable object.)
+  EnsureRootInitialized(
+      this, self, WellKnownClasses::java_lang_ref_FinalizerReference_add->GetDeclaringClass());
 }
 
 void ClassLinker::RunRootClinits(Thread* self) {
@@ -1142,15 +1151,25 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_Long_valueOf,
       WellKnownClasses::java_lang_Short_valueOf,
       // Ensure class loader classes are initialized (avoid check at runtime).
-      // Superclasses `ClassLoader` and `BaseDexClassLoader` are initialized implicitly.
+      // Superclass `ClassLoader` is a class root and already initialized above.
+      // Superclass `BaseDexClassLoader` is initialized implicitly.
       WellKnownClasses::dalvik_system_DelegateLastClassLoader_init,
       WellKnownClasses::dalvik_system_DexClassLoader_init,
       WellKnownClasses::dalvik_system_InMemoryDexClassLoader_init,
       WellKnownClasses::dalvik_system_PathClassLoader_init,
       WellKnownClasses::java_lang_BootClassLoader_init,
+      // Ensure `Daemons` class is initialized (avoid check at runtime).
+      WellKnownClasses::java_lang_Daemons_start,
       // Ensure `Thread` and `ThreadGroup` classes are initialized (avoid check at runtime).
       WellKnownClasses::java_lang_Thread_init,
       WellKnownClasses::java_lang_ThreadGroup_add,
+      // Ensure reference classes are initialized (avoid check at runtime).
+      // The `FinalizerReference` class was initialized in `RunEarlyRootClinits()`.
+      WellKnownClasses::java_lang_ref_ReferenceQueue_add,
+      // Ensure `InvocationTargetException` class is initialized (avoid check at runtime).
+      WellKnownClasses::java_lang_reflect_InvocationTargetException_init,
+      // Ensure `Parameter` class is initialized (avoid check at runtime).
+      WellKnownClasses::java_lang_reflect_Parameter_init,
       // Ensure `MethodHandles` class is initialized (avoid check at runtime).
       WellKnownClasses::java_lang_invoke_MethodHandles_lookup,
       // Ensure `DirectByteBuffer` class is initialized (avoid check at runtime).
@@ -1179,6 +1198,11 @@ void ClassLinker::RunRootClinits(Thread* self) {
   for (ArtField* field : static_fields_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, field->GetDeclaringClass());
   }
+
+  // This invariant is important since otherwise we will have the entire proxy invoke system
+  // confused.
+  DCHECK_NE(WellKnownClasses::java_lang_reflect_Proxy_init->GetEntryPointFromQuickCompiledCode(),
+            GetQuickInstrumentationEntryPoint());
 }
 
 ALWAYS_INLINE
@@ -5104,8 +5128,7 @@ void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod*
 
   // Find the <init>(InvocationHandler)V method. The exact method offset varies depending
   // on which front-end compiler was used to build the libcore DEX files.
-  ArtMethod* proxy_constructor =
-      jni::DecodeArtMethod(WellKnownClasses::java_lang_reflect_Proxy_init);
+  ArtMethod* proxy_constructor = WellKnownClasses::java_lang_reflect_Proxy_init;
   DCHECK(proxy_constructor != nullptr)
       << "Could not find <init> method in java.lang.reflect.Proxy";
 

@@ -434,8 +434,8 @@ Runtime::~Runtime() {
   if (IsFinishedStarting()) {
     ScopedTrace trace2("Waiting for Daemons");
     self->ClearException();
-    self->GetJniEnv()->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
-                                            WellKnownClasses::java_lang_Daemons_stop);
+    ScopedObjectAccess soa(self);
+    WellKnownClasses::java_lang_Daemons_stop->InvokeStatic<'V'>(self);
   }
 
   // Shutdown any trace running.
@@ -1030,24 +1030,14 @@ bool Runtime::Start() {
                             GetInstructionSetString(kRuntimeISA));
   }
 
-  StartDaemonThreads();
-
-  // Make sure the environment is still clean (no lingering local refs from starting daemon
-  // threads).
   {
     ScopedObjectAccess soa(self);
+    StartDaemonThreads();
     self->GetJniEnv()->AssertLocalsEmpty();
-  }
 
-  // Send the initialized phase event. Send it after starting the Daemon threads so that agents
-  // cannot delay the daemon threads from starting forever.
-  {
-    ScopedObjectAccess soa(self);
+    // Send the initialized phase event. Send it after starting the Daemon threads so that agents
+    // cannot delay the daemon threads from starting forever.
     callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kInit);
-  }
-
-  {
-    ScopedObjectAccess soa(self);
     self->GetJniEnv()->AssertLocalsEmpty();
   }
 
@@ -1259,15 +1249,11 @@ void Runtime::StartDaemonThreads() {
 
   Thread* self = Thread::Current();
 
-  // Must be in the kNative state for calling native methods.
-  CHECK_EQ(self->GetState(), ThreadState::kNative);
+  DCHECK_EQ(self->GetState(), ThreadState::kRunnable);
 
-  JNIEnv* env = self->GetJniEnv();
-  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
-                            WellKnownClasses::java_lang_Daemons_start);
-  if (env->ExceptionCheck()) {
-    env->ExceptionDescribe();
-    LOG(FATAL) << "Error starting java.lang.Daemons";
+  WellKnownClasses::java_lang_Daemons_start->InvokeStatic<'V'>(self);
+  if (UNLIKELY(self->IsExceptionPending())) {
+    LOG(FATAL) << "Error starting java.lang.Daemons: " << self->GetException()->Dump();
   }
 
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
@@ -2171,10 +2157,6 @@ void Runtime::InitNativeMethods() {
 
   // Set up the native methods provided by the runtime itself.
   RegisterRuntimeNativeMethods(env);
-
-  // Initialize classes used in JNI. The initialization requires runtime native
-  // methods to be loaded first.
-  WellKnownClasses::Init(env);
 
   // Then set up libjavacore / libopenjdk / libicu_jni ,which are just
   // a regular JNI libraries with a regular JNI_OnLoad. Most JNI libraries can
