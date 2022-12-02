@@ -1025,7 +1025,7 @@ def art_apex_test_default(test_parser):
   test_args = test_parser.parse_args(['unused'])  # For consistency.
   test_args.debugfs = '%s/bin/debugfs' % host_out
   test_args.fsckerofs = '%s/bin/fsck.erofs' % host_out
-  test_args.blkid = '%s/bin/blkid' % host_out
+  test_args.blkid = '%s/bin/blkid_static' % host_out
   test_args.tmpdir = '.'
   test_args.tree = False
   test_args.list = False
