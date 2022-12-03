@@ -22,6 +22,7 @@ import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimi
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.apphibernation.AppHibernationManager;
 import android.content.Context;
 import android.os.Binder;
@@ -33,6 +34,7 @@ import android.os.WorkSource;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
+import com.android.server.art.model.OperationProgress;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
@@ -48,9 +50,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -83,29 +87,43 @@ public class DexOptHelper {
     }
 
     /**
-     * DO NOT use this method directly. Use {@link
-     * ArtManagerLocal#optimizePackage(PackageManagerLocal.FilteredSnapshot, String,
-     * OptimizeParams)}.
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
+     * ArtManagerLocal#optimizePackages}.
      */
     @NonNull
     public OptimizeResult dexopt(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull List<String> packageNames, @NonNull OptimizeParams params,
-            @NonNull CancellationSignal cancellationSignal, @NonNull Executor executor) {
-        return dexoptPackages(
-                getPackageStates(snapshot, packageNames,
-                        (params.getFlags() & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0),
-                params, cancellationSignal, executor);
+            @NonNull CancellationSignal cancellationSignal, @NonNull Executor dexoptExecutor) {
+        return dexopt(snapshot, packageNames, params, cancellationSignal, dexoptExecutor,
+                null /* progressCallbackExecutor */, null /* progressCallback */);
     }
 
     /**
-     * DO NOT use this method directly. Use {@link
-     * ArtManagerLocal#optimizePackage(PackageManagerLocal.FilteredSnapshot, String,
-     * OptimizeParams)}.
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
+     * ArtManagerLocal#optimizePackages}.
+     */
+    @NonNull
+    public OptimizeResult dexopt(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull List<String> packageNames, @NonNull OptimizeParams params,
+            @NonNull CancellationSignal cancellationSignal, @NonNull Executor dexoptExecutor,
+            @Nullable Executor progressCallbackExecutor,
+            @Nullable Consumer<OperationProgress> progressCallback) {
+        return dexoptPackages(
+                getPackageStates(snapshot, packageNames,
+                        (params.getFlags() & ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES) != 0),
+                params, cancellationSignal, dexoptExecutor, progressCallbackExecutor,
+                progressCallback);
+    }
+
+    /**
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
+     * ArtManagerLocal#optimizePackages}.
      */
     @NonNull
     private OptimizeResult dexoptPackages(@NonNull List<PackageState> pkgStates,
             @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal,
-            @NonNull Executor executor) {
+            @NonNull Executor dexoptExecutor, @Nullable Executor progressCallbackExecutor,
+            @Nullable Consumer<OperationProgress> progressCallback) {
         int callingUid = Binder.getCallingUid();
         long identityToken = Binder.clearCallingIdentity();
         PowerManager.WakeLock wakeLock = null;
@@ -117,10 +135,24 @@ public class DexOptHelper {
             wakeLock.setWorkSource(new WorkSource(callingUid));
             wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
 
-            List<Future<PackageOptimizeResult>> futures = new ArrayList<>();
+            List<CompletableFuture<PackageOptimizeResult>> futures = new ArrayList<>();
             for (PackageState pkgState : pkgStates) {
-                futures.add(Utils.execute(
-                        executor, () -> dexoptPackage(pkgState, params, cancellationSignal)));
+                futures.add(CompletableFuture.supplyAsync(
+                        () -> dexoptPackage(pkgState, params, cancellationSignal), dexoptExecutor));
+            }
+
+            if (progressCallback != null) {
+                CompletableFuture.runAsync(() -> {
+                    progressCallback.accept(
+                            OperationProgress.create(0 /* current */, futures.size()));
+                }, progressCallbackExecutor);
+                AtomicInteger current = new AtomicInteger(0);
+                for (CompletableFuture<PackageOptimizeResult> future : futures) {
+                    future.thenRunAsync(() -> {
+                        progressCallback.accept(OperationProgress.create(
+                                current.incrementAndGet(), futures.size()));
+                    }, progressCallbackExecutor);
+                }
             }
 
             List<PackageOptimizeResult> results =
@@ -129,11 +161,12 @@ public class DexOptHelper {
             var result =
                     new OptimizeResult(params.getCompilerFilter(), params.getReason(), results);
 
-            for (Callback<OptimizePackageDoneCallback> callback :
+            for (Callback<OptimizePackageDoneCallback> doneCallback :
                     mInjector.getConfig().getOptimizePackageDoneCallbacks()) {
                 // TODO(b/257027956): Consider filtering the packages before calling the callback.
-                Utils.executeAndWait(callback.executor(),
-                        () -> { callback.get().onOptimizePackageDone(result); });
+                CompletableFuture.runAsync(() -> {
+                    doneCallback.get().onOptimizePackageDone(result);
+                }, doneCallback.executor());
             }
 
             return result;
@@ -146,9 +179,8 @@ public class DexOptHelper {
     }
 
     /**
-     * DO NOT use this method directly. Use {@link
-     * ArtManagerLocal#optimizePackage(PackageManagerLocal.FilteredSnapshot, String,
-     * OptimizeParams)}.
+     * DO NOT use this method directly. Use {@link ArtManagerLocal#optimizePackage} or {@link
+     * ArtManagerLocal#optimizePackages}.
      */
     @NonNull
     private PackageOptimizeResult dexoptPackage(@NonNull PackageState pkgState,

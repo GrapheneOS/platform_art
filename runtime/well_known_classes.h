@@ -94,20 +94,8 @@ struct WellKnownClasses {
   static jclass dalvik_annotation_optimization_FastNative;
   static jclass dalvik_annotation_optimization_NeverCompile;
   static jclass dalvik_annotation_optimization_NeverInline;
-  static jclass dalvik_system_EmulatedStackFrame;
   static jclass java_lang_annotation_Annotation__array;
-  static jclass java_lang_Daemons;
-  static jclass java_lang_Error;
-  static jclass java_lang_IllegalAccessError;
-  static jclass java_lang_NoClassDefFoundError;
-  static jclass java_lang_Object;
-  static jclass java_lang_OutOfMemoryError;
-  static jclass java_lang_reflect_InvocationTargetException;
-  static jclass java_lang_reflect_Parameter;
   static jclass java_lang_reflect_Parameter__array;
-  static jclass java_lang_reflect_Proxy;
-  static jclass java_lang_RuntimeException;
-  static jclass java_lang_StackOverflowError;
   static jclass java_lang_StringFactory;
   static jclass java_lang_System;
   static jclass java_lang_Void;
@@ -125,33 +113,39 @@ struct WellKnownClasses {
   static ArtMethod* java_lang_Character_valueOf;
   static ArtMethod* java_lang_ClassLoader_loadClass;
   static ArtMethod* java_lang_ClassNotFoundException_init;
-  static jmethodID java_lang_Daemons_start;
-  static jmethodID java_lang_Daemons_stop;
-  static jmethodID java_lang_Daemons_waitForDaemonStart;
+  static ArtMethod* java_lang_Daemons_start;
+  static ArtMethod* java_lang_Daemons_stop;
+  static ArtMethod* java_lang_Daemons_waitForDaemonStart;
   static ArtMethod* java_lang_Double_doubleToRawLongBits;
   static ArtMethod* java_lang_Double_valueOf;
+  static ArtMethod* java_lang_Error_init;  // Only for the declaring class.
   static ArtMethod* java_lang_Float_floatToRawIntBits;
   static ArtMethod* java_lang_Float_valueOf;
+  static ArtMethod* java_lang_IllegalAccessError_init;  // Only for the declaring class.
   static ArtMethod* java_lang_Integer_valueOf;
-  static ArtMethod* java_lang_invoke_MethodHandle_asType;
-  static ArtMethod* java_lang_invoke_MethodHandle_invokeExact;
-  static ArtMethod* java_lang_invoke_MethodHandles_lookup;
-  static ArtMethod* java_lang_invoke_MethodHandles_Lookup_findConstructor;
   static ArtMethod* java_lang_Long_valueOf;
-  static jmethodID java_lang_ref_FinalizerReference_add;
-  static jmethodID java_lang_ref_ReferenceQueue_add;
-  static jmethodID java_lang_reflect_InvocationTargetException_init;
-  static jmethodID java_lang_reflect_Parameter_init;
-  static jmethodID java_lang_reflect_Proxy_init;
-  static jmethodID java_lang_reflect_Proxy_invoke;
-  static jmethodID java_lang_Runtime_nativeLoad;
+  static ArtMethod* java_lang_NoClassDefFoundError_init;  // Only for the declaring class.
+  static ArtMethod* java_lang_OutOfMemoryError_init;  // Only for the declaring class.
+  static ArtMethod* java_lang_Runtime_nativeLoad;
+  static ArtMethod* java_lang_RuntimeException_init;  // Only for the declaring class.
   static ArtMethod* java_lang_Short_valueOf;
+  static ArtMethod* java_lang_StackOverflowError_init;  // Only for the declaring class.
   static ArtMethod* java_lang_String_charAt;
   static ArtMethod* java_lang_Thread_dispatchUncaughtException;
   static ArtMethod* java_lang_Thread_init;
   static ArtMethod* java_lang_Thread_run;
   static ArtMethod* java_lang_ThreadGroup_add;
   static ArtMethod* java_lang_ThreadGroup_threadTerminated;
+  static ArtMethod* java_lang_invoke_MethodHandle_asType;
+  static ArtMethod* java_lang_invoke_MethodHandle_invokeExact;
+  static ArtMethod* java_lang_invoke_MethodHandles_lookup;
+  static ArtMethod* java_lang_invoke_MethodHandles_Lookup_findConstructor;
+  static ArtMethod* java_lang_ref_FinalizerReference_add;
+  static ArtMethod* java_lang_ref_ReferenceQueue_add;
+  static ArtMethod* java_lang_reflect_InvocationTargetException_init;
+  static ArtMethod* java_lang_reflect_Parameter_init;
+  static ArtMethod* java_lang_reflect_Proxy_init;
+  static ArtMethod* java_lang_reflect_Proxy_invoke;
   static ArtMethod* java_nio_Buffer_isDirect;
   static ArtMethod* java_nio_DirectByteBuffer_init;
   static ArtMethod* java_util_function_Consumer_accept;
@@ -222,8 +216,22 @@ struct WellKnownClasses {
       dalvik_system_PathClassLoader;
   static constexpr ClassFromMethod<&java_lang_BootClassLoader_init> java_lang_BootClassLoader;
   static constexpr ClassFromField<&java_lang_ClassLoader_parent> java_lang_ClassLoader;
+  static constexpr ClassFromMethod<&java_lang_Daemons_start> java_lang_Daemons;
+  static constexpr ClassFromMethod<&java_lang_Error_init> java_lang_Error;
+  static constexpr ClassFromMethod<&java_lang_IllegalAccessError_init>
+      java_lang_IllegalAccessError;
+  static constexpr ClassFromMethod<&java_lang_NoClassDefFoundError_init>
+      java_lang_NoClassDefFoundError;
+  static constexpr ClassFromMethod<&java_lang_OutOfMemoryError_init> java_lang_OutOfMemoryError;
+  static constexpr ClassFromMethod<&java_lang_RuntimeException_init> java_lang_RuntimeException;
+  static constexpr ClassFromMethod<&java_lang_StackOverflowError_init>
+      java_lang_StackOverflowError;
   static constexpr ClassFromField<&java_lang_Thread_daemon> java_lang_Thread;
   static constexpr ClassFromField<&java_lang_ThreadGroup_groups> java_lang_ThreadGroup;
+  static constexpr ClassFromMethod<&java_lang_reflect_InvocationTargetException_init>
+      java_lang_reflect_InvocationTargetException;
+  static constexpr ClassFromMethod<&java_lang_reflect_Parameter_init>
+      java_lang_reflect_Parameter;
   static constexpr ClassFromField<&java_nio_Buffer_address> java_nio_Buffer;
   static constexpr ClassFromField<&java_util_Collections_EMPTY_LIST> java_util_Collections;
   static constexpr ClassFromField<&libcore_util_EmptyArray_STACK_TRACE_ELEMENT>

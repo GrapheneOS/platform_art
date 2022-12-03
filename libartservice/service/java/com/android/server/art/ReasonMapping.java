@@ -42,10 +42,12 @@ import java.lang.annotation.RetentionPolicy;
 public class ReasonMapping {
     private ReasonMapping() {}
 
-    /** Optimizing apps on the first boot. */
+    /** Optimizing apps on the first boot after flashing or factory resetting the device. */
     public static final String REASON_FIRST_BOOT = "first-boot";
     /** Optimizing apps on the next boot after an OTA. */
     public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";
+    /** Optimizing apps on the next boot after a mainline update. */
+    public static final String REASON_BOOT_AFTER_MAINLINE_UPDATE = "boot-after-mainline-update";
     /** Installing an app after user presses the "install"/"update" button. */
     public static final String REASON_INSTALL = "install";
     /** Optimizing apps in the background. */
@@ -69,8 +71,7 @@ public class ReasonMapping {
             REASON_INSTALL_BULK_DOWNGRADED, REASON_INSTALL_BULK_SECONDARY_DOWNGRADED);
 
     /**
-     * Reasons for
-     * {@link ArtManagerLocal#optimizePackages(PackageManagerLocal.FilteredSnapshot, String)}.
+     * Reasons for {@link ArtManagerLocal#optimizePackages}.
      *
      * @hide
      */
@@ -78,11 +79,27 @@ public class ReasonMapping {
     @StringDef(prefix = "REASON_", value = {
         REASON_FIRST_BOOT,
         REASON_BOOT_AFTER_OTA,
+        REASON_BOOT_AFTER_MAINLINE_UPDATE,
         REASON_BG_DEXOPT,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
     public @interface BatchOptimizeReason {}
+
+    /**
+     * Reasons for {@link ArtManagerLocal#onBoot(String, Executor, Consumer<OperationProgress>)}.
+     *
+     * @hide
+     */
+    // clang-format off
+    @StringDef(prefix = "REASON_", value = {
+        REASON_FIRST_BOOT,
+        REASON_BOOT_AFTER_OTA,
+        REASON_BOOT_AFTER_MAINLINE_UPDATE,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface BootReason {}
 
     /**
      * Loads the compiler filter from the system property for the given reason and checks for
@@ -139,6 +156,7 @@ public class ReasonMapping {
         switch (reason) {
             case REASON_FIRST_BOOT:
             case REASON_BOOT_AFTER_OTA:
+            case REASON_BOOT_AFTER_MAINLINE_UPDATE:
                 return ArtFlags.PRIORITY_BOOT;
             case REASON_INSTALL_FAST:
                 return ArtFlags.PRIORITY_INTERACTIVE_FAST;
@@ -159,8 +177,8 @@ public class ReasonMapping {
 
     /**
      * Loads the concurrency from the system property, for batch optimization ({@link
-     * ArtManagerLocal#optimizePackages(PackageManagerLocal.FilteredSnapshot, String)}), or 1 if the
-     * system property is not found or cannot be parsed.
+     * ArtManagerLocal#optimizePackages}), or 1 if the system property is not found or cannot be
+     * parsed.
      *
      * @hide
      */

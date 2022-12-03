@@ -17,7 +17,7 @@
 #include "reflection-inl.h"
 
 #include "art_field-inl.h"
-#include "art_method-inl.h"
+#include "art_method-alloc-inl.h"
 #include "base/enums.h"
 #include "class_linker.h"
 #include "common_throws.h"
@@ -502,17 +502,17 @@ bool InvokeMethodImpl(const ScopedObjectAccessAlreadyRunnable& soa,
           << soa.Self()->GetException()->GetClass()->PrettyDescriptor();
     } else {
       // If we get another exception when we are trying to wrap, then just use that instead.
-      ScopedLocalRef<jthrowable> th(soa.Env(), soa.Env()->ExceptionOccurred());
+      StackHandleScope<2u> hs(soa.Self());
+      Handle<mirror::Throwable> cause = hs.NewHandle(soa.Self()->GetException());
       soa.Self()->ClearException();
-      jobject exception_instance =
-          soa.Env()->NewObject(WellKnownClasses::java_lang_reflect_InvocationTargetException,
-                               WellKnownClasses::java_lang_reflect_InvocationTargetException_init,
-                               th.get());
+      Handle<mirror::Object> exception_instance =
+          WellKnownClasses::java_lang_reflect_InvocationTargetException_init->NewObject<'L'>(
+              hs, soa.Self(), cause);
       if (exception_instance == nullptr) {
         soa.Self()->AssertPendingException();
         return false;
       }
-      soa.Env()->Throw(reinterpret_cast<jthrowable>(exception_instance));
+      soa.Self()->SetException(exception_instance->AsThrowable());
     }
     return false;
   }

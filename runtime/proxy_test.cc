@@ -33,17 +33,6 @@ class ProxyTest : public CommonRuntimeTest {
   ProxyTest() {
     use_boot_image_ = true;  // Make the Runtime creation cheaper.
   }
-
-  void SetUp() override {
-    CommonRuntimeTest::SetUp();
-    // The creation of a Proxy class uses WellKnownClasses. These are not normally initialized by
-    // CommonRuntimeTest so we need to do that now.
-    WellKnownClasses::Clear();
-    WellKnownClasses::Init(art::Thread::Current()->GetJniEnv());
-    // Since we aren't actually calling any of the native functions we can just immediately call
-    // LateInit after calling Init.
-    WellKnownClasses::LateInit(art::Thread::Current()->GetJniEnv());
-  }
 };
 
 // Creates a proxy class and check ClassHelper works correctly.

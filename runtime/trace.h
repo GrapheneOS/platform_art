@@ -49,7 +49,7 @@ class Thread;
 
 using DexIndexBitSet = std::bitset<65536>;
 
-constexpr size_t kMaxThreadIdNumber = kIsTargetBuild ? 65536U : 1048576U;
+constexpr size_t kMaxThreadIdNumber = kIsTargetBuild ? 0x10000U : 0x400000U;
 using ThreadIDBitSet = std::bitset<kMaxThreadIdNumber>;
 
 enum TracingMode {
