@@ -1894,14 +1894,22 @@ void MarkCompact::UpdateNonMovingPage(mirror::Object* first, uint8_t* page) {
 
 void MarkCompact::UpdateNonMovingSpace() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  uint8_t* page = non_moving_space_->Begin();
-  for (size_t i = 0; i < non_moving_first_objs_count_; i++) {
-    mirror::Object* obj = first_objs_non_moving_space_[i].AsMirrorPtr();
-    // null means there are no objects on the page to update references.
-    if (obj != nullptr) {
-      UpdateNonMovingPage(obj, page);
+  // Iterating in reverse ensures that the class pointer in objects which span
+  // across more than one page gets updated in the end. This is necessary for
+  // VisitRefsForCompaction() to work correctly.
+  // TODO: If and when we make non-moving space update concurrent, implement a
+  // mechanism to remember class pointers for such objects off-heap and pass it
+  // to VisitRefsForCompaction().
+  if (non_moving_first_objs_count_ > 0) {
+    uint8_t* page = non_moving_space_->Begin() + non_moving_first_objs_count_ * kPageSize;
+    for (size_t i = non_moving_first_objs_count_ - 1; i >= 0; i--) {
+      mirror::Object* obj = first_objs_non_moving_space_[i].AsMirrorPtr();
+      page -= kPageSize;
+      // null means there are no objects on the page to update references.
+      if (obj != nullptr) {
+        UpdateNonMovingPage(obj, page);
+      }
     }
-    page += kPageSize;
   }
 }
 
