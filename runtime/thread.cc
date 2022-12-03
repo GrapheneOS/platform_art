@@ -2495,8 +2495,7 @@ void Thread::AssertPendingException() const {
 void Thread::AssertPendingOOMException() const {
   AssertPendingException();
   auto* e = GetException();
-  CHECK_EQ(e->GetClass(), DecodeJObject(WellKnownClasses::java_lang_OutOfMemoryError)->AsClass())
-      << e->Dump();
+  CHECK_EQ(e->GetClass(), WellKnownClasses::java_lang_OutOfMemoryError.Get()) << e->Dump();
 }
 
 void Thread::AssertNoPendingException() const {

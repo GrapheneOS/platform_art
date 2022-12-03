@@ -536,10 +536,9 @@ static void VlogClassInitializationFailure(Handle<mirror::Class> klass)
 static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
-  JNIEnv* env = self->GetJniEnv();
 
-  ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
-  CHECK(cause.get() != nullptr);
+  ObjPtr<mirror::Throwable> cause = self->GetException();
+  CHECK(cause != nullptr);
 
   // Boot classpath classes should not fail initialization. This is a consistency debug check.
   // This cannot in general be guaranteed, but in all likelihood leads to breakage down the line.
@@ -554,12 +553,8 @@ static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
                                             << self->GetException()->Dump();
   }
 
-  env->ExceptionClear();
-  bool is_error = env->IsInstanceOf(cause.get(), WellKnownClasses::java_lang_Error);
-  env->Throw(cause.get());
-
   // We only wrap non-Error exceptions; an Error can just be used as-is.
-  if (!is_error) {
+  if (!cause->IsError()) {
     self->ThrowNewWrappedException("Ljava/lang/ExceptionInInitializerError;", nullptr);
   }
   VlogClassInitializationFailure(klass);
@@ -1108,8 +1103,17 @@ void ClassLinker::RunEarlyRootClinits(Thread* self) {
   Handle<mirror::ObjectArray<mirror::Class>> class_roots = hs.NewHandle(GetClassRoots());
   EnsureRootInitialized(this, self, GetClassRoot<mirror::Class>(class_roots.Get()));
   EnsureRootInitialized(this, self, GetClassRoot<mirror::String>(class_roots.Get()));
-  // Field class is needed for register_java_net_InetAddress in libcore, b/28153851.
+  // `Field` class is needed for register_java_net_InetAddress in libcore, b/28153851.
   EnsureRootInitialized(this, self, GetClassRoot<mirror::Field>(class_roots.Get()));
+
+  WellKnownClasses::Init(self->GetJniEnv());
+
+  // `FinalizerReference` class is needed for initialization of `java.net.InetAddress`.
+  // (Indirectly by constructing a `ObjectStreamField` which uses a `StringBuilder`
+  // and, when resizing, initializes the `System` class for `System.arraycopy()`
+  // and `System.<clinit> creates a finalizable object.)
+  EnsureRootInitialized(
+      this, self, WellKnownClasses::java_lang_ref_FinalizerReference_add->GetDeclaringClass());
 }
 
 void ClassLinker::RunRootClinits(Thread* self) {
@@ -1123,14 +1127,6 @@ void ClassLinker::RunRootClinits(Thread* self) {
   // classes are always in the boot image, so this code is primarily intended
   // for running without boot image but may be needed for boot image if the
   // AOT-initialization fails due to introduction of new code to `<clinit>`.
-  jclass classes_to_initialize[] = {
-      // Initialize `StackOverflowError`.
-      WellKnownClasses::java_lang_StackOverflowError,
-  };
-  auto* vm = down_cast<JNIEnvExt*>(self->GetJniEnv())->GetVm();
-  for (jclass c : classes_to_initialize) {
-    EnsureRootInitialized(this, self, ObjPtr<mirror::Class>::DownCast(vm->DecodeGlobal(c)));
-  }
   ArtMethod* static_methods_of_classes_to_initialize[] = {
       // Initialize primitive boxing classes (avoid check at runtime).
       WellKnownClasses::java_lang_Boolean_valueOf,
@@ -1141,16 +1137,28 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_Integer_valueOf,
       WellKnownClasses::java_lang_Long_valueOf,
       WellKnownClasses::java_lang_Short_valueOf,
+      // Initialize `StackOverflowError`.
+      WellKnownClasses::java_lang_StackOverflowError_init,
       // Ensure class loader classes are initialized (avoid check at runtime).
-      // Superclasses `ClassLoader` and `BaseDexClassLoader` are initialized implicitly.
+      // Superclass `ClassLoader` is a class root and already initialized above.
+      // Superclass `BaseDexClassLoader` is initialized implicitly.
       WellKnownClasses::dalvik_system_DelegateLastClassLoader_init,
       WellKnownClasses::dalvik_system_DexClassLoader_init,
       WellKnownClasses::dalvik_system_InMemoryDexClassLoader_init,
       WellKnownClasses::dalvik_system_PathClassLoader_init,
       WellKnownClasses::java_lang_BootClassLoader_init,
+      // Ensure `Daemons` class is initialized (avoid check at runtime).
+      WellKnownClasses::java_lang_Daemons_start,
       // Ensure `Thread` and `ThreadGroup` classes are initialized (avoid check at runtime).
       WellKnownClasses::java_lang_Thread_init,
       WellKnownClasses::java_lang_ThreadGroup_add,
+      // Ensure reference classes are initialized (avoid check at runtime).
+      // The `FinalizerReference` class was initialized in `RunEarlyRootClinits()`.
+      WellKnownClasses::java_lang_ref_ReferenceQueue_add,
+      // Ensure `InvocationTargetException` class is initialized (avoid check at runtime).
+      WellKnownClasses::java_lang_reflect_InvocationTargetException_init,
+      // Ensure `Parameter` class is initialized (avoid check at runtime).
+      WellKnownClasses::java_lang_reflect_Parameter_init,
       // Ensure `MethodHandles` class is initialized (avoid check at runtime).
       WellKnownClasses::java_lang_invoke_MethodHandles_lookup,
       // Ensure `DirectByteBuffer` class is initialized (avoid check at runtime).
@@ -1179,6 +1187,11 @@ void ClassLinker::RunRootClinits(Thread* self) {
   for (ArtField* field : static_fields_of_classes_to_initialize) {
     EnsureRootInitialized(this, self, field->GetDeclaringClass());
   }
+
+  // This invariant is important since otherwise we will have the entire proxy invoke system
+  // confused.
+  DCHECK_NE(WellKnownClasses::java_lang_reflect_Proxy_init->GetEntryPointFromQuickCompiledCode(),
+            GetQuickInstrumentationEntryPoint());
 }
 
 ALWAYS_INLINE
@@ -5104,8 +5117,7 @@ void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod*
 
   // Find the <init>(InvocationHandler)V method. The exact method offset varies depending
   // on which front-end compiler was used to build the libcore DEX files.
-  ArtMethod* proxy_constructor =
-      jni::DecodeArtMethod(WellKnownClasses::java_lang_reflect_Proxy_init);
+  ArtMethod* proxy_constructor = WellKnownClasses::java_lang_reflect_Proxy_init;
   DCHECK(proxy_constructor != nullptr)
       << "Could not find <init> method in java.lang.reflect.Proxy";
 

@@ -103,6 +103,7 @@
 #include "runtime.h"
 #include "javaheapprof/javaheapsampler.h"
 #include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 #include "verify_object-inl.h"
 #include "well_known_classes.h"
@@ -1481,6 +1482,8 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType 
         Runtime::Current()->GetPreAllocatedOutOfMemoryErrorWhenHandlingStackOverflow());
     return;
   }
+  // Allow plugins to intercept out of memory errors.
+  Runtime::Current()->OutOfMemoryErrorHook();
 
   std::ostringstream oss;
   size_t total_bytes_free = GetFreeMemory();
@@ -3824,12 +3827,11 @@ void Heap::ClearGrowthLimit() {
 
 void Heap::AddFinalizerReference(Thread* self, ObjPtr<mirror::Object>* object) {
   ScopedObjectAccess soa(self);
-  ScopedLocalRef<jobject> arg(self->GetJniEnv(), soa.AddLocalReference<jobject>(*object));
-  jvalue args[1];
-  args[0].l = arg.get();
-  InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_FinalizerReference_add, args);
-  // Restore object in case it gets moved.
-  *object = soa.Decode<mirror::Object>(arg.get());
+  StackHandleScope<1u> hs(self);
+  // Use handle wrapper to update the `*object` if the object gets moved.
+  HandleWrapperObjPtr<mirror::Object> h_object = hs.NewHandleWrapper(object);
+  WellKnownClasses::java_lang_ref_FinalizerReference_add->InvokeStatic<'V', 'L'>(
+      self, h_object.Get());
 }
 
 void Heap::RequestConcurrentGCAndSaveObject(Thread* self,
@@ -4146,7 +4148,7 @@ inline void Heap::CheckGCForNative(Thread* self) {
 // About kNotifyNativeInterval allocations have occurred. Check whether we should garbage collect.
 void Heap::NotifyNativeAllocations(JNIEnv* env) {
   native_objects_notified_.fetch_add(kNotifyNativeInterval, std::memory_order_relaxed);
-  CheckGCForNative(ThreadForEnv(env));
+  CheckGCForNative(Thread::ForEnv(env));
 }
 
 // Register a native allocation with an explicit size.
@@ -4160,7 +4162,7 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
       native_objects_notified_.fetch_add(1, std::memory_order_relaxed);
   if (objects_notified % kNotifyNativeInterval == kNotifyNativeInterval - 1
       || bytes > kCheckImmediatelyThreshold) {
-    CheckGCForNative(ThreadForEnv(env));
+    CheckGCForNative(Thread::ForEnv(env));
   }
   // Heap profiler treats this as a Java allocation with a null object.
   JHPCheckNonTlabSampleAllocation(Thread::Current(), nullptr, bytes);

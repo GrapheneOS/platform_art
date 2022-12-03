@@ -17,11 +17,13 @@
 package com.android.server.art.model;
 
 import android.annotation.IntDef;
+import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.app.job.JobScheduler;
 
 import com.android.server.art.ArtManagerLocal;
 import com.android.server.art.PriorityClass;
+import com.android.server.art.ReasonMapping;
 import com.android.server.pm.PackageManagerLocal;
 
 import java.lang.annotation.Retention;
@@ -136,10 +138,30 @@ public class ArtFlags {
     /**
      * Default flags that are used when
      * {@link OptimizeParams.Builder#Builder(String)} is called.
-     * Value: {@link #FLAG_FOR_PRIMARY_DEX}.
+     *
+     * @hide
      */
-    public static @OptimizeFlags int defaultOptimizeFlags() {
-        return FLAG_FOR_PRIMARY_DEX;
+    public static @OptimizeFlags int defaultOptimizeFlags(@NonNull String reason) {
+        switch (reason) {
+            case ReasonMapping.REASON_INSTALL:
+            case ReasonMapping.REASON_INSTALL_FAST:
+            case ReasonMapping.REASON_INSTALL_BULK:
+            case ReasonMapping.REASON_INSTALL_BULK_SECONDARY:
+            case ReasonMapping.REASON_INSTALL_BULK_DOWNGRADED:
+            case ReasonMapping.REASON_INSTALL_BULK_SECONDARY_DOWNGRADED:
+                return FLAG_FOR_PRIMARY_DEX;
+            case ReasonMapping.REASON_INACTIVE:
+                return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX | FLAG_SHOULD_DOWNGRADE;
+            case ReasonMapping.REASON_FIRST_BOOT:
+            case ReasonMapping.REASON_BOOT_AFTER_OTA:
+            case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
+                return FLAG_FOR_PRIMARY_DEX | FLAG_SHOULD_INCLUDE_DEPENDENCIES;
+            case ReasonMapping.REASON_BG_DEXOPT:
+            case ReasonMapping.REASON_CMDLINE:
+            default:
+                return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX
+                        | FLAG_SHOULD_INCLUDE_DEPENDENCIES;
+        }
     }
 
     // Keep in sync with `PriorityClass` except for `PRIORITY_NONE`.
