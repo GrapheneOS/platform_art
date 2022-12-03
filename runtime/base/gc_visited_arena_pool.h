@@ -108,6 +108,16 @@ class GcVisitedArenaPool final : public ArenaPool {
   void LockReclaimMemory() override {}
   void TrimMaps() override {}
 
+  bool Contains(void* ptr) {
+    std::lock_guard<std::mutex> lock(lock_);
+    for (auto& map : maps_) {
+      if (map.HasAddress(ptr)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   template <typename PageVisitor>
   void VisitRoots(PageVisitor& visitor) REQUIRES_SHARED(Locks::mutator_lock_) {
     std::lock_guard<std::mutex> lock(lock_);
