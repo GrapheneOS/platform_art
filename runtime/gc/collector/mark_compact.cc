@@ -2119,10 +2119,8 @@ class MarkCompact::LinearAllocPageUpdater {
     for (uint8_t* byte = first_obj; byte < page_end;) {
       TrackingHeader* header = reinterpret_cast<TrackingHeader*>(byte);
       obj_size = header->GetSize();
-      LinearAllocKind kind = header->GetKind();
       if (UNLIKELY(obj_size == 0)) {
         // No more objects in this page to visit.
-        DCHECK_EQ(kind, LinearAllocKind::kNoGCRoots);
         break;
       }
       uint8_t* obj = byte + sizeof(TrackingHeader);
@@ -2133,7 +2131,7 @@ class MarkCompact::LinearAllocPageUpdater {
       uint8_t* begin_boundary = std::max(obj, page_begin);
       uint8_t* end_boundary = std::min(obj_end, page_end);
       if (begin_boundary < end_boundary) {
-        VisitObject(kind, obj, begin_boundary, end_boundary);
+        VisitObject(header->GetKind(), obj, begin_boundary, end_boundary);
       }
       if (ArenaAllocator::IsRunningOnMemoryTool()) {
         obj_size += ArenaAllocator::kMemoryToolRedZoneBytes;
@@ -2229,14 +2227,10 @@ void MarkCompact::PreCompactionPhase() {
   Runtime* runtime = Runtime::Current();
   non_moving_space_bitmap_ = non_moving_space_->GetLiveBitmap();
   if (kIsDebugBuild) {
-    pthread_attr_t attr;
-    size_t stack_size;
-    void* stack_addr;
-    pthread_getattr_np(pthread_self(), &attr);
-    pthread_attr_getstack(&attr, &stack_addr, &stack_size);
-    pthread_attr_destroy(&attr);
-    stack_addr_ = stack_addr;
-    stack_end_ = reinterpret_cast<char*>(stack_addr) + stack_size;
+    DCHECK_EQ(thread_running_gc_, Thread::Current());
+    stack_low_addr_ = thread_running_gc_->GetStackEnd();
+    stack_high_addr_ =
+        reinterpret_cast<char*>(stack_low_addr_) + thread_running_gc_->GetStackSize();
   }
 
   compacting_ = true;
@@ -2370,7 +2364,7 @@ void MarkCompact::PreCompactionPhase() {
     // We must start worker threads before resuming mutators to avoid deadlocks.
     heap_->GetThreadPool()->StartWorkers(thread_running_gc_);
   }
-  stack_end_ = nullptr;
+  stack_low_addr_ = nullptr;
 }
 
 void MarkCompact::KernelPrepareRange(uint8_t* to_addr,
