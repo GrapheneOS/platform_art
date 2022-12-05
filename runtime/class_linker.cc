@@ -3515,7 +3515,7 @@ static void LinkCode(ClassLinker* class_linker,
   }
 
   // Method shouldn't have already been linked.
-  DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
+  DCHECK_EQ(method->GetEntryPointFromQuickCompiledCode(), nullptr);
   DCHECK(!method->GetDeclaringClass()->IsVisiblyInitialized());  // Actually ClassStatus::Idx.
 
   if (!method->IsInvokable()) {

@@ -26,6 +26,9 @@ namespace art {
 
 inline void LinearAlloc::SetFirstObject(void* begin, size_t bytes) const {
   DCHECK(track_allocations_);
+  if (ArenaAllocator::IsRunningOnMemoryTool()) {
+    bytes += ArenaAllocator::kMemoryToolRedZoneBytes;
+  }
   uint8_t* end = static_cast<uint8_t*>(begin) + bytes;
   Arena* arena = allocator_.GetHeadArena();
   DCHECK_NE(arena, nullptr);

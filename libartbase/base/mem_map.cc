@@ -777,11 +777,11 @@ MemMap MemMap::RemapAtEnd(uint8_t* new_end,
   return MemMap(tail_name, actual, tail_size, actual, tail_base_size, tail_prot, false);
 }
 
-MemMap MemMap::TakeReservedMemory(size_t byte_count) {
+MemMap MemMap::TakeReservedMemory(size_t byte_count, bool reuse) {
   uint8_t* begin = Begin();
   ReleaseReservedMemory(byte_count);  // Performs necessary DCHECK()s on this reservation.
   size_t base_size = RoundUp(byte_count, kPageSize);
-  return MemMap(name_, begin, byte_count, begin, base_size, prot_, /* reuse= */ false);
+  return MemMap(name_, begin, byte_count, begin, base_size, prot_, reuse);
 }
 
 void MemMap::ReleaseReservedMemory(size_t byte_count) {
