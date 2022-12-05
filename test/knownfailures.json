@@ -339,12 +339,6 @@
         "variant": "optimizing | regalloc_gc"
     },
     {
-        "tests": "089-many-methods",
-        "description": "The test tests a build failure",
-        "env_vars": {"ART_TEST_BISECTION": "true"},
-        "variant": "optimizing | regalloc_gc"
-    },
-    {
         "tests": ["018-stack-overflow",
                   "116-nodex2oat",
                   "118-noimage-dex2oat",
