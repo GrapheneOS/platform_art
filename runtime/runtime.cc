@@ -1720,7 +1720,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   // when we have 64 bit ArtMethod pointers.
   const bool low_4gb = IsAotCompiler() && Is64BitInstructionSet(kRuntimeISA);
   if (gUseUserfaultfd) {
-    linear_alloc_arena_pool_.reset(new GcVisitedArenaPool(low_4gb));
+    linear_alloc_arena_pool_.reset(new GcVisitedArenaPool(low_4gb, IsZygote()));
   } else if (low_4gb) {
     linear_alloc_arena_pool_.reset(new MemMapArenaPool(low_4gb));
   }
@@ -3125,6 +3125,42 @@ LinearAlloc* Runtime::CreateLinearAlloc() {
   return pool != nullptr
       ? new LinearAlloc(pool, gUseUserfaultfd)
       : new LinearAlloc(arena_pool_.get(), /*track_allocs=*/ false);
+}
+
+class Runtime::SetupLinearAllocForZygoteFork : public AllocatorVisitor {
+ public:
+  explicit SetupLinearAllocForZygoteFork(Thread* self) : self_(self) {}
+
+  bool Visit(LinearAlloc* alloc) override {
+    alloc->SetupForPostZygoteFork(self_);
+    return true;
+  }
+
+ private:
+  Thread* self_;
+};
+
+void Runtime::SetupLinearAllocForPostZygoteFork(Thread* self) {
+  if (gUseUserfaultfd) {
+    // Setup all the linear-allocs out there for post-zygote fork. This will
+    // basically force the arena allocator to ask for a new arena for the next
+    // allocation. All arenas allocated from now on will be in the userfaultfd
+    // visited space.
+    if (GetLinearAlloc() != nullptr) {
+      GetLinearAlloc()->SetupForPostZygoteFork(self);
+    }
+    if (GetStartupLinearAlloc() != nullptr) {
+      GetStartupLinearAlloc()->SetupForPostZygoteFork(self);
+    }
+    {
+      Locks::mutator_lock_->AssertNotHeld(self);
+      ReaderMutexLock mu2(self, *Locks::mutator_lock_);
+      ReaderMutexLock mu3(self, *Locks::classlinker_classes_lock_);
+      SetupLinearAllocForZygoteFork visitor(self);
+      GetClassLinker()->VisitAllocators(&visitor);
+    }
+    static_cast<GcVisitedArenaPool*>(GetLinearAllocArenaPool())->SetupPostZygoteMode();
+  }
 }
 
 double Runtime::GetHashTableMinLoadFactor() const {

@@ -2059,16 +2059,21 @@ void MarkCompact::UpdateNonMovingSpaceBlackAllocations() {
 
 class MarkCompact::ImmuneSpaceUpdateObjVisitor {
  public:
-  explicit ImmuneSpaceUpdateObjVisitor(MarkCompact* collector) : collector_(collector) {}
+  ImmuneSpaceUpdateObjVisitor(MarkCompact* collector, bool visit_native_roots)
+      : collector_(collector), visit_native_roots_(visit_native_roots) {}
 
   ALWAYS_INLINE void operator()(mirror::Object* obj) const REQUIRES(Locks::mutator_lock_) {
     RefsUpdateVisitor</*kCheckBegin*/false, /*kCheckEnd*/false> visitor(collector_,
                                                                         obj,
                                                                         /*begin_*/nullptr,
                                                                         /*end_*/nullptr);
-    obj->VisitRefsForCompaction</*kFetchObjSize*/false>(visitor,
-                                                        MemberOffset(0),
-                                                        MemberOffset(-1));
+    if (visit_native_roots_) {
+      obj->VisitRefsForCompaction</*kFetchObjSize*/ false, /*kVisitNativeRoots*/ true>(
+          visitor, MemberOffset(0), MemberOffset(-1));
+    } else {
+      obj->VisitRefsForCompaction</*kFetchObjSize*/ false>(
+          visitor, MemberOffset(0), MemberOffset(-1));
+    }
   }
 
   static void Callback(mirror::Object* obj, void* arg) REQUIRES(Locks::mutator_lock_) {
@@ -2077,6 +2082,7 @@ class MarkCompact::ImmuneSpaceUpdateObjVisitor {
 
  private:
   MarkCompact* const collector_;
+  const bool visit_native_roots_;
 };
 
 class MarkCompact::ClassLoaderRootsUpdater : public ClassLoaderVisitor {
@@ -2298,16 +2304,30 @@ void MarkCompact::PreCompactionPhase() {
     }
   }
 
+  bool has_zygote_space = heap_->HasZygoteSpace();
   GcVisitedArenaPool* arena_pool =
       static_cast<GcVisitedArenaPool*>(runtime->GetLinearAllocArenaPool());
-  if (uffd_ == kFallbackMode) {
+  if (uffd_ == kFallbackMode || (!has_zygote_space && runtime->IsZygote())) {
+    // Besides fallback-mode, visit linear-alloc space in the pause for zygote
+    // processes prior to first fork (that's when zygote space gets created).
+    if (kIsDebugBuild && IsValidFd(uffd_)) {
+      // All arenas allocated so far are expected to be pre-zygote fork.
+      arena_pool->ForEachAllocatedArena(
+          [](const TrackedArena& arena)
+              REQUIRES_SHARED(Locks::mutator_lock_) { CHECK(arena.IsPreZygoteForkArena()); });
+    }
     LinearAllocPageUpdater updater(this);
     arena_pool->VisitRoots(updater);
   } else {
     arena_pool->ForEachAllocatedArena(
         [this](const TrackedArena& arena) REQUIRES_SHARED(Locks::mutator_lock_) {
-          uint8_t* last_byte = arena.GetLastUsedByte();
-          CHECK(linear_alloc_arenas_.insert({&arena, last_byte}).second);
+          // The pre-zygote fork arenas are not visited concurrently in the
+          // zygote children processes. The native roots of the dirty objects
+          // are visited during immune space visit below.
+          if (!arena.IsPreZygoteForkArena()) {
+            uint8_t* last_byte = arena.GetLastUsedByte();
+            CHECK(linear_alloc_arenas_.insert({&arena, last_byte}).second);
+          }
         });
   }
 
@@ -2334,7 +2354,11 @@ void MarkCompact::PreCompactionPhase() {
       DCHECK(space->IsImageSpace() || space->IsZygoteSpace());
       accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
       accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
-      ImmuneSpaceUpdateObjVisitor visitor(this);
+      // Having zygote-space indicates that the first zygote fork has taken
+      // place and that the classes/dex-caches in immune-spaces may have allocations
+      // (ArtMethod/ArtField arrays, dex-cache array, etc.) in the
+      // non-userfaultfd visited private-anonymous mappings. Visit them here.
+      ImmuneSpaceUpdateObjVisitor visitor(this, /*visit_native_roots=*/has_zygote_space);
       if (table != nullptr) {
         table->ProcessCards();
         table->VisitObjects(ImmuneSpaceUpdateObjVisitor::Callback, &visitor);

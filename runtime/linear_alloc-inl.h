@@ -40,6 +40,12 @@ inline void LinearAlloc::SetFirstObject(void* begin, size_t bytes) const {
   down_cast<TrackedArena*>(arena)->SetFirstObject(static_cast<uint8_t*>(begin), end);
 }
 
+inline void LinearAlloc::SetupForPostZygoteFork(Thread* self) {
+  MutexLock mu(self, lock_);
+  DCHECK(track_allocations_);
+  allocator_.ResetCurrentArena();
+}
+
 inline void* LinearAlloc::Realloc(Thread* self,
                                   void* ptr,
                                   size_t old_size,
