@@ -524,6 +524,16 @@ bool OatFileBase::Setup(const std::vector<const DexFile*>& dex_files, std::strin
   uint32_t i = 0;
   const uint8_t* type_lookup_table_start = nullptr;
   for (const DexFile* dex_file : dex_files) {
+    // Defensively verify external dex file checksum. `OatFileAssistant`
+    // expects this check to happen during oat file setup when the oat file
+    // does not contain dex code.
+    if (dex_file->GetLocationChecksum() != vdex_->GetLocationChecksum(i)) {
+      *error_msg = StringPrintf("Dex checksum does not match for %s, dex has %d, vdex has %d",
+                                dex_file->GetLocation().c_str(),
+                                dex_file->GetLocationChecksum(),
+                                vdex_->GetLocationChecksum(i));
+      return false;
+    }
     std::string dex_location = dex_file->GetLocation();
     std::string canonical_location = DexFileLoader::GetDexCanonicalLocation(dex_location.c_str());
 
@@ -838,7 +848,9 @@ bool OatFileBase::Setup(int zip_fd,
           external_dex_files_.push_back(std::move(dex_file));
         }
       }
-      // Defensively verify external dex file checksum.
+      // Defensively verify external dex file checksum. `OatFileAssistant`
+      // expects this check to happen during oat file setup when the oat file
+      // does not contain dex code.
       if (dex_file_checksum != external_dex_files_[i]->GetLocationChecksum()) {
         *error_msg = StringPrintf("In oat file '%s', dex file checksum 0x%08x does not match"
                                       " checksum 0x%08x of external dex file '%s'",

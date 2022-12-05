@@ -474,11 +474,6 @@ class OatFileAssistant {
   // files are being read.
   bool UseFdToReadFiles();
 
-  // Returns true if the dex checksums in the given vdex file are up to date
-  // with respect to the dex location. If the dex checksums are not up to
-  // date, error_msg is updated with a message describing the problem.
-  bool DexChecksumUpToDate(const VdexFile& file, std::string* error_msg);
-
   // Returns true if the dex checksums in the given oat file are up to date
   // with respect to the dex location. If the dex checksums are not up to
   // date, error_msg is updated with a message describing the problem.
