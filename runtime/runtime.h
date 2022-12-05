@@ -911,6 +911,11 @@ class Runtime {
 
   // Create a normal LinearAlloc or low 4gb version if we are 64 bit AOT compiler.
   LinearAlloc* CreateLinearAlloc();
+  // Setup linear-alloc allocators to stop using the current arena so that the
+  // next allocations, which would be after zygote fork, happens in userfaultfd
+  // visited space.
+  void SetupLinearAllocForPostZygoteFork(Thread* self)
+      REQUIRES(!Locks::mutator_lock_, !Locks::classlinker_classes_lock_);
 
   OatFileManager& GetOatFileManager() const {
     DCHECK(oat_file_manager_ != nullptr);
@@ -1598,6 +1603,7 @@ class Runtime {
   friend class ScopedThreadPoolUsage;
   friend class OatFileAssistantTest;
   class NotifyStartupCompletedTask;
+  class SetupLinearAllocForZygoteFork;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
