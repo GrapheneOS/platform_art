@@ -51,6 +51,9 @@ class Barrier {
 
   // Pass through the barrier, decrement the count but do not block.
   void Pass(Thread* self) REQUIRES(!GetLock());
+  // Increment the barrier but do not block. The caller should ensure that it
+  // decrements/passes it eventually.
+  void IncrementNoWait(Thread* self) REQUIRES(!GetLock());
 
   // Decrement the count, then wait until the count is zero.
   void Wait(Thread* self) REQUIRES(!GetLock());

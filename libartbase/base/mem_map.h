@@ -290,8 +290,9 @@ class MemMap {
   // exceed the size of this reservation.
   //
   // Returns a mapping owning `byte_count` bytes rounded up to entire pages
-  // with size set to the passed `byte_count`.
-  MemMap TakeReservedMemory(size_t byte_count);
+  // with size set to the passed `byte_count`. If 'reuse' is true then the caller
+  // is responsible for unmapping the taken pages.
+  MemMap TakeReservedMemory(size_t byte_count, bool reuse = false);
 
   static bool CheckNoGaps(MemMap& begin_map, MemMap& end_map)
       REQUIRES(!MemMap::mem_maps_lock_);
@@ -320,6 +321,9 @@ class MemMap {
   // Reset in a forked process the MemMap whose memory has been madvised MADV_DONTFORK
   // in the parent process.
   void ResetInForkedProcess();
+
+  // 'redzone_size_ == 0' indicates that we are not using memory-tool on this mapping.
+  size_t GetRedzoneSize() const { return redzone_size_; }
 
  private:
   MemMap(const std::string& name,

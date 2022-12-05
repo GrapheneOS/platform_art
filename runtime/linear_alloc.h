@@ -26,7 +26,7 @@ namespace art {
 class ArenaPool;
 
 enum class LinearAllocKind : uint32_t {
-  kNoGCRoots,
+  kNoGCRoots = 0,  // No GC-root kind should always be 0.
   kGCRootArray,
   kArtMethodArray,
   kArtFieldArray,
