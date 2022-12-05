@@ -49,7 +49,6 @@ USE_RBE = 100  # Percentage of tests that can use RBE (between 0 and 100)
 lock_file = None  # Keep alive as long as this process is alive.
 
 RBE_D8_DISABLED_FOR = {
-  "089-many-methods",         # D8 compilation intentionally fails.
   "952-invoke-custom",        # b/228312861: RBE uses wrong inputs.
   "979-const-method-handle",  # b/228312861: RBE uses wrong inputs.
 }
