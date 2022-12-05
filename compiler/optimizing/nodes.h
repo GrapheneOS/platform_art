@@ -138,7 +138,6 @@ enum GraphAnalysisResult {
   kAnalysisInvalidBytecode,
   kAnalysisFailThrowCatchLoop,
   kAnalysisFailAmbiguousArrayOp,
-  kAnalysisFailInliningIrreducibleLoop,
   kAnalysisFailIrreducibleLoopAndStringInit,
   kAnalysisFailPhiEquivalentInOsr,
   kAnalysisSuccess,
@@ -515,6 +514,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   HBasicBlock* SplitEdge(HBasicBlock* block, HBasicBlock* successor);
 
   void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
+
+  // Splits the edge between `block` and `successor` and then updates the graph's RPO to keep
+  // consistency without recomputing the whole graph.
+  HBasicBlock* SplitEdgeAndUpdateRPO(HBasicBlock* block, HBasicBlock* successor);
+
   void OrderLoopHeaderPredecessors(HBasicBlock* header);
 
   // Transform a loop into a format with a single preheader.

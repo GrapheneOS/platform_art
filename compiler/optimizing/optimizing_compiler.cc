@@ -877,11 +877,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
                           MethodCompilationStat::kNotCompiledAmbiguousArrayOp);
           break;
         }
-        case kAnalysisFailInliningIrreducibleLoop: {
-          MaybeRecordStat(compilation_stats_.get(),
-                          MethodCompilationStat::kNotCompiledInliningIrreducibleLoop);
-          break;
-        }
         case kAnalysisFailIrreducibleLoopAndStringInit: {
           MaybeRecordStat(compilation_stats_.get(),
                           MethodCompilationStat::kNotCompiledIrreducibleLoopAndStringInit);
