@@ -16,26 +16,64 @@
 
 public class Main {
   public static void main(String[] args) {
-    testWithNull(new Object[2]);
-    testWithUnknown(new Object[2], new Object());
-    testWithSame(new Object[2]);
+    $noinline$testWithNull(new Object[2]);
+    $noinline$testWithUnknown(new Object[2], new Object());
+    $noinline$testWithSame(new Object[2]);
+    $noinline$testWithSameRTI();
   }
 
-  /// CHECK-START: void Main.testWithNull(java.lang.Object[]) disassembly (after)
-  /// CHECK:          ArraySet needs_type_check:false
-  public static void testWithNull(Object[] o) {
+  // Known null can eliminate the type check in early stages.
+
+  /// CHECK-START: void Main.$noinline$testWithNull(java.lang.Object[]) instruction_simplifier (before)
+  /// CHECK:          ArraySet needs_type_check:true can_trigger_gc:true
+
+  /// CHECK-START: void Main.$noinline$testWithNull(java.lang.Object[]) instruction_simplifier (after)
+  /// CHECK:          ArraySet needs_type_check:false can_trigger_gc:false
+
+  /// CHECK-START: void Main.$noinline$testWithNull(java.lang.Object[]) disassembly (after)
+  /// CHECK:          ArraySet needs_type_check:false can_trigger_gc:false
+  public static void $noinline$testWithNull(Object[] o) {
     o[0] = null;
   }
 
-  /// CHECK-START: void Main.testWithUnknown(java.lang.Object[], java.lang.Object) disassembly (after)
-  /// CHECK:          ArraySet needs_type_check:true
-  public static void testWithUnknown(Object[] o, Object obj) {
+  /// CHECK-START: void Main.$noinline$testWithUnknown(java.lang.Object[], java.lang.Object) disassembly (after)
+  /// CHECK:          ArraySet needs_type_check:true can_trigger_gc:true
+  public static void $noinline$testWithUnknown(Object[] o, Object obj) {
     o[0] = obj;
   }
 
-  /// CHECK-START: void Main.testWithSame(java.lang.Object[]) disassembly (after)
-  /// CHECK:          ArraySet needs_type_check:false
-  public static void testWithSame(Object[] o) {
+  // After GVN we know that we are setting values from the same array so there's no need for a type
+  // check.
+
+  /// CHECK-START: void Main.$noinline$testWithSame(java.lang.Object[]) instruction_simplifier$after_gvn (before)
+  /// CHECK:          ArraySet needs_type_check:true can_trigger_gc:true
+
+  /// CHECK-START: void Main.$noinline$testWithSame(java.lang.Object[]) instruction_simplifier$after_gvn (after)
+  /// CHECK:          ArraySet needs_type_check:false can_trigger_gc:false
+
+  /// CHECK-START: void Main.$noinline$testWithSame(java.lang.Object[]) disassembly (after)
+  /// CHECK:          ArraySet needs_type_check:false can_trigger_gc:false
+  public static void $noinline$testWithSame(Object[] o) {
     o[0] = o[1];
   }
+
+  // We know that the array and the static Object have the same RTI in early stages. No need for a
+  // type check.
+
+  /// CHECK-START: java.lang.Object[] Main.$noinline$testWithSameRTI() instruction_simplifier (before)
+  /// CHECK:          ArraySet needs_type_check:true can_trigger_gc:true
+
+  /// CHECK-START: java.lang.Object[] Main.$noinline$testWithSameRTI() instruction_simplifier (after)
+  /// CHECK:          ArraySet needs_type_check:false can_trigger_gc:false
+
+  /// CHECK-START: java.lang.Object[] Main.$noinline$testWithSameRTI() disassembly (after)
+  /// CHECK:          ArraySet needs_type_check:false can_trigger_gc:false
+  public static Object[] $noinline$testWithSameRTI() {
+    Object[] arr = new Object[1];
+    arr[0] = static_obj;
+    // Return so that LSE doesn't eliminate the ArraySet.
+    return arr;
+  }
+
+  static Object static_obj;
 }
