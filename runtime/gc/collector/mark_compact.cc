@@ -162,6 +162,8 @@ static constexpr bool kCheckLocks = kDebugLocking;
 static constexpr bool kVerifyRootsMarked = kIsDebugBuild;
 // Two threads should suffice on devices.
 static constexpr size_t kMaxNumUffdWorkers = 2;
+// Minimum from-space chunk to be madvised (during concurrent compaction) in one go.
+static constexpr ssize_t kMinFromSpaceMadviseSize = 1 * MB;
 // Concurrent compaction termination logic works if the kernel has the fault-retry feature
 // (allowing repeated faults on the same page), which was introduced in 5.7.
 // Otherwise, kernel only retries pagefaults once, therefore having 2 or less
@@ -1682,6 +1684,92 @@ void MarkCompact::DoPageCompactionWithStateChange(size_t page_idx,
 }
 
 template <int kMode>
+void MarkCompact::FreeFromSpacePages(size_t cur_page_idx,
+                                     size_t* last_checked_page_idx,
+                                     uint8_t** last_freed_page) {
+  // Thanks to sliding compaction, bump-pointer allocations, and reverse
+  // compaction (see CompactMovingSpace) the logic here is pretty simple: find
+  // the to-space page up to which compaction has finished, all the from-space
+  // pages corresponding to this onwards can be freed. There are some corner
+  // cases to be taken care of, which are described below.
+  size_t idx = *last_checked_page_idx;
+  // Find the to-space page upto which the corresponding from-space pages can be
+  // freed.
+  for (; idx > cur_page_idx; idx--) {
+    PageState state = moving_pages_status_[idx - 1].load(std::memory_order_acquire);
+    if (state == PageState::kMutatorProcessing) {
+      // Some mutator is working on the page.
+      break;
+    }
+    DCHECK(state >= PageState::kProcessed ||
+           (state == PageState::kUnprocessed && idx > moving_first_objs_count_));
+  }
+
+  uint8_t* first;
+  // Calculate the first from-space page to be freed using idx. If the
+  // first-object of this to-space page started before the corresponding
+  // from-space page, which is almost always the case in the compaction portion
+  // of the moving-space, then it indicates that the subsequent pages that are
+  // yet to be compacted will need the from-space. Therefore, find the page
+  // (from the already compacted pages) whose first-object is different from
+  // ours. All the from-space pages starting from that one are safe to be
+  // removed. Please note that this iteration is not expected to be long in
+  // normal cases as objects are smaller than page size.
+  if (idx >= moving_first_objs_count_) {
+    // black-allocated portion of the moving-space
+    first = black_allocations_begin_ + (idx - moving_first_objs_count_) * kPageSize;
+    mirror::Object* first_obj = first_objs_moving_space_[idx].AsMirrorPtr();
+    if (first_obj != nullptr && reinterpret_cast<uint8_t*>(first_obj) < first) {
+      size_t idx_len = moving_first_objs_count_ + black_page_count_;
+      for (size_t i = idx + 1; i < idx_len; i++) {
+        mirror::Object* obj = first_objs_moving_space_[i].AsMirrorPtr();
+        // A null first-object indicates that the corresponding to-space page is
+        // not used yet. So we can compute its from-space page and use that.
+        if (obj != first_obj) {
+          first = obj != nullptr ?
+                      AlignUp(reinterpret_cast<uint8_t*>(obj), kPageSize) :
+                      (black_allocations_begin_ + (i - moving_first_objs_count_) * kPageSize);
+          break;
+        }
+      }
+    }
+  } else {
+    DCHECK_GE(pre_compact_offset_moving_space_[idx], 0u);
+    first = bump_pointer_space_->Begin() + pre_compact_offset_moving_space_[idx] * kAlignment;
+    DCHECK_LE(first, black_allocations_begin_);
+    mirror::Object* first_obj = first_objs_moving_space_[idx].AsMirrorPtr();
+    if (reinterpret_cast<uint8_t*>(first_obj) < first) {
+      DCHECK_LT(idx, moving_first_objs_count_);
+      mirror::Object* obj = first_obj;
+      for (size_t i = idx + 1; i < moving_first_objs_count_; i++) {
+        obj = first_objs_moving_space_[i].AsMirrorPtr();
+        if (first_obj != obj) {
+          DCHECK_LT(first_obj, obj);
+          DCHECK_LT(first, reinterpret_cast<uint8_t*>(obj));
+          first = reinterpret_cast<uint8_t*>(obj);
+          break;
+        }
+      }
+      if (obj == first_obj) {
+        first = black_allocations_begin_;
+      }
+    }
+    first = AlignUp(first, kPageSize);
+  }
+  DCHECK_NE(first, nullptr);
+  DCHECK_ALIGNED(first, kPageSize);
+  DCHECK_ALIGNED(*last_freed_page, kPageSize);
+  ssize_t size = *last_freed_page - first;
+  if (size >= kMinFromSpaceMadviseSize) {
+    int behavior = kMode == kMinorFaultMode ? MADV_REMOVE : MADV_DONTNEED;
+    CHECK_EQ(madvise(first + from_space_slide_diff_, size, behavior), 0)
+        << "madvise of from-space failed: " << strerror(errno);
+    *last_freed_page = first;
+  }
+  *last_checked_page_idx = idx;
+}
+
+template <int kMode>
 void MarkCompact::CompactMovingSpace(uint8_t* page) {
   // For every page we have a starting object, which may have started in some
   // preceding page, and an offset within that object from where we must start
@@ -1701,10 +1789,14 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
   if (kMode == kMinorFaultMode) {
     shadow_space_end = shadow_to_space_map_.Begin() + page_status_arr_len * kPageSize;
   }
-  // Allocated-black pages
   uint8_t* pre_compact_page = black_allocations_begin_ + (black_page_count_ * kPageSize);
 
   DCHECK(IsAligned<kPageSize>(pre_compact_page));
+
+  // These variables are maintained by FreeFromSpacePages().
+  uint8_t* last_freed_page = pre_compact_page;
+  size_t last_checked_page_idx = idx;
+  // Allocated-black pages
   while (idx > moving_first_objs_count_) {
     idx--;
     pre_compact_page -= kPageSize;
@@ -1725,6 +1817,11 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
           [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
             SlideBlackPage(first_obj, idx, pre_compact_page, page, kMode == kCopyMode);
           });
+      // We are sliding here, so no point attempting to madvise for every
+      // page. Wait for enough pages to be done.
+      if (idx % (kMinFromSpaceMadviseSize / kPageSize) == 0) {
+        FreeFromSpacePages<kMode>(idx, &last_checked_page_idx, &last_freed_page);
+      }
     }
   }
   DCHECK_EQ(pre_compact_page, black_allocations_begin_);
@@ -1743,6 +1840,7 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
         idx, page_status_arr_len, to_space_end, page, [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
           CompactPage(first_obj, pre_compact_offset_moving_space_[idx], page, kMode == kCopyMode);
         });
+    FreeFromSpacePages<kMode>(idx, &last_checked_page_idx, &last_freed_page);
   }
   DCHECK_EQ(to_space_end, bump_pointer_space_->Begin());
 }
@@ -2393,8 +2491,6 @@ void MarkCompact::KernelPreparation() {
                      moving_to_space_fd_,
                      mode,
                      shadow_addr);
-  DCHECK_EQ(mprotect(from_space_begin_, moving_space_size, PROT_READ), 0)
-      << "mprotect failed: " << strerror(errno);
 
   if (IsValidFd(uffd_)) {
     for (auto& data : linear_alloc_spaces_data_) {
@@ -2529,10 +2625,11 @@ void MarkCompact::ConcurrentlyProcessMovingPage(ZeropageType& zeropage_ioctl,
     // zeropage in this range as we synchronize using moving_pages_status_[page_idx].
     PageState expected_state = PageState::kUnprocessed;
     if (moving_pages_status_[page_idx].compare_exchange_strong(
-            expected_state, PageState::kProcessingAndMapping, std::memory_order_relaxed)) {
+            expected_state, PageState::kProcessedAndMapping, std::memory_order_relaxed)) {
+      // Note: ioctl acts as an acquire fence.
       zeropage_ioctl(fault_page, /*tolerate_eexist=*/false, /*tolerate_enoent=*/true);
     } else {
-      DCHECK_EQ(expected_state, PageState::kProcessingAndMapping);
+      DCHECK_EQ(expected_state, PageState::kProcessedAndMapping);
     }
     return;
   }
@@ -2551,7 +2648,7 @@ void MarkCompact::ConcurrentlyProcessMovingPage(ZeropageType& zeropage_ioctl,
         // increment to moving_compactions_in_progress above is not re-ordered
         // after the CAS.
         if (moving_pages_status_[page_idx].compare_exchange_strong(
-                state, PageState::kProcessingAndMapping, std::memory_order_acquire)) {
+                state, PageState::kMutatorProcessing, std::memory_order_acquire)) {
           if (kMode == kMinorFaultMode) {
             DCHECK_EQ(buf, nullptr);
             buf = shadow_to_space_map_.Begin() + page_idx * kPageSize;
@@ -2568,6 +2665,11 @@ void MarkCompact::ConcurrentlyProcessMovingPage(ZeropageType& zeropage_ioctl,
             DCHECK(IsAligned<kPageSize>(pre_compact_page));
             SlideBlackPage(first_obj, page_idx, pre_compact_page, buf, kMode == kCopyMode);
           }
+          // Nobody else would simultaneously modify this page's state so an
+          // atomic store is sufficient. Use 'release' order to guarantee that
+          // loads/stores to the page are finished before this store.
+          moving_pages_status_[page_idx].store(PageState::kProcessedAndMapping,
+                                               std::memory_order_release);
           if (kMode == kCopyMode) {
             copy_ioctl(fault_page, buf);
             return;
@@ -2825,9 +2927,6 @@ void MarkCompact::CompactionPhase() {
 
   // Release all of the memory taken by moving-space's from-map
   if (minor_fault_initialized_) {
-    // Give write permission for the madvise(REMOVE) to succeed.
-    DCHECK_EQ(mprotect(from_space_begin_, moving_space_size, PROT_WRITE), 0)
-        << "mprotect failed: " << strerror(errno);
     int ret = madvise(from_space_begin_, moving_space_size, MADV_REMOVE);
     CHECK_EQ(ret, 0) << "madvise(MADV_REMOVE) failed for from-space map:" << strerror(errno);
   } else {

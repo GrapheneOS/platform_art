@@ -151,7 +151,8 @@ class MarkCompact final : public GarbageCollector {
     kProcessing = 1,            // Being processed by GC thread and will not be mapped
     kProcessed = 2,             // Processed but not mapped
     kProcessingAndMapping = 3,  // Being processed by GC or mutator and will be mapped
-    kProcessedAndMapping = 4    // Processed and will be mapped mapped
+    kMutatorProcessing = 4,     // Being processed by mutator thread
+    kProcessedAndMapping = 5    // Processed and will be mapped
   };
 
  private:
@@ -480,6 +481,11 @@ class MarkCompact final : public GarbageCollector {
   // Returns true if the moving space can be compacted using uffd's minor-fault
   // feature.
   bool CanCompactMovingSpaceWithMinorFault();
+
+  template <int kMode>
+  void FreeFromSpacePages(size_t cur_page_idx,
+                          size_t* last_checked_page_idx,
+                          uint8_t** last_freed_pag) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Maps processed pages (from moving space and linear-alloc) for uffd's
   // minor-fault feature. We try to 'claim' all processed (and unmapped) pages
