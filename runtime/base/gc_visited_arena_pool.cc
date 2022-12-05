@@ -16,23 +16,16 @@
 
 #include "base/gc_visited_arena_pool.h"
 
-#include "base/arena_allocator-inl.h"
-#include "base/utils.h"
-
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-namespace art {
+#include "base/arena_allocator-inl.h"
+#include "base/memfd.h"
+#include "base/utils.h"
+#include "gc/collector/mark_compact-inl.h"
 
-#if defined(__LP64__)
-// Use a size in multiples of 1GB as that can utilize the optimized mremap
-// page-table move.
-static constexpr size_t kLinearAllocPoolSize = 1 * GB;
-static constexpr size_t kLow4GBLinearAllocPoolSize = 32 * MB;
-#else
-static constexpr size_t kLinearAllocPoolSize = 32 * MB;
-#endif
+namespace art {
 
 TrackedArena::TrackedArena(uint8_t* start, size_t size) : Arena(), first_obj_array_(nullptr) {
   static_assert(ArenaAllocator::kArenaAlignment <= kPageSize,
@@ -48,7 +41,15 @@ TrackedArena::TrackedArena(uint8_t* start, size_t size) : Arena(), first_obj_arr
 
 void TrackedArena::Release() {
   if (bytes_allocated_ > 0) {
-    ZeroAndReleasePages(Begin(), Size());
+    // Userfaultfd GC uses memfd mappings for linear-alloc and therefore
+    // MADV_DONTNEED will not free the pages from page cache. Therefore use
+    // MADV_REMOVE instead, which is meant for this purpose.
+    if (!gUseUserfaultfd || (madvise(Begin(), Size(), MADV_REMOVE) == -1 && errno == EINVAL)) {
+      // MADV_REMOVE fails if invoked on anonymous mapping, which could happen
+      // if the arena is released before userfaultfd-GC starts using memfd. So
+      // use MADV_DONTNEED.
+      ZeroAndReleasePages(Begin(), Size());
+    }
     std::fill_n(first_obj_array_.get(), Size() / kPageSize, nullptr);
     bytes_allocated_ = 0;
   }
@@ -76,17 +77,35 @@ void GcVisitedArenaPool::AddMap(size_t min_size) {
     size = std::max(min_size, kLow4GBLinearAllocPoolSize);
   }
 #endif
+  Runtime* runtime = Runtime::Current();
+  gc::collector::MarkCompact* mark_compact = runtime->GetHeap()->MarkCompactCollector();
   std::string err_msg;
-  maps_.emplace_back(MemMap::MapAnonymous(name_,
-                                          size,
-                                          PROT_READ | PROT_WRITE,
-                                          low_4gb_,
-                                          &err_msg));
+  bool mapped_shared;
+  // We use MAP_SHARED on non-zygote processes for leveraging userfaultfd's minor-fault feature.
+  if (gUseUserfaultfd && !runtime->IsZygote() && mark_compact->IsUffdMinorFaultSupported()) {
+    maps_.emplace_back(MemMap::MapFile(size,
+                                       PROT_READ | PROT_WRITE,
+                                       MAP_ANONYMOUS | MAP_SHARED,
+                                       -1,
+                                       /*start=*/0,
+                                       low_4gb_,
+                                       name_,
+                                       &err_msg));
+    mapped_shared = true;
+  } else {
+    maps_.emplace_back(
+        MemMap::MapAnonymous(name_, size, PROT_READ | PROT_WRITE, low_4gb_, &err_msg));
+    mapped_shared = false;
+  }
+
   MemMap& map = maps_.back();
   if (!map.IsValid()) {
-    LOG(FATAL) << "Failed to allocate " << name_
-               << ": " << err_msg;
+    LOG(FATAL) << "Failed to allocate " << name_ << ": " << err_msg;
     UNREACHABLE();
+  }
+  if (gUseUserfaultfd) {
+    // Create a shadow-map for the map being added for userfaultfd GC
+    mark_compact->AddLinearAllocSpaceData(map.Begin(), map.Size(), mapped_shared);
   }
   Chunk* chunk = new Chunk(map.Begin(), map.Size());
   best_fit_allocs_.insert(chunk);
@@ -251,4 +270,3 @@ void GcVisitedArenaPool::FreeArenaChain(Arena* first) {
 }
 
 }  // namespace art
-
