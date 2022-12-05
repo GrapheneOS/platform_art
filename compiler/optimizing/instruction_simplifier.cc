@@ -1142,13 +1142,13 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
   if (value->IsArrayGet()) {
     if (value->AsArrayGet()->GetArray() == instruction->GetArray()) {
       // If the code is just swapping elements in the array, no need for a type check.
-      instruction->ClearNeedsTypeCheck();
+      instruction->ClearTypeCheck();
       return;
     }
   }
 
   if (value->IsNullConstant()) {
-    instruction->ClearNeedsTypeCheck();
+    instruction->ClearTypeCheck();
     return;
   }
 
@@ -1160,13 +1160,13 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
   }
 
   if (value_rti.IsValid() && array_rti.CanArrayHold(value_rti)) {
-    instruction->ClearNeedsTypeCheck();
+    instruction->ClearTypeCheck();
     return;
   }
 
   if (array_rti.IsObjectArray()) {
     if (array_rti.IsExact()) {
-      instruction->ClearNeedsTypeCheck();
+      instruction->ClearTypeCheck();
       return;
     }
     instruction->SetStaticTypeOfArrayIsObjectArray();

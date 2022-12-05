@@ -55,6 +55,7 @@ class GraphChecker : public HGraphDelegateVisitor {
   void VisitInstruction(HInstruction* instruction) override;
   void VisitPhi(HPhi* phi) override;
 
+  void VisitArraySet(HArraySet* instruction) override;
   void VisitBinaryOperation(HBinaryOperation* op) override;
   void VisitBooleanNot(HBooleanNot* instruction) override;
   void VisitBoundType(HBoundType* instruction) override;
