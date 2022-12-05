@@ -109,7 +109,7 @@ void PrepareForRegisterAllocation::VisitArraySet(HArraySet* instruction) {
   if (value->IsNullConstant()) {
     DCHECK_EQ(value->GetType(), DataType::Type::kReference);
     if (instruction->NeedsTypeCheck()) {
-      instruction->ClearNeedsTypeCheck();
+      instruction->ClearTypeCheck();
     }
   }
 }

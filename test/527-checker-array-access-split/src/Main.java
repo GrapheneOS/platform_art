@@ -593,12 +593,16 @@ public class Main {
   /// CHECK:                        ArrayGet [<<IntAddr1>>,{{i\d+}}]
   /// CHECK: <<IntAddr2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                        ArrayGet [<<IntAddr2>>,{{i\d+}}]
-  /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}]
+  /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}] needs_type_check:false can_trigger_gc:false
   /// CHECK: <<IntAddr3:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                        ArrayGet [<<IntAddr3>>,{{i\d+}}]
   /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}]
   /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}]
   //
+  /// CHECK-START-ARM64: int Main.checkObjectArrayGet(int, java.lang.Integer[], java.lang.Integer[]) instruction_simplifier_arm64 (after)
+  /// CHECK:                        IntermediateAddress
+  /// CHECK:                        IntermediateAddress
+  /// CHECK:                        IntermediateAddress
   /// CHECK-NOT:                    IntermediateAddress
 
   /// CHECK-START-ARM64: int Main.checkObjectArrayGet(int, java.lang.Integer[], java.lang.Integer[]) GVN$after_arch (after)
@@ -608,12 +612,13 @@ public class Main {
   /// CHECK: <<IntAddr1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                        ArrayGet [<<IntAddr1>>,{{i\d+}}]
   /// CHECK:                        ArrayGet [<<IntAddr1>>,{{i\d+}}]
-  /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}]
-  /// CHECK: <<IntAddr3:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
-  /// CHECK:                        ArrayGet [<<IntAddr3>>,{{i\d+}}]
+  /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}] needs_type_check:false can_trigger_gc:false
+  /// CHECK:                        ArrayGet [<<IntAddr1>>,{{i\d+}}]
   /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}]
   /// CHECK:                        ArraySet [<<Array>>,{{i\d+}},{{l\d+}}]
   //
+  /// CHECK-START-ARM64: int Main.checkObjectArrayGet(int, java.lang.Integer[], java.lang.Integer[]) GVN$after_arch (after)
+  /// CHECK:                        IntermediateAddress
   /// CHECK-NOT:                    IntermediateAddress
   public final static int checkObjectArrayGet(int index, Integer[] a, Integer[] b) {
     Integer five = Integer.valueOf(5);
