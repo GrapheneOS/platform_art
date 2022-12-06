@@ -15,20 +15,20 @@
  */
 
 public class Main {
-  public static void main(String[] args) {
-    if ($opt$TestCallee(1.0, 2.0, 1L, 2L) != 1L) {
-      throw new Error("Unexpected result");
+    public static void main(String[] args) {
+        if ($opt$TestCallee(1.0, 2.0, 1L, 2L) != 1L) {
+            throw new Error("Unexpected result");
+        }
+        if ($opt$TestCaller() != 1L) {
+            throw new Error("Unexpected result");
+        }
     }
-    if ($opt$TestCaller() != 1L) {
-      throw new Error("Unexpected result");
+
+    public static long $opt$TestCallee(double a, double b, long c, long d) {
+        return d - c;
     }
-  }
 
-  public static long $opt$TestCallee(double a, double b, long c, long d) {
-    return d - c;
-  }
-
-  public static long $opt$TestCaller() {
-    return $opt$TestCallee(1.0, 2.0, 1L, 2L);
-  }
+    public static long $opt$TestCaller() {
+        return $opt$TestCallee(1.0, 2.0, 1L, 2L);
+    }
 }
