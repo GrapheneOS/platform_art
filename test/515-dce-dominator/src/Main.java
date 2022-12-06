@@ -17,10 +17,10 @@
 import java.lang.reflect.Method;
 
 public class Main {
-  public static void main(String[] args) throws Exception {
-    Class<?> c = Class.forName("Dominator");
-    Method m = c.getMethod("method", int.class);
-    Object[] arguments = { 5 };
-    m.invoke(null, arguments);
-  }
+    public static void main(String[] args) throws Exception {
+        Class<?> c = Class.forName("Dominator");
+        Method m = c.getMethod("method", int.class);
+        Object[] arguments = { 5 };
+        m.invoke(null, arguments);
+    }
 }

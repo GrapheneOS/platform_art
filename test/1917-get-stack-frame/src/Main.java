@@ -15,7 +15,7 @@
  */
 
 public class Main {
-  public static void main(String[] args) throws Exception {
-    art.Test1917.run();
-  }
+    public static void main(String[] args) throws Exception {
+        art.Test1917.run();
+    }
 }

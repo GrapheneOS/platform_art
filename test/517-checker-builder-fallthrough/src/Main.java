@@ -18,15 +18,15 @@ import java.lang.reflect.*;
 
 public class Main {
 
-  public static int runTest(int input) throws Exception {
-    Class<?> c = Class.forName("TestCase");
-    Method m = c.getMethod("testCase", int.class);
-    return (Integer) m.invoke(null, input);
-  }
-
-  public static void main(String[] args) throws Exception {
-    if (runTest(42) != 42) {
-      throw new Error("Expected 42");
+    public static int runTest(int input) throws Exception {
+        Class<?> c = Class.forName("TestCase");
+        Method m = c.getMethod("testCase", int.class);
+        return (Integer) m.invoke(null, input);
     }
-  }
+
+    public static void main(String[] args) throws Exception {
+        if (runTest(42) != 42) {
+            throw new Error("Expected 42");
+        }
+    }
 }

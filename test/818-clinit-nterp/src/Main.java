@@ -15,20 +15,19 @@
  */
 
 public class Main {
-  public static void main(String[] args) {
-    Clinit.run();
-    if (!clinitDidRun) {
-      throw new Error("Expected Clinit.<clinit> to have run");
+    public static void main(String[] args) {
+        Clinit.run();
+        if (!clinitDidRun) {
+            throw new Error("Expected Clinit.<clinit> to have run");
+        }
     }
-  }
-  static boolean clinitDidRun = false;
+    static boolean clinitDidRun = false;
 }
 
 class Clinit {
-  public static void run() {
-  }
+    public static void run() {}
 
-  static {
-    Main.clinitDidRun = true;
-  }
+    static {
+        Main.clinitDidRun = true;
+    }
 }
