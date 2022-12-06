@@ -88,6 +88,11 @@ interface IArtd {
      * writes the merge result to `outputProfile` and fills `outputProfile.profilePath.id` and
      * `outputProfile.profilePath.tmpPath` if a merge has been performed.
      *
+     * When `options.forceMerge`, `options.dumpOnly`, or `options.dumpClassesAndMethods` is set,
+     * `referenceProfile` must not be set. I.e., all inputs must be provided by `profiles`. This is
+     * because the merge will always happen, and hence no reference profile is needed to calculate
+     * the diff.
+     *
      * Throws fatal and non-fatal errors.
      */
     boolean mergeProfiles(in List<com.android.server.art.ProfilePath> profiles,

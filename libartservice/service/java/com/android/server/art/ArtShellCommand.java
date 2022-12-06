@@ -19,6 +19,7 @@ package com.android.server.art;
 import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 
 import static com.android.server.art.ArtManagerLocal.SnapshotProfileException;
+import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 import static com.android.server.art.model.ArtFlags.OptimizeFlags;
 import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
@@ -31,6 +32,10 @@ import android.os.Build;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.StructStat;
+import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
@@ -43,6 +48,8 @@ import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
+import com.android.server.pm.pkg.AndroidPackage;
+import com.android.server.pm.pkg.PackageState;
 
 import libcore.io.Streams;
 
@@ -51,6 +58,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -65,6 +74,9 @@ import java.util.stream.Collectors;
  */
 public final class ArtShellCommand extends BasicShellCommandHandler {
     private static final String TAG = "ArtShellCommand";
+
+    /** The default location for profile dumps. */
+    private final static String PROFILE_DEBUG_LOCATION = "/data/misc/profman";
 
     private final ArtManagerLocal mArtManagerLocal;
     private final PackageManagerLocal mPackageManagerLocal;
@@ -270,26 +282,66 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     }
                 }
                 case "snapshot-app-profile": {
-                    String outputPath = getNextArgRequired();
+                    String packageName = getNextArgRequired();
+                    String splitName = getNextArg();
+                    String outputRelativePath = String.format("%s%s.prof", packageName,
+                            splitName != null ? String.format("-split_%s.apk", splitName) : "");
                     ParcelFileDescriptor fd;
                     try {
-                        fd = mArtManagerLocal.snapshotAppProfile(
-                                snapshot, getNextArgRequired(), getNextOption());
+                        fd = mArtManagerLocal.snapshotAppProfile(snapshot, packageName, splitName);
                     } catch (SnapshotProfileException e) {
                         throw new RuntimeException(e);
                     }
-                    writeFdContentsToFile(fd, outputPath);
+                    writeProfileFdContentsToFile(fd, outputRelativePath);
                     return 0;
                 }
                 case "snapshot-boot-image-profile": {
-                    String outputPath = getNextArgRequired();
+                    String outputRelativePath = "android.prof";
                     ParcelFileDescriptor fd;
                     try {
                         fd = mArtManagerLocal.snapshotBootImageProfile(snapshot);
                     } catch (SnapshotProfileException e) {
                         throw new RuntimeException(e);
                     }
-                    writeFdContentsToFile(fd, outputPath);
+                    writeProfileFdContentsToFile(fd, outputRelativePath);
+                    return 0;
+                }
+                case "dump-profiles": {
+                    boolean dumpClassesAndMethods = false;
+                    String opt;
+                    while ((opt = getNextOption()) != null) {
+                        switch (opt) {
+                            case "--dump-classes-and-methods": {
+                                dumpClassesAndMethods = true;
+                                break;
+                            }
+                            default:
+                                pw.println("Error: Unknown option: " + opt);
+                                return 1;
+                        }
+                    }
+                    String packageName = getNextArgRequired();
+                    PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+                    AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+                    for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
+                        if (!dexInfo.hasCode()) {
+                            continue;
+                        }
+                        String profileName = PrimaryDexUtils.getProfileName(dexInfo.splitName());
+                        // The path is intentionally inconsistent with the one for
+                        // "snapshot-app-profile". The is to match the behavior of the legacy PM
+                        // shell command.
+                        String outputRelativePath =
+                                String.format("%s-%s.prof.txt", packageName, profileName);
+                        ParcelFileDescriptor fd;
+                        try {
+                            fd = mArtManagerLocal.dumpAppProfile(snapshot, packageName,
+                                    dexInfo.splitName(), dumpClassesAndMethods);
+                        } catch (SnapshotProfileException e) {
+                            throw new RuntimeException(e);
+                        }
+                        writeProfileFdContentsToFile(fd, outputRelativePath);
+                    }
                     return 0;
                 }
                 default:
@@ -375,11 +427,22 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("        This state will be lost when the system_server process exits.");
         pw.println("      --enable: Enable the background dexopt job to be started by the job");
         pw.println("        scheduler again, if previously disabled by --disable.");
-        pw.println("  snapshot-app-profile OUTPUT_PATH PACKAGE_NAME [SPLIT_NAME]");
-        pw.println("    Snapshot the profile of the given app and save it to the output path.");
-        pw.println("    If SPLIT_NAME is empty, the command snapshots the base APK.");
-        pw.println("  snapshot-boot-image-profile OUTPUT_PATH");
-        pw.println("    Snapshot the boot image profile and save it to the output path.");
+        pw.println("  snapshot-app-profile PACKAGE_NAME [SPLIT_NAME]");
+        pw.println("    Snapshot the profile of the given app and save it to");
+        pw.println("    '" + PROFILE_DEBUG_LOCATION + "'.");
+        pw.println("    If SPLIT_NAME is empty, the command is for the base APK, and the output");
+        pw.println("    filename is 'PACKAGE_NAME.prof'. Otherwise, the command is for the given");
+        pw.println("    split, and the output filename is");
+        pw.println("    'PACKAGE_NAME-split_SPLIT_NAME.apk.prof'.");
+        pw.println("  snapshot-boot-image-profile");
+        pw.println("    Snapshot the boot image profile and save it to");
+        pw.println("    '" + PROFILE_DEBUG_LOCATION + "/android.prof'.");
+        pw.println("  dump-profiles [--dump-classes-and-methods] PACKAGE_NAME");
+        pw.println("    Dump the profiles of the given app in text format and save the outputs to");
+        pw.println("    '" + PROFILE_DEBUG_LOCATION + "'.");
+        pw.println("    The profile of the base APK is dumped to 'PACKAGE_NAME-primary.prof.txt'");
+        pw.println("    The profile of a split APK is dumped to");
+        pw.println("    'PACKAGE_NAME-SPLIT_NAME.split.prof.txt'");
     }
 
     private void enforceRoot() {
@@ -423,12 +486,30 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         }
     }
 
-    private void writeFdContentsToFile(
-            @NonNull ParcelFileDescriptor fd, @NonNull String outputPath) {
+    private void writeProfileFdContentsToFile(
+            @NonNull ParcelFileDescriptor fd, @NonNull String outputRelativePath) {
+        try {
+            StructStat st = Os.stat(PROFILE_DEBUG_LOCATION);
+            if (st.st_uid != Process.SYSTEM_UID || st.st_gid != Process.SHELL_UID
+                    || (st.st_mode & 0007) != 0) {
+                throw new RuntimeException(
+                        String.format("%s has wrong permissions: uid=%d, gid=%d, mode=%o",
+                                PROFILE_DEBUG_LOCATION, st.st_uid, st.st_gid, st.st_mode));
+            }
+        } catch (ErrnoException e) {
+            throw new RuntimeException("Unable to stat " + PROFILE_DEBUG_LOCATION, e);
+        }
+        Path outputPath = Paths.get(PROFILE_DEBUG_LOCATION, outputRelativePath);
         try (InputStream inputStream = new AutoCloseInputStream(fd);
-                OutputStream outputStream = new FileOutputStream(outputPath)) {
+                FileOutputStream outputStream = new FileOutputStream(outputPath.toFile())) {
+            // The system server doesn't have the permission to chown the file to "shell", so we
+            // make it readable by everyone and put it in a directory that is only accessible by
+            // "shell", which is created by system/core/rootdir/init.rc. The permissions are
+            // verified by the code above.
+            Os.fchmod(outputStream.getFD(), 0644);
             Streams.copy(inputStream, outputStream);
-        } catch (IOException e) {
+        } catch (IOException | ErrnoException e) {
+            Utils.deleteIfExistsSafe(outputPath);
             throw new RuntimeException(e);
         }
     }

@@ -641,6 +641,30 @@ public class ArtManagerLocalTest {
     }
 
     @Test
+    public void testDumpAppProfile() throws Exception {
+        var options = new MergeProfileOptions();
+        options.dumpOnly = true;
+
+        when(mArtd.mergeProfiles(any(), isNull(), any(), any(), deepEq(options)))
+                .thenReturn(false); // A non-empty merge is tested in `testSnapshotAppProfile`.
+
+        ParcelFileDescriptor fd = mArtManagerLocal.dumpAppProfile(
+                mSnapshot, PKG_NAME, null /* splitName */, false /* dumpClassesAndMethods */);
+    }
+
+    @Test
+    public void testDumpAppProfileDumpClassesAndMethods() throws Exception {
+        var options = new MergeProfileOptions();
+        options.dumpClassesAndMethods = true;
+
+        when(mArtd.mergeProfiles(any(), isNull(), any(), any(), deepEq(options)))
+                .thenReturn(false); // A non-empty merge is tested in `testSnapshotAppProfile`.
+
+        ParcelFileDescriptor fd = mArtManagerLocal.dumpAppProfile(
+                mSnapshot, PKG_NAME, null /* splitName */, true /* dumpClassesAndMethods */);
+    }
+
+    @Test
     public void testSnapshotBootImageProfile() throws Exception {
         // `lenient()` is required to allow mocking the same method multiple times.
         lenient().when(Constants.getenv("BOOTCLASSPATH")).thenReturn("bcp0:bcp1");

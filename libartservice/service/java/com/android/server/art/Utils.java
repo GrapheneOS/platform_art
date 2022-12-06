@@ -23,6 +23,7 @@ import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.UserManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.server.art.model.OptimizeParams;
@@ -35,6 +36,9 @@ import dalvik.system.VMRuntime;
 
 import com.google.auto.value.AutoValue;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -47,6 +51,7 @@ import java.util.stream.Collectors;
 
 /** @hide */
 public final class Utils {
+    public static final String TAG = "ArtServiceUtils";
     public static final String PLATFORM_PACKAGE_NAME = "android";
 
     private Utils() {}
@@ -282,6 +287,14 @@ public final class Utils {
                         .max(Long::compare)
                         .orElse(0l);
         return Math.max(lastUsedAtMs, lastFirstInstallTimeMs);
+    }
+
+    public static void deleteIfExistsSafe(@NonNull Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to delete file '" + path + "'", e);
+        }
     }
 
     @AutoValue

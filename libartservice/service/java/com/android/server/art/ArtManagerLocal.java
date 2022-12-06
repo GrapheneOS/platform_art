@@ -549,6 +549,32 @@ public final class ArtManagerLocal {
     public ParcelFileDescriptor snapshotAppProfile(
             @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
             @Nullable String splitName) throws SnapshotProfileException {
+        var options = new MergeProfileOptions();
+        options.forceMerge = true;
+        return snapshotOrDumpAppProfile(snapshot, packageName, splitName, options);
+    }
+
+    /**
+     * Same as above, but outputs in text format.
+     *
+     * @hide
+     */
+    @NonNull
+    public ParcelFileDescriptor dumpAppProfile(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
+            @Nullable String splitName, boolean dumpClassesAndMethods)
+            throws SnapshotProfileException {
+        var options = new MergeProfileOptions();
+        options.dumpOnly = !dumpClassesAndMethods;
+        options.dumpClassesAndMethods = dumpClassesAndMethods;
+        return snapshotOrDumpAppProfile(snapshot, packageName, splitName, options);
+    }
+
+    @NonNull
+    private ParcelFileDescriptor snapshotOrDumpAppProfile(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
+            @Nullable String splitName, @NonNull MergeProfileOptions options)
+            throws SnapshotProfileException {
         PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
         PrimaryDexInfo dexInfo = PrimaryDexUtils.getDexInfoBySplitName(pkg, splitName);
@@ -561,8 +587,7 @@ public final class ArtManagerLocal {
         OutputProfile output = PrimaryDexUtils.buildOutputProfile(
                 pkgState, dexInfo, Process.SYSTEM_UID, Process.SYSTEM_UID, false /* isPublic */);
 
-        return mergeProfilesAndGetFd(
-                profiles, output, List.of(dexInfo.dexPath()), false /* forBootImage */);
+        return mergeProfilesAndGetFd(profiles, output, List.of(dexInfo.dexPath()), options);
     }
 
     /**
@@ -619,7 +644,10 @@ public final class ArtManagerLocal {
                                         .flatMap(classpath -> Arrays.stream(classpath.split(":")))
                                         .collect(Collectors.toList());
 
-        return mergeProfilesAndGetFd(profiles, output, dexPaths, true /* forBootImage */);
+        var options = new MergeProfileOptions();
+        options.forceMerge = true;
+        options.forBootImage = true;
+        return mergeProfilesAndGetFd(profiles, output, dexPaths, options);
     }
 
     /**
@@ -733,13 +761,9 @@ public final class ArtManagerLocal {
 
     @NonNull
     private ParcelFileDescriptor mergeProfilesAndGetFd(@NonNull List<ProfilePath> profiles,
-            @NonNull OutputProfile output, @NonNull List<String> dexPaths, boolean forBootImage)
-            throws SnapshotProfileException {
+            @NonNull OutputProfile output, @NonNull List<String> dexPaths,
+            @NonNull MergeProfileOptions options) throws SnapshotProfileException {
         try {
-            var options = new MergeProfileOptions();
-            options.forceMerge = true;
-            options.forBootImage = forBootImage;
-
             boolean hasContent = false;
             try {
                 hasContent = mInjector.getArtd().mergeProfiles(

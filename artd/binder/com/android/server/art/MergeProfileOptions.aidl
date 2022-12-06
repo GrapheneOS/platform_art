@@ -32,4 +32,8 @@ parcelable MergeProfileOptions {
     boolean forceMerge;
     /** --boot-image-merge */
     boolean forBootImage;
+    /** --dump-only */
+    boolean dumpOnly;
+    /** --dump-classes-and-methods */
+    boolean dumpClassesAndMethods;
 }
