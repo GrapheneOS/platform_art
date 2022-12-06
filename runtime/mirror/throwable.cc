@@ -31,7 +31,7 @@
 #include "object_array.h"
 #include "stack_trace_element-inl.h"
 #include "string.h"
-#include "well_known_classes-inl.h"
+#include "well_known_classes.h"
 
 namespace art {
 namespace mirror {
@@ -70,14 +70,14 @@ void Throwable::SetStackState(ObjPtr<Object> state) REQUIRES_SHARED(Locks::mutat
 }
 
 bool Throwable::IsCheckedException() {
-  if (IsError()) {
+  if (InstanceOf(WellKnownClasses::ToClass(WellKnownClasses::java_lang_Error))) {
     return false;
   }
-  return !InstanceOf(WellKnownClasses::java_lang_RuntimeException.Get());
+  return !InstanceOf(WellKnownClasses::ToClass(WellKnownClasses::java_lang_RuntimeException));
 }
 
 bool Throwable::IsError() {
-  return InstanceOf(WellKnownClasses::java_lang_Error.Get());
+  return InstanceOf(WellKnownClasses::ToClass(WellKnownClasses::java_lang_Error));
 }
 
 int32_t Throwable::GetStackDepth() {

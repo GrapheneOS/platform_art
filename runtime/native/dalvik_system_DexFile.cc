@@ -55,7 +55,6 @@
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "string_array_utils.h"
-#include "thread-current-inl.h"
 
 namespace art {
 
@@ -511,7 +510,7 @@ static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jobject cookie
   }
 
   // Now create output array and copy the set into it.
-  ScopedObjectAccess soa(Thread::ForEnv(env));
+  ScopedObjectAccess soa(down_cast<JNIEnvExt*>(env)->GetSelf());
   auto descriptor_to_dot = [](const char* descriptor) { return DescriptorToDot(descriptor); };
   return soa.AddLocalReference<jobjectArray>(CreateStringArray(
       soa.Self(),
@@ -647,7 +646,7 @@ static jobjectArray DexFile_getDexFileOptimizationStatus(JNIEnv* env,
   OatFileAssistant::GetOptimizationStatus(
       filename.c_str(), target_instruction_set, &compilation_filter, &compilation_reason);
 
-  ScopedObjectAccess soa(Thread::ForEnv(env));
+  ScopedObjectAccess soa(down_cast<JNIEnvExt*>(env)->GetSelf());
   return soa.AddLocalReference<jobjectArray>(CreateStringArray(soa.Self(), {
       compilation_filter.c_str(),
       compilation_reason.c_str()
@@ -902,7 +901,7 @@ static jobjectArray DexFile_getDexFileOutputPaths(JNIEnv* env,
     filenames[1] = vdex_filename.c_str();
     used_filenames = ArrayRef<const char* const>(filenames, 2u);
   }
-  ScopedObjectAccess soa(Thread::ForEnv(env));
+  ScopedObjectAccess soa(down_cast<JNIEnvExt*>(env)->GetSelf());
   return soa.AddLocalReference<jobjectArray>(CreateStringArray(soa.Self(), used_filenames));
 }
 

@@ -22,7 +22,7 @@ namespace art {
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_getNativePriority(JNIEnv* env,
                                                               jclass clazz ATTRIBUTE_UNUSED) {
-  return Thread::ForEnv(env)->GetNativePriority();
+  return ThreadForEnv(env)->GetNativePriority();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_supportsThreadPriorities(

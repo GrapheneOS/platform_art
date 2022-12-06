@@ -42,7 +42,6 @@ import com.android.server.pm.PackageManagerLocal;
 
 import com.google.auto.value.AutoValue;
 
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -65,7 +64,6 @@ public class BackgroundDexOptJob {
 
     @GuardedBy("this") @Nullable private CompletableFuture<Result> mRunningJob = null;
     @GuardedBy("this") @Nullable private CancellationSignal mCancellationSignal = null;
-    @GuardedBy("this") @NonNull private Optional<Integer> mLastStopReason = Optional.empty();
 
     public BackgroundDexOptJob(@NonNull Context context, @NonNull ArtManagerLocal artManagerLocal,
             @NonNull Config config) {
@@ -81,16 +79,12 @@ public class BackgroundDexOptJob {
     public boolean onStartJob(
             @NonNull BackgroundDexOptJobService jobService, @NonNull JobParameters params) {
         start().thenAcceptAsync(result -> {
-            writeStats(result);
-            // This is a periodic job, where the interval is specified in the `JobInfo`. "true"
-            // means to execute again during a future idle maintenance window in the same
-            // interval, while "false" means not to execute again during a future idle maintenance
-            // window in the same interval but to execute again in the next interval.
+            writeStats(params, result);
+            // This is a periodic job, where the interval is specified in the `JobInfo`. "false"
+            // means not to execute again during a future idle maintenance window in the same
+            // interval. This job will be executed again in the next interval.
             // This call will be ignored if `onStopJob` is called.
-            boolean wantsReschedule = result instanceof CompletedResult
-                    && ((CompletedResult) result).dexoptResult().getFinalStatus()
-                            == OptimizeResult.OPTIMIZE_CANCELLED;
-            jobService.jobFinished(params, wantsReschedule);
+            jobService.jobFinished(params, false /* wantReschedule */);
         });
         // "true" means the job will continue running until `jobFinished` is called.
         return true;
@@ -98,9 +92,6 @@ public class BackgroundDexOptJob {
 
     /** Handles {@link BackgroundDexOptJobService#onStopJob(JobParameters)}. */
     public boolean onStopJob(@NonNull JobParameters params) {
-        synchronized (this) {
-            mLastStopReason = Optional.of(params.getStopReason());
-        }
         cancel();
         // "true" means to execute again during a future idle maintenance window in the same
         // interval.
@@ -158,7 +149,6 @@ public class BackgroundDexOptJob {
         }
 
         mCancellationSignal = new CancellationSignal();
-        mLastStopReason = Optional.empty();
         mRunningJob = new CompletableFuture().supplyAsync(() -> {
             Log.i(TAG, "Job started");
             try {
@@ -195,41 +185,25 @@ public class BackgroundDexOptJob {
         long startTimeMs = SystemClock.uptimeMillis();
         OptimizeResult dexoptResult;
         try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {
-            dexoptResult = mInjector.getArtManagerLocal().optimizePackages(snapshot,
-                    ReasonMapping.REASON_BG_DEXOPT, cancellationSignal,
-                    null /* processCallbackExecutor */, null /* processCallback */);
+            dexoptResult = mInjector.getArtManagerLocal().optimizePackages(
+                    snapshot, ReasonMapping.REASON_BG_DEXOPT, cancellationSignal);
         }
         return CompletedResult.create(dexoptResult, SystemClock.uptimeMillis() - startTimeMs);
     }
 
-    private void writeStats(@NonNull Result result) {
-        Optional<Integer> stopReason;
-        synchronized (this) {
-            stopReason = mLastStopReason;
-        }
+    private void writeStats(@NonNull JobParameters params, @NonNull Result result) {
         if (result instanceof CompletedResult) {
             var completedResult = (CompletedResult) result;
-            ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
-                    getStatusForStats(completedResult, stopReason),
-                    stopReason.orElse(JobParameters.STOP_REASON_UNDEFINED),
-                    completedResult.durationMs(), 0 /* deprecated */);
+            int status = completedResult.dexoptResult().getFinalStatus()
+                            == OptimizeResult.OPTIMIZE_CANCELLED
+                    ? ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_CANCELLATION
+                    : ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_JOB_FINISHED;
+            ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED, status,
+                    params.getStopReason(), completedResult.durationMs(), 0 /* deprecated */);
         } else if (result instanceof FatalErrorResult) {
             ArtStatsLog.write(ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED,
-                    ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_FATAL_ERROR,
+                    ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_UNKNOWN,
                     JobParameters.STOP_REASON_UNDEFINED, 0 /* durationMs */, 0 /* deprecated */);
-        }
-    }
-
-    private int getStatusForStats(@NonNull CompletedResult result, Optional<Integer> stopReason) {
-        if (result.dexoptResult().getFinalStatus() == OptimizeResult.OPTIMIZE_CANCELLED) {
-            if (stopReason.isPresent()) {
-                return ArtStatsLog
-                        .BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_CANCELLATION;
-            } else {
-                return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_ABORT_BY_API;
-            }
-        } else {
-            return ArtStatsLog.BACKGROUND_DEXOPT_JOB_ENDED__STATUS__STATUS_JOB_FINISHED;
         }
     }
 

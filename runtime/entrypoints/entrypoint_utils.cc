@@ -22,7 +22,6 @@
 #include "base/mutex.h"
 #include "base/sdk_version.h"
 #include "class_linker-inl.h"
-#include "class_root-inl.h"
 #include "dex/dex_file-inl.h"
 #include "dex/method_reference.h"
 #include "entrypoints/entrypoint_utils-inl.h"
@@ -34,14 +33,14 @@
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
-#include "mirror/object_array-alloc-inl.h"
+#include "mirror/object_array-inl.h"
 #include "nth_caller_visitor.h"
 #include "oat_file.h"
 #include "oat_file-inl.h"
 #include "oat_quick_method_header.h"
 #include "reflection.h"
 #include "scoped_thread_state_change-inl.h"
-#include "well_known_classes-inl.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -66,70 +65,60 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa,
                                     jobject rcvr_jobj,
                                     jobject interface_method_jobj,
                                     std::vector<jvalue>& args) {
-  StackHandleScope<4u> hs(soa.Self());
-  DCHECK(rcvr_jobj != nullptr);
-  Handle<mirror::Object> h_receiver = hs.NewHandle(soa.Decode<mirror::Object>(rcvr_jobj));
-  DCHECK(h_receiver->InstanceOf(GetClassRoot(ClassRoot::kJavaLangReflectProxy)));
-  Handle<mirror::Method> h_interface_method =
-      hs.NewHandle(soa.Decode<mirror::Method>(interface_method_jobj));
+  DCHECK(soa.Env()->IsInstanceOf(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy));
 
   // Build argument array possibly triggering GC.
   soa.Self()->AssertThreadSuspensionIsAllowable();
-  auto h_args = hs.NewHandle<mirror::ObjectArray<mirror::Object>>(nullptr);
+  jobjectArray args_jobj = nullptr;
   const JValue zero;
-  Runtime* runtime = Runtime::Current();
-  uint32_t target_sdk_version = runtime->GetTargetSdkVersion();
+  uint32_t target_sdk_version = Runtime::Current()->GetTargetSdkVersion();
   // Do not create empty arrays unless needed to maintain Dalvik bug compatibility.
   if (args.size() > 0 || IsSdkVersionSetAndAtMost(target_sdk_version, SdkVersion::kL)) {
-    h_args.Assign(mirror::ObjectArray<mirror::Object>::Alloc(
-        soa.Self(), GetClassRoot<mirror::ObjectArray<mirror::Object>>(), args.size()));
-    if (h_args == nullptr) {
+    args_jobj = soa.Env()->NewObjectArray(args.size(), WellKnownClasses::java_lang_Object, nullptr);
+    if (args_jobj == nullptr) {
       CHECK(soa.Self()->IsExceptionPending());
       return zero;
     }
     for (size_t i = 0; i < args.size(); ++i) {
-      ObjPtr<mirror::Object> value;
       if (shorty[i + 1] == 'L') {
-        value = soa.Decode<mirror::Object>(args[i].l);
+        jobject val = args[i].l;
+        soa.Env()->SetObjectArrayElement(args_jobj, i, val);
       } else {
         JValue jv;
         jv.SetJ(args[i].j);
-        value = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv);
-        if (value == nullptr) {
+        ObjPtr<mirror::Object> val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv);
+        if (val == nullptr) {
           CHECK(soa.Self()->IsExceptionPending());
           return zero;
         }
+        soa.Decode<mirror::ObjectArray<mirror::Object>>(args_jobj)->Set<false>(i, val);
       }
-      // We do not support `Proxy.invoke()` in a transaction.
-      h_args->SetWithoutChecks</*kActiveTransaction=*/ false>(i, value);
     }
   }
 
   // Call Proxy.invoke(Proxy proxy, Method method, Object[] args).
-  Handle<mirror::Object> h_result = hs.NewHandle(
-      WellKnownClasses::java_lang_reflect_Proxy_invoke->InvokeStatic<'L', 'L', 'L', 'L'>(
-          soa.Self(), h_receiver.Get(), h_interface_method.Get(), h_args.Get()));
+  jvalue invocation_args[3];
+  invocation_args[0].l = rcvr_jobj;
+  invocation_args[1].l = interface_method_jobj;
+  invocation_args[2].l = args_jobj;
+  jobject result =
+      soa.Env()->CallStaticObjectMethodA(WellKnownClasses::java_lang_reflect_Proxy,
+                                         WellKnownClasses::java_lang_reflect_Proxy_invoke,
+                                         invocation_args);
 
   // Unbox result and handle error conditions.
   if (LIKELY(!soa.Self()->IsExceptionPending())) {
-    if (shorty[0] == 'V' || (shorty[0] == 'L' && h_result == nullptr)) {
+    if (shorty[0] == 'V' || (shorty[0] == 'L' && result == nullptr)) {
       // Do nothing.
       return zero;
     } else {
-      ObjPtr<mirror::Class> result_type;
-      if (shorty[0] == 'L') {
-        // This can cause thread suspension.
-        result_type = h_interface_method->GetArtMethod()->ResolveReturnType();
-        if (result_type == nullptr) {
-          DCHECK(soa.Self()->IsExceptionPending());
-          return zero;
-        }
-      } else {
-        result_type = runtime->GetClassLinker()->LookupPrimitiveClass(shorty[0]);
-        DCHECK(result_type != nullptr);
-      }
+      ArtMethod* interface_method =
+          soa.Decode<mirror::Method>(interface_method_jobj)->GetArtMethod();
+      // This can cause thread suspension.
+      ObjPtr<mirror::Class> result_type = interface_method->ResolveReturnType();
+      ObjPtr<mirror::Object> result_ref = soa.Decode<mirror::Object>(result);
       JValue result_unboxed;
-      if (!UnboxPrimitiveForResult(h_result.Get(), result_type, &result_unboxed)) {
+      if (!UnboxPrimitiveForResult(result_ref, result_type, &result_unboxed)) {
         DCHECK(soa.Self()->IsExceptionPending());
         return zero;
       }

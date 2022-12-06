@@ -393,7 +393,8 @@ static ObjPtr<mirror::ClassLoader> GetClassLoader(const ScopedObjectAccess& soa)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = soa.Self()->GetCurrentMethod(nullptr);
   // If we are running Runtime.nativeLoad, use the overriding ClassLoader it set.
-  if (method == WellKnownClasses::java_lang_Runtime_nativeLoad) {
+  if (method ==
+      jni::DecodeArtMethod<kEnableIndexIds>(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
     return soa.Decode<mirror::ClassLoader>(soa.Self()->GetClassLoaderOverride());
   }
   // If we have a method, use its ClassLoader for context.

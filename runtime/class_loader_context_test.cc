@@ -24,7 +24,6 @@
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
 #include "art_field-inl.h"
-#include "art_method-alloc-inl.h"
 #include "base/dchecked_vector.h"
 #include "base/stl_util.h"
 #include "class_linker.h"
@@ -1363,14 +1362,13 @@ TEST_F(ClassLoaderContextTest, EncodeContextsForSingleDex) {
 
 static jobject CreateForeignClassLoader() {
   ScopedObjectAccess soa(Thread::Current());
+  JNIEnv* env = soa.Env();
 
   // We cannot instantiate a ClassLoader directly, so instead we allocate an Object to represent
   // our foreign ClassLoader (this works because the runtime does proper instanceof checks before
   // operating on this object.
-  ArtMethod* ctor =
-      GetClassRoot<mirror::Object>()->FindClassMethod("<init>", "()V", kRuntimePointerSize);
-  CHECK(ctor != nullptr);
-  return soa.AddLocalReference<jobject>(ctor->NewObject<>(soa.Self()));
+  jmethodID ctor = env->GetMethodID(WellKnownClasses::java_lang_Object, "<init>", "()V");
+  return env->NewObject(WellKnownClasses::java_lang_Object, ctor);
 }
 
 TEST_F(ClassLoaderContextTest, EncodeContextsForUnsupportedBase) {

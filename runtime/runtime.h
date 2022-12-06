@@ -1164,17 +1164,6 @@ class Runtime {
 
   bool AllowInMemoryCompilation() const { return allow_in_memory_compilation_; }
 
-  // Used by plugin code to attach a hook for OOME.
-  void SetOutOfMemoryErrorHook(void (*hook)()) {
-    out_of_memory_error_hook_ = hook;
-  }
-
-  void OutOfMemoryErrorHook() {
-    if (out_of_memory_error_hook_ != nullptr) {
-      out_of_memory_error_hook_();
-    }
-  }
-
  private:
   static void InitPlatformSignalHandlers();
 
@@ -1188,7 +1177,7 @@ class Runtime {
   void RegisterRuntimeNativeMethods(JNIEnv* env);
   void InitMetrics();
 
-  void StartDaemonThreads() REQUIRES_SHARED(Locks::mutator_lock_);
+  void StartDaemonThreads();
   void StartSignalCatcher();
 
   void MaybeSaveJitProfilingInfo();
@@ -1574,9 +1563,6 @@ class Runtime {
   bool force_java_zygote_fork_loop_;
   bool perfetto_hprof_enabled_;
   bool perfetto_javaheapprof_enabled_;
-
-  // Called on out of memory error
-  void (*out_of_memory_error_hook_)();
 
   metrics::ArtMetrics metrics_;
   std::unique_ptr<metrics::MetricsReporter> metrics_reporter_;

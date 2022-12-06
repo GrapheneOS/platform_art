@@ -62,7 +62,7 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "scoped_fast_native_object_access-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "string_array_utils.h"
-#include "thread-inl.h"
+#include "thread.h"
 #include "thread_list.h"
 
 namespace art {
@@ -191,7 +191,7 @@ static jboolean VMRuntime_isJavaDebuggable(JNIEnv*, jobject) {
 
 static jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
   const std::vector<std::string>& properties = Runtime::Current()->GetProperties();
-  ScopedObjectAccess soa(Thread::ForEnv(env));
+  ScopedObjectAccess soa(down_cast<JNIEnvExt*>(env)->GetSelf());
   return soa.AddLocalReference<jobjectArray>(CreateStringArray(soa.Self(), properties));
 }
 
@@ -327,31 +327,31 @@ static void VMRuntime_notifyStartupCompleted(JNIEnv*, jobject) {
 }
 
 static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->Trim(Thread::ForEnv(env));
+  Runtime::Current()->GetHeap()->Trim(ThreadForEnv(env));
 }
 
 static void VMRuntime_requestHeapTrim(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->RequestTrim(Thread::ForEnv(env));
+  Runtime::Current()->GetHeap()->RequestTrim(ThreadForEnv(env));
 }
 
 static void VMRuntime_requestConcurrentGC(JNIEnv* env, jobject) {
   gc::Heap *heap = Runtime::Current()->GetHeap();
-  heap->RequestConcurrentGC(Thread::ForEnv(env),
+  heap->RequestConcurrentGC(ThreadForEnv(env),
                             gc::kGcCauseBackground,
                             true,
                             heap->GetCurrentGcNum());
 }
 
 static void VMRuntime_startHeapTaskProcessor(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->GetTaskProcessor()->Start(Thread::ForEnv(env));
+  Runtime::Current()->GetHeap()->GetTaskProcessor()->Start(ThreadForEnv(env));
 }
 
 static void VMRuntime_stopHeapTaskProcessor(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->GetTaskProcessor()->Stop(Thread::ForEnv(env));
+  Runtime::Current()->GetHeap()->GetTaskProcessor()->Stop(ThreadForEnv(env));
 }
 
 static void VMRuntime_runHeapTasks(JNIEnv* env, jobject) {
-  Runtime::Current()->GetHeap()->GetTaskProcessor()->RunAllTasks(Thread::ForEnv(env));
+  Runtime::Current()->GetHeap()->GetTaskProcessor()->RunAllTasks(ThreadForEnv(env));
 }
 
 static void VMRuntime_preloadDexCaches(JNIEnv* env ATTRIBUTE_UNUSED, jobject) {

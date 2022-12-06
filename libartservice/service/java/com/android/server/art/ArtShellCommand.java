@@ -38,7 +38,6 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.DeleteResult;
-import com.android.server.art.model.OperationProgress;
 import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
@@ -54,8 +53,6 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 /**
@@ -104,8 +101,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 case "optimize-package": {
                     var paramsBuilder = new OptimizeParams.Builder("cmdline");
                     String opt;
-                    @OptimizeFlags int scopeFlags = 0;
-                    boolean forSingleSplit = false;
                     while ((opt = getNextOption()) != null) {
                         switch (opt) {
                             case "-m":
@@ -114,18 +109,17 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                             case "-f":
                                 paramsBuilder.setFlags(ArtFlags.FLAG_FORCE, ArtFlags.FLAG_FORCE);
                                 break;
-                            case "--primary-dex":
-                                scopeFlags |= ArtFlags.FLAG_FOR_PRIMARY_DEX;
-                                break;
                             case "--secondary-dex":
-                                scopeFlags |= ArtFlags.FLAG_FOR_SECONDARY_DEX;
+                                paramsBuilder.setFlags(ArtFlags.FLAG_FOR_SECONDARY_DEX,
+                                        ArtFlags.FLAG_FOR_PRIMARY_DEX
+                                                | ArtFlags.FLAG_FOR_SECONDARY_DEX);
                                 break;
                             case "--include-dependencies":
-                                scopeFlags |= ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES;
+                                paramsBuilder.setFlags(ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES,
+                                        ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
                                 break;
                             case "--split":
                                 String splitName = getNextArgRequired();
-                                forSingleSplit = true;
                                 paramsBuilder
                                         .setFlags(ArtFlags.FLAG_FOR_SINGLE_SPLIT,
                                                 ArtFlags.FLAG_FOR_SINGLE_SPLIT)
@@ -135,20 +129,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                                 pw.println("Error: Unknown option: " + opt);
                                 return 1;
                         }
-                    }
-                    if (forSingleSplit) {
-                        if (scopeFlags != 0) {
-                            pw.println("'--primary-dex', '--secondary-dex', and "
-                                    + "'--include-dependencies' must not be set when '--split' is "
-                                    + "set.");
-                            return 1;
-                        }
-                        scopeFlags = ArtFlags.FLAG_FOR_PRIMARY_DEX;
-                    }
-                    if (scopeFlags != 0) {
-                        paramsBuilder.setFlags(scopeFlags,
-                                ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
-                                        | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES);
                     }
 
                     OptimizeResult result;
@@ -161,16 +141,11 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                 }
                 case "optimize-packages": {
                     OptimizeResult result;
-                    Executor executor = Executors.newSingleThreadExecutor();
                     try (var signal = new WithCancellationSignal(pw)) {
-                        result = mArtManagerLocal.optimizePackages(snapshot, getNextArgRequired(),
-                                signal.get(), executor, progress -> {
-                                    pw.println(String.format(
-                                            "Optimizing apps: %d%%", progress.getPercentage()));
-                                    pw.flush();
-                                });
+                        result = mArtManagerLocal.optimizePackages(
+                                snapshot, getNextArgRequired(), signal.get());
                     }
-                    Utils.executeAndWait(executor, () -> printOptimizeResult(pw, result));
+                    printOptimizeResult(pw, result);
                     return 0;
                 }
                 case "cancel": {
@@ -318,24 +293,19 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Print the optimization status of a package.");
         pw.println("    By default, the command only prints the optimization status of primary "
                 + "dex'es.");
-        pw.println("  optimize-package [-m COMPILER_FILTER] [-f] [--primary-dex]");
-        pw.println("      [--secondary-dex] [--include-dependencies] [--split SPLIT_NAME]");
-        pw.println("      PACKAGE_NAME");
+        pw.println("  optimize-package [-m COMPILER_FILTER] [-f] [--secondary-dex] ");
+        pw.println("      [--include-dependencies] [--split SPLIT_NAME] PACKAGE_NAME");
         pw.println("    Optimize a package.");
-        pw.println("    If none of '--primary-dex', '--secondary-dex', and");
-        pw.println("    '--include-dependencies' is set, the command optimizes all of them.");
-        pw.println("    The command prints a job ID, which can be used to cancel the job using");
-        pw.println("    the 'cancel' command.");
+        pw.println("    By default, the command only optimizes primary dex'es.");
+        pw.println("    The command prints a job ID, which can be used to cancel the job using the"
+                + "'cancel' command.");
         pw.println("    Options:");
         pw.println("      -m Set the compiler filter.");
         pw.println("      -f Force compilation.");
-        pw.println("      --primary-dex Optimize primary dex.");
-        pw.println("      --secondary-dex Optimize secondary dex.");
+        pw.println("      --secondary-dex Only optimize secondary dex.");
         pw.println("      --include-dependencies Include dependencies.");
         pw.println("      --split SPLIT_NAME Only optimize the given split. If SPLIT_NAME is an");
-        pw.println("        empty string, only optimize the base APK. When this option is set,");
-        pw.println("        '--primary-dex', '--secondary-dex', and '--include-dependencies' must");
-        pw.println("        not be set.");
+        pw.println("        empty string, only optimize the base APK.");
         pw.println("  optimize-packages REASON");
         pw.println("    Run batch optimization for the given reason.");
         pw.println("    The command prints a job ID, which can be used to cancel the job using the"

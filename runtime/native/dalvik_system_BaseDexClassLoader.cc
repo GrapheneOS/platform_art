@@ -23,7 +23,6 @@
 #include "mirror/object_array-alloc-inl.h"
 #include "native_util.h"
 #include "nativehelper/jni_macros.h"
-#include "thread-inl.h"
 
 namespace art {
 
@@ -48,7 +47,7 @@ static jobjectArray BaseDexClassLoader_computeClassLoaderContextsNative(JNIEnv* 
   CHECK(class_loader != nullptr);
   std::map<std::string, std::string> context_map =
       ClassLoaderContext::EncodeClassPathContextsForClassLoader(class_loader);
-  Thread* self = Thread::ForEnv(env);
+  Thread* self = down_cast<JNIEnvExt*>(env)->GetSelf();
   ScopedObjectAccess soa(self);
   StackHandleScope<1u> hs(self);
   Handle<mirror::ObjectArray<mirror::String>> array = hs.NewHandle(

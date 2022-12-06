@@ -2340,7 +2340,6 @@ class CheckJNI {
     CallMethodV(__FUNCTION__, env, obj, c, mid, vargs, Primitive::kPrimVoid, kDirect);
   }
 
-  NO_STACK_PROTECTOR
   static void CallStaticVoidMethodV(JNIEnv* env, jclass c, jmethodID mid, va_list vargs) {
     CallMethodV(__FUNCTION__, env, nullptr, c, mid, vargs, Primitive::kPrimVoid, kStatic);
   }
@@ -3305,7 +3304,6 @@ class CheckJNI {
     return result;
   }
 
-  NO_STACK_PROTECTOR
   static JniValueType CallMethodV(const char* function_name, JNIEnv* env, jobject obj, jclass c,
                                   jmethodID mid, va_list vargs, Primitive::Type type,
                                   InvokeType invoke) {

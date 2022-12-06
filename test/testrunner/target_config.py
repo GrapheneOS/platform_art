@@ -138,8 +138,7 @@ target_config = {
         }
     },
     'art-tracing' : {
-        'run-test' : ['--trace',
-                      '--stream']
+        'run-test' : ['--trace']
     },
     'art-interpreter-tracing' : {
         'run-test' : ['--interpreter',

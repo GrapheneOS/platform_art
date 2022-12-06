@@ -174,7 +174,12 @@ void ThreadUtil::VMInitEventSent() {
 
 
 static void WaitForSystemDaemonStart(art::Thread* self) REQUIRES_SHARED(art::Locks::mutator_lock_) {
-  art::WellKnownClasses::java_lang_Daemons_waitForDaemonStart->InvokeStatic<'V'>(self);
+  {
+    art::ScopedThreadStateChange strc(self, art::ThreadState::kNative);
+    JNIEnv* jni = self->GetJniEnv();
+    jni->CallStaticVoidMethod(art::WellKnownClasses::java_lang_Daemons,
+                              art::WellKnownClasses::java_lang_Daemons_waitForDaemonStart);
+  }
   if (self->IsExceptionPending()) {
     LOG(WARNING) << "Exception occurred when waiting for system daemons to start: "
                  << self->GetException()->Dump();
