@@ -15,43 +15,43 @@
  */
 
 public class Main {
-  private static int exhaustJavaHeap(Object[] data, int index, int size) {
-    Runtime.getRuntime().gc();
-    while (size > 0) {
+    private static int exhaustJavaHeap(Object[] data, int index, int size) {
+        Runtime.getRuntime().gc();
+        while (size > 0) {
+            try {
+                data[index] = new byte[size];
+                index++;
+            } catch (OutOfMemoryError e) {
+                size /= 2;
+            }
+        }
+        return index;
+    }
+
+    public static void main(String[] args) {
+        Class klass = Other.class;
+        Object[] data = new Object[100000];
         try {
-            data[index] = new byte[size];
-            index++;
+            System.out.println("Filling heap");
+
+            // Make sure that there is no reclaimable memory in the heap. Otherwise we may throw
+            // OOME to prevent GC thrashing, even if later allocations may succeed.
+            Runtime.getRuntime().gc();
+            System.runFinalization();
+            // NOTE: There is a GC invocation in the exhaustJavaHeap(). So we don't need one here.
+
+            int index = 0;
+            int initial_size = 256 * 1024 * 1024;
+            // Repeat to ensure there is no space left on the heap.
+            index = exhaustJavaHeap(data, index, initial_size);
+            index = exhaustJavaHeap(data, index, /*size*/ 4);
+            index = exhaustJavaHeap(data, index, /*size*/ 4);
+
+            // Initialize now that the heap is full.
+            Other.print();
         } catch (OutOfMemoryError e) {
-            size /= 2;
+        } catch (Exception e) {
+            System.out.println(e);
         }
     }
-    return index;
-  }
-
-  public static void main(String[] args) {
-    Class klass = Other.class;
-    Object[] data = new Object[100000];
-    try {
-        System.out.println("Filling heap");
-
-        // Make sure that there is no reclaimable memory in the heap. Otherwise we may throw
-        // OOME to prevent GC thrashing, even if later allocations may succeed.
-        Runtime.getRuntime().gc();
-        System.runFinalization();
-        // NOTE: There is a GC invocation in the exhaustJavaHeap(). So we don't need one here.
-
-        int index = 0;
-        int initial_size = 256 * 1024 * 1024;
-        // Repeat to ensure there is no space left on the heap.
-        index = exhaustJavaHeap(data, index, initial_size);
-        index = exhaustJavaHeap(data, index, /*size*/ 4);
-        index = exhaustJavaHeap(data, index, /*size*/ 4);
-
-        // Initialize now that the heap is full.
-        Other.print();
-    } catch (OutOfMemoryError e) {
-    } catch (Exception e) {
-        System.out.println(e);
-    }
-  }
 }

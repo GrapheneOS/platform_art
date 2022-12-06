@@ -15,19 +15,18 @@
  */
 
 public class Main {
+    // Check that there is no instruction storing to stack.
+    /// CHECK-START-X86: int Main.foo(int, int, int, int, int, int) disassembly (after)
+    /// CHECK-NOT:  mov [{{\w+}}], {{\w+}}
 
-  // Check that there is no instruction storing to stack.
-  /// CHECK-START-X86: int Main.foo(int, int, int, int, int, int) disassembly (after)
-  /// CHECK-NOT:  mov [{{\w+}}], {{\w+}}
-
-  // Use enough parameters to ensure we'll need a frame.
-  public static int foo(int a, int b, int c, int d, int e, int f) {
-    return a + b + c + d + e + f;
-  }
-
-  public static void main(String[] args) {
-    if (foo(1, 2, 3, 4, 5, 6) != 21) {
-      throw new Error("Expected 21");
+    // Use enough parameters to ensure we'll need a frame.
+    public static int foo(int a, int b, int c, int d, int e, int f) {
+        return a + b + c + d + e + f;
     }
-  }
+
+    public static void main(String[] args) {
+        if (foo(1, 2, 3, 4, 5, 6) != 21) {
+            throw new Error("Expected 21");
+        }
+    }
 }
