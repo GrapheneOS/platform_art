@@ -35,7 +35,8 @@
 #include "obj_ptr.h"
 #include "scoped_fast_native_object_access-inl.h"
 #include "string_array_utils.h"
-#include "well_known_classes.h"
+#include "thread-inl.h"
+#include "well_known_classes-inl.h"
 
 namespace art {
 
@@ -96,12 +97,9 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   if (c != nullptr && c->IsErroneous()) {
     cl->ThrowEarlierClassFailure(c);
     Thread* self = soa.Self();
-    ObjPtr<mirror::Class> iae_class =
-        self->DecodeJObject(WellKnownClasses::java_lang_IllegalAccessError)->AsClass();
-    ObjPtr<mirror::Class> ncdfe_class =
-        self->DecodeJObject(WellKnownClasses::java_lang_NoClassDefFoundError)->AsClass();
-    ObjPtr<mirror::Class> exception = self->GetException()->GetClass();
-    if (exception == iae_class || exception == ncdfe_class) {
+    ObjPtr<mirror::Class> exception_class = self->GetException()->GetClass();
+    if (exception_class == WellKnownClasses::java_lang_IllegalAccessError ||
+        exception_class == WellKnownClasses::java_lang_NoClassDefFoundError) {
       self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
                                      c->PrettyDescriptor().c_str());
     }
@@ -159,7 +157,7 @@ static jobjectArray VMClassLoader_getBootClassPathEntries(JNIEnv* env, jclass) {
     return is_base_dex(dex_file);
   };
   auto get_location = [](const DexFile* dex_file) { return dex_file->GetLocation(); };
-  ScopedObjectAccess soa(down_cast<JNIEnvExt*>(env)->GetSelf());
+  ScopedObjectAccess soa(Thread::ForEnv(env));
   return soa.AddLocalReference<jobjectArray>(CreateStringArray(
       soa.Self(),
       jar_count,

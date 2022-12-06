@@ -38,12 +38,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 
 /** @hide */
@@ -218,13 +216,7 @@ public final class Utils {
     }
 
     public static void executeAndWait(@NonNull Executor executor, @NonNull Runnable runnable) {
-        getFuture(execute(executor, Executors.callable(runnable)));
-    }
-
-    public static <T> Future<T> execute(@NonNull Executor executor, @NonNull Callable<T> callable) {
-        var future = new FutureTask<T>(callable);
-        executor.execute(future);
-        return future;
+        getFuture(CompletableFuture.runAsync(runnable, executor));
     }
 
     public static <T> T getFuture(Future<T> future) {

@@ -25,6 +25,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -44,6 +45,7 @@ import androidx.test.filters.SmallTest;
 
 import com.android.server.art.model.ArtFlags;
 import com.android.server.art.model.Config;
+import com.android.server.art.model.OperationProgress;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.pm.PackageManagerLocal;
@@ -61,8 +63,10 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @SmallTest
@@ -496,6 +500,36 @@ public class DexOptHelperTest {
         mConfig.addOptimizePackageDoneCallback(Runnable::run, callback);
     }
 
+    @Test
+    public void testProgressCallback() throws Exception {
+        mParams = new OptimizeParams.Builder("install")
+                          .setCompilerFilter("speed-profile")
+                          .setFlags(ArtFlags.FLAG_FOR_SECONDARY_DEX,
+                                  ArtFlags.FLAG_FOR_SECONDARY_DEX
+                                          | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
+                          .build();
+
+        // Delay the executor to verify that the commands passed to the executor are not bound to
+        // changing variables.
+        var progressCallbackExecutor = new DelayedExecutor();
+        Consumer<OperationProgress> progressCallback = mock(Consumer.class);
+
+        mDexOptHelper.dexopt(mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor,
+                progressCallbackExecutor, progressCallback);
+
+        progressCallbackExecutor.runAll();
+
+        InOrder inOrder = inOrder(progressCallback);
+        inOrder.verify(progressCallback)
+                .accept(eq(OperationProgress.create(0 /* current */, 3 /* total */)));
+        inOrder.verify(progressCallback)
+                .accept(eq(OperationProgress.create(1 /* current */, 3 /* total */)));
+        inOrder.verify(progressCallback)
+                .accept(eq(OperationProgress.create(2 /* current */, 3 /* total */)));
+        inOrder.verify(progressCallback)
+                .accept(eq(OperationProgress.create(3 /* current */, 3 /* total */)));
+    }
+
     private AndroidPackage createPackage(boolean multiSplit) {
         AndroidPackage pkg = mock(AndroidPackage.class);
 
@@ -624,5 +658,21 @@ public class DexOptHelperTest {
                 .containsExactlyElementsIn(dexContainerFileOptimizeResults.stream()
                                                    .flatMap(r -> r.stream())
                                                    .collect(Collectors.toList()));
+    }
+
+    /** An executor that delays execution until `runAll` is called. */
+    private static class DelayedExecutor implements Executor {
+        private List<Runnable> mCommands = new ArrayList<>();
+
+        public void execute(Runnable command) {
+            mCommands.add(command);
+        }
+
+        public void runAll() {
+            for (Runnable command : mCommands) {
+                command.run();
+            }
+            mCommands.clear();
+        }
     }
 }

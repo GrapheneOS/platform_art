@@ -24,11 +24,11 @@
 #include <android-base/stringprintf.h>
 
 #include "art_method-inl.h"
+#include "base/casts.h"
 #include "base/enums.h"
 #include "class_linker.h"
 #include "class_root-inl.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
-#include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle_scope-inl.h"
 #include "hidden_api.h"
 #include "jni/java_vm_ext.h"
@@ -49,20 +49,8 @@ jclass WellKnownClasses::dalvik_annotation_optimization_CriticalNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_NeverCompile;
 jclass WellKnownClasses::dalvik_annotation_optimization_NeverInline;
-jclass WellKnownClasses::dalvik_system_EmulatedStackFrame;
 jclass WellKnownClasses::java_lang_annotation_Annotation__array;
-jclass WellKnownClasses::java_lang_Daemons;
-jclass WellKnownClasses::java_lang_Error;
-jclass WellKnownClasses::java_lang_IllegalAccessError;
-jclass WellKnownClasses::java_lang_NoClassDefFoundError;
-jclass WellKnownClasses::java_lang_Object;
-jclass WellKnownClasses::java_lang_OutOfMemoryError;
-jclass WellKnownClasses::java_lang_reflect_InvocationTargetException;
-jclass WellKnownClasses::java_lang_reflect_Parameter;
 jclass WellKnownClasses::java_lang_reflect_Parameter__array;
-jclass WellKnownClasses::java_lang_reflect_Proxy;
-jclass WellKnownClasses::java_lang_RuntimeException;
-jclass WellKnownClasses::java_lang_StackOverflowError;
 jclass WellKnownClasses::java_lang_StringFactory;
 jclass WellKnownClasses::java_lang_System;
 jclass WellKnownClasses::java_lang_Void;
@@ -80,33 +68,39 @@ ArtMethod* WellKnownClasses::java_lang_Byte_valueOf;
 ArtMethod* WellKnownClasses::java_lang_Character_valueOf;
 ArtMethod* WellKnownClasses::java_lang_ClassLoader_loadClass;
 ArtMethod* WellKnownClasses::java_lang_ClassNotFoundException_init;
-jmethodID WellKnownClasses::java_lang_Daemons_start;
-jmethodID WellKnownClasses::java_lang_Daemons_stop;
-jmethodID WellKnownClasses::java_lang_Daemons_waitForDaemonStart;
+ArtMethod* WellKnownClasses::java_lang_Daemons_start;
+ArtMethod* WellKnownClasses::java_lang_Daemons_stop;
+ArtMethod* WellKnownClasses::java_lang_Daemons_waitForDaemonStart;
 ArtMethod* WellKnownClasses::java_lang_Double_doubleToRawLongBits;
 ArtMethod* WellKnownClasses::java_lang_Double_valueOf;
+ArtMethod* WellKnownClasses::java_lang_Error_init;
 ArtMethod* WellKnownClasses::java_lang_Float_floatToRawIntBits;
 ArtMethod* WellKnownClasses::java_lang_Float_valueOf;
+ArtMethod* WellKnownClasses::java_lang_IllegalAccessError_init;
 ArtMethod* WellKnownClasses::java_lang_Integer_valueOf;
-ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_asType;
-ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
-ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
-ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
 ArtMethod* WellKnownClasses::java_lang_Long_valueOf;
-jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
-jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
-jmethodID WellKnownClasses::java_lang_reflect_InvocationTargetException_init;
-jmethodID WellKnownClasses::java_lang_reflect_Parameter_init;
-jmethodID WellKnownClasses::java_lang_reflect_Proxy_init;
-jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
-jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
+ArtMethod* WellKnownClasses::java_lang_NoClassDefFoundError_init;
+ArtMethod* WellKnownClasses::java_lang_OutOfMemoryError_init;
+ArtMethod* WellKnownClasses::java_lang_Runtime_nativeLoad;
+ArtMethod* WellKnownClasses::java_lang_RuntimeException_init;
 ArtMethod* WellKnownClasses::java_lang_Short_valueOf;
+ArtMethod* WellKnownClasses::java_lang_StackOverflowError_init;
 ArtMethod* WellKnownClasses::java_lang_String_charAt;
 ArtMethod* WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
 ArtMethod* WellKnownClasses::java_lang_Thread_init;
 ArtMethod* WellKnownClasses::java_lang_Thread_run;
 ArtMethod* WellKnownClasses::java_lang_ThreadGroup_add;
 ArtMethod* WellKnownClasses::java_lang_ThreadGroup_threadTerminated;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_asType;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandle_invokeExact;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_lookup;
+ArtMethod* WellKnownClasses::java_lang_invoke_MethodHandles_Lookup_findConstructor;
+ArtMethod* WellKnownClasses::java_lang_ref_FinalizerReference_add;
+ArtMethod* WellKnownClasses::java_lang_ref_ReferenceQueue_add;
+ArtMethod* WellKnownClasses::java_lang_reflect_InvocationTargetException_init;
+ArtMethod* WellKnownClasses::java_lang_reflect_Parameter_init;
+ArtMethod* WellKnownClasses::java_lang_reflect_Proxy_init;
+ArtMethod* WellKnownClasses::java_lang_reflect_Proxy_invoke;
 ArtMethod* WellKnownClasses::java_nio_Buffer_isDirect;
 ArtMethod* WellKnownClasses::java_nio_DirectByteBuffer_init;
 ArtMethod* WellKnownClasses::java_util_function_Consumer_accept;
@@ -192,38 +186,6 @@ static ArtField* CacheField(ObjPtr<mirror::Class> klass,
     UNREACHABLE();
   }
   return field;
-}
-
-static jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
-                             const char* name, const char* signature) {
-  jmethodID mid;
-  {
-    ScopedObjectAccess soa(env);
-    if (Runtime::Current()->GetJniIdType() != JniIdType::kSwapablePointer) {
-      mid = jni::EncodeArtMethod</*kEnableIndexIds*/ true>(
-          FindMethodJNI(soa, c, name, signature, is_static));
-    } else {
-      mid = jni::EncodeArtMethod</*kEnableIndexIds*/ false>(
-          FindMethodJNI(soa, c, name, signature, is_static));
-    }
-  }
-  if (mid == nullptr) {
-    ScopedObjectAccess soa(env);
-    if (soa.Self()->IsExceptionPending()) {
-      LOG(FATAL_WITHOUT_ABORT) << soa.Self()->GetException()->Dump();
-    }
-    std::ostringstream os;
-    WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
-    LOG(FATAL) << "Couldn't find method \"" << name << "\" with signature \"" << signature << "\": "
-               << os.str();
-  }
-  return mid;
-}
-
-static jmethodID CacheMethod(JNIEnv* env, const char* klass, bool is_static,
-                      const char* name, const char* signature) {
-  ScopedLocalRef<jclass> java_class(env, env->FindClass(klass));
-  return CacheMethod(env, java_class.get(), is_static, name, signature);
 }
 
 static ArtMethod* CacheMethod(ObjPtr<mirror::Class> klass,
@@ -354,21 +316,9 @@ void WellKnownClasses::Init(JNIEnv* env) {
       CacheClass(env, "dalvik/annotation/optimization/NeverCompile");
   dalvik_annotation_optimization_NeverInline =
       CacheClass(env, "dalvik/annotation/optimization/NeverInline");
-  dalvik_system_EmulatedStackFrame = CacheClass(env, "dalvik/system/EmulatedStackFrame");
 
   java_lang_annotation_Annotation__array = CacheClass(env, "[Ljava/lang/annotation/Annotation;");
-  java_lang_Daemons = CacheClass(env, "java/lang/Daemons");
-  java_lang_Object = CacheClass(env, "java/lang/Object");
-  java_lang_OutOfMemoryError = CacheClass(env, "java/lang/OutOfMemoryError");
-  java_lang_Error = CacheClass(env, "java/lang/Error");
-  java_lang_IllegalAccessError = CacheClass(env, "java/lang/IllegalAccessError");
-  java_lang_NoClassDefFoundError = CacheClass(env, "java/lang/NoClassDefFoundError");
-  java_lang_reflect_InvocationTargetException = CacheClass(env, "java/lang/reflect/InvocationTargetException");
-  java_lang_reflect_Parameter = CacheClass(env, "java/lang/reflect/Parameter");
   java_lang_reflect_Parameter__array = CacheClass(env, "[Ljava/lang/reflect/Parameter;");
-  java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
-  java_lang_RuntimeException = CacheClass(env, "java/lang/RuntimeException");
-  java_lang_StackOverflowError = CacheClass(env, "java/lang/StackOverflowError");
   java_lang_StringFactory = CacheClass(env, "java/lang/StringFactory");
   java_lang_System = CacheClass(env, "java/lang/System");
   java_lang_Void = CacheClass(env, "java/lang/Void");
@@ -381,7 +331,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   hiddenapi::ScopedHiddenApiEnforcementPolicySetting hiddenapi_exemption(
       hiddenapi::EnforcementPolicy::kDisabled);
 
-  Thread* self = Thread::Current();
+  Thread* self = Thread::ForEnv(env);
   ScopedObjectAccess soa(self);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
@@ -402,17 +352,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Short_valueOf =
       CachePrimitiveBoxingMethod(class_linker, self, 'S', "Ljava/lang/Short;");
 
-  java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
-  java_lang_Daemons_stop = CacheMethod(env, java_lang_Daemons, true, "stop", "()V");
-  java_lang_Daemons_waitForDaemonStart = CacheMethod(env, java_lang_Daemons, true, "waitForDaemonStart", "()V");
-
-  java_lang_ref_FinalizerReference_add = CacheMethod(env, "java/lang/ref/FinalizerReference", true, "add", "(Ljava/lang/Object;)V");
-  java_lang_ref_ReferenceQueue_add = CacheMethod(env, "java/lang/ref/ReferenceQueue", true, "add", "(Ljava/lang/ref/Reference;)V");
-
-  java_lang_reflect_InvocationTargetException_init = CacheMethod(env, java_lang_reflect_InvocationTargetException, false, "<init>", "(Ljava/lang/Throwable;)V");
-  java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
-
-  StackHandleScope<28u> hs(self);
+  StackHandleScope<39u> hs(self);
   Handle<mirror::Class> d_s_bdcl =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/BaseDexClassLoader;"));
   Handle<mirror::Class> d_s_dlcl =
@@ -439,6 +379,20 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ClassLoader;"));
   Handle<mirror::Class> j_l_cnfe =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ClassNotFoundException;"));
+  Handle<mirror::Class> j_l_Daemons =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Daemons;"));
+  Handle<mirror::Class> j_l_Error =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Error;"));
+  Handle<mirror::Class> j_l_IllegalAccessError =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/IllegalAccessError;"));
+  Handle<mirror::Class> j_l_NoClassDefFoundError =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/NoClassDefFoundError;"));
+  Handle<mirror::Class> j_l_OutOfMemoryError =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/OutOfMemoryError;"));
+  Handle<mirror::Class> j_l_RuntimeException =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/RuntimeException;"));
+  Handle<mirror::Class> j_l_StackOverflowError =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/StackOverflowError;"));
   Handle<mirror::Class> j_l_Thread =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Thread;"));
   Handle<mirror::Class> j_l_tg =
@@ -449,6 +403,14 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandles;"));
   Handle<mirror::Class> j_l_i_MethodHandles_Lookup =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/invoke/MethodHandles$Lookup;"));
+  Handle<mirror::Class> j_l_r_fr =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ref/FinalizerReference;"));
+  Handle<mirror::Class> j_l_r_rq =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/ref/ReferenceQueue;"));
+  Handle<mirror::Class> j_l_rl_ite = hs.NewHandle(
+      FindSystemClass(class_linker, self, "Ljava/lang/reflect/InvocationTargetException;"));
+  Handle<mirror::Class> j_l_rl_Parameter =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/reflect/Parameter;"));
   Handle<mirror::Class> j_n_b =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/nio/Buffer;"));
   Handle<mirror::Class> j_n_bb =
@@ -534,6 +496,26 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Float_floatToRawIntBits =
       CacheMethod(j_l_Float, /*is_static=*/ true, "floatToRawIntBits", "(F)I", pointer_size);
 
+  java_lang_Daemons_start = CacheMethod(
+      j_l_Daemons.Get(), /*is_static=*/ true, "start", "()V", pointer_size);
+  java_lang_Daemons_stop = CacheMethod(
+      j_l_Daemons.Get(), /*is_static=*/ true, "stop", "()V", pointer_size);
+  java_lang_Daemons_waitForDaemonStart = CacheMethod(
+      j_l_Daemons.Get(), /*is_static=*/ true, "waitForDaemonStart", "()V", pointer_size);
+
+  java_lang_Error_init = CacheMethod(
+      j_l_Error.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
+  java_lang_IllegalAccessError_init = CacheMethod(
+      j_l_IllegalAccessError.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
+  java_lang_NoClassDefFoundError_init = CacheMethod(
+      j_l_NoClassDefFoundError.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
+  java_lang_OutOfMemoryError_init = CacheMethod(
+      j_l_OutOfMemoryError.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
+  java_lang_RuntimeException_init = CacheMethod(
+      j_l_RuntimeException.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
+  java_lang_StackOverflowError_init = CacheMethod(
+      j_l_StackOverflowError.Get(), /*is_static=*/ false, "<init>", "()V", pointer_size);
+
   ObjPtr<mirror::Class> j_l_String = GetClassRoot<mirror::String>(class_linker);
   java_lang_String_charAt = CacheMethod(
       j_l_String, /*is_static=*/ false, "charAt", "(I)C", pointer_size);
@@ -584,6 +566,34 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       /*is_static=*/ false,
       "findConstructor",
       "(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;",
+      pointer_size);
+
+  java_lang_ref_FinalizerReference_add = CacheMethod(
+      j_l_r_fr.Get(), /*is_static=*/ true, "add", "(Ljava/lang/Object;)V", pointer_size);
+  java_lang_ref_ReferenceQueue_add = CacheMethod(
+      j_l_r_rq.Get(), /*is_static=*/ true, "add", "(Ljava/lang/ref/Reference;)V", pointer_size);
+
+  java_lang_reflect_InvocationTargetException_init = CacheMethod(
+      j_l_rl_ite.Get(), /*is_static=*/ false, "<init>", "(Ljava/lang/Throwable;)V", pointer_size);
+  java_lang_reflect_Parameter_init = CacheMethod(
+      j_l_rl_Parameter.Get(),
+      /*is_static=*/ false,
+      "<init>",
+      "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V",
+      pointer_size);
+
+  ObjPtr<mirror::Class> j_l_rl_Proxy = GetClassRoot<mirror::Proxy>(class_linker);
+  java_lang_reflect_Proxy_init = CacheMethod(
+      j_l_rl_Proxy,
+      /*is_static=*/ false,
+      "<init>",
+      "(Ljava/lang/reflect/InvocationHandler;)V",
+      pointer_size);
+  java_lang_reflect_Proxy_invoke = CacheMethod(
+      j_l_rl_Proxy,
+      /*is_static=*/ true,
+      "invoke",
+      "(Ljava/lang/reflect/Proxy;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;",
       pointer_size);
 
   java_nio_Buffer_isDirect =
@@ -716,26 +726,32 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
 }
 
 void WellKnownClasses::LateInit(JNIEnv* env) {
-  // CacheField and CacheMethod will initialize their classes. Classes below
-  // have clinit sections that call JNI methods. Late init is required
-  // to make sure these JNI methods are available.
-  ScopedLocalRef<jclass> java_lang_Runtime(env, env->FindClass("java/lang/Runtime"));
-  java_lang_Runtime_nativeLoad =
-      CacheMethod(env, java_lang_Runtime.get(), true, "nativeLoad",
-                  "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Class;)"
-                      "Ljava/lang/String;");
-  java_lang_reflect_Proxy_init =
-    CacheMethod(env, java_lang_reflect_Proxy, false, "<init>",
-                "(Ljava/lang/reflect/InvocationHandler;)V");
-  // This invariant is important since otherwise we will have the entire proxy invoke system
-  // confused.
-  DCHECK_NE(
-      jni::DecodeArtMethod(java_lang_reflect_Proxy_init)->GetEntryPointFromQuickCompiledCode(),
-      GetQuickInstrumentationEntryPoint());
-  java_lang_reflect_Proxy_invoke =
-    CacheMethod(env, java_lang_reflect_Proxy, true, "invoke",
-                "(Ljava/lang/reflect/Proxy;Ljava/lang/reflect/Method;"
-                    "[Ljava/lang/Object;)Ljava/lang/Object;");
+  // Initialize the `Runtime` class that was previously initialized
+  // by `CacheMethod()` calling `FindMethodJNI()`.
+  // TODO: Move this initialization to `ClassLinker`.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Thread* self = Thread::ForEnv(env);
+  ScopedObjectAccess soa(self);
+  StackHandleScope<1u> hs(self);
+  Handle<mirror::Class> j_l_Runtime =
+      hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/lang/Runtime;"));
+  bool success = class_linker->EnsureInitialized(
+      self, j_l_Runtime, /*can_init_fields=*/ true, /*can_init_parents=*/ true);
+  CHECK(success) << "Failed to initialize " << j_l_Runtime->PrettyDescriptor();
+
+  // The function `GetClassLoader()` in `jni_internal.cc` is checking if the caller
+  // is `java_lang_Runtime_nativeLoad` and, if so, returns the class loader override.
+  // However, this function is used several times between `WellKnownClasses::Init()`
+  // and setting up the override by the `Runtime` and requires that we take the other
+  // path, rather than returning the uninitialized override. Therefore we cannot
+  // initialize this well-known method early and require the `LateInit()`.
+  // TODO: Clean up the initialization steps.
+  java_lang_Runtime_nativeLoad = CacheMethod(
+      j_l_Runtime.Get(),
+      /*is_static=*/ true,
+      "nativeLoad",
+      "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Class;)Ljava/lang/String;",
+      class_linker->GetImagePointerSize());
 }
 
 void WellKnownClasses::HandleJniIdTypeChange(JNIEnv* env) {
@@ -748,20 +764,8 @@ void WellKnownClasses::Clear() {
   dalvik_annotation_optimization_FastNative = nullptr;
   dalvik_annotation_optimization_NeverCompile = nullptr;
   dalvik_annotation_optimization_NeverInline = nullptr;
-  dalvik_system_EmulatedStackFrame = nullptr;
   java_lang_annotation_Annotation__array = nullptr;
-  java_lang_Daemons = nullptr;
-  java_lang_Error = nullptr;
-  java_lang_IllegalAccessError = nullptr;
-  java_lang_NoClassDefFoundError = nullptr;
-  java_lang_Object = nullptr;
-  java_lang_OutOfMemoryError = nullptr;
-  java_lang_reflect_InvocationTargetException = nullptr;
-  java_lang_reflect_Parameter = nullptr;
   java_lang_reflect_Parameter__array = nullptr;
-  java_lang_reflect_Proxy = nullptr;
-  java_lang_RuntimeException = nullptr;
-  java_lang_StackOverflowError = nullptr;
   java_lang_StringFactory = nullptr;
   java_lang_System = nullptr;
   java_lang_Void = nullptr;
@@ -782,30 +786,37 @@ void WellKnownClasses::Clear() {
   java_lang_ClassNotFoundException_init = nullptr;
   java_lang_Daemons_start = nullptr;
   java_lang_Daemons_stop = nullptr;
+  java_lang_Daemons_waitForDaemonStart = nullptr;
   java_lang_Double_doubleToRawLongBits = nullptr;
   java_lang_Double_valueOf = nullptr;
+  java_lang_Error_init = nullptr;
   java_lang_Float_floatToRawIntBits = nullptr;
   java_lang_Float_valueOf = nullptr;
+  java_lang_IllegalAccessError_init = nullptr;
   java_lang_Integer_valueOf = nullptr;
-  java_lang_invoke_MethodHandle_asType = nullptr;
-  java_lang_invoke_MethodHandle_invokeExact = nullptr;
-  java_lang_invoke_MethodHandles_lookup = nullptr;
-  java_lang_invoke_MethodHandles_Lookup_findConstructor = nullptr;
   java_lang_Long_valueOf = nullptr;
-  java_lang_ref_FinalizerReference_add = nullptr;
-  java_lang_ref_ReferenceQueue_add = nullptr;
-  java_lang_reflect_InvocationTargetException_init = nullptr;
-  java_lang_reflect_Parameter_init = nullptr;
-  java_lang_reflect_Proxy_init = nullptr;
-  java_lang_reflect_Proxy_invoke = nullptr;
+  java_lang_NoClassDefFoundError_init = nullptr;
+  java_lang_OutOfMemoryError_init = nullptr;
   java_lang_Runtime_nativeLoad = nullptr;
+  java_lang_RuntimeException_init = nullptr;
   java_lang_Short_valueOf = nullptr;
+  java_lang_StackOverflowError_init = nullptr;
   java_lang_String_charAt = nullptr;
   java_lang_Thread_dispatchUncaughtException = nullptr;
   java_lang_Thread_init = nullptr;
   java_lang_Thread_run = nullptr;
   java_lang_ThreadGroup_add = nullptr;
   java_lang_ThreadGroup_threadTerminated = nullptr;
+  java_lang_invoke_MethodHandle_asType = nullptr;
+  java_lang_invoke_MethodHandle_invokeExact = nullptr;
+  java_lang_invoke_MethodHandles_lookup = nullptr;
+  java_lang_invoke_MethodHandles_Lookup_findConstructor = nullptr;
+  java_lang_ref_FinalizerReference_add = nullptr;
+  java_lang_ref_ReferenceQueue_add = nullptr;
+  java_lang_reflect_InvocationTargetException_init = nullptr;
+  java_lang_reflect_Parameter_init = nullptr;
+  java_lang_reflect_Proxy_init = nullptr;
+  java_lang_reflect_Proxy_invoke = nullptr;
   java_nio_Buffer_isDirect = nullptr;
   java_nio_DirectByteBuffer_init = nullptr;
   libcore_reflect_AnnotationFactory_createAnnotation = nullptr;

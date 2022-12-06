@@ -257,7 +257,7 @@ static jlong ZygoteHooks_nativePreFork(JNIEnv* env, jclass) {
   runtime->PreZygoteFork();
 
   // Grab thread before fork potentially makes Thread::pthread_key_self_ unusable.
-  return reinterpret_cast<jlong>(ThreadForEnv(env));
+  return reinterpret_cast<jlong>(Thread::ForEnv(env));
 }
 
 static void ZygoteHooks_nativePostZygoteFork(JNIEnv*, jclass) {
@@ -382,7 +382,8 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
         proc_name = StringPrintf("%u", static_cast<uint32_t>(pid));
       }
 
-      std::string trace_file = StringPrintf("/data/misc/trace/%s.trace.bin", proc_name.c_str());
+      const char* path = kIsTargetBuild ? "/data/misc/trace" : "/tmp";
+      std::string trace_file = StringPrintf("%s/%s.trace.bin", path, proc_name.c_str());
       Trace::Start(trace_file.c_str(),
                    buffer_size,
                    0,   // TODO: Expose flags.

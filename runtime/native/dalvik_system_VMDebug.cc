@@ -48,14 +48,14 @@
 #include "nativehelper/scoped_utf_chars.h"
 #include "scoped_fast_native_object_access-inl.h"
 #include "string_array_utils.h"
+#include "thread-inl.h"
 #include "trace.h"
 
 namespace art {
 
 static jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
-  Thread* self = down_cast<JNIEnvExt*>(env)->GetSelf();
-  ScopedObjectAccess soa(self);
-  return soa.AddLocalReference<jobjectArray>(CreateStringArray(self, {
+  ScopedObjectAccess soa(Thread::ForEnv(env));
+  return soa.AddLocalReference<jobjectArray>(CreateStringArray(soa.Self(), {
       "method-trace-profiling",
       "method-trace-profiling-streaming",
       "method-sample-profiling",
@@ -380,7 +380,7 @@ static bool SetRuntimeStatValue(Thread* self,
 }
 
 static jobjectArray VMDebug_getRuntimeStatsInternal(JNIEnv* env, jclass) {
-  Thread* self = down_cast<JNIEnvExt*>(env)->GetSelf();
+  Thread* self = Thread::ForEnv(env);
   ScopedObjectAccess soa(self);
   StackHandleScope<1u> hs(self);
   int32_t size = enum_cast<int32_t>(VMDebugRuntimeStatId::kNumRuntimeStats);

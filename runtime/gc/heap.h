@@ -833,6 +833,8 @@ class Heap {
     return collector_type_;
   }
 
+  CollectorType GetForegroundCollectorType() const { return foreground_collector_type_; }
+
   bool IsGcConcurrentAndMoving() const {
     if (IsGcConcurrent() && IsMovingGc(collector_type_)) {
       // Assume no transition when a concurrent moving collector is used.
@@ -1331,7 +1333,7 @@ class Heap {
   // The current collector type.
   CollectorType collector_type_;
   // Which collector we use when the app is in the foreground.
-  CollectorType foreground_collector_type_;
+  const CollectorType foreground_collector_type_;
   // Which collector we will use when the app is notified of a transition to background.
   CollectorType background_collector_type_;
   // Desired collector type, heap trimming daemon transitions the heap if it is != collector_type_.
