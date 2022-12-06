@@ -113,36 +113,38 @@ static bool NeedsExtraGotoBlock(HBasicBlock* block) {
   return !last_instruction->IsThrow();
 }
 
-bool HGraphBuilder::MaybeAddExtraGotoBlocks() {
-  if (graph_->GetExitBlock() == nullptr) {
-    return true;
+void HGraphBuilder::MaybeAddExtraGotoBlocks() {
+  HBasicBlock* exit = graph_->GetExitBlock();
+  if (exit == nullptr) {
+    return;
   }
 
-  bool added_block = false;
-  for (size_t pred = 0, size = graph_->GetExitBlock()->GetPredecessors().size(); pred < size;
-       ++pred) {
-    HBasicBlock* predecessor = graph_->GetExitBlock()->GetPredecessors()[pred];
+  for (size_t pred = 0, size = exit->GetPredecessors().size(); pred < size; ++pred) {
+    HBasicBlock* predecessor = exit->GetPredecessors()[pred];
     if (NeedsExtraGotoBlock(predecessor)) {
-      added_block = true;
-      graph_->SplitEdge(predecessor, graph_->GetExitBlock())
-          ->AddInstruction(new (graph_->GetAllocator()) HGoto(predecessor->GetDexPc()));
-    }
-  }
+      HBasicBlock* new_goto = graph_->SplitEdgeAndUpdateRPO(predecessor, exit);
+      new_goto->AddInstruction(new (graph_->GetAllocator()) HGoto(predecessor->GetDexPc()));
 
-  // TODO(solanes): Avoid recomputing the full dominator tree by manually updating the relevant
-  // information (loop information, dominance, try catch information).
-  if (added_block) {
-    if (graph_->HasIrreducibleLoops()) {
-      // Recomputing loop information in graphs with irreducible loops is unsupported, as it could
-      // lead to loop header changes. In this case it is safe to abort since we don't inline graphs
-      // with irreducible loops anyway.
-      return false;
+      // No need to update loop info of the new block.
+      DCHECK(!predecessor->IsInLoop())
+          << " we should only add the extra Goto blocks for Return/ReturnVoid->TryBoundary->Exit "
+          << "chains. In those chains, the TryBoundary of kind:exit should never be a part of a "
+          << "loop";
+
+      // Update domination chain
+      if (!predecessor->GetDominatedBlocks().empty()) {
+        DCHECK_EQ(predecessor->GetDominatedBlocks().size(), 1u);
+        DCHECK_EQ(predecessor->GetDominatedBlocks()[0], exit);
+        new_goto->AddDominatedBlock(exit);
+        predecessor->RemoveDominatedBlock(exit);
+        exit->SetDominator(new_goto);
+      }
+
+      DCHECK(predecessor->GetDominatedBlocks().empty());
+      predecessor->AddDominatedBlock(new_goto);
+      new_goto->SetDominator(predecessor);
     }
-    graph_->ClearLoopInformation();
-    graph_->ClearDominanceInformation();
-    graph_->BuildDominatorTree();
   }
-  return true;
 }
 
 GraphAnalysisResult HGraphBuilder::BuildGraph(bool build_for_inline) {
@@ -199,9 +201,7 @@ GraphAnalysisResult HGraphBuilder::BuildGraph(bool build_for_inline) {
   // 5) When inlining, we want to add a Goto block if we have Return/ReturnVoid->TryBoundary->Exit
   // since we will have Return/ReturnVoid->TryBoundary->`continue to normal execution` once inlined.
   if (build_for_inline) {
-    if (!MaybeAddExtraGotoBlocks()) {
-      return kAnalysisFailInliningIrreducibleLoop;
-    }
+    MaybeAddExtraGotoBlocks();
   }
 
   // 6) Type the graph and eliminate dead/redundant phis.
