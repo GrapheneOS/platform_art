@@ -86,7 +86,7 @@ uint8_t* GcVisitedArenaPool::AddMap(size_t min_size) {
   std::string err_msg;
   bool mapped_shared;
   // We use MAP_SHARED on non-zygote processes for leveraging userfaultfd's minor-fault feature.
-  if (gUseUserfaultfd && !runtime->IsZygote() && mark_compact->IsUffdMinorFaultSupported()) {
+  if (gUseUserfaultfd && mark_compact->MapLinearAllocShared()) {
     maps_.emplace_back(MemMap::MapFile(size,
                                        PROT_READ | PROT_WRITE,
                                        MAP_ANONYMOUS | MAP_SHARED,

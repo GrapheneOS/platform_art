@@ -94,6 +94,33 @@ static bool HaveMremapDontunmap() {
 // We require MREMAP_DONTUNMAP functionality of the mremap syscall, which was
 // introduced in 5.13 kernel version. But it was backported to GKI kernels.
 static bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13) || HaveMremapDontunmap();
+// Bitmap of features supported by userfaultfd. This is obtained via uffd API ioctl.
+static uint64_t gUffdFeatures = 0;
+
+static bool KernelSupportsUffd() {
+#ifdef __linux__
+  if (gHaveMremapDontunmap) {
+    int fd = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
+    // On non-android devices we may not have the kernel patches that restrict
+    // userfaultfd to user mode. But that is not a security concern as we are
+    // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
+    if (!kIsTargetAndroid && fd == -1 && errno == EINVAL) {
+      fd = syscall(__NR_userfaultfd, O_CLOEXEC);
+    }
+    if (fd >= 0) {
+      // We are only fetching the available features, which is returned by the
+      // ioctl.
+      struct uffdio_api api = {.api = UFFD_API, .features = 0, .ioctls = 0};
+      CHECK_EQ(ioctl(fd, UFFDIO_API, &api), 0) << "ioctl_userfaultfd : API:" << strerror(errno);
+      gUffdFeatures = api.features;
+      close(fd);
+      return true;
+    }
+  }
+#endif
+  return false;
+}
+
 // The other cases are defined as constexpr in runtime/read_barrier_config.h
 #if !defined(ART_FORCE_USE_READ_BARRIER) && defined(ART_USE_READ_BARRIER)
 // Returns collector type asked to be used on the cmdline.
@@ -113,23 +140,6 @@ static gc::CollectorType FetchCmdlineGcType() {
 static bool SysPropSaysUffdGc() {
   return GetBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc",
                          GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false));
-}
-
-static bool KernelSupportsUffd() {
-  if (gHaveMremapDontunmap) {
-    int fd = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
-    // On non-android devices we may not have the kernel patches that restrict
-    // userfaultfd to user mode. But that is not a security concern as we are
-    // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
-    if (!kIsTargetAndroid && fd == -1 && errno == EINVAL) {
-      fd = syscall(__NR_userfaultfd, O_CLOEXEC);
-    }
-    if (fd >= 0) {
-      close(fd);
-      return true;
-    }
-  }
-  return false;
 }
 
 static bool ShouldUseUserfaultfd() {
@@ -171,6 +181,22 @@ static constexpr ssize_t kMinFromSpaceMadviseSize = 1 * MB;
 // retries.
 static const bool gKernelHasFaultRetry = kMaxNumUffdWorkers <= 2 || IsKernelVersionAtLeast(5, 7);
 
+std::pair<bool, bool> MarkCompact::GetUffdAndMinorFault() {
+  bool uffd_available;
+  // In most cases the gUffdFeatures will already be initialized at boot time
+  // when libart is loaded. On very old kernels we may get '0' from the kernel,
+  // in which case we would be doing the syscalls each time this function is
+  // called. But that's very unlikely case. There are no correctness issues as
+  // the response from kernel never changes after boot.
+  if (UNLIKELY(gUffdFeatures == 0)) {
+    uffd_available = KernelSupportsUffd();
+  } else {
+    // We can have any uffd features only if uffd exists.
+    uffd_available = true;
+  }
+  return std::pair<bool, bool>(uffd_available, gUffdFeatures & UFFD_FEATURE_MINOR_SHMEM);
+}
+
 bool MarkCompact::CreateUserfaultfd(bool post_fork) {
   if (post_fork || uffd_ == kFdUnused) {
     // Don't use O_NONBLOCK as we rely on read waiting on uffd_ if there isn't
@@ -189,17 +215,16 @@ bool MarkCompact::CreateUserfaultfd(bool post_fork) {
                      << ") and therefore falling back to stop-the-world compaction.";
       } else {
         DCHECK(IsValidFd(uffd_));
-        // Get/update the features that we want in userfaultfd
-        struct uffdio_api api = {.api = UFFD_API,
-                                 .features = UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM};
+        constexpr static uint64_t kRequestedUffdFeatures =
+            UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
+        // Initialize uffd with the features which are required and available.
+        struct uffdio_api api = {
+            .api = UFFD_API, .features = gUffdFeatures & kRequestedUffdFeatures, .ioctls = 0};
         CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0)
-              << "ioctl_userfaultfd: API: " << strerror(errno);
+            << "ioctl_userfaultfd: API: " << strerror(errno);
         // Missing userfaults on shmem should always be available.
-        DCHECK_NE(api.features & UFFD_FEATURE_MISSING_SHMEM, 0u);
-        uffd_minor_fault_supported_ =
-            gHaveMremapDontunmap && (api.features & UFFD_FEATURE_MINOR_SHMEM) != 0;
-        // TODO: Assert that minor-fault support isn't available only on 32-bit
-        // kernel.
+        CHECK_NE(api.features & UFFD_FEATURE_MISSING_SHMEM, 0u);
+        // TODO: Assert that minor-fault support isn't available only on 32-bit kernel.
       }
     } else {
       // Without fault-retry feature in the kernel we can't terminate concurrent
@@ -230,8 +255,9 @@ MarkCompact::MarkCompact(Heap* heap)
       compaction_in_progress_count_(0),
       compacting_(false),
       uffd_initialized_(false),
-      uffd_minor_fault_supported_(false),
-      minor_fault_initialized_(false) {
+      uffd_minor_fault_supported_(GetUffdAndMinorFault().second),
+      minor_fault_initialized_(false),
+      map_linear_alloc_shared_(false) {
   // TODO: Depending on how the bump-pointer space move is implemented. If we
   // switch between two virtual memories each time, then we will have to
   // initialize live_words_bitmap_ accordingly.
@@ -718,8 +744,6 @@ void MarkCompact::PrepareForCompaction() {
     CHECK_EQ(ioctl(uffd_, UFFDIO_REGISTER, &uffd_register), 0)
           << "ioctl_userfaultfd: register compaction termination page: " << strerror(errno);
 
-    // uffd_minor_fault_supported_ would be set appropriately in
-    // CreateUserfaultfd() above.
     if (!uffd_minor_fault_supported_ && shadow_to_space_map_.IsValid()) {
       // A valid shadow-map for moving space is only possible if we
       // were able to map it in the constructor. That also means that its size
@@ -2528,6 +2552,14 @@ void MarkCompact::KernelPreparation() {
         data.already_shared_ = true;
       }
     }
+  }
+  if (map_shared) {
+    // Start mapping linear-alloc MAP_SHARED only after the compaction pause of
+    // the first GC in non-zygote processes. This is the GC which sets up
+    // mappings for using minor-fault in future. Up to this point we run
+    // userfaultfd in copy-mode, which requires the mappings (of linear-alloc)
+    // to be MAP_PRIVATE.
+    map_linear_alloc_shared_ = true;
   }
 }
 
