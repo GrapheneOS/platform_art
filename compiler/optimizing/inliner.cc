@@ -1440,17 +1440,17 @@ bool HInliner::IsInliningSupported(const HInvoke* invoke_instruction,
           << " is not inlined because inlining try catches is disabled globally";
       return false;
     }
-    const bool inlined_into_try_catch =
-        // Direct parent is a try catch.
-        invoke_instruction->GetBlock()->GetTryCatchInformation() != nullptr ||
-        // Indirect parent is a try catch.
+    const bool disallowed_try_catch_inlining =
+        // Direct parent is a try block.
+        invoke_instruction->GetBlock()->IsTryBlock() ||
+        // Indirect parent disallows try catch inlining.
         !try_catch_inlining_allowed_;
-    if (inlined_into_try_catch) {
+    if (disallowed_try_catch_inlining) {
       LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedTryCatchCallee)
           << "Method " << method->PrettyMethod()
           << " is not inlined because it has a try catch and we are not supporting it for this"
           << " particular call. This is could be because e.g. it would be inlined inside another"
-          << " try catch, we arrived here from TryInlinePolymorphicCall, etc.";
+          << " try block, we arrived here from TryInlinePolymorphicCall, etc.";
       return false;
     }
   }
@@ -2139,8 +2139,8 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
   const bool try_catch_inlining_allowed_for_recursive_inline =
       // It was allowed previously.
       try_catch_inlining_allowed_ &&
-      // The current invoke is not in a try or a catch.
-      invoke_instruction->GetBlock()->GetTryCatchInformation() == nullptr;
+      // The current invoke is not a try block.
+      !invoke_instruction->GetBlock()->IsTryBlock();
   RunOptimizations(callee_graph,
                    code_item,
                    dex_compilation_unit,
