@@ -137,6 +137,17 @@ class MemMap {
                              /*inout*/MemMap* reservation,
                              /*out*/std::string* error_msg,
                              bool use_debug_name = true);
+
+  // Request an aligned anonymous region. We can't directly ask for a MAP_SHARED (anonymous or
+  // otherwise) mapping to be aligned as in that case file offset is involved and could make
+  // the starting offset to be out of sync with another mapping of the same file.
+  static MemMap MapAnonymousAligned(const char* name,
+                                    size_t byte_count,
+                                    int prot,
+                                    bool low_4gb,
+                                    size_t alignment,
+                                    /*out=*/std::string* error_msg);
+
   static MemMap MapAnonymous(const char* name,
                              size_t byte_count,
                              int prot,
@@ -310,8 +321,9 @@ class MemMap {
   // intermittently.
   void TryReadable();
 
-  // Align the map by unmapping the unaligned parts at the lower and the higher ends.
-  void AlignBy(size_t size);
+  // Align the map by unmapping the unaligned part at the lower end and if 'align_both_ends' is
+  // true, then the higher end as well.
+  void AlignBy(size_t alignment, bool align_both_ends = true);
 
   // For annotation reasons.
   static std::mutex* GetMemMapsLock() RETURN_CAPABILITY(mem_maps_lock_) {

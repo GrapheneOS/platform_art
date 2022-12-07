@@ -266,8 +266,9 @@ MarkCompact::MarkCompact(Heap* heap)
           reinterpret_cast<uintptr_t>(bump_pointer_space_->Limit())));
 
   // Create one MemMap for all the data structures
-  size_t chunk_info_vec_size = bump_pointer_space_->Capacity() / kOffsetChunkSize;
-  size_t nr_moving_pages = bump_pointer_space_->Capacity() / kPageSize;
+  size_t moving_space_size = bump_pointer_space_->Capacity();
+  size_t chunk_info_vec_size = moving_space_size / kOffsetChunkSize;
+  size_t nr_moving_pages = moving_space_size / kPageSize;
   size_t nr_non_moving_pages = heap->GetNonMovingSpace()->Capacity() / kPageSize;
 
   std::string err_msg;
@@ -296,13 +297,21 @@ MarkCompact::MarkCompact(Heap* heap)
     pre_compact_offset_moving_space_ = reinterpret_cast<uint32_t*>(p);
   }
 
+  size_t moving_space_alignment = BestPageTableAlignment(moving_space_size);
+  // The moving space is created at a fixed address, which is expected to be
+  // PMD-size aligned.
+  if (!IsAlignedParam(bump_pointer_space_->Begin(), moving_space_alignment)) {
+    LOG(WARNING) << "Bump pointer space is not aligned to " << PrettySize(moving_space_alignment)
+                 << ". This can lead to longer stop-the-world pauses for compaction";
+  }
   // NOTE: PROT_NONE is used here as these mappings are for address space reservation
   // only and will be used only after appropriately remapping them.
-  from_space_map_ = MemMap::MapAnonymous("Concurrent mark-compact from-space",
-                                         bump_pointer_space_->Capacity(),
-                                         PROT_NONE,
-                                         /*low_4gb=*/ kObjPtrPoisoning,
-                                         &err_msg);
+  from_space_map_ = MemMap::MapAnonymousAligned("Concurrent mark-compact from-space",
+                                                moving_space_size,
+                                                PROT_NONE,
+                                                /*low_4gb=*/kObjPtrPoisoning,
+                                                moving_space_alignment,
+                                                &err_msg);
   if (UNLIKELY(!from_space_map_.IsValid())) {
     LOG(FATAL) << "Failed to allocate concurrent mark-compact from-space" << err_msg;
   } else {
@@ -316,7 +325,7 @@ MarkCompact::MarkCompact(Heap* heap)
   //
   // This map doesn't have to be aligned to 2MB as we don't mremap on it.
   shadow_to_space_map_ = MemMap::MapAnonymous("Concurrent mark-compact moving-space shadow",
-                                              bump_pointer_space_->Capacity(),
+                                              moving_space_size,
                                               PROT_NONE,
                                               /*low_4gb=*/kObjPtrPoisoning,
                                               &err_msg);
@@ -341,15 +350,30 @@ MarkCompact::MarkCompact(Heap* heap)
   linear_alloc_spaces_data_.reserve(1);
 }
 
-void MarkCompact::AddLinearAllocSpaceData(uint8_t* begin, size_t len, bool already_shared) {
+void MarkCompact::AddLinearAllocSpaceData(uint8_t* begin, size_t len) {
   DCHECK_ALIGNED(begin, kPageSize);
   DCHECK_ALIGNED(len, kPageSize);
+  DCHECK_GE(len, kPMDSize);
+  size_t alignment = BestPageTableAlignment(len);
+  bool is_shared = false;
+  // We use MAP_SHARED on non-zygote processes for leveraging userfaultfd's minor-fault feature.
+  if (map_linear_alloc_shared_) {
+    void* ret = mmap(begin,
+                     len,
+                     PROT_READ | PROT_WRITE,
+                     MAP_ANONYMOUS | MAP_SHARED | MAP_FIXED,
+                     /*fd=*/-1,
+                     /*offset=*/0);
+    CHECK_EQ(ret, begin) << "mmap failed: " << strerror(errno);
+    is_shared = true;
+  }
   std::string err_msg;
-  MemMap shadow(MemMap::MapAnonymous("linear-alloc shadow map",
-                                     len,
-                                     PROT_NONE,
-                                     /*low_4gb=*/false,
-                                     &err_msg));
+  MemMap shadow(MemMap::MapAnonymousAligned("linear-alloc shadow map",
+                                            len,
+                                            PROT_NONE,
+                                            /*low_4gb=*/false,
+                                            alignment,
+                                            &err_msg));
   if (!shadow.IsValid()) {
     LOG(FATAL) << "Failed to allocate linear-alloc shadow map: " << err_msg;
     UNREACHABLE();
@@ -368,7 +392,7 @@ void MarkCompact::AddLinearAllocSpaceData(uint8_t* begin, size_t len, bool alrea
                                          std::forward<MemMap>(page_status_map),
                                          begin,
                                          begin + len,
-                                         already_shared);
+                                         is_shared);
 }
 
 void MarkCompact::BindAndResetBitmaps() {
@@ -2428,8 +2452,6 @@ void MarkCompact::KernelPrepareRange(uint8_t* to_addr,
                                      int fd,
                                      int uffd_mode,
                                      uint8_t* shadow_addr) {
-  // TODO: Create mapping's at 2MB aligned addresses to benefit from optimized
-  // mremap.
   int mremap_flags = MREMAP_MAYMOVE | MREMAP_FIXED;
   if (gHaveMremapDontunmap) {
     mremap_flags |= MREMAP_DONTUNMAP;
