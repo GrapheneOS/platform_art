@@ -1064,6 +1064,21 @@ void GraphChecker::VisitNeg(HNeg* instruction) {
   }
 }
 
+void GraphChecker::VisitArraySet(HArraySet* instruction) {
+  VisitInstruction(instruction);
+
+  if (instruction->NeedsTypeCheck() !=
+      instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC())) {
+    AddError(StringPrintf(
+        "%s %d has a flag mismatch. An ArraySet instruction can trigger a GC iff it "
+        "needs a type check. Needs type check: %s, Can trigger GC: %s",
+        instruction->DebugName(),
+        instruction->GetId(),
+        instruction->NeedsTypeCheck() ? "true" : "false",
+        instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ? "true" : "false"));
+  }
+}
+
 void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
   VisitInstruction(op);
   DataType::Type lhs_type = op->InputAt(0)->GetType();

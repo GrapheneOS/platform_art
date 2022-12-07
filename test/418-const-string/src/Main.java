@@ -15,14 +15,14 @@
  */
 
 public class Main {
-  public static void main(String[] args) {
-    // First call: may go in slow path.
-    System.out.println($opt$ReturnHelloWorld());
-    // Second call: no slow path.
-    System.out.println($opt$ReturnHelloWorld());
-  }
+    public static void main(String[] args) {
+        // First call: may go in slow path.
+        System.out.println($opt$ReturnHelloWorld());
+        // Second call: no slow path.
+        System.out.println($opt$ReturnHelloWorld());
+    }
 
-  public static String $opt$ReturnHelloWorld() {
-    return "Hello World";
-  }
+    public static String $opt$ReturnHelloWorld() {
+        return "Hello World";
+    }
 }

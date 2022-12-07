@@ -185,9 +185,6 @@ void ArenaAllocatorMemoryTool::DoMakeInaccessible(void* ptr, size_t size) {
   MEMORY_TOOL_MAKE_NOACCESS(ptr, size);
 }
 
-Arena::Arena() : bytes_allocated_(0), memory_(nullptr), size_(0), next_(nullptr) {
-}
-
 size_t ArenaAllocator::BytesAllocated() const {
   return ArenaAllocatorStats::BytesAllocated();
 }
@@ -266,6 +263,13 @@ ArenaAllocator::~ArenaAllocator() {
   // Reclaim all the arenas by giving them back to the thread pool.
   UpdateBytesAllocated();
   pool_->FreeArenaChain(arena_head_);
+}
+
+void ArenaAllocator::ResetCurrentArena() {
+  UpdateBytesAllocated();
+  begin_ = nullptr;
+  ptr_ = nullptr;
+  end_ = nullptr;
 }
 
 uint8_t* ArenaAllocator::AllocFromNewArena(size_t bytes) {

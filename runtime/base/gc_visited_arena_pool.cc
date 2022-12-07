@@ -16,25 +16,19 @@
 
 #include "base/gc_visited_arena_pool.h"
 
-#include "base/arena_allocator-inl.h"
-#include "base/utils.h"
-
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "base/arena_allocator-inl.h"
+#include "base/memfd.h"
+#include "base/utils.h"
+#include "gc/collector/mark_compact-inl.h"
+
 namespace art {
 
-#if defined(__LP64__)
-// Use a size in multiples of 1GB as that can utilize the optimized mremap
-// page-table move.
-static constexpr size_t kLinearAllocPoolSize = 1 * GB;
-static constexpr size_t kLow4GBLinearAllocPoolSize = 32 * MB;
-#else
-static constexpr size_t kLinearAllocPoolSize = 32 * MB;
-#endif
-
-TrackedArena::TrackedArena(uint8_t* start, size_t size) : Arena(), first_obj_array_(nullptr) {
+TrackedArena::TrackedArena(uint8_t* start, size_t size, bool pre_zygote_fork)
+    : Arena(), first_obj_array_(nullptr), pre_zygote_fork_(pre_zygote_fork) {
   static_assert(ArenaAllocator::kArenaAlignment <= kPageSize,
                 "Arena should not need stronger alignment than kPageSize.");
   DCHECK_ALIGNED(size, kPageSize);
@@ -48,7 +42,18 @@ TrackedArena::TrackedArena(uint8_t* start, size_t size) : Arena(), first_obj_arr
 
 void TrackedArena::Release() {
   if (bytes_allocated_ > 0) {
-    ZeroAndReleasePages(Begin(), Size());
+    // Userfaultfd GC uses MAP_SHARED mappings for linear-alloc and therefore
+    // MADV_DONTNEED will not free the pages from page cache. Therefore use
+    // MADV_REMOVE instead, which is meant for this purpose.
+    // Arenas allocated pre-zygote fork are private anonymous and hence must be
+    // released using MADV_DONTNEED.
+    if (!gUseUserfaultfd || pre_zygote_fork_ ||
+        (madvise(Begin(), Size(), MADV_REMOVE) == -1 && errno == EINVAL)) {
+      // MADV_REMOVE fails if invoked on anonymous mapping, which could happen
+      // if the arena is released before userfaultfd-GC starts using memfd. So
+      // use MADV_DONTNEED.
+      ZeroAndReleasePages(Begin(), Size());
+    }
     std::fill_n(first_obj_array_.get(), Size() / kPageSize, nullptr);
     bytes_allocated_ = 0;
   }
@@ -68,7 +73,7 @@ void TrackedArena::SetFirstObject(uint8_t* obj_begin, uint8_t* obj_end) {
   }
 }
 
-void GcVisitedArenaPool::AddMap(size_t min_size) {
+uint8_t* GcVisitedArenaPool::AddMap(size_t min_size) {
   size_t size = std::max(min_size, kLinearAllocPoolSize);
 #if defined(__LP64__)
   // This is true only when we are running a 64-bit dex2oat to compile a 32-bit image.
@@ -76,30 +81,44 @@ void GcVisitedArenaPool::AddMap(size_t min_size) {
     size = std::max(min_size, kLow4GBLinearAllocPoolSize);
   }
 #endif
+  Runtime* runtime = Runtime::Current();
+  gc::collector::MarkCompact* mark_compact = runtime->GetHeap()->MarkCompactCollector();
   std::string err_msg;
-  maps_.emplace_back(MemMap::MapAnonymous(name_,
-                                          size,
-                                          PROT_READ | PROT_WRITE,
-                                          low_4gb_,
-                                          &err_msg));
+  bool mapped_shared;
+  // We use MAP_SHARED on non-zygote processes for leveraging userfaultfd's minor-fault feature.
+  if (gUseUserfaultfd && !runtime->IsZygote() && mark_compact->IsUffdMinorFaultSupported()) {
+    maps_.emplace_back(MemMap::MapFile(size,
+                                       PROT_READ | PROT_WRITE,
+                                       MAP_ANONYMOUS | MAP_SHARED,
+                                       -1,
+                                       /*start=*/0,
+                                       low_4gb_,
+                                       name_,
+                                       &err_msg));
+    mapped_shared = true;
+  } else {
+    maps_.emplace_back(
+        MemMap::MapAnonymous(name_, size, PROT_READ | PROT_WRITE, low_4gb_, &err_msg));
+    mapped_shared = false;
+  }
+
   MemMap& map = maps_.back();
   if (!map.IsValid()) {
-    LOG(FATAL) << "Failed to allocate " << name_
-               << ": " << err_msg;
+    LOG(FATAL) << "Failed to allocate " << name_ << ": " << err_msg;
     UNREACHABLE();
+  }
+  if (gUseUserfaultfd) {
+    // Create a shadow-map for the map being added for userfaultfd GC
+    mark_compact->AddLinearAllocSpaceData(map.Begin(), map.Size(), mapped_shared);
   }
   Chunk* chunk = new Chunk(map.Begin(), map.Size());
   best_fit_allocs_.insert(chunk);
   free_chunks_.insert(chunk);
+  return map.Begin();
 }
 
-GcVisitedArenaPool::GcVisitedArenaPool(bool low_4gb, const char* name)
-  : bytes_allocated_(0), name_(name), low_4gb_(low_4gb) {
-  std::lock_guard<std::mutex> lock(lock_);
-  // It's extremely rare to have more than one map.
-  maps_.reserve(1);
-  AddMap(/*min_size=*/0);
-}
+GcVisitedArenaPool::GcVisitedArenaPool(bool low_4gb, bool is_zygote, const char* name)
+    : bytes_allocated_(0), name_(name), low_4gb_(low_4gb), pre_zygote_fork_(is_zygote) {}
 
 GcVisitedArenaPool::~GcVisitedArenaPool() {
   for (Chunk* chunk : free_chunks_) {
@@ -114,11 +133,37 @@ size_t GcVisitedArenaPool::GetBytesAllocated() const {
   return bytes_allocated_;
 }
 
+uint8_t* GcVisitedArenaPool::AddPreZygoteForkMap(size_t size) {
+  DCHECK(pre_zygote_fork_);
+  DCHECK(Runtime::Current()->IsZygote());
+  std::string pre_fork_name = "Pre-zygote-";
+  pre_fork_name += name_;
+  std::string err_msg;
+  maps_.emplace_back(MemMap::MapAnonymous(
+      pre_fork_name.c_str(), size, PROT_READ | PROT_WRITE, low_4gb_, &err_msg));
+  MemMap& map = maps_.back();
+  if (!map.IsValid()) {
+    LOG(FATAL) << "Failed to allocate " << pre_fork_name << ": " << err_msg;
+    UNREACHABLE();
+  }
+  return map.Begin();
+}
+
 Arena* GcVisitedArenaPool::AllocArena(size_t size) {
   // Return only page aligned sizes so that madvise can be leveraged.
   size = RoundUp(size, kPageSize);
-  Chunk temp_chunk(nullptr, size);
   std::lock_guard<std::mutex> lock(lock_);
+
+  if (pre_zygote_fork_) {
+    // The first fork out of zygote hasn't happened yet. Allocate arena in a
+    // private-anonymous mapping to retain clean pages across fork.
+    DCHECK(Runtime::Current()->IsZygote());
+    uint8_t* addr = AddPreZygoteForkMap(size);
+    auto emplace_result = allocated_arenas_.emplace(addr, size, /*pre_zygote_fork=*/true);
+    return const_cast<TrackedArena*>(&(*emplace_result.first));
+  }
+
+  Chunk temp_chunk(nullptr, size);
   auto best_fit_iter = best_fit_allocs_.lower_bound(&temp_chunk);
   if (UNLIKELY(best_fit_iter == best_fit_allocs_.end())) {
     AddMap(size);
@@ -132,14 +177,18 @@ Arena* GcVisitedArenaPool::AllocArena(size_t size) {
   // if the best-fit chunk < 2x the requested size, then give the whole chunk.
   if (chunk->size_ < 2 * size) {
     DCHECK_GE(chunk->size_, size);
-    auto emplace_result = allocated_arenas_.emplace(chunk->addr_, chunk->size_);
+    auto emplace_result = allocated_arenas_.emplace(chunk->addr_,
+                                                    chunk->size_,
+                                                    /*pre_zygote_fork=*/false);
     DCHECK(emplace_result.second);
     free_chunks_.erase(free_chunks_iter);
     best_fit_allocs_.erase(best_fit_iter);
     delete chunk;
     return const_cast<TrackedArena*>(&(*emplace_result.first));
   } else {
-    auto emplace_result = allocated_arenas_.emplace(chunk->addr_, size);
+    auto emplace_result = allocated_arenas_.emplace(chunk->addr_,
+                                                    size,
+                                                    /*pre_zygote_fork=*/false);
     DCHECK(emplace_result.second);
     // Compute next iterators for faster insert later.
     auto next_best_fit_iter = best_fit_iter;
@@ -244,6 +293,8 @@ void GcVisitedArenaPool::FreeArenaChain(Arena* first) {
     // calculate here.
     bytes_allocated_ += first->GetBytesAllocated();
     TrackedArena* temp = down_cast<TrackedArena*>(first);
+    // TODO: Add logic to unmap the maps corresponding to pre-zygote-fork
+    // arenas, which are expected to be released only during shutdown.
     first = first->Next();
     size_t erase_count = allocated_arenas_.erase(*temp);
     DCHECK_EQ(erase_count, 1u);
@@ -251,4 +302,3 @@ void GcVisitedArenaPool::FreeArenaChain(Arena* first) {
 }
 
 }  // namespace art
-

@@ -26,7 +26,7 @@ namespace art {
 class ArenaPool;
 
 enum class LinearAllocKind : uint32_t {
-  kNoGCRoots,
+  kNoGCRoots = 0,  // No GC-root kind should always be 0.
   kGCRootArray,
   kArtMethodArray,
   kArtFieldArray,
@@ -49,7 +49,10 @@ class TrackingHeader final {
   }
 
   LinearAllocKind GetKind() const { return kind_; }
-  size_t GetSize() const { return size_ & ~kIs16Aligned; }
+  // Since we are linearly allocating and hop from one object to the next during
+  // visits, reading 'size_ == 0' indicates that there are no more objects to
+  // visit in the given page. But ASAN detects it as use-after-poison access.
+  ATTRIBUTE_NO_SANITIZE_ADDRESS size_t GetSize() const { return size_ & ~kIs16Aligned; }
   bool Is16Aligned() const { return size_ & kIs16Aligned; }
 
  private:
@@ -87,6 +90,9 @@ class LinearAlloc {
   size_t GetUsedMemory() const REQUIRES(!lock_);
 
   ArenaPool* GetArenaPool() REQUIRES(!lock_);
+  // Force arena allocator to ask for a new arena on next allocation. This
+  // is to preserve private/shared clean pages across zygote fork.
+  void SetupForPostZygoteFork(Thread* self) REQUIRES(!lock_);
 
   // Return true if the linear alloc contains an address.
   bool Contains(void* ptr) const REQUIRES(!lock_);

@@ -25,6 +25,7 @@
 #include "base/safe_copy.h"
 #include "base/stl_util.h"
 #include "dex/dex_file_types.h"
+#include "gc/space/bump_pointer_space.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "mirror/class.h"
@@ -62,9 +63,20 @@ constexpr bool kVerifySafeImpls = false;
 
 static mirror::Class* SafeGetDeclaringClass(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  if (gUseUserfaultfd) {
+    // Avoid SafeCopy on userfaultfd updated memory ranges as kernel-space
+    // userfaults are not allowed, which can otherwise happen if compaction is
+    // simultaneously going on.
+    Runtime* runtime = Runtime::Current();
+    DCHECK_NE(runtime->GetHeap()->MarkCompactCollector(), nullptr);
+    GcVisitedArenaPool* pool = static_cast<GcVisitedArenaPool*>(runtime->GetLinearAllocArenaPool());
+    if (pool->Contains(method)) {
+      return method->GetDeclaringClassUnchecked<kWithoutReadBarrier>().Ptr();
+    }
+  }
+
   char* method_declaring_class =
       reinterpret_cast<char*>(method) + ArtMethod::DeclaringClassOffset().SizeValue();
-
   // ArtMethod::declaring_class_ is a GcRoot<mirror::Class>.
   // Read it out into as a CompressedReference directly for simplicity's sake.
   mirror::CompressedReference<mirror::Class> cls;
@@ -84,8 +96,18 @@ static mirror::Class* SafeGetDeclaringClass(ArtMethod* method)
 }
 
 static mirror::Class* SafeGetClass(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
-  char* obj_cls = reinterpret_cast<char*>(obj) + mirror::Object::ClassOffset().SizeValue();
+  if (gUseUserfaultfd) {
+    // Avoid SafeCopy on userfaultfd updated memory ranges as kernel-space
+    // userfaults are not allowed, which can otherwise happen if compaction is
+    // simultaneously going on.
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    DCHECK_NE(heap->MarkCompactCollector(), nullptr);
+    if (heap->GetBumpPointerSpace()->Contains(obj)) {
+      return obj->GetClass();
+    }
+  }
 
+  char* obj_cls = reinterpret_cast<char*>(obj) + mirror::Object::ClassOffset().SizeValue();
   mirror::HeapReference<mirror::Class> cls;
   ssize_t rc = SafeCopy(&cls, obj_cls, sizeof(cls));
   CHECK_NE(-1, rc);
