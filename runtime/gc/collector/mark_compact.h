@@ -137,14 +137,13 @@ class MarkCompact final : public GarbageCollector {
   // created or was already done.
   bool CreateUserfaultfd(bool post_fork);
 
-  bool MapLinearAllocShared() const { return map_linear_alloc_shared_; }
   // Returns a pair indicating if userfaultfd itself is available (first) and if
   // so then whether its minor-fault feature is available or not (second).
   static std::pair<bool, bool> GetUffdAndMinorFault();
 
   // Add linear-alloc space data when a new space is added to
   // GcVisitedArenaPool, which mostly happens only once.
-  void AddLinearAllocSpaceData(uint8_t* begin, size_t len, bool already_shared);
+  void AddLinearAllocSpaceData(uint8_t* begin, size_t len);
 
   // In copy-mode of userfaultfd, we don't need to reach a 'processed' state as
   // it's given that processing thread also copies the page, thereby mapping it.
