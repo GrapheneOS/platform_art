@@ -138,7 +138,7 @@ static gc::CollectorType FetchCmdlineGcType() {
 }
 
 static bool SysPropSaysUffdGc() {
-  return GetBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc_feb2023",
+  return GetBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc",
                          GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false));
 }
 
