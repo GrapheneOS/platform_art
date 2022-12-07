@@ -2740,8 +2740,8 @@ void HGraph::UpdateLoopAndTryInformationOfNewBlock(HBasicBlock* block,
     }
   }
 
-  DCHECK_IMPLIES(has_more_specific_try_catch_info, reference->GetTryCatchInformation() == nullptr)
-      << "We don't allow to inline try catches inside of other try catches.";
+  DCHECK_IMPLIES(has_more_specific_try_catch_info, !reference->IsTryBlock())
+      << "We don't allow to inline try catches inside of other try blocks.";
 
   // Update the TryCatchInformation, if we are not inlining a try catch.
   if (!has_more_specific_try_catch_info) {
@@ -2832,6 +2832,7 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
     HBasicBlock* first = entry_block_->GetSuccessors()[0];
     DCHECK(!first->IsInLoop());
+    DCHECK(first->GetTryCatchInformation() == nullptr);
     at->MergeWithInlined(first);
     exit_block_->ReplaceWith(to);
 
