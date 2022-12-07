@@ -83,9 +83,12 @@ art_cc_binary {
 
 art_cc_defaults {
     name: "art_dexoptanalyzer_tests_defaults",
+    static_libs: [
+        "libziparchive",
+    ],
     shared_libs: [
         "libunwindstack",
-        "libziparchive",
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
     ],
     data: [
         ":art-gtest-jars-LinkageTest",
