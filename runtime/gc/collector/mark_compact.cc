@@ -137,7 +137,10 @@ static gc::CollectorType FetchCmdlineGcType() {
   return gc_type;
 }
 
-static bool SysPropSaysUffdGc() { return false; }
+static bool SysPropSaysUffdGc() {
+  return GetBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc_feb2023",
+                         GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false));
+}
 
 static bool ShouldUseUserfaultfd() {
   static_assert(kUseBakerReadBarrier || kUseTableLookupReadBarrier);
