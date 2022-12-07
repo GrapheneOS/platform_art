@@ -285,8 +285,7 @@ class ObsoleteMethodStackVisitor : public art::StackVisitor {
       art::Thread* thread,
       art::LinearAlloc* allocator,
       const std::unordered_set<art::ArtMethod*>& obsoleted_methods,
-      ObsoleteMap* obsolete_maps)
-        REQUIRES(art::Locks::mutator_lock_) {
+      ObsoleteMap* obsolete_maps) REQUIRES(art::Locks::mutator_lock_) {
     ObsoleteMethodStackVisitor visitor(thread,
                                        allocator,
                                        obsoleted_methods,
@@ -3147,10 +3146,14 @@ bool Redefiner::ClassRedefinition::EnsureClassAllocationsFinished(
     // First save the old values of the 2 arrays that make up the obsolete methods maps. Then
     // allocate the 2 arrays that make up the obsolete methods map. Since the contents of the arrays
     // are only modified when all threads (other than the modifying one) are suspended we don't need
-    // to worry about missing the unsyncronized writes to the array. We do synchronize when setting
+    // to worry about missing the unsynchronized writes to the array. We do synchronize when setting
     // it however, since that can happen at any time.
     cur_data->SetOldObsoleteMethods(ext->GetObsoleteMethods());
     cur_data->SetOldDexCaches(ext->GetObsoleteDexCaches());
+    // FIXME: The `ClassExt::ExtendObsoleteArrays()` is non-atomic and does not ensure proper
+    // memory visibility, so it can race with `ArtMethod::GetObsoleteDexCache()`.
+    // We should allocate the new arrays here but record it in the redefinition data and set the
+    // new arrays in `ClassExt` later with all other threads suspended.
     if (!art::mirror::ClassExt::ExtendObsoleteArrays(
             ext, driver_->self_, klass->GetDeclaredMethodsSlice(art::kRuntimePointerSize).size())) {
       // OOM. Clear exception and return error.
