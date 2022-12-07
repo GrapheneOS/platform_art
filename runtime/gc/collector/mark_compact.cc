@@ -108,7 +108,10 @@ static gc::CollectorType FetchCmdlineGcType() {
   return gc_type;
 }
 
-static bool SysPropSaysUffdGc() { return false; }
+static bool SysPropSaysUffdGc() {
+  return GetBoolProperty("persist.device_config.runtime_native_boot.enable_uffd_gc_feb2023",
+                         GetBoolProperty("ro.dalvik.vm.enable_uffd_gc", false));
+}
 
 static bool KernelSupportsUffd() {
   int fd = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
