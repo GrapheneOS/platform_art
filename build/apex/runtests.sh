@@ -59,14 +59,27 @@ if [ ! -d $ANDROID_BUILD_TOP/frameworks/base ]; then
   export TARGET_BUILD_UNBUNDLED=true
 fi
 
-have_deapexer_p=false
+deapex_binaries=(
+  blkid_static
+  deapexer
+  debugfs_static
+  fsck.erofs
+)
+
+have_deapex_binaries=false
 if [[ "$TARGET_FLATTEN_APEX" != true ]]; then
-  if [ ! -e "$HOST_OUT/bin/deapexer" -o ! -e "$HOST_OUT/bin/debugfs_static" ] ; then
-    say "Could not find deapexer and/or debugfs_static, building now."
-    build/soong/soong_ui.bash --make-mode deapexer debugfs_static-host || \
-      die "Cannot build deapexer and debugfs_static"
+  have_deapex_binaries=true
+  for f in ${deapex_binaries[@]}; do
+    if [ ! -e "$HOST_OUT/bin/$f" ]; then
+      have_deapex_binaries=false
+    fi
+  done
+  if $have_deapex_binaries; then :; else
+    deapex_targets=( ${deapex_binaries[@]/%/-host} )
+    say "Building host binaries for deapexer: ${deapex_targets[*]}"
+    build/soong/soong_ui.bash --make-mode ${deapex_targets[@]} || \
+      die "Failed to build: ${deapex_targets[*]}"
   fi
-  have_deapexer_p=true
 fi
 
 # Fail early.
@@ -203,7 +216,7 @@ for apex_module in ${apex_modules[@]}; do
         apex_path="$PRODUCT_OUT/system/apex/${apex_module}.apex"
       fi
     fi
-    if $have_deapexer_p; then
+    if $have_deapex_binaries; then
       art_apex_test_args="$art_apex_test_args --deapexer $HOST_OUT/bin/deapexer"
       art_apex_test_args="$art_apex_test_args --debugfs $HOST_OUT/bin/debugfs_static"
       art_apex_test_args="$art_apex_test_args --fsckerofs $HOST_OUT/bin/fsck.erofs"
