@@ -40,6 +40,11 @@ void Barrier::Pass(Thread* self) {
   SetCountLocked(self, count_ - 1);
 }
 
+void Barrier::IncrementNoWait(Thread* self) {
+  MutexLock mu(self, *GetLock());
+  SetCountLocked(self, count_ + 1);
+}
+
 void Barrier::Wait(Thread* self) {
   Increment(self, -1);
 }

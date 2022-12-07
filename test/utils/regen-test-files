@@ -368,7 +368,7 @@ class Generator:
     # Skip tests with non-default build rules, unless these build
     # rules can be safely ignored.
     if (os.path.isfile(os.path.join(run_test_path, "generate-sources")) or
-        os.path.isfile(os.path.join(run_test_path, "javac_wrapper.sh"))):
+        os.path.isfile(os.path.join(run_test_path, "javac_post.sh"))):
       return False
     if os.path.isfile(os.path.join(run_test_path, "build.py")):
       if not self.can_ignore_build_script(run_test):

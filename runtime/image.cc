@@ -67,12 +67,14 @@ ImageHeader::ImageHeader(uint32_t image_reservation_size,
     image_roots_(image_roots),
     pointer_size_(pointer_size) {
   CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
-  CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
-  CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kPageSize));
-  CHECK_LT(image_roots, oat_file_begin);
-  CHECK_LE(oat_file_begin, oat_data_begin);
-  CHECK_LT(oat_data_begin, oat_data_end);
-  CHECK_LE(oat_data_end, oat_file_end);
+  if (oat_checksum != 0u) {
+    CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
+    CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kPageSize));
+    CHECK_LT(image_roots, oat_file_begin);
+    CHECK_LE(oat_file_begin, oat_data_begin);
+    CHECK_LT(oat_data_begin, oat_data_end);
+    CHECK_LE(oat_data_end, oat_file_end);
+  }
   CHECK(ValidPointerSize(pointer_size_)) << pointer_size_;
   memcpy(magic_, kImageMagic, sizeof(kImageMagic));
   memcpy(version_, kImageVersion, sizeof(kImageVersion));
@@ -129,14 +131,16 @@ bool ImageHeader::IsValid() const {
   if (image_begin_ >= image_begin_ + image_size_) {
     return false;
   }
-  if (oat_file_begin_ > oat_file_end_) {
-    return false;
-  }
-  if (oat_data_begin_ > oat_data_end_) {
-    return false;
-  }
-  if (oat_file_begin_ >= oat_data_begin_) {
-    return false;
+  if (oat_checksum_ != 0u) {
+    if (oat_file_begin_ > oat_file_end_) {
+      return false;
+    }
+    if (oat_data_begin_ > oat_data_end_) {
+      return false;
+    }
+    if (oat_file_begin_ >= oat_data_begin_) {
+      return false;
+    }
   }
   return true;
 }

@@ -138,7 +138,6 @@ enum GraphAnalysisResult {
   kAnalysisInvalidBytecode,
   kAnalysisFailThrowCatchLoop,
   kAnalysisFailAmbiguousArrayOp,
-  kAnalysisFailInliningIrreducibleLoop,
   kAnalysisFailIrreducibleLoopAndStringInit,
   kAnalysisFailPhiEquivalentInOsr,
   kAnalysisSuccess,
@@ -515,6 +514,11 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   HBasicBlock* SplitEdge(HBasicBlock* block, HBasicBlock* successor);
 
   void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
+
+  // Splits the edge between `block` and `successor` and then updates the graph's RPO to keep
+  // consistency without recomputing the whole graph.
+  HBasicBlock* SplitEdgeAndUpdateRPO(HBasicBlock* block, HBasicBlock* successor);
+
   void OrderLoopHeaderPredecessors(HBasicBlock* header);
 
   // Transform a loop into a format with a single preheader.
@@ -6597,8 +6601,10 @@ class HArraySet final : public HExpression<3> {
     return false;
   }
 
-  void ClearNeedsTypeCheck() {
+  void ClearTypeCheck() {
     SetPackedFlag<kFlagNeedsTypeCheck>(false);
+    // Clear the `CanTriggerGC` flag too as we can only trigger a GC when doing a type check.
+    SetSideEffects(GetSideEffects().Exclusion(SideEffects::CanTriggerGC()));
   }
 
   void ClearValueCanBeNull() {
