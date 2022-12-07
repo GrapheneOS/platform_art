@@ -137,7 +137,10 @@ class MarkCompact final : public GarbageCollector {
   // created or was already done.
   bool CreateUserfaultfd(bool post_fork);
 
-  bool IsUffdMinorFaultSupported() const { return uffd_minor_fault_supported_; }
+  bool MapLinearAllocShared() const { return map_linear_alloc_shared_; }
+  // Returns a pair indicating if userfaultfd itself is available (first) and if
+  // so then whether its minor-fault feature is available or not (second).
+  static std::pair<bool, bool> GetUffdAndMinorFault();
 
   // Add linear-alloc space data when a new space is added to
   // GcVisitedArenaPool, which mostly happens only once.
@@ -657,11 +660,15 @@ class MarkCompact final : public GarbageCollector {
   bool uffd_initialized_;
   // Flag indicating if userfaultfd supports minor-faults. Set appropriately in
   // CreateUserfaultfd(), where we get this information from the kernel.
-  bool uffd_minor_fault_supported_;
-  // For non-zygote processes this flah indicates if the spaces are ready to
+  const bool uffd_minor_fault_supported_;
+  // For non-zygote processes this flag indicates if the spaces are ready to
   // start using userfaultfd's minor-fault feature. This initialization involves
   // starting to use shmem (memfd_create) for the userfaultfd protected spaces.
   bool minor_fault_initialized_;
+  // Set to true when linear-alloc can start mapping with MAP_SHARED. Set on
+  // non-zygote processes during first GC, which sets up everyting for using
+  // minor-fault from next GC.
+  bool map_linear_alloc_shared_;
 
   class VerifyRootMarkedVisitor;
   class ScanObjectVisitor;
