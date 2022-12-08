@@ -2119,7 +2119,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                         codegen_,
                         inline_stats_);
 
-  if (builder.BuildGraph(/* build_for_inline= */ true) != kAnalysisSuccess) {
+  if (builder.BuildGraph() != kAnalysisSuccess) {
     LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedCannotBuild)
         << "Method " << callee_dex_file.PrettyMethod(method_index)
         << " could not be built, so cannot be inlined";
