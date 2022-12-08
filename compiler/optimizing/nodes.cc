@@ -2919,23 +2919,45 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       DCHECK_IMPLIES(saw_goto, last->IsReturnVoid() || last->IsReturn());
 
       if (last->IsThrow()) {
-        DCHECK(!at->IsTryBlock());
         // The chain `Throw->TryBoundary` is allowed but not `Throw->TryBoundary->Goto` since that
         // would mean a Goto will point to exit after ReplaceSuccessor.
         DCHECK(!saw_goto);
 
-        // We either have `Throw->TryBoundary` or `Throw`. We want to point the whole chain to the
-        // exit, so we recompute `predecessor`
-        predecessor = to->GetPredecessors()[pred];
-        predecessor->ReplaceSuccessor(to, outer_graph->GetExitBlock());
+        if (at->IsTryBlock()) {
+          DCHECK(!saw_try_boundary) << "We don't support inlining of try blocks into try blocks.";
+          // Create a TryBoundary of kind:exit and point it to the Exit block.
+          HBasicBlock* new_block = outer_graph->SplitEdge(predecessor, to);
+          new_block->AddInstruction(
+              new (allocator) HTryBoundary(HTryBoundary::BoundaryKind::kExit, last->GetDexPc()));
+          new_block->ReplaceSuccessor(to, outer_graph->GetExitBlock());
+
+          // Copy information from the predecessor.
+          new_block->SetLoopInformation(predecessor->GetLoopInformation());
+          TryCatchInformation* try_catch_info = predecessor->GetTryCatchInformation();
+          new_block->SetTryCatchInformation(try_catch_info);
+          for (HBasicBlock* xhandler :
+               try_catch_info->GetTryEntry().GetBlock()->GetExceptionalSuccessors()) {
+            new_block->AddSuccessor(xhandler);
+          }
+          DCHECK(try_catch_info->GetTryEntry().HasSameExceptionHandlersAs(
+              *new_block->GetLastInstruction()->AsTryBoundary()));
+        } else {
+          // We either have `Throw->TryBoundary` or `Throw`. We want to point the whole chain to the
+          // exit, so we recompute `predecessor`
+          predecessor = to->GetPredecessors()[pred];
+          predecessor->ReplaceSuccessor(to, outer_graph->GetExitBlock());
+        }
+
         --pred;
         // We need to re-run dominance information, as the exit block now has
-        // a new dominator.
+        // a new predecessor and potential new dominator.
+        // TODO(solanes): See if it's worth it to hand-modify the domination chain instead of
+        // rerunning the dominance for the whole graph.
         rerun_dominance = true;
         if (predecessor->GetLoopInformation() != nullptr) {
-          // The exit block and blocks post dominated by the exit block do not belong
-          // to any loop. Because we do not compute the post dominators, we need to re-run
-          // loop analysis to get the loop information correct.
+          // The loop information might have changed e.g. `predecessor` might not be in a loop
+          // anymore. We only do this if `predecessor` has loop information as it is impossible for
+          // predecessor to end up in a loop if it wasn't in one before.
           rerun_loop_analysis = true;
         }
       } else {
