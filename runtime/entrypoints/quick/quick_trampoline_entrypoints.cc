@@ -1783,7 +1783,7 @@ class ComputeGenericJniFrameSize final : public ComputeNativeCallFrameSize {
 
     // Add space for cookie.
     DCHECK_ALIGNED(managed_sp, sizeof(uintptr_t));
-    static_assert(sizeof(uintptr_t) >= sizeof(IRTSegmentState));
+    static_assert(sizeof(uintptr_t) >= sizeof(jni::LRTSegmentState));
     uint8_t* sp8 = reinterpret_cast<uint8_t*>(managed_sp) - sizeof(uintptr_t);
 
     // Layout stack arguments.

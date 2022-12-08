@@ -68,6 +68,10 @@ class JitCodeCache;
 class JitOptions;
 }  // namespace jit
 
+namespace jni {
+class SmallLrtAllocator;
+}  // namespace jni
+
 namespace mirror {
 class Array;
 class ClassLoader;
@@ -107,7 +111,6 @@ class Plugin;
 struct RuntimeArgumentMap;
 class RuntimeCallbacks;
 class SignalCatcher;
-class SmallIrtAllocator;
 class StackOverflowHandler;
 class SuspensionHandler;
 class ThreadList;
@@ -370,8 +373,8 @@ class Runtime {
     return class_linker_;
   }
 
-  SmallIrtAllocator* GetSmallIrtAllocator() const {
-    return small_irt_allocator_;
+  jni::SmallLrtAllocator* GetSmallLrtAllocator() const {
+    return small_lrt_allocator_;
   }
 
   jni::JniIdManager* GetJniIdManager() const {
@@ -1319,7 +1322,7 @@ class Runtime {
 
   SignalCatcher* signal_catcher_;
 
-  SmallIrtAllocator* small_irt_allocator_;
+  jni::SmallLrtAllocator* small_lrt_allocator_;
 
   std::unique_ptr<jni::JniIdManager> jni_id_manager_;
 

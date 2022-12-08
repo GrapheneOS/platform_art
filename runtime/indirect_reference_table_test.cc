@@ -59,8 +59,8 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
 
   ScopedObjectAccess soa(Thread::Current());
   static const size_t kTableMax = 20;
+  IndirectReferenceTable irt(kGlobal);
   std::string error_msg;
-  IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
   bool success = irt.Initialize(kTableMax, &error_msg);
   ASSERT_TRUE(success) << error_msg;
 
@@ -77,21 +77,19 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
   ASSERT_TRUE(obj3 != nullptr);
 
-  const IRTSegmentState cookie = kIRTFirstSegment;
-
   CheckDump(&irt, 0, 0);
 
   IndirectRef iref0 = (IndirectRef) 0x11110;
-  EXPECT_FALSE(irt.Remove(cookie, iref0)) << "unexpectedly successful removal";
+  EXPECT_FALSE(irt.Remove(iref0)) << "unexpectedly successful removal";
 
   // Add three, check, remove in the order in which they were added.
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
-  IndirectRef iref1 = irt.Add(cookie, obj1.Get(), &error_msg);
+  IndirectRef iref1 = irt.Add(obj1.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
   CheckDump(&irt, 2, 2);
-  IndirectRef iref2 = irt.Add(cookie, obj2.Get(), &error_msg);
+  IndirectRef iref2 = irt.Add(obj2.Get(), &error_msg);
   EXPECT_TRUE(iref2 != nullptr);
   CheckDump(&irt, 3, 3);
 
@@ -99,11 +97,11 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   EXPECT_OBJ_PTR_EQ(obj1.Get(), irt.Get(iref1));
   EXPECT_OBJ_PTR_EQ(obj2.Get(), irt.Get(iref2));
 
-  EXPECT_TRUE(irt.Remove(cookie, iref0));
+  EXPECT_TRUE(irt.Remove(iref0));
   CheckDump(&irt, 2, 2);
-  EXPECT_TRUE(irt.Remove(cookie, iref1));
+  EXPECT_TRUE(irt.Remove(iref1));
   CheckDump(&irt, 1, 1);
-  EXPECT_TRUE(irt.Remove(cookie, iref2));
+  EXPECT_TRUE(irt.Remove(iref2));
   CheckDump(&irt, 0, 0);
 
   // Table should be empty now.
@@ -114,19 +112,19 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   EXPECT_FALSE(irt.IsValidReference(iref0, &error_msg));
 
   // Add three, remove in the opposite order.
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
-  iref1 = irt.Add(cookie, obj1.Get(), &error_msg);
+  iref1 = irt.Add(obj1.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
-  iref2 = irt.Add(cookie, obj2.Get(), &error_msg);
+  iref2 = irt.Add(obj2.Get(), &error_msg);
   EXPECT_TRUE(iref2 != nullptr);
   CheckDump(&irt, 3, 3);
 
-  ASSERT_TRUE(irt.Remove(cookie, iref2));
+  ASSERT_TRUE(irt.Remove(iref2));
   CheckDump(&irt, 2, 2);
-  ASSERT_TRUE(irt.Remove(cookie, iref1));
+  ASSERT_TRUE(irt.Remove(iref1));
   CheckDump(&irt, 1, 1);
-  ASSERT_TRUE(irt.Remove(cookie, iref0));
+  ASSERT_TRUE(irt.Remove(iref0));
   CheckDump(&irt, 0, 0);
 
   // Table should be empty now.
@@ -134,27 +132,27 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
 
   // Add three, remove middle / middle / bottom / top.  (Second attempt
   // to remove middle should fail.)
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
-  iref1 = irt.Add(cookie, obj1.Get(), &error_msg);
+  iref1 = irt.Add(obj1.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
-  iref2 = irt.Add(cookie, obj2.Get(), &error_msg);
+  iref2 = irt.Add(obj2.Get(), &error_msg);
   EXPECT_TRUE(iref2 != nullptr);
   CheckDump(&irt, 3, 3);
 
   ASSERT_EQ(3U, irt.Capacity());
 
-  ASSERT_TRUE(irt.Remove(cookie, iref1));
+  ASSERT_TRUE(irt.Remove(iref1));
   CheckDump(&irt, 2, 2);
-  ASSERT_FALSE(irt.Remove(cookie, iref1));
+  ASSERT_FALSE(irt.Remove(iref1));
   CheckDump(&irt, 2, 2);
 
   // Check that the reference to the hole is not valid.
   EXPECT_FALSE(irt.IsValidReference(iref1, &error_msg));
 
-  ASSERT_TRUE(irt.Remove(cookie, iref2));
+  ASSERT_TRUE(irt.Remove(iref2));
   CheckDump(&irt, 1, 1);
-  ASSERT_TRUE(irt.Remove(cookie, iref0));
+  ASSERT_TRUE(irt.Remove(iref0));
   CheckDump(&irt, 0, 0);
 
   // Table should be empty now.
@@ -163,35 +161,35 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   // Add four entries.  Remove #1, add new entry, verify that table size
   // is still 4 (i.e. holes are getting filled).  Remove #1 and #3, verify
   // that we delete one and don't hole-compact the other.
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
-  iref1 = irt.Add(cookie, obj1.Get(), &error_msg);
+  iref1 = irt.Add(obj1.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
-  iref2 = irt.Add(cookie, obj2.Get(), &error_msg);
+  iref2 = irt.Add(obj2.Get(), &error_msg);
   EXPECT_TRUE(iref2 != nullptr);
-  IndirectRef iref3 = irt.Add(cookie, obj3.Get(), &error_msg);
+  IndirectRef iref3 = irt.Add(obj3.Get(), &error_msg);
   EXPECT_TRUE(iref3 != nullptr);
   CheckDump(&irt, 4, 4);
 
-  ASSERT_TRUE(irt.Remove(cookie, iref1));
+  ASSERT_TRUE(irt.Remove(iref1));
   CheckDump(&irt, 3, 3);
 
-  iref1 = irt.Add(cookie, obj1.Get(), &error_msg);
+  iref1 = irt.Add(obj1.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
 
   ASSERT_EQ(4U, irt.Capacity()) << "hole not filled";
   CheckDump(&irt, 4, 4);
 
-  ASSERT_TRUE(irt.Remove(cookie, iref1));
+  ASSERT_TRUE(irt.Remove(iref1));
   CheckDump(&irt, 3, 3);
-  ASSERT_TRUE(irt.Remove(cookie, iref3));
+  ASSERT_TRUE(irt.Remove(iref3));
   CheckDump(&irt, 2, 2);
 
   ASSERT_EQ(3U, irt.Capacity()) << "should be 3 after two deletions";
 
-  ASSERT_TRUE(irt.Remove(cookie, iref2));
+  ASSERT_TRUE(irt.Remove(iref2));
   CheckDump(&irt, 1, 1);
-  ASSERT_TRUE(irt.Remove(cookie, iref0));
+  ASSERT_TRUE(irt.Remove(iref0));
   CheckDump(&irt, 0, 0);
 
   ASSERT_EQ(0U, irt.Capacity()) << "not empty after split remove";
@@ -199,308 +197,72 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   // Add an entry, remove it, add a new entry, and try to use the original
   // iref.  They have the same slot number but are for different objects.
   // With the extended checks in place, this should fail.
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
-  ASSERT_TRUE(irt.Remove(cookie, iref0));
+  ASSERT_TRUE(irt.Remove(iref0));
   CheckDump(&irt, 0, 0);
-  iref1 = irt.Add(cookie, obj1.Get(), &error_msg);
+  iref1 = irt.Add(obj1.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
   CheckDump(&irt, 1, 1);
-  ASSERT_FALSE(irt.Remove(cookie, iref0)) << "mismatched del succeeded";
+  ASSERT_FALSE(irt.Remove(iref0)) << "mismatched del succeeded";
   CheckDump(&irt, 1, 1);
-  ASSERT_TRUE(irt.Remove(cookie, iref1)) << "switched del failed";
+  ASSERT_TRUE(irt.Remove(iref1)) << "switched del failed";
   ASSERT_EQ(0U, irt.Capacity()) << "switching del not empty";
   CheckDump(&irt, 0, 0);
 
   // Same as above, but with the same object.  A more rigorous checker
   // (e.g. with slot serialization) will catch this.
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
-  ASSERT_TRUE(irt.Remove(cookie, iref0));
+  ASSERT_TRUE(irt.Remove(iref0));
   CheckDump(&irt, 0, 0);
-  iref1 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref1 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref1 != nullptr);
   CheckDump(&irt, 1, 1);
   if (iref0 != iref1) {
     // Try 0, should not work.
-    ASSERT_FALSE(irt.Remove(cookie, iref0)) << "temporal del succeeded";
+    ASSERT_FALSE(irt.Remove(iref0)) << "temporal del succeeded";
   }
-  ASSERT_TRUE(irt.Remove(cookie, iref1)) << "temporal cleanup failed";
+  ASSERT_TRUE(irt.Remove(iref1)) << "temporal cleanup failed";
   ASSERT_EQ(0U, irt.Capacity()) << "temporal del not empty";
   CheckDump(&irt, 0, 0);
 
   // Stale reference is not valid.
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
-  ASSERT_TRUE(irt.Remove(cookie, iref0));
+  ASSERT_TRUE(irt.Remove(iref0));
   EXPECT_FALSE(irt.IsValidReference(iref0, &error_msg)) << "stale lookup succeeded";
   CheckDump(&irt, 0, 0);
 
-  // Test table resizing.
-  // These ones fit...
+  // Test deleting all but the last entry.
+  // We shall delete these.
   static const size_t kTableInitial = kTableMax / 2;
   IndirectRef manyRefs[kTableInitial];
   for (size_t i = 0; i < kTableInitial; i++) {
-    manyRefs[i] = irt.Add(cookie, obj0.Get(), &error_msg);
+    manyRefs[i] = irt.Add(obj0.Get(), &error_msg);
     ASSERT_TRUE(manyRefs[i] != nullptr) << "Failed adding " << i;
     CheckDump(&irt, i + 1, 1);
   }
-  // ...this one causes overflow.
-  iref0 = irt.Add(cookie, obj0.Get(), &error_msg);
+  // We shall keep this one.
+  iref0 = irt.Add(obj0.Get(), &error_msg);
   ASSERT_TRUE(iref0 != nullptr);
   ASSERT_EQ(kTableInitial + 1, irt.Capacity());
   CheckDump(&irt, kTableInitial + 1, 1);
-
+  // Delete all but the last entry.
   for (size_t i = 0; i < kTableInitial; i++) {
-    ASSERT_TRUE(irt.Remove(cookie, manyRefs[i])) << "failed removing " << i;
+    ASSERT_TRUE(irt.Remove(manyRefs[i])) << "failed removing " << i;
     CheckDump(&irt, kTableInitial - i, 1);
   }
   // Because of removal order, should have 11 entries, 10 of them holes.
   ASSERT_EQ(kTableInitial + 1, irt.Capacity());
 
-  ASSERT_TRUE(irt.Remove(cookie, iref0)) << "multi-remove final failed";
+  ASSERT_TRUE(irt.Remove(iref0)) << "multi-remove final failed";
 
   ASSERT_EQ(0U, irt.Capacity()) << "multi-del not empty";
   CheckDump(&irt, 0, 0);
-}
-
-TEST_F(IndirectReferenceTableTest, Holes) {
-  // Test the explicitly named cases from the IRT implementation:
-  //
-  // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference
-  // 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
-  // 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
-  //    reference
-  // 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference
-  // 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
-  //    reference
-
-  ScopedObjectAccess soa(Thread::Current());
-  static const size_t kTableMax = 10;
-
-  StackHandleScope<6> hs(soa.Self());
-  Handle<mirror::Class> c = hs.NewHandle(
-      class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;"));
-  ASSERT_TRUE(c != nullptr);
-  Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj0 != nullptr);
-  Handle<mirror::Object> obj1 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj1 != nullptr);
-  Handle<mirror::Object> obj2 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj2 != nullptr);
-  Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj3 != nullptr);
-  Handle<mirror::Object> obj4 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj4 != nullptr);
-
-  std::string error_msg;
-
-  // 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference.
-  {
-    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
-    bool success = irt.Initialize(kTableMax, &error_msg);
-    ASSERT_TRUE(success) << error_msg;
-
-    const IRTSegmentState cookie0 = kIRTFirstSegment;
-
-    CheckDump(&irt, 0, 0);
-
-    IndirectRef iref0 = irt.Add(cookie0, obj0.Get(), &error_msg);
-    IndirectRef iref1 = irt.Add(cookie0, obj1.Get(), &error_msg);
-    IndirectRef iref2 = irt.Add(cookie0, obj2.Get(), &error_msg);
-
-    EXPECT_TRUE(irt.Remove(cookie0, iref1));
-
-    // New segment.
-    const IRTSegmentState cookie1 = irt.GetSegmentState();
-
-    IndirectRef iref3 = irt.Add(cookie1, obj3.Get(), &error_msg);
-
-    // Must not have filled the previous hole.
-    EXPECT_EQ(irt.Capacity(), 4u);
-    EXPECT_FALSE(irt.IsValidReference(iref1, &error_msg));
-    CheckDump(&irt, 3, 3);
-
-    UNUSED(iref0, iref1, iref2, iref3);
-  }
-
-  // 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
-  {
-    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
-    bool success = irt.Initialize(kTableMax, &error_msg);
-    ASSERT_TRUE(success) << error_msg;
-
-    const IRTSegmentState cookie0 = kIRTFirstSegment;
-
-    CheckDump(&irt, 0, 0);
-
-    IndirectRef iref0 = irt.Add(cookie0, obj0.Get(), &error_msg);
-
-    // New segment.
-    const IRTSegmentState cookie1 = irt.GetSegmentState();
-
-    IndirectRef iref1 = irt.Add(cookie1, obj1.Get(), &error_msg);
-    IndirectRef iref2 = irt.Add(cookie1, obj2.Get(), &error_msg);
-    IndirectRef iref3 = irt.Add(cookie1, obj3.Get(), &error_msg);
-
-    EXPECT_TRUE(irt.Remove(cookie1, iref2));
-
-    // Pop segment.
-    irt.SetSegmentState(cookie1);
-
-    IndirectRef iref4 = irt.Add(cookie1, obj4.Get(), &error_msg);
-
-    EXPECT_EQ(irt.Capacity(), 2u);
-    EXPECT_FALSE(irt.IsValidReference(iref2, &error_msg));
-    CheckDump(&irt, 2, 2);
-
-    UNUSED(iref0, iref1, iref2, iref3, iref4);
-  }
-
-  // 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
-  //    reference.
-  {
-    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
-    bool success = irt.Initialize(kTableMax, &error_msg);
-    ASSERT_TRUE(success) << error_msg;
-
-    const IRTSegmentState cookie0 = kIRTFirstSegment;
-
-    CheckDump(&irt, 0, 0);
-
-    IndirectRef iref0 = irt.Add(cookie0, obj0.Get(), &error_msg);
-
-    // New segment.
-    const IRTSegmentState cookie1 = irt.GetSegmentState();
-
-    IndirectRef iref1 = irt.Add(cookie1, obj1.Get(), &error_msg);
-    IndirectRef iref2 = irt.Add(cookie1, obj2.Get(), &error_msg);
-
-    EXPECT_TRUE(irt.Remove(cookie1, iref1));
-
-    // New segment.
-    const IRTSegmentState cookie2 = irt.GetSegmentState();
-
-    IndirectRef iref3 = irt.Add(cookie2, obj3.Get(), &error_msg);
-
-    // Pop segment.
-    irt.SetSegmentState(cookie2);
-
-    IndirectRef iref4 = irt.Add(cookie1, obj4.Get(), &error_msg);
-
-    EXPECT_EQ(irt.Capacity(), 3u);
-    EXPECT_FALSE(irt.IsValidReference(iref1, &error_msg));
-    CheckDump(&irt, 3, 3);
-
-    UNUSED(iref0, iref1, iref2, iref3, iref4);
-  }
-
-  // 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference.
-  {
-    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
-    bool success = irt.Initialize(kTableMax, &error_msg);
-    ASSERT_TRUE(success) << error_msg;
-
-    const IRTSegmentState cookie0 = kIRTFirstSegment;
-
-    CheckDump(&irt, 0, 0);
-
-    IndirectRef iref0 = irt.Add(cookie0, obj0.Get(), &error_msg);
-
-    // New segment.
-    const IRTSegmentState cookie1 = irt.GetSegmentState();
-
-    IndirectRef iref1 = irt.Add(cookie1, obj1.Get(), &error_msg);
-    EXPECT_TRUE(irt.Remove(cookie1, iref1));
-
-    // Emptied segment, push new one.
-    const IRTSegmentState cookie2 = irt.GetSegmentState();
-
-    IndirectRef iref2 = irt.Add(cookie1, obj1.Get(), &error_msg);
-    IndirectRef iref3 = irt.Add(cookie1, obj2.Get(), &error_msg);
-    IndirectRef iref4 = irt.Add(cookie1, obj3.Get(), &error_msg);
-
-    EXPECT_TRUE(irt.Remove(cookie1, iref3));
-
-    // Pop segment.
-    UNUSED(cookie2);
-    irt.SetSegmentState(cookie1);
-
-    IndirectRef iref5 = irt.Add(cookie1, obj4.Get(), &error_msg);
-
-    EXPECT_EQ(irt.Capacity(), 2u);
-    EXPECT_FALSE(irt.IsValidReference(iref3, &error_msg));
-    CheckDump(&irt, 2, 2);
-
-    UNUSED(iref0, iref1, iref2, iref3, iref4, iref5);
-  }
-
-  // 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
-  //    reference
-  {
-    IndirectReferenceTable irt(kGlobal, IndirectReferenceTable::ResizableCapacity::kNo);
-    bool success = irt.Initialize(kTableMax, &error_msg);
-    ASSERT_TRUE(success) << error_msg;
-
-    const IRTSegmentState cookie0 = kIRTFirstSegment;
-
-    CheckDump(&irt, 0, 0);
-
-    IndirectRef iref0 = irt.Add(cookie0, obj0.Get(), &error_msg);
-
-    // New segment.
-    const IRTSegmentState cookie1 = irt.GetSegmentState();
-
-    IndirectRef iref1 = irt.Add(cookie1, obj1.Get(), &error_msg);
-    IndirectRef iref2 = irt.Add(cookie1, obj1.Get(), &error_msg);
-    IndirectRef iref3 = irt.Add(cookie1, obj2.Get(), &error_msg);
-
-    EXPECT_TRUE(irt.Remove(cookie1, iref2));
-
-    // Pop segment.
-    irt.SetSegmentState(cookie1);
-
-    // Push segment.
-    const IRTSegmentState cookie1_second = irt.GetSegmentState();
-    UNUSED(cookie1_second);
-
-    IndirectRef iref4 = irt.Add(cookie1, obj3.Get(), &error_msg);
-
-    EXPECT_EQ(irt.Capacity(), 2u);
-    EXPECT_FALSE(irt.IsValidReference(iref3, &error_msg));
-    CheckDump(&irt, 2, 2);
-
-    UNUSED(iref0, iref1, iref2, iref3, iref4);
-  }
-}
-
-TEST_F(IndirectReferenceTableTest, Resize) {
-  ScopedObjectAccess soa(Thread::Current());
-  static const size_t kTableMax = 512;
-
-  StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> c = hs.NewHandle(
-      class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;"));
-  ASSERT_TRUE(c != nullptr);
-  Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
-  ASSERT_TRUE(obj0 != nullptr);
-
-  std::string error_msg;
-  IndirectReferenceTable irt(kLocal, IndirectReferenceTable::ResizableCapacity::kYes);
-  bool success = irt.Initialize(kTableMax, &error_msg);
-  ASSERT_TRUE(success) << error_msg;
-
-  CheckDump(&irt, 0, 0);
-  const IRTSegmentState cookie = kIRTFirstSegment;
-
-  for (size_t i = 0; i != kTableMax + 1; ++i) {
-    irt.Add(cookie, obj0.Get(), &error_msg);
-  }
-
-  EXPECT_EQ(irt.Capacity(), kTableMax + 1);
 }
 
 }  // namespace art
