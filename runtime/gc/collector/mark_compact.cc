@@ -114,7 +114,8 @@ static bool KernelSupportsUffd() {
       CHECK_EQ(ioctl(fd, UFFDIO_API, &api), 0) << "ioctl_userfaultfd : API:" << strerror(errno);
       gUffdFeatures = api.features;
       close(fd);
-      return true;
+      // Allow this GC to be used only if minor-fault feature is available.
+      return api.features & UFFD_FEATURE_MINOR_SHMEM;
     }
   }
 #endif
