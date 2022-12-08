@@ -16,6 +16,7 @@
 
 package com.android.server.art;
 
+import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 import static com.android.server.art.PrimaryDexUtils.DetailedPrimaryDexInfo;
 import static com.android.server.art.PrimaryDexUtils.PrimaryDexInfo;
 import static com.android.server.art.ReasonMapping.BatchOptimizeReason;
@@ -303,6 +304,78 @@ public final class ArtManagerLocal {
             @NonNull CancellationSignal cancellationSignal) {
         return mInjector.getDexOptHelper().dexopt(
                 snapshot, List.of(packageName), params, cancellationSignal, Runnable::run);
+    }
+
+    /**
+     * Resets the optimization state of the package as if the package is newly installed.
+     *
+     * More specifically, it clears reference profiles, current profiles, and any code compiled from
+     * those local profiles. If there is an external profile (e.g., a cloud profile), the code
+     * compiled from that profile will be kept.
+     *
+     * For secondary dex files, it also clears all optimized artifacts.
+     *
+     * @hide
+     */
+    @NonNull
+    public OptimizeResult resetOptimizationStatus(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName,
+            @NonNull CancellationSignal cancellationSignal) {
+        PackageState pkgState = Utils.getPackageStateOrThrow(snapshot, packageName);
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+
+        try {
+            boolean isInDalvikCache = Utils.isInDalvikCache(pkgState);
+            for (PrimaryDexInfo dexInfo : PrimaryDexUtils.getDexInfo(pkg)) {
+                if (!dexInfo.hasCode()) {
+                    continue;
+                }
+
+                mInjector.getArtd().deleteProfile(
+                        PrimaryDexUtils.buildRefProfilePath(pkgState, dexInfo));
+                for (ProfilePath profile : PrimaryDexUtils.getCurProfiles(
+                             mInjector.getUserManager(), pkgState, dexInfo)) {
+                    mInjector.getArtd().deleteProfile(profile);
+                }
+
+                // We must delete the artifacts beforehand rather than relying on `optimizePackage`
+                // to replace them because:
+                // - If dexopt is not needed after the deletion, then we shouldn't run dexopt at
+                //   all. For example, when we have a DM file that contains a VDEX file but
+                //   doesn't contain a cloud profile, this happens. Note that this is more about
+                //   correctness rather than performance.
+                // - We don't want the existing artifacts to affect dexopt. For example, the
+                //   existing VDEX file should not be an input VDEX.
+                for (Abi abi : Utils.getAllAbis(pkgState)) {
+                    mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
+                            dexInfo.dexPath(), abi.isa(), isInDalvikCache));
+                }
+            }
+
+            for (SecondaryDexInfo dexInfo :
+                    mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
+                mInjector.getArtd().deleteProfile(
+                        AidlUtils.buildProfilePathForSecondaryRef(dexInfo.dexPath()));
+                mInjector.getArtd().deleteProfile(
+                        AidlUtils.buildProfilePathForSecondaryCur(dexInfo.dexPath()));
+
+                // We delete the artifacts and `optimizePackage` won't re-generate them because
+                // `optimizePackage` for `REASON_INSTALL` is for primary dex only. This is
+                // intentional because secondary dex files are supposed to be unknown at install
+                // time.
+                for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
+                    mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
+                            dexInfo.dexPath(), abi.isa(), false /* isInDalvikCache */));
+                }
+            }
+        } catch (RemoteException e) {
+            throw new IllegalStateException("An error occurred when calling artd", e);
+        }
+
+        // Re-generate artifacts for primary dex files if needed.
+        return optimizePackage(snapshot, packageName,
+                new OptimizeParams.Builder(ReasonMapping.REASON_INSTALL).build(),
+                cancellationSignal);
     }
 
     /**

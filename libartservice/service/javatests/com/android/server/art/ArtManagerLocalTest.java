@@ -18,6 +18,7 @@ package com.android.server.art;
 
 import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 
+import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 import static com.android.server.art.testing.TestingUtils.inAnyOrder;
@@ -82,6 +83,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -190,6 +192,8 @@ public class ArtManagerLocalTest {
 
         // All packages are by default recently used.
         lenient().when(mDexUseManager.getPackageLastUsedAtMs(any())).thenReturn(RECENT_TIME_MS);
+        List<? extends SecondaryDexInfo> secondaryDexInfo = createSecondaryDexInfo();
+        lenient().doReturn(secondaryDexInfo).when(mDexUseManager).getSecondaryDexInfo(eq(PKG_NAME));
 
         lenient().when(mStorageManager.getAllocatableBytes(any())).thenReturn(1000l);
 
@@ -373,6 +377,44 @@ public class ArtManagerLocalTest {
         assertThat(
                 mArtManagerLocal.optimizePackage(mSnapshot, PKG_NAME, params, cancellationSignal))
                 .isSameInstanceAs(result);
+    }
+
+    @Test
+    public void testResetOptimizationStatus() throws Exception {
+        var result = mock(OptimizeResult.class);
+        var cancellationSignal = new CancellationSignal();
+
+        when(mDexOptHelper.dexopt(
+                     any(), deepEq(List.of(PKG_NAME)), any(), same(cancellationSignal), any()))
+                .thenReturn(result);
+
+        assertThat(
+                mArtManagerLocal.resetOptimizationStatus(mSnapshot, PKG_NAME, cancellationSignal))
+                .isSameInstanceAs(result);
+
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary")));
+        verify(mArtd).deleteProfile(deepEq(
+                AidlUtils.buildProfilePathForPrimaryCur(0 /* userId */, PKG_NAME, "primary")));
+        verify(mArtd).deleteProfile(deepEq(
+                AidlUtils.buildProfilePathForPrimaryCur(1 /* userId */, PKG_NAME, "primary")));
+
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/base.apk", "arm64", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/base.apk", "arm", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/split_0.apk", "arm64", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/split_0.apk", "arm", mIsInReadonlyPartition)));
+
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForSecondaryRef("/data/user/0/foo/1.apk")));
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForSecondaryCur("/data/user/0/foo/1.apk")));
+
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)));
     }
 
     @Test
@@ -811,5 +853,12 @@ public class ArtManagerLocalTest {
         getOptimizationStatusResult.compilationReason = compilationReason;
         getOptimizationStatusResult.locationDebugString = locationDebugString;
         return getOptimizationStatusResult;
+    }
+
+    private List<? extends SecondaryDexInfo> createSecondaryDexInfo() throws Exception {
+        var dexInfo = mock(SecondaryDexInfo.class);
+        lenient().when(dexInfo.dexPath()).thenReturn("/data/user/0/foo/1.apk");
+        lenient().when(dexInfo.abiNames()).thenReturn(Set.of("arm64-v8a"));
+        return List.of(dexInfo);
     }
 }

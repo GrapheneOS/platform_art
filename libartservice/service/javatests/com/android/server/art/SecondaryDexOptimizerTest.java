@@ -17,7 +17,6 @@
 package com.android.server.art;
 
 import static com.android.server.art.DexUseManagerLocal.DetailedSecondaryDexInfo;
-import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;

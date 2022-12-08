@@ -118,6 +118,7 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     String opt;
                     @OptimizeFlags int scopeFlags = 0;
                     boolean forSingleSplit = false;
+                    boolean reset = false;
                     while ((opt = getNextOption()) != null) {
                         switch (opt) {
                             case "-m":
@@ -143,6 +144,9 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                                                 ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                                         .setSplitName(!splitName.isEmpty() ? splitName : null);
                                 break;
+                            case "--reset":
+                                reset = true;
+                                break;
                             default:
                                 pw.println("Error: Unknown option: " + opt);
                                 return 1;
@@ -165,8 +169,13 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
 
                     OptimizeResult result;
                     try (var signal = new WithCancellationSignal(pw)) {
-                        result = mArtManagerLocal.optimizePackage(snapshot, getNextArgRequired(),
-                                paramsBuilder.build(), signal.get());
+                        if (reset) {
+                            result = mArtManagerLocal.resetOptimizationStatus(
+                                    snapshot, getNextArgRequired(), signal.get());
+                        } else {
+                            result = mArtManagerLocal.optimizePackage(snapshot,
+                                    getNextArgRequired(), paramsBuilder.build(), signal.get());
+                        }
                     }
                     printOptimizeResult(pw, result);
                     return 0;
@@ -390,6 +399,14 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("        empty string, only optimize the base APK. When this option is set,");
         pw.println("        '--primary-dex', '--secondary-dex', and '--include-dependencies' must");
         pw.println("        not be set.");
+        pw.println("      --reset Reset the optimization state of the package as if the package");
+        pw.println("        is newly installed.");
+        pw.println("        More specifically, it clears reference profiles, current profiles,");
+        pw.println("        and any code compiled from those local profiles. If there is an");
+        pw.println("        external profile (e.g., a cloud profile), the code compiled from that");
+        pw.println("        profile will be kept.");
+        pw.println("        For secondary dex files, it also clears all optimized artifacts.");
+        pw.println("        When this flag is set, all the other flags are ignored.");
         pw.println("  optimize-packages REASON");
         pw.println("    Run batch optimization for the given reason.");
         pw.println("    The command prints a job ID, which can be used to cancel the job using the"
