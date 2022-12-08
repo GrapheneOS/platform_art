@@ -43,8 +43,8 @@ extern "C" int artMethodExitHook(Thread* self,
                                  uint64_t* gpr_result,
                                  uint64_t* fpr_result);
 
-static_assert(sizeof(IRTSegmentState) == sizeof(uint32_t), "IRTSegmentState size unexpected");
-static_assert(std::is_trivial<IRTSegmentState>::value, "IRTSegmentState not trivial");
+static_assert(sizeof(jni::LRTSegmentState) == sizeof(uint32_t), "LRTSegmentState size unexpected");
+static_assert(std::is_trivial<jni::LRTSegmentState>::value, "LRTSegmentState not trivial");
 
 extern "C" void artJniReadBarrier(ArtMethod* method) {
   DCHECK(gUseReadBarrier);
@@ -82,7 +82,7 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
     env->CheckNoHeldMonitors();
   }
   env->SetLocalSegmentState(env->GetLocalRefCookie());
-  env->SetLocalRefCookie(bit_cast<IRTSegmentState>(saved_local_ref_cookie));
+  env->SetLocalRefCookie(bit_cast<jni::LRTSegmentState>(saved_local_ref_cookie));
 }
 
 // TODO: annotalysis disabled as monitor semantics are maintained in Java code.
