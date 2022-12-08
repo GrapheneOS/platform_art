@@ -193,9 +193,14 @@ public final class ArtManagerLocal {
             }
 
             if ((flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
-                // TODO(jiakaiz): Implement this.
-                throw new UnsupportedOperationException(
-                        "Deleting artifacts of secondary dex'es is not implemented yet");
+                for (SecondaryDexInfo dexInfo :
+                        mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
+                    for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
+                        freedBytes +=
+                                mInjector.getArtd().deleteArtifacts(AidlUtils.buildArtifactsPath(
+                                        dexInfo.dexPath(), abi.isa(), false /* isInDalvikCache */));
+                    }
+                }
             }
 
             return new DeleteResult(freedBytes);
@@ -264,9 +269,24 @@ public final class ArtManagerLocal {
             }
 
             if ((flags & ArtFlags.FLAG_FOR_SECONDARY_DEX) != 0) {
-                // TODO(jiakaiz): Implement this.
-                throw new UnsupportedOperationException(
-                        "Getting optimization status of secondary dex'es is not implemented yet");
+                for (SecondaryDexInfo dexInfo :
+                        mInjector.getDexUseManager().getSecondaryDexInfo(packageName)) {
+                    for (Abi abi : Utils.getAllAbisForNames(dexInfo.abiNames(), pkgState)) {
+                        try {
+                            GetOptimizationStatusResult result =
+                                    mInjector.getArtd().getOptimizationStatus(dexInfo.dexPath(),
+                                            abi.isa(), dexInfo.classLoaderContext());
+                            statuses.add(
+                                    DexContainerFileOptimizationStatus.create(dexInfo.dexPath(),
+                                            abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
+                                            result.compilationReason, result.locationDebugString));
+                        } catch (ServiceSpecificException e) {
+                            statuses.add(DexContainerFileOptimizationStatus.create(
+                                    dexInfo.dexPath(), abi.isPrimaryAbi(), abi.name(), "error",
+                                    "error", e.getMessage()));
+                        }
+                    }
+                }
             }
 
             return OptimizationStatus.create(statuses);

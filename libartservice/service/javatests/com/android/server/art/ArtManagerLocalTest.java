@@ -62,6 +62,7 @@ import com.android.server.art.model.OptimizationStatus;
 import com.android.server.art.model.OptimizeParams;
 import com.android.server.art.model.OptimizeResult;
 import com.android.server.art.testing.StaticMockitoRule;
+import com.android.server.art.testing.TestingUtils;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
@@ -218,24 +219,18 @@ public class ArtManagerLocalTest {
         when(mArtd.deleteArtifacts(any())).thenReturn(1l);
 
         DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(mSnapshot, PKG_NAME);
-        assertThat(result.getFreedBytes()).isEqualTo(4);
+        assertThat(result.getFreedBytes()).isEqualTo(5);
 
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/base.apk")
-                        && artifactsPath.isa.equals("arm64")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/base.apk")
-                        && artifactsPath.isa.equals("arm")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/split_0.apk")
-                        && artifactsPath.isa.equals("arm64")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/split_0.apk")
-                        && artifactsPath.isa.equals("arm")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/base.apk", "arm64", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/base.apk", "arm", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/split_0.apk", "arm64", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/split_0.apk", "arm", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)));
         verifyNoMoreInteractions(mArtd);
     }
 
@@ -250,24 +245,19 @@ public class ArtManagerLocalTest {
         when(mArtd.deleteArtifacts(any())).thenReturn(1l);
 
         DeleteResult result = mArtManagerLocal.deleteOptimizedArtifacts(mSnapshot, PKG_NAME);
-        assertThat(result.getFreedBytes()).isEqualTo(4);
+        assertThat(result.getFreedBytes()).isEqualTo(5);
 
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/base.apk")
-                        && artifactsPath.isa.equals("x86_64")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/base.apk")
-                        && artifactsPath.isa.equals("x86")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/split_0.apk")
-                        && artifactsPath.isa.equals("x86_64")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
-        verify(mArtd).deleteArtifacts(argThat(artifactsPath
-                -> artifactsPath.dexPath.equals("/data/app/foo/split_0.apk")
-                        && artifactsPath.isa.equals("x86")
-                        && artifactsPath.isInDalvikCache == mIsInReadonlyPartition));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/base.apk", "x86_64", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/base.apk", "x86", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/split_0.apk", "x86_64", mIsInReadonlyPartition)));
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/app/foo/split_0.apk", "x86", mIsInReadonlyPartition)));
+        // We assume that the ISA got from `DexUseManagerLocal` is already the translated one.
+        verify(mArtd).deleteArtifacts(deepEq(AidlUtils.buildArtifactsPath(
+                "/data/user/0/foo/1.apk", "arm64", false /* isInDalvikCache */)));
         verifyNoMoreInteractions(mArtd);
     }
 
@@ -287,49 +277,46 @@ public class ArtManagerLocalTest {
 
     @Test
     public void testGetOptimizationStatus() throws Exception {
-        when(mArtd.getOptimizationStatus(any(), any(), any()))
-                .thenReturn(createGetOptimizationStatusResult(
-                                    "speed", "compilation-reason-0", "location-debug-string-0"),
-                        createGetOptimizationStatusResult(
-                                "speed-profile", "compilation-reason-1", "location-debug-string-1"),
-                        createGetOptimizationStatusResult(
-                                "verify", "compilation-reason-2", "location-debug-string-2"),
-                        createGetOptimizationStatusResult(
-                                "extract", "compilation-reason-3", "location-debug-string-3"));
+        doReturn(createGetOptimizationStatusResult(
+                         "speed", "compilation-reason-0", "location-debug-string-0"))
+                .when(mArtd)
+                .getOptimizationStatus("/data/app/foo/base.apk", "arm64", "PCL[]");
+        doReturn(createGetOptimizationStatusResult(
+                         "speed-profile", "compilation-reason-1", "location-debug-string-1"))
+                .when(mArtd)
+                .getOptimizationStatus("/data/app/foo/base.apk", "arm", "PCL[]");
+        doReturn(createGetOptimizationStatusResult(
+                         "verify", "compilation-reason-2", "location-debug-string-2"))
+                .when(mArtd)
+                .getOptimizationStatus("/data/app/foo/split_0.apk", "arm64", "PCL[base.apk]");
+        doReturn(createGetOptimizationStatusResult(
+                         "extract", "compilation-reason-3", "location-debug-string-3"))
+                .when(mArtd)
+                .getOptimizationStatus("/data/app/foo/split_0.apk", "arm", "PCL[base.apk]");
+        doReturn(createGetOptimizationStatusResult("run-from-apk", "unknown", "unknown"))
+                .when(mArtd)
+                .getOptimizationStatus("/data/user/0/foo/1.apk", "arm64", "CLC");
 
         OptimizationStatus result = mArtManagerLocal.getOptimizationStatus(mSnapshot, PKG_NAME);
 
-        List<DexContainerFileOptimizationStatus> statuses =
-                result.getDexContainerFileOptimizationStatuses();
-        assertThat(statuses.size()).isEqualTo(4);
-
-        assertThat(statuses.get(0).getDexContainerFile()).isEqualTo("/data/app/foo/base.apk");
-        assertThat(statuses.get(0).isPrimaryAbi()).isEqualTo(true);
-        assertThat(statuses.get(0).getAbi()).isEqualTo("arm64-v8a");
-        assertThat(statuses.get(0).getCompilerFilter()).isEqualTo("speed");
-        assertThat(statuses.get(0).getCompilationReason()).isEqualTo("compilation-reason-0");
-        assertThat(statuses.get(0).getLocationDebugString()).isEqualTo("location-debug-string-0");
-
-        assertThat(statuses.get(1).getDexContainerFile()).isEqualTo("/data/app/foo/base.apk");
-        assertThat(statuses.get(1).isPrimaryAbi()).isEqualTo(false);
-        assertThat(statuses.get(1).getAbi()).isEqualTo("armeabi-v7a");
-        assertThat(statuses.get(1).getCompilerFilter()).isEqualTo("speed-profile");
-        assertThat(statuses.get(1).getCompilationReason()).isEqualTo("compilation-reason-1");
-        assertThat(statuses.get(1).getLocationDebugString()).isEqualTo("location-debug-string-1");
-
-        assertThat(statuses.get(2).getDexContainerFile()).isEqualTo("/data/app/foo/split_0.apk");
-        assertThat(statuses.get(2).isPrimaryAbi()).isEqualTo(true);
-        assertThat(statuses.get(2).getAbi()).isEqualTo("arm64-v8a");
-        assertThat(statuses.get(2).getCompilerFilter()).isEqualTo("verify");
-        assertThat(statuses.get(2).getCompilationReason()).isEqualTo("compilation-reason-2");
-        assertThat(statuses.get(2).getLocationDebugString()).isEqualTo("location-debug-string-2");
-
-        assertThat(statuses.get(3).getDexContainerFile()).isEqualTo("/data/app/foo/split_0.apk");
-        assertThat(statuses.get(3).isPrimaryAbi()).isEqualTo(false);
-        assertThat(statuses.get(3).getAbi()).isEqualTo("armeabi-v7a");
-        assertThat(statuses.get(3).getCompilerFilter()).isEqualTo("extract");
-        assertThat(statuses.get(3).getCompilationReason()).isEqualTo("compilation-reason-3");
-        assertThat(statuses.get(3).getLocationDebugString()).isEqualTo("location-debug-string-3");
+        assertThat(result.getDexContainerFileOptimizationStatuses())
+                .comparingElementsUsing(
+                        TestingUtils.<DexContainerFileOptimizationStatus>deepEquality())
+                .containsExactly(DexContainerFileOptimizationStatus.create("/data/app/foo/base.apk",
+                                         true /* isPrimaryAbi */, "arm64-v8a", "speed",
+                                         "compilation-reason-0", "location-debug-string-0"),
+                        DexContainerFileOptimizationStatus.create("/data/app/foo/base.apk",
+                                false /* isPrimaryAbi */, "armeabi-v7a", "speed-profile",
+                                "compilation-reason-1", "location-debug-string-1"),
+                        DexContainerFileOptimizationStatus.create("/data/app/foo/split_0.apk",
+                                true /* isPrimaryAbi */, "arm64-v8a", "verify",
+                                "compilation-reason-2", "location-debug-string-2"),
+                        DexContainerFileOptimizationStatus.create("/data/app/foo/split_0.apk",
+                                false /* isPrimaryAbi */, "armeabi-v7a", "extract",
+                                "compilation-reason-3", "location-debug-string-3"),
+                        DexContainerFileOptimizationStatus.create("/data/user/0/foo/1.apk",
+                                true /* isPrimaryAbi */, "arm64-v8a", "run-from-apk", "unknown",
+                                "unknown"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -355,7 +342,7 @@ public class ArtManagerLocalTest {
 
         List<DexContainerFileOptimizationStatus> statuses =
                 result.getDexContainerFileOptimizationStatuses();
-        assertThat(statuses.size()).isEqualTo(4);
+        assertThat(statuses.size()).isEqualTo(5);
 
         for (DexContainerFileOptimizationStatus status : statuses) {
             assertThat(status.getCompilerFilter()).isEqualTo("error");
@@ -859,6 +846,7 @@ public class ArtManagerLocalTest {
         var dexInfo = mock(SecondaryDexInfo.class);
         lenient().when(dexInfo.dexPath()).thenReturn("/data/user/0/foo/1.apk");
         lenient().when(dexInfo.abiNames()).thenReturn(Set.of("arm64-v8a"));
+        lenient().when(dexInfo.classLoaderContext()).thenReturn("CLC");
         return List.of(dexInfo);
     }
 }

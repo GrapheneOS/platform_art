@@ -372,15 +372,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("Supported commands:");
         pw.println("  help or -h");
         pw.println("    Print this help text.");
-        // TODO(jiakaiz): Also do operations for secondary dex'es by default.
         pw.println("  delete-optimized-artifacts PACKAGE_NAME");
-        pw.println("    Delete the optimized artifacts of a package.");
-        pw.println("    By default, the command only deletes the optimized artifacts of primary "
-                + "dex'es.");
+        pw.println("    Delete the optimized artifacts of both primary dex files and secondary");
+        pw.println("    dex files of a package.");
         pw.println("  get-optimization-status PACKAGE_NAME");
-        pw.println("    Print the optimization status of a package.");
-        pw.println("    By default, the command only prints the optimization status of primary "
-                + "dex'es.");
+        pw.println("    Print the optimization status of both primary dex files and secondary dex");
+        pw.println("    files of a package.");
         pw.println("  optimize-package [-m COMPILER_FILTER] [-f] [--primary-dex]");
         pw.println("      [--secondary-dex] [--include-dependencies] [--split SPLIT_NAME]");
         pw.println("      PACKAGE_NAME");
@@ -392,8 +389,8 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    Options:");
         pw.println("      -m Set the compiler filter.");
         pw.println("      -f Force compilation.");
-        pw.println("      --primary-dex Optimize primary dex.");
-        pw.println("      --secondary-dex Optimize secondary dex.");
+        pw.println("      --primary-dex Optimize primary dex files.");
+        pw.println("      --secondary-dex Optimize secondary dex files.");
         pw.println("      --include-dependencies Include dependencies.");
         pw.println("      --split SPLIT_NAME Only optimize the given split. If SPLIT_NAME is an");
         pw.println("        empty string, only optimize the base APK. When this option is set,");

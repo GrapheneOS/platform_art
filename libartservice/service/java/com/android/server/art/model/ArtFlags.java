@@ -71,9 +71,8 @@ public class ArtFlags {
     public static final int FLAG_SKIP_IF_STORAGE_LOW = 1 << 6;
 
     /**
-     * Flags for
-     * {@link ArtManagerLocal#deleteOptimizedArtifacts(PackageManagerLocal.FilteredSnapshot, String,
-     * int)}.
+     * Flags for {@link
+     * ArtManagerLocal#deleteOptimizedArtifacts(PackageManagerLocal.FilteredSnapshot, String, int)}.
      *
      * @hide
      */
@@ -87,20 +86,18 @@ public class ArtFlags {
     public @interface DeleteFlags {}
 
     /**
-     * Default flags that are used when
-     * {@link ArtManagerLocal#deleteOptimizedArtifacts(PackageManagerLocal.FilteredSnapshot,
-     * String)}
-     * is called.
-     * Value: {@link #FLAG_FOR_PRIMARY_DEX}.
+     * Default flags that are used when {@link
+     * ArtManagerLocal#deleteOptimizedArtifacts(PackageManagerLocal.FilteredSnapshot, String)} is
+     * called.
+     * Value: {@link #FLAG_FOR_PRIMARY_DEX}, {@link #FLAG_FOR_SECONDARY_DEX}.
      */
     public static @DeleteFlags int defaultDeleteFlags() {
-        return FLAG_FOR_PRIMARY_DEX;
+        return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX;
     }
 
     /**
-     * Flags for
-     * {@link ArtManagerLocal#getOptimizationStatus(PackageManagerLocal.FilteredSnapshot, String,
-     * int)}.
+     * Flags for {@link
+     * ArtManagerLocal#getOptimizationStatus(PackageManagerLocal.FilteredSnapshot, String, int)}.
      *
      * @hide
      */
@@ -114,13 +111,13 @@ public class ArtFlags {
     public @interface GetStatusFlags {}
 
     /**
-     * Default flags that are used when
-     * {@link ArtManagerLocal#getOptimizationStatus(PackageManagerLocal.FilteredSnapshot, String)}
-     * is called.
-     * Value: {@link #FLAG_FOR_PRIMARY_DEX}.
+     * Default flags that are used when {@link
+     * ArtManagerLocal#getOptimizationStatus(PackageManagerLocal.FilteredSnapshot, String)} is
+     * called.
+     * Value: {@link #FLAG_FOR_PRIMARY_DEX}, {@link #FLAG_FOR_SECONDARY_DEX}.
      */
     public static @GetStatusFlags int defaultGetStatusFlags() {
-        return FLAG_FOR_PRIMARY_DEX;
+        return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX;
     }
 
     /**
