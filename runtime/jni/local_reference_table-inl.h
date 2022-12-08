@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_INDIRECT_REFERENCE_TABLE_INL_H_
-#define ART_RUNTIME_INDIRECT_REFERENCE_TABLE_INL_H_
+#ifndef ART_RUNTIME_JNI_LOCAL_REFERENCE_TABLE_INL_H_
+#define ART_RUNTIME_JNI_LOCAL_REFERENCE_TABLE_INL_H_
 
-#include "indirect_reference_table.h"
+#include "local_reference_table.h"
 
 #include "android-base/stringprintf.h"
 
@@ -31,13 +31,15 @@ namespace mirror {
 class Object;
 }  // namespace mirror
 
+namespace jni {
+
 // Verifies that the indirect table lookup is valid.
 // Returns "false" if something looks bad.
-inline bool IndirectReferenceTable::IsValidReference(IndirectRef iref,
+inline bool LocalReferenceTable::IsValidReference(IndirectRef iref,
                                                      /*out*/std::string* error_msg) const {
   DCHECK(iref != nullptr);
-  DCHECK_EQ(GetIndirectRefKind(iref), kind_);
-  const uint32_t top_index = top_index_;
+  DCHECK_EQ(GetIndirectRefKind(iref), kLocal);
+  const uint32_t top_index = segment_state_.top_index;
   uint32_t idx = ExtractIndex(iref);
   if (UNLIKELY(idx >= top_index)) {
     *error_msg = android::base::StringPrintf("deleted reference at index %u in a table of size %u",
@@ -61,7 +63,7 @@ inline bool IndirectReferenceTable::IsValidReference(IndirectRef iref,
 }
 
 // Make sure that the entry at "idx" is correctly paired with "iref".
-inline bool IndirectReferenceTable::CheckEntry(const char* what,
+inline bool LocalReferenceTable::CheckEntry(const char* what,
                                                IndirectRef iref,
                                                uint32_t idx) const {
   IndirectRef checkRef = ToIndirectRef(idx);
@@ -69,7 +71,7 @@ inline bool IndirectReferenceTable::CheckEntry(const char* what,
     std::string msg = android::base::StringPrintf(
         "JNI ERROR (app bug): attempt to %s stale %s %p (should be %p)",
         what,
-        GetIndirectRefKindString(kind_),
+        GetIndirectRefKindString(kLocal),
         iref,
         checkRef);
     AbortIfNoCheckJNI(msg);
@@ -79,10 +81,10 @@ inline bool IndirectReferenceTable::CheckEntry(const char* what,
 }
 
 template<ReadBarrierOption kReadBarrierOption>
-inline ObjPtr<mirror::Object> IndirectReferenceTable::Get(IndirectRef iref) const {
-  DCHECK_EQ(GetIndirectRefKind(iref), kind_);
+inline ObjPtr<mirror::Object> LocalReferenceTable::Get(IndirectRef iref) const {
+  DCHECK_EQ(GetIndirectRefKind(iref), kLocal);
   uint32_t idx = ExtractIndex(iref);
-  DCHECK_LT(idx, top_index_);
+  DCHECK_LT(idx, segment_state_.top_index);
   DCHECK_EQ(DecodeSerial(reinterpret_cast<uintptr_t>(iref)), table_[idx].GetSerial());
   DCHECK(!table_[idx].GetReference()->IsNull());
   ObjPtr<mirror::Object> obj = table_[idx].GetReference()->Read<kReadBarrierOption>();
@@ -90,28 +92,29 @@ inline ObjPtr<mirror::Object> IndirectReferenceTable::Get(IndirectRef iref) cons
   return obj;
 }
 
-inline void IndirectReferenceTable::Update(IndirectRef iref, ObjPtr<mirror::Object> obj) {
-  DCHECK_EQ(GetIndirectRefKind(iref), kind_);
+inline void LocalReferenceTable::Update(IndirectRef iref, ObjPtr<mirror::Object> obj) {
+  DCHECK_EQ(GetIndirectRefKind(iref), kLocal);
   uint32_t idx = ExtractIndex(iref);
-  DCHECK_LT(idx, top_index_);
+  DCHECK_LT(idx, segment_state_.top_index);
   DCHECK_EQ(DecodeSerial(reinterpret_cast<uintptr_t>(iref)), table_[idx].GetSerial());
   DCHECK(!table_[idx].GetReference()->IsNull());
   table_[idx].SetReference(obj);
 }
 
-inline void IrtEntry::Add(ObjPtr<mirror::Object> obj) {
+inline void LrtEntry::Add(ObjPtr<mirror::Object> obj) {
   ++serial_;
-  if (serial_ == kIRTMaxSerial) {
+  if (serial_ == kLRTMaxSerial) {
     serial_ = 0;
   }
   reference_ = GcRoot<mirror::Object>(obj);
 }
 
-inline void IrtEntry::SetReference(ObjPtr<mirror::Object> obj) {
-  DCHECK_LT(serial_, kIRTMaxSerial);
+inline void LrtEntry::SetReference(ObjPtr<mirror::Object> obj) {
+  DCHECK_LT(serial_, kLRTMaxSerial);
   reference_ = GcRoot<mirror::Object>(obj);
 }
 
+}  // namespace jni
 }  // namespace art
 
-#endif  // ART_RUNTIME_INDIRECT_REFERENCE_TABLE_INL_H_
+#endif  // ART_RUNTIME_JNI_LOCAL_REFERENCE_TABLE_INL_H_

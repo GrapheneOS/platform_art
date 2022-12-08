@@ -44,47 +44,21 @@ namespace mirror {
 class Object;
 }  // namespace mirror
 
-// Maintain a table of indirect references.  Used for local/global JNI references.
-//
-// The table contains object references, where the strong (local/global) references are part of the
-// GC root set (but not the weak global references). When an object is added we return an
-// IndirectRef that is not a valid pointer but can be used to find the original value in O(1) time.
-// Conversions to and from indirect references are performed on upcalls and downcalls, so they need
-// to be very fast.
-//
-// To be efficient for JNI local variable storage, we need to provide operations that allow us to
-// operate on segments of the table, where segments are pushed and popped as if on a stack. For
-// example, deletion of an entry should only succeed if it appears in the current segment, and we
-// want to be able to strip off the current segment quickly when a method returns. Additions to the
-// table must be made in the current segment even if space is available in an earlier area.
-//
-// A new segment is created when we call into native code from interpreted code, or when we handle
-// the JNI PushLocalFrame function.
-//
-// The GC must be able to scan the entire table quickly.
-//
-// In summary, these must be very fast:
-//  - adding or removing a segment
-//  - adding references to a new segment
-//  - converting an indirect reference back to an Object
-// These can be a little slower, but must still be pretty quick:
-//  - adding references to a "mature" segment
-//  - removing individual references
-//  - scanning the entire table straight through
-//
-// If there's more than one segment, we don't guarantee that the table will fill completely before
-// we fail due to lack of space. We do ensure that the current segment will pack tightly, which
-// should satisfy JNI requirements (e.g. EnsureLocalCapacity).
-
 // Indirect reference definition.  This must be interchangeable with JNI's jobject, and it's
 // convenient to let null be null, so we use void*.
 //
-// We need a (potentially) large table index and a 2-bit reference type (global, local, weak
-// global). We also reserve some bits to be used to detect stale indirect references: we put a
-// serial number in the extra bits, and keep a copy of the serial number in the table. This requires
-// more memory and additional memory accesses on add/get, but is moving-GC safe. It will catch
-// additional problems, e.g.: create iref1 for obj, delete iref1, create iref2 for same obj,
-// lookup iref1. A pattern based on object bits will miss this.
+// We need a 2-bit reference kind (global, local, weak global) and the rest of the `IndirectRef`
+// is used to locate the actual reference storage.
+//
+// For global and weak global references, we need a (potentially) large table index and we also
+// reserve some bits to be used to detect stale indirect references: we put a serial number in
+// the extra bits, and keep a copy of the serial number in the table. This requires more memory
+// and additional memory accesses on add/get, but is moving-GC safe. It will catch additional
+// problems, e.g.: create iref1 for obj, delete iref1, create iref2 for same obj, lookup iref1.
+// A pattern based on object bits will miss this.
+//
+// Local references use the same bits for the reference kind but the rest of their `IndirectRef`
+// encoding is different, see `LocalReferenceTable` for details.
 using IndirectRef = void*;
 
 // Indirect reference kind, used as the two low bits of IndirectRef.
@@ -101,11 +75,27 @@ enum IndirectRefKind {
 std::ostream& operator<<(std::ostream& os, IndirectRefKind rhs);
 const char* GetIndirectRefKindString(IndirectRefKind kind);
 
+// Maintain a table of indirect references.  Used for global and weak global JNI references.
+//
+// The table contains object references, where the strong global references are part of the
+// GC root set (but not the weak global references). When an object is added we return an
+// `IndirectRef` that is not a valid pointer but can be used to find the original value in O(1)
+// time. Conversions to and from indirect references are performed in JNI functions and when
+// returning from native methods to managed code, so they need to be very fast.
+//
+// The GC must be able to scan the entire table quickly.
+//
+// In summary, these must be very fast:
+//  - adding references
+//  - converting an indirect reference back to an Object
+// These can be a little slower, but must still be pretty quick:
+//  - removing individual references
+//  - scanning the entire table straight through
+
 // Table definition.
 //
-// For the global reference table, the expected common operations are adding a new entry and
-// removing a recently-added entry (usually the most-recently-added entry).  For JNI local
-// references, the common operations are adding a new entry and removing an entire table segment.
+// For the global reference tables, the expected common operations are adding a new entry and
+// removing a recently-added entry (usually the most-recently-added entry).
 //
 // If we delete entries from the middle of the list, we will be left with "holes".  We track the
 // number of holes so that, when adding new elements, we can quickly decide to do a trivial append
@@ -113,18 +103,6 @@ const char* GetIndirectRefKindString(IndirectRefKind kind);
 //
 // When the top-most entry is removed, any holes immediately below it are also removed. Thus,
 // deletion of an entry may reduce "top_index" by more than one.
-//
-// To get the desired behavior for JNI locals, we need to know the bottom and top of the current
-// "segment". The top is managed internally, and the bottom is passed in as a function argument.
-// When we call a native method or push a local frame, the current top index gets pushed on, and
-// serves as the new bottom. When we pop a frame off, the value from the stack becomes the new top
-// index, and the value stored in the previous frame becomes the new bottom.
-//
-// Holes are being locally cached for the segment. Otherwise we'd have to pass bottom index and
-// number of holes, which restricts us to 16 bits for the top index. The value is cached within the
-// table. To avoid code in generated JNI transitions, which implicitly form segments, the code for
-// adding and removing references needs to detect the change of a segment. Helper fields are used
-// for this detection.
 //
 // Common alternative implementation: make IndirectRef a pointer to the actual reference slot.
 // Instead of getting a table and doing a lookup, the lookup can be done instantly. Operations like
@@ -135,20 +113,7 @@ const char* GetIndirectRefKindString(IndirectRefKind kind);
 // approaches).
 //
 // TODO: consider a "lastDeleteIndex" for quick hole-filling when an add immediately follows a
-// delete; must invalidate after segment pop might be worth only using it for JNI globals.
-//
-// TODO: may want completely different add/remove algorithms for global and local refs to improve
-// performance.  A large circular buffer might reduce the amortized cost of adding global
-// references.
-
-// The state of the current segment. We only store the index. Splitting it for index and hole
-// count restricts the range too much.
-struct IRTSegmentState {
-  uint32_t top_index;
-};
-
-// Use as initial value for "cookie", and when table has only one segment.
-static constexpr IRTSegmentState kIRTFirstSegment = { 0 };
+// delete.
 
 // We associate a few bits of serial number with each reference, for error checking.
 static constexpr unsigned int kIRTSerialBits = 3;
@@ -181,71 +146,22 @@ class IrtEntry {
 static_assert(sizeof(IrtEntry) == 2 * sizeof(uint32_t), "Unexpected sizeof(IrtEntry)");
 static_assert(IsPowerOfTwo(sizeof(IrtEntry)), "Unexpected sizeof(IrtEntry)");
 
-// We initially allocate local reference tables with a very small number of entries, packing
-// multiple tables into a single page. If we need to expand one, we allocate them in units of
-// pages.
-// TODO: We should allocate all IRT tables as nonmovable Java objects, That in turn works better
-// if we break up each table into 2 parallel arrays, one for the Java reference, and one for the
-// serial number. The current scheme page-aligns regions containing IRT tables, and so allows them
-// to be identified and page-protected in the future.
-constexpr size_t kInitialIrtBytes = 512;  // Number of bytes in an initial local table.
-constexpr size_t kSmallIrtEntries = kInitialIrtBytes / sizeof(IrtEntry);
-static_assert(kPageSize % kInitialIrtBytes == 0);
-static_assert(kInitialIrtBytes % sizeof(IrtEntry) == 0);
-static_assert(kInitialIrtBytes % sizeof(void *) == 0);
-
-// A minimal stopgap allocator for initial small local IRT tables.
-class SmallIrtAllocator {
- public:
-  SmallIrtAllocator();
-
-  // Allocate an IRT table for kSmallIrtEntries.
-  IrtEntry* Allocate(std::string* error_msg) REQUIRES(!lock_);
-
-  void Deallocate(IrtEntry* unneeded) REQUIRES(!lock_);
-
- private:
-  // A free list of kInitialIrtBytes chunks linked through the first word.
-  IrtEntry* small_irt_freelist_;
-
-  // Repository of MemMaps used for small IRT tables.
-  std::vector<MemMap> shared_irt_maps_;
-
-  Mutex lock_;  // Level kGenericBottomLock; acquired before mem_map_lock_, which is a C++ mutex.
-};
-
 class IndirectReferenceTable {
  public:
-  enum class ResizableCapacity {
-    kNo,
-    kYes
-  };
-
   // Constructs an uninitialized indirect reference table. Use `Initialize()` to initialize it.
-  IndirectReferenceTable(IndirectRefKind kind, ResizableCapacity resizable);
+  explicit IndirectReferenceTable(IndirectRefKind kind);
 
   // Initialize the indirect reference table.
   //
-  // Max_count is the minimum initial capacity (resizable), or minimum total capacity
-  // (not resizable). A value of 1 indicates an implementation-convenient small size.
+  // Max_count is the requested total capacity (not resizable). The actual total capacity
+  // can be higher to utilize all allocated memory (rounding up to whole pages).
   bool Initialize(size_t max_count, std::string* error_msg);
 
   ~IndirectReferenceTable();
 
-  /*
-   * Checks whether construction of the IndirectReferenceTable succeeded.
-   *
-   * This object must only be used if IsValid() returns true. It is safe to
-   * call IsValid from multiple threads without locking or other explicit
-   * synchronization.
-   */
-  bool IsValid() const;
-
   // Add a new entry. "obj" must be a valid non-null object reference. This function will
   // return null if an error happened (with an appropriate error message set).
-  IndirectRef Add(IRTSegmentState previous_state,
-                  ObjPtr<mirror::Object> obj,
-                  std::string* error_msg)
+  IndirectRef Add(ObjPtr<mirror::Object> obj, std::string* error_msg)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Given an IndirectRef in the table, return the Object it refers to.
@@ -265,9 +181,7 @@ class IndirectReferenceTable {
   // required by JNI's DeleteLocalRef function.
   //
   // Returns "false" if nothing was removed.
-  bool Remove(IRTSegmentState previous_state, IndirectRef iref);
-
-  void AssertEmpty() REQUIRES_SHARED(Locks::mutator_lock_);
+  bool Remove(IndirectRef iref);
 
   void Dump(std::ostream& os) const
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -280,38 +194,21 @@ class IndirectReferenceTable {
   // Return the #of entries in the entire table.  This includes holes, and
   // so may be larger than the actual number of "live" entries.
   size_t Capacity() const {
-    return segment_state_.top_index;
+    return top_index_;
   }
 
   // Return the number of non-null entries in the table. Only reliable for a
   // single segment table.
   int32_t NEntriesForGlobal() {
-    return segment_state_.top_index - current_num_holes_;
+    return top_index_ - current_num_holes_;
   }
 
-  // Ensure that at least free_capacity elements are available, or return false.
-  // Caller ensures free_capacity > 0.
-  bool EnsureFreeCapacity(size_t free_capacity, std::string* error_msg)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  // See implementation of EnsureFreeCapacity. We'll only state here how much is trivially free,
-  // without recovering holes. Thus this is a conservative estimate.
+  // We'll only state here how much is trivially free, without recovering holes.
+  // Thus this is a conservative estimate.
   size_t FreeCapacity() const;
 
   void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
       REQUIRES_SHARED(Locks::mutator_lock_);
-
-  IRTSegmentState GetSegmentState() const {
-    return segment_state_;
-  }
-
-  void SetSegmentState(IRTSegmentState new_state);
-
-  static Offset SegmentStateOffset(size_t pointer_size ATTRIBUTE_UNUSED) {
-    // Note: Currently segment_state_ is at offset 0. We're testing the expected value in
-    //       jni_internal_test to make sure it stays correct. It is not OFFSETOF_MEMBER, as that
-    //       is not pointer-size-safe.
-    return Offset(0);
-  }
 
   // Release pages past the end of the table that may have previously held references.
   void Trim() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -378,23 +275,13 @@ class IndirectReferenceTable {
     return reinterpret_cast<IndirectRef>(EncodeIndirectRef(table_index, serial));
   }
 
-  // Resize the backing table to be at least new_size elements long. Currently
-  // must be larger than the current size. After return max_entries_ >= new_size.
-  bool Resize(size_t new_size, std::string* error_msg);
-
-  void RecoverHoles(IRTSegmentState from);
-
   // Abort if check_jni is not enabled. Otherwise, just log as an error.
   static void AbortIfNoCheckJNI(const std::string& msg);
 
   /* extra debugging checks */
   bool CheckEntry(const char*, IndirectRef, uint32_t) const;
 
-  /// semi-public - read/write by jni down calls.
-  IRTSegmentState segment_state_;
-
-  // Mem map where we store the indirect refs. If it's invalid, and table_ is non-null, then
-  // table_ is valid, but was allocated via allocSmallIRT();
+  // Mem map where we store the indirect refs.
   MemMap table_mem_map_;
   // Bottom of the stack. Do not directly access the object references
   // in this as they are roots. Use Get() that has a read barrier.
@@ -402,18 +289,16 @@ class IndirectReferenceTable {
   // Bit mask, ORed into all irefs.
   const IndirectRefKind kind_;
 
-  // max #of entries allowed (modulo resizing).
+  // The "top of stack" index where new references are added.
+  size_t top_index_;
+
+  // Maximum number of entries allowed.
   size_t max_entries_;
 
-  // Some values to retain old behavior with holes. Description of the algorithm is in the .cc
-  // file.
+  // Some values to retain old behavior with holes.
+  // Description of the algorithm is in the .cc file.
   // TODO: Consider other data structures for compact tables, e.g., free lists.
   size_t current_num_holes_;  // Number of holes in the current / top segment.
-  IRTSegmentState last_known_previous_state_;
-
-  // Whether the table's capacity may be resized. As there are no locks used, it is the caller's
-  // responsibility to ensure thread-safety.
-  ResizableCapacity resizable_;
 };
 
 }  // namespace art
