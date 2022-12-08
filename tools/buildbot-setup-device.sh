@@ -26,6 +26,7 @@ else
 fi
 
 # Setup as root, as some actions performed here require it.
+adb version
 adb root
 adb wait-for-device
 
