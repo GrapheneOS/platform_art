@@ -69,8 +69,8 @@ JNIEnvExt* JNIEnvExt::Create(Thread* self_in, JavaVMExt* vm_in, std::string* err
 JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in)
     : self_(self_in),
       vm_(vm_in),
-      local_ref_cookie_(kIRTFirstSegment),
-      locals_(kLocal, IndirectReferenceTable::ResizableCapacity::kYes),
+      local_ref_cookie_(jni::kLRTFirstSegment),
+      locals_(),
       monitors_("monitors", kMonitorsInitial, kMonitorsMax),
       critical_(0),
       check_jni_(false),
@@ -154,7 +154,7 @@ MemberOffset JNIEnvExt::SegmentStateOffset(size_t pointer_size) {
                          4 +                         // local_ref_cookie.
                          (pointer_size - 4);         // Padding.
   size_t irt_segment_state_offset =
-      IndirectReferenceTable::SegmentStateOffset(pointer_size).Int32Value();
+      jni::LocalReferenceTable::SegmentStateOffset(pointer_size).Int32Value();
   return MemberOffset(locals_offset + irt_segment_state_offset);
 }
 

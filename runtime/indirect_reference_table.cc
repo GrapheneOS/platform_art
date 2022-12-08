@@ -36,7 +36,6 @@
 
 namespace art {
 
-static constexpr bool kDumpStackOnNonLocalReference = false;
 static constexpr bool kDebugIRT = false;
 
 // Maximum table size we allow.
@@ -80,48 +79,15 @@ static inline MemMap NewIRTMap(size_t table_bytes, std::string* error_msg) {
   return result;
 }
 
-SmallIrtAllocator::SmallIrtAllocator()
-    : small_irt_freelist_(nullptr), lock_("Small IRT table lock", LockLevel::kGenericBottomLock) {
-}
-
-// Allocate an IRT table for kSmallIrtEntries.
-IrtEntry* SmallIrtAllocator::Allocate(std::string* error_msg) {
-  MutexLock lock(Thread::Current(), lock_);
-  if (small_irt_freelist_ == nullptr) {
-    // Refill.
-    MemMap map = NewIRTMap(kPageSize, error_msg);
-    if (map.IsValid()) {
-      small_irt_freelist_ = reinterpret_cast<IrtEntry*>(map.Begin());
-      for (uint8_t* p = map.Begin(); p + kInitialIrtBytes < map.End(); p += kInitialIrtBytes) {
-        *reinterpret_cast<IrtEntry**>(p) = reinterpret_cast<IrtEntry*>(p + kInitialIrtBytes);
-      }
-      shared_irt_maps_.emplace_back(std::move(map));
-    }
-  }
-  if (small_irt_freelist_ == nullptr) {
-    return nullptr;
-  }
-  IrtEntry* result = small_irt_freelist_;
-  small_irt_freelist_ = *reinterpret_cast<IrtEntry**>(small_irt_freelist_);
-  // Clear pointer in first entry.
-  new(result) IrtEntry();
-  return result;
-}
-
-void SmallIrtAllocator::Deallocate(IrtEntry* unneeded) {
-  MutexLock lock(Thread::Current(), lock_);
-  *reinterpret_cast<IrtEntry**>(unneeded) = small_irt_freelist_;
-  small_irt_freelist_ = unneeded;
-}
-
-IndirectReferenceTable::IndirectReferenceTable(IndirectRefKind kind, ResizableCapacity resizable)
-    : segment_state_(kIRTFirstSegment),
+IndirectReferenceTable::IndirectReferenceTable(IndirectRefKind kind)
+    : table_mem_map_(),
       table_(nullptr),
       kind_(kind),
+      top_index_(0u),
       max_entries_(0u),
-      current_num_holes_(0),
-      resizable_(resizable) {
+      current_num_holes_(0) {
   CHECK_NE(kind, kJniTransition);
+  CHECK_NE(kind, kLocal);
 }
 
 bool IndirectReferenceTable::Initialize(size_t max_count, std::string* error_msg) {
@@ -130,34 +96,20 @@ bool IndirectReferenceTable::Initialize(size_t max_count, std::string* error_msg
   // Overflow and maximum check.
   CHECK_LE(max_count, kMaxTableSizeInBytes / sizeof(IrtEntry));
 
-  if (max_count <= kSmallIrtEntries) {
-    table_ = Runtime::Current()->GetSmallIrtAllocator()->Allocate(error_msg);
-    if (table_ != nullptr) {
-      max_entries_ = kSmallIrtEntries;
-      // table_mem_map_ remains invalid.
-    }
+  const size_t table_bytes = RoundUp(max_count * sizeof(IrtEntry), kPageSize);
+  table_mem_map_ = NewIRTMap(table_bytes, error_msg);
+  if (!table_mem_map_.IsValid()) {
+    DCHECK(!error_msg->empty());
+    return false;
   }
-  if (table_ == nullptr) {
-    const size_t table_bytes = RoundUp(max_count * sizeof(IrtEntry), kPageSize);
-    table_mem_map_ = NewIRTMap(table_bytes, error_msg);
-    if (!table_mem_map_.IsValid()) {
-      DCHECK(!error_msg->empty());
-      return false;
-    }
 
-    table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
-    // Take into account the actual length.
-    max_entries_ = table_bytes / sizeof(IrtEntry);
-  }
-  segment_state_ = kIRTFirstSegment;
-  last_known_previous_state_ = kIRTFirstSegment;
+  table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
+  // Take into account the actual length.
+  max_entries_ = table_bytes / sizeof(IrtEntry);
   return true;
 }
 
 IndirectReferenceTable::~IndirectReferenceTable() {
-  if (table_ != nullptr && !table_mem_map_.IsValid()) {
-    Runtime::Current()->GetSmallIrtAllocator()->Deallocate(table_);
-  }
 }
 
 void IndirectReferenceTable::ConstexprChecks() {
@@ -188,10 +140,6 @@ void IndirectReferenceTable::ConstexprChecks() {
   static_assert(DecodeIndex(EncodeIndex(3u)) == 3u, "Index encoding error");
 }
 
-bool IndirectReferenceTable::IsValid() const {
-  return table_ != nullptr;
-}
-
 // Holes:
 //
 // To keep the IRT compact, we want to fill "holes" created by non-stack-discipline Add & Remove
@@ -199,37 +147,10 @@ bool IndirectReferenceTable::IsValid() const {
 // similar. Instead, we scan for holes, with the expectation that we will find holes fast as they
 // are usually near the end of the table (see the header, TODO: verify this assumption). To avoid
 // scans when there are no holes, the number of known holes should be tracked.
-//
-// A previous implementation stored the top index and the number of holes as the segment state.
-// This constraints the maximum number of references to 16-bit. We want to relax this, as it
-// is easy to require more references (e.g., to list all classes in large applications). Thus,
-// the implicitly stack-stored state, the IRTSegmentState, is only the top index.
-//
-// Thus, hole count is a local property of the current segment, and needs to be recovered when
-// (or after) a frame is pushed or popped. To keep JNI transitions simple (and inlineable), we
-// cannot do work when the segment changes. Thus, Add and Remove need to ensure the current
-// hole count is correct.
-//
-// To be able to detect segment changes, we require an additional local field that can describe
-// the known segment. This is last_known_previous_state_. The requirement will become clear with
-// the following (some non-trivial) cases that have to be supported:
-//
-// 1) Segment with holes (current_num_holes_ > 0), push new segment, add/remove reference
-// 2) Segment with holes (current_num_holes_ > 0), pop segment, add/remove reference
-// 3) Segment with holes (current_num_holes_ > 0), push new segment, pop segment, add/remove
-//    reference
-// 4) Empty segment, push new segment, create a hole, pop a segment, add/remove a reference
-// 5) Base segment, push new segment, create a hole, pop a segment, push new segment, add/remove
-//    reference
-//
-// Storing the last known *previous* state (bottom index) allows conservatively detecting all the
-// segment changes above. The condition is simply that the last known state is greater than or
-// equal to the current previous state, and smaller than the current state (top index). The
-// condition is conservative as it adds O(1) overhead to operations on an empty segment.
 
-static size_t CountNullEntries(const IrtEntry* table, size_t from, size_t to) {
+static size_t CountNullEntries(const IrtEntry* table, size_t to) {
   size_t count = 0;
-  for (size_t index = from; index != to; ++index) {
+  for (size_t index = 0u; index != to; ++index) {
     if (table[index].GetReference()->IsNull()) {
       count++;
     }
@@ -237,121 +158,37 @@ static size_t CountNullEntries(const IrtEntry* table, size_t from, size_t to) {
   return count;
 }
 
-void IndirectReferenceTable::RecoverHoles(IRTSegmentState prev_state) {
-  if (last_known_previous_state_.top_index >= segment_state_.top_index ||
-      last_known_previous_state_.top_index < prev_state.top_index) {
-    const size_t top_index = segment_state_.top_index;
-    size_t count = CountNullEntries(table_, prev_state.top_index, top_index);
-
-    if (kDebugIRT) {
-      LOG(INFO) << "+++ Recovered holes: "
-                << " Current prev=" << prev_state.top_index
-                << " Current top_index=" << top_index
-                << " Old num_holes=" << current_num_holes_
-                << " New num_holes=" << count;
-    }
-
-    current_num_holes_ = count;
-    last_known_previous_state_ = prev_state;
-  } else if (kDebugIRT) {
-    LOG(INFO) << "No need to recover holes";
-  }
-}
-
 ALWAYS_INLINE
 static inline void CheckHoleCount(IrtEntry* table,
                                   size_t exp_num_holes,
-                                  IRTSegmentState prev_state,
-                                  IRTSegmentState cur_state) {
+                                  size_t top_index) {
   if (kIsDebugBuild) {
-    size_t count = CountNullEntries(table, prev_state.top_index, cur_state.top_index);
-    CHECK_EQ(exp_num_holes, count) << "prevState=" << prev_state.top_index
-                                   << " topIndex=" << cur_state.top_index;
+    size_t count = CountNullEntries(table, top_index);
+    CHECK_EQ(exp_num_holes, count) << " topIndex=" << top_index;
   }
 }
 
-bool IndirectReferenceTable::Resize(size_t new_size, std::string* error_msg) {
-  CHECK_GT(new_size, max_entries_);
-
-  constexpr size_t kMaxEntries = kMaxTableSizeInBytes / sizeof(IrtEntry);
-  if (new_size > kMaxEntries) {
-    *error_msg = android::base::StringPrintf("Requested size exceeds maximum: %zu", new_size);
-    return false;
-  }
-  // Note: the above check also ensures that there is no overflow below.
-
-  const size_t table_bytes = RoundUp(new_size * sizeof(IrtEntry), kPageSize);
-
-  MemMap new_map = NewIRTMap(table_bytes, error_msg);
-  if (!new_map.IsValid()) {
-    return false;
-  }
-
-  memcpy(new_map.Begin(), table_, max_entries_ * sizeof(IrtEntry));
-  if (!table_mem_map_.IsValid()) {
-    // Didn't have its own map; deallocate old table.
-    Runtime::Current()->GetSmallIrtAllocator()->Deallocate(table_);
-  }
-  table_mem_map_ = std::move(new_map);
-  table_ = reinterpret_cast<IrtEntry*>(table_mem_map_.Begin());
-  const size_t real_new_size = table_bytes / sizeof(IrtEntry);
-  DCHECK_GE(real_new_size, new_size);
-  max_entries_ = real_new_size;
-
-  return true;
-}
-
-IndirectRef IndirectReferenceTable::Add(IRTSegmentState previous_state,
-                                        ObjPtr<mirror::Object> obj,
-                                        std::string* error_msg) {
+IndirectRef IndirectReferenceTable::Add(ObjPtr<mirror::Object> obj, std::string* error_msg) {
   if (kDebugIRT) {
-    LOG(INFO) << "+++ Add: previous_state=" << previous_state.top_index
-              << " top_index=" << segment_state_.top_index
-              << " last_known_prev_top_index=" << last_known_previous_state_.top_index
+    LOG(INFO) << "+++ Add: top_index=" << top_index_
               << " holes=" << current_num_holes_;
   }
-
-  size_t top_index = segment_state_.top_index;
 
   CHECK(obj != nullptr);
   VerifyObject(obj);
   DCHECK(table_ != nullptr);
 
-  if (top_index == max_entries_) {
-    if (resizable_ == ResizableCapacity::kNo) {
-      std::ostringstream oss;
-      oss << "JNI ERROR (app bug): " << kind_ << " table overflow "
-          << "(max=" << max_entries_ << ")"
-          << MutatorLockedDumpable<IndirectReferenceTable>(*this);
-      *error_msg = oss.str();
-      return nullptr;
-    }
-
-    // Try to double space.
-    if (std::numeric_limits<size_t>::max() / 2 < max_entries_) {
-      std::ostringstream oss;
-      oss << "JNI ERROR (app bug): " << kind_ << " table overflow "
-          << "(max=" << max_entries_ << ")" << std::endl
-          << MutatorLockedDumpable<IndirectReferenceTable>(*this)
-          << " Resizing failed: exceeds size_t";
-      *error_msg = oss.str();
-      return nullptr;
-    }
-
-    std::string inner_error_msg;
-    if (!Resize(max_entries_ * 2, &inner_error_msg)) {
-      std::ostringstream oss;
-      oss << "JNI ERROR (app bug): " << kind_ << " table overflow "
-          << "(max=" << max_entries_ << ")" << std::endl
-          << MutatorLockedDumpable<IndirectReferenceTable>(*this)
-          << " Resizing failed: " << inner_error_msg;
-      *error_msg = oss.str();
-      return nullptr;
-    }
+  if (top_index_ == max_entries_) {
+    // TODO: Fill holes before reporting error.
+    std::ostringstream oss;
+    oss << "JNI ERROR (app bug): " << kind_ << " table overflow "
+        << "(max=" << max_entries_ << ")"
+        << MutatorLockedDumpable<IndirectReferenceTable>(*this);
+    *error_msg = oss.str();
+    return nullptr;
   }
 
-  RecoverHoles(previous_state);
-  CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
+  CheckHoleCount(table_, current_num_holes_, top_index_);
 
   // We know there's enough room in the table.  Now we just need to find
   // the right spot.  If there's a hole, find it and fill it; otherwise,
@@ -359,26 +196,26 @@ IndirectRef IndirectReferenceTable::Add(IRTSegmentState previous_state,
   IndirectRef result;
   size_t index;
   if (current_num_holes_ > 0) {
-    DCHECK_GT(top_index, 1U);
+    DCHECK_GT(top_index_, 1U);
     // Find the first hole; likely to be near the end of the list.
-    IrtEntry* p_scan = &table_[top_index - 1];
+    IrtEntry* p_scan = &table_[top_index_ - 1];
     DCHECK(!p_scan->GetReference()->IsNull());
     --p_scan;
     while (!p_scan->GetReference()->IsNull()) {
-      DCHECK_GE(p_scan, table_ + previous_state.top_index);
+      DCHECK_GT(p_scan, table_);
       --p_scan;
     }
     index = p_scan - table_;
     current_num_holes_--;
   } else {
     // Add to the end.
-    index = top_index++;
-    segment_state_.top_index = top_index;
+    index = top_index_;
+    ++top_index_;
   }
   table_[index].Add(obj);
   result = ToIndirectRef(index);
   if (kDebugIRT) {
-    LOG(INFO) << "+++ added at " << ExtractIndex(result) << " top=" << segment_state_.top_index
+    LOG(INFO) << "+++ added at " << ExtractIndex(result) << " top=" << top_index_
               << " holes=" << current_num_holes_;
   }
 
@@ -386,72 +223,31 @@ IndirectRef IndirectReferenceTable::Add(IRTSegmentState previous_state,
   return result;
 }
 
-void IndirectReferenceTable::AssertEmpty() {
-  for (size_t i = 0; i < Capacity(); ++i) {
-    if (!table_[i].GetReference()->IsNull()) {
-      LOG(FATAL) << "Internal Error: non-empty local reference table\n"
-                 << MutatorLockedDumpable<IndirectReferenceTable>(*this);
-      UNREACHABLE();
-    }
-  }
-}
-
 // Removes an object. We extract the table offset bits from "iref"
 // and zap the corresponding entry, leaving a hole if it's not at the top.
-// If the entry is not between the current top index and the bottom index
-// specified by the cookie, we don't remove anything. This is the behavior
-// required by JNI's DeleteLocalRef function.
-// This method is not called when a local frame is popped; this is only used
-// for explicit single removals.
 // Returns "false" if nothing was removed.
-bool IndirectReferenceTable::Remove(IRTSegmentState previous_state, IndirectRef iref) {
+bool IndirectReferenceTable::Remove(IndirectRef iref) {
   if (kDebugIRT) {
-    LOG(INFO) << "+++ Remove: previous_state=" << previous_state.top_index
-              << " top_index=" << segment_state_.top_index
-              << " last_known_prev_top_index=" << last_known_previous_state_.top_index
+    LOG(INFO) << "+++ Remove: top_index=" << top_index_
               << " holes=" << current_num_holes_;
   }
 
-  const uint32_t top_index = segment_state_.top_index;
-  const uint32_t bottom_index = previous_state.top_index;
+  // TODO: We should eagerly check the ref kind against the `kind_` instead of postponing until
+  // `CheckEntry()` below. Passing the wrong kind shall currently result in misleading warnings.
+
+  const uint32_t top_index = top_index_;
 
   DCHECK(table_ != nullptr);
 
-  // TODO: We should eagerly check the ref kind against the `kind_` instead of
-  // relying on this weak check and postponing the rest until `CheckEntry()` below.
-  // Passing the wrong kind shall currently result in misleading warnings.
-  if (GetIndirectRefKind(iref) == kJniTransition) {
-    auto* self = Thread::Current();
-    ScopedObjectAccess soa(self);
-    if (self->IsJniTransitionReference(reinterpret_cast<jobject>(iref))) {
-      auto* env = self->GetJniEnv();
-      DCHECK(env != nullptr);
-      if (env->IsCheckJniEnabled()) {
-        LOG(WARNING) << "Attempt to remove non-JNI local reference, dumping thread";
-        if (kDumpStackOnNonLocalReference) {
-          self->Dump(LOG_STREAM(WARNING));
-        }
-      }
-      return true;
-    }
-  }
-
   const uint32_t idx = ExtractIndex(iref);
-  if (idx < bottom_index) {
-    // Wrong segment.
-    LOG(WARNING) << "Attempt to remove index outside index area (" << idx
-                 << " vs " << bottom_index << "-" << top_index << ")";
-    return false;
-  }
   if (idx >= top_index) {
     // Bad --- stale reference?
     LOG(WARNING) << "Attempt to remove invalid index " << idx
-                 << " (bottom=" << bottom_index << " top=" << top_index << ")";
+                 << " (top=" << top_index << ")";
     return false;
   }
 
-  RecoverHoles(previous_state);
-  CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
+  CheckHoleCount(table_, current_num_holes_, top_index_);
 
   if (idx == top_index - 1) {
     // Top-most entry.  Scan up and consume holes.
@@ -463,11 +259,10 @@ bool IndirectReferenceTable::Remove(IRTSegmentState previous_state, IndirectRef 
     *table_[idx].GetReference() = GcRoot<mirror::Object>(nullptr);
     if (current_num_holes_ != 0) {
       uint32_t collapse_top_index = top_index;
-      while (--collapse_top_index > bottom_index && current_num_holes_ != 0) {
+      while (--collapse_top_index > 0u && current_num_holes_ != 0) {
         if (kDebugIRT) {
           ScopedObjectAccess soa(Thread::Current());
-          LOG(INFO) << "+++ checking for hole at " << collapse_top_index - 1
-                    << " (previous_state=" << bottom_index << ") val="
+          LOG(INFO) << "+++ checking for hole at " << collapse_top_index - 1 << " val="
                     << table_[collapse_top_index - 1].GetReference()->Read<kWithoutReadBarrier>();
         }
         if (!table_[collapse_top_index - 1].GetReference()->IsNull()) {
@@ -478,11 +273,11 @@ bool IndirectReferenceTable::Remove(IRTSegmentState previous_state, IndirectRef 
         }
         current_num_holes_--;
       }
-      segment_state_.top_index = collapse_top_index;
+      top_index_ = collapse_top_index;
 
-      CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
+      CheckHoleCount(table_, current_num_holes_, top_index_);
     } else {
-      segment_state_.top_index = top_index - 1;
+      top_index_ = top_index - 1;
       if (kDebugIRT) {
         LOG(INFO) << "+++ ate last entry " << top_index - 1;
       }
@@ -500,7 +295,7 @@ bool IndirectReferenceTable::Remove(IRTSegmentState previous_state, IndirectRef 
 
     *table_[idx].GetReference() = GcRoot<mirror::Object>(nullptr);
     current_num_holes_++;
-    CheckHoleCount(table_, current_num_holes_, previous_state, segment_state_);
+    CheckHoleCount(table_, current_num_holes_, top_index_);
     if (kDebugIRT) {
       LOG(INFO) << "+++ left hole at " << idx << ", holes=" << current_num_holes_;
     }
@@ -511,10 +306,7 @@ bool IndirectReferenceTable::Remove(IRTSegmentState previous_state, IndirectRef 
 
 void IndirectReferenceTable::Trim() {
   ScopedTrace trace(__PRETTY_FUNCTION__);
-  if (!table_mem_map_.IsValid()) {
-    // Small table; nothing to do here.
-    return;
-  }
+  DCHECK(table_mem_map_.IsValid());
   const size_t top_index = Capacity();
   uint8_t* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table_[top_index]), kPageSize);
   uint8_t* release_end = static_cast<uint8_t*>(table_mem_map_.BaseEnd());
@@ -568,47 +360,8 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
   ReferenceTable::Dump(os, entries);
 }
 
-void IndirectReferenceTable::SetSegmentState(IRTSegmentState new_state) {
-  if (kDebugIRT) {
-    LOG(INFO) << "Setting segment state: "
-              << segment_state_.top_index
-              << " -> "
-              << new_state.top_index;
-  }
-  segment_state_ = new_state;
-}
-
-bool IndirectReferenceTable::EnsureFreeCapacity(size_t free_capacity, std::string* error_msg) {
-  DCHECK_GE(free_capacity, static_cast<size_t>(1));
-  if (free_capacity > kMaxTableSizeInBytes) {
-    // Arithmetic might even overflow.
-    *error_msg = "Requested table size implausibly large";
-    return false;
-  }
-  size_t top_index = segment_state_.top_index;
-  if (top_index + free_capacity <= max_entries_) {
-    return true;
-  }
-
-  // We're only gonna do a simple best-effort here, ensuring the asked-for capacity at the end.
-  if (resizable_ == ResizableCapacity::kNo) {
-    *error_msg = "Table is not resizable";
-    return false;
-  }
-
-  // Try to increase the table size.
-  if (!Resize(top_index + free_capacity, error_msg)) {
-    LOG(WARNING) << "JNI ERROR: Unable to reserve space in EnsureFreeCapacity (" << free_capacity
-                 << "): " << std::endl
-                 << MutatorLockedDumpable<IndirectReferenceTable>(*this)
-                 << " Resizing failed: " << *error_msg;
-    return false;
-  }
-  return true;
-}
-
 size_t IndirectReferenceTable::FreeCapacity() const {
-  return max_entries_ - segment_state_.top_index;
+  return max_entries_ - top_index_;
 }
 
 }  // namespace art
