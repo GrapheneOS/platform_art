@@ -324,13 +324,19 @@ MarkCompact::MarkCompact(Heap* heap)
   // running the GC cycle in copy-mode rather than minor-fault.
   //
   // This map doesn't have to be aligned to 2MB as we don't mremap on it.
-  shadow_to_space_map_ = MemMap::MapAnonymous("Concurrent mark-compact moving-space shadow",
-                                              moving_space_size,
-                                              PROT_NONE,
-                                              /*low_4gb=*/kObjPtrPoisoning,
-                                              &err_msg);
-  if (!shadow_to_space_map_.IsValid()) {
-    LOG(WARNING) << "Failed to allocate concurrent mark-compact moving-space shadow: " << err_msg;
+  if (!kObjPtrPoisoning && uffd_minor_fault_supported_) {
+    // We need this map only if minor-fault feature is supported. But in that case
+    // don't create the mapping if obj-ptr poisoning is enabled as then the mapping
+    // has to be created in low_4gb. Doing this here rather than later causes the
+    // Dex2oatImageTest.TestExtension gtest to fail in 64-bit platforms.
+    shadow_to_space_map_ = MemMap::MapAnonymous("Concurrent mark-compact moving-space shadow",
+                                                moving_space_size,
+                                                PROT_NONE,
+                                                /*low_4gb=*/false,
+                                                &err_msg);
+    if (!shadow_to_space_map_.IsValid()) {
+      LOG(WARNING) << "Failed to allocate concurrent mark-compact moving-space shadow: " << err_msg;
+    }
   }
   const size_t num_pages = 1 + std::min(heap_->GetParallelGCThreadCount(), kMaxNumUffdWorkers);
   compaction_buffers_map_ = MemMap::MapAnonymous("Concurrent mark-compact compaction buffers",
