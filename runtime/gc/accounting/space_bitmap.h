@@ -164,7 +164,7 @@ class SpaceBitmap {
   void CopyFrom(SpaceBitmap* source_bitmap);
 
   // Starting address of our internal storage.
-  Atomic<uintptr_t>* Begin() {
+  Atomic<uintptr_t>* Begin() const {
     return bitmap_begin_;
   }
 
