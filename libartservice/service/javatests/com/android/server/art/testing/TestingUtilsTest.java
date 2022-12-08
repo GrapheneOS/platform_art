@@ -18,19 +18,33 @@ package com.android.server.art.testing;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.annotation.NonNull;
+
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentMatcher;
+import org.mockito.internal.progress.ThreadSafeMockingProgress;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Consumer;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class TestingUtilsTest {
+    @Before
+    @After
+    public void resetMockito() {
+        ThreadSafeMockingProgress.mockingProgress().reset();
+    }
+
     @Test
     public void testDeepEquals() {
         var a = new Foo();
@@ -125,6 +139,35 @@ public class TestingUtilsTest {
         var b = new HashSet<Integer>();
         b.add(2);
         TestingUtils.deepEquals(a, b);
+    }
+
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    @Test
+    public void testInAnyOrderDuplicates() {
+        testInAnyOrderInternal(List.of(1, 1), List.of(1), false, TestingUtils::inAnyOrder);
+        testInAnyOrderInternal(List.of(1, 1), List.of(1, 1), true, TestingUtils::inAnyOrder);
+    }
+
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    @Test
+    public void testInAnyOrderDeepEqualsDuplicates() {
+        testInAnyOrderInternal(
+                Arrays.asList(1, 1), List.of(1), false, TestingUtils::inAnyOrderDeepEquals);
+        testInAnyOrderInternal(
+                Arrays.asList(1, 1), List.of(1, 1), true, TestingUtils::inAnyOrderDeepEquals);
+    }
+
+    private void testInAnyOrderInternal(@NonNull List<Integer> first, @NonNull List<Integer> second,
+            boolean expected, @NonNull Consumer<Integer[]> inAnyOrderBlock) {
+        inAnyOrderBlock.accept(first.toArray(new Integer[0]));
+        var matchers = ThreadSafeMockingProgress.mockingProgress()
+                               .getArgumentMatcherStorage()
+                               .pullLocalizedMatchers();
+        assertThat(matchers).hasSize(1);
+        // noinspection unchecked
+        var matcher = (ArgumentMatcher<List<Integer>>) matchers.get(0).getMatcher();
+        assertThat(matcher.matches(second)).isEqualTo(expected);
+        ThreadSafeMockingProgress.mockingProgress().reset();
     }
 }
 

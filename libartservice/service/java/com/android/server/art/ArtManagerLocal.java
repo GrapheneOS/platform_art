@@ -66,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -563,7 +562,7 @@ public final class ArtManagerLocal {
                 PrimaryDexUtils.getCurProfiles(mInjector.getUserManager(), pkgState, dexInfo));
 
         // App profiles.
-        snapshot.forAllPackageStates((appPkgState) -> {
+        snapshot.getPackageStates().forEach((packageName, appPkgState) -> {
             // Hibernating apps can still provide useful profile contents, so skip the hibernation
             // check.
             if (Utils.canOptimizePackage(appPkgState, null /* appHibernationManager */)) {
@@ -623,24 +622,32 @@ public final class ArtManagerLocal {
     @NonNull
     private List<String> getDefaultPackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull @BatchOptimizeReason String reason) {
-        var packages = new ArrayList<String>();
+        final List<String> packages;
         switch (reason) {
             case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
-                snapshot.forAllPackageStates((pkgState) -> {
-                    if (mInjector.isSystemUiPackage(pkgState.getPackageName())
-                            && Utils.canOptimizePackage(
-                                    pkgState, mInjector.getAppHibernationManager())) {
-                        packages.add(pkgState.getPackageName());
-                    }
-                });
+                packages =
+                        snapshot.getPackageStates()
+                                .values()
+                                .stream()
+                                .filter(pkgState
+                                        -> mInjector.isSystemUiPackage(pkgState.getPackageName()))
+                                .filter(pkgState
+                                        -> Utils.canOptimizePackage(
+                                                pkgState, mInjector.getAppHibernationManager()))
+                                .map(PackageState::getPackageName)
+                                .collect(Collectors.toList());
                 break;
             default:
                 // TODO(b/258818709): Filter packages by last active time.
-                snapshot.forAllPackageStates((pkgState) -> {
-                    if (Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager())) {
-                        packages.add(pkgState.getPackageName());
-                    }
-                });
+                packages = snapshot.getPackageStates()
+                                   .values()
+                                   .stream()
+                                   .filter(pkgState
+                                           -> Utils.canOptimizePackage(
+                                                   pkgState, mInjector.getAppHibernationManager()))
+                                   .map(PackageState::getPackageName)
+                                   .collect(Collectors.toList());
+                break;
         }
         return packages;
     }

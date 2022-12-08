@@ -23,6 +23,7 @@ import android.annotation.Nullable;
 import android.util.Log;
 
 import com.google.common.truth.Correspondence;
+import com.google.common.truth.Truth;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -106,6 +107,42 @@ public final class TestingUtils {
                 Log.e(TAG, errorMsg.toString());
             }
             return result;
+        });
+    }
+
+    /**
+     * A Mockito argument matcher that matches a list containing expected in any order.
+     */
+    @SafeVarargs
+    public static <ListType extends List<ItemType>, ItemType> ListType inAnyOrder(
+            @Nullable ItemType... expected) {
+        return argThat(argument -> {
+            try {
+                Truth.assertThat(argument).containsExactlyElementsIn(expected);
+                return true;
+            } catch (AssertionError error) {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * {@link #inAnyOrder(Object[])} but using {@link #deepEquals(Object, Object)}} for comparisons.
+     *
+     * @see #inAnyOrder(Object[])
+     */
+    @SafeVarargs
+    public static <ListType extends List<ItemType>, ItemType> ListType inAnyOrderDeepEquals(
+            @Nullable ItemType... expected) {
+        return argThat(argument -> {
+            try {
+                Truth.assertThat(argument)
+                        .comparingElementsUsing(deepEquality())
+                        .containsExactlyElementsIn(expected);
+                return true;
+            } catch (AssertionError error) {
+                return false;
+            }
         });
     }
 

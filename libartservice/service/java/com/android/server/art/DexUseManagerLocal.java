@@ -322,17 +322,13 @@ public class DexUseManagerLocal {
             return loadingPkgState.getPackageName();
         }
 
-        // TODO(b/246609797): The API can be improved.
-        var packageStates = new ArrayList<PackageState>();
-        snapshot.forAllPackageStates((pkgState) -> { packageStates.add(pkgState); });
-
-        for (PackageState pkgState : packageStates) {
-            if (predicate.apply(pkgState, dexPath)) {
-                return pkgState.getPackageName();
-            }
-        }
-
-        return null;
+        return snapshot.getPackageStates()
+                .values()
+                .stream()
+                .filter(packageState -> predicate.apply(packageState, dexPath))
+                .map(PackageState::getPackageName)
+                .findFirst()
+                .orElse(null);
     }
 
     private static boolean isOwningPackageForPrimaryDex(

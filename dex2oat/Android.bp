@@ -554,6 +554,9 @@ art_cc_defaults {
         },
     },
 
+    static_libs: [
+        "libziparchive",
+    ],
     shared_libs: [
         "libartpalette",
         "libbase",
@@ -561,7 +564,7 @@ art_cc_defaults {
         "liblz4", // libart(d)-dex2oat dependency; must be repeated here since it's a static lib.
         "liblog",
         "libsigchain",
-        "libziparchive",
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
     ],
 }
 
@@ -626,6 +629,9 @@ art_cc_test {
         ":generate-boot-image",
     ],
     shared_libs: [
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
+    ],
+    static_libs: [
         "libziparchive",
     ],
     test_config: "art_standalone_dex2oat_cts_tests.xml",
