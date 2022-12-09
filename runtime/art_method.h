@@ -759,7 +759,6 @@ class ArtMethod final {
     SetDataPtrSize(table, pointer_size);
   }
 
-  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE bool HasSingleImplementation() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetHasSingleImplementation(bool single_impl)
