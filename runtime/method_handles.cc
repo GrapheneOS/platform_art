@@ -290,6 +290,13 @@ bool ConvertJValueCommon(
       return false;
     }
 
+    ObjPtr<mirror::Class> from_obj_type = from_obj->GetClass();
+    Primitive::Type from_primitive_type;
+    if (!GetUnboxedPrimitiveType(from_obj_type, &from_primitive_type)) {
+      ThrowClassCastException(from, to);
+      return false;
+    }
+
     Primitive::Type unboxed_type;
     JValue unboxed_value;
     if (UNLIKELY(!GetUnboxedTypeAndValue(from_obj, &unboxed_type, &unboxed_value))) {

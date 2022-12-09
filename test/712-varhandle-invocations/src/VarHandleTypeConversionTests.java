@@ -54,6 +54,52 @@ public class VarHandleTypeConversionTests {
         }
     }
 
+    public static class ReferenceReturnTypeTest extends VarHandleUnitTest {
+        private Object o;
+        private static final VarHandle vh;
+
+        static {
+            try {
+                Class<?> cls = VoidReturnTypeTest.class;
+                vh = MethodHandles.lookup().findVarHandle(cls, "i", Object.class);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        protected void doTest() {
+            vh.set(this, null);
+            try {
+                int i = (int) vh.get(this);
+                failUnreachable();
+            } catch (NullPointerException cce) {
+            }
+
+            vh.set(this, new Object());
+            try {
+                int i = (int) vh.get(this);
+                failUnreachable();
+            } catch (ClassCastException cce) {
+            }
+
+            vh.set(this, Integer.valueOf(42));
+            {
+                int i = (int) vh.get(this);
+            }
+
+            vh.set(this, new ReferenceReturnTypeTest());
+            try {
+                int i = (int) vh.get(this);
+            } catch (ClassCastException cce) {
+            }
+        }
+
+        public static void main(String[] args) {
+            new ReferenceReturnTypeTest().run();
+        }
+    }
+
     //
     // Tests that a null reference as a boxed primitive type argument
     // throws a NullPointerException. These vary the VarHandle type
