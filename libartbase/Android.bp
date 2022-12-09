@@ -207,13 +207,11 @@ art_cc_library {
         "com.android.art.debug",
     ],
 
-    shared_libs: [
-        "libbase",
-        "libziparchive",
-    ],
-    export_shared_lib_headers: ["libbase"],
     target: {
         windows: {
+            // Control the enabled property here rather than in
+            // libartbase_defaults, to ensure it overrides properties inherited
+            // from other defaults.
             enabled: true,
             shared: {
                 enabled: false,
@@ -232,13 +230,13 @@ art_cc_library {
     apex_available: [
         "com.android.art.debug",
     ],
-    shared_libs: [
-        "libbase",
-        "libziparchive",
-    ],
-    export_shared_lib_headers: ["libbase"],
+
     target: {
         windows: {
+            // Control the enabled property here rather than in
+            // libartbase_defaults, to ensure it overrides properties inherited
+            // from other defaults, in particular any inherited via
+            // art_debug_defaults.
             enabled: true,
             shared: {
                 enabled: false,

@@ -278,7 +278,6 @@ libart_cc_defaults {
         "runtime.cc",
         "runtime_callbacks.cc",
         "runtime_common.cc",
-        "runtime_image.cc",
         "runtime_intrinsics.cc",
         "runtime_options.cc",
         "scoped_thread_state_change.cc",
@@ -710,10 +709,11 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libbase",
-        "libziparchive",
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
     ],
     static_libs: [
         "libprocinfo",
+        "libziparchive",
     ],
     header_libs: [
         "libnativehelper_header_only",
@@ -894,10 +894,11 @@ art_cc_defaults {
     ],
     shared_libs: [
         "libunwindstack",
-        "libziparchive",
+        "libz", // libziparchive dependency; must be repeated here since it's a static lib.
     ],
     static_libs: [
         "libgmock",
+        "libziparchive",
     ],
     header_libs: [
         "art_cmdlineparser_headers", // For parsed_options_test.

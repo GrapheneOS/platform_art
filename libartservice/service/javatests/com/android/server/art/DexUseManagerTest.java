@@ -22,7 +22,6 @@ import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
@@ -30,7 +29,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import android.content.pm.ApplicationInfo;
 import android.os.Binder;
 import android.os.Process;
 import android.os.SystemProperties;
@@ -62,7 +60,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 @SmallTest
 @RunWith(Parameterized.class)
@@ -121,14 +118,9 @@ public class DexUseManagerTest {
         lenient().when(mSnapshot.getPackageState(eq(OWNING_PKG_NAME))).thenReturn(owningPkgState);
 
         lenient()
-                .doAnswer(invocation -> {
-                    var consumer = invocation.<Consumer<PackageState>>getArgument(0);
-                    consumer.accept(loadingPkgState);
-                    consumer.accept(owningPkgState);
-                    return null;
-                })
-                .when(mSnapshot)
-                .forAllPackageStates(any());
+                .when(mSnapshot.getPackageStates())
+                .thenReturn(
+                        Map.of(LOADING_PKG_NAME, loadingPkgState, OWNING_PKG_NAME, owningPkgState));
 
         mCeDir = Environment
                          .getDataUserCePackageDirectory(mVolumeUuid,

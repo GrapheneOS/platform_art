@@ -23,7 +23,8 @@ public class Main {
     $noinline$testTryCatchFinally();
     $noinline$testTryCatchFinallyDifferentInputs();
     $noinline$testRecursiveTryCatch();
-    $noinline$testDoNotInlineInsideTryOrCatch();
+    $noinline$testDoNotInlineInsideTryInlineInsideCatch();
+    $noinline$testInlineInsideNestedCatches();
     $noinline$testBeforeAfterTryCatch();
     $noinline$testDifferentTypes();
     $noinline$testRawThrow();
@@ -88,26 +89,44 @@ public class Main {
     $noinline$assertEquals(1, $inline$OOBTryCatchLevel4(numbers));
   }
 
-  // Tests that we don't inline inside outer tries or catches.
-  /// CHECK-START: void Main.$noinline$testDoNotInlineInsideTryOrCatch() inliner (before)
+  // Tests that we don't inline inside outer tries, but we do inline inside of catches.
+  /// CHECK-START: void Main.$noinline$testDoNotInlineInsideTryInlineInsideCatch() inliner (before)
   /// CHECK:       InvokeStaticOrDirect method_name:Main.DoNotInlineOOBTryCatch
-  /// CHECK:       InvokeStaticOrDirect method_name:Main.DoNotInlineOOBTryCatch
+  /// CHECK:       InvokeStaticOrDirect method_name:Main.$inline$OOBTryCatch
 
-  /// CHECK-START: void Main.$noinline$testDoNotInlineInsideTryOrCatch() inliner (after)
+  /// CHECK-START: void Main.$noinline$testDoNotInlineInsideTryInlineInsideCatch() inliner (after)
   /// CHECK:       InvokeStaticOrDirect method_name:Main.DoNotInlineOOBTryCatch
-  /// CHECK:       InvokeStaticOrDirect method_name:Main.DoNotInlineOOBTryCatch
-  private static void $noinline$testDoNotInlineInsideTryOrCatch() {
+  private static void $noinline$testDoNotInlineInsideTryInlineInsideCatch() {
     int val = 0;
     try {
       int[] numbers = {};
       val = DoNotInlineOOBTryCatch(numbers);
     } catch (Exception ex) {
       unreachable();
-      // This is unreachable but we will still compile it so it works for checker purposes
+      // This is unreachable but we will still compile it so it works for checking that it inlines.
       int[] numbers = {};
-      DoNotInlineOOBTryCatch(numbers);
+      $inline$OOBTryCatch(numbers);
     }
     $noinline$assertEquals(1, val);
+  }
+
+  private static void $noinline$emptyMethod() {}
+
+  private static void $inline$testInlineInsideNestedCatches_inner() {
+    try {
+      $noinline$emptyMethod();
+    } catch (Exception ex) {
+      int[] numbers = {};
+      $noinline$assertEquals(1, $inline$OOBTryCatch(numbers));
+    }
+  }
+
+  private static void $noinline$testInlineInsideNestedCatches() {
+    try {
+      $noinline$emptyMethod();
+    } catch (Exception ex) {
+      $inline$testInlineInsideNestedCatches_inner();
+    }
   }
 
   // Tests that outer tries or catches don't affect as long as we are not inlining the inner
