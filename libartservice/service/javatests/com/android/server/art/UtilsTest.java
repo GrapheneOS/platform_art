@@ -41,7 +41,7 @@ import org.junit.runner.RunWith;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -178,7 +178,7 @@ public class UtilsTest {
 
     @Test
     public void testExecuteAndWait() {
-        Executor executor = Executors.newSingleThreadExecutor();
+        Executor executor = ForkJoinPool.commonPool();
         List<String> results = new ArrayList<>();
         Utils.executeAndWait(executor, () -> {
             try {
@@ -193,7 +193,7 @@ public class UtilsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testExecuteAndWaitPropagatesException() {
-        Executor executor = Executors.newSingleThreadExecutor();
+        Executor executor = ForkJoinPool.commonPool();
         Utils.executeAndWait(executor, () -> { throw new IllegalArgumentException(); });
     }
 }

@@ -68,6 +68,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -346,10 +347,15 @@ public final class ArtManagerLocal {
         BatchOptimizeParams params = builder.build();
         Utils.check(params.getOptimizeParams().getReason().equals(reason));
 
-        return mInjector.getDexOptHelper().dexopt(snapshot, params.getPackages(),
-                params.getOptimizeParams(), cancellationSignal,
-                Executors.newFixedThreadPool(ReasonMapping.getConcurrencyForReason(reason)),
-                processCallbackExecutor, progressCallback);
+        ExecutorService dexoptExecutor =
+                Executors.newFixedThreadPool(ReasonMapping.getConcurrencyForReason(reason));
+        try {
+            return mInjector.getDexOptHelper().dexopt(snapshot, params.getPackages(),
+                    params.getOptimizeParams(), cancellationSignal, dexoptExecutor,
+                    processCallbackExecutor, progressCallback);
+        } finally {
+            dexoptExecutor.shutdown();
+        }
     }
 
     /**

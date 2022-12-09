@@ -57,7 +57,7 @@ import org.mockito.InOrder;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -532,8 +532,7 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                 .cancel();
 
         Future<List<DexContainerFileOptimizeResult>> results =
-                Executors.newSingleThreadExecutor().submit(
-                        () -> { return mPrimaryDexOptimizer.dexopt(); });
+                ForkJoinPool.commonPool().submit(() -> { return mPrimaryDexOptimizer.dexopt(); });
 
         assertThat(dexoptStarted.tryAcquire(TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
 
