@@ -455,6 +455,8 @@ class BuildTestContext:
 # We don't know which situation we are in, so as simple work-around, we use a lock
 # file to allow only one shard to use multiprocessing at the same time.
 def use_multiprocessing(mode: str) -> bool:
+  if "RBE_server_address" in os.environ:
+    return True
   global lock_file
   lock_path = Path(environ["TMPDIR"]) / ("art-test-run-test-build-py-" + mode)
   lock_file = open(lock_path, "w")
