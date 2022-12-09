@@ -127,7 +127,7 @@ public class BackgroundDexOptJob {
                         .setRequiresCharging(true)
                         .setRequiresBatteryNotLow(true);
 
-        Callback<ScheduleBackgroundDexoptJobCallback> callback =
+        Callback<ScheduleBackgroundDexoptJobCallback, Void> callback =
                 mInjector.getConfig().getScheduleBackgroundDexoptJobCallback();
         if (callback != null) {
             Utils.executeAndWait(

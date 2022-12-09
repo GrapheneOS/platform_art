@@ -451,7 +451,7 @@ public final class ArtManagerLocal {
                 Collections.unmodifiableList(getDefaultPackages(snapshot, reason));
         OptimizeParams defaultOptimizeParams = new OptimizeParams.Builder(reason).build();
         var builder = new BatchOptimizeParams.Builder(defaultPackages, defaultOptimizeParams);
-        Callback<OptimizePackagesCallback> callback =
+        Callback<OptimizePackagesCallback, Void> callback =
                 mInjector.getConfig().getOptimizePackagesCallback();
         if (callback != null) {
             Utils.executeAndWait(callback.executor(), () -> {
@@ -607,11 +607,16 @@ public final class ArtManagerLocal {
      * allowed. Callbacks are executed in the same order as the one in which they were added. This
      * method is thread-safe.
      *
+     * @param onlyIncludeUpdates if true, the results passed to the callback will only contain
+     *         packages that have any update, and the callback won't be called with results that
+     *         don't have any update.
      * @throws IllegalStateException if the same callback instance is already added
      */
-    public void addOptimizePackageDoneCallback(@NonNull @CallbackExecutor Executor executor,
+    public void addOptimizePackageDoneCallback(boolean onlyIncludeUpdates,
+            @NonNull @CallbackExecutor Executor executor,
             @NonNull OptimizePackageDoneCallback callback) {
-        mInjector.getConfig().addOptimizePackageDoneCallback(executor, callback);
+        mInjector.getConfig().addOptimizePackageDoneCallback(
+                onlyIncludeUpdates, executor, callback);
     }
 
     /**
