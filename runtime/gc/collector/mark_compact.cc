@@ -175,12 +175,12 @@ static constexpr bool kVerifyRootsMarked = kIsDebugBuild;
 static constexpr size_t kMaxNumUffdWorkers = 2;
 // Minimum from-space chunk to be madvised (during concurrent compaction) in one go.
 static constexpr ssize_t kMinFromSpaceMadviseSize = 1 * MB;
-// Concurrent compaction termination logic works if the kernel has the fault-retry feature
-// (allowing repeated faults on the same page), which was introduced in 5.7.
-// Otherwise, kernel only retries pagefaults once, therefore having 2 or less
-// workers will also suffice as the termination logic requires (n-1) pagefault
-// retries.
-static const bool gKernelHasFaultRetry = kMaxNumUffdWorkers <= 2 || IsKernelVersionAtLeast(5, 7);
+// Concurrent compaction termination logic is different (and slightly more efficient) if the
+// kernel has the fault-retry feature (allowing repeated faults on the same page), which was
+// introduced in 5.7 (https://android-review.git.corp.google.com/c/kernel/common/+/1540088).
+// This allows a single page fault to be handled, in turn, by each worker thread, only waking
+// up the GC thread at the end.
+static const bool gKernelHasFaultRetry = IsKernelVersionAtLeast(5, 7);
 
 std::pair<bool, bool> MarkCompact::GetUffdAndMinorFault() {
   bool uffd_available;
@@ -202,35 +202,28 @@ bool MarkCompact::CreateUserfaultfd(bool post_fork) {
   if (post_fork || uffd_ == kFdUnused) {
     // Don't use O_NONBLOCK as we rely on read waiting on uffd_ if there isn't
     // any read event available. We don't use poll.
-    if (gKernelHasFaultRetry) {
-      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
-      // On non-android devices we may not have the kernel patches that restrict
-      // userfaultfd to user mode. But that is not a security concern as we are
-      // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
-      if (!kIsTargetAndroid && UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
-        uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
-      }
-      if (UNLIKELY(uffd_ == -1)) {
-        uffd_ = kFallbackMode;
-        LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
-                     << ") and therefore falling back to stop-the-world compaction.";
-      } else {
-        DCHECK(IsValidFd(uffd_));
-        constexpr static uint64_t kRequestedUffdFeatures =
-            UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
-        // Initialize uffd with the features which are required and available.
-        struct uffdio_api api = {
-            .api = UFFD_API, .features = gUffdFeatures & kRequestedUffdFeatures, .ioctls = 0};
-        CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0)
-            << "ioctl_userfaultfd: API: " << strerror(errno);
-        // Missing userfaults on shmem should always be available.
-        CHECK_NE(api.features & UFFD_FEATURE_MISSING_SHMEM, 0u);
-        // TODO: Assert that minor-fault support isn't available only on 32-bit kernel.
-      }
-    } else {
-      // Without fault-retry feature in the kernel we can't terminate concurrent
-      // compaction. So fallback to stop-the-world compaction.
+    uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
+    // On non-android devices we may not have the kernel patches that restrict
+    // userfaultfd to user mode. But that is not a security concern as we are
+    // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
+    if (!kIsTargetAndroid && UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
+      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
+    }
+    if (UNLIKELY(uffd_ == -1)) {
       uffd_ = kFallbackMode;
+      LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
+                   << ") and therefore falling back to stop-the-world compaction.";
+    } else {
+      DCHECK(IsValidFd(uffd_));
+      constexpr static uint64_t kRequestedUffdFeatures =
+          UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
+      // Initialize uffd with the features which are required and available.
+      struct uffdio_api api = {
+          .api = UFFD_API, .features = gUffdFeatures & kRequestedUffdFeatures, .ioctls = 0};
+      CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0) << "ioctl_userfaultfd: API: " << strerror(errno);
+      // Missing userfaults on shmem should always be available.
+      CHECK_NE(api.features & UFFD_FEATURE_MISSING_SHMEM, 0u);
+      // TODO: Assert that minor-fault support isn't available only on 32-bit kernel.
     }
   }
   uffd_initialized_ = !post_fork || uffd_ == kFallbackMode;
@@ -2638,9 +2631,10 @@ void MarkCompact::ConcurrentCompaction(uint8_t* buf) {
       // page missing. Also, the value will be flushed to caches due to the ioctl
       // syscall below.
       uint8_t ret = thread_pool_counter_--;
-      // Only the last thread should map the zeropage so that the gc-thread can
-      // proceed.
-      if (ret == 1) {
+      // If 'gKernelHasFaultRetry == true' then only the last thread should map the
+      // zeropage so that the gc-thread can proceed. Otherwise, each thread does
+      // it and the gc-thread will repeat this fault until thread_pool_counter == 0.
+      if (!gKernelHasFaultRetry || ret == 1) {
         zeropage_ioctl(fault_addr, /*tolerate_eexist=*/false, /*tolerate_enoent=*/false);
       } else {
         struct uffdio_range uffd_range;
@@ -2995,9 +2989,6 @@ void MarkCompact::CompactionPhase() {
     CompactMovingSpace<kCopyMode>(compaction_buffers_map_.Begin());
   }
 
-  // madvise the page so that we can get userfaults on it.
-  ZeroAndReleasePages(conc_compaction_termination_page_, kPageSize);
-
   // TODO: add more sophisticated logic here wherein we sleep after attempting
   // yield a couple of times.
   while (compaction_in_progress_count_.load(std::memory_order_relaxed) > 0) {
@@ -3020,12 +3011,16 @@ void MarkCompact::CompactionPhase() {
 
   ProcessLinearAlloc();
 
-  // The following load triggers 'special' userfaults. When received by the
-  // thread-pool workers, they will exit out of the compaction task. This fault
-  // happens because we madvise info_map_ above and it is at least kPageSize in length.
   DCHECK(IsAligned<kPageSize>(conc_compaction_termination_page_));
-  CHECK_EQ(*reinterpret_cast<volatile uint8_t*>(conc_compaction_termination_page_), 0);
-  DCHECK_EQ(thread_pool_counter_, 0);
+  // We will only iterate once if gKernelHasFaultRetry is true.
+  do {
+    // madvise the page so that we can get userfaults on it.
+    ZeroAndReleasePages(conc_compaction_termination_page_, kPageSize);
+    // The following load triggers 'special' userfaults. When received by the
+    // thread-pool workers, they will exit out of the compaction task. This fault
+    // happens because we madvised the page.
+    ForceRead(conc_compaction_termination_page_);
+  } while (thread_pool_counter_ > 0);
 
   // Unregister linear-alloc spaces
   for (auto& data : linear_alloc_spaces_data_) {
