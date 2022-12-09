@@ -15,6 +15,20 @@
  */
 
 #include <fcntl.h>
+// Glibc v2.19 doesn't include these in fcntl.h so host builds will fail without.
+#if !defined(FALLOC_FL_PUNCH_HOLE) || !defined(FALLOC_FL_KEEP_SIZE)
+#include <linux/falloc.h>
+#endif
+#include <linux/userfaultfd.h>
+#include <poll.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <fstream>
+#include <numeric>
 
 #include "android-base/file.h"
 #include "android-base/properties.h"
@@ -35,19 +49,6 @@
 #include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
 #include "thread_list.h"
-// Glibc v2.19 doesn't include these in fcntl.h so host builds will fail without.
-#if !defined(FALLOC_FL_PUNCH_HOLE) || !defined(FALLOC_FL_KEEP_SIZE)
-#include <linux/falloc.h>
-#endif
-#include <linux/userfaultfd.h>
-#include <poll.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <unistd.h>
-
-#include <fstream>
-#include <numeric>
 
 #ifndef __BIONIC__
 #ifndef MREMAP_DONTUNMAP
@@ -3003,10 +3004,40 @@ void MarkCompact::CompactionPhase() {
 
   // Release all of the memory taken by moving-space's from-map
   if (minor_fault_initialized_) {
-    int ret = madvise(from_space_begin_, moving_space_size, MADV_REMOVE);
-    CHECK_EQ(ret, 0) << "madvise(MADV_REMOVE) failed for from-space map:" << strerror(errno);
+    if (IsValidFd(moving_from_space_fd_)) {
+      // A strange behavior is observed wherein between GC cycles the from-space'
+      // first page is accessed. But the memfd that is mapped on from-space, is
+      // used on to-space in next GC cycle, causing issues with userfaultfd as the
+      // page isn't missing. A possible reason for this could be prefetches. The
+      // mprotect ensures that such accesses don't succeed.
+      int ret = mprotect(from_space_begin_, moving_space_size, PROT_NONE);
+      CHECK_EQ(ret, 0) << "mprotect(PROT_NONE) for from-space failed: " << strerror(errno);
+      // madvise(MADV_REMOVE) needs PROT_WRITE. Use fallocate() instead, which
+      // does the same thing.
+      ret = fallocate(moving_from_space_fd_,
+                      FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                      /*offset=*/0,
+                      moving_space_size);
+      CHECK_EQ(ret, 0) << "fallocate for from-space failed: " << strerror(errno);
+    } else {
+      // We don't have a valid fd, so use madvise(MADV_REMOVE) instead. mprotect
+      // is not required in this case as we create fresh
+      // MAP_SHARED+MAP_ANONYMOUS mapping in each GC cycle.
+      int ret = madvise(from_space_begin_, moving_space_size, MADV_REMOVE);
+      CHECK_EQ(ret, 0) << "madvise(MADV_REMOVE) failed for from-space map:" << strerror(errno);
+    }
   } else {
     from_space_map_.MadviseDontNeedAndZero();
+  }
+  // mprotect(PROT_NONE) all maps except to-space in debug-mode to catch any unexpected accesses.
+  if (shadow_to_space_map_.IsValid()) {
+    DCHECK_EQ(mprotect(shadow_to_space_map_.Begin(), shadow_to_space_map_.Size(), PROT_NONE), 0)
+        << "mprotect(PROT_NONE) for shadow-map failed:" << strerror(errno);
+  }
+  if (!IsValidFd(moving_from_space_fd_)) {
+    // The other case is already mprotected above.
+    DCHECK_EQ(mprotect(from_space_begin_, moving_space_size, PROT_NONE), 0)
+        << "mprotect(PROT_NONE) for from-space failed: " << strerror(errno);
   }
 
   ProcessLinearAlloc();
@@ -3677,6 +3708,12 @@ void MarkCompact::FinishPhase() {
     heap_->ClearMarkedObjects();
   }
   std::swap(moving_to_space_fd_, moving_from_space_fd_);
+  if (IsValidFd(moving_to_space_fd_)) {
+    // Confirm that the memfd to be used on to-space in next GC cycle is empty.
+    struct stat buf;
+    DCHECK_EQ(fstat(moving_to_space_fd_, &buf), 0) << "fstat failed: " << strerror(errno);
+    DCHECK_EQ(buf.st_blocks, 0u);
+  }
 }
 
 }  // namespace collector
