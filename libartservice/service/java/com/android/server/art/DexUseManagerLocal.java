@@ -58,7 +58,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -139,7 +138,7 @@ public class DexUseManagerLocal {
             if (primaryDexUse == null) {
                 return Set.of();
             }
-            return Set.copyOf(primaryDexUse.mLoaders);
+            return Set.copyOf(primaryDexUse.mRecordByLoader.keySet());
         }
     }
 
@@ -175,6 +174,38 @@ public class DexUseManagerLocal {
     public @NonNull List<DetailedSecondaryDexInfo> getFilteredDetailedSecondaryDexInfo(
             @NonNull String packageName) {
         return getSecondaryDexInfoImpl(packageName, true /* checkDexFile */);
+    }
+
+    /**
+     * Returns the last time the package was used, or 0 if the package has never been used.
+     *
+     * @hide
+     */
+    public long getPackageLastUsedAtMs(@NonNull String packageName) {
+        synchronized (mLock) {
+            PackageDexUse packageDexUse =
+                    mDexUse.mPackageDexUseByOwningPackageName.get(packageName);
+            if (packageDexUse == null) {
+                return 0;
+            }
+            long primaryLastUsedAtMs =
+                    packageDexUse.mPrimaryDexUseByDexFile.values()
+                            .stream()
+                            .flatMap(primaryDexUse
+                                    -> primaryDexUse.mRecordByLoader.values().stream())
+                            .map(record -> record.mLastUsedAtMs)
+                            .max(Long::compare)
+                            .orElse(0l);
+            long secondaryLastUsedAtMs =
+                    packageDexUse.mSecondaryDexUseByDexFile.values()
+                            .stream()
+                            .flatMap(secondaryDexUse
+                                    -> secondaryDexUse.mRecordByLoader.values().stream())
+                            .map(record -> record.mLastUsedAtMs)
+                            .max(Long::compare)
+                            .orElse(0l);
+            return Math.max(primaryLastUsedAtMs, secondaryLastUsedAtMs);
+        }
     }
 
     /**
@@ -285,6 +316,7 @@ public class DexUseManagerLocal {
         // TODO(jiakaiz): Investigate whether it should also be considered as isolated process if
         // `Process.isSdkSandboxUid` returns true.
         boolean isolatedProcess = Process.isIsolatedUid(Binder.getCallingUid());
+        long lastUsedAtMs = mInjector.getCurrentTimeMillis();
 
         for (var entry : classLoaderContextByDexContainerFile.entrySet()) {
             String dexPath = Utils.assertNonEmpty(entry.getKey());
@@ -292,7 +324,8 @@ public class DexUseManagerLocal {
             String owningPackageName = findOwningPackage(snapshot, loadingPackageName, dexPath,
                     DexUseManagerLocal::isOwningPackageForPrimaryDex);
             if (owningPackageName != null) {
-                addPrimaryDexUse(owningPackageName, dexPath, loadingPackageName, isolatedProcess);
+                addPrimaryDexUse(owningPackageName, dexPath, loadingPackageName, isolatedProcess,
+                        lastUsedAtMs);
                 continue;
             }
             owningPackageName = findOwningPackage(snapshot, loadingPackageName, dexPath,
@@ -303,7 +336,7 @@ public class DexUseManagerLocal {
                 // An app is always launched with its primary ABI.
                 Utils.Abi abi = Utils.getPrimaryAbi(loadingPkgState);
                 addSecondaryDexUse(owningPackageName, dexPath, loadingPackageName, isolatedProcess,
-                        classLoaderContext, abi.name());
+                        classLoaderContext, abi.name(), lastUsedAtMs);
                 continue;
             }
             // It is expected that a dex file isn't owned by any package. For example, the dex file
@@ -360,18 +393,23 @@ public class DexUseManagerLocal {
     }
 
     private void addPrimaryDexUse(@NonNull String owningPackageName, @NonNull String dexPath,
-            @NonNull String loadingPackageName, boolean isolatedProcess) {
+            @NonNull String loadingPackageName, boolean isolatedProcess, long lastUsedAtMs) {
         synchronized (mLock) {
-            mDexUse.mPackageDexUseByOwningPackageName
-                    .computeIfAbsent(owningPackageName, k -> new PackageDexUse())
-                    .mPrimaryDexUseByDexFile.computeIfAbsent(dexPath, k -> new PrimaryDexUse())
-                    .mLoaders.add(DexLoader.create(loadingPackageName, isolatedProcess));
+            PrimaryDexUseRecord record =
+                    mDexUse.mPackageDexUseByOwningPackageName
+                            .computeIfAbsent(owningPackageName, k -> new PackageDexUse())
+                            .mPrimaryDexUseByDexFile
+                            .computeIfAbsent(dexPath, k -> new PrimaryDexUse())
+                            .mRecordByLoader.computeIfAbsent(
+                                    DexLoader.create(loadingPackageName, isolatedProcess),
+                                    k -> new PrimaryDexUseRecord());
+            record.mLastUsedAtMs = lastUsedAtMs;
         }
     }
 
     private void addSecondaryDexUse(@NonNull String owningPackageName, @NonNull String dexPath,
             @NonNull String loadingPackageName, boolean isolatedProcess,
-            @NonNull String classLoaderContext, @NonNull String abiName) {
+            @NonNull String classLoaderContext, @NonNull String abiName, long lastUsedAtMs) {
         synchronized (mLock) {
             SecondaryDexUse secondaryDexUse =
                     mDexUse.mPackageDexUseByOwningPackageName
@@ -384,6 +422,7 @@ public class DexUseManagerLocal {
                     k -> new SecondaryDexUseRecord());
             record.mClassLoaderContext = classLoaderContext;
             record.mAbiName = abiName;
+            record.mLastUsedAtMs = lastUsedAtMs;
         }
     }
 
@@ -615,21 +654,27 @@ public class DexUseManagerLocal {
     }
 
     private static class PrimaryDexUse {
-        @NonNull Set<DexLoader> mLoaders = new HashSet<>();
+        @NonNull Map<DexLoader, PrimaryDexUseRecord> mRecordByLoader = new HashMap<>();
 
         void toProto(@NonNull PrimaryDexUseProto.Builder builder) {
-            for (DexLoader loader : mLoaders) {
-                builder.addRecord(PrimaryDexUseRecordProto.newBuilder()
-                                          .setLoadingPackageName(loader.loadingPackageName())
-                                          .setIsolatedProcess(loader.isolatedProcess()));
+            for (var entry : mRecordByLoader.entrySet()) {
+                var recordBuilder =
+                        PrimaryDexUseRecordProto.newBuilder()
+                                .setLoadingPackageName(entry.getKey().loadingPackageName())
+                                .setIsolatedProcess(entry.getKey().isolatedProcess());
+                entry.getValue().toProto(recordBuilder);
+                builder.addRecord(recordBuilder);
             }
         }
 
         void fromProto(@NonNull PrimaryDexUseProto proto) {
             for (PrimaryDexUseRecordProto recordProto : proto.getRecordList()) {
-                mLoaders.add(
+                var record = new PrimaryDexUseRecord();
+                record.fromProto(recordProto);
+                mRecordByLoader.put(
                         DexLoader.create(Utils.assertNonEmpty(recordProto.getLoadingPackageName()),
-                                recordProto.getIsolatedProcess()));
+                                recordProto.getIsolatedProcess()),
+                        record);
             }
         }
     }
@@ -682,20 +727,38 @@ public class DexUseManagerLocal {
         abstract boolean isolatedProcess();
     }
 
+    private static class PrimaryDexUseRecord {
+        @Nullable long mLastUsedAtMs = 0;
+
+        void toProto(@NonNull PrimaryDexUseRecordProto.Builder builder) {
+            builder.setLastUsedAtMs(mLastUsedAtMs);
+        }
+
+        void fromProto(@NonNull PrimaryDexUseRecordProto proto) {
+            mLastUsedAtMs = proto.getLastUsedAtMs();
+            Utils.check(mLastUsedAtMs > 0);
+        }
+    }
+
     private static class SecondaryDexUseRecord {
         // An app constructs their own class loader to load a secondary dex file, so only itself
         // knows the class loader context. Therefore, we need to record the class loader context
         // reported by the app.
         @Nullable String mClassLoaderContext = null;
         @Nullable String mAbiName = null;
+        @Nullable long mLastUsedAtMs = 0;
 
         void toProto(@NonNull SecondaryDexUseRecordProto.Builder builder) {
-            builder.setClassLoaderContext(mClassLoaderContext).setAbiName(mAbiName);
+            builder.setClassLoaderContext(mClassLoaderContext)
+                    .setAbiName(mAbiName)
+                    .setLastUsedAtMs(mLastUsedAtMs);
         }
 
         void fromProto(@NonNull SecondaryDexUseRecordProto proto) {
             mClassLoaderContext = Utils.assertNonEmpty(proto.getClassLoaderContext());
             mAbiName = Utils.assertNonEmpty(proto.getAbiName());
+            mLastUsedAtMs = proto.getLastUsedAtMs();
+            Utils.check(mLastUsedAtMs > 0);
         }
     }
 
@@ -709,6 +772,10 @@ public class DexUseManagerLocal {
         @NonNull
         public IArtd getArtd() {
             return Utils.getArtd();
+        }
+
+        public long getCurrentTimeMillis() {
+            return System.currentTimeMillis();
         }
     }
 }

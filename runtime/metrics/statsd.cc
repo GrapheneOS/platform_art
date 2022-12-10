@@ -19,6 +19,7 @@
 #include "arch/instruction_set.h"
 #include "base/compiler_filter.h"
 #include "base/metrics/metrics.h"
+#include "gc/collector/mark_compact.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "runtime.h"
@@ -322,6 +323,21 @@ constexpr int32_t EncodeGcCollectorType(gc::CollectorType collector_type) {
   }
 }
 
+int32_t EncodeUffdMinorFaultSupport() {
+  auto [uffd_supported, minor_fault_supported] = gc::collector::MarkCompact::GetUffdAndMinorFault();
+
+  if (uffd_supported) {
+    if (minor_fault_supported) {
+      return statsd::ART_DATUM_REPORTED__UFFD_SUPPORT__ART_UFFD_SUPPORT_MINOR_FAULT_MODE_SUPPORTED;
+    } else {
+      return statsd::
+          ART_DATUM_REPORTED__UFFD_SUPPORT__ART_UFFD_SUPPORT_MINOR_FAULT_MODE_NOT_SUPPORTED;
+    }
+  } else {
+    return statsd::ART_DATUM_REPORTED__UFFD_SUPPORT__ART_UFFD_SUPPORT_UFFD_NOT_SUPPORTED;
+  }
+}
+
 class StatsdBackend : public MetricsBackend {
  public:
   void BeginOrUpdateSession(const SessionData& session_data) override {
@@ -368,7 +384,8 @@ class StatsdBackend : public MetricsBackend {
         statsd::ART_DATUM_REPORTED__DEX_METADATA_TYPE__ART_DEX_METADATA_TYPE_UNKNOWN,
         statsd::ART_DATUM_REPORTED__APK_TYPE__ART_APK_TYPE_UNKNOWN,
         EncodeInstructionSet(kRuntimeISA),
-        EncodeGcCollectorType(Runtime::Current()->GetHeap()->GetForegroundCollectorType()));
+        EncodeGcCollectorType(Runtime::Current()->GetHeap()->GetForegroundCollectorType()),
+        EncodeUffdMinorFaultSupport());
   }
 
   void ReportHistogram(DatumId /*histogram_type*/,
