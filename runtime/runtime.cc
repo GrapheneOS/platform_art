@@ -512,8 +512,8 @@ Runtime::~Runtime() {
   monitor_pool_ = nullptr;
   delete class_linker_;
   class_linker_ = nullptr;
-  delete small_irt_allocator_;
-  small_irt_allocator_ = nullptr;
+  delete small_lrt_allocator_;
+  small_lrt_allocator_ = nullptr;
   delete heap_;
   heap_ = nullptr;
   delete intern_table_;
@@ -1727,7 +1727,7 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   linear_alloc_.reset(CreateLinearAlloc());
   startup_linear_alloc_.reset(CreateLinearAlloc());
 
-  small_irt_allocator_ = new SmallIrtAllocator();
+  small_lrt_allocator_ = new jni::SmallLrtAllocator();
 
   BlockSignals();
   InitPlatformSignalHandlers();
