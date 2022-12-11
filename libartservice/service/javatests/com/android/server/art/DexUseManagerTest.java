@@ -132,6 +132,7 @@ public class DexUseManagerTest {
                          .toString();
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
+        lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(0l);
 
         mDexUseManager = new DexUseManagerLocal(mInjector);
     }
@@ -206,6 +207,8 @@ public class DexUseManagerTest {
     }
 
     private void verifyPrimaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
+        when(mInjector.getCurrentTimeMillis()).thenReturn(1000l);
+
         // These should be ignored.
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, Utils.PLATFORM_PACKAGE_NAME, Map.of(BASE_APK, "CLC"));
@@ -226,6 +229,7 @@ public class DexUseManagerTest {
         when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
+        when(mInjector.getCurrentTimeMillis()).thenReturn(2000l);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
@@ -244,6 +248,8 @@ public class DexUseManagerTest {
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, SPLIT_APK))
                 .containsExactly(DexLoader.create(OWNING_PKG_NAME, false /* isolatedProcess */));
+
+        assertThat(mDexUseManager.getPackageLastUsedAtMs(OWNING_PKG_NAME)).isEqualTo(2000l);
     }
 
     @Test
@@ -339,6 +345,8 @@ public class DexUseManagerTest {
     }
 
     private void verifySecondaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
+        when(mInjector.getCurrentTimeMillis()).thenReturn(1000l);
+
         // These should be ignored.
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, Utils.PLATFORM_PACKAGE_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
@@ -367,6 +375,7 @@ public class DexUseManagerTest {
         when(Process.isIsolatedUid(anyInt())).thenReturn(true);
         mDexUseManager.notifyDexContainersLoaded(
                 mSnapshot, OWNING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+        when(mInjector.getCurrentTimeMillis()).thenReturn(2000l);
         mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME,
                 Map.of(mCeDir + "/foo.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
 
@@ -404,6 +413,8 @@ public class DexUseManagerTest {
                                 Set.of(DexLoader.create(
                                         OWNING_PKG_NAME, false /* isolatedProcess */)),
                                 false /* isUsedByOtherApps */, mDefaultIsDexFilePublic));
+
+        assertThat(mDexUseManager.getPackageLastUsedAtMs(OWNING_PKG_NAME)).isEqualTo(2000l);
     }
 
     @Test

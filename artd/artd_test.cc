@@ -653,7 +653,7 @@ TEST_F(ArtdTest, dexoptPriorityClassBackground) {
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(
                   WhenSplitBy("--",
-                              AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBootComplete")),
+                              AllOf(Contains(Flag("--set-task-profile=", "Dex2OatBackground")),
                                     Contains(Flag("--set-priority=", "background"))),
                               Not(Contains(Flag("--compact-dex-level=", _)))),
                   _,

@@ -754,7 +754,10 @@ ndk::ScopedAStatus Artd::dexopt(
   args.Add(OR_RETURN_FATAL(GetArtExec())).Add("--drop-capabilities");
 
   if (in_priorityClass < PriorityClass::BOOT) {
-    args.Add("--set-task-profile=Dex2OatBootComplete").Add("--set-priority=background");
+    args.Add(in_priorityClass <= PriorityClass::BACKGROUND ?
+                 "--set-task-profile=Dex2OatBackground" :
+                 "--set-task-profile=Dex2OatBootComplete")
+        .Add("--set-priority=background");
   }
 
   args.Add("--").Add(OR_RETURN_FATAL(GetDex2Oat()));
