@@ -455,8 +455,8 @@ public final class ArtManagerLocal {
                 mInjector.getConfig().getOptimizePackagesCallback();
         if (callback != null) {
             Utils.executeAndWait(callback.executor(), () -> {
-                callback.get().onOverrideBatchOptimizeParams(
-                        snapshot, reason, defaultPackages, builder);
+                callback.get().onOptimizePackagesStart(
+                        snapshot, reason, defaultPackages, builder, cancellationSignal);
             });
         }
         BatchOptimizeParams params = builder.build();
@@ -898,6 +898,9 @@ public final class ArtManagerLocal {
          * Mutates {@code builder} to override the default params for {@link #optimizePackages}. It
          * must ignore unknown reasons because more reasons may be added in the future.
          *
+         * This is called before the start of any automatic package optimization (i.e., not
+         * including package optimization initiated by the {@link #optimizePackage} API call).
+         *
          * If {@code builder.setPackages} is not called, {@code defaultPackages} will be used as the
          * list of packages to optimize.
          *
@@ -905,17 +908,19 @@ public final class ArtManagerLocal {
          * new OptimizeParams.Builder(reason)} will to used as the params for optimizing each
          * package.
          *
-         * Additionally, if {@code reason} is {@link ReasonMapping#REASON_BG_DEXOPT}, {@link
-         * #cancelBackgroundDexoptJob()} can be called to skip this run. The job will be retried in
-         * the next <i>maintenance window</i>. For information about <i>maintenance window</i>, see
+         * Additionally, {@code cancellationSignal.cancel()} can be called to cancel this operation.
+         * If this operation is initiated by the job scheduler and the {@code reason} is {@link
+         * ReasonMapping#REASON_BG_DEXOPT}, the job will be retried in the next <i>maintenance
+         * window</i>. For information about <i>maintenance window</i>, see
          * https://developer.android.com/training/monitoring-device-state/doze-standby.
          *
          * Changing the reason is not allowed. Doing so will result in {@link IllegalStateException}
          * when {@link #optimizePackages} is called.
          */
-        void onOverrideBatchOptimizeParams(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+        void onOptimizePackagesStart(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
                 @NonNull @BatchOptimizeReason String reason, @NonNull List<String> defaultPackages,
-                @NonNull BatchOptimizeParams.Builder builder);
+                @NonNull BatchOptimizeParams.Builder builder,
+                @NonNull CancellationSignal cancellationSignal);
     }
 
     /** @hide */

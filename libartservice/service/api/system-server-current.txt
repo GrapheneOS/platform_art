@@ -31,7 +31,7 @@ package com.android.server.art {
   }
 
   public static interface ArtManagerLocal.OptimizePackagesCallback {
-    method public void onOverrideBatchOptimizeParams(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.List<java.lang.String>, @NonNull com.android.server.art.model.BatchOptimizeParams.Builder);
+    method public void onOptimizePackagesStart(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.List<java.lang.String>, @NonNull com.android.server.art.model.BatchOptimizeParams.Builder, @NonNull android.os.CancellationSignal);
   }
 
   public static interface ArtManagerLocal.ScheduleBackgroundDexoptJobCallback {
