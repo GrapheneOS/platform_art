@@ -1162,6 +1162,8 @@
                   "844-exception",
                   "844-exception2",
                   "845-fast-verify",
+                  "845-data-image",
+                  "846-multidex-data-image",
                   "999-redefine-hiddenapi",
                   "1000-non-moving-space-stress",
                   "1001-app-image-regions",
