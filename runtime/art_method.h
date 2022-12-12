@@ -711,6 +711,32 @@ class ArtMethod final {
                                    typename detail::HandleShortyTraits<ArgType>::Type... args)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns true if the method needs a class initialization check according to access flags.
+  // Only static methods other than the class initializer need this check.
+  // The caller is responsible for performing the actual check.
+  bool NeedsClinitCheckBeforeCall() const {
+    return NeedsClinitCheckBeforeCall(GetAccessFlags());
+  }
+
+  static bool NeedsClinitCheckBeforeCall(uint32_t access_flags) {
+    // The class initializer is special as it is invoked during initialization
+    // and does not need the check.
+    return IsStatic(access_flags) && !IsConstructor(access_flags);
+  }
+
+  // Check if the method needs a class initialization check before call
+  // and its declaring class is not yet visibly initialized.
+  // (The class needs to be visibly initialized before we can use entrypoints
+  // to compiled code for static methods. See b/18161648 .)
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  bool StillNeedsClinitCheck() REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Similar to `StillNeedsClinitCheck()` but the method's declaring class may
+  // be dead but not yet reclaimed by the GC, so we cannot do a full read barrier
+  // but we still want to check the class status in the to-space class if any.
+  // Note: JIT can hold and use such methods during managed heap GC.
+  bool StillNeedsClinitCheckMayBeDead() REQUIRES_SHARED(Locks::mutator_lock_);
+
   const void* GetEntryPointFromQuickCompiledCode() const {
     return GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
   }

@@ -75,7 +75,7 @@ extern "C" const void* artFindNativeMethodRunnable(Thread* self)
 
     // These calls do not have an explicit class initialization check, so do the check now.
     // (When going through the stub or GenericJNI, the check was already done.)
-    DCHECK(NeedsClinitCheckBeforeCall(target_method));
+    DCHECK(target_method->NeedsClinitCheckBeforeCall());
     ObjPtr<mirror::Class> declaring_class = target_method->GetDeclaringClass();
     if (UNLIKELY(!declaring_class->IsVisiblyInitialized())) {
       StackHandleScope<1> hs(self);

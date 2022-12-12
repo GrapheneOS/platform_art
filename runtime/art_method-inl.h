@@ -669,6 +669,32 @@ inline void ArtMethod::UpdateEntrypoints(const Visitor& visitor, PointerSize poi
   }
 }
 
+template <ReadBarrierOption kReadBarrierOption>
+inline bool ArtMethod::StillNeedsClinitCheck() {
+  if (!NeedsClinitCheckBeforeCall()) {
+    return false;
+  }
+  ObjPtr<mirror::Class> klass = GetDeclaringClass<kReadBarrierOption>();
+  return !klass->IsVisiblyInitialized();
+}
+
+inline bool ArtMethod::StillNeedsClinitCheckMayBeDead() {
+  if (!NeedsClinitCheckBeforeCall()) {
+    return false;
+  }
+  // To avoid resurrecting an unreachable object, or crashing the GC in some GC phases,
+  // we must not use a full read barrier. Therefore we read the declaring class without
+  // a read barrier and check if it's already marked. If yes, we check the status of the
+  // to-space class object as intended. Otherwise, there is no to-space object and the
+  // from-space class object contains the most recent value of the status field; even if
+  // this races with another thread doing a read barrier and updating the status, that's
+  // no different from a race with a thread that just updates the status.
+  ObjPtr<mirror::Class> klass = GetDeclaringClass<kWithoutReadBarrier>();
+  ObjPtr<mirror::Class> marked = ReadBarrier::IsMarked(klass.Ptr());
+  ObjPtr<mirror::Class> checked_klass = (marked != nullptr) ? marked : klass;
+  return !checked_klass->IsVisiblyInitialized();
+}
+
 inline CodeItemInstructionAccessor ArtMethod::DexInstructions() {
   return CodeItemInstructionAccessor(*GetDexFile(), GetCodeItem());
 }
