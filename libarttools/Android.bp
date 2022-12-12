@@ -115,6 +115,7 @@ cc_binary {
         "libbase",
     ],
     static_libs: [
+        "libc++fs",
         "libcap",
     ],
     apex_available: [

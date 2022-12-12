@@ -202,6 +202,7 @@ class Artd : public aidl::com::android::server::art::BnArtd {
                               /*out*/ art::tools::CmdlineBuilder& args);
 
   void AddPerfConfigFlags(aidl::com::android::server::art::PriorityClass priority_class,
+                          /*out*/ art::tools::CmdlineBuilder& art_exec_args,
                           /*out*/ art::tools::CmdlineBuilder& args);
 
   android::base::Result<struct stat> Fstat(const art::File& file) const;
