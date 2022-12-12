@@ -97,6 +97,9 @@ static bool HaveMremapDontunmap() {
 static bool gHaveMremapDontunmap = IsKernelVersionAtLeast(5, 13) || HaveMremapDontunmap();
 // Bitmap of features supported by userfaultfd. This is obtained via uffd API ioctl.
 static uint64_t gUffdFeatures = 0;
+// Both, missing and minor faults on shmem are needed only for minor-fault mode.
+static constexpr uint64_t kUffdFeaturesForMinorFault =
+    UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
 
 static bool KernelSupportsUffd() {
 #ifdef __linux__
@@ -116,7 +119,7 @@ static bool KernelSupportsUffd() {
       gUffdFeatures = api.features;
       close(fd);
       // Allow this GC to be used only if minor-fault feature is available.
-      return api.features & UFFD_FEATURE_MINOR_SHMEM;
+      return (api.features & kUffdFeaturesForMinorFault) == kUffdFeaturesForMinorFault;
     }
   }
 #endif
@@ -196,7 +199,9 @@ std::pair<bool, bool> MarkCompact::GetUffdAndMinorFault() {
     // We can have any uffd features only if uffd exists.
     uffd_available = true;
   }
-  return std::pair<bool, bool>(uffd_available, gUffdFeatures & UFFD_FEATURE_MINOR_SHMEM);
+  bool minor_fault_available =
+      (gUffdFeatures & kUffdFeaturesForMinorFault) == kUffdFeaturesForMinorFault;
+  return std::pair<bool, bool>(uffd_available, minor_fault_available);
 }
 
 bool MarkCompact::CreateUserfaultfd(bool post_fork) {
@@ -216,15 +221,10 @@ bool MarkCompact::CreateUserfaultfd(bool post_fork) {
                    << ") and therefore falling back to stop-the-world compaction.";
     } else {
       DCHECK(IsValidFd(uffd_));
-      constexpr static uint64_t kRequestedUffdFeatures =
-          UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
       // Initialize uffd with the features which are required and available.
       struct uffdio_api api = {
-          .api = UFFD_API, .features = gUffdFeatures & kRequestedUffdFeatures, .ioctls = 0};
+          .api = UFFD_API, .features = gUffdFeatures & kUffdFeaturesForMinorFault, .ioctls = 0};
       CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0) << "ioctl_userfaultfd: API: " << strerror(errno);
-      // Missing userfaults on shmem should always be available.
-      CHECK_NE(api.features & UFFD_FEATURE_MISSING_SHMEM, 0u);
-      // TODO: Assert that minor-fault support isn't available only on 32-bit kernel.
     }
   }
   uffd_initialized_ = !post_fork || uffd_ == kFallbackMode;
