@@ -582,9 +582,10 @@ inline ObjPtr<mirror::Class> ArtMethod::ResolveReturnType() {
   return ResolveClassFromTypeIndex(GetReturnTypeIndex());
 }
 
-template <ReadBarrierOption kReadBarrierOption>
 inline bool ArtMethod::HasSingleImplementation() {
-  if (IsFinal() || GetDeclaringClass<kReadBarrierOption>()->IsFinal()) {
+  // No read barrier needed for reading a constant reference only to read
+  // a constant final class flag. See `ReadBarrierOption`.
+  if (IsFinal() || GetDeclaringClass<kWithoutReadBarrier>()->IsFinal()) {
     // We don't set kAccSingleImplementation for these cases since intrinsic
     // can use the flag also.
     return true;
