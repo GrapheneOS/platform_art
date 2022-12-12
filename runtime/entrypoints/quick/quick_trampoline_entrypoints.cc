@@ -1036,10 +1036,10 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
 
   StackHandleScope<2> hs(self);
   Handle<mirror::Object> h_object(hs.NewHandle(is_static ? nullptr : this_object));
-  Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
 
   // Ensure that the called method's class is initialized.
-  if (NeedsClinitCheckBeforeCall(method) && !h_class->IsVisiblyInitialized()) {
+  if (method->StillNeedsClinitCheck()) {
+    Handle<mirror::Class> h_class = hs.NewHandle(method->GetDeclaringClass());
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
       visitor.FixupReferences();
       DCHECK(self->IsExceptionPending());
@@ -1354,11 +1354,10 @@ extern "C" const void* artQuickResolutionTrampoline(
     // Static invokes need class initialization check but instance invokes can proceed even if
     // the class is erroneous, i.e. in the edge case of escaping instances of erroneous classes.
     bool success = true;
-    ObjPtr<mirror::Class> called_class = called->GetDeclaringClass();
-    if (NeedsClinitCheckBeforeCall(called) && !called_class->IsVisiblyInitialized()) {
+    if (called->StillNeedsClinitCheck()) {
       // Ensure that the called method's class is initialized.
       StackHandleScope<1> hs(soa.Self());
-      HandleWrapperObjPtr<mirror::Class> h_called_class(hs.NewHandleWrapper(&called_class));
+      Handle<mirror::Class> h_called_class = hs.NewHandle(called->GetDeclaringClass());
       success = linker->EnsureInitialized(soa.Self(), h_called_class, true, true);
     }
     if (success) {
@@ -1373,7 +1372,7 @@ extern "C" const void* artQuickResolutionTrampoline(
       // stub.
       code = instrumentation->GetMaybeInstrumentedCodeForInvoke(called);
     } else {
-      DCHECK(called_class->IsErroneous());
+      DCHECK(called->GetDeclaringClass()->IsErroneous());
       DCHECK(self->IsExceptionPending());
     }
   }
@@ -2092,16 +2091,13 @@ extern "C" const void* artQuickGenericJniTrampoline(Thread* self,
   // We can set the entrypoint of a native method to generic JNI even when the
   // class hasn't been initialized, so we need to do the initialization check
   // before invoking the native code.
-  if (NeedsClinitCheckBeforeCall(called)) {
-    ObjPtr<mirror::Class> declaring_class = called->GetDeclaringClass();
-    if (UNLIKELY(!declaring_class->IsVisiblyInitialized())) {
-      // Ensure static method's class is initialized.
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> h_class(hs.NewHandle(declaring_class));
-      if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-        DCHECK(Thread::Current()->IsExceptionPending()) << called->PrettyMethod();
-        return nullptr;  // Report error.
-      }
+  if (called->StillNeedsClinitCheck()) {
+    // Ensure static method's class is initialized.
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> h_class = hs.NewHandle(called->GetDeclaringClass());
+    if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
+      DCHECK(Thread::Current()->IsExceptionPending()) << called->PrettyMethod();
+      return nullptr;  // Report error.
     }
   }
 

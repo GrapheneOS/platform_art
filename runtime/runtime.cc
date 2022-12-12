@@ -726,7 +726,7 @@ class UpdateMethodsPreFirstForkVisitor : public ClassVisitor {
   bool operator()(ObjPtr<mirror::Class> klass) override REQUIRES_SHARED(Locks::mutator_lock_) {
     bool is_initialized = klass->IsVisiblyInitialized();
     for (ArtMethod& method : klass->GetDeclaredMethods(kRuntimePointerSize)) {
-      if (is_initialized || !NeedsClinitCheckBeforeCall(&method)) {
+      if (is_initialized || !method.NeedsClinitCheckBeforeCall()) {
         if (method.IsNative()) {
           const void* existing = method.GetEntryPointFromJni();
           if (method.IsCriticalNative()

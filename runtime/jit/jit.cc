@@ -1808,8 +1808,7 @@ void Jit::MaybeEnqueueCompilation(ArtMethod* method, Thread* self) {
 
   // Check if we have precompiled this method.
   if (UNLIKELY(method->IsPreCompiled())) {
-    if (!NeedsClinitCheckBeforeCall(method) ||
-        method->GetDeclaringClass()->IsVisiblyInitialized()) {
+    if (!method->StillNeedsClinitCheck()) {
       const void* entry_point = code_cache_->GetSavedEntryPointOfPreCompiledMethod(method);
       if (entry_point != nullptr) {
         Runtime::Current()->GetInstrumentation()->UpdateMethodsCode(method, entry_point);

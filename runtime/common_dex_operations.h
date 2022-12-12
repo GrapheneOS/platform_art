@@ -61,18 +61,14 @@ namespace interpreter {
 
 inline bool EnsureInitialized(Thread* self, ShadowFrame* shadow_frame)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  if (!NeedsClinitCheckBeforeCall(shadow_frame->GetMethod())) {
-    return true;
-  }
-  ObjPtr<mirror::Class> declaring_class = shadow_frame->GetMethod()->GetDeclaringClass();
-  if (LIKELY(declaring_class->IsVisiblyInitialized())) {
+  if (LIKELY(!shadow_frame->GetMethod()->StillNeedsClinitCheck())) {
     return true;
   }
 
   // Save the shadow frame.
   ScopedStackedShadowFramePusher pusher(self, shadow_frame);
   StackHandleScope<1> hs(self);
-  Handle<mirror::Class> h_class(hs.NewHandle(declaring_class));
+  Handle<mirror::Class> h_class = hs.NewHandle(shadow_frame->GetMethod()->GetDeclaringClass());
   if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
                     self, h_class, /*can_init_fields=*/ true, /*can_init_parents=*/ true))) {
     DCHECK(self->IsExceptionPending());
