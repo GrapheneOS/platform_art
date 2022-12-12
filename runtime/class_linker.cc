@@ -1432,7 +1432,7 @@ void ClassLinker::AddExtraBootDexFiles(
   }
 }
 
-bool ClassLinker::IsBootClassLoader(ObjPtr<mirror::ClassLoader> class_loader) {
+bool ClassLinker::IsBootClassLoader(ObjPtr<mirror::Object> class_loader) {
   return class_loader == nullptr ||
          WellKnownClasses::java_lang_BootClassLoader == class_loader->GetClass();
 }
@@ -1999,9 +1999,8 @@ bool ClassLinker::AddImageSpace(
       hs.NewHandle(dex_caches_object->AsObjectArray<mirror::DexCache>()));
   Handle<mirror::ObjectArray<mirror::Class>> class_roots(hs.NewHandle(
       header.GetImageRoot(ImageHeader::kClassRoots)->AsObjectArray<mirror::Class>()));
-  MutableHandle<mirror::ClassLoader> image_class_loader(hs.NewHandle(
-      app_image ? header.GetImageRoot(ImageHeader::kAppImageClassLoader)->AsClassLoader()
-                : nullptr));
+  MutableHandle<mirror::Object> special_root(hs.NewHandle(
+      app_image ? header.GetImageRoot(ImageHeader::kSpecialRoots) : nullptr));
   DCHECK(class_roots != nullptr);
   if (class_roots->GetLength() != static_cast<int32_t>(ClassRoot::kMax)) {
     *error_msg = StringPrintf("Expected %d class roots but got %d",
@@ -2048,8 +2047,29 @@ bool ClassLinker::AddImageSpace(
 
   if (app_image) {
     ScopedAssertNoThreadSuspension sants("Checking app image");
-    if (IsBootClassLoader(image_class_loader.Get())) {
+    if (special_root == nullptr) {
+      *error_msg = "Unexpected null special root in app image";
+      return false;
+    } else if (special_root->IsIntArray()) {
+      size_t count = special_root->AsIntArray()->GetLength();
+      if (oat_file->GetVdexFile()->GetNumberOfDexFiles() != count) {
+        *error_msg = "Cheksums count does not match";
+        return false;
+      }
+      static_assert(sizeof(VdexFile::VdexChecksum) == sizeof(int32_t));
+      const VdexFile::VdexChecksum* art_checksums =
+          reinterpret_cast<VdexFile::VdexChecksum*>(special_root->AsIntArray()->GetData());
+      const VdexFile::VdexChecksum* vdex_checksums =
+          oat_file->GetVdexFile()->GetDexChecksumsArray();
+      if (memcmp(art_checksums, vdex_checksums, sizeof(VdexFile::VdexChecksum) * count) != 0) {
+        *error_msg = "Image and vdex cheksums did not match";
+        return false;
+      }
+    } else if (IsBootClassLoader(special_root.Get())) {
       *error_msg = "Unexpected BootClassLoader in app image";
+      return false;
+    } else if (!special_root->IsClassLoader()) {
+      *error_msg = "Unexpected special root in app image";
       return false;
     }
   }
