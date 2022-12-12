@@ -251,8 +251,7 @@ static bool CodeNeedsEntryExitStub(const void* entry_point, ArtMethod* method)
 static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (kIsDebugBuild) {
-    if (NeedsClinitCheckBeforeCall(method) &&
-        !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+    if (method->StillNeedsClinitCheckMayBeDead()) {
       CHECK(CanHandleInitializationCheck(quick_code));
     }
     jit::Jit* jit = Runtime::Current()->GetJit();
@@ -379,7 +378,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
   }
 
   // Special case if we need an initialization check.
-  if (NeedsClinitCheckBeforeCall(method) && !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+  if (method->StillNeedsClinitCheck()) {
     // If we have code but the method needs a class initialization check before calling
     // that code, install the resolution stub that will perform the check.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
@@ -449,7 +448,7 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   // We're being asked to restore the entrypoints after instrumentation.
   CHECK_EQ(instrumentation_level_, InstrumentationLevel::kInstrumentNothing);
   // We need to have the resolution stub still if the class is not initialized.
-  if (NeedsClinitCheckBeforeCall(method) && !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+  if (method->StillNeedsClinitCheck()) {
     UpdateEntryPoints(method, GetQuickResolutionStub());
     return;
   }
@@ -1248,8 +1247,7 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
   // We still retain interpreter bridge if we need it for other reasons.
   if (InterpretOnly(method)) {
     UpdateEntryPoints(method, GetQuickToInterpreterBridge());
-  } else if (NeedsClinitCheckBeforeCall(method) &&
-             !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+  } else if (method->StillNeedsClinitCheck()) {
     if (EntryExitStubsInstalled()) {
       UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
     } else {

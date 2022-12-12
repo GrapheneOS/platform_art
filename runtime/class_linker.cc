@@ -2128,8 +2128,7 @@ bool ClassLinker::AddImageSpace(
           // Set image methods' entry point that point to the nterp trampoline to the
           // nterp entry point. This allows taking the fast path when doing a
           // nterp->nterp call.
-          DCHECK_IMPLIES(NeedsClinitCheckBeforeCall(&method),
-                         method.GetDeclaringClass()->IsVisiblyInitialized());
+          DCHECK(!method.StillNeedsClinitCheck());
           method.SetEntryPointFromQuickCompiledCode(interpreter::GetNterpEntryPoint());
         } else {
           method.SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
@@ -3504,10 +3503,9 @@ void ClassLinker::FixupStaticTrampolines(Thread* self, ObjPtr<mirror::Class> kla
   instrumentation::Instrumentation* instrumentation = runtime->GetInstrumentation();
   for (size_t method_index = 0; method_index < num_direct_methods; ++method_index) {
     ArtMethod* method = klass->GetDirectMethod(method_index, pointer_size);
-    if (!NeedsClinitCheckBeforeCall(method)) {
-      continue;
+    if (method->NeedsClinitCheckBeforeCall()) {
+      instrumentation->UpdateMethodsCode(method, instrumentation->GetCodeForInvoke(method));
     }
-    instrumentation->UpdateMethodsCode(method, instrumentation->GetCodeForInvoke(method));
   }
   // Ignore virtual methods on the iterator.
 }
