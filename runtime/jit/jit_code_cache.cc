@@ -127,31 +127,19 @@ class JitCodeCache::JniStubData {
     DCHECK(entrypoint == OatQuickMethodHeader::FromCodePointer(GetCode())->GetEntryPoint());
     instrumentation::Instrumentation* instrum = Runtime::Current()->GetInstrumentation();
     for (ArtMethod* m : GetMethods()) {
-      // Because `m` might be in the process of being deleted:
-      // - Call the dedicated method instead of the more generic UpdateMethodsCode
-      // - Check the class status without a full read barrier; use ReadBarrier::IsMarked().
-      bool can_set_entrypoint = true;
-      if (NeedsClinitCheckBeforeCall(m)) {
-        // To avoid resurrecting an unreachable object, we must not use a full read
-        // barrier but we do not want to miss updating an entrypoint under common
-        // circumstances, i.e. during a GC the class becomes visibly initialized,
-        // the method becomes hot, we compile the thunk and want to update the
-        // entrypoint while the method's declaring class field still points to the
-        // from-space class object with the old status. Therefore we read the
-        // declaring class without a read barrier and check if it's already marked.
-        // If yes, we check the status of the to-space class object as intended.
-        // Otherwise, there is no to-space object and the from-space class object
-        // contains the most recent value of the status field; even if this races
-        // with another thread doing a read barrier and updating the status, that's
-        // no different from a race with a thread that just updates the status.
-        // Such race can happen only for the zygote method pre-compilation, as we
-        // otherwise compile only thunks for methods of visibly initialized classes.
-        ObjPtr<mirror::Class> klass = m->GetDeclaringClass<kWithoutReadBarrier>();
-        ObjPtr<mirror::Class> marked = ReadBarrier::IsMarked(klass.Ptr());
-        ObjPtr<mirror::Class> checked_klass = (marked != nullptr) ? marked : klass;
-        can_set_entrypoint = checked_klass->IsVisiblyInitialized();
-      }
-      if (can_set_entrypoint) {
+      // Because `m` might be in the process of being deleted,
+      //   - use the `ArtMethod::StillNeedsClinitCheckMayBeDead()` to check if
+      //     we can update the entrypoint, and
+      //   - call `Instrumentation::UpdateNativeMethodsCodeToJitCode` instead of the
+      //     more generic function `Instrumentation::UpdateMethodsCode()`.
+      // The `ArtMethod::StillNeedsClinitCheckMayBeDead()` checks the class status
+      // in the to-space object if any even if the method's declaring class points to
+      // the from-space class object. This way we do not miss updating an entrypoint
+      // even under uncommon circumstances, when during a GC the class becomes visibly
+      // initialized, the method becomes hot, we compile the thunk and want to update
+      // the entrypoint while the method's declaring class field still points to the
+      // from-space class object with the old status.
+      if (!m->StillNeedsClinitCheckMayBeDead()) {
         instrum->UpdateNativeMethodsCodeToJitCode(m, entrypoint);
       }
     }
@@ -741,8 +729,7 @@ bool JitCodeCache::Commit(Thread* self,
       }
       if (compilation_kind == CompilationKind::kOsr) {
         osr_code_map_.Put(method, code_ptr);
-      } else if (NeedsClinitCheckBeforeCall(method) &&
-                 !method->GetDeclaringClass()->IsVisiblyInitialized()) {
+      } else if (method->StillNeedsClinitCheck()) {
         // This situation currently only occurs in the jit-zygote mode.
         DCHECK(!garbage_collect_code_);
         DCHECK(method->IsPreCompiled());
@@ -1636,7 +1623,7 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method,
     }
   }
 
-  if (NeedsClinitCheckBeforeCall(method) && !prejit) {
+  if (method->NeedsClinitCheckBeforeCall() && !prejit) {
     // We do not need a synchronization barrier for checking the visibly initialized status
     // or checking the initialized status just for requesting visible initialization.
     ClassStatus status = method->GetDeclaringClass()
