@@ -484,10 +484,7 @@ class MarkCompact final : public GarbageCollector {
   // feature.
   bool CanCompactMovingSpaceWithMinorFault();
 
-  template <int kMode>
-  void FreeFromSpacePages(size_t cur_page_idx,
-                          size_t* last_checked_page_idx,
-                          uint8_t** last_freed_pag) REQUIRES_SHARED(Locks::mutator_lock_);
+  void FreeFromSpacePages(size_t cur_page_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Maps processed pages (from moving space and linear-alloc) for uffd's
   // minor-fault feature. We try to 'claim' all processed (and unmapped) pages
@@ -501,6 +498,10 @@ class MarkCompact final : public GarbageCollector {
                          size_t arr_len) REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsValidFd(int fd) const { return fd >= 0; }
+  // Add/update <class, obj> pair if class > obj and obj is the lowest address
+  // object of class.
+  ALWAYS_INLINE void UpdateClassAfterObjectMap(mirror::Object* obj)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Buffers, one per worker thread + gc-thread, to be used when
   // kObjPtrPoisoning == true as in that case we can't have the buffer on the
@@ -569,6 +570,25 @@ class MarkCompact final : public GarbageCollector {
   };
   std::vector<LinearAllocSpaceData> linear_alloc_spaces_data_;
 
+  class LessByObjReference {
+   public:
+    bool operator()(const ObjReference& a, const ObjReference& b) const {
+      return std::less<mirror::Object*>{}(a.AsMirrorPtr(), b.AsMirrorPtr());
+    }
+  };
+  using ClassAfterObjectMap = std::map<ObjReference, ObjReference, LessByObjReference>;
+  // map of <K, V> such that the class K (in moving space) is after its
+  // objects, and its object V is the lowest object (in moving space).
+  ClassAfterObjectMap class_after_obj_map_;
+  // Since the compaction is done in reverse, we use a reverse iterator. It is maintained
+  // either at the pair whose class is lower than the first page to be freed, or at the
+  // pair whose object is not yet compacted.
+  ClassAfterObjectMap::const_reverse_iterator class_after_obj_iter_;
+  // Used by FreeFromSpacePages() for maintaining markers in the moving space for
+  // how far the pages have been reclaimed/checked.
+  size_t last_checked_reclaim_page_idx_;
+  uint8_t* last_reclaimed_page_;
+
   // The main space bitmap
   accounting::ContinuousSpaceBitmap* moving_space_bitmap_;
   accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
@@ -632,6 +652,7 @@ class MarkCompact final : public GarbageCollector {
   void* stack_low_addr_;
 
   uint8_t* conc_compaction_termination_page_;
+
   PointerSize pointer_size_;
   // Number of objects freed during this GC in moving space. It is decremented
   // every time an object is discovered. And total-object count is added to it
