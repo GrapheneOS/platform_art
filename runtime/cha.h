@@ -126,7 +126,7 @@ class ClassHierarchyAnalysis {
 
   // Remove all of the dependencies for a linear allocator. This is called when dex cache unloading
   // occurs.
-  void RemoveDependenciesForLinearAlloc(const LinearAlloc* linear_alloc)
+  void RemoveDependenciesForLinearAlloc(Thread* self, const LinearAlloc* linear_alloc)
       REQUIRES(!Locks::cha_lock_);
 
  private:
