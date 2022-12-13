@@ -1732,17 +1732,14 @@ void MarkCompact::DoPageCompactionWithStateChange(size_t page_idx,
   }
 }
 
-template <int kMode>
-void MarkCompact::FreeFromSpacePages(size_t cur_page_idx,
-                                     size_t* last_checked_page_idx,
-                                     uint8_t** last_freed_page) {
+void MarkCompact::FreeFromSpacePages(size_t cur_page_idx) {
   // Thanks to sliding compaction, bump-pointer allocations, and reverse
   // compaction (see CompactMovingSpace) the logic here is pretty simple: find
   // the to-space page up to which compaction has finished, all the from-space
   // pages corresponding to this onwards can be freed. There are some corner
   // cases to be taken care of, which are described below.
-  size_t idx = *last_checked_page_idx;
-  // Find the to-space page upto which the corresponding from-space pages can be
+  size_t idx = last_checked_reclaim_page_idx_;
+  // Find the to-space page up to which the corresponding from-space pages can be
   // freed.
   for (; idx > cur_page_idx; idx--) {
     PageState state = moving_pages_status_[idx - 1].load(std::memory_order_acquire);
@@ -1754,68 +1751,96 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx,
            (state == PageState::kUnprocessed && idx > moving_first_objs_count_));
   }
 
-  uint8_t* first;
-  // Calculate the first from-space page to be freed using idx. If the
-  // first-object of this to-space page started before the corresponding
+  uint8_t* reclaim_begin;
+  uint8_t* idx_addr;
+  // Calculate the first from-space page to be freed using 'idx'. If the
+  // first-object of the idx'th to-space page started before the corresponding
   // from-space page, which is almost always the case in the compaction portion
   // of the moving-space, then it indicates that the subsequent pages that are
-  // yet to be compacted will need the from-space. Therefore, find the page
+  // yet to be compacted will need the from-space pages. Therefore, find the page
   // (from the already compacted pages) whose first-object is different from
   // ours. All the from-space pages starting from that one are safe to be
   // removed. Please note that this iteration is not expected to be long in
   // normal cases as objects are smaller than page size.
   if (idx >= moving_first_objs_count_) {
     // black-allocated portion of the moving-space
-    first = black_allocations_begin_ + (idx - moving_first_objs_count_) * kPageSize;
+    idx_addr = black_allocations_begin_ + (idx - moving_first_objs_count_) * kPageSize;
+    reclaim_begin = idx_addr;
     mirror::Object* first_obj = first_objs_moving_space_[idx].AsMirrorPtr();
-    if (first_obj != nullptr && reinterpret_cast<uint8_t*>(first_obj) < first) {
+    if (first_obj != nullptr && reinterpret_cast<uint8_t*>(first_obj) < reclaim_begin) {
       size_t idx_len = moving_first_objs_count_ + black_page_count_;
       for (size_t i = idx + 1; i < idx_len; i++) {
         mirror::Object* obj = first_objs_moving_space_[i].AsMirrorPtr();
         // A null first-object indicates that the corresponding to-space page is
         // not used yet. So we can compute its from-space page and use that.
         if (obj != first_obj) {
-          first = obj != nullptr ?
-                      AlignUp(reinterpret_cast<uint8_t*>(obj), kPageSize) :
-                      (black_allocations_begin_ + (i - moving_first_objs_count_) * kPageSize);
+          reclaim_begin = obj != nullptr
+                          ? AlignUp(reinterpret_cast<uint8_t*>(obj), kPageSize)
+                          : (black_allocations_begin_ + (i - moving_first_objs_count_) * kPageSize);
           break;
         }
       }
     }
   } else {
     DCHECK_GE(pre_compact_offset_moving_space_[idx], 0u);
-    first = bump_pointer_space_->Begin() + pre_compact_offset_moving_space_[idx] * kAlignment;
-    DCHECK_LE(first, black_allocations_begin_);
+    idx_addr = bump_pointer_space_->Begin() + pre_compact_offset_moving_space_[idx] * kAlignment;
+    reclaim_begin = idx_addr;
+    DCHECK_LE(reclaim_begin, black_allocations_begin_);
     mirror::Object* first_obj = first_objs_moving_space_[idx].AsMirrorPtr();
-    if (reinterpret_cast<uint8_t*>(first_obj) < first) {
+    if (reinterpret_cast<uint8_t*>(first_obj) < reclaim_begin) {
       DCHECK_LT(idx, moving_first_objs_count_);
       mirror::Object* obj = first_obj;
       for (size_t i = idx + 1; i < moving_first_objs_count_; i++) {
         obj = first_objs_moving_space_[i].AsMirrorPtr();
         if (first_obj != obj) {
           DCHECK_LT(first_obj, obj);
-          DCHECK_LT(first, reinterpret_cast<uint8_t*>(obj));
-          first = reinterpret_cast<uint8_t*>(obj);
+          DCHECK_LT(reclaim_begin, reinterpret_cast<uint8_t*>(obj));
+          reclaim_begin = reinterpret_cast<uint8_t*>(obj);
           break;
         }
       }
       if (obj == first_obj) {
-        first = black_allocations_begin_;
+        reclaim_begin = black_allocations_begin_;
       }
     }
-    first = AlignUp(first, kPageSize);
+    reclaim_begin = AlignUp(reclaim_begin, kPageSize);
   }
-  DCHECK_NE(first, nullptr);
-  DCHECK_ALIGNED(first, kPageSize);
-  DCHECK_ALIGNED(*last_freed_page, kPageSize);
-  ssize_t size = *last_freed_page - first;
+
+  DCHECK_NE(reclaim_begin, nullptr);
+  DCHECK_ALIGNED(reclaim_begin, kPageSize);
+  DCHECK_ALIGNED(last_reclaimed_page_, kPageSize);
+  // Check if the 'class_after_obj_map_' map allows pages to be freed.
+  for (; class_after_obj_iter_ != class_after_obj_map_.rend(); class_after_obj_iter_++) {
+    mirror::Object* klass = class_after_obj_iter_->first.AsMirrorPtr();
+    mirror::Class* from_klass = static_cast<mirror::Class*>(GetFromSpaceAddr(klass));
+    // Check with class' end to ensure that, if required, the entire class survives.
+    uint8_t* klass_end = reinterpret_cast<uint8_t*>(klass) + from_klass->SizeOf<kVerifyNone>();
+    DCHECK_LE(klass_end, last_reclaimed_page_);
+    if (reinterpret_cast<uint8_t*>(klass_end) >= reclaim_begin) {
+      // Found a class which is in the reclaim range.
+      if (reinterpret_cast<uint8_t*>(class_after_obj_iter_->second.AsMirrorPtr()) < idx_addr) {
+        // Its lowest-address object is not compacted yet. Reclaim starting from
+        // the end of this class.
+        reclaim_begin = AlignUp(klass_end, kPageSize);
+      } else {
+        // Continue consuming pairs wherein the lowest address object has already
+        // been compacted.
+        continue;
+      }
+    }
+    // All the remaining class (and thereby corresponding object) addresses are
+    // lower than the reclaim range.
+    break;
+  }
+
+  ssize_t size = last_reclaimed_page_ - reclaim_begin;
   if (size >= kMinFromSpaceMadviseSize) {
-    int behavior = kMode == kMinorFaultMode ? MADV_REMOVE : MADV_DONTNEED;
-    CHECK_EQ(madvise(first + from_space_slide_diff_, size, behavior), 0)
+    int behavior = minor_fault_initialized_ ? MADV_REMOVE : MADV_DONTNEED;
+    CHECK_EQ(madvise(reclaim_begin + from_space_slide_diff_, size, behavior), 0)
         << "madvise of from-space failed: " << strerror(errno);
-    *last_freed_page = first;
+    last_reclaimed_page_ = reclaim_begin;
   }
-  *last_checked_page_idx = idx;
+  last_checked_reclaim_page_idx_ = idx;
 }
 
 template <int kMode>
@@ -1843,8 +1868,9 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
   DCHECK(IsAligned<kPageSize>(pre_compact_page));
 
   // These variables are maintained by FreeFromSpacePages().
-  uint8_t* last_freed_page = pre_compact_page;
-  size_t last_checked_page_idx = idx;
+  last_reclaimed_page_ = pre_compact_page;
+  last_checked_reclaim_page_idx_ = idx;
+  class_after_obj_iter_ = class_after_obj_map_.rbegin();
   // Allocated-black pages
   while (idx > moving_first_objs_count_) {
     idx--;
@@ -1869,7 +1895,7 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
       // We are sliding here, so no point attempting to madvise for every
       // page. Wait for enough pages to be done.
       if (idx % (kMinFromSpaceMadviseSize / kPageSize) == 0) {
-        FreeFromSpacePages<kMode>(idx, &last_checked_page_idx, &last_freed_page);
+        FreeFromSpacePages(idx);
       }
     }
   }
@@ -1889,7 +1915,7 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
         idx, page_status_arr_len, to_space_end, page, [&]() REQUIRES_SHARED(Locks::mutator_lock_) {
           CompactPage(first_obj, pre_compact_offset_moving_space_[idx], page, kMode == kCopyMode);
         });
-    FreeFromSpacePages<kMode>(idx, &last_checked_page_idx, &last_freed_page);
+    FreeFromSpacePages(idx);
   }
   DCHECK_EQ(to_space_end, bump_pointer_space_->Begin());
 }
@@ -2011,6 +2037,7 @@ void MarkCompact::UpdateMovingSpaceBlackAllocations() {
         if (set_mark_bit) {
           moving_space_bitmap_->Set(obj);
         }
+        UpdateClassAfterObjectMap(obj);
         size_t obj_size = RoundUp(obj->SizeOf(), kAlignment);
         // Handle objects which cross page boundary, including objects larger
         // than page size.
@@ -3468,6 +3495,7 @@ size_t MarkCompact::LiveWordsBitmap<kAlignment>::LiveBytesInBitmapWord(size_t ch
 void MarkCompact::UpdateLivenessInfo(mirror::Object* obj) {
   DCHECK(obj != nullptr);
   uintptr_t obj_begin = reinterpret_cast<uintptr_t>(obj);
+  UpdateClassAfterObjectMap(obj);
   size_t size = RoundUp(obj->SizeOf<kDefaultVerifyFlags>(), kAlignment);
   uintptr_t bit_index = live_words_bitmap_->SetLiveWords(obj_begin, size);
   size_t chunk_idx = (obj_begin - live_words_bitmap_->Begin()) / kOffsetChunkSize;
@@ -3699,6 +3727,7 @@ void MarkCompact::FinishPhase() {
   CHECK(mark_stack_->IsEmpty());  // Ensure that the mark stack is empty.
   mark_stack_->Reset();
   updated_roots_.clear();
+  class_after_obj_map_.clear();
   delete[] moving_pages_status_;
   linear_alloc_arenas_.clear();
   {

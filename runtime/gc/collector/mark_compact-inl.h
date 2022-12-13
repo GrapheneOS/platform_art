@@ -17,13 +17,25 @@
 #ifndef ART_RUNTIME_GC_COLLECTOR_MARK_COMPACT_INL_H_
 #define ART_RUNTIME_GC_COLLECTOR_MARK_COMPACT_INL_H_
 
+#include "gc/space/bump_pointer_space.h"
 #include "mark_compact.h"
-
 #include "mirror/object-inl.h"
 
 namespace art {
 namespace gc {
 namespace collector {
+
+inline void MarkCompact::UpdateClassAfterObjectMap(mirror::Object* obj) {
+  mirror::Class* klass = obj->GetClass<kVerifyNone, kWithoutReadBarrier>();
+  if (UNLIKELY(std::less<mirror::Object*>{}(obj, klass) &&
+               bump_pointer_space_->HasAddress(klass))) {
+    auto [iter, success] = class_after_obj_map_.try_emplace(ObjReference::FromMirrorPtr(klass),
+                                                            ObjReference::FromMirrorPtr(obj));
+    if (!success && std::less<mirror::Object*>{}(obj, iter->second.AsMirrorPtr())) {
+      iter->second = ObjReference::FromMirrorPtr(obj);
+    }
+  }
+}
 
 template <size_t kAlignment>
 inline uintptr_t MarkCompact::LiveWordsBitmap<kAlignment>::SetLiveWords(uintptr_t begin,
