@@ -290,7 +290,7 @@ def default_run(ctx, args, **kwargs):
   PREBUILD = args.prebuild
   RELOCATE = args.relocate
   SECONDARY_DEX = ""
-  TIME_OUT = "n"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
+  TIME_OUT = "timeout"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
   TIMEOUT_DUMPER = "signal_dumper"
   # Values in seconds.
   TIME_OUT_EXTRA = 0
@@ -1060,7 +1060,7 @@ def default_run(ctx, args, **kwargs):
       #       dumping do not lead to a deadlock, we also use the "-k" option to definitely kill the
       #       child.
       # Note: Using "--foreground" to not propagate the signal to children, i.e., the runtime.
-      timeout_prefix = f"timeout --foreground -k 120s {TIME_OUT_VALUE}s {timeout_dumper_cmd} {cmdline}"
+      timeout_prefix = f"timeout --foreground -k 120s {TIME_OUT_VALUE}s {timeout_dumper_cmd}"
 
     ctx.export(
       ASAN_OPTIONS = RUN_TEST_ASAN_OPTIONS,

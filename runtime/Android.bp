@@ -279,6 +279,7 @@ libart_cc_defaults {
         "runtime.cc",
         "runtime_callbacks.cc",
         "runtime_common.cc",
+        "runtime_image.cc",
         "runtime_intrinsics.cc",
         "runtime_options.cc",
         "scoped_thread_state_change.cc",

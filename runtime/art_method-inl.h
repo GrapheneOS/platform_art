@@ -582,9 +582,10 @@ inline ObjPtr<mirror::Class> ArtMethod::ResolveReturnType() {
   return ResolveClassFromTypeIndex(GetReturnTypeIndex());
 }
 
-template <ReadBarrierOption kReadBarrierOption>
 inline bool ArtMethod::HasSingleImplementation() {
-  if (IsFinal() || GetDeclaringClass<kReadBarrierOption>()->IsFinal()) {
+  // No read barrier needed for reading a constant reference only to read
+  // a constant final class flag. See `ReadBarrierOption`.
+  if (IsFinal() || GetDeclaringClass<kWithoutReadBarrier>()->IsFinal()) {
     // We don't set kAccSingleImplementation for these cases since intrinsic
     // can use the flag also.
     return true;
@@ -666,6 +667,32 @@ inline void ArtMethod::UpdateEntrypoints(const Visitor& visitor, PointerSize poi
   if (old_code != new_code) {
     SetEntryPointFromQuickCompiledCodePtrSize(new_code, pointer_size);
   }
+}
+
+template <ReadBarrierOption kReadBarrierOption>
+inline bool ArtMethod::StillNeedsClinitCheck() {
+  if (!NeedsClinitCheckBeforeCall()) {
+    return false;
+  }
+  ObjPtr<mirror::Class> klass = GetDeclaringClass<kReadBarrierOption>();
+  return !klass->IsVisiblyInitialized();
+}
+
+inline bool ArtMethod::StillNeedsClinitCheckMayBeDead() {
+  if (!NeedsClinitCheckBeforeCall()) {
+    return false;
+  }
+  // To avoid resurrecting an unreachable object, or crashing the GC in some GC phases,
+  // we must not use a full read barrier. Therefore we read the declaring class without
+  // a read barrier and check if it's already marked. If yes, we check the status of the
+  // to-space class object as intended. Otherwise, there is no to-space object and the
+  // from-space class object contains the most recent value of the status field; even if
+  // this races with another thread doing a read barrier and updating the status, that's
+  // no different from a race with a thread that just updates the status.
+  ObjPtr<mirror::Class> klass = GetDeclaringClass<kWithoutReadBarrier>();
+  ObjPtr<mirror::Class> marked = ReadBarrier::IsMarked(klass.Ptr());
+  ObjPtr<mirror::Class> checked_klass = (marked != nullptr) ? marked : klass;
+  return !checked_klass->IsVisiblyInitialized();
 }
 
 inline CodeItemInstructionAccessor ArtMethod::DexInstructions() {

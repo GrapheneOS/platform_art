@@ -15,6 +15,20 @@
  */
 
 #include <fcntl.h>
+// Glibc v2.19 doesn't include these in fcntl.h so host builds will fail without.
+#if !defined(FALLOC_FL_PUNCH_HOLE) || !defined(FALLOC_FL_KEEP_SIZE)
+#include <linux/falloc.h>
+#endif
+#include <linux/userfaultfd.h>
+#include <poll.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <fstream>
+#include <numeric>
 
 #include "android-base/file.h"
 #include "android-base/properties.h"
@@ -35,19 +49,6 @@
 #include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
 #include "thread_list.h"
-// Glibc v2.19 doesn't include these in fcntl.h so host builds will fail without.
-#if !defined(FALLOC_FL_PUNCH_HOLE) || !defined(FALLOC_FL_KEEP_SIZE)
-#include <linux/falloc.h>
-#endif
-#include <linux/userfaultfd.h>
-#include <poll.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <unistd.h>
-
-#include <fstream>
-#include <numeric>
 
 #ifndef __BIONIC__
 #ifndef MREMAP_DONTUNMAP
@@ -175,12 +176,12 @@ static constexpr bool kVerifyRootsMarked = kIsDebugBuild;
 static constexpr size_t kMaxNumUffdWorkers = 2;
 // Minimum from-space chunk to be madvised (during concurrent compaction) in one go.
 static constexpr ssize_t kMinFromSpaceMadviseSize = 1 * MB;
-// Concurrent compaction termination logic works if the kernel has the fault-retry feature
-// (allowing repeated faults on the same page), which was introduced in 5.7.
-// Otherwise, kernel only retries pagefaults once, therefore having 2 or less
-// workers will also suffice as the termination logic requires (n-1) pagefault
-// retries.
-static const bool gKernelHasFaultRetry = kMaxNumUffdWorkers <= 2 || IsKernelVersionAtLeast(5, 7);
+// Concurrent compaction termination logic is different (and slightly more efficient) if the
+// kernel has the fault-retry feature (allowing repeated faults on the same page), which was
+// introduced in 5.7 (https://android-review.git.corp.google.com/c/kernel/common/+/1540088).
+// This allows a single page fault to be handled, in turn, by each worker thread, only waking
+// up the GC thread at the end.
+static const bool gKernelHasFaultRetry = IsKernelVersionAtLeast(5, 7);
 
 std::pair<bool, bool> MarkCompact::GetUffdAndMinorFault() {
   bool uffd_available;
@@ -202,35 +203,28 @@ bool MarkCompact::CreateUserfaultfd(bool post_fork) {
   if (post_fork || uffd_ == kFdUnused) {
     // Don't use O_NONBLOCK as we rely on read waiting on uffd_ if there isn't
     // any read event available. We don't use poll.
-    if (gKernelHasFaultRetry) {
-      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
-      // On non-android devices we may not have the kernel patches that restrict
-      // userfaultfd to user mode. But that is not a security concern as we are
-      // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
-      if (!kIsTargetAndroid && UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
-        uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
-      }
-      if (UNLIKELY(uffd_ == -1)) {
-        uffd_ = kFallbackMode;
-        LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
-                     << ") and therefore falling back to stop-the-world compaction.";
-      } else {
-        DCHECK(IsValidFd(uffd_));
-        constexpr static uint64_t kRequestedUffdFeatures =
-            UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
-        // Initialize uffd with the features which are required and available.
-        struct uffdio_api api = {
-            .api = UFFD_API, .features = gUffdFeatures & kRequestedUffdFeatures, .ioctls = 0};
-        CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0)
-            << "ioctl_userfaultfd: API: " << strerror(errno);
-        // Missing userfaults on shmem should always be available.
-        CHECK_NE(api.features & UFFD_FEATURE_MISSING_SHMEM, 0u);
-        // TODO: Assert that minor-fault support isn't available only on 32-bit kernel.
-      }
-    } else {
-      // Without fault-retry feature in the kernel we can't terminate concurrent
-      // compaction. So fallback to stop-the-world compaction.
+    uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC | UFFD_USER_MODE_ONLY);
+    // On non-android devices we may not have the kernel patches that restrict
+    // userfaultfd to user mode. But that is not a security concern as we are
+    // on host. Therefore, attempt one more time without UFFD_USER_MODE_ONLY.
+    if (!kIsTargetAndroid && UNLIKELY(uffd_ == -1 && errno == EINVAL)) {
+      uffd_ = syscall(__NR_userfaultfd, O_CLOEXEC);
+    }
+    if (UNLIKELY(uffd_ == -1)) {
       uffd_ = kFallbackMode;
+      LOG(WARNING) << "Userfaultfd isn't supported (reason: " << strerror(errno)
+                   << ") and therefore falling back to stop-the-world compaction.";
+    } else {
+      DCHECK(IsValidFd(uffd_));
+      constexpr static uint64_t kRequestedUffdFeatures =
+          UFFD_FEATURE_MISSING_SHMEM | UFFD_FEATURE_MINOR_SHMEM;
+      // Initialize uffd with the features which are required and available.
+      struct uffdio_api api = {
+          .api = UFFD_API, .features = gUffdFeatures & kRequestedUffdFeatures, .ioctls = 0};
+      CHECK_EQ(ioctl(uffd_, UFFDIO_API, &api), 0) << "ioctl_userfaultfd: API: " << strerror(errno);
+      // Missing userfaults on shmem should always be available.
+      CHECK_NE(api.features & UFFD_FEATURE_MISSING_SHMEM, 0u);
+      // TODO: Assert that minor-fault support isn't available only on 32-bit kernel.
     }
   }
   uffd_initialized_ = !post_fork || uffd_ == kFallbackMode;
@@ -2638,9 +2632,10 @@ void MarkCompact::ConcurrentCompaction(uint8_t* buf) {
       // page missing. Also, the value will be flushed to caches due to the ioctl
       // syscall below.
       uint8_t ret = thread_pool_counter_--;
-      // Only the last thread should map the zeropage so that the gc-thread can
-      // proceed.
-      if (ret == 1) {
+      // If 'gKernelHasFaultRetry == true' then only the last thread should map the
+      // zeropage so that the gc-thread can proceed. Otherwise, each thread does
+      // it and the gc-thread will repeat this fault until thread_pool_counter == 0.
+      if (!gKernelHasFaultRetry || ret == 1) {
         zeropage_ioctl(fault_addr, /*tolerate_eexist=*/false, /*tolerate_enoent=*/false);
       } else {
         struct uffdio_range uffd_range;
@@ -2995,9 +2990,6 @@ void MarkCompact::CompactionPhase() {
     CompactMovingSpace<kCopyMode>(compaction_buffers_map_.Begin());
   }
 
-  // madvise the page so that we can get userfaults on it.
-  ZeroAndReleasePages(conc_compaction_termination_page_, kPageSize);
-
   // TODO: add more sophisticated logic here wherein we sleep after attempting
   // yield a couple of times.
   while (compaction_in_progress_count_.load(std::memory_order_relaxed) > 0) {
@@ -3012,20 +3004,54 @@ void MarkCompact::CompactionPhase() {
 
   // Release all of the memory taken by moving-space's from-map
   if (minor_fault_initialized_) {
-    int ret = madvise(from_space_begin_, moving_space_size, MADV_REMOVE);
-    CHECK_EQ(ret, 0) << "madvise(MADV_REMOVE) failed for from-space map:" << strerror(errno);
+    if (IsValidFd(moving_from_space_fd_)) {
+      // A strange behavior is observed wherein between GC cycles the from-space'
+      // first page is accessed. But the memfd that is mapped on from-space, is
+      // used on to-space in next GC cycle, causing issues with userfaultfd as the
+      // page isn't missing. A possible reason for this could be prefetches. The
+      // mprotect ensures that such accesses don't succeed.
+      int ret = mprotect(from_space_begin_, moving_space_size, PROT_NONE);
+      CHECK_EQ(ret, 0) << "mprotect(PROT_NONE) for from-space failed: " << strerror(errno);
+      // madvise(MADV_REMOVE) needs PROT_WRITE. Use fallocate() instead, which
+      // does the same thing.
+      ret = fallocate(moving_from_space_fd_,
+                      FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                      /*offset=*/0,
+                      moving_space_size);
+      CHECK_EQ(ret, 0) << "fallocate for from-space failed: " << strerror(errno);
+    } else {
+      // We don't have a valid fd, so use madvise(MADV_REMOVE) instead. mprotect
+      // is not required in this case as we create fresh
+      // MAP_SHARED+MAP_ANONYMOUS mapping in each GC cycle.
+      int ret = madvise(from_space_begin_, moving_space_size, MADV_REMOVE);
+      CHECK_EQ(ret, 0) << "madvise(MADV_REMOVE) failed for from-space map:" << strerror(errno);
+    }
   } else {
     from_space_map_.MadviseDontNeedAndZero();
+  }
+  // mprotect(PROT_NONE) all maps except to-space in debug-mode to catch any unexpected accesses.
+  if (shadow_to_space_map_.IsValid()) {
+    DCHECK_EQ(mprotect(shadow_to_space_map_.Begin(), shadow_to_space_map_.Size(), PROT_NONE), 0)
+        << "mprotect(PROT_NONE) for shadow-map failed:" << strerror(errno);
+  }
+  if (!IsValidFd(moving_from_space_fd_)) {
+    // The other case is already mprotected above.
+    DCHECK_EQ(mprotect(from_space_begin_, moving_space_size, PROT_NONE), 0)
+        << "mprotect(PROT_NONE) for from-space failed: " << strerror(errno);
   }
 
   ProcessLinearAlloc();
 
-  // The following load triggers 'special' userfaults. When received by the
-  // thread-pool workers, they will exit out of the compaction task. This fault
-  // happens because we madvise info_map_ above and it is at least kPageSize in length.
   DCHECK(IsAligned<kPageSize>(conc_compaction_termination_page_));
-  CHECK_EQ(*reinterpret_cast<volatile uint8_t*>(conc_compaction_termination_page_), 0);
-  DCHECK_EQ(thread_pool_counter_, 0);
+  // We will only iterate once if gKernelHasFaultRetry is true.
+  do {
+    // madvise the page so that we can get userfaults on it.
+    ZeroAndReleasePages(conc_compaction_termination_page_, kPageSize);
+    // The following load triggers 'special' userfaults. When received by the
+    // thread-pool workers, they will exit out of the compaction task. This fault
+    // happens because we madvised the page.
+    ForceRead(conc_compaction_termination_page_);
+  } while (thread_pool_counter_ > 0);
 
   // Unregister linear-alloc spaces
   for (auto& data : linear_alloc_spaces_data_) {
@@ -3682,6 +3708,12 @@ void MarkCompact::FinishPhase() {
     heap_->ClearMarkedObjects();
   }
   std::swap(moving_to_space_fd_, moving_from_space_fd_);
+  if (IsValidFd(moving_to_space_fd_)) {
+    // Confirm that the memfd to be used on to-space in next GC cycle is empty.
+    struct stat buf;
+    DCHECK_EQ(fstat(moving_to_space_fd_, &buf), 0) << "fstat failed: " << strerror(errno);
+    DCHECK_EQ(buf.st_blocks, 0u);
+  }
 }
 
 }  // namespace collector

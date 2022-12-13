@@ -1883,7 +1883,6 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
                              HInvoke* invoke,
                              size_t* out_number_of_instructions,
                              bool is_speculative) const {
-  const HBasicBlock* target_block = invoke->GetBlock();
   ArtMethod* const resolved_method = callee_graph->GetArtMethod();
 
   HBasicBlock* exit_block = callee_graph->GetExitBlock();
@@ -1905,14 +1904,7 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
     }
 
     if (last_instruction->IsThrow()) {
-      if (target_block->IsTryBlock()) {
-        // TODO(ngeoffray): Support adding HTryBoundary in Hgraph::InlineInto.
-        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedTryCatchCaller)
-            << "Method " << resolved_method->PrettyMethod()
-            << " could not be inlined because one branch always throws and"
-            << " caller is in a try/catch block";
-        return false;
-      } else if (graph_->GetExitBlock() == nullptr) {
+      if (graph_->GetExitBlock() == nullptr) {
         // TODO(ngeoffray): Support adding HExit in the caller graph.
         LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedInfiniteLoop)
             << "Method " << resolved_method->PrettyMethod()
