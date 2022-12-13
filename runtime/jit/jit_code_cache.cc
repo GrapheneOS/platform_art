@@ -1288,6 +1288,7 @@ void JitCodeCache::ResetHotnessCounter(ArtMethod* method, Thread* self) {
 void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
   ScopedTrace trace(__FUNCTION__);
   {
+    ScopedDebugDisallowReadBarriers sddrb(self);
     MutexLock mu(self, *Locks::jit_lock_);
 
     // Update to interpreter the methods that have baseline entrypoints and whose baseline

@@ -737,6 +737,10 @@ class ArtMethod final {
   // Note: JIT can hold and use such methods during managed heap GC.
   bool StillNeedsClinitCheckMayBeDead() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Check if the declaring class has been verified and look at the to-space
+  // class object, if any, as in `StillNeedsClinitCheckMayBeDead()`.
+  bool IsDeclaringClassVerifiedMayBeDead() REQUIRES_SHARED(Locks::mutator_lock_);
+
   const void* GetEntryPointFromQuickCompiledCode() const {
     return GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
   }
@@ -1170,6 +1174,10 @@ class ArtMethod final {
     DCHECK_IMPLIES(IsIntrinsic(), !OverlapsIntrinsicBits(flag) || IsValidIntrinsicUpdate(flag));
     access_flags_.fetch_and(~flag, std::memory_order_relaxed);
   }
+
+  // Helper method for checking the class status of a possibly dead declaring class.
+  // See `StillNeedsClinitCheckMayBeDead()` and `IsDeclaringClassVerifierMayBeDead()`.
+  ObjPtr<mirror::Class> GetDeclaringClassMayBeDead() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Used by GetName and GetNameView to share common code.
   const char* GetRuntimeMethodName() REQUIRES_SHARED(Locks::mutator_lock_);
