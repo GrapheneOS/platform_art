@@ -2387,6 +2387,11 @@ void MarkCompact::PreCompactionPhase() {
   }
 
   bool has_zygote_space = heap_->HasZygoteSpace();
+  // TODO: Find out why it's not sufficient to visit native roots of immune
+  // spaces, and why all the pre-zygote fork arenas have to be linearly updated.
+  // Is it possible that some native root starts getting pointed to by some object
+  // in moving space after fork? Or are we missing a write-barrier somewhere
+  // when a native root is updated?
   GcVisitedArenaPool* arena_pool =
       static_cast<GcVisitedArenaPool*>(runtime->GetLinearAllocArenaPool());
   if (uffd_ == kFallbackMode || (!has_zygote_space && runtime->IsZygote())) {
@@ -2409,6 +2414,9 @@ void MarkCompact::PreCompactionPhase() {
           if (!arena.IsPreZygoteForkArena()) {
             uint8_t* last_byte = arena.GetLastUsedByte();
             CHECK(linear_alloc_arenas_.insert({&arena, last_byte}).second);
+          } else {
+            LinearAllocPageUpdater updater(this);
+            arena.VisitRoots(updater);
           }
         });
   }
@@ -2440,7 +2448,7 @@ void MarkCompact::PreCompactionPhase() {
       // place and that the classes/dex-caches in immune-spaces may have allocations
       // (ArtMethod/ArtField arrays, dex-cache array, etc.) in the
       // non-userfaultfd visited private-anonymous mappings. Visit them here.
-      ImmuneSpaceUpdateObjVisitor visitor(this, /*visit_native_roots=*/has_zygote_space);
+      ImmuneSpaceUpdateObjVisitor visitor(this, /*visit_native_roots=*/false);
       if (table != nullptr) {
         table->ProcessCards();
         table->VisitObjects(ImmuneSpaceUpdateObjVisitor::Callback, &visitor);
