@@ -1157,7 +1157,7 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m, std::string* error_msg, b
   CHECK(m->IsNative());
   ObjPtr<mirror::Class> c = m->GetDeclaringClass();
   // If this is a static method, it could be called before the class has been initialized.
-  CHECK(c->IsInitializing() || !NeedsClinitCheckBeforeCall(m))
+  CHECK(c->IsInitializing() || !m->NeedsClinitCheckBeforeCall())
       << c->GetStatus() << " " << m->PrettyMethod();
   Thread* const self = Thread::Current();
   void* native_method = libraries_->FindNativeMethod(self, m, error_msg, can_suspend);

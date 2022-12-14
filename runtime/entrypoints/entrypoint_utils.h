@@ -204,10 +204,6 @@ CallerAndOuterMethod GetCalleeSaveMethodCallerAndOuterMethod(Thread* self, Calle
 ArtMethod* GetCalleeSaveOuterMethod(Thread* self, CalleeSaveType type)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
-// Returns whether we need to do class initialization check before invoking the method.
-// The caller is responsible for performing that check.
-bool NeedsClinitCheckBeforeCall(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
-
 // Returns the synchronization object for a native method for a GenericJni frame
 // we have just created or are about to exit. The synchronization object is
 // the class object for static methods and the `this` object otherwise.
