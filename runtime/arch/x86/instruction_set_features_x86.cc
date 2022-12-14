@@ -44,6 +44,9 @@ static constexpr const char* x86_known_variants[] = {
     "atom",
     "sandybridge",
     "silvermont",
+    "goldmont",
+    "goldmont-plus",
+    "tremont",
     "kabylake",
     "default",
 };
@@ -52,24 +55,36 @@ static constexpr const char* x86_variants_with_ssse3[] = {
     "atom",
     "sandybridge",
     "silvermont",
+    "goldmont",
+    "goldmont-plus",
+    "tremont",
     "kabylake",
 };
 
 static constexpr const char* x86_variants_with_sse4_1[] = {
     "sandybridge",
     "silvermont",
+    "goldmont",
+    "goldmont-plus",
+    "tremont",
     "kabylake",
 };
 
 static constexpr const char* x86_variants_with_sse4_2[] = {
     "sandybridge",
     "silvermont",
+    "goldmont",
+    "goldmont-plus",
+    "tremont",
     "kabylake",
 };
 
 static constexpr const char* x86_variants_with_popcnt[] = {
     "sandybridge",
     "silvermont",
+    "goldmont",
+    "goldmont-plus",
+    "tremont",
     "kabylake",
 };
 static constexpr const char* x86_variants_with_avx[] = {
