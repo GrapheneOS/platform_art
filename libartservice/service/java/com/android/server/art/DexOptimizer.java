@@ -32,6 +32,7 @@ import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
 import android.os.UserManager;
+import android.os.storage.StorageManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
@@ -49,6 +50,7 @@ import dalvik.system.DexFile;
 
 import com.google.auto.value.AutoValue;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -151,6 +153,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                     long cpuTimeMs = 0;
                     long sizeBytes = 0;
                     long sizeBeforeBytes = 0;
+                    boolean isSkippedDueToStorageLow = false;
                     try {
                         var target = DexoptTarget.<DexInfoType>builder()
                                                       .setDexInfo(dexInfo)
@@ -170,6 +173,23 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
 
                         if (!getDexoptNeededResult.isDexoptNeeded) {
                             continue;
+                        }
+
+                        try {
+                            // `StorageManager.getAllocatableBytes` returns (free space + space used
+                            // by clearable cache - low storage threshold). Since we only compare
+                            // the result with 0, the clearable cache doesn't make a difference.
+                            // When the free space is below the threshold, there should be no
+                            // clearable cache left because system cleans up cache every minute.
+                            if ((mParams.getFlags() & ArtFlags.FLAG_SKIP_IF_STORAGE_LOW) != 0
+                                    && mInjector.getStorageManager().getAllocatableBytes(
+                                               mPkg.getStorageUuid())
+                                            <= 0) {
+                                isSkippedDueToStorageLow = true;
+                                continue;
+                            }
+                        } catch (IOException e) {
+                            Log.e(TAG, "Failed to check storage. Assuming storage not low", e);
                         }
 
                         IArtdCancellationSignal artdCancellationSignal =
@@ -208,7 +228,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                     } finally {
                         results.add(new DexContainerFileOptimizeResult(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
-                                cpuTimeMs, sizeBytes, sizeBeforeBytes));
+                                cpuTimeMs, sizeBytes, sizeBeforeBytes, isSkippedDueToStorageLow));
                         if (status != OptimizeResult.OPTIMIZE_SKIPPED
                                 && status != OptimizeResult.OPTIMIZE_PERFORMED) {
                             succeeded = false;
@@ -652,6 +672,11 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
         @NonNull
         public IArtd getArtd() {
             return Utils.getArtd();
+        }
+
+        @NonNull
+        public StorageManager getStorageManager() {
+            return Objects.requireNonNull(mContext.getSystemService(StorageManager.class));
         }
     }
 }

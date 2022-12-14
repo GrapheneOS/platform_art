@@ -159,12 +159,13 @@ public class OptimizeResult {
         private final long mDex2oatCpuTimeMillis;
         private final long mSizeBytes;
         private final long mSizeBeforeBytes;
+        private final boolean mIsSkippedDueToStorageLow;
 
         /** @hide */
         public DexContainerFileOptimizeResult(@NonNull String dexContainerFile,
                 boolean isPrimaryAbi, @NonNull String abi, @NonNull String compilerFilter,
                 @OptimizeStatus int status, long dex2oatWallTimeMillis, long dex2oatCpuTimeMillis,
-                long sizeBytes, long sizeBeforeBytes) {
+                long sizeBytes, long sizeBeforeBytes, boolean isSkippedDueToStorageLow) {
             mDexContainerFile = dexContainerFile;
             mIsPrimaryAbi = isPrimaryAbi;
             mAbi = abi;
@@ -174,6 +175,7 @@ public class OptimizeResult {
             mDex2oatCpuTimeMillis = dex2oatCpuTimeMillis;
             mSizeBytes = sizeBytes;
             mSizeBeforeBytes = sizeBeforeBytes;
+            mIsSkippedDueToStorageLow = isSkippedDueToStorageLow;
         }
 
         /** The absolute path to the dex container file. */
@@ -243,6 +245,11 @@ public class OptimizeResult {
          */
         public long getSizeBeforeBytes() {
             return mSizeBeforeBytes;
+        }
+
+        /** @hide */
+        public boolean isSkippedDueToStorageLow() {
+            return mIsSkippedDueToStorageLow;
         }
     }
 }

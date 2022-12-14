@@ -315,7 +315,7 @@ static bool CanUseAotCode(const void* quick_code)
 static bool CanUseNterp(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
   return interpreter::CanRuntimeUseNterp() &&
       CanMethodUseNterp(method) &&
-      method->GetDeclaringClass()->IsVerified();
+      method->IsDeclaringClassVerifiedMayBeDead();
 }
 
 static const void* GetOptimizedCodeFor(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -378,7 +378,8 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
   }
 
   // Special case if we need an initialization check.
-  if (method->StillNeedsClinitCheck()) {
+  // The method and its declaring class may be dead when starting JIT GC during managed heap GC.
+  if (method->StillNeedsClinitCheckMayBeDead()) {
     // If we have code but the method needs a class initialization check before calling
     // that code, install the resolution stub that will perform the check.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
