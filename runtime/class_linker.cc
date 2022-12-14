@@ -2490,7 +2490,7 @@ void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data, b
     }
   } else if (cha_ != nullptr) {
     // If we don't have a JIT, we need to manually remove the CHA dependencies manually.
-    cha_->RemoveDependenciesForLinearAlloc(data.allocator);
+    cha_->RemoveDependenciesForLinearAlloc(self, data.allocator);
   }
   // Cleanup references to single implementation ArtMethods that will be deleted.
   if (cleanup_cha) {
@@ -10313,21 +10313,20 @@ void ClassLinker::InsertDexFileInToClassLoader(ObjPtr<mirror::Object> dex_file,
 
 void ClassLinker::CleanupClassLoaders() {
   Thread* const self = Thread::Current();
-  std::vector<ClassLoaderData> to_delete;
+  std::list<ClassLoaderData> to_delete;
   // Do the delete outside the lock to avoid lock violation in jit code cache.
   {
     WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
     for (auto it = class_loaders_.begin(); it != class_loaders_.end(); ) {
-      const ClassLoaderData& data = *it;
+      auto this_it = it;
+      ++it;
+      const ClassLoaderData& data = *this_it;
       // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
       ObjPtr<mirror::ClassLoader> class_loader =
           ObjPtr<mirror::ClassLoader>::DownCast(self->DecodeJObject(data.weak_root));
-      if (class_loader != nullptr) {
-        ++it;
-      } else {
+      if (class_loader == nullptr) {
         VLOG(class_linker) << "Freeing class loader";
-        to_delete.push_back(data);
-        it = class_loaders_.erase(it);
+        to_delete.splice(to_delete.end(), class_loaders_, this_it);
       }
     }
   }
@@ -10348,6 +10347,7 @@ void ClassLinker::CleanupClassLoaders() {
       }
     }
   }
+  ScopedDebugDisallowReadBarriers sddrb(self);
   for (ClassLoaderData& data : to_delete) {
     // CHA unloading analysis and SingleImplementaion cleanups are required.
     DeleteClassLoader(self, data, /*cleanup_cha=*/ true);
