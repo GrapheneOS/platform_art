@@ -593,6 +593,33 @@ public class PrimaryDexOptimizerTest extends PrimaryDexOptimizerTestBase {
                         anyInt(), any(), any());
     }
 
+    @Test
+    public void testDexoptStorageLow() throws Exception {
+        when(mStorageManager.getAllocatableBytes(any())).thenReturn(1l, 0l, 0l, 1l);
+
+        mOptimizeParams =
+                new OptimizeParams.Builder("install")
+                        .setCompilerFilter("speed-profile")
+                        .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_SKIP_IF_STORAGE_LOW)
+                        .build();
+        mPrimaryDexOptimizer = new PrimaryDexOptimizer(
+                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+
+        List<DexContainerFileOptimizeResult> results = mPrimaryDexOptimizer.dexopt();
+        assertThat(results.get(0).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_PERFORMED);
+        assertThat(results.get(0).isSkippedDueToStorageLow()).isFalse();
+        assertThat(results.get(1).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
+        assertThat(results.get(1).isSkippedDueToStorageLow()).isTrue();
+        assertThat(results.get(2).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_SKIPPED);
+        assertThat(results.get(2).isSkippedDueToStorageLow()).isTrue();
+        assertThat(results.get(3).getStatus()).isEqualTo(OptimizeResult.OPTIMIZE_PERFORMED);
+        assertThat(results.get(3).isSkippedDueToStorageLow()).isFalse();
+
+        verify(mArtd, times(2))
+                .dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), any(),
+                        any());
+    }
+
     private void checkDexoptWithProfile(IArtd artd, String dexPath, String isa, ProfilePath profile,
             boolean isOtherReadable, boolean generateAppImage) throws Exception {
         artd.dexopt(argThat(artifacts

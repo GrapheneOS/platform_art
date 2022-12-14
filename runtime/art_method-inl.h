@@ -682,6 +682,18 @@ inline bool ArtMethod::StillNeedsClinitCheckMayBeDead() {
   if (!NeedsClinitCheckBeforeCall()) {
     return false;
   }
+  ObjPtr<mirror::Class> klass = GetDeclaringClassMayBeDead();
+  return !klass->IsVisiblyInitialized();
+}
+
+inline bool ArtMethod::IsDeclaringClassVerifiedMayBeDead() {
+  ObjPtr<mirror::Class> klass = GetDeclaringClassMayBeDead();
+  return klass->IsVerified();
+}
+
+inline ObjPtr<mirror::Class> ArtMethod::GetDeclaringClassMayBeDead() {
+  // Helper method for checking the status of the declaring class which may be dead.
+  //
   // To avoid resurrecting an unreachable object, or crashing the GC in some GC phases,
   // we must not use a full read barrier. Therefore we read the declaring class without
   // a read barrier and check if it's already marked. If yes, we check the status of the
@@ -691,8 +703,7 @@ inline bool ArtMethod::StillNeedsClinitCheckMayBeDead() {
   // no different from a race with a thread that just updates the status.
   ObjPtr<mirror::Class> klass = GetDeclaringClass<kWithoutReadBarrier>();
   ObjPtr<mirror::Class> marked = ReadBarrier::IsMarked(klass.Ptr());
-  ObjPtr<mirror::Class> checked_klass = (marked != nullptr) ? marked : klass;
-  return !checked_klass->IsVisiblyInitialized();
+  return (marked != nullptr) ? marked : klass;
 }
 
 inline CodeItemInstructionAccessor ArtMethod::DexInstructions() {

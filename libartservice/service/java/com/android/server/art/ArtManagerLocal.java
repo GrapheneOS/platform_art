@@ -398,8 +398,6 @@ public final class ArtManagerLocal {
      *   <li>The device is charging. (see {@link JobInfo.Builder#setRequiresCharging(boolean)})
      *   <li>The battery level is not low.
      *     (see {@link JobInfo.Builder#setRequiresBatteryNotLow(boolean)})
-     *   <li>The free storage space is not low.
-     *     (see {@link JobInfo.Builder#setRequiresStorageNotLow(boolean)})
      * </ul>
      *
      * When the job is running, it may be cancelled by the job scheduler immediately whenever one of
@@ -728,6 +726,14 @@ public final class ArtManagerLocal {
          * The default configuration described in {@link
          * ArtManagerLocal#scheduleBackgroundDexoptJob()} is passed to the callback as the {@code
          * builder} argument.
+         *
+         * Setting {@link JobInfo.Builder#setRequiresStorageNotLow(boolean)} is not allowed. Doing
+         * so will result in {@link IllegalStateException} when {@link
+         * #scheduleBackgroundDexoptJob()} is called. ART Service has its own storage check, which
+         * skips package optimization when the storage is low. The storage check is enabled by
+         * default for background dexopt jobs. {@link
+         * #setOptimizePackagesCallback(Executor, OptimizePackagesCallback)} can be used to disable
+         * the storage check by clearing the {@link ArtFlags#FLAG_SKIP_IF_STORAGE_LOW} flag.
          */
         void onOverrideJobInfo(@NonNull JobInfo.Builder builder);
     }

@@ -63,6 +63,12 @@ public class ArtFlags {
      * #FLAG_FOR_SECONDARY_DEX} and {@link #FLAG_SHOULD_INCLUDE_DEPENDENCIES} must not be set.
      */
     public static final int FLAG_FOR_SINGLE_SPLIT = 1 << 5;
+    /**
+     * If set, skips the optimization if the remaining storage space is low. The threshold is
+     * controlled by the global settings {@code sys_storage_threshold_percentage} and {@code
+     * sys_storage_threshold_max_bytes}.
+     */
+    public static final int FLAG_SKIP_IF_STORAGE_LOW = 1 << 6;
 
     /**
      * Flags for
@@ -130,6 +136,7 @@ public class ArtFlags {
         FLAG_SHOULD_DOWNGRADE,
         FLAG_FORCE,
         FLAG_FOR_SINGLE_SPLIT,
+        FLAG_SKIP_IF_STORAGE_LOW,
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
@@ -157,6 +164,8 @@ public class ArtFlags {
             case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
                 return FLAG_FOR_PRIMARY_DEX | FLAG_SHOULD_INCLUDE_DEPENDENCIES;
             case ReasonMapping.REASON_BG_DEXOPT:
+                return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX
+                        | FLAG_SHOULD_INCLUDE_DEPENDENCIES | FLAG_SKIP_IF_STORAGE_LOW;
             case ReasonMapping.REASON_CMDLINE:
             default:
                 return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX

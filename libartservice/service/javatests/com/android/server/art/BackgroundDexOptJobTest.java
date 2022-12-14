@@ -207,7 +207,7 @@ public class BackgroundDexOptJobTest {
         assertThat(jobInfo.isRequireDeviceIdle()).isTrue();
         assertThat(jobInfo.isRequireCharging()).isTrue();
         assertThat(jobInfo.isRequireBatteryNotLow()).isTrue();
-        assertThat(jobInfo.isRequireStorageNotLow()).isTrue();
+        assertThat(jobInfo.isRequireStorageNotLow()).isFalse();
     }
 
     @Test
@@ -238,7 +238,6 @@ public class BackgroundDexOptJobTest {
         assertThat(jobInfo.isRequireDeviceIdle()).isTrue();
         assertThat(jobInfo.isRequireCharging()).isTrue();
         assertThat(jobInfo.isRequireBatteryNotLow()).isFalse();
-        assertThat(jobInfo.isRequireStorageNotLow()).isTrue();
         assertThat(jobInfo.getPriority()).isEqualTo(JobInfo.PRIORITY_LOW);
     }
 
@@ -255,6 +254,14 @@ public class BackgroundDexOptJobTest {
 
         JobInfo jobInfo = captor.getValue();
         assertThat(jobInfo.isRequireBatteryNotLow()).isTrue();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testScheduleOverrideStorageNotLow() {
+        mConfig.setScheduleBackgroundDexoptJobCallback(
+                Runnable::run, builder -> { builder.setRequiresStorageNotLow(true); });
+
+        mBackgroundDexOptJob.schedule();
     }
 
     @Test

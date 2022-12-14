@@ -646,13 +646,15 @@ public class DexOptHelperTest {
         return List.of(new DexContainerFileOptimizeResult(dexPath, true /* isPrimaryAbi */,
                                "arm64-v8a", "verify", OptimizeResult.OPTIMIZE_PERFORMED,
                                100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
-                               0 /* sizeBytes */, 0 /* sizeBeforeBytes */),
+                               0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                               false /* isSkippedDueToStorageLow */),
                 new DexContainerFileOptimizeResult(dexPath, false /* isPrimaryAbi */, "armeabi-v7a",
                         "verify",
                         partialFailure ? OptimizeResult.OPTIMIZE_FAILED
                                        : OptimizeResult.OPTIMIZE_PERFORMED,
                         100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
-                        0 /* sizeBytes */, 0 /* sizeBeforeBytes */));
+                        0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                        false /* isSkippedDueToStorageLow */));
     }
 
     private void checkPackageResult(OptimizeResult result, int index, String packageName,
