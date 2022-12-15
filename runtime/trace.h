@@ -320,7 +320,7 @@ class Trace final : public instrumentation::InstrumentationListener {
   // current_index to point to the next entry.
   void WriteToBuf(uint8_t* header,
                   size_t header_size,
-                  std::string data,
+                  const std::string& data,
                   size_t* current_index,
                   uint8_t* buffer,
                   size_t buffer_size);
