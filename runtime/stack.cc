@@ -778,15 +778,6 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   //     (resolution, instrumentation) trampoline; or
   //   - fake a Generic JNI frame in art_jni_dlsym_lookup_critical_stub.
   DCHECK(method->IsNative());
-  if (kIsDebugBuild && !method->IsCriticalNative()) {
-    ClassLinker* class_linker = runtime->GetClassLinker();
-    const void* entry_point = runtime->GetInstrumentation()->GetCodeForInvoke(method);
-    CHECK(class_linker->IsQuickGenericJniStub(entry_point) ||
-          // The current entrypoint (after filtering out trampolines) may have changed
-          // from GenericJNI to JIT-compiled stub since we have entered this frame.
-          (runtime->GetJit() != nullptr &&
-           runtime->GetJit()->GetCodeCache()->ContainsPc(entry_point))) << method->PrettyMethod();
-  }
   // Generic JNI frame is just like the SaveRefsAndArgs frame.
   // Note that HandleScope, if any, is below the frame.
   return RuntimeCalleeSaveFrame::GetMethodFrameInfo(CalleeSaveType::kSaveRefsAndArgs);
