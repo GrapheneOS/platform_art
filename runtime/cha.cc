@@ -692,8 +692,9 @@ void ClassHierarchyAnalysis::InvalidateSingleImplementationMethods(
   }
 }
 
-void ClassHierarchyAnalysis::RemoveDependenciesForLinearAlloc(const LinearAlloc* linear_alloc) {
-  MutexLock mu(Thread::Current(), *Locks::cha_lock_);
+void ClassHierarchyAnalysis::RemoveDependenciesForLinearAlloc(Thread* self,
+                                                              const LinearAlloc* linear_alloc) {
+  MutexLock mu(self, *Locks::cha_lock_);
   for (auto it = cha_dependency_map_.begin(); it != cha_dependency_map_.end(); ) {
     // Use unsafe to avoid locking since the allocator is going to be deleted.
     if (linear_alloc->ContainsUnsafe(it->first)) {
