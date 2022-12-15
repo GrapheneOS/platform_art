@@ -45,76 +45,59 @@ static uint32_t GetInstructionSize(uint8_t* pc) {
   return instr_size;
 }
 
-void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED,
-                                             void* context,
-                                             ArtMethod** out_method,
-                                             uintptr_t* out_return_pc,
-                                             uintptr_t* out_sp,
-                                             bool* out_is_stack_overflow) {
+uintptr_t FaultManager::GetFaultPc(siginfo_t* siginfo ATTRIBUTE_UNUSED, void* context) {
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  *out_sp = static_cast<uintptr_t>(sc->arm_sp);
-  VLOG(signals) << "sp: " << std::hex << *out_sp;
-  if (*out_sp == 0) {
-    return;
+  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  if (sc->arm_sp == 0) {
+    VLOG(signals) << "Missing SP";
+    return 0u;
   }
+  return sc->arm_pc;
+}
 
-  // In the case of a stack overflow, the stack is not valid and we can't
-  // get the method from the top of the stack.  However it's in r0.
-  uintptr_t* fault_addr = reinterpret_cast<uintptr_t*>(sc->fault_address);
-  uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
-      reinterpret_cast<uint8_t*>(*out_sp) - GetStackOverflowReservedBytes(InstructionSet::kArm));
-  if (overflow_addr == fault_addr) {
-    *out_method = reinterpret_cast<ArtMethod*>(sc->arm_r0);
-    *out_is_stack_overflow = true;
-  } else {
-    // The method is at the top of the stack.
-    *out_method = reinterpret_cast<ArtMethod*>(reinterpret_cast<uintptr_t*>(*out_sp)[0]);
-    *out_is_stack_overflow = false;
-  }
-
-  // Work out the return PC.  This will be the address of the instruction
-  // following the faulting ldr/str instruction.  This is in thumb mode so
-  // the instruction might be a 16 or 32 bit one.  Also, the GC map always
-  // has the bottom bit of the PC set so we also need to set that.
-
-  // Need to work out the size of the instruction that caused the exception.
-  uint8_t* ptr = reinterpret_cast<uint8_t*>(sc->arm_pc);
-  VLOG(signals) << "pc: " << std::hex << static_cast<void*>(ptr);
-
-  if (ptr == nullptr) {
-    // Somebody jumped to 0x0. Definitely not ours, and will definitely segfault below.
-    *out_method = nullptr;
-    return;
-  }
-
-  uint32_t instr_size = GetInstructionSize(ptr);
-
-  *out_return_pc = (sc->arm_pc + instr_size) | 1;
+uintptr_t FaultManager::GetFaultSp(void* context) {
+  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  return sc->arm_sp;
 }
 
 bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
-  if (!IsValidImplicitCheck(info)) {
+  uintptr_t fault_address = reinterpret_cast<uintptr_t>(info->si_addr);
+  if (!IsValidFaultAddress(fault_address)) {
     return false;
   }
-  // The code that looks for the catch location needs to know the value of the
-  // ARM PC at the point of call.  For Null checks we insert a GC map that is immediately after
-  // the load/store instruction that might cause the fault.  However the mapping table has
-  // the low bits set for thumb mode so we need to set the bottom bit for the LR
-  // register in order to find the mapping.
+
+  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext* sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  ArtMethod** sp = reinterpret_cast<ArtMethod**>(sc->arm_sp);
+  if (!IsValidMethod(*sp)) {
+    return false;
+  }
+
+  // For null checks in compiled code we insert a stack map that is immediately
+  // after the load/store instruction that might cause the fault and we need to
+  // pass the return PC to the handler. For null checks in Nterp, we similarly
+  // need the return PC to recognize that this was a null check in Nterp, so
+  // that the handler can get the needed data from the Nterp frame.
+
+  // Note: Currently, Nterp is compiled to the A32 instruction set and managed
+  // code is compiled to the T32 instruction set.
+  // To find the stack map for compiled code, we need to set the bottom bit in
+  // the return PC indicating T32 just like we would if we were going to return
+  // to that PC (though we're going to jump to the exception handler instead).
 
   // Need to work out the size of the instruction that caused the exception.
-  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
-  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   uint8_t* ptr = reinterpret_cast<uint8_t*>(sc->arm_pc);
   bool in_thumb_mode = sc->arm_cpsr & (1 << 5);
   uint32_t instr_size = in_thumb_mode ? GetInstructionSize(ptr) : 4;
-  uintptr_t gc_map_location = (sc->arm_pc + instr_size) | (in_thumb_mode ? 1 : 0);
+  uintptr_t return_pc = (sc->arm_pc + instr_size) | (in_thumb_mode ? 1 : 0);
 
-  // Push the gc map location to the stack and pass the fault address in LR.
+  // Push the return PC to the stack and pass the fault address in LR.
   sc->arm_sp -= sizeof(uintptr_t);
-  *reinterpret_cast<uintptr_t*>(sc->arm_sp) = gc_map_location;
-  sc->arm_lr = reinterpret_cast<uintptr_t>(info->si_addr);
+  *reinterpret_cast<uintptr_t*>(sc->arm_sp) = return_pc;
+  sc->arm_lr = fault_address;
+
+  // Arrange for the signal handler to return to the NPE entrypoint.
   sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
   // Make sure the thumb bit is set as the handler is in thumb mode.
   sc->arm_cpsr = sc->arm_cpsr | (1 << 5);
