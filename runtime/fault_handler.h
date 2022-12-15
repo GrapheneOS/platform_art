@@ -21,9 +21,11 @@
 #include <signal.h>
 #include <stdint.h>
 
+#include <atomic>
 #include <vector>
 
 #include "base/locks.h"  // For annotalysis.
+#include "base/mutex.h"
 #include "runtime_globals.h"  // For CanDoImplicitNullCheckOn.
 
 namespace art {
@@ -51,24 +53,33 @@ class FaultManager {
   void AddHandler(FaultHandler* handler, bool generated_code);
   void RemoveHandler(FaultHandler* handler);
 
-  // Note that the following two functions are called in the context of a signal handler.
-  // The IsInGeneratedCode() function checks that the mutator lock is held before it
-  // calls GetMethodAndReturnPCAndSP().
-  // TODO: think about adding lock assertions and fake lock and unlock functions.
-  void GetMethodAndReturnPcAndSp(siginfo_t* siginfo,
-                                 void* context,
-                                 ArtMethod** out_method,
-                                 uintptr_t* out_return_pc,
-                                 uintptr_t* out_sp,
-                                 bool* out_is_stack_overflow)
-                                 NO_THREAD_SAFETY_ANALYSIS;
-  bool IsInGeneratedCode(siginfo_t* siginfo, void *context, bool check_dex_pc)
-                         NO_THREAD_SAFETY_ANALYSIS;
+  void AddGeneratedCodeRange(const void* start, size_t size);
+  void RemoveGeneratedCodeRange(const void* start, size_t size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Retrieves fault PC from architecture-dependent `context`, returns 0 on failure.
+  // Called in the context of a signal handler.
+  static uintptr_t GetFaultPc(siginfo_t* siginfo, void* context);
+
+  // Retrieves SP from architecture-dependent `context`.
+  // Called in the context of a signal handler.
+  static uintptr_t GetFaultSp(void* context);
+
+  // Checks if the fault happened while running generated code.
+  // Called in the context of a signal handler.
+  bool IsInGeneratedCode(siginfo_t* siginfo, void *context) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
+  struct GeneratedCodeRange;
+
   // The HandleFaultByOtherHandlers function is only called by HandleFault function for generated code.
   bool HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* context)
                                   NO_THREAD_SAFETY_ANALYSIS;
+
+  // Note: The lock guards modifications of the ranges but the function `IsInGeneratedCode()`
+  // walks the list in the context of a signal handler without holding the lock.
+  Mutex generated_code_ranges_lock_;
+  std::atomic<GeneratedCodeRange*> generated_code_ranges_ GUARDED_BY(generated_code_ranges_lock_);
 
   std::vector<FaultHandler*> generated_code_handlers_;
   std::vector<FaultHandler*> other_handlers_;
@@ -98,17 +109,29 @@ class NullPointerHandler final : public FaultHandler {
  public:
   explicit NullPointerHandler(FaultManager* manager);
 
-  bool Action(int sig, siginfo_t* siginfo, void* context) override;
-
-  static bool IsValidImplicitCheck(siginfo_t* siginfo) {
-    // Our implicit NPE checks always limit the range to a page.
-    // Note that the runtime will do more exhaustive checks (that we cannot
-    // reasonably do in signal processing code) based on the dex instruction
-    // faulting.
-    return CanDoImplicitNullCheckOn(reinterpret_cast<uintptr_t>(siginfo->si_addr));
-  }
+  // NO_THREAD_SAFETY_ANALYSIS: Called after the fault manager determined that
+  // the thread is `Runnable` and holds the mutator lock (shared) but without
+  // telling annotalysis that we actually hold the lock.
+  bool Action(int sig, siginfo_t* siginfo, void* context) override
+      NO_THREAD_SAFETY_ANALYSIS;
 
  private:
+  // Helper functions for checking whether the signal can be interpreted
+  // as implicit NPE check. Note that the runtime will do more exhaustive
+  // checks (that we cannot reasonably do in signal processing code) based
+  // on the dex instruction faulting.
+
+  static bool IsValidFaultAddress(uintptr_t fault_address) {
+    // Our implicit NPE checks always limit the range to a page.
+    return CanDoImplicitNullCheckOn(fault_address);
+  }
+
+  static bool IsValidMethod(ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static bool IsValidReturnPc(ArtMethod** sp, uintptr_t return_pc)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   DISALLOW_COPY_AND_ASSIGN(NullPointerHandler);
 };
 
