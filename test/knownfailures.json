@@ -1547,5 +1547,11 @@
         "description": ["Change of behavior when used with JDK 17."],
         "bug": "b/242985234",
         "variant": "jvm"
+    },
+    {
+        "tests" : ["305-other-fault-handler"],
+        "variant": "interpreter",
+        "description": ["This test intentionally segfaults, but the fault handler is only",
+                        " installed if implicit checks are supported (not for switch interpreter)."]
     }
 ]
