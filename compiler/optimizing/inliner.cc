@@ -1896,11 +1896,25 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
   bool has_one_return = false;
   for (HBasicBlock* predecessor : exit_block->GetPredecessors()) {
     const HInstruction* last_instruction = predecessor->GetLastInstruction();
-    // On inlinees, we can have Throw -> TryBoundary -> Exit. To check for the actual last
-    // instruction, we have to skip it.
+    // On inlinees, we can have Return/ReturnVoid/Throw -> TryBoundary -> Exit. To check for the
+    // actual last instruction, we have to skip the TryBoundary instruction.
     if (last_instruction->IsTryBoundary()) {
       predecessor = predecessor->GetSinglePredecessor();
       last_instruction = predecessor->GetLastInstruction();
+
+      // If the last instruction chain is Return/ReturnVoid -> TryBoundary -> Exit we will have to
+      // split a critical edge in InlineInto and might recompute loop information, which is
+      // unsupported for irreducible loops.
+      if (!last_instruction->IsThrow() && graph_->HasIrreducibleLoops()) {
+        DCHECK(last_instruction->IsReturn() || last_instruction->IsReturnVoid());
+        // TODO(ngeoffray): Support re-computing loop information to graphs with
+        // irreducible loops?
+        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedIrreducibleLoopCaller)
+            << "Method " << resolved_method->PrettyMethod()
+            << " could not be inlined because we will have to recompute the loop information and"
+            << " the caller has irreducible loops";
+        return false;
+      }
     }
 
     if (last_instruction->IsThrow()) {
@@ -1914,9 +1928,10 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
       } else if (graph_->HasIrreducibleLoops()) {
         // TODO(ngeoffray): Support re-computing loop information to graphs with
         // irreducible loops?
-        VLOG(compiler) << "Method " << resolved_method->PrettyMethod()
-                       << " could not be inlined because one branch always throws and"
-                       << " caller has irreducible loops";
+        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedIrreducibleLoopCaller)
+            << "Method " << resolved_method->PrettyMethod()
+            << " could not be inlined because one branch always throws and"
+            << " the caller has irreducible loops";
         return false;
       }
     } else {
@@ -1952,7 +1967,7 @@ bool HInliner::CanInlineBody(const HGraph* callee_graph,
       if (block->GetLoopInformation()->IsIrreducible()) {
         // Don't inline methods with irreducible loops, they could prevent some
         // optimizations to run.
-        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedIrreducibleLoop)
+        LOG_FAIL(stats_, MethodCompilationStat::kNotInlinedIrreducibleLoopCallee)
             << "Method " << resolved_method->PrettyMethod()
             << " could not be inlined because it contains an irreducible loop";
         return false;

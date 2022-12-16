@@ -1074,7 +1074,8 @@
           "1947-breakpoint-redefine-deopt",
           "2041-bad-cleaner",
           "2230-profile-save-hotness",
-          "2245-checker-smali-instance-of-comparison"
+          "2245-checker-smali-instance-of-comparison",
+          "2251-checker-irreducible-loop-do-not-inline"
         ],
         "variant": "jvm",
         "bug": "b/73888836",
