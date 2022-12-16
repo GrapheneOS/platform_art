@@ -1207,8 +1207,23 @@ class ProfMan final {
       for (std::string_view t :
            SplitString(ic_line.substr(1), kProfileParsingInlineChacheTargetSep)) {
         InlineCacheSegment out;
-        DCHECK_EQ(t[0], 'L') << "Target is not a class? " << t;
-        size_t recv_end = t.find_first_of(';');
+        // The target may be an array for methods defined in `j.l.Object`, such as `clone()`.
+        size_t recv_end;
+        if (UNLIKELY(t[0] == '[')) {
+          recv_end = t.find_first_not_of('[', 1u);
+          DCHECK_NE(recv_end, std::string_view::npos);
+          if (t[recv_end] == 'L') {
+            recv_end = t.find_first_of(';', recv_end + 1u);
+            DCHECK_NE(recv_end, std::string_view::npos);
+          } else {
+            // Primitive array.
+            DCHECK_NE(Primitive::GetType(t[recv_end]), Primitive::kPrimNot);
+          }
+        } else {
+          DCHECK_EQ(t[0], 'L') << "Target is not a class? " << t;
+          recv_end = t.find_first_of(';', 1u);
+          DCHECK_NE(recv_end, std::string_view::npos);
+        }
         out.receiver_ = t.substr(0, recv_end + 1);
         Split(t.substr(recv_end + 1), kProfileParsingTypeSep, &out.inline_caches_);
         res->push_back(out);
