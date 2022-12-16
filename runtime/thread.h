@@ -1206,6 +1206,22 @@ class Thread {
     tlsPtr_.deps_or_stack_trace_sample.verifier_deps = verifier_deps;
   }
 
+  uintptr_t* GetMethodTraceBuffer() { return tlsPtr_.method_trace_buffer; }
+
+  size_t* GetMethodTraceIndexPtr() { return &tlsPtr_.method_trace_buffer_index; }
+
+  uintptr_t* SetMethodTraceBuffer(uintptr_t* buffer) {
+    return tlsPtr_.method_trace_buffer = buffer;
+  }
+
+  void ResetMethodTraceBuffer() {
+    if (tlsPtr_.method_trace_buffer != nullptr) {
+      delete[] tlsPtr_.method_trace_buffer;
+    }
+    tlsPtr_.method_trace_buffer = nullptr;
+    tlsPtr_.method_trace_buffer_index = 0;
+  }
+
   uint64_t GetTraceClockBase() const {
     return tls64_.trace_clock_base;
   }
@@ -1940,7 +1956,9 @@ class Thread {
                                method_verifier(nullptr),
                                thread_local_mark_stack(nullptr),
                                async_exception(nullptr),
-                               top_reflective_handle_scope(nullptr) {
+                               top_reflective_handle_scope(nullptr),
+                               method_trace_buffer(nullptr),
+                               method_trace_buffer_index(0) {
       std::fill(held_mutexes, held_mutexes + kLockLevelCount, nullptr);
     }
 
@@ -2103,6 +2121,12 @@ class Thread {
 
     // Top of the linked-list for reflective-handle scopes or null if none.
     BaseReflectiveHandleScope* top_reflective_handle_scope;
+
+    // Pointer to a thread-local buffer for method tracing.
+    uintptr_t* method_trace_buffer;
+
+    // The index of the next free entry in method_trace_buffer.
+    size_t method_trace_buffer_index;
   } tlsPtr_;
 
   // Small thread-local cache to be used from the interpreter.
