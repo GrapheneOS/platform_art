@@ -2447,8 +2447,6 @@ Thread::Thread(bool daemon)
   wait_cond_ = new ConditionVariable("a thread wait condition variable", *wait_mutex_);
   tlsPtr_.mutator_lock = Locks::mutator_lock_;
   DCHECK(tlsPtr_.mutator_lock != nullptr);
-  tlsPtr_.instrumentation_stack =
-      new std::map<uintptr_t, instrumentation::InstrumentationStackFrame>;
   tlsPtr_.name.store(kThreadNameDuringStartup, std::memory_order_relaxed);
 
   static_assert((sizeof(Thread) % 4) == 0U,
@@ -2635,7 +2633,6 @@ Thread::~Thread() {
     CleanupCpu();
   }
 
-  delete tlsPtr_.instrumentation_stack;
   SetCachedThreadName(nullptr);  // Deallocate name.
   delete tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
 
@@ -4434,9 +4431,6 @@ void Thread::VisitRoots(RootVisitor* visitor) {
   RootCallbackVisitor visitor_to_callback(visitor, thread_id);
   ReferenceMapVisitor<RootCallbackVisitor, kPrecise> mapper(this, &context, visitor_to_callback);
   mapper.template WalkStack<StackVisitor::CountTransitions::kNo>(false);
-  for (auto& entry : *GetInstrumentationStack()) {
-    visitor->VisitRootIfNonNull(&entry.second.this_object_, RootInfo(kRootVMInternal, thread_id));
-  }
 }
 #pragma GCC diagnostic pop
 

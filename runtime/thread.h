@@ -1166,22 +1166,6 @@ class Thread {
   void RemoveDebuggerShadowFrameMapping(size_t frame_id)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // While getting this map requires shared the mutator lock, manipulating it
-  // should actually follow these rules:
-  // (1) The owner of this map (the thread) can change it with its mutator lock.
-  // (2) Other threads can read this map when the owner is suspended and they
-  //     hold the mutator lock.
-  // (3) Other threads can change this map when owning the mutator lock exclusively.
-  //
-  // The reason why (3) needs the mutator lock exclusively (and not just having
-  // the owner suspended) is that we don't want other threads to concurrently read the map.
-  //
-  // TODO: Add a class abstraction to express these rules.
-  std::map<uintptr_t, instrumentation::InstrumentationStackFrame>* GetInstrumentationStack()
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    return tlsPtr_.instrumentation_stack;
-  }
-
   std::vector<ArtMethod*>* GetStackTraceSample() const {
     DCHECK(!IsAotCompiler());
     return tlsPtr_.deps_or_stack_trace_sample.stack_trace_sample;
@@ -1936,19 +1920,18 @@ class Thread {
                                top_handle_scope(nullptr),
                                class_loader_override(nullptr),
                                long_jump_context(nullptr),
-                               instrumentation_stack(nullptr),
                                stacked_shadow_frame_record(nullptr),
                                deoptimization_context_stack(nullptr),
                                frame_id_to_shadow_frame(nullptr),
                                name(nullptr),
                                pthread_self(0),
                                last_no_thread_suspension_cause(nullptr),
-                               checkpoint_function(nullptr),
                                thread_local_start(nullptr),
                                thread_local_pos(nullptr),
                                thread_local_end(nullptr),
                                thread_local_limit(nullptr),
                                thread_local_objects(0),
+                               checkpoint_function(nullptr),
                                thread_local_alloc_stack_top(nullptr),
                                thread_local_alloc_stack_end(nullptr),
                                mutator_lock(nullptr),
@@ -2031,14 +2014,6 @@ class Thread {
     // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
     Context* long_jump_context;
 
-    // Additional stack used by method instrumentation to store method and return pc values.
-    // Stored as a pointer since std::map is not PACKED.
-    // !DO NOT CHANGE! to std::unordered_map: the users of this map require an
-    // ordered iteration on the keys (which are stack addresses).
-    // Also see Thread::GetInstrumentationStack for the requirements on
-    // manipulating and reading this map.
-    std::map<uintptr_t, instrumentation::InstrumentationStackFrame>* instrumentation_stack;
-
     // For gc purpose, a shadow frame record stack that keeps track of:
     // 1) shadow frames under construction.
     // 2) deoptimization shadow frames.
@@ -2064,10 +2039,6 @@ class Thread {
     // If no_thread_suspension_ is > 0, what is causing that assertion.
     const char* last_no_thread_suspension_cause;
 
-    // Pending checkpoint function or null if non-pending. If this checkpoint is set and someone\
-    // requests another checkpoint, it goes to the checkpoint overflow list.
-    Closure* checkpoint_function GUARDED_BY(Locks::thread_suspend_count_lock_);
-
     // Pending barriers that require passing or NULL if non-pending. Installation guarding by
     // Locks::thread_suspend_count_lock_.
     // They work effectively as art::Barrier, but implemented directly using AtomicInteger and futex
@@ -2087,6 +2058,10 @@ class Thread {
     uint8_t* thread_local_limit;
 
     size_t thread_local_objects;
+
+    // Pending checkpoint function or null if non-pending. If this checkpoint is set and someone\
+    // requests another checkpoint, it goes to the checkpoint overflow list.
+    Closure* checkpoint_function GUARDED_BY(Locks::thread_suspend_count_lock_);
 
     // Entrypoint function pointers.
     // TODO: move this to more of a global offset table model to avoid per-thread duplication.

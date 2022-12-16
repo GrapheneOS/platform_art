@@ -92,10 +92,6 @@ bool ShouldStayInSwitchInterpreter(ArtMethod* method)
   }
 
   const void* code = method->GetEntryPointFromQuickCompiledCode();
-  if (code == GetQuickInstrumentationEntryPoint()) {
-    code = Runtime::Current()->GetInstrumentation()->GetCodeForInvoke(method);
-  }
-
   return Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(code);
 }
 

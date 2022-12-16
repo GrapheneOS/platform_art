@@ -131,14 +131,6 @@ bool BacktraceCollector::CollectImpl(unwindstack::Unwinder* unwinder) {
       CHECK_LT(num_frames_, max_depth_);
       out_frames_[num_frames_++] = static_cast<uintptr_t>(it->pc);
 
-      // Expected early end: Instrumentation breaks unwinding (b/138296821).
-      // Inexact compare because the unwinder does not give us exact return address,
-      // but rather it tries to guess the address of the preceding call instruction.
-      size_t exit_pc = reinterpret_cast<size_t>(GetQuickInstrumentationExitPc());
-      if (exit_pc - 4 <= it->pc && it->pc <= exit_pc) {
-        return true;
-      }
-
       if (kStrictUnwindChecks) {
         if (it->function_name.empty()) {
           return false;

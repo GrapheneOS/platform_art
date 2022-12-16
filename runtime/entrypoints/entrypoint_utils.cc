@@ -211,9 +211,8 @@ static inline std::pair<ArtMethod*, uintptr_t> DoGetCalleeSaveMethodOuterCallerA
 static inline ArtMethod* DoGetCalleeSaveMethodCaller(ArtMethod* outer_method,
                                                      uintptr_t caller_pc,
                                                      bool do_caller_check)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ArtMethod* caller = outer_method;
-  if (LIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()))) {
+  REQUIRES_SHARED(Locks::mutator_lock_) {
+    ArtMethod* caller = outer_method;
     if (outer_method != nullptr) {
       const OatQuickMethodHeader* current_code = outer_method->GetOatQuickMethodHeader(caller_pc);
       DCHECK(current_code != nullptr);
@@ -236,14 +235,7 @@ static inline ArtMethod* DoGetCalleeSaveMethodCaller(ArtMethod* outer_method,
       visitor.WalkStack();
       CHECK_EQ(caller, visitor.caller);
     }
-  } else {
-    // We're instrumenting, just use the StackVisitor which knows how to
-    // handle instrumented frames.
-    NthCallerVisitor visitor(Thread::Current(), 1, true);
-    visitor.WalkStack();
-    caller = visitor.caller;
-  }
-  return caller;
+    return caller;
 }
 
 ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp, CalleeSaveType type, bool do_caller_check)
