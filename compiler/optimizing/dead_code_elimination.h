@@ -48,6 +48,12 @@ class HDeadCodeElimination : public HOptimization {
   bool SimplifyAlwaysThrows();
   bool SimplifyIfs();
   void ConnectSuccessiveBlocks();
+  // Updates the graph flags related to instructions (e.g. HasSIMD()) since we may have eliminated
+  // the relevant instructions. There's no need to update `SetHasTryCatch` since we do that in
+  // `ComputeTryBlockInformation`. Similarly with `HasLoops` and `HasIrreducibleLoops`: They are
+  // cleared in `ClearLoopInformation` and then set as true as part of `HLoopInformation::Populate`,
+  // if needed.
+  void UpdateGraphFlags();
 
   // Helper struct to eliminate tries.
   struct TryBelongingInformation;
