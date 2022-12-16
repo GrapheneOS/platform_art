@@ -2788,6 +2788,9 @@ HInstruction* HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   if (HasTryCatch()) {
     outer_graph->SetHasTryCatch(true);
   }
+  if (HasMonitorOperations()) {
+    outer_graph->SetHasMonitorOperations(true);
+  }
   if (HasSIMD()) {
     outer_graph->SetHasSIMD(true);
   }
