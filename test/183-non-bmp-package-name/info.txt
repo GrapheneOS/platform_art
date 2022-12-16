@@ -1,0 +1,7 @@
+Regression test for bad handling of package name containing a character outside
+the BMP plane. For a proxy class with a non-public interface in such a package,
+this caused the package name comparison to fail because the dex file encoding
+had two three-byte sequences while the descriptor was encoded with a four-byte
+sequence, leading to IllegalArgumentException when calling a proxy method via
+the interface.
+Bug: 192935764
