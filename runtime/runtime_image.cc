@@ -36,6 +36,7 @@
 #include "mirror/object_array-alloc-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object_array.h"
+#include "mirror/string-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "vdex_file.h"
 
@@ -51,10 +52,12 @@ class RuntimeImageHelper {
     boot_image_size_(heap->GetBootImagesSize()),
     image_begin_(boot_image_begin_ + boot_image_size_),
     // Note: image relocation considers the image header in the bitmap.
-    object_section_size_(sizeof(ImageHeader)) {}
+    object_section_size_(sizeof(ImageHeader)),
+    intern_table_(InternStringHash(this), InternStringEquals(this)) {}
+
 
   bool Generate(std::string* error_msg) {
-    if (!WriteImageRoot(error_msg)) {
+    if (!WriteObjects(error_msg)) {
       return false;
     }
 
@@ -136,6 +139,10 @@ class RuntimeImageHelper {
     return dex_location_;
   }
 
+  void GenerateInternData(std::vector<uint8_t>& data) const {
+    intern_table_.WriteToMemory(data.data());
+  }
+
  private:
   bool IsInBootImage(const void* obj) const {
     return reinterpret_cast<uintptr_t>(obj) - boot_image_begin_ < boot_image_size_;
@@ -177,30 +184,100 @@ class RuntimeImageHelper {
     // Round up to the alignment the string table expects. See HashSet::WriteToMemory.
     size_t cur_pos = RoundUp(sections[ImageHeader::kSectionRuntimeMethods].End(), sizeof(uint64_t));
 
-    sections[ImageHeader::kSectionInternedStrings] =
-        ImageSection(cur_pos, 0u);
+    size_t intern_table_bytes = intern_table_.WriteToMemory(nullptr);
+    sections[ImageHeader::kSectionInternedStrings] = ImageSection(cur_pos, intern_table_bytes);
 
     // Obtain the new position and round it up to the appropriate alignment.
     cur_pos = RoundUp(sections[ImageHeader::kSectionInternedStrings].End(), sizeof(uint64_t));
-
-    sections[ImageHeader::kSectionClassTable] =
-        ImageSection(cur_pos, 0u);
+    sections[ImageHeader::kSectionClassTable] = ImageSection(cur_pos, 0u);
 
     // Round up to the alignment of the offsets we are going to store.
     cur_pos = RoundUp(sections[ImageHeader::kSectionClassTable].End(), sizeof(uint32_t));
-
-    sections[ImageHeader::kSectionStringReferenceOffsets] =
-        ImageSection(cur_pos, 0u);
+    sections[ImageHeader::kSectionStringReferenceOffsets] = ImageSection(cur_pos, 0u);
 
     // Round up to the alignment of the offsets we are going to store.
     cur_pos =
         RoundUp(sections[ImageHeader::kSectionStringReferenceOffsets].End(), sizeof(uint32_t));
 
-    sections[ImageHeader::kSectionMetadata] =
-        ImageSection(cur_pos, 0u);
+    sections[ImageHeader::kSectionMetadata] = ImageSection(cur_pos, 0u);
   }
 
-  bool WriteImageRoot(std::string* error_msg) {
+  // Returns the copied mirror Object. This is really its content, it should not
+  // be returned as an `ObjPtr` (as it's not a GC object), nor stored anywhere.
+  template<typename T> T* FromImageOffsetToRuntimeContent(uint32_t offset) {
+    uint32_t vector_data_offset = offset - sizeof(ImageHeader) - image_begin_;
+    return reinterpret_cast<T*>(image_data_.data() + vector_data_offset);
+  }
+
+  class InternStringHash {
+   public:
+    explicit InternStringHash(RuntimeImageHelper* helper) : helper_(helper) {}
+
+    // NO_THREAD_SAFETY_ANALYSIS as these helpers get passed to `HashSet`.
+    size_t operator()(mirror::String* str) const NO_THREAD_SAFETY_ANALYSIS {
+      int32_t hash = str->GetStoredHashCode();
+      DCHECK_EQ(hash, str->ComputeHashCode());
+      // An additional cast to prevent undesired sign extension.
+      return static_cast<uint32_t>(hash);
+    }
+
+    size_t operator()(uint32_t entry) const NO_THREAD_SAFETY_ANALYSIS {
+      return (*this)(helper_->FromImageOffsetToRuntimeContent<mirror::String>(entry));
+    }
+
+   private:
+    RuntimeImageHelper* helper_;
+  };
+
+  class InternStringEquals {
+   public:
+    explicit InternStringEquals(RuntimeImageHelper* helper) : helper_(helper) {}
+
+    // NO_THREAD_SAFETY_ANALYSIS as these helpers get passed to `HashSet`.
+    bool operator()(uint32_t entry, mirror::String* other) const NO_THREAD_SAFETY_ANALYSIS {
+      if (kIsDebugBuild) {
+        Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+      }
+      return other->Equals(helper_->FromImageOffsetToRuntimeContent<mirror::String>(entry));
+    }
+
+    bool operator()(uint32_t entry, uint32_t other) const NO_THREAD_SAFETY_ANALYSIS {
+      return (*this)(entry, helper_->FromImageOffsetToRuntimeContent<mirror::String>(other));
+    }
+
+   private:
+    RuntimeImageHelper* helper_;
+  };
+
+  using InternTableSet =
+        HashSet<uint32_t, DefaultEmptyFn<uint32_t>, InternStringHash, InternStringEquals>;
+
+  void VisitDexCache(ObjPtr<mirror::DexCache> dex_cache) REQUIRES_SHARED(Locks::mutator_lock_) {
+    const DexFile& dex_file = *dex_cache->GetDexFile();
+    // Currently only copy string objects into the image. Populate the intern
+    // table with these strings.
+    for (uint32_t i = 0; i < dex_file.NumStringIds(); ++i) {
+      ObjPtr<mirror::String> str = dex_cache->GetResolvedString(dex::StringIndex(i));
+      if (str != nullptr && !IsInBootImage(str.Ptr())) {
+        uint32_t hash = static_cast<uint32_t>(str->GetStoredHashCode());
+        DCHECK_EQ(hash, static_cast<uint32_t>(str->ComputeHashCode()))
+            << "Dex cache strings should be interned";
+        if (intern_table_.FindWithHash(str.Ptr(), hash) == intern_table_.end()) {
+          uint32_t offset = CopyObject(str);
+          intern_table_.InsertWithHash(image_begin_ + offset + sizeof(ImageHeader), hash);
+        }
+      }
+    }
+  }
+
+  void VisitDexCaches(Handle<mirror::ObjectArray<mirror::Object>> dex_cache_array)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    for (int32_t i = 0; i < dex_cache_array->GetLength(); ++i) {
+      VisitDexCache(ObjPtr<mirror::DexCache>::DownCast((dex_cache_array->Get(i))));
+    }
+  }
+
+  bool WriteObjects(std::string* error_msg) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     ScopedObjectAccess soa(Thread::Current());
     VariableSizedHandleScope handles(soa.Self());
@@ -287,12 +364,17 @@ class RuntimeImageHelper {
     image_roots->Set(ImageHeader::kClassRoots, class_linker->GetClassRoots());
     image_roots->Set(ImageHeader::kAppImageDexChecksums, checksums_array.Get());
 
-    // Now that we have created all objects needed for the `image_roots`, copy
-    // it into the buffer. Note that this will recursively copy all objects
-    // contained in `image_roots`. That's acceptable as we don't have cycles,
-    // nor a deep graph.
-    ScopedAssertNoThreadSuspension sants("Writing runtime app image");
-    CopyObject(image_roots.Get());
+    {
+      // Now that we have created all objects needed for the `image_roots`, copy
+      // it into the buffer. Note that this will recursively copy all objects
+      // contained in `image_roots`. That's acceptable as we don't have cycles,
+      // nor a deep graph.
+      ScopedAssertNoThreadSuspension sants("Writing runtime app image");
+      CopyObject(image_roots.Get());
+    }
+
+    // Copy objects stored in the dex caches.
+    VisitDexCaches(dex_cache_array);
     return true;
   }
 
@@ -474,6 +556,9 @@ class RuntimeImageHelper {
 
   // The location of the primary APK / dex file.
   std::string dex_location_;
+
+  // The intern table for strings that we will write to disk.
+  InternTableSet intern_table_;
 };
 
 std::string RuntimeImage::GetRuntimeImagePath(const std::string& dex_location) {
@@ -521,20 +606,26 @@ bool RuntimeImage::WriteImageToDisk(std::string* error_msg) {
     return false;
   }
 
-  // Write bitmap at aligned offset.
-  size_t aligned_offset = RoundUp(sizeof(ImageHeader) + image.GetData().size(), kPageSize);
-  if (!out->Write(reinterpret_cast<const char*>(image.GetImageBitmap().Begin()),
-                  image.GetImageBitmap().Size(),
-                  aligned_offset)) {
-    *error_msg = "Could not write image bitmap " + temp_path;
-    out->Unlink();
-    return false;
+  {
+    // Write intern string set.
+    auto intern_section = image.GetHeader().GetImageSection(ImageHeader::kSectionInternedStrings);
+    std::vector<uint8_t> intern_data(intern_section.Size());
+    image.GenerateInternData(intern_data);
+    if (!out->Write(reinterpret_cast<const char*>(intern_data.data()),
+                    intern_section.Size(),
+                    intern_section.Offset())) {
+      *error_msg = "Could not write intern section " + temp_path;
+      out->Unlink();
+      return false;
+    }
   }
 
-  // Set the file length page aligned.
-  size_t total_size = aligned_offset + RoundUp(image.GetImageBitmap().Size(), kPageSize);
-  if (out->SetLength(total_size) != 0) {
-    *error_msg = "Could not change size of image " + temp_path;
+  // Write bitmap.
+  auto bitmap_section = image.GetHeader().GetImageSection(ImageHeader::kSectionImageBitmap);
+  if (!out->Write(reinterpret_cast<const char*>(image.GetImageBitmap().Begin()),
+                  bitmap_section.Size(),
+                  bitmap_section.Offset())) {
+    *error_msg = "Could not write image bitmap " + temp_path;
     out->Unlink();
     return false;
   }
