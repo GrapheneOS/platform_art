@@ -375,6 +375,19 @@ void GraphChecker::VisitLoadException(HLoadException* load) {
   }
 }
 
+void GraphChecker::VisitMonitorOperation(HMonitorOperation* monitor_op) {
+  if (!GetGraph()->HasMonitorOperations()) {
+    AddError(
+        StringPrintf("The graph doesn't have the HasMonitorOperations bit set but we saw "
+                     "%s:%d in block %d.",
+                     monitor_op->DebugName(),
+                     monitor_op->GetId(),
+                     monitor_op->GetBlock()->GetBlockId()));
+  }
+
+  VisitInstruction(monitor_op);
+}
+
 void GraphChecker::VisitInstruction(HInstruction* instruction) {
   if (seen_ids_.IsBitSet(instruction->GetId())) {
     AddError(StringPrintf("Instruction id %d is duplicate in graph.",
