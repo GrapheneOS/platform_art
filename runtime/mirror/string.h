@@ -114,7 +114,7 @@ class MANAGED String final : public Object {
   // Computes and returns the hash code.
   int32_t ComputeHashCode() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  int32_t GetUtfLength() REQUIRES_SHARED(Locks::mutator_lock_);
+  int32_t GetModifiedUtf8Length() REQUIRES_SHARED(Locks::mutator_lock_);
 
   uint16_t CharAt(int32_t index) REQUIRES_SHARED(Locks::mutator_lock_);
 

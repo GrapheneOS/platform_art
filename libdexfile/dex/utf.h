@@ -41,12 +41,6 @@ size_t CountModifiedUtf8Chars(const char* utf8);
 size_t CountModifiedUtf8Chars(const char* utf8, size_t byte_count);
 
 /*
- * Returns the number of modified UTF-8 bytes needed to represent the given
- * UTF-16 string.
- */
-size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count);
-
-/*
  * Convert from Modified UTF-8 to UTF-16.
  */
 void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_out, const char* utf8_in);
@@ -85,8 +79,14 @@ template <bool kUseShortZero, bool kUse4ByteSequence, bool kReplaceBadSurrogates
 void ConvertUtf16ToUtf8(const uint16_t* utf16, size_t char_count, Append&& append);
 
 /*
+ * Returns the number of modified UTF-8 bytes needed to represent the given
+ * UTF-16 string.
+ */
+size_t CountModifiedUtf8BytesInUtf16(const uint16_t* chars, size_t char_count);
+
+/*
  * Convert from UTF-16 to Modified UTF-8. Note that the output is _not_
- * NUL-terminated. You probably need to call CountUtf8Bytes before calling
+ * NUL-terminated. You probably need to call CountModifiedUtf8BytesInUtf16 before calling
  * this anyway, so if you want a NUL-terminated string, you know where to
  * put the NUL byte.
  */
