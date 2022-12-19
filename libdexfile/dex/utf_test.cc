@@ -117,7 +117,7 @@ TEST_F(UtfTest, CountModifiedUtf8Chars) {
 
 static void AssertConversion(const std::vector<uint16_t>& input,
                              const std::vector<uint8_t>& expected) {
-  ASSERT_EQ(expected.size(), CountUtf8Bytes(&input[0], input.size()));
+  ASSERT_EQ(expected.size(), CountModifiedUtf8BytesInUtf16(&input[0], input.size()));
 
   std::vector<uint8_t> output(expected.size());
   ConvertUtf16ToModifiedUtf8(reinterpret_cast<char*>(&output[0]), expected.size(),
@@ -229,7 +229,7 @@ size_t CountModifiedUtf8Chars_reference(const char* utf8) {
   return len;
 }
 
-static size_t CountUtf8Bytes_reference(const uint16_t* chars, size_t char_count) {
+static size_t CountModifiedUtf8BytesInUtf16_reference(const uint16_t* chars, size_t char_count) {
   size_t result = 0;
   while (char_count--) {
     const uint16_t ch = *chars++;
@@ -320,8 +320,8 @@ static void testConversions(uint16_t *buf, int char_count) {
   int char_count_test, char_count_reference;
 
   // Calculate the number of utf-8 bytes for the utf-16 chars.
-  byte_count_reference = CountUtf8Bytes_reference(buf, char_count);
-  byte_count_test = CountUtf8Bytes(buf, char_count);
+  byte_count_reference = CountModifiedUtf8BytesInUtf16_reference(buf, char_count);
+  byte_count_test = CountModifiedUtf8BytesInUtf16(buf, char_count);
   EXPECT_EQ(byte_count_reference, byte_count_test);
 
   // Convert the utf-16 string to utf-8 bytes.
