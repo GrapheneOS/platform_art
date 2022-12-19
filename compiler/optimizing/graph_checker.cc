@@ -309,27 +309,25 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 }
 
 void GraphChecker::VisitBoundsCheck(HBoundsCheck* check) {
+  VisitInstruction(check);
   if (!GetGraph()->HasBoundsChecks()) {
     AddError(StringPrintf("Instruction %s:%d is a HBoundsCheck, "
                           "but HasBoundsChecks() returns false",
                           check->DebugName(),
                           check->GetId()));
   }
-
-  // Perform the instruction base checks too.
-  VisitInstruction(check);
 }
 
 void GraphChecker::VisitDeoptimize(HDeoptimize* deopt) {
+  VisitInstruction(deopt);
   if (GetGraph()->IsCompilingOsr()) {
     AddError(StringPrintf("A graph compiled OSR cannot have a HDeoptimize instruction"));
   }
-
-  // Perform the instruction base checks too.
-  VisitInstruction(deopt);
 }
 
 void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
+  VisitInstruction(try_boundary);
+
   ArrayRef<HBasicBlock* const> handlers = try_boundary->GetExceptionHandlers();
 
   // Ensure that all exception handlers are catch blocks.
@@ -356,10 +354,19 @@ void GraphChecker::VisitTryBoundary(HTryBoundary* try_boundary) {
     }
   }
 
-  VisitInstruction(try_boundary);
+  if (!GetGraph()->HasTryCatch()) {
+    AddError(
+        StringPrintf("The graph doesn't have the HasTryCatch bit set but we saw "
+                     "%s:%d in block %d.",
+                     try_boundary->DebugName(),
+                     try_boundary->GetId(),
+                     try_boundary->GetBlock()->GetBlockId()));
+  }
 }
 
 void GraphChecker::VisitLoadException(HLoadException* load) {
+  VisitInstruction(load);
+
   // Ensure that LoadException is the second instruction in a catch block. The first one should be a
   // Nop (checked separately).
   if (!load->GetBlock()->IsCatchBlock()) {
@@ -376,6 +383,8 @@ void GraphChecker::VisitLoadException(HLoadException* load) {
 }
 
 void GraphChecker::VisitMonitorOperation(HMonitorOperation* monitor_op) {
+  VisitInstruction(monitor_op);
+
   if (!GetGraph()->HasMonitorOperations()) {
     AddError(
         StringPrintf("The graph doesn't have the HasMonitorOperations bit set but we saw "
@@ -384,8 +393,6 @@ void GraphChecker::VisitMonitorOperation(HMonitorOperation* monitor_op) {
                      monitor_op->GetId(),
                      monitor_op->GetBlock()->GetBlockId()));
   }
-
-  VisitInstruction(monitor_op);
 }
 
 void GraphChecker::VisitInstruction(HInstruction* instruction) {
@@ -1152,6 +1159,10 @@ void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
 }
 
 void GraphChecker::VisitConstant(HConstant* instruction) {
+  // TODO(solanes, 262862764): We should call VisitInstruction here but doing so makes the
+  // LoadStoreEliminationTest gtests fail.
+  // VisitInstruction(instruction);
+
   HBasicBlock* block = instruction->GetBlock();
   if (!block->IsEntryBlock()) {
     AddError(StringPrintf(
