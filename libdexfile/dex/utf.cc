@@ -133,45 +133,11 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
   }
 
   // String contains non-ASCII characters.
-  while (char_count--) {
-    const uint16_t ch = *utf16_in++;
-    if (ch > 0 && ch <= 0x7f) {
-      *utf8_out++ = ch;
-    } else {
-      // Char_count == 0 here implies we've encountered an unpaired
-      // surrogate and we have no choice but to encode it as 3-byte UTF
-      // sequence. Note that unpaired surrogates can occur as a part of
-      // "normal" operation.
-      if ((ch >= 0xd800 && ch <= 0xdbff) && (char_count > 0)) {
-        const uint16_t ch2 = *utf16_in;
-
-        // Check if the other half of the pair is within the expected
-        // range. If it isn't, we will have to emit both "halves" as
-        // separate 3 byte sequences.
-        if (ch2 >= 0xdc00 && ch2 <= 0xdfff) {
-          utf16_in++;
-          char_count--;
-          const uint32_t code_point = (ch << 10) + ch2 - 0x035fdc00;
-          *utf8_out++ = (code_point >> 18) | 0xf0;
-          *utf8_out++ = ((code_point >> 12) & 0x3f) | 0x80;
-          *utf8_out++ = ((code_point >> 6) & 0x3f) | 0x80;
-          *utf8_out++ = (code_point & 0x3f) | 0x80;
-          continue;
-        }
-      }
-
-      if (ch > 0x07ff) {
-        // Three byte encoding.
-        *utf8_out++ = (ch >> 12) | 0xe0;
-        *utf8_out++ = ((ch >> 6) & 0x3f) | 0x80;
-        *utf8_out++ = (ch & 0x3f) | 0x80;
-      } else /*(ch > 0x7f || ch == 0)*/ {
-        // Two byte encoding.
-        *utf8_out++ = (ch >> 6) | 0xc0;
-        *utf8_out++ = (ch & 0x3f) | 0x80;
-      }
-    }
-  }
+  // FIXME: We should not emit 4-byte sequences. Bug: 192935764
+  auto append = [&](char c) { *utf8_out++ = c; };
+  ConvertUtf16ToUtf8</*kUseShortZero=*/ false,
+                     /*kUse4ByteSequence=*/ true,
+                     /*kReplaceBadSurrogates=*/ false>(utf16_in, char_count, append);
 }
 
 int32_t ComputeUtf16HashFromModifiedUtf8(const char* utf8, size_t utf16_length) {
@@ -240,34 +206,13 @@ int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t
   }
 }
 
-size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count) {
+size_t CountModifiedUtf8BytesInUtf16(const uint16_t* chars, size_t char_count) {
+  // FIXME: We should not emit 4-byte sequences. Bug: 192935764
   size_t result = 0;
-  const uint16_t *end = chars + char_count;
-  while (chars < end) {
-    const uint16_t ch = *chars++;
-    if (LIKELY(ch != 0 && ch < 0x80)) {
-      result++;
-      continue;
-    }
-    if (ch < 0x800) {
-      result += 2;
-      continue;
-    }
-    if (ch >= 0xd800 && ch < 0xdc00) {
-      if (chars < end) {
-        const uint16_t ch2 = *chars;
-        // If we find a properly paired surrogate, we emit it as a 4 byte
-        // UTF sequence. If we find an unpaired leading or trailing surrogate,
-        // we emit it as a 3 byte sequence like would have done earlier.
-        if (ch2 >= 0xdc00 && ch2 < 0xe000) {
-          chars++;
-          result += 4;
-          continue;
-        }
-      }
-    }
-    result += 3;
-  }
+  auto append = [&](char c ATTRIBUTE_UNUSED) { ++result; };
+  ConvertUtf16ToUtf8</*kUseShortZero=*/ false,
+                     /*kUse4ByteSequence=*/ true,
+                     /*kReplaceBadSurrogates=*/ false>(chars, char_count, append);
   return result;
 }
 

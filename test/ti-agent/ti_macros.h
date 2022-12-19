@@ -21,4 +21,10 @@
 
 #define UNREACHABLE  __builtin_unreachable
 
+#ifndef NDEBUG
+#define ALWAYS_INLINE
+#else
+#define ALWAYS_INLINE  __attribute__ ((always_inline))
+#endif
+
 #endif  // ART_TEST_TI_AGENT_TI_MACROS_H_
