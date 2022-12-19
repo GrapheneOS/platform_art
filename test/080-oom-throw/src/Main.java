@@ -55,12 +55,20 @@ public class Main {
 
     private static int exhaustJavaHeap(Object[] data, int index, int size) {
         Runtime.getRuntime().gc();
-        while (index != data.length && size != 0) {
+        while (index != data.length) {
             try {
                 data[index] = new byte[size];
                 ++index;
             } catch (OutOfMemoryError oome) {
-                size /= 2;
+                // Rapidly shrink the object size to fill any remaining space.
+                // Use few different sizes, since detecting out-of-memory is slow.
+                if (size >= 32) {
+                    size /= 32;
+                } else if (size > 1) {
+                    size = 1;
+                } else {
+                    break;
+                }
             }
         }
         return index;
