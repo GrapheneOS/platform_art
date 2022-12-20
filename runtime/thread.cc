@@ -2874,25 +2874,25 @@ class FetchStackTraceVisitor : public StackVisitor {
         max_saved_frames_(max_saved_frames) {}
 
   bool VisitFrame() override REQUIRES_SHARED(Locks::mutator_lock_) {
-    // We want to skip frames up to and including the exception's constructor.
-    // Note we also skip the frame if it doesn't have a method (namely the callee
-    // save frame)
     ArtMethod* m = GetMethod();
-    if (skipping_ && !m->IsRuntimeMethod() &&
-        !GetClassRoot<mirror::Throwable>()->IsAssignableFrom(m->GetDeclaringClass())) {
-      skipping_ = false;
-    }
-    if (!skipping_) {
-      if (!m->IsRuntimeMethod()) {  // Ignore runtime frames (in particular callee save).
+    // Ignore runtime frames (in particular callee save).
+    if (!m->IsRuntimeMethod()) {
+      // We want to skip frames up to and including the exception's constructor.
+      // We also want to skip the `VMStack.getThreadStackTrace()` if present.
+      if (skipping_ &&
+          !GetClassRoot<mirror::Throwable>()->IsAssignableFrom(m->GetDeclaringClass()) &&
+          m != WellKnownClasses::dalvik_system_VMStack_getThreadStackTrace) {
+        skipping_ = false;
+      }
+      if (!skipping_) {
         if (depth_ < max_saved_frames_) {
           saved_frames_[depth_].first = m;
           saved_frames_[depth_].second = m->IsProxyMethod() ? dex::kDexNoIndex : GetDexPc();
         }
         ++depth_;
       }
-    } else {
-      ++skip_depth_;
     }
+    skip_depth_ += skipping_ ? 1u : 0u;  // Including runtime frames.
     return true;
   }
 
