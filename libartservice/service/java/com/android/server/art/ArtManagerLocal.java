@@ -765,9 +765,18 @@ public final class ArtManagerLocal {
             mContext = context;
             if (context != null) {
                 // We only need them on Android U and above, where a context is passed.
-                mPackageManagerLocal = LocalManagerRegistry.getManager(PackageManagerLocal.class);
+                mPackageManagerLocal = Objects.requireNonNull(
+                        LocalManagerRegistry.getManager(PackageManagerLocal.class));
                 mConfig = new Config();
                 mBgDexOptJob = new BackgroundDexOptJob(context, artManagerLocal, mConfig);
+
+                // Call the getters for various dependencies, to ensure correct initialization
+                // order.
+                getDexOptHelper();
+                getAppHibernationManager();
+                getUserManager();
+                getDexUseManager();
+                ArtModuleServiceInitializer.getArtModuleServiceManager();
             } else {
                 mPackageManagerLocal = null;
                 mConfig = null;

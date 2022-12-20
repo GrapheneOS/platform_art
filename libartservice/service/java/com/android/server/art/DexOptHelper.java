@@ -296,6 +296,10 @@ public class DexOptHelper {
         Injector(@NonNull Context context, @NonNull Config config) {
             mContext = context;
             mConfig = config;
+
+            // Call the getters for various dependencies, to ensure correct initialization order.
+            getAppHibernationManager();
+            getPowerManager();
         }
 
         @NonNull

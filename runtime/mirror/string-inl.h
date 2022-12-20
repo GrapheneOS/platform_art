@@ -83,11 +83,11 @@ inline int32_t String::GetHashCode() {
   return result;
 }
 
-inline int32_t String::GetUtfLength() {
+inline int32_t String::GetModifiedUtf8Length() {
   if (IsCompressed()) {
     return GetLength();
   } else {
-    return CountUtf8Bytes(GetValue(), GetLength());
+    return CountModifiedUtf8BytesInUtf16(GetValue(), GetLength());
   }
 }
 
