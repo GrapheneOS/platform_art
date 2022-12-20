@@ -769,6 +769,11 @@ public class DexUseManagerLocal {
      */
     @VisibleForTesting
     public static class Injector {
+        Injector() {
+            // Call the getters for various dependencies, to ensure correct initialization order.
+            ArtModuleServiceInitializer.getArtModuleServiceManager();
+        }
+
         @NonNull
         public IArtd getArtd() {
             return Utils.getArtd();

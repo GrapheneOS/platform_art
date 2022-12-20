@@ -279,6 +279,10 @@ public class BackgroundDexOptJob {
             mContext = context;
             mArtManagerLocal = artManagerLocal;
             mConfig = config;
+
+            // Call the getters for various dependencies, to ensure correct initialization order.
+            getPackageManagerLocal();
+            getJobScheduler();
         }
 
         @NonNull
