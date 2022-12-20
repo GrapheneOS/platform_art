@@ -31,6 +31,8 @@ import com.android.server.art.Utils;
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
 public class OptimizeParams {
+    /** @hide */
+    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public static final class Builder {
         private OptimizeParams mParams = new OptimizeParams();
 
