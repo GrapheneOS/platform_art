@@ -187,10 +187,6 @@ public class Main {
       Iterator<StackTraceElement> it = list.iterator();
       while (it.hasNext()) {
         StackTraceElement ste = it.next();
-        if (ste.getClassName().equals("dalvik.system.VMStack") &&
-            ste.getMethodName().equals("getThreadStackTrace")) {
-          throw new Error(ste.toString() + " should have been skipped.");
-        }
         if (ste.getClassName().equals("Main")) {
           if (!ste.getMethodName().equals("testMainThreadAllStackTraces")) {
             throw new RuntimeException(list.toString());
