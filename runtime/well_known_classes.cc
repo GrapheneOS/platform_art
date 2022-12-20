@@ -62,7 +62,6 @@ ArtMethod* WellKnownClasses::dalvik_system_DexClassLoader_init;
 ArtMethod* WellKnownClasses::dalvik_system_InMemoryDexClassLoader_init;
 ArtMethod* WellKnownClasses::dalvik_system_PathClassLoader_init;
 ArtMethod* WellKnownClasses::dalvik_system_VMRuntime_hiddenApiUsed;
-ArtMethod* WellKnownClasses::dalvik_system_VMStack_getThreadStackTrace;
 ArtMethod* WellKnownClasses::java_lang_Boolean_valueOf;
 ArtMethod* WellKnownClasses::java_lang_BootClassLoader_init;
 ArtMethod* WellKnownClasses::java_lang_Byte_valueOf;
@@ -353,7 +352,7 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
   java_lang_Short_valueOf =
       CachePrimitiveBoxingMethod(class_linker, self, 'S', "Ljava/lang/Short;");
 
-  StackHandleScope<40u> hs(self);
+  StackHandleScope<39u> hs(self);
   Handle<mirror::Class> d_s_bdcl =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/BaseDexClassLoader;"));
   Handle<mirror::Class> d_s_dlcl =
@@ -372,8 +371,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/PathClassLoader;"));
   Handle<mirror::Class> d_s_vmr =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VMRuntime;"));
-  Handle<mirror::Class> d_s_vms =
-      hs.NewHandle(FindSystemClass(class_linker, self, "Ldalvik/system/VMStack;"));
   Handle<mirror::Class> j_i_fd =
       hs.NewHandle(FindSystemClass(class_linker, self, "Ljava/io/FileDescriptor;"));
   Handle<mirror::Class> j_l_bcl =
@@ -474,13 +471,6 @@ void WellKnownClasses::InitFieldsAndMethodsOnly(JNIEnv* env) {
       /*is_static=*/ true,
       "hiddenApiUsed",
       "(ILjava/lang/String;Ljava/lang/String;IZ)V",
-      pointer_size);
-
-  dalvik_system_VMStack_getThreadStackTrace = CacheMethod(
-      d_s_vms.Get(),
-      /*is_static=*/ true,
-      "getThreadStackTrace",
-      "(Ljava/lang/Thread;)[Ljava/lang/StackTraceElement;",
       pointer_size);
 
   java_lang_BootClassLoader_init =
@@ -840,7 +830,6 @@ void WellKnownClasses::Clear() {
   dalvik_system_DexPathList_dexElements = nullptr;
   dalvik_system_DexPathList__Element_dexFile = nullptr;
   dalvik_system_VMRuntime_nonSdkApiUsageConsumer = nullptr;
-  dalvik_system_VMStack_getThreadStackTrace = nullptr;
   java_lang_ClassLoader_parent = nullptr;
   java_lang_Thread_parkBlocker = nullptr;
   java_lang_Thread_daemon = nullptr;
