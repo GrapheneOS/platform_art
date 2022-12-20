@@ -107,7 +107,6 @@ struct WellKnownClasses {
   static ArtMethod* dalvik_system_InMemoryDexClassLoader_init;  // Only for the declaring class.
   static ArtMethod* dalvik_system_PathClassLoader_init;  // Only for the declaring class.
   static ArtMethod* dalvik_system_VMRuntime_hiddenApiUsed;
-  static ArtMethod* dalvik_system_VMStack_getThreadStackTrace;
   static ArtMethod* java_lang_Boolean_valueOf;
   static ArtMethod* java_lang_BootClassLoader_init;  // Only for the declaring class.
   static ArtMethod* java_lang_Byte_valueOf;
