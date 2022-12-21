@@ -27,6 +27,7 @@ import android.R;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.os.CancellationSignal;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -372,14 +373,8 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
     }
 
     private boolean isHiddenApiPolicyEnabled() {
-        if (mPkg.isSignedWithPlatformKey()) {
-            return false;
-        }
-        if (mPkgState.isSystem() || mPkgState.isUpdatedSystemApp()) {
-            // TODO(b/236389629): Check whether the app is in hidden api whitelist.
-            return !mPkg.isUsesNonSdkApi();
-        }
-        return true;
+        return mPkgState.getHiddenApiEnforcementPolicy()
+                != ApplicationInfo.HIDDEN_API_ENFORCEMENT_DISABLED;
     }
 
     @NonNull
