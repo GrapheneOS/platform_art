@@ -352,6 +352,37 @@ public class ArtManagerLocalTest {
     }
 
     @Test
+    public void testClearAppProfiles() throws Exception {
+        mArtManagerLocal.clearAppProfiles(mSnapshot, PKG_NAME);
+
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForPrimaryRef(PKG_NAME, "primary")));
+        verify(mArtd).deleteProfile(deepEq(
+                AidlUtils.buildProfilePathForPrimaryCur(0 /* userId */, PKG_NAME, "primary")));
+        verify(mArtd).deleteProfile(deepEq(
+                AidlUtils.buildProfilePathForPrimaryCur(1 /* userId */, PKG_NAME, "primary")));
+
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForSecondaryRef("/data/user/0/foo/1.apk")));
+        verify(mArtd).deleteProfile(
+                deepEq(AidlUtils.buildProfilePathForSecondaryCur("/data/user/0/foo/1.apk")));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testClearAppProfilesPackageNotFound() throws Exception {
+        when(mSnapshot.getPackageState(anyString())).thenReturn(null);
+
+        mArtManagerLocal.clearAppProfiles(mSnapshot, PKG_NAME);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testClearAppProfilesNoPackage() throws Exception {
+        when(mPkgState.getAndroidPackage()).thenReturn(null);
+
+        mArtManagerLocal.clearAppProfiles(mSnapshot, PKG_NAME);
+    }
+
+    @Test
     public void testOptimizePackage() throws Exception {
         var params = new OptimizeParams.Builder("install").build();
         var result = mock(OptimizeResult.class);

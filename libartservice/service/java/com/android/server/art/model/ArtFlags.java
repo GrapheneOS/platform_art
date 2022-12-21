@@ -121,6 +121,31 @@ public class ArtFlags {
     }
 
     /**
+     * Flags for {@link
+     * ArtManagerLocal#clearAppProfiles(PackageManagerLocal.FilteredSnapshot, String, int)}.
+     *
+     * @hide
+     */
+    // clang-format off
+    @IntDef(flag = true, prefix = "FLAG_", value = {
+        FLAG_FOR_PRIMARY_DEX,
+        FLAG_FOR_SECONDARY_DEX,
+    })
+    // clang-format on
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface ClearProfileFlags {}
+
+    /**
+     * Default flags that are used when {@link
+     * ArtManagerLocal#getOptimizationStatus(PackageManagerLocal.FilteredSnapshot, String)} is
+     * called.
+     * Value: {@link #FLAG_FOR_PRIMARY_DEX}, {@link #FLAG_FOR_SECONDARY_DEX}.
+     */
+    public static @ClearProfileFlags int defaultClearProfileFlags() {
+        return FLAG_FOR_PRIMARY_DEX | FLAG_FOR_SECONDARY_DEX;
+    }
+
+    /**
      * Flags for {@link OptimizeParams}.
      *
      * @hide

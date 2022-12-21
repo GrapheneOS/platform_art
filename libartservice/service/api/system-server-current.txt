@@ -6,6 +6,8 @@ package com.android.server.art {
     ctor public ArtManagerLocal(@NonNull android.content.Context);
     method public void addOptimizePackageDoneCallback(boolean, @NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
     method public void cancelBackgroundDexoptJob();
+    method @NonNull public void clearAppProfiles(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
+    method @NonNull public void clearAppProfiles(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method public void clearOptimizePackagesCallback();
     method public void clearScheduleBackgroundDexoptJobCallback();
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
@@ -73,6 +75,7 @@ package com.android.server.art {
 package com.android.server.art.model {
 
   public class ArtFlags {
+    method public static int defaultClearProfileFlags();
     method public static int defaultDeleteFlags();
     method public static int defaultGetStatusFlags();
     field public static final int FLAG_FORCE = 16; // 0x10
