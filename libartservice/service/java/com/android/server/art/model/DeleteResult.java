@@ -16,20 +16,26 @@
 
 package com.android.server.art.model;
 
+import android.annotation.NonNull;
 import android.annotation.SystemApi;
+
+import com.android.internal.annotations.Immutable;
+
+import com.google.auto.value.AutoValue;
 
 /** @hide */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
-public class DeleteResult {
-    private long mFreedBytes;
+@Immutable
+@AutoValue
+public abstract class DeleteResult {
+    /** @hide */
+    protected DeleteResult() {}
 
     /** @hide */
-    public DeleteResult(long freedBytes) {
-        mFreedBytes = freedBytes;
+    public static @NonNull DeleteResult create(long freedBytes) {
+        return new AutoValue_DeleteResult(freedBytes);
     }
 
     /** The amount of the disk space freed by the deletion, in bytes. */
-    public long getFreedBytes() {
-        return mFreedBytes;
-    }
+    public abstract long getFreedBytes();
 }
