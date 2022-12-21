@@ -69,6 +69,7 @@ import com.android.server.pm.pkg.PackageState;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -256,14 +257,14 @@ public final class ArtManagerLocal {
                             GetOptimizationStatusResult result =
                                     mInjector.getArtd().getOptimizationStatus(dexInfo.dexPath(),
                                             abi.isa(), dexInfo.classLoaderContext());
-                            statuses.add(
-                                    DexContainerFileOptimizationStatus.create(dexInfo.dexPath(),
-                                            abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
-                                            result.compilationReason, result.locationDebugString));
+                            statuses.add(DexContainerFileOptimizationStatus.create(
+                                    dexInfo.dexPath(), true /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), result.compilerFilter, result.compilationReason,
+                                    result.locationDebugString));
                         } catch (ServiceSpecificException e) {
                             statuses.add(DexContainerFileOptimizationStatus.create(
-                                    dexInfo.dexPath(), abi.isPrimaryAbi(), abi.name(), "error",
-                                    "error", e.getMessage()));
+                                    dexInfo.dexPath(), true /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), "error", "error", e.getMessage()));
                         }
                     }
                 }
@@ -277,14 +278,14 @@ public final class ArtManagerLocal {
                             GetOptimizationStatusResult result =
                                     mInjector.getArtd().getOptimizationStatus(dexInfo.dexPath(),
                                             abi.isa(), dexInfo.classLoaderContext());
-                            statuses.add(
-                                    DexContainerFileOptimizationStatus.create(dexInfo.dexPath(),
-                                            abi.isPrimaryAbi(), abi.name(), result.compilerFilter,
-                                            result.compilationReason, result.locationDebugString));
+                            statuses.add(DexContainerFileOptimizationStatus.create(
+                                    dexInfo.dexPath(), false /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), result.compilerFilter, result.compilationReason,
+                                    result.locationDebugString));
                         } catch (ServiceSpecificException e) {
                             statuses.add(DexContainerFileOptimizationStatus.create(
-                                    dexInfo.dexPath(), abi.isPrimaryAbi(), abi.name(), "error",
-                                    "error", e.getMessage()));
+                                    dexInfo.dexPath(), false /* isPrimaryDex */, abi.isPrimaryAbi(),
+                                    abi.name(), "error", "error", e.getMessage()));
                         }
                     }
                 }
@@ -794,6 +795,34 @@ public final class ArtManagerLocal {
             optimizePackages(snapshot, bootReason, new CancellationSignal(),
                     progressCallbackExecutor, progressCallback);
         }
+    }
+
+    /**
+     * Dumps the dexopt state of all packages in text format for debugging purposes.
+     *
+     * There are no stability guarantees for the output format.
+     *
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
+     */
+    public void dump(
+            @NonNull PrintWriter pw, @NonNull PackageManagerLocal.FilteredSnapshot snapshot) {
+        new DumpHelper(this).dump(pw, snapshot);
+    }
+
+    /**
+     * Dumps the dexopt state of the given package in text format for debugging purposes.
+     *
+     * There are no stability guarantees for the output format.
+     *
+     * @throws IllegalArgumentException if the package is not found
+     * @throws IllegalStateException if the operation encounters an error that should never happen
+     *         (e.g., an internal logic error).
+     */
+    public void dumpPackage(@NonNull PrintWriter pw,
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String packageName) {
+        new DumpHelper(this).dumpPackage(
+                pw, snapshot, Utils.getPackageStateOrThrow(snapshot, packageName));
     }
 
     /**

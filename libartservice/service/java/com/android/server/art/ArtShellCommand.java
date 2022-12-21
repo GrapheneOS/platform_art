@@ -215,22 +215,12 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                             Map.of(getNextArgRequired(), getNextArgRequired()));
                     return 0;
                 }
-                case "dex-use-get-primary": {
-                    String packageName = getNextArgRequired();
-                    String dexPath = getNextArgRequired();
-                    pw.println("Loaders: "
-                            + mDexUseManager.getPrimaryDexLoaders(packageName, dexPath)
-                                      .stream()
-                                      .map(Object::toString)
-                                      .collect(Collectors.joining(", ")));
-                    pw.println("Is used by other apps: "
-                            + mDexUseManager.isPrimaryDexUsedByOtherApps(packageName, dexPath));
-                    return 0;
-                }
-                case "dex-use-get-secondary": {
-                    for (DexUseManagerLocal.SecondaryDexInfo info :
-                            mDexUseManager.getSecondaryDexInfo(getNextArgRequired())) {
-                        pw.println(info);
+                case "dump": {
+                    String packageName = getNextArg();
+                    if (packageName != null) {
+                        mArtManagerLocal.dumpPackage(pw, snapshot, packageName);
+                    } else {
+                        mArtManagerLocal.dump(pw, snapshot);
                     }
                     return 0;
                 }
@@ -397,12 +387,10 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("  dex-use-notify PACKAGE_NAME DEX_PATH CLASS_LOADER_CONTEXT");
         pw.println("    Notify that a dex file is loaded with the given class loader context by");
         pw.println("    the given package.");
-        pw.println("  dex-use-get-primary PACKAGE_NAME DEX_PATH");
-        pw.println("    Print the dex use information about a primary dex file owned by the given");
-        pw.println("    package.");
-        pw.println("  dex-use-get-secondary PACKAGE_NAME");
-        pw.println("    Print the dex use information about all secondary dex files owned by the");
-        pw.println("    given package.");
+        pw.println("  dump [PACKAGE_NAME]");
+        pw.println("    Dumps the dexopt state in text format to stdout.");
+        pw.println("    If PACKAGE_NAME is empty, the command is for all packages. Otherwise, it");
+        pw.println("    is for the given package.");
         pw.println("  dex-use-dump");
         pw.println("    Print all dex use information in textproto format.");
         pw.println("  bg-dexopt-job [--cancel | --disable | --enable]");

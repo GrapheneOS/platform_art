@@ -12,6 +12,8 @@ package com.android.server.art {
     method public void clearScheduleBackgroundDexoptJobCallback();
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
+    method public void dump(@NonNull java.io.PrintWriter, @NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot);
+    method public void dumpPackage(@NonNull java.io.PrintWriter, @NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method public int handleShellCommand(@NonNull android.os.Binder, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull String[]);
@@ -130,6 +132,7 @@ package com.android.server.art.model {
     method @NonNull public abstract String getDexContainerFile();
     method @NonNull public abstract String getLocationDebugString();
     method public abstract boolean isPrimaryAbi();
+    method public abstract boolean isPrimaryDex();
   }
 
   public class OptimizeParams {

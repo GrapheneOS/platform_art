@@ -185,7 +185,6 @@ public class DexUseManagerLocal {
      *
      * @hide
      */
-    @VisibleForTesting
     @NonNull
     public Set<DexLoader> getPrimaryDexLoaders(
             @NonNull String packageName, @NonNull String dexPath) {
@@ -559,13 +558,22 @@ public class DexUseManagerLocal {
 
     private static boolean isUsedByOtherApps(
             @NonNull Set<DexLoader> loaders, @NonNull String owningPackageName) {
+        return loaders.stream().anyMatch(loader -> isLoaderOtherApp(loader, owningPackageName));
+    }
+
+    /**
+     * Returns true if {@code loader} is considered as "other app" (i.e., its process UID is
+     * different from the UID of the package represented by {@code owningPackageName}).
+     *
+     * @hide
+     */
+    public static boolean isLoaderOtherApp(
+            @NonNull DexLoader loader, @NonNull String owningPackageName) {
         // If the dex file is loaded by an isolated process of the same app, it can also be
         // considered as "used by other apps" because isolated processes are sandboxed and can only
         // read world readable files, so they need the optimized artifacts to be world readable. An
         // example of such a package is webview.
-        return loaders.stream().anyMatch(loader
-                -> !loader.loadingPackageName().equals(owningPackageName)
-                        || loader.isolatedProcess());
+        return !loader.loadingPackageName().equals(owningPackageName) || loader.isolatedProcess();
     }
 
     private static void validateInputs(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
