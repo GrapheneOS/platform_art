@@ -236,20 +236,14 @@ public class SecondaryDexOptimizerTest {
     }
 
     private PackageState createPackageState() {
-        // TODO(b/254029037): Change PackageSetting to PackageState.
-        var pkgState = mock(PackageSetting.class);
+        var pkgState = mock(PackageState.class);
         lenient().when(pkgState.getPackageName()).thenReturn(PKG_NAME);
         lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn("arm64-v8a");
         lenient().when(pkgState.getSecondaryCpuAbi()).thenReturn("armeabi-v7a");
         lenient().when(pkgState.getAppId()).thenReturn(APP_ID);
+        lenient().when(pkgState.getSeInfo()).thenReturn("se-info");
         AndroidPackage pkg = createPackage();
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
-
-        // TODO(b/254029037): Mock the real API instead of the hidden API.
-        var transientState = mock(PackageStateUnserialized.class);
-        lenient().when(transientState.getOverrideSeInfo()).thenReturn("se-info");
-        lenient().when(pkgState.getTransientState()).thenReturn(transientState);
-
         return pkgState;
     }
 

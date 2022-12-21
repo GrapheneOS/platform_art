@@ -99,8 +99,7 @@ public class SecondaryDexOptimizer extends DexOptimizer<DetailedSecondaryDexInfo
                 false /* isOtherReadable */, true /* isOtherExecutable */);
         FsPermission fileFsPermission =
                 AidlUtils.buildFsPermission(uid /* uid */, uid /* gid */, canBePublic);
-        SeContext seContext = AidlUtils.buildSeContext(
-                new com.android.server.art.wrapper.PackageState(mPkgState).getSeInfo(), uid);
+        SeContext seContext = AidlUtils.buildSeContext(mPkgState.getSeInfo(), uid);
         return AidlUtils.buildPermissionSettings(dirFsPermission, fileFsPermission, seContext);
     }
 

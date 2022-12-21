@@ -30,14 +30,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import android.os.Binder;
+import android.os.Environment;
 import android.os.Process;
 import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.os.storage.StorageManager;
 
 import androidx.test.filters.SmallTest;
+import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.art.testing.StaticMockitoRule;
-import com.android.server.art.wrapper.Environment;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.AndroidPackageSplit;
@@ -49,9 +51,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameter;
-import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mock;
 
 import java.io.File;
@@ -60,9 +59,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 @SmallTest
-@RunWith(Parameterized.class)
+@RunWith(AndroidJUnit4.class)
 public class DexUseManagerTest {
     private static final String LOADING_PKG_NAME = "com.example.loadingpackage";
     private static final String OWNING_PKG_NAME = "com.example.owningpackage";
@@ -72,8 +72,6 @@ public class DexUseManagerTest {
     @Rule
     public StaticMockitoRule mockitoRule =
             new StaticMockitoRule(SystemProperties.class, Constants.class, Process.class);
-
-    @Parameter(0) public String mVolumeUuid;
 
     private final UserHandle mUserHandle = Binder.getCallingUserHandle();
 
@@ -90,14 +88,6 @@ public class DexUseManagerTest {
     private DexUseManagerLocal mDexUseManager;
     private String mCeDir;
     private String mDeDir;
-
-    @Parameters(name = "volumeUuid={0}")
-    public static Iterable<? extends Object> data() {
-        List<String> volumeUuids = new ArrayList<>();
-        volumeUuids.add(null);
-        volumeUuids.add("volume-abcd");
-        return volumeUuids;
-    }
 
     @Before
     public void setUp() throws Exception {
@@ -123,12 +113,12 @@ public class DexUseManagerTest {
                         Map.of(LOADING_PKG_NAME, loadingPkgState, OWNING_PKG_NAME, owningPkgState));
 
         mCeDir = Environment
-                         .getDataUserCePackageDirectory(mVolumeUuid,
-                                 Binder.getCallingUserHandle().getIdentifier(), OWNING_PKG_NAME)
+                         .getDataCePackageDirectoryForUser(StorageManager.UUID_DEFAULT,
+                                 Binder.getCallingUserHandle(), OWNING_PKG_NAME)
                          .toString();
         mDeDir = Environment
-                         .getDataUserDePackageDirectory(mVolumeUuid,
-                                 Binder.getCallingUserHandle().getIdentifier(), OWNING_PKG_NAME)
+                         .getDataDePackageDirectoryForUser(StorageManager.UUID_DEFAULT,
+                                 Binder.getCallingUserHandle(), OWNING_PKG_NAME)
                          .toString();
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
@@ -513,6 +503,7 @@ public class DexUseManagerTest {
 
     private AndroidPackage createPackage(String packageName) {
         AndroidPackage pkg = mock(AndroidPackage.class);
+        lenient().when(pkg.getStorageUuid()).thenReturn(StorageManager.UUID_DEFAULT);
 
         var baseSplit = mock(AndroidPackageSplit.class);
         lenient().when(baseSplit.getPath()).thenReturn("/data/app/" + packageName + "/base.apk");
@@ -535,7 +526,6 @@ public class DexUseManagerTest {
         AndroidPackage pkg = createPackage(packageName);
         lenient().when(pkgState.getAndroidPackage()).thenReturn(pkg);
         lenient().when(pkgState.getPrimaryCpuAbi()).thenReturn(primaryAbi);
-        lenient().when(pkgState.getVolumeUuid()).thenReturn(mVolumeUuid);
         return pkgState;
     }
 }

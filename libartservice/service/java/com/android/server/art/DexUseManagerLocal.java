@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -41,7 +42,6 @@ import com.android.server.art.proto.PrimaryDexUseProto;
 import com.android.server.art.proto.PrimaryDexUseRecordProto;
 import com.android.server.art.proto.SecondaryDexUseProto;
 import com.android.server.art.proto.SecondaryDexUseRecordProto;
-import com.android.server.art.wrapper.Environment;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -373,18 +374,18 @@ public class DexUseManagerLocal {
 
     private static boolean isOwningPackageForSecondaryDex(
             @NonNull PackageState pkgState, @NonNull String dexPath) {
-        String volumeUuid =
-                new com.android.server.art.wrapper.PackageState(pkgState).getVolumeUuid();
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+        UUID storageUuid = pkg.getStorageUuid();
         UserHandle handle = Binder.getCallingUserHandle();
 
-        File ceDir = Environment.getDataUserCePackageDirectory(
-                volumeUuid, handle.getIdentifier(), pkgState.getPackageName());
+        File ceDir = Environment.getDataCePackageDirectoryForUser(
+                storageUuid, handle, pkgState.getPackageName());
         if (Paths.get(dexPath).startsWith(ceDir.toPath())) {
             return true;
         }
 
-        File deDir = Environment.getDataUserDePackageDirectory(
-                volumeUuid, handle.getIdentifier(), pkgState.getPackageName());
+        File deDir = Environment.getDataDePackageDirectoryForUser(
+                storageUuid, handle, pkgState.getPackageName());
         if (Paths.get(dexPath).startsWith(deDir.toPath())) {
             return true;
         }
