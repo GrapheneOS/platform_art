@@ -168,6 +168,13 @@ static jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
   return -1;
 }
 
+static void VMDebug_suspendAllAndSendVmStart(JNIEnv*, jclass)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // This function will be replaced by the debugger when it's connected. See
+  // external/oj-libjdwp/src/share/vmDebug.c for implementation when debugger is connected.
+  ThrowRuntimeException("ART's suspendAllAndSendVmStart is not implemented");
+}
+
 static void VMDebug_printLoadedClasses(JNIEnv* env, jclass, jint flags) {
   class DumpClassVisitor : public ClassVisitor {
    public:
@@ -509,32 +516,33 @@ static void VMDebug_setAllocTrackerStackDepth(JNIEnv* env, jclass, jint stack_de
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(VMDebug, countInstancesOfClass, "(Ljava/lang/Class;Z)J"),
-  NATIVE_METHOD(VMDebug, countInstancesOfClasses, "([Ljava/lang/Class;Z)[J"),
-  NATIVE_METHOD(VMDebug, dumpHprofData, "(Ljava/lang/String;I)V"),
-  NATIVE_METHOD(VMDebug, dumpHprofDataDdms, "()V"),
-  NATIVE_METHOD(VMDebug, dumpReferenceTables, "()V"),
-  NATIVE_METHOD(VMDebug, getAllocCount, "(I)I"),
-  FAST_NATIVE_METHOD(VMDebug, getLoadedClassCount, "()I"),
-  NATIVE_METHOD(VMDebug, getVmFeatureList, "()[Ljava/lang/String;"),
-  FAST_NATIVE_METHOD(VMDebug, isDebuggerConnected, "()Z"),
-  FAST_NATIVE_METHOD(VMDebug, isDebuggingEnabled, "()Z"),
-  NATIVE_METHOD(VMDebug, getMethodTracingMode, "()I"),
-  FAST_NATIVE_METHOD(VMDebug, lastDebuggerActivity, "()J"),
-  FAST_NATIVE_METHOD(VMDebug, printLoadedClasses, "(I)V"),
-  NATIVE_METHOD(VMDebug, resetAllocCount, "(I)V"),
-  NATIVE_METHOD(VMDebug, startAllocCounting, "()V"),
-  NATIVE_METHOD(VMDebug, startMethodTracingDdmsImpl, "(IIZI)V"),
-  NATIVE_METHOD(VMDebug, startMethodTracingFd, "(Ljava/lang/String;IIIZIZ)V"),
-  NATIVE_METHOD(VMDebug, startMethodTracingFilename, "(Ljava/lang/String;IIZI)V"),
-  NATIVE_METHOD(VMDebug, stopAllocCounting, "()V"),
-  NATIVE_METHOD(VMDebug, stopMethodTracing, "()V"),
-  FAST_NATIVE_METHOD(VMDebug, threadCpuTimeNanos, "()J"),
-  NATIVE_METHOD(VMDebug, getRuntimeStatInternal, "(I)Ljava/lang/String;"),
-  NATIVE_METHOD(VMDebug, getRuntimeStatsInternal, "()[Ljava/lang/String;"),
-  NATIVE_METHOD(VMDebug, nativeAttachAgent, "(Ljava/lang/String;Ljava/lang/ClassLoader;)V"),
-  NATIVE_METHOD(VMDebug, allowHiddenApiReflectionFrom, "(Ljava/lang/Class;)V"),
-  NATIVE_METHOD(VMDebug, setAllocTrackerStackDepth, "(I)V"),
+    NATIVE_METHOD(VMDebug, countInstancesOfClass, "(Ljava/lang/Class;Z)J"),
+    NATIVE_METHOD(VMDebug, countInstancesOfClasses, "([Ljava/lang/Class;Z)[J"),
+    NATIVE_METHOD(VMDebug, dumpHprofData, "(Ljava/lang/String;I)V"),
+    NATIVE_METHOD(VMDebug, dumpHprofDataDdms, "()V"),
+    NATIVE_METHOD(VMDebug, dumpReferenceTables, "()V"),
+    NATIVE_METHOD(VMDebug, getAllocCount, "(I)I"),
+    FAST_NATIVE_METHOD(VMDebug, getLoadedClassCount, "()I"),
+    NATIVE_METHOD(VMDebug, getVmFeatureList, "()[Ljava/lang/String;"),
+    FAST_NATIVE_METHOD(VMDebug, isDebuggerConnected, "()Z"),
+    FAST_NATIVE_METHOD(VMDebug, isDebuggingEnabled, "()Z"),
+    NATIVE_METHOD(VMDebug, suspendAllAndSendVmStart, "()V"),
+    NATIVE_METHOD(VMDebug, getMethodTracingMode, "()I"),
+    FAST_NATIVE_METHOD(VMDebug, lastDebuggerActivity, "()J"),
+    FAST_NATIVE_METHOD(VMDebug, printLoadedClasses, "(I)V"),
+    NATIVE_METHOD(VMDebug, resetAllocCount, "(I)V"),
+    NATIVE_METHOD(VMDebug, startAllocCounting, "()V"),
+    NATIVE_METHOD(VMDebug, startMethodTracingDdmsImpl, "(IIZI)V"),
+    NATIVE_METHOD(VMDebug, startMethodTracingFd, "(Ljava/lang/String;IIIZIZ)V"),
+    NATIVE_METHOD(VMDebug, startMethodTracingFilename, "(Ljava/lang/String;IIZI)V"),
+    NATIVE_METHOD(VMDebug, stopAllocCounting, "()V"),
+    NATIVE_METHOD(VMDebug, stopMethodTracing, "()V"),
+    FAST_NATIVE_METHOD(VMDebug, threadCpuTimeNanos, "()J"),
+    NATIVE_METHOD(VMDebug, getRuntimeStatInternal, "(I)Ljava/lang/String;"),
+    NATIVE_METHOD(VMDebug, getRuntimeStatsInternal, "()[Ljava/lang/String;"),
+    NATIVE_METHOD(VMDebug, nativeAttachAgent, "(Ljava/lang/String;Ljava/lang/ClassLoader;)V"),
+    NATIVE_METHOD(VMDebug, allowHiddenApiReflectionFrom, "(Ljava/lang/Class;)V"),
+    NATIVE_METHOD(VMDebug, setAllocTrackerStackDepth, "(I)V"),
 };
 
 void register_dalvik_system_VMDebug(JNIEnv* env) {
