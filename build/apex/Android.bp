@@ -166,6 +166,8 @@ art_tools_host_only_binaries = [
 ]
 
 // Core Java libraries.
+// This list must be the same as art-bootclasspath-fragment because it's that which is pulled in
+// through bootclasspath_fragments below. (com.android.art-device-defaults-minus-odrefresh)
 libcore_java_libs = [
     "core-oj",
     "core-libart",
@@ -262,7 +264,6 @@ apex_defaults {
     bootclasspath_fragments: ["art-bootclasspath-fragment"],
     systemserverclasspath_fragments: ["art-systemserverclasspath-fragment"],
     compat_configs: ["libcore-platform-compat-config"],
-    java_libs: libcore_java_libs,
     native_shared_libs: art_runtime_base_native_shared_libs +
         art_runtime_base_native_device_only_shared_libs +
         libcore_native_shared_libs,
