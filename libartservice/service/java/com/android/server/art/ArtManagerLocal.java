@@ -42,8 +42,12 @@ import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.os.SystemProperties;
 import android.os.UserManager;
+import android.os.storage.StorageManager;
 import android.text.TextUtils;
+import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalManagerRegistry;
@@ -62,16 +66,22 @@ import com.android.server.pm.pkg.PackageState;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This class provides a system API for functionality provided by the ART module.
@@ -89,6 +99,7 @@ public final class ArtManagerLocal {
     private static final String TAG = "ArtService";
     private static final String[] CLASSPATHS_FOR_BOOT_IMAGE_PROFILE = {
             "BOOTCLASSPATH", "SYSTEMSERVERCLASSPATH", "STANDALONE_SYSTEMSERVER_JARS"};
+    private static final long DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES = 500_000_000;
 
     @NonNull private final Injector mInjector;
 
@@ -314,6 +325,17 @@ public final class ArtManagerLocal {
      * When this operation ends (either completed or cancelled), callbacks added by {@link
      * #addOptimizePackageDoneCallback(Executor, OptimizePackageDoneCallback)} are called.
      *
+     * If the storage is nearly low, and {@code reason} is {@link ReasonMapping#REASON_BG_DEXOPT},
+     * it may also downgrade some inactive packages to a less optimized compiler filter, specified
+     * by the system property {@code pm.dexopt.inactive} (typically "verify"), to free up some
+     * space. This feature is only enabled when the system property {@code
+     * pm.dexopt.downgrade_after_inactive_days} is set. The space threshold to trigger this feature
+     * is the Storage Manager's low space threshold plus {@link
+     * #DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES}. The concurrency can be configured by system property
+     * {@code pm.dexopt.inactive.concurrency}. The packages in the list provided by
+     * {@link OptimizePackagesCallback} for {@link ReasonMapping#REASON_BG_DEXOPT} are never
+     * downgraded.
+     *
      * @param snapshot the snapshot from {@link PackageManagerLocal} to operate on
      * @param reason determines the default list of packages and options
      * @param cancellationSignal provides the ability to cancel this operation
@@ -330,7 +352,7 @@ public final class ArtManagerLocal {
     public OptimizeResult optimizePackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
             @NonNull @BatchOptimizeReason String reason,
             @NonNull CancellationSignal cancellationSignal,
-            @Nullable @CallbackExecutor Executor processCallbackExecutor,
+            @Nullable @CallbackExecutor Executor progressCallbackExecutor,
             @Nullable Consumer<OperationProgress> progressCallback) {
         List<String> defaultPackages =
                 Collections.unmodifiableList(getDefaultPackages(snapshot, reason));
@@ -350,9 +372,15 @@ public final class ArtManagerLocal {
         ExecutorService dexoptExecutor =
                 Executors.newFixedThreadPool(ReasonMapping.getConcurrencyForReason(reason));
         try {
+            if (reason.equals(ReasonMapping.REASON_BG_DEXOPT)) {
+                maybeDowngradePackages(snapshot,
+                        new HashSet<>(params.getPackages()) /* excludedPackages */,
+                        cancellationSignal, dexoptExecutor);
+            }
+            Log.i(TAG, "Optimizing packages");
             return mInjector.getDexOptHelper().dexopt(snapshot, params.getPackages(),
                     params.getOptimizeParams(), cancellationSignal, dexoptExecutor,
-                    processCallbackExecutor, progressCallback);
+                    progressCallbackExecutor, progressCallback);
         } finally {
             dexoptExecutor.shutdown();
         }
@@ -623,37 +651,84 @@ public final class ArtManagerLocal {
         return mInjector.getBackgroundDexOptJob();
     }
 
+    private void maybeDowngradePackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
+            @NonNull Set<String> excludedPackages, @NonNull CancellationSignal cancellationSignal,
+            @NonNull Executor executor) {
+        if (shouldDowngrade()) {
+            List<String> packages = getDefaultPackages(snapshot, ReasonMapping.REASON_INACTIVE)
+                                            .stream()
+                                            .filter(pkg -> !excludedPackages.contains(pkg))
+                                            .collect(Collectors.toList());
+            if (!packages.isEmpty()) {
+                Log.i(TAG, "Storage is low. Downgrading inactive packages");
+                mInjector.getDexOptHelper().dexopt(snapshot, packages,
+                        new OptimizeParams.Builder(ReasonMapping.REASON_INACTIVE).build(),
+                        cancellationSignal, executor, null /* processCallbackExecutor */,
+                        null /* progressCallback */);
+            } else {
+                Log.i(TAG,
+                        "Storage is low, but downgrading is disabled or there's nothing to "
+                                + "downgrade");
+            }
+        }
+    }
+
+    private boolean shouldDowngrade() {
+        try {
+            return mInjector.getStorageManager().getAllocatableBytes(StorageManager.UUID_DEFAULT)
+                    < DOWNGRADE_THRESHOLD_ABOVE_LOW_BYTES;
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to check storage. Assuming storage not low", e);
+            return false;
+        }
+    }
+
+    /** Returns the list of packages to process for the given reason. */
     @NonNull
-    private List<String> getDefaultPackages(@NonNull PackageManagerLocal.FilteredSnapshot snapshot,
-            @NonNull @BatchOptimizeReason String reason) {
-        final List<String> packages;
+    private List<String> getDefaultPackages(
+            @NonNull PackageManagerLocal.FilteredSnapshot snapshot, @NonNull String reason) {
+        // Filter out hibernating packages even if the reason is REASON_INACTIVE. This is because
+        // artifacts for hibernating packages are already deleted.
+        Stream<PackageState> packages = snapshot.getPackageStates().values().stream().filter(
+                pkgState
+                -> Utils.canOptimizePackage(pkgState, mInjector.getAppHibernationManager()));
         switch (reason) {
             case ReasonMapping.REASON_BOOT_AFTER_MAINLINE_UPDATE:
-                packages =
-                        snapshot.getPackageStates()
-                                .values()
-                                .stream()
-                                .filter(pkgState
-                                        -> mInjector.isSystemUiPackage(pkgState.getPackageName()))
-                                .filter(pkgState
-                                        -> Utils.canOptimizePackage(
-                                                pkgState, mInjector.getAppHibernationManager()))
-                                .map(PackageState::getPackageName)
-                                .collect(Collectors.toList());
+                packages = packages.filter(
+                        pkgState -> mInjector.isSystemUiPackage(pkgState.getPackageName()));
+                break;
+            case ReasonMapping.REASON_INACTIVE:
+                packages = filterAndSortByLastActiveTime(
+                        packages, false /* keepRecent */, false /* descending */);
                 break;
             default:
-                // TODO(b/258818709): Filter packages by last active time.
-                packages = snapshot.getPackageStates()
-                                   .values()
-                                   .stream()
-                                   .filter(pkgState
-                                           -> Utils.canOptimizePackage(
-                                                   pkgState, mInjector.getAppHibernationManager()))
-                                   .map(PackageState::getPackageName)
-                                   .collect(Collectors.toList());
-                break;
+                // Actually, the sorting is only needed for background dexopt, but we do it for all
+                // cases for simplicity.
+                packages = filterAndSortByLastActiveTime(
+                        packages, true /* keepRecent */, true /* descending */);
         }
-        return packages;
+        return packages.map(PackageState::getPackageName).collect(Collectors.toList());
+    }
+
+    @NonNull
+    private Stream<PackageState> filterAndSortByLastActiveTime(
+            @NonNull Stream<PackageState> packages, boolean keepRecent, boolean descending) {
+        // "pm.dexopt.downgrade_after_inactive_days" is repurposed to also determine whether to
+        // optimize a package.
+        long inactiveMs = TimeUnit.DAYS.toMillis(SystemProperties.getInt(
+                "pm.dexopt.downgrade_after_inactive_days", Integer.MAX_VALUE /* def */));
+        long currentTimeMs = mInjector.getCurrentTimeMillis();
+        long thresholdTimeMs = currentTimeMs - inactiveMs;
+        return packages
+                .map(pkgState
+                        -> Pair.create(pkgState,
+                                Utils.getPackageLastActiveTime(pkgState,
+                                        mInjector.getDexUseManager(), mInjector.getUserManager())))
+                .filter(keepRecent ? (pair -> pair.second > thresholdTimeMs)
+                                   : (pair -> pair.second <= thresholdTimeMs))
+                .sorted(descending ? Comparator.comparingLong(pair -> - pair.second)
+                                   : Comparator.comparingLong(pair -> pair.second))
+                .map(pair -> pair.first);
     }
 
     @NonNull
@@ -787,6 +862,7 @@ public final class ArtManagerLocal {
                 getAppHibernationManager();
                 getUserManager();
                 getDexUseManager();
+                getStorageManager();
                 ArtModuleServiceInitializer.getArtModuleServiceManager();
             } else {
                 mPackageManagerLocal = null;
@@ -844,6 +920,15 @@ public final class ArtManagerLocal {
         @NonNull
         public boolean isSystemUiPackage(@NonNull String packageName) {
             return packageName.equals(mContext.getString(R.string.config_systemUi));
+        }
+
+        public long getCurrentTimeMillis() {
+            return System.currentTimeMillis();
+        }
+
+        @NonNull
+        public StorageManager getStorageManager() {
+            return Objects.requireNonNull(mContext.getSystemService(StorageManager.class));
         }
     }
 }

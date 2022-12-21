@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 import android.apphibernation.AppHibernationManager;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.SparseArray;
 
@@ -266,6 +267,21 @@ public final class Utils {
         }
 
         return true;
+    }
+
+    public static long getPackageLastActiveTime(@NonNull PackageState pkgState,
+            @NonNull DexUseManagerLocal dexUseManager, @NonNull UserManager userManager) {
+        long lastUsedAtMs = dexUseManager.getPackageLastUsedAtMs(pkgState.getPackageName());
+        // The time where the last user installed the package the first time.
+        long lastFirstInstallTimeMs =
+                userManager.getUserHandles(true /* excludeDying */)
+                        .stream()
+                        .map(handle -> pkgState.getStateForUser(handle))
+                        .map(com.android.server.art.wrapper.PackageUserState::new)
+                        .map(userState -> userState.getFirstInstallTime())
+                        .max(Long::compare)
+                        .orElse(0l);
+        return Math.max(lastUsedAtMs, lastFirstInstallTimeMs);
     }
 
     @AutoValue

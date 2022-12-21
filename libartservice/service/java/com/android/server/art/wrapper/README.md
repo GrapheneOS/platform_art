@@ -6,3 +6,4 @@ correspond to system APIs planned to be exposed.
 The mappings are:
 - `Environment`: `android.os.Environment`
 - `PackageState`: `com.android.server.pm.pkg.PackageState`
+- `PackageUserState`: `com.android.server.pm.pkg.PackageUserState`

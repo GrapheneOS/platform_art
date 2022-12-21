@@ -196,7 +196,6 @@ public class BackgroundDexOptJob {
     private CompletedResult run(@NonNull CancellationSignal cancellationSignal) {
         // TODO(b/254013427): Cleanup dex use info.
         // TODO(b/254013425): Cleanup unused secondary dex file artifacts.
-        // TODO(b/255565888): Downgrade inactive apps.
         long startTimeMs = SystemClock.uptimeMillis();
         OptimizeResult dexoptResult;
         try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {

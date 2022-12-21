@@ -652,6 +652,12 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
 
         public Injector(@NonNull Context context) {
             mContext = context;
+
+            // Call the getters for various dependencies, to ensure correct initialization order.
+            getUserManager();
+            getDexUseManager();
+            getStorageManager();
+            ArtModuleServiceInitializer.getArtModuleServiceManager();
         }
 
         public boolean isSystemUiPackage(@NonNull String packageName) {
