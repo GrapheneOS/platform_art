@@ -106,7 +106,12 @@ public class OptimizeResult {
                 .orElse(OPTIMIZE_SKIPPED);
     }
 
-    /** Describes the result of a package. */
+    /**
+     * Describes the result of a package.
+     *
+     * @hide
+     */
+    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     @Immutable
     public static class PackageOptimizeResult {
         private final @NonNull String mPackageName;
@@ -147,7 +152,12 @@ public class OptimizeResult {
         }
     }
 
-    /** Describes the result of optimizing a dex container file. */
+    /**
+     * Describes the result of optimizing a dex container file.
+     *
+     * @hide
+     */
+    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     @Immutable
     public static class DexContainerFileOptimizeResult {
         private final @NonNull String mDexContainerFile;
