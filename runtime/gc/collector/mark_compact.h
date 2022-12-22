@@ -628,11 +628,11 @@ class MarkCompact final : public GarbageCollector {
   size_t last_checked_reclaim_page_idx_;
   uint8_t* last_reclaimed_page_;
 
-  // The main space bitmap
-  accounting::ContinuousSpaceBitmap* moving_space_bitmap_;
-  accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
-  space::ContinuousSpace* non_moving_space_;
+  space::ContinuousSpace* const non_moving_space_;
   space::BumpPointerSpace* const bump_pointer_space_;
+  // The main space bitmap
+  accounting::ContinuousSpaceBitmap* const moving_space_bitmap_;
+  accounting::ContinuousSpaceBitmap* non_moving_space_bitmap_;
   Thread* thread_running_gc_;
   // Array of pages' compaction status.
   Atomic<PageState>* moving_pages_status_;
