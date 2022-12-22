@@ -26,6 +26,7 @@ public class Main {
   /// CHECK-NEXT:   dex_pc:{{.*}}
   /// CHECK:        Goto                 loop:<<LoopId>>
   /// CHECK-NEXT:   b
+  /// CHECK-NOT:    SuspendCheckSlowPathARM64
 
   public static void $noinline$testRemoveSuspendCheck(int[] a) {
     for (int i = 0; i < ITERATIONS; i++) {
@@ -40,6 +41,8 @@ public class Main {
   /// CHECK:        SuspendCheck         loop:<<LoopId:B\d+>>
   /// CHECK:        Goto                 loop:<<LoopId>>
   /// CHECK-NEXT:   ldr
+  /// CHECK:        SuspendCheckSlowPathARM64
+  /// CHECK:        SuspendCheckSlowPathARM64
 
   public static void testRemoveSuspendCheckWithCall(int[] a) {
     for (int i = 0; i < ITERATIONS; i++) {
@@ -55,6 +58,7 @@ public class Main {
   /// CHECK:        SuspendCheck         loop:<<LoopId:B\d+>>
   /// CHECK:        Goto                 loop:<<LoopId>>
   /// CHECK-NEXT:   ldr
+  /// CHECK:        SuspendCheckSlowPathARM64
 
   public static void testRemoveSuspendCheckAboveHeuristic(int[] a) {
     for (int i = 0; i < ITERATIONS * 6; i++) {
@@ -69,6 +73,7 @@ public class Main {
   /// CHECK:        SuspendCheck         loop:<<LoopId:B\d+>>
   /// CHECK:        Goto                 loop:<<LoopId>>
   /// CHECK-NEXT:   ldr
+  /// CHECK:        SuspendCheckSlowPathARM64
 
   public static void testRemoveSuspendCheckUnknownCount(int[] a, int n) {
     for (int i = 0; i < n; i++) {
