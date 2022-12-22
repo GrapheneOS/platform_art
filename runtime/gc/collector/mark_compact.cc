@@ -1849,14 +1849,21 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx) {
 
 void MarkCompact::UpdateClassAfterObjMap() {
   CHECK(class_after_obj_ordered_map_.empty());
-  for (const auto& iter : class_after_obj_hash_map_) {
-    auto super_class_iter = super_class_after_class_hash_map_.find(iter.first);
+  for (const auto& pair : class_after_obj_hash_map_) {
+    auto super_class_iter = super_class_after_class_hash_map_.find(pair.first);
     ObjReference key = super_class_iter != super_class_after_class_hash_map_.end()
                        ? super_class_iter->second
-                       : iter.first;
-    if (std::less<mirror::Object*>{}(iter.second.AsMirrorPtr(), key.AsMirrorPtr()) &&
+                       : pair.first;
+    if (std::less<mirror::Object*>{}(pair.second.AsMirrorPtr(), key.AsMirrorPtr()) &&
         bump_pointer_space_->HasAddress(key.AsMirrorPtr())) {
-      CHECK(class_after_obj_ordered_map_.try_emplace(key, iter.second).second);
+      auto [ret_iter, success] = class_after_obj_ordered_map_.try_emplace(key, pair.second);
+      // It could fail only if the class 'key' has objects of its own, which are lower in
+      // address order, as well of some of its derived class. In this case
+      // choose the lowest address object.
+      if (!success &&
+          std::less<mirror::Object*>{}(pair.second.AsMirrorPtr(), ret_iter->second.AsMirrorPtr())) {
+        ret_iter->second = pair.second;
+      }
     }
   }
   class_after_obj_hash_map_.clear();
