@@ -167,7 +167,7 @@ class BuildTestContext:
     output = relpath(Path(args[args.index("--output") + 1]), self.rbe_exec_root)
     return self.rbe_wrap([
       "--output_files" if output.endswith(".jar") else "--output_directories", output,
-      "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
+      "--toolchain_inputs=prebuilts/jdk/jdk17/linux-x86/bin/java",
       d8_path] + args, inputs)
 
   def rbe_smali(self, smali_path:Path, args):
@@ -175,7 +175,7 @@ class BuildTestContext:
     output = relpath(Path(args[args.index("--output") + 1]), self.rbe_exec_root)
     return self.rbe_wrap([
       "--output_files", output,
-      "--toolchain_inputs=prebuilts/jdk/jdk11/linux-x86/bin/java",
+      "--toolchain_inputs=prebuilts/jdk/jdk17/linux-x86/bin/java",
       smali_path] + args, inputs)
 
   def build(self) -> None:
