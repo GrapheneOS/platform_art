@@ -19,6 +19,10 @@ package com.android.server.art;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Environment;
@@ -76,6 +80,8 @@ import java.util.stream.Collectors;
  * This class collects data sent directly by apps, and hence the data should be trusted as little as
  * possible.
  *
+ * To avoid overwriting data, {@link #load()} must be called exactly once, during initialization.
+ *
  * @hide
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
@@ -102,7 +108,9 @@ public class DexUseManagerLocal {
     @NonNull private final Debouncer mDebouncer;
 
     private final Object mLock = new Object();
-    @GuardedBy("mLock") @NonNull private DexUse mDexUse = new DexUse();
+    @GuardedBy("mLock") @NonNull private DexUse mDexUse; // Initialized by `load`.
+    @GuardedBy("mLock") private int mRevision = 0;
+    @GuardedBy("mLock") private int mLastCommittedRevision = 0;
 
     /**
      * Creates the singleton instance.
@@ -118,18 +126,18 @@ public class DexUseManagerLocal {
      * @throws IllegalStateException if the instance is already created
      */
     @NonNull
-    public static DexUseManagerLocal createInstance() {
+    public static DexUseManagerLocal createInstance(@NonNull Context context) {
         synchronized (sLock) {
             if (sInstance != null) {
                 throw new IllegalStateException("DexUseManagerLocal is already created");
             }
-            sInstance = new DexUseManagerLocal();
+            sInstance = new DexUseManagerLocal(context);
             return sInstance;
         }
     }
 
-    private DexUseManagerLocal() {
-        this(new Injector());
+    private DexUseManagerLocal(@NonNull Context context) {
+        this(new Injector(context));
     }
 
     /** @hide */
@@ -138,6 +146,19 @@ public class DexUseManagerLocal {
         mInjector = injector;
         mDebouncer = new Debouncer(INTERVAL_MS, mInjector::createScheduledExecutor);
         load();
+    }
+
+    /** Notifies dex use manager that {@link Context#registerReceiver} is ready for use. */
+    public void systemReady() {
+        // Save the data when the device is being shut down. The receiver is blocking, with a
+        // 10s timeout.
+        mInjector.getContext().registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                context.unregisterReceiver(this);
+                save();
+            }
+        }, new IntentFilter(Intent.ACTION_SHUTDOWN));
     }
 
     /**
@@ -425,6 +446,7 @@ public class DexUseManagerLocal {
                                     DexLoader.create(loadingPackageName, isolatedProcess),
                                     k -> new PrimaryDexUseRecord());
             record.mLastUsedAtMs = lastUsedAtMs;
+            mRevision++;
         }
         maybeSaveAsync();
     }
@@ -445,6 +467,7 @@ public class DexUseManagerLocal {
             record.mClassLoaderContext = classLoaderContext;
             record.mAbiName = abiName;
             record.mLastUsedAtMs = lastUsedAtMs;
+            mRevision++;
         }
         maybeSaveAsync();
     }
@@ -460,8 +483,13 @@ public class DexUseManagerLocal {
 
     private void save() {
         var builder = DexUseProto.newBuilder();
+        int thisRevision;
         synchronized (mLock) {
+            if (mRevision <= mLastCommittedRevision) {
+                return;
+            }
             mDexUse.toProto(builder);
+            thisRevision = mRevision;
         }
         var file = new File(mInjector.getFilename());
         File tempFile = null;
@@ -470,8 +498,15 @@ public class DexUseManagerLocal {
             try (OutputStream out = new FileOutputStream(tempFile.getPath())) {
                 builder.build().writeTo(out);
             }
-            Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE);
+            synchronized (mLock) {
+                // Check revision again in case `mLastCommittedRevision` has changed since the check
+                // above, to avoid ABA race.
+                if (thisRevision > mLastCommittedRevision) {
+                    Files.move(tempFile.toPath(), file.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                    mLastCommittedRevision = thisRevision;
+                }
+            }
         } catch (IOException e) {
             Log.e(TAG, "Failed to save dex use data", e);
         } finally {
@@ -485,16 +520,21 @@ public class DexUseManagerLocal {
 
     /** This should only be called during initialization. */
     private void load() {
-        DexUseProto proto;
+        DexUseProto proto = null;
         try (InputStream in = new FileInputStream(mInjector.getFilename())) {
             proto = DexUseProto.parseFrom(in);
         } catch (IOException e) {
             // Nothing else we can do but to start from scratch.
             Log.e(TAG, "Failed to load dex use data", e);
-            return;
         }
         synchronized (mLock) {
-            mDexUse.fromProto(proto);
+            if (mDexUse != null) {
+                throw new IllegalStateException("Load has already been attempted");
+            }
+            mDexUse = new DexUse();
+            if (proto != null) {
+                mDexUse.fromProto(proto);
+            }
         }
     }
 
@@ -801,7 +841,11 @@ public class DexUseManagerLocal {
      */
     @VisibleForTesting
     public static class Injector {
-        Injector() {
+        @NonNull private final Context mContext;
+
+        Injector(@NonNull Context context) {
+            mContext = context;
+
             // Call the getters for various dependencies, to ensure correct initialization order.
             ArtModuleServiceInitializer.getArtModuleServiceManager();
         }
@@ -823,6 +867,11 @@ public class DexUseManagerLocal {
         @NonNull
         public ScheduledExecutorService createScheduledExecutor() {
             return Executors.newSingleThreadScheduledExecutor();
+        }
+
+        @NonNull
+        public Context getContext() {
+            return mContext;
         }
     }
 }

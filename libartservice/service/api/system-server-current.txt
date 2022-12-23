@@ -47,8 +47,9 @@ package com.android.server.art {
   }
 
   public class DexUseManagerLocal {
-    method @NonNull public static com.android.server.art.DexUseManagerLocal createInstance();
+    method @NonNull public static com.android.server.art.DexUseManagerLocal createInstance(@NonNull android.content.Context);
     method public void notifyDexContainersLoaded(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.Map<java.lang.String,java.lang.String>);
+    method public void systemReady();
   }
 
   public class ReasonMapping {
