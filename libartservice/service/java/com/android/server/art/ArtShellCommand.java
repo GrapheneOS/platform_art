@@ -238,22 +238,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
                     pw.println(mDexUseManager.dump());
                     return 0;
                 }
-                case "dex-use-save": {
-                    try {
-                        mDexUseManager.save(getNextArgRequired());
-                        return 0;
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                case "dex-use-load": {
-                    try {
-                        mDexUseManager.load(getNextArgRequired());
-                        return 0;
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                }
                 case "bg-dexopt-job": {
                     String opt = getNextOption();
                     if (opt == null) {
@@ -421,10 +405,6 @@ public final class ArtShellCommand extends BasicShellCommandHandler {
         pw.println("    given package.");
         pw.println("  dex-use-dump");
         pw.println("    Print all dex use information in textproto format.");
-        pw.println("  dex-use-save PATH");
-        pw.println("    Save dex use information to a file in binary proto format.");
-        pw.println("  dex-use-load PATH");
-        pw.println("    Load dex use information from a file in binary proto format.");
         pw.println("  bg-dexopt-job [--cancel | --disable | --enable]");
         pw.println("    Control the background dexopt job.");
         pw.println("    Without flags, it starts a background dexopt job immediately. It does");

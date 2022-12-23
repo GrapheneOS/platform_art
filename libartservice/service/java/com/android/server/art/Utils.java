@@ -36,6 +36,7 @@ import dalvik.system.VMRuntime;
 
 import com.google.auto.value.AutoValue;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -287,6 +288,12 @@ public final class Utils {
                         .max(Long::compare)
                         .orElse(0l);
         return Math.max(lastUsedAtMs, lastFirstInstallTimeMs);
+    }
+
+    public static void deleteIfExistsSafe(@Nullable File file) {
+        if (file != null) {
+            deleteIfExistsSafe(file.toPath());
+        }
     }
 
     public static void deleteIfExistsSafe(@NonNull Path path) {

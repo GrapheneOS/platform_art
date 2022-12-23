@@ -39,6 +39,7 @@ import android.os.storage.StorageManager;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.server.art.testing.MockClock;
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
@@ -88,6 +89,7 @@ public class DexUseManagerTest {
     private DexUseManagerLocal mDexUseManager;
     private String mCeDir;
     private String mDeDir;
+    private MockClock mMockClock;
 
     @Before
     public void setUp() throws Exception {
@@ -120,9 +122,17 @@ public class DexUseManagerTest {
                          .getDataDePackageDirectoryForUser(StorageManager.UUID_DEFAULT,
                                  Binder.getCallingUserHandle(), OWNING_PKG_NAME)
                          .toString();
+        mMockClock = new MockClock();
+
+        File tempFile = File.createTempFile("package-dex-usage", ".pb");
+        tempFile.deleteOnExit();
 
         lenient().when(mInjector.getArtd()).thenReturn(mArtd);
         lenient().when(mInjector.getCurrentTimeMillis()).thenReturn(0l);
+        lenient().when(mInjector.getFilename()).thenReturn(tempFile.getPath());
+        lenient()
+                .when(mInjector.createScheduledExecutor())
+                .thenAnswer(invocation -> mMockClock.createScheduledExecutor());
 
         mDexUseManager = new DexUseManagerLocal(mInjector);
     }
@@ -224,11 +234,9 @@ public class DexUseManagerTest {
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
         if (saveAndLoad) {
-            File tempFile = File.createTempFile("dex-use", ".pb");
-            tempFile.deleteOnExit();
-            mDexUseManager.save(tempFile.getPath());
-            mDexUseManager.clear();
-            mDexUseManager.load(tempFile.getPath());
+            // MockClock runs tasks synchronously.
+            mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
+            mDexUseManager = new DexUseManagerLocal(mInjector);
         }
 
         assertThat(mDexUseManager.getPrimaryDexLoaders(OWNING_PKG_NAME, BASE_APK))
@@ -370,11 +378,9 @@ public class DexUseManagerTest {
                 Map.of(mCeDir + "/foo.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
 
         if (saveAndLoad) {
-            File tempFile = File.createTempFile("dex-use", ".pb");
-            tempFile.deleteOnExit();
-            mDexUseManager.save(tempFile.getPath());
-            mDexUseManager.clear();
-            mDexUseManager.load(tempFile.getPath());
+            // MockClock runs tasks synchronously.
+            mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
+            mDexUseManager = new DexUseManagerLocal(mInjector);
         }
 
         List<? extends SecondaryDexInfo> dexInfoList =
