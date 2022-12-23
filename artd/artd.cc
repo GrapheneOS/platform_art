@@ -37,6 +37,7 @@
 #include <string_view>
 #include <system_error>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -1009,6 +1010,33 @@ ScopedAStatus ArtdCancellationSignal::getType(int64_t* _aidl_return) {
 ScopedAStatus Artd::createCancellationSignal(
     std::shared_ptr<IArtdCancellationSignal>* _aidl_return) {
   *_aidl_return = ndk::SharedRefBase::make<ArtdCancellationSignal>(kill_);
+  return ScopedAStatus::ok();
+}
+
+ScopedAStatus Artd::cleanup(const std::vector<ProfilePath>& in_profilesToKeep,
+                            const std::vector<ArtifactsPath>& in_artifactsToKeep,
+                            const std::vector<VdexPath>& in_vdexFilesToKeep,
+                            int64_t* _aidl_return) {
+  std::unordered_set<std::string> files_to_keep;
+  for (const ProfilePath& profile : in_profilesToKeep) {
+    files_to_keep.insert(OR_RETURN_FATAL(BuildProfileOrDmPath(profile)));
+  }
+  for (const ArtifactsPath& artifacts : in_artifactsToKeep) {
+    std::string oat_path = OR_RETURN_FATAL(BuildOatPath(artifacts));
+    files_to_keep.insert(OatPathToVdexPath(oat_path));
+    files_to_keep.insert(OatPathToArtPath(oat_path));
+    files_to_keep.insert(std::move(oat_path));
+  }
+  for (const VdexPath& vdex : in_vdexFilesToKeep) {
+    files_to_keep.insert(OR_RETURN_FATAL(BuildVdexPath(vdex)));
+  }
+  *_aidl_return = 0;
+  for (const std::string& file : OR_RETURN_NON_FATAL(ListManagedFiles())) {
+    if (files_to_keep.find(file) == files_to_keep.end()) {
+      LOG(INFO) << "Cleaning up obsolete file '{}'"_format(file);
+      *_aidl_return += GetSizeAndDeleteFile(file);
+    }
+  }
   return ScopedAStatus::ok();
 }
 

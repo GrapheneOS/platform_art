@@ -158,6 +158,12 @@ class Artd : public aidl::com::android::server::art::BnArtd {
       std::shared_ptr<aidl::com::android::server::art::IArtdCancellationSignal>* _aidl_return)
       override;
 
+  ndk::ScopedAStatus cleanup(
+      const std::vector<aidl::com::android::server::art::ProfilePath>& in_profilesToKeep,
+      const std::vector<aidl::com::android::server::art::ArtifactsPath>& in_artifactsToKeep,
+      const std::vector<aidl::com::android::server::art::VdexPath>& in_vdexFilesToKeep,
+      int64_t* _aidl_return) override;
+
   android::base::Result<void> Start();
 
  private:

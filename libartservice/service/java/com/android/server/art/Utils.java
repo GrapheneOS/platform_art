@@ -257,12 +257,17 @@ public final class Utils {
         // We do not dexopt unused packages.
         // If `appHibernationManager` is null, the caller's intention is to skip the check.
         if (appHibernationManager != null
-                && appHibernationManager.isHibernatingGlobally(pkgState.getPackageName())
-                && appHibernationManager.isOatArtifactDeletionEnabled()) {
+                && shouldSkipDexoptDueToHibernation(pkgState, appHibernationManager)) {
             return false;
         }
 
         return true;
+    }
+
+    public static boolean shouldSkipDexoptDueToHibernation(
+            @NonNull PackageState pkgState, @NonNull AppHibernationManager appHibernationManager) {
+        return appHibernationManager.isHibernatingGlobally(pkgState.getPackageName())
+                && appHibernationManager.isOatArtifactDeletionEnabled();
     }
 
     public static long getPackageLastActiveTime(@NonNull PackageState pkgState,

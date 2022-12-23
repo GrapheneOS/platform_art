@@ -196,13 +196,22 @@ public class BackgroundDexoptJob {
     @NonNull
     private CompletedResult run(@NonNull CancellationSignal cancellationSignal) {
         // TODO(b/254013427): Cleanup dex use info.
-        // TODO(b/254013425): Cleanup unused secondary dex file artifacts.
         long startTimeMs = SystemClock.uptimeMillis();
         DexoptResult dexoptResult;
         try (var snapshot = mInjector.getPackageManagerLocal().withFilteredSnapshot()) {
             dexoptResult = mInjector.getArtManagerLocal().dexoptPackages(snapshot,
                     ReasonMapping.REASON_BG_DEXOPT, cancellationSignal,
                     null /* processCallbackExecutor */, null /* processCallback */);
+
+            // For simplicity, we don't support cancelling the following operation in the middle.
+            // This is fine because it typically takes only a few seconds.
+            if (!cancellationSignal.isCanceled()) {
+                // We do the cleanup after dexopt so that it doesn't affect the `getSizeBeforeBytes`
+                // field in the result that we send to callbacks. Admittedly, this will cause us to
+                // lose some chance to dexopt when the storage is very low, but it's fine because we
+                // can still dexopt in the next run.
+                mInjector.getArtManagerLocal().cleanup(snapshot);
+            }
         }
         return CompletedResult.create(dexoptResult, SystemClock.uptimeMillis() - startTimeMs);
     }
