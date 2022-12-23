@@ -242,9 +242,7 @@ MarkCompact::MarkCompact(Heap* heap)
     : GarbageCollector(heap, "concurrent mark compact"),
       gc_barrier_(0),
       mark_stack_lock_("mark compact mark stack lock", kMarkSweepMarkStackLock),
-      non_moving_space_(heap->GetNonMovingSpace()),
       bump_pointer_space_(heap->GetBumpPointerSpace()),
-      moving_space_bitmap_(bump_pointer_space_->GetMarkBitmap()),
       moving_to_space_fd_(kFdUnused),
       moving_from_space_fd_(kFdUnused),
       uffd_(kFdUnused),
@@ -437,9 +435,14 @@ void MarkCompact::BindAndResetBitmaps() {
       // in these spaces. This card-table will eventually be used to track
       // mutations while concurrent marking is going on.
       card_table->ClearCardRange(space->Begin(), space->Limit());
-      if (space != bump_pointer_space_) {
-        CHECK_EQ(space, heap_->GetNonMovingSpace());
-        CHECK_EQ(non_moving_space_, space);
+      if (space == bump_pointer_space_) {
+        // It is OK to clear the bitmap with mutators running since the only
+        // place it is read is VisitObjects which has exclusion with this GC.
+        moving_space_bitmap_ = bump_pointer_space_->GetMarkBitmap();
+        moving_space_bitmap_->Clear();
+      } else {
+        CHECK(space == heap_->GetNonMovingSpace());
+        non_moving_space_ = space;
         non_moving_space_bitmap_ = space->GetMarkBitmap();
       }
     }
@@ -3749,11 +3752,6 @@ void MarkCompact::FinishPhase() {
 
   info_map_.MadviseDontNeedAndZero();
   live_words_bitmap_->ClearBitmap();
-  // TODO: We can clear this bitmap right before compaction pause. But in that
-  // case we need to ensure that we don't assert on this bitmap afterwards.
-  // Also, we would still need to clear it here again as we may have to use the
-  // bitmap for black-allocations (see UpdateMovingSpaceBlackAllocations()).
-  moving_space_bitmap_->Clear();
 
   if (UNLIKELY(is_zygote && IsValidFd(uffd_))) {
     heap_->DeleteThreadPool();
