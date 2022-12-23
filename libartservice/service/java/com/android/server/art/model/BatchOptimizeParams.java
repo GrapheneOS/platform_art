@@ -32,8 +32,6 @@ import java.util.List;
 @Immutable
 @AutoValue
 public abstract class BatchOptimizeParams {
-    /** @hide */
-    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public static final class Builder {
         private @NonNull List<String> mPackageNames; // This is assumed immutable.
         private @NonNull OptimizeParams mOptimizeParams;

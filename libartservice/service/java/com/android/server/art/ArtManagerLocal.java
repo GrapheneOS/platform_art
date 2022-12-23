@@ -694,8 +694,6 @@ public final class ArtManagerLocal {
         }
     }
 
-    /** @hide */
-    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public interface OptimizePackagesCallback {
         /**
          * Mutates {@code builder} to override the default params for {@link #optimizePackages}. It
@@ -721,8 +719,6 @@ public final class ArtManagerLocal {
                 @NonNull BatchOptimizeParams.Builder builder);
     }
 
-    /** @hide */
-    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public interface ScheduleBackgroundDexoptJobCallback {
         /**
          * Mutates {@code builder} to override the configuration of the background dexopt job.
@@ -742,18 +738,11 @@ public final class ArtManagerLocal {
         void onOverrideJobInfo(@NonNull JobInfo.Builder builder);
     }
 
-    /** @hide */
-    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public interface OptimizePackageDoneCallback {
         void onOptimizePackageDone(@NonNull OptimizeResult result);
     }
 
-    /**
-     * Represents an error that happens when snapshotting profiles.
-     *
-     * @hide
-     */
-    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+    /** Represents an error that happens when snapshotting profiles.  */
     public static class SnapshotProfileException extends Exception {
         public SnapshotProfileException(@NonNull Throwable cause) {
             super(cause);

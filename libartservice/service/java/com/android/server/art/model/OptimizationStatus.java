@@ -51,12 +51,7 @@ public abstract class OptimizationStatus {
     public abstract List<DexContainerFileOptimizationStatus>
     getDexContainerFileOptimizationStatuses();
 
-    /**
-     * Describes the optimization status of a dex container file.
-     *
-     * @hide
-     */
-    @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
+    /** Describes the optimization status of a dex container file. */
     @Immutable
     @AutoValue
     public abstract static class DexContainerFileOptimizationStatus {
