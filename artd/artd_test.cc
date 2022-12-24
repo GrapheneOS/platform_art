@@ -1614,7 +1614,7 @@ TEST_F(ArtdTest, mergeProfilesProfilesDontExist) {
   EXPECT_THAT(output_profile.profilePath.tmpPath, IsEmpty());
 }
 
-TEST_F(ArtdTest, mergeProfilesWithOptions) {
+TEST_F(ArtdTest, mergeProfilesWithOptionsForceMerge) {
   PrimaryCurProfilePath profile_0_path{
       .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
   std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
@@ -1647,6 +1647,82 @@ TEST_F(ArtdTest, mergeProfilesWithOptions) {
   EXPECT_TRUE(result);
   EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
   EXPECT_THAT(output_profile.profilePath.tmpPath, Not(IsEmpty()));
+}
+
+TEST_F(ArtdTest, mergeProfilesWithOptionsDumpOnly) {
+  PrimaryCurProfilePath profile_0_path{
+      .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
+  CreateFile(profile_0_file, "def");
+
+  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
+                               .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  output_profile.profilePath.id = "";
+  output_profile.profilePath.tmpPath = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              _,
+                              AllOf(Contains("--dump-only"),
+                                    Not(Contains(Flag("--reference-profile-file-fd=", _))))),
+                  _,
+                  _))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--dump-output-to-fd=", "dump")),
+                      Return(ProfmanResult::kSuccess)));
+
+  bool result;
+  EXPECT_TRUE(artd_
+                  ->mergeProfiles({profile_0_path},
+                                  std::nullopt,
+                                  &output_profile,
+                                  {dex_file_},
+                                  {.dumpOnly = true},
+                                  &result)
+                  .isOk());
+  EXPECT_TRUE(result);
+  EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
+  CheckContent(output_profile.profilePath.tmpPath, "dump");
+}
+
+TEST_F(ArtdTest, mergeProfilesWithOptionsDumpClassesAndMethods) {
+  PrimaryCurProfilePath profile_0_path{
+      .userId = 0, .packageName = "com.android.foo", .profileName = "primary"};
+  std::string profile_0_file = OR_FATAL(BuildPrimaryCurProfilePath(profile_0_path));
+  CreateFile(profile_0_file, "def");
+
+  OutputProfile output_profile{.profilePath = profile_path_->get<ProfilePath::tmpProfilePath>(),
+                               .fsPermission = FsPermission{.uid = -1, .gid = -1}};
+  output_profile.profilePath.id = "";
+  output_profile.profilePath.tmpPath = "";
+
+  CreateFile(dex_file_);
+
+  EXPECT_CALL(*mock_exec_utils_,
+              DoExecAndReturnCode(
+                  WhenSplitBy("--",
+                              _,
+                              AllOf(Contains("--dump-classes-and-methods"),
+                                    Not(Contains(Flag("--reference-profile-file-fd=", _))))),
+                  _,
+                  _))
+      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--dump-output-to-fd=", "dump")),
+                      Return(ProfmanResult::kSuccess)));
+
+  bool result;
+  EXPECT_TRUE(artd_
+                  ->mergeProfiles({profile_0_path},
+                                  std::nullopt,
+                                  &output_profile,
+                                  {dex_file_},
+                                  {.dumpClassesAndMethods = true},
+                                  &result)
+                  .isOk());
+  EXPECT_TRUE(result);
+  EXPECT_THAT(output_profile.profilePath.id, Not(IsEmpty()));
+  CheckContent(output_profile.profilePath.tmpPath, "dump");
 }
 
 }  // namespace

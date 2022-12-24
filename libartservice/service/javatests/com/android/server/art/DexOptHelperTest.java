@@ -18,6 +18,7 @@ package com.android.server.art;
 
 import static com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback;
 import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
+import static com.android.server.art.model.OptimizeResult.OptimizeStatus;
 import static com.android.server.art.model.OptimizeResult.PackageOptimizeResult;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -124,9 +125,12 @@ public class DexOptHelperTest {
 
         preparePackagesAndLibraries();
 
-        mPrimaryResults = createResults("/data/app/foo/base.apk", false /* partialFailure */);
-        mSecondaryResults =
-                createResults("/data/user_de/0/foo/foo.apk", false /* partialFailure */);
+        mPrimaryResults = createResults("/data/app/foo/base.apk",
+                OptimizeResult.OPTIMIZE_PERFORMED /* status1 */,
+                OptimizeResult.OPTIMIZE_PERFORMED /* status2 */);
+        mSecondaryResults = createResults("/data/user_de/0/foo/foo.apk",
+                OptimizeResult.OPTIMIZE_PERFORMED /* status1 */,
+                OptimizeResult.OPTIMIZE_PERFORMED /* status2 */);
 
         lenient()
                 .when(mInjector.getPrimaryDexOptimizer(any(), any(), any(), any()))
@@ -162,8 +166,9 @@ public class DexOptHelperTest {
     public void testDexopt() throws Exception {
         // Only package libbaz fails.
         var failingPrimaryDexOptimizer = mock(PrimaryDexOptimizer.class);
-        List<DexContainerFileOptimizeResult> partialFailureResults =
-                createResults("/data/app/foo/base.apk", true /* partialFailure */);
+        List<DexContainerFileOptimizeResult> partialFailureResults = createResults(
+                "/data/app/foo/base.apk", OptimizeResult.OPTIMIZE_PERFORMED /* status1 */,
+                OptimizeResult.OPTIMIZE_FAILED /* status2 */);
         lenient().when(failingPrimaryDexOptimizer.dexopt()).thenReturn(partialFailureResults);
         when(mInjector.getPrimaryDexOptimizer(same(mPkgStateLibbaz), any(), any(), any()))
                 .thenReturn(failingPrimaryDexOptimizer);
@@ -469,10 +474,12 @@ public class DexOptHelperTest {
     @Test
     public void testCallbacks() throws Exception {
         List<OptimizeResult> list1 = new ArrayList<>();
-        mConfig.addOptimizePackageDoneCallback(Runnable::run, result -> list1.add(result));
+        mConfig.addOptimizePackageDoneCallback(
+                false /* onlyIncludeUpdates */, Runnable::run, result -> list1.add(result));
 
         List<OptimizeResult> list2 = new ArrayList<>();
-        mConfig.addOptimizePackageDoneCallback(Runnable::run, result -> list2.add(result));
+        mConfig.addOptimizePackageDoneCallback(
+                false /* onlyIncludeUpdates */, Runnable::run, result -> list2.add(result));
 
         OptimizeResult result = mDexOptHelper.dexopt(
                 mSnapshot, mRequestedPackages, mParams, mCancellationSignal, mExecutor);
@@ -485,10 +492,12 @@ public class DexOptHelperTest {
     public void testCallbackRemoved() throws Exception {
         List<OptimizeResult> list1 = new ArrayList<>();
         OptimizePackageDoneCallback callback1 = result -> list1.add(result);
-        mConfig.addOptimizePackageDoneCallback(Runnable::run, callback1);
+        mConfig.addOptimizePackageDoneCallback(
+                false /* onlyIncludeUpdates */, Runnable::run, callback1);
 
         List<OptimizeResult> list2 = new ArrayList<>();
-        mConfig.addOptimizePackageDoneCallback(Runnable::run, result -> list2.add(result));
+        mConfig.addOptimizePackageDoneCallback(
+                false /* onlyIncludeUpdates */, Runnable::run, result -> list2.add(result));
 
         mConfig.removeOptimizePackageDoneCallback(callback1);
 
@@ -503,8 +512,64 @@ public class DexOptHelperTest {
     public void testCallbackAlreadyAdded() throws Exception {
         List<OptimizeResult> list = new ArrayList<>();
         OptimizePackageDoneCallback callback = result -> list.add(result);
-        mConfig.addOptimizePackageDoneCallback(Runnable::run, callback);
-        mConfig.addOptimizePackageDoneCallback(Runnable::run, callback);
+        mConfig.addOptimizePackageDoneCallback(
+                false /* onlyIncludeUpdates */, Runnable::run, callback);
+        mConfig.addOptimizePackageDoneCallback(
+                false /* onlyIncludeUpdates */, Runnable::run, callback);
+    }
+
+    // Tests `addOptimizePackageDoneCallback` with `onlyIncludeUpdates` being true and false.
+    @Test
+    public void testCallbackWithFailureResults() throws Exception {
+        mParams = new OptimizeParams.Builder("install")
+                          .setCompilerFilter("speed-profile")
+                          .setFlags(0,
+                                  ArtFlags.FLAG_FOR_SECONDARY_DEX
+                                          | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES)
+                          .build();
+
+        // This list should collect all results.
+        List<OptimizeResult> listAll = new ArrayList<>();
+        mConfig.addOptimizePackageDoneCallback(
+                false /* onlyIncludeUpdates */, Runnable::run, result -> listAll.add(result));
+
+        // This list should only collect results that have updates.
+        List<OptimizeResult> listOnlyIncludeUpdates = new ArrayList<>();
+        mConfig.addOptimizePackageDoneCallback(true /* onlyIncludeUpdates */, Runnable::run,
+                result -> listOnlyIncludeUpdates.add(result));
+
+        // Dexopt partially fails on package "foo".
+        List<DexContainerFileOptimizeResult> partialFailureResults = createResults(
+                "/data/app/foo/base.apk", OptimizeResult.OPTIMIZE_PERFORMED /* status1 */,
+                OptimizeResult.OPTIMIZE_FAILED /* status2 */);
+        var fooPrimaryDexOptimizer = mock(PrimaryDexOptimizer.class);
+        when(mInjector.getPrimaryDexOptimizer(same(mPkgStateFoo), any(), any(), any()))
+                .thenReturn(fooPrimaryDexOptimizer);
+        when(fooPrimaryDexOptimizer.dexopt()).thenReturn(partialFailureResults);
+
+        // Dexopt totally fails on package "bar".
+        List<DexContainerFileOptimizeResult> totalFailureResults = createResults(
+                "/data/app/bar/base.apk", OptimizeResult.OPTIMIZE_FAILED /* status1 */,
+                OptimizeResult.OPTIMIZE_FAILED /* status2 */);
+        var barPrimaryDexOptimizer = mock(PrimaryDexOptimizer.class);
+        when(mInjector.getPrimaryDexOptimizer(same(mPkgStateBar), any(), any(), any()))
+                .thenReturn(barPrimaryDexOptimizer);
+        when(barPrimaryDexOptimizer.dexopt()).thenReturn(totalFailureResults);
+
+        OptimizeResult resultWithSomeUpdates = mDexOptHelper.dexopt(mSnapshot,
+                List.of(PKG_NAME_FOO, PKG_NAME_BAR), mParams, mCancellationSignal, mExecutor);
+        OptimizeResult resultWithNoUpdates = mDexOptHelper.dexopt(
+                mSnapshot, List.of(PKG_NAME_BAR), mParams, mCancellationSignal, mExecutor);
+
+        assertThat(listAll).containsExactly(resultWithSomeUpdates, resultWithNoUpdates);
+
+        assertThat(listOnlyIncludeUpdates).hasSize(1);
+        assertThat(listOnlyIncludeUpdates.get(0)
+                           .getPackageOptimizeResults()
+                           .stream()
+                           .map(PackageOptimizeResult::getPackageName)
+                           .collect(Collectors.toList()))
+                .containsExactly(PKG_NAME_FOO);
     }
 
     @Test
@@ -642,18 +707,14 @@ public class DexOptHelperTest {
     }
 
     private List<DexContainerFileOptimizeResult> createResults(
-            String dexPath, boolean partialFailure) {
+            String dexPath, @OptimizeStatus int status1, @OptimizeStatus int status2) {
         return List.of(new DexContainerFileOptimizeResult(dexPath, true /* isPrimaryAbi */,
-                               "arm64-v8a", "verify", OptimizeResult.OPTIMIZE_PERFORMED,
-                               100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
-                               0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
-                               false /* isSkippedDueToStorageLow */),
+                               "arm64-v8a", "verify", status1, 100 /* dex2oatWallTimeMillis */,
+                               400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */,
+                               0 /* sizeBeforeBytes */, false /* isSkippedDueToStorageLow */),
                 new DexContainerFileOptimizeResult(dexPath, false /* isPrimaryAbi */, "armeabi-v7a",
-                        "verify",
-                        partialFailure ? OptimizeResult.OPTIMIZE_FAILED
-                                       : OptimizeResult.OPTIMIZE_PERFORMED,
-                        100 /* dex2oatWallTimeMillis */, 400 /* dex2oatCpuTimeMillis */,
-                        0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
+                        "verify", status2, 100 /* dex2oatWallTimeMillis */,
+                        400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                         false /* isSkippedDueToStorageLow */));
     }
 

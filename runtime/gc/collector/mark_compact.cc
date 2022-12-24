@@ -242,7 +242,6 @@ MarkCompact::MarkCompact(Heap* heap)
     : GarbageCollector(heap, "concurrent mark compact"),
       gc_barrier_(0),
       mark_stack_lock_("mark compact mark stack lock", kMarkSweepMarkStackLock),
-      non_moving_space_(heap->GetNonMovingSpace()),
       bump_pointer_space_(heap->GetBumpPointerSpace()),
       moving_space_bitmap_(bump_pointer_space_->GetMarkBitmap()),
       moving_to_space_fd_(kFdUnused),
@@ -439,7 +438,7 @@ void MarkCompact::BindAndResetBitmaps() {
       card_table->ClearCardRange(space->Begin(), space->Limit());
       if (space != bump_pointer_space_) {
         CHECK_EQ(space, heap_->GetNonMovingSpace());
-        CHECK_EQ(non_moving_space_, space);
+        non_moving_space_ = space;
         non_moving_space_bitmap_ = space->GetMarkBitmap();
       }
     }
