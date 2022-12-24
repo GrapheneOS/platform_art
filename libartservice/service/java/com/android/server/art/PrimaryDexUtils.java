@@ -324,7 +324,7 @@ public class PrimaryDexUtils {
     }
 
     @NonNull
-    private static String getProfileName(@Nullable String splitName) {
+    public static String getProfileName(@Nullable String splitName) {
         return splitName == null ? "primary" : splitName + ".split";
     }
 

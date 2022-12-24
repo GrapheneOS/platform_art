@@ -21,7 +21,9 @@ import android.annotation.Nullable;
 import android.apphibernation.AppHibernationManager;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.UserManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.SparseArray;
 
 import com.android.server.art.model.OptimizeParams;
@@ -34,6 +36,10 @@ import dalvik.system.VMRuntime;
 
 import com.google.auto.value.AutoValue;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -46,6 +52,7 @@ import java.util.stream.Collectors;
 
 /** @hide */
 public final class Utils {
+    public static final String TAG = "ArtServiceUtils";
     public static final String PLATFORM_PACKAGE_NAME = "android";
 
     private Utils() {}
@@ -266,6 +273,35 @@ public final class Utils {
         }
 
         return true;
+    }
+
+    public static long getPackageLastActiveTime(@NonNull PackageState pkgState,
+            @NonNull DexUseManagerLocal dexUseManager, @NonNull UserManager userManager) {
+        long lastUsedAtMs = dexUseManager.getPackageLastUsedAtMs(pkgState.getPackageName());
+        // The time where the last user installed the package the first time.
+        long lastFirstInstallTimeMs =
+                userManager.getUserHandles(true /* excludeDying */)
+                        .stream()
+                        .map(handle -> pkgState.getStateForUser(handle))
+                        .map(com.android.server.art.wrapper.PackageUserState::new)
+                        .map(userState -> userState.getFirstInstallTime())
+                        .max(Long::compare)
+                        .orElse(0l);
+        return Math.max(lastUsedAtMs, lastFirstInstallTimeMs);
+    }
+
+    public static void deleteIfExistsSafe(@Nullable File file) {
+        if (file != null) {
+            deleteIfExistsSafe(file.toPath());
+        }
+    }
+
+    public static void deleteIfExistsSafe(@NonNull Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to delete file '" + path + "'", e);
+        }
     }
 
     @AutoValue

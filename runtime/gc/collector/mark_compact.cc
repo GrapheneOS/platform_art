@@ -243,6 +243,7 @@ MarkCompact::MarkCompact(Heap* heap)
       gc_barrier_(0),
       mark_stack_lock_("mark compact mark stack lock", kMarkSweepMarkStackLock),
       bump_pointer_space_(heap->GetBumpPointerSpace()),
+      moving_space_bitmap_(bump_pointer_space_->GetMarkBitmap()),
       moving_to_space_fd_(kFdUnused),
       moving_from_space_fd_(kFdUnused),
       uffd_(kFdUnused),
@@ -435,13 +436,8 @@ void MarkCompact::BindAndResetBitmaps() {
       // in these spaces. This card-table will eventually be used to track
       // mutations while concurrent marking is going on.
       card_table->ClearCardRange(space->Begin(), space->Limit());
-      if (space == bump_pointer_space_) {
-        // It is OK to clear the bitmap with mutators running since the only
-        // place it is read is VisitObjects which has exclusion with this GC.
-        moving_space_bitmap_ = bump_pointer_space_->GetMarkBitmap();
-        moving_space_bitmap_->Clear();
-      } else {
-        CHECK(space == heap_->GetNonMovingSpace());
+      if (space != bump_pointer_space_) {
+        CHECK_EQ(space, heap_->GetNonMovingSpace());
         non_moving_space_ = space;
         non_moving_space_bitmap_ = space->GetMarkBitmap();
       }
@@ -460,6 +456,7 @@ void MarkCompact::InitializePhase() {
   freed_objects_ = 0;
   from_space_slide_diff_ = from_space_begin_ - bump_pointer_space_->Begin();
   black_allocations_begin_ = bump_pointer_space_->Limit();
+  walk_super_class_cache_ = nullptr;
   compacting_ = false;
   // TODO: Would it suffice to read it once in the constructor, which is called
   // in zygote process?
@@ -1810,7 +1807,7 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx) {
   DCHECK_ALIGNED(reclaim_begin, kPageSize);
   DCHECK_ALIGNED(last_reclaimed_page_, kPageSize);
   // Check if the 'class_after_obj_map_' map allows pages to be freed.
-  for (; class_after_obj_iter_ != class_after_obj_map_.rend(); class_after_obj_iter_++) {
+  for (; class_after_obj_iter_ != class_after_obj_ordered_map_.rend(); class_after_obj_iter_++) {
     mirror::Object* klass = class_after_obj_iter_->first.AsMirrorPtr();
     mirror::Class* from_klass = static_cast<mirror::Class*>(GetFromSpaceAddr(klass));
     // Check with class' end to ensure that, if required, the entire class survives.
@@ -1818,7 +1815,10 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx) {
     DCHECK_LE(klass_end, last_reclaimed_page_);
     if (reinterpret_cast<uint8_t*>(klass_end) >= reclaim_begin) {
       // Found a class which is in the reclaim range.
-      if (reinterpret_cast<uint8_t*>(class_after_obj_iter_->second.AsMirrorPtr()) < idx_addr) {
+      uint8_t* obj_addr = reinterpret_cast<uint8_t*>(class_after_obj_iter_->second.AsMirrorPtr());
+      // NOTE: Don't assert that obj is of 'klass' type as klass could instead
+      // be its super-class.
+      if (obj_addr < idx_addr) {
         // Its lowest-address object is not compacted yet. Reclaim starting from
         // the end of this class.
         reclaim_begin = AlignUp(klass_end, kPageSize);
@@ -1841,6 +1841,29 @@ void MarkCompact::FreeFromSpacePages(size_t cur_page_idx) {
     last_reclaimed_page_ = reclaim_begin;
   }
   last_checked_reclaim_page_idx_ = idx;
+}
+
+void MarkCompact::UpdateClassAfterObjMap() {
+  CHECK(class_after_obj_ordered_map_.empty());
+  for (const auto& pair : class_after_obj_hash_map_) {
+    auto super_class_iter = super_class_after_class_hash_map_.find(pair.first);
+    ObjReference key = super_class_iter != super_class_after_class_hash_map_.end()
+                       ? super_class_iter->second
+                       : pair.first;
+    if (std::less<mirror::Object*>{}(pair.second.AsMirrorPtr(), key.AsMirrorPtr()) &&
+        bump_pointer_space_->HasAddress(key.AsMirrorPtr())) {
+      auto [ret_iter, success] = class_after_obj_ordered_map_.try_emplace(key, pair.second);
+      // It could fail only if the class 'key' has objects of its own, which are lower in
+      // address order, as well of some of its derived class. In this case
+      // choose the lowest address object.
+      if (!success &&
+          std::less<mirror::Object*>{}(pair.second.AsMirrorPtr(), ret_iter->second.AsMirrorPtr())) {
+        ret_iter->second = pair.second;
+      }
+    }
+  }
+  class_after_obj_hash_map_.clear();
+  super_class_after_class_hash_map_.clear();
 }
 
 template <int kMode>
@@ -1867,10 +1890,11 @@ void MarkCompact::CompactMovingSpace(uint8_t* page) {
 
   DCHECK(IsAligned<kPageSize>(pre_compact_page));
 
+  UpdateClassAfterObjMap();
   // These variables are maintained by FreeFromSpacePages().
   last_reclaimed_page_ = pre_compact_page;
   last_checked_reclaim_page_idx_ = idx;
-  class_after_obj_iter_ = class_after_obj_map_.rbegin();
+  class_after_obj_iter_ = class_after_obj_ordered_map_.rbegin();
   // Allocated-black pages
   while (idx > moving_first_objs_count_) {
     idx--;
@@ -3724,6 +3748,11 @@ void MarkCompact::FinishPhase() {
 
   info_map_.MadviseDontNeedAndZero();
   live_words_bitmap_->ClearBitmap();
+  // TODO: We can clear this bitmap right before compaction pause. But in that
+  // case we need to ensure that we don't assert on this bitmap afterwards.
+  // Also, we would still need to clear it here again as we may have to use the
+  // bitmap for black-allocations (see UpdateMovingSpaceBlackAllocations()).
+  moving_space_bitmap_->Clear();
 
   if (UNLIKELY(is_zygote && IsValidFd(uffd_))) {
     heap_->DeleteThreadPool();
@@ -3735,7 +3764,7 @@ void MarkCompact::FinishPhase() {
   CHECK(mark_stack_->IsEmpty());  // Ensure that the mark stack is empty.
   mark_stack_->Reset();
   updated_roots_.clear();
-  class_after_obj_map_.clear();
+  class_after_obj_ordered_map_.clear();
   delete[] moving_pages_status_;
   linear_alloc_arenas_.clear();
   {

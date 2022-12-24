@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
@@ -41,7 +42,6 @@ import com.android.server.art.proto.PrimaryDexUseProto;
 import com.android.server.art.proto.PrimaryDexUseRecordProto;
 import com.android.server.art.proto.SecondaryDexUseProto;
 import com.android.server.art.proto.SecondaryDexUseRecordProto;
-import com.android.server.art.wrapper.Environment;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -54,7 +54,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,6 +64,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -76,11 +81,25 @@ import java.util.stream.Collectors;
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 public class DexUseManagerLocal {
     private static final String TAG = "DexUseManagerLocal";
+    private static final String FILENAME = "/data/system/package-dex-usage.pb";
+
+    /**
+     * The minimum interval between disk writes.
+     *
+     * In practice, the interval will be much longer because we use a debouncer to postpone the disk
+     * write to the end of a series of changes. Note that in theory we could postpone the disk write
+     * indefinitely, and therefore we could lose data if the device isn't shut down in the normal
+     * way, but that's fine because the data isn't crucial and is recoverable.
+     *
+     * @hide
+     */
+    @VisibleForTesting public static final long INTERVAL_MS = 15_000;
 
     private static final Object sLock = new Object();
     @GuardedBy("sLock") @Nullable private static DexUseManagerLocal sInstance = null;
 
     @NonNull private final Injector mInjector;
+    @NonNull private final Debouncer mDebouncer;
 
     private final Object mLock = new Object();
     @GuardedBy("mLock") @NonNull private DexUse mDexUse = new DexUse();
@@ -117,6 +136,8 @@ public class DexUseManagerLocal {
     @VisibleForTesting
     public DexUseManagerLocal(@NonNull Injector injector) {
         mInjector = injector;
+        mDebouncer = new Debouncer(INTERVAL_MS, mInjector::createScheduledExecutor);
+        load();
     }
 
     /**
@@ -373,18 +394,18 @@ public class DexUseManagerLocal {
 
     private static boolean isOwningPackageForSecondaryDex(
             @NonNull PackageState pkgState, @NonNull String dexPath) {
-        String volumeUuid =
-                new com.android.server.art.wrapper.PackageState(pkgState).getVolumeUuid();
+        AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);
+        UUID storageUuid = pkg.getStorageUuid();
         UserHandle handle = Binder.getCallingUserHandle();
 
-        File ceDir = Environment.getDataUserCePackageDirectory(
-                volumeUuid, handle.getIdentifier(), pkgState.getPackageName());
+        File ceDir = Environment.getDataCePackageDirectoryForUser(
+                storageUuid, handle, pkgState.getPackageName());
         if (Paths.get(dexPath).startsWith(ceDir.toPath())) {
             return true;
         }
 
-        File deDir = Environment.getDataUserDePackageDirectory(
-                volumeUuid, handle.getIdentifier(), pkgState.getPackageName());
+        File deDir = Environment.getDataDePackageDirectoryForUser(
+                storageUuid, handle, pkgState.getPackageName());
         if (Paths.get(dexPath).startsWith(deDir.toPath())) {
             return true;
         }
@@ -405,6 +426,7 @@ public class DexUseManagerLocal {
                                     k -> new PrimaryDexUseRecord());
             record.mLastUsedAtMs = lastUsedAtMs;
         }
+        maybeSaveAsync();
     }
 
     private void addSecondaryDexUse(@NonNull String owningPackageName, @NonNull String dexPath,
@@ -424,14 +446,7 @@ public class DexUseManagerLocal {
             record.mAbiName = abiName;
             record.mLastUsedAtMs = lastUsedAtMs;
         }
-    }
-
-    /** @hide */
-    @VisibleForTesting
-    public void clear() {
-        synchronized (mLock) {
-            mDexUse = new DexUse();
-        }
+        maybeSaveAsync();
     }
 
     /** @hide */
@@ -443,26 +458,43 @@ public class DexUseManagerLocal {
         return builder.build().toString();
     }
 
-    /** @hide */
-    public void save(@NonNull String filename) throws IOException {
-        try (OutputStream out = new FileOutputStream(filename)) {
-            var builder = DexUseProto.newBuilder();
-            synchronized (mLock) {
-                mDexUse.toProto(builder);
+    private void save() {
+        var builder = DexUseProto.newBuilder();
+        synchronized (mLock) {
+            mDexUse.toProto(builder);
+        }
+        var file = new File(mInjector.getFilename());
+        File tempFile = null;
+        try {
+            tempFile = File.createTempFile(file.getName(), null /* suffix */, file.getParentFile());
+            try (OutputStream out = new FileOutputStream(tempFile.getPath())) {
+                builder.build().writeTo(out);
             }
-            builder.build().writeTo(out);
+            Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to save dex use data", e);
+        } finally {
+            Utils.deleteIfExistsSafe(tempFile);
         }
     }
 
-    /** @hide */
-    public void load(@NonNull String filename) throws IOException {
-        try (InputStream in = new FileInputStream(filename)) {
-            var proto = DexUseProto.parseFrom(in);
-            var dexUse = new DexUse();
-            dexUse.fromProto(proto);
-            synchronized (mLock) {
-                mDexUse = dexUse;
-            }
+    private void maybeSaveAsync() {
+        mDebouncer.maybeRunAsync(this::save);
+    }
+
+    /** This should only be called during initialization. */
+    private void load() {
+        DexUseProto proto;
+        try (InputStream in = new FileInputStream(mInjector.getFilename())) {
+            proto = DexUseProto.parseFrom(in);
+        } catch (IOException e) {
+            // Nothing else we can do but to start from scratch.
+            Log.e(TAG, "Failed to load dex use data", e);
+            return;
+        }
+        synchronized (mLock) {
+            mDexUse.fromProto(proto);
         }
     }
 
@@ -781,6 +813,16 @@ public class DexUseManagerLocal {
 
         public long getCurrentTimeMillis() {
             return System.currentTimeMillis();
+        }
+
+        @NonNull
+        public String getFilename() {
+            return FILENAME;
+        }
+
+        @NonNull
+        public ScheduledExecutorService createScheduledExecutor() {
+            return Executors.newSingleThreadScheduledExecutor();
         }
     }
 }

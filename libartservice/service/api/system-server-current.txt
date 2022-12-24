@@ -4,7 +4,7 @@ package com.android.server.art {
   public final class ArtManagerLocal {
     ctor @Deprecated public ArtManagerLocal();
     ctor public ArtManagerLocal(@NonNull android.content.Context);
-    method public void addOptimizePackageDoneCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
+    method public void addOptimizePackageDoneCallback(boolean, @NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
     method public void cancelBackgroundDexoptJob();
     method public void clearOptimizePackagesCallback();
     method public void clearScheduleBackgroundDexoptJobCallback();
@@ -168,6 +168,7 @@ package com.android.server.art.model {
     method @NonNull public java.util.List<com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult> getDexContainerFileOptimizeResults();
     method @NonNull public String getPackageName();
     method public int getStatus();
+    method public boolean hasUpdatedArtifacts();
   }
 
 }

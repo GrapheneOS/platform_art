@@ -588,6 +588,9 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
   for (const std::string& dex_file : in_dexFiles) {
     OR_RETURN_FATAL(ValidateDexPath(dex_file));
   }
+  if (in_options.forceMerge + in_options.dumpOnly + in_options.dumpClassesAndMethods > 1) {
+    return Fatal("Only one of 'forceMerge', 'dumpOnly', and 'dumpClassesAndMethods' can be set");
+  }
 
   CmdlineBuilder args;
   FdLogger fd_logger;
@@ -622,6 +625,11 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
       OR_RETURN_NON_FATAL(NewFile::Create(output_profile_path, in_outputProfile->fsPermission));
 
   if (in_referenceProfile.has_value()) {
+    if (in_options.forceMerge || in_options.dumpOnly || in_options.dumpClassesAndMethods) {
+      return Fatal(
+          "Reference profile must not be set when 'forceMerge', 'dumpOnly', or "
+          "'dumpClassesAndMethods' is set");
+    }
     std::string reference_profile_path =
         OR_RETURN_FATAL(BuildProfileOrDmPath(*in_referenceProfile));
     if (in_referenceProfile->getTag() == ProfilePath::dexMetadataPath) {
@@ -630,8 +638,12 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
     OR_RETURN_NON_FATAL(CopyFile(reference_profile_path, *output_profile_file));
   }
 
-  // profman is ok with this being an empty file when in_referenceProfile isn't set.
-  args.Add("--reference-profile-file-fd=%d", output_profile_file->Fd());
+  if (in_options.dumpOnly || in_options.dumpClassesAndMethods) {
+    args.Add("--dump-output-to-fd=%d", output_profile_file->Fd());
+  } else {
+    // profman is ok with this being an empty file when in_referenceProfile isn't set.
+    args.Add("--reference-profile-file-fd=%d", output_profile_file->Fd());
+  }
   fd_logger.Add(*output_profile_file);
 
   std::vector<std::unique_ptr<File>> dex_files;
@@ -642,12 +654,16 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
     dex_files.push_back(std::move(dex_file));
   }
 
-  args.AddIfNonEmpty("--min-new-classes-percent-change=%s",
-                     props_->GetOrEmpty("dalvik.vm.bgdexopt.new-classes-percent"))
-      .AddIfNonEmpty("--min-new-methods-percent-change=%s",
-                     props_->GetOrEmpty("dalvik.vm.bgdexopt.new-methods-percent"))
-      .AddIf(in_options.forceMerge, "--force-merge")
-      .AddIf(in_options.forBootImage, "--boot-image-merge");
+  if (in_options.dumpOnly || in_options.dumpClassesAndMethods) {
+    args.Add(in_options.dumpOnly ? "--dump-only" : "--dump-classes-and-methods");
+  } else {
+    args.AddIfNonEmpty("--min-new-classes-percent-change=%s",
+                       props_->GetOrEmpty("dalvik.vm.bgdexopt.new-classes-percent"))
+        .AddIfNonEmpty("--min-new-methods-percent-change=%s",
+                       props_->GetOrEmpty("dalvik.vm.bgdexopt.new-methods-percent"))
+        .AddIf(in_options.forceMerge, "--force-merge")
+        .AddIf(in_options.forBootImage, "--boot-image-merge");
+  }
 
   LOG(INFO) << "Running profman: " << Join(args.Get(), /*separator=*/" ")
             << "\nOpened FDs: " << fd_logger;
@@ -666,7 +682,9 @@ ndk::ScopedAStatus Artd::mergeProfiles(const std::vector<ProfilePath>& in_profil
   }
 
   ProfmanResult::ProcessingResult expected_result =
-      in_options.forceMerge ? ProfmanResult::kSuccess : ProfmanResult::kCompile;
+      (in_options.forceMerge || in_options.dumpOnly || in_options.dumpClassesAndMethods) ?
+          ProfmanResult::kSuccess :
+          ProfmanResult::kCompile;
   if (result.value() != expected_result) {
     return NonFatal("profman returned an unexpected code: {}"_format(result.value()));
   }
