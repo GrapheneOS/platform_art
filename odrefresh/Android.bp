@@ -122,6 +122,7 @@ art_cc_binary {
     local_include_dirs: ["include"],
     header_libs: ["libbase_headers"],
     srcs: ["odrefresh_broken.cc"],
+    installable: false,
     apex_available: ["test_jitzygote_com.android.art"],
 }
 
