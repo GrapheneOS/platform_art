@@ -255,7 +255,7 @@ ObjPtr<String> String::AllocFromModifiedUtf8(Thread* self,
   return Alloc(self, length_with_flag, allocator_type, visitor);
 }
 
-bool String::Equals(ObjPtr<String> that) {
+bool String::Equals(mirror::String* that) {
   if (this == that) {
     // Quick reference equality test
     return true;
