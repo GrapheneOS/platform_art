@@ -11,10 +11,11 @@ device_config = {
 #
 ##########################################
     # Fugu's don't have enough memory to support a 128m heap with normal concurrency.
+    # Also update timeout value as some tests can go beyond the default 600s.
     'aosp_fugu' : {
-        'run-test-args': [ "--runtime-option", "-Xmx128m" ],
+        'run-test-args': [ "--runtime-option", "-Xmx128m", "--timeout", "900" ],
     },
     'fugu' : {
-        'run-test-args': [ "--runtime-option", "-Xmx128m" ],
+        'run-test-args': [ "--runtime-option", "-Xmx128m", "--timeout", "900" ],
     },
 }
