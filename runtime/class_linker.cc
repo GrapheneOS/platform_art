@@ -1163,6 +1163,8 @@ void ClassLinker::RunRootClinits(Thread* self) {
       WellKnownClasses::java_lang_invoke_MethodHandles_lookup,
       // Ensure `DirectByteBuffer` class is initialized (avoid check at runtime).
       WellKnownClasses::java_nio_DirectByteBuffer_init,
+      // Ensure `FloatingDecimal` class is initialized (avoid check at runtime).
+      WellKnownClasses::jdk_internal_math_FloatingDecimal_getBinaryToASCIIConverter_D,
       // Ensure reflection annotation classes are initialized (avoid check at runtime).
       WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation,
       WellKnownClasses::libcore_reflect_AnnotationMember_init,

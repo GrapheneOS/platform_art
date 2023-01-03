@@ -7503,14 +7503,17 @@ class HStringBuilderAppend final : public HVariableInputSizeInstruction {
  public:
   HStringBuilderAppend(HIntConstant* format,
                        uint32_t number_of_arguments,
+                       bool has_fp_args,
                        ArenaAllocator* allocator,
                        uint32_t dex_pc)
       : HVariableInputSizeInstruction(
             kStringBuilderAppend,
             DataType::Type::kReference,
-            // The runtime call may read memory from inputs. It never writes outside
-            // of the newly allocated result object (or newly allocated helper objects).
-            SideEffects::AllReads().Union(SideEffects::CanTriggerGC()),
+            SideEffects::CanTriggerGC().Union(
+                // The runtime call may read memory from inputs. It never writes outside
+                // of the newly allocated result object or newly allocated helper objects,
+                // except for float/double arguments where we reuse thread-local helper objects.
+                has_fp_args ? SideEffects::AllWritesAndReads() : SideEffects::AllReads()),
             dex_pc,
             allocator,
             number_of_arguments + /* format */ 1u,
