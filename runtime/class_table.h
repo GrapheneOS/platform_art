@@ -58,16 +58,29 @@ class ClassTable {
     explicit TableSlot(ObjPtr<mirror::Class> klass);
 
     TableSlot(ObjPtr<mirror::Class> klass, uint32_t descriptor_hash);
+    TableSlot(uint32_t ptr, uint32_t descriptor_hash);
 
     TableSlot& operator=(const TableSlot& copy) {
       data_.store(copy.data_.load(std::memory_order_relaxed), std::memory_order_relaxed);
       return *this;
     }
 
+    uint32_t Data() const {
+      return data_.load(std::memory_order_relaxed);
+    }
+
     bool IsNull() const REQUIRES_SHARED(Locks::mutator_lock_);
 
     uint32_t Hash() const {
       return MaskHash(data_.load(std::memory_order_relaxed));
+    }
+
+    uint32_t NonHashData() const {
+      return RemoveHash(Data());
+    }
+
+    static uint32_t RemoveHash(uint32_t hash) {
+      return hash & ~kHashMask;
     }
 
     static uint32_t MaskHash(uint32_t hash) {
@@ -165,6 +178,11 @@ class ClassTable {
 
   // Returns all off the classes in the lastest snapshot no matter the defining loader.
   size_t NumReferencedNonZygoteClasses() const
+      REQUIRES(!lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Returns the number of classes in the class table.
+  size_t Size() const
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
