@@ -211,41 +211,42 @@ static bool IsProxyInit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_)
 
 // Returns true if we need entry exit stub to call entry hooks. JITed code
 // directly call entry / exit hooks and don't need the stub.
-static bool CodeNeedsEntryExitStub(const void* entry_point, ArtMethod* method)
+static bool CodeSupportsEntryExitHooks(const void* entry_point, ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  // Proxy.init should never have entry/exit stubs.
+  // Proxy.init should always run with the switch interpreter where entry / exit hooks are
+  // supported.
   if (IsProxyInit(method)) {
-    return false;
+    return true;
   }
 
-  // In some tests runtime isn't setup fully and hence the entry points could
-  // be nullptr.
+  // In some tests runtime isn't setup fully and hence the entry points could be nullptr.
+  // just be conservative and return false here.
   if (entry_point == nullptr) {
-    return true;
+    return false;
   }
 
   // Code running in the interpreter doesn't need entry/exit stubs.
   if (Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(entry_point)) {
-    return false;
+    return true;
   }
 
   // When jiting code for debuggable runtimes / instrumentation is active  we generate the code to
-  // call method entry / exit hooks when required. Hence it is not required to update to
-  // instrumentation entry point for JITed code in debuggable mode.
+  // call method entry / exit hooks when required.
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr && jit->GetCodeCache()->ContainsPc(entry_point)) {
-    // If JITed code was compiled with instrumentation support we don't need entry / exit stub.
+    // If JITed code was compiled with instrumentation support we support entry / exit hooks.
     OatQuickMethodHeader* header = OatQuickMethodHeader::FromEntryPoint(entry_point);
-    return !CodeInfo::IsDebuggable(header->GetOptimizedCodeInfoPtr());
+    return CodeInfo::IsDebuggable(header->GetOptimizedCodeInfoPtr());
   }
 
-  // GenericJni trampoline can handle entry / exit hooks in debuggable runtimes.
-  if (Runtime::Current()->GetClassLinker()->IsQuickGenericJniStub(entry_point) &&
-      Runtime::Current()->IsJavaDebuggable()) {
-    return false;
+  // GenericJni trampoline can handle entry / exit hooks.
+  if (Runtime::Current()->GetClassLinker()->IsQuickGenericJniStub(entry_point)) {
+    return true;
   }
 
-  return true;
+  // The remaining cases are nterp / oat code / JIT code that isn't compiled with instrumentation
+  // support.
+  return false;
 }
 
 static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
@@ -266,8 +267,7 @@ static void UpdateEntryPoints(ArtMethod* method, const void* quick_code)
     }
     const Instrumentation* instr = Runtime::Current()->GetInstrumentation();
     if (instr->EntryExitStubsInstalled()) {
-      DCHECK(quick_code == GetQuickInstrumentationEntryPoint() ||
-             !CodeNeedsEntryExitStub(quick_code, method));
+      DCHECK(CodeSupportsEntryExitHooks(quick_code, method));
     }
   }
   // If the method is from a boot image, don't dirty it if the entrypoint
@@ -362,16 +362,7 @@ void Instrumentation::InitializeMethodsCode(ArtMethod* method, const void* aot_c
   }
 
   // Use instrumentation entrypoints if instrumentation is installed.
-  if (UNLIKELY(EntryExitStubsInstalled()) && !IsProxyInit(method)) {
-    if (!method->IsNative() && InterpretOnly(method)) {
-      UpdateEntryPoints(method, GetQuickToInterpreterBridge());
-    } else {
-      UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
-    }
-    return;
-  }
-
-  if (UNLIKELY(IsForcedInterpretOnly() || IsDeoptimized(method))) {
+  if (UNLIKELY(EntryExitStubsInstalled() || IsForcedInterpretOnly() || IsDeoptimized(method))) {
     UpdateEntryPoints(
         method, method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
     return;
@@ -439,9 +430,11 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
   }
 
   if (EntryExitStubsInstalled()) {
-    // Install the instrumentation entry point if needed.
-    if (CodeNeedsEntryExitStub(method->GetEntryPointFromQuickCompiledCode(), method)) {
-      UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
+    // Install interpreter bridge / GenericJni stub if the existing code doesn't support
+    // entry / exit hooks.
+    if (!CodeSupportsEntryExitHooks(method->GetEntryPointFromQuickCompiledCode(), method)) {
+      UpdateEntryPoints(
+          method, method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge());
     }
     return;
   }
@@ -1139,12 +1132,11 @@ void Instrumentation::UpdateMethodsCodeImpl(ArtMethod* method, const void* new_c
     return;
   }
 
-  if (EntryExitStubsInstalled() && CodeNeedsEntryExitStub(new_code, method)) {
-    DCHECK(method->GetEntryPointFromQuickCompiledCode() == GetQuickInstrumentationEntryPoint() ||
-        class_linker->IsQuickToInterpreterBridge(method->GetEntryPointFromQuickCompiledCode()))
-              << EntryPointString(method->GetEntryPointFromQuickCompiledCode())
-              << " " << method->PrettyMethod();
-    // If the code we want to update the method with still needs entry/exit stub, just skip.
+  if (EntryExitStubsInstalled() && !CodeSupportsEntryExitHooks(new_code, method)) {
+    DCHECK(CodeSupportsEntryExitHooks(method->GetEntryPointFromQuickCompiledCode(), method))
+        << EntryPointString(method->GetEntryPointFromQuickCompiledCode()) << " "
+        << method->PrettyMethod();
+    // If we need entry / exit stubs but the new_code doesn't support entry / exit hooks just skip.
     return;
   }
 
@@ -1156,8 +1148,9 @@ void Instrumentation::UpdateNativeMethodsCodeToJitCode(ArtMethod* method, const 
   // We don't do any read barrier on `method`'s declaring class in this code, as the JIT might
   // enter here on a soon-to-be deleted ArtMethod. Updating the entrypoint is OK though, as
   // the ArtMethod is still in memory.
-  if (EntryExitStubsInstalled() && CodeNeedsEntryExitStub(new_code, method)) {
-    // If stubs are installed don't update.
+  if (EntryExitStubsInstalled() && !CodeSupportsEntryExitHooks(new_code, method)) {
+    // If the new code doesn't support entry exit hooks but we need them don't update with the new
+    // code.
     return;
   }
   UpdateEntryPoints(method, new_code);
@@ -1249,11 +1242,7 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
   if (InterpretOnly(method)) {
     UpdateEntryPoints(method, GetQuickToInterpreterBridge());
   } else if (method->StillNeedsClinitCheck()) {
-    if (EntryExitStubsInstalled()) {
-      UpdateEntryPoints(method, GetQuickInstrumentationEntryPoint());
-    } else {
-      UpdateEntryPoints(method, GetQuickResolutionStub());
-    }
+    UpdateEntryPoints(method, GetQuickResolutionStub());
   } else {
     UpdateEntryPoints(method, GetMaybeInstrumentedCodeForInvoke(method));
   }
@@ -1349,8 +1338,8 @@ const void* Instrumentation::GetMaybeInstrumentedCodeForInvoke(ArtMethod* method
   // This is called by resolution trampolines and that should never be getting proxy methods.
   DCHECK(!method->IsProxyMethod()) << method->PrettyMethod();
   const void* code = GetCodeForInvoke(method);
-  if (EntryExitStubsInstalled() && CodeNeedsEntryExitStub(code, method)) {
-    return GetQuickInstrumentationEntryPoint();
+  if (EntryExitStubsInstalled() && !CodeSupportsEntryExitHooks(code, method)) {
+    return method->IsNative() ? GetQuickGenericJniStub() : GetQuickToInterpreterBridge();
   }
   return code;
 }
