@@ -18,6 +18,9 @@ public class Main {
     public static void main(String[] args) {
         testAppendStringAndLong();
         testAppendStringAndInt();
+        testAppendStringAndFloat();
+        testAppendStringAndDouble();
+        testAppendDoubleAndFloat();
         testAppendStringAndString();
         testMiscelaneous();
         testNoArgs();
@@ -184,6 +187,159 @@ public class Main {
             String result = $noinline$appendStringAndInt(APPEND_INT_PREFIX, i);
             assertEquals(expected, result);
         }
+    }
+
+    private static final String APPEND_FLOAT_PREFIX = "Float/";
+    private static final String[] APPEND_FLOAT_TEST_CASES = {
+        // We're testing only exact values here, i.e. values that do not require rounding.
+        "Float/1.0",
+        "Float/9.0",
+        "Float/10.0",
+        "Float/99.0",
+        "Float/100.0",
+        "Float/999.0",
+        "Float/1000.0",
+        "Float/9999.0",
+        "Float/10000.0",
+        "Float/99999.0",
+        "Float/100000.0",
+        "Float/999999.0",
+        "Float/1000000.0",
+        "Float/9999999.0",
+        "Float/1.0E7",
+        "Float/1.0E10",
+        "Float/-1.0",
+        "Float/-9.0",
+        "Float/-10.0",
+        "Float/-99.0",
+        "Float/-100.0",
+        "Float/-999.0",
+        "Float/-1000.0",
+        "Float/-9999.0",
+        "Float/-10000.0",
+        "Float/-99999.0",
+        "Float/-100000.0",
+        "Float/-999999.0",
+        "Float/-1000000.0",
+        "Float/-9999999.0",
+        "Float/-1.0E7",
+        "Float/-1.0E10",
+        "Float/0.25",
+        "Float/1.625",
+        "Float/9.3125",
+        "Float/-0.25",
+        "Float/-1.625",
+        "Float/-9.3125",
+    };
+
+    /// CHECK-START: java.lang.String Main.$noinline$appendStringAndFloat(java.lang.String, float) instruction_simplifier (before)
+    /// CHECK-NOT:              StringBuilderAppend
+
+    /// CHECK-START: java.lang.String Main.$noinline$appendStringAndFloat(java.lang.String, float) instruction_simplifier (after)
+    /// CHECK:                  StringBuilderAppend
+    public static String $noinline$appendStringAndFloat(String s, float f) {
+        return new StringBuilder().append(s).append(f).toString();
+    }
+
+    public static void testAppendStringAndFloat() {
+        for (String expected : APPEND_FLOAT_TEST_CASES) {
+            float f = Float.valueOf(expected.substring(APPEND_FLOAT_PREFIX.length()));
+            String result = $noinline$appendStringAndFloat(APPEND_FLOAT_PREFIX, f);
+            assertEquals(expected, result);
+        }
+        // Special values.
+        assertEquals("Float/NaN", $noinline$appendStringAndFloat(APPEND_FLOAT_PREFIX, Float.NaN));
+        assertEquals("Float/Infinity",
+                     $noinline$appendStringAndFloat(APPEND_FLOAT_PREFIX, Float.POSITIVE_INFINITY));
+        assertEquals("Float/-Infinity",
+                     $noinline$appendStringAndFloat(APPEND_FLOAT_PREFIX, Float.NEGATIVE_INFINITY));
+    }
+
+    private static final String APPEND_DOUBLE_PREFIX = "Double/";
+    private static final String[] APPEND_DOUBLE_TEST_CASES = {
+        // We're testing only exact values here, i.e. values that do not require rounding.
+        "Double/1.0",
+        "Double/9.0",
+        "Double/10.0",
+        "Double/99.0",
+        "Double/100.0",
+        "Double/999.0",
+        "Double/1000.0",
+        "Double/9999.0",
+        "Double/10000.0",
+        "Double/99999.0",
+        "Double/100000.0",
+        "Double/999999.0",
+        "Double/1000000.0",
+        "Double/9999999.0",
+        "Double/1.0E7",
+        "Double/1.0E24",
+        "Double/-1.0",
+        "Double/-9.0",
+        "Double/-10.0",
+        "Double/-99.0",
+        "Double/-100.0",
+        "Double/-999.0",
+        "Double/-1000.0",
+        "Double/-9999.0",
+        "Double/-10000.0",
+        "Double/-99999.0",
+        "Double/-100000.0",
+        "Double/-999999.0",
+        "Double/-1000000.0",
+        "Double/-9999999.0",
+        "Double/-1.0E7",
+        "Double/-1.0E24",
+        "Double/0.25",
+        "Double/1.625",
+        "Double/9.3125",
+        "Double/-0.25",
+        "Double/-1.625",
+        "Double/-9.3125",
+    };
+
+    /// CHECK-START: java.lang.String Main.$noinline$appendStringAndDouble(java.lang.String, double) instruction_simplifier (before)
+    /// CHECK-NOT:              StringBuilderAppend
+
+    /// CHECK-START: java.lang.String Main.$noinline$appendStringAndDouble(java.lang.String, double) instruction_simplifier (after)
+    /// CHECK:                  StringBuilderAppend
+    public static String $noinline$appendStringAndDouble(String s, double d) {
+        return new StringBuilder().append(s).append(d).toString();
+    }
+
+    public static void testAppendStringAndDouble() {
+        for (String expected : APPEND_DOUBLE_TEST_CASES) {
+            double f = Double.valueOf(expected.substring(APPEND_DOUBLE_PREFIX.length()));
+            String result = $noinline$appendStringAndDouble(APPEND_DOUBLE_PREFIX, f);
+            assertEquals(expected, result);
+        }
+        // Special values.
+        assertEquals(
+            "Double/NaN",
+            $noinline$appendStringAndDouble(APPEND_DOUBLE_PREFIX, Double.NaN));
+        assertEquals(
+            "Double/Infinity",
+            $noinline$appendStringAndDouble(APPEND_DOUBLE_PREFIX, Double.POSITIVE_INFINITY));
+        assertEquals(
+            "Double/-Infinity",
+            $noinline$appendStringAndDouble(APPEND_DOUBLE_PREFIX, Double.NEGATIVE_INFINITY));
+    }
+
+    /// CHECK-START: java.lang.String Main.$noinline$appendDoubleAndFloat(double, float) instruction_simplifier (before)
+    /// CHECK-NOT:              StringBuilderAppend
+
+    /// CHECK-START: java.lang.String Main.$noinline$appendDoubleAndFloat(double, float) instruction_simplifier (after)
+    /// CHECK:                  StringBuilderAppend
+    public static String $noinline$appendDoubleAndFloat(double d, float f) {
+        return new StringBuilder().append(d).append(f).toString();
+    }
+
+    public static void testAppendDoubleAndFloat() {
+        assertEquals("1.50.325", $noinline$appendDoubleAndFloat(1.5, 0.325f));
+        assertEquals("1.5E170.3125", $noinline$appendDoubleAndFloat(1.5E17, 0.3125f));
+        assertEquals("1.0E8NaN", $noinline$appendDoubleAndFloat(1.0E8, Float.NaN));
+        assertEquals("Infinity0.5", $noinline$appendDoubleAndFloat(Double.POSITIVE_INFINITY, 0.5f));
+        assertEquals("2.5-Infinity", $noinline$appendDoubleAndFloat(2.5, Float.NEGATIVE_INFINITY));
     }
 
     public static String $noinline$appendStringAndString(String s1, String s2) {
