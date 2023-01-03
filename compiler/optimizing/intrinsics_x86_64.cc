@@ -3985,16 +3985,19 @@ static void GenerateVarHandleSet(HInvoke* invoke,
   Address dst(CpuRegister(target.object), CpuRegister(target.offset), TIMES_1, 0);
 
   // Store the value to the field.
-  codegen->GetInstructionCodegen()->HandleFieldSet(invoke,
-                                                   value_index,
-                                                   last_temp_index,
-                                                   value_type,
-                                                   dst,
-                                                   CpuRegister(target.object),
-                                                   is_volatile,
-                                                   is_atomic,
-                                                   /*value_can_be_null=*/ true,
-                                                   byte_swap);
+  codegen->GetInstructionCodegen()->HandleFieldSet(
+      invoke,
+      value_index,
+      last_temp_index,
+      value_type,
+      dst,
+      CpuRegister(target.object),
+      is_volatile,
+      is_atomic,
+      /*value_can_be_null=*/true,
+      byte_swap,
+      // Value can be null, and this write barrier is not being relied on for other sets.
+      WriteBarrierKind::kEmitWithNullCheck);
 
   // setVolatile needs kAnyAny barrier, but HandleFieldSet takes care of that.
 
