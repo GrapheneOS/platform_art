@@ -63,6 +63,7 @@
 #include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
+#include "android-modules-utils/sdk_level.h"
 #include "android/log.h"
 #include "arch/instruction_set.h"
 #include "base/file_utils.h"
@@ -101,6 +102,7 @@ namespace art_apex = com::android::art;
 using ::android::base::ParseBool;
 using ::android::base::ParseBoolResult;
 using ::android::base::Result;
+using ::android::modules::sdklevel::IsAtLeastU;
 
 using ::fmt::literals::operator""_format;  // NOLINT
 
@@ -559,6 +561,13 @@ WARN_UNUSED bool CheckCompilationSpace() {
 }
 
 std::string GetSystemBootImageDir() { return GetAndroidRoot() + "/framework"; }
+
+bool HasVettedDeviceSystemServerProfiles() {
+  // While system_server profiles were bundled on the device prior to U+, they were not used by
+  // default or rigorously tested, so we cannot vouch for their efficacy.
+  static const bool kDeviceIsAtLeastU = IsAtLeastU();
+  return kDeviceIsAtLeastU;
+}
 
 }  // namespace
 
@@ -1647,11 +1656,14 @@ WARN_UNUSED bool OnDeviceRefresh::CompileSystemServerArtifacts(
 
     const std::string jar_name(android::base::Basename(jar));
     const std::string profile = Concatenate({GetAndroidRoot(), "/framework/", jar_name, ".prof"});
-    bool has_any_profile = AddDex2OatProfile(args, readonly_files_raii, {profile});
     const std::string& compiler_filter = config_.GetSystemServerCompilerFilter();
+    const bool maybe_add_profile =
+        !compiler_filter.empty() || HasVettedDeviceSystemServerProfiles();
+    const bool has_added_profile =
+        maybe_add_profile && AddDex2OatProfile(args, readonly_files_raii, {profile});
     if (!compiler_filter.empty()) {
       args.emplace_back("--compiler-filter=" + compiler_filter);
-    } else if (has_any_profile) {
+    } else if (has_added_profile) {
       args.emplace_back("--compiler-filter=speed-profile");
     } else {
       args.emplace_back("--compiler-filter=speed");

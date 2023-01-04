@@ -47,6 +47,7 @@ cc_defaults {
     ],
     static_libs: [
         "libc++fs",
+        "libmodules-utils-build",
     ],
     tidy: true,
     tidy_disabled_srcs: [":art-apex-cache-info"],

@@ -29,6 +29,7 @@
 #include "android-base/scopeguard.h"
 #include "android-base/stringprintf.h"
 #include "android-base/strings.h"
+#include "android-modules-utils/sdk_level.h"
 #include "arch/instruction_set.h"
 #include "base/common_art_test.h"
 #include "base/file_utils.h"
@@ -422,8 +423,8 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilterWithExplicitValue) {
       ExitCode::kCompilationSuccess);
 }
 
-// Test setup: The compiler filter is not explicitly set. Use "speed-profile" if there is a profile,
-// otherwise fall back to "speed".
+// Test setup: The compiler filter is not explicitly set. Use "speed-profile" if there is a vetted
+// profile (on U+), otherwise fall back to "speed".
 TEST_F(OdRefreshTest, CompileSetsCompilerFilterWithDefaultValue) {
   // Uninteresting calls.
   EXPECT_CALL(
@@ -438,12 +439,20 @@ TEST_F(OdRefreshTest, CompileSetsCompilerFilterWithDefaultValue) {
                                 Not(Contains(HasSubstr("--profile-file-fd="))),
                                 Contains("--compiler-filter=speed"))))
       .WillOnce(Return(0));
-  EXPECT_CALL(
-      *mock_exec_utils_,
-      DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
-                                Contains(HasSubstr("--profile-file-fd=")),
-                                Contains("--compiler-filter=speed-profile"))))
-      .WillOnce(Return(0));
+  // Only on U+ should we use the profile by default if available.
+  if (android::modules::sdklevel::IsAtLeastU()) {
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
+                                          Contains(HasSubstr("--profile-file-fd=")),
+                                          Contains("--compiler-filter=speed-profile"))))
+        .WillOnce(Return(0));
+  } else {
+    EXPECT_CALL(*mock_exec_utils_,
+                DoExecAndReturnCode(AllOf(Contains(Concatenate({"--dex-file=", services_jar_})),
+                                          Not(Contains(HasSubstr("--profile-file-fd="))),
+                                          Contains("--compiler-filter=speed"))))
+        .WillOnce(Return(0));
+  }
   EXPECT_EQ(
       odrefresh_->Compile(*metrics_,
                           CompilationOptions{
