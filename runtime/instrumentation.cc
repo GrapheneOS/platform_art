@@ -457,6 +457,30 @@ void Instrumentation::UpdateEntrypointsForDebuggable() {
   runtime->GetClassLinker()->VisitClasses(&visitor);
 }
 
+bool Instrumentation::MethodSupportsExitEvents(ArtMethod* method,
+                                               const OatQuickMethodHeader* header) {
+  if (header == nullptr) {
+    // Header can be a nullptr for runtime / proxy methods that doesn't support method exit hooks
+    // or for native methods that use generic jni stubs. Generic jni stubs support method exit
+    // hooks.
+    return method->IsNative();
+  }
+
+  if (header->IsNterpMethodHeader()) {
+    // Nterp doesn't support method exit events
+    return false;
+  }
+
+  DCHECK(header->IsOptimized());
+  if (CodeInfo::IsDebuggable(header->GetOptimizedCodeInfoPtr())) {
+    // For optimized code, we only support method entry / exit hooks if they are compiled as
+    // debuggable.
+    return true;
+  }
+
+  return false;
+}
+
 // Places the instrumentation exit pc as the return PC for every quick frame. This also allows
 // deoptimization of quick frames to interpreter frames. When force_deopt is
 // true the frames have to be deoptimized. If the frame has a deoptimization
@@ -508,9 +532,15 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
         LOG(INFO) << " Processing quick frame for updating exit hooks " << DescribeLocation();
       }
 
-      // Record the method so we can call method entry callbacks for all non-runtime methods on
-      // the stack. Runtime methods don't need method entry callbacks.
-      stack_methods_.push_back(m);
+      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
+      if (Runtime::Current()->GetInstrumentation()->MethodSupportsExitEvents(m, method_header)) {
+        // It is unexpected to see a method enter event but not a method exit event so record stack
+        // methods only for frames that support method exit events. Even if we deoptimize we make
+        // sure that we only call method exit event if the frame supported it in the first place.
+        // For ex: deoptimizing from JITed code with debug support calls a method exit hook but
+        // deoptimizing from nterp doesn't.
+        stack_methods_.push_back(m);
+      }
 
       // If it is a JITed frame then just set the deopt bit if required otherwise continue.
       // We need kForceDeoptForRedefinition to ensure we don't use any JITed code after a
@@ -519,7 +549,6 @@ void InstrumentationInstallStack(Thread* thread, void* arg, bool deopt_all_frame
       // The CheckCallerForDeopt is an optimization which we only do for non-native JITed code for
       // now. We can extend it to native methods but that needs reserving an additional stack slot.
       // We don't do it currently since that wasn't important for debugger performance.
-      const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
       if (method_header != nullptr && method_header->HasShouldDeoptimizeFlag()) {
         if (deopt_all_frames_) {
           runtime_methods_need_deopt_check_ = true;
