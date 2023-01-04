@@ -41,6 +41,11 @@ namespace odrefresh {
 // everything if any property matching a prefix changes.
 constexpr const char* kCheckedSystemPropertyPrefixes[]{"dalvik.vm.", "ro.dalvik.vm."};
 
+// System property for the phenotype flag to override the device or default-configured
+// system server compiler filter setting.
+static constexpr char kSystemPropertySystemServerCompilerFilterOverride[] =
+    "persist.device_config.runtime_native_boot.systemservercompilerfilter_override";
+
 // The list of system properties that odrefresh ignores. They don't affect compilation results.
 const std::unordered_set<std::string> kIgnoredSystemProperties{
     "dalvik.vm.dex2oat-cpu-set",
@@ -68,7 +73,9 @@ struct SystemPropertyConfig {
 const android::base::NoDestructor<std::vector<SystemPropertyConfig>> kSystemProperties{
     {SystemPropertyConfig{.name = "persist.device_config.runtime_native_boot.enable_uffd_gc",
                           .default_value = "false"},
-     SystemPropertyConfig{.name = kPhDisableCompactDex, .default_value = "false"}}};
+     SystemPropertyConfig{.name = kPhDisableCompactDex, .default_value = "false"},
+     SystemPropertyConfig{.name = kSystemPropertySystemServerCompilerFilterOverride,
+                          .default_value = ""}}};
 
 // An enumeration of the possible zygote configurations on Android.
 enum class ZygoteKind : uint8_t {
