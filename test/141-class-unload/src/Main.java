@@ -147,7 +147,9 @@ public class Main {
       public WeakReference<ClassLoader> classLoader;
     }
 
-    private static Pair testNoUnloadInstanceHelper(Constructor<?> constructor) throws Exception {
+    // Make the method not inline-able to prevent the compiler optimizing away the allocation.
+    private static Pair $noinline$testNoUnloadInstanceHelper(Constructor<?> constructor)
+            throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Object o = testNoUnloadHelper(loader);
@@ -155,9 +157,8 @@ public class Main {
     }
 
     private static void testNoUnloadInstance(Constructor<?> constructor) throws Exception {
-        Pair p = testNoUnloadInstanceHelper(constructor);
+        Pair p = $noinline$testNoUnloadInstanceHelper(constructor);
         doUnloading();
-        // If the class loader was unloded too early due to races, just pass the test.
         boolean isNull = p.classLoader.get() == null;
         System.out.println("loader null " + isNull);
     }
