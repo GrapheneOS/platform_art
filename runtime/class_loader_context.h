@@ -51,7 +51,10 @@ class ClassLoaderContext {
 
   // Special encoding used to denote a foreign ClassLoader was found when trying to encode class
   // loader contexts for each classpath element in a ClassLoader. See
-  // EncodeClassPathContextsForClassLoader. Keep in sync with PackageDexUsage in the framework.
+  // EncodeClassPathContextsForClassLoader. Keep in sync with PackageDexUsage in the framework
+  // (frameworks/base/services/core/java/com/android/server/pm/dex/PackageDexUsage.java) and
+  // DexUseManager in ART Services
+  // (art/libartservice/service/java/com/android/server/art/DexUseManager.java).
   static constexpr const char* kUnsupportedClassLoaderContextEncoding =
       "=UnsupportedClassLoaderContext=";
 
