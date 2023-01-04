@@ -4041,13 +4041,16 @@ static void GenerateVarHandleSet(HInvoke* invoke, CodeGeneratorX86* codegen) {
   InstructionCodeGeneratorX86* instr_codegen =
         down_cast<InstructionCodeGeneratorX86*>(codegen->GetInstructionVisitor());
   // Store the value to the field
-  instr_codegen->HandleFieldSet(invoke,
-                                value_index,
-                                value_type,
-                                Address(reference, offset, TIMES_1, 0),
-                                reference,
-                                is_volatile,
-                                /* value_can_be_null */ true);
+  instr_codegen->HandleFieldSet(
+      invoke,
+      value_index,
+      value_type,
+      Address(reference, offset, TIMES_1, 0),
+      reference,
+      is_volatile,
+      /* value_can_be_null */ true,
+      // Value can be null, and this write barrier is not being relied on for other sets.
+      WriteBarrierKind::kEmitWithNullCheck);
 
   __ Bind(slow_path->GetExitLabel());
 }

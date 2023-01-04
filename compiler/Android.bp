@@ -91,6 +91,7 @@ art_cc_defaults {
         "optimizing/ssa_phi_elimination.cc",
         "optimizing/stack_map_stream.cc",
         "optimizing/superblock_cloner.cc",
+        "optimizing/write_barrier_elimination.cc",
         "trampolines/trampoline_compiler.cc",
         "utils/assembler.cc",
         "utils/jni_macro_assembler.cc",
