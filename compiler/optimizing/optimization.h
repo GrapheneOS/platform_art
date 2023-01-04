@@ -84,6 +84,7 @@ enum class OptimizationPass {
   kScheduling,
   kSelectGenerator,
   kSideEffectsAnalysis,
+  kWriteBarrierElimination,
 #ifdef ART_ENABLE_CODEGEN_arm
   kInstructionSimplifierArm,
   kCriticalNativeAbiFixupArm,
