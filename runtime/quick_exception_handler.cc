@@ -476,6 +476,12 @@ class DeoptimizeStackVisitor final : public StackVisitor {
       } else {
         HandleOptimizingDeoptimization(method, new_frame, updated_vregs);
       }
+      // Update if method exit event needs to be reported. We should report exit event only if we
+      // have reported an entry event. So tell interpreter if/ an entry event was reported.
+      bool supports_exit_events =
+          Runtime::Current()->GetInstrumentation()->MethodSupportsExitEvents(
+              method, GetCurrentOatQuickMethodHeader());
+      new_frame->SetSkipMethodExitEvents(!supports_exit_events);
       if (updated_vregs != nullptr) {
         // Calling Thread::RemoveDebuggerShadowFrameMapping will also delete the updated_vregs
         // array so this must come after we processed the frame.

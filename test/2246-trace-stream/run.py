@@ -18,5 +18,15 @@
 def run(ctx, args):
   # The expected output is different in debuggable and non debuggable. Just
   # enable debuggable for now.
-  # TODO(mythria): Also add tests for non-debuggable mode.
-  ctx.default_run(args, Xcompiler_option=["--debuggable"])
+  ctx.default_run(args)
+
+  print(args);
+  if ("--debuggable" in args.Xcompiler_option):
+    # On debuggable runtimes we disable oat code in boot images right at the start
+    # so we get events for all methods including methods optimized in boot images.
+    ctx.expected_stdout = ctx.expected_stdout.with_suffix(".debuggable.txt")
+  elif ("--interpreter" in args.Xcompiler_option) or args.interpreter:
+    # On forced interpreter runtimes we don't get method events for optimized
+    # methods in boot images but get events for a few more methods that would
+    # have otherwise used nterp.
+    ctx.expected_stdout = ctx.expected_stdout.with_suffix(".interpreter.txt")

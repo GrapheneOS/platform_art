@@ -424,6 +424,8 @@ void Trace::Start(std::unique_ptr<File>&& trace_file_in,
             jit->GetJitCompiler()->SetDebuggableCompilerOption(true);
           }
           runtime->SetRuntimeDebugState(art::Runtime::RuntimeDebugState::kJavaDebuggable);
+          runtime->GetInstrumentation()->UpdateEntrypointsForDebuggable();
+          runtime->DeoptimizeBootImage();
         }
         runtime->GetInstrumentation()->AddListener(
             the_trace_,
