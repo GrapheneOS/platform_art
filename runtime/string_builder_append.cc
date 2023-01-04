@@ -105,7 +105,10 @@ class StringBuilderAppend::Builder {
   // We convert float/double values using jdk.internal.math.FloatingDecimal which uses
   // a thread-local converter under the hood. As we may have more than one
   // float/double argument, we need to copy the data out of the converter.
-  uint8_t converted_fp_args_[kMaxArgs][26];  // 26 is the maximum number of characters.
+  // Maximum number of characters is 26. See BinaryToASCIIBuffer.buffer in FloatingDecimal.java .
+  // (This is more than enough for the `ExceptionalBinaryToASCIIBuffer` cases.)
+  static constexpr size_t kBinaryToASCIIBufferSize = 26;
+  uint8_t converted_fp_args_[kMaxArgs][kBinaryToASCIIBufferSize];
   int32_t converted_fp_arg_lengths_[kMaxArgs];
 
   // The length and flag to store when the AppendBuilder is used as a pre-fence visitor.
@@ -164,7 +167,7 @@ inline CharType* StringBuilderAppend::Builder::AppendFpArg(ObjPtr<mirror::String
   DCHECK_LE(fp_arg_index, std::size(converted_fp_args_));
   const uint8_t* src = converted_fp_args_[fp_arg_index];
   size_t length = converted_fp_arg_lengths_[fp_arg_index];
-  DCHECK_LE(length, std::size(converted_fp_args_[0]));
+  DCHECK_LE(length, kBinaryToASCIIBufferSize);
   DCHECK_LE(length, RemainingSpace(new_string, data));
   return std::copy_n(src, length, data);
 }
