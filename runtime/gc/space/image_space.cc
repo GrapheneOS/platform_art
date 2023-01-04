@@ -2471,7 +2471,8 @@ class ImageSpace::BootImageLoader {
       int32_t class_roots_index = enum_cast<int32_t>(ImageHeader::kClassRoots);
       DCHECK_LT(class_roots_index, image_roots->GetLength<kVerifyNone>());
       class_roots = ObjPtr<mirror::ObjectArray<mirror::Class>>::DownCast(base_relocate_visitor(
-          image_roots->GetWithoutChecks<kVerifyNone>(class_roots_index).Ptr()));
+          image_roots->GetWithoutChecks<kVerifyNone,
+                                        kWithoutReadBarrier>(class_roots_index).Ptr()));
       if (kExtension) {
         // Class roots must have been visited if we relocated the primary boot image.
         DCHECK(base_diff == 0 || patched_objects->Test(class_roots.Ptr()));

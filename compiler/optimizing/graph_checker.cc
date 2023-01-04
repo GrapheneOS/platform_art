@@ -1159,9 +1159,7 @@ void GraphChecker::VisitBinaryOperation(HBinaryOperation* op) {
 }
 
 void GraphChecker::VisitConstant(HConstant* instruction) {
-  // TODO(solanes, 262862764): We should call VisitInstruction here but doing so makes the
-  // LoadStoreEliminationTest gtests fail.
-  // VisitInstruction(instruction);
+  VisitInstruction(instruction);
 
   HBasicBlock* block = instruction->GetBlock();
   if (!block->IsEntryBlock()) {

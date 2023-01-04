@@ -212,11 +212,7 @@ ArtifactsLocation ArtifactsLocationToAidl(OatFileAssistant::Location location) {
   LOG(FATAL) << "Unexpected Location " << location;
 }
 
-Result<void> PrepareArtifactsDir(
-    const std::string& path,
-    const FsPermission& fs_permission,
-    const std::optional<OutputArtifacts::PermissionSettings::SeContext>& se_context =
-        std::nullopt) {
+Result<void> PrepareArtifactsDir(const std::string& path, const FsPermission& fs_permission) {
   std::error_code ec;
   bool created = std::filesystem::create_directory(path, ec);
   if (ec) {
@@ -234,26 +230,12 @@ Result<void> PrepareArtifactsDir(
   }
   OR_RETURN(Chown(path, fs_permission));
 
-  if (kIsTargetAndroid) {
-    int res = 0;
-    if (se_context.has_value()) {
-      res = selinux_android_restorecon_pkgdir(path.c_str(),
-                                              se_context->seInfo.c_str(),
-                                              se_context->uid,
-                                              SELINUX_ANDROID_RESTORECON_RECURSE);
-    } else {
-      res = selinux_android_restorecon(path.c_str(), SELINUX_ANDROID_RESTORECON_RECURSE);
-    }
-    if (res != 0) {
-      return ErrnoErrorf("Failed to restorecon directory '{}'", path);
-    }
-  }
-
   cleanup.Disable();
   return {};
 }
 
-Result<void> PrepareArtifactsDirs(const OutputArtifacts& output_artifacts) {
+Result<void> PrepareArtifactsDirs(const OutputArtifacts& output_artifacts,
+                                  /*out*/ std::string* oat_dir_path) {
   if (output_artifacts.artifactsPath.isInDalvikCache) {
     return {};
   }
@@ -263,10 +245,31 @@ Result<void> PrepareArtifactsDirs(const OutputArtifacts& output_artifacts) {
   std::filesystem::path oat_dir = isa_dir.parent_path();
   DCHECK_EQ(oat_dir.filename(), "oat");
 
-  OR_RETURN(PrepareArtifactsDir(oat_dir,
-                                output_artifacts.permissionSettings.dirFsPermission,
-                                output_artifacts.permissionSettings.seContext));
+  OR_RETURN(PrepareArtifactsDir(oat_dir, output_artifacts.permissionSettings.dirFsPermission));
   OR_RETURN(PrepareArtifactsDir(isa_dir, output_artifacts.permissionSettings.dirFsPermission));
+  *oat_dir_path = oat_dir;
+  return {};
+}
+
+Result<void> Restorecon(
+    const std::string& path,
+    const std::optional<OutputArtifacts::PermissionSettings::SeContext>& se_context) {
+  if (!kIsTargetAndroid) {
+    return {};
+  }
+
+  int res = 0;
+  if (se_context.has_value()) {
+    res = selinux_android_restorecon_pkgdir(path.c_str(),
+                                            se_context->seInfo.c_str(),
+                                            se_context->uid,
+                                            SELINUX_ANDROID_RESTORECON_RECURSE);
+  } else {
+    res = selinux_android_restorecon(path.c_str(), SELINUX_ANDROID_RESTORECON_RECURSE);
+  }
+  if (res != 0) {
+    return ErrnoErrorf("Failed to restorecon directory '{}'", path);
+  }
   return {};
 }
 
@@ -766,7 +769,8 @@ ndk::ScopedAStatus Artd::dexopt(
     }
   }
 
-  OR_RETURN_NON_FATAL(PrepareArtifactsDirs(in_outputArtifacts));
+  std::string oat_dir_path;
+  OR_RETURN_NON_FATAL(PrepareArtifactsDirs(in_outputArtifacts, &oat_dir_path));
 
   CmdlineBuilder args;
   args.Add(OR_RETURN_FATAL(GetArtExec())).Add("--drop-capabilities");
@@ -888,6 +892,10 @@ ndk::ScopedAStatus Artd::dexopt(
     }
     // TODO(b/260228411): Check uid and gid.
   }
+
+  // Restorecon after the output files are created, so that the SELinux context is applied to all of
+  // them.
+  OR_RETURN_NON_FATAL(Restorecon(oat_dir_path, in_outputArtifacts.permissionSettings.seContext));
 
   AddBootImageFlags(args);
   AddCompilerConfigFlags(

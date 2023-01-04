@@ -741,10 +741,19 @@ bool RegionSpace::LogFragmentationAllocFailure(std::ostream& os,
   max_contiguous_allocation = std::min(max_contiguous_allocation,
                                        regions_free_for_alloc * kRegionSize);
   if (failed_alloc_bytes > max_contiguous_allocation) {
+    // Region space does not normally fragment in the conventional sense. However we can run out
+    // of region space prematurely if we have many threads, each with a partially committed TLAB.
+    // The whole TLAB uses up region address space, but we only count the section that was
+    // actually given to the thread so far as allocated. For unlikely allocation request sequences
+    // involving largish objects that don't qualify for large objects space, we may also be unable
+    // to fully utilize entire TLABs, and thus generate enough actual fragmentation to get
+    // here. This appears less likely, since we usually reuse sufficiently large TLAB "tails"
+    // that are no longer needed.
     os << "; failed due to fragmentation (largest possible contiguous allocation "
-       <<  max_contiguous_allocation << " bytes). Number of "
-       << PrettySize(kRegionSize)
-       << " sized free regions are: " << regions_free_for_alloc;
+       << max_contiguous_allocation << " bytes). Number of " << PrettySize(kRegionSize)
+       << " sized free regions are: " << regions_free_for_alloc
+       << ". Likely cause: (1) Too much memory in use, and "
+       << "(2) many threads or many larger objects of the wrong kind";
     return true;
   }
   // Caller's job to print failed_alloc_bytes.

@@ -894,7 +894,7 @@ TEST_F(LoadStoreEliminationTest, StoreAfterLoopWithSideEffects2) {
   // loop:
   //   array2[i] = array[i]
   // array[0] = 2
-  HInstruction* store1 = AddArraySet(entry_block_, array_, c0, c2);
+  HInstruction* store1 = AddArraySet(pre_header_, array_, c0, c2);
 
   HInstruction* load = AddArrayGet(loop_, array_, phi_);
   HInstruction* store2 = AddArraySet(loop_, array2, phi_, load);
@@ -4829,8 +4829,9 @@ TEST_P(PartialComparisonTestGroup, PartialComparisonBeforeCohort) {
   CreateGraph(/*handles=*/&vshs);
   AdjacencyListGraph blks(SetupFromAdjacencyList("entry",
                                                  "exit",
-                                                 {{"entry", "critical_break"},
-                                                  {"entry", "partial"},
+                                                 {{"entry", "first_block"},
+                                                  {"first_block", "critical_break"},
+                                                  {"first_block", "partial"},
                                                   {"partial", "merge"},
                                                   {"critical_break", "merge"},
                                                   {"merge", "left"},
@@ -4839,7 +4840,7 @@ TEST_P(PartialComparisonTestGroup, PartialComparisonBeforeCohort) {
                                                   {"right", "breturn"},
                                                   {"breturn", "exit"}}));
 #define GET_BLOCK(name) HBasicBlock* name = blks.Get(#name)
-  GET_BLOCK(entry);
+  GET_BLOCK(first_block);
   GET_BLOCK(merge);
   GET_BLOCK(partial);
   GET_BLOCK(critical_break);
@@ -4858,12 +4859,12 @@ TEST_P(PartialComparisonTestGroup, PartialComparisonBeforeCohort) {
   HInstruction* write_entry = MakeIFieldSet(new_inst, c3, MemberOffset(32));
   ComparisonInstructions cmp_instructions = GetComparisonInstructions(new_inst);
   HInstruction* if_inst = new (GetAllocator()) HIf(cmp_instructions.cmp_);
-  entry->AddInstruction(cls);
-  entry->AddInstruction(new_inst);
-  entry->AddInstruction(write_entry);
-  cmp_instructions.AddSetup(entry);
-  entry->AddInstruction(cmp_instructions.cmp_);
-  entry->AddInstruction(if_inst);
+  first_block->AddInstruction(cls);
+  first_block->AddInstruction(new_inst);
+  first_block->AddInstruction(write_entry);
+  cmp_instructions.AddSetup(first_block);
+  first_block->AddInstruction(cmp_instructions.cmp_);
+  first_block->AddInstruction(if_inst);
   ManuallyBuildEnvFor(cls, {});
   cmp_instructions.AddEnvironment(cls->GetEnvironment());
   new_inst->CopyEnvironmentFrom(cls->GetEnvironment());
