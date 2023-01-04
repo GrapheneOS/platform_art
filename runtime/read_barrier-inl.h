@@ -38,9 +38,8 @@ inline MirrorType* ReadBarrier::Barrier(
   if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
-      if (self != nullptr) {
-        CHECK_EQ(self->GetDebugDisallowReadBarrierCount(), 0u);
-      }
+      CHECK(self != nullptr);
+      CHECK_EQ(self->GetDebugDisallowReadBarrierCount(), 0u);
     }
     if (kUseBakerReadBarrier) {
       // fake_address_dependency (must be zero) is used to create artificial data dependency from
@@ -112,9 +111,8 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root,
   if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
-      if (self != nullptr) {
-        CHECK_EQ(self->GetDebugDisallowReadBarrierCount(), 0u);
-      }
+      CHECK(self != nullptr);
+      CHECK_EQ(self->GetDebugDisallowReadBarrierCount(), 0u);
     }
     if (kUseBakerReadBarrier) {
       // TODO: separate the read barrier code from the collector code more.
@@ -157,9 +155,8 @@ inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<Mirro
   if (gUseReadBarrier && with_read_barrier) {
     if (kCheckDebugDisallowReadBarrierCount) {
       Thread* const self = Thread::Current();
-      if (self != nullptr) {
-        CHECK_EQ(self->GetDebugDisallowReadBarrierCount(), 0u);
-      }
+      CHECK(self != nullptr);
+      CHECK_EQ(self->GetDebugDisallowReadBarrierCount(), 0u);
     }
     if (kUseBakerReadBarrier) {
       // TODO: separate the read barrier code from the collector code more.
