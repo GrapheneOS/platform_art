@@ -132,6 +132,11 @@ DexFile::DexFile(const uint8_t* base,
   // any of the sections via a pointer.
   CHECK_ALIGNED(begin_, alignof(Header));
 
+  if (DataSize() < sizeof(Header)) {
+    // Don't go further if the data doesn't even contain a header.
+    return;
+  }
+
   InitializeSectionsFromMapList();
 }
 
@@ -174,11 +179,13 @@ bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
 }
 
 void DexFile::InitializeSectionsFromMapList() {
-  const MapList* map_list = reinterpret_cast<const MapList*>(DataBegin() + header_->map_off_);
-  if (header_->map_off_ == 0 || header_->map_off_ > DataSize()) {
+  static_assert(sizeof(MapList) <= sizeof(Header));
+  DCHECK_GE(DataSize(), sizeof(MapList));
+  if (header_->map_off_ == 0 || header_->map_off_ > DataSize() - sizeof(MapList)) {
     // Bad offset. The dex file verifier runs after this method and will reject the file.
     return;
   }
+  const MapList* map_list = reinterpret_cast<const MapList*>(DataBegin() + header_->map_off_);
   const size_t count = map_list->size_;
 
   size_t map_limit = header_->map_off_ + count * sizeof(MapItem);
