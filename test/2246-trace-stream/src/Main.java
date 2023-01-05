@@ -36,19 +36,19 @@ public class Main {
         Main m = new Main();
         Thread t = new Thread(() -> {
             Main m1 = new Main();
-            m1.doSomeWork();
+            m1.$noinline$doSomeWork();
         }, "TestThread2246");
         try {
             if (VMDebug.getMethodTracingMode() != 0) {
-                VMDebug.stopMethodTracing();
+                VMDebug.$noinline$stopMethodTracing();
             }
 
             VMDebug.startMethodTracing(file.getPath(), out_file.getFD(), 0, 0, false, 0, true);
             t.start();
             t.join();
-            m.doSomeWork();
+            m.$noinline$doSomeWork();
             m.doSomeWorkThrow();
-            VMDebug.stopMethodTracing();
+            VMDebug.$noinline$stopMethodTracing();
             out_file.close();
             m.CheckTraceFileFormat(file);
         } finally {
@@ -83,7 +83,7 @@ public class Main {
                     if (!seen_stop_tracing_method) {
                         System.out.println(event_string);
                     }
-                    if (event_string.contains("Main$VMDebug stopMethodTracing")) {
+                    if (event_string.contains("Main$VMDebug $noinline$stopMethodTracing")) {
                         seen_stop_tracing_method = true;
                     }
             }
@@ -111,7 +111,7 @@ public class Main {
 
     public void callLeafFunction() {}
 
-    public void doSomeWork() {
+    public void $noinline$doSomeWork() {
         callOuterFunction();
         callLeafFunction();
     }
@@ -150,7 +150,7 @@ public class Main {
             startMethodTracingMethod.invoke(
                     null, filename, fd, bufferSize, flags, samplingEnabled, intervalUs, streaming);
         }
-        public static void stopMethodTracing() throws Exception {
+        public static void $noinline$stopMethodTracing() throws Exception {
             stopMethodTracingMethod.invoke(null);
         }
         public static int getMethodTracingMode() throws Exception {

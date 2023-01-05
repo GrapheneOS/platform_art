@@ -711,7 +711,7 @@ class BackgroundVerificationTask final : public Task {
             h_loader)));
 
         if (h_class == nullptr) {
-          CHECK(self->IsExceptionPending());
+          DCHECK(self->IsExceptionPending());
           self->ClearException();
           continue;
         }
@@ -722,15 +722,14 @@ class BackgroundVerificationTask final : public Task {
           continue;
         }
 
-        CHECK(h_class->IsResolved()) << h_class->PrettyDescriptor();
+        DCHECK(h_class->IsResolved()) << h_class->PrettyDescriptor();
         class_linker->VerifyClass(self, &verifier_deps, h_class);
-        if (h_class->IsErroneous()) {
-          // ClassLinker::VerifyClass throws, which isn't useful here.
-          CHECK(soa.Self()->IsExceptionPending());
-          soa.Self()->ClearException();
+        if (self->IsExceptionPending()) {
+          // ClassLinker::VerifyClass can throw, but the exception isn't useful here.
+          self->ClearException();
         }
 
-        CHECK(h_class->IsVerified() || h_class->IsErroneous())
+        DCHECK(h_class->IsVerified() || h_class->IsErroneous())
             << h_class->PrettyDescriptor() << ": state=" << h_class->GetStatus();
 
         if (h_class->IsVerified()) {

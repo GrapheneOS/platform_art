@@ -43,6 +43,7 @@ using ::art::odrefresh::ExitCode;
 using ::art::odrefresh::kCheckedSystemPropertyPrefixes;
 using ::art::odrefresh::kIgnoredSystemProperties;
 using ::art::odrefresh::kSystemProperties;
+using ::art::odrefresh::kSystemPropertySystemServerCompilerFilterOverride;
 using ::art::odrefresh::OdrCompilationLog;
 using ::art::odrefresh::OdrConfig;
 using ::art::odrefresh::OdrMetrics;
@@ -177,6 +178,7 @@ int InitializeConfig(int argc, char** argv, OdrConfig* config) {
 
   if (config->GetSystemServerCompilerFilter().empty()) {
     std::string filter = GetProperty("dalvik.vm.systemservercompilerfilter", "");
+    filter = GetProperty(kSystemPropertySystemServerCompilerFilterOverride, filter);
     config->SetSystemServerCompilerFilter(filter);
   }
 
