@@ -2638,6 +2638,14 @@ class ImageSpace::BootImageLoader {
       DCHECK_EQ(base_diff64, 0);
     }
 
+    // While `Thread::Current()` is null, the `ScopedDebugDisallowReadBarriers`
+    // cannot be used but the class `ReadBarrier` shall not allow read barriers anyway.
+    // For some gtests we actually have an initialized `Thread:Current()`.
+    std::optional<ScopedDebugDisallowReadBarriers> sddrb(std::nullopt);
+    if (kCheckDebugDisallowReadBarrierCount && Thread::Current() != nullptr) {
+      sddrb.emplace(Thread::Current());
+    }
+
     ArrayRef<const std::unique_ptr<ImageSpace>> spaces_ref(spaces);
     PointerSize pointer_size = first_space_header.GetPointerSize();
     if (pointer_size == PointerSize::k64) {
