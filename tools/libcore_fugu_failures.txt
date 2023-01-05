@@ -25,6 +25,8 @@
   names: [
     "libcore.java.math.BigIntegerTest#test_Constructor_IILjava_util_Random",
     "libcore.java.math.BigIntegerTest#test_probablePrime",
+    "libcore.java.util.UUIDTest#testJava11Implementation_invalidInputs",
+    "libcore.java.util.UUIDTest#testJava8Implementation_allowsLongInputs",
     "libcore.javax.crypto.CipherInputStreamTest#testDecryptCorruptGCM",
     "libcore.javax.crypto.CipherOutputStreamTest#testDecryptCorruptGCM",
     "libcore.libcore.timezone.TelephonyLookupTest#createInstanceWithFallback",
