@@ -126,8 +126,8 @@ static void AssertConversion(const std::vector<uint16_t>& input,
 }
 
 TEST_F(UtfTest, CountAndConvertUtf8Bytes) {
-  // Surrogate pairs will be converted into 4 byte sequences.
-  AssertConversion({ 0xd801, 0xdc00 }, { 0xf0, 0x90, 0x90, 0x80 });
+  // Surrogate pairs will be converted into two three-byte sequences.
+  AssertConversion({ 0xd801, 0xdc00 }, { 0xed, 0xa0, 0x81, 0xed, 0xb0, 0x80 });
 
   // Three byte encodings that are below & above the leading surrogate
   // range respectively.
@@ -143,12 +143,12 @@ TEST_F(UtfTest, CountAndConvertUtf8Bytes) {
   AssertConversion({ 'h', 'e', 'l', 'l', 'o' }, { 0x68, 0x65, 0x6c, 0x6c, 0x6f });
 
   AssertConversion({
-      0xd802, 0xdc02,  // Surrogate pair.
+      0xd802, 0xdc02,  // Surrogate pair - three byte encodings.
       0xdef0, 0xdcff,  // Three byte encodings.
       0x0101, 0x0000,  // Two byte encodings.
       'p'   , 'p'      // One byte encoding.
     }, {
-      0xf0, 0x90, 0xa0, 0x82,
+      0xed, 0xa0, 0x82, 0xed, 0xb0, 0x82,
       0xed, 0xbb, 0xb0, 0xed, 0xb3, 0xbf,
       0xc4, 0x81, 0xc0, 0x80,
       0x70, 0x70
@@ -235,25 +235,6 @@ static size_t CountModifiedUtf8BytesInUtf16_reference(const uint16_t* chars, siz
     const uint16_t ch = *chars++;
     if (ch > 0 && ch <= 0x7f) {
       ++result;
-    } else if (ch >= 0xd800 && ch <= 0xdbff) {
-      if (char_count > 0) {
-        const uint16_t ch2 = *chars;
-        // If we find a properly paired surrogate, we emit it as a 4 byte
-        // UTF sequence. If we find an unpaired leading or trailing surrogate,
-        // we emit it as a 3 byte sequence like would have done earlier.
-        if (ch2 >= 0xdc00 && ch2 <= 0xdfff) {
-          chars++;
-          char_count--;
-
-          result += 4;
-        } else {
-          result += 3;
-        }
-      } else {
-        // This implies we found an unpaired trailing surrogate at the end
-        // of a string.
-        result += 3;
-      }
     } else if (ch > 0x7ff) {
       result += 3;
     } else {
@@ -270,28 +251,6 @@ static void ConvertUtf16ToModifiedUtf8_reference(char* utf8_out, const uint16_t*
     if (ch > 0 && ch <= 0x7f) {
       *utf8_out++ = ch;
     } else {
-      // Char_count == 0 here implies we've encountered an unpaired
-      // surrogate and we have no choice but to encode it as 3-byte UTF
-      // sequence. Note that unpaired surrogates can occur as a part of
-      // "normal" operation.
-      if ((ch >= 0xd800 && ch <= 0xdbff) && (char_count > 0)) {
-        const uint16_t ch2 = *utf16_in;
-
-        // Check if the other half of the pair is within the expected
-        // range. If it isn't, we will have to emit both "halves" as
-        // separate 3 byte sequences.
-        if (ch2 >= 0xdc00 && ch2 <= 0xdfff) {
-          utf16_in++;
-          char_count--;
-          const uint32_t code_point = (ch << 10) + ch2 - 0x035fdc00;
-          *utf8_out++ = (code_point >> 18) | 0xf0;
-          *utf8_out++ = ((code_point >> 12) & 0x3f) | 0x80;
-          *utf8_out++ = ((code_point >> 6) & 0x3f) | 0x80;
-          *utf8_out++ = (code_point & 0x3f) | 0x80;
-          continue;
-        }
-      }
-
       if (ch > 0x07ff) {
         // Three byte encoding.
         *utf8_out++ = (ch >> 12) | 0xe0;
@@ -313,39 +272,40 @@ static void codePointToSurrogatePair(uint32_t code_point, uint16_t &first, uint1
   second = (code_point & 0x03ff) + 0xdc00;
 }
 
-static void testConversions(uint16_t *buf, int char_count) {
-  char bytes_test[8] = { 0 }, bytes_reference[8] = { 0 };
-  uint16_t out_buf_test[4] = { 0 }, out_buf_reference[4] = { 0 };
-  int byte_count_test, byte_count_reference;
-  int char_count_test, char_count_reference;
-
+static void testConversions(uint16_t *buf, size_t char_count) {
   // Calculate the number of utf-8 bytes for the utf-16 chars.
-  byte_count_reference = CountModifiedUtf8BytesInUtf16_reference(buf, char_count);
-  byte_count_test = CountModifiedUtf8BytesInUtf16(buf, char_count);
-  EXPECT_EQ(byte_count_reference, byte_count_test);
+  size_t byte_count_reference = CountModifiedUtf8BytesInUtf16_reference(buf, char_count);
+  size_t byte_count_test = CountModifiedUtf8BytesInUtf16(buf, char_count);
+  ASSERT_EQ(byte_count_reference, byte_count_test);
 
   // Convert the utf-16 string to utf-8 bytes.
+  char bytes_test[8], bytes_reference[9];
+  ASSERT_LT(byte_count_reference, arraysize(bytes_reference));
   ConvertUtf16ToModifiedUtf8_reference(bytes_reference, buf, char_count);
+  ASSERT_LE(byte_count_test, arraysize(bytes_test));
   ConvertUtf16ToModifiedUtf8(bytes_test, byte_count_test, buf, char_count);
-  for (int i = 0; i < byte_count_test; ++i) {
-    EXPECT_EQ(bytes_reference[i], bytes_test[i]);
+  for (size_t i = 0; i < byte_count_test; ++i) {
+    ASSERT_EQ(bytes_reference[i], bytes_test[i]);
   }
 
   // Calculate the number of utf-16 chars from the utf-8 bytes.
   bytes_reference[byte_count_reference] = 0;  // Reference function needs null termination.
-  char_count_reference = CountModifiedUtf8Chars_reference(bytes_reference);
-  char_count_test = CountModifiedUtf8Chars(bytes_test, byte_count_test);
-  EXPECT_EQ(char_count, char_count_reference);
-  EXPECT_EQ(char_count, char_count_test);
+  size_t char_count_reference = CountModifiedUtf8Chars_reference(bytes_reference);
+  size_t char_count_test = CountModifiedUtf8Chars(bytes_test, byte_count_test);
+  ASSERT_EQ(char_count, char_count_reference);
+  ASSERT_EQ(char_count, char_count_test);
 
   // Convert the utf-8 bytes back to utf-16 chars.
   // Does not need copied _reference version of the function because the original
   // function with the old API is retained for debug/testing code.
+  uint16_t out_buf_test[4], out_buf_reference[4];
+  ASSERT_LE(char_count_reference, arraysize(out_buf_reference));
   ConvertModifiedUtf8ToUtf16(out_buf_reference, bytes_reference);
+  ASSERT_LE(char_count_test, arraysize(out_buf_test));
   ConvertModifiedUtf8ToUtf16(out_buf_test, char_count_test, bytes_test, byte_count_test);
-  for (int i = 0; i < char_count_test; ++i) {
-    EXPECT_EQ(buf[i], out_buf_reference[i]);
-    EXPECT_EQ(buf[i], out_buf_test[i]);
+  for (size_t i = 0; i < char_count_test; ++i) {
+    ASSERT_EQ(buf[i], out_buf_reference[i]);
+    ASSERT_EQ(buf[i], out_buf_test[i]);
   }
 }
 
