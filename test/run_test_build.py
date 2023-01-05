@@ -102,6 +102,7 @@ class BuildTestContext:
       "SMALI": args.smali.absolute(),
       "SOONG_ZIP": args.soong_zip.absolute(),
       "TEST_NAME": self.test_name,
+      "LANG": "en_US.UTF-8",  # Needed to pass UTF-8 command line arguments.
     }
 
   def bash(self, cmd):

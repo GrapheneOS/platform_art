@@ -90,8 +90,10 @@ size_t CountModifiedUtf8BytesInUtf16(const uint16_t* chars, size_t char_count);
  * this anyway, so if you want a NUL-terminated string, you know where to
  * put the NUL byte.
  */
-void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
-                                const uint16_t* utf16_in, size_t char_count);
+void ConvertUtf16ToModifiedUtf8(char* utf8_out,
+                                size_t byte_count,
+                                const uint16_t* utf16_in,
+                                size_t char_count);
 
 /*
  * The java.lang.String hashCode() algorithm.
