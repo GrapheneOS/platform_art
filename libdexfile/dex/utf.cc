@@ -121,10 +121,8 @@ void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, size_t out_chars,
   }
 }
 
-void ConvertUtf16ToModifiedUtf8(char* utf8_out,
-                                size_t byte_count,
-                                const uint16_t* utf16_in,
-                                size_t char_count) {
+void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
+                                const uint16_t* utf16_in, size_t char_count) {
   if (LIKELY(byte_count == char_count)) {
     // Common case where all characters are ASCII.
     const uint16_t *utf16_end = utf16_in + char_count;
@@ -135,9 +133,10 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out,
   }
 
   // String contains non-ASCII characters.
+  // FIXME: We should not emit 4-byte sequences. Bug: 192935764
   auto append = [&](char c) { *utf8_out++ = c; };
   ConvertUtf16ToUtf8</*kUseShortZero=*/ false,
-                     /*kUse4ByteSequence=*/ false,
+                     /*kUse4ByteSequence=*/ true,
                      /*kReplaceBadSurrogates=*/ false>(utf16_in, char_count, append);
 }
 
@@ -208,10 +207,11 @@ int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t
 }
 
 size_t CountModifiedUtf8BytesInUtf16(const uint16_t* chars, size_t char_count) {
+  // FIXME: We should not emit 4-byte sequences. Bug: 192935764
   size_t result = 0;
   auto append = [&](char c ATTRIBUTE_UNUSED) { ++result; };
   ConvertUtf16ToUtf8</*kUseShortZero=*/ false,
-                     /*kUse4ByteSequence=*/ false,
+                     /*kUse4ByteSequence=*/ true,
                      /*kReplaceBadSurrogates=*/ false>(chars, char_count, append);
   return result;
 }
