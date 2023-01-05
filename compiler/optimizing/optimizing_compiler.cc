@@ -51,6 +51,7 @@
 #include "linker/linker_patch.h"
 #include "nodes.h"
 #include "oat_quick_method_header.h"
+#include "optimizing/write_barrier_elimination.h"
 #include "prepare_for_register_allocation.h"
 #include "reference_type_propagation.h"
 #include "register_allocator_linear_scan.h"
@@ -899,6 +900,8 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* allocator,
     RunBaselineOptimizations(graph, codegen.get(), dex_compilation_unit, &pass_observer);
   } else {
     RunOptimizations(graph, codegen.get(), dex_compilation_unit, &pass_observer);
+    PassScope scope(WriteBarrierElimination::kWBEPassName, &pass_observer);
+    WriteBarrierElimination(graph, compilation_stats_.get()).Run();
   }
 
   RegisterAllocator::Strategy regalloc_strategy =
@@ -992,6 +995,10 @@ CodeGenerator* OptimizingCompiler::TryCompileIntrinsic(
                    optimizations);
 
   RunArchOptimizations(graph, codegen.get(), dex_compilation_unit, &pass_observer);
+  {
+    PassScope scope(WriteBarrierElimination::kWBEPassName, &pass_observer);
+    WriteBarrierElimination(graph, compilation_stats_.get()).Run();
+  }
 
   AllocateRegisters(graph,
                     codegen.get(),
