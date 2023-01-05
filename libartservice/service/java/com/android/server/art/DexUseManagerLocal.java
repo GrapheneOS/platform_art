@@ -39,6 +39,7 @@ import com.android.internal.annotations.Immutable;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalManagerRegistry;
 import com.android.server.art.model.DetailedDexInfo;
+import com.android.server.art.model.DexContainerFileUseInfo;
 import com.android.server.art.proto.DexUseProto;
 import com.android.server.art.proto.Int32Value;
 import com.android.server.art.proto.PackageDexUseProto;
@@ -159,6 +160,24 @@ public class DexUseManagerLocal {
                 save();
             }
         }, new IntentFilter(Intent.ACTION_SHUTDOWN));
+    }
+
+    /**
+     * Returns the information about the use of all secondary dex files owned by the given package,
+     * or an empty list if the package does not own any secondary dex file or it does not exist.
+     */
+    @NonNull
+    public List<DexContainerFileUseInfo> getSecondaryDexContainerFileUseInfo(
+            @NonNull String packageName) {
+        return getSecondaryDexInfo(packageName)
+                .stream()
+                .map(info
+                        -> DexContainerFileUseInfo.create(info.dexPath(), info.userHandle(),
+                                info.loaders()
+                                        .stream()
+                                        .map(loader -> loader.loadingPackageName())
+                                        .collect(Collectors.toSet())))
+                .collect(Collectors.toList());
     }
 
     /**

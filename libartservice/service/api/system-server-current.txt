@@ -48,6 +48,7 @@ package com.android.server.art {
 
   public class DexUseManagerLocal {
     method @NonNull public static com.android.server.art.DexUseManagerLocal createInstance(@NonNull android.content.Context);
+    method @NonNull public java.util.List<com.android.server.art.model.DexContainerFileUseInfo> getSecondaryDexContainerFileUseInfo(@NonNull String);
     method public void notifyDexContainersLoaded(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.Map<java.lang.String,java.lang.String>);
     method public void systemReady();
   }
@@ -103,6 +104,12 @@ package com.android.server.art.model {
 
   public abstract class DeleteResult {
     method public abstract long getFreedBytes();
+  }
+
+  public abstract class DexContainerFileUseInfo {
+    method @NonNull public abstract String getDexContainerFile();
+    method @NonNull public abstract java.util.Set<java.lang.String> getLoadingPackages();
+    method @NonNull public abstract android.os.UserHandle getUserHandle();
   }
 
   public abstract class OperationProgress {
