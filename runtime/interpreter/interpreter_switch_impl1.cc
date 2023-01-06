@@ -24,7 +24,7 @@ namespace interpreter {
 
 // Explicit definition of ExecuteSwitchImplCpp.
 template
-void ExecuteSwitchImplCpp<false, true>(SwitchImplContext* ctx);
+void ExecuteSwitchImplCpp<true>(SwitchImplContext* ctx);
 
 }  // namespace interpreter
 }  // namespace art
