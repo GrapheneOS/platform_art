@@ -519,10 +519,11 @@ public class ArtManagerLocalTest {
         var result = mock(OptimizeResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        mArtManagerLocal.setOptimizePackagesCallback(
-                ForkJoinPool.commonPool(), (snapshot, reason, defaultPackages, builder) -> {
+        mArtManagerLocal.setOptimizePackagesCallback(ForkJoinPool.commonPool(),
+                (snapshot, reason, defaultPackages, builder, passedSignal) -> {
                     assertThat(reason).isEqualTo("bg-dexopt");
                     assertThat(defaultPackages).containsExactly(PKG_NAME_SYS_UI);
+                    assertThat(passedSignal).isSameInstanceAs(cancellationSignal);
                     builder.setPackages(List.of(PKG_NAME)).setOptimizeParams(params);
                 });
 
@@ -547,8 +548,8 @@ public class ArtManagerLocalTest {
         var result = mock(OptimizeResult.class);
         var cancellationSignal = new CancellationSignal();
 
-        mArtManagerLocal.setOptimizePackagesCallback(
-                ForkJoinPool.commonPool(), (snapshot, reason, defaultPackages, builder) -> {
+        mArtManagerLocal.setOptimizePackagesCallback(ForkJoinPool.commonPool(),
+                (snapshot, reason, defaultPackages, builder, passedSignal) -> {
                     builder.setPackages(List.of(PKG_NAME)).setOptimizeParams(params);
                 });
         mArtManagerLocal.clearOptimizePackagesCallback();
@@ -568,8 +569,8 @@ public class ArtManagerLocalTest {
         var params = new OptimizeParams.Builder("first-boot").build();
         var cancellationSignal = new CancellationSignal();
 
-        mArtManagerLocal.setOptimizePackagesCallback(
-                ForkJoinPool.commonPool(), (snapshot, reason, defaultPackages, builder) -> {
+        mArtManagerLocal.setOptimizePackagesCallback(ForkJoinPool.commonPool(),
+                (snapshot, reason, defaultPackages, builder, passedSignal) -> {
                     builder.setOptimizeParams(params);
                 });
 
