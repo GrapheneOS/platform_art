@@ -67,9 +67,10 @@ namespace art {
 using android::base::StringPrintf;
 
 static constexpr uint64_t kLongThreadSuspendThreshold = MsToNs(5);
-static constexpr useconds_t kThreadSuspendSleepUs = 100;
-// The number of times we may retry when we find ourselves in a suspend-unfriendly state.
-static constexpr int kMaxSuspendRetries = kIsDebugBuild ? 500 : 5000;
+// Use 0 since we want to yield to prevent blocking for an unpredictable amount of time.
+static constexpr useconds_t kThreadSuspendInitialSleepUs = 0;
+static constexpr useconds_t kThreadSuspendMaxYieldUs = 3000;
+static constexpr useconds_t kThreadSuspendMaxSleepUs = 5000;
 
 // Whether we should try to dump the native stack of unattached threads. See commit ed8b723 for
 // some history.
@@ -78,7 +79,7 @@ static constexpr bool kDumpUnattachedThreadNativeStackForSigQuit = true;
 ThreadList::ThreadList(uint64_t thread_suspend_timeout_ns)
     : suspend_all_count_(0),
       unregistering_count_(0),
-      suspend_all_histogram_("suspend all histogram", 16, 64),
+      suspend_all_historam_("suspend all histogram", 16, 64),
       long_suspend_(false),
       shut_down_(false),
       thread_suspend_timeout_ns_(thread_suspend_timeout_ns),
@@ -139,10 +140,10 @@ void ThreadList::DumpForSigQuit(std::ostream& os) {
   {
     ScopedObjectAccess soa(Thread::Current());
     // Only print if we have samples.
-    if (suspend_all_histogram_.SampleSize() > 0) {
+    if (suspend_all_historam_.SampleSize() > 0) {
       Histogram<uint64_t>::CumulativeData data;
-      suspend_all_histogram_.CreateHistogram(&data);
-      suspend_all_histogram_.PrintConfidenceIntervals(os, 0.99, data);  // Dump time to suspend.
+      suspend_all_historam_.CreateHistogram(&data);
+      suspend_all_historam_.PrintConfidenceIntervals(os, 0.99, data);  // Dump time to suspend.
     }
   }
   bool dump_native_stack = Runtime::Current()->GetDumpNativeStackOnSigQuit();
@@ -278,11 +279,11 @@ void ThreadList::Dump(std::ostream& os, bool dump_native_stack) {
   }
 }
 
-void ThreadList::AssertOtherThreadsAreSuspended(Thread* self) {
+void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2) {
   MutexLock mu(self, *Locks::thread_list_lock_);
   MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
   for (const auto& thread : list_) {
-    if (thread != self) {
+    if (thread != ignore1 && thread != ignore2) {
       CHECK(thread->IsSuspended())
             << "\nUnsuspended thread: <<" << *thread << "\n"
             << "self: <<" << *Thread::Current();
@@ -309,9 +310,20 @@ NO_RETURN static void UnsafeLogFatalForThreadSuspendAllTimeout() {
 }
 #endif
 
-size_t ThreadList::RunCheckpoint(Closure* checkpoint_function,
-                                 Closure* callback,
-                                 bool allowLockChecking) {
+// Unlike suspending all threads where we can wait to acquire the mutator_lock_, suspending an
+// individual thread requires polling. delay_us is the requested sleep wait. If delay_us is 0 then
+// we use sched_yield instead of calling usleep.
+// Although there is the possibility, here and elsewhere, that usleep could return -1 and
+// errno = EINTR, there should be no problem if interrupted, so we do not check.
+static void ThreadSuspendSleep(useconds_t delay_us) {
+  if (delay_us == 0) {
+    sched_yield();
+  } else {
+    usleep(delay_us);
+  }
+}
+
+size_t ThreadList::RunCheckpoint(Closure* checkpoint_function, Closure* callback) {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
@@ -320,12 +332,9 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function,
   std::vector<Thread*> suspended_count_modified_threads;
   size_t count = 0;
   {
-    // Call a checkpoint function for each thread. We directly invoke the function on behalf of
-    // suspended threads.
+    // Call a checkpoint function for each thread, threads which are suspended get their checkpoint
+    // manually called.
     MutexLock mu(self, *Locks::thread_list_lock_);
-    if (kIsDebugBuild && allowLockChecking) {
-      self->DisallowPreMonitorMutexes();
-    }
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     count = list_.size();
     for (const auto& thread : list_) {
@@ -336,23 +345,31 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function,
             // This thread will run its checkpoint some time in the near future.
             if (requested_suspend) {
               // The suspend request is now unnecessary.
-              thread->DecrementSuspendCount(self);
+              bool updated =
+                  thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+              DCHECK(updated);
               requested_suspend = false;
             }
             break;
           } else {
-            // The thread is probably suspended.
-            if (!requested_suspend) {
-              // Since we don't suspend other threads to run checkpoint_function, we claim this is
-              // safe even with flip_function set.
-              // This does not risk suspension cycles: We may have a pending suspension request,
-              // but it cannot block us: Checkpoint Run() functions may not suspend, thus we cannot
-              // be blocked from decrementing the count again.
-              thread->IncrementSuspendCount(self);
-              requested_suspend = true;
+            // The thread is probably suspended, try to make sure that it stays suspended.
+            if (thread->GetState() == ThreadState::kRunnable) {
+              // Spurious fail, try again.
+              continue;
             }
-            if (thread->IsSuspended()) {
-              // We saw it suspended after incrementing suspend count, so it will stay that way.
+            if (!requested_suspend) {
+              bool updated =
+                  thread->ModifySuspendCount(self, +1, nullptr, SuspendReason::kInternal);
+              DCHECK(updated);
+              requested_suspend = true;
+              if (thread->IsSuspended()) {
+                break;
+              }
+              // The thread raced us to become Runnable. Try to RequestCheckpoint() again.
+            } else {
+              // The thread previously raced our suspend request to become Runnable but
+              // since it is suspended again, it must honor that suspend request now.
+              DCHECK(thread->IsSuspended());
               break;
             }
           }
@@ -361,8 +378,6 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function,
           suspended_count_modified_threads.push_back(thread);
         }
       }
-      // Thread either has honored or will honor the checkpoint, or it has been added to
-      // suspended_count_modified_threads.
     }
     // Run the callback to be called inside this critical section.
     if (callback != nullptr) {
@@ -380,7 +395,8 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function,
     checkpoint_function->Run(thread);
     {
       MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-      thread->DecrementSuspendCount(self);
+      bool updated = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+      DCHECK(updated);
     }
   }
 
@@ -391,9 +407,6 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function,
     Thread::resume_cond_->Broadcast(self);
   }
 
-  if (kIsDebugBuild && allowLockChecking) {
-    self->AllowPreMonitorMutexes();
-  }
   return count;
 }
 
@@ -522,14 +535,14 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
   // ThreadFlipBegin happens before we suspend all the threads, so it does not count towards the
   // pause.
   const uint64_t suspend_start_time = NanoTime();
-  SuspendAllInternal(self);
+  SuspendAllInternal(self, self, nullptr);
   if (pause_listener != nullptr) {
     pause_listener->StartPause();
   }
 
   // Run the flip callback for the collector.
   Locks::mutator_lock_->ExclusiveLock(self);
-  suspend_all_histogram_.AdjustAndAddValue(NanoTime() - suspend_start_time);
+  suspend_all_historam_.AdjustAndAddValue(NanoTime() - suspend_start_time);
   flip_callback->Run(self);
   Locks::mutator_lock_->ExclusiveUnlock(self);
   collector->RegisterPause(NanoTime() - suspend_start_time);
@@ -560,7 +573,8 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
       if ((state == ThreadState::kWaitingForGcThreadFlip || thread->IsTransitioningToRunnable()) &&
           thread->GetSuspendCount() == 1) {
         // The thread will resume right after the broadcast.
-        thread->DecrementSuspendCount(self);
+        bool updated = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+        DCHECK(updated);
         ++runnable_thread_count;
       } else {
         other_threads.push_back(thread);
@@ -589,37 +603,13 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
     TimingLogger::ScopedTiming split4("ResumeOtherThreads", collector->GetTimings());
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     for (const auto& thread : other_threads) {
-      thread->DecrementSuspendCount(self);
+      bool updated = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+      DCHECK(updated);
     }
     Thread::resume_cond_->Broadcast(self);
   }
 
   return runnable_thread_count + other_threads.size() + 1;  // +1 for self.
-}
-
-bool ThreadList::WaitForSuspendBarrier(AtomicInteger* barrier) {
-#if ART_USE_FUTEXES
-  timespec wait_timeout;
-  InitTimeSpec(false, CLOCK_MONOTONIC, NsToMs(thread_suspend_timeout_ns_), 0, &wait_timeout);
-#endif
-  while (true) {
-    int32_t cur_val = barrier->load(std::memory_order_acquire);
-    if (cur_val <= 0) {
-      CHECK_EQ(cur_val, 0);
-      return true;
-    }
-#if ART_USE_FUTEXES
-    if (futex(barrier->Address(), FUTEX_WAIT_PRIVATE, cur_val, &wait_timeout, nullptr, 0) != 0) {
-      if (errno == ETIMEDOUT) {
-        return false;
-      } else if (errno != EAGAIN && errno != EINTR) {
-        PLOG(FATAL) << "futex wait for suspend barrier failed";
-      }
-    }
-#endif
-    // Else spin wait. This is likely to be slow, but ART_USE_FUTEXES is set on Linux,
-    // including all targets.
-  }
 }
 
 void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
@@ -634,7 +624,7 @@ void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
     ScopedTrace trace("Suspending mutator threads");
     const uint64_t start_time = NanoTime();
 
-    SuspendAllInternal(self);
+    SuspendAllInternal(self, self);
     // All threads are known to have suspended (but a thread may still own the mutator lock)
     // Make sure this thread grabs exclusive access to the mutator lock and its protected data.
 #if HAVE_TIMED_RWLOCK
@@ -658,14 +648,14 @@ void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
 
     const uint64_t end_time = NanoTime();
     const uint64_t suspend_time = end_time - start_time;
-    suspend_all_histogram_.AdjustAndAddValue(suspend_time);
+    suspend_all_historam_.AdjustAndAddValue(suspend_time);
     if (suspend_time > kLongThreadSuspendThreshold) {
       LOG(WARNING) << "Suspending all threads took: " << PrettyDuration(suspend_time);
     }
 
     if (kDebugLocking) {
       // Debug check that all threads are suspended.
-      AssertOtherThreadsAreSuspended(self);
+      AssertThreadsAreSuspended(self, self);
     }
   }
   ATraceBegin((std::string("Mutator threads suspended for ") + cause).c_str());
@@ -677,29 +667,11 @@ void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
   }
 }
 
-// Only used for kIsDebugBuild statistics.
-struct DelayInfo {
-  DelayInfo() : in_flip_(0), suspend_all_(0), self_susp_(0) {}
-  int in_flip_;
-  int suspend_all_;
-  int self_susp_;
-};
-
-static inline std::ostream& operator<<(std::ostream& os, DelayInfo di) {
-  return os << " in_flip =" << di.in_flip_ << " suspend_all = " << di.suspend_all_
-            << " self_suspend = " << di.self_susp_;
-}
-
-static inline bool TrackIfFalse(bool cond, int* field) {
-  if (kIsDebugBuild && !cond) {
-    ++*field;
-  }
-  return cond;
-}
-
 // Ensures all threads running Java suspend and that those not running Java don't start.
-void ThreadList::SuspendAllInternal(Thread* self, SuspendReason reason) {
-  const uint64_t start_time = NanoTime();
+void ThreadList::SuspendAllInternal(Thread* self,
+                                    Thread* ignore1,
+                                    Thread* ignore2,
+                                    SuspendReason reason) {
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
@@ -717,86 +689,85 @@ void ThreadList::SuspendAllInternal(Thread* self, SuspendReason reason) {
 
   // The atomic counter for number of threads that need to pass the barrier.
   AtomicInteger pending_threads;
-
-  DelayInfo di;
-  for (int iter_count = 1;; ++iter_count) {
-    {
-      MutexLock mu(self, *Locks::thread_list_lock_);
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-      bool in_flip = false;
-      for (const auto& thread : list_) {
-        if (thread->GetFlipFunction() != nullptr) {
-          in_flip = true;
-          break;
-        }
-      }
-      if (LIKELY(TrackIfFalse(suspend_all_count_ == 0, &di.suspend_all_) &&
-                 TrackIfFalse(self == nullptr || self->GetSuspendCount() == 0, &di.self_susp_) &&
-                 TrackIfFalse(!in_flip, &di.in_flip_))) {
-        // The above condition remains valid while we hold thread_suspend_count_lock_ .
-        bool found_myself = false;
-        // Update global suspend all state for attaching threads.
-        ++suspend_all_count_;
-        pending_threads.store(list_.size() - (self == nullptr ? 0 : 1), std::memory_order_relaxed);
-        // Increment everybody else's suspend count.
-        for (const auto& thread : list_) {
-          if (thread == self) {
-            found_myself = true;
-          } else {
-            VLOG(threads) << "requesting thread suspend: " << *thread;
-            DCHECK_EQ(suspend_all_count_, 1);
-            thread->IncrementSuspendCount(self, &pending_threads, nullptr, reason);
-
-            // Must install the pending_threads counter first, then check thread->IsSuspended()
-            // and clear the counter. Otherwise there's a race with
-            // Thread::TransitionFromRunnableToSuspended() that can lead a thread to miss a call
-            // to PassActiveSuspendBarriers().
-            if (thread->IsSuspended()) {
-              // Effectively pass the barrier on behalf of the already suspended thread.
-              DCHECK_EQ(thread->tlsPtr_.active_suspendall_barrier, &pending_threads);
-              pending_threads.fetch_sub(1, std::memory_order_seq_cst);
-              thread->tlsPtr_.active_suspendall_barrier = nullptr;
-              if (!thread->HasActiveSuspendBarrier()) {
-                thread->AtomicClearFlag(ThreadFlag::kActiveSuspendBarrier);
-              }
-            }
-          }
-        }
-        DCHECK(self == nullptr || found_myself);
-        break;
-      }
-    }
-    // The if (LIKELY ...) condition above didn't hold.  This is a bad time to initiate a suspend.
-    // Either the suspendall_barrier is already in use, or proceeding at this time risks deadlock.
-    // See b/31683379 for an explanation of the thread flip condition. Note that in the event of a
-    // competing Suspend or SuspendAll, we are about to be suspended anyway. We hold no locks,
-    // so it's safe to sleep and retry.
-    CHECK(iter_count <= kMaxSuspendRetries) << di;
-    {
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-      DCHECK(suspend_all_count_ <= 1);
-      if (suspend_all_count_ != 0) {
-        // This may take a while, and we're not runnable, and thus would o.w. not block.
-        Thread::resume_cond_->WaitHoldingLocks(self);
-        continue;
-      }
-    }
-    usleep(kThreadSuspendSleepUs);
-    // We're already not runnable, so an attempt to suspend us should succeed.
+  uint32_t num_ignored = 0;
+  if (ignore1 != nullptr) {
+    ++num_ignored;
   }
-
-  if (!WaitForSuspendBarrier(&pending_threads)) {
-    const uint64_t wait_time = NanoTime() - start_time;
+  if (ignore2 != nullptr && ignore1 != ignore2) {
+    ++num_ignored;
+  }
+  {
     MutexLock mu(self, *Locks::thread_list_lock_);
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-    std::ostringstream oss;
+    // Update global suspend all state for attaching threads.
+    ++suspend_all_count_;
+    pending_threads.store(list_.size() - num_ignored, std::memory_order_relaxed);
+    // Increment everybody's suspend count (except those that should be ignored).
     for (const auto& thread : list_) {
-      if (thread != self && !thread->IsSuspended()) {
-        oss << std::endl << "Thread not suspended: " << *thread;
+      if (thread == ignore1 || thread == ignore2) {
+        continue;
+      }
+      VLOG(threads) << "requesting thread suspend: " << *thread;
+      bool updated = thread->ModifySuspendCount(self, +1, &pending_threads, reason);
+      DCHECK(updated);
+
+      // Must install the pending_threads counter first, then check thread->IsSuspend() and clear
+      // the counter. Otherwise there's a race with Thread::TransitionFromRunnableToSuspended()
+      // that can lead a thread to miss a call to PassActiveSuspendBarriers().
+      if (thread->IsSuspended()) {
+        // Only clear the counter for the current thread.
+        thread->ClearSuspendBarrier(&pending_threads);
+        pending_threads.fetch_sub(1, std::memory_order_seq_cst);
       }
     }
-    LOG(::android::base::FATAL) << "Timed out waiting for threads to suspend, waited for "
-                                << PrettyDuration(wait_time) << oss.str();
+  }
+
+  // Wait for the barrier to be passed by all runnable threads. This wait
+  // is done with a timeout so that we can detect problems.
+#if ART_USE_FUTEXES
+  timespec wait_timeout;
+  InitTimeSpec(false, CLOCK_MONOTONIC, NsToMs(thread_suspend_timeout_ns_), 0, &wait_timeout);
+#endif
+  const uint64_t start_time = NanoTime();
+  while (true) {
+    int32_t cur_val = pending_threads.load(std::memory_order_relaxed);
+    if (LIKELY(cur_val > 0)) {
+#if ART_USE_FUTEXES
+      if (futex(pending_threads.Address(), FUTEX_WAIT_PRIVATE, cur_val, &wait_timeout, nullptr, 0)
+          != 0) {
+        if ((errno == EAGAIN) || (errno == EINTR)) {
+          // EAGAIN and EINTR both indicate a spurious failure, try again from the beginning.
+          continue;
+        }
+        if (errno == ETIMEDOUT) {
+          const uint64_t wait_time = NanoTime() - start_time;
+          MutexLock mu(self, *Locks::thread_list_lock_);
+          MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+          std::ostringstream oss;
+          for (const auto& thread : list_) {
+            if (thread == ignore1 || thread == ignore2) {
+              continue;
+            }
+            if (!thread->IsSuspended()) {
+              oss << std::endl << "Thread not suspended: " << *thread;
+            }
+          }
+          LOG(kIsDebugBuild ? ::android::base::FATAL : ::android::base::ERROR)
+              << "Timed out waiting for threads to suspend, waited for "
+              << PrettyDuration(wait_time)
+              << oss.str();
+        } else {
+          PLOG(FATAL) << "futex wait failed for SuspendAllInternal()";
+        }
+      }  // else re-check pending_threads in the next iteration (this may be a spurious wake-up).
+#else
+      // Spin wait. This is likely to be slow, but on most architecture ART_USE_FUTEXES is set.
+      UNUSED(start_time);
+#endif
+    } else {
+      CHECK_EQ(cur_val, 0);
+      break;
+    }
   }
 }
 
@@ -815,7 +786,7 @@ void ThreadList::ResumeAll() {
 
   if (kDebugLocking) {
     // Debug check that all threads are suspended.
-    AssertOtherThreadsAreSuspended(self);
+    AssertThreadsAreSuspended(self, self);
   }
 
   long_suspend_ = false;
@@ -828,9 +799,11 @@ void ThreadList::ResumeAll() {
     --suspend_all_count_;
     // Decrement the suspend counts for all threads.
     for (const auto& thread : list_) {
-      if (thread != self) {
-        thread->DecrementSuspendCount(self);
+      if (thread == self) {
+        continue;
       }
+      bool updated = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+      DCHECK(updated);
     }
 
     // Broadcast a notification to all suspended threads, some or all of
@@ -875,7 +848,11 @@ bool ThreadList::Resume(Thread* thread, SuspendReason reason) {
           << ") thread not within thread list";
       return false;
     }
-    thread->DecrementSuspendCount(self, reason);
+    if (UNLIKELY(!thread->ModifySuspendCount(self, -1, nullptr, reason))) {
+      LOG(ERROR) << "Resume(" << reinterpret_cast<void*>(thread)
+                 << ") could not modify suspend count.";
+      return false;
+    }
   }
 
   {
@@ -901,19 +878,40 @@ static void ThreadSuspendByPeerWarning(ScopedObjectAccess& soa,
   }
 }
 
-Thread* ThreadList::SuspendThreadByPeer(jobject peer, SuspendReason reason) {
-  bool is_suspended = false;
+Thread* ThreadList::SuspendThreadByPeer(jobject peer,
+                                        SuspendReason reason,
+                                        bool* timed_out) {
+  bool request_suspension = true;
+  const uint64_t start_time = NanoTime();
+  int self_suspend_count = 0;
+  useconds_t sleep_us = kThreadSuspendInitialSleepUs;
+  *timed_out = false;
   Thread* const self = Thread::Current();
+  Thread* suspended_thread = nullptr;
   VLOG(threads) << "SuspendThreadByPeer starting";
-  Thread* thread;
-  WrappedSuspend1Barrier wrapped_barrier{};
-  for (int iter_count = 1;; ++iter_count) {
+  while (true) {
+    Thread* thread;
     {
-      // Note: this will transition to runnable and potentially suspend.
+      // Note: this will transition to runnable and potentially suspend. We ensure only one thread
+      // is requesting another suspend, to avoid deadlock, by requiring this function be called
+      // holding Locks::thread_list_suspend_thread_lock_. Its important this thread suspend rather
+      // than request thread suspension, to avoid potential cycles in threads requesting each other
+      // suspend.
       ScopedObjectAccess soa(self);
       MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
       if (thread == nullptr) {
+        if (suspended_thread != nullptr) {
+          MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
+          // If we incremented the suspend count but the thread reset its peer, we need to
+          // re-decrement it since it is shutting down and may deadlock the runtime in
+          // ThreadList::WaitForOtherNonDaemonThreadsToExit.
+          bool updated = suspended_thread->ModifySuspendCount(soa.Self(),
+                                                              -1,
+                                                              nullptr,
+                                                              reason);
+          DCHECK(updated);
+        }
         ThreadSuspendByPeerWarning(soa,
                                    ::android::base::WARNING,
                                     "No such thread for suspend",
@@ -921,62 +919,84 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, SuspendReason reason) {
         return nullptr;
       }
       if (!Contains(thread)) {
+        CHECK(suspended_thread == nullptr);
         VLOG(threads) << "SuspendThreadByPeer failed for unattached thread: "
             << reinterpret_cast<void*>(thread);
         return nullptr;
       }
-      // IsSuspended on the current thread will fail as the current thread is changed into
-      // Runnable above. As the suspend count is now raised if this is the current thread
-      // it will self suspend on transition to Runnable, making it hard to work with. It's simpler
-      // to just explicitly handle the current thread in the callers to this code.
-      CHECK_NE(thread, self) << "Attempt to suspend the current thread for the debugger";
       VLOG(threads) << "SuspendThreadByPeer found thread: " << *thread;
       {
         MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
-        if (LIKELY(self->GetSuspendCount() == 0 && thread->GetFlipFunction() == nullptr)) {
-          thread->IncrementSuspendCount(self, nullptr, &wrapped_barrier, reason);
-          if (thread->IsSuspended()) {
-            // See the discussion in mutator_gc_coord.md for the race here.
-            thread->RemoveFirstSuspend1Barrier();
-            if (!thread->HasActiveSuspendBarrier()) {
-              thread->AtomicClearFlag(ThreadFlag::kActiveSuspendBarrier);
-            }
-            is_suspended = true;
+        if (request_suspension) {
+          if (self->GetSuspendCount() > 0) {
+            // We hold the suspend count lock but another thread is trying to suspend us. Its not
+            // safe to try to suspend another thread in case we get a cycle. Start the loop again
+            // which will allow this thread to be suspended.
+            ++self_suspend_count;
+            continue;
           }
-          DCHECK_GT(thread->GetSuspendCount(), 0);
-          break;
+          CHECK(suspended_thread == nullptr);
+          suspended_thread = thread;
+          bool updated = suspended_thread->ModifySuspendCount(self, +1, nullptr, reason);
+          DCHECK(updated);
+          request_suspension = false;
+        } else {
+          // If the caller isn't requesting suspension, a suspension should have already occurred.
+          CHECK_GT(thread->GetSuspendCount(), 0);
         }
-        // Else we either hold the suspend count lock but another thread is trying to suspend us,
-        // making it unsafe to try to suspend another thread in case we get a cycle.  Or we're
-        // currently in the middle of a flip, and could otherwise encounter b/31683379. In either
-        // case, start the loop again, which will allow this thread to be suspended.
+        // IsSuspended on the current thread will fail as the current thread is changed into
+        // Runnable above. As the suspend count is now raised if this is the current thread
+        // it will self suspend on transition to Runnable, making it hard to work with. It's simpler
+        // to just explicitly handle the current thread in the callers to this code.
+        CHECK_NE(thread, self) << "Attempt to suspend the current thread for the debugger";
+        // If thread is suspended (perhaps it was already not Runnable but didn't have a suspend
+        // count, or else we've waited and it has self suspended) or is the current thread, we're
+        // done.
+        if (thread->IsSuspended()) {
+          VLOG(threads) << "SuspendThreadByPeer thread suspended: " << *thread;
+          if (ATraceEnabled()) {
+            std::string name;
+            thread->GetThreadName(name);
+            ATraceBegin(StringPrintf("SuspendThreadByPeer suspended %s for peer=%p", name.c_str(),
+                                      peer).c_str());
+          }
+          return thread;
+        }
+        const uint64_t total_delay = NanoTime() - start_time;
+        if (total_delay >= thread_suspend_timeout_ns_) {
+          if (suspended_thread == nullptr) {
+            ThreadSuspendByPeerWarning(soa,
+                                       ::android::base::FATAL,
+                                       "Failed to issue suspend request",
+                                       peer);
+          } else {
+            CHECK_EQ(suspended_thread, thread);
+            LOG(WARNING) << "Suspended thread state_and_flags: "
+                         << suspended_thread->StateAndFlagsAsHexString()
+                         << ", self_suspend_count = " << self_suspend_count;
+            // Explicitly release thread_suspend_count_lock_; we haven't held it for long, so
+            // seeing threads blocked on it is not informative.
+            Locks::thread_suspend_count_lock_->Unlock(self);
+            ThreadSuspendByPeerWarning(soa,
+                                       ::android::base::FATAL,
+                                       "Thread suspension timed out",
+                                       peer);
+          }
+          UNREACHABLE();
+        } else if (sleep_us == 0 &&
+            total_delay > static_cast<uint64_t>(kThreadSuspendMaxYieldUs) * 1000) {
+          // We have spun for kThreadSuspendMaxYieldUs time, switch to sleeps to prevent
+          // excessive CPU usage.
+          sleep_us = kThreadSuspendMaxYieldUs / 2;
+        }
       }
+      // Release locks and come out of runnable state.
     }
-    // All locks are released, and we should quickly exit the suspend-unfriendly state. Retry.
-    CHECK(iter_count <= kMaxSuspendRetries);
-    usleep(kThreadSuspendSleepUs);
-  }
-  // Now wait for target to decrement suspend barrier.
-  if (is_suspended || WaitForSuspendBarrier(&wrapped_barrier.barrier_)) {
-    // wrapped_barrier.barrier_ has been decremented and will no longer be accessed.
-    VLOG(threads) << "SuspendThreadByPeer thread suspended: " << *thread;
-    if (ATraceEnabled()) {
-      std::string name;
-      thread->GetThreadName(name);
-      ATraceBegin(
-          StringPrintf("SuspendThreadByPeer suspended %s for peer=%p", name.c_str(), peer).c_str());
-    }
-    return thread;
-  } else {
-    LOG(WARNING) << "Suspended thread state_and_flags: " << thread->StateAndFlagsAsHexString();
-    // thread still has a pointer to wrapped_barrier. Returning and continuing would be unsafe
-    // without additional cleanup.
-    {
-      ScopedObjectAccess soa(self);
-      ThreadSuspendByPeerWarning(
-          soa, ::android::base::FATAL, "SuspendThreadByPeer timed out", peer);
-    }
-    UNREACHABLE();
+    VLOG(threads) << "SuspendThreadByPeer waiting to allow thread chance to suspend";
+    ThreadSuspendSleep(sleep_us);
+    // This may stay at 0 if sleep_us == 0, but this is WAI since we want to avoid using usleep at
+    // all if possible. This shouldn't be an issue since time to suspend should always be small.
+    sleep_us = std::min(sleep_us * 2, kThreadSuspendMaxSleepUs);
   }
 }
 
@@ -986,72 +1006,101 @@ static void ThreadSuspendByThreadIdWarning(LogSeverity severity,
   LOG(severity) << StringPrintf("%s: %d", message, thread_id);
 }
 
-Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, SuspendReason reason) {
-  bool is_suspended = false;
+Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id,
+                                            SuspendReason reason,
+                                            bool* timed_out) {
+  const uint64_t start_time = NanoTime();
+  useconds_t sleep_us = kThreadSuspendInitialSleepUs;
+  *timed_out = false;
+  Thread* suspended_thread = nullptr;
   Thread* const self = Thread::Current();
   CHECK_NE(thread_id, kInvalidThreadId);
   VLOG(threads) << "SuspendThreadByThreadId starting";
-  Thread* thread;
-  WrappedSuspend1Barrier wrapped_barrier{};
-  for (int iter_count = 1;; ++iter_count) {
+  while (true) {
     {
-      // Note: this will transition to runnable and potentially suspend.
+      // Note: this will transition to runnable and potentially suspend. We ensure only one thread
+      // is requesting another suspend, to avoid deadlock, by requiring this function be called
+      // holding Locks::thread_list_suspend_thread_lock_. Its important this thread suspend rather
+      // than request thread suspension, to avoid potential cycles in threads requesting each other
+      // suspend.
       ScopedObjectAccess soa(self);
       MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
-      thread = FindThreadByThreadId(thread_id);
+      Thread* thread = nullptr;
+      for (const auto& it : list_) {
+        if (it->GetThreadId() == thread_id) {
+          thread = it;
+          break;
+        }
+      }
       if (thread == nullptr) {
+        CHECK(suspended_thread == nullptr) << "Suspended thread " << suspended_thread
+            << " no longer in thread list";
         // There's a race in inflating a lock and the owner giving up ownership and then dying.
         ThreadSuspendByThreadIdWarning(::android::base::WARNING,
                                        "No such thread id for suspend",
                                        thread_id);
         return nullptr;
       }
-      DCHECK(Contains(thread));
-      CHECK_NE(thread, self) << "Attempt to suspend the current thread for the debugger";
       VLOG(threads) << "SuspendThreadByThreadId found thread: " << *thread;
+      DCHECK(Contains(thread));
       {
         MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
-        if (LIKELY(self->GetSuspendCount() == 0 && thread->GetFlipFunction() == nullptr)) {
-          thread->IncrementSuspendCount(self, nullptr, &wrapped_barrier, reason);
-          if (thread->IsSuspended()) {
-            // See the discussion in mutator_gc_coord.md for the race here.
-            thread->RemoveFirstSuspend1Barrier();
-            if (!thread->HasActiveSuspendBarrier()) {
-              thread->AtomicClearFlag(ThreadFlag::kActiveSuspendBarrier);
-            }
-            is_suspended = true;
+        if (suspended_thread == nullptr) {
+          if (self->GetSuspendCount() > 0) {
+            // We hold the suspend count lock but another thread is trying to suspend us. Its not
+            // safe to try to suspend another thread in case we get a cycle. Start the loop again
+            // which will allow this thread to be suspended.
+            continue;
           }
-          DCHECK_GT(thread->GetSuspendCount(), 0);
-          break;
+          bool updated = thread->ModifySuspendCount(self, +1, nullptr, reason);
+          DCHECK(updated);
+          suspended_thread = thread;
+        } else {
+          CHECK_EQ(suspended_thread, thread);
+          // If the caller isn't requesting suspension, a suspension should have already occurred.
+          CHECK_GT(thread->GetSuspendCount(), 0);
         }
-        // Else we either hold the suspend count lock but another thread is trying to suspend us,
-        // making it unsafe to try to suspend another thread in case we get a cycle.  Or we're
-        // currently in the middle of a flip, and could otherwise encounter b/31683379. In either
-        // case, start the loop again, which will allow this thread to be suspended.
+        // IsSuspended on the current thread will fail as the current thread is changed into
+        // Runnable above. As the suspend count is now raised if this is the current thread
+        // it will self suspend on transition to Runnable, making it hard to work with. It's simpler
+        // to just explicitly handle the current thread in the callers to this code.
+        CHECK_NE(thread, self) << "Attempt to suspend the current thread for the debugger";
+        // If thread is suspended (perhaps it was already not Runnable but didn't have a suspend
+        // count, or else we've waited and it has self suspended) or is the current thread, we're
+        // done.
+        if (thread->IsSuspended()) {
+          if (ATraceEnabled()) {
+            std::string name;
+            thread->GetThreadName(name);
+            ATraceBegin(StringPrintf("SuspendThreadByThreadId suspended %s id=%d",
+                                      name.c_str(), thread_id).c_str());
+          }
+          VLOG(threads) << "SuspendThreadByThreadId thread suspended: " << *thread;
+          return thread;
+        }
+        const uint64_t total_delay = NanoTime() - start_time;
+        if (total_delay >= thread_suspend_timeout_ns_) {
+          ThreadSuspendByThreadIdWarning(::android::base::WARNING,
+                                         "Thread suspension timed out",
+                                         thread_id);
+          if (suspended_thread != nullptr) {
+            bool updated = thread->ModifySuspendCount(soa.Self(), -1, nullptr, reason);
+            DCHECK(updated);
+          }
+          *timed_out = true;
+          return nullptr;
+        } else if (sleep_us == 0 &&
+            total_delay > static_cast<uint64_t>(kThreadSuspendMaxYieldUs) * 1000) {
+          // We have spun for kThreadSuspendMaxYieldUs time, switch to sleeps to prevent
+          // excessive CPU usage.
+          sleep_us = kThreadSuspendMaxYieldUs / 2;
+        }
       }
+      // Release locks and come out of runnable state.
     }
-    // All locks are released, and we should quickly exit the suspend-unfriendly state. Retry.
-    CHECK(iter_count <= kMaxSuspendRetries);
-    usleep(kThreadSuspendSleepUs);
-  }
-  // Now wait for target to decrement suspend barrier.
-  if (is_suspended || WaitForSuspendBarrier(&wrapped_barrier.barrier_)) {
-    // wrapped_barrier.barrier_ has been decremented and will no longer be accessed.
-    VLOG(threads) << "SuspendThreadByThreadId thread suspended: " << *thread;
-    if (ATraceEnabled()) {
-      std::string name;
-      thread->GetThreadName(name);
-      ATraceBegin(
-          StringPrintf("SuspendThreadByPeer suspended %s for id=%d", name.c_str(), thread_id)
-              .c_str());
-    }
-    return thread;
-  } else {
-    // thread still has a pointer to wrapped_barrier. Returning and continuing would be unsafe
-    // without additional cleanup.
-    ThreadSuspendByThreadIdWarning(
-        ::android::base::FATAL, "SuspendThreadByThreadId timed out", thread_id);
-    UNREACHABLE();
+    VLOG(threads) << "SuspendThreadByThreadId waiting to allow thread chance to suspend";
+    ThreadSuspendSleep(sleep_us);
+    sleep_us = std::min(sleep_us * 2, kThreadSuspendMaxSleepUs);
   }
 }
 
@@ -1127,7 +1176,8 @@ void ThreadList::SuspendAllDaemonThreadsForShutdown() {
       // daemons.
       CHECK(thread->IsDaemon()) << *thread;
       if (thread != self) {
-        thread->IncrementSuspendCount(self);
+        bool updated = thread->ModifySuspendCount(self, +1, nullptr, SuspendReason::kInternal);
+        DCHECK(updated);
         ++daemons_left;
       }
       // We are shutting down the runtime, set the JNI functions of all the JNIEnvs to be
@@ -1227,10 +1277,11 @@ void ThreadList::Register(Thread* self) {
   // SuspendAll requests.
   MutexLock mu(self, *Locks::thread_list_lock_);
   MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
-  if (suspend_all_count_ == 1) {
-    self->IncrementSuspendCount(self);
-  } else {
-    DCHECK_EQ(suspend_all_count_, 0);
+  // Modify suspend count in increments of 1 to maintain invariants in ModifySuspendCount. While
+  // this isn't particularly efficient the suspend counts are most commonly 0 or 1.
+  for (int delta = suspend_all_count_; delta > 0; delta--) {
+    bool updated = self->ModifySuspendCount(self, +1, nullptr, SuspendReason::kInternal);
+    DCHECK(updated);
   }
   CHECK(!Contains(self));
   list_.push_back(self);
@@ -1336,11 +1387,13 @@ void ThreadList::VisitRootsForSuspendedThreads(RootVisitor* visitor) {
     MutexLock mu(self, *Locks::thread_list_lock_);
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     for (Thread* thread : list_) {
-      thread->IncrementSuspendCount(self);
+      bool suspended = thread->ModifySuspendCount(self, +1, nullptr, SuspendReason::kInternal);
+      DCHECK(suspended);
       if (thread == self || thread->IsSuspended()) {
         threads_to_visit.push_back(thread);
       } else {
-        thread->DecrementSuspendCount(self);
+        bool resumed = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+        DCHECK(resumed);
       }
     }
   }
@@ -1355,7 +1408,8 @@ void ThreadList::VisitRootsForSuspendedThreads(RootVisitor* visitor) {
   {
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     for (Thread* thread : threads_to_visit) {
-      thread->DecrementSuspendCount(self);
+      bool updated = thread->ModifySuspendCount(self, -1, nullptr, SuspendReason::kInternal);
+      DCHECK(updated);
     }
   }
 }

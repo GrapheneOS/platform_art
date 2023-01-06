@@ -241,7 +241,7 @@ class CHACheckpoint final : public Closure {
     // Note thread and self may not be equal if thread was already suspended at
     // the point of the request.
     Thread* self = Thread::Current();
-    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+    ScopedObjectAccess soa(self);
     CHAStackVisitor visitor(thread, nullptr, method_headers_);
     visitor.WalkStack();
     barrier_.Pass(self);
