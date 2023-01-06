@@ -785,7 +785,7 @@ ndk::ScopedAStatus Artd::dexopt(
     }
   }
 
-  std::string oat_dir_path;
+  std::string oat_dir_path;  // For restorecon, can be empty if the artifacts are in dalvik-cache.
   OR_RETURN_NON_FATAL(PrepareArtifactsDirs(in_outputArtifacts, &oat_dir_path));
 
   FdLogger fd_logger;
@@ -904,9 +904,15 @@ ndk::ScopedAStatus Artd::dexopt(
     // TODO(b/260228411): Check uid and gid.
   }
 
-  // Restorecon after the output files are created, so that the SELinux context is applied to all of
-  // them.
-  OR_RETURN_NON_FATAL(Restorecon(oat_dir_path, in_outputArtifacts.permissionSettings.seContext));
+  // Restorecon recursively after the output files are created, so that the SELinux context is
+  // applied to all of them. The SELinux context of a file is mostly inherited from the parent
+  // directory upon creation, but the MLS label is not inherited, so we need to restorecon every
+  // file so that they have the right MLS label. If the files are in dalvik-cache, there's no need
+  // to restorecon because they inherits the SELinux context of the dalvik-cache directory and they
+  // don't need to have MLS labels.
+  if (!in_outputArtifacts.artifactsPath.isInDalvikCache) {
+    OR_RETURN_NON_FATAL(Restorecon(oat_dir_path, in_outputArtifacts.permissionSettings.seContext));
+  }
 
   AddBootImageFlags(args);
   AddCompilerConfigFlags(
