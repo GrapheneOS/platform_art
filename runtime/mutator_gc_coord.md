@@ -217,6 +217,77 @@ processing, after acquiring `reference_processor_lock_`.  This means that empty
 checkpoints do not preclude client threads from being in the middle of an
 operation that involves a weak reference access, while nonempty checkpoints do.
 
+Thread Suspension Mechanics
+---------------------------
+
+Thread suspension is initiated by a registered thread, except that, for testing
+purposes, `SuspendAll` may be invoked with `self == nullptr`.  We never suspend
+the initiating thread, explicitly exclusing it from `SuspendAll()`, and failing
+`SuspendThreadBy...()` requests to that effect.
+
+The suspend calls invoke `IncrementSuspendCount()` to increment the thread
+suspend count for each thread. That adds a "suspend barrier" (atomic counter) to
+the per-thread list of such counters to decrement. It normally sets the
+`kSuspendRequest` ("should enter safepoint handler") and `kActiveSuspendBarrier`
+("need to notify us when suspended") flags.
+
+After setting these two flags, we check whether the thread is suspended and
+`kSuspendRequest` is still set. Since the thread is already suspended, it cannot
+be expected to respond to "pass the suspend barrier" (decrement the atomic
+counter) in a timely fashion.  Hence we do so on its behalf. This decrements
+the "barrier" and removes it from the thread's list of barriers to decrement,
+and clears `kActiveSuspendBarrier`. `kSuspendRequest` remains to ensure the
+thread doesn't prematurely return to runnable state.
+
+If `SuspendAllInternal()` does not immediately see a suspended state, then it is up
+to the target thread to decrement the suspend barrier.
+`TransitionFromRunnableToSuspended()` calls
+`TransitionToSuspendedAndRunCheckpoints()`, which changes the thread state, and
+then calls `CheckActiveSuspendBarriers()` to check for the
+`kActiveSuspendBarrier` flag and decrement the suspend barrier if set.
+
+The `suspend_count_lock_` is not consistently held in the target thread
+during this process.  Thus correctness in resolving the race between a
+suspension-requesting thread and a target thread voluntarily suspending relies
+on the following: If the requesting thread sets the flags with
+`kActiveSuspendBarrier` before the target's state is changed to suspended, then
+the target thread will see `kActiveSuspendBarrier` set, and will attempt to
+handle the barrier. If, on the other hand, the target thread changes the thread
+state first, then the requesting thread will see the suspended state, and handle
+the barrier itself. Since the actual update of suspend counts and suspend
+barrier data structures is done under the `suspend_count_lock_`, we always
+ensure that either the requestor removes/clears the barrier for a given target,
+or the target thread(s) decrement the barrier, but not both. This also ensures
+that the barrier cannot be decremented after the stack frame holding the barrier
+goes away.
+
+This relies on the fact that the two stores in the two threads to the state and
+kActiveSuspendBarrier flag are ordered with respect to the later loads. That's
+guaranteed, since they are all stored in a single `atomic<>`. Thus even relaxed
+accesses are OK.
+
+The actual suspend barrier representation still varies between `SuspendAll()`
+and `SuspendThreadBy...()`.  The former relies on the fact that only one such
+barrier can be in use at a time, while the latter maintains a linked list of
+active suspend barriers for each target thread, relying on the fact that each
+one can appear on the list of only one thread, and we can thus use list nodes
+allocated in the stack frames of requesting threads.
+
+**Avoiding suspension cycles**
+
+Any thread can issue a `SuspendThreadByPeer()` or `SuspendAll()` request. But if
+Thread A increments Thread B's suspend count while Thread B increments Thread
+A's suspend count, and they then both suspend during a subsequent thread
+transition, we're deadlocked.
+
+For `SuspendAll()`, we enforce a requirement that at most one `SuspendAll()`
+request is running at one time. In addition, in all cases, we refuse to initiate
+a suspend request from a registered thread that is also being asked to suspend
+(i.e. the suspend count is nonzero).  Instead the requestor waits for that
+condition to change.  This means that we cannot create a cycle in which each
+thread has asked to suspend the next one, and thus no thread can progress.  The
+required atomicity of the requestor suspend count check with setting the suspend
+count of the target(s) target is ensured by holding `suspend_count_lock_`.
 
 [^1]: Some comments in the code refer to a not-yet-really-implemented scheme in
 which the compiler-generated code would load through the address at

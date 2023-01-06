@@ -17,8 +17,6 @@
 #ifndef ART_RUNTIME_THREAD_INL_H_
 #define ART_RUNTIME_THREAD_INL_H_
 
-#include "thread.h"
-
 #include "arch/instruction_set.h"
 #include "base/aborting.h"
 #include "base/casts.h"
@@ -27,8 +25,8 @@
 #include "jni/jni_env_ext.h"
 #include "managed_stack-inl.h"
 #include "obj_ptr.h"
-#include "suspend_reason.h"
 #include "thread-current-inl.h"
+#include "thread.h"
 #include "thread_pool.h"
 
 namespace art {
@@ -222,7 +220,7 @@ inline void Thread::TransitionToSuspendedAndRunCheckpoints(ThreadState new_state
   }
 }
 
-inline void Thread::PassActiveSuspendBarriers() {
+inline void Thread::CheckActiveSuspendBarriers() {
   while (true) {
     StateAndFlags state_and_flags = GetStateAndFlags(std::memory_order_relaxed);
     if (LIKELY(!state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest) &&
@@ -230,12 +228,26 @@ inline void Thread::PassActiveSuspendBarriers() {
                !state_and_flags.IsFlagSet(ThreadFlag::kActiveSuspendBarrier))) {
       break;
     } else if (state_and_flags.IsFlagSet(ThreadFlag::kActiveSuspendBarrier)) {
-      PassActiveSuspendBarriers(this);
+      PassActiveSuspendBarriers();
     } else {
       // Impossible
       LOG(FATAL) << "Fatal, thread transitioned into suspended without running the checkpoint";
     }
   }
+}
+
+inline void Thread::AddSuspend1Barrier(WrappedSuspend1Barrier* suspend1_barrier) {
+  suspend1_barrier->next_ = tlsPtr_.active_suspend1_barriers;
+  tlsPtr_.active_suspend1_barriers = suspend1_barrier;
+}
+
+inline void Thread::RemoveFirstSuspend1Barrier() {
+  tlsPtr_.active_suspend1_barriers = tlsPtr_.active_suspend1_barriers->next_;
+}
+
+inline bool Thread::HasActiveSuspendBarrier() {
+  return tlsPtr_.active_suspend1_barriers != nullptr ||
+         tlsPtr_.active_suspendall_barrier != nullptr;
 }
 
 inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
@@ -253,7 +265,7 @@ inline void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   // Mark the release of the share of the mutator lock.
   GetMutatorLock()->TransitionFromRunnableToSuspended(this);
   // Once suspended - check the active suspend barrier flag
-  PassActiveSuspendBarriers();
+  CheckActiveSuspendBarriers();
 }
 
 inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
@@ -284,7 +296,7 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
         break;
       }
     } else if (old_state_and_flags.IsFlagSet(ThreadFlag::kActiveSuspendBarrier)) {
-      PassActiveSuspendBarriers(this);
+      PassActiveSuspendBarriers();
     } else if (UNLIKELY(old_state_and_flags.IsFlagSet(ThreadFlag::kCheckpointRequest) ||
                         old_state_and_flags.IsFlagSet(ThreadFlag::kEmptyCheckpointRequest))) {
       // Checkpoint flags should not be set while in suspended state.
@@ -424,35 +436,79 @@ inline void Thread::PoisonObjectPointersIfDebug() {
   }
 }
 
-inline bool Thread::ModifySuspendCount(Thread* self,
-                                       int delta,
-                                       AtomicInteger* suspend_barrier,
-                                       SuspendReason reason) {
-  if (delta > 0 && ((gUseReadBarrier && this != self) || suspend_barrier != nullptr)) {
-    // When delta > 0 (requesting a suspend), ModifySuspendCountInternal() may fail either if
-    // active_suspend_barriers is full or we are in the middle of a thread flip. Retry in a loop.
-    while (true) {
-      if (LIKELY(ModifySuspendCountInternal(self, delta, suspend_barrier, reason))) {
-        return true;
-      } else {
-        // Failure means the list of active_suspend_barriers is full or we are in the middle of a
-        // thread flip, we should release the thread_suspend_count_lock_ (to avoid deadlock) and
-        // wait till the target thread has executed or Thread::PassActiveSuspendBarriers() or the
-        // flip function. Note that we could not simply wait for the thread to change to a suspended
-        // state, because it might need to run checkpoint function before the state change or
-        // resumes from the resume_cond_, which also needs thread_suspend_count_lock_.
-        //
-        // The list of active_suspend_barriers is very unlikely to be full since more than
-        // kMaxSuspendBarriers threads need to execute SuspendAllInternal() simultaneously, and
-        // target thread stays in kRunnable in the mean time.
-        Locks::thread_suspend_count_lock_->ExclusiveUnlock(self);
-        NanoSleep(100000);
-        Locks::thread_suspend_count_lock_->ExclusiveLock(self);
-      }
+inline void Thread::IncrementSuspendCount(Thread* self,
+                                          AtomicInteger* suspendall_barrier,
+                                          WrappedSuspend1Barrier* suspend1_barrier,
+                                          SuspendReason reason) {
+  if (kIsDebugBuild) {
+    Locks::thread_suspend_count_lock_->AssertHeld(self);
+    if (this != self && !IsSuspended()) {
+      Locks::thread_list_lock_->AssertHeld(self);
     }
-  } else {
-    return ModifySuspendCountInternal(self, delta, suspend_barrier, reason);
   }
+  if (UNLIKELY(reason == SuspendReason::kForUserCode)) {
+    Locks::user_code_suspension_lock_->AssertHeld(self);
+  }
+
+  // Avoid deadlocks during a thread flip. b/31683379. This condition is not necessary for
+  // RunCheckpoint, but it does not use a suspend barrier.
+  DCHECK(!gUseReadBarrier || this == self ||
+         (suspendall_barrier == nullptr && suspend1_barrier == nullptr) ||
+         GetFlipFunction() == nullptr);
+
+  uint32_t flags = enum_cast<uint32_t>(ThreadFlag::kSuspendRequest);
+  if (suspendall_barrier != nullptr) {
+    DCHECK(suspend1_barrier == nullptr);
+    DCHECK(tlsPtr_.active_suspendall_barrier == nullptr);
+    tlsPtr_.active_suspendall_barrier = suspendall_barrier;
+    flags |= enum_cast<uint32_t>(ThreadFlag::kActiveSuspendBarrier);
+  } else if (suspend1_barrier != nullptr) {
+    AddSuspend1Barrier(suspend1_barrier);
+    flags |= enum_cast<uint32_t>(ThreadFlag::kActiveSuspendBarrier);
+  }
+
+  ++tls32_.suspend_count;
+  if (reason == SuspendReason::kForUserCode) {
+    ++tls32_.user_code_suspend_count;
+  }
+
+  // Two bits might be set simultaneously.
+  tls32_.state_and_flags.fetch_or(flags, std::memory_order_seq_cst);
+  TriggerSuspend();
+}
+
+inline void Thread::DecrementSuspendCount(Thread* self, SuspendReason reason) {
+  if (kIsDebugBuild) {
+    Locks::thread_suspend_count_lock_->AssertHeld(self);
+    if (this != self && !IsSuspended()) {
+      Locks::thread_list_lock_->AssertHeld(self);
+    }
+  }
+  if (UNLIKELY(tls32_.suspend_count <= 0)) {
+    UnsafeLogFatalForSuspendCount(self, this);
+    UNREACHABLE();
+  }
+  if (UNLIKELY(reason == SuspendReason::kForUserCode)) {
+    Locks::user_code_suspension_lock_->AssertHeld(self);
+    if (UNLIKELY(tls32_.user_code_suspend_count <= 0)) {
+      LOG(ERROR) << "user_code_suspend_count incorrect";
+      UnsafeLogFatalForSuspendCount(self, this);
+      UNREACHABLE();
+    }
+  }
+
+  --tls32_.suspend_count;
+  if (reason == SuspendReason::kForUserCode) {
+    --tls32_.user_code_suspend_count;
+  }
+
+  if (tls32_.suspend_count == 0) {
+    AtomicClearFlag(ThreadFlag::kSuspendRequest);
+  }
+}
+
+inline void Thread::IncrementSuspendCount(Thread* self) {
+  IncrementSuspendCount(self, nullptr, nullptr, SuspendReason::kInternal);
 }
 
 inline ShadowFrame* Thread::PushShadowFrame(ShadowFrame* new_top_frame) {
