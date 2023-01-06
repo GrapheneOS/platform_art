@@ -48,19 +48,25 @@ static ResultT GetThreadStack(const ScopedFastNativeObjectAccess& soa,
   } else {
     // Never allow suspending the heap task thread since it may deadlock if allocations are
     // required for the stack trace.
-    Thread* heap_task_thread =
-        Runtime::Current()->GetHeap()->GetTaskProcessor()->GetRunningThread();
-    // heap_task_thread could be null if the daemons aren't yet started.
-    if (heap_task_thread != nullptr && decoded_peer == heap_task_thread->GetPeerFromOtherThread()) {
+    Thread* heap_task_thread = nullptr;
+    for (int i = 0; i < 20; ++i) {
+      heap_task_thread = Runtime::Current()->GetHeap()->GetTaskProcessor()->GetRunningThread();
+      if (heap_task_thread != nullptr) {
+        break;
+      }
+      // heap_task_thread could be null if the daemons aren't fully running yet.  But it can appear
+      // in enumerations, and thus we could try to get it's stack even before that. Try to wait
+      // for a non-null value so we can avoid suspending it.
+      static constexpr int kHeapTaskDaemonSleepMicros = 5000;
+      usleep(kHeapTaskDaemonSleepMicros);
+    }
+    if (heap_task_thread == nullptr || decoded_peer == heap_task_thread->GetPeerFromOtherThread()) {
       return nullptr;
     }
     // Suspend thread to build stack trace.
     ScopedThreadSuspension sts(soa.Self(), ThreadState::kNative);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
-    bool timed_out;
-    Thread* thread = thread_list->SuspendThreadByPeer(peer,
-                                                      SuspendReason::kInternal,
-                                                      &timed_out);
+    Thread* thread = thread_list->SuspendThreadByPeer(peer, SuspendReason::kInternal);
     if (thread != nullptr) {
       // Must be runnable to create returned array.
       {
@@ -70,9 +76,6 @@ static ResultT GetThreadStack(const ScopedFastNativeObjectAccess& soa,
       // Restart suspended thread.
       bool resumed = thread_list->Resume(thread, SuspendReason::kInternal);
       DCHECK(resumed);
-    } else if (timed_out) {
-      LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
-          "generous timeout.";
     }
   }
   return trace;
