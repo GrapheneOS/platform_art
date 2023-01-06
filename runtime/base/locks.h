@@ -108,6 +108,10 @@ enum LockLevel : uint8_t {
   kClassLinkerClassesLock,  // TODO rename.
   kSubtypeCheckLock,
   kBreakpointLock,
+  // This is a generic lock level for a lock meant to be gained after having a
+  // monitor lock.
+  kPostMonitorLock,
+  kMonitorLock,
   kMonitorListLock,
   kThreadListLock,
   kAllocTrackerLock,
@@ -121,10 +125,7 @@ enum LockLevel : uint8_t {
   kRuntimeShutdownLock,
   kTraceLock,
   kHeapBitmapLock,
-  // This is a generic lock level for a lock meant to be gained after having a
-  // monitor lock.
-  kPostMonitorLock,
-  kMonitorLock,
+
   // This is a generic lock level for a top-level lock meant to be gained after having the
   // mutator_lock_.
   kPostMutatorTopLockLevel,
@@ -137,7 +138,7 @@ enum LockLevel : uint8_t {
   kUserCodeSuspensionLock,
   kZygoteCreationLock,
 
-  // The highest valid lock level. Use this for locks that should only be acquired with no
+  // The highest valid lock level. Use this if there is code that should only be called with no
   // other locks held. Since this is the highest lock level we also allow it to be held even if the
   // runtime or current thread is not fully set-up yet (for example during thread attach). Note that
   // this lock also has special behavior around the mutator_lock_. Since the mutator_lock_ is not

@@ -137,15 +137,10 @@ class MANAGED LOCKABLE Object {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  // Returns a nonzero value that fits into lockword slot.
   int32_t IdentityHashCode()
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_,
                !Locks::thread_suspend_count_lock_);
-
-  // Identical to the above, but returns 0 if monitor inflation would otherwise be needed.
-  int32_t IdentityHashCodeNoInflation() REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   static constexpr MemberOffset MonitorOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
@@ -724,10 +719,6 @@ class MANAGED LOCKABLE Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
-  template <bool kAllowInflation>
-  int32_t IdentityHashCodeHelper() REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
-
   // Get a field with acquire semantics.
   template<typename kSize>
   ALWAYS_INLINE kSize GetFieldAcquire(MemberOffset field_offset)
