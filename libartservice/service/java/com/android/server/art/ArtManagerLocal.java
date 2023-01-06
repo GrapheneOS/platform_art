@@ -122,19 +122,17 @@ public final class ArtManagerLocal {
     }
 
     /**
-     * Handles `cmd package art` sub-command.
-     *
-     * For debugging purposes only. Intentionally enforces root access to limit the usage.
+     * Handles ART Service commands, which is a subset of `cmd package` commands.
      *
      * Note: This method is not an override of {@link Binder#handleShellCommand} because ART
-     * services does not publish a binder. Instead, it handles the `art` sub-command forwarded by
-     * the `package` service. The semantics of the parameters are the same as {@link
+     * services does not publish a binder. Instead, it handles the commands forwarded by the
+     * `package` service. The semantics of the parameters are the same as {@link
      * Binder#handleShellCommand}.
      *
      * @return zero on success, non-zero on internal error (e.g., I/O error)
      * @throws SecurityException if the caller is not root
      * @throws IllegalArgumentException if the arguments are illegal
-     * @see ArtShellCommand#onHelp()
+     * @see ArtShellCommand#printHelp(PrintWriter)
      */
     public int handleShellCommand(@NonNull Binder target, @NonNull ParcelFileDescriptor in,
             @NonNull ParcelFileDescriptor out, @NonNull ParcelFileDescriptor err,
@@ -143,6 +141,11 @@ public final class ArtManagerLocal {
                 this, mInjector.getPackageManagerLocal(), mInjector.getDexUseManager())
                 .exec(target, in.getFileDescriptor(), out.getFileDescriptor(),
                         err.getFileDescriptor(), args);
+    }
+
+    /** Prints ART Service shell command help. */
+    public void printShellCommandHelp(@NonNull PrintWriter pw) {
+        ArtShellCommand.printHelp(pw);
     }
 
     /**

@@ -20,6 +20,7 @@ package com.android.server.art {
     method public void onBoot(@NonNull String, @Nullable java.util.concurrent.Executor, @Nullable java.util.function.Consumer<com.android.server.art.model.OperationProgress>);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
+    method public void printShellCommandHelp(@NonNull java.io.PrintWriter);
     method public void removeOptimizePackageDoneCallback(@NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
     method public int scheduleBackgroundDexoptJob();
     method public void setOptimizePackagesCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackagesCallback);
