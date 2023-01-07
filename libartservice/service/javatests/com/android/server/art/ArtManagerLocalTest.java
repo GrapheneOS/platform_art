@@ -433,7 +433,7 @@ public class ArtManagerLocalTest {
     public void testOptimizePackagesRecentlyInstalled() throws Exception {
         // The package is recently installed but hasn't been used.
         PackageUserState userState = mPkgState.getStateForUser(UserHandle.of(1));
-        when(userState.getFirstInstallTime()).thenReturn(RECENT_TIME_MS);
+        when(userState.getFirstInstallTimeMillis()).thenReturn(RECENT_TIME_MS);
         when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME)).thenReturn(0l);
         when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
 
@@ -460,7 +460,7 @@ public class ArtManagerLocalTest {
     public void testOptimizePackagesInactive() throws Exception {
         // PKG_NAME is neither recently installed nor recently used.
         PackageUserState userState = mPkgState.getStateForUser(UserHandle.of(1));
-        when(userState.getFirstInstallTime()).thenReturn(NOT_RECENT_TIME_MS);
+        when(userState.getFirstInstallTimeMillis()).thenReturn(NOT_RECENT_TIME_MS);
         when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME)).thenReturn(NOT_RECENT_TIME_MS);
         when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
 
@@ -511,7 +511,7 @@ public class ArtManagerLocalTest {
     public void testOptimizePackagesOverride() throws Exception {
         // PKG_NAME is neither recently installed nor recently used.
         PackageUserState userState = mPkgState.getStateForUser(UserHandle.of(1));
-        when(userState.getFirstInstallTime()).thenReturn(NOT_RECENT_TIME_MS);
+        when(userState.getFirstInstallTimeMillis()).thenReturn(NOT_RECENT_TIME_MS);
         when(mDexUseManager.getPackageLastUsedAtMs(PKG_NAME)).thenReturn(NOT_RECENT_TIME_MS);
         when(mStorageManager.getAllocatableBytes(any())).thenReturn(999l);
 
@@ -773,7 +773,7 @@ public class ArtManagerLocalTest {
         PackageUserState pkgUserState = mock(PackageUserState.class);
         lenient().when(pkgUserState.isInstalled()).thenReturn(true);
         // All packages are by default pre-installed.
-        lenient().when(pkgUserState.getFirstInstallTime()).thenReturn(0l);
+        lenient().when(pkgUserState.getFirstInstallTimeMillis()).thenReturn(0l);
         return pkgUserState;
     }
 

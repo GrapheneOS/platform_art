@@ -17,6 +17,8 @@
 #ifndef ART_LIBARTTOOLS_TOOLS_CMDLINE_BUILDER_H_
 #define ART_LIBARTTOOLS_TOOLS_CMDLINE_BUILDER_H_
 
+#include <algorithm>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -132,6 +134,15 @@ class CmdlineBuilder {
     if (value) {
       AddRuntime(arg);
     }
+    return *this;
+  }
+
+  // Concatenates this builder with another. Returns the concatenated result and nullifies the input
+  // builder.
+  CmdlineBuilder& Concat(CmdlineBuilder&& other) {
+    elements_.reserve(elements_.size() + other.elements_.size());
+    std::move(other.elements_.begin(), other.elements_.end(), std::back_inserter(elements_));
+    other.elements_.clear();
     return *this;
   }
 

@@ -159,7 +159,7 @@ public class DexOptHelper {
                     futures.stream().map(Utils::getFuture).collect(Collectors.toList());
 
             var result =
-                    new OptimizeResult(params.getCompilerFilter(), params.getReason(), results);
+                    OptimizeResult.create(params.getCompilerFilter(), params.getReason(), results);
 
             for (Callback<OptimizePackageDoneCallback, Boolean> doneCallback :
                     mInjector.getConfig().getOptimizePackageDoneCallbacks()) {
@@ -170,7 +170,7 @@ public class DexOptHelper {
                                     .filter(PackageOptimizeResult::hasUpdatedArtifacts)
                                     .collect(Collectors.toList());
                     if (!filteredResults.isEmpty()) {
-                        var resultForCallback = new OptimizeResult(
+                        var resultForCallback = OptimizeResult.create(
                                 params.getCompilerFilter(), params.getReason(), filteredResults);
                         CompletableFuture.runAsync(() -> {
                             doneCallback.get().onOptimizePackageDone(resultForCallback);
@@ -201,7 +201,7 @@ public class DexOptHelper {
             @NonNull OptimizeParams params, @NonNull CancellationSignal cancellationSignal) {
         List<DexContainerFileOptimizeResult> results = new ArrayList<>();
         Supplier<PackageOptimizeResult> createResult = ()
-                -> new PackageOptimizeResult(
+                -> PackageOptimizeResult.create(
                         pkgState.getPackageName(), results, cancellationSignal.isCanceled());
 
         AndroidPackage pkg = Utils.getPackageOrThrow(pkgState);

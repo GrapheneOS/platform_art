@@ -33,9 +33,12 @@
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "aidl/com/android/server/art/BnArtd.h"
+#include "android-base/collections.h"
 #include "android-base/errors.h"
 #include "android-base/file.h"
 #include "android-base/logging.h"
@@ -45,6 +48,7 @@
 #include "android-base/strings.h"
 #include "android/binder_auto_utils.h"
 #include "android/binder_status.h"
+#include "base/array_ref.h"
 #include "base/common_art_test.h"
 #include "exec_utils.h"
 #include "fmt/format.h"
@@ -52,6 +56,7 @@
 #include "gtest/gtest.h"
 #include "path_utils.h"
 #include "profman/profman_result.h"
+#include "testing.h"
 #include "tools/system_properties.h"
 
 namespace art {
@@ -70,6 +75,7 @@ using ::aidl::com::android::server::art::OutputProfile;
 using ::aidl::com::android::server::art::PriorityClass;
 using ::aidl::com::android::server::art::ProfilePath;
 using ::aidl::com::android::server::art::VdexPath;
+using ::android::base::Append;
 using ::android::base::Error;
 using ::android::base::make_scope_guard;
 using ::android::base::ParseInt;
@@ -98,6 +104,7 @@ using ::testing::Property;
 using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::SetArgPointee;
+using ::testing::UnorderedElementsAreArray;
 using ::testing::WithArg;
 
 using PrimaryCurProfilePath = ProfilePath::PrimaryCurProfilePath;
@@ -125,26 +132,44 @@ void CheckOtherReadable(const std::string& path, bool expected_value) {
             expected_value);
 }
 
-void WriteToFdFlagImpl(const std::vector<std::string>& args,
-                       const std::string& flag,
-                       const std::string& content,
-                       bool assume_empty) {
+Result<std::vector<std::string>> GetFlagValues(ArrayRef<const std::string> args,
+                                               std::string_view flag) {
+  std::vector<std::string> values;
   for (const std::string& arg : args) {
     std::string_view value(arg);
     if (android::base::ConsumePrefix(&value, flag)) {
-      int fd;
-      ASSERT_TRUE(ParseInt(std::string(value), &fd));
-      if (assume_empty) {
-        ASSERT_EQ(lseek(fd, /*offset=*/0, SEEK_CUR), 0);
-      } else {
-        ASSERT_EQ(ftruncate(fd, /*length=*/0), 0);
-        ASSERT_EQ(lseek(fd, /*offset=*/0, SEEK_SET), 0);
-      }
-      ASSERT_TRUE(WriteStringToFd(content, fd));
-      return;
+      values.emplace_back(value);
     }
   }
-  FAIL() << "Flag '{}' not found"_format(flag);
+  if (values.empty()) {
+    return Errorf("Flag '{}' not found", flag);
+  }
+  return values;
+}
+
+Result<std::string> GetFlagValue(ArrayRef<const std::string> args, std::string_view flag) {
+  std::vector<std::string> flag_values = OR_RETURN(GetFlagValues(args, flag));
+  if (flag_values.size() > 1) {
+    return Errorf("Duplicate flag '{}'", flag);
+  }
+  return flag_values[0];
+}
+
+void WriteToFdFlagImpl(const std::vector<std::string>& args,
+                       std::string_view flag,
+                       std::string_view content,
+                       bool assume_empty) {
+  std::string value = OR_FAIL(GetFlagValue(ArrayRef<const std::string>(args), flag));
+  ASSERT_NE(value, "");
+  int fd;
+  ASSERT_TRUE(ParseInt(value, &fd));
+  if (assume_empty) {
+    ASSERT_EQ(lseek(fd, /*offset=*/0, SEEK_CUR), 0);
+  } else {
+    ASSERT_EQ(ftruncate(fd, /*length=*/0), 0);
+    ASSERT_EQ(lseek(fd, /*offset=*/0, SEEK_SET), 0);
+  }
+  ASSERT_TRUE(WriteStringToFd(content, fd));
 }
 
 // Writes `content` to the FD specified by the `flag`.
@@ -199,17 +224,52 @@ MATCHER_P(FdHasContent, matcher, "") {
   return ExplainMatchResult(matcher, actual_content, result_listener);
 }
 
+template <typename T, typename U>
+Result<std::pair<ArrayRef<const T>, ArrayRef<const T>>> SplitBy(const std::vector<T>& list,
+                                                                const U& separator) {
+  auto it = std::find(list.begin(), list.end(), separator);
+  if (it == list.end()) {
+    return Errorf("'{}' not found", separator);
+  }
+  size_t pos = it - list.begin();
+  return std::make_pair(ArrayRef<const T>(list).SubArray(0, pos),
+                        ArrayRef<const T>(list).SubArray(pos + 1));
+}
+
 // Matches a container that, when split by `separator`, the first part matches `head_matcher`, and
 // the second part matches `tail_matcher`.
 MATCHER_P3(WhenSplitBy, separator, head_matcher, tail_matcher, "") {
-  using Value = const typename std::remove_reference<decltype(arg)>::type::value_type;
-  auto it = std::find(arg.begin(), arg.end(), separator);
-  if (it == arg.end()) {
-    return false;
+  auto [head, tail] = OR_MISMATCH(SplitBy(arg, separator));
+  return ExplainMatchResult(head_matcher, head, result_listener) &&
+         ExplainMatchResult(tail_matcher, tail, result_listener);
+}
+
+MATCHER_P(HasKeepFdsForImpl, fd_flags, "") {
+  auto [head, tail] = OR_MISMATCH(SplitBy(arg, "--"));
+  std::string keep_fds_value = OR_MISMATCH(GetFlagValue(head, "--keep-fds="));
+  std::vector<std::string> keep_fds = Split(keep_fds_value, ":");
+  std::vector<std::string> fd_flag_values;
+  for (std::string_view fd_flag : fd_flags) {
+    for (const std::string& fd_flag_value : OR_MISMATCH(GetFlagValues(tail, fd_flag))) {
+      for (std::string& fd : Split(fd_flag_value, ":")) {
+        fd_flag_values.push_back(std::move(fd));
+      }
+    }
   }
-  size_t pos = it - arg.begin();
-  return ExplainMatchResult(head_matcher, ArrayRef<Value>(arg).SubArray(0, pos), result_listener) &&
-         ExplainMatchResult(tail_matcher, ArrayRef<Value>(arg).SubArray(pos + 1), result_listener);
+  return ExplainMatchResult(UnorderedElementsAreArray(fd_flag_values), keep_fds, result_listener);
+}
+
+// Matches an argument list that has the "--keep-fds=" flag before "--", whose value is a
+// semicolon-separated list that contains exactly the values of the given flags after "--".
+//
+// E.g., if the flags after "--" are "--foo=1", "--bar=2:3", "--baz=4", "--baz=5", and the matcher
+// is `HasKeepFdsFor("--foo=", "--bar=", "--baz=")`, then it requires the "--keep-fds=" flag before
+// "--" to contain exactly 1, 2, 3, 4, and 5.
+template <typename... Args>
+auto HasKeepFdsFor(Args&&... args) {
+  std::vector<std::string_view> fd_flags;
+  Append(fd_flags, std::forward<Args>(args)...);
+  return HasKeepFdsForImpl(fd_flags);
 }
 
 class MockSystemProperties : public tools::SystemProperties {
@@ -520,42 +580,57 @@ TEST_F(ArtdTest, deleteArtifactsFileIsDir) {
 }
 
 TEST_F(ArtdTest, dexopt) {
+  dexopt_options_.generateAppImage = true;
+
   EXPECT_CALL(
       *mock_exec_utils_,
       DoExecAndReturnCode(
-          WhenSplitBy(
-              "--",
-              AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-              AllOf(
-                  Contains(art_root_ + "/bin/dex2oat32"),
-                  Contains(Flag("--zip-fd=", FdOf(dex_file_))),
-                  Contains(Flag("--zip-location=", dex_file_)),
-                  Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
-                  Contains(Flag("--instruction-set=", "arm64")),
-                  Contains(Flag("--compiler-filter=", "speed")),
-                  Contains(Flag("--profile-file-fd=",
-                                FdOf(android_data_ +
-                                     "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"))),
-                  Contains(Flag("--input-vdex-fd=", FdOf(scratch_path_ + "/a/oat/arm64/b.vdex"))),
-                  Contains(Flag("--dm-fd=", FdOf(scratch_path_ + "/a/b.dm"))))),
+          AllOf(WhenSplitBy(
+                    "--",
+                    AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                    AllOf(Contains(art_root_ + "/bin/dex2oat32"),
+                          Contains(Flag("--zip-fd=", FdOf(dex_file_))),
+                          Contains(Flag("--zip-location=", dex_file_)),
+                          Contains(Flag("--oat-location=", scratch_path_ + "/a/oat/arm64/b.odex")),
+                          Contains(Flag("--instruction-set=", "arm64")),
+                          Contains(Flag("--compiler-filter=", "speed")),
+                          Contains(Flag(
+                              "--profile-file-fd=",
+                              FdOf(android_data_ +
+                                   "/misc/profiles/ref/com.android.foo/primary.prof.12345.tmp"))),
+                          Contains(Flag("--input-vdex-fd=",
+                                        FdOf(scratch_path_ + "/a/oat/arm64/b.vdex"))),
+                          Contains(Flag("--dm-fd=", FdOf(scratch_path_ + "/a/b.dm"))))),
+                HasKeepFdsFor("--zip-fd=",
+                              "--profile-file-fd=",
+                              "--input-vdex-fd=",
+                              "--dm-fd=",
+                              "--oat-fd=",
+                              "--output-vdex-fd=",
+                              "--app-image-fd=",
+                              "--class-loader-context-fds=",
+                              "--swap-fd=")),
           _,
           _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--oat-fd=", "oat")),
                       WithArg<0>(WriteToFdFlag("--output-vdex-fd=", "vdex")),
+                      WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")),
                       SetArgPointee<2>(ProcessStat{.wall_time_ms = 100, .cpu_time_ms = 400}),
                       Return(0)));
   RunDexopt(EX_NONE,
             AllOf(Field(&DexoptResult::cancelled, false),
                   Field(&DexoptResult::wallTimeMs, 100),
                   Field(&DexoptResult::cpuTimeMs, 400),
-                  Field(&DexoptResult::sizeBytes, strlen("oat") + strlen("vdex")),
+                  Field(&DexoptResult::sizeBytes, strlen("art") + strlen("oat") + strlen("vdex")),
                   Field(&DexoptResult::sizeBeforeBytes,
                         strlen("old_art") + strlen("old_oat") + strlen("old_vdex"))));
 
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "vdex");
+  CheckContent(scratch_path_ + "/a/oat/arm64/b.art", "art");
   CheckOtherReadable(scratch_path_ + "/a/oat/arm64/b.odex", true);
   CheckOtherReadable(scratch_path_ + "/a/oat/arm64/b.vdex", true);
+  CheckOtherReadable(scratch_path_ + "/a/oat/arm64/b.art", true);
 }
 
 TEST_F(ArtdTest, dexoptClassLoaderContext) {
@@ -683,7 +758,12 @@ TEST_F(ArtdTest, dexoptDexoptOptions) {
                           _,
                           _))
       .WillOnce(Return(0));
-  RunDexopt();
+
+  // `sizeBeforeBytes` should include the size of the old ART file even if no new ART file is
+  // generated.
+  RunDexopt(EX_NONE,
+            Field(&DexoptResult::sizeBeforeBytes,
+                  strlen("old_art") + strlen("old_oat") + strlen("old_vdex")));
 }
 
 TEST_F(ArtdTest, dexoptDexoptOptions2) {
@@ -702,13 +782,13 @@ TEST_F(ArtdTest, dexoptDexoptOptions2) {
                                       AllOf(Contains(Flag("--compilation-reason=", "bg-dexopt")),
                                             Contains(Flag("-Xtarget-sdk-version:", "456")),
                                             Contains("--debuggable"),
+                                            Contains(Flag("--app-image-fd=", _)),
                                             Contains(Flag("-Xhidden-api-policy:", "enabled")))),
                           _,
                           _))
-      .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")), Return(0)));
-  RunDexopt();
+      .WillOnce(Return(0));
 
-  CheckContent(scratch_path_ + "/a/oat/arm64/b.art", "art");
+  RunDexopt();
 }
 
 TEST_F(ArtdTest, dexoptDefaultFlagsWhenNoSystemProps) {
@@ -1155,11 +1235,13 @@ TEST_F(ArtdTest, isProfileUsable) {
   EXPECT_CALL(
       *mock_exec_utils_,
       DoExecAndReturnCode(
-          WhenSplitBy("--",
-                      AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-                      AllOf(Contains(art_root_ + "/bin/profman"),
-                            Contains(Flag("--reference-profile-file-fd=", FdOf(profile_file))),
-                            Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          AllOf(WhenSplitBy(
+                    "--",
+                    AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                    AllOf(Contains(art_root_ + "/bin/profman"),
+                          Contains(Flag("--reference-profile-file-fd=", FdOf(profile_file))),
+                          Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+                HasKeepFdsFor("--reference-profile-file-fd=", "--apk-fd=")),
           _,
           _))
       .WillOnce(Return(ProfmanResult::kSkipCompilationSmallDelta));
@@ -1218,12 +1300,14 @@ TEST_F(ArtdTest, copyAndRewriteProfile) {
   EXPECT_CALL(
       *mock_exec_utils_,
       DoExecAndReturnCode(
-          WhenSplitBy("--",
-                      AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-                      AllOf(Contains(art_root_ + "/bin/profman"),
-                            Contains("--copy-and-update-profile-key"),
-                            Contains(Flag("--profile-file-fd=", FdOf(src_file))),
-                            Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+          AllOf(WhenSplitBy(
+                    "--",
+                    AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                    AllOf(Contains(art_root_ + "/bin/profman"),
+                          Contains("--copy-and-update-profile-key"),
+                          Contains(Flag("--profile-file-fd=", FdOf(src_file))),
+                          Contains(Flag("--apk-fd=", FdOf(dex_file_))))),
+                HasKeepFdsFor("--profile-file-fd=", "--reference-profile-file-fd=", "--apk-fd=")),
           _,
           _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--reference-profile-file-fd=", "def")),
@@ -1504,16 +1588,18 @@ TEST_F(ArtdTest, mergeProfiles) {
   EXPECT_CALL(
       *mock_exec_utils_,
       DoExecAndReturnCode(
-          WhenSplitBy("--",
-                      AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
-                      AllOf(Contains(art_root_ + "/bin/profman"),
-                            Not(Contains(Flag("--profile-file-fd=", FdOf(profile_0_file)))),
-                            Contains(Flag("--profile-file-fd=", FdOf(profile_1_file))),
-                            Contains(Flag("--reference-profile-file-fd=", FdHasContent("abc"))),
-                            Contains(Flag("--apk-fd=", FdOf(dex_file_1))),
-                            Contains(Flag("--apk-fd=", FdOf(dex_file_2))),
-                            Not(Contains("--force-merge")),
-                            Not(Contains("--boot-image-merge")))),
+          AllOf(WhenSplitBy(
+                    "--",
+                    AllOf(Contains(art_root_ + "/bin/art_exec"), Contains("--drop-capabilities")),
+                    AllOf(Contains(art_root_ + "/bin/profman"),
+                          Not(Contains(Flag("--profile-file-fd=", FdOf(profile_0_file)))),
+                          Contains(Flag("--profile-file-fd=", FdOf(profile_1_file))),
+                          Contains(Flag("--reference-profile-file-fd=", FdHasContent("abc"))),
+                          Contains(Flag("--apk-fd=", FdOf(dex_file_1))),
+                          Contains(Flag("--apk-fd=", FdOf(dex_file_2))),
+                          Not(Contains("--force-merge")),
+                          Not(Contains("--boot-image-merge")))),
+                HasKeepFdsFor("--profile-file-fd=", "--reference-profile-file-fd=", "--apk-fd=")),
           _,
           _))
       .WillOnce(DoAll(WithArg<0>(ClearAndWriteToFdFlag("--reference-profile-file-fd=", "merged")),
@@ -1664,10 +1750,11 @@ TEST_F(ArtdTest, mergeProfilesWithOptionsDumpOnly) {
 
   EXPECT_CALL(*mock_exec_utils_,
               DoExecAndReturnCode(
-                  WhenSplitBy("--",
-                              _,
-                              AllOf(Contains("--dump-only"),
-                                    Not(Contains(Flag("--reference-profile-file-fd=", _))))),
+                  AllOf(WhenSplitBy("--",
+                                    _,
+                                    AllOf(Contains("--dump-only"),
+                                          Not(Contains(Flag("--reference-profile-file-fd=", _))))),
+                        HasKeepFdsFor("--profile-file-fd=", "--apk-fd=", "--dump-output-to-fd=")),
                   _,
                   _))
       .WillOnce(DoAll(WithArg<0>(WriteToFdFlag("--dump-output-to-fd=", "dump")),

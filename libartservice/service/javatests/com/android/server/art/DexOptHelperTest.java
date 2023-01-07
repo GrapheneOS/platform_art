@@ -708,12 +708,12 @@ public class DexOptHelperTest {
 
     private List<DexContainerFileOptimizeResult> createResults(
             String dexPath, @OptimizeStatus int status1, @OptimizeStatus int status2) {
-        return List.of(new DexContainerFileOptimizeResult(dexPath, true /* isPrimaryAbi */,
+        return List.of(DexContainerFileOptimizeResult.create(dexPath, true /* isPrimaryAbi */,
                                "arm64-v8a", "verify", status1, 100 /* dex2oatWallTimeMillis */,
                                400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */,
                                0 /* sizeBeforeBytes */, false /* isSkippedDueToStorageLow */),
-                new DexContainerFileOptimizeResult(dexPath, false /* isPrimaryAbi */, "armeabi-v7a",
-                        "verify", status2, 100 /* dex2oatWallTimeMillis */,
+                DexContainerFileOptimizeResult.create(dexPath, false /* isPrimaryAbi */,
+                        "armeabi-v7a", "verify", status2, 100 /* dex2oatWallTimeMillis */,
                         400 /* dex2oatCpuTimeMillis */, 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                         false /* isSkippedDueToStorageLow */));
     }
