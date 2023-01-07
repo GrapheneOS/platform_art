@@ -51,6 +51,12 @@ public class SystemAppTest {
     }
 
     @Test
+    public void testLoadExtendedPublicLibrariesViaSystemSharedLib() {
+        SystemSharedLib.loadLibrary("system_extpub2.oem1");
+        SystemSharedLib.loadLibrary("product_extpub2.product1");
+    }
+
+    @Test
     public void testLoadPrivateLibrariesViaSystemSharedLib() {
         SystemSharedLib.loadLibrary("system_private2");
         SystemSharedLib.loadLibrary("systemext_private2");
@@ -84,8 +90,8 @@ public class SystemAppTest {
 
     @Test
     public void testLoadExtendedPublicLibrariesWithAbsolutePaths() {
-        System.load(TestUtils.libPath("/system", "system_extpub2.oem1"));
-        System.load(TestUtils.libPath("/product", "product_extpub2.product1"));
+        System.load(TestUtils.libPath("/system", "system_extpub3.oem1"));
+        System.load(TestUtils.libPath("/product", "product_extpub3.product1"));
     }
 
     @Test
