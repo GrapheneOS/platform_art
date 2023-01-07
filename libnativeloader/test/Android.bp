@@ -23,11 +23,32 @@ package {
     default_applicable_licenses: ["art_license"],
 }
 
+// A native library that goes into /system or /system_ext and that depends on
+// a non-public library that is linked from the system namespace.
 cc_library {
-    name: "libnativeloader_testlib",
-    sdk_version: "31",
-    srcs: [],
+    name: "libsystem_testlib",
+    min_sdk_version: "31",
+    stl: "libc++_static",
+    shared_libs: ["liblog"],
+    // It's difficult to add a shared_lib dependency on a non-public library
+    // here, so it dlopens one instead.
+    srcs: ["libsystem_testlib.cc"],
+}
+
+// A native library that goes into /product.
+cc_library {
+    name: "libproduct_testlib",
+    min_sdk_version: "31",
     stl: "none",
+    srcs: [],
+}
+
+// A native library that goes into /vendor.
+cc_library {
+    name: "libvendor_testlib",
+    min_sdk_version: "31",
+    stl: "none",
+    srcs: [],
 }
 
 // This app is just an intermediate container to be able to include the .so
@@ -35,10 +56,14 @@ cc_library {
 android_test_helper_app {
     name: "library_container_app",
     defaults: ["art_module_source_build_java_defaults"],
-    sdk_version: "31",
+    min_sdk_version: "31",
     manifest: "library_container_app_manifest.xml",
     compile_multilib: "both",
-    jni_libs: ["libnativeloader_testlib"],
+    jni_libs: [
+        "libsystem_testlib",
+        "libproduct_testlib",
+        "libvendor_testlib",
+    ],
 }
 
 java_library {
