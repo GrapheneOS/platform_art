@@ -18,18 +18,23 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <unordered_set>
 #include <vector>
 
 #include "android-base/logging.h"
+#include "android-base/parseint.h"
 #include "android-base/result.h"
 #include "android-base/strings.h"
 #include "base/macros.h"
 #include "base/scoped_cap.h"
+#include "fmt/format.h"
 #include "processgroup/processgroup.h"
 #include "system/thread_defs.h"
 
@@ -37,11 +42,17 @@ namespace {
 
 using ::android::base::ConsumePrefix;
 using ::android::base::Join;
+using ::android::base::ParseInt;
 using ::android::base::Result;
 using ::android::base::Split;
 
+using ::fmt::literals::operator""_format;  // NOLINT
+
 constexpr const char* kUsage =
     R"(A wrapper binary that configures the process and executes a command.
+
+By default, it closes all open file descriptors except stdin, stdout, and stderr. `--keep-fds` can
+be passed to keep some more file descriptors open.
 
 Usage: art_exec [OPTIONS]... -- [COMMAND]...
 
@@ -54,6 +65,7 @@ Supported options:
       PRIORITY is "background".
   --drop-capabilities: Drop all root capabilities. Note that this has effect only if `art_exec` runs
       with some root capabilities but not as the root user.
+  --keep-fds=FILE_DESCRIPTORS: A semicolon-separated list of file descriptors to keep open.
 )";
 
 constexpr int kErrorUsage = 100;
@@ -64,6 +76,7 @@ struct Options {
   std::vector<std::string> task_profiles;
   std::optional<int> priority = std::nullopt;
   bool drop_capabilities = false;
+  std::unordered_set<int> keep_fds{fileno(stdin), fileno(stdout), fileno(stderr)};
 };
 
 [[noreturn]] void Usage(const std::string& error_msg) {
@@ -92,6 +105,14 @@ Options ParseOptions(int argc, char** argv) {
       }
     } else if (arg == "--drop-capabilities") {
       options.drop_capabilities = true;
+    } else if (ConsumePrefix(&arg, "--keep-fds=")) {
+      for (const std::string& fd_str : Split(std::string(arg), ":")) {
+        int fd;
+        if (!ParseInt(fd_str, &fd)) {
+          Usage("Invalid fd " + fd_str);
+        }
+        options.keep_fds.insert(fd);
+      }
     } else if (arg == "--") {
       if (i + 1 >= argc) {
         Usage("Missing command after '--'");
@@ -119,12 +140,44 @@ Result<void> DropInheritableCaps() {
   return {};
 }
 
+Result<void> CloseFds(const std::unordered_set<int>& keep_fds) {
+  std::vector<int> open_fds;
+  std::error_code ec;
+  for (const std::filesystem::directory_entry& dir_entry :
+       std::filesystem::directory_iterator("/proc/self/fd", ec)) {
+    int fd;
+    if (!ParseInt(dir_entry.path().filename(), &fd)) {
+      return Errorf("Invalid entry in /proc/self/fd {}", dir_entry.path().filename());
+    }
+    open_fds.push_back(fd);
+  }
+  if (ec) {
+    return Errorf("Failed to list open FDs: {}", ec.message());
+  }
+  for (int fd : open_fds) {
+    if (keep_fds.find(fd) == keep_fds.end()) {
+      if (close(fd) != 0) {
+        Result<void> error = ErrnoErrorf("Failed to close FD {}", fd);
+        if (std::filesystem::exists("/proc/self/fd/{}"_format(fd))) {
+          return error;
+        }
+      }
+    }
+  }
+  return {};
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   android::base::InitLogging(argv);
 
   Options options = ParseOptions(argc, argv);
+
+  if (auto result = CloseFds(options.keep_fds); !result.ok()) {
+    LOG(ERROR) << "Failed to close open FDs: " << result.error();
+    return kErrorOther;
+  }
 
   if (!options.task_profiles.empty()) {
     if (!SetTaskProfiles(/*tid=*/0, options.task_profiles)) {

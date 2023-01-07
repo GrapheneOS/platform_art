@@ -30,7 +30,7 @@ public class PackageUserState {
     public long getFirstInstallTime() {
         try {
             return (long) mPkgUserState.getClass()
-                    .getMethod("getFirstInstallTime")
+                    .getMethod("getFirstInstallTimeMillis")
                     .invoke(mPkgUserState);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);

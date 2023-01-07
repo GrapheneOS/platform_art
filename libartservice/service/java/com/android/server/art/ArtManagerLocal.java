@@ -203,7 +203,7 @@ public final class ArtManagerLocal {
                 }
             }
 
-            return new DeleteResult(freedBytes);
+            return DeleteResult.create(freedBytes);
         } catch (RemoteException e) {
             throw new IllegalStateException("An error occurred when calling artd", e);
         }

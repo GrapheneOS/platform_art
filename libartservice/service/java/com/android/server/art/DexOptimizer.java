@@ -227,7 +227,7 @@ public abstract class DexOptimizer<DexInfoType extends DetailedDexInfo> {
                                 e);
                         status = OptimizeResult.OPTIMIZE_FAILED;
                     } finally {
-                        results.add(new DexContainerFileOptimizeResult(dexInfo.dexPath(),
+                        results.add(DexContainerFileOptimizeResult.create(dexInfo.dexPath(),
                                 abi.isPrimaryAbi(), abi.name(), compilerFilter, status, wallTimeMs,
                                 cpuTimeMs, sizeBytes, sizeBeforeBytes, isSkippedDueToStorageLow));
                         if (status != OptimizeResult.OPTIMIZE_SKIPPED
