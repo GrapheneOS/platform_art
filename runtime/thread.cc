@@ -134,7 +134,7 @@ namespace art {
 using android::base::StringAppendV;
 using android::base::StringPrintf;
 
-extern "C" NO_RETURN void artDeoptimize(Thread* self);
+extern "C" NO_RETURN void artDeoptimize(Thread* self, bool skip_method_exit_callbacks);
 
 bool Thread::is_started_ = false;
 pthread_key_t Thread::pthread_key_self_;
@@ -3872,7 +3872,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   os << offset;
 }
 
-void Thread::QuickDeliverException(bool is_method_exit_exception) {
+void Thread::QuickDeliverException(bool skip_method_exit_callbacks) {
   // Get exception from thread.
   ObjPtr<mirror::Throwable> exception = GetException();
   CHECK(exception != nullptr);
@@ -3880,7 +3880,7 @@ void Thread::QuickDeliverException(bool is_method_exit_exception) {
     // This wasn't a real exception, so just clear it here. If there was an actual exception it
     // will be recorded in the DeoptimizationContext and it will be restored later.
     ClearException();
-    artDeoptimize(this);
+    artDeoptimize(this, skip_method_exit_callbacks);
     UNREACHABLE();
   }
 
@@ -3917,7 +3917,7 @@ void Thread::QuickDeliverException(bool is_method_exit_exception) {
             exception,
             /* from_code= */ false,
             method_type);
-        artDeoptimize(this);
+        artDeoptimize(this, skip_method_exit_callbacks);
         UNREACHABLE();
       } else {
         LOG(WARNING) << "Got a deoptimization request on un-deoptimizable method "
@@ -3933,7 +3933,7 @@ void Thread::QuickDeliverException(bool is_method_exit_exception) {
   // resolution.
   ClearException();
   QuickExceptionHandler exception_handler(this, false);
-  exception_handler.FindCatch(exception, is_method_exit_exception);
+  exception_handler.FindCatch(exception, skip_method_exit_callbacks);
   if (exception_handler.GetClearException()) {
     // Exception was cleared as part of delivery.
     DCHECK(!IsExceptionPending());

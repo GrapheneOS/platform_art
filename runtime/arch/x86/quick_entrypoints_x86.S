@@ -2346,15 +2346,18 @@ END_FUNCTION art_quick_compile_optimized
 DEFINE_FUNCTION art_quick_method_entry_hook
     SETUP_SAVE_EVERYTHING_FRAME edx
     mov FRAME_SIZE_SAVE_EVERYTHING(%esp), %eax // Fetch ArtMethod
-    subl LITERAL(8), %esp
-    CFI_ADJUST_CFA_OFFSET(8)
+    mov %esp, %edx  // Store esp before pushing anything on stack.
+    subl LITERAL(4), %esp
+    CFI_ADJUST_CFA_OFFSET(4)
 
+    push %edx                       // Pass SP
+    CFI_ADJUST_CFA_OFFSET(4)
     pushl %fs:THREAD_SELF_OFFSET    // Pass Thread::Current().
     CFI_ADJUST_CFA_OFFSET(4)
     pushl %eax                      // Pass Method*.
     CFI_ADJUST_CFA_OFFSET(4)
 
-    call SYMBOL(artMethodEntryHook) // (Method*, Thread*)
+    call SYMBOL(artMethodEntryHook) // (Method*, Thread*, SP)
 
     addl LITERAL(16), %esp          // Pop arguments.
     CFI_ADJUST_CFA_OFFSET(-16)
