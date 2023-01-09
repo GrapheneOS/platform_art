@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ForkJoinPool;
 
 public class Main {
 
@@ -89,6 +90,9 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
+        // Eagerly initialize ForkJoinPool as we've seen the class initialization code interfere
+        // with the logic of the test when waiting for threads to be non-runnable.
+        Class.forName(ForkJoinPool.class.getName(), true, ForkJoinPool.class.getClassLoader());
         try {
             testCluster1();
         } catch (Exception e) {
