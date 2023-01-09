@@ -118,7 +118,9 @@ inline RetType VisitClassLoaderDexFiles(Thread* self,
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ObjPtr<mirror::Object> dex_file = dex_file_field->GetObject(element);
     if (dex_file != nullptr) {
-      ObjPtr<mirror::LongArray> long_array = cookie_field->GetObject(dex_file)->AsLongArray();
+      StackHandleScope<1> hs(self);
+      Handle<mirror::LongArray> long_array =
+          hs.NewHandle(cookie_field->GetObject(dex_file)->AsLongArray());
       if (long_array == nullptr) {
         // This should never happen so log a warning.
         LOG(WARNING) << "Null DexFile::mCookie";
