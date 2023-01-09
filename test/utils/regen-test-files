@@ -399,6 +399,9 @@ class Generator:
     # Skip test with a copy of `sun.misc.Unsafe`.
     if os.path.isfile(os.path.join(run_test_path, "src", "sun", "misc", "Unsafe.java")):
       return False
+    # Ignore test with a non-ascii package name `pkg𐀀`. b/193141629
+    if os.path.isdir(os.path.join(run_test_path, "src", "pkg𐀀")):
+      return False
     # Skip tests with Hidden API specs.
     if os.path.isfile(os.path.join(run_test_path, "hiddenapi-flags.csv")):
       return False

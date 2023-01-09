@@ -81,7 +81,10 @@ class BuildTestContext:
       self.hiddenapi = functools.partial(self.run, args.hiddenapi.absolute())
 
     # RBE wrapper for some of the tools.
-    if "RBE_server_address" in os.environ and USE_RBE > (hash(self.test_name) % 100):
+    # RBE does not suport non-BMP characters in paths, so exclude "183-non-bmp-package-name".
+    # Bug: 264866780
+    if ("RBE_server_address" in os.environ and USE_RBE > (hash(self.test_name) % 100) and
+        self.test_name != "183-non-bmp-package-name"):
       self.rbe_exec_root = os.environ.get("RBE_exec_root")
       self.rbe_rewrapper = self.android_build_top / "prebuilts/remoteexecution-client/live/rewrapper"
       if self.test_name not in RBE_D8_DISABLED_FOR:
@@ -102,6 +105,7 @@ class BuildTestContext:
       "SMALI": args.smali.absolute(),
       "SOONG_ZIP": args.soong_zip.absolute(),
       "TEST_NAME": self.test_name,
+      "LANG": "en_US.UTF-8",  # Needed to pass UTF-8 command line arguments.
     }
 
   def bash(self, cmd):
