@@ -29,6 +29,7 @@
         <uses-native-library android:required="false" android:name="libproduct_extpub.product1.so" />
         <uses-native-library android:required="false" android:name="libproduct_extpub1.product1.so" />
         <uses-native-library android:required="false" android:name="libproduct_extpub2.product1.so" />
+        <uses-native-library android:required="false" android:name="libproduct_extpub3.product1.so" />
     </application>
 </manifest>
 
