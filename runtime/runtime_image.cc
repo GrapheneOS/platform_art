@@ -431,8 +431,12 @@ class RuntimeImageHelper {
     FixupVisitor visitor(this, offset);
     obj->VisitReferences</*kVisitNativeRoots=*/ false>(visitor, visitor);
 
-    // For dex caches, clear pointers to data that will be set at runtime.
     mirror::Object* copy = reinterpret_cast<mirror::Object*>(image_data_.data() + offset);
+
+    // Clear any lockword data.
+    copy->SetLockWord(LockWord::Default(), /* as_volatile= */ false);
+
+    // For dex caches, clear pointers to data that will be set at runtime.
     if (obj->IsDexCache()) {
       reinterpret_cast<mirror::DexCache*>(copy)->ResetNativeArrays();
       reinterpret_cast<mirror::DexCache*>(copy)->SetDexFile(nullptr);

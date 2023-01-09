@@ -18,8 +18,31 @@ import dalvik.system.DexFile;
 import dalvik.system.VMRuntime;
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.CyclicBarrier;
 
 public class Main {
+
+  static String myString = "MyString";
+
+  static class MyThread extends Thread {
+    CyclicBarrier barrier;
+
+    public MyThread(CyclicBarrier barrier) {
+      this.barrier = barrier;
+    }
+    public void run() {
+      try {
+        synchronized (Main.myString) {
+          barrier.await();
+          barrier.reset();
+          // Infinite wait.
+          barrier.await();
+        }
+      } catch (Exception e) {
+        throw new Error(e);
+      }
+    }
+  }
   public static void main(String[] args) throws Exception {
     System.loadLibrary(args[0]);
 
@@ -52,6 +75,19 @@ public class Main {
         throw new Error("Expected image to be loaded");
       }
     }
+
+    // Test that we emit an empty lock word. If we are not, then this synchronized call here would
+    // block on a run with the runtime image.
+    synchronized (myString) {
+    }
+
+    // Create a thread that makes sure `myString` is locked while the main thread is generating
+    // the runtime image.
+    CyclicBarrier barrier = new CyclicBarrier(2);
+    Thread t = new MyThread(barrier);
+    t.setDaemon(true);
+    t.start();
+    barrier.await();
 
     VMRuntime runtime = VMRuntime.getRuntime();
     runtime.notifyStartupCompleted();
