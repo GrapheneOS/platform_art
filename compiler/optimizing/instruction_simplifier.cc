@@ -1860,13 +1860,16 @@ void InstructionSimplifierVisitor::VisitDiv(HDiv* instruction) {
 
 // Search HDiv having the specified dividend and divisor which is in the specified basic block.
 // Return nullptr if nothing has been found.
-static HInstruction* FindDivWithInputsInBasicBlock(HInstruction* dividend,
-                                                   HInstruction* divisor,
-                                                   HBasicBlock* basic_block) {
+static HDiv* FindDivWithInputsInBasicBlock(HInstruction* dividend,
+                                           HInstruction* divisor,
+                                           HBasicBlock* basic_block) {
   for (const HUseListNode<HInstruction*>& use : dividend->GetUses()) {
     HInstruction* user = use.GetUser();
-    if (user->GetBlock() == basic_block && user->IsDiv() && user->InputAt(1) == divisor) {
-      return user;
+    if (user->GetBlock() == basic_block &&
+        user->IsDiv() &&
+        user->InputAt(0) == dividend &&
+        user->InputAt(1) == divisor) {
+      return user->AsDiv();
     }
   }
   return nullptr;
@@ -1900,7 +1903,7 @@ void InstructionSimplifierVisitor::TryToReuseDiv(HRem* rem) {
     }
   }
 
-  HInstruction* quotient = FindDivWithInputsInBasicBlock(dividend, divisor, basic_block);
+  HDiv* quotient = FindDivWithInputsInBasicBlock(dividend, divisor, basic_block);
   if (quotient == nullptr) {
     return;
   }
