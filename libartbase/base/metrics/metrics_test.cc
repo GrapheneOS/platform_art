@@ -16,6 +16,7 @@
 
 #include "metrics.h"
 
+#include "base/macros.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "metrics_test.h"
@@ -232,7 +233,7 @@ TEST_F(MetricsTest, ArtMetricsReport) {
     bool found_histogram_{false};
   } backend;
 
-  metrics.ReportAllMetrics(&backend);
+  metrics.ReportAllMetricsAndResetValueMetrics({&backend});
 }
 
 TEST_F(MetricsTest, HistogramTimer) {
@@ -251,7 +252,7 @@ TEST_F(MetricsTest, StreamBackendDumpAllMetrics) {
   ArtMetrics metrics;
   StringBackend backend(std::make_unique<TextFormatter>());
 
-  metrics.ReportAllMetrics(&backend);
+  metrics.ReportAllMetricsAndResetValueMetrics({&backend});
 
   // Make sure the resulting string lists all the metrics.
   const std::string result = backend.GetAndResetBuffer();
@@ -271,11 +272,14 @@ TEST_F(MetricsTest, ResetMetrics) {
 
   class NonZeroBackend : public TestBackendBase {
    public:
-    void ReportCounter(DatumId, uint64_t value) override {
+    void ReportCounter(DatumId counter_type [[gnu::unused]], uint64_t value) override {
       EXPECT_NE(value, 0u);
     }
 
-    void ReportHistogram(DatumId, int64_t, int64_t, const std::vector<uint32_t>& buckets) override {
+    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
+                         int64_t minimum_value [[gnu::unused]],
+                         int64_t maximum_value [[gnu::unused]],
+                         const std::vector<uint32_t>& buckets) override {
       bool nonzero = false;
       for (const auto value : buckets) {
         nonzero |= (value != 0u);
@@ -285,25 +289,99 @@ TEST_F(MetricsTest, ResetMetrics) {
   } non_zero_backend;
 
   // Make sure the metrics all have a nonzero value.
-  metrics.ReportAllMetrics(&non_zero_backend);
+  metrics.ReportAllMetricsAndResetValueMetrics({&non_zero_backend});
 
   // Reset the metrics and make sure they are all zero again
   metrics.Reset();
 
   class ZeroBackend : public TestBackendBase {
    public:
-    void ReportCounter(DatumId, uint64_t value) override {
+    void ReportCounter(DatumId counter_type [[gnu::unused]], uint64_t value) override {
       EXPECT_EQ(value, 0u);
     }
 
-    void ReportHistogram(DatumId, int64_t, int64_t, const std::vector<uint32_t>& buckets) override {
+    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
+                         int64_t minimum_value [[gnu::unused]],
+                         int64_t maximum_value [[gnu::unused]],
+                         const std::vector<uint32_t>& buckets) override {
       for (const auto value : buckets) {
         EXPECT_EQ(value, 0u);
       }
     }
   } zero_backend;
 
-  metrics.ReportAllMetrics(&zero_backend);
+  metrics.ReportAllMetricsAndResetValueMetrics({&zero_backend});
+}
+
+TEST_F(MetricsTest, KeepEventMetricsResetValueMetricsAfterReporting) {
+  ArtMetrics metrics;
+
+  // Add something to each of the metrics.
+#define METRIC(name, type, ...) metrics.name()->Add(42);
+  ART_METRICS(METRIC)
+#undef METRIC
+
+  class FirstBackend : public TestBackendBase {
+   public:
+    void ReportCounter(DatumId counter_type [[gnu::unused]], uint64_t value) override {
+      EXPECT_NE(value, 0u);
+    }
+
+    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
+                         int64_t minimum_value [[gnu::unused]],
+                         int64_t maximum_value [[gnu::unused]],
+                         const std::vector<uint32_t>& buckets) override {
+      bool nonzero = false;
+      for (const auto value : buckets) {
+        nonzero |= (value != 0u);
+      }
+      EXPECT_TRUE(nonzero);
+    }
+  } first_backend;
+
+  // Make sure the metrics all have a nonzero value, and they are not reset between backends.
+  metrics.ReportAllMetricsAndResetValueMetrics({&first_backend, &first_backend});
+
+  // After reporting, the Value Metrics should have been reset.
+  class SecondBackend : public TestBackendBase {
+   public:
+    void ReportCounter(DatumId datum_id, uint64_t value) override {
+      switch (datum_id) {
+        // Value metrics - expected to have been reset
+#define CHECK_METRIC(name, ...) case DatumId::k##name:
+        ART_VALUE_METRICS(CHECK_METRIC)
+#undef CHECK_METRIC
+        EXPECT_EQ(value, 0u);
+        return;
+
+        // Event metrics - expected to have retained their previous value
+#define CHECK_METRIC(name, ...) case DatumId::k##name:
+        ART_EVENT_METRICS(CHECK_METRIC)
+#undef CHECK_METRIC
+        EXPECT_NE(value, 0u);
+        return;
+
+        default:
+          // unknown metric - it should not be possible to reach this path
+          FAIL();
+          UNREACHABLE();
+      }
+    }
+
+    // All histograms are event metrics.
+    void ReportHistogram(DatumId histogram_type [[gnu::unused]],
+                         int64_t minimum_value [[gnu::unused]],
+                         int64_t maximum_value [[gnu::unused]],
+                         const std::vector<uint32_t>& buckets) override {
+      bool nonzero = false;
+      for (const auto value : buckets) {
+        nonzero |= (value != 0u);
+      }
+      EXPECT_TRUE(nonzero);
+    }
+  } second_backend;
+
+  metrics.ReportAllMetricsAndResetValueMetrics({&second_backend});
 }
 
 TEST(TextFormatterTest, ReportMetrics_WithBuckets) {
