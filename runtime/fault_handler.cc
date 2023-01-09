@@ -53,12 +53,6 @@ static bool art_fault_handler(int sig, siginfo_t* info, void* context) {
   return fault_manager.HandleFault(sig, info, context);
 }
 
-struct FaultManager::GeneratedCodeRange {
-  std::atomic<GeneratedCodeRange*> next;
-  const void* start;
-  size_t size;
-};
-
 FaultManager::FaultManager()
     : generated_code_ranges_lock_("FaultHandler generated code ranges lock",
                                   LockLevel::kGenericBottomLock),
@@ -94,6 +88,19 @@ void FaultManager::Init() {
                  << errno << " " << strerror(errno);
   }
 
+  {
+    MutexLock lock(Thread::Current(), generated_code_ranges_lock_);
+    for (size_t i = 0; i != kNumLocalGeneratedCodeRanges; ++i) {
+      GeneratedCodeRange* next = (i + 1u != kNumLocalGeneratedCodeRanges)
+          ? &generated_code_ranges_storage_[i + 1u]
+          : nullptr;
+      generated_code_ranges_storage_[i].next.store(next, std::memory_order_relaxed);
+      generated_code_ranges_storage_[i].start = nullptr;
+      generated_code_ranges_storage_[i].size = 0u;
+    }
+    free_generated_code_ranges_ = generated_code_ranges_storage_;
+  }
+
   initialized_ = true;
 }
 
@@ -114,15 +121,19 @@ void FaultManager::Shutdown() {
 
     // Delete remaining code ranges if any (such as nterp code or oat code from
     // oat files that have not been unloaded, including boot image oat files).
-    GeneratedCodeRange* range;
-    {
-      MutexLock lock(Thread::Current(), generated_code_ranges_lock_);
-      range = generated_code_ranges_.load(std::memory_order_acquire);
-      generated_code_ranges_.store(nullptr, std::memory_order_release);
-    }
+    MutexLock lock(Thread::Current(), generated_code_ranges_lock_);
+    GeneratedCodeRange* range = generated_code_ranges_.load(std::memory_order_acquire);
+    generated_code_ranges_.store(nullptr, std::memory_order_release);
     while (range != nullptr) {
       GeneratedCodeRange* next_range = range->next.load(std::memory_order_relaxed);
-      delete range;
+      std::less<GeneratedCodeRange*> less;
+      if (!less(range, generated_code_ranges_storage_) &&
+          less(range, generated_code_ranges_storage_ + kNumLocalGeneratedCodeRanges)) {
+        // Nothing to do - not adding `range` to the `free_generated_code_ranges_` anymore.
+      } else {
+        // Range is not in the `generated_code_ranges_storage_`.
+        delete range;
+      }
       range = next_range;
     }
   }
@@ -226,10 +237,43 @@ void FaultManager::RemoveHandler(FaultHandler* handler) {
   LOG(FATAL) << "Attempted to remove non existent handler " << handler;
 }
 
+inline FaultManager::GeneratedCodeRange* FaultManager::CreateGeneratedCodeRange(
+    const void* start, size_t size) {
+  GeneratedCodeRange* range = free_generated_code_ranges_;
+  if (range != nullptr) {
+    std::less<GeneratedCodeRange*> less;
+    DCHECK(!less(range, generated_code_ranges_storage_));
+    DCHECK(less(range, generated_code_ranges_storage_ + kNumLocalGeneratedCodeRanges));
+    range->start = start;
+    range->size = size;
+    free_generated_code_ranges_ = range->next.load(std::memory_order_relaxed);
+    range->next.store(nullptr, std::memory_order_relaxed);
+    return range;
+  } else {
+    return new GeneratedCodeRange{nullptr, start, size};
+  }
+}
+
+inline void FaultManager::FreeGeneratedCodeRange(GeneratedCodeRange* range) {
+  std::less<GeneratedCodeRange*> less;
+  if (!less(range, generated_code_ranges_storage_) &&
+      less(range, generated_code_ranges_storage_ + kNumLocalGeneratedCodeRanges)) {
+    MutexLock lock(Thread::Current(), generated_code_ranges_lock_);
+    range->start = nullptr;
+    range->size = 0u;
+    range->next.store(free_generated_code_ranges_, std::memory_order_relaxed);
+    free_generated_code_ranges_ = range;
+  } else {
+    // Range is not in the `generated_code_ranges_storage_`.
+    delete range;
+  }
+}
+
 void FaultManager::AddGeneratedCodeRange(const void* start, size_t size) {
-  GeneratedCodeRange* new_range = new GeneratedCodeRange{nullptr, start, size};
+  GeneratedCodeRange* new_range = nullptr;
   {
     MutexLock lock(Thread::Current(), generated_code_ranges_lock_);
+    new_range = CreateGeneratedCodeRange(start, size);
     GeneratedCodeRange* old_head = generated_code_ranges_.load(std::memory_order_relaxed);
     new_range->next.store(old_head, std::memory_order_relaxed);
     generated_code_ranges_.store(new_range, std::memory_order_release);
@@ -323,7 +367,7 @@ void FaultManager::RemoveGeneratedCodeRange(const void* start, size_t size) {
       }
     }
   }
-  delete range;
+  FreeGeneratedCodeRange(range);
 }
 
 // This function is called within the signal handler. It checks that the thread
