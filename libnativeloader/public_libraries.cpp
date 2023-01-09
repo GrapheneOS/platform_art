@@ -128,8 +128,11 @@ void ReadExtensionLibraries(const char* dirname, std::vector<std::string>* sonam
                   android::base::EndsWith(entry.soname, "." + company_name + ".so")) {
                 return true;
               } else {
-                return Errorf("Library name \"{}\" does not end with the company name {}.",
-                              entry.soname, company_name);
+                return Errorf(
+                    "Library name \"{}\" does not start with \"lib\" and/or "
+                    "does not end with the company name \"{}\".",
+                    entry.soname,
+                    company_name);
               }
             });
         if (ret.ok()) {
