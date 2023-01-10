@@ -299,7 +299,13 @@ class ClassLinker::VisiblyInitializedCallback final
     }
   }
 
-  static constexpr size_t kMaxClasses = 16;
+  // Making classes initialized in bigger batches helps with app startup for
+  // apps that initialize a lot of classes by running fewer checkpoints.
+  // (On the other hand, bigger batches make class initialization checks more
+  // likely to take a slow path but that is mitigated by making partially
+  // filled buffers visibly initialized if we take the slow path many times.
+  // See `Thread::kMakeVisiblyInitializedCounterTriggerCount`.)
+  static constexpr size_t kMaxClasses = 48;
 
   ClassLinker* const class_linker_;
   size_t num_classes_;
