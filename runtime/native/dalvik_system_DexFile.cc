@@ -377,6 +377,7 @@ static jboolean DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
         if (!class_linker->IsDexFileRegistered(soa.Self(), *dex_file)) {
           // Clear the element in the array so that we can call close again.
           long_dex_files->Set(i, 0);
+          class_linker->RemoveDexFromCaches(*dex_file);
           delete dex_file;
         } else {
           all_deleted = false;

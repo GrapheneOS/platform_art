@@ -10298,6 +10298,15 @@ void ClassLinker::SetEnablePublicSdkChecks(bool enabled ATTRIBUTE_UNUSED) {
   UNREACHABLE();
 }
 
+void ClassLinker::RemoveDexFromCaches(const DexFile& dex_file) {
+  ReaderMutexLock mu(Thread::Current(), *Locks::dex_lock_);
+
+  auto it = dex_caches_.find(&dex_file);
+  if (it != dex_caches_.end()) {
+      dex_caches_.erase(it);
+  }
+}
+
 // Instantiate ClassLinker::AllocClass.
 template ObjPtr<mirror::Class> ClassLinker::AllocClass</* kMovable= */ true>(
     Thread* self,
