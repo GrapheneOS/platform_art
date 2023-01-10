@@ -70,7 +70,15 @@ class FaultManager {
   bool IsInGeneratedCode(siginfo_t* siginfo, void *context) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
-  struct GeneratedCodeRange;
+  struct GeneratedCodeRange {
+    std::atomic<GeneratedCodeRange*> next;
+    const void* start;
+    size_t size;
+  };
+
+  GeneratedCodeRange* CreateGeneratedCodeRange(const void* start, size_t size)
+      REQUIRES(generated_code_ranges_lock_);
+  void FreeGeneratedCodeRange(GeneratedCodeRange* range) REQUIRES(!generated_code_ranges_lock_);
 
   // The HandleFaultByOtherHandlers function is only called by HandleFault function for generated code.
   bool HandleFaultByOtherHandlers(int sig, siginfo_t* info, void* context)
@@ -85,6 +93,17 @@ class FaultManager {
   std::vector<FaultHandler*> other_handlers_;
   struct sigaction oldaction_;
   bool initialized_;
+
+  // We keep a certain number of generated code ranges locally to avoid too many
+  // cache misses while traversing the singly-linked list `generated_code_ranges_`.
+  // 16 should be enough for the boot image (assuming `--multi-image`; there is
+  // only one entry for `--single-image`), nterp, JIT code cache and a few other
+  // entries for the app or system server.
+  static constexpr size_t kNumLocalGeneratedCodeRanges = 16;
+  GeneratedCodeRange generated_code_ranges_storage_[kNumLocalGeneratedCodeRanges];
+  GeneratedCodeRange* free_generated_code_ranges_
+       GUARDED_BY(generated_code_ranges_lock_);
+
   DISALLOW_COPY_AND_ASSIGN(FaultManager);
 };
 
