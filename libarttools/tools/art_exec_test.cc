@@ -60,6 +60,15 @@ using ::fmt::literals::operator""_format;  // NOLINT
 constexpr uid_t kRoot = 0;
 constexpr uid_t kNobody = 9999;
 
+// This test executes a few Linux system commands such as "ls", which are linked against system
+// libraries. In many ART gtests we set LD_LIBRARY_PATH to make the test binaries link to libraries
+// from the ART module first, and if that setting is propagated to the system commands they may also
+// try to link to those libraries instead of the system ones they are built against. This is
+// particularly noticeable when 32-bit tests run on a 64-bit system. Hence we need to set
+// LD_LIBRARY_PATH to an empty string here.
+// TODO(b/247108425): Remove this when ART gtests no longer use LD_LIBRARY_PATH.
+constexpr const char* kEmptyLdLibraryPath = "--env=LD_LIBRARY_PATH=";
+
 std::string GetArtBin(const std::string& name) { return "{}/bin/{}"_format(GetArtRoot(), name); }
 
 std::string GetBin(const std::string& name) { return "{}/bin/{}"_format(GetAndroidRoot(), name); }
@@ -142,6 +151,7 @@ TEST_F(ArtExecTest, SetTaskProfiles) {
 
   std::vector<std::string> args{art_exec_bin_,
                                 "--set-task-profile=ProcessCapacityHigh",
+                                kEmptyLdLibraryPath,
                                 "--",
                                 GetBin("sh"),
                                 "-c",
@@ -153,7 +163,8 @@ TEST_F(ArtExecTest, SetTaskProfiles) {
 }
 
 TEST_F(ArtExecTest, SetPriority) {
-  std::vector<std::string> args{art_exec_bin_, "--set-priority=background", "--", GetBin("true")};
+  std::vector<std::string> args{
+      art_exec_bin_, "--set-priority=background", kEmptyLdLibraryPath, "--", GetBin("true")};
   auto [pid, scope_guard] = ScopedExecAndWait(args);
   EXPECT_EQ(getpriority(PRIO_PROCESS, pid), ANDROID_PRIORITY_BACKGROUND);
 }
@@ -169,13 +180,14 @@ TEST_F(ArtExecTest, DropCapabilities) {
   // Make sure the test is set up correctly (i.e., the child process should normally have the
   // inherited root capability: CAP_FOWNER).
   {
-    std::vector<std::string> args{art_exec_bin_, "--", GetBin("true")};
+    std::vector<std::string> args{art_exec_bin_, kEmptyLdLibraryPath, "--", GetBin("true")};
     auto [pid, scope_guard] = ScopedExecAndWait(args);
     ASSERT_TRUE(GetCap(pid, CAP_EFFECTIVE, CAP_FOWNER));
   }
 
   {
-    std::vector<std::string> args{art_exec_bin_, "--drop-capabilities", "--", GetBin("true")};
+    std::vector<std::string> args{
+        art_exec_bin_, "--drop-capabilities", kEmptyLdLibraryPath, "--", GetBin("true")};
     auto [pid, scope_guard] = ScopedExecAndWait(args);
     EXPECT_FALSE(GetCap(pid, CAP_EFFECTIVE, CAP_FOWNER));
   }
@@ -195,13 +207,13 @@ TEST_F(ArtExecTest, CloseFds) {
 
   std::vector<std::string> args{art_exec_bin_,
                                 "--keep-fds={}:{}"_format(file3->Fd(), file2->Fd()),
+                                kEmptyLdLibraryPath,
                                 "--",
                                 GetBin("sh"),
                                 "-c",
                                 "ls /proc/self/fd > " + filename};
 
-  std::string error_msg;
-  ASSERT_TRUE(Exec(args, &error_msg)) << error_msg;
+  ScopedExecAndWait(args);
 
   std::string open_fds;
   ASSERT_TRUE(android::base::ReadFileToString(filename, &open_fds));
@@ -210,6 +222,27 @@ TEST_F(ArtExecTest, CloseFds) {
               AllOf(Not(Contains(std::to_string(file1->Fd()))),
                     Contains(std::to_string(file2->Fd())),
                     Contains(std::to_string(file3->Fd()))));
+}
+
+TEST_F(ArtExecTest, Env) {
+  std::string filename = "/data/local/tmp/art-exec-test-XXXXXX";
+  ScratchFile scratch_file(new File(mkstemp(filename.data()), filename, /*check_usage=*/false));
+  ASSERT_GE(scratch_file.GetFd(), 0);
+
+  std::vector<std::string> args{art_exec_bin_,
+                                "--env=FOO=BAR",
+                                kEmptyLdLibraryPath,
+                                "--",
+                                GetBin("sh"),
+                                "-c",
+                                "env > " + filename};
+
+  ScopedExecAndWait(args);
+
+  std::string envs;
+  ASSERT_TRUE(android::base::ReadFileToString(filename, &envs));
+
+  EXPECT_THAT(Split(envs, "\n"), Contains("FOO=BAR"));
 }
 
 }  // namespace
