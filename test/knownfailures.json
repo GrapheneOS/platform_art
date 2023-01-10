@@ -1131,6 +1131,7 @@
     },
     {
         "tests": ["178-app-image-native-method",
+                  "183-non-bmp-package-name",
                   "530-checker-peel-unroll",
                   "616-cha-unloading",
                   "674-hiddenapi",
