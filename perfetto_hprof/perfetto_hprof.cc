@@ -893,11 +893,10 @@ enum class ResumeParentPolicy {
   DEFERRED
 };
 
-void ForkAndRun(
-    art::Thread* self,
-    ResumeParentPolicy resume_parent_policy,
-    std::function<void(pid_t child)> parent_runnable,
-    std::function<void(pid_t parent, uint64_t timestamp)> child_runnable) {
+void ForkAndRun(art::Thread* self,
+                ResumeParentPolicy resume_parent_policy,
+                const std::function<void(pid_t child)>& parent_runnable,
+                const std::function<void(pid_t parent, uint64_t timestamp)>& child_runnable) {
   pid_t parent_pid = getpid();
   LOG(INFO) << "preparing to dump heap for " << parent_pid;
   // Need to take a heap dump while GC isn't running. See the comment in
