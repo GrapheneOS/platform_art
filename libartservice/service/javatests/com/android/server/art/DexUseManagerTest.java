@@ -22,6 +22,7 @@ import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.eq;
@@ -29,6 +30,9 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
 import android.os.Binder;
 import android.os.Environment;
 import android.os.Process;
@@ -52,6 +56,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 import java.io.File;
@@ -86,10 +91,12 @@ public class DexUseManagerTest {
     @Mock private PackageManagerLocal.FilteredSnapshot mSnapshot;
     @Mock private DexUseManagerLocal.Injector mInjector;
     @Mock private IArtd mArtd;
+    @Mock private Context mContext;
     private DexUseManagerLocal mDexUseManager;
     private String mCeDir;
     private String mDeDir;
     private MockClock mMockClock;
+    private ArgumentCaptor<BroadcastReceiver> mBroadcastReceiverCaptor;
 
     @Before
     public void setUp() throws Exception {
@@ -114,6 +121,11 @@ public class DexUseManagerTest {
                 .thenReturn(
                         Map.of(LOADING_PKG_NAME, loadingPkgState, OWNING_PKG_NAME, owningPkgState));
 
+        mBroadcastReceiverCaptor = ArgumentCaptor.forClass(BroadcastReceiver.class);
+        lenient()
+                .when(mContext.registerReceiver(mBroadcastReceiverCaptor.capture(), any()))
+                .thenReturn(mock(Intent.class));
+
         mCeDir = Environment
                          .getDataCePackageDirectoryForUser(StorageManager.UUID_DEFAULT,
                                  Binder.getCallingUserHandle(), OWNING_PKG_NAME)
@@ -133,8 +145,10 @@ public class DexUseManagerTest {
         lenient()
                 .when(mInjector.createScheduledExecutor())
                 .thenAnswer(invocation -> mMockClock.createScheduledExecutor());
+        lenient().when(mInjector.getContext()).thenReturn(mContext);
 
         mDexUseManager = new DexUseManagerLocal(mInjector);
+        mDexUseManager.systemReady();
     }
 
     @Test
@@ -197,16 +211,23 @@ public class DexUseManagerTest {
     /** Checks that it ignores and dedups things correctly. */
     @Test
     public void testPrimaryDexMultipleEntries() throws Exception {
-        verifyPrimaryDexMultipleEntries(false /* saveAndLoad */);
+        verifyPrimaryDexMultipleEntries(false /* saveAndLoad */, false /* shutdown */);
     }
 
-    /** Checks that it saves and loads data correctly. */
+    /** Checks that it saves data after some time has passed and loads data correctly. */
     @Test
     public void testPrimaryDexMultipleEntriesPersisted() throws Exception {
-        verifyPrimaryDexMultipleEntries(true /*saveAndLoad */);
+        verifyPrimaryDexMultipleEntries(true /*saveAndLoad */, false /* shutdown */);
     }
 
-    private void verifyPrimaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
+    /** Checks that it saves data when the device is being shutdown and loads data correctly. */
+    @Test
+    public void testPrimaryDexMultipleEntriesPersistedDueToShutdown() throws Exception {
+        verifyPrimaryDexMultipleEntries(true /*saveAndLoad */, true /* shutdown */);
+    }
+
+    private void verifyPrimaryDexMultipleEntries(boolean saveAndLoad, boolean shutdown)
+            throws Exception {
         when(mInjector.getCurrentTimeMillis()).thenReturn(1000l);
 
         // These should be ignored.
@@ -234,8 +255,12 @@ public class DexUseManagerTest {
                 mSnapshot, OWNING_PKG_NAME, Map.of(BASE_APK, "CLC"));
 
         if (saveAndLoad) {
-            // MockClock runs tasks synchronously.
-            mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
+            if (shutdown) {
+                mBroadcastReceiverCaptor.getValue().onReceive(mContext, mock(Intent.class));
+            } else {
+                // MockClock runs tasks synchronously.
+                mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
+            }
             mDexUseManager = new DexUseManagerLocal(mInjector);
         }
 
@@ -333,16 +358,23 @@ public class DexUseManagerTest {
     /** Checks that it ignores and dedups things correctly. */
     @Test
     public void testSecondaryDexMultipleEntries() throws Exception {
-        verifySecondaryDexMultipleEntries(false /*saveAndLoad */);
+        verifySecondaryDexMultipleEntries(false /*saveAndLoad */, false /* shutdown */);
     }
 
-    /** Checks that it saves and loads data correctly. */
+    /** Checks that it saves data after some time has passed and loads data correctly. */
     @Test
     public void testSecondaryDexMultipleEntriesPersisted() throws Exception {
-        verifySecondaryDexMultipleEntries(true /*saveAndLoad */);
+        verifySecondaryDexMultipleEntries(true /*saveAndLoad */, false /* shutdown */);
     }
 
-    private void verifySecondaryDexMultipleEntries(boolean saveAndLoad) throws Exception {
+    /** Checks that it saves data when the device is being shutdown and loads data correctly. */
+    @Test
+    public void testSecondaryDexMultipleEntriesPersistedDueToShutdown() throws Exception {
+        verifySecondaryDexMultipleEntries(true /*saveAndLoad */, true /* shutdown */);
+    }
+
+    private void verifySecondaryDexMultipleEntries(boolean saveAndLoad, boolean shutdown)
+            throws Exception {
         when(mInjector.getCurrentTimeMillis()).thenReturn(1000l);
 
         // These should be ignored.
@@ -378,8 +410,12 @@ public class DexUseManagerTest {
                 Map.of(mCeDir + "/foo.apk", SecondaryDexInfo.UNSUPPORTED_CLASS_LOADER_CONTEXT));
 
         if (saveAndLoad) {
-            // MockClock runs tasks synchronously.
-            mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
+            if (shutdown) {
+                mBroadcastReceiverCaptor.getValue().onReceive(mContext, mock(Intent.class));
+            } else {
+                // MockClock runs tasks synchronously.
+                mMockClock.advanceTime(DexUseManagerLocal.INTERVAL_MS);
+            }
             mDexUseManager = new DexUseManagerLocal(mInjector);
         }
 
@@ -505,6 +541,23 @@ public class DexUseManagerTest {
         var map = new HashMap<String, String>();
         map.put(mCeDir + "/foo.apk", null);
         mDexUseManager.notifyDexContainersLoaded(mSnapshot, OWNING_PKG_NAME, map);
+    }
+
+    @Test
+    public void testFileNotFound() {
+        // It should fail to load the file.
+        when(mInjector.getFilename()).thenReturn("/nonexisting/file");
+        mDexUseManager = new DexUseManagerLocal(mInjector);
+
+        // Add some arbitrary data to see if it works fine after a failed load.
+        mDexUseManager.notifyDexContainersLoaded(
+                mSnapshot, LOADING_PKG_NAME, Map.of(mCeDir + "/foo.apk", "CLC"));
+
+        assertThat(mDexUseManager.getSecondaryDexInfo(OWNING_PKG_NAME))
+                .containsExactly(DetailedSecondaryDexInfo.create(mCeDir + "/foo.apk", mUserHandle,
+                        "CLC", Set.of("armeabi-v7a"),
+                        Set.of(DexLoader.create(LOADING_PKG_NAME, false /* isolatedProcess */)),
+                        true /* isUsedByOtherApps */, mDefaultIsDexFilePublic));
     }
 
     private AndroidPackage createPackage(String packageName) {
