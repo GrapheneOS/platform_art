@@ -611,6 +611,7 @@ CommonArtTestImpl::ForkAndExecResult CommonArtTestImpl::ForkAndExec(
   result.stage = ForkAndExecResult::kLink;
 
   std::vector<const char*> c_args;
+  c_args.reserve(argv.size() + 1);
   for (const std::string& str : argv) {
     c_args.push_back(str.c_str());
   }

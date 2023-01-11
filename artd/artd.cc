@@ -329,6 +329,7 @@ class FdLogger {
 
   std::string GetFds() {
     std::vector<int> fds;
+    fds.reserve(fd_mapping_.size());
     for (const auto& [fd, path] : fd_mapping_) {
       fds.push_back(fd);
     }

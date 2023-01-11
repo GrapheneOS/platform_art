@@ -68,6 +68,7 @@ pid_t ExecWithoutWait(const std::vector<std::string>& arg_vector, std::string* e
   // Convert the args to char pointers.
   const char* program = arg_vector[0].c_str();
   std::vector<char*> args;
+  args.reserve(arg_vector.size() + 1);
   for (const auto& arg : arg_vector) {
     args.push_back(const_cast<char*>(arg.c_str()));
   }
