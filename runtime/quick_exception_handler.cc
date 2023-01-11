@@ -384,8 +384,8 @@ class DeoptimizeStackVisitor final : public StackVisitor {
   DeoptimizeStackVisitor(Thread* self,
                          Context* context,
                          QuickExceptionHandler* exception_handler,
-                         bool single_frame)
-      REQUIRES_SHARED(Locks::mutator_lock_)
+                         bool single_frame,
+                         bool skip_method_exit_callbacks) REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         exception_handler_(exception_handler),
         prev_shadow_frame_(nullptr),
@@ -394,8 +394,8 @@ class DeoptimizeStackVisitor final : public StackVisitor {
         single_frame_done_(false),
         single_frame_deopt_method_(nullptr),
         single_frame_deopt_quick_method_header_(nullptr),
-        callee_method_(nullptr) {
-  }
+        callee_method_(nullptr),
+        skip_method_exit_callbacks_(skip_method_exit_callbacks) {}
 
   ArtMethod* GetSingleFrameDeoptMethod() const {
     return single_frame_deopt_method_;
@@ -482,6 +482,19 @@ class DeoptimizeStackVisitor final : public StackVisitor {
           Runtime::Current()->GetInstrumentation()->MethodSupportsExitEvents(
               method, GetCurrentOatQuickMethodHeader());
       new_frame->SetSkipMethodExitEvents(!supports_exit_events);
+      // If we are deoptimizing after method exit callback we shouldn't call the method exit
+      // callbacks again for the top frame. We may have to deopt after the callback if the callback
+      // either throws or performs other actions that require a deopt.
+      // We only need to skip for the top frame and the rest of the frames should still run the
+      // callbacks. So only do this check for the top frame.
+      if (GetFrameDepth() == 0U && skip_method_exit_callbacks_) {
+        new_frame->SetSkipMethodExitEvents(true);
+        // This exception was raised by method exit callbacks and we shouldn't report it to
+        // listeners for these exceptions.
+        if (GetThread()->IsExceptionPending()) {
+          new_frame->SetSkipNextExceptionEvent(true);
+        }
+      }
       if (updated_vregs != nullptr) {
         // Calling Thread::RemoveDebuggerShadowFrameMapping will also delete the updated_vregs
         // array so this must come after we processed the frame.
@@ -638,6 +651,10 @@ class DeoptimizeStackVisitor final : public StackVisitor {
   ArtMethod* single_frame_deopt_method_;
   const OatQuickMethodHeader* single_frame_deopt_quick_method_header_;
   ArtMethod* callee_method_;
+  // This specifies if method exit callbacks should be skipped for the top frame. We may request
+  // a deopt after running method exit callbacks if the callback throws or requests events that
+  // need a deopt.
+  bool skip_method_exit_callbacks_;
 
   DISALLOW_COPY_AND_ASSIGN(DeoptimizeStackVisitor);
 };
@@ -657,13 +674,13 @@ void QuickExceptionHandler::PrepareForLongJumpToInvokeStubOrInterpreterBridge() 
   }
 }
 
-void QuickExceptionHandler::DeoptimizeStack() {
+void QuickExceptionHandler::DeoptimizeStack(bool skip_method_exit_callbacks) {
   DCHECK(is_deoptimization_);
   if (kDebugExceptionDelivery) {
     self_->DumpStack(LOG_STREAM(INFO) << "Deoptimizing: ");
   }
 
-  DeoptimizeStackVisitor visitor(self_, context_, this, false);
+  DeoptimizeStackVisitor visitor(self_, context_, this, false, skip_method_exit_callbacks);
   visitor.WalkStack(true);
   PrepareForLongJumpToInvokeStubOrInterpreterBridge();
 }
@@ -671,7 +688,10 @@ void QuickExceptionHandler::DeoptimizeStack() {
 void QuickExceptionHandler::DeoptimizeSingleFrame(DeoptimizationKind kind) {
   DCHECK(is_deoptimization_);
 
-  DeoptimizeStackVisitor visitor(self_, context_, this, true);
+  // This deopt is requested while still executing the method. We haven't run method exit callbacks
+  // yet, so don't skip them.
+  DeoptimizeStackVisitor visitor(
+      self_, context_, this, true, /* skip_method_exit_callbacks= */ false);
   visitor.WalkStack(true);
 
   // Compiled code made an explicit deoptimization.
