@@ -1268,7 +1268,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     UNREACHABLE
 
 #ifdef USE_READ_BARRIER
-    CFI_RESTORE_STATE_AND_DEF_CFA esp, 4
+    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 4
 .Laput_obj_gc_marking:
     // We need to align stack for `art_quick_read_barrier_mark_regNN`.
     INCREASE_FRAME 8                        // Stack alignment.
