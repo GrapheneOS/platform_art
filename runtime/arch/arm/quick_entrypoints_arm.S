@@ -2566,7 +2566,8 @@ ENTRY art_quick_method_entry_hook
     SETUP_SAVE_EVERYTHING_FRAME r0
     ldr r0, [sp, FRAME_SIZE_SAVE_EVERYTHING] @ pass ArtMethod
     mov r1, rSELF                            @ pass Thread::Current
-    bl  artMethodEntryHook                   @ (ArtMethod*, Thread*)
+    mov r2, sp                               @ pass SP
+    bl  artMethodEntryHook                   @ (ArtMethod*, Thread*, SP)
     RESTORE_SAVE_EVERYTHING_FRAME
     REFRESH_MARKING_REGISTER
     blx lr

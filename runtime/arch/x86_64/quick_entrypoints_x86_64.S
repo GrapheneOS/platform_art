@@ -2167,8 +2167,9 @@ DEFINE_FUNCTION art_quick_method_entry_hook
 
     movq FRAME_SIZE_SAVE_EVERYTHING(%rsp), %rdi // pass ArtMethod
     movq %gs:THREAD_SELF_OFFSET, %rsi           // pass Thread::Current()
+    movq %rsp, %rdx                             // SP
 
-    call SYMBOL(artMethodEntryHook)              // (ArtMethod*, Thread*)
+    call SYMBOL(artMethodEntryHook)              // (ArtMethod*, Thread*, sp)
 
     RESTORE_SAVE_EVERYTHING_FRAME
     ret

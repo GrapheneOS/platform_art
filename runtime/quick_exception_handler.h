@@ -59,7 +59,10 @@ class QuickExceptionHandler {
   // Deoptimize the stack to the upcall/some code that's not deoptimizeable. For
   // every compiled frame, we create a "copy" shadow frame that will be executed
   // with the interpreter.
-  void DeoptimizeStack() REQUIRES_SHARED(Locks::mutator_lock_);
+  // skip_method_exit_callbacks specifies if we should skip method exit callbacks for the top frame.
+  // It is set if a deopt is needed after calling method exit callback for ex: if the callback
+  // throws or performs other actions that require a deopt.
+  void DeoptimizeStack(bool skip_method_exit_callbacks) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Deoptimize a single frame. It's directly triggered from compiled code. It
   // has the following properties:
