@@ -1723,7 +1723,7 @@ void IntrinsicCodeGeneratorARMVIXL::VisitSystemArrayCopy(HInvoke* invoke) {
   }
 
   // We only need one card marking on the destination array.
-  codegen_->MarkGCCard(temp1, temp2, dest, NoReg, /* value_can_be_null= */ false);
+  codegen_->MarkGCCard(temp1, temp2, dest, NoReg, /* emit_null_check= */ false);
 
   __ Bind(intrinsic_slow_path->GetExitLabel());
 }
@@ -4699,7 +4699,7 @@ static void GenerateVarHandleSet(HInvoke* invoke,
     vixl32::Register temp = target.offset;
     vixl32::Register card = temps.Acquire();
     vixl32::Register value_reg = RegisterFrom(value);
-    codegen->MarkGCCard(temp, card, target.object, value_reg, /*value_can_be_null=*/ true);
+    codegen->MarkGCCard(temp, card, target.object, value_reg, /* emit_null_check= */ true);
   }
 
   if (slow_path != nullptr) {

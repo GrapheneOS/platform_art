@@ -3259,7 +3259,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
   }
 
   // We only need one card marking on the destination array.
-  codegen_->MarkGCCard(temp1, temp2, dest, Register(kNoRegister), /* value_can_be_null= */ false);
+  codegen_->MarkGCCard(temp1, temp2, dest, Register(kNoRegister), /* emit_null_check= */ false);
 
   __ Bind(intrinsic_slow_path->GetExitLabel());
 }
@@ -4211,7 +4211,7 @@ static void GenerateVarHandleGetAndSet(HInvoke* invoke, CodeGeneratorX86* codege
             &temp2);
       }
       codegen->MarkGCCard(
-          temp, temp2, reference, value.AsRegister<Register>(), /* value_can_be_null= */ false);
+          temp, temp2, reference, value.AsRegister<Register>(), /* emit_null_check= */ false);
       if (kPoisonHeapReferences) {
         __ movl(temp, value.AsRegister<Register>());
         __ PoisonHeapReference(temp);

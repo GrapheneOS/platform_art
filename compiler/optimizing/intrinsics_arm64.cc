@@ -3335,7 +3335,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
   }
 
   // We only need one card marking on the destination array.
-  codegen_->MarkGCCard(dest.W(), Register(), /* value_can_be_null= */ false);
+  codegen_->MarkGCCard(dest.W(), Register(), /* emit_null_check= */ false);
 
   __ Bind(intrinsic_slow_path->GetExitLabel());
 }
@@ -4898,7 +4898,7 @@ static void GenerateVarHandleSet(HInvoke* invoke,
   }
 
   if (CodeGenerator::StoreNeedsWriteBarrier(value_type, invoke->InputAt(value_index))) {
-    codegen->MarkGCCard(target.object, Register(value), /*value_can_be_null=*/ true);
+    codegen->MarkGCCard(target.object, Register(value), /* emit_null_check= */ true);
   }
 
   if (slow_path != nullptr) {
