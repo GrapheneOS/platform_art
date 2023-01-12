@@ -498,7 +498,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
         invoke_to_analyze = invoke_instruction;
       }
       // Set always throws property for non-inlined method call with single target.
-      if (AlwaysThrows(actual_method)) {
+      if (invoke_instruction->AlwaysThrows() || AlwaysThrows(actual_method)) {
         invoke_to_analyze->SetAlwaysThrows(/* always_throws= */ true);
         graph_->SetHasAlwaysThrowingInvokes(/* value= */ true);
       }
