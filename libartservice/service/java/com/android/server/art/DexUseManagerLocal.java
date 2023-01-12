@@ -321,7 +321,7 @@ public class DexUseManagerLocal {
                 } else if (distinctClcList.size() == 1) {
                     clc = distinctClcList.get(0);
                 } else {
-                    // If there are more than one class loader contexts, we can't optimize the dex
+                    // If there are more than one class loader contexts, we can't dexopt the dex
                     // file.
                     clc = SecondaryDexInfo.VARYING_CLASS_LOADER_CONTEXTS;
                 }
@@ -349,7 +349,7 @@ public class DexUseManagerLocal {
      * ART Service uses this information to:
      * <ul>
      *   <li>Determine whether an app is used by another app
-     *   <li>Record which secondary dex container files to optimize and how to optimize them
+     *   <li>Record which secondary dex container files to dexopt and how to dexopt them
      * </ul>
      *
      * @param loadingPackageName the name of the package who performs the load. ART Service assumes
@@ -571,7 +571,7 @@ public class DexUseManagerLocal {
             @NonNull DexLoader loader, @NonNull String owningPackageName) {
         // If the dex file is loaded by an isolated process of the same app, it can also be
         // considered as "used by other apps" because isolated processes are sandboxed and can only
-        // read world readable files, so they need the optimized artifacts to be world readable. An
+        // read world readable files, so they need the dexopt artifacts to be world readable. An
         // example of such a package is webview.
         return !loader.loadingPackageName().equals(owningPackageName) || loader.isolatedProcess();
     }

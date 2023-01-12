@@ -19,7 +19,7 @@ package com.android.server.art;
 import static com.android.server.art.DexUseManagerLocal.DetailedSecondaryDexInfo;
 import static com.android.server.art.GetDexoptNeededResult.ArtifactsLocation;
 import static com.android.server.art.OutputArtifacts.PermissionSettings;
-import static com.android.server.art.model.OptimizeResult.DexContainerFileOptimizeResult;
+import static com.android.server.art.model.DexoptResult.DexContainerFileDexoptResult;
 import static com.android.server.art.testing.TestingUtils.deepEq;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -44,8 +44,8 @@ import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
 import com.android.server.art.model.ArtFlags;
-import com.android.server.art.model.OptimizeParams;
-import com.android.server.art.model.OptimizeResult;
+import com.android.server.art.model.DexoptParams;
+import com.android.server.art.model.DexoptResult;
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.art.testing.TestingUtils;
 import com.android.server.pm.PackageSetting;
@@ -75,8 +75,8 @@ public class SecondaryDexOptimizerTest {
     private static final String DEX_2 = APP_DATA_DIR + "/2.apk";
     private static final String DEX_3 = APP_DATA_DIR + "/3.apk";
 
-    private final OptimizeParams mOptimizeParams =
-            new OptimizeParams.Builder("bg-dexopt")
+    private final DexoptParams mDexoptParams =
+            new DexoptParams.Builder("bg-dexopt")
                     .setCompilerFilter("speed-profile")
                     .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX)
                     .build();
@@ -148,38 +148,38 @@ public class SecondaryDexOptimizerTest {
         lenient()
                 .when(mArtd.dexopt(any(), any(), any(), any(), any(), any(), any(), any(), anyInt(),
                         any(), any()))
-                .thenReturn(createDexoptResult());
+                .thenReturn(createArtdDexoptResult());
 
         lenient()
                 .when(mArtd.createCancellationSignal())
                 .thenReturn(mock(IArtdCancellationSignal.class));
 
         mSecondaryDexOptimizer = new SecondaryDexOptimizer(
-                mInjector, mPkgState, mPkg, mOptimizeParams, mCancellationSignal);
+                mInjector, mPkgState, mPkg, mDexoptParams, mCancellationSignal);
     }
 
     @Test
     public void testDexopt() throws Exception {
         assertThat(mSecondaryDexOptimizer.dexopt())
-                .comparingElementsUsing(TestingUtils.<DexContainerFileOptimizeResult>deepEquality())
+                .comparingElementsUsing(TestingUtils.<DexContainerFileDexoptResult>deepEquality())
                 .containsExactly(
-                        DexContainerFileOptimizeResult.create(DEX_1, true /* isPrimaryAbi */,
-                                "arm64-v8a", "speed-profile", OptimizeResult.OPTIMIZE_PERFORMED,
+                        DexContainerFileDexoptResult.create(DEX_1, true /* isPrimaryAbi */,
+                                "arm64-v8a", "speed-profile", DexoptResult.DEXOPT_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
                                 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */),
-                        DexContainerFileOptimizeResult.create(DEX_2, true /* isPrimaryAbi */,
-                                "arm64-v8a", "speed", OptimizeResult.OPTIMIZE_PERFORMED,
+                        DexContainerFileDexoptResult.create(DEX_2, true /* isPrimaryAbi */,
+                                "arm64-v8a", "speed", DexoptResult.DEXOPT_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
                                 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */),
-                        DexContainerFileOptimizeResult.create(DEX_2, false /* isPrimaryAbi */,
-                                "armeabi-v7a", "speed", OptimizeResult.OPTIMIZE_PERFORMED,
+                        DexContainerFileDexoptResult.create(DEX_2, false /* isPrimaryAbi */,
+                                "armeabi-v7a", "speed", DexoptResult.DEXOPT_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
                                 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */),
-                        DexContainerFileOptimizeResult.create(DEX_3, true /* isPrimaryAbi */,
-                                "arm64-v8a", "verify", OptimizeResult.OPTIMIZE_PERFORMED,
+                        DexContainerFileDexoptResult.create(DEX_3, true /* isPrimaryAbi */,
+                                "arm64-v8a", "verify", DexoptResult.DEXOPT_PERFORMED,
                                 0 /* dex2oatWallTimeMillis */, 0 /* dex2oatCpuTimeMillis */,
                                 0 /* sizeBytes */, 0 /* sizeBeforeBytes */,
                                 false /* isSkippedDueToStorageLow */));
@@ -306,8 +306,8 @@ public class SecondaryDexOptimizerTest {
         return result;
     }
 
-    private DexoptResult createDexoptResult() {
-        var result = new DexoptResult();
+    private ArtdDexoptResult createArtdDexoptResult() {
+        var result = new ArtdDexoptResult();
         result.cancelled = false;
         result.wallTimeMs = 0;
         result.cpuTimeMs = 0;

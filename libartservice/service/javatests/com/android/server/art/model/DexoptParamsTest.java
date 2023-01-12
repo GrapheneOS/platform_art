@@ -24,50 +24,45 @@ import org.junit.runner.RunWith;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class OptimizeParamsTest {
+public class DexoptParamsTest {
     @Test
     public void testBuild() {
-        new OptimizeParams.Builder("install").build();
+        new DexoptParams.Builder("install").build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildEmptyReason() {
-        new OptimizeParams.Builder("").build();
+        new DexoptParams.Builder("").build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildInvalidCompilerFilter() {
-        new OptimizeParams.Builder("install").setCompilerFilter("invalid").build();
+        new DexoptParams.Builder("install").setCompilerFilter("invalid").build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildInvalidPriorityClass() {
-        new OptimizeParams.Builder("install").setPriorityClass(101).build();
+        new DexoptParams.Builder("install").setPriorityClass(101).build();
     }
 
     @Test
     public void testBuildCustomReason() {
-        new OptimizeParams.Builder("custom")
-                .setCompilerFilter("speed")
-                .setPriorityClass(90)
-                .build();
+        new DexoptParams.Builder("custom").setCompilerFilter("speed").setPriorityClass(90).build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildCustomReasonEmptyCompilerFilter() {
-        new OptimizeParams.Builder("custom")
-                .setPriorityClass(ArtFlags.PRIORITY_INTERACTIVE)
-                .build();
+        new DexoptParams.Builder("custom").setPriorityClass(ArtFlags.PRIORITY_INTERACTIVE).build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBuildCustomReasonEmptyPriorityClass() {
-        new OptimizeParams.Builder("custom").setCompilerFilter("speed").build();
+        new DexoptParams.Builder("custom").setCompilerFilter("speed").build();
     }
 
     @Test
     public void testSingleSplit() {
-        new OptimizeParams.Builder("install")
+        new DexoptParams.Builder("install")
                 .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                 .setSplitName("split_0")
                 .build();
@@ -75,7 +70,7 @@ public class OptimizeParamsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testSingleSplitNoPrimaryFlag() {
-        new OptimizeParams.Builder("install")
+        new DexoptParams.Builder("install")
                 .setFlags(ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                 .setSplitName("split_0")
                 .build();
@@ -83,7 +78,7 @@ public class OptimizeParamsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testSingleSplitSecondaryFlag() {
-        new OptimizeParams.Builder("install")
+        new DexoptParams.Builder("install")
                 .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_FOR_SECONDARY_DEX
                         | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                 .setSplitName("split_0")
@@ -92,7 +87,7 @@ public class OptimizeParamsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testSingleSplitDependenciesFlag() {
-        new OptimizeParams.Builder("install")
+        new DexoptParams.Builder("install")
                 .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX | ArtFlags.FLAG_SHOULD_INCLUDE_DEPENDENCIES
                         | ArtFlags.FLAG_FOR_SINGLE_SPLIT)
                 .setSplitName("split_0")
@@ -101,7 +96,7 @@ public class OptimizeParamsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testSplitNameNoSingleSplitFlag() {
-        new OptimizeParams.Builder("install")
+        new DexoptParams.Builder("install")
                 .setFlags(ArtFlags.FLAG_FOR_PRIMARY_DEX)
                 .setSplitName("split_0")
                 .build();

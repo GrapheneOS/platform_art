@@ -63,10 +63,10 @@ namespace art {
 namespace artd {
 namespace {
 
+using ::aidl::com::android::server::art::ArtdDexoptResult;
 using ::aidl::com::android::server::art::ArtifactsPath;
 using ::aidl::com::android::server::art::DexMetadataPath;
 using ::aidl::com::android::server::art::DexoptOptions;
-using ::aidl::com::android::server::art::DexoptResult;
 using ::aidl::com::android::server::art::FileVisibility;
 using ::aidl::com::android::server::art::FsPermission;
 using ::aidl::com::android::server::art::IArtdCancellationSignal;
@@ -380,7 +380,8 @@ class ArtdTest : public CommonArtTest {
   }
 
   void RunDexopt(binder_exception_t expected_status = EX_NONE,
-                 Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled, false),
+                 Matcher<ArtdDexoptResult> aidl_return_matcher = Field(&ArtdDexoptResult::cancelled,
+                                                                       false),
                  std::shared_ptr<IArtdCancellationSignal> cancellation_signal = nullptr) {
     RunDexopt(Property(&ndk::ScopedAStatus::getExceptionCode, expected_status),
               std::move(aidl_return_matcher),
@@ -388,13 +389,14 @@ class ArtdTest : public CommonArtTest {
   }
 
   void RunDexopt(Matcher<ndk::ScopedAStatus> status_matcher,
-                 Matcher<DexoptResult> aidl_return_matcher = Field(&DexoptResult::cancelled, false),
+                 Matcher<ArtdDexoptResult> aidl_return_matcher = Field(&ArtdDexoptResult::cancelled,
+                                                                       false),
                  std::shared_ptr<IArtdCancellationSignal> cancellation_signal = nullptr) {
     InitFilesBeforeDexopt();
     if (cancellation_signal == nullptr) {
       ASSERT_TRUE(artd_->createCancellationSignal(&cancellation_signal).isOk());
     }
-    DexoptResult aidl_return;
+    ArtdDexoptResult aidl_return;
     ndk::ScopedAStatus status = artd_->dexopt(output_artifacts_,
                                               dex_file_,
                                               isa_,
@@ -617,13 +619,14 @@ TEST_F(ArtdTest, dexopt) {
                       WithArg<0>(WriteToFdFlag("--app-image-fd=", "art")),
                       SetArgPointee<2>(ProcessStat{.wall_time_ms = 100, .cpu_time_ms = 400}),
                       Return(0)));
-  RunDexopt(EX_NONE,
-            AllOf(Field(&DexoptResult::cancelled, false),
-                  Field(&DexoptResult::wallTimeMs, 100),
-                  Field(&DexoptResult::cpuTimeMs, 400),
-                  Field(&DexoptResult::sizeBytes, strlen("art") + strlen("oat") + strlen("vdex")),
-                  Field(&DexoptResult::sizeBeforeBytes,
-                        strlen("old_art") + strlen("old_oat") + strlen("old_vdex"))));
+  RunDexopt(
+      EX_NONE,
+      AllOf(Field(&ArtdDexoptResult::cancelled, false),
+            Field(&ArtdDexoptResult::wallTimeMs, 100),
+            Field(&ArtdDexoptResult::cpuTimeMs, 400),
+            Field(&ArtdDexoptResult::sizeBytes, strlen("art") + strlen("oat") + strlen("vdex")),
+            Field(&ArtdDexoptResult::sizeBeforeBytes,
+                  strlen("old_art") + strlen("old_oat") + strlen("old_vdex"))));
 
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "vdex");
@@ -762,7 +765,7 @@ TEST_F(ArtdTest, dexoptDexoptOptions) {
   // `sizeBeforeBytes` should include the size of the old ART file even if no new ART file is
   // generated.
   RunDexopt(EX_NONE,
-            Field(&DexoptResult::sizeBeforeBytes,
+            Field(&ArtdDexoptResult::sizeBeforeBytes,
                   strlen("old_art") + strlen("old_oat") + strlen("old_vdex")));
 }
 
@@ -1032,8 +1035,9 @@ TEST_F(ArtdTest, dexoptFailedToCommit) {
                         return 0;
                       }));
 
-  RunDexopt(EX_SERVICE_SPECIFIC,
-            AllOf(Field(&DexoptResult::sizeBytes, 0), Field(&DexoptResult::sizeBeforeBytes, 0)));
+  RunDexopt(
+      EX_SERVICE_SPECIFIC,
+      AllOf(Field(&ArtdDexoptResult::sizeBytes, 0), Field(&ArtdDexoptResult::sizeBeforeBytes, 0)));
 }
 
 TEST_F(ArtdTest, dexoptCancelledBeforeDex2oat) {
@@ -1052,7 +1056,7 @@ TEST_F(ArtdTest, dexoptCancelledBeforeDex2oat) {
 
   cancellation_signal->cancel();
 
-  RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, true), cancellation_signal);
+  RunDexopt(EX_NONE, Field(&ArtdDexoptResult::cancelled, true), cancellation_signal);
 
   CheckContent(scratch_path_ + "/a/oat/arm64/b.odex", "old_oat");
   CheckContent(scratch_path_ + "/a/oat/arm64/b.vdex", "old_vdex");
@@ -1091,8 +1095,9 @@ TEST_F(ArtdTest, dexoptCancelledDuringDex2oat) {
   {
     std::unique_lock<std::mutex> lock(mu);
     // Step 1.
-    t = std::thread(
-        [&] { RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, true), cancellation_signal); });
+    t = std::thread([&] {
+      RunDexopt(EX_NONE, Field(&ArtdDexoptResult::cancelled, true), cancellation_signal);
+    });
     EXPECT_EQ(process_started_cv.wait_for(lock, kTimeout), std::cv_status::no_timeout);
     // Step 3.
     cancellation_signal->cancel();
@@ -1122,7 +1127,7 @@ TEST_F(ArtdTest, dexoptCancelledAfterDex2oat) {
                       }));
   EXPECT_CALL(mock_kill_, Call).Times(0);
 
-  RunDexopt(EX_NONE, Field(&DexoptResult::cancelled, false), cancellation_signal);
+  RunDexopt(EX_NONE, Field(&ArtdDexoptResult::cancelled, false), cancellation_signal);
 
   // This signal should be ignored.
   cancellation_signal->cancel();

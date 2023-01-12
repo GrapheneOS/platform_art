@@ -26,51 +26,49 @@ import com.google.auto.value.AutoValue;
 import java.util.List;
 
 /**
- * Describes the optimization status of a package.
+ * Describes the dexopt status of a package.
  *
  * @hide
  */
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
 @AutoValue
-public abstract class OptimizationStatus {
+public abstract class DexoptStatus {
     /** @hide */
-    protected OptimizationStatus() {}
+    protected DexoptStatus() {}
 
     /** @hide */
-    public static @NonNull OptimizationStatus
-    create(@NonNull List<DexContainerFileOptimizationStatus> dexContainerFileOptimizationStatuses) {
-        return new AutoValue_OptimizationStatus(dexContainerFileOptimizationStatuses);
+    public static @NonNull DexoptStatus create(
+            @NonNull List<DexContainerFileDexoptStatus> dexContainerFileDexoptStatuses) {
+        return new AutoValue_DexoptStatus(dexContainerFileDexoptStatuses);
     }
 
     /**
-     * The statuses of the dex container file optimizations. Note that there can be multiple entries
+     * The statuses of the dex container file dexopts. Note that there can be multiple entries
      * for the same dex container file, but for different ABIs.
      */
-    @NonNull
-    public abstract List<DexContainerFileOptimizationStatus>
-    getDexContainerFileOptimizationStatuses();
+    @NonNull public abstract List<DexContainerFileDexoptStatus> getDexContainerFileDexoptStatuses();
 
     /**
-     * Describes the optimization status of a dex container file.
+     * Describes the dexopt status of a dex container file.
      *
      * @hide
      */
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     @Immutable
     @AutoValue
-    public abstract static class DexContainerFileOptimizationStatus {
+    public abstract static class DexContainerFileDexoptStatus {
         /** @hide */
-        protected DexContainerFileOptimizationStatus() {}
+        protected DexContainerFileDexoptStatus() {}
 
         /** @hide */
-        public static @NonNull DexContainerFileOptimizationStatus create(
-                @NonNull String dexContainerFile, boolean isPrimaryDex, boolean isPrimaryAbi,
-                @NonNull String abi, @NonNull String compilerFilter,
-                @NonNull String compilationReason, @NonNull String locationDebugString) {
-            return new AutoValue_OptimizationStatus_DexContainerFileOptimizationStatus(
-                    dexContainerFile, isPrimaryDex, isPrimaryAbi, abi, compilerFilter,
-                    compilationReason, locationDebugString);
+        public static @NonNull DexContainerFileDexoptStatus create(@NonNull String dexContainerFile,
+                boolean isPrimaryDex, boolean isPrimaryAbi, @NonNull String abi,
+                @NonNull String compilerFilter, @NonNull String compilationReason,
+                @NonNull String locationDebugString) {
+            return new AutoValue_DexoptStatus_DexContainerFileDexoptStatus(dexContainerFile,
+                    isPrimaryDex, isPrimaryAbi, abi, compilerFilter, compilationReason,
+                    locationDebugString);
         }
 
         /** The absolute path to the dex container file. */
@@ -84,14 +82,14 @@ public abstract class OptimizationStatus {
         public abstract boolean isPrimaryDex();
 
         /**
-         * If true, the optimization is for the primary ABI of the package (the ABI that the
-         * application is launched with). Otherwise, the optimization is for an ABI that other
+         * If true, the dexopt is for the primary ABI of the package (the ABI that the
+         * application is launched with). Otherwise, the dexopt is for an ABI that other
          * applications might be launched with when using this application's code.
          */
         public abstract boolean isPrimaryAbi();
 
         /**
-         * Returns the ABI that the optimization is for. Possible values are documented at
+         * Returns the ABI that the dexopt is for. Possible values are documented at
          * https://developer.android.com/ndk/guides/abis#sa.
          */
         public abstract @NonNull String getAbi();
@@ -102,10 +100,10 @@ public abstract class OptimizationStatus {
          * Possible values are:
          * <ul>
          *   <li>A valid value of the {@code --compiler-filer} option passed to {@code dex2oat}, if
-         *     the optimized artifacts are valid. See
+         *     the dexopt artifacts are valid. See
          *     https://source.android.com/docs/core/dalvik/configure#compilation_options.
-         *   <li>{@code "run-from-apk"}, if the optimized artifacts do not exist.
-         *   <li>{@code "run-from-apk-fallback"}, if the optimized artifacts exist but are invalid
+         *   <li>{@code "run-from-apk"}, if the dexopt artifacts do not exist.
+         *   <li>{@code "run-from-apk-fallback"}, if the dexopt artifacts exist but are invalid
          *     because the dex container file has changed.
          *   <li>{@code "error"}, if an unexpected error occurs.
          * </ul>
@@ -118,12 +116,12 @@ public abstract class OptimizationStatus {
          * Possible values are:
          * <ul>
          *   <li>The compilation reason, in text format, passed to {@code dex2oat}.
-         *   <li>{@code "unknown"}: if the reason is empty or the optimized artifacts do not exist.
+         *   <li>{@code "unknown"}: if the reason is empty or the dexopt artifacts do not exist.
          *   <li>{@code "error"}: if an unexpected error occurs.
          * </ul>
          *
          * Note that this value can differ from the requested compilation reason passed to {@link
-         * OptimizeParams.Builder}. Specifically, if the requested reason is for app install (e.g.,
+         * DexoptParams.Builder}. Specifically, if the requested reason is for app install (e.g.,
          * "install"), and a DM file is passed to {@code dex2oat}, a "-dm" suffix will be appended
          * to the actual reason (e.g., "install-dm"). Other compilation reasons remain unchanged
          * even if a DM file is passed to {@code dex2oat}.
@@ -136,7 +134,7 @@ public abstract class OptimizationStatus {
         public abstract @NonNull String getCompilationReason();
 
         /**
-         * A human-readable string that describes the location of the optimized artifacts.
+         * A human-readable string that describes the location of the dexopt artifacts.
          *
          * Note that this string is for debugging purposes only. There is no stability guarantees
          * for the format of the string. DO NOT use it programmatically.

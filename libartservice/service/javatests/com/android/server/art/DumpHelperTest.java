@@ -18,7 +18,7 @@ package com.android.server.art;
 
 import static com.android.server.art.DexUseManagerLocal.DexLoader;
 import static com.android.server.art.DexUseManagerLocal.SecondaryDexInfo;
-import static com.android.server.art.model.OptimizationStatus.DexContainerFileOptimizationStatus;
+import static com.android.server.art.model.DexoptStatus.DexContainerFileDexoptStatus;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.mock;
 
 import androidx.test.filters.SmallTest;
 
-import com.android.server.art.model.OptimizationStatus;
+import com.android.server.art.model.DexoptStatus;
 import com.android.server.pm.PackageManagerLocal;
 import com.android.server.pm.pkg.AndroidPackage;
 import com.android.server.pm.pkg.PackageState;
@@ -131,31 +131,31 @@ public class DumpHelperTest {
 
     private void setUpForFoo() {
         // The order of the dex path and the ABI should be kept in the output.
-        var status = OptimizationStatus.create(
-                List.of(DexContainerFileOptimizationStatus.create("/data/app/foo/base.apk",
+        var status = DexoptStatus.create(
+                List.of(DexContainerFileDexoptStatus.create("/data/app/foo/base.apk",
                                 true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
                                 "speed-profile", "bg-dexopt", "location-ignored"),
-                        DexContainerFileOptimizationStatus.create("/data/app/foo/base.apk",
+                        DexContainerFileDexoptStatus.create("/data/app/foo/base.apk",
                                 true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
                                 "verify", "install", "location-ignored"),
-                        DexContainerFileOptimizationStatus.create("/data/app/foo/split_0.apk",
+                        DexContainerFileDexoptStatus.create("/data/app/foo/split_0.apk",
                                 true /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
                                 "verify", "vdex", "location-ignored"),
-                        DexContainerFileOptimizationStatus.create("/data/app/foo/split_0.apk",
+                        DexContainerFileDexoptStatus.create("/data/app/foo/split_0.apk",
                                 true /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
                                 "verify", "vdex", "location-ignored"),
-                        DexContainerFileOptimizationStatus.create("/data/user_de/0/foo/1.apk",
+                        DexContainerFileDexoptStatus.create("/data/user_de/0/foo/1.apk",
                                 false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
                                 "run-from-apk", "unknown", "location-ignored"),
-                        DexContainerFileOptimizationStatus.create("/data/user_de/0/foo/2.apk",
+                        DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
                                 false /* isPrimaryDex */, true /* isPrimaryAbi */, "arm64-v8a",
                                 "speed-profile", "bg-dexopt", "location-ignored"),
-                        DexContainerFileOptimizationStatus.create("/data/user_de/0/foo/2.apk",
+                        DexContainerFileDexoptStatus.create("/data/user_de/0/foo/2.apk",
                                 false /* isPrimaryDex */, false /* isPrimaryAbi */, "armeabi-v7a",
                                 "verify", "vdex", "location-ignored")));
 
         lenient()
-                .when(mArtManagerLocal.getOptimizationStatus(any(), eq(PKG_NAME_FOO)))
+                .when(mArtManagerLocal.getDexoptStatus(any(), eq(PKG_NAME_FOO)))
                 .thenReturn(status);
 
         // The output should not show "used by other apps:".
@@ -200,16 +200,16 @@ public class DumpHelperTest {
         // The order of the ABI should be kept in the output, despite that it's different from the
         // order for package "foo".
         // The output should not show "known secondary dex files:".
-        var status = OptimizationStatus.create(
-                List.of(DexContainerFileOptimizationStatus.create("/data/app/bar/base.apk",
+        var status = DexoptStatus.create(
+                List.of(DexContainerFileDexoptStatus.create("/data/app/bar/base.apk",
                                 true /* isPrimaryDex */, true /* isPrimaryAbi */, "armeabi-v7a",
                                 "verify", "install", "location-ignored"),
-                        DexContainerFileOptimizationStatus.create("/data/app/bar/base.apk",
+                        DexContainerFileDexoptStatus.create("/data/app/bar/base.apk",
                                 true /* isPrimaryDex */, false /* isPrimaryAbi */, "arm64-v8a",
                                 "verify", "install", "location-ignored")));
 
         lenient()
-                .when(mArtManagerLocal.getOptimizationStatus(any(), eq(PKG_NAME_BAR)))
+                .when(mArtManagerLocal.getDexoptStatus(any(), eq(PKG_NAME_BAR)))
                 .thenReturn(status);
 
         lenient()

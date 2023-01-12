@@ -31,22 +31,22 @@ import java.util.List;
 @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
 @Immutable
 @AutoValue
-public abstract class BatchOptimizeParams {
+public abstract class BatchDexoptParams {
     /** @hide */
     @SystemApi(client = SystemApi.Client.SYSTEM_SERVER)
     public static final class Builder {
         private @NonNull List<String> mPackageNames; // This is assumed immutable.
-        private @NonNull OptimizeParams mOptimizeParams;
+        private @NonNull DexoptParams mDexoptParams;
 
         /** @hide */
-        public Builder(@NonNull List<String> defaultPackages,
-                @NonNull OptimizeParams defaultOptimizeParams) {
+        public Builder(
+                @NonNull List<String> defaultPackages, @NonNull DexoptParams defaultDexoptParams) {
             mPackageNames = defaultPackages; // The argument is assumed immutable.
-            mOptimizeParams = defaultOptimizeParams;
+            mDexoptParams = defaultDexoptParams;
         }
 
         /**
-         * Sets the list of packages to optimize. The optimization will be scheduled in the given
+         * Sets the list of packages to dexopt. The dexopt will be scheduled in the given
          * order.
          *
          * If not called, the default list will be used.
@@ -58,30 +58,30 @@ public abstract class BatchOptimizeParams {
         }
 
         /**
-         * Sets the params for optimizing each package.
+         * Sets the params for dexopting each package.
          *
-         * If not called, the default params built from {@link OptimizeParams#Builder(String)} will
+         * If not called, the default params built from {@link DexoptParams#Builder(String)} will
          * be used.
          */
         @NonNull
-        public Builder setOptimizeParams(@NonNull OptimizeParams optimizeParams) {
-            mOptimizeParams = optimizeParams;
+        public Builder setDexoptParams(@NonNull DexoptParams dexoptParams) {
+            mDexoptParams = dexoptParams;
             return this;
         }
 
         /** Returns the built object. */
         @NonNull
-        public BatchOptimizeParams build() {
-            return new AutoValue_BatchOptimizeParams(mPackageNames, mOptimizeParams);
+        public BatchDexoptParams build() {
+            return new AutoValue_BatchDexoptParams(mPackageNames, mDexoptParams);
         }
     }
 
     /** @hide */
-    protected BatchOptimizeParams() {}
+    protected BatchDexoptParams() {}
 
-    /** The ordered list of packages to optimize. */
+    /** The ordered list of packages to dexopt. */
     public abstract @NonNull List<String> getPackages();
 
-    /** The params for optimizing each package. */
-    public abstract @NonNull OptimizeParams getOptimizeParams();
+    /** The params for dexopting each package. */
+    public abstract @NonNull DexoptParams getDexoptParams();
 }

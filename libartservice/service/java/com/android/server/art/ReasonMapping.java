@@ -42,15 +42,15 @@ import java.lang.annotation.RetentionPolicy;
 public class ReasonMapping {
     private ReasonMapping() {}
 
-    /** Optimizing apps on the first boot after flashing or factory resetting the device. */
+    /** Dexopting apps on the first boot after flashing or factory resetting the device. */
     public static final String REASON_FIRST_BOOT = "first-boot";
-    /** Optimizing apps on the next boot after an OTA. */
+    /** Dexopting apps on the next boot after an OTA. */
     public static final String REASON_BOOT_AFTER_OTA = "boot-after-ota";
-    /** Optimizing apps on the next boot after a mainline update. */
+    /** Dexopting apps on the next boot after a mainline update. */
     public static final String REASON_BOOT_AFTER_MAINLINE_UPDATE = "boot-after-mainline-update";
     /** Installing an app after user presses the "install"/"update" button. */
     public static final String REASON_INSTALL = "install";
-    /** Optimizing apps in the background. */
+    /** Dexopting apps in the background. */
     public static final String REASON_BG_DEXOPT = "bg-dexopt";
     /** Invoked by cmdline. */
     public static final String REASON_CMDLINE = "cmdline";
@@ -71,7 +71,7 @@ public class ReasonMapping {
             REASON_INSTALL_BULK_DOWNGRADED, REASON_INSTALL_BULK_SECONDARY_DOWNGRADED);
 
     /**
-     * Reasons for {@link ArtManagerLocal#optimizePackages}.
+     * Reasons for {@link ArtManagerLocal#dexoptPackages}.
      *
      * @hide
      */
@@ -84,7 +84,7 @@ public class ReasonMapping {
     })
     // clang-format on
     @Retention(RetentionPolicy.SOURCE)
-    public @interface BatchOptimizeReason {}
+    public @interface BatchDexoptReason {}
 
     /**
      * Reasons for {@link ArtManagerLocal#onBoot(String, Executor, Consumer<OperationProgress>)}.
@@ -176,13 +176,13 @@ public class ReasonMapping {
     }
 
     /**
-     * Loads the concurrency from the system property, for batch optimization ({@link
-     * ArtManagerLocal#optimizePackages}), or 1 if the system property is not found or cannot be
+     * Loads the concurrency from the system property, for batch dexopt ({@link
+     * ArtManagerLocal#dexoptPackages}), or 1 if the system property is not found or cannot be
      * parsed.
      *
      * @hide
      */
-    public static int getConcurrencyForReason(@NonNull @BatchOptimizeReason String reason) {
+    public static int getConcurrencyForReason(@NonNull @BatchDexoptReason String reason) {
         return SystemProperties.getInt("pm.dexopt." + reason + ".concurrency", 1 /* def */);
     }
 }
