@@ -449,17 +449,19 @@ Runtime::~Runtime() {
     callbacks_->NextRuntimePhase(RuntimePhaseCallback::RuntimePhase::kDeath);
   }
 
-  if (attach_shutdown_thread) {
-    DetachCurrentThread(/* should_run_callbacks= */ false);
-    self = nullptr;
-  }
-
+  // Delete thread pools before detaching the current thread in case tasks
+  // getting deleted need to have access to Thread::Current.
   heap_->DeleteThreadPool();
   if (oat_file_manager_ != nullptr) {
     oat_file_manager_->DeleteThreadPool();
   }
   DeleteThreadPool();
   CHECK(thread_pool_ == nullptr);
+
+  if (attach_shutdown_thread) {
+    DetachCurrentThread(/* should_run_callbacks= */ false);
+    self = nullptr;
+  }
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
   GetRuntimeCallbacks()->StopDebugger();

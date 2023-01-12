@@ -2667,7 +2667,8 @@ ENTRY art_quick_method_entry_hook
 
     ldr x0, [sp, #FRAME_SIZE_SAVE_EVERYTHING] // pass ArtMethod*
     mov x1, xSELF                             // pass Thread::Current
-    bl  artMethodEntryHook                    // (ArtMethod*, Thread*)
+    mov x2, sp                                // pass SP
+    bl  artMethodEntryHook                    // (ArtMethod*, Thread*, SP)
 
     RESTORE_SAVE_EVERYTHING_FRAME             // Note: will restore xSELF
     REFRESH_MARKING_REGISTER

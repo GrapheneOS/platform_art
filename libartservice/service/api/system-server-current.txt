@@ -6,16 +6,21 @@ package com.android.server.art {
     ctor public ArtManagerLocal(@NonNull android.content.Context);
     method public void addOptimizePackageDoneCallback(boolean, @NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
     method public void cancelBackgroundDexoptJob();
+    method @NonNull public void clearAppProfiles(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
+    method @NonNull public void clearAppProfiles(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method public void clearOptimizePackagesCallback();
     method public void clearScheduleBackgroundDexoptJobCallback();
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.DeleteResult deleteOptimizedArtifacts(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
+    method public void dump(@NonNull java.io.PrintWriter, @NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot);
+    method public void dumpPackage(@NonNull java.io.PrintWriter, @NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String);
     method @NonNull public com.android.server.art.model.OptimizationStatus getOptimizationStatus(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, int);
     method public int handleShellCommand(@NonNull android.os.Binder, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull android.os.ParcelFileDescriptor, @NonNull String[]);
     method public void onBoot(@NonNull String, @Nullable java.util.concurrent.Executor, @Nullable java.util.function.Consumer<com.android.server.art.model.OperationProgress>);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams);
     method @NonNull public com.android.server.art.model.OptimizeResult optimizePackage(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull com.android.server.art.model.OptimizeParams, @NonNull android.os.CancellationSignal);
+    method public void printShellCommandHelp(@NonNull java.io.PrintWriter);
     method public void removeOptimizePackageDoneCallback(@NonNull com.android.server.art.ArtManagerLocal.OptimizePackageDoneCallback);
     method public int scheduleBackgroundDexoptJob();
     method public void setOptimizePackagesCallback(@NonNull java.util.concurrent.Executor, @NonNull com.android.server.art.ArtManagerLocal.OptimizePackagesCallback);
@@ -48,6 +53,7 @@ package com.android.server.art {
 
   public class DexUseManagerLocal {
     method @NonNull public static com.android.server.art.DexUseManagerLocal createInstance(@NonNull android.content.Context);
+    method @NonNull public java.util.List<com.android.server.art.model.DexContainerFileUseInfo> getSecondaryDexContainerFileUseInfo(@NonNull String);
     method public void notifyDexContainersLoaded(@NonNull com.android.server.pm.PackageManagerLocal.FilteredSnapshot, @NonNull String, @NonNull java.util.Map<java.lang.String,java.lang.String>);
     method public void systemReady();
   }
@@ -72,6 +78,7 @@ package com.android.server.art {
 package com.android.server.art.model {
 
   public class ArtFlags {
+    method public static int defaultClearProfileFlags();
     method public static int defaultDeleteFlags();
     method public static int defaultGetStatusFlags();
     field public static final int FLAG_FORCE = 16; // 0x10
@@ -105,6 +112,12 @@ package com.android.server.art.model {
     method public abstract long getFreedBytes();
   }
 
+  public abstract class DexContainerFileUseInfo {
+    method @NonNull public abstract String getDexContainerFile();
+    method @NonNull public abstract java.util.Set<java.lang.String> getLoadingPackages();
+    method @NonNull public abstract android.os.UserHandle getUserHandle();
+  }
+
   public abstract class OperationProgress {
     method public int getPercentage();
   }
@@ -120,6 +133,7 @@ package com.android.server.art.model {
     method @NonNull public abstract String getDexContainerFile();
     method @NonNull public abstract String getLocationDebugString();
     method public abstract boolean isPrimaryAbi();
+    method public abstract boolean isPrimaryDex();
   }
 
   public class OptimizeParams {

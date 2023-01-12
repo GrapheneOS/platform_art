@@ -43,6 +43,7 @@ import android.os.storage.StorageManager;
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.server.art.model.DexContainerFileUseInfo;
 import com.android.server.art.testing.MockClock;
 import com.android.server.art.testing.StaticMockitoRule;
 import com.android.server.pm.PackageManagerLocal;
@@ -445,6 +446,14 @@ public class DexUseManagerTest {
                                 Set.of(DexLoader.create(
                                         OWNING_PKG_NAME, false /* isolatedProcess */)),
                                 false /* isUsedByOtherApps */, mDefaultIsDexFilePublic));
+
+        assertThat(mDexUseManager.getSecondaryDexContainerFileUseInfo(OWNING_PKG_NAME))
+                .containsExactly(DexContainerFileUseInfo.create(mCeDir + "/foo.apk", mUserHandle,
+                                         Set.of(OWNING_PKG_NAME, LOADING_PKG_NAME)),
+                        DexContainerFileUseInfo.create(mCeDir + "/bar.apk", mUserHandle,
+                                Set.of(OWNING_PKG_NAME, LOADING_PKG_NAME)),
+                        DexContainerFileUseInfo.create(
+                                mCeDir + "/baz.apk", mUserHandle, Set.of(OWNING_PKG_NAME)));
 
         assertThat(mDexUseManager.getPackageLastUsedAtMs(OWNING_PKG_NAME)).isEqualTo(2000l);
     }

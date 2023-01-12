@@ -1268,7 +1268,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     UNREACHABLE
 
 #ifdef USE_READ_BARRIER
-    CFI_RESTORE_STATE_AND_DEF_CFA esp, 4
+    CFI_RESTORE_STATE_AND_DEF_CFA rsp, 4
 .Laput_obj_gc_marking:
     // We need to align stack for `art_quick_read_barrier_mark_regNN`.
     INCREASE_FRAME 8                        // Stack alignment.
@@ -2167,8 +2167,9 @@ DEFINE_FUNCTION art_quick_method_entry_hook
 
     movq FRAME_SIZE_SAVE_EVERYTHING(%rsp), %rdi // pass ArtMethod
     movq %gs:THREAD_SELF_OFFSET, %rsi           // pass Thread::Current()
+    movq %rsp, %rdx                             // SP
 
-    call SYMBOL(artMethodEntryHook)              // (ArtMethod*, Thread*)
+    call SYMBOL(artMethodEntryHook)              // (ArtMethod*, Thread*, sp)
 
     RESTORE_SAVE_EVERYTHING_FRAME
     ret
